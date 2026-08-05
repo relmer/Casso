@@ -154,11 +154,11 @@ std::string WindowPlacementProfile::BuildTopologyKey (HMONITOR activeMonitor)
 {
     std::vector<MonitorSnapshot>  monitors;
     std::wstring                  activeDevice;
-    MONITORINFOEXW                activeInfo  = { sizeof (activeInfo) };
+    MONITORINFOEXW                activeInfo                 = { sizeof (activeInfo) };
     std::wstring                  canonical;
-    uint64_t                      hash        = 0;
+    uint64_t                      hash                       = 0;
     char                          hashHex[kHashHexChars + 1] = {};
-    size_t                        i           = 0;
+    size_t                        i                          = 0;
 
 
 

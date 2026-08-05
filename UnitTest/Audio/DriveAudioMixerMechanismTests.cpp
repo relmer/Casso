@@ -47,16 +47,16 @@ public:
             pcm[i] = ((i & 1) == 0) ? amplitude : -amplitude;
         }
 
-        uint32_t   sampleRate    = s_kTestSampleRate;
-        uint32_t   dataBytes     = static_cast<uint32_t> (pcm.size() * sizeof (int16_t));
-        uint32_t   fileSize      = 36 + dataBytes;
-        uint16_t   numChannels   = 1;
-        uint16_t   bitsPerSample = 16;
-        uint32_t   byteRate      = sampleRate * numChannels * (bitsPerSample / 8);
-        uint16_t   blockAlign    = numChannels * (bitsPerSample / 8);
-        uint16_t   formatPcm     = 1;
-        uint32_t   fmtSize       = 16;
-        std::error_code ec;
+        uint32_t         sampleRate    = s_kTestSampleRate;
+        uint32_t         dataBytes     = static_cast<uint32_t> (pcm.size() * sizeof (int16_t));
+        uint32_t         fileSize      = 36 + dataBytes;
+        uint16_t         numChannels   = 1;
+        uint16_t         bitsPerSample = 16;
+        uint32_t         byteRate      = sampleRate * numChannels * (bitsPerSample / 8);
+        uint16_t         blockAlign    = numChannels * (bitsPerSample / 8);
+        uint16_t         formatPcm     = 1;
+        uint32_t         fmtSize       = 16;
+        std::error_code  ec;
 
         fs::create_directories (path.parent_path(), ec);
 
@@ -80,8 +80,8 @@ public:
 
         for (float s : pcm)
         {
-            float  scaled = s * 32767.0f;
-            int16_t  asI16 = static_cast<int16_t> (scaled);
+            float    scaled = s * 32767.0f;
+            int16_t  asI16  = static_cast<int16_t> (scaled);
             out.write (reinterpret_cast<const char *> (&asI16), sizeof (asI16));
         }
     }
@@ -90,7 +90,7 @@ public:
     static fs::path MakeDevicesDir (const wchar_t * suffix)
     {
         fs::path  base = fs::temp_directory_path() / L"casso_mech_tests";
-        fs::path  dir  = base / suffix;
+        fs::path         dir = base / suffix;
         std::error_code  ec;
 
         fs::remove_all  (dir, ec);

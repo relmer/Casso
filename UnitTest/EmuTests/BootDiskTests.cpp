@@ -53,16 +53,16 @@ TEST_CLASS (BootDiskTests)
 {
 public:
 
-    static constexpr int     kMaxAncestorWalk     = 10;
-    static constexpr size_t  kHgrPayloadSize      = 8192;
-    static constexpr size_t  kLoresPayloadSize    = 1024;
-    static constexpr size_t  kSectorByteSize      = 256;
-    static constexpr int     kSectorsPerTrack     = 16;
-    static constexpr Word    kHgrBase             = 0x2000;
-    static constexpr Word    kBootEntry           = 0xC600;
-    static constexpr Word    kDemoEntry           = 0x0801;
-    static constexpr Word    kStage2Entry         = 0x1000;
-    static constexpr uint64_t  kDemoCycleBudget   = 10'000'000ULL;  // 10M cycles ≈ 9.8 sec emulated; ample for 9 disk tracks (~2 sec real time)
+    static constexpr int       kMaxAncestorWalk  = 10;
+    static constexpr size_t    kHgrPayloadSize   = 8192;
+    static constexpr size_t    kLoresPayloadSize = 1024;
+    static constexpr size_t    kSectorByteSize   = 256;
+    static constexpr int       kSectorsPerTrack  = 16;
+    static constexpr Word      kHgrBase          = 0x2000;
+    static constexpr Word      kBootEntry        = 0xC600;
+    static constexpr Word      kDemoEntry        = 0x0801;
+    static constexpr Word      kStage2Entry      = 0x1000;
+    static constexpr uint64_t  kDemoCycleBudget  = 10'000'000ULL;   // 10M cycles ≈ 9.8 sec emulated; ample for 9 disk tracks (~2 sec real time)
 
 
     // Walks up from the test's working directory (x64\Debug) looking for a

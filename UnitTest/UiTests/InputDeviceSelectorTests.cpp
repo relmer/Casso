@@ -59,7 +59,7 @@ public:
     TEST_METHOD (SegmentAt_MapsChipsAndRejectsGaps)
     {
         InputDeviceSelector  sel = MakeLaidOut (true);
-        RECT  b = sel.Bounds();
+        RECT                 b   = sel.Bounds();
 
         // Walk the control horizontally at mid height; collect segments.
         int   midY = (b.top + b.bottom) / 2;
@@ -82,9 +82,9 @@ public:
             L"outside bounds -> None");
 
         // Without the mouse, the third segment must be gone.
-        InputDeviceSelector  two = MakeLaidOut (false);
-        RECT  c = two.Bounds();
-        bool  sawM2 = false;
+        InputDeviceSelector  two   = MakeLaidOut (false);
+        RECT                 c     = two.Bounds();
+        bool                 sawM2 = false;
         for (int x = c.left; x < c.right; ++x)
         {
             if (two.SegmentAt (x, (c.top + c.bottom) / 2) == InputDeviceSelector::Segment::Mouse)
@@ -120,12 +120,12 @@ public:
 
         // Positional tooltips: each segment describes ITSELF, regardless of
         // the current state.
-        InputDeviceSelector  laid = MakeLaidOut (true);
-        RECT  b = laid.Bounds();
-        int   midY = (b.top + b.bottom) / 2;
-        std::wstring  segTips[3];
-        int           found = 0;
-        InputDeviceSelector::Segment  last = InputDeviceSelector::Segment::None;
+        InputDeviceSelector           laid       = MakeLaidOut (true);
+        RECT                          b          = laid.Bounds();
+        int                           midY       = (b.top + b.bottom) / 2;
+        std::wstring                  segTips[3];
+        int                           found      = 0;
+        InputDeviceSelector::Segment  last       = InputDeviceSelector::Segment::None;
         for (int x = b.left; x < b.right && found < 3; ++x)
         {
             InputDeviceSelector::Segment  seg = laid.SegmentAt (x, midY);

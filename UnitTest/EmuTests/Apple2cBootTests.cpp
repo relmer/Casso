@@ -50,8 +50,8 @@ TEST_CLASS (Apple2cBootTests)
 {
 public:
 
-    static constexpr size_t     kRomSize = 0x8000;      // 32K, two 16K banks
-    static constexpr Word       kMonitorReset = 0xFA62; // ROM 4 RESET vector target
+    static constexpr size_t  kRomSize      = 0x8000;   // 32K, two 16K banks
+    static constexpr Word    kMonitorReset = 0xFA62;   // ROM 4 RESET vector target
 
     bool Apple2cRomAvailable()
     {

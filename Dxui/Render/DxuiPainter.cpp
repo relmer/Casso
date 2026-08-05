@@ -863,14 +863,14 @@ void DxuiPainter::DrawLineApprox (
 
 HRESULT DxuiPainter::End (ID3D11RenderTargetView * pRtv)
 {
-    HRESULT                    hr           = S_OK;
-    D3D11_MAPPED_SUBRESOURCE   mapped       = {};
-    UINT                       stride       = sizeof (Vertex);
-    UINT                       offset       = 0;
-    float                      blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    D3D11_VIEWPORT             vp           = {};
-    ID3D11RenderTargetView   * rtvs[1]      = { pRtv };
-    bool                       hasNothingToDraw = false;
+    HRESULT                     hr               = S_OK;
+    D3D11_MAPPED_SUBRESOURCE    mapped           = {};
+    UINT                        stride           = sizeof (Vertex);
+    UINT                        offset           = 0;
+    float                       blendFactor[4]   = { 0.0f, 0.0f, 0.0f, 0.0f };
+    D3D11_VIEWPORT              vp               = {};
+    ID3D11RenderTargetView    * rtvs[1]          = { pRtv };
+    bool                        hasNothingToDraw = false;
 
 
     DXUI_ASSERT_UI_THREAD();

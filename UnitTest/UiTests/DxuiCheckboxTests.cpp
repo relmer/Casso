@@ -66,7 +66,7 @@ public:
     TEST_METHOD (MouseDownThenUp_Toggles)
     {
         DxuiCheckbox  cb;
-        bool      observed = false;
+        bool          observed = false;
         cb.SetRect (MakeRect (0, 0, 100, 20));
         cb.SetOnChange ([&] (bool v) { observed = v; });
 

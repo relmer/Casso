@@ -90,8 +90,8 @@ public:
             AppleKeyboard kbd;
             kbd.KeyPress (ch);
 
-            Byte val = kbd.Read (0xC000);
-            Byte asciiPart = val & 0x7F;
+            Byte  val       = kbd.Read (0xC000);
+            Byte  asciiPart = val & 0x7F;
 
             Assert::AreEqual (ch, asciiPart,
                 std::format (L"Key ${:02X} should read back as ${:02X}, got ${:02X}",
@@ -158,8 +158,8 @@ public:
     TEST_METHOD (KeyPress_ViaBus_ReturnsCorrectValue)
     {
         // Prove keyboard works when accessed through MemoryBus
-        MemoryBus bus;
-        AppleKeyboard kbd;
+        MemoryBus      bus;
+        AppleKeyboard  kbd;
         bus.AddDevice (&kbd);
 
         kbd.KeyPress ('H');

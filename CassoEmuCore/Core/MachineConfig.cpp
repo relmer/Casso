@@ -561,11 +561,11 @@ HRESULT MachineConfigLoader::LoadInternalDevices (
 
     for (idx = 0; idx < devArray.ArraySize(); idx++)
     {
-        const JsonValue & entry = devArray.ArrayAt (idx);
-        InternalDevice    dev;
-        string            flagStr;
-        HRESULT           hrFlag = S_OK;
-        HRESULT           hrLock = S_OK;
+        const JsonValue  & entry   = devArray.ArrayAt (idx);
+        InternalDevice     dev;
+        string             flagStr;
+        HRESULT            hrFlag  = S_OK;
+        HRESULT            hrLock  = S_OK;
 
 
 

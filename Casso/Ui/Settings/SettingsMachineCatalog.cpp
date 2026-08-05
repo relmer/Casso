@@ -317,10 +317,10 @@ void SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
                                         ? m_emuShell->m_hwnd
                                         : GetActiveWindow();
     std::vector<fs::path>  searchPaths;
-    fs::path          assetBaseDir;
-    std::string       bootstrapError;
-    bool              userExited  = false;
-    bool              selected    = (m_emuShell != nullptr && !machineName.empty());
+    fs::path               assetBaseDir;
+    std::string            bootstrapError;
+    bool                   userExited     = false;
+    bool                   selected       = (m_emuShell != nullptr && !machineName.empty());
 
 
 

@@ -98,20 +98,20 @@ private:
 
     static bool Shift   () { return (GetKeyState (VK_SHIFT)   & 0x8000) != 0; }
     static bool Control () { return (GetKeyState (VK_CONTROL) & 0x8000) != 0; }
-    std::wstring          m_text;
-    std::wstring          m_placeholder;
-    size_t                m_maxLen     = 64;
-    size_t                m_caret      = 0;
-    size_t                m_anchor     = 0;
-    bool                  m_focused    = false;
-    bool                  m_enabled    = true;
-    bool                  m_hover      = false;
-    bool                  m_dragging   = false;
-    bool                  m_chromeless = false;
-    const IDxuiTheme    * m_theme      = nullptr;
-    HWND                  m_hwnd       = nullptr;
-    ChangeFn              m_change;
-    DxuiDpiScaler             m_scaler;
+    std::wstring        m_text;
+    std::wstring        m_placeholder;
+    size_t              m_maxLen      = 64;
+    size_t              m_caret       = 0;
+    size_t              m_anchor      = 0;
+    bool                m_focused     = false;
+    bool                m_enabled     = true;
+    bool                m_hover       = false;
+    bool                m_dragging    = false;
+    bool                m_chromeless  = false;
+    const IDxuiTheme  * m_theme       = nullptr;
+    HWND                m_hwnd        = nullptr;
+    ChangeFn            m_change;
+    DxuiDpiScaler       m_scaler;
 
     // Horizontal scroll offset (pixels) for the rendered text. Paint
     // adjusts this so the caret remains inside the visible inner

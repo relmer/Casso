@@ -21,8 +21,8 @@ namespace OutputFormatTests
 
         TEST_METHOD (SRecord_HasS0Header)
         {
-            std::vector<Byte> data = { 0xEA };
-            std::ostringstream oss;
+            std::vector<Byte>   data = { 0xEA };
+            std::ostringstream  oss;
 
 
 
@@ -38,8 +38,8 @@ namespace OutputFormatTests
 
         TEST_METHOD (SRecord_HasS1DataRecord)
         {
-            std::vector<Byte> data = { 0xEA, 0x00 };
-            std::ostringstream oss;
+            std::vector<Byte>   data = { 0xEA, 0x00 };
+            std::ostringstream  oss;
 
 
 
@@ -55,8 +55,8 @@ namespace OutputFormatTests
 
         TEST_METHOD (SRecord_HasS9EndRecord)
         {
-            std::vector<Byte> data = { 0xEA };
-            std::ostringstream oss;
+            std::vector<Byte>   data = { 0xEA };
+            std::ostringstream  oss;
 
 
 
@@ -72,8 +72,8 @@ namespace OutputFormatTests
 
         TEST_METHOD (SRecord_DataRecordContainsBytes)
         {
-            std::vector<Byte> data = { 0xA9, 0x42 };
-            std::ostringstream oss;
+            std::vector<Byte>   data = { 0xA9, 0x42 };
+            std::ostringstream  oss;
 
 
 
@@ -95,8 +95,8 @@ namespace OutputFormatTests
 
         TEST_METHOD (IntelHex_HasDataRecord)
         {
-            std::vector<Byte> data = { 0xEA };
-            std::ostringstream oss;
+            std::vector<Byte>   data = { 0xEA };
+            std::ostringstream  oss;
 
 
 
@@ -112,8 +112,8 @@ namespace OutputFormatTests
 
         TEST_METHOD (IntelHex_HasEOFRecord)
         {
-            std::vector<Byte> data = { 0xEA };
-            std::ostringstream oss;
+            std::vector<Byte>   data = { 0xEA };
+            std::ostringstream  oss;
 
 
 
@@ -129,8 +129,8 @@ namespace OutputFormatTests
 
         TEST_METHOD (IntelHex_DataRecordContainsBytes)
         {
-            std::vector<Byte> data = { 0xA9, 0x42 };
-            std::ostringstream oss;
+            std::vector<Byte>   data = { 0xA9, 0x42 };
+            std::ostringstream  oss;
 
 
 
@@ -146,8 +146,8 @@ namespace OutputFormatTests
 
         TEST_METHOD (IntelHex_AddressInRecord)
         {
-            std::vector<Byte> data = { 0xEA };
-            std::ostringstream oss;
+            std::vector<Byte>   data = { 0xEA };
+            std::ostringstream  oss;
 
 
 
@@ -164,8 +164,8 @@ namespace OutputFormatTests
 
         TEST_METHOD (IntelHex_StartAddressRecord)
         {
-            std::vector<Byte> data = { 0xA9, 0x42, 0xEA };
-            std::ostringstream oss;
+            std::vector<Byte>   data = { 0xA9, 0x42, 0xEA };
+            std::ostringstream  oss;
 
 
 

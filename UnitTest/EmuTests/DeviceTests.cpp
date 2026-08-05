@@ -69,8 +69,8 @@ public:
 
     TEST_METHOD (RomDevice_ReadsReturnData)
     {
-        Byte data[] = { 0xEA, 0x60, 0x00 };
-        auto rom = RomDevice::CreateFromData (0xFFFC, 0xFFFE, data, 3);
+        Byte  data[] = { 0xEA, 0x60, 0x00 };
+        auto  rom    = RomDevice::CreateFromData (0xFFFC, 0xFFFE, data, 3);
 
         Assert::AreEqual (static_cast<Byte> (0xEA), rom->Read (0xFFFC));
         Assert::AreEqual (static_cast<Byte> (0x60), rom->Read (0xFFFD));
@@ -78,8 +78,8 @@ public:
 
     TEST_METHOD (RomDevice_WritesAreIgnored)
     {
-        Byte data[] = { 0xAA };
-        auto rom = RomDevice::CreateFromData (0xD000, 0xD000, data, 1);
+        Byte  data[] = { 0xAA };
+        auto  rom    = RomDevice::CreateFromData (0xD000, 0xD000, data, 1);
 
         rom->Write (0xD000, 0x55);
 

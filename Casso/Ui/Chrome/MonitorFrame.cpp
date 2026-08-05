@@ -249,16 +249,16 @@ void MonitorFrame::Paint (
     IDxuiTextRenderer & text,
     const IDxuiTheme  & theme)
 {
-    float  cl  = (float) m_centerRect.left;
-    float  ct  = (float) m_centerRect.top;
-    float  cr  = (float) m_centerRect.right;
-    float  cb  = (float) m_centerRect.bottom;
-    float  hl  = (float) m_housingRect.left;
-    float  ht  = (float) m_housingRect.top;
-    float  hr  = (float) m_housingRect.right;
-    float  hb  = (float) m_housingRect.bottom;
-    float  sl  = (float) m_screenRect.left;
-    float  st  = (float) m_screenRect.top;
+    float  cl     = (float) m_centerRect.left;
+    float  ct     = (float) m_centerRect.top;
+    float  cr     = (float) m_centerRect.right;
+    float  cb     = (float) m_centerRect.bottom;
+    float  hl     = (float) m_housingRect.left;
+    float  ht     = (float) m_housingRect.top;
+    float  hr     = (float) m_housingRect.right;
+    float  hb     = (float) m_housingRect.bottom;
+    float  sl     = (float) m_screenRect.left;
+    float  st     = (float) m_screenRect.top;
     float  sr     = (float) m_screenRect.right;
     float  sb     = (float) m_screenRect.bottom;
     float  lip    = std::max (s_kMinLipPx, (float) MulDiv (s_kGlassLipDp, (int) m_dpi, s_kBaseDpi));

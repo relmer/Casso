@@ -161,9 +161,9 @@ public:
         // whole tracks.
         for (step = 0; step < 8; step++)
         {
-            int   phase   = (step + 1) & 3;
-            Word  onAddr  = static_cast<Word> (s_kSlot6Base + 1 + phase * 2);
-            Word  offAddr = static_cast<Word> (s_kSlot6Base + phase * 2);
+            int   phase    = (step + 1) & 3;
+            Word  onAddr   = static_cast<Word> (s_kSlot6Base + 1 + phase * 2);
+            Word  offAddr  = static_cast<Word> (s_kSlot6Base + phase * 2);
             int   beforeQt = disk->GetQuarterTrack();
 
             disk->Read (onAddr);
@@ -437,16 +437,16 @@ public:
 
     TEST_METHOD (LSS_WriteAdvancesHeadAndDepositsFlux)
     {
-        unique_ptr<Disk2Controller>    disk         = make_unique<Disk2Controller> (6);
-        DiskImage *                    img          = disk->GetDisk (0);
-        size_t                         startBit     = 0;
-        size_t                         endBit       = 0;
-        size_t                         advanced     = 0;
-        size_t                         trackBits    = 4096;
-        int                            i            = 0;
-        bool                           allOnes      = true;
-        constexpr int                  kNibbleCount = 6;
-        constexpr int                  kRegionBits  = kNibbleCount * s_kBitsPerNibble;
+        unique_ptr<Disk2Controller>    disk                    = make_unique<Disk2Controller> (6);
+        DiskImage                    * img                     = disk->GetDisk (0);
+        size_t                         startBit                = 0;
+        size_t                         endBit                  = 0;
+        size_t                         advanced                = 0;
+        size_t                         trackBits               = 4096;
+        int                            i                       = 0;
+        bool                           allOnes                 = true;
+        constexpr int                  kNibbleCount            = 6;
+        constexpr int                  kRegionBits             = kNibbleCount * s_kBitsPerNibble;
         constexpr Byte                 kOnesData[kNibbleCount] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 
         img->ResizeTrack (0, trackBits);
@@ -584,11 +584,11 @@ public:
 
     TEST_METHOD (Spinup_RealDataAfterWindowExpires)
     {
-        unique_ptr<Disk2Controller>    disk  = make_unique<Disk2Controller> (6);
-        DiskImage *                    img   = disk->GetDisk (0);
-        size_t                         off   = 0;
-        Byte                           value = 0;
-        uint64_t                       i     = 0;
+        unique_ptr<Disk2Controller>    disk    = make_unique<Disk2Controller> (6);
+        DiskImage                    * img     = disk->GetDisk (0);
+        size_t                         off     = 0;
+        Byte                           value   = 0;
+        uint64_t                       i       = 0;
         const uint64_t                 kBudget = 600'000ULL;
 
         img->ResizeTrack (0, s_kSyntheticTrackBytes * s_kBitsPerNibble);

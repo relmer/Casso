@@ -23,9 +23,9 @@ static void ExtractFields (const string  & jsonText,
                            wstring       & outDisplayName,
                            int           & outReleaseYear)
 {
-    HRESULT         hr = S_OK;
+    HRESULT         hr         = S_OK;
     string          name;
-    int             year = 0;
+    int             year       = 0;
     JsonValue       root;
     JsonParseError  parseError;
 

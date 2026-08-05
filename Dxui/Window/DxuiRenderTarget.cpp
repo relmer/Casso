@@ -216,11 +216,11 @@ Error:
 
 void DxuiRenderTarget::RenderFrame (const IDxuiTheme * theme)
 {
-    ID3D11RenderTargetView *  backRtv = BackBufferRtv();
-    SIZE                      sz      = {};
+    ID3D11RenderTargetView  * backRtv       = BackBufferRtv();
+    SIZE                      sz            = {};
     float                     clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-    uint32_t                  bgArgb   = 0xFF000000u;
-    bool                      composed = false;
+    uint32_t                  bgArgb        = 0xFF000000u;
+    bool                      composed      = false;
 
     // No render surface yet, or a zero-sized one (minimized / mid-resize):
     // there is nothing to draw into, and Present would fail anyway.

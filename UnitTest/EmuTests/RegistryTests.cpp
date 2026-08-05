@@ -36,8 +36,8 @@ public:
 
     TEST_METHOD (Register_DeviceFactory_CanCreate)
     {
-        ComponentRegistry registry;
-        MemoryBus bus;
+        ComponentRegistry  registry;
+        MemoryBus          bus;
 
         bool factoryCalled = false;
 
@@ -57,9 +57,9 @@ public:
 
     TEST_METHOD (UnknownType_ReturnsNull)
     {
-        ComponentRegistry registry;
-        MemoryBus bus;
-        DeviceConfig cfg;
+        ComponentRegistry  registry;
+        MemoryBus          bus;
+        DeviceConfig       cfg;
 
         auto result = registry.Create ("nonexistent", cfg, bus);
 

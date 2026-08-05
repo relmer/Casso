@@ -47,10 +47,10 @@ public:
     class RecordingSink : public IDxuiViewportInputSink
     {
     public:
-        int             mouseCount  = 0;
-        int             keyCount    = 0;
-        DxuiMouseEvent  lastMouse   = {};
-        DxuiKeyEvent    lastKey     = {};
+        int             mouseCount   = 0;
+        int             keyCount     = 0;
+        DxuiMouseEvent  lastMouse    = {};
+        DxuiKeyEvent    lastKey      = {};
         bool            consumeMouse = true;
         bool            consumeKey   = true;
 
@@ -129,7 +129,7 @@ public:
     {
         DxuiViewport   vp;
         DxuiDpiScaler  scaler;
-        RECT           bounds   = MakeRect (0, 0, 200, 100);
+        RECT           bounds    = MakeRect (0, 0, 200, 100);
         int            fireCount = 0;
         RECT           seen      = {};
 
@@ -145,7 +145,7 @@ public:
     {
         DxuiViewport   vp;
         DxuiDpiScaler  scaler;
-        RECT           bounds   = MakeRect (0, 0, 200, 100);
+        RECT           bounds    = MakeRect (0, 0, 200, 100);
         int            fireCount = 0;
 
         vp.SetOnBoundsChanged ([&] (const RECT &) { ++fireCount; });

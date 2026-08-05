@@ -233,9 +233,9 @@ public:
     // a fresh nibble rather than the same captured value again.
     Byte ReadNextNibble (EmulatorCore & core, uint64_t & ticksOut)
     {
-        Byte    latch = 0;
-        const uint64_t budget = 500'000ULL;
-        uint64_t i      = 0;
+        Byte            latch  = 0;
+        const uint64_t  budget = 500'000ULL;
+        uint64_t        i      = 0;
 
         for (i = 0; i < budget; i += kTicksPerLatchPoll)
         {
@@ -305,13 +305,13 @@ public:
     HRESULT FindAddressField (EmulatorCore & core, int wantTrack, int wantSector,
                               int & outVolume)
     {
-        HRESULT  hr = S_OK;
-        Byte    n0    = 0, n1 = 0, n2 = 0;
-        uint64_t spent = 0;
+        HRESULT   hr    = S_OK;
+        Byte      n0    = 0, n1 = 0, n2 = 0;
+        uint64_t  spent = 0;
         // Bound: ~3 disk revolutions worth of cycles.
-        const uint64_t kMaxSpent = 1'500'000ULL;
-        bool     found   = false;
-        bool     spinning = true;
+        const uint64_t  kMaxSpent = 1'500'000ULL;
+        bool            found     = false;
+        bool            spinning  = true;
 
         while (spinning && !found && spent < kMaxSpent)
         {
@@ -372,15 +372,15 @@ public:
     // back into 256 bytes per the standard 6-and-2 inverse.
     HRESULT ReadDataFieldAtCursor (EmulatorCore & core, vector<Byte> & outData)
     {
-        HRESULT  hr = S_OK;
-        Byte n0 = 0, n1 = 0, n2 = 0;
-        uint64_t spent = 0;
-        const uint64_t kMaxSpent = 500'000ULL;
+        HRESULT         hr        = S_OK;
+        Byte            n0        = 0, n1 = 0, n2 = 0;
+        uint64_t        spent     = 0;
+        const uint64_t  kMaxSpent = 500'000ULL;
         // 342 raw + 1 checksum
-        Byte encoded[342] = {};
-        Byte prev   = 0;
-        Byte chkNib = 0;
-        Byte chk    = 0;
+        Byte  encoded[342] = {};
+        Byte  prev         = 0;
+        Byte  chkNib       = 0;
+        Byte  chk          = 0;
 
         while (spent < kMaxSpent)
         {
@@ -455,17 +455,17 @@ public:
 
         // Dump the first 64 nibbles to %TEMP%\readback-trace.log so we
         // can see what the engine actually presents to the bus.
-        char  path[260] = {};
-        DWORD pl = GetTempPathA (260, path);
-        FILE * fp = nullptr;
+        char     path[260] = {};
+        DWORD    pl        = GetTempPathA (260, path);
+        FILE   * fp        = nullptr;
         if (pl > 0 && pl < 260 - 32)
         {
             strcat_s (path, "readback-trace.log");
             (void) fopen_s (&fp, path, "w");
         }
 
-        uint64_t spent = 0;
-        int      validCount = 0;
+        uint64_t  spent      = 0;
+        int       validCount = 0;
         for (int i = 0; i < 64; i++)
         {
             Byte n = ReadNextNibble (core, spent);

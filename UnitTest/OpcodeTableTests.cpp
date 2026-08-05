@@ -231,8 +231,8 @@ namespace OpcodeTableTests
 
         void VerifyOpcode (OpcodeTable & table, const char * mnemonic, GlobalAddressingMode::AddressingMode mode, Byte expectedOpcode)
         {
-            OpcodeEntry entry = {};
-            bool found = table.TryLookup (mnemonic, mode, entry);
+            OpcodeEntry  entry = {};
+            bool         found = table.TryLookup (mnemonic, mode, entry);
 
             std::wstring msg = L"Expected opcode for " + std::wstring (mnemonic, mnemonic + strlen (mnemonic));
             Assert::IsTrue (found, msg.c_str());

@@ -69,7 +69,7 @@ public:
 
     TEST_METHOD (SetItems_AutoDerivesAltLetterFromAmpersand)
     {
-        DxuiMenuBar               bar;
+        DxuiMenuBar                   bar;
         std::vector<DxuiMenuBarItem>  items = MakeTestItems();
 
 
@@ -371,9 +371,9 @@ public:
 
     TEST_METHOD (Enter_DispatchesHighlightedRowAndCloses)
     {
-        DxuiMenuBar               bar;
+        DxuiMenuBar                   bar;
         std::vector<DxuiMenuBarItem>  items;
-        int                       dispatched = 0;
+        int                           dispatched = 0;
 
 
         items.push_back ({ L"&Run", 0, {
@@ -390,12 +390,12 @@ public:
 
     TEST_METHOD (CheckQuery_RendersCheckGlyphWhenTrue)
     {
-        DxuiMenuBar               bar;
-        MockDxuiPainter           painter;
-        MockDxuiTextRenderer      text;
-        MockDxuiTheme             theme;
+        DxuiMenuBar                   bar;
+        MockDxuiPainter               painter;
+        MockDxuiTextRenderer          text;
+        MockDxuiTheme                 theme;
         std::vector<DxuiMenuBarItem>  items;
-        bool                      isChecked = true;
+        bool                          isChecked = true;
 
 
         items.push_back ({ L"&View", 0, {
@@ -432,9 +432,9 @@ public:
 
     TEST_METHOD (DisabledItem_DoesNotDispatchOnEnter)
     {
-        DxuiMenuBar               bar;
+        DxuiMenuBar                   bar;
         std::vector<DxuiMenuBarItem>  items;
-        int                       dispatched = 0;
+        int                           dispatched = 0;
 
 
         items.push_back ({ L"&File", 0, {
@@ -623,9 +623,9 @@ public:
 
     TEST_METHOD (SubmenuMnemonic_DispatchesAndCloses)
     {
-        DxuiMenuBar               bar;
+        DxuiMenuBar                   bar;
         std::vector<DxuiMenuBarItem>  items;
-        int                       dispatched = 0;
+        int                           dispatched = 0;
 
 
         items.push_back ({ L"&File", 0, {

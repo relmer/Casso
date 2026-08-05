@@ -552,8 +552,8 @@ JsonValue GlobalUserPrefs::RecentDiskTimesToJson (const std::vector<std::int64_t
 
 void GlobalUserPrefs::CrtModeFromJson (const JsonValue & modeObj, Crt & c)
 {
-    HRESULT           hr                      = S_OK;
-    const JsonValue * sources[s_kcCrtGroup] = {};
+    HRESULT            hr                    = S_OK;
+    const JsonValue  * sources[s_kcCrtGroup] = {};
 
 
 

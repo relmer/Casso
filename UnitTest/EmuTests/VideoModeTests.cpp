@@ -869,8 +869,8 @@ public:
         bus.WriteByte (0x0400, 0x40);   // main col 1 = char $40 ('@' inverse
                                         // in primary, MouseText 0 in alt)
 
-        std::vector<Byte> raw = Phase12VideoTestHelpers::Build4KSyntheticCharRom (0x7F, 0x00);
-        CharacterRomData rom;
+        std::vector<Byte>  raw = Phase12VideoTestHelpers::Build4KSyntheticCharRom (0x7F, 0x00);
+        CharacterRomData   rom;
         Assert::AreEqual (S_OK, rom.LoadFromMemory (raw.data(), raw.size()));
         Assert::IsTrue (rom.HasAltCharSet(), L"4KB synthetic rom must report alt char set");
 
@@ -923,8 +923,8 @@ public:
         // Main $0400 = $41 ('A' in flash range), screen col 1.
         bus.WriteByte (0x0400, 0x41);
 
-        std::vector<Byte> raw = Phase12VideoTestHelpers::Build4KSyntheticCharRom (0x7F, 0x7F);
-        CharacterRomData rom;
+        std::vector<Byte>  raw = Phase12VideoTestHelpers::Build4KSyntheticCharRom (0x7F, 0x7F);
+        CharacterRomData   rom;
         Assert::AreEqual (S_OK, rom.LoadFromMemory (raw.data(), raw.size()));
 
         Apple80ColTextMode text80 (bus, rom);

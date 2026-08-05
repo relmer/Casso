@@ -186,12 +186,12 @@ fs::path PathResolver::GetWorkingDirectory()
 
 fs::path PathResolver::GetLocalAppDataDir (const std::wstring & appName)
 {
-    HRESULT      hr      = S_OK;
-    PWSTR        pszPath = nullptr;
-    fs::path     result;
-    error_code   ec;
-    wchar_t      env[MAX_PATH] = {};
-    DWORD        envLen  = 0;
+    HRESULT     hr            = S_OK;
+    PWSTR       pszPath       = nullptr;
+    fs::path    result;
+    error_code  ec;
+    wchar_t     env[MAX_PATH] = {};
+    DWORD       envLen        = 0;
 
 
 

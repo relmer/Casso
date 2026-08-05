@@ -161,8 +161,8 @@ public:
     TEST_METHOD (SoftSwitch_ViaBus_Works)
     {
         // Prove soft switches work when accessed through MemoryBus
-        MemoryBus bus;
-        AppleSoftSwitchBank sw;
+        MemoryBus            bus;
+        AppleSoftSwitchBank  sw;
         bus.AddDevice (&sw);
 
         bus.ReadByte (0xC050);  // Graphics on via bus

@@ -38,8 +38,8 @@ public:
 
     TEST_METHOD (Parse_String_ReturnsValue)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("\"hello\"", value, error);
 
         AssertSucceeded (hr);
@@ -49,8 +49,8 @@ public:
 
     TEST_METHOD (Parse_Number_Integer)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("42", value, error);
 
         AssertSucceeded (hr);
@@ -60,8 +60,8 @@ public:
 
     TEST_METHOD (Parse_Number_Hex)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("0xC000", value, error);
 
         AssertSucceeded (hr);
@@ -70,8 +70,8 @@ public:
 
     TEST_METHOD (Parse_Boolean_True)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("true", value, error);
 
         AssertSucceeded (hr);
@@ -81,8 +81,8 @@ public:
 
     TEST_METHOD (Parse_Boolean_False)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("false", value, error);
 
         AssertSucceeded (hr);
@@ -91,8 +91,8 @@ public:
 
     TEST_METHOD (Parse_Null)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("null", value, error);
 
         AssertSucceeded (hr);
@@ -101,8 +101,8 @@ public:
 
     TEST_METHOD (Parse_EmptyObject)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("{}", value, error);
 
         AssertSucceeded (hr);
@@ -111,8 +111,8 @@ public:
 
     TEST_METHOD (Parse_EmptyArray)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("[]", value, error);
 
         AssertSucceeded (hr);
@@ -151,8 +151,8 @@ public:
 
     TEST_METHOD (Parse_Array_WithValues)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("[1, \"two\", true]", value, error);
 
         AssertSucceeded (hr);
@@ -164,8 +164,8 @@ public:
 
     TEST_METHOD (Parse_EscapedString)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("\"hello\\nworld\"", value, error);
 
         AssertSucceeded (hr);
@@ -174,8 +174,8 @@ public:
 
     TEST_METHOD (Parse_MalformedJSON_ReportsError)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("{\"key\":", value, error);
 
         AssertFailed (hr);
@@ -183,8 +183,8 @@ public:
 
     TEST_METHOD (Parse_UnterminatedString_ReportsError)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("\"unterminated", value, error);
 
         AssertFailed (hr);

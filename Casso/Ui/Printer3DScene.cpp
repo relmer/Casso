@@ -595,13 +595,13 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
             const XYZ &   b = pos[t * 3 + 1];
             const XYZ &   c = pos[t * 3 + 2];
 
-            float   ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
-            float   vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
-            float   nx = uy * vz - uz * vy;
-            float   ny = uz * vx - ux * vz;
-            float   nz2 = ux * vy - uy * vx;
-            float   nl = std::sqrt (nx * nx + ny * ny + nz2 * nz2);
-            float   shade = 0.72f;
+            float  ux    = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+            float  vx    = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+            float  nx    = uy * vz - uz * vy;
+            float  ny    = uz * vx - ux * vz;
+            float  nz2   = ux * vy - uy * vx;
+            float  nl    = std::sqrt (nx * nx + ny * ny + nz2 * nz2);
+            float  shade = 0.72f;
 
             if (nl > 1e-8f)
             {
@@ -1306,11 +1306,11 @@ void Printer3DScene::BuildBodyBack (std::vector<Vertex> & out) const
     // shading trick, so the recess actually reads as depth under the raking
     // camera angle instead of just a darker stripe.
     {
-        constexpr float   kVentRecess = 0.012f;
-        constexpr float   kVentW      = 0.010f;
-        float              zB         = s_kBodyZBack + 0.02f;
-        float              zF         = s_kDeckZFront - 0.015f;
-        float              floorY     = s_kDeckY - kVentRecess;
+        constexpr float  kVentRecess = 0.012f;
+        constexpr float  kVentW      = 0.010f;
+        float            zB          = s_kBodyZBack + 0.02f;
+        float            zF          = s_kDeckZFront - 0.015f;
+        float            floorY      = s_kDeckY - kVentRecess;
 
         for (float gx = -0.84f; gx <= 0.84f; gx += 0.06f)
         {
@@ -1559,11 +1559,11 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
         }
 
         {
-            float   v   = 1.0f - s / total;
-            float   p00[3] = { -s_kPaperHalfW, prevY, prevZ };
-            float   p10[3] = {  s_kPaperHalfW, prevY, prevZ };
-            float   p01[3] = { -s_kPaperHalfW, yPos, zPos };
-            float   p11[3] = {  s_kPaperHalfW, yPos, zPos };
+            float  v      = 1.0f - s / total;
+            float  p00[3] = { -s_kPaperHalfW, prevY, prevZ };
+            float  p10[3] = {  s_kPaperHalfW, prevY, prevZ };
+            float  p01[3] = { -s_kPaperHalfW, yPos, zPos };
+            float  p11[3] = {  s_kPaperHalfW, yPos, zPos };
 
             // Per-slice shade via two AppendQuads would double vertices; write
             // the quad directly so top/bottom edges carry their own shades.

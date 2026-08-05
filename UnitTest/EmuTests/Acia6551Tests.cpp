@@ -176,8 +176,8 @@ namespace Acia6551TestNs
             InterruptController     ic (&cpu);
             Acia6551                acia (kBase);
             AciaLoopbackEndpoint    loopback (&acia);
-            HRESULT                 hr = S_OK;
-            Byte                    status = 0;
+            HRESULT  hr     = S_OK;
+            Byte     status = 0;
 
 
 

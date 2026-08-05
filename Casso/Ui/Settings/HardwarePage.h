@@ -84,8 +84,8 @@ public:
     // (e.g. "Apple ][") for the FR-131 restart notice. Empty if none.
     std::wstring SelectedMachineDisplayName () const
     {
-        int  idx = m_machineDropdown.SelectedIndex();
-        const std::vector<std::wstring> & items = m_machineDropdown.Items();
+        int                                idx   = m_machineDropdown.SelectedIndex();
+        const std::vector<std::wstring>  & items = m_machineDropdown.Items();
         return (idx >= 0 && idx < (int) items.size()) ? items[(size_t) idx] : std::wstring();
     }
 
@@ -121,14 +121,14 @@ private:
     DxuiDropdown                         m_machineDropdown;
     DxuiDropdown                         m_speed;
 
-    std::array<DxuiLabel, kInfoRowCount>     m_infoLabels;
-    std::array<DxuiLabel, kInfoRowCount>     m_infoValues;
-    std::array<DxuiLabel, kInfoRowCount>     m_infoExtras;
-    size_t                               m_memoryRowsInUse = 0;
-    int                                  m_infoTop         = 0;
-    int                                  m_rowHeight       = 0;
-    int                                  m_sectionGap      = 0;
-    RECT                                 m_baseRect        = {};
-    DxuiDpiScaler                            m_scaler;
-    DxuiTreeView                             m_tree;
+    std::array<DxuiLabel, kInfoRowCount>  m_infoLabels;
+    std::array<DxuiLabel, kInfoRowCount>  m_infoValues;
+    std::array<DxuiLabel, kInfoRowCount>  m_infoExtras;
+    size_t                                m_memoryRowsInUse = 0;
+    int                                   m_infoTop         = 0;
+    int                                   m_rowHeight       = 0;
+    int                                   m_sectionGap      = 0;
+    RECT                                  m_baseRect        = {};
+    DxuiDpiScaler                         m_scaler;
+    DxuiTreeView                          m_tree;
 };

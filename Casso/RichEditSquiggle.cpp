@@ -225,12 +225,12 @@ void ApplyRejectedTokenSquiggles (
     HWND                                                    hRichEdit,
     const std::vector<TrackSectorPredicate::RejectedSpan> & spans)
 {
-    CHARRANGE       saved   = {};
-    CHARRANGE       all     = { 0, -1 };
-    CHARRANGE       range   = {};
-    CHARFORMAT2W    clearFmt = {};
-    CHARFORMAT2W    waveFmt  = {};
-    size_t          i       = 0;
+    CHARRANGE     saved    = {};
+    CHARRANGE     all      = { 0, -1 };
+    CHARRANGE     range    = {};
+    CHARFORMAT2W  clearFmt = {};
+    CHARFORMAT2W  waveFmt  = {};
+    size_t        i        = 0;
 
     if (hRichEdit == nullptr)
     {

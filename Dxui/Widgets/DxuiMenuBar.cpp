@@ -541,10 +541,10 @@ bool DxuiMenuBar::HandleAltKey (wchar_t ch)
 
 bool DxuiMenuBar::HandleKey (WPARAM vk)
 {
-    const DxuiMenuBarSubitem *  entry     = nullptr;
-    int   count     = VisibleRowCount (m_openIndex);
-    int   menuCount = (int) m_items.size();
-    int   next      = 0;
+    const DxuiMenuBarSubitem  * entry     = nullptr;
+    int                         count     = VisibleRowCount (m_openIndex);
+    int                         menuCount = (int) m_items.size();
+    int                         next      = 0;
     // The three guards the original ladder re-tested at each step: a key is
     // only interesting while open, menu-switching also needs menus, and
     // row navigation also needs rows.
@@ -623,13 +623,13 @@ bool DxuiMenuBar::HandleKey (WPARAM vk)
 
 bool DxuiMenuBar::ActivateMnemonicRow (wchar_t ch)
 {
-    const DxuiMenuBarSubitem *  hit = nullptr;
-    std::wstring  stripped;
-    wchar_t       lower   = (wchar_t) towlower (ch);
-    wchar_t       mnCh    = 0;
-    int           mnIdx   = -1;
-    int           row     = 0;
-    int           hitRow  = -1;
+    const DxuiMenuBarSubitem  * hit      = nullptr;
+    std::wstring                stripped;
+    wchar_t                     lower    = (wchar_t) towlower (ch);
+    wchar_t                     mnCh     = 0;
+    int                         mnIdx    = -1;
+    int                         row      = 0;
+    int                         hitRow   = -1;
 
 
 

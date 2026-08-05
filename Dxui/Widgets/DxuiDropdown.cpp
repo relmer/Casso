@@ -706,8 +706,8 @@ void DxuiDropdown::SetTheme (const IDxuiTheme * theme) const
 
 void DxuiDropdown::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
-    HRESULT      hr            = S_OK;
-    ResolvedColors c           = ResolveColors();
+    HRESULT         hr = S_OK;
+    ResolvedColors  c  = ResolveColors();
     uint32_t     boxColor      = !m_enabled            ? c.boxDisabled
                                  : (m_armed && m_hover) ? c.boxPressed
                                  : (m_open || m_hover)  ? c.boxHover

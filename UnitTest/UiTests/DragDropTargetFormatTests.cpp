@@ -341,9 +341,9 @@ public:
     TEST_METHOD (DragEnter_NullDataObject_InProgressButNotAccepted)
     {
         DxuiDragDropTarget  t;
-        POINTL          pt     = { 100, 100 };
-        DWORD           effect = DROPEFFECT_COPY;
-        HRESULT         hr     = S_OK;
+        POINTL              pt     = { 100, 100 };
+        DWORD               effect = DROPEFFECT_COPY;
+        HRESULT             hr     = S_OK;
 
         {
             // OLE never hands DragEnter a null data object, so the extract
@@ -363,7 +363,7 @@ public:
     TEST_METHOD (DragOver_NullPdwEffect_ReturnsPointerError)
     {
         DxuiDragDropTarget  t;
-        POINTL          pt = { 0, 0 };
+        POINTL              pt = { 0, 0 };
 
         Assert::AreEqual (E_POINTER, t.DragOver (0, pt, nullptr));
     }

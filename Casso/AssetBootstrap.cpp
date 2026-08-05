@@ -78,8 +78,8 @@ struct RomSpec
     // appleWinName). ROMs AppleWin does not carry (e.g. the Apple //c, which
     // AppleWin does not emulate) set an explicit host + fully-formed,
     // percent-encoded urlPath and leave appleWinName empty.
-    string_view  altHost    = {};
-    string_view  altUrlPath = {};
+    string_view  altHost     = {};
+    string_view  altUrlPath  = {};
     string_view  sourceLabel = {};   // shown in the download dialog (defaults to AppleWin)
 };
 
@@ -1934,27 +1934,27 @@ private:
     int                 ChosenResultAt     (int visibleRow) const;
     static std::wstring FormatLastLoaded   (std::int64_t loadedUnix);
 
-    static constexpr int    s_kColLastLoaded        = 0;
-    static constexpr int    s_kColDiskImage         = 1;
-    static constexpr int    s_kColLocation          = 2;
-    static constexpr int    s_kColumnCount          = 3;
-    static constexpr int    s_kListStop             = 0;
-    static constexpr int    s_kSearchStop           = 1;
-    static constexpr int    s_kFocusStopCount       = 2;
-    static constexpr int    s_kSearchHeightDip      = 30;
-    static constexpr int    s_kSearchListGapDip     = 8;
-    static constexpr int    s_kChromeReserveDip     = 240;
-    static constexpr int    s_kMinBodyHeightDip     = 160;
-    static constexpr int    s_kResizeGrabDip        = 4;
+    static constexpr int    s_kColLastLoaded         = 0;
+    static constexpr int    s_kColDiskImage          = 1;
+    static constexpr int    s_kColLocation           = 2;
+    static constexpr int    s_kColumnCount           = 3;
+    static constexpr int    s_kListStop              = 0;
+    static constexpr int    s_kSearchStop            = 1;
+    static constexpr int    s_kFocusStopCount        = 2;
+    static constexpr int    s_kSearchHeightDip       = 30;
+    static constexpr int    s_kSearchListGapDip      = 8;
+    static constexpr int    s_kChromeReserveDip      = 240;
+    static constexpr int    s_kMinBodyHeightDip      = 160;
+    static constexpr int    s_kResizeGrabDip         = 4;
     static constexpr int    s_kResizableMinWidthDip  = 480;
     static constexpr int    s_kResizableMinHeightDip = 320;
     static constexpr int    s_kResizableDefWidthDip  = 720;
     static constexpr int    s_kResizableDefHeightDip = 520;
     static constexpr int    s_kUnclampedBodyHeightPx = 100000;
-    static constexpr int    s_kDateTimeBufChars     = 64;
-    static constexpr int    s_kBaseDpi              = 96;
-    static constexpr UINT   s_kTickIntervalMs       = 30;
-    static constexpr float  s_kIconSizeDip          = 64.0f;
+    static constexpr int    s_kDateTimeBufChars      = 64;
+    static constexpr int    s_kBaseDpi               = 96;
+    static constexpr UINT   s_kTickIntervalMs        = 30;
+    static constexpr float  s_kIconSizeDip           = 64.0f;
 
     static constexpr std::uint64_t  s_kFiletimeTicksPerSec = 10000000ULL;
     static constexpr std::uint64_t  s_kUnixEpochFiletime   = 116444736000000000ULL;
@@ -2032,15 +2032,15 @@ Error:
 
 std::wstring DiskMruPickerSession::FormatLastLoaded (std::int64_t loadedUnix)
 {
-    HRESULT         hr      = S_OK;
+    HRESULT         hr                           = S_OK;
     std::wstring    result;
-    ULARGE_INTEGER  uli     = {};
-    FILETIME        ftUtc   = {};
-    FILETIME        ftLocal = {};
-    SYSTEMTIME      st      = {};
-    BOOL            ok      = FALSE;
-    int             dateLen = 0;
-    int             timeLen = 0;
+    ULARGE_INTEGER  uli                          = {};
+    FILETIME        ftUtc                        = {};
+    FILETIME        ftLocal                      = {};
+    SYSTEMTIME      st                           = {};
+    BOOL            ok                           = FALSE;
+    int             dateLen                      = 0;
+    int             timeLen                      = 0;
     wchar_t         dateBuf[s_kDateTimeBufChars] = {};
     wchar_t         timeBuf[s_kDateTimeBufChars] = {};
 
@@ -2532,8 +2532,8 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 
     for (int i = 0; i < mruCount; ++i)
     {
-        const DiskMru::Entry &       entry = mruEntries[(size_t) i];
-        DiskMruPickerSession::ModelRow  row;
+        const DiskMru::Entry            & entry = mruEntries[(size_t) i];
+        DiskMruPickerSession::ModelRow    row;
 
         row.name        = (mruLabels[(size_t) i] != nullptr) ? std::wstring (mruLabels[(size_t) i]->label)
                                                              : entry.path.filename().wstring();
@@ -2547,10 +2547,10 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 
     for (int j = 0; j < downloadCount; ++j)
     {
-        const DownloadRow *          dr       = shownDownloads[(size_t) j];
-        fs::path                     wantPath = diskDir / string (dr->spec->cassoName);
-        bool                         present  = fs::exists (wantPath, ec);
-        DiskMruPickerSession::ModelRow  row;
+        const DownloadRow               * dr       = shownDownloads[(size_t) j];
+        fs::path                          wantPath = diskDir / string (dr->spec->cassoName);
+        bool                              present  = fs::exists (wantPath, ec);
+        DiskMruPickerSession::ModelRow    row;
 
         row.name        = dr->label;
         row.location    = present ? L"Installed" : L"Asimov archive (Download)";
@@ -2700,8 +2700,8 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
     for (int i = 0; i < mruCount; ++i)
     {
-        const DiskMru::Entry &       entry = mruEntries[(size_t) i];
-        DiskMruPickerSession::ModelRow  row;
+        const DiskMru::Entry            & entry = mruEntries[(size_t) i];
+        DiskMruPickerSession::ModelRow    row;
 
         row.name        = (mruLabels[(size_t) i] != nullptr) ? std::wstring (mruLabels[(size_t) i]->label)
                                                              : entry.path.filename().wstring();
@@ -2715,10 +2715,10 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
     for (int j = 0; j < downloadCount; ++j)
     {
-        const DownloadRow *          dr       = shownDownloads[(size_t) j];
-        fs::path                     wantPath = diskDir / string (dr->spec->cassoName);
-        bool                         present  = fs::exists (wantPath, ec);
-        DiskMruPickerSession::ModelRow  row;
+        const DownloadRow               * dr       = shownDownloads[(size_t) j];
+        fs::path                          wantPath = diskDir / string (dr->spec->cassoName);
+        bool                              present  = fs::exists (wantPath, ec);
+        DiskMruPickerSession::ModelRow    row;
 
         row.name        = dr->label;
         row.location    = present ? L"Installed" : L"Asimov archive (Download)";
@@ -3093,7 +3093,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
             std::atomic<bool>          & cancel,
             std::string                & err) -> HRESULT
         {
-            HRESULT       hr = S_OK;
+            HRESULT       hr      = S_OK;
             HINTERNET     hSes    = nullptr;
             vector<Byte>  payload;
             error_code    ecLocal;
@@ -3200,11 +3200,11 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
                 for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
                 {
-                    fs::path                     mechDir = devicesDir / string (spec.mechanism);
-                    fs::path                     wavPath = mechDir / string (spec.wavBasename);
-                    vector<float>                pcm;
-                    wstring                      urlPath;
-                    bool                         fAborted = false;
+                    fs::path       mechDir  = devicesDir / string (spec.mechanism);
+                    fs::path       wavPath  = mechDir / string (spec.wavBasename);
+                    vector<float>  pcm;
+                    wstring        urlPath;
+                    bool           fAborted = false;
                     std::atomic<std::uint64_t>   perFileBytes{0};
 
                     if (spec.mechanism != mechStr)

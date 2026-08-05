@@ -35,8 +35,8 @@ struct CommandLineOptions
     enum class OutputFormat  { Binary, SRecord, IntelHex };
     enum class CpuTarget     { M6502, M65C02 };
 
-    Subcommand  subcommand      = Subcommand::None;
-    OutputFormat outputFormat    = OutputFormat::Binary;
+    Subcommand    subcommand   = Subcommand::None;
+    OutputFormat  outputFormat = OutputFormat::Binary;
     CpuTarget   cpuTarget       = CpuTarget::M6502;   // --cpu (default: strict 6502)
     std::string inputFile;
     std::string outputFile;
@@ -61,18 +61,18 @@ struct CommandLineOptions
     char        flagPrefix      = '-';     // '-' for Unix-style, '/' for Windows-style
 
     // AS65-compatible options
-    bool        cycleCounts     = false;   // -c
-    bool        macroExpansion  = false;   // -m
-    int         pageHeight      = 0;       // -h<N>
-    int         pageWidth       = 80;      // -w<N>
-    bool        caseSensitive   = false;   // -i (no-op)
-    bool        pass1Listing    = false;   // -p
-    bool        symbolTable     = false;   // -t
-    bool        debugInfo       = false;   // -g
-    bool        quiet           = false;   // -q
-    bool        disableOpt      = false;   // -n (no-op)
-    bool        fillZero        = false;   // -z
-    std::unordered_map<std::string, int32_t> predefinedSymbols; // -d
+    bool                                      cycleCounts       = false;   // -c
+    bool                                      macroExpansion    = false;   // -m
+    int                                       pageHeight        = 0;   // -h<N>
+    int                                       pageWidth         = 80;   // -w<N>
+    bool                                      caseSensitive     = false;   // -i (no-op)
+    bool                                      pass1Listing      = false;   // -p
+    bool                                      symbolTable       = false;   // -t
+    bool                                      debugInfo         = false;   // -g
+    bool                                      quiet             = false;   // -q
+    bool                                      disableOpt        = false;   // -n (no-op)
+    bool                                      fillZero          = false;   // -z
+    std::unordered_map<std::string, int32_t>  predefinedSymbols;   // -d
 };
 
 

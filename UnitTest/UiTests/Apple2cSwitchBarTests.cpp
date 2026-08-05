@@ -157,8 +157,8 @@ public:
         Apple2cSwitchBar      bar = MakeLaidOutBar (text);
 
         int   midY     = (s_kBand.top + s_kBand.bottom) / 2;
-        bool  sawTip    = false;
-        bool  sawNoTip  = false;
+        bool  sawTip   = false;
+        bool  sawNoTip = false;
 
         for (int x = s_kBand.left; x < s_kBand.right; ++x)
         {

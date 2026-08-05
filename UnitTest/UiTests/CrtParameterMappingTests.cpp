@@ -170,8 +170,8 @@ public:
 
         // Case 1 -- no user override; theme wins.
         {
-            GlobalUserPrefs  prefs;          // userOverride == false
-            CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, &theme, 640.0f, 480.0f);
+            GlobalUserPrefs  prefs;   // userOverride == false
+            CrtParams        params = MakeCrtParams (prefs.crtByMode[0], 0, &theme, 640.0f, 480.0f);
 
             Assert::AreEqual (0.85f, params.brightness);
             Assert::AreEqual (1.15f, params.contrast);

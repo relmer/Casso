@@ -81,9 +81,9 @@ public:
 
     TEST_METHOD (FormatEvent_HeadStep_detailMatchesQtArrow)
     {
-        Disk2Event           src = MakeStep (12, 16, 1234567);
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = MakeStep (12, 16, 1234567);
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         DebugDialogProjection::FormatEvent (src, anchor, out);
 
@@ -95,9 +95,9 @@ public:
 
     TEST_METHOD (FormatEvent_AddrMark_detailHasTrackSectorVolume)
     {
-        Disk2Event           src = {};
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = {};
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         src.category              = EventCategory::Controller;
         src.type                  = Disk2EventType::AddrMark;
@@ -113,9 +113,9 @@ public:
 
     TEST_METHOD (FormatEvent_DataRead_detailHasSectorAndByteCount)
     {
-        Disk2Event           src = {};
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = {};
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         src.type                   = Disk2EventType::DataRead;
         src.payload.dataMark       = { 17, 5, 254, 256 };
@@ -129,9 +129,9 @@ public:
 
     TEST_METHOD (FormatEvent_DataRead_detailUsesQuestionMarkWhenCachedAddrMarkAbsent)
     {
-        Disk2Event           src = {};
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = {};
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         src.type                   = Disk2EventType::DataRead;
         src.payload.dataMark       = { -1, -1, -1, 256 };
@@ -143,9 +143,9 @@ public:
 
     TEST_METHOD (FormatEvent_DriveSelect_detailHasDriveAndDriveField)
     {
-        Disk2Event           src = {};
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = {};
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         src.type                = Disk2EventType::DriveSelect;
         src.payload.drive.drive = 1;
@@ -158,9 +158,9 @@ public:
 
     TEST_METHOD (FormatEvent_MotorEngaged_detailIsEmpty)
     {
-        Disk2Event           src = {};
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = {};
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         src.type = Disk2EventType::MotorEngaged;
 
@@ -171,9 +171,9 @@ public:
 
     TEST_METHOD (FormatEvent_AudioStarted_detailHasKindAndDrive)
     {
-        Disk2Event           src = {};
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = {};
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         src.category             = EventCategory::Audio;
         src.type                 = Disk2EventType::AudioStarted;
@@ -187,9 +187,9 @@ public:
 
     TEST_METHOD (FormatEvent_AudioSilent_detailHasKindDriveReason)
     {
-        Disk2Event           src = {};
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = {};
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         src.category              = EventCategory::Audio;
         src.type                  = Disk2EventType::AudioSilent;
@@ -205,9 +205,9 @@ public:
 
     TEST_METHOD (FormatEvent_EventsLost_detailHasCount)
     {
-        Disk2Event           src = {};
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = {};
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         src.type                  = Disk2EventType::EventsLost;
         src.payload.lost.count    = 42;
@@ -219,9 +219,9 @@ public:
 
     TEST_METHOD (FormatEvent_Uptime_freshAnchor_startsAtZeroZero)
     {
-        Disk2Event           src = MakeStep (0, 1, 0);
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = MakeStep (0, 1, 0);
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         DebugDialogProjection::FormatEvent (src, anchor, out);
 
@@ -437,7 +437,7 @@ public:
 
     TEST_METHOD (ResolveSelection_zeroSeq_clears)
     {
-        std::deque<Disk2EventDisplay>  events = { MakeSeq (10), MakeSeq (20) };
+        std::deque<Disk2EventDisplay>  events   = { MakeSeq (10), MakeSeq (20) };
         std::vector<size_t>            filtered = { 0, 1 };
 
         DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (0, events, filtered);
@@ -461,7 +461,7 @@ public:
 
     TEST_METHOD (ResolveSelection_exactMatch_returnsRowKeepsSeq)
     {
-        std::deque<Disk2EventDisplay>  events = { MakeSeq (10), MakeSeq (20), MakeSeq (30) };
+        std::deque<Disk2EventDisplay>  events   = { MakeSeq (10), MakeSeq (20), MakeSeq (30) };
         std::vector<size_t>            filtered = { 0, 1, 2 };
 
         DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (20, events, filtered);
@@ -521,7 +521,7 @@ public:
     {
         // The older events were evicted; selection seq 5 precedes every
         // survivor, so there is no at-or-before match -> earliest survivor.
-        std::deque<Disk2EventDisplay>  events = { MakeSeq (30), MakeSeq (40), MakeSeq (50) };
+        std::deque<Disk2EventDisplay>  events   = { MakeSeq (30), MakeSeq (40), MakeSeq (50) };
         std::vector<size_t>            filtered = { 0, 1, 2 };
 
         DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (5, events, filtered);

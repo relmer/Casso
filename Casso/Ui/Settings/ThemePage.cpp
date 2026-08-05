@@ -29,14 +29,14 @@ RECT ThemePage::MakeRect (int l, int t, int w, int h)
 // per-channel. Used for the title-bar gradient bands.
 uint32_t ThemePage::LerpArgb (uint32_t a, uint32_t b, float t)
 {
-    uint8_t  aA = (uint8_t) ((a >> 24) & 0xFF);
-    uint8_t  rA = (uint8_t) ((a >> 16) & 0xFF);
-    uint8_t  gA = (uint8_t) ((a >>  8) & 0xFF);
-    uint8_t  bA = (uint8_t) ( a        & 0xFF);
-    uint8_t  aB = (uint8_t) ((b >> 24) & 0xFF);
-    uint8_t  rB = (uint8_t) ((b >> 16) & 0xFF);
-    uint8_t  gB = (uint8_t) ((b >>  8) & 0xFF);
-    uint8_t  bB = (uint8_t) ( b        & 0xFF);
+    uint8_t  aA   = (uint8_t) ((a >> 24) & 0xFF);
+    uint8_t  rA   = (uint8_t) ((a >> 16) & 0xFF);
+    uint8_t  gA   = (uint8_t) ((a >>  8) & 0xFF);
+    uint8_t  bA   = (uint8_t) ( a        & 0xFF);
+    uint8_t  aB   = (uint8_t) ((b >> 24) & 0xFF);
+    uint8_t  rB   = (uint8_t) ((b >> 16) & 0xFF);
+    uint8_t  gB   = (uint8_t) ((b >>  8) & 0xFF);
+    uint8_t  bB   = (uint8_t) ( b        & 0xFF);
     uint8_t  aOut = (uint8_t) (aA + (int) ((aB - (int) aA) * t));
     uint8_t  rOut = (uint8_t) (rA + (int) ((rB - (int) rA) * t));
     uint8_t  gOut = (uint8_t) (gA + (int) ((gB - (int) gA) * t));
@@ -121,13 +121,13 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         return;
     }
 
-    int  prevW       = prevRect.right  - prevRect.left;
-    int  prevH       = prevRect.bottom - prevRect.top;
-    int  titleH      = ScalePx (kPrevTitleBarDp);
-    int  navH        = ScalePx (kPrevNavStripDp);
-    int  driveBarH   = ScalePx (driveBandDp);
-    int  screenH     = std::max (0, prevH - titleH - navH - driveBarH);
-    UINT effectiveDpi = (UINT) std::max (24, (int) (96.0f * scale));
+    int   prevW        = prevRect.right  - prevRect.left;
+    int   prevH        = prevRect.bottom - prevRect.top;
+    int   titleH       = ScalePx (kPrevTitleBarDp);
+    int   navH         = ScalePx (kPrevNavStripDp);
+    int   driveBarH    = ScalePx (driveBandDp);
+    int   screenH      = std::max (0, prevH - titleH - navH - driveBarH);
+    UINT  effectiveDpi = (UINT) std::max (24, (int) (96.0f * scale));
 
     // Outer 1px frame so the preview reads as a discrete window
     // on the panel background.
@@ -235,9 +235,9 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
 
         if (screenH > 0 && framebufferSource)
         {
-            int               fbW = 0;
-            int               fbH = 0;
-            const uint32_t *  fbPixels = framebufferSource (fbW, fbH);
+            int               fbW      = 0;
+            int               fbH      = 0;
+            const uint32_t  * fbPixels = framebufferSource (fbW, fbH);
 
             if (fbPixels != nullptr && fbW > 0 && fbH > 0)
             {
@@ -268,9 +268,9 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
 
     // Drive bar: real DriveWidget instances at preview scale.
     {
-        int       driveTop  = prevRect.bottom - driveBarH;
-        int       gap       = std::max (1, ScalePx (16));
-        ChromeVisualState  visual = {};
+        int                driveTop = prevRect.bottom - driveBarH;
+        int                gap      = std::max (1, ScalePx (16));
+        ChromeVisualState  visual   = {};
 
         painter.FillRect ((float) prevRect.left, (float) driveTop,
                           (float) prevW, (float) driveBarH,
@@ -318,14 +318,14 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         previewScaler.SetDpi (effectiveDpi);
         previewDrives[0].Layout (previewAnchor, previewScaler);
 
-        RECT  probe   = previewDrives[0].OuterRect();
-        int   widgetW = probe.right  - probe.left;
-        int   widgetH = probe.bottom - probe.top;
-        int   totalW  = widgetW * 2 + gap;
-        int   startX  = prevRect.left + std::max (0, (prevW - totalW) / 2);
+        RECT  probe      = previewDrives[0].OuterRect();
+        int   widgetW    = probe.right  - probe.left;
+        int   widgetH    = probe.bottom - probe.top;
+        int   totalW     = widgetW * 2 + gap;
+        int   startX     = prevRect.left + std::max (0, (prevW - totalW) / 2);
         int   labelGapPx = std::max (1, ScalePx (2));
-        int   widgetY = prevRect.bottom - widgetH - labelGapPx;
-        int   d       = 0;
+        int   widgetY    = prevRect.bottom - widgetH - labelGapPx;
+        int   d          = 0;
 
         for (d = 0; d < 2; d++)
         {

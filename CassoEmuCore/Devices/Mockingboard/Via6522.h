@@ -50,24 +50,24 @@
 class Via6522
 {
 public:
-    static constexpr Byte    kRegOrb    = 0x0;
-    static constexpr Byte    kRegOra    = 0x1;
-    static constexpr Byte    kRegDdrb   = 0x2;
-    static constexpr Byte    kRegDdra   = 0x3;
-    static constexpr Byte    kRegT1CL   = 0x4;
-    static constexpr Byte    kRegT1CH   = 0x5;
-    static constexpr Byte    kRegT1LL   = 0x6;
-    static constexpr Byte    kRegT1LH   = 0x7;
-    static constexpr Byte    kRegT2CL   = 0x8;
-    static constexpr Byte    kRegT2CH   = 0x9;
-    static constexpr Byte    kRegSr     = 0xA;
-    static constexpr Byte    kRegAcr    = 0xB;
-    static constexpr Byte    kRegPcr    = 0xC;
-    static constexpr Byte    kRegIfr    = 0xD;
-    static constexpr Byte    kRegIer    = 0xE;
-    static constexpr Byte    kRegOraNh  = 0xF;
-    static constexpr Byte    kRegisterCount = 16;
-    static constexpr Byte    kRegisterMask  = 0x0F;
+    static constexpr Byte  kRegOrb        = 0x0;
+    static constexpr Byte  kRegOra        = 0x1;
+    static constexpr Byte  kRegDdrb       = 0x2;
+    static constexpr Byte  kRegDdra       = 0x3;
+    static constexpr Byte  kRegT1CL       = 0x4;
+    static constexpr Byte  kRegT1CH       = 0x5;
+    static constexpr Byte  kRegT1LL       = 0x6;
+    static constexpr Byte  kRegT1LH       = 0x7;
+    static constexpr Byte  kRegT2CL       = 0x8;
+    static constexpr Byte  kRegT2CH       = 0x9;
+    static constexpr Byte  kRegSr         = 0xA;
+    static constexpr Byte  kRegAcr        = 0xB;
+    static constexpr Byte  kRegPcr        = 0xC;
+    static constexpr Byte  kRegIfr        = 0xD;
+    static constexpr Byte  kRegIer        = 0xE;
+    static constexpr Byte  kRegOraNh      = 0xF;
+    static constexpr Byte  kRegisterCount = 16;
+    static constexpr Byte  kRegisterMask  = 0x0F;
 
     // IFR / IER bit assignments (datasheet Table).
     static constexpr Byte    kIrqCa2    = 0x01;
@@ -134,12 +134,12 @@ private:
     void    ClearFlag   (Byte flag);
     void    UpdateIrq   ();
 
-    Byte     m_ora   = 0;
-    Byte     m_orb   = 0;
-    Byte     m_ddra  = 0;
-    Byte     m_ddrb  = 0;
-    Byte     m_portAIn = 0;
-    Byte     m_portBIn = 0;
+    Byte  m_ora     = 0;
+    Byte  m_orb     = 0;
+    Byte  m_ddra    = 0;
+    Byte  m_ddrb    = 0;
+    Byte  m_portAIn = 0;
+    Byte  m_portBIn = 0;
 
     Byte     m_sr    = 0;
     Byte     m_acr   = 0;

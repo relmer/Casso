@@ -203,9 +203,9 @@ namespace Disk2EventRingTests
                 }
             });
 
-            uint64_t      seen    = 0;
-            uint64_t      lastVal = 0;
-            bool          haveLast = false;
+            uint64_t  seen     = 0;
+            uint64_t  lastVal  = 0;
+            bool      haveLast = false;
             Disk2Event    out     {};
 
             while (seen < kTotal)

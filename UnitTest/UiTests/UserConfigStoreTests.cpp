@@ -63,7 +63,7 @@ public:
         JsonParseError     err;
         const JsonValue  * machines = nullptr;
         const JsonValue  * machine  = nullptr;
-        HRESULT           hr        = S_OK;
+        HRESULT            hr       = S_OK;
 
 
         hr = fs.ReadAllText (store.UserFilePath (machineName), text);
@@ -225,8 +225,8 @@ public:
     TEST_METHOD (Diff_NoOp_Returns_Object_With_Just_Version)
     {
         JsonValue   d = ParseOrFail ("{\"$cassoMachineVersion\":1,\"a\":1,\"b\":2}");
-        JsonValue   c = d;  // identical
-        JsonValue   diff = UserConfigStore::DiffJson (c, d);
+        JsonValue  c    = d;   // identical
+        JsonValue  diff = UserConfigStore::DiffJson (c, d);
 
         Assert::IsTrue (diff.GetType() == JsonType::Object);
         Assert::AreEqual (size_t (1), diff.GetObjectEntries().size());
@@ -513,9 +513,9 @@ public:
             ]
         })JSON");
 
-        JsonValue diff = UserConfigStore::DiffJson (c, d);
-        const JsonValue * internal = nullptr;
-        const JsonValue * slots    = nullptr;
+        JsonValue          diff     = UserConfigStore::DiffJson (c, d);
+        const JsonValue  * internal = nullptr;
+        const JsonValue  * slots    = nullptr;
 
         AssertSucceeded (diff.GetArray ("internalDevices", internal));
         AssertSucceeded (diff.GetArray ("slots", slots));
@@ -547,8 +547,8 @@ public:
             }
         })JSON");
 
-        JsonValue diff = UserConfigStore::DiffJson (c, d);
-        const JsonValue * ui = nullptr;
+        JsonValue          diff = UserConfigStore::DiffJson (c, d);
+        const JsonValue  * ui   = nullptr;
 
         AssertSucceeded (diff.GetObject ("$cassoUiPrefs", ui));
         Assert::IsTrue (ui != nullptr);
@@ -569,9 +569,9 @@ public:
             "$cassoUiPrefs": { "speedMode": "maximum" }
         })JSON");
 
-        JsonValue m = UserConfigStore::MergeJson (d, u);
-        const JsonValue * nf = nullptr;
-        const JsonValue * ui = nullptr;
+        JsonValue          m  = UserConfigStore::MergeJson (d, u);
+        const JsonValue  * nf = nullptr;
+        const JsonValue  * ui = nullptr;
 
         AssertSucceeded (m.GetObject ("newField", nf));
         AssertSucceeded (m.GetObject ("$cassoUiPrefs", ui));

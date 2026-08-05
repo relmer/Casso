@@ -86,10 +86,10 @@ private:
     // (or, on a flash-phase flip, the rows with a flashing glyph); the
     // framebuffer persists between frames, so untouched rows keep their pixels.
     Byte                     m_prevBytes[kGridCols * kGridRows] = {};
-    const uint32_t *         m_prevFramebuffer = nullptr;
-    bool                     m_cacheValid  = false;
-    bool                     m_prevPage2   = false;
-    bool                     m_prevAltChar = false;
-    bool                     m_prevFlashOn = true;
-    uint32_t                 m_prevOnColor = 0;
+    const uint32_t         * m_prevFramebuffer                  = nullptr;
+    bool                     m_cacheValid                       = false;
+    bool                     m_prevPage2                        = false;
+    bool                     m_prevAltChar                      = false;
+    bool                     m_prevFlashOn                      = true;
+    uint32_t                 m_prevOnColor                      = 0;
 };

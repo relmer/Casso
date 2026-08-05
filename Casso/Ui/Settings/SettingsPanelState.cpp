@@ -1277,14 +1277,14 @@ JsonValue SettingsPanelState::BuildJson (
     const std::vector<HardwareEntry>      & hw,
     const SettingsUiPrefs                 & prefs)
 {
-    std::vector<std::pair<std::string, JsonValue>>  root;
-    std::vector<std::pair<std::string, JsonValue>>  uiObj;
-    std::vector<JsonValue>                          wpArr;
-    std::vector<JsonValue>                          devArr;
-    std::vector<JsonValue>                          slotArr;
-    const std::vector<std::pair<std::string, JsonValue>> *  entries = nullptr;
-    HRESULT                                         hr = S_OK;
-    size_t                                          i = 0;
+    std::vector<std::pair<std::string, JsonValue>>          root;
+    std::vector<std::pair<std::string, JsonValue>>          uiObj;
+    std::vector<JsonValue>                                  wpArr;
+    std::vector<JsonValue>                                  devArr;
+    std::vector<JsonValue>                                  slotArr;
+    const std::vector<std::pair<std::string, JsonValue>>  * entries = nullptr;
+    HRESULT                                                 hr      = S_OK;
+    size_t                                                  i       = 0;
     // Default-constructed, so a non-object input yields a NULL value -- not an
     // empty object, which is what returning JsonValue (std::move (root)) early
     // would have produced.
@@ -1346,9 +1346,9 @@ JsonValue SettingsPanelState::BuildJson (
 
                 (void) found;
 
-                std::vector<std::pair<std::string, JsonValue>>  rebuilt;
-                const auto &  srcEntries = src.GetObjectEntries();
-                size_t        j          = 0;
+                std::vector<std::pair<std::string, JsonValue>>    rebuilt;
+                const auto                                      & srcEntries = src.GetObjectEntries();
+                size_t                                            j          = 0;
                 for (auto & srcEntry : srcEntries)
                 {
                     if (srcEntry.first == "enabled")
@@ -1387,9 +1387,9 @@ JsonValue SettingsPanelState::BuildJson (
                     }
                 }
 
-                std::vector<std::pair<std::string, JsonValue>>  rebuilt;
-                const auto &  srcEntries = src.GetObjectEntries();
-                size_t        j          = 0;
+                std::vector<std::pair<std::string, JsonValue>>    rebuilt;
+                const auto                                      & srcEntries = src.GetObjectEntries();
+                size_t                                            j          = 0;
                 for (auto & srcEntry : srcEntries)
                 {
                     if (srcEntry.first == "enabled")

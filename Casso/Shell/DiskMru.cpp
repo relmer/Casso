@@ -147,7 +147,7 @@ DiskMru::DistinctFolders (const std::vector<Entry> & entries)
 
     for (const Entry & e : entries)
     {
-        std::filesystem::path  dir = e.path.parent_path().lexically_normal();
+        std::filesystem::path  dir  = e.path.parent_path().lexically_normal();
         std::wstring           key;
         bool                   seen = false;
 

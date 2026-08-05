@@ -1066,8 +1066,8 @@ static void ParseAs65Flags (int argc, char * argv[], CommandLineOptions & option
 
         while (pos < arg.size())
         {
-            char flag = arg[pos];
-            std::string rest = arg.substr (pos + 1);
+            char         flag = arg[pos];
+            std::string  rest = arg.substr (pos + 1);
 
             switch (flag)
             {
@@ -1222,16 +1222,16 @@ static void ParseAs65Flags (int argc, char * argv[], CommandLineOptions & option
 
                 if (!def.empty())
                 {
-                    size_t eqPos = def.find ('=');
-                    std::string name;
-                    int32_t     value = 1;
+                    size_t       eqPos = def.find ('=');
+                    std::string  name;
+                    int32_t      value = 1;
 
                     if (eqPos != std::string::npos)
                     {
                         name = def.substr (0, eqPos);
-                        std::string valStr = def.substr (eqPos + 1);
-                        char * end = nullptr;
-                        long   v   = strtol (valStr.c_str(), &end, 0);
+                        std::string    valStr = def.substr (eqPos + 1);
+                        char         * end    = nullptr;
+                        long           v      = strtol (valStr.c_str(), &end, 0);
 
                         if (end != valStr.c_str())
                         {

@@ -177,7 +177,7 @@ private:
     HRESULT      LoadCombinedJson    (const JsonValue & root,
                                       GlobalUserPrefs & prefs) const;
 
-    std::wstring                       m_userDir;
-    mutable std::map<std::string, JsonValue>  m_machinePrefs;
-    GlobalUserPrefs                  * m_prefs = nullptr;
+    std::wstring                                m_userDir;
+    mutable std::map<std::string, JsonValue>    m_machinePrefs;
+    GlobalUserPrefs                           * m_prefs        = nullptr;
 };

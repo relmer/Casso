@@ -74,7 +74,7 @@ private:
     {
         unique_ptr<DiskImage>  image;
         string                 path;
-        DiskFormat             format = DiskFormat::Dsk;
+        DiskFormat             format  = DiskFormat::Dsk;
         bool                   mounted = false;
     };
 

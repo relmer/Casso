@@ -395,9 +395,9 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     {
         // The slider stays a comfortable height, vertically centered -- in the
         // taller ribbon band a full-height slider would look stretched.
-        int   bandH   = bottom - top;
-        int   sliderH = (std::min) (bandH, sliderMaxH);
-        int   sy      = top + (bandH - sliderH) / 2;
+        int   bandH    = bottom - top;
+        int   sliderH  = (std::min) (bandH, sliderMaxH);
+        int   sy       = top + (bandH - sliderH) / 2;
         RECT  sliderRc = { x, sy, x + sliderW, sy + sliderH };
 
         m_volumeSlider.SetRect (sliderRc);
@@ -775,9 +775,9 @@ void CommandToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
     const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
 
-    float  bl = (float) m_barRect.left;
+    float  bl    = (float) m_barRect.left;
     float  btTop = (float) m_barRect.top;
-    float  bw = (float) (m_barRect.right - m_barRect.left);
+    float  bw    = (float) (m_barRect.right - m_barRect.left);
     float  bhAll = (float) (m_barRect.bottom - m_barRect.top);
 
     if (bw <= 0.0f)

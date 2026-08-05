@@ -175,8 +175,8 @@ bool ColorUtil::TryParseHexColor (const std::wstring & text, uint32_t & outArgb)
     size_t        first = text.find_first_not_of (L" \t");
     size_t        last  = text.find_last_not_of (L" \t");
     std::wstring  body;
-    uint32_t      rgb   = 0;
-    int           i     = 0;
+    uint32_t      rgb     = 0;
+    int           i       = 0;
     size_t        bodyLen = 0;
 
 

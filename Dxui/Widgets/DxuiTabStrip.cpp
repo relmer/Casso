@@ -260,8 +260,8 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
     constexpr float     s_kPadYDp        = 4.0f;
     constexpr float     s_kPressedScale  = 0.82f;   // armed-tab tint, a touch darker than hover
 
-    constexpr float     s_kUnderlineDip  = 3.0f;   // thick active-tab underline
-    constexpr float     s_kMutedTextScale = 0.62f; // dim inactive labels
+    constexpr float  s_kUnderlineDip   = 3.0f;   // thick active-tab underline
+    constexpr float  s_kMutedTextScale = 0.62f;   // dim inactive labels
 
     HRESULT  hr          = S_OK;
     int      i           = 0;
@@ -284,10 +284,10 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
     // armed inactive tab gets a subtle fill hint.
     for (i = 0; i < (int) n; ++i)
     {
-        const Tab & t       = m_tabs[(size_t) i];
-        bool        isSel    = (i == m_selected);
-        bool        isHover  = (i == m_hover);
-        bool        isArmed  = (i == m_pressed && i == m_hover);
+        const Tab  & t       = m_tabs[(size_t) i];
+        bool         isSel   = (i == m_selected);
+        bool         isHover = (i == m_hover);
+        bool         isArmed = (i == m_pressed && i == m_hover);
 
         if (!isSel && (isHover || isArmed))
         {

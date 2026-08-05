@@ -52,10 +52,10 @@ public:
     static constexpr Word    kVia2Select = 0x80;
 
     // AY control lines on VIA port B.
-    static constexpr Byte    kAyBc1      = 0x01;   // PB0
-    static constexpr Byte    kAyBdir     = 0x02;   // PB1
-    static constexpr Byte    kAyResetLow = 0x04;   // PB2, active low
-    static constexpr Byte    kAyControlMask = kAyBdir | kAyBc1;
+    static constexpr Byte  kAyBc1         = 0x01;   // PB0
+    static constexpr Byte  kAyBdir        = 0x02;   // PB1
+    static constexpr Byte  kAyResetLow    = 0x04;   // PB2, active low
+    static constexpr Byte  kAyControlMask = kAyBdir | kAyBc1;
 
     explicit MockingboardCard (int slot);
 

@@ -85,11 +85,11 @@ string MachineConfigUpgrade::NormalizeBytes (const string & content)
 
 int MachineConfigUpgrade::ParseStamp (const string & content)
 {
-    HRESULT         hr      = S_OK;
+    HRESULT         hr       = S_OK;
     HRESULT         hrLegacy = S_OK;
     JsonValue       root;
     JsonParseError  err;
-    int             stamp   = 0;
+    int             stamp    = 0;
 
 
 

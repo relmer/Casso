@@ -44,20 +44,20 @@ public:
     class RecordingSink : public ISettingsApplySink
     {
     public:
-        SettingsSpeedMode  lastSpeed             = SettingsSpeedMode::Authentic;
-        SettingsColorMode  lastColor             = SettingsColorMode::Color;
-        bool               lastFloppySound       = true;
+        SettingsSpeedMode  lastSpeed                  = SettingsSpeedMode::Authentic;
+        SettingsColorMode  lastColor                  = SettingsColorMode::Color;
+        bool               lastFloppySound            = true;
         std::string        lastMechanism;
-        bool               lastWriteProtect[2]   = { false, false };
-        float              lastDriveMotor        = -1.0f;
-        float              lastDriveHead         = -1.0f;
-        float              lastDriveDoor         = -1.0f;
-        float              lastDriveOnePan       = 0.0f;
-        float              lastDriveTwoPan       = 0.0f;
+        bool               lastWriteProtect[2]        = { false, false };
+        float              lastDriveMotor             = -1.0f;
+        float              lastDriveHead              = -1.0f;
+        float              lastDriveDoor              = -1.0f;
+        float              lastDriveOnePan            = 0.0f;
+        float              lastDriveTwoPan            = 0.0f;
         bool               lastExternalDriveConnected = false;
         bool               lastMouseConnected         = true;
-        int                queuedResetCount      = 0;
-        int                applyCount            = 0;
+        int                queuedResetCount           = 0;
+        int                applyCount                 = 0;
 
         void ApplySpeedMode    (SettingsSpeedMode mode) override   { lastSpeed = mode; ++applyCount; }
         void ApplyColorMode    (SettingsColorMode mode) override   { lastColor = mode; ++applyCount; }
@@ -736,8 +736,8 @@ public:
 
         // Locate the disk-ii entry and disable it; the controller must vanish
         // (this is exactly what hides the settings sheet's Disk tab, #84 B).
-        const std::vector<HardwareEntry> & hw = st.Hardware();
-        size_t  diskIdx = hw.size();
+        const std::vector<HardwareEntry>  & hw      = st.Hardware();
+        size_t                              diskIdx = hw.size();
         for (size_t i = 0; i < hw.size(); ++i)
         {
             if (hw[i].type == "disk-ii") { diskIdx = i; break; }
@@ -779,8 +779,8 @@ public:
         JsonValue      outJson;
         st.Apply (sink, outJson);
 
-        std::string  text;
-        JsonWriter::Options opts;
+        std::string          text;
+        JsonWriter::Options  opts;
         opts.fPretty = false;
         JsonWriter::Write (outJson, opts, text);
 

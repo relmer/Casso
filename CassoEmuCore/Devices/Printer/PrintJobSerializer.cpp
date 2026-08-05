@@ -64,13 +64,13 @@ string PrintJobSerializer::WriteMetaJson (const PrintRaster & raster)
 
 HRESULT PrintJobSerializer::ReadMetaJson (const string & json, StripMeta & outMeta)
 {
-    HRESULT             hr     = S_OK;
-    HRESULT             hrArr  = S_OK;
-    JsonValue           root;
-    JsonParseError      err;
-    const JsonValue *   arr    = nullptr;
-    JsonType            rootType = JsonType::Null;
-    StripMeta           meta;
+    HRESULT            hr       = S_OK;
+    HRESULT            hrArr    = S_OK;
+    JsonValue          root;
+    JsonParseError     err;
+    const JsonValue  * arr      = nullptr;
+    JsonType           rootType = JsonType::Null;
+    StripMeta          meta;
 
 
 

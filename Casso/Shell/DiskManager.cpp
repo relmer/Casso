@@ -574,10 +574,10 @@ void DiskManager::Eject (int slot, int drive)
 
 void DiskManager::UpdateDriveWidgets()
 {
-    Disk2Controller *  controller = FindSlot6Controller();
-    int64_t             nowMs      = NowMs();
-    std::vector<DriveWidgetController::DriveSyncEvent>  syncEvents = m_driveWidgets.ConsumeSyncEvents();
-    int                 drive      = 0;
+    Disk2Controller                                     * controller = FindSlot6Controller();
+    int64_t                                               nowMs      = NowMs();
+    std::vector<DriveWidgetController::DriveSyncEvent>    syncEvents = m_driveWidgets.ConsumeSyncEvents();
+    int                                                   drive      = 0;
 
 
 

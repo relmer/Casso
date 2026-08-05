@@ -16,9 +16,9 @@
 
 struct JsonParseError
 {
-    int         line   = 0;
-    int         column = 0;
-    string message;
+    int     line    = 0;
+    int     column  = 0;
+    string  message;
 };
 
 
@@ -71,9 +71,9 @@ private:
     bool AtEnd           () const;
     void SetError        (const string & msg);
 
-    const string & m_input;
-    size_t              m_pos;
-    int                 m_line;
-    int                 m_column;
-    JsonParseError      m_error;
+    const string    & m_input;
+    size_t            m_pos;
+    int               m_line;
+    int               m_column;
+    JsonParseError    m_error;
 };

@@ -75,10 +75,10 @@ DxuiTextRenderer::~DxuiTextRenderer()
 
 HRESULT DxuiTextRenderer::Initialize (ID3D11Device * pDevice)
 {
-    HRESULT                hr      = S_OK;
-    ComPtr<IDXGIDevice>    dxgi;
-    D2D1_FACTORY_OPTIONS   options = {};
-    IUnknown             * dwriteRaw = nullptr;
+    HRESULT                 hr        = S_OK;
+    ComPtr<IDXGIDevice>     dxgi;
+    D2D1_FACTORY_OPTIONS    options   = {};
+    IUnknown              * dwriteRaw = nullptr;
 
 
 
@@ -892,14 +892,14 @@ HRESULT DxuiTextRenderer::DrawString (
     DxuiFontWeight       weight,
     bool                 wrap)
 {
-    HRESULT                            hr      = S_OK;
-    ComPtr<IDWriteTextFormat>          format;
-    IDWriteTextFormat                * rawFmt  = nullptr;
-    ComPtr<ID2D1SolidColorBrush>       brush;
-    D2D1_RECT_F                        layoutRect;
-    ComPtr<IDWriteTextLayout>          layout;
-    IDWriteTextLayout                * rawLayout = nullptr;
-    ID2D1SolidColorBrush             * rawBrush  = nullptr;
+    HRESULT                         hr         = S_OK;
+    ComPtr<IDWriteTextFormat>       format;
+    IDWriteTextFormat             * rawFmt     = nullptr;
+    ComPtr<ID2D1SolidColorBrush>    brush;
+    D2D1_RECT_F                     layoutRect;
+    ComPtr<IDWriteTextLayout>       layout;
+    IDWriteTextLayout             * rawLayout  = nullptr;
+    ID2D1SolidColorBrush          * rawBrush   = nullptr;
 
 
 

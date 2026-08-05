@@ -370,19 +370,19 @@ HICON DxuiHwndSource::DefaultAppIcon (bool big)
 
 HRESULT DxuiHwndSource::Create (const CreateParams & params)
 {
-    HRESULT      hr             = S_OK;
-    WNDCLASSEXW  wc             = { sizeof (wc) };
-    DWORD        style          = 0;
-    DWORD        exStyle        = 0;
-    HINSTANCE    hInstance      = nullptr;
+    HRESULT      hr               = S_OK;
+    WNDCLASSEXW  wc               = { sizeof (wc) };
+    DWORD        style            = 0;
+    DWORD        exStyle          = 0;
+    HINSTANCE    hInstance        = nullptr;
     wchar_t      classNameBuf[64] = {};
-    uint32_t     serial         = 0;
-    UINT         dpiAtCreate    = 0;
-    int          windowX        = 0;
-    int          windowY        = 0;
-    int          widthPx        = 0;
-    int          heightPx       = 0;
-    ATOM         classAtom      = 0;
+    uint32_t     serial           = 0;
+    UINT         dpiAtCreate      = 0;
+    int          windowX          = 0;
+    int          windowY          = 0;
+    int          widthPx          = 0;
+    int          heightPx         = 0;
+    ATOM         classAtom        = 0;
 
 
 

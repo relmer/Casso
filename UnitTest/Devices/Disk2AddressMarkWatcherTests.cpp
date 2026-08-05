@@ -242,11 +242,11 @@ namespace Disk2AddressMarkWatcherTests
         TEST_METHOD (RandomNibbleStream_firesZeroAddressMarks)
         {
             Disk2AddressMarkWatcher  watcher;
-            RecordingSink             sink;
+            RecordingSink            sink;
             std::mt19937              rng (0xC0FFEEu);
             std::uniform_int_distribution<int>  dist (0, 255);
-            uint32_t                  i = 0;
-            constexpr uint32_t        kStreamBytes = 1u << 20;   // 1 MiB
+            uint32_t            i            = 0;
+            constexpr uint32_t  kStreamBytes = 1u << 20;   // 1 MiB
 
             watcher.SetEventSink (&sink);
 

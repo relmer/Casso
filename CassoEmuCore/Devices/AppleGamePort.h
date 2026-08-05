@@ -78,13 +78,13 @@ private:
     void EmitPaddleTrigger ();
     void EmitPaddleRead    (Word address, Byte value);
 
-    IInputEventSink *    m_inputSink          = nullptr;
-    const uint64_t *     m_cpuCycleSource     = nullptr;
-    uint64_t             m_paddleTriggerCycle = 0;
-    atomic<bool>         m_buttonState[s_knButtonCount]              = {};
-    atomic<Byte>         m_paddlePosition[s_knPaddleAxisCount];
-    int                  m_lastEmittedButton[s_knButtonCount]        = { -1, -1, -1 };
-    int                  m_lastEmittedPaddle[s_knPaddleAxisCount]    = { -1, -1, -1, -1 };
-    int                  m_lastEmittedHostButton[s_knHostButtonCount] = { -1, -1 };
-    int                  m_lastEmittedHostPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
+    IInputEventSink  * m_inputSink                                  = nullptr;
+    const uint64_t   * m_cpuCycleSource                             = nullptr;
+    uint64_t           m_paddleTriggerCycle                         = 0;
+    atomic<bool>       m_buttonState[s_knButtonCount]               = {};
+    atomic<Byte>       m_paddlePosition[s_knPaddleAxisCount];
+    int                m_lastEmittedButton[s_knButtonCount]         = { -1, -1, -1 };
+    int                m_lastEmittedPaddle[s_knPaddleAxisCount]     = { -1, -1, -1, -1 };
+    int                m_lastEmittedHostButton[s_knHostButtonCount] = { -1, -1 };
+    int                m_lastEmittedHostPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
 };

@@ -139,10 +139,10 @@ const DxuiTreeNode * DxuiTreeView::NodeAt (int flatIndex) const
 
 DxuiTreeNode * DxuiTreeView::NodeAtMutable (int flatIndex)
 {
-    std::vector<int>  path;
-    DxuiTreeNode        * cursor = nullptr;
-    size_t            i      = 0;
-    int               idx    = 0;
+    std::vector<int>    path;
+    DxuiTreeNode      * cursor = nullptr;
+    size_t              i      = 0;
+    int                 idx    = 0;
 
 
 
@@ -570,25 +570,25 @@ bool DxuiTreeView::OnKey (WPARAM vk)
 
 void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    uint32_t  s_kRowIdle        = 0x00000000;
-    uint32_t  s_kRowHover       = (theme.HoverBackground()    & 0x00FFFFFFu) | 0x33000000u;
-    uint32_t  s_kRowHighlight   = (theme.SelectionBackground() & 0x00FFFFFFu) | 0x44000000u;
-    uint32_t  s_kBoxIdle        = theme.ButtonIdle();
-    uint32_t  s_kBoxLocked      = DxuiColor::TintForContrast (theme.Background(), 1.6f);
-    uint32_t  s_kCheckGlyph     = theme.ButtonText();
-    uint32_t  s_kCheckLocked    = theme.ForegroundDisabled();
-    uint32_t  s_kTwistyArgb     = theme.ForegroundMuted();
-    uint32_t  s_kTextIdle       = theme.Foreground();
-    uint32_t  s_kTextDisabled   = theme.ForegroundDisabled();
-    constexpr float     s_kCheckInset     = 3.0f;
-    constexpr float     s_kFontDip        = 13.0f;
-    constexpr float     s_kTwistyHeight   = 8.0f;
+    uint32_t         s_kRowIdle      = 0x00000000;
+    uint32_t         s_kRowHover     = (theme.HoverBackground()    & 0x00FFFFFFu) | 0x33000000u;
+    uint32_t         s_kRowHighlight = (theme.SelectionBackground() & 0x00FFFFFFu) | 0x44000000u;
+    uint32_t         s_kBoxIdle      = theme.ButtonIdle();
+    uint32_t         s_kBoxLocked    = DxuiColor::TintForContrast (theme.Background(), 1.6f);
+    uint32_t         s_kCheckGlyph   = theme.ButtonText();
+    uint32_t         s_kCheckLocked  = theme.ForegroundDisabled();
+    uint32_t         s_kTwistyArgb   = theme.ForegroundMuted();
+    uint32_t         s_kTextIdle     = theme.Foreground();
+    uint32_t         s_kTextDisabled = theme.ForegroundDisabled();
+    constexpr float  s_kCheckInset   = 3.0f;
+    constexpr float  s_kFontDip      = 13.0f;
+    constexpr float  s_kTwistyHeight = 8.0f;
 
 
 
-    HRESULT  hr        = S_OK;
-    int      i         = 0;
-    size_t   n         = m_flatRows.size();
+    HRESULT  hr         = S_OK;
+    int      i          = 0;
+    size_t   n          = m_flatRows.size();
     float    checkInset = m_scaler.Pxf (s_kCheckInset);
     float    fontDip    = m_scaler.Pxf (s_kFontDip);
     float    twistyHt   = m_scaler.Pxf (s_kTwistyHeight);
@@ -599,13 +599,13 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     for (i = 0; i < (int) n; ++i)
     {
-        const FlatRow   & fr        = m_flatRows[(size_t) i];
+        const FlatRow       & fr        = m_flatRows[(size_t) i];
         const DxuiTreeNode  * node      = NodeAt (i);
-        float             rowY      = (float) (m_boundsDip.top + i * m_rowHeightPx);
-        float             rowHeight = (float) m_rowHeightPx;
-        float             twistyX   = (float) (m_boundsDip.left + fr.depth * m_indentPx);
-        float             checkboxX = twistyX + (float) m_twistyPx;
-        float             textX     = checkboxX + (float) m_checkboxPx + textGap;
+        float                 rowY      = (float) (m_boundsDip.top + i * m_rowHeightPx);
+        float                 rowHeight = (float) m_rowHeightPx;
+        float                 twistyX   = (float) (m_boundsDip.left + fr.depth * m_indentPx);
+        float                 checkboxX = twistyX + (float) m_twistyPx;
+        float                 textX     = checkboxX + (float) m_checkboxPx + textGap;
         uint32_t          rowFill   = (i == m_highlight) ? s_kRowHighlight
                                        : (i == m_hoverRow ? s_kRowHover : s_kRowIdle);
         bool              hasChildren = (node != nullptr) && !node->children.empty();

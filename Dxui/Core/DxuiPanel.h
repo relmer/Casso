@@ -133,10 +133,10 @@ private:
         std::unique_ptr<IDxuiControl>   owned;
     };
 
-    std::vector<ChildSlot>                      m_children;
-    std::unique_ptr<IDxuiLayout>                m_layout;
-    bool                                        m_dirty       = false;
-    RECT                                        m_lastBoundsDip = {};
-    DxuiDpiScaler                               m_lastScaler;
-    bool                                        m_haveLast    = false;
+    std::vector<ChildSlot>        m_children;
+    std::unique_ptr<IDxuiLayout>  m_layout;
+    bool                          m_dirty         = false;
+    RECT                          m_lastBoundsDip = {};
+    DxuiDpiScaler                 m_lastScaler;
+    bool                          m_haveLast      = false;
 };

@@ -35,7 +35,7 @@ public:
 
     TEST_METHOD (State_Colors_And_Dimensions_Are_Stable)
     {
-        CassoTheme         theme = CassoTheme::Skeuomorphic();
+        CassoTheme          theme  = CassoTheme::Skeuomorphic();
         LedIndicator        led;
         LedIndicatorLayout  layout = {};
 

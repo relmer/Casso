@@ -39,8 +39,8 @@ public:
 
     TEST_METHOD (Silence_NoToggles_AllZeroOutput)
     {
-        std::vector<uint32_t> toggles;
-        float samples[100];
+        std::vector<uint32_t>  toggles;
+        float                  samples[100];
 
 
 
@@ -54,8 +54,8 @@ public:
 
     TEST_METHOD (Silence_NoToggles_OutputsZero)
     {
-        std::vector<uint32_t> toggles;
-        float samples[100];
+        std::vector<uint32_t>  toggles;
+        float                  samples[100];
 
 
 
@@ -74,8 +74,8 @@ public:
 
     TEST_METHOD (SingleToggle_MidFrame_ProducesStep)
     {
-        std::vector<uint32_t> toggles = { 8515 };
-        float samples[1000];
+        std::vector<uint32_t>  toggles       = { 8515 };
+        float                  samples[1000];
 
 
 
@@ -100,8 +100,8 @@ public:
 
     TEST_METHOD (SquareWave_EvenToggles_ProducesSymmetricWave)
     {
-        std::vector<uint32_t> toggles = { 0, 4258, 8515, 12773 };
-        float samples[1000];
+        std::vector<uint32_t>  toggles       = { 0, 4258, 8515, 12773 };
+        float                  samples[1000];
 
 
 
@@ -224,8 +224,8 @@ public:
     TEST_METHOD (AllTogglesAtStart_StateChangesImmediately)
     {
         // 3 toggles all at cycle 0: -0.3 → +0.3 → -0.3 → +0.3
-        std::vector<uint32_t> toggles = { 0, 0, 0 };
-        float samples[100];
+        std::vector<uint32_t>  toggles      = { 0, 0, 0 };
+        float                  samples[100];
 
 
 
@@ -241,8 +241,8 @@ public:
     TEST_METHOD (AllTogglesAtEnd_InitialStateFillsBuffer)
     {
         // All toggles at last cycle — initial state fills almost all
-        std::vector<uint32_t> toggles = { 17049, 17049, 17049 };
-        float samples[1000];
+        std::vector<uint32_t>  toggles       = { 17049, 17049, 17049 };
+        float                  samples[1000];
 
 
 
@@ -258,8 +258,8 @@ public:
 
     TEST_METHOD (ZeroCyclesPerFrame_NoExplode)
     {
-        std::vector<uint32_t> toggles = { 100, 200 };
-        float samples[100];
+        std::vector<uint32_t>  toggles      = { 100, 200 };
+        float                  samples[100];
 
 
 
@@ -276,8 +276,8 @@ public:
 
     TEST_METHOD (ZeroSamples_NoExplode)
     {
-        std::vector<uint32_t> toggles = { 100 };
-        float dummy = 0.0f;
+        std::vector<uint32_t>  toggles = { 100 };
+        float                  dummy   = 0.0f;
 
 
 
@@ -287,8 +287,8 @@ public:
 
     TEST_METHOD (EmptyTimestamps_OutputsSilence)
     {
-        std::vector<uint32_t> toggles;
-        float samples[100];
+        std::vector<uint32_t>  toggles;
+        float                  samples[100];
 
 
 
@@ -307,8 +307,8 @@ public:
 
     TEST_METHOD (SpeakerToggle_RecordsTimestamp)
     {
-        AppleSpeaker spk;
-        uint64_t cycles = 5000;
+        AppleSpeaker  spk;
+        uint64_t      cycles = 5000;
 
         spk.SetCycleCounter (&cycles);
         spk.Read (0xC030);
@@ -319,8 +319,8 @@ public:
 
     TEST_METHOD (SpeakerToAudioPipeline_EndToEnd)
     {
-        AppleSpeaker spk;
-        uint64_t cycles = 0;
+        AppleSpeaker  spk;
+        uint64_t      cycles = 0;
         spk.SetCycleCounter (&cycles);
 
 
@@ -362,8 +362,8 @@ public:
     TEST_METHOD (SpeakerToAudioPipeline_NonZeroInitial)
     {
         // Full pipeline test with non-zero amplitude
-        std::vector<uint32_t> timestamps = { 4000, 8000, 12000 };
-        float samples[1000];
+        std::vector<uint32_t>  timestamps    = { 4000, 8000, 12000 };
+        float                  samples[1000];
 
         float initialState = -0.3f;
 

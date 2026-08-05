@@ -36,11 +36,11 @@ class ThemePage : public DxuiPropertyPage
 public:
     explicit ThemePage (std::wstring title = L"Theme");
 
-    using ThemeSelectFn      = std::function<void (const std::string & themeName)>;
-    using FramebufferSourceFn = std::function<const uint32_t * (int & outWidthPx, int & outHeightPx)>;
-    using MountedPathFn      = std::function<std::wstring (int driveIndex)>;
-    using WriteProtectFn     = std::function<WriteProtectInfo (int driveIndex)>;
-    using HasDiskSourceFn    = std::function<bool ()>;
+    using  ThemeSelectFn       = std::function<void (const std::string & themeName)>;
+    using  FramebufferSourceFn = std::function<const uint32_t * (int & outWidthPx, int & outHeightPx)>;
+    using  MountedPathFn       = std::function<std::wstring (int driveIndex)>;
+    using  WriteProtectFn      = std::function<WriteProtectInfo (int driveIndex)>;
+    using  HasDiskSourceFn     = std::function<bool ()>;
 
     void  SetThemes             (std::vector<std::string>  themeIds,
                                  std::vector<std::wstring> displayNames,
@@ -155,12 +155,12 @@ private:
     ApplyThemeNowFn               m_onApplyThemeNow;
     MonitorFrameFn                m_onMonitorFrameToggled;
 
-    DxuiLabel                         m_themeLabel;
-    DxuiDropdown                      m_themeDropdown;
-    DxuiButton                        m_applyNowButton;
-    DxuiCheckbox                      m_monitorFrameCheckbox;
-    RECT                          m_previewRect = {};
-    DxuiDpiScaler                     m_scaler;
+    DxuiLabel      m_themeLabel;
+    DxuiDropdown   m_themeDropdown;
+    DxuiButton     m_applyNowButton;
+    DxuiCheckbox   m_monitorFrameCheckbox;
+    RECT           m_previewRect          = {};
+    DxuiDpiScaler  m_scaler;
 
     // Preview-only DriveWidget instances rendered with the staged
     // theme inside the mock window. Mutable because Paint is const

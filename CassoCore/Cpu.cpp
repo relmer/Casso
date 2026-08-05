@@ -1718,8 +1718,8 @@ void Cpu::CreateInstruction (uint32_t                      addressingModeMax,
                              Byte                 *        pSourceRegister,
                              Byte                 *        pDestinationRegister)
 {
-    Byte addressingMode = 0;
-    Byte currentAddressingModeFlag = 1;
+    Byte  addressingMode            = 0;
+    Byte  currentAddressingModeFlag = 1;
 
     while (addressingMode < addressingModeMax)
     {

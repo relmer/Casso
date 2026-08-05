@@ -45,7 +45,7 @@ public:
     {
         DxuiAnimation    anim;
         DxuiTweenHandle  h;
-        float        v = 0.0f;
+        float            v    = 0.0f;
 
         anim.AdvanceTime (0.0f);
         h = anim.StartTween (0.0f, 100.0f, 2.0f, DxuiTweenEase::Linear);
@@ -59,7 +59,7 @@ public:
     {
         DxuiAnimation    anim;
         DxuiTweenHandle  h;
-        float        v = 0.0f;
+        float            v    = 0.0f;
 
         h = anim.StartTween (0.0f, 10.0f, 1.0f, DxuiTweenEase::Linear);
 

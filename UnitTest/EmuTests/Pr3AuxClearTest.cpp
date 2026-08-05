@@ -46,8 +46,8 @@ TEST_CLASS (Pr3AuxClearTest)
 {
 public:
 
-    static constexpr uint64_t  kColdBootCycles = 5'000'000ULL;
-    static constexpr uint64_t  kAfterCommand   = 2'000'000ULL;
+    static constexpr uint64_t  kColdBootCycles  = 5'000'000ULL;
+    static constexpr uint64_t  kAfterCommand    = 2'000'000ULL;
     static constexpr int       kMaxAncestorWalk = 10;
 
 
@@ -109,8 +109,8 @@ public:
             return;
         }
 
-        CharacterRomData rom;
-        HRESULT hr = rom.LoadFromFile (romPath.string());
+        CharacterRomData  rom;
+        HRESULT           hr  = rom.LoadFromFile (romPath.string());
         AssertSucceeded (hr, L"Must load Apple2e_Video.rom");
 
         for (int y = 0; y < 8; y++)
@@ -153,7 +153,7 @@ public:
         Assert::IsNotNull (auxBuf);
 
         wchar_t  msg[1024] = {};
-        int totalBad = 0;
+        int      totalBad  = 0;
         for (int row = 0; row < 24; row++)
         {
             Word rowBase = static_cast<Word> (0x0400 + 128 * (row % 8) + 40 * (row / 8));

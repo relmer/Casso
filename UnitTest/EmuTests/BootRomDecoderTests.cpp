@@ -145,9 +145,9 @@ public:
     // checksums and the ROM is still spinning).
     HRESULT RunUntilBootLoaderRuns (EmulatorCore & core)
     {
-        char  path[260] = {};
-        DWORD pl = GetTempPathA (260, path);
-        FILE * fp = nullptr;
+        char     path[260] = {};
+        DWORD    pl        = GetTempPathA (260, path);
+        FILE   * fp        = nullptr;
         if (pl > 0 && pl < 260 - 32)
         {
             strcat_s (path, "bootrom-trace.log");
@@ -161,9 +161,9 @@ public:
         // test pattern bytes likely don't form valid 6502 code). The
         // boot ROM JMPs into the bootstrap only when every checksum
         // gate passes -- that PC transition IS our success signal.
-        const uint64_t kBudget = kSectorReadCycles;
-        uint64_t       cyc     = 0;
-        bool           ranBootLoader = false;
+        const uint64_t  kBudget       = kSectorReadCycles;
+        uint64_t        cyc           = 0;
+        bool            ranBootLoader = false;
 
         // Count visits to each instruction in the slot-6 boot ROM so a
         // failing test can show which checkpoint(s) the firmware spent

@@ -164,21 +164,21 @@ void DxuiToggle::Flip()
 
 void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t accentArgb, uint32_t focusArgb) const
 {
-    constexpr uint32_t  s_kPillOff      = 0xFF4A5260;
-    constexpr uint32_t  s_kPillOffHover = 0xFF5A6271;
-    constexpr uint32_t  s_kPillDisabled = 0xFF2A2F38;
-    constexpr uint32_t  s_kThumb        = 0xFFFFFFFF;
-    constexpr uint32_t  s_kThumbDisabled= 0xFF707070;
-    constexpr uint32_t  s_kTextIdle     = 0xFFE8EEF4;
-    constexpr uint32_t  s_kTextDisabled = 0xFF707070;
+    constexpr uint32_t  s_kPillOff       = 0xFF4A5260;
+    constexpr uint32_t  s_kPillOffHover  = 0xFF5A6271;
+    constexpr uint32_t  s_kPillDisabled  = 0xFF2A2F38;
+    constexpr uint32_t  s_kThumb         = 0xFFFFFFFF;
+    constexpr uint32_t  s_kThumbDisabled = 0xFF707070;
+    constexpr uint32_t  s_kTextIdle      = 0xFFE8EEF4;
+    constexpr uint32_t  s_kTextDisabled  = 0xFF707070;
     constexpr float     s_kPillWidthDip  = 36.0f;
     constexpr float     s_kPillHeightDip = 18.0f;
     constexpr float     s_kThumbInsetDip = 3.0f;
     constexpr float     s_kFocusInsetDip = -2.0f;
     constexpr float     s_kFocusThickDip = 1.0f;
     constexpr float     s_kLabelGapDip   = 8.0f;
-    constexpr float     s_kFontDip      = 13.0f;
-    constexpr float     s_kPillRatio    = 3.0f;    // WCAG 1.4.11 min contrast of pill vs white thumb
+    constexpr float     s_kFontDip       = 13.0f;
+    constexpr float     s_kPillRatio     = 3.0f;    // WCAG 1.4.11 min contrast of pill vs white thumb
 
     HRESULT  hr         = S_OK;
     float    pillW      = m_scaler.Pxf (s_kPillWidthDip);

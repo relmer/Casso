@@ -129,14 +129,14 @@ private:
 
     static constexpr float  s_kFallbackFontDip = 13.0f;
 
-    std::wstring                  m_text;
-    std::wstring                  m_fontFace = DxuiTheme::kBodyFace;
-    uint32_t                      m_argb     = 0xFFFFFFFF;
-    float                         m_fontDip  = s_kFallbackFontDip;
-    DxuiTextHAlign    m_hAlign   = DxuiTextHAlign::Left;
-    DxuiTextVAlign    m_vAlign   = DxuiTextVAlign::Center;
-    DxuiFontWeight                m_weight   = DxuiFontWeight::Normal;
-    DxuiTextRole                  m_role     = DxuiTextRole::Body;
-    bool                          m_useThemeRole = false;
-    DxuiDpiScaler                     m_scaler;
+    std::wstring    m_text;
+    std::wstring    m_fontFace     = DxuiTheme::kBodyFace;
+    uint32_t        m_argb         = 0xFFFFFFFF;
+    float           m_fontDip      = s_kFallbackFontDip;
+    DxuiTextHAlign  m_hAlign       = DxuiTextHAlign::Left;
+    DxuiTextVAlign  m_vAlign       = DxuiTextVAlign::Center;
+    DxuiFontWeight  m_weight       = DxuiFontWeight::Normal;
+    DxuiTextRole    m_role         = DxuiTextRole::Body;
+    bool            m_useThemeRole = false;
+    DxuiDpiScaler   m_scaler;
 };

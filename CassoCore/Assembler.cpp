@@ -235,8 +235,8 @@ std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, 
 
     for (const auto & pair : sorted)
     {
-        auto kindIt = symbolKinds.find (pair.first);
-        bool isRedefinable = (kindIt != symbolKinds.end() && kindIt->second == SymbolKind::Set);
+        auto  kindIt        = symbolKinds.find (pair.first);
+        bool  isRedefinable = (kindIt != symbolKinds.end() && kindIt->second == SymbolKind::Set);
 
         std::string fullName = (isRedefinable ? "*" : "") + pair.first;
         output += std::format ("{:<16s}${:04X}\n", fullName, pair.second);

@@ -717,14 +717,14 @@ void CrtPostProcess::DrawFullscreen (
     int                        viewportH,
     const RECT               * subViewport)
 {
-    UINT                       stride        = sizeof (CrtVertex);
-    UINT                       offset        = 0;
-    float                      clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-    D3D11_VIEWPORT             vp            = {};
-    ID3D11ShaderResourceView * srvs[kMaxBoundPsSrvSlots]     = { srv0, srv1 };
-    ID3D11ShaderResourceView * nullSrvs[kMaxBoundPsSrvSlots] = {};
-    ID3D11Buffer             * cbs[1]        = { m_constantBuffer.Get() };
-    float                      blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    UINT                        stride                        = sizeof (CrtVertex);
+    UINT                        offset                        = 0;
+    float                       clearColor[4]                 = { 0.0f, 0.0f, 0.0f, 1.0f };
+    D3D11_VIEWPORT              vp                            = {};
+    ID3D11ShaderResourceView  * srvs[kMaxBoundPsSrvSlots]     = { srv0, srv1 };
+    ID3D11ShaderResourceView  * nullSrvs[kMaxBoundPsSrvSlots] = {};
+    ID3D11Buffer              * cbs[1]                        = { m_constantBuffer.Get() };
+    float                       blendFactor[4]                = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 
     // Unbind RTs first so a previously-bound RT isn't simultaneously bound

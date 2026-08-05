@@ -63,7 +63,7 @@ private:
     void    EmitReset           (vector<PrinterEvent> & events);
 
     // Interpreter state (data-model: resets on printer-reset and machine start).
-    int         m_headColumnDots  = 0;
+    int         m_headColumnDots   = 0;
     int         m_lineFeedRows     = 0;
     int         m_pitchDotsPerChar = 0;
     InkPrimary  m_color            = InkPrimary::Black;

@@ -82,8 +82,8 @@ public:
 
     TEST_METHOD (MouseDown_JumpsAndDrags)
     {
-        DxuiSlider  s = MakeUnitSlider();
-        float   last = -1.0f;
+        DxuiSlider  s    = MakeUnitSlider();
+        float       last = -1.0f;
         s.SetOnChange ([&] (float v) { last = v; });
 
         Assert::IsTrue (s.OnLButtonDown (50, 8));
@@ -145,8 +145,8 @@ public:
 
     TEST_METHOD (OnChange_NotCalledForNoOpKey)
     {
-        DxuiSlider  s = MakeUnitSlider();
-        int     callCount = 0;
+        DxuiSlider  s         = MakeUnitSlider();
+        int         callCount = 0;
         s.SetFocused (true);
         s.SetOnChange ([&] (float) { callCount++; });
 

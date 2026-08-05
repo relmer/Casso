@@ -593,9 +593,9 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
 
         for (drive = 0; drive < driveCount; drive++)
         {
-            auto  src = std::make_unique<Disk2AudioSource>();
-            float panL = DriveAudioMixer::kSpeakerCenter;
-            float panR = DriveAudioMixer::kSpeakerCenter;
+            auto   src  = std::make_unique<Disk2AudioSource>();
+            float  panL = DriveAudioMixer::kSpeakerCenter;
+            float  panR = DriveAudioMixer::kSpeakerCenter;
 
             // Per-drive stereo position from the shell's stored pan
             // (user-adjustable; defaults place Drive 1 left-of-center and
@@ -1426,12 +1426,12 @@ void MachineManager::ShowMachinePicker()
 
 HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 {
-    HRESULT                hr             = S_OK;
+    HRESULT                hr                = S_OK;
     std::vector<fs::path>  searchPaths;
     fs::path               configRelPath;
     fs::path               configPath;
     std::ifstream          configFile;
-    bool                   configGood     = false;
+    bool                   configGood        = false;
     std::stringstream      ss;
     std::string            jsonText;
     std::vector<fs::path>  romSearchPaths;
@@ -1441,10 +1441,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     JsonValue              defaultJson;
     JsonValue              mergedJson;
     JsonParseError         parseErr;
-    WORD                   speedCmd = 0;
-    bool                   foundConfig = false;
-    HRESULT                hrParse     = S_OK;
-    HRESULT                hrMerge     = S_OK;
+    WORD                   speedCmd          = 0;
+    bool                   foundConfig       = false;
+    HRESULT                hrParse           = S_OK;
+    HRESULT                hrMerge           = S_OK;
     std::string            carryDisk1;
     std::string            carryDisk2;
 

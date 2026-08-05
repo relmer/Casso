@@ -1251,17 +1251,17 @@ Error:
 
 HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster, std::wstring & failedStage, PrintOutcome & outOutcome)
 {
-    HRESULT                                hr      = S_OK;
-    const GlobalUserPrefs &                prefs   = m_shell.m_globalPrefs;
-    vector<PrintPagination::PageRange>     pages   = PrintPagination::Paginate (raster);
-    PRINTDLGW                              pd      = {};
-    DOCINFOW                               di      = {};
-    bool                                   started = false;
-    BOOL                                   dlgOk   = FALSE;
-    int                                    pageW   = 0;
-    int                                    pageH   = 0;
-    int                                    pageIx  = 0;
-    bool                                   hasPages = false;
+    HRESULT                               hr       = S_OK;
+    const GlobalUserPrefs               & prefs    = m_shell.m_globalPrefs;
+    vector<PrintPagination::PageRange>    pages    = PrintPagination::Paginate (raster);
+    PRINTDLGW                             pd       = {};
+    DOCINFOW                              di       = {};
+    bool                                  started  = false;
+    BOOL                                  dlgOk    = FALSE;
+    int                                   pageW    = 0;
+    int                                   pageH    = 0;
+    int                                   pageIx   = 0;
+    bool                                  hasPages = false;
 
 
 
@@ -1728,12 +1728,12 @@ void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
 
 void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
 {
-    HRESULT        hr           = S_OK;
-    PrintOutcome   outcome      = PrintOutcome::Delivered;
-    fs::path       file;
-    std::wstring   failedStage;
-    wchar_t        forceClassic[8] = {};
-    bool           modernUp     = false;
+    HRESULT       hr              = S_OK;
+    PrintOutcome  outcome         = PrintOutcome::Delivered;
+    fs::path      file;
+    std::wstring  failedStage;
+    wchar_t       forceClassic[8] = {};
+    bool          modernUp        = false;
 
 
 

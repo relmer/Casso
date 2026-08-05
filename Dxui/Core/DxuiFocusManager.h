@@ -92,11 +92,11 @@ private:
     bool   MoveFocus         (int direction);   // +1 forward, -1 backward
     bool   MoveFocusSpatial  (DxuiFocusKey arrow);
 
-    DxuiPanel *                  m_root                 = nullptr;
-    const IDxuiTheme *           m_theme                = nullptr;
-    std::vector<IDxuiControl *>  m_tabOrder;
-    IDxuiControl *               m_focused              = nullptr;
-    std::vector<Scope>           m_scopes;
-    float                        m_rowEpsilonOverrideDip = 0.0f;
-    bool                         m_rowEpsilonOverridden  = false;
+    DxuiPanel                    * m_root                  = nullptr;
+    const IDxuiTheme             * m_theme                 = nullptr;
+    std::vector<IDxuiControl *>    m_tabOrder;
+    IDxuiControl                 * m_focused               = nullptr;
+    std::vector<Scope>             m_scopes;
+    float                          m_rowEpsilonOverrideDip = 0.0f;
+    bool                           m_rowEpsilonOverridden  = false;
 };

@@ -346,23 +346,23 @@ void DriveWidget::Paint (
         _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
         const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
 
-        HRESULT  hr           = S_OK;
-        int      bodyW        = m_bodyRect.right - m_bodyRect.left;
-        int      faceW        = m_faceRect.right - m_faceRect.left;
-        int      faceH        = m_faceRect.bottom - m_faceRect.top;
-        int      slotW        = m_slotRect.right - m_slotRect.left;
-        int      slotH        = m_slotRect.bottom - m_slotRect.top;
-        int      doorH        = m_ejectRect.bottom - m_ejectRect.top;
-        UINT     dpi          = (m_dpi == 0) ? (UINT) kBaseDpi : m_dpi;
-        int      notchW       = Scale (kNotchWidthPx, dpi);
-        int      notchH       = Scale (kNotchHeightPx, dpi);
-        int      labelPad     = Scale (kLabelPadPx, dpi);
-        int      inUseW       = Scale (kInUseWidthPx, dpi);
+        HRESULT  hr            = S_OK;
+        int      bodyW         = m_bodyRect.right - m_bodyRect.left;
+        int      faceW         = m_faceRect.right - m_faceRect.left;
+        int      faceH         = m_faceRect.bottom - m_faceRect.top;
+        int      slotW         = m_slotRect.right - m_slotRect.left;
+        int      slotH         = m_slotRect.bottom - m_slotRect.top;
+        int      doorH         = m_ejectRect.bottom - m_ejectRect.top;
+        UINT     dpi           = (m_dpi == 0) ? (UINT) kBaseDpi : m_dpi;
+        int      notchW        = Scale (kNotchWidthPx, dpi);
+        int      notchH        = Scale (kNotchHeightPx, dpi);
+        int      labelPad      = Scale (kLabelPadPx, dpi);
+        int      inUseW        = Scale (kInUseWidthPx, dpi);
         int      caseBackInset = Scale (kCaseBackInsetPx, dpi);
-        float    labelFontDip = kLabelFontDip * (float) dpi / (float) kBaseDpi;
-        float    inUseFontDip = kInUseFontDip * (float) dpi / (float) kBaseDpi;
-        float    doorOffset   = 0.0f;
-        wchar_t  label[32]    = {};
+        float    labelFontDip  = kLabelFontDip * (float) dpi / (float) kBaseDpi;
+        float    inUseFontDip  = kInUseFontDip * (float) dpi / (float) kBaseDpi;
+        float    doorOffset    = 0.0f;
+        wchar_t  label[32]     = {};
 
 
 
@@ -445,16 +445,16 @@ void DriveWidget::Paint (
         // faceplate, narrowing toward the back to suggest perspective.
         // Camera is slightly above and in front of the drive.
         {
-            float  frontLeft  = (float) m_bodyRect.left;
-            float  frontRight = (float) m_bodyRect.right;
-            float  backLeft   = (float) (m_bodyRect.left  + caseBackInset + m_perspectiveSkewPx);
-            float  backRight  = (float) (m_bodyRect.right - caseBackInset + m_perspectiveSkewPx);
-            float  frontY     = (float) m_faceRect.top;
-            float  backY      = (float) m_bodyRect.top;
-            uint32_t caseColor   = 0xFFCCB68B;
-            uint32_t caseHilite  = 0xFFE6D3AC;
-            uint32_t caseShade   = 0xFF8E7A55;
-            uint32_t backEdge    = 0xFF5E4F36;
+            float     frontLeft  = (float) m_bodyRect.left;
+            float     frontRight = (float) m_bodyRect.right;
+            float     backLeft   = (float) (m_bodyRect.left  + caseBackInset + m_perspectiveSkewPx);
+            float     backRight  = (float) (m_bodyRect.right - caseBackInset + m_perspectiveSkewPx);
+            float     frontY     = (float) m_faceRect.top;
+            float     backY      = (float) m_bodyRect.top;
+            uint32_t  caseColor  = 0xFFCCB68B;
+            uint32_t  caseHilite = 0xFFE6D3AC;
+            uint32_t  caseShade  = 0xFF8E7A55;
+            uint32_t  backEdge   = 0xFF5E4F36;
 
             FillTrapezoidApprox (painter, frontLeft, frontRight, backLeft, backRight,
                                  frontY, backY, caseColor);
@@ -474,7 +474,7 @@ void DriveWidget::Paint (
 
                 for (i = 0; i < edgeH; i++)
                 {
-                    float  t       = (float) i / denom;
+                    float  t         = (float) i / denom;
                     float  leftEdge  = frontLeft  + (backLeft  - frontLeft)  * t;
                     float  rightEdge = frontRight + (backRight - frontRight) * t;
                     float  y         = frontY - 1.0f - (float) i;
@@ -530,10 +530,10 @@ void DriveWidget::Paint (
                     {
                         float  t          = (float) i / denom;
                         // Note: i=0 is at yBot (front), i=rows-1 is at yTop (back).
-                        float  l          = bottomEdges.first  + (topEdges.first  - bottomEdges.first)  * t;
-                        float  r          = bottomEdges.second + (topEdges.second - bottomEdges.second) * t;
-                        float  y          = yBot - 1.0f - (float) i;
-                        uint32_t fill     = panelFill;
+                        float     l    = bottomEdges.first  + (topEdges.first  - bottomEdges.first)  * t;
+                        float     r    = bottomEdges.second + (topEdges.second - bottomEdges.second) * t;
+                        float     y    = yBot - 1.0f - (float) i;
+                        uint32_t  fill = panelFill;
 
                         if (i == rows - 1)
                         {
@@ -593,10 +593,10 @@ void DriveWidget::Paint (
         {
             int    faceInsetX = Scale (4, dpi);
             int    faceInsetB = Scale (3, dpi);
-            float  ffx = (float) (m_faceRect.left  + faceInsetX);
-            float  ffy = (float) m_faceRect.top;
-            float  ffw = (float) (faceW - 2 * faceInsetX);
-            float  ffh = (float) (faceH - faceInsetB);
+            float  ffx        = (float) (m_faceRect.left  + faceInsetX);
+            float  ffy        = (float) m_faceRect.top;
+            float  ffw        = (float) (faceW - 2 * faceInsetX);
+            float  ffh        = (float) (faceH - faceInsetB);
             // Beige body shows around the faceplate (top edge already
             // butts against the case-top trapezoid; bottom + sides need
             // explicit fill).
@@ -676,35 +676,35 @@ void DriveWidget::Paint (
             constexpr int    kHingeOffsetDp       = 4;          // pivot sits this far below the recess top
             constexpr int    kFingerNotchDp       = 8;          // bottom strip of recess that stays visible when closed
 
-            float    hingeY     = recessTop + (float) Scale (kHingeOffsetDp, dpi);
-            float    hingeL     = recessLeft;
-            float    hingeR     = recessRight;
-            float    doorBottomY = recessBottom - (float) Scale (kFingerNotchDp, dpi);
-            float    doorHf     = doorBottomY - hingeY;
-            float    angle      = doorOffset * kMaxAngleRad;
-            float    cosA       = cosf (angle);
-            float    sinA       = sinf (angle);
-            float    visLen     = doorHf * (1.0f - (1.0f - kOpenVisibleFraction) * doorOffset);
-            float    depthBack  = visLen * sinA;
-            float    visibleH   = visLen * cosA;
-            float    caseDepthY = (float) (m_faceRect.top - m_bodyRect.top);
-            float    caseFrontW;
-            float    perDepthTaper;       // case-side taper magnitude per unit depth
-            float    fracL;
-            float    fracR;
-            float    dxBackL;
-            float    dxBackR;
-            float    farL;
-            float    farR;
-            float    farY;
-            uint8_t  shade;
-            uint32_t doorArgb;
-            uint32_t edgeArgb   = 0xFF000000;
-            uint32_t hiliteArgb = 0xFF5A5A5A;
-            float    yTop;
-            float    yBot;
-            int      rows;
-            int      i          = 0;
+            float     hingeY        = recessTop + (float) Scale (kHingeOffsetDp, dpi);
+            float     hingeL        = recessLeft;
+            float     hingeR        = recessRight;
+            float     doorBottomY   = recessBottom - (float) Scale (kFingerNotchDp, dpi);
+            float     doorHf        = doorBottomY - hingeY;
+            float     angle         = doorOffset * kMaxAngleRad;
+            float     cosA          = cosf (angle);
+            float     sinA          = sinf (angle);
+            float     visLen        = doorHf * (1.0f - (1.0f - kOpenVisibleFraction) * doorOffset);
+            float     depthBack     = visLen * sinA;
+            float     visibleH      = visLen * cosA;
+            float     caseDepthY    = (float) (m_faceRect.top - m_bodyRect.top);
+            float     caseFrontW;
+            float     perDepthTaper;   // case-side taper magnitude per unit depth
+            float     fracL;
+            float     fracR;
+            float     dxBackL;
+            float     dxBackR;
+            float     farL;
+            float     farR;
+            float     farY;
+            uint8_t   shade;
+            uint32_t  doorArgb;
+            uint32_t  edgeArgb      = 0xFF000000;
+            uint32_t  hiliteArgb    = 0xFF5A5A5A;
+            float     yTop;
+            float     yBot;
+            int       rows;
+            int       i             = 0;
 
             if (caseDepthY < 1.0f)
             {

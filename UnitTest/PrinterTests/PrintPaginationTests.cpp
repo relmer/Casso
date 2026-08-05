@@ -142,8 +142,8 @@ namespace PrintPaginationTests
             // The fanfold guarantee: a short last page (200 px tall) is NOT blown
             // up to fill the sheet -- it uses the SAME scale as a full page, so its
             // columns line up with the pages above it.
-            PrintPagination::PageFit   full  = PrintPagination::FitFullPageToBox (800, 1100, 850, 1100, 100.0);
-            PrintPagination::PageFit   shortP = PrintPagination::FitFullPageToBox (800, 200, 850, 1100, 100.0);
+            PrintPagination::PageFit  full   = PrintPagination::FitFullPageToBox (800, 1100, 850, 1100, 100.0);
+            PrintPagination::PageFit  shortP = PrintPagination::FitFullPageToBox (800, 200, 850, 1100, 100.0);
 
             Assert::AreEqual (full.scale, shortP.scale, 0.001, L"every page shares one scale");
             Assert::AreEqual (200.0, shortP.destH, 0.5, L"the short page stays short, top-aligned");

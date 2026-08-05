@@ -324,8 +324,8 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
         std::string afterFirst = Trim (remainder.substr (spacePos + 1));
 
         size_t sp2 = afterFirst.find_first_of (" \t");
-        std::string secondWord = (sp2 == std::string::npos) ? afterFirst : afterFirst.substr (0, sp2);
-        std::string secondUpper = ToUpper (secondWord);
+        std::string  secondWord  = (sp2 == std::string::npos) ? afterFirst : afterFirst.substr (0, sp2);
+        std::string  secondUpper = ToUpper (secondWord);
 
         if (secondUpper == "EQU" || secondUpper == "SET")
         {
@@ -819,7 +819,7 @@ static std::string ToUpperValidate (const std::string & s)
 
 HRESULT Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage)
 {
-    HRESULT      hr = S_OK;
+    HRESULT      hr         = S_OK;
     std::string  upper;
     char         first      = label.empty() ? '\0' : label[0];
     bool         isEmpty    = label.empty();

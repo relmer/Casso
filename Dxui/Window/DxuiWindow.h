@@ -50,18 +50,18 @@ class DxuiWindow : public DxuiPanel, private IDxuiHostClient
 public:
     struct CreateParams
     {
-        std::wstring        title;
-        HINSTANCE           hInstance         = nullptr;
-        HWND                ownerHwnd         = nullptr;
-        SIZE                initialSizeDip    = { 1024, 768 };
-        SIZE                minSizeDip        = { 0, 0 };
-        bool                resizable         = true;
-        bool                insetContentBelowCaption = false;
-        DxuiCaptionStyle    captionStyle      = DxuiCaptionStyle::Standard;
-        bool                composited        = false;   // composited-transparent window (enables SetComposedOpacity)
-        LPCWSTR             classNameOverride = nullptr;
-        HICON               appIconBig        = nullptr;
-        HICON               appIconSmall      = nullptr;
+        std::wstring      title;
+        HINSTANCE         hInstance                = nullptr;
+        HWND              ownerHwnd                = nullptr;
+        SIZE              initialSizeDip           = { 1024, 768 };
+        SIZE              minSizeDip               = { 0, 0 };
+        bool              resizable                = true;
+        bool              insetContentBelowCaption = false;
+        DxuiCaptionStyle  captionStyle             = DxuiCaptionStyle::Standard;
+        bool              composited               = false;   // composited-transparent window (enables SetComposedOpacity)
+        LPCWSTR           classNameOverride        = nullptr;
+        HICON             appIconBig               = nullptr;
+        HICON             appIconSmall             = nullptr;
 
         // DXGI present sync interval. The default (1) waits for vblank; an
         // animating window that shares the UI thread with another vsynced
@@ -295,18 +295,18 @@ private:
     static void          ForEachButton    (IDxuiControl * node, const std::function<void (DxuiButton *)> & fn);
 
 
-    std::unique_ptr<DxuiHwndSource>  m_source;
-    SIZE                             m_minSizeDip = { 0, 0 };
-    HWND                             m_ownerHwnd  = nullptr;
-    const IDxuiTheme *               m_theme      = nullptr;
-    IDxuiControl *                   m_initialFocus = nullptr;
-    DxuiFocusManager                 m_focus;
-    bool                             m_dialogActive   = false;   // dialog behaviors on (modal or modeless)
-    bool                             m_modal          = false;   // blocking-modal (owner disabled + private loop)
-    bool                             m_modalDone      = false;
-    int                              m_modalResult    = 0;
-    int                              m_defaultButtonId = 0;
-    UINT                             m_dialogTickMs   = 250;   // dialog repaint / tick cadence (caret-blink default)
+    std::unique_ptr<DxuiHwndSource>    m_source;
+    SIZE                               m_minSizeDip      = { 0, 0 };
+    HWND                               m_ownerHwnd       = nullptr;
+    const IDxuiTheme                 * m_theme           = nullptr;
+    IDxuiControl                     * m_initialFocus    = nullptr;
+    DxuiFocusManager                   m_focus;
+    bool                               m_dialogActive    = false;   // dialog behaviors on (modal or modeless)
+    bool                               m_modal           = false;   // blocking-modal (owner disabled + private loop)
+    bool                               m_modalDone       = false;
+    int                                m_modalResult     = 0;
+    int                                m_defaultButtonId = 0;
+    UINT                               m_dialogTickMs    = 250;   // dialog repaint / tick cadence (caret-blink default)
     std::function<void (int)>        m_onDialogEnd;            // modeless close callback
     std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick
 };

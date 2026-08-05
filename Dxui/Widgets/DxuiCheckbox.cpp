@@ -224,11 +224,11 @@ void DxuiCheckbox::Toggle()
 
 void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    constexpr float     s_kBoxSizeDip    = 16.0f;
-    constexpr float     s_kFocusInsetDip = -2.0f;
-    constexpr float     s_kFocusThickDip = 1.0f;
-    constexpr float     s_kLabelGapDip   = 6.0f;
-    constexpr float     s_kFontDip      = 13.0f;
+    constexpr float  s_kBoxSizeDip    = 16.0f;
+    constexpr float  s_kFocusInsetDip = -2.0f;
+    constexpr float  s_kFocusThickDip = 1.0f;
+    constexpr float  s_kLabelGapDip   = 6.0f;
+    constexpr float  s_kFontDip       = 13.0f;
 
 
 

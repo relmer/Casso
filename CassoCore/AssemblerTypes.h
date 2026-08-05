@@ -44,14 +44,14 @@ struct AssemblyError
 
 struct AssemblyLine
 {
-    int               lineNumber;
-    Word              address;
-    std::vector<Byte> bytes;
-    std::string       sourceText;
-    bool              hasAddress;
-    bool              isMacroExpansion = false;
-    bool              isConditionalSkip = false;
-    Byte              cycleCounts = 0;
+    int                lineNumber;
+    Word               address;
+    std::vector<Byte>  bytes;
+    std::string        sourceText;
+    bool               hasAddress;
+    bool               isMacroExpansion  = false;
+    bool               isConditionalSkip = false;
+    Byte               cycleCounts       = 0;
 };
 
 
@@ -85,23 +85,23 @@ class FileReader;
 
 struct AssemblerOptions
 {
-    Byte        fillByte        = 0xFF;
-    bool        generateListing = false;
-    WarningMode warningMode     = WarningMode::Warn;
-    FileReader * fileReader     = nullptr;
-    std::string  baseDir;
-    bool        cycleCounts     = false;     // -c flag
-    bool        macroExpansion  = false;     // -m flag (show macro expansion in listing)
-    int         pageHeight      = 0;         // -h flag (0 = no pagination)
-    int         pageWidth       = 80;        // -w flag
-    bool        caseSensitive   = false;     // -i flag (we're case-insensitive by default)
-    bool        pass1Listing    = false;     // -p flag
-    bool        symbolTable     = false;     // -t flag
-    bool        debugInfo       = false;     // -g flag
-    bool        verbose         = false;     // -v flag
-    bool        quiet           = false;     // -q flag
-    bool        disableOpt      = false;     // -n flag
-    std::unordered_map<std::string, int32_t> predefinedSymbols; // -d flag
+    Byte                                        fillByte          = 0xFF;
+    bool                                        generateListing   = false;
+    WarningMode                                 warningMode       = WarningMode::Warn;
+    FileReader                                * fileReader        = nullptr;
+    std::string                                 baseDir;
+    bool                                        cycleCounts       = false;   // -c flag
+    bool                                        macroExpansion    = false;   // -m flag (show macro expansion in listing)
+    int                                         pageHeight        = 0;   // -h flag (0 = no pagination)
+    int                                         pageWidth         = 80;   // -w flag
+    bool                                        caseSensitive     = false;   // -i flag (we're case-insensitive by default)
+    bool                                        pass1Listing      = false;   // -p flag
+    bool                                        symbolTable       = false;   // -t flag
+    bool                                        debugInfo         = false;   // -g flag
+    bool                                        verbose           = false;   // -v flag
+    bool                                        quiet             = false;   // -q flag
+    bool                                        disableOpt        = false;   // -n flag
+    std::unordered_map<std::string, int32_t>    predefinedSymbols;   // -d flag
 };
 
 
@@ -203,10 +203,10 @@ struct StructMember
 
 struct StructDefinition
 {
-    std::string              name;
-    int32_t                  startOffset   = 0;
-    int32_t                  currentOffset = 0;
-    std::vector<StructMember> members;
+    std::string                name;
+    int32_t                    startOffset   = 0;
+    int32_t                    currentOffset = 0;
+    std::vector<StructMember>  members;
 };
 
 

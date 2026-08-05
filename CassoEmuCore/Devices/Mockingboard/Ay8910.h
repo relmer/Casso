@@ -58,8 +58,8 @@ public:
 
     // Amplitude register: bits 0..3 select a fixed level, bit 4 selects
     // the envelope level instead.
-    static constexpr Byte    kAmpLevelMask = 0x0F;
-    static constexpr Byte    kAmpUseEnvelope = 0x10;
+    static constexpr Byte  kAmpLevelMask   = 0x0F;
+    static constexpr Byte  kAmpUseEnvelope = 0x10;
 
     // Envelope shape (R13) control bits.
     static constexpr Byte    kEnvHold      = 0x01;
@@ -129,8 +129,8 @@ private:
         0.35355339f, 0.50000000f, 0.70710678f, 1.00000000f
     };
 
-    Byte     m_regs[kRegCount] = {};
-    Byte     m_latched = 0;
+    Byte  m_regs[kRegCount] = {};
+    Byte  m_latched         = 0;
 
     double   m_clockHz        = kDefaultClockHz;
     uint32_t m_sampleRate     = 0;

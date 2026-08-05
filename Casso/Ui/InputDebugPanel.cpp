@@ -500,15 +500,15 @@ void InputDebugPanel::FormatInputEvent (
     const InputFilterState &                   filter,
     InputEventDisplay &                        out)
 {
-    Word     address = 0;
-    Byte     value   = 0;
-    Byte     key     = 0;
-    bool     strobe  = false;
-    bool     akd     = false;
-    bool     pressed = false;
+    Word     address  = 0;
+    Byte     value    = 0;
+    Byte     key      = 0;
+    bool     strobe   = false;
+    bool     akd      = false;
+    bool     pressed  = false;
     bool     counting = false;
-    int      axis    = 0;
-    LPCWSTR  button  = nullptr;
+    int      axis     = 0;
+    LPCWSTR  button   = nullptr;
 
     out.category = src.category;
     out.type     = src.type;
@@ -1394,7 +1394,7 @@ void InputDebugPanel::RebuildFilteredIndices()
 void InputDebugPanel::AppendNewEventRows (size_t startIndex)
 {
     std::vector<std::vector<DxuiListView::Cell>>  rows;
-    size_t                                    i = 0;
+    size_t                                        i    = 0;
 
 
 
@@ -1450,7 +1450,7 @@ void InputDebugPanel::AppendNewEventRows (size_t startIndex)
 void InputDebugPanel::PushListViewRows()
 {
     std::vector<std::vector<DxuiListView::Cell>>  rows;
-    int                                       oldSelected = m_eventList->GetSelectedRow();
+    int                                           oldSelected = m_eventList->GetSelectedRow();
 
 
 
@@ -1676,14 +1676,14 @@ void InputDebugPanel::UpdatePauseLabel()
 
 void InputDebugPanel::CopyEventsToClipboard()
 {
-    HRESULT                                 hr        = S_OK;
-    std::vector<const InputEventDisplay *>  rows;
-    std::wstring                            text;
-    HGLOBAL                                 hGlobal   = nullptr;
-    void                                  * pBuf      = nullptr;
-    bool                                    hasText   = false;
-    bool                                    isOpen    = false;
-    bool                                    wasEmptied = false;
+    HRESULT                                   hr         = S_OK;
+    std::vector<const InputEventDisplay *>    rows;
+    std::wstring                              text;
+    HGLOBAL                                   hGlobal    = nullptr;
+    void                                    * pBuf       = nullptr;
+    bool                                      hasText    = false;
+    bool                                      isOpen     = false;
+    bool                                      wasEmptied = false;
     // True while WE still have to free hGlobal. Cleared once the clipboard
     // takes ownership, which is the one path that must NOT free it.
     bool                                    ownsGlobal = false;
@@ -2272,11 +2272,11 @@ void InputDebugPanel::UpdateTooltip (int x, int y)
 
 void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 {
-    auto &                       columns  = m_columnsModel;
-    std::vector<DxuiPopupMenu::Item> items;
-    IDxuiTextRenderer          *  textRenderer = TextRenderer();
-    RECT                         hostRect = { 0, 0, m_widthPx, m_heightPx };
-    int                          i        = 0;
+    auto                              & columns      = m_columnsModel;
+    std::vector<DxuiPopupMenu::Item>    items;
+    IDxuiTextRenderer                 * textRenderer = TextRenderer();
+    RECT                                hostRect     = { 0, 0, m_widthPx, m_heightPx };
+    int                                 i            = 0;
 
 
 

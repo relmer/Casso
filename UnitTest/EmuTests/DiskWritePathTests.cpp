@@ -35,10 +35,10 @@ TEST_CLASS (DiskWritePathTests)
 {
 public:
 
-    static constexpr int    kSlot6   = 6;
-    static constexpr int    kDrive1  = 0;
-    static constexpr Word   kCodeOrg = 0x6000;
-    static constexpr Word   kPayloadAddr = 0x7000;
+    static constexpr int   kSlot6       = 6;
+    static constexpr int   kDrive1      = 0;
+    static constexpr Word  kCodeOrg     = 0x6000;
+    static constexpr Word  kPayloadAddr = 0x7000;
 
     // Distinct, valid 6-and-2 nibbles (all MSB-set, no illegal double-zero
     // bit runs) forming a signature unlikely to occur in the surrounding

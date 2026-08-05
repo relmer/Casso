@@ -55,10 +55,10 @@ void Disk2AddressMarkWatcher::ObserveNibble (uint8_t nibble) noexcept
 
 void Disk2AddressMarkWatcher::StepAddrMarkState (uint8_t nibble) noexcept
 {
-    uint8_t  vol = 0;
-    uint8_t  trk = 0;
-    uint8_t  sec = 0;
-    uint8_t  chk = 0;
+    uint8_t  vol   = 0;
+    uint8_t  trk   = 0;
+    uint8_t  sec   = 0;
+    uint8_t  chk   = 0;
     uint8_t  chkLo = 0;
 
 

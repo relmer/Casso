@@ -258,9 +258,9 @@ public:
     //
     TEST_METHOD (HostRelayout_OnlyWhenOwningPaintPump)
     {
-        RECT                            bounds  = { 0, 0, 800, 600 };
-        std::unique_ptr<LayoutSpyPanel> spyOwned = std::make_unique<LayoutSpyPanel>();
-        LayoutSpyPanel                * spy      = spyOwned.get();
+        RECT                               bounds   = { 0, 0, 800, 600 };
+        std::unique_ptr<LayoutSpyPanel>    spyOwned = std::make_unique<LayoutSpyPanel>();
+        LayoutSpyPanel                   * spy      = spyOwned.get();
         DxuiHwndSource                  host (bounds, 6.0f, std::move (spyOwned));
         RECT                            clientPx = { 0, 0, 800, 600 };
 
@@ -553,10 +553,10 @@ public:
     //
     TEST_METHOD (Client_WmCtlColorStatic_ForwardsHdcAndHwnd)
     {
-        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host     = BuildSyntheticHost();
         RecordingClient                  client;
-        LRESULT                          result  = 0;
-        HDC                              fakeHdc = (HDC) 0x1234;
+        LRESULT                          result   = 0;
+        HDC                              fakeHdc  = (HDC) 0x1234;
         HWND                             fakeHwnd = (HWND) 0x5678;
 
         host->SetClient (&client);

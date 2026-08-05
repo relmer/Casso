@@ -61,11 +61,11 @@ struct GlobalUserPrefsCrtSnapshot
 struct DisplayDefaultsHint
 {
     GlobalUserPrefsCrtSnapshot  values;
-    bool  brightnessFromTheme    = false;
-    bool  contrastFromTheme      = false;
-    bool  scanlinesFromTheme     = false;
-    bool  bloomFromTheme         = false;
-    bool  colorBleedFromTheme    = false;
+    bool                        brightnessFromTheme = false;
+    bool                        contrastFromTheme   = false;
+    bool                        scanlinesFromTheme  = false;
+    bool                        bloomFromTheme      = false;
+    bool                        colorBleedFromTheme = false;
 };
 
 
@@ -74,22 +74,22 @@ class DisplayPage : public DxuiPropertyPage
 public:
     explicit DisplayPage (std::wstring title = L"Display");
 
-    using BrightnessFn    = std::function<void (float value)>;
-    using ContrastFn      = std::function<void (float value)>;
-    using GammaFn         = std::function<void (float value)>;
-    using PersistenceFn   = std::function<void (float value)>;
-    using MonitorFn       = std::function<void (int colorModeIndex)>;
-    using ScanlinesEnFn   = std::function<void (bool enabled)>;
-    using ScanlinesIntFn  = std::function<void (float intensity)>;
-    using BloomEnFn       = std::function<void (bool enabled)>;
-    using BloomRadiusFn   = std::function<void (float radius)>;
-    using BloomStrengthFn = std::function<void (float strength)>;
-    using ColorBleedEnFn  = std::function<void (bool enabled)>;
-    using ColorBleedWFn   = std::function<void (float width)>;
-    using PreviewFn       = std::function<void (int controlId, bool start, bool keyboardMode)>;
-    using RestoreFn       = std::function<void ()>;
-    using TextColorFn       = std::function<void (int textColorModeIndex)>;
-    using TextColorCommitFn = std::function<void (int textColorModeIndex)>;
+    using  BrightnessFn      = std::function<void (float value)>;
+    using  ContrastFn        = std::function<void (float value)>;
+    using  GammaFn           = std::function<void (float value)>;
+    using  PersistenceFn     = std::function<void (float value)>;
+    using  MonitorFn         = std::function<void (int colorModeIndex)>;
+    using  ScanlinesEnFn     = std::function<void (bool enabled)>;
+    using  ScanlinesIntFn    = std::function<void (float intensity)>;
+    using  BloomEnFn         = std::function<void (bool enabled)>;
+    using  BloomRadiusFn     = std::function<void (float radius)>;
+    using  BloomStrengthFn   = std::function<void (float strength)>;
+    using  ColorBleedEnFn    = std::function<void (bool enabled)>;
+    using  ColorBleedWFn     = std::function<void (float width)>;
+    using  PreviewFn         = std::function<void (int controlId, bool start, bool keyboardMode)>;
+    using  RestoreFn         = std::function<void ()>;
+    using  TextColorFn       = std::function<void (int textColorModeIndex)>;
+    using  TextColorCommitFn = std::function<void (int textColorModeIndex)>;
 
     // Control ids used by SetOnPreview to identify which control is
     // being interacted with. Match the SettingsPreviewController::Focus
@@ -194,25 +194,25 @@ private:
     void  RefreshTextColorEnabled ();
     bool  TextColorActive () const;
 
-    SettingsPanelState  * m_state = nullptr;
-    DisplayDefaultsHint   m_hint  = {};
-    DxuiDpiScaler             m_scaler;
-    BrightnessFn          m_onBrightness;
-    ContrastFn            m_onContrast;
-    GammaFn               m_onGamma;
-    PersistenceFn         m_onPersistence;
-    MonitorFn             m_onMonitor;
-    ScanlinesEnFn         m_onScanlinesEn;
-    ScanlinesIntFn        m_onScanlinesInt;
-    BloomEnFn             m_onBloomEn;
-    BloomRadiusFn         m_onBloomRadius;
-    BloomStrengthFn       m_onBloomStrength;
-    ColorBleedEnFn        m_onColorBleedEn;
-    ColorBleedWFn         m_onColorBleedW;
-    PreviewFn             m_onPreview;
-    RestoreFn             m_onRestore;
-    TextColorFn           m_onTextColor;
-    TextColorCommitFn     m_onTextColorCommit;
+    SettingsPanelState   * m_state             = nullptr;
+    DisplayDefaultsHint    m_hint              = {};
+    DxuiDpiScaler          m_scaler;
+    BrightnessFn           m_onBrightness;
+    ContrastFn             m_onContrast;
+    GammaFn                m_onGamma;
+    PersistenceFn          m_onPersistence;
+    MonitorFn              m_onMonitor;
+    ScanlinesEnFn          m_onScanlinesEn;
+    ScanlinesIntFn         m_onScanlinesInt;
+    BloomEnFn              m_onBloomEn;
+    BloomRadiusFn          m_onBloomRadius;
+    BloomStrengthFn        m_onBloomStrength;
+    ColorBleedEnFn         m_onColorBleedEn;
+    ColorBleedWFn          m_onColorBleedW;
+    PreviewFn              m_onPreview;
+    RestoreFn              m_onRestore;
+    TextColorFn            m_onTextColor;
+    TextColorCommitFn      m_onTextColorCommit;
 
     DxuiLabel                 m_monitorLabel;
     DxuiLabel                 m_textColorLabel;

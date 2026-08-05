@@ -83,10 +83,10 @@ private:
     // columns from aux and odd from main, so a row's signature is its 80
     // effective char codes; the aux pointer is part of the cached state.
     Byte                     m_prevBytes[kGridCols * kGridRows] = {};
-    const uint32_t         * m_prevFramebuffer = nullptr;
-    const Byte             * m_prevAuxMem  = nullptr;
-    bool                     m_cacheValid  = false;
-    bool                     m_prevAltChar = false;
-    bool                     m_prevFlashOn = true;
-    uint32_t                 m_prevOnColor = 0;
+    const uint32_t         * m_prevFramebuffer                  = nullptr;
+    const Byte             * m_prevAuxMem                       = nullptr;
+    bool                     m_cacheValid                       = false;
+    bool                     m_prevAltChar                      = false;
+    bool                     m_prevFlashOn                      = true;
+    uint32_t                 m_prevOnColor                      = 0;
 };

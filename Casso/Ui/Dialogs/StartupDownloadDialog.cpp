@@ -68,9 +68,9 @@ struct StartupDownloadDialog::EntryRuntime
 
 struct StartupDownloadDialog::DialogState
 {
-    StartupDownloadSet  *        set         = nullptr;
+    StartupDownloadSet         * set        = nullptr;
     std::vector<EntryRuntime>    runtime;
-    std::vector<DxuiCheckbox>        checkboxes;     // parallel to entries
+    std::vector<DxuiCheckbox>    checkboxes;   // parallel to entries
     std::vector<std::thread>     workers;
     std::atomic<bool>            cancelFlag{false};
     std::atomic<int>             workersInFlight{0};
@@ -290,8 +290,8 @@ void StartupDownloadDialog::RemovePartialFiles (DialogState & state)
 
 std::wstring StartupDownloadDialog::StatusText (const EntryRuntime & rt, std::uint64_t expected)
 {
-    EntryStatus    s    = (EntryStatus) rt.status.load (std::memory_order_relaxed);
-    std::uint64_t  done = rt.bytesDone.load (std::memory_order_relaxed);
+    EntryStatus    s       = (EntryStatus) rt.status.load (std::memory_order_relaxed);
+    std::uint64_t  done    = rt.bytesDone.load (std::memory_order_relaxed);
     std::wstring   text;
     wchar_t        buf[16] = {};
     int            pct     = 0;
@@ -431,15 +431,15 @@ void StartupDownloadDialog::PaintBody (
     StartupDownloadSet & set,
     DialogState        & state)
 {
-    RowMetrics  m         = {};
-    float       y         = 0.0f;
-    uint32_t    fg        = 0;
-    uint32_t    fgDim     = 0;
-    uint32_t    hdrFg     = 0;
+    RowMetrics  m           = {};
+    float       y           = 0.0f;
+    uint32_t    fg          = 0;
+    uint32_t    fgDim       = 0;
+    uint32_t    hdrFg       = 0;
     wstring     curGroup;
-    DxuiLabel       hdrLabel;
-    DxuiLabel       sourceLabel;
-    DxuiLabel       statusLabel;
+    DxuiLabel   hdrLabel;
+    DxuiLabel   sourceLabel;
+    DxuiLabel   statusLabel;
 
 
 

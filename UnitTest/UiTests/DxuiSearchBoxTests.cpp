@@ -76,7 +76,7 @@ public:
 
     TEST_METHOD (SetText_DoesNotFireChange)
     {
-        DxuiSearchBox  s = MakeSearchBox();
+        DxuiSearchBox  s     = MakeSearchBox();
         bool           fired = false;
 
         s.SetOnChange ([&] (const std::wstring &) { fired = true; });
@@ -142,7 +142,7 @@ public:
 
     TEST_METHOD (ClearGlyphClick_WhenUnfocused_DoesNotClear)
     {
-        DxuiSearchBox  s = MakeSearchBox();
+        DxuiSearchBox  s  = MakeSearchBox();
         POINT          pt = ClearGlyphCenter();
 
         s.SetText (L"abc");   // text present but field unfocused

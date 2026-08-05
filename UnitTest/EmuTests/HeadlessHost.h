@@ -61,25 +61,25 @@ enum class HeadlessMachineKind
 
 struct EmulatorCore
 {
-    HeadlessMachineKind      machineKind = HeadlessMachineKind::Apple2e;
-    std::unique_ptr<Prng>    prng;
-    std::unique_ptr<MockHostShell>     host;
-    std::unique_ptr<FixtureProvider>   fixtures;
-    IAudioSink *             audioSink = nullptr;
+    HeadlessMachineKind                 machineKind = HeadlessMachineKind::Apple2e;
+    std::unique_ptr<Prng>               prng;
+    std::unique_ptr<MockHostShell>      host;
+    std::unique_ptr<FixtureProvider>    fixtures;
+    IAudioSink                        * audioSink   = nullptr;
 
     // Phase 7 (T067/T069): full //e machine wiring is populated by
     // HeadlessHost::BuildApple2e so integration tests can drive a real
     // cold boot through `Apple2e.rom`. ][/][+ kinds leave these unset.
-    std::unique_ptr<MemoryBus>                 bus;
-    std::unique_ptr<RamDevice>                 mainRam;
-    std::unique_ptr<VideoTiming>               videoTiming;
-    std::unique_ptr<Apple2eMmu>               mmu;
-    std::unique_ptr<Apple2eKeyboard>          keyboard;
-    std::unique_ptr<Apple2eSoftSwitchBank>    softSwitches;
-    std::unique_ptr<AppleSpeaker>              speaker;
-    std::unique_ptr<LanguageCard>              languageCard;
-    std::unique_ptr<LanguageCardBank>          lcBank;
-    std::unique_ptr<EmuCpu>                    cpu;
+    std::unique_ptr<MemoryBus>              bus;
+    std::unique_ptr<RamDevice>              mainRam;
+    std::unique_ptr<VideoTiming>            videoTiming;
+    std::unique_ptr<Apple2eMmu>             mmu;
+    std::unique_ptr<Apple2eKeyboard>        keyboard;
+    std::unique_ptr<Apple2eSoftSwitchBank>  softSwitches;
+    std::unique_ptr<AppleSpeaker>           speaker;
+    std::unique_ptr<LanguageCard>           languageCard;
+    std::unique_ptr<LanguageCardBank>       lcBank;
+    std::unique_ptr<EmuCpu>                 cpu;
 
     // Apple //c (65C02 + 32K two-bank firmware ROM). Set by
     // HeadlessHost::BuildApple2c; null for every other machine kind.

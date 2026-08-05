@@ -65,7 +65,7 @@ public:
     TEST_METHOD (Mouse_ClickSelects_AndFiresOnChange)
     {
         DxuiRadioGroup  g;
-        int         lastIdx = -42;
+        int             lastIdx = -42;
         g.SetOptions (MakeTwoOptions());
         g.SetOnChange ([&] (int idx) { lastIdx = idx; });
 

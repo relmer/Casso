@@ -26,13 +26,13 @@
 class WozLoader
 {
 public:
-    static constexpr size_t kHeaderSize       = 12;     // 8-byte sig + 4-byte CRC
-    static constexpr size_t kInfoChunkSize    = 60;
-    static constexpr size_t kTmapChunkSize    = 160;
-    static constexpr size_t kV1TrackRecordSize = 6656;
-    static constexpr size_t kV2TrkRecordSize  = 8;
-    static constexpr size_t kV2BlockSize      = 512;
-    static constexpr size_t kV2TrkRecordCount = 160;
+    static constexpr size_t  kHeaderSize        = 12;   // 8-byte sig + 4-byte CRC
+    static constexpr size_t  kInfoChunkSize     = 60;
+    static constexpr size_t  kTmapChunkSize     = 160;
+    static constexpr size_t  kV1TrackRecordSize = 6656;
+    static constexpr size_t  kV2TrkRecordSize   = 8;
+    static constexpr size_t  kV2BlockSize       = 512;
+    static constexpr size_t  kV2TrkRecordCount  = 160;
 
     static HRESULT  Load (const vector<Byte> & raw, DiskImage & out);
 

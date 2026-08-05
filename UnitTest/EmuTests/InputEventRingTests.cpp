@@ -159,7 +159,7 @@ public:
     {
         InputEventRing  ring;
         InputEvent      batch[InputEventRing::kEventRingCapacity] = {};
-        uint32_t        drained = 0;
+        uint32_t        drained                                   = 0;
 
         // Fill, drain half, refill: exercises the head/tail counters past
         // a slot-index wrap so a masking or wrap bug would surface as a

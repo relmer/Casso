@@ -152,7 +152,7 @@ namespace DiskMruTests
         TEST_METHOD (FromUtf8_DropsEmpty_PreservesOrder)
         {
             std::vector<std::string>  in = { "C:\\Disks\\A.dsk", "", "C:\\Disks\\B.dsk" };
-            auto  mru = DiskMru::FromUtf8 (in);
+            auto  mru  = DiskMru::FromUtf8 (in);
             auto  snap = mru.Snapshot();
             Assert::AreEqual ((size_t) 2, snap.size());
             Assert::IsTrue (snap[0].path == std::filesystem::path ("C:\\Disks\\A.dsk"));

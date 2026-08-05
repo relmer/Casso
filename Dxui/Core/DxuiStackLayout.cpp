@@ -101,8 +101,8 @@ void DxuiStackLayout::Arrange (
 
     for (IDxuiControl * child : children)
     {
-        auto  it     = m_weights.find (child);
-        int   weight = (it == m_weights.end()) ? 0 : it->second;
+        auto  it        = m_weights.find (child);
+        int   weight    = (it == m_weights.end()) ? 0 : it->second;
         RECT  curBounds = child->Bounds();
 
         if (weight > 0)
@@ -132,8 +132,8 @@ void DxuiStackLayout::Arrange (
                                                : (curBounds.bottom - curBounds.top);
         LONG            crossSize = horizontal ? (curBounds.bottom - curBounds.top)
                                                : (curBounds.right  - curBounds.left);
-        LONG            crossOffset = 0;
-        RECT            newBounds = {};
+        LONG  crossOffset = 0;
+        RECT  newBounds   = {};
 
         if (weight > 0 && weightSum > 0)
         {

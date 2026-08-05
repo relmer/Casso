@@ -31,8 +31,8 @@ namespace ImageWriterInterpreterTests
 
     static int CountEvents (const vector<PrinterEvent> & events, PrinterEventType type)
     {
-        int   n = 0;
-        size_t i = 0;
+        int     n = 0;
+        size_t  i = 0;
         for (auto & event : events)
         {
             if (event.type == type) n++;

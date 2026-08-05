@@ -519,14 +519,14 @@ void SettingsCompositor::DrawFullscreen (
     int                        widthPx,
     int                        heightPx)
 {
-    UINT                       stride         = sizeof (SettingsVertex);
-    UINT                       offset         = 0;
-    float                      clearColor[4]  = { 0.0f, 0.0f, 0.0f, 0.0f };
-    float                      blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    D3D11_VIEWPORT             vp             = {};
-    ID3D11ShaderResourceView * srvs[kMaxBoundPsSrvSlots]     = { srv0, srv1 };
-    ID3D11ShaderResourceView * nullSrvs[kMaxBoundPsSrvSlots] = {};
-    ID3D11Buffer             * cbs[1]         = { constantBuffer };
+    UINT                        stride                        = sizeof (SettingsVertex);
+    UINT                        offset                        = 0;
+    float                       clearColor[4]                 = { 0.0f, 0.0f, 0.0f, 0.0f };
+    float                       blendFactor[4]                = { 0.0f, 0.0f, 0.0f, 0.0f };
+    D3D11_VIEWPORT              vp                            = {};
+    ID3D11ShaderResourceView  * srvs[kMaxBoundPsSrvSlots]     = { srv0, srv1 };
+    ID3D11ShaderResourceView  * nullSrvs[kMaxBoundPsSrvSlots] = {};
+    ID3D11Buffer              * cbs[1]                        = { constantBuffer };
 
 
     m_context->OMSetRenderTargets    (1, &rt, nullptr);

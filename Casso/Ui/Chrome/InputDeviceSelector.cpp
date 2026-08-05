@@ -300,8 +300,8 @@ void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
             // Soft glow: concentric rings on a quadratic falloff. A single
             // translucent disc reads as a hard-edged puck, not a light.
             constexpr int    kGlowRings  = 10;
-            constexpr float  kGlowSpread = 3.4f;    // glow rim, in LED radii
-            float  cum = 0.0f;                      // opacity composited so far
+            constexpr float  kGlowSpread = 3.4f;   // glow rim, in LED radii
+            float            cum         = 0.0f;   // opacity composited so far
             for (int ring = kGlowRings; ring >= 1; ring--)
             {
                 float  t      = (float) ring / (float) (kGlowRings + 1);
@@ -547,7 +547,7 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
         p.FillConvexQuad  (g.X (34), g.Y (52), g.X (62), g.Y (52), g.X (58), g.Y (89), g.X (38), g.Y (89), kCase);
         for (int i = 0; i < 4; i++)
         {
-            float  y = 60.0f + 6.0f * (float) i;
+            float  y   = 60.0f + 6.0f * (float) i;
             float  inw = 1.0f + 0.8f * (float) i;
             p.DrawLineApprox (g.X (37.5f + inw), g.Y (y), g.X (58.5f - inw), g.Y (y), g.S (1.6f), kRib);
         }

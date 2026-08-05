@@ -97,13 +97,13 @@ wchar_t ClipboardManager::DecodeScreenByte (Byte ch)
 
 std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
 {
-    constexpr int   kTextRows         = 24;
-    constexpr int   kTextCols         = 40;
-    constexpr Word  kTextBase         = 0x0400;
-    constexpr Word  kRowGroupStride   = 0x28;
+    constexpr int   kTextRows          = 24;
+    constexpr int   kTextCols          = 40;
+    constexpr Word  kTextBase          = 0x0400;
+    constexpr Word  kRowGroupStride    = 0x28;
     constexpr Word  kRowSubgroupStride = 0x80;
-    constexpr int   kRowsPerGroup     = 8;
-    constexpr int   kTextCols80       = 80;
+    constexpr int   kRowsPerGroup      = 8;
+    constexpr int   kTextCols80        = 80;
 
 
 
@@ -332,9 +332,9 @@ void ClipboardManager::CopyScreenshot (HWND hwnd)
 
 void ClipboardManager::PasteFromClipboard (HWND hwnd)
 {
-    constexpr Byte  kCarriageReturn   = 0x0D;
-    constexpr wchar_t  kNewline       = L'\n';
-    constexpr wchar_t  kReturn        = L'\r';
+    constexpr Byte     kCarriageReturn = 0x0D;
+    constexpr wchar_t  kNewline        = L'\n';
+    constexpr wchar_t  kReturn         = L'\r';
 
 
 

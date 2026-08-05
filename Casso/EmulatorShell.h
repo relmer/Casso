@@ -784,10 +784,10 @@ private:
     friend class SettingsDisplayCrtBridge;
     friend class SettingsMachineCatalog;
 
-    HACCEL              m_accelTable      = nullptr;
-    HINSTANCE           m_hInstance       = nullptr;
-    HWND                m_hwnd            = nullptr;
-    bool                m_initialSizeReconciled = false;
+    HACCEL     m_accelTable            = nullptr;
+    HINSTANCE  m_hInstance             = nullptr;
+    HWND       m_hwnd                  = nullptr;
+    bool       m_initialSizeReconciled = false;
 
     // Authoritative per-window DPI scaler. Mirrors the one inside
     // DxuiHwndSource; updated from OnDpiChanged and seeded after
@@ -795,11 +795,11 @@ private:
     // thicknesses through this member.
     DxuiDpiScaler       m_scaler;
 
-    MemoryBus           m_memoryBus;
-    ComponentRegistry   m_registry;
-    InterruptController m_interruptController;
-    unique_ptr<EmuCpu> m_cpu;
-    unique_ptr<class Prng> m_prng;
+    MemoryBus               m_memoryBus;
+    ComponentRegistry       m_registry;
+    InterruptController     m_interruptController;
+    unique_ptr<EmuCpu>      m_cpu;
+    unique_ptr<class Prng>  m_prng;
     size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
     std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
    
@@ -816,9 +816,9 @@ private:
     // commands and runs alongside the existing Win32 menu bar until the
     // painter retires the latter. The caption (title + icon + min/max/
     // close) is owned and rendered by the DxuiHwndSource, not here.
-    MainMenu            m_mainMenu;
-    CassoTheme         m_chromeTheme    = CassoTheme::Skeuomorphic();
-    std::array<DriveWidget, 2> m_driveChrome;
+    MainMenu                    m_mainMenu;
+    CassoTheme                  m_chromeTheme = CassoTheme::Skeuomorphic();
+    std::array<DriveWidget, 2>  m_driveChrome;
 
     // The command toolbar (spec 015 DCR-2): the strip below the menu bar with
     // Settings / Printer (+status LED) / master Volume + Mute / Screenshot /
@@ -886,17 +886,17 @@ private:
     // Joystick-mode toggle button (mirrors IDM_MACHINE_ARROWS_JOYSTICK),
     // centered in the drive bar above the drive widgets, with its own
     // hover tooltip.
-    InputDeviceSelector   m_joystickButton;   // Segmented device selector
-    DxuiTooltip               m_joystickTooltip;
-    DxuiTooltip               m_toolbarTooltip;   // labels for the toolbar's icon-only mode
+    InputDeviceSelector  m_joystickButton;   // Segmented device selector
+    DxuiTooltip          m_joystickTooltip;
+    DxuiTooltip          m_toolbarTooltip;   // labels for the toolbar's icon-only mode
 
     // Apple //c case-switch strip (reset button + 80/40 and keyboard latching
     // switches + disk-use / power LEDs), painted in its own chrome band between
     // the emulator viewport and the drive bar. Present only on the //c; its
     // band collapses to zero height on every other machine. Manually
     // hit-tested / actioned by the mouse handlers, like the other chrome.
-    Apple2cSwitchBar      m_switchBar;
-    DxuiTooltip               m_switchBarTooltip;
+    Apple2cSwitchBar  m_switchBar;
+    DxuiTooltip       m_switchBarTooltip;
 
     // Hover tooltip for the drive widgets, surfaced when the pointer
     // rests over a write-protected drive. Explains that the disk is
@@ -989,8 +989,8 @@ private:
     // lives in m_driveWidgetState; the CPU thread's motor + nibble
     // counters are sampled once per UI frame and pushed through the
     // controller.
-    DriveWidgetController                m_driveWidgets;
-    DxuiDragDropTarget                       m_dragDropTarget;
+    DriveWidgetController  m_driveWidgets;
+    DxuiDragDropTarget     m_dragDropTarget;
 
     // Native UI shell. Owns the painter, text renderer, hit-tester,
     // focus manager, animation broker, and input translator. Wired

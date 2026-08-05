@@ -256,16 +256,16 @@ void Disk2NibbleEngine::Tick (uint32_t cpuCycles)
 
 void Disk2NibbleEngine::StepLss()
 {
-    constexpr int        kLssReadClock         = 4;
-    constexpr int        kLssMaxClock          = 7;
-    constexpr uint8_t    kIdxNoPulse  = 0x01;
-    constexpr uint8_t    kIdxLatchMsb = 0x02;
-    constexpr uint8_t    kIdxQ6       = 0x04;
-    constexpr uint8_t    kIdxQ7       = 0x08;
-    constexpr int        kIdxStateShift = 4;
-    constexpr uint8_t    kLssCommandMask  = 0x0F;
-    constexpr int        kLssStateShift   = 4;
-    constexpr uint8_t    kLssStateMask    = 0x0F;
+    constexpr int      kLssReadClock   = 4;
+    constexpr int      kLssMaxClock    = 7;
+    constexpr uint8_t  kIdxNoPulse     = 0x01;
+    constexpr uint8_t  kIdxLatchMsb    = 0x02;
+    constexpr uint8_t  kIdxQ6          = 0x04;
+    constexpr uint8_t  kIdxQ7          = 0x08;
+    constexpr int      kIdxStateShift  = 4;
+    constexpr uint8_t  kLssCommandMask = 0x0F;
+    constexpr int      kLssStateShift  = 4;
+    constexpr uint8_t  kLssStateMask   = 0x0F;
 
 
 

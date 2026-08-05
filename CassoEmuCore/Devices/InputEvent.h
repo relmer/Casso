@@ -122,8 +122,8 @@ enum class InputEventType : uint8_t
 
 struct InputEvent
 {
-    static constexpr uint8_t    kFlagStrobe    = 0x01;
-    static constexpr uint8_t    kFlagAnyKeyDown = 0x02;
+    static constexpr uint8_t  kFlagStrobe     = 0x01;
+    static constexpr uint8_t  kFlagAnyKeyDown = 0x02;
 
     struct KeyPayload
     {

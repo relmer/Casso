@@ -3037,8 +3037,8 @@ HRESULT AssemblySession::HandlePass1DataDirectives (const PendingLine & current,
 
     m_pass1Ctx.currentPC = (int32_t) m_pc;
 
-    std::vector<int32_t>     values;
-    std::vector<AssemblyError> tempErrors;
+    std::vector<int32_t>        values;
+    std::vector<AssemblyError>  tempErrors;
 
     TryEvaluateDirectiveArgs (info.parsed.directiveArg, m_pass1Ctx, values, current.sourceLineNumber, tempErrors);
 
@@ -3120,8 +3120,8 @@ HRESULT AssemblySession::HandleIncludeDirective (const PendingLine & current, Li
 
         CBRFEx (fr.success, S_OK, RecordError (current.sourceLineNumber, fr.error));
 
-        std::string ext = GetLowerExtension (filename);
-        std::vector<std::string> synthLines;
+        std::string               ext        = GetLowerExtension (filename);
+        std::vector<std::string>  synthLines;
 
         if (ext == ".bin")
         {
@@ -3364,8 +3364,8 @@ HRESULT AssemblySession::ParseCmapMapping (const std::string & arg)
             if (dashPos != std::string::npos && dashPos < eqPos &&
                 lhs.size() >= 7 && lhs[0] == '\'' && lhs[2] == '\'')
             {
-                char startChar = lhs[1];
-                std::string afterDash = lhs.substr (dashPos + 1);
+                char         startChar = lhs[1];
+                std::string  afterDash = lhs.substr (dashPos + 1);
                 size_t ads = afterDash.find_first_not_of (" \t");
 
                 if (ads != std::string::npos)
@@ -3661,8 +3661,8 @@ HRESULT AssemblySession::ApplyMacroSubstitutions (std::string & expanded,
 
     // Replace \0 with argument count
     {
-        std::string argCountStr = std::to_string ((int) args.size());
-        size_t pos = 0;
+        std::string  argCountStr = std::to_string ((int) args.size());
+        size_t       pos         = 0;
 
         while ((pos = expanded.find ("\\0", pos)) != std::string::npos)
         {
@@ -3781,8 +3781,8 @@ HRESULT AssemblySession::StripForcedSubstitution (std::string & expanded)
 
 
 
-    size_t sq = 0;
-    bool inDouble = false;
+    size_t  sq       = 0;
+    bool    inDouble = false;
 
 
 
@@ -5146,8 +5146,8 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
 
     if (mode == GlobalAddressingMode::Relative)
     {
-        Word pcAfterInstruction = info.pc + 2;
-        int  offset = value - (int) pcAfterInstruction;
+        Word  pcAfterInstruction = info.pc + 2;
+        int   offset             = value - (int) pcAfterInstruction;
 
         if (offset < -128 || offset > 127)
         {

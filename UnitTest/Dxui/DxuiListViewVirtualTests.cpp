@@ -54,7 +54,7 @@ public:
     // hidden and one fixed-width column -> exactly 10 visible rows.
     void  ConfigureList (DxuiListView & list)
     {
-        DxuiDpiScaler        scaler;
+        DxuiDpiScaler                      scaler;
         std::vector<DxuiListView::Column>  cols;
 
         scaler.SetDpi (96);

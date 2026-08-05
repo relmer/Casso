@@ -149,8 +149,8 @@ private:
     // Absolute target: packed fx<<16|fy viewport fractions + validity flag.
     std::atomic<uint32_t>     m_hostTarget  { 0 };
     std::atomic<bool>         m_hasTarget   { false };
-    uint32_t                  m_retargetCountdown = 0;
-    class MemoryBus *         m_bus         = nullptr;
+    uint32_t           m_retargetCountdown = 0;
+    class MemoryBus  * m_bus               = nullptr;
 
     // CPU-side movement queue: signed units not yet latched.
     int                       m_pendingX    = 0;
@@ -171,9 +171,9 @@ private:
     bool                      m_iouAccessEnabled = false;
 
     // VBL edge detection.
-    IVideoTiming *            m_videoTiming = nullptr;
-    bool                      m_lastInVblank = false;
-    uint32_t                  m_sampleAccum = 0;
+    IVideoTiming  * m_videoTiming  = nullptr;
+    bool            m_lastInVblank = false;
+    uint32_t        m_sampleAccum  = 0;
 
     IInterruptController *    m_ic          = nullptr;
     IrqSourceId               m_xySource    = 0;

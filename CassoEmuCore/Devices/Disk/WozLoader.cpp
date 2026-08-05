@@ -594,9 +594,9 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
     // three fixed header blocks.
     for (slot = 0; slot < slotCount; slot++)
     {
-        size_t   bitCount = img.GetTrackBitCount (slot);
-        size_t   byteCount = 0;
-        size_t   blocks    = 0;
+        size_t  bitCount  = img.GetTrackBitCount (slot);
+        size_t  byteCount = 0;
+        size_t  blocks    = 0;
 
         if (bitCount == 0)
         {

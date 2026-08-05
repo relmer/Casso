@@ -100,42 +100,42 @@ private:
                                                  // s_kJoystickButtonBandDp (43 dp)
                                                  // band above the drive widget with
                                                  // ~3 dp margin above and below.
-    static constexpr int    kPadDp      = 1;     // vertical padding
-    static constexpr int    kSegPadDp   = 6;     // segment leading/trailing pad
-    static constexpr int    kLedGapDp   = 5;     // LED -> icon gap
-    static constexpr int    kTextGapDp  = 6;     // icon -> label gap
-    static constexpr int    kSegGapDp   = 6;     // gap within a group
-    static constexpr int    kGroupGapDp = 14;    // gap between Keys | Pointer groups
-    static constexpr float  kFontDip    = 13.0f;
+    static constexpr int    kPadDp          = 1;   // vertical padding
+    static constexpr int    kSegPadDp       = 6;   // segment leading/trailing pad
+    static constexpr int    kLedGapDp       = 5;   // LED -> icon gap
+    static constexpr int    kTextGapDp      = 6;   // icon -> label gap
+    static constexpr int    kSegGapDp       = 6;   // gap within a group
+    static constexpr int    kGroupGapDp     = 14;   // gap between Keys | Pointer groups
+    static constexpr float  kFontDip        = 13.0f;
     static constexpr float  kFallbackCharPx = 7.5f;
 
     // Palette — transcribed from the SVG masters (warm ABS beige family, the
     // fire-button orange, and the drive-bar LED blue for the state LEDs).
-    static constexpr uint32_t  kCase       = 0xFFD8D2C1;   // body plastic
-    static constexpr uint32_t  kCaseLight  = 0xFFE2DDCD;   // top faces / plateau
-    static constexpr uint32_t  kCaseEdge   = 0xFF8F8A7A;   // molded edge stroke
-    static constexpr uint32_t  kSideFace   = 0xFFA9A392;   // oblique right-side faces
-    static constexpr uint32_t  kFacetTop   = 0xFFC7C1B1;   // funnel facets, light..dark
-    static constexpr uint32_t  kFacetLeft  = 0xFFB5AF9E;
-    static constexpr uint32_t  kFacetRight = 0xFFA39D8C;
-    static constexpr uint32_t  kFacetBot   = 0xFF948E7D;
-    static constexpr uint32_t  kHole       = 0xFF6B6759;   // pivot hole / well opening
-    static constexpr uint32_t  kKnob       = 0xFFB9B4A6;   // stick knob / dial caps
-    static constexpr uint32_t  kKnobEdge   = 0xFF6E6A5C;
-    static constexpr uint32_t  kDial       = 0xFFABA592;   // paddle dial body
-    static constexpr uint32_t  kDialSide   = 0xFFA79F8D;   // cylinder side bands
-    static constexpr uint32_t  kDialTop    = 0xFFC1BBAA;
-    static constexpr uint32_t  kDialEdge   = 0xFF827D6C;
-    static constexpr uint32_t  kTick       = 0xFF7E7967;   // knurl ticks
-    static constexpr uint32_t  kRib        = 0xFFA9A392;   // grip ribs
-    static constexpr uint32_t  kOrange     = 0xFFF0602B;   // fire buttons
-    static constexpr uint32_t  kOrangeEdge = 0xFFA63C14;
-    static constexpr uint32_t  kMouseBtn   = 0xFFB0ADA4;   // mouse button gray
+    static constexpr uint32_t  kCase         = 0xFFD8D2C1;   // body plastic
+    static constexpr uint32_t  kCaseLight    = 0xFFE2DDCD;   // top faces / plateau
+    static constexpr uint32_t  kCaseEdge     = 0xFF8F8A7A;   // molded edge stroke
+    static constexpr uint32_t  kSideFace     = 0xFFA9A392;   // oblique right-side faces
+    static constexpr uint32_t  kFacetTop     = 0xFFC7C1B1;   // funnel facets, light..dark
+    static constexpr uint32_t  kFacetLeft    = 0xFFB5AF9E;
+    static constexpr uint32_t  kFacetRight   = 0xFFA39D8C;
+    static constexpr uint32_t  kFacetBot     = 0xFF948E7D;
+    static constexpr uint32_t  kHole         = 0xFF6B6759;   // pivot hole / well opening
+    static constexpr uint32_t  kKnob         = 0xFFB9B4A6;   // stick knob / dial caps
+    static constexpr uint32_t  kKnobEdge     = 0xFF6E6A5C;
+    static constexpr uint32_t  kDial         = 0xFFABA592;   // paddle dial body
+    static constexpr uint32_t  kDialSide     = 0xFFA79F8D;   // cylinder side bands
+    static constexpr uint32_t  kDialTop      = 0xFFC1BBAA;
+    static constexpr uint32_t  kDialEdge     = 0xFF827D6C;
+    static constexpr uint32_t  kTick         = 0xFF7E7967;   // knurl ticks
+    static constexpr uint32_t  kRib          = 0xFFA9A392;   // grip ribs
+    static constexpr uint32_t  kOrange       = 0xFFF0602B;   // fire buttons
+    static constexpr uint32_t  kOrangeEdge   = 0xFFA63C14;
+    static constexpr uint32_t  kMouseBtn     = 0xFFB0ADA4;   // mouse button gray
     static constexpr uint32_t  kMouseBtnEdge = 0xFF6E6B62;
-    static constexpr uint32_t  kStick      = 0xFF3A3733;   // joystick grip
-    static constexpr uint32_t  kShaft      = 0xFF7A6A4E;   // brass shaft
-    static constexpr uint32_t  kHighlight  = 0x59FFFFFF;   // specular highlights
-    static constexpr uint32_t  kSeam       = 0xB88F8A7A;   // case seam lines
+    static constexpr uint32_t  kStick        = 0xFF3A3733;   // joystick grip
+    static constexpr uint32_t  kShaft        = 0xFF7A6A4E;   // brass shaft
+    static constexpr uint32_t  kHighlight    = 0x59FFFFFF;   // specular highlights
+    static constexpr uint32_t  kSeam         = 0xB88F8A7A;   // case seam lines
 
     // LED state colors — identical to the drive-bar / old toggle LED.
     static constexpr uint32_t  kLedOnCore  = 0xFF3DA1FF;
@@ -182,13 +182,13 @@ private:
     bool     SegmentSelected (int index) const;
     const wchar_t * SegmentLabel (int index) const;
 
-    RECT                 m_bounds        = {};
-    RECT                 m_segRects[3]   = {};   // full segment (hit) rects
-    RECT                 m_iconRects[3]  = {};
-    RECT                 m_textRects[3]  = {};
-    POINT                m_ledCenters[3] = {};
-    UINT                 m_dpi           = 96;
-    IDxuiTextRenderer *  m_textRenderer  = nullptr;
+    RECT                 m_bounds         = {};
+    RECT                 m_segRects[3]    = {};   // full segment (hit) rects
+    RECT                 m_iconRects[3]   = {};
+    RECT                 m_textRects[3]   = {};
+    POINT                m_ledCenters[3]  = {};
+    UINT                 m_dpi            = 96;
+    IDxuiTextRenderer  * m_textRenderer   = nullptr;
     bool                 m_arrowsJoystick = false;
     InputMappingMode     m_pointer        = InputMappingMode::Off;
     bool                 m_mouseAvailable = false;

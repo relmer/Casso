@@ -182,10 +182,10 @@ public:
     TEST_METHOD (Write_Object_Compact)
     {
         vector<pair<string, JsonValue>>  entries;
-        JsonValue                         v;
-        JsonWriter::Options               opts;
-        string                            out;
-        HRESULT                           hr;
+        JsonValue                        v;
+        JsonWriter::Options              opts;
+        string                           out;
+        HRESULT                          hr;
 
         entries.push_back ({ "a", JsonValue (1.0) });
         entries.push_back ({ "b", JsonValue (string ("two")) });
@@ -201,10 +201,10 @@ public:
     TEST_METHOD (Write_Object_Pretty)
     {
         vector<pair<string, JsonValue>>  entries;
-        JsonValue                         v;
-        JsonWriter::Options               opts;
-        string                            out;
-        HRESULT                           hr;
+        JsonValue                        v;
+        JsonWriter::Options              opts;
+        string                           out;
+        HRESULT                          hr;
 
         entries.push_back ({ "a", JsonValue (1.0) });
         v = JsonValue (move (entries));

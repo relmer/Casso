@@ -36,8 +36,8 @@ public:
     {
         MemoryBus             bus;
         RamDevice             ram {0x0000, 0xBFFF};
-        std::vector<Byte>     romData;
-        std::unique_ptr<MemoryDevice> rom;
+        std::vector<Byte>              romData;
+        std::unique_ptr<MemoryDevice>  rom;
 
         TestEnv()
             : romData (0x3000, 0xEA)
@@ -221,8 +221,8 @@ public:
     TEST_METHOD (IORead_GoesToBusDevice)
     {
         // Register keyboard at $C000, read via CPU -> should go through bus
-        TestEnv env;
-        AppleKeyboard kbd;
+        TestEnv        env;
+        AppleKeyboard  kbd;
         env.bus.AddDevice (&kbd);
         env.BuildRom();
 
@@ -241,8 +241,8 @@ public:
     TEST_METHOD (IOWrite_GoesToBusDevice)
     {
         // Writing to $C010 should clear keyboard strobe via bus
-        TestEnv env;
-        AppleKeyboard kbd;
+        TestEnv        env;
+        AppleKeyboard  kbd;
         env.bus.AddDevice (&kbd);
         env.BuildRom();
 
@@ -316,8 +316,8 @@ public:
         RamDevice ram (0x0000, 0xBFFF);
         bus.AddDevice (&ram);
 
-        std::string error;
-        auto rom = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
+        std::string  error;
+        auto         rom   = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
 
         Assert::IsNotNull (rom.get(),
             std::format (L"Failed to load ROM: {}", std::wstring (error.begin(), error.end())).c_str());
@@ -327,8 +327,8 @@ public:
         EmuCpu cpu (bus);
 
         // Copy ROM into internal memory
-        const Byte * romData = static_cast<RomDevice *> (rom.get())->GetData();
-        size_t romSize = 0xFFFF - 0xD000 + 1;
+        const Byte  * romData = static_cast<RomDevice *> (rom.get())->GetData();
+        size_t        romSize = 0xFFFF - 0xD000 + 1;
 
         for (size_t i = 0; i < romSize; i++)
         {
@@ -364,15 +364,15 @@ public:
         AppleKeyboard kbd;
         bus.AddDevice (&kbd);
 
-        std::string error;
-        auto rom = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
+        std::string  error;
+        auto         rom   = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
         Assert::IsNotNull (rom.get());
         bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
-        const Byte * romData = static_cast<RomDevice *> (rom.get())->GetData();
-        size_t romSize = 0xFFFF - 0xD000 + 1;
+        const Byte  * romData = static_cast<RomDevice *> (rom.get())->GetData();
+        size_t        romSize = 0xFFFF - 0xD000 + 1;
 
         for (size_t i = 0; i < romSize; i++)
         {

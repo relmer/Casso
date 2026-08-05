@@ -242,12 +242,12 @@ void DxuiRadioGroup::Commit (int newIndex)
 
 void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    constexpr float     s_kBoxSizeDip    = 16.0f;
-    constexpr float     s_kDotInsetDip   = 4.0f;
-    constexpr float     s_kFocusInsetDip = -2.0f;
-    constexpr float     s_kFocusThickDip = 1.0f;
-    constexpr float     s_kLabelGapDip   = 6.0f;
-    constexpr float     s_kFontDip      = 13.0f;
+    constexpr float  s_kBoxSizeDip    = 16.0f;
+    constexpr float  s_kDotInsetDip   = 4.0f;
+    constexpr float  s_kFocusInsetDip = -2.0f;
+    constexpr float  s_kFocusThickDip = 1.0f;
+    constexpr float  s_kLabelGapDip   = 6.0f;
+    constexpr float  s_kFontDip       = 13.0f;
 
 
 
@@ -267,8 +267,8 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     for (i = 0; i < (int) n; ++i)
     {
-        const DxuiRadioOption & opt      = m_options[(size_t) i];
-        float               boxLeft  = (float) opt.rect.left;
+        const DxuiRadioOption  & opt     = m_options[(size_t) i];
+        float                    boxLeft = (float) opt.rect.left;
         float               boxTop   = (float) opt.rect.top
                                        + ((float) (opt.rect.bottom - opt.rect.top) - boxSize) * 0.5f;
         float               cx       = boxLeft + boxSize * 0.5f;

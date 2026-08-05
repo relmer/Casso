@@ -268,14 +268,14 @@ STDMETHODIMP_(ULONG) DxuiDragDropTarget::Release()
 
 HRESULT DxuiDragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wstring & outPath)
 {
-    HRESULT    hr         = S_OK;
-    FORMATETC  fmt        = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-    STGMEDIUM  medium     = { };
-    HDROP      hDrop      = nullptr;
-    UINT       cFiles     = 0;
-    UINT       cchCopied  = 0;
-    bool       fLocked    = false;
-    bool       fGotMedium = false;
+    HRESULT    hr               = S_OK;
+    FORMATETC  fmt              = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM  medium           = { };
+    HDROP      hDrop            = nullptr;
+    UINT       cFiles           = 0;
+    UINT       cchCopied        = 0;
+    bool       fLocked          = false;
+    bool       fGotMedium       = false;
     wchar_t    buffer[MAX_PATH] = { };
 
 

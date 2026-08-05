@@ -387,12 +387,12 @@ public:
 
             for (int px = 0; px < 7; px++)
             {
-                bool expectOn = (glyphRow & (1 << px)) != 0;
-                uint32_t expectedColor = expectOn ? kGreen : kBlack;
+                bool      expectOn      = (glyphRow & (1 << px)) != 0;
+                uint32_t  expectedColor = expectOn ? kGreen : kBlack;
 
-                int fbX = px * 2;
-                int fbY = py * 2;
-                uint32_t actual = fb[fbY * kFbW + fbX];
+                int       fbX    = px * 2;
+                int       fbY    = py * 2;
+                uint32_t  actual = fb[fbY * kFbW + fbX];
 
                 Assert::AreEqual (expectedColor, actual,
                     std::format (L"'A' pixel ({},{}) byte=${:02X} expect={}",
@@ -536,8 +536,8 @@ public:
 
         for (int r = 0; r < 24; r++)
         {
-            int fbY = r * 16;
-            bool hasGreen = false;
+            int   fbY      = r * 16;
+            bool  hasGreen = false;
 
             for (int y = fbY; y < fbY + 16 && !hasGreen; y++)
             {
@@ -704,8 +704,8 @@ public:
         // Bits 0,2,4,6 are ON (isolated pixels — no adjacent pair)
         for (int bit = 0; bit < 7; bit++)
         {
-            bool expectOn = (0x55 & (1 << bit)) != 0;
-            uint32_t pixel = fb[bit * 2];
+            bool      expectOn = (0x55 & (1 << bit)) != 0;
+            uint32_t  pixel    = fb[bit * 2];
 
             if (expectOn)
             {

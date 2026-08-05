@@ -604,8 +604,8 @@ private:
         UNREFERENCED_PARAMETER (searchPaths);
 
         // Determine expected size from filename
-        std::string filename = relativePath.filename().string();
-        size_t      expectedSize = 0;
+        std::string  filename     = relativePath.filename().string();
+        size_t       expectedSize = 0;
 
         if (filename == "Apple2Plus.rom" || filename == "Apple2.rom")
         {

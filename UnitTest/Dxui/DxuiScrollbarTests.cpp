@@ -266,7 +266,7 @@ public:
 
     TEST_METHOD (Paint_EmitsTrackAndThumbFills)
     {
-        DxuiScrollbar    bar     = MakeVertical();
+        DxuiScrollbar    bar      = MakeVertical();
         MockDxuiPainter  painter;
         bool             sawTrack = false;
         bool             sawThumb = false;

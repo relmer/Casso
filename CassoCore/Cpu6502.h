@@ -114,9 +114,9 @@ protected:
     static constexpr Byte         kStatusBreakBit     = 0x10;
     static constexpr Byte         kStatusAlwaysOneBit = 0x20;
 
-    bool                          m_irqLine    = false;
-    bool                          m_nmiLine    = false;
-    bool                          m_nmiPending = false;
-    uint64_t                      m_totalCycles = 0;
-    uint64_t                      m_busCycle    = 0;
+    bool      m_irqLine     = false;
+    bool      m_nmiLine     = false;
+    bool      m_nmiPending  = false;
+    uint64_t  m_totalCycles = 0;
+    uint64_t  m_busCycle    = 0;
 };

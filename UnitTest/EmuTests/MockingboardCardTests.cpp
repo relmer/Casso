@@ -230,9 +230,9 @@ namespace MockingboardCardTestNs
         TEST_METHOD (ProgrammedToneProducesAudio)
         {
             MockingboardCard    card (4);
-            float               buffer[2000] = {};
-            uint32_t            i    = 0;
-            float               peak = 0.0f;
+            float     buffer[2000] = {};
+            uint32_t  i            = 0;
+            float     peak         = 0.0f;
 
 
 

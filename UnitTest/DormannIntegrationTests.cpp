@@ -223,8 +223,8 @@ namespace DormannIntegrationTests
             AssemblerOptions opts;
             opts.fillByte = 0x00;
 
-            Assembler a = BuildAssembler (opts);
-            auto result = a.Assemble (source);
+            Assembler  a      = BuildAssembler (opts);
+            auto       result = a.Assemble (source);
 
             // Check for assembly errors (ignore warnings)
             if (!result.success)
@@ -348,8 +348,8 @@ namespace DormannIntegrationTests
                 AssemblerOptions opts;
                 opts.fillByte = 0xFF;
 
-                Assembler a = BuildAssembler (opts);
-                auto result = a.Assemble (source);
+                Assembler  a      = BuildAssembler (opts);
+                auto       result = a.Assemble (source);
 
                 // Assembler defects belong to DormannAssemblesSuccessfully,
                 // which reports them properly -- failing here too would just

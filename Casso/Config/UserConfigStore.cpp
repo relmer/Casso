@@ -243,11 +243,11 @@ JsonValue UserConfigStore::CanonicalizeVersionStamp (
     int               fallbackVersion)
 {
     std::vector<std::pair<std::string, JsonValue>>  out;
-    JsonValue                                        result           = userJson;
-    int                                              canonicalVersion = 0;
-    bool                                             fWroteVersion    = false;
-    bool                                             isObject         = userJson.GetType() == JsonType::Object;
-    HRESULT                                          hr               = S_OK;
+    JsonValue                                       result           = userJson;
+    int                                             canonicalVersion = 0;
+    bool                                            fWroteVersion    = false;
+    bool                                            isObject         = userJson.GetType() == JsonType::Object;
+    HRESULT                                         hr               = S_OK;
 
 
     // A non-object round-trips unchanged.
@@ -377,8 +377,8 @@ JsonValue UserConfigStore::BuildObjectWithEnabled (
     const JsonValue & src,
     bool              enabled)
 {
-    std::vector<std::pair<std::string, JsonValue>> rebuilt;
-    const auto * entries = &src.GetObjectEntries();
+    std::vector<std::pair<std::string, JsonValue>>    rebuilt;
+    const auto                                      * entries = &src.GetObjectEntries();
 
 
     rebuilt.reserve (entries->size() + 1);
@@ -624,9 +624,9 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
 
         if (curEn != defEn)
         {
-            std::vector<std::pair<std::string, JsonValue>> obj;
-            std::string type;
-            int slot = -1;
+            std::vector<std::pair<std::string, JsonValue>>  obj;
+            std::string                                     type;
+            int                                             slot = -1;
 
             if (slotArray)
             {
@@ -666,7 +666,7 @@ Error:
 
 bool UserConfigStore::IsObjectArray (const JsonValue & v)
 {
-    size_t  i        = 0;
+    size_t  i         = 0;
     bool    allAreObj = v.GetType() == JsonType::Array;
 
 
@@ -866,20 +866,20 @@ HRESULT UserConfigStore::Load (
     IFileSystem        & fs,
     JsonValue          & outMerged) const
 {
-    HRESULT          hr            = S_OK;
-    std::string      userContent;
-    std::string      migrated;
-    JsonValue        userJson;
-    JsonValue        canonicalJson;
-    JsonParseError   parseErr;
-    JsonWriter::Options opts;
-    int              defaultVer    = 0;
-    int              userVer       = 0;
-    bool             fNeedMigrate  = false;
-    bool             fRewritten    = false;
-    bool             fHasLegacyKey = false;
-    bool             hasUserPrefs  = false;
-    auto             found         = m_machinePrefs.find (machineName);
+    HRESULT              hr            = S_OK;
+    std::string          userContent;
+    std::string          migrated;
+    JsonValue            userJson;
+    JsonValue            canonicalJson;
+    JsonParseError       parseErr;
+    JsonWriter::Options  opts;
+    int                  defaultVer    = 0;
+    int                  userVer       = 0;
+    bool                 fNeedMigrate  = false;
+    bool                 fRewritten    = false;
+    bool                 fHasLegacyKey = false;
+    bool                 hasUserPrefs  = false;
+    auto                 found         = m_machinePrefs.find (machineName);
 
 
 
@@ -1424,9 +1424,9 @@ JsonValue UserConfigStore::MergeJson (
     const JsonValue & defaultV,
     const JsonValue & userV)
 {
-    std::vector<std::pair<std::string, JsonValue>>  merged;
-    const std::vector<std::pair<std::string, JsonValue>> *  defaultEntries = nullptr;
-    const std::vector<std::pair<std::string, JsonValue>> *  userEntries    = nullptr;
+    std::vector<std::pair<std::string, JsonValue>>          merged;
+    const std::vector<std::pair<std::string, JsonValue>>  * defaultEntries = nullptr;
+    const std::vector<std::pair<std::string, JsonValue>>  * userEntries    = nullptr;
     int                                                     idx            = 0;
     size_t                                                  i              = 0;
     JsonValue                                               result         = userV;
@@ -1511,16 +1511,16 @@ JsonValue UserConfigStore::DiffJson (
     const JsonValue & currentV,
     const JsonValue & defaultV)
 {
-    std::vector<std::pair<std::string, JsonValue>>  diff;
-    const std::vector<std::pair<std::string, JsonValue>> *  curEntries     = nullptr;
-    const std::vector<std::pair<std::string, JsonValue>> *  defEntries     = nullptr;
-    int                                                     idx            = 0;
-    size_t                                                  i              = 0;
-    bool                                                    fIsVersionKey  = false;
-    bool                                                    fSameType      = false;
+    std::vector<std::pair<std::string, JsonValue>>          diff;
+    const std::vector<std::pair<std::string, JsonValue>>  * curEntries    = nullptr;
+    const std::vector<std::pair<std::string, JsonValue>>  * defEntries    = nullptr;
+    int                                                     idx           = 0;
+    size_t                                                  i             = 0;
+    bool                                                    fIsVersionKey = false;
+    bool                                                    fSameType     = false;
     JsonValue                                               result;
-    HRESULT                                                 hr             = S_OK;
-    bool                                                    isObject       = currentV.GetType() == JsonType::Object;
+    HRESULT                                                 hr            = S_OK;
+    bool                                                    isObject      = currentV.GetType() == JsonType::Object;
 
 
     // Not an object: the empty `diff` below still yields an object, which is

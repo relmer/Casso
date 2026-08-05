@@ -93,19 +93,19 @@ Error:
 
 HRESULT PngCodec::EncodeRgba (const RgbaImage & image, int dpi, vector<Byte> & outPng)
 {
-    HRESULT                         hr     = S_OK;
-    ComPtr<IWICImagingFactory>      factory;
-    ComPtr<IWICBitmap>              bitmap;
-    ComPtr<IStream>                 stream;
-    ComPtr<IWICBitmapEncoder>       encoder;
-    ComPtr<IWICBitmapFrameEncode>   frame;
-    ComPtr<IPropertyBag2>           props;
-    WICRect                         rect   = { 0, 0, 0, 0 };
-    HGLOBAL                         handle = nullptr;
-    void *                          memory = nullptr;
-    SIZE_T                          size   = 0;
-    double                          res    = 0.0;
-    size_t                          rgbaLen = 0;
+    HRESULT                          hr      = S_OK;
+    ComPtr<IWICImagingFactory>       factory;
+    ComPtr<IWICBitmap>               bitmap;
+    ComPtr<IStream>                  stream;
+    ComPtr<IWICBitmapEncoder>        encoder;
+    ComPtr<IWICBitmapFrameEncode>    frame;
+    ComPtr<IPropertyBag2>            props;
+    WICRect                          rect    = { 0, 0, 0, 0 };
+    HGLOBAL                          handle  = nullptr;
+    void                           * memory  = nullptr;
+    SIZE_T                           size    = 0;
+    double                           res     = 0.0;
+    size_t                           rgbaLen = 0;
 
 
 
@@ -191,19 +191,19 @@ HRESULT PngCodec::EncodeIndexed (
     int                  dpi,
     vector<Byte> &       outPng)
 {
-    HRESULT                         hr     = S_OK;
-    ComPtr<IWICImagingFactory>      factory;
-    ComPtr<IStream>                 stream;
-    ComPtr<IWICBitmapEncoder>       encoder;
-    ComPtr<IWICBitmapFrameEncode>   frame;
-    ComPtr<IPropertyBag2>           props;
-    ComPtr<IWICPalette>             wicPalette;
-    WICPixelFormatGUID              format = GUID_WICPixelFormat8bppIndexed;
-    HGLOBAL                         handle = nullptr;
-    void *                          memory = nullptr;
-    SIZE_T                          size   = 0;
-    double                          res    = 0.0;
-    size_t                          indexCount = 0;
+    HRESULT                          hr         = S_OK;
+    ComPtr<IWICImagingFactory>       factory;
+    ComPtr<IStream>                  stream;
+    ComPtr<IWICBitmapEncoder>        encoder;
+    ComPtr<IWICBitmapFrameEncode>    frame;
+    ComPtr<IPropertyBag2>            props;
+    ComPtr<IWICPalette>              wicPalette;
+    WICPixelFormatGUID               format     = GUID_WICPixelFormat8bppIndexed;
+    HGLOBAL                          handle     = nullptr;
+    void                           * memory     = nullptr;
+    SIZE_T                           size       = 0;
+    double                           res        = 0.0;
+    size_t                           indexCount = 0;
 
     CBREx (width > 0 && height > 0, E_INVALIDARG);
     CBREx (paletteCount > 0 && paletteCount <= 256, E_INVALIDARG);

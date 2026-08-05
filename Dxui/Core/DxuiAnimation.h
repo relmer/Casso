@@ -33,9 +33,9 @@ struct DxuiTweenHandle
 
 struct DxuiDriveSyncBrokerEvent
 {
-    int       driveIndex = 0;
-    int       tag        = 0;     // caller-defined (e.g. door-open / door-close)
-    int64_t   frameTimeMs = 0;
+    int      driveIndex  = 0;
+    int      tag         = 0;   // caller-defined (e.g. door-open / door-close)
+    int64_t  frameTimeMs = 0;
 };
 
 
@@ -58,18 +58,18 @@ public:
 private:
     struct DxuiTweenState
     {
-        uint32_t   id           = 0;
-        float      startValue   = 0.0f;
-        float      endValue     = 0.0f;
-        float      startTime    = 0.0f;
-        float      duration     = 0.0f;
-        DxuiTweenEase  ease         = DxuiTweenEase::Linear;
-        bool       started      = false;
+        uint32_t       id         = 0;
+        float          startValue = 0.0f;
+        float          endValue   = 0.0f;
+        float          startTime  = 0.0f;
+        float          duration   = 0.0f;
+        DxuiTweenEase  ease       = DxuiTweenEase::Linear;
+        bool           started    = false;
     };
 
 
     std::vector<DxuiTweenState>            m_tweens;
     std::vector<DxuiDriveSyncBrokerEvent>  m_pendingSync;
-    float                              m_currentTimeSec = 0.0f;
-    uint32_t                           m_nextId         = 1;
+    float                                  m_currentTimeSec = 0.0f;
+    uint32_t                               m_nextId         = 1;
 };

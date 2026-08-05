@@ -329,7 +329,7 @@ void DxuiListView::AppendRows (std::vector<std::vector<Cell>> rows)
 
 void DxuiListView::SetColumnVisible (size_t idx, bool visible)
 {
-    HRESULT  hr         = S_OK;
+    HRESULT  hr          = S_OK;
     size_t   columnCount = 0;
 
 
@@ -359,7 +359,7 @@ Error:
 
 void DxuiListView::SetColumnOverrideWidthPx (size_t idx, int px)
 {
-    HRESULT  hr         = S_OK;
+    HRESULT  hr          = S_OK;
     size_t   columnCount = 0;
 
 
@@ -1521,7 +1521,7 @@ void DxuiListView::SyncHorzScroll() const
 DxuiListView::HorzScrollbarMetrics DxuiListView::GetHorzScrollbarGeometry() const
 {
     HRESULT                 hr = S_OK;
-    HorzScrollbarMetrics       m;
+    HorzScrollbarMetrics    m;
     DxuiScrollbar::Metrics  g;
 
 
@@ -1558,8 +1558,8 @@ Error:
 
 bool DxuiListView::HitTestHorzScrollbarThumb (int xPx, int yPx) const
 {
-    HRESULT            hr     = S_OK;
-    bool               result = false;
+    HRESULT               hr     = S_OK;
+    bool                  result = false;
     HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
 
 
@@ -1585,8 +1585,8 @@ Error:
 
 bool DxuiListView::HitTestHorzScrollbarTrack (int xPx, int yPx) const
 {
-    HRESULT            hr     = S_OK;
-    bool               result = false;
+    HRESULT               hr     = S_OK;
+    bool                  result = false;
     HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
 
 
@@ -1612,8 +1612,8 @@ Error:
 
 bool DxuiListView::HitTestHorzScrollbarArrowLeft (int xPx, int yPx) const
 {
-    HRESULT            hr     = S_OK;
-    bool               result = false;
+    HRESULT               hr     = S_OK;
+    bool                  result = false;
     HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
 
 
@@ -1639,8 +1639,8 @@ Error:
 
 bool DxuiListView::HitTestHorzScrollbarArrowRight (int xPx, int yPx) const
 {
-    HRESULT            hr     = S_OK;
-    bool               result = false;
+    HRESULT               hr     = S_OK;
+    bool                  result = false;
     HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
 
 
@@ -1669,9 +1669,9 @@ Error:
 
 void DxuiListView::PageFromHorzTrackClick (int xPx)
 {
-    HRESULT            hr     = S_OK;
-    HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
-    int                viewW  = ComputeScrollLayout().viewportW;
+    HRESULT               hr    = S_OK;
+    HorzScrollbarMetrics  m     = GetHorzScrollbarGeometry();
+    int                   viewW = ComputeScrollLayout().viewportW;
 
 
 
@@ -1726,12 +1726,12 @@ void DxuiListView::BeginHorzThumbDrag (int grabXPx)
 
 void DxuiListView::UpdateHorzThumbDrag (int xPx)
 {
-    HRESULT            hr        = S_OK;
+    HRESULT               hr        = S_OK;
     HorzScrollbarMetrics  m         = GetHorzScrollbarGeometry();
-    int                maxLeft   = GetMaxLeftPx();
-    float              travel    = 0.0f;
-    float              thumbLeft = 0.0f;
-    float              ratio     = 0.0f;
+    int                   maxLeft   = GetMaxLeftPx();
+    float                 travel    = 0.0f;
+    float                 thumbLeft = 0.0f;
+    float                 ratio     = 0.0f;
 
 
 
@@ -1824,13 +1824,13 @@ int DxuiListView::GetRequiredHeightPx() const
 
 int DxuiListView::HitTestColumnResize (int xPx, int yPx, int tolerancePx) const
 {
-    HRESULT  hr      = S_OK;
-    int      result  = -1;
-    int      headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
-    int      cap     = GetVisibleRowCapacity();
-    bool     needBar = (RowCount() > cap) && (cap > 0);
-    int      fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
-    int      xAdj    = m_hScrollEnabled ? (xPx + m_leftPx) : xPx;
+    HRESULT           hr      = S_OK;
+    int               result  = -1;
+    int               headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
+    int               cap     = GetVisibleRowCapacity();
+    bool              needBar = (RowCount() > cap) && (cap > 0);
+    int               fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
+    int               xAdj    = m_hScrollEnabled ? (xPx + m_leftPx) : xPx;
     std::vector<int>  colXPx;
     std::vector<int>  colWPx;
 
@@ -2495,9 +2495,9 @@ void DxuiListView::PaintHScrollbar (
     float           x,
     float           y) const
 {
-    HRESULT            hr    = S_OK;
+    HRESULT               hr    = S_OK;
     HorzScrollbarMetrics  m     = GetHorzScrollbarGeometry();
-    int                viewW = ComputeScrollLayout().viewportW;
+    int                   viewW = ComputeScrollLayout().viewportW;
 
 
 

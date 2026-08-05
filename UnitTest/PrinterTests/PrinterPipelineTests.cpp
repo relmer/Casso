@@ -76,11 +76,11 @@ namespace PrinterPipelineTests
 
             // Render the whole strip and confirm ink actually landed.
             {
-                PaperRenderer            renderer;
-                PaperRenderer::Options   opt;
-                RgbaImage                img;
-                int                      inked = 0;
-                int                      x = 0, y = 0;
+                PaperRenderer           renderer;
+                PaperRenderer::Options  opt;
+                RgbaImage               img;
+                int                     inked    = 0;
+                int                     x        = 0, y = 0;
 
                 opt.outputDpi = 288;
                 AssertSucceeded (renderer.Render (raster, 0, raster.RowsUsed() - 1, opt, img));

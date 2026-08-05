@@ -500,15 +500,15 @@ int WINAPI wWinMain (
     _In_     LPWSTR    lpCmdLine,
     _In_     int       nCmdShow)
 {
-    HRESULT                          hr = S_OK;
-    wstring                          machineName;
-    wstring                          disk1Path;
-    wstring                          disk2Path;
-    size_t                           traceCapacity = 0;
-    int                              exitCode      = 0;
-    bool                             userExited    = false;
-    MachineConfig                    config;
-    std::unique_ptr<EmulatorShell>   shell = std::make_unique<EmulatorShell>();
+    HRESULT                         hr            = S_OK;
+    wstring                         machineName;
+    wstring                         disk1Path;
+    wstring                         disk2Path;
+    size_t                          traceCapacity = 0;
+    int                             exitCode      = 0;
+    bool                            userExited    = false;
+    MachineConfig                   config;
+    std::unique_ptr<EmulatorShell>  shell         = std::make_unique<EmulatorShell>();
 
 
 

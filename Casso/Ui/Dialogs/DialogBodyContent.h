@@ -62,12 +62,12 @@ private:
 
     std::vector<Item>      m_items;
     std::vector<uint32_t>  m_iconPixels;
-    int                    m_iconSrcW    = 0;
-    int                    m_iconSrcH    = 0;
-    int                    m_iconSizeDip = 0;
-    RECT                   m_iconRectPx  = {};
-    wchar_t                m_glyph       = 0;
-    uint32_t               m_glyphArgb   = 0;
+    int                    m_iconSrcW     = 0;
+    int                    m_iconSrcH     = 0;
+    int                    m_iconSizeDip  = 0;
+    RECT                   m_iconRectPx   = {};
+    wchar_t                m_glyph        = 0;
+    uint32_t               m_glyphArgb    = 0;
     int                    m_glyphSizeDip = 0;
-    RECT                   m_glyphRectPx = {};
+    RECT                   m_glyphRectPx  = {};
 };

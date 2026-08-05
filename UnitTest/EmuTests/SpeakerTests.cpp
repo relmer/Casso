@@ -46,8 +46,8 @@ public:
 
     TEST_METHOD (Read_AccumulatesTimestamps)
     {
-        AppleSpeaker spk;
-        uint64_t cycles = 100;
+        AppleSpeaker  spk;
+        uint64_t      cycles = 100;
         spk.SetCycleCounter (&cycles);
 
         spk.Read (0xC030);
@@ -57,8 +57,8 @@ public:
 
     TEST_METHOD (ClearTimestamps_EmptiesVector)
     {
-        AppleSpeaker spk;
-        uint64_t cycles = 50;
+        AppleSpeaker  spk;
+        uint64_t      cycles = 50;
         spk.SetCycleCounter (&cycles);
 
         spk.Read (0xC030);
@@ -88,8 +88,8 @@ public:
 
     TEST_METHOD (CycleCounter_RecordsCorrectTimestamp)
     {
-        AppleSpeaker spk;
-        uint64_t cycles = 500;
+        AppleSpeaker  spk;
+        uint64_t      cycles = 500;
         spk.SetCycleCounter (&cycles);
 
         spk.Read (0xC030);
@@ -100,8 +100,8 @@ public:
 
     TEST_METHOD (CycleCounter_AdvancingCyclesRecordsDifferentTimestamps)
     {
-        AppleSpeaker spk;
-        uint64_t cycles = 100;
+        AppleSpeaker  spk;
+        uint64_t      cycles = 100;
         spk.SetCycleCounter (&cycles);
 
         spk.Read (0xC030);

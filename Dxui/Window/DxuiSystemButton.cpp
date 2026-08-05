@@ -84,21 +84,21 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 
 
 
-    RECT     bounds      = {};
-    float    xPx         = 0.0f;
-    float    yPx         = 0.0f;
-    float    widthPx     = 0.0f;
-    float    heightPx    = 0.0f;
-    float    glyphSizePx = 0.0f;
-    float    glyphLeft   = 0.0f;
-    float    glyphTop    = 0.0f;
-    float    glyphRight  = 0.0f;
-    float    glyphBottom = 0.0f;
-    float    midX            = 0.0f;
-    float    midY            = 0.0f;
-    float    strokePx        = 0.0f;
-    float    restoreOffsetPx = 0.0f;
-    uint32_t fg              = 0;
+    RECT      bounds          = {};
+    float     xPx             = 0.0f;
+    float     yPx             = 0.0f;
+    float     widthPx         = 0.0f;
+    float     heightPx        = 0.0f;
+    float     glyphSizePx     = 0.0f;
+    float     glyphLeft       = 0.0f;
+    float     glyphTop        = 0.0f;
+    float     glyphRight      = 0.0f;
+    float     glyphBottom     = 0.0f;
+    float     midX            = 0.0f;
+    float     midY            = 0.0f;
+    float     strokePx        = 0.0f;
+    float     restoreOffsetPx = 0.0f;
+    uint32_t  fg              = 0;
 
 
 
@@ -199,7 +199,7 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
             // along each diagonal. Quick, no-dependency approach; good
             // enough for chrome at typical button sizes (~32 DIP).
             {
-                float  span = glyphRight - glyphLeft;
+                float  span  = glyphRight - glyphLeft;
                 int    steps = (int) span;
                 int    i     = 0;
 

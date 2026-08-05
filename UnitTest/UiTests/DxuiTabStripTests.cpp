@@ -66,7 +66,7 @@ public:
     TEST_METHOD (Click_SelectsAndFiresOnChange)
     {
         DxuiTabStrip  ts;
-        int       last = -1;
+        int           last = -1;
         ts.SetTabs (MakeThreeTabs());
         ts.SetOnChange ([&] (int idx) { last = idx; });
 

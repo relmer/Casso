@@ -151,11 +151,11 @@ public:
 
     TEST_METHOD (ArrowDown_PicksNearestBelow)
     {
-        DxuiPanel          panel;
-        MockDxuiControl &  top   = panel.Add<MockDxuiControl>();
-        MockDxuiControl &  belowFar  = panel.Add<MockDxuiControl>();
-        MockDxuiControl &  belowNear = panel.Add<MockDxuiControl>();
-        DxuiFocusManager   focus;
+        DxuiPanel           panel;
+        MockDxuiControl   & top       = panel.Add<MockDxuiControl>();
+        MockDxuiControl   & belowFar  = panel.Add<MockDxuiControl>();
+        MockDxuiControl   & belowNear = panel.Add<MockDxuiControl>();
+        DxuiFocusManager    focus;
 
 
         top.SetBounds       (MakeRect (0, 0,  50, 20));

@@ -224,11 +224,11 @@ protected:
     static constexpr Byte    kTraceIntrIrq  = 1;
     static constexpr Byte    kTraceIntrNmi  = 2;
 
-    std::vector<TraceEntry>  m_trace;                  // sized by EnableTrace
-    size_t                   m_traceCapacity = 0;
-    size_t                   m_traceHead     = 0;      // next slot to write
-    uint64_t                 m_traceCount    = 0;      // total entries pushed
-    bool                     m_traceEnabled  = false;
+    std::vector<TraceEntry>  m_trace;   // sized by EnableTrace
+    size_t                   m_traceCapacity    = 0;
+    size_t                   m_traceHead        = 0;   // next slot to write
+    uint64_t                 m_traceCount       = 0;   // total entries pushed
+    bool                     m_traceEnabled     = false;
     Byte                     m_pendingTraceIntr = kTraceIntrNone;
 
     // Called from the interrupt-dispatch path just before the vector is taken.

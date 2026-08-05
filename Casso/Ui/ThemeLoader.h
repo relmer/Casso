@@ -86,10 +86,10 @@ struct LoadedTheme
     bool                isBuiltIn            = false; // $cassoBuiltIn
     bool                useMicaBackdrop      = false;
 
-    std::wstring        directoryPath;               // absolute, no trailing sep
-    ThemeCrtDefaults    crtDefaults;
-    JsonValue           uiTokens;
-    ThemeDriveVisualProfile driveVisualProfile;
+    std::wstring             directoryPath;   // absolute, no trailing sep
+    ThemeCrtDefaults         crtDefaults;
+    JsonValue                uiTokens;
+    ThemeDriveVisualProfile  driveVisualProfile;
 
     // Optional per-machine overrides keyed by the machine's human-readable
     // display name ("Apple ][", "Apple ][ plus", "Apple //e", "Apple //c",

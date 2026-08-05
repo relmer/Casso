@@ -43,8 +43,8 @@ public:
     TEST_METHOD (Confirm_InvokesConfirmCallback_AndHides)
     {
         DxuiModalScrim  scrim;
-        int         confirmHits = 0;
-        int         cancelHits  = 0;
+        int             confirmHits = 0;
+        int             cancelHits  = 0;
         scrim.Show ([&] { confirmHits++; }, [&] { cancelHits++; });
 
         scrim.Confirm();
@@ -57,7 +57,7 @@ public:
     TEST_METHOD (Cancel_InvokesCancelCallback_AndHides)
     {
         DxuiModalScrim  scrim;
-        int         cancelHits = 0;
+        int             cancelHits = 0;
         scrim.Show (nullptr, [&] { cancelHits++; });
 
         scrim.Cancel();
@@ -69,8 +69,8 @@ public:
     TEST_METHOD (KeyEscape_FiresCancelOnly)
     {
         DxuiModalScrim  scrim;
-        int         confirmHits = 0;
-        int         cancelHits  = 0;
+        int             confirmHits = 0;
+        int             cancelHits  = 0;
         scrim.Show ([&] { confirmHits++; }, [&] { cancelHits++; });
 
         Assert::IsTrue (scrim.OnKey (VK_ESCAPE));
@@ -81,8 +81,8 @@ public:
     TEST_METHOD (KeyEnter_FiresConfirmOnly)
     {
         DxuiModalScrim  scrim;
-        int         confirmHits = 0;
-        int         cancelHits  = 0;
+        int             confirmHits = 0;
+        int             cancelHits  = 0;
         scrim.Show ([&] { confirmHits++; }, [&] { cancelHits++; });
 
         Assert::IsTrue (scrim.OnKey (VK_RETURN));
@@ -101,7 +101,7 @@ public:
     TEST_METHOD (ConfirmWhileHidden_NoOp)
     {
         DxuiModalScrim  scrim;
-        int         hits = 0;
+        int             hits  = 0;
         scrim.Show ([&] { hits++; }, nullptr);
         scrim.Hide();
 

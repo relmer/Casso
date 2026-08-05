@@ -2164,9 +2164,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // is non-fatal -- the caption simply omits the icon if it misses.
     {
         std::vector<uint32_t>  iconPixels;
-        int                    iconW = 0;
-        int                    iconH = 0;
-        HRESULT                hrIcon = S_OK;
+        int                    iconW      = 0;
+        int                    iconH      = 0;
+        HRESULT                hrIcon     = S_OK;
 
         hrIcon = LoadIconAsPremulBgra (hInstance, IDI_CASSO, 32, iconPixels, iconW, iconH);
 
@@ -2813,12 +2813,12 @@ Error:
 
 void EmulatorShell::RecordRecentDisk (const std::wstring & path)
 {
-    HRESULT                    hr     = S_OK;
+    HRESULT                    hr         = S_OK;
     DiskMru                    mru;
     std::filesystem::path      fsPath;
     std::vector<std::string>   serialized;
     std::vector<std::int64_t>  loadedAt;
-    std::int64_t               nowUnix = 0;
+    std::int64_t               nowUnix    = 0;
 
 
 
@@ -2993,10 +2993,10 @@ void EmulatorShell::ShowMachinePicker()
 
 HRESULT EmulatorShell::ApplyAndPersistTheme (const std::string & themeName)
 {
-    HRESULT  hr           = S_OK;
-    HRESULT  hrActivate   = S_OK;
-    HRESULT  hrSave       = S_OK;
-    std::string  resolved = themeName;
+    HRESULT      hr         = S_OK;
+    HRESULT      hrActivate = S_OK;
+    HRESULT      hrSave     = S_OK;
+    std::string  resolved   = themeName;
 
 
 
@@ -3135,19 +3135,19 @@ int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 
 int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
 {
-    constexpr int      s_kDialogWidthDip  = 440;
-    constexpr int      s_kChromeHeightDip = 108;   // caption + content pad*2 + button row
-    constexpr int      s_kMinHeightDip    = 120;
-    constexpr int      s_kMaxHeightDip    = 620;
-    constexpr int      s_kIconSrcPx       = 256;
-    constexpr int      s_kDefaultIconDip  = 48;
-    constexpr int      s_kGlyphSizeDip    = 32;
-    constexpr wchar_t  s_kchGlyphInfo     = L'\uE946';   // MDL2 Info
-    constexpr wchar_t  s_kchGlyphWarning  = L'\uE7BA';   // MDL2 Warning
-    constexpr wchar_t  s_kchGlyphError    = L'\uEA39';   // MDL2 ErrorBadge
-    constexpr uint32_t s_kGlyphArgbInfo   = 0xFF4A9EDB;
-    constexpr uint32_t s_kGlyphArgbWarning = 0xFFF5A623;
-    constexpr uint32_t s_kGlyphArgbError  = 0xFFE5424D;
+    constexpr int       s_kDialogWidthDip   = 440;
+    constexpr int       s_kChromeHeightDip  = 108;   // caption + content pad*2 + button row
+    constexpr int       s_kMinHeightDip     = 120;
+    constexpr int       s_kMaxHeightDip     = 620;
+    constexpr int       s_kIconSrcPx        = 256;
+    constexpr int       s_kDefaultIconDip   = 48;
+    constexpr int       s_kGlyphSizeDip     = 32;
+    constexpr wchar_t   s_kchGlyphInfo      = L'\uE946';   // MDL2 Info
+    constexpr wchar_t   s_kchGlyphWarning   = L'\uE7BA';   // MDL2 Warning
+    constexpr wchar_t   s_kchGlyphError     = L'\uEA39';   // MDL2 ErrorBadge
+    constexpr uint32_t  s_kGlyphArgbInfo    = 0xFF4A9EDB;
+    constexpr uint32_t  s_kGlyphArgbWarning = 0xFFF5A623;
+    constexpr uint32_t  s_kGlyphArgbError   = 0xFFE5424D;
 
     std::unique_ptr<DialogBodyContent>  content   = std::make_unique<DialogBodyContent>();
     MessageDialog                       dlg;
@@ -8394,10 +8394,10 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
         if (!m_uiFramebuffer.empty())
         {
-            const ThemeCrtDefaults *  themeDefaults = nullptr;
-            LoadedTheme                resolvedTheme;
-            CrtParams                  params       = {};
-            bool                       fHaveTheme   = false;
+            const ThemeCrtDefaults  * themeDefaults = nullptr;
+            LoadedTheme               resolvedTheme;
+            CrtParams                 params        = {};
+            bool                      fHaveTheme    = false;
 
             if (m_themeManager != nullptr && m_themeManager->GetActiveTheme() != nullptr)
             {
@@ -8508,7 +8508,7 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 
 void EmulatorShell::UpdateWindowTitle()
 {
-    HRESULT  hr        = S_OK;
+    HRESULT  hr          = S_OK;
     wstring  title;
     wstring  wideName;
     bool     isOffThread = false;
@@ -8791,18 +8791,18 @@ private:
 
     void OnPaint (HWND hwnd)
     {
-        PAINTSTRUCT  ps      = {};
-        HDC          hdc     = BeginPaint (hwnd, &ps);
-        RECT         rc      = {};
-        RECT         bar     = {};
-        int          pad     = Scaled (s_kPadPx);
-        int          line    = Scaled (s_kLinePx);
-        int          barH    = Scaled (s_kBarPx);
-        int          gap     = Scaled (s_kGapSmallPx);
-        int          pct     = (m_total > 0) ? (int) ((m_done * 100) / m_total) : 0;
+        PAINTSTRUCT  ps         = {};
+        HDC          hdc        = BeginPaint (hwnd, &ps);
+        RECT         rc         = {};
+        RECT         bar        = {};
+        int          pad        = Scaled (s_kPadPx);
+        int          line       = Scaled (s_kLinePx);
+        int          barH       = Scaled (s_kBarPx);
+        int          gap        = Scaled (s_kGapSmallPx);
+        int          pct        = (m_total > 0) ? (int) ((m_done * 100) / m_total) : 0;
         wchar_t      line1[128] = {};
         wchar_t      line3[160] = {};
-        HBRUSH       fill    = CreateSolidBrush (RGB (0x2D, 0x7D, 0x46));
+        HBRUSH       fill       = CreateSolidBrush (RGB (0x2D, 0x7D, 0x46));
 
         GetClientRect (hwnd, &rc);
 
@@ -8979,11 +8979,11 @@ Error:
 
 void EmulatorShell::OpenDisk2DebugDialog()
 {
-    HRESULT             hr           = S_OK;
-    Disk2Controller *   controller   = nullptr;
-    int                 Disk2Count  = 0;
-    HINSTANCE           hInstance    = nullptr;
-    size_t              i            = 0;
+    HRESULT            hr         = S_OK;
+    Disk2Controller  * controller = nullptr;
+    int                Disk2Count = 0;
+    HINSTANCE          hInstance  = nullptr;
+    size_t             i          = 0;
 
 
 

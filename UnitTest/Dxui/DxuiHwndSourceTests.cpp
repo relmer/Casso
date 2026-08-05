@@ -66,21 +66,21 @@ public:
     struct SyntheticHost
     {
         std::unique_ptr<DxuiHwndSource>  host;
-        RECT                             minRectDip   = {};
-        RECT                             maxRectDip   = {};
-        RECT                             closeRectDip = {};
+        RECT                             minRectDip     = {};
+        RECT                             maxRectDip     = {};
+        RECT                             closeRectDip   = {};
         RECT                             captionRectDip = {};
     };
 
 
     SyntheticHost  BuildSyntheticHost()
     {
-        SyntheticHost            result;
-        std::unique_ptr<DxuiPanel>     root        = std::make_unique<DxuiPanel>();
-        DxuiCaptionBar &               caption     = root->Add<DxuiCaptionBar>();
-        DxuiSystemButton &             minBtn      = caption.Add<DxuiSystemButton> (DxuiSystemButtonKind::Min);
-        DxuiSystemButton &             maxBtn      = caption.Add<DxuiSystemButton> (DxuiSystemButtonKind::Max);
-        DxuiSystemButton &             closeBtn    = caption.Add<DxuiSystemButton> (DxuiSystemButtonKind::Close);
+        SyntheticHost                 result;
+        std::unique_ptr<DxuiPanel>    root     = std::make_unique<DxuiPanel>();
+        DxuiCaptionBar              & caption  = root->Add<DxuiCaptionBar>();
+        DxuiSystemButton            & minBtn   = caption.Add<DxuiSystemButton> (DxuiSystemButtonKind::Min);
+        DxuiSystemButton            & maxBtn   = caption.Add<DxuiSystemButton> (DxuiSystemButtonKind::Max);
+        DxuiSystemButton            & closeBtn = caption.Add<DxuiSystemButton> (DxuiSystemButtonKind::Close);
 
 
 
@@ -127,8 +127,8 @@ public:
 
     TEST_METHOD (ResizeEdges_TopLeftCorner_ReturnsHtTopLeft)
     {
-        SyntheticHost  sh   = BuildSyntheticHost();
-        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (1, 1));
+        SyntheticHost    sh   = BuildSyntheticHost();
+        DxuiHitTestKind  kind = sh.host->ClassifyHitForTest (MakePoint (1, 1));
 
         Assert::AreEqual ((int) HTTOPLEFT, (int) DxuiHwndSource::KindToHt (kind));
     }
@@ -136,8 +136,8 @@ public:
 
     TEST_METHOD (ResizeEdges_TopRightCorner_ReturnsHtTopRight)
     {
-        SyntheticHost  sh   = BuildSyntheticHost();
-        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip - 1, 1));
+        SyntheticHost    sh   = BuildSyntheticHost();
+        DxuiHitTestKind  kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip - 1, 1));
 
         Assert::AreEqual ((int) HTTOPRIGHT, (int) DxuiHwndSource::KindToHt (kind));
     }
@@ -168,8 +168,8 @@ public:
 
     TEST_METHOD (ResizeEdges_BottomLeftCorner_ReturnsHtBottomLeft)
     {
-        SyntheticHost  sh   = BuildSyntheticHost();
-        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (1, s_kClientHeightDip - 1));
+        SyntheticHost    sh   = BuildSyntheticHost();
+        DxuiHitTestKind  kind = sh.host->ClassifyHitForTest (MakePoint (1, s_kClientHeightDip - 1));
 
         Assert::AreEqual ((int) HTBOTTOMLEFT, (int) DxuiHwndSource::KindToHt (kind));
     }
@@ -187,8 +187,8 @@ public:
 
     TEST_METHOD (ResizeEdges_LeftEdgeMidHeight_ReturnsHtLeft)
     {
-        SyntheticHost  sh   = BuildSyntheticHost();
-        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (1, s_kClientHeightDip / 2));
+        SyntheticHost    sh   = BuildSyntheticHost();
+        DxuiHitTestKind  kind = sh.host->ClassifyHitForTest (MakePoint (1, s_kClientHeightDip / 2));
 
         Assert::AreEqual ((int) HTLEFT, (int) DxuiHwndSource::KindToHt (kind));
     }
@@ -206,8 +206,8 @@ public:
 
     TEST_METHOD (ResizeEdges_TopEdgeMidWidth_ReturnsHtTop)
     {
-        SyntheticHost  sh   = BuildSyntheticHost();
-        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip / 2, 1));
+        SyntheticHost    sh   = BuildSyntheticHost();
+        DxuiHitTestKind  kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip / 2, 1));
 
         Assert::AreEqual ((int) HTTOP, (int) DxuiHwndSource::KindToHt (kind));
     }
@@ -350,8 +350,8 @@ public:
 
     TEST_METHOD (CaptionBar_ChildAtPoint_DefersToChild)
     {
-        DxuiCaptionBar    bar;
-        DxuiSystemButton &  closeBtn = bar.Add<DxuiSystemButton> (DxuiSystemButtonKind::Close);
+        DxuiCaptionBar      bar;
+        DxuiSystemButton  & closeBtn = bar.Add<DxuiSystemButton> (DxuiSystemButtonKind::Close);
 
         bar.SetBounds      (MakeRect (0, 0, 800, 32));
         closeBtn.SetBounds (MakeRect (754, 0, 800, 32));
@@ -419,11 +419,11 @@ public:
     TEST_METHOD (SystemButton_MaximizedMaxButton_PaintsRestoreGlyph)
     {
         DxuiSystemButton    maxBtn (DxuiSystemButtonKind::Max);
-        DxuiDpiScaler       scaler;
-        MockDxuiPainter     painter;
-        MockDxuiTextRenderer text;
-        MockDxuiTheme       theme;
-        size_t              normalCallCount = 0;
+        DxuiDpiScaler         scaler;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        size_t                normalCallCount = 0;
 
 
         scaler.SetDpi (96);
@@ -547,8 +547,8 @@ public:
         DxuiHwndSource                 host (MakeRect (0, 0, s_kClientWidthDip, s_kClientHeightDip),
                                              s_kResizeBorderDip,
                                              std::move (originalRoot));
-        std::unique_ptr<DxuiPanel>     replacement  = std::make_unique<DxuiPanel>();
-        DxuiPanel *                    replacementRaw = replacement.get();
+        std::unique_ptr<DxuiPanel>    replacement    = std::make_unique<DxuiPanel>();
+        DxuiPanel                   * replacementRaw = replacement.get();
 
 
         host.SetContentPanel (std::move (replacement));

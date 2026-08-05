@@ -416,8 +416,8 @@ public:
             core.cpu->SetPC (0x0320);                          // READMOUSE stub
             core.RunCycles (100'000);
 
-            int  tx = core.cpu->ReadByte (0x047F) | (core.cpu->ReadByte (0x057F) << 8);
-            int  ty = core.cpu->ReadByte (0x04FF) | (core.cpu->ReadByte (0x05FF) << 8);
+            int   tx      = core.cpu->ReadByte (0x047F) | (core.cpu->ReadByte (0x057F) << 8);
+            int   ty      = core.cpu->ReadByte (0x04FF) | (core.cpu->ReadByte (0x05FF) << 8);
             char  msg[96];
             sprintf_s (msg, "absolute target -> firmware position (%d, %d)", tx, ty);
             Logger::WriteMessage (msg);
@@ -541,8 +541,8 @@ public:
                 if (row.find ("PRINT \"HI\"") != std::string::npos) { ok = true; }
             }
 
-            DiskImage *  img = core.diskStore->GetImage (6, 0);
-            char  diag[96];
+            DiskImage  * img      = core.diskStore->GetImage (6, 0);
+            char         diag[96];
             sprintf_s (diag, "//e control: dirty=%d listOk=%d",
                        (img != nullptr && img->IsDirty()) ? 1 : 0, ok ? 1 : 0);
             Logger::WriteMessage (diag);
@@ -620,8 +620,8 @@ public:
 
                 dump (core, "---- after SAVE + CATALOG ----");
 
-                DiskImage *  img = core.diskStore->GetImage (6, 0);
-                char  diag[128];
+                DiskImage  * img       = core.diskStore->GetImage (6, 0);
+                char         diag[128];
                 sprintf_s (diag, "image dirty=%d writeProtected=%d",
                            (img != nullptr && img->IsDirty()) ? 1 : 0,
                            (img != nullptr && img->IsWriteProtected()) ? 1 : 0);

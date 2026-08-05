@@ -34,9 +34,9 @@ AppleHiResMode::AppleHiResMode (MemoryBus & bus)
 
 Word AppleHiResMode::ScanlineAddress (int scanline, Word pageBase)
 {
-    int group   = scanline / 64;   // 0-2 (which group of 64 scanlines)
-    int subRow  = scanline % 8;    // 0-7 (which of 8 interleave rows)
-    int lineInGroup = (scanline % 64) / 8;  // 0-7 (which line within group)
+    int  group       = scanline / 64;   // 0-2 (which group of 64 scanlines)
+    int  subRow      = scanline % 8;   // 0-7 (which of 8 interleave rows)
+    int  lineInGroup = (scanline % 64) / 8;   // 0-7 (which line within group)
 
     return static_cast<Word> (
         pageBase + subRow * 1024 + group * 40 + lineInGroup * 128);
@@ -96,16 +96,16 @@ void AppleHiResMode::Render (
     int          fbWidth,
     int          fbHeight)
 {
-    Word     pageBase = GetActivePageAddress (m_page2);
-    bool     pixels[280]   = {};
-    bool     palettes[280] = {};
-    Byte     data     = 0;
-    bool     palBit   = false;
-    uint32_t color    = 0;
-    int      fbX      = 0;
-    int      fbY      = 0;
-    bool     leftOn   = false;
-    bool     rightOn  = false;
+    Word      pageBase      = GetActivePageAddress (m_page2);
+    bool      pixels[280]   = {};
+    bool      palettes[280] = {};
+    Byte      data          = 0;
+    bool      palBit        = false;
+    uint32_t  color         = 0;
+    int       fbX           = 0;
+    int       fbY           = 0;
+    bool      leftOn        = false;
+    bool      rightOn       = false;
 
 
 

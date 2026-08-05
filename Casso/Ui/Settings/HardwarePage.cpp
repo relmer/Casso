@@ -217,19 +217,19 @@ void HardwarePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
 void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT dpi         = scaler.Dpi();
-    int  pad         = scaler.Px (s_kPagePadDp);
-    int  labelWidth  = scaler.Px (s_kInfoLabelWidthDp);
-    int  rowHeight   = scaler.Px (s_kInfoRowHeightDp);
-    int  valueGap    = scaler.Px (s_kInfoValueGapDp);
-    int  sectionGap  = scaler.Px (s_kBigSectionGapDp);
-    int  dropWidth   = scaler.Px (s_kDropdownWidthDp);
-    int  x           = rect.left + pad;
-    int  controlsX   = x + labelWidth;
-    int  valueX      = x + labelWidth + valueGap;
-    int  y           = rect.top + pad;
-    size_t i         = 0;
-    RECT treeRect    = rect;
+    UINT    dpi        = scaler.Dpi();
+    int     pad        = scaler.Px (s_kPagePadDp);
+    int     labelWidth = scaler.Px (s_kInfoLabelWidthDp);
+    int     rowHeight  = scaler.Px (s_kInfoRowHeightDp);
+    int     valueGap   = scaler.Px (s_kInfoValueGapDp);
+    int     sectionGap = scaler.Px (s_kBigSectionGapDp);
+    int     dropWidth  = scaler.Px (s_kDropdownWidthDp);
+    int     x          = rect.left + pad;
+    int     controlsX  = x + labelWidth;
+    int     valueX     = x + labelWidth + valueGap;
+    int     y          = rect.top + pad;
+    size_t  i          = 0;
+    RECT    treeRect   = rect;
 
 
 
@@ -365,10 +365,10 @@ void HardwarePage::SetPopupHost (DxuiHwndSource * host)
 
 void HardwarePage::Rebuild()
 {
-    std::vector<HardwareEntry>   entries;
-    std::vector<DxuiTreeNode>        nodes;
-    SettingsPanelState         * state = m_state;
-    const SettingsMachineInfo  * info  = nullptr;
+    std::vector<HardwareEntry>    entries;
+    std::vector<DxuiTreeNode>     nodes;
+    SettingsPanelState          * state   = m_state;
+    const SettingsMachineInfo   * info    = nullptr;
 
 
 
@@ -536,9 +536,9 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
     std::vector<DxuiTreeNode>  out;
     DxuiTreeNode               internalGroup;
     DxuiTreeNode               slotsGroup;
-    size_t                 i        = 0;
-    bool                   anyInternal = false;
-    bool                   anySlot     = false;
+    size_t                     i             = 0;
+    bool                       anyInternal   = false;
+    bool                       anySlot       = false;
 
 
 
@@ -554,8 +554,8 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
 
     for (auto & entry : entries)
     {
-        const HardwareEntry & e = entry;
-        DxuiTreeNode              row;
+        const HardwareEntry  & e   = entry;
+        DxuiTreeNode           row;
 
         row.label          = Widen (e.displayName);
         row.lockReason     = Widen (e.lockReason);

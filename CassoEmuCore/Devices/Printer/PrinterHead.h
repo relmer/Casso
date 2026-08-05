@@ -116,13 +116,13 @@ private:
     void      PaintPresented (double fromP, double toP,
                               const PrintRaster & built, PrintRaster & presented);
 
-    std::deque<PrinterEvent>   m_pending;                    // unplayed motion timeline
-    Phase     m_phase          = Phase::Idle;                // what the head is doing right now
-    double    m_headRow        = 0.0;                        // platen: paper row under the head
-    double    m_headCol        = 0.0;                        // sweep edge in dots (L>R-equivalent)
-    double    m_sweepWidth     = 0.0;                        // current burst's printed width
-    double    m_feedTarget     = 0.0;                        // paper row the current feed ends at
-    double    m_feedRate       = kFeedRowsPerSec;            // rows/s of the current feed (line vs form)
+    std::deque<PrinterEvent>  m_pending;   // unplayed motion timeline
+    Phase                     m_phase      = Phase::Idle;   // what the head is doing right now
+    double                    m_headRow    = 0.0;   // platen: paper row under the head
+    double                    m_headCol    = 0.0;   // sweep edge in dots (L>R-equivalent)
+    double                    m_sweepWidth = 0.0;   // current burst's printed width
+    double                    m_feedTarget = 0.0;   // paper row the current feed ends at
+    double                    m_feedRate   = kFeedRowsPerSec;   // rows/s of the current feed (line vs form)
     double    m_frontier       = 0.0;                        // furthest printed row -- monotonic, blank below
     double    m_sweepMaskTop   = 0.0;                        // reveal-mask top for the current sweep
     double    m_sweepPaintedTo = 0.0;                        // sweep progress already painted into presented

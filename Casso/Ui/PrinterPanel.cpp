@@ -667,10 +667,10 @@ void PrinterPanel::SyncTransform()
     // the normalized camera framing -- a fixed fraction per pixel so a partial
     // drag reaches the up/down limit at any zoom (it clamps to the bounds above).
     {
-        int     pw = m_paperRectPx.right - m_paperRectPx.left;
-        int     ph = m_paperRectPx.bottom - m_paperRectPx.top;
-        float   perPxX = (pw > 0) ? (float) s_kStockWidthPx / ((float) pw * zoom) : 1.0f;
-        float   perPxY = (ph > 0) ? 2.2f / (float) ph : 1.0f;
+        int    pw     = m_paperRectPx.right - m_paperRectPx.left;
+        int    ph     = m_paperRectPx.bottom - m_paperRectPx.top;
+        float  perPxX = (pw > 0) ? (float) s_kStockWidthPx / ((float) pw * zoom) : 1.0f;
+        float  perPxY = (ph > 0) ? 2.2f / (float) ph : 1.0f;
 
         m_panZoom.SetDragScale (perPxX, perPxY);
     }
@@ -766,25 +766,25 @@ int64_t PrinterPanel::NowMs()
 
 void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool force)
 {
-    int                     rows        = worker.RowsUsed();
-    uint64_t                activity    = worker.ActivityCount();
-    double                  nowSec      = (double) nowMs / 1000.0;
-    int                     headRow     = 0;
-    int                     headCol     = 0;
-    int                     revealRow   = 0;
-    int                     revealCol   = 0;
-    int                     revealLo    = 0;
-    int                     revealHi    = 0;
-    bool                    sweepLtr    = true;
-    int                     bandBottom  = 0;
-    bool                    moved       = false;
-    bool                    revealMoved = false;
-    bool                    revealBehind = false;
-    bool                    urgent      = false;
-    bool                    changed     = false;
-    bool                    paced       = false;
-    PrinterViewport::Span   span;
-    PrintRaster             spanRaster;
+    int                    rows         = worker.RowsUsed();
+    uint64_t               activity     = worker.ActivityCount();
+    double                 nowSec       = (double) nowMs / 1000.0;
+    int                    headRow      = 0;
+    int                    headCol      = 0;
+    int                    revealRow    = 0;
+    int                    revealCol    = 0;
+    int                    revealLo     = 0;
+    int                    revealHi     = 0;
+    bool                   sweepLtr     = true;
+    int                    bandBottom   = 0;
+    bool                   moved        = false;
+    bool                   revealMoved  = false;
+    bool                   revealBehind = false;
+    bool                   urgent       = false;
+    bool                   changed      = false;
+    bool                   paced        = false;
+    PrinterViewport::Span  span;
+    PrintRaster            spanRaster;
 
 
 
@@ -1675,11 +1675,11 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     // renderer to measure with, and sizing it per-frame would make the paper
     // area jump as the window crosses the wrap threshold. A single line simply
     // centers in the taller box.
-    int   hintH    = scaler.Px (kHintHDip);
-    int   btnH     = scaler.Px (30);
-    int   btnW     = scaler.Px (84);    // Print... / Save... / Copy / Form Feed / Discard
-    int   zoomW    = scaler.Px (42);    // [-] and [+]
-    int   zoomResetW = scaler.Px (54);  // [nnn%]
+    int  hintH      = scaler.Px (kHintHDip);
+    int  btnH       = scaler.Px (30);
+    int  btnW       = scaler.Px (84);   // Print... / Save... / Copy / Form Feed / Discard
+    int  zoomW      = scaler.Px (42);   // [-] and [+]
+    int  zoomResetW = scaler.Px (54);   // [nnn%]
 
     // Our override replaces DxuiPanel::Layout, which would otherwise record the
     // panel's own bounds; set them so Paint's backdrop fills the whole client.

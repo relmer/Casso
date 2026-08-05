@@ -94,13 +94,13 @@ struct SettingsUiPrefs
     // Per-drive stereo pan in [-1, +1] (-1 = hard left, +1 = hard
     // right). Drive 1 sits left-of-center, Drive 2 right-of-center,
     // mirroring DriveAudioMixer::kDefaultDriveOnePan / ...TwoPan.
-    static constexpr float kDefaultDriveOnePan      = -0.5f;
-    static constexpr float kDefaultDriveTwoPan      = +0.5f;
-    float              driveMotorVolume      = kDefaultDriveMotorVolume;
-    float              driveHeadVolume       = kDefaultDriveHeadVolume;
-    float              driveDoorVolume       = kDefaultDriveDoorVolume;
-    float              driveOnePan           = kDefaultDriveOnePan;
-    float              driveTwoPan           = kDefaultDriveTwoPan;
+    static constexpr float  kDefaultDriveOnePan = -0.5f;
+    static constexpr float  kDefaultDriveTwoPan = +0.5f;
+    float                   driveMotorVolume    = kDefaultDriveMotorVolume;
+    float                   driveHeadVolume     = kDefaultDriveHeadVolume;
+    float                   driveDoorVolume     = kDefaultDriveDoorVolume;
+    float                   driveOnePan         = kDefaultDriveOnePan;
+    float                   driveTwoPan         = kDefaultDriveTwoPan;
     // Last-mounted disk paths per drive, stored as exe-relative when
     // possible (PathResolver::MakeExeRelativePath). Empty = no
     // remembered disk. Replaces the per-machine HKCU\...\Disk{1,2}

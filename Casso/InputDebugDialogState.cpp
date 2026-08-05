@@ -243,7 +243,7 @@ std::vector<DxuiListView::Column> PlanVisibleColumns (
     const std::array<InputLogicalColumn, kInputColumnCount> & model) noexcept
 {
     std::vector<DxuiListView::Column>  out;
-    int                            i = 0;
+    int                                i   = 0;
 
 
     out.reserve (kInputColumnCount);

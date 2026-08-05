@@ -262,7 +262,7 @@ bool DxuiSlider::OnLButtonDown (int x, int y)
 
 bool DxuiSlider::OnLButtonUp (int x, int y)
 {
-    bool  consumed = m_dragging;
+    bool  consumed  = m_dragging;
     bool  endedDrag = m_dragging;
 
 
@@ -420,18 +420,18 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     // All dimensions stored in dp; scaled to physical pixels via the
     // per-widget DxuiDpiScaler (set by SetDpi). DxuiSlider was previously
     // ignoring DPI which made the value readout illegible at >96dpi.
-    constexpr int       s_kTrackHeightDip    = 4;
-    constexpr int       s_kPuckRadiusDip     = 8;
-    constexpr int       s_kPuckRadiusHovDip  = 10;
-    constexpr int       s_kPuckRadiusFocDip  = 11;
-    constexpr float     s_kPuckCoreShare    = 0.45f;   // inner-dot diameter as fraction of outer
-    constexpr float     s_kPuckCoreRatio    = 3.0f;    // WCAG 1.4.11 min contrast of core vs white body
-    constexpr int       s_kTickHeightDip     = 4;
-    constexpr int       s_kTickGapDip        = 4;
-    constexpr int       s_kValueGapDip       = 8;
-    constexpr int       s_kValueFontDip      = 13;
-    constexpr int       s_kValueWidthDip     = 56;
-    constexpr const wchar_t * s_kFont           = DxuiTheme::kBodyFace;
+    constexpr int              s_kTrackHeightDip   = 4;
+    constexpr int              s_kPuckRadiusDip    = 8;
+    constexpr int              s_kPuckRadiusHovDip = 10;
+    constexpr int              s_kPuckRadiusFocDip = 11;
+    constexpr float            s_kPuckCoreShare    = 0.45f;   // inner-dot diameter as fraction of outer
+    constexpr float            s_kPuckCoreRatio    = 3.0f;   // WCAG 1.4.11 min contrast of core vs white body
+    constexpr int              s_kTickHeightDip    = 4;
+    constexpr int              s_kTickGapDip       = 4;
+    constexpr int              s_kValueGapDip      = 8;
+    constexpr int              s_kValueFontDip     = 13;
+    constexpr int              s_kValueWidthDip    = 56;
+    constexpr const wchar_t  * s_kFont             = DxuiTheme::kBodyFace;
 
     HRESULT  hr            = S_OK;
     bool     showValue     = m_explicitShowValue ? m_showValue : !m_suffix.empty();

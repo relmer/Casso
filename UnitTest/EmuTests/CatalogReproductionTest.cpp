@@ -66,7 +66,7 @@ public:
         // the file doesn't exist (CI runners don't have the DOS 3.3
         // master disk in the repo); the caller treats that as "skip".
         std::error_code        ec;
-        std::filesystem::path  cursor = std::filesystem::current_path (ec);
+        std::filesystem::path  cursor  = std::filesystem::current_path (ec);
         std::vector<Byte>      bytes;
         bool                   walking = !ec;
 
@@ -164,7 +164,7 @@ public:
         rows = TextScreenScraper::Scrape40 (
             *core.bus, TextScreenScraper::kTextPage1);
 
-        bool  ioError = false;
+        bool  ioError      = false;
         bool  volumeBanner = false;
         for (const auto & r : rows)
         {

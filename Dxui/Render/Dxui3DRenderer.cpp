@@ -496,7 +496,7 @@ Error:
 
 HRESULT Dxui3DRenderer::BeginDepthPass()
 {
-    HRESULT                         hr  = S_OK;
+    HRESULT                         hr   = S_OK;
     ComPtr<ID3D11RenderTargetView>  rtv;
     ComPtr<ID3D11Resource>          res;
     ComPtr<ID3D11Texture2D>         tex;
@@ -589,13 +589,13 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
                                        const D3D11_VIEWPORT & viewportPx,
                                        bool             depthTest)
 {
-    HRESULT                     hr           = S_OK;
-    D3D11_MAPPED_SUBRESOURCE    mapped       = {};
-    UINT                        stride       = sizeof (Vertex);
-    UINT                        offset       = 0;
+    HRESULT                     hr             = S_OK;
+    D3D11_MAPPED_SUBRESOURCE    mapped         = {};
+    UINT                        stride         = sizeof (Vertex);
+    UINT                        offset         = 0;
     float                       blendFactor[4] = {};
-    ID3D11ShaderResourceView *  srv          = nullptr;
-    bool                        useDepth     = depthTest && m_depthDsv != nullptr;
+    ID3D11ShaderResourceView  * srv            = nullptr;
+    bool                        useDepth       = depthTest && m_depthDsv != nullptr;
 
     CBREx (m_device != nullptr, E_UNEXPECTED);
     CBREx (verts != nullptr && vertexCount > 0 && (vertexCount % 3) == 0, E_INVALIDARG);

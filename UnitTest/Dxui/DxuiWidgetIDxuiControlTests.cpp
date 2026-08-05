@@ -234,11 +234,11 @@ public:
 
     TEST_METHOD (Panel_OnMouseDispatchesToWidgetChild)
     {
-        DxuiPanel       panel;
-        DxuiButton &    btn = panel.Add<DxuiButton>();
-        DxuiDpiScaler   scaler;
-        DxuiMouseEvent  down = {};
-        bool            clicked = false;
+        DxuiPanel         panel;
+        DxuiButton      & btn     = panel.Add<DxuiButton>();
+        DxuiDpiScaler     scaler;
+        DxuiMouseEvent    down    = {};
+        bool              clicked = false;
 
 
         scaler.SetDpi (96);
@@ -266,11 +266,11 @@ public:
 
     TEST_METHOD (ListView_MoveWithoutButtonEndsStaleScrollbarDrag)
     {
-        DxuiListView    list;
-        DxuiDpiScaler   scaler;
-        DxuiMouseEvent  down = {};
-        DxuiMouseEvent  move = {};
-        DxuiListView::ScrollbarMetrics  bar = {};
+        DxuiListView                    list;
+        DxuiDpiScaler                   scaler;
+        DxuiMouseEvent                  down   = {};
+        DxuiMouseEvent                  move   = {};
+        DxuiListView::ScrollbarMetrics  bar    = {};
 
 
 

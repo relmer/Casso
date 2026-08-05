@@ -27,13 +27,13 @@ std::string FixtureProvider::ResolveFixturesRoot()
 
 
 
-    std::string       baked = CASSO_FIXTURES_DIR;
-    std::string       root;
-    fs::path          cursor;
-    fs::path          candidate;
-    std::error_code   ec;
-    int               steps  = 0;
-    bool              atRoot = false;
+    std::string      baked     = CASSO_FIXTURES_DIR;
+    std::string      root;
+    fs::path         cursor;
+    fs::path         candidate;
+    std::error_code  ec;
+    int              steps     = 0;
+    bool             atRoot    = false;
 
 
 

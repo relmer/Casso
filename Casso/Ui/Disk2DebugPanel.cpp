@@ -1346,9 +1346,9 @@ void Disk2DebugPanel::RebuildFilteredIndices()
         return;
     }
 
-    const std::deque<Disk2EventDisplay> &  events = m_events;
-    int                                     col    = m_sortColumn;
-    bool                                    desc   = m_sortDescending;
+    const std::deque<Disk2EventDisplay>  & events = m_events;
+    int                                    col    = m_sortColumn;
+    bool                                   desc   = m_sortDescending;
 
     auto cmpStr = [] (const wchar_t * a, const wchar_t * b) -> int
     {
@@ -1369,9 +1369,9 @@ void Disk2DebugPanel::RebuildFilteredIndices()
                       m_filteredIndices.end(),
                       [&] (size_t ia, size_t ib) -> bool
     {
-        const Disk2EventDisplay &  ea = events[ia];
-        const Disk2EventDisplay &  eb = events[ib];
-        int                         c  = 0;
+        const Disk2EventDisplay  & ea = events[ia];
+        const Disk2EventDisplay  & eb = events[ib];
+        int                        c  = 0;
 
         switch (col)
         {
@@ -1423,8 +1423,8 @@ void Disk2DebugPanel::RebuildFilteredIndices()
 
 void Disk2DebugPanel::FillRow (int row, std::vector<DxuiListView::Cell> & out) const
 {
-    bool     inRange = (row >= 0 && (size_t) row < m_filteredIndices.size());
-    size_t   idx     = inRange ? m_filteredIndices[(size_t) row] : m_events.size();
+    bool     inRange     = (row >= 0 && (size_t) row < m_filteredIndices.size());
+    size_t   idx         = inRange ? m_filteredIndices[(size_t) row] : m_events.size();
     wchar_t  driveBuf[8] = {};
 
     // The list can ask for a row that the filter has since dropped, or whose
@@ -1603,8 +1603,8 @@ void Disk2DebugPanel::UpdatePauseLabel()
 
 void Disk2DebugPanel::ClearEvents()
 {
-    constexpr uint32_t  kClearDrainBatchSize = 64;
-    Disk2Event         scratch[kClearDrainBatchSize] = {};
+    constexpr uint32_t  kClearDrainBatchSize          = 64;
+    Disk2Event          scratch[kClearDrainBatchSize] = {};
     uint32_t            drained                       = 0;
 
 

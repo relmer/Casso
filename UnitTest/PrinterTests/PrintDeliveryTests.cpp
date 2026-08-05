@@ -43,12 +43,12 @@ namespace PrintDeliveryTests
 
         TEST_METHOD (RendersStrikesToDecodablePng)
         {
-            PrintRaster    raster;
-            vector<Byte>   png;
-            RgbaImage      decoded;
-            int            col   = 0;
-            int            inked = 0;
-            int            x = 0, y = 0;
+            PrintRaster   raster;
+            vector<Byte>  png;
+            RgbaImage     decoded;
+            int           col     = 0;
+            int           inked   = 0;
+            int           x       = 0, y = 0;
 
             for (col = 0; col < 40; col++)
             {

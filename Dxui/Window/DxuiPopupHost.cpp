@@ -742,8 +742,8 @@ bool DxuiPopupHost::ShouldDismissForTest (DxuiPopupDismiss        policy,
 
 LRESULT CALLBACK DxuiPopupHost::s_WndProcThunk (HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
-    DxuiPopupHost *  self = nullptr;
-    CREATESTRUCTW *  cs   = nullptr;
+    DxuiPopupHost  * self   = nullptr;
+    CREATESTRUCTW  * cs     = nullptr;
     LRESULT          result = 0;
 
 
