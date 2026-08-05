@@ -10,7 +10,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiStackLayoutTests
+//
+//  Stack layout: children laid end to end along one axis, with a uniform gap.
+//
+//  Gaps go BETWEEN children, not after each, so N children carry N-1 gaps --
+//  the off-by-one leaves a trailing gutter that shows up as a stack looking
+//  mis-centered rather than as an obvious layout error.
+//
+//  Both orientations are covered because they are the same arithmetic on
+//  different axes, and a transposition is invisible in a square container.
+//
+//  Zero and one child are tested: no gaps in either case, and the single-child
+//  case is the one an implementation subtracting a gap unconditionally gets
+//  wrong.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

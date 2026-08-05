@@ -13,7 +13,21 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiPanelTests
+//
+//  The panel tree's contracts: child ownership, adoption, and the paint and
+//  layout fan-outs.
+//
+//  The FAN-OUT is a documented guarantee, not an implementation detail -- a
+//  panel paints every visible child in order and lays out every child, and
+//  widgets are written assuming it. So the tests use stub children with no
+//  bounds and assert they are still visited: adding a bounds guard here to
+//  paper over a widget's own bug would silently change the framework's
+//  promise, and these are what catch that.
+//
+//  Adoption is covered separately from ownership because adopted children are
+//  raw pointers the panel does not own -- the walks must include them while the
+//  destruction must not.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

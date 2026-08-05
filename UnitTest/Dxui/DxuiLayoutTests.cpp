@@ -31,7 +31,21 @@ static RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiGridLayoutTests
+//
+//  Grid layout: uniform cells, gaps, and row and column SPANS.
+//
+//  Spans carry the weight. A spanned cell has to absorb the gaps it crosses so
+//  its far edge lands exactly where an unspanned neighbor's would -- computing
+//  it as cells times width plus gaps leaves a span consistently short, which
+//  reads as a misaligned control rather than as a layout bug.
+//
+//  Out-of-range cell assignments are covered because they are reachable: a
+//  grid reshaped smaller leaves stale assignments behind, and the child must
+//  clamp to the edge rather than land outside it.
+//
+//  A child with no assignment defaults to (0,0) rather than being skipped, so
+//  it is visibly misplaced instead of invisible.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,7 +124,22 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiFormLayoutTests
+//
+//  Form layout: label-and-field rows sharing one aligned label column.
+//
+//  The shared column is the point -- every label is the same width regardless
+//  of its text, so the fields line up down the page. A layout sizing each label
+//  to its own text produces a ragged left edge on the controls, which is what
+//  the policy exists to prevent.
+//
+//  The field STRETCHES to fill the remaining width, which is the behavior
+//  callers have to work around when they want a fixed-width control with
+//  something beside it -- so it is pinned here rather than left implicit.
+//
+//  A row with no field, and a form narrower than its label column, are both
+//  covered: the first is how a section heading is expressed, and the second is
+//  reachable at small window sizes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -12,7 +12,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiHwndSourceTests
+//
+//  The host window's own behavior: creation parameters, the custom-chrome NC
+//  handling, and the client dispatch contract.
+//
+//  The NC path is what needs testing. Keeping WS_OVERLAPPEDWINDOW while
+//  collapsing the caption in WM_NCCALCSIZE means the OS still provides
+//  drag-to-move, edge resize, and snap -- but every hit must be classified by
+//  our own WM_NCHITTEST, so a region reported wrong loses one of those for-free
+//  behaviors silently.
+//
+//  Client dispatch is asserted because the WM_NCCREATE / WM_CREATE / WM_SIZE
+//  burst fires synchronously inside CreateWindowEx: a client installed after
+//  Create would miss all of it, and the window would come up unlaid-out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

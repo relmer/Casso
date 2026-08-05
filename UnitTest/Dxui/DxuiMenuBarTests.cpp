@@ -13,7 +13,22 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiMenuBarTests
+//
+//  The menu bar's state machine: opening, switching, dismissing, and keyboard
+//  navigation.
+//
+//  Driven through the plain-coordinate handlers rather than framework events,
+//  which is why the bar's interaction logic is testable at all -- no window,
+//  no popup host, no device.
+//
+//  The two numbering schemes get specific attention: the submenu vector holds
+//  separators while every index the bar deals in counts only selectable rows,
+//  so a hit test or a keyboard move that used the raw index would land one row
+//  off after the first separator.
+//
+//  Mnemonic parsing is covered here too, since the ampersand is stripped for
+//  display and its position drives the underline -- and both must agree.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

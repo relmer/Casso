@@ -10,7 +10,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiDockLayoutTests
+//
+//  Dock layout: bands claiming an edge, and the center taking what is left.
+//
+//  ORDER is the substance -- docking is sequential, so the second top band sits
+//  below the first and each dock shrinks the rect the rest see. A layout that
+//  treated docks as independent would stack them on top of each other.
+//
+//  The center's rect is the assertion that matters, since it is the residue of
+//  every other band and is what the emulator viewport actually gets.
+//
+//  Degenerate cases are covered: bands thicker than the available space, and a
+//  container smaller than its own chrome. Both are reachable at small window
+//  sizes and must collapse rather than produce inverted rects.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

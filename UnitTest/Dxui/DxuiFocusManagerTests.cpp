@@ -10,7 +10,21 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiFocusManagerTests
+//
+//  Focus traversal: Tab order, spatial arrow movement, and scope push and pop.
+//
+//  Tab walks the TREE while arrows walk GEOMETRY, and both are tested because
+//  they legitimately disagree -- a tree that reads sensibly can still be laid
+//  out in a grid, and each rule is right for its own key.
+//
+//  Invisible and disabled controls must be SKIPPED rather than focused and
+//  passed over, since a focus ring on something the user cannot see or use
+//  reads as the UI having hung.
+//
+//  Scopes get their own coverage because they are what makes a dialog modal to
+//  the keyboard: while one is pushed, traversal must not escape it, and Escape
+//  pops rather than reaching the window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
