@@ -198,6 +198,18 @@ $checks = @(
         Pattern = '#include\s*"(?:\.\./)*(?:CassoCore/)?Ehm\.h"'
         Message = 'Ehm.h comes from Pch.h -- do not include it directly'
         Exclude = @('CassoCore/Ehm.cpp', 'Pch.h')
+    },
+    @{
+        # IGNORE_RETURN_VALUE (result, replacement) overwrites an already-
+        # captured result with a neutral value. A call as the second argument
+        # just expands to `result = call();` -- an assignment dressed up as an
+        # ignore, with a function call buried in a macro argument. Capture
+        # first, then neutralize:  hr = Foo (...);  IGNORE_RETURN_VALUE (hr, S_OK);
+        Id      = 'CS0018'
+        Globs   = @('*.cpp', '*.h')
+        Pattern = 'IGNORE_RETURN_VALUE\s*\(\s*\w+\s*,\s*[^)]*\('
+        Message = 'call inside IGNORE_RETURN_VALUE -- capture the result first, then IGNORE_RETURN_VALUE (result, S_OK)'
+        Exclude = @('CassoCore/Ehm.h')
     }
 )
 
