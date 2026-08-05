@@ -165,6 +165,25 @@ void SettingsMachineCatalog::LoadCurrentMachineIntoState()
 //
 //  PopulateMachineList
 //
+//  Scans the search paths for machine configs and fills the machine dropdown.
+//
+//  Machines are DISCOVERED on disk rather than hard-coded, so dropping a new
+//  machine folder in makes it selectable with no code change -- and the same
+//  search paths are used as everywhere else, so a development tree's machines
+//  are found the same way an installed layout's are.
+//
+//  Display names come from each config's own field, falling back to the file
+//  name, so a machine ships its own presentation and an incomplete config
+//  still lists as something.
+//
+//  The final fallback matters most: if the scan finds NOTHING but a machine is
+//  running, that machine is inserted so the dropdown shows what is actually
+//  loaded. An empty list on a working emulator reads as a broken dialog, and
+//  it would also make the current machine unselectable.
+//
+//  The active index is captured during the same pass, so no second search is
+//  needed to pre-select the running machine.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void SettingsMachineCatalog::PopulateMachineList()

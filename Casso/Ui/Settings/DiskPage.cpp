@@ -122,6 +122,24 @@ void DiskPage::SetState (SettingsPanelState * state)
 //
 //  DiskPage::Layout
 //
+//  Lays out the Disk page: write protection, write mode, and the drive-audio
+//  options.
+//
+//  A linear top-to-bottom walk with one running y, like the other settings
+//  pages, so rows can be added or removed without recomputing anything below
+//  them.
+//
+//  Every control starts at the same x, which is what makes the page read as an
+//  aligned form.
+//
+//  Child rows indent by the same amount as DxuiTreeView, so a sub-option under
+//  the audio toggle reads as nested against the rest of the UI rather than by
+//  an arbitrary amount.
+//
+//  The audio preview button is sized SQUARE to the row height and placed after
+//  the dropdown, so it reads as an affordance attached to that control rather
+//  than as another form field.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)

@@ -10,6 +10,23 @@
 //
 //  CommandLineOptions
 //
+//  Everything the CLI's two grammars can express, in one struct.
+//
+//  ONE struct for both `run` and AS65 mode, rather than a variant, because
+//  most fields are shared and the subcommand already says which arm applies.
+//  A variant would force every consumer to unpack before reading a field that
+//  means the same thing either way.
+//
+//  Address fields are paired with has-flags because 0 is a legal address. A
+//  load address of $0000 and no load address given are different requests, and
+//  the value alone cannot tell them apart.
+//
+//  Defaults are the useful ones rather than zeroes -- $FF fill, $8000 load,
+//  strict 6502 -- so an option omitted behaves the way as65 did.
+//
+//  flagPrefix records which prefix the USER typed, so usage text and
+//  diagnostics come back spelled the way they invoked the tool.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct CommandLineOptions

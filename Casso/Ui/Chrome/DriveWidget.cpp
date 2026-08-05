@@ -307,6 +307,30 @@ void DriveWidget::SyncFromState (const DriveWidgetState & state)
 //
 //  Paint
 //
+//  Draws the whole Disk ][ drive: case, face, door, LED, and the mounted
+//  disk's label.
+//
+//  The HIDDEN latch is what actually suppresses the widget. Paint has no
+//  bounds guard of its own, so on a machine with no Disk ][ controller the
+//  zeroed rects alone would not stop it drawing -- the latch is checked first
+//  and nothing is emitted at all.
+//
+//  Everything is drawn in painter primitives rather than from a bitmap, so the
+//  drive is crisp at any DPI and at the desk scene's arbitrary zoom, where a
+//  scaled image would be visibly soft.
+//
+//  The case is drawn with a back inset to give it perspective depth, matching
+//  the skew applied by the layout code -- the two must agree, or the drive
+//  reads as a flat sticker on a three-dimensional desk.
+//
+//  The door animates through a fractional offset rather than a discrete
+//  open/closed state, so the eject motion is smooth and can be interrupted
+//  mid-travel.
+//
+//  The focus ring is drawn OUTSIDE the outer rect so it never crowds the case
+//  art, and the "IN USE" label is positioned against the face rather than the
+//  widget, so it stays put as the door moves.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DriveWidget::Paint (

@@ -530,6 +530,26 @@ void Apple2cSwitchBar::PaintLed (IDxuiPainter & p, const RECT & r, bool lit)
 //
 //  Paint
 //
+//  Draws the //c's switch strip: the reset button, the 80/40 and keyboard
+//  keys, the disk-use LED, and their labels.
+//
+//  This models a real part of the machine. The //c had these switches on its
+//  case above the keyboard, so the strip is painted as a molded platinum panel
+//  -- a top catchlight, a bottom shade, and a seam into the drive bar below --
+//  rather than as flat UI. Those three one-pixel bands are what make it read
+//  as an edge instead of a rectangle.
+//
+//  A COLLAPSED bounds rect returns immediately. The strip exists only on the
+//  //c, and on every other machine it is sized to nothing; without this guard
+//  the gradients would still be issued against a degenerate rect.
+//
+//  Each element delegates to its own painter, so the two keys share one
+//  latched-key rendering and the LED shares the indicator used elsewhere --
+//  the switches look identical because they are drawn identically.
+//
+//  The theme is deliberately unused: these are physical-object colors, fixed
+//  to the machine's own platinum, not chrome that should follow a theme.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Apple2cSwitchBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)

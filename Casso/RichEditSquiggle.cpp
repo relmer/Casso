@@ -10,6 +10,17 @@
 //
 //  File-scope constants
 //
+//  The "Ignored:" label pieces and the rich-edit underline color indices.
+//
+//  The underline colors are INDICES, not RGB values. CHARFORMAT2's
+//  bUnderlineColor field takes a palette position, and the Windows SDK's
+//  richedit.h declares the field without naming any of the constants -- so the
+//  values come from the documented palette rather than from a header, and 5 is
+//  red while 0 is black or automatic.
+//
+//  That is the whole reason they are named here: a bare 5 at the call site
+//  reads as a width or a style, not a color.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static const wchar_t  s_kpszLabelPrefix[]   = L"Ignored: ";

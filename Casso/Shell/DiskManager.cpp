@@ -508,7 +508,23 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Eject  (IDriveCommandSink-style)
+//  Eject
+//
+//  Ejects a drive: posts the command to the CPU thread and starts the door
+//  animation.
+//
+//  The command is POSTED rather than performed, because ejecting detaches a
+//  disk the drive engine may be actively reading -- it has to land between
+//  instructions.
+//
+//  The door animation is started HERE rather than being left to the
+//  path-change watcher, and that is the point of this function. The watcher in
+//  UpdateDriveWidgets only calls BeginEject when the mounted path actually
+//  transitions to empty, so clicking eject on an already-empty drive would be
+//  a visual no-op -- the user would press the button and see nothing happen.
+//
+//  Only slot 6 drives 1 and 2 have an eject affordance; anything else leaves
+//  the command at 0, which is the nothing-to-do signal for both halves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

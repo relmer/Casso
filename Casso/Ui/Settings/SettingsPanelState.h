@@ -192,6 +192,30 @@ public:
 //
 //  SettingsPanelState
 //
+//  The Settings sheet's model: the machine's settings as loaded, as currently
+//  staged, and the questions the pages ask about the difference.
+//
+//  Two copies are held -- baseline and current -- which is what makes Cancel
+//  possible at all. Edits apply live to the running emulator, so reverting
+//  means restoring the baseline rather than simply discarding a pending edit;
+//  without a saved copy there would be nothing to restore.
+//
+//  IsDirty and RequiresReset are separate questions. Dirty decides whether
+//  anything needs saving; RequiresReset is narrower -- only a hardware ENABLE
+//  change needs a machine rebuild -- and it is what relabels OK to warn about
+//  the reboot.
+//
+//  HasDiskIIController drives the sheet's dynamic Disk tab (#84), and its
+//  banked-ROM special case is easy to mistake for a hack. The //c's drive is a
+//  built-in IWM rather than a config slot, so it never appears in the hardware
+//  list; a banked system ROM is the //c's defining trait and the same signal
+//  that creates that IWM, so it counts as a controller here. Without it the
+//  //c would wrongly lose its Disk tab.
+//
+//  It answers from the STAGED hardware, not the running machine, so the tab
+//  appears and disappears as the user toggles a controller rather than after a
+//  reboot.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class SettingsPanelState

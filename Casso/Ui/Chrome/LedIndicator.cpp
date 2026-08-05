@@ -25,6 +25,24 @@ LedIndicator::LedIndicator()
 //
 //  PositionAt
 //
+//  Places the LED at a point, sizing its core and halo for the DPI.
+//
+//  The halo is grown OUTWARD from the core rather than the core being inset
+//  inside a fixed box, so the caller positions the light itself and the glow
+//  extends around it. Positioning the outer box instead would move the visible
+//  dot whenever the halo size changed.
+//
+//  Both dimensions are FLOORED at their 96-DPI values. A sub-scale LED would
+//  round down to a few pixels and disappear -- and an indicator that vanishes
+//  is worse than one slightly larger than its nominal scale.
+//
+//  A zero DPI falls back to the base rather than producing a zero-size LED,
+//  since callers legitimately position chrome before the window's DPI is
+//  known.
+//
+//  The control's bounds are set to the HALO rect, so hit-testing and
+//  invalidation cover the glow rather than clipping it at the core's edge.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void LedIndicator::PositionAt (int x, int y, UINT dpi)

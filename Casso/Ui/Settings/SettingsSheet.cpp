@@ -84,6 +84,33 @@ void SettingsSheet::OnBuildPages()
 //
 //  OpenModeless
 //
+//  Creates and shows the Settings sheet as a MODELESS window, wiring in every
+//  service its pages need.
+//
+//  Modeless is the whole design. Settings edits apply live -- brightness,
+//  scanlines, text color all reflect in the emulator as they change -- and a
+//  modal dialog would block the message loop that presents those frames, so
+//  the user would be adjusting a picture they could not see.
+//
+//  Dependencies arrive as REFERENCES stored for the sheet's lifetime rather
+//  than being reached through a global, so the pages are testable against
+//  substitutes and the sheet cannot outlive what it borrows.
+//
+//  There is no Apply button, and its visibility is set BEFORE Create so
+//  OnCreate lays out without it. Live application makes Apply meaningless:
+//  changes are already in effect, and OK versus Cancel is commit versus
+//  revert.
+//
+//  OK keeps the standard command-button width matching Cancel until a pending
+//  reboot relabels it, at which point RefreshOkLabel widens it and narrows it
+//  back on revert (FR-131) -- so it is never wider than Cancel while it just
+//  reads "OK".
+//
+//  Minimum size equals the initial size: the pages have no smaller valid form.
+//
+//  The app icon is loaded LR_SHARED, which hands back a process-cached handle
+//  needing no DestroyIcon, so the sheet is not generic in alt-tab.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT SettingsSheet::OpenModeless (

@@ -499,6 +499,24 @@ void DebugDialogProjection::FormatEvent (
 //
 //  DebugDialogProjection::DrainAndProject
 //
+//  Drains the Disk II event ring and projects each event into a display row.
+//
+//  Dropped events are surfaced as a SYNTHETIC EventsLost row rather than
+//  passing silently, and it is emitted BEFORE the drain so it appears in the
+//  log at the point the gap actually occurred. A silent gap reads as a period
+//  of no disk activity, which is exactly the wrong conclusion when the ring
+//  overflowed because there was too much.
+//
+//  Draining loops until a short batch, so a burst that exceeds one batch is
+//  fully consumed in a single call instead of trickling out over frames.
+//
+//  A sequence number is stamped per row so a stable sort can fall back to
+//  arrival order for events sharing a timestamp -- disk events routinely land
+//  in the same cycle.
+//
+//  A free function over plain containers, so the projection is unit-testable
+//  by pushing events into a ring and reading rows out, with no panel involved.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugDialogProjection::DrainAndProject (

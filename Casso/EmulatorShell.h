@@ -100,6 +100,30 @@ public:
 //
 //  EmulatorShell
 //
+//  The application: window, chrome, devices, and the CPU thread that runs the
+//  emulated machine.
+//
+//  It implements three framework interfaces rather than owning three
+//  collaborators, and each is a different conversation. IDxuiHostClient is the
+//  window's message and paint lifecycle; IDriveCommandSink is what the drive
+//  chrome calls to mount and eject; IDxuiViewportInputSink is where guest
+//  keystrokes arrive after the framework has routed them. Implementing them
+//  here is what keeps the shell the single place those three meet.
+//
+//  TWO THREADS run against this object. The CPU thread executes instructions
+//  and publishes frames; the UI thread drains messages, renders, and presents.
+//  Everything shared between them is atomic or mutex-guarded, and several
+//  methods exist purely to marshal work to the right one -- the rule is that
+//  UI state is UI-thread-only and device state belongs to the CPU thread.
+//
+//  Devices are held in an owned list with a separate struct of observer
+//  pointers into it, so a machine switch can tear the whole graph down and
+//  rebuild it while the window, the chrome, and the renderer survive.
+//
+//  Much of the class is delegated to managers -- machine, disk, window,
+//  clipboard, command -- so this header is largely the seam between them
+//  rather than the implementation of any of it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class EmulatorShell : public IDxuiHostClient, public IDriveCommandSink, public IDxuiViewportInputSink
