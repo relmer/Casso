@@ -21,6 +21,22 @@ namespace OpcodeTableTests
     //
     //  OpcodeTableBasicTests
     //
+    //  The assembler's mnemonic lookup: finding an opcode, rejecting an
+    //  unsupported addressing mode, and honoring synonyms.
+    //
+    //  This table is the INVERSE of the CPU's instruction set, built from the
+    //  same Microcode data, so these tests are really about the inversion --
+    //  a mnemonic and mode pair must resolve to the opcode the CPU would decode
+    //  back to the same instruction.
+    //
+    //  The exclusions are asserted as carefully as the hits: illegal opcodes
+    //  and assembler-hidden fills execute and disassemble but must NOT be
+    //  selectable by mnemonic, or a filler NOP shadows the real $EA and a plain
+    //  `NOP` assembles to the wrong byte.
+    //
+    //  Case-insensitivity is covered here since mnemonics fold while labels do
+    //  not, and this is the side that folds.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (OpcodeTableBasicTests)
@@ -184,6 +200,23 @@ namespace OpcodeTableTests
     //
     //  OpcodeTableCoverageTests
     //
+    //  Every one of the 256 opcodes checked against an expected mnemonic,
+    //  addressing mode, and size.
+    //
+    //  Exhaustive rather than sampled, because the table is generated from bit
+    //  patterns with a short exception list -- so a bug is far more likely to
+    //  affect a whole encoding group or one patched exception than a randomly
+    //  chosen instruction. Spot checks would miss both.
+    //
+    //  The expected data is written out INDEPENDENTLY rather than derived from
+    //  the same tables, which is the only way this catches a wrong derivation:
+    //  a test computing its expectation the same way the code does agrees with
+    //  itself no matter what.
+    //
+    //  Illegal and undocumented slots are included with their expected
+    //  classification, so the boundary between the legal set, the stable
+    //  undocumented set, and the JAM opcodes is pinned rather than implied.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (OpcodeTableCoverageTests)
@@ -212,6 +245,20 @@ namespace OpcodeTableTests
         ////////////////////////////////////////////////////////////////////////////////
         //
         //  AllOpcodes_MatchExpected
+        //
+        //  Walks all 256 opcodes against a hand-written expectation table.
+        //
+        //  The expectation is TRANSCRIBED from the 6502 datasheet rather than
+        //  computed, which is what makes it an independent oracle -- deriving
+        //  it from the same bit-pattern rules the code uses would make the test
+        //  agree with any consistent mistake.
+        //
+        //  Every opcode is reported rather than stopping at the first mismatch,
+        //  so a systematic error shows its shape -- one addressing-mode group
+        //  wrong reads very differently from one instruction wrong.
+        //
+        //  Long and tedious on purpose: this is the file where a datasheet fact
+        //  lives, and its length is the coverage.
         //
         ////////////////////////////////////////////////////////////////////////////////
 

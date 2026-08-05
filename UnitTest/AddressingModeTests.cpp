@@ -20,6 +20,17 @@ namespace AddressingModeTests
     //
     //  ImmediateModeTests
     //
+    //  Immediate addressing: the operand is the BYTE ITSELF, not an address.
+    //
+    //  The simplest mode and worth pinning because it is the one that must NOT
+    //  dereference. An implementation that ran every operand through the memory
+    //  read path would return whatever lives at the operand's value, which for
+    //  a small immediate is a zero-page variable -- occasionally the right
+    //  number by accident.
+    //
+    //  The PC advance is asserted too: immediate is two bytes, and a mode that
+    //  consumes the wrong count desynchronizes every instruction after it.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (ImmediateModeTests)
@@ -94,6 +105,19 @@ namespace AddressingModeTests
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  ZeroPageModeTests
+    //
+    //  Zero-page addressing: a ONE-byte operand reaching $0000-$00FF.
+    //
+    //  The short operand is the point of the mode -- it is what makes zero page
+    //  a byte smaller and a cycle faster than absolute, and why every 6502
+    //  program keeps its hot variables there.
+    //
+    //  So the tests assert the instruction LENGTH as well as the value. An
+    //  implementation that read a two-byte operand would fetch the right value
+    //  and then execute the following byte as an opcode.
+    //
+    //  Wrapping is covered by the regression suite; this group covers the
+    //  ordinary case and the addressing width.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -188,6 +212,15 @@ namespace AddressingModeTests
     //
     //  AbsoluteModeTests
     //
+    //  Absolute addressing: a two-byte operand, LITTLE-ENDIAN.
+    //
+    //  Byte order is the substance. The 6502 stores the low byte first, so the
+    //  test operands use addresses whose two bytes DIFFER -- a value like
+    //  $1010 would read the same either way and prove nothing.
+    //
+    //  The three-byte instruction length is asserted alongside, since absolute
+    //  is where an operand-width mistake first has room to show.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (AbsoluteModeTests)
@@ -245,6 +278,21 @@ namespace AddressingModeTests
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  AbsoluteIndexedModeTests
+    //
+    //  Absolute,X and absolute,Y -- including the index carrying ACROSS a page
+    //  boundary.
+    //
+    //  Unlike the zero-page modes, these must NOT wrap: the index is added to a
+    //  full 16-bit address and legitimately crosses into the next page. That is
+    //  how a table longer than 256 bytes is indexed at all.
+    //
+    //  The page cross is exercised deliberately because it is also where the
+    //  hardware spends an EXTRA CYCLE, so the same fixtures cover the timing
+    //  penalty and the address arithmetic together.
+    //
+    //  Both index registers are covered rather than one, since they are
+    //  separate opcodes with separate wiring and only some instructions offer
+    //  both.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -377,6 +425,20 @@ namespace AddressingModeTests
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  BranchIntegrationTests
+    //
+    //  Relative addressing exercised through real branch sequences rather than
+    //  single instructions.
+    //
+    //  Relative is the mode that cannot be checked in isolation: the offset is
+    //  signed, applied to the PC AFTER the instruction, and only observable by
+    //  where execution actually lands.
+    //
+    //  So these run loops and forward skips, asserting the resulting control
+    //  flow -- which is also what makes the page-cross cycle penalty on a taken
+    //  branch reachable.
+    //
+    //  Backward branches are covered specifically, since an unsigned reading of
+    //  the offset works perfectly for every forward one.
     //
     ////////////////////////////////////////////////////////////////////////////////
 

@@ -83,6 +83,22 @@ Error:
 //
 //  ReadCpuState
 //
+//  Reads one CPU state -- registers plus a sparse RAM list -- from the packed
+//  Harte fixture format.
+//
+//  Sparse RAM is what makes the format practical: each test case names only the
+//  handful of addresses it touches, so a suite covering all 256 opcodes at
+//  10,000 cases each stays a manageable size instead of carrying a 64 KB image
+//  per case.
+//
+//  The fields are read in a fixed order with no framing, so this function IS
+//  the format definition -- there is nothing else to consult if the layout is
+//  wrong.
+//
+//  The entry count is bounds-checked against the fixture's own maximum before
+//  it is used to read, so a corrupt or truncated file fails here rather than
+//  reading past the buffer.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static bool ReadCpuState (std::ifstream & f, HarteCpuState & state)
@@ -126,6 +142,24 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  LoadHarteTestFile
+//
+//  Loads one opcode's test vectors: a small header followed by
+//  initial/final state pairs.
+//
+//  A PACKED BINARY format rather than the upstream suite's JSON, because
+//  loading thousands of cases per opcode across 256 opcodes as JSON dominates
+//  the run time -- the point of the suite is executing the vectors, not parsing
+//  them.
+//
+//  Each file holds ONE opcode, so a failing instruction is a file rather than
+//  an offset into a large archive, and a run can be narrowed to it.
+//
+//  The header carries the opcode as well as the count, so a file cannot be
+//  mistaken for another's -- which is what makes the per-file split safe.
+//
+//  Everything is verified as it reads: a truncated or corrupt file fails the
+//  load rather than producing plausible-looking vectors that would report as
+//  CPU failures.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -488,6 +522,29 @@ namespace HarteTests
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  HarteTestRunner
+    //
+    //  Runs the Tom Harte per-opcode test vectors: set the CPU to an exact
+    //  initial state, execute ONE instruction, compare against the recorded
+    //  final state.
+    //
+    //  Exhaustive where Dormann is functional. Dormann proves programs behave
+    //  correctly; Harte proves each instruction's effect on every register,
+    //  flag, and touched memory cell, across thousands of randomized initial
+    //  states per opcode. Together they cover what neither does alone -- Harte
+    //  catches a flag wrong in a case no sensible program creates, which is
+    //  exactly where copy protection lives.
+    //
+    //  Every field is compared, including ones a program would never read, so a
+    //  discrepancy is caught at the instruction rather than propagating into
+    //  behavior somewhere downstream.
+    //
+    //  The vectors are AUTHORED ELSEWHERE, generated against real hardware,
+    //  which is what makes them an independent oracle rather than a restatement
+    //  of this implementation's assumptions.
+    //
+    //  Failures report the opcode, the case index, and the differing field,
+    //  since ten thousand cases per opcode are only useful if a failure says
+    //  which one.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
