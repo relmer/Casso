@@ -17,6 +17,24 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  GlobalUserPrefsTests
 //
+//  Global preferences: the save-load ROUND TRIP, the defaults, and the
+//  migrations from older key shapes.
+//
+//  Round-tripping is the core assertion -- write, read back, and every field
+//  must match. That is what catches a field added to the struct and to ToJson
+//  but forgotten in FromJson, which is silent and loses one setting per launch.
+//
+//  Partial and corrupt documents are covered because a prefs file is
+//  user-writable and version-skewed by nature: a missing key must cost one
+//  setting rather than the whole file, and a malformed one must not take the
+//  rest down with it.
+//
+//  The input-mode migration gets its own coverage since it is a live upgrade
+//  path -- the legacy bool and the single mode field both have to resolve into
+//  the split keys, with the new key winning where both exist.
+//
+//  Driven against an in-memory filesystem, so nothing touches disk.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (GlobalUserPrefsTests)

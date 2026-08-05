@@ -26,6 +26,22 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  SettingsPanelStateTests
 //
+//  The Settings sheet's model: baseline versus staged state, dirty tracking,
+//  and the reset-required question.
+//
+//  Cancel is the behavior under test, and it is a RESTORE rather than a
+//  discard. Settings edits apply live to the running emulator, so reverting
+//  means putting the baseline back -- the tests edit, cancel, and assert the
+//  original values returned, which a discard-pending-changes model would fail.
+//
+//  Dirty and RequiresReset are asserted independently, since they answer
+//  different questions: dirty decides whether to save, while only a hardware
+//  ENABLE change needs a machine rebuild and the OK-button warning.
+//
+//  The //c's banked-ROM path through HasDiskIIController is covered, since its
+//  built-in IWM never appears in the hardware list and the machine would
+//  otherwise lose its Disk tab.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (SettingsPanelStateTests)

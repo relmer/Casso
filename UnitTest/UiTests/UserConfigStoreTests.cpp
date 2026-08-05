@@ -17,6 +17,25 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  UserConfigStoreTests
 //
+//  The per-machine delta store: merging user edits over shipped defaults,
+//  version migration, and the legacy-file upgrade.
+//
+//  The DELTA model is what these pin. A user who changed one slot must keep
+//  receiving every other improvement when the machine definition ships updated
+//  -- so the tests assert that an untouched key follows the new default while
+//  an edited one holds.
+//
+//  Save preservation is covered specifically: the cache is populated lazily,
+//  one machine at a time, so a save fired before some machine was ever loaded
+//  must not drop it from the file. That failure silently deletes settings for
+//  machines the session never opened.
+//
+//  The legacy migration is asserted to be IDEMPOTENT and write-before-delete,
+//  so an interrupted upgrade leaves both copies and simply migrates again
+//  rather than losing anything.
+//
+//  Driven against an in-memory filesystem, so nothing touches disk.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (UserConfigStoreTests)

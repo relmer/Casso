@@ -12,6 +12,21 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  SliderTests
 //
+//  Slider value mapping: position to value, clamping at the rails, and the
+//  separate step sizes.
+//
+//  Two step sizes exist and are tested separately: a coarse one for clicks and
+//  arrow keys, and a fine one for dragging. Collapsing them makes a slider
+//  either impossible to adjust precisely or impossible to move quickly.
+//
+//  Positions BEYOND both rails are covered because a drag routinely leaves the
+//  track -- the value must clamp rather than extrapolate, and the ends must be
+//  exactly reachable rather than approached asymptotically.
+//
+//  Round-tripping value to position and back is asserted, since the thumb's
+//  drawn position and the value it represents are computed separately and a
+//  disagreement shows as a thumb that will not sit under the cursor.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 

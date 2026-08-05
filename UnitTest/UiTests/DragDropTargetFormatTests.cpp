@@ -153,7 +153,24 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DragDropTargetFormatTests
+//
+//  Which dropped payloads are ACCEPTED: the clipboard formats, and the file
+//  extensions inside them.
+//
+//  Extension filtering is what these mostly pin. Dropping an arbitrary file
+//  onto the emulator must be refused rather than mounted as a disk image, so
+//  the supported extensions are asserted along with representative rejects.
+//
+//  Matching is case-insensitive, since Explorer reports whatever case the
+//  filesystem holds and a user's .DSK is the same file as a .dsk.
+//
+//  A multi-file drop is covered because Explorer permits one and the target
+//  must behave predictably -- taking the first supported file rather than
+//  refusing outright or mounting several.
+//
+//  Format checks run without any OLE plumbing, so the policy is testable
+//  without a window or a real drag.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

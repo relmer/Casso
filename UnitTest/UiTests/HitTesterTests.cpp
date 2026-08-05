@@ -16,7 +16,22 @@ namespace UiTests
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  HitTesterTests
+//
+//  The chrome hit-test registry: which registered rect a point falls in, and
+//  which slot it reports.
+//
+//  This is what routes non-client hits and drag-drop targets, so the tests are
+//  about REGISTRATION as much as geometry -- registering, clearing, and
+//  re-registering between layouts, which is what happens on every resize.
+//
+//  Overlapping rects are covered because they are reachable, and the resolution
+//  order is a contract: chrome bands and drive widgets can overlap at small
+//  window sizes, and the topmost must win consistently rather than by
+//  registration accident.
+//
+//  Points on an edge are tested explicitly, since half-open rect conventions
+//  are easy to apply inconsistently between the register and the test.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

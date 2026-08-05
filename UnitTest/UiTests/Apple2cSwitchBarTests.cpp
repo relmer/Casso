@@ -45,7 +45,22 @@ static Apple2cSwitchBar MakeLaidOutBar (MockDxuiTextRenderer & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  Apple2cSwitchBarTests
+//
+//  The //c switch strip: which part a point hits, and the latched state of each
+//  key.
+//
+//  The keys are LATCHING, not momentary -- they model physical switches that
+//  stay in when pressed, so pressing one twice must return it to out rather
+//  than pressing it harder.
+//
+//  Per-part hit testing is asserted because the strip packs several small
+//  targets side by side, and a boundary one pixel out sends a reset to the
+//  80/40 switch.
+//
+//  A COLLAPSED strip must report a miss everywhere: it is sized to nothing on
+//  every machine that is not a //c, and the hit test is what stops those
+//  machines routing clicks into a control that does not exist.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

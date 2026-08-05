@@ -12,6 +12,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  CheckboxTests
 //
+//  Checkbox interaction: press, release, the cancel gesture, and keyboard
+//  activation.
+//
+//  The CANCEL gesture is the one worth pinning -- pressing the box, dragging
+//  off, and releasing must leave the state unchanged and nothing stuck down.
+//  It is the behavior an implementation that toggles on press gets wrong, and
+//  the one users rely on without noticing.
+//
+//  Space activation is covered alongside the mouse, since both must route
+//  through the same toggle so a disabled box refuses both.
+//
+//  The change callback is asserted to fire ONCE per toggle: a widget that
+//  notified on press and again on release would make every click count twice.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 

@@ -12,6 +12,23 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  ColorUtilTests
 //
+//  Color helpers: hex parsing, ARGB and HSV conversion, and the lighten and
+//  darken operations themes rely on.
+//
+//  HSV ROUND-TRIPS are the substance. The color picker holds HSV while
+//  everything else holds ARGB, so a lossy conversion makes a slider drift every
+//  time the value passes through -- the tests convert both ways and assert the
+//  value comes back.
+//
+//  The degenerate HSV cases are covered because they are where round-tripping
+//  fails: a fully desaturated color has no meaningful hue, and black has
+//  neither hue nor saturation, so the conversion must preserve something
+//  rather than snapping to an arbitrary default.
+//
+//  Hex parsing accepts the spellings a user types -- with and without the
+//  leading hash, three digits and six -- since this feeds a field they edit by
+//  hand.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (ColorUtilTests)

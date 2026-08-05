@@ -12,6 +12,19 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  SearchBoxTests
 //
+//  Search box: text entry, the clear affordance, and the change notification.
+//
+//  The clear button's HIT REGION is tested apart from the field's, since they
+//  overlap -- the button sits inside the box's bounds, so a press must be
+//  classified before the field claims it as a cursor placement.
+//
+//  Clearing must fire the change callback like any other edit, so a consumer
+//  filtering on the text sees an empty query rather than keeping the last
+//  result set on screen.
+//
+//  The affordance is asserted absent when the box is empty, since a clear
+//  button offering to clear nothing is noise.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (SearchBoxTests)

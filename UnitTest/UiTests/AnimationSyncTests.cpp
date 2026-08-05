@@ -18,7 +18,22 @@ namespace UiTests
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  AnimationSyncTests
+//
+//  Animations advancing by WALL-CLOCK time rather than by frame, and reporting
+//  honestly whether they are still running.
+//
+//  Frame-rate independence is the property under test: the same animation
+//  sampled at 60 Hz and at 30 Hz must reach the same value at the same instant.
+//  A per-frame step looks fine on the developer's machine and runs at half
+//  speed on a 30 Hz display.
+//
+//  The in-flight report matters as much as the value, because it is what tells
+//  the UI loop to keep asking for frames -- an animation that reports finished
+//  early freezes partway, and one that never finishes burns a core forever.
+//
+//  Time is passed in, so a full animation runs instantly and deterministically
+//  with no sleeping.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

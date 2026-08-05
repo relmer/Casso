@@ -12,6 +12,19 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  ModalScrimTests
 //
+//  The modal scrim: covering the content behind a dialog and swallowing input
+//  aimed at it.
+//
+//  Swallowing is the substance. The scrim's visual dimming is cosmetic; what
+//  makes a dialog modal is that clicks landing outside it reach NOTHING -- so
+//  the tests assert the scrim consumes them rather than that it painted.
+//
+//  A click inside the dialog's own bounds must pass through, which is the case
+//  a scrim implemented as "consume everything" gets wrong.
+//
+//  Its bounds are asserted to cover the full host, since a scrim that stops at
+//  the content area leaves the chrome clickable behind a modal dialog.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (ModalScrimTests)

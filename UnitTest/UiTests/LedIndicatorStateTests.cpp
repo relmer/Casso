@@ -10,7 +10,22 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  LedIndicatorStateTests
+//
+//  The LED's state machine: on, off, and the decay that keeps a brief pulse
+//  visible.
+//
+//  DECAY is the substance. Disk activity is a burst of accesses lasting a
+//  fraction of a frame, so an LED reflecting the raw signal would flicker below
+//  the threshold of perception -- it has to stay lit for a minimum interval
+//  after the last access.
+//
+//  Time is passed in, so the tests advance a synthetic clock rather than
+//  sleeping, and the whole decay is exercised deterministically.
+//
+//  The boundary cases are covered in both directions: a second access
+//  mid-decay must extend rather than restart-and-flicker, and the LED must
+//  eventually go out rather than latching on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
