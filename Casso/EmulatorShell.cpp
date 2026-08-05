@@ -2880,25 +2880,31 @@ void EmulatorShell::Eject (int slot, int drive)
 //
 //  BrowseForDisk
 //
-//  UI helper: open the drive door for visual feedback, show the
-//  file-open dialog, then restore the door to match the mount
-//  state. Empty drives leave the door open (matches real Disk II
-//  empty-drive visual); mounted drives close it back.
+//  UI helper: start the drive-door-open animation and show the disk
+//  picker IN PARALLEL. The picker's modal GetMessage loop owns the UI
+//  thread, so RunMessageLoop stops driving frames; the host's modal
+//  keep-alive tick (the same one that carries chrome through an OS
+//  move / size loop) drives TryPresentUiFrame for the dialog's whole
+//  lifetime, so the door visibly opens behind the picker instead of
+//  stalling until it is dismissed. This replaces a blocking pre-dialog
+//  wait that pumped the full animation before the picker appeared --
+//  dead time at best, and a frozen door whenever the present gate
+//  declined the frames.
 //
 //  Mount-on-success runs through DiskManager::Mount, which queues
 //  to the CPU thread and posts a DoorClose sync event picked up
 //  by UpdateDriveWidgets -- so we don't need to touch the door on
-//  the success path here; BeginInsert closes it naturally.
+//  the success path here; BeginInsert closes it naturally. Cancel
+//  restores the door to match the mount state: a mounted drive
+//  closes back, an empty drive rests open (matches a real Disk II).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::BrowseForDisk (int drive)
 {
-    DriveWidgetState *     pSt        = nullptr;
-    int64_t                now        = 0;
-    int64_t                deadline   = 0;
-    HRESULT                hrBrowse   = S_OK;
-    MSG                    msg        = {};
+    DriveWidgetState *  pSt          = nullptr;
+    HRESULT             hrBrowse     = S_OK;
+    bool                mountStarted = false;
 
 
 
@@ -2906,7 +2912,7 @@ void EmulatorShell::BrowseForDisk (int drive)
     using std::chrono::duration_cast;
     using std::chrono::milliseconds;
 
-    auto                   nowMs      = []() -> int64_t {
+    auto  nowMs = []() -> int64_t {
         return (int64_t) duration_cast<milliseconds> (steady_clock::now().time_since_epoch()).count();
     };
 
@@ -2918,62 +2924,31 @@ void EmulatorShell::BrowseForDisk (int drive)
     }
 
     pSt = &m_driveWidgetState[drive];
-    now = nowMs();
 
-    // Only the closed / closing door will visibly animate open. An empty
-    // drive rests with its door already Open (Door::Open is the default),
-    // so StartDoorTransition is a no-op there and blocking for the
-    // animation would just be dead time before the picker appears. Gate
-    // the wait on whether an animation will actually play.
-    const bool  doorWillAnimate =
-        (pSt->doorState == DriveWidgetState::Door::Closed ||
-         pSt->doorState == DriveWidgetState::Door::Closing);
-
-    pSt->StartDoorTransition (DriveWidgetState::Door::Opening, now);
+    // The time base MUST match DiskManager::NowMs (steady_clock ms):
+    // TickDoorAnimation diffs the current frame time against
+    // animationStartTimeMs. An empty drive rests with its door already
+    // Open, so StartDoorTransition is a no-op there.
+    pSt->StartDoorTransition (DriveWidgetState::Door::Opening, nowMs());
     m_d3dRenderer.MarkRedrawNeeded();
 
-    // Let the door animation finish so the user actually sees it open
-    // before the modal picker covers the drive. The host paint pump runs
-    // on the UI thread (driven by WM_PAINT), so we both pump Windows
-    // messages AND request a frame here -- the CPU emulation thread is
-    // separate, and the chrome / framebuffer composite only happens from
-    // the host pump on the UI thread we're currently blocking. The time
-    // base MUST match DiskManager::NowMs (steady_clock ms) because
-    // TickDoorAnimation diffs the current frame time against
-    // animationStartTimeMs. Skipped entirely when the door is already
-    // open (nothing to animate) so the picker opens immediately.
-    if (doorWillAnimate)
-    {
-        deadline = now + DriveWidgetState::kDoorAnimationMs;
+    // The keep-alive spans the whole modal picker (including its nested
+    // IFileOpenDialog when the user clicks Browse...), animating the door
+    // and keeping the printer preview live behind the dialog.
+    m_host->BeginModalKeepAlive();
 
-        while (nowMs() < deadline)
-        {
-            while (PeekMessageW (&msg, nullptr, 0, 0, PM_REMOVE))
-            {
-                TranslateMessage (&msg);
-                DispatchMessageW (&msg);
-            }
-
-            // Tick the door animation and repaint through the host pump
-            // (the after-blit hook that used to do this is gone). A nullptr
-            // framebuffer re-composites the last emulator upload with the
-            // chrome (animating door) painted on top.
-            m_diskManager->UpdateDriveWidgets();
-            m_pendingFramebuffer = nullptr;
-            InvalidateRect (m_hwnd, nullptr, FALSE);
-            UpdateWindow   (m_hwnd);
-            Sleep (8);
-        }
-    }
-
-    hrBrowse = m_windowCommandManager->PromptInsertDiskMru (drive + 1);
+    hrBrowse = m_windowCommandManager->PromptInsertDiskMru (drive + 1, mountStarted);
     IGNORE_RETURN_VALUE (hrBrowse, S_OK);
 
-    // Cancel / error path: door follows mount state. Mounted drive
-    // closes back, empty drive stays open. The success path is
-    // handled asynchronously by BeginInsert when the queued mount
-    // completes.
-    if (hrBrowse != S_OK && pSt->IsMounted())
+    m_host->EndModalKeepAlive();
+
+    // No-mount path (cancel or failure): the door follows the mount
+    // state -- a mounted drive closes back, an empty drive rests open
+    // (matches a real Disk II). mountStarted is the discriminator
+    // because a cancel returns S_OK by design. When a mount DID start,
+    // the door is left alone: the queued mount completes on the CPU
+    // thread and BeginInsert runs the close choreography.
+    if (!mountStarted && pSt->IsMounted())
     {
         pSt->StartDoorTransition (DriveWidgetState::Door::Closing, nowMs());
         m_d3dRenderer.MarkRedrawNeeded();
@@ -4704,11 +4679,13 @@ bool EmulatorShell::TryPresentUiFrame()
 //
 //  OnModalLoopTick
 //
-//  Called by the host on its keep-alive timer WHILE the OS runs a modal move /
-//  size loop (a title-bar hold or resize-edge drag). RunMessageLoop is not
-//  iterating during that loop, so without this the live printer preview freezes
-//  and its paced audio falls silent (the reveal stops advancing) until the drag
-//  ends -- then it jumps. The host owns the timer; we just render one frame.
+//  Called by the host on its keep-alive timer WHILE a modal loop owns the UI
+//  thread: the OS move / size loop (a title-bar hold or resize-edge drag), or
+//  a modal dialog armed through BeginModalKeepAlive (the disk picker in
+//  BrowseForDisk). RunMessageLoop is not iterating during those loops, so
+//  without this the drive-door animation, the live printer preview, and its
+//  paced audio all freeze until the loop ends -- then jump. The host owns the
+//  timer; we just render one frame.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

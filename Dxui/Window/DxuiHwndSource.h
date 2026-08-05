@@ -324,6 +324,16 @@ public:
     HRESULT       KillTimer      (UINT_PTR timerId);
 
     //
+    //  Arm / disarm the modal keep-alive tick (the WM_ENTERSIZEMOVE
+    //  mechanism, made public) around a modal dialog loop run on this
+    //  thread, so `IDxuiHostClient::OnModalLoopTick` keeps chrome
+    //  animation and the printer preview running while the dialog's
+    //  GetMessage loop owns the thread. Begin ticks once immediately.
+    //
+    void          BeginModalKeepAlive ();
+    void          EndModalKeepAlive   ();
+
+    //
     //  Install an optional client object that receives the Win32
     //  messages the host does not own end-to-end (commands,
     //  keyboard input, painting, timers, ...). The host stores a

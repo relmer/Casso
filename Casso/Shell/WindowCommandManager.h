@@ -46,8 +46,12 @@ public:
 
     bool  OnInitMenuPopup      (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu);
 
-    HRESULT  PromptForDiskImage   (int drive);
-    HRESULT  PromptInsertDiskMru  (int drive);
+    // Both prompts report whether a mount was actually STARTED through the
+    // out param -- a cancel returns S_OK by design (backing out is not an
+    // error), so the HRESULT alone cannot tell "mounted" from "canceled",
+    // and BrowseForDisk needs the difference to restore the drive door.
+    HRESULT  PromptForDiskImage   (int drive, bool & outMountStarted);
+    HRESULT  PromptInsertDiskMru  (int drive, bool & outMountStarted);
 
 private:
     // How a delivery attempt ended, reported separately from the HRESULT.
