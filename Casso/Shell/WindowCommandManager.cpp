@@ -594,10 +594,6 @@ void WindowCommandManager::OnEditCommand (int id)
 
 void WindowCommandManager::OnMachineCommand (int id)
 {
-    bool paused = false;
-
-
-
     switch (id)
     {
         case IDM_MACHINE_RESET:
@@ -609,8 +605,7 @@ void WindowCommandManager::OnMachineCommand (int id)
 
         case IDM_MACHINE_PAUSE:
         {
-            paused = m_shell.m_cpuManager.TogglePaused();
-            (void) paused;
+            m_shell.m_cpuManager.TogglePaused();
             m_shell.UpdateWindowTitle();
             break;
         }

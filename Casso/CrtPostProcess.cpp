@@ -430,7 +430,7 @@ Error:
 //  geometry, input layout, and index buffer are created once and shared.
 //
 //  The constant buffer is DYNAMIC because CrtParams is rewritten every frame
-//  from the UI thread (PumpUiFrame pushes the live slider values); a default-
+//  from the UI thread (TryPresentUiFrame pushes the live slider values); a default-
 //  usage buffer would have to be recreated or staged for each update.
 //
 //  The sampler clamps rather than wraps, so a bloom or color-bleed tap that

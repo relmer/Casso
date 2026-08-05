@@ -3534,7 +3534,7 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
         // window -- the same keep-alive the main window uses for its caption.
         m_printerPanel->SetOnModalLoopTick ([this] ()
         {
-            PumpUiFrame();
+            TryPresentUiFrame();
         });
     }
 
@@ -4333,7 +4333,7 @@ void EmulatorShell::SetDriveUserWriteProtect (int drive, bool wp)
 //  DestroyFrameReadyEvent is the single cleanup path, and duplicating it is
 //  how one of the two gets missed.
 //
-//  When PumpUiFrame reports nothing was presented, the thread blocks in
+//  When TryPresentUiFrame reports nothing was presented, the thread blocks in
 //  WaitForFrameOrMessage instead of spinning: an idle BASIC prompt produces
 //  no framebuffer changes, and polling it would burn a core for nothing.
 //
@@ -4441,12 +4441,12 @@ int EmulatorShell::RunMessageLoop()
         }
 
         // One UI render cycle (framebuffer latch + chrome + printer preview /
-        // audio + present). PumpUiFrame is ALSO driven off a WM_TIMER during an
+        // audio + present). TryPresentUiFrame is ALSO driven off a WM_TIMER during an
         // OS modal move / size loop (OnModalLoopTick) so the preview + printer
         // sound keep running while the user holds the title bar. When nothing
         // needs presenting, WaitForFrameOrMessage parks the thread until a frame
         // event or a message arrives instead of spin-sleeping.
-        if (!PumpUiFrame())
+        if (!TryPresentUiFrame())
         {
             WaitForFrameOrMessage();
         }
@@ -4465,7 +4465,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PumpUiFrame
+//  TryPresentUiFrame
 //
 //  One UI render cycle, and the answer to "was anything actually presented?"
 //  -- which is what lets the caller park the thread instead of spinning.
@@ -4500,7 +4500,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::PumpUiFrame()
+bool EmulatorShell::TryPresentUiFrame()
 {
     HRESULT  hr         = S_OK;
     bool     didPresent = false;
@@ -4687,7 +4687,7 @@ bool EmulatorShell::PumpUiFrame()
 
 void EmulatorShell::OnModalLoopTick()
 {
-    PumpUiFrame();
+    TryPresentUiFrame();
 }
 
 
@@ -5939,7 +5939,7 @@ void EmulatorShell::OnDestroy()
 //  chrome: joystick button, command toolbar, //c switch strip, and the drive
 //  widgets, each pairing a hover update with a tooltip show / hide request.
 //
-//  Tooltips are REQUESTS, not shows -- the dwell timers in PumpUiFrame decide
+//  Tooltips are REQUESTS, not shows -- the dwell timers in TryPresentUiFrame decide
 //  when a popup actually appears, so a fast pass over three widgets does not
 //  flash three tooltips.
 //

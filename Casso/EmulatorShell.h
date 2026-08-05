@@ -150,7 +150,7 @@ public:
     // loop owns the thread (otherwise the preview + sound freeze on a title-bar
     // hold, then jump on release). The host owns the keep-alive timer; the shell
     // only supplies this per-frame work.
-    bool PumpUiFrame();
+    bool TryPresentUiFrame();
 
     void HandleCommand (WORD commandId);
 

@@ -182,13 +182,16 @@ void CpuManager::SetPaused (bool paused) noexcept
 //
 //  TogglePaused
 //
-//  Flips the pause flag and wakes the CPU thread. Returns the new
-//  paused state so menu wiring can resync its checkmark in a single
-//  call.
+//  Flips the pause flag and wakes the CPU thread.
+//
+//  Returns nothing: the one caller re-derives the state through IsPaused
+//  (via UpdateWindowTitle), and a bool return whose meaning is "the new
+//  state" rather than success is exactly the ambiguity the naming rule
+//  forbids. Anyone who needs the state after a toggle asks IsPaused.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CpuManager::TogglePaused() noexcept
+void CpuManager::TogglePaused() noexcept
 {
     bool  next = !m_paused.load (std::memory_order_acquire);
 
@@ -196,7 +199,6 @@ bool CpuManager::TogglePaused() noexcept
 
     m_paused.store (next, std::memory_order_release);
     m_pauseCV.notify_all();
-    return next;
 }
 
 
