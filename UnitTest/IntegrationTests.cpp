@@ -148,7 +148,8 @@ namespace IntegrationTests
 
         TEST_METHOD (RunUntil_ExecutesAndStopsAtTarget)
         {
-            TestCpu cpu;
+            TestCpu              cpu;
+            TestCpu::StopReason  stop = {};
             cpu.InitForTest();
 
             auto result = cpu.Assemble 
@@ -161,7 +162,7 @@ namespace IntegrationTests
             Assert::IsTrue (result.success);
 
             Word doneAddr = cpu.LabelAddress (result, "done");
-            auto stop     = cpu.RunUntil (doneAddr);
+            stop = cpu.RunUntil (doneAddr);
 
             Assert::AreEqual ((int) TestCpu::StopReason::ReachedTarget, (int) stop);
             Assert::AreEqual ((Byte) 0x42, cpu.RegA());
@@ -180,7 +181,8 @@ namespace IntegrationTests
 
         TEST_METHOD (RunUntil_CycleLimit_Timeout)
         {
-            TestCpu cpu;
+            TestCpu              cpu;
+            TestCpu::StopReason  stop = {};
             cpu.InitForTest();
 
             auto result = cpu.Assemble (
@@ -194,7 +196,7 @@ namespace IntegrationTests
             Assert::IsTrue (result.success);
 
             Word doneAddr = cpu.LabelAddress (result, "done");
-            auto stop     = cpu.RunUntil (doneAddr, 1);
+            stop = cpu.RunUntil (doneAddr, 1);
 
             Assert::AreEqual ((int) TestCpu::StopReason::CycleLimit, (int) stop);
         }
@@ -211,7 +213,8 @@ namespace IntegrationTests
 
         TEST_METHOD (RunUntil_IllegalOpcode_Stops)
         {
-            TestCpu cpu;
+            TestCpu              cpu;
+            TestCpu::StopReason  stop = {};
             cpu.InitForTest();
 
             // JMP to uninitialized memory ($FF = illegal opcode)
@@ -222,7 +225,7 @@ namespace IntegrationTests
             // 0x00 = BRK — actually a legal opcode. Let's write an illegal one.
             cpu.Poke (0x0200, 0x02); // 0x02 is an illegal/undocumented opcode
 
-            auto stop = cpu.RunUntil (0xFFFF, 100);
+            stop = cpu.RunUntil (0xFFFF, 100);
 
             Assert::AreEqual ((int) TestCpu::StopReason::IllegalOpcode, (int) stop);
         }
@@ -493,7 +496,8 @@ namespace IntegrationTests
 
         TEST_METHOD (QuickstartExample_AssemblesAndRuns)
         {
-            TestCpu cpu;
+            TestCpu              cpu;
+            TestCpu::StopReason  stop = {};
             cpu.InitForTest();
 
             auto result = cpu.Assemble (
@@ -510,7 +514,7 @@ namespace IntegrationTests
             Assert::IsTrue (result.success, L"Quickstart example should assemble successfully");
 
             Word doneAddr = cpu.LabelAddress (result, "done");
-            auto stop     = cpu.RunUntil (doneAddr);
+            stop = cpu.RunUntil (doneAddr);
 
             Assert::AreEqual ((int) TestCpu::StopReason::ReachedTarget, (int) stop);
 

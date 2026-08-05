@@ -109,13 +109,15 @@ public:
 
     TEST_METHOD (MultipleDrives_OneMissing_OnePresent_BothDecidedIndependently)
     {
-        InMemoryFileSystem  fs;
+        InMemoryFileSystem           fs;
+        AutoMountResolver::Decision  d0 = {};
+        AutoMountResolver::Decision  d1 = {};
         std::wstring        paths[2] = { L"C:\\images\\boot.woz", L"C:\\images\\gone.dsk" };
 
         fs.WriteAllText (paths[0], "ok");
 
-        auto  d0 = AutoMountResolver::Resolve (paths[0], fs);
-        auto  d1 = AutoMountResolver::Resolve (paths[1], fs);
+        d0 = AutoMountResolver::Resolve (paths[0], fs);
+        d1 = AutoMountResolver::Resolve (paths[1], fs);
 
         Assert::IsTrue (d0.action == AutoMountResolver::Action::Mount,
                         L"drive 0 should mount its present file");

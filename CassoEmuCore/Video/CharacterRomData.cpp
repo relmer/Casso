@@ -56,8 +56,9 @@ HRESULT CharacterRomData::LoadFromFile (const string & filePath)
     bool             fileOk    = false;
     vector<Byte>     raw;
     std::streamsize  bytesRead = 0;
+    std::streamsize  rawSize   = 0;
     ifstream      file (filePath, ios::binary | ios::ate);
-    auto             rawSize   = streamsize {0};
+    rawSize = streamsize {0};
 
 
 

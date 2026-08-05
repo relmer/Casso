@@ -1843,15 +1843,16 @@ Error:
 
 HRESULT Cpu::LoadBinary (std::istream & stream, Word address)
 {
-    HRESULT hr       = S_OK;
-    bool    readWell = false;
-    bool    fits     = false;
+    HRESULT         hr       = S_OK;
+    bool            readWell = false;
+    bool            fits     = false;
+    std::streampos  size     = 0;
 
 
 
     // Determine stream size
     stream.seekg (0, std::ios::end);
-    auto size = stream.tellg();
+    size = stream.tellg();
     stream.seekg (0, std::ios::beg);
 
     readWell = !stream.bad();

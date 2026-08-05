@@ -82,14 +82,15 @@ public:
 
     TEST_METHOD (GetRegisteredTypes_ListsAll)
     {
-        ComponentRegistry registry;
+        ComponentRegistry         registry;
+        std::vector<std::string>  types;
 
         registry.Register ("type-a",
             [] (const DeviceConfig &, MemoryBus &) { return std::unique_ptr<MemoryDevice> (); });
         registry.Register ("type-b",
             [] (const DeviceConfig &, MemoryBus &) { return std::unique_ptr<MemoryDevice> (); });
 
-        auto types = registry.GetRegisteredTypes();
+        types = registry.GetRegisteredTypes();
 
         Assert::IsTrue (types.size() >= 2);
     }

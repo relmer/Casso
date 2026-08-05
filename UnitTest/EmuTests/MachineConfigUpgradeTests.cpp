@@ -141,14 +141,15 @@ public:
 
     TEST_METHOD (Plan_StampEqualsEmbedded_Skip)
     {
-        string  hashHex;
+        string                          hashHex;
+        vector<MachineConfigPriorHash>  priors;
 
 
 
         // Equal stamp AND matching content: genuinely up to date.
         string  content   = "{ \"$cassoDefault\": 2 }";
         hashHex = MakeHashHex ('1');
-        auto    priors    = MakePriors();
+        priors = MakePriors();
         auto    action    = MachineConfigUpgrade::Plan (
             "Apple2", 2, hashHex,
             &content, hashHex,
@@ -159,14 +160,15 @@ public:
 
     TEST_METHOD (Plan_StampNewerThanEmbedded_Skip)
     {
-        string  hashHex;
+        string                          hashHex;
+        vector<MachineConfigPriorHash>  priors;
 
 
 
         // Strictly newer stamp skips regardless of content: no downgrade.
         string  content   = "{ \"$cassoDefault\": 5 }";
         hashHex = MakeHashHex ('1');
-        auto    priors    = MakePriors();
+        priors = MakePriors();
         auto    action    = MachineConfigUpgrade::Plan (
             "Apple2", 2, MakeHashHex ('e'),
             &content, hashHex,
@@ -186,11 +188,15 @@ public:
 
     TEST_METHOD (Plan_StampCollisionUnknownContent_BackupAndReplace)
     {
+        vector<MachineConfigPriorHash>  priors;
+
+
+
         // The on-disk file wears this build's stamp but carries foreign
         // content (sibling-branch extract or hand edit): rename it aside
         // and install this build's default.
         string  content   = "{ \"$cassoDefault\": 2, \"slots\": [] }";
-        auto    priors    = MakePriors();
+        priors = MakePriors();
         auto    action    = MachineConfigUpgrade::Plan (
             "Apple2", 2, MakeHashHex ('e'),
             &content, MakeHashHex ('f'),
@@ -201,10 +207,14 @@ public:
 
     TEST_METHOD (Plan_StampCollisionKnownPrior_OverwriteSilent)
     {
+        vector<MachineConfigPriorHash>  priors;
+
+
+
         // Same collision, but the content matches a known historical
         // default: an untouched extract, safe to refresh silently.
         string  content   = "{ \"$cassoDefault\": 2 }";
-        auto    priors    = MakePriors();
+        priors = MakePriors();
         auto    action    = MachineConfigUpgrade::Plan (
             "Apple2", 2, MakeHashHex ('e'),
             &content, MakeHashHex ('a'),
@@ -222,13 +232,14 @@ public:
 
     TEST_METHOD (Plan_StaleStamp_OverwriteSilent)
     {
-        string  hashHex;
+        string                          hashHex;
+        vector<MachineConfigPriorHash>  priors;
 
 
 
         string  content = "{ \"$cassoDefault\": 1, \"name\": \"x\" }";
         hashHex = MakeHashHex ('1');
-        auto    priors  = MakePriors();
+        priors = MakePriors();
         auto    action  = MachineConfigUpgrade::Plan (
             "Apple2", 3, MakeHashHex ('e'),
             &content, hashHex,
@@ -246,13 +257,14 @@ public:
 
     TEST_METHOD (Plan_UnstampedKnownPrior_OverwriteSilent)
     {
-        string  hashHex;
+        string                          hashHex;
+        vector<MachineConfigPriorHash>  priors;
 
 
 
         string  content = "{ \"name\": \"Apple ][\" }";
         hashHex = MakeHashHex ('a');
-        auto    priors  = MakePriors();
+        priors = MakePriors();
         auto    action  = MachineConfigUpgrade::Plan (
             "Apple2", 2, MakeHashHex ('e'),
             &content, hashHex,
@@ -270,13 +282,14 @@ public:
 
     TEST_METHOD (Plan_UnstampedNoHashMatch_BackupAndReplace)
     {
-        string  hashHex;
+        string                          hashHex;
+        vector<MachineConfigPriorHash>  priors;
 
 
 
         string  content = "{ \"name\": \"My custom machine\" }";
         hashHex = MakeHashHex ('c');
-        auto    priors  = MakePriors();
+        priors = MakePriors();
         auto    action  = MachineConfigUpgrade::Plan (
             "Apple2", 2, MakeHashHex ('e'),
             &content, hashHex,
@@ -294,14 +307,15 @@ public:
 
     TEST_METHOD (Plan_HashBelongsToOtherMachine_BackupAndReplace)
     {
-        string  hashHex;
+        string                          hashHex;
+        vector<MachineConfigPriorHash>  priors;
 
 
 
         // 'a'*64 is Apple2's prior. Asking about Apple2Plus → no match.
         string  content = "{ \"name\": \"x\" }";
         hashHex = MakeHashHex ('a');
-        auto    priors  = MakePriors();
+        priors = MakePriors();
         auto    action  = MachineConfigUpgrade::Plan (
             "Apple2Plus", 2, MakeHashHex ('e'),
             &content, hashHex,
@@ -319,10 +333,14 @@ public:
 
     TEST_METHOD (Plan_EmptyHash_BackupAndReplace)
     {
+        vector<MachineConfigPriorHash>  priors;
+
+
+
         // Pathological case: caller had content but for some reason
         // didn't precompute a hash. Treated as no match → backup path.
         string  content = "{ \"name\": \"x\" }";
-        auto    priors  = MakePriors();
+        priors = MakePriors();
         auto    action  = MachineConfigUpgrade::Plan (
             "Apple2", 2, MakeHashHex ('e'),
             &content, "",

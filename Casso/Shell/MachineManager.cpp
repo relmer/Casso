@@ -254,7 +254,8 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // Internal motherboard devices
     for (const auto & idev : config.internalDevices)
     {
-        DeviceConfig devCfg;
+        DeviceConfig                   devCfg;
+        std::unique_ptr<MemoryDevice>  device;
         devCfg.type = idev.type;
 
         // The //e MMU is a coordinator object, not a bus device -- it
@@ -267,7 +268,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             continue;
         }
 
-        auto device = m_shell.m_registry.Create (devCfg.type, devCfg, m_shell.m_memoryBus);
+        device = m_shell.m_registry.Create (devCfg.type, devCfg, m_shell.m_memoryBus);
 
         if (!device)
         {
@@ -372,12 +373,13 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         // Slot device (e.g., disk-ii)
         if (!slot.device.empty())
         {
-            DeviceConfig devCfg;
+            DeviceConfig                   devCfg;
+            std::unique_ptr<MemoryDevice>  device;
             devCfg.type    = slot.device;
             devCfg.slot    = slot.slot;
             devCfg.hasSlot = true;
 
-            auto device = m_shell.m_registry.Create (devCfg.type, devCfg, m_shell.m_memoryBus);
+            device = m_shell.m_registry.Create (devCfg.type, devCfg, m_shell.m_memoryBus);
 
             if (!device)
             {

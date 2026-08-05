@@ -27,12 +27,13 @@ namespace DiskMruTests
 
         TEST_METHOD (Remount_MovesToFront_NoDuplicate)
         {
-            DiskMru  m;
+            DiskMru                      m;
+            std::vector<DiskMru::Entry>  snap;
             m.RecordMount (L"C:\\Disks\\A.dsk");
             m.RecordMount (L"C:\\Disks\\B.dsk");
             m.RecordMount (L"C:\\Disks\\A.dsk");
 
-            auto  snap = m.Snapshot();
+            snap = m.Snapshot();
             Assert::AreEqual ((size_t) 2, snap.size());
             Assert::IsTrue (snap[0].path == std::filesystem::path (L"C:\\Disks\\A.dsk"));
             Assert::IsTrue (snap[1].path == std::filesystem::path (L"C:\\Disks\\B.dsk"));
@@ -41,8 +42,9 @@ namespace DiskMruTests
 
         TEST_METHOD (Eviction_AtCapacity_DropsOldest)
         {
-            DiskMru  m;
-            size_t   i = 0;
+            DiskMru                      m;
+            size_t                       i    = 0;
+            std::vector<DiskMru::Entry>  snap;
 
             for (i = 0; i < DiskMru::k_capacity + 1; i++)
             {
@@ -56,7 +58,7 @@ namespace DiskMruTests
 
             // The most-recent (last inserted, index k_capacity) is at front;
             // the original index-0 entry should have been evicted.
-            auto  snap = m.Snapshot();
+            snap = m.Snapshot();
             Assert::IsTrue (snap[0].path.wstring().find (L"\\16.dsk") != std::wstring::npos);
             for (const auto & mruEntry : snap)
             {
@@ -115,11 +117,12 @@ namespace DiskMruTests
 
         TEST_METHOD (Snapshot_MostRecentFirst)
         {
-            DiskMru  m;
+            DiskMru                      m;
+            std::vector<DiskMru::Entry>  snap;
             m.RecordMount (L"C:\\Disks\\A.dsk");
             m.RecordMount (L"C:\\Disks\\B.dsk");
 
-            auto  snap = m.Snapshot();
+            snap = m.Snapshot();
             Assert::IsTrue (snap[0].path == std::filesystem::path (L"C:\\Disks\\B.dsk"));
             Assert::IsTrue (snap[1].path == std::filesystem::path (L"C:\\Disks\\A.dsk"));
         }
@@ -154,13 +157,14 @@ namespace DiskMruTests
 
         TEST_METHOD (FromUtf8_DropsEmpty_PreservesOrder)
         {
-            DiskMru  mru;
+            DiskMru                      mru;
+            std::vector<DiskMru::Entry>  snap;
 
 
 
             std::vector<std::string>  in = { "C:\\Disks\\A.dsk", "", "C:\\Disks\\B.dsk" };
             mru = DiskMru::FromUtf8 (in);
-            auto  snap = mru.Snapshot();
+            snap = mru.Snapshot();
             Assert::AreEqual ((size_t) 2, snap.size());
             Assert::IsTrue (snap[0].path == std::filesystem::path ("C:\\Disks\\A.dsk"));
             Assert::IsTrue (snap[1].path == std::filesystem::path ("C:\\Disks\\B.dsk"));
@@ -185,10 +189,11 @@ namespace DiskMruTests
 
         TEST_METHOD (Utf8RoundTrip_PreservesNonAsciiFilename)
         {
-            DiskMru                    mru;
-            std::vector<std::string>   serialized;
-            std::vector<std::int64_t>  times;
-            DiskMru                    reloaded;
+            DiskMru                      mru;
+            std::vector<std::string>     serialized;
+            std::vector<std::int64_t>    times;
+            DiskMru                      reloaded;
+            std::vector<DiskMru::Entry>  snap;
 
 
 
@@ -209,7 +214,7 @@ namespace DiskMruTests
                 L"Serialized path must contain valid UTF-8 for U+00F8");
 
             reloaded = DiskMru::FromUtf8 (serialized);
-            auto     snap     = reloaded.Snapshot();
+            snap = reloaded.Snapshot();
 
             Assert::AreEqual ((size_t) 1, snap.size());
             Assert::IsTrue (snap[0].path == std::filesystem::path (kName),
@@ -219,12 +224,13 @@ namespace DiskMruTests
 
         TEST_METHOD (RecordMount_StampsLoadTime)
         {
-            constexpr std::int64_t  kWhen = 1700000000;
+            constexpr std::int64_t       kWhen = 1700000000;
+            std::vector<DiskMru::Entry>  snap;
 
             DiskMru  m;
             m.RecordMount (L"C:\\Disks\\A.dsk", kWhen);
 
-            auto  snap = m.Snapshot();
+            snap = m.Snapshot();
             Assert::AreEqual ((size_t) 1, snap.size());
             Assert::AreEqual (kWhen, snap[0].lastLoadedUnix);
         }
@@ -232,14 +238,15 @@ namespace DiskMruTests
 
         TEST_METHOD (Remount_RefreshesLoadTime)
         {
-            constexpr std::int64_t  kFirst  = 1700000000;
-            constexpr std::int64_t  kSecond = 1700009999;
+            constexpr std::int64_t       kFirst  = 1700000000;
+            constexpr std::int64_t       kSecond = 1700009999;
+            std::vector<DiskMru::Entry>  snap;
 
             DiskMru  m;
             m.RecordMount (L"C:\\Disks\\A.dsk", kFirst);
             m.RecordMount (L"C:\\Disks\\A.dsk", kSecond);
 
-            auto  snap = m.Snapshot();
+            snap = m.Snapshot();
             Assert::AreEqual ((size_t) 1, snap.size());
             Assert::AreEqual (kSecond, snap[0].lastLoadedUnix);
         }
@@ -247,21 +254,23 @@ namespace DiskMruTests
 
         TEST_METHOD (RecordMount_DefaultLoadTimeIsUnknownZero)
         {
-            DiskMru  m;
+            DiskMru                      m;
+            std::vector<DiskMru::Entry>  snap;
             m.RecordMount (L"C:\\Disks\\A.dsk");
 
-            auto  snap = m.Snapshot();
+            snap = m.Snapshot();
             Assert::AreEqual ((std::int64_t) 0, snap[0].lastLoadedUnix);
         }
 
 
         TEST_METHOD (ToUtf8_FromUtf8_RoundTripsLoadTimes)
         {
-            constexpr std::int64_t     kWhenA   = 1700000001;
-            constexpr std::int64_t     kWhenB   = 1700000002;
-            std::vector<std::string>   paths;
-            std::vector<std::int64_t>  times;
-            DiskMru                    reloaded;
+            constexpr std::int64_t       kWhenA   = 1700000001;
+            constexpr std::int64_t       kWhenB   = 1700000002;
+            std::vector<std::string>     paths;
+            std::vector<std::int64_t>    times;
+            DiskMru                      reloaded;
+            std::vector<DiskMru::Entry>  snap;
 
             DiskMru  mru;
             mru.RecordMount (L"C:\\Disks\\A.dsk", kWhenA);
@@ -272,7 +281,7 @@ namespace DiskMruTests
             Assert::AreEqual ((size_t) 2, times.size());
 
             reloaded = DiskMru::FromUtf8 (paths, times);
-            auto     snap     = reloaded.Snapshot();
+            snap = reloaded.Snapshot();
 
             // Most-recent-first: B (kWhenB) then A (kWhenA).
             Assert::AreEqual (kWhenB, snap[0].lastLoadedUnix);
@@ -282,8 +291,9 @@ namespace DiskMruTests
 
         TEST_METHOD (FromUtf8_ShorterTimesArray_DefaultsMissingToZero)
         {
-            std::vector<std::int64_t>  times;
-            DiskMru                    mru;
+            std::vector<std::int64_t>    times;
+            DiskMru                      mru;
+            std::vector<DiskMru::Entry>  snap;
 
 
 
@@ -292,7 +302,7 @@ namespace DiskMruTests
             times = { 1700000000 }; // only the first entry has a time
 
             mru = DiskMru::FromUtf8 (paths, times);
-            auto  snap = mru.Snapshot();
+            snap = mru.Snapshot();
 
             Assert::AreEqual ((size_t) 2, snap.size());
             Assert::AreEqual ((std::int64_t) 1700000000, snap[0].lastLoadedUnix);
