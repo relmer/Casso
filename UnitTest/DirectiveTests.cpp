@@ -34,7 +34,19 @@ namespace DirectiveTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  SynonymTests — AS65 directive synonyms without leading dot
+    //  SynonymTests
+    //
+    //  Every directive accepted in all its spellings -- dotted, undotted, and
+    //  by AS65 alias -- producing identical output.
+    //
+    //  Period sources are inconsistent about this, so the assembler accepts
+    //  `.byte`, `byte`, and `db` for the same thing. The value of testing them
+    //  as a GROUP is that each pair is compared against the other's output
+    //  rather than against a literal, so a synonym cannot quietly acquire
+    //  different behavior from the directive it aliases.
+    //
+    //  That is the failure this guards: a synonym wired to a near-identical
+    //  handler works for the common case and diverges on the edges.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -251,7 +263,21 @@ namespace DirectiveTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  DsDirectiveTests — .DS / ds / dsb / rmb storage reserve
+    //  DsDirectiveTests
+    //
+    //  Storage reservation: the PC advances, and what -- if anything -- is
+    //  emitted.
+    //
+    //  The distinction that matters is between RESERVING space and emitting
+    //  fill. In a code segment the reserved bytes are part of the image; in a
+    //  bss segment they must advance the PC and emit nothing, or the output
+    //  file grows by the size of every uninitialized buffer.
+    //
+    //  Subsequent labels are asserted as well as the size, since the whole
+    //  point of reserving is that what follows lands at the right address.
+    //
+    //  A zero-size reservation is covered because it is the degenerate case a
+    //  loop generating a table naturally produces.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -388,7 +414,19 @@ namespace DirectiveTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  DdDirectiveTests — .DD / dd double-word
+    //  DdDirectiveTests
+    //
+    //  Double-word data: four bytes, little-endian.
+    //
+    //  BYTE ORDER is the whole test. The 6502 is little-endian and so is the
+    //  directive, but a 32-bit value written by a host that agrees about
+    //  endianness passes even when the emission is accidentally host-ordered --
+    //  so the values are chosen with four DISTINCT bytes, where any reordering
+    //  is visible.
+    //
+    //  Values spanning the sign boundary are included, since a 32-bit quantity
+    //  narrowed through a signed intermediate is a plausible implementation
+    //  that works for small numbers.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -470,7 +508,21 @@ namespace DirectiveTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  EndDirectiveTests — .END / end
+    //  EndDirectiveTests
+    //
+    //  .end stopping assembly, and everything after it being ignored.
+    //
+    //  Ignored means IGNORED -- not assembled and not diagnosed. Text after
+    //  .end is frequently notes or dead code, so a syntax error down there must
+    //  not fail the build, which is why the fixtures put deliberately invalid
+    //  lines past it.
+    //
+    //  The emitted image is asserted to end where .end does, since a directive
+    //  that stops reporting but keeps emitting produces trailing bytes nobody
+    //  asked for.
+    //
+    //  An .end inside a conditional or a macro is covered too: it must end the
+    //  assembly, not the enclosing block.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -540,7 +592,22 @@ namespace DirectiveTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  AlignDirectiveTests — .ALIGN / align
+    //  AlignDirectiveTests
+    //
+    //  .align advancing the PC to a boundary -- and doing NOTHING when already
+    //  there.
+    //
+    //  The already-aligned case is the one that gets implemented wrong. A
+    //  padding calculation written as "boundary minus PC modulo boundary"
+    //  yields a full boundary's worth of padding when the remainder is zero, so
+    //  an aligned PC advances by 256 instead of staying put.
+    //
+    //  Alignment matters on this machine beyond tidiness: a table that does not
+    //  cross a page boundary can be indexed without the extra cycle a page
+    //  cross costs, and some indexed addressing tricks require it outright.
+    //
+    //  Subsequent labels are asserted, since the padding is only correct if
+    //  what follows lands on the boundary.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -659,7 +726,21 @@ namespace DirectiveTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  ErrorDirectiveTests — .ERROR / error
+    //  ErrorDirectiveTests
+    //
+    //  .error failing the assembly with the author's own message.
+    //
+    //  A source-authored diagnostic, which is what makes conditional assembly
+    //  able to enforce its own preconditions -- "this build requires a //e" is
+    //  a rule only the source knows.
+    //
+    //  So the failure FLAG is asserted as well as the message: an .error that
+    //  reports without failing lets a build proceed past a condition its author
+    //  declared fatal.
+    //
+    //  The tests also place .error inside a false conditional, where it must
+    //  NOT fire. A directive evaluated regardless of the enclosing block would
+    //  make it useless for exactly the purpose it exists for.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -746,7 +827,23 @@ namespace DirectiveTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  EscapeSequenceTests — backslash escapes in .BYTE / db strings
+    //  EscapeSequenceTests
+    //
+    //  Backslash escapes inside string data: the recognized ones, and what
+    //  happens to the rest.
+    //
+    //  The escaped QUOTE and the escaped BACKSLASH carry the weight. Without
+    //  the first there is no way to put a quote in a string at all; without the
+    //  second a string ending in a path separator swallows the line after it.
+    //
+    //  An unrecognized escape yields the literal character rather than an
+    //  error, matching period assemblers -- so `\q` is `q`. Rejecting it would
+    //  break sources that rely on it to pass through characters no formal list
+    //  covers.
+    //
+    //  The emitted BYTES are asserted, not the parsed string, since these
+    //  escapes exist to produce specific values -- a `\n` is $0A whatever the
+    //  host's newline is.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -900,7 +997,24 @@ namespace DirectiveTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  SegmentTests — code/data/bss three-segment model
+    //  SegmentTests
+    //
+    //  The three-segment model: code, data, and bss, each with its OWN program
+    //  counter.
+    //
+    //  Independent PCs are the whole idea. Switching to data and back must
+    //  resume the code segment where it left off, not wherever the data
+    //  segment reached -- a single shared PC makes every segment switch
+    //  relocate the code that follows it.
+    //
+    //  bss is different again: it reserves without emitting, so its size
+    //  affects labels but not the image.
+    //
+    //  Labels are asserted per segment, since that resumption is only
+    //  observable through the addresses symbols resolve to.
+    //
+    //  Repeated switching is covered because one round trip can pass on an
+    //  implementation that merely saves and restores a single value.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -1061,6 +1175,18 @@ namespace DirectiveTests
         //
         //  Segment_ResumeAfterSwitch
         //
+        //  Leaves the code segment, emits into data, returns, and asserts the
+        //  code PC picked up exactly where it stopped.
+        //
+        //  The data emitted in between is deliberately a DIFFERENT size from
+        //  anything in the code segment, so a resumption that accidentally used
+        //  the other segment's PC lands somewhere visibly wrong rather than
+        //  coincidentally right.
+        //
+        //  The label after the return is what carries the assertion -- the PC
+        //  itself is internal, and the address a symbol resolves to is the
+        //  observable consequence.
+        //
         ////////////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (Segment_ResumeAfterSwitch)
@@ -1101,6 +1227,22 @@ namespace DirectiveTests
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  ColonlessLabelTests
+    //
+    //  A bare word in COLUMN 0 defined as a label, without a trailing colon.
+    //
+    //  Period assemblers accepted this and period sources use it, so it has to
+    //  work -- but it is the parser's most ambiguous case. A column-0 word is a
+    //  label only once everything else has been ruled out: it might be a
+    //  mnemonic, a directive, or a constant definition, all of which also start
+    //  at column 0 in some sources.
+    //
+    //  So the fixtures deliberately include the near-misses -- a mnemonic in
+    //  column 0, a directive in column 0, a constant definition -- to pin that
+    //  the colonless-label rule runs LAST and does not swallow them.
+    //
+    //  An instruction following on the same line is covered too, since a
+    //  colonless label does not consume its line the way a colon-terminated one
+    //  visibly does.
     //
     ////////////////////////////////////////////////////////////////////////////////
 

@@ -21,6 +21,18 @@ namespace IntegrationTests
     //
     //  AssembleTests
     //
+    //  Source in, assembled, loaded, EXECUTED -- the assembler and the CPU
+    //  checked against each other end to end.
+    //
+    //  The unit tests on either side can both be wrong in agreeing ways: an
+    //  opcode encoded incorrectly by the assembler and decoded to the same
+    //  wrong meaning by the CPU passes both suites. Running the bytes is what
+    //  makes the round trip real.
+    //
+    //  Assertions are on the machine's final STATE -- registers and memory --
+    //  rather than on the emitted bytes, so the test says what the program did
+    //  rather than restating the encoding a unit test already covers.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (AssembleTests)
@@ -108,6 +120,18 @@ namespace IntegrationTests
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  RunUntilTests
+    //
+    //  Running real programs -- loops, subroutine calls, indexed access -- to a
+    //  stop address.
+    //
+    //  These are the multi-instruction behaviors no single-instruction test
+    //  reaches: a loop depends on flags surviving from the compare to the
+    //  branch, a subroutine on JSR and RTS agreeing about the stack, indexed
+    //  access on the index register advancing between iterations.
+    //
+    //  Every run is BOUNDED by a cycle limit as well as a stop address, so a
+    //  program that never terminates fails the test instead of hanging the
+    //  suite -- which is the failure mode any of these bugs actually produces.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -249,6 +273,22 @@ namespace IntegrationTests
     //
     //  BrkInterruptTests
     //
+    //  BRK's full sequence: push the status and PC, set I, and vector through
+    //  $FFFE.
+    //
+    //  BRK is a two-byte instruction whose second byte is IGNORED, and the
+    //  pushed PC points past it. That padding byte is the detail an
+    //  implementation gets wrong -- pushing the address of the byte after the
+    //  opcode makes every RTI return into the padding.
+    //
+    //  The pushed STATUS has the B flag set, which is how a handler tells a
+    //  software BRK from a hardware IRQ. The two share a vector, so without
+    //  that bit they are indistinguishable.
+    //
+    //  This runs the whole path rather than testing the pieces, since the
+    //  interaction between the push order and the vector fetch is exactly what
+    //  a real handler depends on.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (BrkInterruptTests)
@@ -259,6 +299,19 @@ namespace IntegrationTests
         ////////////////////////////////////////////////////////////////////////////////
         //
         //  BRK_PushesStatusAndPC_LoadsIRQVector
+        //
+        //  Asserts each piece of the BRK sequence separately: the three pushed
+        //  bytes, the I flag, and the new PC.
+        //
+        //  Separately rather than by running a handler and checking it
+        //  returned, so a failure names WHICH part of the sequence is wrong.
+        //  A round-trip test would fail identically for a bad push order, a
+        //  wrong vector, and an off-by-one PC.
+        //
+        //  The stack is read directly at $01xx to verify the push order --
+        //  status on top of a big-endian-pushed PC -- which is what an RTI
+        //  depends on and what a handler inspecting its own return address
+        //  reads.
         //
         ////////////////////////////////////////////////////////////////////////////////
 
@@ -304,6 +357,18 @@ namespace IntegrationTests
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  StackPageTests
+    //
+    //  The stack living in page 1, growing down, and wrapping within it.
+    //
+    //  Run as programs rather than by poking the pointer, so the addresses are
+    //  the ones real pushes and pulls produce -- these assert where the bytes
+    //  actually LAND, at $0100 plus the pointer, which is what nested
+    //  subroutines and interrupt handlers depend on.
+    //
+    //  The wrap is exercised deliberately: overflowing past the bottom returns
+    //  to $01FF rather than descending into zero page. That is what makes stack
+    //  overflow corrupt the stack -- survivable, and observed in real software
+    //  -- instead of silently overwriting zero-page variables, which is not.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -389,6 +454,16 @@ namespace IntegrationTests
     //
     //  QuickstartValidationTests
     //
+    //  The example program from the documentation, assembled and run.
+    //
+    //  Documentation rots silently. A quickstart whose sample no longer
+    //  assembles is the first thing a new user meets and the last thing anyone
+    //  else notices, so the example is executed here rather than trusted.
+    //
+    //  The source is kept identical to the published text, which is the point
+    //  -- adapting it to make the test convenient would test something the
+    //  reader never sees.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (QuickstartValidationTests)
@@ -399,6 +474,18 @@ namespace IntegrationTests
         ////////////////////////////////////////////////////////////////////////////////
         //
         //  QuickstartExample_AssemblesAndRuns
+        //
+        //  Assembles the documented sample verbatim and asserts the result the
+        //  documentation claims.
+        //
+        //  Both halves matter. A sample that assembles but computes something
+        //  other than what the text says is just as misleading as one that
+        //  fails outright, so the asserted value is the one printed in the
+        //  docs.
+        //
+        //  Any edit to the quickstart's code block should be made here too --
+        //  that coupling is deliberate, and it is what keeps the two from
+        //  drifting.
         //
         ////////////////////////////////////////////////////////////////////////////////
 
@@ -439,6 +526,18 @@ namespace IntegrationTests
     //
     //  WriteBytesEquivalenceTests
     //
+    //  Assembled output and hand-written data directives must produce the
+    //  IDENTICAL image.
+    //
+    //  Two paths reach the same bytes -- the instruction encoder and the .byte
+    //  directive -- and they run through different code. Asserting they agree
+    //  means either can be used to check the other, which is what makes a
+    //  hand-written expected image a valid oracle elsewhere.
+    //
+    //  It also catches the subtler divergence: a data directive that lays bytes
+    //  at a different address than instructions of the same length, which
+    //  matters as soon as a source mixes code and tables.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (WriteBytesEquivalenceTests)
@@ -449,6 +548,17 @@ namespace IntegrationTests
         ////////////////////////////////////////////////////////////////////////////////
         //
         //  AssembledAndWriteBytes_ProduceIdenticalResults
+        //
+        //  Assembles the same program twice -- once as instructions, once as
+        //  .byte data -- and compares the images byte for byte.
+        //
+        //  Comparing the two OUTPUTS rather than either against a literal is
+        //  what makes this meaningful: a hard-coded expected image would only
+        //  restate whichever path was used to produce it.
+        //
+        //  Start and end addresses are compared as well as the bytes, since two
+        //  identical byte sequences placed at different origins are not the
+        //  same image to a loader.
         //
         ////////////////////////////////////////////////////////////////////////////////
 
@@ -497,6 +607,22 @@ namespace IntegrationTests
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  LoadBinaryTests
+    //
+    //  Cpu::LoadBinary: the bytes that land, and each way it can refuse.
+    //
+    //  Driven through the STREAM overload so the tests never touch the
+    //  filesystem -- that overload exists for exactly this reason, and the
+    //  filename form is a thin wrapper over it.
+    //
+    //  The refusals are covered as carefully as the success: an image that
+    //  would run off the top of memory, a stream that fails mid-read, and a
+    //  zero-length load are each distinct, and the first two are reported with
+    //  DIFFERENT codes -- a caller's bad address is not the same as a broken
+    //  file.
+    //
+    //  Memory is asserted unchanged on failure, which is the contract that
+    //  makes a failed load recoverable rather than leaving the machine holding
+    //  half an image.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
