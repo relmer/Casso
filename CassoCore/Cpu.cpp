@@ -155,8 +155,7 @@ void Cpu::TracePush (Byte opcode)
 
 void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
 {
-    size_t  i       = 0;
-    size_t  index   = 0;
+    size_t  i = 0;
 
 
 
@@ -184,9 +183,7 @@ void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
     {
         // head currently points one PAST the most recent push, so the
         // newest entry is (head - 1) mod size. Step backward from there.
-        index = (m_traceHead + m_traceCapacity - 1 - i) % m_traceCapacity;
-
-        const TraceEntry &  e        = m_trace[index];
+        const TraceEntry &  e        = m_trace[(m_traceHead + m_traceCapacity - 1 - i) % m_traceCapacity];
         const char *        opName   = instructionSet[e.opcode].instructionName != nullptr
                                        ? instructionSet[e.opcode].instructionName
                                        : "???";

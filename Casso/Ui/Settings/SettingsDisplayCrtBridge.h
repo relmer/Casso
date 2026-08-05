@@ -54,6 +54,11 @@ public:
 
 
 private:
+    // ResetActiveToDefaults with the null-guard already passed: seeds the
+    // active monitor's CRT block from its preset plus the active theme's
+    // crtDefaults layer.
+    void  ApplyActiveDefaults (GlobalUserPrefs & prefs);
+
     GlobalUserPrefs     * m_prefs       = nullptr;
     ThemeManager        * m_themes      = nullptr;
     SettingsPanelState  * m_state       = nullptr;

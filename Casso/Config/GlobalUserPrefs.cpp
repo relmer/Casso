@@ -657,14 +657,15 @@ void GlobalUserPrefs::RecentDisksFromJson (
     recentDisks.reserve (recentArr.ArraySize());
     for (ri = 0; ri < recentArr.ArraySize(); ri++)
     {
-        const JsonValue &  entry = recentArr.ArrayAt (ri);
+        const JsonValue   &  entry = recentArr.ArrayAt (ri);
+        // GetString is a plain accessor (empty for non-strings), so the
+        // binding is safe before the type test.
+        const std::string &  s     = entry.GetString();
 
         if (entry.GetType() != JsonType::String)
         {
             continue;
         }
-
-        const std::string &  s = entry.GetString();
 
         if (s.empty())
         {

@@ -2609,9 +2609,9 @@ HRESULT AssemblySession::HandleEquConstant (const PendingLine & current, LineInf
         }
         else
         {
-            m_symbolKinds[info.parsed.constantName] = SymbolKind::Equ;
-
             const std::string & expr = info.parsed.constantExpr;
+
+            m_symbolKinds[info.parsed.constantName] = SymbolKind::Equ;
 
             if (expr.size() >= 2 && expr.front() == '"' && expr.back() == '"')
             {
@@ -3452,15 +3452,12 @@ Error:
 
 HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & info, bool & handled)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr      = S_OK;
+    auto    macroIt = m_macros.find (info.parsed.mnemonic);
 
 
 
     handled = false;
-
-    auto macroIt = m_macros.find (info.parsed.mnemonic);
-
-
 
     // Not a macro call; the line belongs to a later stage.
     BAIL_OUT_IF (macroIt == m_macros.end(), S_OK);
@@ -4492,6 +4489,8 @@ HRESULT AssemblySession::ResolveEquConstants()
 
         for (const auto & info : m_lineInfos)
         {
+            const std::string & expr = info.parsed.constantExpr;
+
             if (!info.isConstant || !info.parsed.isConstant)
             {
                 continue;
@@ -4506,8 +4505,6 @@ HRESULT AssemblySession::ResolveEquConstants()
             {
                 continue;
             }
-
-            const std::string & expr = info.parsed.constantExpr;
 
             if (expr.size() >= 2 && expr.front() == '"' && expr.back() == '"')
             {

@@ -374,6 +374,7 @@ void DriveWidget::Paint (
         float    inUseFontDip   = 0.0f;
         float    doorOffset     = 0.0f;
         int      recessInsetX   = 0;
+        const CassoTheme &  theme = static_cast<const CassoTheme &> (dxuiTheme);
         int      recessInsetTop = 0;
         int      recessInsetBot = 0;
         float    recessLeft     = 0.0f;
@@ -383,7 +384,6 @@ void DriveWidget::Paint (
         wchar_t  label[32]      = {};
 
         _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
-        const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
 
         bodyW = m_bodyRect.right - m_bodyRect.left;
         faceW = m_faceRect.right - m_faceRect.left;

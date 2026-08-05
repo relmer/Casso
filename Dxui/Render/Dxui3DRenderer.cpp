@@ -620,13 +620,13 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
     if (useDepth)
     {
         ComPtr<ID3D11RenderTargetView>  rtv;
+        ID3D11RenderTargetView       *  rawRtv = nullptr;
 
         m_context->OMGetRenderTargets (1, rtv.GetAddressOf(), nullptr);
         CBREx (rtv != nullptr, E_UNEXPECTED);
 
-        ID3D11RenderTargetView *  rtvs[1] = { rtv.Get() };
-
-        m_context->OMSetRenderTargets (1, rtvs, m_depthDsv.Get());
+        rawRtv = rtv.Get();
+        m_context->OMSetRenderTargets (1, &rawRtv, m_depthDsv.Get());
     }
 
     // Full state set every draw (mirrors DxuiPainter::End): interleaving with

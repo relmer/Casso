@@ -1512,15 +1512,13 @@ JsonValue UserConfigStore::DiffJson (
     const JsonValue & defaultV)
 {
     std::vector<std::pair<std::string, JsonValue>>          diff;
-    const std::vector<std::pair<std::string, JsonValue>>  * curEntries    = nullptr;
-    const std::vector<std::pair<std::string, JsonValue>>  * defEntries    = nullptr;
-    int                                                     idx           = 0;
-    size_t                                                  i             = 0;
-    bool                                                    fIsVersionKey = false;
-    bool                                                    fSameType     = false;
+    const std::vector<std::pair<std::string, JsonValue>>  * curEntries = nullptr;
+    const std::vector<std::pair<std::string, JsonValue>>  * defEntries = nullptr;
+    int                                                     idx        = 0;
+    size_t                                                  i          = 0;
     JsonValue                                               result;
-    HRESULT                                                 hr            = S_OK;
-    bool                                                    isObject      = currentV.GetType() == JsonType::Object;
+    HRESULT                                                 hr         = S_OK;
+    bool                                                    isObject   = currentV.GetType() == JsonType::Object;
 
 
     // Not an object: the empty `diff` below still yields an object, which is
@@ -1543,8 +1541,6 @@ JsonValue UserConfigStore::DiffJson (
     {
         const std::string & key = (*curEntries)[i].first;
         const JsonValue   & cv  = (*curEntries)[i].second;
-
-        fIsVersionKey = (key == kpszVersionKey);
 
         if (defEntries == nullptr)
         {
@@ -1573,75 +1569,88 @@ JsonValue UserConfigStore::DiffJson (
             continue;
         }
 
-        const JsonValue & dv = (*defEntries)[(size_t) idx].second;
-
-        fSameType = (cv.GetType() == dv.GetType());
-
-        if (fIsVersionKey)
-        {
-            // Always pass through.
-            diff.emplace_back (key, cv);
-            continue;
-        }
-
-        if (key == "internalDevices" &&
-            IsObjectArray (cv) &&
-            IsObjectArray (dv))
-        {
-            JsonValue hwDelta = BuildHardwareDeltaArray (cv, dv, false);
-            if (hwDelta.GetType() == JsonType::Array && hwDelta.ArraySize() > 0)
-            {
-                diff.emplace_back (key, std::move (hwDelta));
-            }
-
-            continue;
-        }
-
-        if (key == "slots" &&
-            IsObjectArray (cv) &&
-            IsObjectArray (dv))
-        {
-            JsonValue hwDelta = BuildHardwareDeltaArray (cv, dv, true);
-            if (hwDelta.GetType() == JsonType::Array && hwDelta.ArraySize() > 0)
-            {
-                diff.emplace_back (key, std::move (hwDelta));
-            }
-
-            continue;
-        }
-
-        if (key == kpszUiPrefsKey && cv.GetType() == JsonType::Object)
-        {
-            JsonValue uiDiff = DiffJson (cv, BuildUiPrefsDefaults());
-            if (!uiDiff.GetObjectEntries().empty())
-            {
-                diff.emplace_back (key, std::move (uiDiff));
-            }
-
-            continue;
-        }
-
-        if (fSameType && cv.GetType() == JsonType::Object)
-        {
-            JsonValue  nested = DiffJson (cv, dv);
-            if (!nested.GetObjectEntries().empty())
-            {
-                diff.emplace_back (key, std::move (nested));
-            }
-
-            continue;
-        }
-
-        if (!JsonEqual (cv, dv))
-        {
-            diff.emplace_back (key, cv);
-        }
+        DiffMatchedKey (diff, key, cv, (*defEntries)[(size_t) idx].second);
     }
 
     result = JsonValue (std::move (diff));
 
 Error:
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::DiffMatchedKey
+//
+//  One DiffJson step for a key present in BOTH current and defaults. The
+//  version key always passes through; the two hardware arrays and uiPrefs
+//  diff through their dedicated builders; same-type objects recurse; and
+//  anything else is kept only when it differs from the default. Factored
+//  out of DiffJson's loop so `dv` binds at the top of a function rather
+//  than mid-loop behind the existence guards.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UserConfigStore::DiffMatchedKey (
+    std::vector<std::pair<std::string, JsonValue>> & diff,
+    const std::string                              & key,
+    const JsonValue                                & cv,
+    const JsonValue                                & dv)
+{
+    bool  fIsVersionKey = (key == kpszVersionKey);
+    bool  fSameType     = (cv.GetType() == dv.GetType());
+
+
+
+    if (fIsVersionKey)
+    {
+        // Always pass through.
+        diff.emplace_back (key, cv);
+    }
+    else if (key == "internalDevices" && IsObjectArray (cv) && IsObjectArray (dv))
+    {
+        JsonValue hwDelta = BuildHardwareDeltaArray (cv, dv, false);
+
+        if (hwDelta.GetType() == JsonType::Array && hwDelta.ArraySize() > 0)
+        {
+            diff.emplace_back (key, std::move (hwDelta));
+        }
+    }
+    else if (key == "slots" && IsObjectArray (cv) && IsObjectArray (dv))
+    {
+        JsonValue hwDelta = BuildHardwareDeltaArray (cv, dv, true);
+
+        if (hwDelta.GetType() == JsonType::Array && hwDelta.ArraySize() > 0)
+        {
+            diff.emplace_back (key, std::move (hwDelta));
+        }
+    }
+    else if (key == kpszUiPrefsKey && cv.GetType() == JsonType::Object)
+    {
+        JsonValue uiDiff = DiffJson (cv, BuildUiPrefsDefaults());
+
+        if (!uiDiff.GetObjectEntries().empty())
+        {
+            diff.emplace_back (key, std::move (uiDiff));
+        }
+    }
+    else if (fSameType && cv.GetType() == JsonType::Object)
+    {
+        JsonValue  nested = DiffJson (cv, dv);
+
+        if (!nested.GetObjectEntries().empty())
+        {
+            diff.emplace_back (key, std::move (nested));
+        }
+    }
+    else if (!JsonEqual (cv, dv))
+    {
+        diff.emplace_back (key, cv);
+    }
 }
 
 

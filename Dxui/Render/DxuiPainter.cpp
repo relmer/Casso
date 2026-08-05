@@ -488,8 +488,7 @@ void DxuiPainter::PushQuad (
     // Two triangles per quad: (tl, tr, bl) and (bl, tr, br). Append all six in
     // one insert so the vector grows/size-checks once rather than six times
     // (the six 24-byte copies are the same either way; Vertex is a POD).
-    const Vertex  quad[6] = { tl, tr, bl, bl, tr, br };
-    m_vertices.insert (m_vertices.end(), quad, quad + 6);
+    m_vertices.insert (m_vertices.end(), { tl, tr, bl, bl, tr, br });
 }
 
 

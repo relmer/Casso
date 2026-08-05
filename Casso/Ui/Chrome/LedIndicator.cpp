@@ -150,16 +150,16 @@ uint32_t LedIndicator::HaloArgb (const CassoTheme & theme) const
 
 void LedIndicator::Paint (IDxuiPainter & painter, IDxuiTextRenderer & /*text*/, const IDxuiTheme & dxuiTheme)
 {
-    uint32_t  halo  = 0;
-    float     cx    = 0.0f;
-    float     cy    = 0.0f;
-    float     coreR = 0.0f;
-    float     haloR = 0.0f;
+    const CassoTheme &  theme = static_cast<const CassoTheme &> (dxuiTheme);
+    uint32_t            halo  = 0;
+    float               cx    = 0.0f;
+    float               cy    = 0.0f;
+    float               coreR = 0.0f;
+    float               haloR = 0.0f;
 
 
 
     _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
-    const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
 
     halo = HaloArgb (theme);
     cx = (float) (m_layout.coreRect.left + m_layout.coreRect.right) * 0.5f;

@@ -1782,10 +1782,12 @@ int DoRun (const CommandLineOptions & options)
 
     if (IsAssemblySource (options.inputFile))
     {
-        AssemblerOptions asmOptions = {};
-        asmOptions.warningMode     = options.warningMode;
+        AssemblerOptions  asmOptions = {};
+        AssembleResult    ar;
 
-        auto ar = AssembleFile (options.inputFile, SelectInstructionSet (options, cpu), asmOptions);
+        asmOptions.warningMode = options.warningMode;
+
+        ar = AssembleFile (options.inputFile, SelectInstructionSet (options, cpu), asmOptions);
         ReportAssemblyDiagnostics (ar);
 
         wasLoaded = ar.ok;

@@ -204,6 +204,7 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
     float               bt       = 0.0f;
     float               bw       = 0.0f;
     float               bh       = 0.0f;
+    const CassoTheme &  theme    = static_cast<const CassoTheme &> (dxuiTheme);
     uint32_t            coreArgb = 0;
     uint32_t            haloArgb = 0;
     int                 ledGap   = 0;
@@ -213,7 +214,6 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 
 
     _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
-    const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
 
     active = m_hovered || m_focused || m_pressed;
     fontDip = s_kFontDip * (float) m_dpi / (float) s_kBaseDpi;

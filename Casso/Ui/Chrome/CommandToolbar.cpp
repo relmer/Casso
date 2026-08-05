@@ -794,15 +794,15 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
 
 void CommandToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & dxuiTheme)
 {
-    float  bl    = 0.0f;
-    float  btTop = 0.0f;
-    float  bw    = 0.0f;
-    float  bhAll = 0.0f;
+    const CassoTheme &  theme = static_cast<const CassoTheme &> (dxuiTheme);
+    float               bl    = 0.0f;
+    float               btTop = 0.0f;
+    float               bw    = 0.0f;
+    float               bhAll = 0.0f;
 
 
 
     _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
-    const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
 
     bl = (float) m_barRect.left;
     btTop = (float) m_barRect.top;

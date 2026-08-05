@@ -2295,6 +2295,42 @@ void DxuiListView::PaintHeaderFocusMarkers (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RowCells
+//
+//  The cell vector for row `r`. Virtual mode pulls the row on demand into
+//  the reused provider scratch and grows the auto-fit counts from it; push
+//  mode references m_rows directly, with no per-row copy. Factored from
+//  PaintDataRows so its loop can bind the row's cells at the top of the
+//  body instead of after the mode branch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<DxuiListView::Cell> & DxuiListView::RowCells (int r) const
+{
+    const std::vector<Cell> *  cells = nullptr;
+
+
+
+    if (m_virtual)
+    {
+        ProvideRow (r, m_providerScratch);
+        NoteAutoFitRow (m_providerScratch);
+        cells = &m_providerScratch;
+    }
+    else
+    {
+        cells = &m_rows[(size_t) r];
+    }
+
+    return *cells;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PaintDataRows
 //
 //  Paints the visible data rows in [firstRow, lastRow): selection and
@@ -2325,21 +2361,15 @@ void DxuiListView::PaintDataRows (
 
 
 
-    for (int r = firstRow; r < lastRow; ++r)
+    // Clamp the visible span to the real row range up front, so the loop
+    // body needs no per-row range guard and can bind the row's cells at
+    // its top.
+    for (int r = (std::max) (firstRow, 0); r < (std::min) (lastRow, RowCount()); ++r)
     {
-        float                      ry       = 0.0f;
-        bool                       isHov    = false;
-        bool                       isSel    = false;
-        const std::vector<Cell>  * cellsPtr = nullptr;
-
-        if (r < 0 || r >= RowCount())
-        {
-            continue;
-        }
-
-        ry    = y + headerH + hdrGap + (float) (r - firstRow) * rowH;
-        isHov = (r == m_hovered);
-        isSel = (m_listFocused && r == m_selectedRow);
+        const std::vector<Cell> &  cells = RowCells (r);
+        float                      ry    = y + headerH + hdrGap + (float) (r - firstRow) * rowH;
+        bool                       isHov = (r == m_hovered);
+        bool                       isSel = (m_listFocused && r == m_selectedRow);
 
         if (isSel)
         {
@@ -2352,23 +2382,6 @@ void DxuiListView::PaintDataRows (
         {
             painter.FillRect (x, ry, layoutW, rowH, pal.bgHover);
         }
-
-        // Virtual mode pulls the row's cells on demand into a reused scratch
-        // buffer and grows auto-fit from it; push mode references m_rows
-        // directly (no per-row copy).
-
-        if (m_virtual)
-        {
-            ProvideRow (r, m_providerScratch);
-            NoteAutoFitRow (m_providerScratch);
-            cellsPtr = &m_providerScratch;
-        }
-        else
-        {
-            cellsPtr = &m_rows[(size_t) r];
-        }
-
-        const std::vector<Cell> &  cells = *cellsPtr;
 
         for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
         {

@@ -1159,11 +1159,11 @@ void MachineManager::CreateVideoModes()
 
     if (auxBuf != nullptr)
     {
-        text80->SetAuxMemory (auxBuf);
-
         // DHR also needs aux memory access (FR-019). Index 3 =
         // AppleDoubleHiResMode.
-        auto * dhr = static_cast<AppleDoubleHiResMode *> (m_shell.m_videoModes[3].get());
+        auto *  dhr = static_cast<AppleDoubleHiResMode *> (m_shell.m_videoModes[3].get());
+
+        text80->SetAuxMemory (auxBuf);
         dhr->SetAuxMemory (auxBuf);
     }
 

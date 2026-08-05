@@ -1343,8 +1343,9 @@ void Disk2DebugPanel::DrainAndProject()
 
 void Disk2DebugPanel::RebuildFilteredIndices()
 {
-    int   col  = 0;
-    bool  desc = false;
+    const std::deque<Disk2EventDisplay> &  events = m_events;
+    int                                    col    = 0;
+    bool                                   desc   = false;
 
 
 
@@ -1364,8 +1365,7 @@ void Disk2DebugPanel::RebuildFilteredIndices()
         return;
     }
 
-    const std::deque<Disk2EventDisplay>  & events = m_events;
-    col = m_sortColumn;
+    col  = m_sortColumn;
     desc = m_sortDescending;
 
     auto cmpStr = [] (const wchar_t * a, const wchar_t * b) -> int

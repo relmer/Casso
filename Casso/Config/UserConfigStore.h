@@ -165,6 +165,13 @@ private:
 
     static bool  IsObjectArray (const JsonValue & v);
 
+    // One DiffJson step for a key present in BOTH current and defaults.
+    static void  DiffMatchedKey (
+        std::vector<std::pair<std::string, JsonValue>> & diff,
+        const std::string                              & key,
+        const JsonValue                                & cv,
+        const JsonValue                                & dv);
+
     // `outFoundLegacy` is false when there was nothing from an older
     // layout to pull forward -- a first run, not a migration failure.
     HRESULT      MigrateLegacyFiles  (GlobalUserPrefs & prefs,

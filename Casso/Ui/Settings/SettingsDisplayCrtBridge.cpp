@@ -323,17 +323,34 @@ void SettingsDisplayCrtBridge::PromoteActiveToOverride()
 
 void SettingsDisplayCrtBridge::ResetActiveToDefaults()
 {
-    const ThemeCrtDefaults *  themeDefaults = nullptr;
-
-
-
-    if (m_prefs == nullptr)
+    if (m_prefs != nullptr)
     {
-        return;
+        ApplyActiveDefaults (*m_prefs);
     }
+}
 
-    auto &                    blk           = m_prefs->crtByMode[ActiveModeIdx()];
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyActiveDefaults
+//
+//  ResetActiveToDefaults with the null-guard already behind it, factored
+//  out so the block and preset references bind at the top of a function
+//  rather than after the guard.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsDisplayCrtBridge::ApplyActiveDefaults (GlobalUserPrefs & prefs)
+{
+    const ThemeCrtDefaults *  themeDefaults = nullptr;
+    auto &                    blk           = prefs.crtByMode[ActiveModeIdx()];
     const auto &              preset        = CrtPresets::ForMode ((size_t) ActiveModeIdx());
+
+
+
     if (m_themes != nullptr)
     {
         const LoadedTheme *  active = m_themes->GetActiveTheme();

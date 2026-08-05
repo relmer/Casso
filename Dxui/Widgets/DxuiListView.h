@@ -373,6 +373,9 @@ private:
     // per-row half of UpdateAutoFitFromRows, used for the visible window in
     // virtual mode where m_rows is empty).
     void         NoteAutoFitRow      (const std::vector<Cell> & cells) const;
+    // The cell vector for row `r`: the provider scratch in virtual mode
+    // (pulled + auto-fit noted as a side effect), m_rows[r] otherwise.
+    const std::vector<Cell> & RowCells (int r) const;
     // Clamp m_topRow / sticky-tail after the row count changes (shared by
     // SetRows / AppendRows / SetVirtualRowCount / SetRowProvider).
     void         ClampTopAfterCountChange (bool wasSticky);

@@ -688,15 +688,18 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
             cg = (float) ((argb >>  8) & 0xFF) / 255.0f * shade * ca;
             cb = (float) ((argb      ) & 0xFF) / 255.0f * shade * ca;
 
-            // Translucent parts (the smoked window) go to the glass pass,
-            // drawn after everything they must show through.
-            std::vector<Vertex> &   dest = (ca < 1.0f) ? m_meshGlass : m_mesh;
-
-            for (int k = 0; k < 3; k++)
             {
-                const XYZ &   p = pos[t * 3 + k];
+                // Translucent parts (the smoked window) go to the glass pass,
+                // drawn after everything they must show through. Scoped so
+                // the reference binds at a block top, after ca is known.
+                std::vector<Vertex> &   dest = (ca < 1.0f) ? m_meshGlass : m_mesh;
 
-                dest.push_back ({ p.x, p.y, p.z, 0.0f, 0.0f, cr, cg, cb, ca });
+                for (int k = 0; k < 3; k++)
+                {
+                    const XYZ &   p = pos[t * 3 + k];
+
+                    dest.push_back ({ p.x, p.y, p.z, 0.0f, 0.0f, cr, cg, cb, ca });
+                }
             }
         }
 
@@ -1680,14 +1683,12 @@ void Printer3DScene::BuildBodyFront (std::vector<Vertex> & out) const
         float   t10[3] = {  s_kBayHalfW, 0.475f, zR };
         float   t01[3] = { -s_kBayHalfW, 0.435f, zR };
         float   t11[3] = {  s_kBayHalfW, 0.435f, zR };
-
-        AppendQuad (out, t00, t10, t01, t11, 0, 0, 1, 1, s_kArgbRollerHi, 1.0f);
-
         float   b00[3] = { -s_kBayHalfW, 0.435f, zR };
         float   b10[3] = {  s_kBayHalfW, 0.435f, zR };
         float   b01[3] = { -s_kBayHalfW, 0.385f, zR };
         float   b11[3] = {  s_kBayHalfW, 0.385f, zR };
 
+        AppendQuad (out, t00, t10, t01, t11, 0, 0, 1, 1, s_kArgbRollerHi, 1.0f);
         AppendQuad (out, b00, b10, b01, b11, 0, 0, 1, 1, s_kArgbRollerLo, 1.0f);
     }
 
