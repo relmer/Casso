@@ -598,12 +598,14 @@ EmulatorShell::~EmulatorShell()
 
     if (m_inputDebugPanel != nullptr)
     {
+        Apple2eSoftSwitchBank * iieSwitches = nullptr;
+
         if (m_refs.keyboard != nullptr)
         {
             m_refs.keyboard->SetInputEventSink (nullptr);
         }
 
-        auto * iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+        iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (nullptr);
@@ -9126,6 +9128,8 @@ void EmulatorShell::OpenInputDebugDialog()
 
     if (m_inputDebugPanel == nullptr || m_inputDebugPanel->Hwnd() == nullptr)
     {
+        Apple2eSoftSwitchBank * iieSwitches = nullptr;
+
         hInstance         = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
         m_inputDebugPanel = std::make_unique<InputDebugPanel>();
 
@@ -9147,7 +9151,7 @@ void EmulatorShell::OpenInputDebugDialog()
 
         m_refs.keyboard->SetInputEventSink (m_inputDebugPanel.get());
 
-        auto * iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+        iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (m_inputDebugPanel.get());
@@ -9212,9 +9216,11 @@ void EmulatorShell::AttachDebugSinksIfOpen()
 
     if (m_inputDebugPanel != nullptr && m_refs.keyboard != nullptr)
     {
+        Apple2eSoftSwitchBank * iieSwitches = nullptr;
+
         m_refs.keyboard->SetInputEventSink (m_inputDebugPanel.get());
 
-        auto * iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+        iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (m_inputDebugPanel.get());

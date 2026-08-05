@@ -148,12 +148,13 @@ public:
     // checksums and the ROM is still spinning).
     HRESULT RunUntilBootLoaderRuns (EmulatorCore & core)
     {
-        char              path[260]     = {};
-        DWORD             pl            = GetTempPathA (260, path);
-        FILE            * fp            = nullptr;
-        const uint64_t    kBudget       = kSectorReadCycles;
-        uint64_t          cyc           = 0;
-        bool              ranBootLoader = false;
+        char              path[260]       = {};
+        DWORD             pl              = GetTempPathA (260, path);
+        FILE            * fp              = nullptr;
+        const uint64_t    kBudget         = kSectorReadCycles;
+        uint64_t          cyc             = 0;
+        bool              ranBootLoader   = false;
+        uint64_t          pcVisits[0x100] = {};
         if (pl > 0 && pl < 260 - 32)
         {
             strcat_s (path, "bootrom-trace.log");
@@ -171,7 +172,6 @@ public:
         // Count visits to each instruction in the slot-6 boot ROM so a
         // failing test can show which checkpoint(s) the firmware spent
         // its time in. Indexed by (pc - 0xC600); array of 256 zeros.
-        uint64_t pcVisits[0x100] = {};
 
         while (cyc < kBudget)
         {

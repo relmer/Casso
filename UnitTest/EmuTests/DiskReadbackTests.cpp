@@ -460,12 +460,13 @@ public:
         FILE          * fp         = nullptr;
         uint64_t        spent      = 0;
         int             validCount = 0;
+        char            path[260]  = {};
+        wchar_t         msg[128]   = {};
 
         MountAndSpinUp (host, core, raw);
 
         // Dump the first 64 nibbles to %TEMP%\readback-trace.log so we
         // can see what the engine actually presents to the bus.
-        char     path[260] = {};
         pl = GetTempPathA (260, path);
         if (pl > 0 && pl < 260 - 32)
         {
@@ -487,7 +488,6 @@ public:
 
         if (fp != nullptr) fclose (fp);
 
-        wchar_t msg[128] = {};
         swprintf_s (msg, L"Got %d/64 valid nibbles (see readback-trace.log)",
                     validCount);
         Assert::IsTrue (validCount > 32, msg);

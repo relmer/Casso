@@ -231,11 +231,11 @@ namespace MockingboardCardTestNs
         {
             uint32_t  i            = 0;
             float     peak         = 0.0f;
+            float     buffer[2000] = {};
 
 
 
             MockingboardCard    card (4);
-            float     buffer[2000] = {};
 
 
 

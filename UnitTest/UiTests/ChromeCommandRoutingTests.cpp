@@ -143,7 +143,8 @@ public:
 
         for (const MainMenuCommandEntry & e : MainMenu::GetCommandEntries())
         {
-            char  needle[32] = {};
+            char     needle[32] = {};
+            wchar_t  msg[160]   = {};
 
             if (MainMenu::IsSeparator (e))
             {
@@ -152,7 +153,6 @@ public:
 
             snprintf (needle, sizeof (needle), "| %u |", (unsigned) e.commandId);
 
-            wchar_t  msg[160] = {};
             swprintf_s (msg, L"Markdown missing decimal command id for 0x%04X", e.commandId);
             Assert::IsTrue (md.find (needle) != std::string::npos, msg);
         }

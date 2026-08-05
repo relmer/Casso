@@ -160,6 +160,7 @@ public:
         DiskImage          * external      = nullptr;
         std::set<int>        tracksVisited;
         size_t               bitsAfter     = 0;
+        wchar_t              failMsg[256]  = {};
 
         if (wozPath.empty())
         {
@@ -170,7 +171,6 @@ public:
         }
 
         bytes = ReadFileBytes (wozPath);
-        wchar_t             failMsg[256] = {};
 
         Assert::IsFalse (bytes.empty(), L"WOZ file must not be empty");
 

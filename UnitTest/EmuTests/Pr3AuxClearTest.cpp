@@ -143,8 +143,9 @@ public:
     {
         HeadlessHost    host;
         EmulatorCore    core;
-        Byte          * auxBuf   = nullptr;
-        int             totalBad = 0;
+        Byte          * auxBuf    = nullptr;
+        int             totalBad  = 0;
+        wchar_t         msg[1024] = {};
 
         HRESULT  hr = host.BuildApple2e (core);
         AssertSucceeded (hr);
@@ -158,7 +159,6 @@ public:
         auxBuf = core.mmu->GetAuxBuffer();
         Assert::IsNotNull (auxBuf);
 
-        wchar_t  msg[1024] = {};
         for (int row = 0; row < 24; row++)
         {
             Word rowBase = static_cast<Word> (0x0400 + 128 * (row % 8) + 40 * (row / 8));

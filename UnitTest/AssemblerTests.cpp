@@ -1278,7 +1278,8 @@ namespace AssemblerTests
 
         TEST_METHOD (BranchOutOfRange_ReportsError)
         {
-            bool hasRangeError = false;
+            bool            hasRangeError = false;
+            AssemblyResult  result;
 
 
 
@@ -1293,7 +1294,7 @@ namespace AssemblerTests
 
             source += "target: NOP";
 
-            auto result = asm6502.Assemble (source);
+            result = asm6502.Assemble (source);
 
             Assert::IsFalse (result.success);
 
@@ -2327,6 +2328,7 @@ namespace AssemblerTests
             AssemblerOptions  options = {};
             TestCpu           cpu;
             std::string       source;
+            AssemblyResult    result;
             options.warningMode = WarningMode::NoWarn; // lots of "unused" labels otherwise
 
             cpu.InitForTest();
@@ -2345,7 +2347,7 @@ namespace AssemblerTests
                 source += "JMP label" + std::to_string (i) + "\n";
             }
 
-            auto result = asm6502.Assemble (source);
+            result = asm6502.Assemble (source);
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 103, result.symbols.size());  // 100 labels + 3 built-ins

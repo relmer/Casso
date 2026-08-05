@@ -213,6 +213,7 @@ namespace DormannIntegrationTests
             std::string       source;
             AssemblerOptions  opts;
             uint32_t          vectorOffset = 0;
+            AssemblyResult    result;
 
 
 
@@ -240,7 +241,7 @@ namespace DormannIntegrationTests
             opts.fillByte = 0x00;
 
             Assembler  a      = BuildAssembler (opts);
-            auto       result = a.Assemble (source);
+            result = a.Assemble (source);
 
             // Check for assembly errors (ignore warnings)
             if (!result.success)
@@ -363,12 +364,14 @@ namespace DormannIntegrationTests
             }
             else
             {
+                AssemblyResult  result;
+
                 // Assemble
                 AssemblerOptions opts;
                 opts.fillByte = 0xFF;
 
                 Assembler  a      = BuildAssembler (opts);
-                auto       result = a.Assemble (source);
+                result = a.Assemble (source);
 
                 // Assembler defects belong to DormannAssemblesSuccessfully,
                 // which reports them properly -- failing here too would just
@@ -511,6 +514,7 @@ namespace DormannIntegrationTests
             HRESULT           hrDownload = S_OK;
             std::string       source;
             AssemblerOptions  opts;
+            AssemblyResult    result;
 
 
 
@@ -534,7 +538,7 @@ namespace DormannIntegrationTests
             opts.fillByte = 0x00;
 
             Assembler a      = BuildAssembler65C02 (opts);
-            auto      result = a.Assemble (source);
+            result = a.Assemble (source);
 
             if (!result.success)
             {
@@ -604,14 +608,15 @@ namespace DormannIntegrationTests
             }
             else
             {
-                AssemblerOptions opts;
+                AssemblerOptions  opts;
+                AssemblyResult    result;
 
                 source = SelectDormannOpcodeSubset (source);
 
                 opts.fillByte = 0xFF;
 
                 Assembler a      = BuildAssembler65C02 (opts);
-                auto      result = a.Assemble (source);
+                result = a.Assemble (source);
 
                 // Assembler defects belong to Dormann65C02AssemblesSuccessfully,
                 // which reports them properly; failing here as well would just

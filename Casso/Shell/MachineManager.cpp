@@ -173,8 +173,9 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // MMU page-table wiring.
     for (const auto & region : config.ram)
     {
-        Word  start = 0;
-        Word  end   = 0;
+        Word                        start  = 0;
+        Word                        end    = 0;
+        std::unique_ptr<RamDevice>  device;
 
         if (!region.bank.empty())
         {
@@ -184,7 +185,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         start = region.address;
         end = static_cast<Word> (region.address + region.size - 1);
 
-        auto device = std::make_unique<RamDevice> (start, end);
+        device = std::make_unique<RamDevice> (start, end);
 
         if (m_shell.m_refs.mainRamDev == nullptr)
         {
@@ -501,7 +502,9 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         // IRQ lines aggregate through the shared interrupt controller; the
         // CPU cycle fan-out tick is wired in CreateCpu.
         {
-            HRESULT  hrIc = S_OK;
+            HRESULT                  hrIc   = S_OK;
+            Apple2eKeyboard        * iieKbd = nullptr;
+            Apple2eSoftSwitchBank  * iieSw  = nullptr;
 
             m_shell.m_mouse = std::make_unique<AppleMouse> ();
 
@@ -515,8 +518,8 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
                 m_shell.m_mouse->SetVideoTiming (m_shell.m_videoTiming.get());
             }
 
-            auto * iieKbd = dynamic_cast<Apple2eKeyboard *>       (m_shell.m_refs.keyboard);
-            auto * iieSw  = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+            iieKbd = dynamic_cast<Apple2eKeyboard *>       (m_shell.m_refs.keyboard);
+            iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
 
             if (iieKbd != nullptr)
             {
@@ -542,17 +545,19 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         // downstream work.
         for (int slot = 1; slot <= 2; ++slot)
         {
-            HRESULT  hrIc = S_OK;
+            HRESULT                                hrIc     = S_OK;
+            std::unique_ptr<Acia6551>              acia;
+            std::unique_ptr<AciaLoopbackEndpoint>  loopback;
 
             Word  base = static_cast<Word> (Acia6551::kSlotIoBase
                                             + slot * Acia6551::kSlotIoStride
                                             + Acia6551::kAciaRegOffset);
-            auto  acia = std::make_unique<Acia6551> (base);
+            acia = std::make_unique<Acia6551> (base);
 
             hrIc = acia->AttachInterruptController (&m_shell.m_interruptController);
             IGNORE_RETURN_VALUE (hrIc, S_OK);
 
-            auto  loopback = std::make_unique<AciaLoopbackEndpoint> (acia.get());
+            loopback = std::make_unique<AciaLoopbackEndpoint> (acia.get());
             acia->SetEndpoint (loopback.get());
 
             m_shell.m_memoryBus.AddDevice (acia.get());
@@ -782,7 +787,10 @@ void MachineManager::WireLanguageCard()
     // No card or no covering ROM: this machine has no language card to wire.
     if (romDevice != nullptr)
     {
-        Word romStart = romDevice->GetStart();
+        Word                                 romStart = romDevice->GetStart();
+        std::unique_ptr<LanguageCardBank>    lcBank;
+        Apple2eKeyboard                    * iieKbd   = nullptr;
+        Apple2eSoftSwitchBank              * iieSw    = nullptr;
 
         // Copy $D000-$FFFF ROM data to language card
         std::vector<Byte>  lcRomData (0x3000);
@@ -830,7 +838,7 @@ void MachineManager::WireLanguageCard()
         }
 
         // Bank device intercepts $D000-$FFFF, routing to LC RAM or ROM
-        auto lcBank = std::make_unique<LanguageCardBank> (*lc);
+        lcBank = std::make_unique<LanguageCardBank> (*lc);
         m_shell.m_memoryBus.AddDevice (lcBank.get());
         m_shell.m_ownedDevices.push_back (std::move (lcBank));
 
@@ -845,14 +853,14 @@ void MachineManager::WireLanguageCard()
             m_shell.m_mmu->SetLanguageCard (lc);
         }
 
-        auto * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_shell.m_refs.keyboard);
+        iieKbd = dynamic_cast<Apple2eKeyboard *> (m_shell.m_refs.keyboard);
 
         if (iieKbd != nullptr)
         {
             iieKbd->SetLanguageCard (lc);
         }
 
-        auto * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+        iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
 
         if (iieSw != nullptr)
         {
@@ -1123,23 +1131,27 @@ void MachineManager::RebuildBankingPages()
 
 void MachineManager::CreateVideoModes()
 {
-    auto    textMode = std::make_unique<AppleTextMode> (m_shell.m_memoryBus, m_shell.m_charRom);
-    Byte  * auxBuf   = nullptr;
+    auto                                     textMode        = std::make_unique<AppleTextMode> (m_shell.m_memoryBus, m_shell.m_charRom);
+    Byte                                   * auxBuf          = nullptr;
+    std::unique_ptr<AppleLoResMode>          loResMode;
+    std::unique_ptr<AppleHiResMode>          hiResMode;
+    std::unique_ptr<AppleDoubleHiResMode>    doubleHiResMode;
+    std::unique_ptr<Apple80ColTextMode>      text80;
     m_shell.m_refs.activeVideoMode = textMode.get();
     m_shell.m_videoModes.push_back (std::move (textMode));
 
-    auto loResMode = std::make_unique<AppleLoResMode> (m_shell.m_memoryBus);
+    loResMode = std::make_unique<AppleLoResMode> (m_shell.m_memoryBus);
     m_shell.m_videoModes.push_back (std::move (loResMode));
 
-    auto hiResMode = std::make_unique<AppleHiResMode> (m_shell.m_memoryBus);
+    hiResMode = std::make_unique<AppleHiResMode> (m_shell.m_memoryBus);
     m_shell.m_videoModes.push_back (std::move (hiResMode));
 
-    auto doubleHiResMode = std::make_unique<AppleDoubleHiResMode> (m_shell.m_memoryBus);
+    doubleHiResMode = std::make_unique<AppleDoubleHiResMode> (m_shell.m_memoryBus);
     m_shell.m_videoModes.push_back (std::move (doubleHiResMode));
 
     // Index 4: 80-column text (used on //e). Wired with aux memory
     // from the Apple2eMmu when present.
-    auto text80 = std::make_unique<Apple80ColTextMode> (m_shell.m_memoryBus, m_shell.m_charRom);
+    text80 = std::make_unique<Apple80ColTextMode> (m_shell.m_memoryBus, m_shell.m_charRom);
 
     auxBuf = GetAuxRamBuffer();
 
@@ -1950,8 +1962,9 @@ void MachineManager::PowerCycle()
 
 void MachineManager::SelectVideoMode()
 {
-    bool  is80ColMode = false;
-    bool  altCharSet  = false;
+    bool                     is80ColMode     = false;
+    bool                     altCharSet      = false;
+    Apple2eSoftSwitchBank  * iieSoftSwitches = nullptr;
 
 
 
@@ -1972,7 +1985,7 @@ void MachineManager::SelectVideoMode()
     // When 80STORE is active on the //e, $C054/$C055 control aux/main
     // memory selection -- not page 1/page 2. Suppress page2 for video
     // rendering.
-    auto * iieSoftSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+    iieSoftSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
 
     if (iieSoftSwitches != nullptr && iieSoftSwitches->Is80Store())
     {

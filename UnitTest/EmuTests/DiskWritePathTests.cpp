@@ -286,8 +286,9 @@ public:
 
         if (!r.success)
         {
-            const char *  e = r.errors.empty() ? "(none)" : r.errors[0].message.c_str();
             wchar_t  msg[256] = {};
+
+            const char *  e = r.errors.empty() ? "(none)" : r.errors[0].message.c_str();
             swprintf_s (msg, L"write routine must assemble. First error: %hs", e);
             Assert::Fail (msg);
         }

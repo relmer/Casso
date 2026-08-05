@@ -654,11 +654,12 @@ namespace IntegrationTests
 
         TEST_METHOD (LoadBinary_ValidStream_LoadsBytesAtAddress)
         {
-            TestCpu  cpu;
-            HRESULT  hr  = S_OK;
+            TestCpu             cpu;
+            HRESULT             hr  = S_OK;
+            std::istringstream  bin;
             cpu.InitForTest();
 
-            auto bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
+            bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
 
             hr = cpu.LoadBinary (bin, (Word) 0x8000);
 
@@ -686,11 +687,12 @@ namespace IntegrationTests
 
         TEST_METHOD (LoadBinary_LoadedProgram_Executes)
         {
-            TestCpu cpu;
+            TestCpu             cpu;
+            std::istringstream  bin;
             cpu.InitForTest();
 
             // LDA #$42 ; STA $10 ; BRK
-            auto bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
+            bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
 
             AssertSucceeded (cpu.LoadBinary (bin, (Word) 0x8000));
 
@@ -713,12 +715,13 @@ namespace IntegrationTests
 
         TEST_METHOD (LoadBinary_TooLargeForAddress_ReturnsFalse)
         {
-            TestCpu  cpu;
-            HRESULT  hr  = S_OK;
+            TestCpu             cpu;
+            HRESULT             hr  = S_OK;
+            std::istringstream  bin;
             cpu.InitForTest();
 
             // 3-byte stream, but loading at 0xFFFE would need address 0x10000 (overflow).
-            auto bin = MakeStream ({ 0x11, 0x22, 0x33 });
+            bin = MakeStream ({ 0x11, 0x22, 0x33 });
 
             cpu.Poke (0xFFFE, 0xAB);
             cpu.Poke (0xFFFF, 0xCD);
@@ -743,12 +746,13 @@ namespace IntegrationTests
 
         TEST_METHOD (LoadBinary_FitsExactlyAtEnd_Succeeds)
         {
-            TestCpu  cpu;
-            HRESULT  hr  = S_OK;
+            TestCpu             cpu;
+            HRESULT             hr  = S_OK;
+            std::istringstream  bin;
             cpu.InitForTest();
 
             // 2-byte stream loaded at 0xFFFE fills the last two bytes of the address space.
-            auto bin = MakeStream ({ 0xAA, 0xBB });
+            bin = MakeStream ({ 0xAA, 0xBB });
 
             hr = cpu.LoadBinary (bin, (Word) 0xFFFE);
 
@@ -769,11 +773,12 @@ namespace IntegrationTests
 
         TEST_METHOD (LoadBinary_EmptyStream_Succeeds)
         {
-            TestCpu  cpu;
-            HRESULT  hr  = S_OK;
+            TestCpu             cpu;
+            HRESULT             hr  = S_OK;
+            std::istringstream  bin;
             cpu.InitForTest();
 
-            auto bin = MakeStream ({});
+            bin = MakeStream ({});
 
             cpu.Poke (0x8000, 0xAB);
 

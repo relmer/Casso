@@ -380,6 +380,7 @@ void DriveWidget::Paint (
         float    recessRight    = 0.0f;
         float    recessTop      = 0.0f;
         float    recessBottom   = 0.0f;
+        wchar_t  label[32]      = {};
 
         _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
         const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
@@ -398,7 +399,6 @@ void DriveWidget::Paint (
         caseBackInset = Scale (kCaseBackInsetPx, dpi);
         labelFontDip = kLabelFontDip * (float) dpi / (float) kBaseDpi;
         inUseFontDip = kInUseFontDip * (float) dpi / (float) kBaseDpi;
-        wchar_t  label[32]     = {};
 
 
 

@@ -84,17 +84,20 @@ namespace DiskMruTests
 
         TEST_METHOD (Prune_NullPredicate_NoOp)
         {
-            DiskMru  m;
+            DiskMru                      m;
+            std::vector<DiskMru::Entry>  result;
             m.RecordMount (L"C:\\Disks\\A.dsk");
 
-            auto  result = m.Prune (nullptr);
+            result = m.Prune (nullptr);
             Assert::AreEqual ((size_t) 1, result.size());
         }
 
 
         TEST_METHOD (Prune_Idempotent)
         {
-            DiskMru  m;
+            DiskMru                      m;
+            std::vector<DiskMru::Entry>  first;
+            std::vector<DiskMru::Entry>  second;
             m.RecordMount (L"C:\\Disks\\A.dsk");
             m.RecordMount (L"C:\\Disks\\B.dsk");
 
@@ -102,8 +105,8 @@ namespace DiskMruTests
                 return p.wstring().find (L"A") != std::wstring::npos;
             };
 
-            auto  first  = m.Prune (predicate);
-            auto  second = m.Prune (predicate);
+            first = m.Prune (predicate);
+            second = m.Prune (predicate);
 
             Assert::AreEqual (first.size(), second.size());
             Assert::IsTrue (first == second);
@@ -151,8 +154,12 @@ namespace DiskMruTests
 
         TEST_METHOD (FromUtf8_DropsEmpty_PreservesOrder)
         {
+            DiskMru  mru;
+
+
+
             std::vector<std::string>  in = { "C:\\Disks\\A.dsk", "", "C:\\Disks\\B.dsk" };
-            auto  mru  = DiskMru::FromUtf8 (in);
+            mru = DiskMru::FromUtf8 (in);
             auto  snap = mru.Snapshot();
             Assert::AreEqual ((size_t) 2, snap.size());
             Assert::IsTrue (snap[0].path == std::filesystem::path ("C:\\Disks\\A.dsk"));
@@ -276,6 +283,7 @@ namespace DiskMruTests
         TEST_METHOD (FromUtf8_ShorterTimesArray_DefaultsMissingToZero)
         {
             std::vector<std::int64_t>  times;
+            DiskMru                    mru;
 
 
 
@@ -283,7 +291,7 @@ namespace DiskMruTests
             std::vector<std::string>   paths = { "C:\\Disks\\A.dsk", "C:\\Disks\\B.dsk" };
             times = { 1700000000 }; // only the first entry has a time
 
-            auto  mru  = DiskMru::FromUtf8 (paths, times);
+            mru = DiskMru::FromUtf8 (paths, times);
             auto  snap = mru.Snapshot();
 
             Assert::AreEqual ((size_t) 2, snap.size());
@@ -326,10 +334,14 @@ namespace DiskMruTests
 
         TEST_METHOD (DistinctFolders_SameFolder_CollapsesToOne)
         {
+            std::vector<std::filesystem::path>  folders;
+
+
+
             auto  entries = MakeEntries ({ L"C:\\Disks\\A.dsk",
                                            L"C:\\Disks\\B.woz",
                                            L"C:\\Disks\\C.po" });
-            auto  folders = DiskMru::DistinctFolders (entries);
+            folders = DiskMru::DistinctFolders (entries);
 
             Assert::AreEqual ((size_t) 1, folders.size());
             Assert::IsTrue (folders[0] == std::filesystem::path (L"C:\\Disks"));
@@ -338,11 +350,15 @@ namespace DiskMruTests
 
         TEST_METHOD (DistinctFolders_DifferentFolders_PreserveFirstSeenOrder)
         {
+            std::vector<std::filesystem::path>  folders;
+
+
+
             auto  entries = MakeEntries ({ L"C:\\Two\\B.dsk",
                                            L"C:\\One\\A.dsk",
                                            L"C:\\Two\\C.dsk",     // repeat of \Two
                                            L"C:\\Three\\D.dsk" });
-            auto  folders = DiskMru::DistinctFolders (entries);
+            folders = DiskMru::DistinctFolders (entries);
 
             Assert::AreEqual ((size_t) 3, folders.size());
             Assert::IsTrue (folders[0] == std::filesystem::path (L"C:\\Two"));
@@ -353,12 +369,16 @@ namespace DiskMruTests
 
         TEST_METHOD (DistinctFolders_CaseInsensitive_CollapsesFoldedDuplicate)
         {
+            std::vector<std::filesystem::path>  folders;
+
+
+
             // The host filesystem is case-insensitive, so two recents whose
             // folders differ only by case are the SAME directory and must be
             // scanned once. The first-seen spelling is the one returned.
             auto  entries = MakeEntries ({ L"C:\\Disks\\A.dsk",
                                            L"C:\\DISKS\\B.dsk" });
-            auto  folders = DiskMru::DistinctFolders (entries);
+            folders = DiskMru::DistinctFolders (entries);
 
             Assert::AreEqual ((size_t) 1, folders.size());
             Assert::IsTrue (folders[0] == std::filesystem::path (L"C:\\Disks"));
@@ -367,12 +387,16 @@ namespace DiskMruTests
 
         TEST_METHOD (DistinctFolders_BareFilename_Skipped)
         {
+            std::vector<std::filesystem::path>  folders;
+
+
+
             // An entry with no parent directory (a bare filename) has no
             // folder to scan and must be dropped rather than yielding an
             // empty path we would then try to enumerate.
             auto  entries = MakeEntries ({ L"loose.dsk",
                                            L"C:\\Disks\\A.dsk" });
-            auto  folders = DiskMru::DistinctFolders (entries);
+            folders = DiskMru::DistinctFolders (entries);
 
             Assert::AreEqual ((size_t) 1, folders.size());
             Assert::IsTrue (folders[0] == std::filesystem::path (L"C:\\Disks"));

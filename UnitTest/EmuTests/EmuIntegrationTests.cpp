@@ -311,10 +311,11 @@ public:
 
     TEST_METHOD (RealRom_ResetVector_IfAvailable)
     {
-        MemoryBus      bus;
-        std::string    error;
-        const Byte   * romData = nullptr;
-        size_t         romSize = 0;
+        MemoryBus                        bus;
+        std::string                      error;
+        const Byte                     * romData = nullptr;
+        size_t                           romSize = 0;
+        std::unique_ptr<MemoryDevice>    rom;
 
 
 
@@ -334,7 +335,7 @@ public:
         RamDevice ram (0x0000, 0xBFFF);
         bus.AddDevice (&ram);
 
-        auto         rom   = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
+        rom = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
 
         Assert::IsNotNull (rom.get(),
             std::format (L"Failed to load ROM: {}", std::wstring (error.begin(), error.end())).c_str());
@@ -362,12 +363,13 @@ public:
 
     TEST_METHOD (RealRom_100000Cycles_PCInRomRange)
     {
-        MemoryBus        bus;
-        AppleKeyboard    kbd;
-        std::string      error;
-        const Byte     * romData = nullptr;
-        size_t           romSize = 0;
-        Word             pc      = 0;
+        MemoryBus                        bus;
+        AppleKeyboard                    kbd;
+        std::string                      error;
+        const Byte                     * romData = nullptr;
+        size_t                           romSize = 0;
+        Word                             pc      = 0;
+        std::unique_ptr<MemoryDevice>    rom;
 
 
 
@@ -388,7 +390,7 @@ public:
 
         bus.AddDevice (&kbd);
 
-        auto         rom   = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
+        rom = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
         Assert::IsNotNull (rom.get());
         bus.AddDevice (rom.get());
 

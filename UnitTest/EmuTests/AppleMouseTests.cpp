@@ -502,11 +502,11 @@ public:
     {
         size_t        envLen    = 0;
         const char *  skipWhy   = nullptr;
+        char          envBuf[8] = {};
 
 
 
         const char *  kDiskPath = "C:\\Users\\relmer\\AppData\\Local\\Casso\\Disks\\DOS 3.3 Writable.woz";
-        char          envBuf[8] = {};
 
         // Two separate reasons to sit this one out, reported separately so a
         // developer who set the env var still learns the disk is missing.
@@ -576,11 +576,11 @@ public:
     {
         size_t        envLen    = 0;
         const char *  skipWhy   = nullptr;
+        char          envBuf[8] = {};
 
 
 
         const char *  kDiskPath = "C:\\Users\\relmer\\AppData\\Local\\Casso\\Disks\\DOS 3.3 Writable.woz";
-        char          envBuf[8] = {};
 
         // The env gate is checked FIRST and reported on its own: this test
         // rewrites a file on the developer's disk, so "you did not opt in" has
