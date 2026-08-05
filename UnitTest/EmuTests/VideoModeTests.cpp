@@ -18,6 +18,23 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  AppleTextModeTests
 //
+//  40-column text rendering: glyphs, the display attributes, and the dirty-row
+//  cache.
+//
+//  The three ATTRIBUTE ranges are the substance. A character's high bits select
+//  normal, inverse, or flashing, so the same code renders differently depending
+//  on bits that are not part of its value -- and flashing additionally depends
+//  on a phase pushed in from emulated time.
+//
+//  The dirty-row cache gets its own coverage because it is an optimization that
+//  can be WRONG rather than merely slow: a row wrongly considered clean keeps
+//  stale pixels. The tests therefore render twice and assert the second render
+//  produces the correct image, including after a page, charset, or color change
+//  -- each of which must force a full redraw.
+//
+//  Both text pages are covered, since the page-2 base address is a separate
+//  calculation.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (AppleTextModeTests)
@@ -282,6 +299,21 @@ public:
 //
 //  AppleLoResModeTests
 //
+//  Lo-res graphics: two blocks per byte, from the SAME memory the text screen
+//  uses.
+//
+//  That sharing is the hardware's design and the first thing to get right --
+//  lo-res and text occupy identical addresses and differ only in
+//  interpretation, so the row addressing must match the text layout exactly.
+//
+//  The nybble split is the other half: the LOW nybble is the top block and the
+//  high nybble the bottom, giving 48 rows out of 24 bytes. Reversing them
+//  produces a picture that looks plausible and is vertically scrambled, so the
+//  fixtures use bytes whose two nybbles differ.
+//
+//  The sixteen-color palette is asserted by value rather than by index, since
+//  the colors are a hardware fact rather than an arbitrary table.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (AppleLoResModeTests)
@@ -391,6 +423,23 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AppleHiResModeTests
+//
+//  Hi-res graphics: the interleaved scanline addressing and NTSC artifact
+//  color.
+//
+//  Hi-res line addressing is famously NON-LINEAR -- consecutive scanlines are
+//  scattered across the page in a three-level interleave -- so the address
+//  calculation is a lookup-shaped formula that is wrong in an obvious way or
+//  right, and the tests check lines at each interleave boundary rather than a
+//  contiguous run.
+//
+//  Artifact color is the other half, and it is why the fixtures set ADJACENT
+//  bits rather than isolated ones: a lone dot is colored while neighbors merge
+//  to white, so a renderer ignoring neighbors passes any single-pixel test.
+//
+//  The palette bit (bit 7) is covered specifically, including a run crossing a
+//  byte boundary into a different palette -- which is where a per-byte
+//  implementation diverges from a per-pixel one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -652,7 +701,24 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Apple80ColTextModeTests
+//  Phase12VideoTestHelpers
+//
+//  Builds a SYNTHETIC character ROM so ALTCHARSET switching can be tested
+//  without shipping a real //e video ROM into the test tree.
+//
+//  The two character sets carry deliberately DIFFERENT dot patterns, so which
+//  set was used is visible in the rendered output -- a real ROM's two sets
+//  share many glyphs, and a switching bug would be invisible for most
+//  characters.
+//
+//  It reproduces the //e 4K ROM's actual layout rather than a convenient flat
+//  one, because that layout is what Decode4K unpacks: the primary set's
+//  inverse and flash ranges share offsets, and the alt set reads linearly. A
+//  simplified fixture would pass against a decoder that got the real layout
+//  wrong.
+//
+//  The source bytes are PRE-INVERTED because Decode4K XORs with $FF, so the
+//  patterns above are what the renderer ends up seeing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -707,7 +773,22 @@ namespace Phase12VideoTestHelpers
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  Apple80ColTextModeTests
+//
+//  80-column text: the aux/main column interleave, and ALTCHARSET.
+//
+//  The interleave is the whole mode. Aux memory supplies the EVEN screen
+//  columns and main supplies the ODD ones, both read from the same addresses --
+//  so the renderer walks one address range twice through different memory. An
+//  implementation reading only main produces a readable 40-column screen with
+//  every other character missing, which looks like a font bug rather than a
+//  banking one.
+//
+//  The fixtures put DIFFERENT content in aux and main at the same addresses,
+//  which is the only way that swap is visible.
+//
+//  Page 1 is used unconditionally: 80-column mode has no page 2, and honoring
+//  PAGE2 here would display the wrong half of memory.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1024,6 +1105,22 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AppleDoubleHiResModeTests
+//
+//  Double hi-res: 560 pixels wide, interleaving AUX and MAIN memory
+//  byte by byte.
+//
+//  The mode needs both DHIRES and 80COL, which is a fact about the hardware
+//  rather than a convention -- it borrows the 80-column circuitry to clock the
+//  interleave -- so the fixtures set both, and a test with DHIRES alone would
+//  be exercising ordinary hi-res.
+//
+//  Aux supplies the EVEN bytes and main the odd ones, so the fixtures put
+//  distinguishable content in each; identical content would render correctly
+//  under a renderer that ignored aux entirely.
+//
+//  Color here comes from four-bit groups across the interleaved stream rather
+//  than from artifact adjacency, so the palette is genuinely different from
+//  hi-res and is asserted separately (FR-019).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
