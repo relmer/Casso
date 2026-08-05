@@ -188,6 +188,19 @@ public:
     //
     //  US1 / T071: PR#3 activates 80-column mode (RD80VID + RD80STORE).
     //
+    //  Runs the firmware's PR#3 path and asserts both 80-column soft switches
+    //  end up set.
+    //
+    //  PR#3 is how a //e user actually turns on 80 columns, so this exercises
+    //  the FIRMWARE doing it rather than the test setting the switches -- which
+    //  means the $C300 slot ROM, the Cxxx routing, and the soft-switch bank all
+    //  have to be wired correctly for it to pass.
+    //
+    //  BOTH switches are asserted because they are separate and mean different
+    //  things: RD80VID selects the 80-column display, while RD80STORE changes
+    //  what $C054/$C055 do -- and a mode with only one set displays the wrong
+    //  half of memory.
+    //
     ////////////////////////////////////////////////////////////////////////
 
     TEST_METHOD (Phase7_PR3_Activates_80Column_Mode)

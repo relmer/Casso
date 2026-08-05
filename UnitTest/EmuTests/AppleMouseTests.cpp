@@ -77,7 +77,24 @@ static void EnableXyInterrupts (AppleMouse & mouse)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  AppleMouseDeviceTests
+//
+//  The //c's IOU mouse as a DEVICE: position latching, the button, and the two
+//  interrupt sources.
+//
+//  Position is latched on the VBL EDGE rather than read live, which is the
+//  behavior these pin -- guest software reads a coherent pair of coordinates
+//  from one instant, and a live read would let X and Y come from different
+//  moments mid-move.
+//
+//  The two interrupt sources are asserted independently, since VBL and movement
+//  are separately enabled and a handler distinguishes them from the status
+//  byte -- conflating them makes a mouse that moves generate phantom VBL
+//  interrupts.
+//
+//  The mouse is ticked from the per-instruction cycle fan-out, so the tests
+//  advance cycles rather than frames; that is what keeps interrupt pacing
+//  locked to CPU progress.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -237,7 +254,22 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  AppleMouseFirmwareTests
+//
+//  The mouse as guest software SEES it: the $C4xx firmware entry points and
+//  the soft switches behind them.
+//
+//  A separate suite from the device tests because it exercises the other side
+//  of the contract -- the device can be correct while the firmware interface
+//  it is reached through is wired wrong, and only these would notice.
+//
+//  The PTRIG acknowledgement is covered specifically. The //c's VBL interrupt
+//  latch is sticky and is cleared by a partially-decoded PTRIG access across
+//  $C070-$C07F, which is how MousePaint acks it -- getting that decode wrong
+//  leaves the latch set and produces dead clicks and a laggy cursor.
+//
+//  Entry points are called the way firmware calls them, so the tests fail if
+//  the ROM's expectations and the device's behavior drift apart.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

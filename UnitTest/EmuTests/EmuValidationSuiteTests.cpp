@@ -530,6 +530,22 @@ public:
     //
     //  US4 / T118 — ProDOS .po disk boot end-to-end.
     //
+    //  Boots a real ProDOS disk image and runs until the PREFIX prompt appears
+    //  on screen.
+    //
+    //  The strongest end-to-end statement the emulator makes: the CPU, the
+    //  memory map, the Disk ][ controller, the nibble engine, and the video
+    //  renderer all have to be right simultaneously, and any one of them being
+    //  wrong stops the boot.
+    //
+    //  The assertion reads the SCREEN rather than memory or a flag, because
+    //  that is what a user sees -- a boot that completes internally while
+    //  rendering nothing is not a working emulator.
+    //
+    //  The .po ordering is covered separately from .dsk since the two interleave
+    //  sectors differently, and a reader that confuses them boots one and
+    //  garbles the other.
+    //
     ////////////////////////////////////////////////////////////////////////
 
     TEST_METHOD (US4_ProDOS_Boots_To_PREFIX)
@@ -566,6 +582,23 @@ public:
     ////////////////////////////////////////////////////////////////////////
     //
     //  US4 / T118 — WOZ disk boots the first track.
+    //
+    //  Boots a WOZ image, whose bitstream is stored as FLUX rather than as
+    //  decoded sectors.
+    //
+    //  A different path from .dsk and .po entirely. Those formats hold sector
+    //  data that the emulator nibblizes on the fly; a WOZ holds the raw
+    //  bitstream captured from real media, so the nibble engine reads it
+    //  directly with no encoding step.
+    //
+    //  That is the format copy-protected disks require -- the protection lives
+    //  in timing and in non-standard track layouts that a sector-level format
+    //  cannot represent -- so this path working is what makes those disks
+    //  runnable at all.
+    //
+    //  Booting the first track is the assertion because it proves the bitstream
+    //  is being clocked at the right rate: a wrong bit cell length yields a
+    //  track that never accumulates enough sync bytes to find a sector header.
     //
     ////////////////////////////////////////////////////////////////////////
 

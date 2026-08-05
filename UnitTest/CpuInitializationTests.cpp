@@ -20,6 +20,22 @@ namespace CpuInitializationTests
     //
     //  InstructionSetTests
     //
+    //  The instruction table after construction: which opcodes are legal, which
+    //  are hidden from the assembler, and which are neither.
+    //
+    //  THREE classifications, not two, and that is the point. An opcode can be
+    //  legal and assemblable, legal but assembler-hidden -- a reserved NOP that
+    //  executes and disassembles but must not be reachable by mnemonic -- or
+    //  genuinely illegal. Collapsing the middle case lets a filler NOP shadow
+    //  the real $EA.
+    //
+    //  Representative opcodes from each encoding group are checked rather than
+    //  a random sample, since the table is generated from bit patterns and a
+    //  bug affects a group.
+    //
+    //  This runs at CONSTRUCTION, before any execution, so a table built wrong
+    //  fails here rather than as a mysterious wrong instruction later.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (InstructionSetTests)

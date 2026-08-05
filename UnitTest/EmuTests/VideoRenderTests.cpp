@@ -847,7 +847,24 @@ namespace Phase12GoldenHelpers
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  Phase12GoldenHashTests
+//
+//  Whole-framebuffer GOLDEN HASHES: render a known screen and compare the
+//  hash of every pixel against a committed value.
+//
+//  A hash rather than a stored image, because a 560x384 framebuffer per case is
+//  a lot to carry in a repository -- and any single-pixel difference changes
+//  the hash, which is exactly the sensitivity wanted.
+//
+//  This is what covers rendering as a WHOLE. The per-mode tests assert
+//  individual pixels and specific behaviors; a hash catches the changes nobody
+//  thought to assert -- an off-by-one in a scanline address, a palette entry
+//  edited, a glyph row shifted.
+//
+//  The cost is that a failure says only "the output changed", so a deliberate
+//  rendering change means re-reviewing the image and updating the hash. That
+//  friction is the point: it forces a visual change to be noticed rather than
+//  landing unremarked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

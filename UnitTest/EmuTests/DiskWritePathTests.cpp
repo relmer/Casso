@@ -39,6 +39,23 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DiskWritePathTests
 //
+//  Writing to a disk: the bit-level path from the controller through
+//  nibblization to the image, and the write-protect refusal.
+//
+//  Writes are per-BIT because the media has no byte concept -- the drive writes
+//  a serial flux stream -- so the tests drive bits and read the track back
+//  rather than asserting on a byte-oriented API that does not exist at this
+//  layer.
+//
+//  WRITE PROTECT is asserted to refuse before the track is marked dirty, not
+//  merely to skip the write. A protected image that still dirties a track gets
+//  flushed, which is the difference between a rejected write and a corrupted
+//  file.
+//
+//  The round trip through nibblization is covered end to end, since a write
+//  that encodes correctly and reads back as something else is only visible when
+//  both halves run.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (DiskWritePathTests)

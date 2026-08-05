@@ -63,7 +63,25 @@ static void AssertPixelRGB (uint32_t pixel, uint8_t r, uint8_t g, uint8_t b,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  PixelFormatTests
+//
+//  BGRA channel order through every palette and tint helper.
+//
+//  Byte order is the bug nobody catches by reading. A red-blue swap produces a
+//  picture that is complete, correctly shaped, and the wrong colors -- and the
+//  Apple II palettes are unfamiliar enough that a reviewer cannot tell by
+//  looking.
+//
+//  So the tests use colors whose channels are DISTINCT, where a swap is
+//  arithmetically visible; a gray or a pure white would round-trip through any
+//  ordering.
+//
+//  Alpha is asserted opaque, since a helper that dropped it produces a
+//  transparent framebuffer that composites to black -- read as a rendering
+//  failure rather than a channel one.
+//
+//  The monochrome tints are covered here too, because they rebuild a pixel
+//  from its luminance and are the other place the ordering can invert.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

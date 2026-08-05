@@ -782,6 +782,18 @@ public:
     //
     //  Spec-006 T082 -- Pause / Clear behavior at the projection layer.
     //
+    //  Overflow while PAUSED must produce ONE lost-events marker carrying a
+    //  coalesced count, not one marker per dropped event.
+    //
+    //  Pausing stops the drain but not the guest, so a paused panel over a busy
+    //  disk overflows the ring continuously. A marker per drop would fill the
+    //  log with thousands of identical rows and bury the events the user paused
+    //  to read -- which is the opposite of what pausing is for.
+    //
+    //  The COUNT is asserted as well as the single marker, since coalescing that
+    //  loses the number reports a gap without saying how large, and the size is
+    //  what tells the reader whether anything important was missed.
+    //
     ////////////////////////////////////////////////////////////////////////////
 
     TEST_METHOD (PauseInducedOverflow_singleLostMarkerWithCoalescedCount)

@@ -218,6 +218,22 @@ namespace ExpressionEvaluatorTests
     //
     //  SymbolTests
     //
+    //  Symbol resolution inside expressions, and the two ways a name can fail
+    //  to resolve.
+    //
+    //  The distinction is what matters here. An UNDEFINED symbol and an
+    //  unresolved FORWARD reference look identical at this layer, so the
+    //  evaluator reports "has unresolved" separately from "error" -- and the
+    //  assembler uses that to tell a legitimate pass-1 forward reference from a
+    //  genuine mistake.
+    //
+    //  A missing symbol table is asserted to behave exactly like an empty one,
+    //  since callers legitimately evaluate with no symbols at all and should
+    //  not need a special case.
+    //
+    //  Case sensitivity is covered because labels are case-sensitive while
+    //  mnemonics are not, and this side is the sensitive one.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (SymbolTests)

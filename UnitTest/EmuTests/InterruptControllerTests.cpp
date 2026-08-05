@@ -60,6 +60,23 @@ namespace Apple2eFidelityIc
     //
     //  InterruptControllerTests
     //
+    //  The shared IRQ line: several sources asserting and releasing it
+    //  independently.
+    //
+    //  IRQ is WIRED-OR, and that is the whole subject. The line stays asserted
+    //  while ANY source holds it, so a source releasing must not clear the line
+    //  for the others -- the classic bug being an interrupt handler that
+    //  services one device and inadvertently dismisses another's pending
+    //  request.
+    //
+    //  Source tokens are covered because they are reclaimed on a machine
+    //  switch: a stale token asserting after its device is gone would leave the
+    //  CPU permanently interrupted.
+    //
+    //  Assert and release are tested in several orders, since the count is what
+    //  makes the wired-OR work and an order-dependent implementation passes the
+    //  simple sequence.
+    //
     ////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (InterruptControllerTests)

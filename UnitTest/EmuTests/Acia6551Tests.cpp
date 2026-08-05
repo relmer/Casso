@@ -84,6 +84,23 @@ namespace Acia6551TestNs
     //
     //  Acia6551Tests
     //
+    //  The 6551 ACIA: the four registers, the status bits, and interrupt
+    //  generation.
+    //
+    //  The register map is the first thing to pin because two of the four
+    //  addresses do DIFFERENT things on read and write -- the transmit and
+    //  receive data registers share an address, as do the command and status
+    //  registers. An implementation treating any of them as a plain storage
+    //  cell reads back what it wrote instead of what the device holds.
+    //
+    //  STATUS bits are asserted individually, since a handler polls them
+    //  rather than reading the byte, and the transmit-empty and receive-full
+    //  bits drive opposite branches.
+    //
+    //  Written from the datasheet. The //c has two of these, so serial
+    //  printing depends on this part behaving as documented rather than as
+    //  convenient.
+    //
     ////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (Acia6551Tests)

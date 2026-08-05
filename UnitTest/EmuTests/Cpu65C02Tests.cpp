@@ -89,6 +89,23 @@ namespace Cpu65C02TestNs
     //
     //  Cpu65C02Tests
     //
+    //  The CMOS core: the instructions it ADDS, and the NMOS behaviors it
+    //  CHANGES.
+    //
+    //  The changes matter more than the additions, and they are what this suite
+    //  exists for. The 65C02 is not a superset -- it fixes the JMP indirect
+    //  page-boundary bug and computes decimal-mode flags after the adjustment
+    //  rather than before -- so a shared implementation is necessarily wrong for
+    //  one core or the other.
+    //
+    //  So these assert the divergence in both directions, and the NMOS
+    //  regression suite asserts it from the other side. Either alone would let
+    //  one core's behavior leak into the other.
+    //
+    //  The Rockwell bit instructions (RMB/SMB/BBR/BBS) are covered here, since
+    //  they exist only on this core and the assembler accepts two operand
+    //  syntaxes for them.
+    //
     ////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (Cpu65C02Tests)

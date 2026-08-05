@@ -143,6 +143,19 @@ bool FixtureProvider::IsRejectedPath (const std::string & relativePath)
 //
 //  FixtureProvider::OpenFixture
 //
+//  Locates a test fixture by name, searching the same paths the product uses.
+//
+//  Searching rather than a fixed relative path, because the test binary runs
+//  from several places -- the build output, a test-explorer working directory,
+//  a CI agent -- and a hard-coded path works in exactly one of them.
+//
+//  A missing fixture fails with the NAME and the paths searched, since that is
+//  the difference between a real failure and a fixture that simply was not
+//  deployed, and the two look identical from the assertion alone.
+//
+//  Opened read-only and never copied: fixtures are inputs, so a test that
+//  modified one would corrupt the suite for every later run.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT FixtureProvider::OpenFixture (

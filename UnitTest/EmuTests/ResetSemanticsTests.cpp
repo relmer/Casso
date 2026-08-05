@@ -117,6 +117,22 @@ public:
     //
     //  CPU register state after SoftReset
     //
+    //  A soft reset sets the I flag and ADJUSTS the stack pointer -- it does not
+    //  reset it.
+    //
+    //  Both halves are hardware behavior that a plausible implementation gets
+    //  wrong. The 6502's reset sequence performs three dummy stack pushes, so SP
+    //  ends three lower than it started rather than at $FF -- code that inspects
+    //  the stack after a Ctrl-Reset depends on exactly that.
+    //
+    //  The I flag is SET, masking interrupts until the handler chooses to
+    //  enable them; a reset that cleared it would take an interrupt before the
+    //  vectors were ready.
+    //
+    //  A, X, and Y are asserted UNCHANGED, which is what separates a soft reset
+    //  from a power cycle -- the registers survive, and software has used that
+    //  to detect which kind of reset it just took.
+    //
     ////////////////////////////////////////////////////////////////////////////
 
     TEST_METHOD (SoftResetSetsCpuIFlagAndAdjustsSP)
