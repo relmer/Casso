@@ -172,6 +172,7 @@ public:
             {
                 ioError = true;
             }
+
             if (r.find ("DISK VOLUME") != std::string::npos)
             {
                 volumeBanner = true;

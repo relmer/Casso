@@ -96,6 +96,7 @@ std::wstring HardwarePage::Widen (const std::string & narrow)
     {
         w.push_back ((wchar_t) (unsigned char) c);
     }
+
     return w;
 }
 
@@ -133,6 +134,7 @@ HardwarePage::HardwarePage(std::wstring title)
         Adopt (m_infoValues[i]);
         Adopt (m_infoExtras[i]);
     }
+
     Adopt (m_tree);
 }
 
@@ -285,6 +287,7 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
             m_infoExtras[i].SetRect (MakeRect (rect.right, y, 0, rowHeight));
             y += rowHeight;
         }
+
         m_infoLabels[i].SetDpi (dpi);
         m_infoValues[i].SetDpi (dpi);
         m_infoExtras[i].SetDpi (dpi);
@@ -403,6 +406,7 @@ void HardwarePage::Rebuild()
                 s.insert ((size_t) i, L",");
                 i -= 3;
             }
+
             return s;
         };
 
@@ -452,6 +456,7 @@ void HardwarePage::Rebuild()
 
         nodes = BuildNodes (entries, supportsExternal, externalConnected, mouseConnected);
     }
+
     m_tree.SetNodes (std::move (nodes));
 
     m_tree.SetOnToggle ([state] (const std::wstring & label, bool checked)
@@ -574,6 +579,7 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
     {
         out.push_back (std::move (internalGroup));
     }
+
     if (anySlot)
     {
         out.push_back (std::move (slotsGroup));

@@ -384,6 +384,7 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
                 {
                     m_romBank->ToggleRomBank();
                 }
+
                 break;
             case 0xC05E:
                 m_doubleHiRes = true;

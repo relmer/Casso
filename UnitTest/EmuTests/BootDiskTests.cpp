@@ -382,6 +382,7 @@ public:
                             expectedAtMismatch  = e;
                             actualAtMismatch    = actual;
                         }
+
                         mismatchCount++;
                     }
                 }
@@ -422,6 +423,7 @@ public:
                 {
                     if (auxBuf[0x2000 + i] != dhgrAuxPayload[i]) { m++; }
                 }
+
                 Assert::AreEqual (size_t (0), m,
                     L"DHGR aux half at boot landing must match payload");
             }

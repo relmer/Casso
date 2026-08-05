@@ -733,6 +733,7 @@ std::wstring GlobalUserPrefs::FilePath (const std::wstring & baseDir)
     {
         result += L'\\';
     }
+
     result += L"UserPrefs.json";
 
     return result;
@@ -870,6 +871,7 @@ HRESULT GlobalUserPrefs::Save (
                 }
             }
         }
+
         hr = S_OK;
     }
 
@@ -1116,6 +1118,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
         {
             PlacementsFromJson (*placementsObj, window.placements);
         }
+
         window.fullscreen = TryGetBoolOpt (*windowSub, "fullscreen", window.fullscreen);
     }
 

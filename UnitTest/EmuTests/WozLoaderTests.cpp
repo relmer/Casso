@@ -57,6 +57,7 @@ public:
                 crc = (crc & 1u) ? ((crc >> 1) ^ 0xEDB88320u) : (crc >> 1);
             }
         }
+
         return ~crc;
     }
 
@@ -99,11 +100,13 @@ public:
                 av = static_cast<Byte> ((av << 1) | (a.ReadBit (slot, i * 8 + bit) & 1));
                 bv = static_cast<Byte> ((bv << 1) | (b.ReadBit (slot, i * 8 + bit) & 1));
             }
+
             if (av != bv)
             {
                 diff++;
             }
         }
+
         return diff;
     }
 
@@ -150,6 +153,7 @@ public:
         {
             out[trk + i] = trackZeroBits[i];
         }
+
         out[trk + 6648] = static_cast<Byte> (bitCount & 0xFF);       // bit count (LE16)
         out[trk + 6649] = static_cast<Byte> ((bitCount >> 8) & 0xFF);
     }

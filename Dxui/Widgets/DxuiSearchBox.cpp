@@ -430,6 +430,7 @@ bool DxuiSearchBox::OnMouse (const DxuiMouseEvent & ev)
         {
             consumed = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }
+
         break;
 
     case DxuiMouseEventKind::Up:
@@ -437,6 +438,7 @@ bool DxuiSearchBox::OnMouse (const DxuiMouseEvent & ev)
         {
             consumed = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
         }
+
         break;
 
     case DxuiMouseEventKind::Move:

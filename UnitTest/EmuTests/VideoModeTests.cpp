@@ -840,6 +840,7 @@ public:
             {
                 if (fb[y * fbW + x] == 0xFF00FF00u) { col0HasGreen = true; }
             }
+
             for (int x = 7; x < 14; x++)
             {
                 if (fb[y * fbW + x] == 0xFF00FF00u) { col1HasGreen = true; }
@@ -1019,6 +1020,7 @@ public:
                 if (fb[y * fbW + x] != kRed) { topUntouched = false; }
             }
         }
+
         Assert::IsTrue (topUntouched, L"Rows 0-19 must stay red (untouched by row-range render)");
 
         // Rows 20-23 must contain green pixels from the 'A' glyph at col 0
@@ -1031,6 +1033,7 @@ public:
                 if (fb[y * fbW + x] == 0xFF00FF00u) { sawGreen = true; }
             }
         }
+
         Assert::IsTrue (sawGreen, L"40-col 'A' must render in row 20 of the framebuffer");
     }
 
@@ -1075,6 +1078,7 @@ public:
                 if (fb[y * fbW + x] != kBlue) { topUntouched = false; }
             }
         }
+
         Assert::IsTrue (topUntouched, L"Top 20 rows must be untouched by row-range 80-col render");
 
         // Both screen col 0 (aux 'A') and col 1 (main 'B') should produce
@@ -1087,6 +1091,7 @@ public:
             {
                 if (fb[y * fbW + x] == 0xFF00FF00u) { col0Green = true; }
             }
+
             for (int x = 7; x < 14; x++)
             {
                 if (fb[y * fbW + x] == 0xFF00FF00u) { col1Green = true; }
@@ -1191,6 +1196,7 @@ public:
         {
             if (fb[0 * fbW + x] == 0xFFFFFFFFu) { sawWhite = true; }
         }
+
         Assert::IsTrue (sawWhite, L"DHR all-on aux byte must include white cells");
 
         // The all-zero scanline 1 must be all black (proves DHR didn't
@@ -1200,6 +1206,7 @@ public:
         {
             if (fb[2 * fbW + x] != 0xFF000000u) { sl1AllBlack = false; }
         }
+
         Assert::IsTrue (sl1AllBlack, L"All-zero scanline 1 must be all black");
     }
 

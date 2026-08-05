@@ -108,6 +108,7 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
         slots.eventTypeChecks[i] = MakeRect (x, y, checkWidth, rowHeight);
         x += checkWidth;
     }
+
     y += rowHeight + rowVGap;
 
     // Row 2: "Audio events:" label + audio master + 4 sub checks.
@@ -124,6 +125,7 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
         slots.audioSubChecks[i] = MakeRect (x, y, checkWidth, rowHeight);
         x += checkWidth;
     }
+
     y += rowHeight + rowVGap;
 
     // Row 3: drive radios + filter label/edit pairs. The radios are laid
@@ -138,6 +140,7 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
     {
         slots.driveRadios[i] = MakeRect (radioBaseX + i * checkWidth, y, radioWidth, rowHeight);
     }
+
     x = radioBaseX + (kDriveRadioCount - 1) * checkWidth + radioWidth + rowGap;
     slots.trackFilterLabel = MakeRect (x, y, labelWidth, rowHeight);
     x += labelWidth + rowGap;

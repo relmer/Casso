@@ -104,6 +104,7 @@ namespace ImageWriterCalibrationTests
             {
                 Assert::IsTrue (e.type != PrinterEventType::UnknownCommand, L"preamble must not be unknown");
             }
+
             Assert::AreEqual ((int) InkPrimary::Yellow, (int) raster.CellAt (0, 0));
         }
     };

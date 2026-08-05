@@ -465,6 +465,7 @@ void DiskManager::RemountSlot6Disks()
             IGNORE_RETURN_VALUE (hrMount, S_OK);
         }
     }
+
     m_programmaticRemount = false;
 }
 

@@ -256,6 +256,7 @@ void PrinterHead::Advance (double timeSec, const PrintRaster & built, PrintRaste
 
                 m_phase = Phase::Feeding;
             }
+
             // other event types carry no head motion -- already consumed
         }
     }

@@ -79,8 +79,10 @@ std::wstring  WindowCommandManager::FormatSystemError (HRESULT hr)
         {
             sys.pop_back();
         }
+
         if (!sys.empty()) { detail += L" -- " + sys; }
     }
+
     if (text != nullptr) { LocalFree (text); }
 
     return detail;
@@ -619,6 +621,7 @@ void WindowCommandManager::OnMachineCommand (int id)
             {
                 break;
             }
+
             // CPU thread is provably idle (blocked on pauseCV.wait), so
             // it's safe to drive the step directly from the UI thread.
             // Routing through PostCommand+queue would never run -- the
@@ -815,6 +818,7 @@ void WindowCommandManager::OnViewCommand (int id)
 
                 SetWindowPos (m_shell.m_hwnd, nullptr, x, y, w, h, SWP_NOZORDER);
             }
+
             break;
         }
 
@@ -1222,10 +1226,12 @@ Error:
     {
         CoTaskMemFree (pszPath);
     }
+
     if (picturesRaw != nullptr)
     {
         CoTaskMemFree (picturesRaw);
     }
+
     return hr;
 }
 
@@ -1370,18 +1376,22 @@ Error:
     {
         AbortDoc (pd.hDC);
     }
+
     if (pd.hDC != nullptr)
     {
         DeleteDC (pd.hDC);
     }
+
     if (pd.hDevMode != nullptr)
     {
         GlobalFree (pd.hDevMode);
     }
+
     if (pd.hDevNames != nullptr)
     {
         GlobalFree (pd.hDevNames);
     }
+
     return hr;
 }
 
@@ -1790,6 +1800,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
         {
             msg += failedStage + L"\n";
         }
+
         msg += FormatSystemError (hr);
 
         m_shell.NotePrinterDeliveryResult (true);   // toolbar LED: red until resolved

@@ -88,6 +88,7 @@ struct StartupDownloadSet
                 return true;
             }
         }
+
         return false;
     }
 };

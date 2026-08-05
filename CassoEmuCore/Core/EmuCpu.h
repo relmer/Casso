@@ -90,6 +90,7 @@ public:
             m_cpu6502->StepOne();
         }
     }
+
     Byte             GetLastInstructionCycles () const                        { return m_cpu6502->GetLastInstructionCycles (); }
 
     // Interrupt-aware companion to StepOne; see Cpu6502::TryStepInterrupt.

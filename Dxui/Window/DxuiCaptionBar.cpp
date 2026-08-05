@@ -226,12 +226,14 @@ void DxuiCaptionBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
         m_closeBtn->Layout (rc, scaler);
         right -= kButtonWidthDip;
     }
+
     if (m_maxBtn)
     {
         rc = { right - kButtonWidthDip, top, right, bottom };
         m_maxBtn->Layout (rc, scaler);
         right -= kButtonWidthDip;
     }
+
     if (m_minBtn)
     {
         rc = { right - kButtonWidthDip, top, right, bottom };

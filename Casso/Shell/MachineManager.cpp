@@ -519,6 +519,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
                 // keyboard-layout remap). Dormant on the //e.
                 iieKbd->SetApple2cMode (true);
             }
+
             if (iieSw != nullptr)
             {
                 iieSw->SetMouse (m_shell.m_mouse.get());
@@ -1534,6 +1535,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                         HRESULT  hrExt = extPrefs->GetBool ("externalDriveConnected", connected);
                         IGNORE_RETURN_VALUE (hrExt, S_OK);
                     }
+
                     m_shell.m_externalDriveConnected = connected;
 
                     // //c mouse peripheral: adopt the switched-to machine's
@@ -1544,6 +1546,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                         HRESULT  hrM = extPrefs->GetBool ("mouseConnected", mouseConn);
                         IGNORE_RETURN_VALUE (hrM, S_OK);
                     }
+
                     m_shell.m_mouseConnected = mouseConn;
 
                     // //c: default Pointer -> Mouse when connected and no
@@ -1608,10 +1611,12 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     {
         m_shell.m_disk2DebugPanel->SetCycleCounter (nullptr);
     }
+
     if (m_shell.m_inputDebugPanel != nullptr)
     {
         m_shell.m_inputDebugPanel->SetCycleCounter (nullptr);
     }
+
     if (m_shell.m_refs.keyboard != nullptr)
     {
         m_shell.m_refs.keyboard->SetInputEventSink (nullptr);
@@ -1719,6 +1724,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     {
         m_shell.m_disk2DebugPanel->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
     }
+
     if (m_shell.m_inputDebugPanel != nullptr && m_shell.m_cpu != nullptr)
     {
         m_shell.m_inputDebugPanel->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
@@ -1768,6 +1774,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         carryDisk1.clear();
         carryDisk2.clear();
     }
+
     m_shell.m_diskManager->MountCommandLineDisks (carryDisk1, carryDisk2);
 
     if (speedCmd != 0)

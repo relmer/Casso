@@ -261,6 +261,7 @@ void JsonWriter::WriteString (const string & s, string & out)
                     // Pass through. Bytes >= 0x80 are assumed UTF-8.
                     out += (char) c;
                 }
+
                 break;
         }
     }

@@ -27,6 +27,7 @@ void SettingsApplyAdapter::ApplySpeedMode (SettingsSpeedMode mode)
         case SettingsSpeedMode::Double:    id = IDM_MACHINE_SPEED_2X;  break;
         case SettingsSpeedMode::Maximum:   id = IDM_MACHINE_SPEED_MAX; break;
     }
+
     PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
 }
 
@@ -53,6 +54,7 @@ void SettingsApplyAdapter::ApplyColorMode (SettingsColorMode mode)
         case SettingsColorMode::Amber: id = IDM_VIEW_AMBER; break;
         case SettingsColorMode::White: id = IDM_VIEW_WHITE; break;
     }
+
     PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
 }
 

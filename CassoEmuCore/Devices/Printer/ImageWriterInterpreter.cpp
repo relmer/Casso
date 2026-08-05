@@ -270,6 +270,7 @@ void ImageWriterInterpreter::Consume (
             {
                 ExecuteParamCommand (raster, outEvents);
             }
+
             break;
 
         case EscState::GraphicsData:
@@ -630,6 +631,7 @@ void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<P
         {
             m_lineFeedRows = n;   // n/144" -> n native rows
         }
+
         m_state = EscState::Idle;
     }
     else if (m_cmd == s_kCmdLineSpace72)
@@ -644,6 +646,7 @@ void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<P
         {
             m_lineFeedRows = n * (PrinterGrid::kRowsPerInch / 72);
         }
+
         m_state = EscState::Idle;
     }
     else if (m_cmd == s_kCmdColor)
@@ -722,6 +725,7 @@ void ImageWriterInterpreter::ConsumeGraphicsByte (Byte b, PrintRaster & raster, 
         m_burstFromDot = dot0;
         m_burstRow     = row;
     }
+
     m_burstToDot = dot1 - 1;
 
     m_headColumnDots = dot1;

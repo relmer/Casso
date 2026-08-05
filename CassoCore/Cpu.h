@@ -137,6 +137,7 @@ protected:
 
         return ReadByteSlow (address);
     }
+
     virtual Byte ReadByteSlow  (Word address);
     virtual Word ReadWord      (Word address);
 

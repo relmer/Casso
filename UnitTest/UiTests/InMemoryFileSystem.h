@@ -151,6 +151,7 @@ public:
         {
             return std::string();
         }
+
         return it->second;
     }
 
@@ -178,6 +179,7 @@ private:
                 ch = (wchar_t) (ch - L'A' + L'a');
             }
         }
+
         return result;
     }
 

@@ -100,6 +100,7 @@ bool DxuiPanZoom::OnMouse (const DxuiMouseEvent & ev)
             m_dragLast = ev.positionDip;
             handled    = true;
         }
+
         break;
 
     case DxuiMouseEventKind::Move:
@@ -126,6 +127,7 @@ bool DxuiPanZoom::OnMouse (const DxuiMouseEvent & ev)
 
             handled = true;
         }
+
         break;
 
     case DxuiMouseEventKind::Up:
@@ -134,6 +136,7 @@ bool DxuiPanZoom::OnMouse (const DxuiMouseEvent & ev)
             m_dragging = false;
             handled    = true;
         }
+
         break;
 
     default:
@@ -385,6 +388,7 @@ void DxuiPanZoom::PanByUser (float deltaContentX, float deltaContentY)
     {
         NudgePanX ((double) deltaContentX);
     }
+
     if (m_cfg.enablePanY && deltaContentY != 0.0f)
     {
         NudgePanY ((double) deltaContentY, /*user*/ true);
@@ -502,6 +506,7 @@ void DxuiPanZoom::ApplyZoomFactor (double factor, bool anchored, float anchorX, 
     {
         return;
     }
+
     m_zoom.target = z1;
 
     // Cursor-anchored zoom: shift the pan targets so the content point under the
@@ -518,6 +523,7 @@ void DxuiPanZoom::ApplyZoomFactor (double factor, bool anchored, float anchorX, 
         {
             NudgePanX (((double) anchorX - (double) m_viewCenterX) * (double) m_dragPerPxX * s);
         }
+
         if (m_dragPerPxY != 0.0f)
         {
             // Frame vertically toward the cursor. Screen Y is inverted from the
@@ -548,6 +554,7 @@ void DxuiPanZoom::NudgePanX (double deltaContent)
     {
         target = std::min (std::max (target, m_panXlo), m_panXhi);
     }
+
     if (target != m_panX.target)
     {
         m_panX.target = target;
@@ -555,6 +562,7 @@ void DxuiPanZoom::NudgePanX (double deltaContent)
         {
             m_panX.cur = target;   // horizontal nudges are always user input
         }
+
         Changed();
     }
 }
@@ -609,6 +617,7 @@ void DxuiPanZoom::NudgePanY (double deltaContent, bool user)
     {
         m_onUserPanY();
     }
+
     if (changed)
     {
         Changed();
@@ -686,6 +695,7 @@ void DxuiPanZoom::NudgePanYCam (double deltaContent)
         {
             m_panYCam.cur = target;
         }
+
         Changed();
     }
 }
@@ -706,10 +716,12 @@ void DxuiPanZoom::ClampTargets()
     {
         m_panY.target = std::min (std::max (m_panY.target, m_panYlo), m_panYhi);
     }
+
     if (m_panXhi >= m_panXlo)
     {
         m_panX.target = std::min (std::max (m_panX.target, m_panXlo), m_panXhi);
     }
+
     if (m_panYCamHi >= m_panYCamLo)
     {
         m_panYCam.target = std::min (std::max (m_panYCam.target, m_panYCamLo), m_panYCamHi);

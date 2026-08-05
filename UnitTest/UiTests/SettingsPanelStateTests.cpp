@@ -70,27 +70,32 @@ public:
             lastDriveDoor  = door;
             ++applyCount;
         }
+
         void ApplyDrivePan     (float driveOnePan, float driveTwoPan) override
         {
             lastDriveOnePan = driveOnePan;
             lastDriveTwoPan = driveTwoPan;
             ++applyCount;
         }
+
         void ApplyWriteProtect (int drive, bool wp) override
         {
             if (drive >= 0 && drive < 2) lastWriteProtect[drive] = wp;
             ++applyCount;
         }
+
         void ApplyExternalDriveConnected (bool connected) override
         {
             lastExternalDriveConnected = connected;
             ++applyCount;
         }
+
         void ApplyMouseConnected (bool connected) override
         {
             lastMouseConnected = connected;
             ++applyCount;
         }
+
         void QueueMachineReset() override { ++queuedResetCount; }
     };
 
@@ -182,6 +187,7 @@ public:
                     return r;
                 }
             }
+
             return SettingsMemoryRegion {};
         };
 
@@ -736,6 +742,7 @@ public:
         {
             if (hw[i].type == "disk-ii") { diskIdx = i; break; }
         }
+
         Assert::IsTrue (diskIdx < hw.size(), L"Fixture must expose a disk-ii entry.");
 
         HRESULT  hr = st.SetHardwareEnabled (diskIdx, false);

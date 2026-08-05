@@ -50,6 +50,7 @@ public:
         {
             raw[i] = static_cast<Byte> ((i * 31u + seed) & 0xFF);
         }
+
         return raw;
     }
 

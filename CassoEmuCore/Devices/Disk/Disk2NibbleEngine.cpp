@@ -311,6 +311,7 @@ void Disk2NibbleEngine::StepLss()
             {
                 m_readLatch |= kLatchMsbMask;
             }
+
             break;
         case kLssCmdLoad:
             m_readLatch = m_bus;

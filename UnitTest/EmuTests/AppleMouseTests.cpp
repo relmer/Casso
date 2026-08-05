@@ -540,6 +540,7 @@ public:
                 Logger::WriteMessage (row.c_str());
                 if (row.find ("PRINT \"HI\"") != std::string::npos) { ok = true; }
             }
+
             DiskImage *  img = core.diskStore->GetImage (6, 0);
             char  diag[96];
             sprintf_s (diag, "//e control: dirty=%d listOk=%d",
@@ -652,6 +653,7 @@ public:
                 {
                     if (row.find ("PR#7") != std::string::npos) { sawPr7 = true; }
                 }
+
                 Assert::IsTrue (sawPr7, L"reloaded MOUSE.TEST must contain the PR#7 mouse-on line");
             }
         }

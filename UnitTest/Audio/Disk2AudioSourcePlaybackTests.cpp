@@ -90,6 +90,7 @@ public:
         {
             Assert::AreEqual (0.5f * Disk2AudioSource::kHeadVolume, out[i], 1e-6f);
         }
+
         for (int i = 4; i < 8; i++)
         {
             Assert::AreEqual (0.0f, out[i], 1e-6f);
@@ -180,6 +181,7 @@ public:
         {
             Assert::AreEqual (0.5f * Disk2AudioSource::kHeadVolume, out[i], 1e-6f);
         }
+
         for (int i = 4; i < 8; i++)
         {
             Assert::AreEqual (0.0f, out[i], 1e-6f);

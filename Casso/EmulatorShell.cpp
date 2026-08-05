@@ -745,6 +745,7 @@ HRESULT EmulatorShell::Initialize (
     {
         m_memoryBus.SetVideoWatchPage (page, true);
     }
+
     for (int page = 0x20; page <= 0x5F; page++)
     {
         m_memoryBus.SetVideoWatchPage (page, true);
@@ -1714,6 +1715,7 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
             {
                 iieKbd->SetEightyColumnSwitchIn (eightyIn);
             }
+
             if (uiPrefs->HasBool ("keyboardDvorak", dvorak))
             {
                 iieKbd->SetKeyboardSwitchDvorak (dvorak);
@@ -2124,11 +2126,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             m_scaler.SetDpi (dpi);
         }
     }
+
     {
         RECT  menuBarBounds = { 0, m_host->CaptionHeightPx(), clientW, m_host->CaptionHeightPx() };
 
         m_mainMenu.Layout (menuBarBounds, m_scaler);
     }
+
     m_mainMenu.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
 
     // Command toolbar (DCR-2): commands route through the same HandleCommand
@@ -2171,6 +2175,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             m_host->SetCaptionIcon (std::move (iconPixels), iconW, iconH);
         }
     }
+
     m_driveChrome[0].Initialize (6, 0, this);
     m_driveChrome[1].Initialize (6, 1, this);
 
@@ -2261,6 +2266,7 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
             m_monitorFrame.Layout (center, m_scaler);
             m_chromeSceneScale = m_monitorFrame.SceneScale() * s_kDeskDriveScale;
         }
+
         viewportRect = m_monitorFrame.ScreenRect();
     }
 
@@ -3018,6 +3024,7 @@ HRESULT EmulatorShell::ApplyAndPersistTheme (const std::string & themeName)
     {
         hrSave = m_globalPrefs.Save (m_assetBaseDir, m_uiFs);
     }
+
     IGNORE_RETURN_VALUE (hrSave, S_OK);
 
 Error:
@@ -3055,6 +3062,7 @@ HRESULT EmulatorShell::ApplyThemeLive (const std::string & themeName)
     {
         hrActivate = m_themeManager->Activate ("Skeuomorphic");
     }
+
     CHR (hrActivate);
 
 Error:
@@ -3350,6 +3358,7 @@ void EmulatorShell::SetSkeuoMonitorFrame (bool enabled)
     {
         hr = m_globalPrefs.Save (m_assetBaseDir, m_uiFs);
     }
+
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (m_hwnd != nullptr && GetClientRect (m_hwnd, &rcClient))
@@ -3626,6 +3635,7 @@ void EmulatorShell::ApplyAppIconToWindow (HWND target)
     {
         SendMessageW (target, WM_SETICON, ICON_BIG, (LPARAM) iconBig);
     }
+
     if (iconSmall != nullptr)
     {
         SendMessageW (target, WM_SETICON, ICON_SMALL, (LPARAM) iconSmall);
@@ -3779,6 +3789,7 @@ void EmulatorShell::UpdatePrinterPreview()
             ShowPrinterPanel (false /* activate */);
             m_printerAutoOpenArmed = false;
         }
+
         m_printerAutoOpenActivity = activity;
         m_printerActiveLastMs     = nowMs;
     }
@@ -3987,6 +3998,7 @@ void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
                 m_refs.keyboard->SetKeyDown (false);
                 PostCommand (IDM_MACHINE_RESET);
             }
+
             break;
 
         case Apple2cSwitchBar::Part::EightyForty:
@@ -3997,6 +4009,7 @@ void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
                 iieKbd->SetEightyColumnSwitchIn (newIn);
                 PersistSwitchState ("eightyColumnSwitch", newIn);
             }
+
             break;
 
         case Apple2cSwitchBar::Part::Keyboard:
@@ -4007,6 +4020,7 @@ void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
                 iieKbd->SetKeyboardSwitchDvorak (newDvorak);
                 PersistSwitchState ("keyboardDvorak", newDvorak);
             }
+
             break;
 
         default:
@@ -4134,6 +4148,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
     {
         SetChromeFocusIndex ((index + dir + s_kChromeFocusCount) % s_kChromeFocusCount);
     }
+
     // A menu title is focused with its dropdown closed. Left/Right wrap within
     // the titles here rather than walking the whole ring.
     else if (onMenuTitle && vk == VK_LEFT)
@@ -4148,6 +4163,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
     {
         m_mainMenu.Open ((MainMenuId) index, true);
     }
+
     // The joystick-mode button or a drive widget is focused. Left/Right walk
     // the whole ring so horizontal arrows feel natural along the bottom bar.
     else if (vk == VK_LEFT)
@@ -4518,6 +4534,7 @@ bool EmulatorShell::PumpUiFrame()
                 themeDefaults = &active->crtDefaults;
             }
         }
+
         CrtParams  params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
                                            (size_t) m_colorMode.load(std::memory_order_acquire),
                                            themeDefaults,
@@ -4544,6 +4561,7 @@ bool EmulatorShell::PumpUiFrame()
     {
         m_diskManager->UpdateDriveWidgets();
     }
+
     bool  anyDriveLive = false;
 
     for (const DriveWidgetState & st : m_driveWidgetState)
@@ -4584,15 +4602,18 @@ bool EmulatorShell::PumpUiFrame()
         hr = m_disk2DebugPanel->RenderFrame();
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
+
     if (m_inputDebugPanel != nullptr)
     {
         hr = m_inputDebugPanel->RenderFrame();
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
+
     if (m_printerPanel != nullptr)
     {
         IGNORE_RETURN_VALUE (hr, m_printerPanel->RenderFrame());
     }
+
     if (m_mainMenu.IsOpen())
     {
         m_d3dRenderer.MarkRedrawNeeded();
@@ -4779,6 +4800,7 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
             {
                 DEBUGMSG (L"SwitchMachine failed: 0x%08X\n", hrSwitch);
             }
+
             break;
         }
 
@@ -4832,6 +4854,7 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
                     m_refs.keyboard->Tick (m_cpu->GetLastInstructionCycles());
                 }
             }
+
             break;
         }
 
@@ -4897,6 +4920,7 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
                                       (float) headPct  / 100.0f,
                                       (float) doorPct  / 100.0f);
             }
+
             break;
         }
 
@@ -4912,6 +4936,7 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
                 SetDriveAudioPan (0, (float) pan0 / 100.0f);
                 SetDriveAudioPan (1, (float) pan1 / 100.0f);
             }
+
             break;
         }
 
@@ -4926,6 +4951,7 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
             {
                 PlayDriveTestSound (drive, kind);
             }
+
             break;
         }
 
@@ -5683,6 +5709,7 @@ void EmulatorShell::RenderFramebuffer()
             }
         }
     }
+
     m_prevActiveVideoMode = m_refs.activeVideoMode;
 
     if (m_refs.activeVideoMode != nullptr)
@@ -6005,6 +6032,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
+
     {
         RECT             anchor = {};
         const wchar_t *  tip    = m_toolbar.TooltipAt (x, y, anchor);
@@ -6797,6 +6825,7 @@ void EmulatorShell::OpenSettings()
         {
             SetForegroundWindow (existing);
         }
+
         return;
     }
 
@@ -7596,6 +7625,7 @@ void EmulatorShell::SetArrowsJoystick (bool on)
             iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
             iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
         }
+
         if (gamePort != nullptr)
         {
             gamePort->SetPaddle (0, AppleGamePort::s_knPaddleCenter);
@@ -9264,6 +9294,7 @@ DxuiMessageResult EmulatorShell::OnNcLButtonDown (LRESULT hitTest, int xScreen, 
     {
         m_mainMenu.Hide();
     }
+
     return DxuiMessageResult::NotHandled;
 }
 

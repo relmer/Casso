@@ -907,6 +907,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         {
             m_viewport.Advance ((std::max) (bandBottom, 0));
         }
+
         m_viewport.Tick (nowMs);
 
         // The scroll position lives in m_panZoom now. Follow mode drives its panY
@@ -1723,6 +1724,7 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
                 RECT  r = { zx, topBy, zx + z.w, topBy + btnH };
                 z.btn->Layout (r, scaler);
             }
+
             zx += z.w + gap;
         }
     }

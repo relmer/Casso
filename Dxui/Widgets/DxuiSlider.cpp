@@ -276,6 +276,7 @@ bool DxuiSlider::OnLButtonUp (int x, int y)
     {
         m_onDragEnd();
     }
+
     return consumed;
 }
 
@@ -617,18 +618,21 @@ bool DxuiSlider::OnMouse (const DxuiMouseEvent & ev)
         {
             SetMouseHover (ev.positionDip.x, ev.positionDip.y);
         }
+
         break;
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left)
         {
             handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }
+
         break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
             handled = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
         }
+
         break;
     default:
         break;

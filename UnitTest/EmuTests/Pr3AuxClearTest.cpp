@@ -164,6 +164,7 @@ public:
                 if (a == 0x0480) continue;     // BASIC prompt ']' lands here
                 if (auxBuf[a] != 0xA0) rowBad++;
             }
+
             if (rowBad > 0)
             {
                 wchar_t  line[64] = {};

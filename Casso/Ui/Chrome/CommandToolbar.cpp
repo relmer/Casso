@@ -234,6 +234,7 @@ int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scale
         {
             return (int) (w + 0.5f);
         }
+
         return (int) ((float) wcslen (label) * s_kFallbackCharPx * (float) dpi / (float) s_kBaseDpi);
     };
 
@@ -337,6 +338,7 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
         {
             return (int) (w + 0.5f);
         }
+
         return (int) ((float) wcslen (label) * s_kFallbackCharPx * (float) dpi / (float) s_kBaseDpi);
     };
 
@@ -485,6 +487,7 @@ bool CommandToolbar::OnToolbarMouseMove (int x, int y, bool leftDown)
         if (!btn.hovered) { btn.pressed = false; }
         over = over || btn.hovered;
     }
+
     m_muteButton.hovered = PointIn (m_muteButton.rc, x, y);
     if (!m_muteButton.hovered) { m_muteButton.pressed = false; }
 
@@ -508,6 +511,7 @@ void CommandToolbar::OnToolbarMouseLeave()
         btn.hovered = false;
         btn.pressed = false;
     }
+
     m_muteButton.hovered = false;
     m_muteButton.pressed = false;
 }

@@ -569,6 +569,7 @@ int WINAPI wWinMain (
             {
                 __debugbreak();   // no-op crash if still no debugger; lets you attach one
             }
+
             // IDIGNORE: fall through -- EHM continues on its normal error path.
         }
     });

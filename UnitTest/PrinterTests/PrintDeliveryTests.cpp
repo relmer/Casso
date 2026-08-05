@@ -71,6 +71,7 @@ namespace PrintDeliveryTests
                     if (p[0] < 250 || p[1] < 250 || p[2] < 250) inked++;
                 }
             }
+
             Assert::IsTrue (inked > 0, L"delivered PNG has no ink");
         }
 

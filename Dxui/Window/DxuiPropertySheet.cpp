@@ -695,6 +695,7 @@ void DxuiPropertySheet::SetApplyVisible (bool visible)
     {
         m_apply->SetVisible (visible);
     }
+
     if (IsCreated())
     {
         Invalidate();
@@ -718,6 +719,7 @@ void DxuiPropertySheet::SetOkText (std::wstring text)
     {
         m_ok->SetLabel (m_okText);
     }
+
     if (IsCreated())
     {
         Invalidate();

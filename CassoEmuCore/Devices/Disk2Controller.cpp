@@ -170,6 +170,7 @@ void Disk2Controller::HandleSwitch (int offset)
             {
                 m_eventSink->OnMotorCommandOff();
             }
+
             break;
         case 0x9:
             // Motor-on command: cancel any pending spindown so the
@@ -221,6 +222,7 @@ void Disk2Controller::HandleSwitch (int offset)
                     }
                 }
             }
+
             break;
         case 0xA:
             m_activeDrive = 0;
@@ -232,6 +234,7 @@ void Disk2Controller::HandleSwitch (int offset)
             {
                 m_eventSink->OnDriveSelect (m_activeDrive);
             }
+
             break;
         case 0xB:
             m_activeDrive = 1;
@@ -241,6 +244,7 @@ void Disk2Controller::HandleSwitch (int offset)
             {
                 m_eventSink->OnDriveSelect (m_activeDrive);
             }
+
             break;
         case 0xC:
             m_q6 = false;

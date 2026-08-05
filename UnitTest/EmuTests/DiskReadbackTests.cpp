@@ -222,6 +222,7 @@ public:
         {
             core.bus->ReadByte (static_cast<Word> (kSlotIoBase + 0x0 + p * 2));
         }
+
         core.diskController->Tick (16);
     }
 
@@ -464,6 +465,7 @@ public:
                 fprintf (fp, "[%2d] %02X (after %llu ticks)\n",
                          i, n, (unsigned long long) spent);
             }
+
             if (n != 0) validCount++;
         }
 

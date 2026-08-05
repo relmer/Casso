@@ -379,6 +379,7 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
         m_lineGapSamples   = (int32_t) (kLineFeedGapSec * (double) m_sampleRate);
         m_pendingBuzz      = ink;
     }
+
     m_lastRows = rows;
 
     // Head advanced this frame AND is laying ink -> (re)arm the carriage buzz for
@@ -447,6 +448,7 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
         m_printHoldSamples = 0;
         m_pendingBuzz      = false;
     }
+
     if (action >= 1 && action <= kNumPageFeeds)
     {
         const vector<float> &  buf = m_pageFeeds[action - 1];

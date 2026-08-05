@@ -703,6 +703,7 @@ public:
                 Assert::IsFalse (changed, L"subsequent passes must be no-ops");
                 Assert::AreEqual (cur, next, L"subsequent passes must be no-ops");
             }
+
             cur = next;
         }
     }

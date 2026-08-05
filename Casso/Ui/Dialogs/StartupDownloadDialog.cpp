@@ -327,6 +327,7 @@ std::wstring StartupDownloadDialog::StatusText (const EntryRuntime & rt, std::ui
                 swprintf_s (buf, L"%d%%", pct);
                 text = buf;
             }
+
             break;
     }
 

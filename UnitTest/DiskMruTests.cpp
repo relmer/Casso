@@ -302,6 +302,7 @@ namespace DiskMruTests
             {
                 entries.push_back (DiskMru::Entry { std::filesystem::path (p), 0 });
             }
+
             return entries;
         }
 

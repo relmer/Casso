@@ -211,10 +211,12 @@ struct CassoTheme : public DxuiTheme
         {
             return DarkModern();
         }
+
         if (name == "RetroTerminal")
         {
             return RetroTerminal();
         }
+
         return Skeuomorphic();
     }
 };

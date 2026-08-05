@@ -50,6 +50,7 @@ void DiskMru::RecordMount (const std::filesystem::path & path, std::int64_t last
         {
             m_entries.erase (it);
         }
+
         m_entries.insert (m_entries.begin(), Entry { path, lastLoadedUnix });
         EnforceCap();
     }
@@ -222,6 +223,7 @@ DiskMru DiskMru::FromUtf8 (const std::vector<std::string> & utf8Entries,
             entries.push_back (Entry { std::filesystem::path (u8), when });
         }
     }
+
     mru.ReplaceAll (std::move (entries));
     return mru;
 }

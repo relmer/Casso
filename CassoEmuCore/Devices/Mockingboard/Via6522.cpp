@@ -202,6 +202,7 @@ void Via6522::WriteRegister (Byte reg, Byte value)
         {
             m_ier &= static_cast<Byte> (~(value & 0x7F));
         }
+
         UpdateIrq();
         break;
 

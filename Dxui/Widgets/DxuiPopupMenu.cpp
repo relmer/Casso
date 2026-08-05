@@ -72,6 +72,7 @@ void DxuiPopupMenu::Show (
         {
             w = (float) (it.label.size() * 8);
         }
+
         int wpx = (int) std::ceil (w);
         if (wpx > widestPx) { widestPx = wpx; }
     }
@@ -664,6 +665,7 @@ void DxuiPopupMenu::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     {
         m_theme = &theme;
     }
+
     static_cast<const DxuiPopupMenu *> (this)->Paint (painter, text);
 }
 
@@ -703,12 +705,14 @@ bool DxuiPopupMenu::OnMouse (const DxuiMouseEvent & ev)
         {
             handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }
+
         break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
             handled = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
         }
+
         break;
     default:
         break;

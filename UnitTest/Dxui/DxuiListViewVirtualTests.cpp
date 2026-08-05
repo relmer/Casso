@@ -74,6 +74,7 @@ public:
         {
             rows.push_back ({ DxuiListView::Cell{ L"row", false } });
         }
+
         return rows;
     }
 

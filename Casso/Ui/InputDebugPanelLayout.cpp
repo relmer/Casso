@@ -122,11 +122,13 @@ InputPanelLayoutSlots ComputeInputDebugPanelLayout (
         slots.joystickCheck = MakeRect (x, y, checkWidth, rowHeight);
         x += checkWidth + rowGap;
     }
+
     if (showPaddleCheck)
     {
         slots.paddleCheck = MakeRect (x, y, checkWidth, rowHeight);
         x += checkWidth + rowGap;
     }
+
     y += rowHeight + rowVGap;
 
     x = margin;

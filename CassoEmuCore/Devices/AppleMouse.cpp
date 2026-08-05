@@ -54,6 +54,7 @@ void AppleMouse::MoveBy (int dx, int dy)
     {
         m_hostDx.fetch_add (dx, std::memory_order_acq_rel);
     }
+
     if (dy != 0)
     {
         m_hostDy.fetch_add (dy, std::memory_order_acq_rel);
@@ -118,6 +119,7 @@ void AppleMouse::Tick (uint32_t cpuCycles)
                 m_vblInt   = true;
                 irqChanged = true;
             }
+
             m_lastInVblank = inVblank;
         }
 

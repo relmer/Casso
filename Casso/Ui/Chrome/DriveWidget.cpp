@@ -543,6 +543,7 @@ void DriveWidget::Paint (
                         {
                             fill = panelHilite;
                         }
+
                         painter.FillRect (l, y, r - l, 1.0f, fill);
                         // Left edge shadow, right edge highlight, follow slant.
                         painter.FillRect (l,        y, 1.0f, 1.0f, panelShadow);
@@ -709,11 +710,13 @@ void DriveWidget::Paint (
             {
                 caseDepthY = 1.0f;
             }
+
             caseFrontW      = (float) (m_bodyRect.right - m_bodyRect.left);
             if (caseFrontW < 1.0f)
             {
                 caseFrontW = 1.0f;
             }
+
             perDepthTaper = (float) caseBackInset / caseDepthY;
 
             // Per-edge perspective: each side of the door's far edge
@@ -771,6 +774,7 @@ void DriveWidget::Paint (
                 {
                     t = (hingeY - y) / std::max (hingeY - farY, 1.0f);
                 }
+
                 lx = hingeL + t * (farL - hingeL);
                 rx = hingeR + t * (farR - hingeR);
                 painter.FillRect (lx, y, rx - lx, 1.0f, doorArgb);

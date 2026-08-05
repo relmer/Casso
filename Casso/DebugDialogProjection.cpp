@@ -397,6 +397,7 @@ static int PayloadDrive (const Disk2Event & src)
             {
                 drive = src.drive;
             }
+
             break;
     }
 
@@ -545,6 +546,7 @@ void DebugDialogProjection::DrainAndProject (
         {
             lostEntry.seq = (*seqCounter)++;
         }
+
         deque.push_back (std::move (lostEntry));
     }
 
@@ -561,6 +563,7 @@ void DebugDialogProjection::DrainAndProject (
             {
                 entry.seq = (*seqCounter)++;
             }
+
             deque.push_back (std::move (entry));
         }
     }
@@ -676,11 +679,13 @@ DebugSelectionResult DebugDialogProjection::ResolveSelection (
             {
                 exactRow = row;
             }
+
             if (earliestRow == kNone || s < earliestSeq)
             {
                 earliestSeq = s;
                 earliestRow = row;
             }
+
             if (s <= selectedSeq && (bestBeforeRow == kNone || s > bestBeforeSeq))
             {
                 bestBeforeSeq = s;

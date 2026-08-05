@@ -393,11 +393,13 @@ namespace Disk2AddressMarkWatcherTests
             {
                 stream.push_back (0xFF);
             }
+
             AppendAddressMark (stream, 254, 17, 5, 0, false);
             for (i = 0; i < 8; i++)
             {
                 stream.push_back (0xFF);
             }
+
             AppendDataMark (stream);
             for (i = 0; i < 8; i++)
             {
@@ -415,6 +417,7 @@ namespace Disk2AddressMarkWatcherTests
                     img.WriteBit (0, bitOffset + (size_t) b,
                                   (uint8_t) ((nibble >> (7 - b)) & 1));
                 }
+
                 bitOffset += 8;
             }
 

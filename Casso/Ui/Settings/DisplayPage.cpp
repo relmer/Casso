@@ -244,6 +244,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_restore.SetLabel (L"Restore defaults");
         m_restoreRowRect = MakeRect (btnX, y, btnWidth, rowHeight);
     }
+
     y += rowHeight + sectionGap;
 
     // Text color (Color monitor only): a dropdown plus a swatch showing
@@ -262,6 +263,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
         m_textColorSwatchRect = MakeRect (swatchX, swatchY, swatchSize, swatchSize);
     }
+
     y += rowHeight + sectionGap;
 
     // Brightness / Contrast / Gamma -- consistent column alignment.
@@ -453,6 +455,7 @@ void DisplayPage::Rebuild()
         {
             m_onMonitor (idx);
         }
+
         RefreshTextColorEnabled();
     });
     // Highlight changes (mouse hover + keyboard arrows while open) feed
@@ -474,6 +477,7 @@ void DisplayPage::Rebuild()
         {
             m_onTextColor (idx);
         }
+
         if (m_onTextColorCommit)
         {
             m_onTextColorCommit (idx);
@@ -721,6 +725,7 @@ bool DisplayPage::OnMouse (const DxuiMouseEvent & ev)
         {
             m_onTextColorCommit ((int) ColorMonitorTextMode::Custom);
         }
+
         handled = true;
     }
 
@@ -832,6 +837,7 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
         {
             return;
         }
+
         IGNORE_RETURN_VALUE (hrLocal,
                              text.DrawString (label,
                                               (float) m_indicatorX,

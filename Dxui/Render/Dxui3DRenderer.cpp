@@ -119,6 +119,7 @@ Error:
     {
         Shutdown();
     }
+
     return hr;
 }
 

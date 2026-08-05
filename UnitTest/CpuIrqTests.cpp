@@ -342,6 +342,7 @@ namespace Apple2eFidelity
             {
                 cpu.Poke (a, 0xEA);      // NOP field so StepOne makes progress
             }
+
             cpu.Status().flags.interruptDisable = 0;
 
             Assert::AreEqual (S_OK, via.AttachInterruptController (&ic),

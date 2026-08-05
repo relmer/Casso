@@ -102,6 +102,7 @@ public:
                 {
                     f.vt.Tick (VideoTiming::kVblankStartCycle);
                 }
+
                 break;
             case 0xC01A: f.bank.Read (flag ? 0xC051 : 0xC050); break; // RDTEXT
             case 0xC01B: f.bank.Read (flag ? 0xC053 : 0xC052); break; // RDMIXED

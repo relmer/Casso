@@ -248,6 +248,7 @@ public:
             DxuiPanel  panel;
             panel.Adopt (caller);
         }
+
         // If the panel had taken ownership the dtor would have freed
         // caller; we still have a live local, so its destructor must
         // run after this scope on its own terms. (Test simply asserts

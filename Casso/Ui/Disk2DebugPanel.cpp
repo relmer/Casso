@@ -515,6 +515,7 @@ void Disk2DebugPanel::SortByColumn (int absCol)
         m_sortColumn     = absCol;
         m_sortDescending = false;
     }
+
     m_eventList->SetSortIndicator (m_sortColumn, m_sortDescending);
     RebuildFilteredIndices();
     SyncListRowCount();
@@ -1387,6 +1388,7 @@ void Disk2DebugPanel::RebuildFilteredIndices()
                 c = la.compare (lb);
                 break;
             }
+
             case 5: c = ea.detail.compare (eb.detail); break;
             default: break;
         }
@@ -1397,6 +1399,7 @@ void Disk2DebugPanel::RebuildFilteredIndices()
             // keys keep a stable, predictable arrangement.
             return ia < ib;
         }
+
         return desc ? (c > 0) : (c < 0);
     });
 }
@@ -1657,6 +1660,7 @@ void Disk2DebugPanel::OnMotorCommandOn()
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::MotorCommandOn);
     PublishToRing (e);
 }
+
 void Disk2DebugPanel::OnMotorEngaged()
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::MotorEngaged);

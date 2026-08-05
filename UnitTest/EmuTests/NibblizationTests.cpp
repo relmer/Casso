@@ -317,6 +317,7 @@ public:
             vector<Byte> & b = img.GetTrackBitsForWrite (wiped);
             std::fill (b.begin(), b.end(), static_cast<Byte> (0));
         }
+
         img.SetTrackBitCount (wiped, DiskImage::kDefaultTrackByteSize * 8);
 
         AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered));
@@ -326,6 +327,7 @@ public:
         {
             Assert::AreEqual (Byte (0), recovered[static_cast<size_t> (wiped) * trkBytes + i]);
         }
+
         // Adjacent track 4 -> unaffected, still matches the original.
         bool  neighborOk = true;
         for (size_t i = 0; i < trkBytes; i++)
@@ -333,6 +335,7 @@ public:
             size_t  off = static_cast<size_t> (4) * trkBytes + i;
             if (recovered[off] != raw[off]) { neighborOk = false; break; }
         }
+
         Assert::IsTrue (neighborOk, L"a formatted neighbor track must be unaffected");
     }
 };

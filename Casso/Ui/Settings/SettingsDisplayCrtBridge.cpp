@@ -150,12 +150,14 @@ void SettingsDisplayCrtBridge::ReseedFromActiveMode()
                     snap.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
                     snap.scanlinesIntensity = themeDefaults->scanlinesIntensity;
                 }
+
                 if (themeDefaults->hasBloom)
                 {
                     snap.bloomEnabled  = themeDefaults->bloomEnabled;
                     snap.bloomRadius   = themeDefaults->bloomRadius;
                     snap.bloomStrength = themeDefaults->bloomStrength;
                 }
+
                 if (themeDefaults->hasColorBleed)
                 {
                     snap.colorBleedEnabled = themeDefaults->colorBleedEnabled;
@@ -163,6 +165,7 @@ void SettingsDisplayCrtBridge::ReseedFromActiveMode()
                 }
             }
         }
+
         m_displayPage->SetInitialCrt (snap);
 
         // Re-publish the per-control defaults hint so DisplayPage knows
@@ -237,17 +240,20 @@ void SettingsDisplayCrtBridge::PublishDefaultsHint()
                 hint.values.brightness    = themeDefaults->brightness;
                 hint.brightnessFromTheme  = true;
             }
+
             if (themeDefaults->hasContrast)
             {
                 hint.values.contrast    = themeDefaults->contrast;
                 hint.contrastFromTheme  = true;
             }
+
             if (themeDefaults->hasScanlines)
             {
                 hint.values.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
                 hint.values.scanlinesIntensity = themeDefaults->scanlinesIntensity;
                 hint.scanlinesFromTheme        = true;
             }
+
             if (themeDefaults->hasBloom)
             {
                 hint.values.bloomEnabled  = themeDefaults->bloomEnabled;
@@ -255,6 +261,7 @@ void SettingsDisplayCrtBridge::PublishDefaultsHint()
                 hint.values.bloomStrength = themeDefaults->bloomStrength;
                 hint.bloomFromTheme       = true;
             }
+
             if (themeDefaults->hasColorBleed)
             {
                 hint.values.colorBleedEnabled = themeDefaults->colorBleedEnabled;
@@ -349,18 +356,21 @@ void SettingsDisplayCrtBridge::ResetActiveToDefaults()
             blk.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
             blk.scanlinesIntensity = themeDefaults->scanlinesIntensity;
         }
+
         if (themeDefaults->hasBloom)
         {
             blk.bloomEnabled  = themeDefaults->bloomEnabled;
             blk.bloomRadius   = themeDefaults->bloomRadius;
             blk.bloomStrength = themeDefaults->bloomStrength;
         }
+
         if (themeDefaults->hasColorBleed)
         {
             blk.colorBleedEnabled = themeDefaults->colorBleedEnabled;
             blk.colorBleedWidth   = themeDefaults->colorBleedWidth;
         }
     }
+
     blk.userOverride = true;
 }
 
@@ -436,10 +446,12 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks()
         {
             m_state->SetColorMode ((SettingsColorMode) idx);
         }
+
         if (m_emuShell != nullptr)
         {
             m_emuShell->SetColorModeLive (idx);
         }
+
         ReseedFromActiveMode();
     });
 
@@ -493,10 +505,12 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks()
         {
             m_prefs->ResetColorMonitorTextToDefault();
         }
+
         if (m_displayPage != nullptr)
         {
             m_displayPage->SetTextColor (ColorMonitorTextMode::White, custom);
         }
+
         if (m_emuShell != nullptr)
         {
             m_emuShell->SetColorMonitorTextArgbLive (

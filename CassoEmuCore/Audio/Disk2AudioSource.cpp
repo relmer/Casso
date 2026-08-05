@@ -922,6 +922,7 @@ void Disk2AudioSource::MixTest (float * out, uint32_t n)
     {
         m_testBuf = nullptr;
     }
+
     BAIL_OUT_IF (len == 0, S_OK);
 
     for (i = 0; i < n; i++)

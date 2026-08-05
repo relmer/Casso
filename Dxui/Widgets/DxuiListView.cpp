@@ -202,6 +202,7 @@ void DxuiListView::ProvideRow (int r, std::vector<Cell> & out) const
         {
             m_rowProvider (r, out);
         }
+
         return;
     }
 
@@ -2978,6 +2979,7 @@ void DxuiListView::Tick (int64_t nowMs)
                 {
                     PageFromTrackClick (m_scrollRepeatYPx);
                 }
+
                 break;
 
             case ScrollRepeat::HorzTrack:
@@ -2990,6 +2992,7 @@ void DxuiListView::Tick (int64_t nowMs)
                 {
                     PageFromHorzTrackClick (m_scrollRepeatXPx);
                 }
+
                 break;
 
             default:
@@ -3497,6 +3500,7 @@ void DxuiListView::MoveHeaderFocus (int dir)
     {
         next = 0;
     }
+
     if (next > n - 1)
     {
         next = n - 1;

@@ -134,6 +134,7 @@ Error:
     {
         Shutdown();
     }
+
     return hr;
 }
 
@@ -437,6 +438,7 @@ Error:
     {
         ReleaseBlurTextures();
     }
+
     return hr;
 }
 

@@ -505,6 +505,7 @@ bool DxuiTreeView::OnKey (WPARAM vk)
                     n->expanded = true;
                     RebuildFlatRows();
                 }
+
                 break;
 
             case VK_LEFT:
@@ -514,6 +515,7 @@ bool DxuiTreeView::OnKey (WPARAM vk)
                     n->expanded = false;
                     RebuildFlatRows();
                 }
+
                 break;
 
             case VK_SPACE:
@@ -758,12 +760,14 @@ bool DxuiTreeView::OnMouse (const DxuiMouseEvent & ev)
         {
             handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }
+
         break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
             handled = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
         }
+
         break;
     default:
         break;

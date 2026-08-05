@@ -96,6 +96,7 @@ public:
         {
             pz.OnMouse (Wheel (+1.0f, false, true));
         }
+
         Assert::AreEqual (4.0f, pz.ZoomTarget(), 0.0001f);   // clamped at zoomMax
     }
 
@@ -109,12 +110,14 @@ public:
         {
             pz.OnMouse (Wheel (+1.0f, false, true));
         }
+
         Assert::IsTrue (pz.ZoomTarget() > 1.0f);
 
         for (int i = 0; i < 20; i++)
         {
             pz.OnMouse (Wheel (-1.0f, false, true));
         }
+
         Assert::AreEqual (1.0f, pz.ZoomTarget(), 0.0001f);   // clamped at zoomMin
     }
 
@@ -178,6 +181,7 @@ public:
         {
             pz.OnMouse (Wheel (-1.0f));   // push up past the +50 ceiling
         }
+
         Settle (pz);
         Assert::AreEqual (50.0f, pz.PanY(), 0.001f);
     }
@@ -198,6 +202,7 @@ public:
         {
             pz.OnMouse (Wheel (-0.1f));   // ten tenth-notch deltas == one notch
         }
+
         Settle (pz);
         Assert::AreEqual (96.0f, pz.PanY(), 0.01f);
     }
@@ -513,6 +518,7 @@ public:
         {
             pz.OnMouse (Wheel (-1.0f));   // push panY toward +50, then overscroll
         }
+
         Settle (pz);
 
         Assert::AreEqual (50.0f, pz.PanY(),       0.001f);   // paper pinned at the limit
@@ -561,6 +567,7 @@ public:
         {
             pz.OnMouse (Wheel (-1.0f));   // into overscroll
         }
+
         Assert::IsTrue (pz.OverscrollY() > 0.0f);
 
         pz.SetPanYTarget (0.0f);          // follow mode reclaims the paper position
@@ -584,6 +591,7 @@ public:
         {
             pz.OnMouse (Wheel (-1.0f));
         }
+
         Settle (pz);
         Assert::AreEqual (50.0f, pz.PanY(),       0.001f);
         Assert::AreEqual (0.0f,  pz.OverscrollY(), 0.001f);
@@ -604,6 +612,7 @@ public:
         {
             pz.OnMouse (Wheel (-1.0f));
         }
+
         Assert::IsTrue (pz.OverscrollY() > 0.0f);
 
         pz.SnapPanY (0.0f);               // torn / replaced content

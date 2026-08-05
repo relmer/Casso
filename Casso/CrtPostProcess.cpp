@@ -167,12 +167,14 @@ CrtParams MakeCrtParams (
             scanEn  = themeDefaults->scanlinesEnabled;
             scanInt = themeDefaults->scanlinesIntensity;
         }
+
         if (themeDefaults->hasBloom)
         {
             bloomEn = themeDefaults->bloomEnabled;
             bloomR  = themeDefaults->bloomRadius;
             bloomS  = themeDefaults->bloomStrength;
         }
+
         if (themeDefaults->hasColorBleed)
         {
             bleedEn = themeDefaults->colorBleedEnabled;
@@ -743,6 +745,7 @@ void CrtPostProcess::DrawFullscreen (
         vp.Width    = (float) viewportW;
         vp.Height   = (float) viewportH;
     }
+
     vp.MaxDepth = 1.0f;
     m_context->RSSetViewports (1, &vp);
 
@@ -893,6 +896,7 @@ HRESULT CrtPostProcess::Process (
                             nullptr);
             cur = 1 - cur;
         }
+
         if (m_persistenceTex && m_ppMainTex[cur])
         {
             m_context->CopyResource (m_persistenceTex.Get(), m_ppMainTex[cur].Get());
@@ -972,6 +976,7 @@ void CrtPostProcess::Shutdown()
         m_ppBloomRtv[i].Reset();
         m_ppBloomTex[i].Reset();
     }
+
     m_persistenceSrv.Reset();
     m_persistenceRtv.Reset();
     m_persistenceTex.Reset();

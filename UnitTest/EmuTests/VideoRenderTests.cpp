@@ -831,6 +831,7 @@ namespace Phase12GoldenHelpers
                 h *= 0x100000001b3ULL;
             }
         }
+
         return h;
     }
 

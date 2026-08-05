@@ -73,6 +73,7 @@ struct DxuiTheme : public IDxuiTheme
         // keeps visual parity with the prior in-widget disable mask.
         return (bodyText & 0x00FFFFFFu) | 0x80000000u;
     }
+
     uint32_t  HeadingForeground   () const override { return titleText;          }
     uint32_t  ErrorForeground     () const override { return errorText;          }
 

@@ -612,17 +612,20 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand)
     {
         // Nothing to classify.
     }
+
     // Immediate: #expr
     else if (op[0] == '#')
     {
         result.syntax     = OperandSyntax::Immediate;
         result.expression = TrimOperand (op.substr (1));
     }
+
     // Accumulator: "A" (exact match, case-insensitive)
     else if (ToUpperStr (op) == "A")
     {
         result.syntax = OperandSyntax::Accumulator;
     }
+
     // Indirect modes: starts with '('
     else if (op[0] == '(')
     {
@@ -649,6 +652,7 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand)
                 result.syntax     = OperandSyntax::IndirectX;
                 result.expression = TrimOperand (inner.substr (0, commaPos));
             }
+
             // (expr),Y — IndirectY
             else if (!after.empty() && after[0] == ',' &&
                      ToUpperStr (TrimOperand (after.substr (1))) == "Y")
@@ -656,6 +660,7 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand)
                 result.syntax     = OperandSyntax::IndirectY;
                 result.expression = inner;
             }
+
             // Plain (expr) — Indirect (for JMP)
             else
             {

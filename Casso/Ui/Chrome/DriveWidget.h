@@ -52,6 +52,7 @@ public:
         m_labelRect = {};
         m_hidden    = true;
     }
+
     void               SetPerspectiveSkewPx (int skewPx) { m_perspectiveSkewPx = skewPx; }
     void               SetCompact      (bool compact)    { m_compact = compact; }
     bool               IsCompact       () const          { return m_compact; }
@@ -105,6 +106,7 @@ public:
         if (m_labelRect.bottom > r.bottom) { r.bottom = m_labelRect.bottom; }
         return r;
     }
+
     RECT               EjectRect       () const { return m_ejectRect; }
     LedState           Led             () const { return m_led.GetState(); }
     int                Drive           () const { return m_drive; }

@@ -321,6 +321,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
         dpi = GetDpiForWindow (m_params.ownerHwnd);
         if (dpi == 0) { dpi = s_kDefaultDpi; }
     }
+
     sizePx.cx = MulDiv (m_params.sizeDip.cx, (int) dpi, (int) s_kDefaultDpi);
     sizePx.cy = MulDiv (m_params.sizeDip.cy, (int) dpi, (int) s_kDefaultDpi);
 
@@ -383,8 +384,10 @@ Error:
             m_completionPromise.set_value (-1);
             m_completionPending = false;
         }
+
         m_open = false;
     }
+
     return hr;
 }
 
@@ -441,6 +444,7 @@ void DxuiPopupHost::Close (int resultCode)
     {
         m_parent->m_activeChild = nullptr;
     }
+
     m_parent      = nullptr;
     m_activeChild = nullptr;
 
@@ -450,6 +454,7 @@ void DxuiPopupHost::Close (int resultCode)
         {
             ReleaseCapture();
         }
+
         ShowWindow (m_hwnd, SW_HIDE);
     }
 
@@ -591,6 +596,7 @@ RECT DxuiPopupHost::ComputePlacementForTest (
                     chosen = DxuiPopupPlacement::Above;
                     placed = PlaceOnEdge (anchorScreenPx, chosen, popupSizePx);
                 }
+
                 break;
 
             case DxuiPopupPlacement::Above:
@@ -600,6 +606,7 @@ RECT DxuiPopupHost::ComputePlacementForTest (
                     chosen = DxuiPopupPlacement::Below;
                     placed = PlaceOnEdge (anchorScreenPx, chosen, popupSizePx);
                 }
+
                 break;
 
             case DxuiPopupPlacement::Right:
@@ -609,6 +616,7 @@ RECT DxuiPopupHost::ComputePlacementForTest (
                     chosen = DxuiPopupPlacement::Left;
                     placed = PlaceOnEdge (anchorScreenPx, chosen, popupSizePx);
                 }
+
                 break;
 
             case DxuiPopupPlacement::Left:
@@ -618,6 +626,7 @@ RECT DxuiPopupHost::ComputePlacementForTest (
                     chosen = DxuiPopupPlacement::Right;
                     placed = PlaceOnEdge (anchorScreenPx, chosen, popupSizePx);
                 }
+
                 break;
 
             case DxuiPopupPlacement::AtCursor:
@@ -638,6 +647,7 @@ RECT DxuiPopupHost::ComputePlacementForTest (
             placed.left  -= shift;
             placed.right -= shift;
         }
+
         if (placed.left < monitorWorkAreaPx.left)
         {
             LONG  shift = monitorWorkAreaPx.left - placed.left;
@@ -656,6 +666,7 @@ RECT DxuiPopupHost::ComputePlacementForTest (
             placed.top    -= shift;
             placed.bottom -= shift;
         }
+
         if (placed.top < monitorWorkAreaPx.top)
         {
             LONG  shift = monitorWorkAreaPx.top - placed.top;
@@ -812,6 +823,7 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             {
                 Close (0);
             }
+
             claimed = true;
             break;
 
@@ -828,6 +840,7 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
                     m_params.onMoveInside (pt);
                 }
             }
+
             break;
 
         case WM_LBUTTONDOWN:
@@ -857,6 +870,7 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
                     claimed = true;
                 }
             }
+
             break;
 
         case WM_MOUSEACTIVATE:
@@ -873,6 +887,7 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
                 Close (0);
                 claimed = true;
             }
+
             break;
 
         default:
@@ -1186,12 +1201,14 @@ void DxuiPopupHost::ReleaseBackBufferRtv()
     {
         m_textRenderer.UnbindBackBuffer();
     }
+
     if (m_context && m_rtv)
     {
         ID3D11RenderTargetView *  nullRtv[1] = { nullptr };
 
         m_context->OMSetRenderTargets (1, nullRtv, nullptr);
     }
+
     m_rtv.Reset();
 }
 
@@ -1310,10 +1327,12 @@ Error:
     {
         (void) m_textRenderer.EndDraw();
     }
+
     if (painterBegun)
     {
         (void) m_painter.End (m_rtv.Get());
     }
+
     return;
 }
 

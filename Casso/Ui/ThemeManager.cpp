@@ -279,6 +279,7 @@ HRESULT ThemeManager::ReloadCurrent()
         {
             hr = S_OK;
         }
+
         CHR (hr);
     }
 

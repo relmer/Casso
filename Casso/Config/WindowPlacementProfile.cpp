@@ -272,5 +272,6 @@ void WindowPlacementProfile::Save (
     {
         return;
     }
+
     m_prefs->window.placements[topologyKey] = bounds;
 }

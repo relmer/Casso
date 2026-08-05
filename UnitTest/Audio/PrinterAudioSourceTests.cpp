@@ -343,6 +343,7 @@ public:
         {
             src.SetTearForTest (i, Const (8, 0.7f));
         }
+
         src.SetVolume (1.0f);
 
         Assert::IsFalse (src.IsActionPlaying());

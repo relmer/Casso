@@ -68,6 +68,7 @@ void CassoBranding::DrawCassowaryRainbow (
             if (i > lastRow)  { lastRow  = i; }
         }
     }
+
     if (lastRow < firstRow)
     {
         return;

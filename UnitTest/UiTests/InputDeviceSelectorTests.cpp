@@ -92,6 +92,7 @@ public:
                 sawM2 = true;
             }
         }
+
         Assert::IsFalse (sawM2, L"no Mouse segment when unavailable");
     }
 
@@ -134,6 +135,7 @@ public:
                 last = seg;
             }
         }
+
         Assert::AreEqual (3, found, L"three segment tooltips collected");
         Assert::IsTrue (segTips[0] != segTips[1] && segTips[1] != segTips[2],
             L"segment tooltips are independent");

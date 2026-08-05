@@ -64,6 +64,7 @@ public:
         m_fileReadOnly     = readOnly;
         m_fileNoPermission = noPermission;
     }
+
     bool             IsImageWriteProtected  () const { return m_imageWriteProtected; }
     bool             IsUserWriteProtected   () const { return m_userWriteProtected;  }
     WriteProtectInfo GetWriteProtectInfo    () const;

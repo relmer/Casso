@@ -57,6 +57,7 @@ TEST_CLASS (ClipboardTextTests)
         {
             bus.SetReadPage (page, main.data() + page * 0x100);
         }
+
         main[kRow0 + 0] = Screen ('B');   // odd display column 1
         main[kRow0 + 1] = Screen ('D');   // odd display column 3
     }

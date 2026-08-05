@@ -28,6 +28,7 @@ std::wstring UserConfigStore::Widen (const std::string & narrow)
     {
         out.push_back ((wchar_t) (unsigned char) c);
     }
+
     return out;
 }
 
@@ -52,6 +53,7 @@ std::string UserConfigStore::Narrow (const std::wstring & wide)
     {
         out.push_back ((char) (unsigned char) c);
     }
+
     return out;
 }
 
@@ -256,6 +258,7 @@ JsonValue UserConfigStore::CanonicalizeVersionStamp (
     {
         canonicalVersion = ExtractVersionForKey (userJson, kpszLegacyVersionKey);
     }
+
     if (fallbackVersion > 0 && canonicalVersion < fallbackVersion)
     {
         canonicalVersion = fallbackVersion;
@@ -272,6 +275,7 @@ JsonValue UserConfigStore::CanonicalizeVersionStamp (
                 out.emplace_back (kpszVersionKey, JsonValue ((double) canonicalVersion));
                 fWroteVersion = true;
             }
+
             continue;
         }
 
@@ -384,8 +388,10 @@ JsonValue UserConfigStore::BuildObjectWithEnabled (
         {
             continue;
         }
+
         rebuilt.emplace_back ((*entries)[i].first, (*entries)[i].second);
     }
+
     rebuilt.emplace_back ("enabled", JsonValue (enabled));
 
     return JsonValue (std::move (rebuilt));
@@ -1386,11 +1392,13 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
     {
         trace += L" global";
     }
+
     for (const auto & filename : legacyUserFiles)
     {
         trace += L" ";
         trace += filename;
     }
+
     trace += L"\n";
     OutputDebugStringW (trace.c_str());
 
@@ -1556,6 +1564,7 @@ JsonValue UserConfigStore::DiffJson (
                 {
                     diff.emplace_back (key, std::move (uiDiff));
                 }
+
                 continue;
             }
 
@@ -1584,6 +1593,7 @@ JsonValue UserConfigStore::DiffJson (
             {
                 diff.emplace_back (key, std::move (hwDelta));
             }
+
             continue;
         }
 
@@ -1596,6 +1606,7 @@ JsonValue UserConfigStore::DiffJson (
             {
                 diff.emplace_back (key, std::move (hwDelta));
             }
+
             continue;
         }
 
@@ -1606,6 +1617,7 @@ JsonValue UserConfigStore::DiffJson (
             {
                 diff.emplace_back (key, std::move (uiDiff));
             }
+
             continue;
         }
 
@@ -1616,6 +1628,7 @@ JsonValue UserConfigStore::DiffJson (
             {
                 diff.emplace_back (key, std::move (nested));
             }
+
             continue;
         }
 
@@ -1681,6 +1694,7 @@ bool UserConfigStore::JsonEqual (
                 {
                     equal = JsonEqual (a.ArrayAt (i), b.ArrayAt (i));
                 }
+
                 break;
 
             case JsonType::Object:
@@ -1697,6 +1711,7 @@ bool UserConfigStore::JsonEqual (
                     idx   = FindObjectKey (be, ae[i].first);
                     equal = idx >= 0 && JsonEqual (ae[i].second, be[(size_t) idx].second);
                 }
+
                 break;
             }
         }

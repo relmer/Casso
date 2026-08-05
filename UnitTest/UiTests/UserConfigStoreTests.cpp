@@ -151,6 +151,7 @@ public:
         {
             out.push_back ((wchar_t) (unsigned char) c);
         }
+
         return out;
     }
 

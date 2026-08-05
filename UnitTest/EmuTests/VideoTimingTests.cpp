@@ -200,6 +200,7 @@ public:
         {
             vt.Tick (VideoTiming::kCyclesPerFrame);
         }
+
         vt.Tick (100);
 
         Assert::AreEqual (static_cast<uint32_t> (100), vt.GetCycleInFrame(),

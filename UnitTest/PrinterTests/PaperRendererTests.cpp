@@ -232,6 +232,7 @@ namespace PaperRendererTests
                 {
                     raster.Strike (col, 0, InkPrimary::Black);
                 }
+
                 AssertSucceeded (renderer.Render (raster, 0, 0, opt, img));
                 InkBounds (img, minX, minY, maxX, maxY);
                 inkW = maxX - minX + 1;
@@ -248,6 +249,7 @@ namespace PaperRendererTests
                 {
                     raster.Strike (0, row, InkPrimary::Black);
                 }
+
                 AssertSucceeded (renderer.Render (raster, 0, 143, opt, img));
                 InkBounds (img, minX, minY, maxX, maxY);
                 inkH = maxY - minY + 1;

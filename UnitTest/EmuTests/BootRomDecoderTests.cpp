@@ -192,6 +192,7 @@ public:
             {
                 core.diskController->Tick (cycles);
             }
+
             cyc += cycles;
 
             if (fp != nullptr && (cyc & 0x7FFF) < cycles)
@@ -226,12 +227,14 @@ public:
                     {
                         if (idxs[k] == j) { taken = true; break; }
                     }
+
                     if (!taken && pcVisits[j] > bestCnt)
                     {
                         bestCnt = pcVisits[j];
                         bestIdx = j;
                     }
                 }
+
                 idxs[slot] = bestIdx;
                 if (bestIdx >= 0)
                 {
@@ -240,6 +243,7 @@ public:
                              (unsigned long long) pcVisits[bestIdx]);
                 }
             }
+
             fclose (fp);
         }
 

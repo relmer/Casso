@@ -506,6 +506,7 @@ void ThemePage::SetThemes (std::vector<std::string>  themeIds,
         {
             return;
         }
+
         m_activeIndex = idx;
         UpdateMonitorCheckboxEnabled();
         if (m_onThemeSelected)

@@ -274,6 +274,7 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     {
         defIndex = 0;
     }
+
     defaultCmd = buttons[(size_t) defIndex].id;
 
     switch (uType & MB_ICONMASK)

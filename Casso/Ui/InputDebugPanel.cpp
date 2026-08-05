@@ -145,6 +145,7 @@ void InputDebugPanel::FormatCycleWithSeparators (uint64_t value, wchar_t * out, 
             {
                 break;
             }
+
             out[outIdx++] = L',';
         }
 
@@ -152,6 +153,7 @@ void InputDebugPanel::FormatCycleWithSeparators (uint64_t value, wchar_t * out, 
         {
             break;
         }
+
         out[outIdx++] = digits[i];
     }
 
@@ -411,6 +413,7 @@ InputGamePortClass InputDebugPanel::ClassifyGamePort (InputEventType type, Word 
             {
                 cls = InputGamePortClass::Pair1;
             }
+
             break;
 
         case InputEventType::HostButton:
@@ -420,6 +423,7 @@ InputGamePortClass InputDebugPanel::ClassifyGamePort (InputEventType type, Word 
                 case s_kHostButton1Index: cls = InputGamePortClass::Pair0; break;
                 default:                                                   break;
             }
+
             break;
 
         case InputEventType::ButtonRead:
@@ -430,6 +434,7 @@ InputGamePortClass InputDebugPanel::ClassifyGamePort (InputEventType type, Word 
                 case s_kShiftButtonAddress: cls = InputGamePortClass::Pair1; break;
                 default:                                                     break;
             }
+
             break;
 
         case InputEventType::PaddleRead:
@@ -441,6 +446,7 @@ InputGamePortClass InputDebugPanel::ClassifyGamePort (InputEventType type, Word 
                 case s_kPaddle3Address:     cls = InputGamePortClass::Pair1; break;
                 default:                                                     break;
             }
+
             break;
 
         case InputEventType::PaddleTrigger:
@@ -568,6 +574,7 @@ void InputDebugPanel::FormatInputEvent (
                     out.meaning = std::format (L"HOST PDL{} = {}", axis, value);
                 }
             }
+
             break;
 
         case InputEventType::HostButton:
@@ -622,6 +629,7 @@ void InputDebugPanel::FormatInputEvent (
                 out.meaning.append (L"  ");
                 out.meaning.append (button);
             }
+
             break;
 
         case InputEventType::PaddleTrigger:
@@ -1267,6 +1275,7 @@ void InputDebugPanel::DrainAndProject()
         {
             ProjectOne (e, m_events, m_uptimeAnchor, m_filter);
         }
+
         m_pendingHostEvents.clear();
     }
 
@@ -1300,6 +1309,7 @@ void InputDebugPanel::DrainAndProject()
         {
             m_events.pop_front();
         }
+
         trimmed = true;
     }
 
@@ -1407,6 +1417,7 @@ void InputDebugPanel::AppendNewEventRows (size_t startIndex)
         {
             AppendColumnText (row[(size_t) col].text, m_events[i], col);
         }
+
         rows.push_back (std::move (row));
     }
 
@@ -1453,6 +1464,7 @@ void InputDebugPanel::PushListViewRows()
         {
             AppendColumnText (row[(size_t) col].text, m_events[eventIndex], col);
         }
+
         rows.push_back (std::move (row));
     }
 
@@ -1486,6 +1498,7 @@ void InputDebugPanel::ClearEvents()
     while (m_ring.Drain (scratch.data(), (uint32_t) scratch.size()) != 0)
     {
     }
+
     m_droppedSinceLastDrain.store (0, std::memory_order_relaxed);
     m_eventList->ResetAutoFit();
     PushListViewRows();
@@ -1778,6 +1791,7 @@ void InputDebugPanel::ApplySort()
         {
             return _wcsicmp (l.c_str(), r.c_str()) > 0;
         }
+
         return _wcsicmp (l.c_str(), r.c_str()) < 0;
     };
 
@@ -2010,6 +2024,7 @@ bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
 
                 handled = true;
             }
+
             break;
 
         case DxuiMouseEventKind::Up:
@@ -2060,6 +2075,7 @@ bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
 
                 handled = true;
             }
+
             break;
 
         case DxuiMouseEventKind::Wheel:
@@ -2204,11 +2220,13 @@ void InputDebugPanel::UpdateTooltip (int x, int y)
         text   = L"Pause or resume live input logging";
         anchor = m_pauseButton->Bounds();
     }
+
     if (text == nullptr && m_clearButton->HitTest (x, y))
     {
         text   = L"Clear the input debug log";
         anchor = m_clearButton->Bounds();
     }
+
     if (text == nullptr && m_copyButton->HitTest (x, y))
     {
         text   = L"Copy the visible input debug log to the clipboard";
@@ -2380,10 +2398,12 @@ void InputDebugPanel::OnKbdStrobe (Word address, Byte value, bool clearedStrobe)
     {
         e.payload.io.flags |= InputEvent::kFlagStrobe;
     }
+
     if ((value & s_kAnyKeyDownBit) != 0)
     {
         e.payload.io.flags |= InputEvent::kFlagAnyKeyDown;
     }
+
     PublishToRing (e);
 }
 

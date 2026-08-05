@@ -589,6 +589,7 @@ void SettingsPanelState::SetWriteProtect (int drive, bool wp)
     {
         return;
     }
+
     m_current.prefs.writeProtect[drive] = wp;
 }
 
@@ -698,6 +699,7 @@ HRESULT SettingsPanelState::Apply (
     {
         sink.ApplyWriteProtect (i, m_current.prefs.writeProtect[i]);
     }
+
     sink.ApplyExternalDriveConnected (m_current.prefs.externalDriveConnected);
     sink.ApplyMouseConnected (m_current.prefs.mouseConnected);
 
@@ -865,6 +867,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
         {
             i = 2;
         }
+
         for (; i < str.size(); ++i)
         {
             char c = str[i];
@@ -875,6 +878,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
             else                            { return 0; }
             out = (out << 4) | (uint32_t) d;
         }
+
         return out;
     };
 
@@ -884,10 +888,12 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
         {
             return "0";
         }
+
         if (bytes >= 1024 && (bytes % 1024) == 0)
         {
             return std::format ("{}K", bytes / 1024);
         }
+
         return std::format ("{}B", bytes);
     };
 
@@ -901,6 +907,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
         {
             return;
         }
+
         uint32_t              end    = addr + size - 1;
         SettingsMemoryRegion  region;
         region.name         = label;
@@ -960,6 +967,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
             {
                 continue;
             }
+
             hrRead = entry.GetString ("address", addr);
             IGNORE_RETURN_VALUE (hrRead, S_OK);
             hrRead = entry.GetString ("size", size);
@@ -976,6 +984,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
                 label   = std::format ("RAM ({})", bank);
                 hasAux  = true;
             }
+
             FormatRegion (label, addr, size);
             totalRamBytes += ParseHex (size);
         }
@@ -1031,6 +1040,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
                     size = std::format ("0x{:X}", 0x10000u - startAddr);
                 }
             }
+
             FormatRegion ("System ROM", addr, size);
         }
     }
@@ -1297,6 +1307,7 @@ JsonValue SettingsPanelState::BuildJson (
         {
             continue;
         }
+
         root.emplace_back (key, CloneJson (val));
     }
 
@@ -1332,6 +1343,7 @@ JsonValue SettingsPanelState::BuildJson (
                         break;
                     }
                 }
+
                 (void) found;
 
                 std::vector<std::pair<std::string, JsonValue>>  rebuilt;
@@ -1343,8 +1355,10 @@ JsonValue SettingsPanelState::BuildJson (
                     {
                         continue;
                     }
+
                     rebuilt.emplace_back (srcEntry.first, CloneJson (srcEntry.second));
                 }
+
                 rebuilt.emplace_back ("enabled", JsonValue (enabledFlag));
                 devArr.emplace_back (JsonValue (std::move (rebuilt)));
             }
@@ -1382,8 +1396,10 @@ JsonValue SettingsPanelState::BuildJson (
                     {
                         continue;
                     }
+
                     rebuilt.emplace_back (srcEntry.first, CloneJson (srcEntry.second));
                 }
+
                 rebuilt.emplace_back ("enabled", JsonValue (enabledFlag));
                 slotArr.emplace_back (JsonValue (std::move (rebuilt)));
             }
@@ -1394,6 +1410,7 @@ JsonValue SettingsPanelState::BuildJson (
     {
         root.emplace_back ("internalDevices", JsonValue (std::move (devArr)));
     }
+
     if (! slotArr.empty())
     {
         root.emplace_back ("slots", JsonValue (std::move (slotArr)));

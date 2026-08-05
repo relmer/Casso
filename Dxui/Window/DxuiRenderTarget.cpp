@@ -194,6 +194,7 @@ Error:
     {
         ReleaseComposeTarget();
     }
+
     return hr;
 }
 
@@ -235,6 +236,7 @@ void DxuiRenderTarget::RenderFrame (const IDxuiTheme * theme)
         {
             bgArgb = theme->Background();
         }
+
         clearColor[0] = (float) ((bgArgb >> 16) & 0xFFu) / 255.0f;
         clearColor[1] = (float) ((bgArgb >>  8) & 0xFFu) / 255.0f;
         clearColor[2] = (float) ((bgArgb      ) & 0xFFu) / 255.0f;
@@ -272,6 +274,7 @@ void DxuiRenderTarget::RenderFrame (const IDxuiTheme * theme)
                 PresentFrame();
                 composed = true;
             }
+
             // EnsureComposeTarget failed -> fall through to the direct path.
         }
 

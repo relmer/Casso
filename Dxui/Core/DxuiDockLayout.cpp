@@ -129,6 +129,7 @@ void DxuiDockLayout::Arrange (
             {
                 firstFill = child;
             }
+
             continue;
         }
 

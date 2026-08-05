@@ -85,8 +85,10 @@ public:
         {
             Close();
         }
+
         m_popupHost = host;
     }
+
     DxuiHwndSource *  PopupHost () const { return m_popupHost; }
     DxuiPopupHost  *  ActivePopup () const { return m_activePopup; }
 

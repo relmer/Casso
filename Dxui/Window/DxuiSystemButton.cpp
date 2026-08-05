@@ -125,6 +125,7 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         {
             bg = m_pressed ? theme.SystemButtonPressed() : theme.SystemButtonHover();
         }
+
         painter.FillRect (xPx, yPx, widthPx, heightPx, bg);
     }
 
@@ -189,6 +190,7 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
                                      strokePx,
                                      fg);
             }
+
             break;
 
         case DxuiSystemButtonKind::Close:
@@ -218,6 +220,7 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
                     painter.FillRect (px2, py, strokePx, strokePx, fg);
                 }
             }
+
             break;
     }
 }
@@ -271,6 +274,7 @@ bool DxuiSystemButton::OnMouse (const DxuiMouseEvent & ev)
                 m_pressed = true;
                 claimed   = true;
             }
+
             break;
 
         case DxuiMouseEventKind::Up:
@@ -286,6 +290,7 @@ bool DxuiSystemButton::OnMouse (const DxuiMouseEvent & ev)
                     claimed = true;
                 }
             }
+
             break;
 
         case DxuiMouseEventKind::Wheel:

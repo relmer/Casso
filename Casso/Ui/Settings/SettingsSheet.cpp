@@ -42,6 +42,7 @@ SettingsSheet::~SettingsSheet()
     {
         PopupHost()->SetComposeHook (nullptr);
     }
+
     m_compositor.Shutdown();
 }
 
@@ -259,6 +260,7 @@ HRESULT SettingsSheet::OpenModeless (
             m_previewActive  = false;
             m_previewFocusId = -1;
         }
+
         UpdatePreviewCompose();   // reflect the new state on the next composed frame
     });
 
@@ -325,6 +327,7 @@ HRESULT SettingsSheet::OpenModeless (
                 m_emuShell->SetColorMonitorTextArgbLive (argb);
             }
         }
+
         Invalidate();
     });
 
@@ -463,6 +466,7 @@ void SettingsSheet::OnDialogTick()
         m_previewActive  = false;
         m_previewFocusId = -1;
     }
+
     UpdatePreviewCompose();
 }
 
@@ -746,6 +750,7 @@ bool SettingsSheet::OnOverlayChar (wchar_t ch)
     {
         Invalidate();
     }
+
     return handled;
 }
 
@@ -769,6 +774,7 @@ bool SettingsSheet::OnOverlayKey (WPARAM vk)
     {
         Invalidate();
     }
+
     return handled;
 }
 

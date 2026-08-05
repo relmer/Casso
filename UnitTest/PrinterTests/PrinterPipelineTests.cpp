@@ -45,6 +45,7 @@ namespace PrinterPipelineTests
             {
                 out.push_back (0xFF);        // all eight pins
             }
+
             out.push_back (0x0D);            // CR
             out.push_back (0x0A);            // LF
         }

@@ -37,6 +37,7 @@ namespace ImageWriterInterpreterTests
         {
             if (event.type == type) n++;
         }
+
         return n;
     }
 
@@ -166,6 +167,7 @@ namespace ImageWriterInterpreterTests
             {
                 stream.push_back (0x80);   // top pin (MSB) all the way across
             }
+
             Feed (interp, raster, events, stream);
 
             // 120-dpi columns on the 160-dpi grid: 256 columns span
@@ -194,6 +196,7 @@ namespace ImageWriterInterpreterTests
             {
                 stream.push_back (0x7F);   // all pins but the top (MSB clear)
             }
+
             stream.push_back (0x0D);
             stream.push_back (0x0A);
             Feed (interp, raster, events, stream);
@@ -225,6 +228,7 @@ namespace ImageWriterInterpreterTests
             {
                 stream.push_back (0xFF);
             }
+
             stream.push_back (0x1B);
             stream.push_back ('L');
             stream.push_back (0x60);   // 864 = 0x0360
@@ -233,6 +237,7 @@ namespace ImageWriterInterpreterTests
             {
                 stream.push_back (0xFF);
             }
+
             stream.push_back (0x0D);
             stream.push_back (0x0A);
             Feed (interp, raster, events, stream);
@@ -353,6 +358,7 @@ namespace ImageWriterInterpreterTests
             {
                 if (e.type == PrinterEventType::HeadBurst) { burst = &e; break; }
             }
+
             Assert::IsTrue (burst != nullptr);
             if (burst == nullptr) { return; }     // guard so code analysis sees the deref below is safe
             Assert::IsTrue (burst->toDot > 0);    // 'A' laid ink

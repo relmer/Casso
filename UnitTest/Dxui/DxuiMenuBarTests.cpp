@@ -416,6 +416,7 @@ public:
                 break;
             }
         }
+
         Assert::IsTrue (foundCheck);
 
         // Now flip the query to false; the glyph must NOT be drawn.
@@ -514,6 +515,7 @@ public:
                 break;
             }
         }
+
         Assert::IsTrue (foundDivider);
     }
 

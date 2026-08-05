@@ -57,6 +57,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
             ReleaseActivePopup();
             ShowPopup();
         }
+
         return;
     }
 
@@ -247,6 +248,7 @@ void DxuiTooltip::ShowPopup()
         {
             textWDip = (float) m_text.size() * m_fontDip * s_kEstCharWidthEm;
         }
+
         if (textHDip <= 0.0f)
         {
             textHDip = m_fontDip * s_kEstLineHeightEm;
@@ -383,6 +385,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
         {
             boxLeft = (float) m_viewportWPx - edgePad - width;
         }
+
         if (boxLeft < edgePad)
         {
             boxLeft = edgePad;

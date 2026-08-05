@@ -254,6 +254,7 @@ public:
             {
                 sawValidNibble = true;
             }
+
             core.diskController->Tick (8);   // advance ~one disk bit-time
         }
 

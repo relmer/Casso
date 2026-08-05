@@ -215,6 +215,7 @@ Error:
         {
             m_previewTarget->SetJobPageCount (PageCountType::FinalPageCount, PageCount());
         }
+
         return S_OK;
     }
 
@@ -267,6 +268,7 @@ Error:
 
                 hr = m_d3dDevice->CreateTexture2D (&td, nullptr, &texture);
             }
+
             CHR (hr);
 
             hr = texture.As (&surface);
@@ -279,6 +281,7 @@ Error:
 
                 hr = m_d2dContext->CreateBitmapFromDxgiSurface (surface.Get(), &bp, &target);
             }
+
             CHR (hr);
 
             hr = RenderPageBitmapLocked (jobPage - 1, s_kPreviewDpi, &pageBitmap);
@@ -322,6 +325,7 @@ private:
                                     D3D11_CREATE_DEVICE_BGRA_SUPPORT,
                                     nullptr, 0, D3D11_SDK_VERSION, &m_d3dDevice, nullptr, nullptr);
         }
+
         CHR (hr);
 
         hr = m_d3dDevice.As (&dxgi);
@@ -382,6 +386,7 @@ Error:
             hr = m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) img.width, (UINT32) img.height),
                                              bgra.data(), (UINT32) img.width * 4, &bp, out);
         }
+
         CHR (hr);
 
 Error:
@@ -629,6 +634,7 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
             {
                 old->remove_PrintTaskRequested (m_taskToken);
             }
+
             m_registered = false;
         }
 
@@ -663,6 +669,7 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
         {
             mgr->remove_PrintTaskRequested (m_taskToken);
         }
+
         m_registered = false;
     }
 

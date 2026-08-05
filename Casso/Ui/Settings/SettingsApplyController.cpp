@@ -61,6 +61,7 @@ void SettingsApplyController::SnapshotBaselines()
             m_baselineCrt[i] = m_prefs->crtByMode[i];
         }
     }
+
     if (m_state != nullptr)
     {
         m_baselineColorMode = (int) m_state->Prefs().colorMode;
@@ -163,6 +164,7 @@ void SettingsApplyController::ApplyThemeLive (const std::string & name)
     {
         m_onChromeThemeChanged();
     }
+
     m_pendingTheme     = name;   // OK still persists the chosen theme
     m_themeAppliedLive = true;
 }
@@ -328,6 +330,7 @@ void SettingsApplyController::CommitApply()
             {
                 hrSave = m_prefs->Save (m_emuShell->AssetBaseDir(), *m_fs);
             }
+
             IGNORE_RETURN_VALUE (hrSave, S_OK);
         }
 
@@ -346,6 +349,7 @@ void SettingsApplyController::CommitApply()
         m_baselinePrinterAudioPanOverride = m_prefs->printerAudioPanOverride;
         m_baselinePrinterAudioPan         = m_prefs->printerAudioPan;
     }
+
     m_baselineColorMode = (int) m_state->Prefs().colorMode;
 
     // Apply the staged theme BEFORE any machine switch so the chrome
@@ -362,6 +366,7 @@ void SettingsApplyController::CommitApply()
         {
             m_onChromeThemeChanged();
         }
+
         m_pendingTheme.clear();
     }
 
@@ -435,6 +440,7 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
         m_prefs->printerAudioPanOverride = m_baselinePrinterAudioPanOverride;
         m_prefs->printerAudioPan         = m_baselinePrinterAudioPan;
     }
+
     if (m_emuShell != nullptr && m_baselineColorMode >= 0)
     {
         m_emuShell->SetColorModeLive (m_baselineColorMode);
@@ -453,6 +459,7 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
             m_onChromeThemeChanged();
         }
     }
+
     m_themeAppliedLive = false;
 
     preview.Reset();

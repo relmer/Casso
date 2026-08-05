@@ -253,10 +253,12 @@ public:
         {
             return true;
         }
+
         for (const HardwareEntry & e : m_current.hardware)
         {
             if (e.type == "disk-ii" && e.enabled) { return true; }
         }
+
         return false;
     }
 

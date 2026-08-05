@@ -421,6 +421,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
             maxAbsX = (std::max) (maxAbsX, std::abs (p[0]));
         }
     }
+
     CBR (maxAbsX > 0.0f);
 
     {
@@ -468,6 +469,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
                 {
                     break;
                 }
+
                 if (std::abs (t.r - m.r) < 0.02f && std::abs (t.g - m.g) < 0.02f &&
                     std::abs (t.b - m.b) < 0.02f)
                 {
@@ -534,6 +536,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
                         preMaxZ = rz;
                         first   = false;
                     }
+
                     preMinY = (std::min) (preMinY, ry);
                     preMaxY = (std::max) (preMaxY, ry);
                     preMaxZ = (std::max) (preMaxZ, rz);
@@ -554,6 +557,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
                         rollerMinZ = rollerMaxZ = pos[k].z;
                         rollerSeen = true;
                     }
+
                     rollerMinY = (std::min) (rollerMinY, pos[k].y);
                     rollerMaxY = (std::max) (rollerMaxY, pos[k].y);
                     rollerMinZ = (std::min) (rollerMinZ, pos[k].z);
@@ -660,6 +664,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
                     const XYZ &   p = pos[t * 3 + k];
                     fc.p[k][0] = p.x; fc.p[k][1] = p.y; fc.p[k][2] = p.z;
                 }
+
                 fc.shade   = shade;
                 fc.cy      = gy;
                 fc.lampIdx = hit;
@@ -709,6 +714,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
             {
                 if (!m_ledLamps[i].red) { greens.push_back ((int) i); }
             }
+
             std::sort (greens.begin(), greens.end(),
                        [&] (int a, int b) { return m_ledLamps[a].cx < m_ledLamps[b].cx; });
 
@@ -741,6 +747,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
             {
                 f.p[k][0] = fc.p[k][0]; f.p[k][1] = fc.p[k][1]; f.p[k][2] = fc.p[k][2];
             }
+
             f.shade = fc.shade;
             f.role  = m_ledLamps[fc.lampIdx].role;
             m_ledFaces.push_back (f);
@@ -778,6 +785,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
                         faceMinY = faceMaxY = p.y;
                         faceSeen = true;
                     }
+
                     faceMinX = (std::min) (faceMinX, p.x);
                     faceMinY = (std::min) (faceMinY, p.y);
                     faceMaxY = (std::max) (faceMaxY, p.y);
@@ -800,6 +808,7 @@ Error:
         m_mesh.clear();   // never leave a half-loaded body: fall back whole
         m_meshGlass.clear();
     }
+
     return hr;
 }
 
@@ -1916,6 +1925,7 @@ void Printer3DScene::BuildCassoLogo (std::vector<Vertex> & out, float faceZ) con
             last = row;
         }
     }
+
     if (last < first)
     {
         return;
@@ -2102,6 +2112,7 @@ void Printer3DScene::Render (const RECT & targetPx)
 
         PerspectiveFovRH (fovY, aspect, 0.1f, 20.0f, proj);
     }
+
     Mul44            (view, proj, viewProj);
     Mul44            (model, viewProj, mvp);
     IdentityMvp      (identity);
@@ -2144,6 +2155,7 @@ void Printer3DScene::Render (const RECT & targetPx)
         {
             IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_glowBatch.data(), m_glowBatch.size(), mvp, false, vp, false));
         }
+
         if (!m_ledBatch.empty())
         {
             IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_ledBatch.data(), m_ledBatch.size(), mvp, false, vp, false));

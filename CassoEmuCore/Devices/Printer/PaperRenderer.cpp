@@ -324,6 +324,7 @@ HRESULT PaperRenderer::Render (
     {
         outImage.Allocate (0, 0, s_kPaperR, s_kPaperG, s_kPaperB);
     }
+
     BAIL_OUT_IF (numRows <= 0, S_OK);
 
     BuildWeaveTile();

@@ -949,6 +949,7 @@ HRESULT DxuiTextRenderer::DrawString (
             layoutRect.top    += shift;
             layoutRect.bottom += shift;
         }
+
         // Silent fallback: if measurement failed we leave the rect in
         // place and use NEAR alignment.
     }

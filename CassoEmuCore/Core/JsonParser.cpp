@@ -147,6 +147,7 @@ HRESULT JsonParser::ParseValue (JsonValue & outValue)
                 SetError (format ("Unexpected character '{}'", ch));
                 CBR (false);
             }
+
             break;
     }
 
@@ -249,8 +250,10 @@ HRESULT JsonParser::ParseString (string & outStr)
                 {
                     outStr += static_cast<char> (code);
                 }
+
                 break;
             }
+
             default:
             {
                 SetError (format ("Invalid escape sequence '\\{}'", esc));

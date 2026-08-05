@@ -252,6 +252,7 @@ std::wstring  ThemeLoader::StripTrailingSep (const std::wstring & p)
     {
         r.pop_back();
     }
+
     return r;
 }
 
@@ -279,6 +280,7 @@ std::wstring ThemeLoader::JoinPath (
     {
         result += L'\\';
     }
+
     result += leaf;
     return result;
 }

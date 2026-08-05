@@ -244,6 +244,7 @@ void DxuiPanel::Clear()
     {
         slot.raw->SetParent (nullptr);
     }
+
     m_children.clear();
     MarkDirty();
 }

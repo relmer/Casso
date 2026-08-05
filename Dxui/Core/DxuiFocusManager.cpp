@@ -195,10 +195,12 @@ void DxuiFocusManager::Rebuild()
                 {
                     return taIdx < tbIdx;
                 }
+
                 if (aExpl != bExpl)
                 {
                     return aExpl;  // explicit indices come first
                 }
+
                 RECT  ra = a->Bounds();
                 RECT  rb = b->Bounds();
                 int   ba = (int) ((float) ra.top / eps);
@@ -207,6 +209,7 @@ void DxuiFocusManager::Rebuild()
                 {
                     return ba < bb;
                 }
+
                 return ra.left < rb.left;
             });
 
@@ -225,6 +228,7 @@ void DxuiFocusManager::Rebuild()
                     break;
                 }
             }
+
             if (!stillThere)
             {
                 m_focused = nullptr;
@@ -374,6 +378,7 @@ bool DxuiFocusManager::MoveFocusSpatial (DxuiFocusKey arrow)
             {
                 continue;
             }
+
             rr = candidate->Bounds();
             cx = (rr.left + rr.right)  / 2;
             cy = (rr.top  + rr.bottom) / 2;
@@ -477,6 +482,7 @@ bool DxuiFocusManager::HandleKey (DxuiFocusKey key)
             PopScope();
             handled = true;
         }
+
         break;
 
     case DxuiFocusKey::Enter:

@@ -89,6 +89,7 @@ void SettingsPreviewController::Tick (int64_t nowMs)
     {
         m_lastFrameMs = nowMs;
     }
+
     dtMs = nowMs - m_lastFrameMs;
     m_lastFrameMs = nowMs;
 

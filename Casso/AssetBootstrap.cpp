@@ -1122,6 +1122,7 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
             {
                 return candidate;
             }
+
             cursor = cursor.parent_path();
         }
 
@@ -3132,6 +3133,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
             {
                 WinHttpCloseHandle (hSes);
             }
+
             return hr;
         };
 
@@ -3280,6 +3282,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                 {
                     WinHttpCloseHandle (hSes);
                 }
+
                 return hr;
             };
 
@@ -3302,6 +3305,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         {
             prefs.audioDownloadConsent = "allow";
         }
+
         hr = S_OK;
         break;
 
@@ -3310,6 +3314,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         {
             prefs.audioDownloadConsent = "decline";
         }
+
         hr = S_OK;
         break;
 

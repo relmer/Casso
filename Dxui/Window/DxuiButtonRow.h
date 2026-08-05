@@ -90,6 +90,7 @@ namespace DxuiButtonRow
         {
             total += scaler.Px (widthDip);
         }
+
         if (!widthsDip.empty())
         {
             total += (int) (widthsDip.size() - 1) * gapPx;

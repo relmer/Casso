@@ -343,6 +343,7 @@ bool DxuiWindow::ProcessDialogMessage (const MSG & msg)
                 {
                     isHandled = (DispatchDialogKey (msg.wParam) == DxuiMessageResult::Handled);
                 }
+
                 break;
         }
     }
@@ -1011,6 +1012,7 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
                 isHandled = true;
                 break;
             }
+
             isHandled = m_focus.HandleKey (shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
             break;
 

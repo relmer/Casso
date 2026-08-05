@@ -278,6 +278,7 @@ namespace Cpu65C02TestNs
                 h.Step();
                 Assert::AreEqual<Word> (0x0213, h.PC());   // $0203 + $10
             }
+
             {
                 Harness h;                                  // not taken: bit 0 set
                 h.Poke (0x0030, 0x01);

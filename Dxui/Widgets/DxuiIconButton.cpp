@@ -133,6 +133,7 @@ bool DxuiIconButton::OnMouse (const DxuiMouseEvent & ev)
             SetMouse (ev.positionDip.x, ev.positionDip.y, true);
             handled = m_pressed;
         }
+
         break;
 
     case DxuiMouseEventKind::Up:
@@ -145,6 +146,7 @@ bool DxuiIconButton::OnMouse (const DxuiMouseEvent & ev)
                 Click();
             }
         }
+
         break;
 
     default:

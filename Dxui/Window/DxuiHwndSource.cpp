@@ -285,6 +285,7 @@ BOOL CALLBACK DxuiHwndSource::FirstIconGroupProc (HMODULE, LPCWSTR, LPWSTR name,
         (void) wcsncpy_s (out->nameBuf, name, _TRUNCATE);
         out->id = out->nameBuf;
     }
+
     out->found = true;
 
     return FALSE;   // first group only
@@ -428,6 +429,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     {
         style &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
     }
+
     exStyle = WS_EX_APPWINDOW;
     if (params.createNoActivate)
     {
@@ -450,6 +452,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     {
         dpiAtCreate = s_kDefaultDpi;
     }
+
     m_scaler.SetDpi (dpiAtCreate);
 
     if (params.useInitialWindowRectPx)
@@ -530,6 +533,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
         {
             SendMessageW (m_hwnd, WM_SETICON, ICON_BIG, (LPARAM) iconBig);
         }
+
         if (iconSmall != nullptr)
         {
             SendMessageW (m_hwnd, WM_SETICON, ICON_SMALL, (LPARAM) iconSmall);
@@ -565,6 +569,7 @@ Error:
     {
         Destroy();
     }
+
     return hr;
 }
 
@@ -639,6 +644,7 @@ void DxuiHwndSource::Destroy()
     {
         DestroyWindow (m_hwnd);
     }
+
     m_hwnd       = nullptr;
     m_ownsHwnd   = false;
     m_adoptMode  = false;
@@ -698,10 +704,12 @@ HRESULT DxuiHwndSource::CreateInAdoptMode (
     {
         dpi = GetDpiForWindow (existingHwnd);
     }
+
     if (dpi == 0)
     {
         dpi = s_kDefaultDpi;
     }
+
     host->m_scaler.SetDpi (dpi);
 
     // Host-owned caption in adopt mode: build it now (HWND + DPI are
@@ -850,6 +858,7 @@ void DxuiHwndSource::SetComposedOpacity (float opacity)
     {
         (void) visual3->SetOpacity (opacity);
     }
+
     (void) m_compDevice->Commit();
 }
 
@@ -1475,6 +1484,7 @@ void DxuiHwndSource::ReleaseRenderResources()
         m_textRenderer->Shutdown();
         m_textRenderer.reset();
     }
+
     if (m_painter != nullptr)
     {
         m_painter->Shutdown();
@@ -1609,12 +1619,14 @@ void DxuiHwndSource::ReleaseBackBufferRtv()
     {
         m_textRenderer->UnbindBackBuffer();
     }
+
     if (m_context && m_rtv)
     {
         ID3D11RenderTargetView *  nullRtv[1] = { nullptr };
 
         m_context->OMSetRenderTargets (1, nullRtv, nullptr);
     }
+
     m_rtv.Reset();
 }
 
@@ -1750,10 +1762,12 @@ Error:
     {
         (void) m_textRenderer->EndDraw();
     }
+
     if (painterBegun)
     {
         (void) m_painter->End (target);
     }
+
     return;
 }
 
@@ -2022,6 +2036,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             {
                 result = hostHt;
             }
+
             break;
 
         // The four NC mouse messages offer the client first refusal and
@@ -2065,6 +2080,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             {
                 result = HandleNcMouse (msg, wp, lp);
             }
+
             break;
 
         case WM_DPICHANGED:
@@ -2124,6 +2140,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             {
                 isHandled = false;
             }
+
             break;
 
         case WM_SETTINGCHANGE:
@@ -2190,6 +2207,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             {
                 isHandled = false;
             }
+
             break;
 
         default:
@@ -2716,6 +2734,7 @@ void DxuiHwndSource::HandleDpiChanged (WPARAM wp, LPARAM lp)
     {
         newDpi = s_kDefaultDpi;
     }
+
     m_scaler.SetDpi (newDpi);
 
     if (suggested != nullptr && m_hwnd != nullptr)
@@ -2997,6 +3016,7 @@ void DxuiHwndSource::SetTitle (const std::wstring & title)
     {
         SetWindowTextW (m_hwnd, title.c_str());
     }
+
     if (m_caption)
     {
         m_caption->SetTitle (title);
@@ -3177,6 +3197,7 @@ bool DxuiHwndSource::RouteCaptionNcMouse (UINT msg, WPARAM wp, LPARAM lp)
                 ev.kind = DxuiMouseEventKind::Leave;
                 m_lastHoveredNcControl->OnMouse (ev);
             }
+
             ev.kind                = DxuiMouseEventKind::Move;
             m_lastHoveredNcControl = control;
             consumed               = true;

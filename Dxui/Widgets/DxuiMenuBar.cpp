@@ -137,6 +137,7 @@ void DxuiMenuBar::SetItems (std::vector<DxuiMenuBarItem> items)
     {
         m_openIndex = 0;
     }
+
     if (m_focusedIndex >= (int) m_items.size())
     {
         m_focusedIndex = 0;
@@ -949,6 +950,7 @@ void DxuiMenuBar::PaintStrip (
                 float ignH = 0.0f;
                 IGNORE_RETURN_VALUE (hrM, text.MeasureString (prefix.c_str(), fontDip, s_kFontFamily, prefixW, ignH));
             }
+
             {
                 float pcW  = 0.0f;
                 float ignH = 0.0f;
@@ -1126,6 +1128,7 @@ void DxuiMenuBar::PaintDropdownRows (
                 IGNORE_RETURN_VALUE (hrM, text.MeasureString (oneCh.c_str(), fontDip, s_kFontFamily, prefixW, fullH));
                 prefixW = 0.0f;
             }
+
             {
                 float pcW  = 0.0f;
                 float ignH = 0.0f;
@@ -1150,6 +1153,7 @@ void DxuiMenuBar::PaintDropdownRows (
                                                       fontDip,
                                                       s_kFontFamily));
         }
+
         y += entryHeight;
         row++;
     }
@@ -1183,6 +1187,7 @@ void DxuiMenuBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     {
         controlBounds.bottom = m_stripRect.bottom;
     }
+
     SetBounds (controlBounds);
 }
 
@@ -1280,12 +1285,14 @@ bool DxuiMenuBar::OnMouse (const DxuiMouseEvent & ev)
         {
             handled = HandleMouseDown (ev.positionDip.x, ev.positionDip.y);
         }
+
         break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
             handled = HandleMouseUp (ev.positionDip.x, ev.positionDip.y);
         }
+
         break;
     default:
         break;
@@ -1717,8 +1724,10 @@ void DxuiMenuBar::ParseMnemonic (
                 outIndex = (int) outStripped.size();
                 outLower = (wchar_t) towlower (label[i + 1]);
             }
+
             continue;
         }
+
         outStripped.push_back (ch);
     }
 }

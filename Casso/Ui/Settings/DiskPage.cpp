@@ -447,6 +447,7 @@ void DiskPage::ConfigurePanSlider (DxuiSlider & slider, const RECT & rect)
         {
             result = std::to_wstring (pct) + L"% R";
         }
+
         return result;
     });
 }

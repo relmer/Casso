@@ -38,14 +38,17 @@ void DxuiButton::SetLabel (const std::wstring & label)
                 i += 2;
                 continue;
             }
+
             if (accel == 0)
             {
                 accel = (wchar_t) towlower (label[i + 1]);
             }
+
             out.push_back (label[i + 1]);
             i += 2;
             continue;
         }
+
         out.push_back (label[i]);
         ++i;
     }
@@ -384,6 +387,7 @@ bool DxuiButton::OnMouse (const DxuiMouseEvent & ev)
             SetMouse (ev.positionDip.x, ev.positionDip.y, true);
             handled = m_pressed;
         }
+
         break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
@@ -394,8 +398,10 @@ bool DxuiButton::OnMouse (const DxuiMouseEvent & ev)
             {
                 Click();
             }
+
             handled = fire;
         }
+
         break;
     default:
         break;

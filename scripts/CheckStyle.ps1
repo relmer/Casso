@@ -16,13 +16,12 @@
     and remain review's job. Roughly 8 of ~30 documented rules are covered,
     but they are the ones the measured drift is concentrated in.
 
-    DEFAULT MODE IS `Diff`, and that is deliberate. The tree currently
-    carries thousands of pre-existing violations, so a whole-tree gate
-    would fail on the first push and be switched off the same day. Diff
-    mode inspects only lines the push ADDS, which stops the bleeding
-    without requiring a big-bang sweep first. Once a rule has been swept
-    to zero tree-wide it can be promoted by running this script in `Tree`
-    mode from CI.
+    DEFAULT MODE IS `Diff`, which suits the pre-push hook: it inspects
+    only lines the push ADDS, so a push is judged on its own contribution.
+    Every rule has now been swept to zero tree-wide, and CI runs `Tree`
+    mode as the backstop -- the hook catches violations before they leave
+    the machine, CI catches anything that slips past it (a --no-verify
+    push, a clone that never enabled the hook).
 
 .PARAMETER Mode
     `Diff`  (default) -- check only lines added between -Against and
@@ -617,13 +616,14 @@ function Test-EhmConditionCalls
 
 ####################################################################
 #
-#  Test-Structure  (CS0014 / CS0015 / CS0016)
+#  Test-Structure  (CS0014 / CS0015 / CS0016 / CS0017)
 #
-#  The three formatting rules that a per-line regex cannot see:
+#  The formatting rules that a per-line regex cannot see:
 #
 #    CS0014  a function definition in a .cpp has an 80-slash banner
 #    CS0015  a top-level banner is preceded by EXACTLY 5 blank lines
 #    CS0016  a declaration block is followed by EXACTLY 3 blank lines
+#    CS0017  a bare closing brace is followed by a blank line
 #
 #  These need whole-file context, which is why they sat un-gated: a
 #  file-scoped check fails a push for violations the diff never touched,
@@ -680,6 +680,37 @@ function Test-Structure
                 }
             }
             $run = 0
+        }
+
+        # ---- CS0017: blank line after a bare closing brace --------------
+        # The documented exceptions are do-while (same-line `} while`), a
+        # following `else`, and a following closing brace; `catch` joins
+        # them because it is the same shape as `else`. Beyond the document,
+        # three contexts are excluded as NOT-statements rather than
+        # exceptions: preprocessor lines, access specifiers, and
+        # continuation lines (`)`, `,`, `;`) that belong to an enclosing
+        # expression. Guard clauses, `case` labels, and `Error:` labels are
+        # deliberately NOT excluded -- the document says so for the first
+        # two, and a label introduces the next statement like any other.
+        for ($i = 0; $i -lt $lines.Length - 1; $i++)
+        {
+            if ($lines[$i] -notmatch '^\s*\}\s*$') { continue }
+
+            $next = $lines[$i + 1]
+
+            if ($next.Trim() -eq '')                              { continue }
+            if ($next -match '^\s*\}')                            { continue }
+            if ($next -match '^\s*(else|while|catch)\b')          { continue }
+            if ($next -match '^\s*#')                             { continue }
+            if ($next -match '^\s*(public|private|protected)\s*:') { continue }
+            if ($next -match '^\s*[\),;]')                        { continue }
+
+            $findings += [pscustomobject]@{
+                Id    = 'CS0017'
+                First = $i + 1
+                Last  = $i + 2
+                Text  = 'closing brace must be followed by a blank line'
+            }
         }
 
         # ---- CS0014 / CS0016: per function definition -------------------

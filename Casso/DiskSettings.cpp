@@ -299,6 +299,7 @@ HRESULT DiskSettings::WriteSavedDiskPath (
             {
                 uiPrefsEntries = rootEntries[(size_t) i].second.GetObjectEntries();
             }
+
             break;
         }
     }
@@ -315,6 +316,7 @@ HRESULT DiskSettings::WriteSavedDiskPath (
                 break;
             }
         }
+
         if (!replaced)
         {
             uiPrefsEntries.emplace_back (keyName, JsonValue (storedNarrow));
@@ -398,6 +400,7 @@ HRESULT DiskSettings::WriteSavedUiPrefBool (
             {
                 uiPrefsEntries = rootEntries[(size_t) i].second.GetObjectEntries();
             }
+
             break;
         }
     }
@@ -413,6 +416,7 @@ HRESULT DiskSettings::WriteSavedUiPrefBool (
                 break;
             }
         }
+
         if (!replaced)
         {
             uiPrefsEntries.emplace_back (key, JsonValue (value));

@@ -107,6 +107,7 @@ public:
             m_videoWatched[pageIndex] = watched;
         }
     }
+
     bool VideoDirty      () const { return m_videoDirty; }
     void MarkVideoDirty  ()       { m_videoDirty = true; }
     void ClearVideoDirty ()       { m_videoDirty = false; }

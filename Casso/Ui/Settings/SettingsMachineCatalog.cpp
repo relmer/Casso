@@ -41,6 +41,7 @@ std::string SettingsMachineCatalog::NarrowMachineName (const std::wstring & wide
     {
         narrowName.push_back ((char) (unsigned char) c);
     }
+
     return narrowName;
 }
 
@@ -272,6 +273,7 @@ void SettingsMachineCatalog::PopulateThemeList()
         {
             activeIndex = i;
         }
+
         themeIds.push_back (t.name);
         displayNames.emplace_back (t.name.begin(), t.name.end());
         i++;

@@ -691,6 +691,7 @@ bool ColorPickerOverlay::OnChar (wchar_t ch)
             m_hex.SetText (L"");
             m_hexReplaceOnChar = false;
         }
+
         (void) m_hex.OnChar (ch);
     }
 
