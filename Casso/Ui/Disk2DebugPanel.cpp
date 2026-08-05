@@ -1823,8 +1823,12 @@ void Disk2DebugPanel::OnDataMarkWrite (int track, int sector, int volume, int by
 
 void Disk2DebugPanel::OnDriveSelect (int drive)
 {
+    Disk2Event  e = {};
+
+
+
     m_currentDrive = drive;
-    Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::DriveSelect);
+    e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::DriveSelect);
     e.drive               = (int8_t) drive;
     e.payload.drive.drive = drive;
     PublishToRing (e);

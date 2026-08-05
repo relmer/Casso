@@ -253,6 +253,7 @@ public:
         Cpu                  asmCpu;
         std::vector<Byte>    nibbles;
         size_t               payloadAt = 0;
+        AssemblyResult       r;
 
         HRESULT  hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
@@ -281,7 +282,7 @@ public:
             L"kWriteSource hardcodes PLEN = 26; update both together");
 
         Assembler       assembler (asmCpu.GetInstructionSet());
-        AssemblyResult  r = assembler.Assemble (kWriteSource);
+        r = assembler.Assemble (kWriteSource);
 
         if (!r.success)
         {

@@ -178,9 +178,15 @@ public:
     // //c ROM as 16K when it is really 32K in two banks.
     TEST_METHOD (SystemRom_BankedReports32KTwoBanks_FlatUnchanged)
     {
-        SettingsPanelState  cSt;
-        SettingsPanelState  eSt;
-        SettingsPanelState  twoSt;
+        SettingsPanelState    cSt;
+        SettingsPanelState    eSt;
+        SettingsPanelState    twoSt;
+        JsonValue             cv;
+        SettingsMemoryRegion  cRom   = {};
+        JsonValue             ev;
+        SettingsMemoryRegion  eRom   = {};
+        JsonValue             tv;
+        SettingsMemoryRegion  twoRom = {};
 
 
 
@@ -206,9 +212,9 @@ public:
             "systemRom": { "address": "0xC000", "romBankSize": "0x4000", "romBankSelect": "0xC028" }
         })JSON";
 
-        JsonValue           cv = ParseOrFail (cJson);
+        cv = ParseOrFail (cJson);
         AssertSucceeded (cSt.LoadFromMachine ("Apple //c", cv, cv));
-        SettingsMemoryRegion  cRom = romRegion (cSt.MachineInfo());
+        cRom = romRegion (cSt.MachineInfo());
         Assert::AreEqual (std::string ("System ROM (2 banks)"), cRom.name,         L"//c ROM name");
         Assert::AreEqual (std::string ("32K"),                  cRom.size,         L"//c ROM = 2x16K = 32K");
         Assert::AreEqual (std::string ("$C000-$FFFF"),          cRom.addressRange, L"//c banks share one window");
@@ -222,9 +228,9 @@ public:
             "systemRom": { "address": "0xC000" }
         })JSON";
 
-        JsonValue           ev = ParseOrFail (eJson);
+        ev = ParseOrFail (eJson);
         AssertSucceeded (eSt.LoadFromMachine ("Apple //e", ev, ev));
-        SettingsMemoryRegion  eRom = romRegion (eSt.MachineInfo());
+        eRom = romRegion (eSt.MachineInfo());
         Assert::AreEqual (std::string ("System ROM"),  eRom.name,         L"//e ROM name unchanged");
         Assert::AreEqual (std::string ("16K"),         eRom.size,         L"//e ROM = 16K");
         Assert::AreEqual (std::string ("$C000-$FFFF"), eRom.addressRange, L"//e ROM range");
@@ -238,9 +244,9 @@ public:
             "systemRom": { "address": "0xD000" }
         })JSON";
 
-        JsonValue           tv = ParseOrFail (twoJson);
+        tv = ParseOrFail (twoJson);
         AssertSucceeded (twoSt.LoadFromMachine ("Apple ][", tv, tv));
-        SettingsMemoryRegion  twoRom = romRegion (twoSt.MachineInfo());
+        twoRom = romRegion (twoSt.MachineInfo());
         Assert::AreEqual (std::string ("System ROM"),  twoRom.name,         L"][ ROM name unchanged");
         Assert::AreEqual (std::string ("12K"),         twoRom.size,         L"][ ROM = 12K");
         Assert::AreEqual (std::string ("$D000-$FFFF"), twoRom.addressRange, L"][ ROM range");
@@ -255,6 +261,8 @@ public:
     {
         SettingsPanelState  cSt;
         SettingsPanelState  twoSt;
+        JsonValue           cv;
+        JsonValue           tv;
 
 
 
@@ -271,7 +279,7 @@ public:
             "internalDevices": [ { "type": "language-card" } ]
         })JSON";
 
-        JsonValue           cv = ParseOrFail (cJson);
+        cv = ParseOrFail (cJson);
         AssertSucceeded (cSt.LoadFromMachine ("Apple //c", cv, cv));
         Assert::AreEqual (std::string ("128K RAM"), cSt.MachineInfo().ramSummary,
             L"48+48+16+16 = 128K; the 32K ROM must not be counted");
@@ -285,7 +293,7 @@ public:
             "systemRom": { "address": "0xD000" }
         })JSON";
 
-        JsonValue           tv = ParseOrFail (twoJson);
+        tv = ParseOrFail (twoJson);
         AssertSucceeded (twoSt.LoadFromMachine ("Apple ][", tv, tv));
         Assert::AreEqual (std::string ("48K RAM"), twoSt.MachineInfo().ramSummary,
             L"single 48K main bank");
@@ -296,8 +304,9 @@ public:
     {
         SettingsPanelState  st;
         HRESULT             hr;
+        JsonValue           obj;
         JsonValue           arr = ParseOrFail ("[1,2,3]");
-        JsonValue           obj = ParseOrFail (kFixtureJson);
+        obj = ParseOrFail (kFixtureJson);
 
         hr = st.LoadFromMachine ("X", arr, obj);
         AssertFailed (hr, L"non-object default should fail");
@@ -573,6 +582,8 @@ public:
     {
         SettingsPanelState  cSt;
         SettingsPanelState  eSt;
+        JsonValue           cv;
+        JsonValue           ev;
 
 
 
@@ -592,11 +603,11 @@ public:
             "systemRom": { "address": "0xC000" }
         })JSON";
 
-        JsonValue           cv = ParseOrFail (cJson);
+        cv = ParseOrFail (cJson);
         AssertSucceeded (cSt.LoadFromMachine ("Apple //c", cv, cv));
         Assert::IsTrue (cSt.MachineInfo().supportsExternalDrive, L"//c has optional external drive");
 
-        JsonValue           ev = ParseOrFail (eJson);
+        ev = ParseOrFail (eJson);
         AssertSucceeded (eSt.LoadFromMachine ("Apple //e", ev, ev));
         Assert::IsFalse (eSt.MachineInfo().supportsExternalDrive, L"//e second drive is fixed hardware");
     }
@@ -609,6 +620,7 @@ public:
     TEST_METHOD (HasDiskIIController_TrueForBuiltInIwmMachine)
     {
         SettingsPanelState  st;
+        JsonValue           v;
 
 
 
@@ -620,7 +632,7 @@ public:
             "systemRom": { "address": "0xC000", "romBankSize": "0x4000", "romBankSelect": "0xC028" }
         })JSON";
 
-        JsonValue           v = ParseOrFail (cJson);
+        v = ParseOrFail (cJson);
         AssertSucceeded (st.LoadFromMachine ("Apple //c", v, v));
         Assert::IsTrue (st.HasDiskIIController(),
             L"//c built-in IWM (no disk-ii slot) must still yield a Disk tab");
@@ -784,6 +796,7 @@ public:
         JsonValue            outJson;
         std::string          text;
         JsonWriter::Options  opts;
+        JsonValue            v;
 
 
 
@@ -796,7 +809,7 @@ public:
             "slots": [ { "slot": 6, "device": "disk-ii" } ]
         })JSON";
 
-        JsonValue           v = ParseOrFail (j);
+        v = ParseOrFail (j);
         st.LoadFromMachine ("X", v, v);
 
         st.SetSpeedMode (SettingsSpeedMode::Double);

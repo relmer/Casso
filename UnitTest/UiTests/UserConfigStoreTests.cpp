@@ -64,6 +64,7 @@ public:
         const JsonValue  * machines = nullptr;
         const JsonValue  * machine  = nullptr;
         HRESULT            hr       = S_OK;
+        JsonValue          found;
 
 
         hr = fs.ReadAllText (store.UserFilePath (machineName), text);
@@ -77,7 +78,7 @@ public:
         // write. A "machines" wrapper that does not actually hold this machine
         // is a broken fixture, not the bare shape, so it fails rather than
         // falling back to root.
-        JsonValue  found = root;
+        found = root;
 
         if (root.HasObject ("machines", machines))
         {
@@ -174,9 +175,13 @@ public:
 
     TEST_METHOD (Merge_Empty_User_Returns_Default)
     {
+        JsonValue  m;
+
+
+
         JsonValue   d = ParseOrFail ("{\"a\":1,\"b\":2}");
         JsonValue   u = ParseOrFail ("{}");
-        JsonValue   m = UserConfigStore::MergeJson (d, u);
+        m = UserConfigStore::MergeJson (d, u);
 
         Assert::IsTrue (UserConfigStore::JsonEqual (d, m));
     }
@@ -184,9 +189,13 @@ public:
 
     TEST_METHOD (Merge_User_Scalar_Overrides_Default)
     {
+        JsonValue  m;
+
+
+
         JsonValue   d = ParseOrFail ("{\"a\":1,\"b\":2}");
         JsonValue   u = ParseOrFail ("{\"a\":99}");
-        JsonValue   m = UserConfigStore::MergeJson (d, u);
+        m = UserConfigStore::MergeJson (d, u);
 
         Assert::IsTrue (UserConfigStore::JsonEqual (ParseOrFail ("{\"a\":99,\"b\":2}"), m));
     }
@@ -194,9 +203,13 @@ public:
 
     TEST_METHOD (Merge_Deep_Object_Merges)
     {
+        JsonValue  m;
+
+
+
         JsonValue   d = ParseOrFail ("{\"crt\":{\"brightness\":1.0,\"bloom\":{\"enabled\":false}}}");
         JsonValue   u = ParseOrFail ("{\"crt\":{\"bloom\":{\"enabled\":true}}}");
-        JsonValue   m = UserConfigStore::MergeJson (d, u);
+        m = UserConfigStore::MergeJson (d, u);
 
         Assert::IsTrue (UserConfigStore::JsonEqual (ParseOrFail ("{\"crt\":{\"brightness\":1.0,\"bloom\":{\"enabled\":true}}}"), m));
     }
@@ -204,9 +217,13 @@ public:
 
     TEST_METHOD (Merge_Array_Replaces_Wholesale)
     {
+        JsonValue  m;
+
+
+
         JsonValue   d = ParseOrFail ("{\"arr\":[1,2,3]}");
         JsonValue   u = ParseOrFail ("{\"arr\":[9]}");
-        JsonValue   m = UserConfigStore::MergeJson (d, u);
+        m = UserConfigStore::MergeJson (d, u);
 
         Assert::IsTrue (UserConfigStore::JsonEqual (ParseOrFail ("{\"arr\":[9]}"), m));
     }
@@ -214,9 +231,13 @@ public:
 
     TEST_METHOD (Merge_UserOnly_Key_Preserved)
     {
+        JsonValue  m;
+
+
+
         JsonValue   d = ParseOrFail ("{\"a\":1}");
         JsonValue   u = ParseOrFail ("{\"lastMountedImages\":{\"6\":{\"0\":\"/img.dsk\"}}}");
-        JsonValue   m = UserConfigStore::MergeJson (d, u);
+        m = UserConfigStore::MergeJson (d, u);
 
         Assert::IsTrue (UserConfigStore::JsonEqual (ParseOrFail ("{\"a\":1,\"lastMountedImages\":{\"6\":{\"0\":\"/img.dsk\"}}}"), m));
     }
@@ -224,9 +245,14 @@ public:
 
     TEST_METHOD (Diff_NoOp_Returns_Object_With_Just_Version)
     {
+        JsonValue  c;
+        JsonValue  diff;
+
+
+
         JsonValue   d = ParseOrFail ("{\"$cassoMachineVersion\":1,\"a\":1,\"b\":2}");
-        JsonValue  c    = d;   // identical
-        JsonValue  diff = UserConfigStore::DiffJson (c, d);
+        c = d; // identical
+        diff = UserConfigStore::DiffJson (c, d);
 
         Assert::IsTrue (diff.GetType() == JsonType::Object);
         Assert::AreEqual (size_t (1), diff.GetObjectEntries().size());
@@ -236,9 +262,13 @@ public:
 
     TEST_METHOD (Diff_Only_Differing_Keys)
     {
+        JsonValue  diff;
+
+
+
         JsonValue   d = ParseOrFail ("{\"$cassoMachineVersion\":1,\"a\":1,\"b\":2,\"c\":3}");
         JsonValue   c = ParseOrFail ("{\"$cassoMachineVersion\":1,\"a\":1,\"b\":99,\"c\":3}");
-        JsonValue   diff = UserConfigStore::DiffJson (c, d);
+        diff = UserConfigStore::DiffJson (c, d);
 
         // Expect $cassoMachineVersion + b only.
         Assert::AreEqual (size_t (2), diff.GetObjectEntries().size());
@@ -247,9 +277,13 @@ public:
 
     TEST_METHOD (Diff_Deep_Object_Only_Inner_Diff)
     {
+        JsonValue  diff;
+
+
+
         JsonValue   d = ParseOrFail ("{\"crt\":{\"brightness\":1.0,\"bloomEnabled\":false}}");
         JsonValue   c = ParseOrFail ("{\"crt\":{\"brightness\":1.0,\"bloomEnabled\":true}}");
-        JsonValue   diff = UserConfigStore::DiffJson (c, d);
+        diff = UserConfigStore::DiffJson (c, d);
 
         // The crt sub-object should appear with only bloomEnabled inside.
         Assert::AreEqual (size_t (1), diff.GetObjectEntries().size());
@@ -456,6 +490,10 @@ public:
 
     TEST_METHOD (Merge_HardwareEnableDelta_OverlaysDefaultArrays)
     {
+        JsonValue  m;
+
+
+
         JsonValue d = ParseOrFail (R"JSON({
             "$cassoMachineVersion": 3,
             "internalDevices": [
@@ -476,7 +514,7 @@ public:
             ]
         })JSON");
 
-        JsonValue m = UserConfigStore::MergeJson (d, u);
+        m = UserConfigStore::MergeJson (d, u);
         JsonValue expected = ParseOrFail (R"JSON({
             "$cassoMachineVersion": 3,
             "internalDevices": [
@@ -495,6 +533,7 @@ public:
     {
         const JsonValue  * internal = nullptr;
         const JsonValue  * slots    = nullptr;
+        JsonValue          diff;
 
 
 
@@ -518,7 +557,7 @@ public:
             ]
         })JSON");
 
-        JsonValue          diff     = UserConfigStore::DiffJson (c, d);
+        diff = UserConfigStore::DiffJson (c, d);
 
         AssertSucceeded (diff.GetArray ("internalDevices", internal));
         AssertSucceeded (diff.GetArray ("slots", slots));
@@ -534,6 +573,7 @@ public:
     TEST_METHOD (Diff_UiPrefs_UsesImplicitDefaultsForSpeedShadowing)
     {
         const JsonValue  * ui   = nullptr;
+        JsonValue          diff;
 
 
 
@@ -554,7 +594,7 @@ public:
             }
         })JSON");
 
-        JsonValue          diff = UserConfigStore::DiffJson (c, d);
+        diff = UserConfigStore::DiffJson (c, d);
 
         AssertSucceeded (diff.GetObject ("$cassoUiPrefs", ui));
         Assert::IsTrue (ui != nullptr);
@@ -568,6 +608,7 @@ public:
     {
         const JsonValue  * nf = nullptr;
         const JsonValue  * ui = nullptr;
+        JsonValue          m;
 
 
 
@@ -580,7 +621,7 @@ public:
             "$cassoUiPrefs": { "speedMode": "maximum" }
         })JSON");
 
-        JsonValue          m  = UserConfigStore::MergeJson (d, u);
+        m = UserConfigStore::MergeJson (d, u);
 
         AssertSucceeded (m.GetObject ("newField", nf));
         AssertSucceeded (m.GetObject ("$cassoUiPrefs", ui));
@@ -589,7 +630,8 @@ public:
 
     TEST_METHOD (Merge_LastMountedImages_UserOnly_Preserved)
     {
-        const JsonValue *  arr     = nullptr;
+        const JsonValue  * arr = nullptr;
+        JsonValue          m;
 
 
 
@@ -601,7 +643,7 @@ public:
             "lastMountedImages": ["C:\\disk0.dsk", ""]
         })JSON");
 
-        JsonValue          m       = UserConfigStore::MergeJson (d, u);
+        m = UserConfigStore::MergeJson (d, u);
 
         AssertSucceeded (m.GetArray ("lastMountedImages", arr));
         Assert::AreEqual (size_t (2), arr->ArraySize());

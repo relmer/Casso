@@ -181,6 +181,7 @@ namespace DiskMruTests
             DiskMru                    mru;
             std::vector<std::string>   serialized;
             std::vector<std::int64_t>  times;
+            DiskMru                    reloaded;
 
 
 
@@ -200,7 +201,7 @@ namespace DiskMruTests
             Assert::IsTrue (serialized[0].find ("\xC3\xB8") != std::string::npos,
                 L"Serialized path must contain valid UTF-8 for U+00F8");
 
-            DiskMru  reloaded = DiskMru::FromUtf8 (serialized);
+            reloaded = DiskMru::FromUtf8 (serialized);
             auto     snap     = reloaded.Snapshot();
 
             Assert::AreEqual ((size_t) 1, snap.size());
@@ -249,10 +250,11 @@ namespace DiskMruTests
 
         TEST_METHOD (ToUtf8_FromUtf8_RoundTripsLoadTimes)
         {
-            constexpr std::int64_t     kWhenA = 1700000001;
-            constexpr std::int64_t     kWhenB = 1700000002;
+            constexpr std::int64_t     kWhenA   = 1700000001;
+            constexpr std::int64_t     kWhenB   = 1700000002;
             std::vector<std::string>   paths;
             std::vector<std::int64_t>  times;
+            DiskMru                    reloaded;
 
             DiskMru  mru;
             mru.RecordMount (L"C:\\Disks\\A.dsk", kWhenA);
@@ -262,7 +264,7 @@ namespace DiskMruTests
 
             Assert::AreEqual ((size_t) 2, times.size());
 
-            DiskMru  reloaded = DiskMru::FromUtf8 (paths, times);
+            reloaded = DiskMru::FromUtf8 (paths, times);
             auto     snap     = reloaded.Snapshot();
 
             // Most-recent-first: B (kWhenB) then A (kWhenA).

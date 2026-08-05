@@ -100,6 +100,10 @@ public:
 
     TEST_METHOD (MakeCrtParams_DisabledEffectsZeroOutMagnitudes)
     {
+        CrtParams  params = {};
+
+
+
         // Even with the effect *sliders* set to non-defaults, an effect
         // whose `enabled` toggle is false must contribute zero to the
         // shader uniforms; that's how `CrtPostProcess::Process` keeps a
@@ -115,7 +119,7 @@ public:
         prefs.crtByMode[0].colorBleedEnabled   = false;
         prefs.crtByMode[0].colorBleedWidth     = 2.5f;
 
-        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 800.0f, 600.0f);
+        params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 800.0f, 600.0f);
 
         Assert::AreEqual (1.5f, params.brightness);
         Assert::AreEqual (0.0f, params.scanlineIntensity);
@@ -128,6 +132,7 @@ public:
     TEST_METHOD (MakeCrtParams_EnabledEffectsPropagateSliderValues)
     {
         GlobalUserPrefs  prefs;
+        CrtParams        params = {};
         prefs.crtByMode[0].userOverride        = true;
         prefs.crtByMode[0].brightness          = 1.2f;
         prefs.crtByMode[0].contrast            = 1.6f;
@@ -139,7 +144,7 @@ public:
         prefs.crtByMode[0].colorBleedEnabled   = true;
         prefs.crtByMode[0].colorBleedWidth     = 1.5f;
 
-        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 1024.0f, 768.0f);
+        params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 1024.0f, 768.0f);
 
         Assert::AreEqual (1.2f, params.brightness);
         Assert::AreEqual (1.6f, params.contrast);
@@ -188,6 +193,7 @@ public:
         // values for the same fields.
         {
             GlobalUserPrefs  prefs;
+            CrtParams        params = {};
             prefs.crtByMode[0].userOverride       = true;
             prefs.crtByMode[0].brightness         = 1.4f;
             prefs.crtByMode[0].contrast           = 0.7f;
@@ -199,7 +205,7 @@ public:
             prefs.crtByMode[0].colorBleedEnabled  = false;
             prefs.crtByMode[0].colorBleedWidth    = 0.5f;
 
-            CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, &theme, 640.0f, 480.0f);
+            params = MakeCrtParams (prefs.crtByMode[0], 0, &theme, 640.0f, 480.0f);
 
             Assert::AreEqual (1.4f, params.brightness);
             Assert::AreEqual (0.7f, params.contrast);

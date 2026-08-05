@@ -90,11 +90,12 @@ public:
 
     TEST_METHOD (Geometry_ThumbAtMaxIsFlushWithTrackEnd)
     {
-        DxuiScrollbar  bar = MakeVertical();
+        DxuiScrollbar           bar = MakeVertical();
+        DxuiScrollbar::Metrics  m   = {};
 
         bar.SetScrollPos (80);
 
-        DxuiScrollbar::Metrics  m = bar.GetMetrics();
+        m = bar.GetMetrics();
 
         Assert::AreEqual (154.0f, m.thumbStart, 0.01f);
         Assert::AreEqual (190.0f, m.thumbStart + m.thumbLength, 0.01f);
@@ -103,8 +104,9 @@ public:
 
     TEST_METHOD (Geometry_ArrowsDroppedWhenTrackTooShort)
     {
-        DxuiScrollbar   bar;
-        DxuiScrollInfo  info;
+        DxuiScrollbar           bar;
+        DxuiScrollInfo          info;
+        DxuiScrollbar::Metrics  m    = {};
 
         bar.Configure (DxuiScrollbar::Orientation::Vertical, 10, 16, 1);
         bar.SetTrack (RECT{ 0, 0, 10, 30 });
@@ -115,7 +117,7 @@ public:
         info.nPage = 20;
         bar.SetScrollInfo (info);
 
-        DxuiScrollbar::Metrics  m = bar.GetMetrics();
+        m = bar.GetMetrics();
 
         Assert::IsTrue (m.visible);
         Assert::IsTrue (m.arrowLess.right <= m.arrowLess.left);
@@ -206,8 +208,9 @@ public:
 
     TEST_METHOD (Horizontal_ThumbGeometryUsesXAxis)
     {
-        DxuiScrollbar   bar;
-        DxuiScrollInfo  info;
+        DxuiScrollbar           bar;
+        DxuiScrollInfo          info;
+        DxuiScrollbar::Metrics  m    = {};
 
         bar.Configure (DxuiScrollbar::Orientation::Horizontal, 10, 16, 32);
         bar.SetTrack (RECT{ 0, 50, 300, 60 });
@@ -218,7 +221,7 @@ public:
         info.nPage = 300;
         bar.SetScrollInfo (info);
 
-        DxuiScrollbar::Metrics  m = bar.GetMetrics();
+        m = bar.GetMetrics();
 
         Assert::AreEqual (0L,   m.arrowLess.left);
         Assert::AreEqual (10L,  m.arrowLess.right);

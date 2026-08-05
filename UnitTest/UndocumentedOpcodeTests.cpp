@@ -410,8 +410,8 @@ namespace CpuOperationTests
         TEST_METHOD (Assembler_CannotEmitUndocumented_ButNopStaysCanonical)
         {
             TestCpu     cpu;
-            OpcodeTable table (cpu.GetInstructionSet());
             OpcodeEntry entry = {};
+            OpcodeTable table (cpu.GetInstructionSet());
 
             Assert::IsFalse (table.TryLookup ("SLO", GlobalAddressingMode::ZeroPage, entry));
             Assert::IsFalse (table.TryLookup ("LAX", GlobalAddressingMode::ZeroPage, entry));

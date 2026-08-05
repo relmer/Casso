@@ -75,11 +75,12 @@ namespace IncludeTests
 
         TEST_METHOD (IncludeInsertsFileContent)
         {
-            TestCpu         cpu;
-            MockFileReader  reader;
+            TestCpu           cpu;
+            MockFileReader    reader;
+            AssemblerOptions  opts;
             reader.files["defs.a65"] = "val = $42\n";
 
-            AssemblerOptions opts = {};
+            opts = {};
             opts.fileReader = &reader;
 
             Assembler assembler (cpu.GetInstructionSet(), opts);
@@ -102,11 +103,12 @@ namespace IncludeTests
 
         TEST_METHOD (DotIncludeWorks)
         {
-            TestCpu         cpu;
-            MockFileReader  reader;
+            TestCpu           cpu;
+            MockFileReader    reader;
+            AssemblerOptions  opts;
             reader.files["defs.a65"] = "val = $55\n";
 
-            AssemblerOptions opts = {};
+            opts = {};
             opts.fileReader = &reader;
 
             Assembler assembler (cpu.GetInstructionSet(), opts);
@@ -126,12 +128,13 @@ namespace IncludeTests
 
         TEST_METHOD (NestedIncludesWork)
         {
-            TestCpu         cpu;
-            MockFileReader  reader;
+            TestCpu           cpu;
+            MockFileReader    reader;
+            AssemblerOptions  opts;
             reader.files["outer.a65"] = "    include \"inner.a65\"\n";
             reader.files["inner.a65"] = "val = $33\n";
 
-            AssemblerOptions opts = {};
+            opts = {};
             opts.fileReader = &reader;
 
             Assembler assembler (cpu.GetInstructionSet(), opts);
@@ -190,8 +193,9 @@ namespace IncludeTests
 
         TEST_METHOD (BinaryFileInclude_EmitsRawBytes)
         {
-            TestCpu         cpu;
-            MockFileReader  reader;
+            TestCpu           cpu;
+            MockFileReader    reader;
+            AssemblerOptions  opts;
 
             // Raw bytes: 0xDE 0xAD 0xBE 0xEF
             std::string rawData;
@@ -201,7 +205,7 @@ namespace IncludeTests
             rawData += (char) 0xEF;
             reader.files["data.bin"] = rawData;
 
-            AssemblerOptions opts = {};
+            opts = {};
             opts.fileReader = &reader;
 
             Assembler assembler (cpu.GetInstructionSet(), opts);
@@ -224,8 +228,9 @@ namespace IncludeTests
 
         TEST_METHOD (SRecordInclude_ExtractsDataBytes)
         {
-            TestCpu         cpu;
-            MockFileReader  reader;
+            TestCpu           cpu;
+            MockFileReader    reader;
+            AssemblerOptions  opts;
 
             // S1 record: byte count=07, addr=0000, data=DE AD BE EF, checksum
             reader.files["data.s19"] =
@@ -233,7 +238,7 @@ namespace IncludeTests
                 "S1070000DEADBEEFC0\r\n"
                 "S9030000FC\r\n";
 
-            AssemblerOptions opts = {};
+            opts = {};
             opts.fileReader = &reader;
 
             Assembler assembler (cpu.GetInstructionSet(), opts);
@@ -259,15 +264,16 @@ namespace IncludeTests
 
         TEST_METHOD (IntelHexInclude_ExtractsDataBytes)
         {
-            TestCpu         cpu;
-            MockFileReader  reader;
+            TestCpu           cpu;
+            MockFileReader    reader;
+            AssemblerOptions  opts;
 
             // Intel HEX: 4 data bytes at address 0000
             reader.files["data.hex"] =
                 ":04000000DEADBEEF52\r\n"
                 ":00000001FF\r\n";
 
-            AssemblerOptions opts = {};
+            opts = {};
             opts.fileReader = &reader;
 
             Assembler assembler (cpu.GetInstructionSet(), opts);
@@ -290,8 +296,9 @@ namespace IncludeTests
 
         TEST_METHOD (BinaryInclude_AdvancesPC)
         {
-            TestCpu         cpu;
-            MockFileReader  reader;
+            TestCpu           cpu;
+            MockFileReader    reader;
+            AssemblerOptions  opts;
 
             std::string rawData;
             rawData += (char) 0x01;
@@ -299,7 +306,7 @@ namespace IncludeTests
             rawData += (char) 0x03;
             reader.files["data.bin"] = rawData;
 
-            AssemblerOptions opts = {};
+            opts = {};
             opts.fileReader = &reader;
 
             Assembler assembler (cpu.GetInstructionSet(), opts);
@@ -324,11 +331,12 @@ namespace IncludeTests
 
         TEST_METHOD (EmptyBinaryInclude_Succeeds)
         {
-            TestCpu         cpu;
-            MockFileReader  reader;
+            TestCpu           cpu;
+            MockFileReader    reader;
+            AssemblerOptions  opts;
             reader.files["empty.bin"] = "";
 
-            AssemblerOptions opts = {};
+            opts = {};
             opts.fileReader = &reader;
 
             Assembler assembler (cpu.GetInstructionSet(), opts);

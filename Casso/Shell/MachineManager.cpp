@@ -884,8 +884,8 @@ HRESULT MachineManager::ReadRomFileBytes (const std::string & path, std::vector<
     bool            isOpen   = false;
     bool            hasBytes = false;
     bool            wasRead  = false;
-    std::ifstream   file (path, std::ios::binary | std::ios::ate);
     std::streamoff  size     = 0;
+    std::ifstream   file (path, std::ios::binary | std::ios::ate);
 
 
     isOpen = file.good();

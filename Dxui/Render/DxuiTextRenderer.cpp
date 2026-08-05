@@ -627,9 +627,11 @@ HRESULT DxuiTextRenderer::EnsureLayout (
     float                 maxHeightDip,
     IDWriteTextLayout  ** outLayout)
 {
-    IDWriteTextFormat        * rawFmt    = nullptr;
-    ComPtr<IDWriteTextFormat>  format;
-    ComPtr<IDWriteTextLayout>  layout;
+    IDWriteTextFormat           * rawFmt = nullptr;
+    ComPtr<IDWriteTextFormat>     format;
+    ComPtr<IDWriteTextLayout>     layout;
+    DWRITE_TEXT_ALIGNMENT         dwH    = {};
+    DWRITE_PARAGRAPH_ALIGNMENT    dwV    = {};
 
 
 
@@ -641,8 +643,8 @@ HRESULT DxuiTextRenderer::EnsureLayout (
     HRESULT                    hr        = S_OK;
     LayoutCacheKey             key;
     const wchar_t            * useFamily = (family != nullptr) ? family : L"Segoe UI";
-    DWRITE_TEXT_ALIGNMENT      dwH       = DWRITE_TEXT_ALIGNMENT_LEADING;
-    DWRITE_PARAGRAPH_ALIGNMENT dwV       = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;
+    dwH = DWRITE_TEXT_ALIGNMENT_LEADING;
+    dwV = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;
 
 
     CBRAEx (outLayout, E_INVALIDARG);
@@ -767,11 +769,11 @@ HRESULT DxuiTextRenderer::EnsureCapMidY (
     BOOL                           familyFound = FALSE;
     bool                           isCached    = false;
     float                          kMeasureBox = 0.0f;
+    UINT32                         familyIndex = 0;
+    DWRITE_FONT_METRICS            metrics     = {};
+    DWRITE_LINE_METRICS            lineMetrics = {};
+    UINT32                         lineCount   = 0;
     const wchar_t                * useFamily     = (family != nullptr) ? family : L"Segoe UI";
-    UINT32                         familyIndex   = 0;
-    DWRITE_FONT_METRICS            metrics       = {};
-    DWRITE_LINE_METRICS            lineMetrics   = {};
-    UINT32                         lineCount     = 0;
     kMeasureBox = 4096.0f;
     const wchar_t                * kMeasureText  = L"Mg";
 
@@ -1015,12 +1017,12 @@ HRESULT DxuiTextRenderer::FillRect (
 {
     HRESULT                            hr     = S_OK;
     ComPtr<ID2D1SolidColorBrush>       brush;
+    D2D1_RECT_F                        rect   = {};
 
 
 
     DXUI_ASSERT_UI_THREAD();
 
-    D2D1_RECT_F                        rect   = {};
 
 
     CBRA (m_d2dContext);
@@ -1064,12 +1066,12 @@ Error:
 HRESULT DxuiTextRenderer::PushClipRect (float xDip, float yDip, float widthDip, float heightDip)
 {
     HRESULT      hr   = S_OK;
+    D2D1_RECT_F  rect = {};
 
 
 
     DXUI_ASSERT_UI_THREAD();
 
-    D2D1_RECT_F  rect = {};
 
 
     CBRA (m_d2dContext);

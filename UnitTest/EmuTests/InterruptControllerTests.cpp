@@ -84,10 +84,11 @@ namespace Apple2eFidelityIc
     public:
         TEST_METHOD (SingleAssertReachesCpu)
         {
-            RecordingCpu            cpu;
-            HRESULT                 hr = S_OK;
+            RecordingCpu  cpu;
+            HRESULT       hr  = S_OK;
+            IrqSourceId   id  = {};
             InterruptController     ic (&cpu);
-            IrqSourceId             id = 0;
+            id = 0;
 
 
 
@@ -106,12 +107,15 @@ namespace Apple2eFidelityIc
 
         TEST_METHOD (MultipleAssertersOredTogether)
         {
-            RecordingCpu            cpu;
-            HRESULT                 hr = S_OK;
+            RecordingCpu  cpu;
+            HRESULT       hr  = S_OK;
+            IrqSourceId   a   = {};
+            IrqSourceId   b   = {};
+            IrqSourceId   c   = {};
             InterruptController     ic (&cpu);
-            IrqSourceId             a  = 0;
-            IrqSourceId             b  = 0;
-            IrqSourceId             c  = 0;
+            a = 0;
+            b = 0;
+            c = 0;
 
 
 
@@ -130,11 +134,13 @@ namespace Apple2eFidelityIc
 
         TEST_METHOD (ClearOnlyDeassertsWhenAllSourcesClear)
         {
-            RecordingCpu            cpu;
-            HRESULT                 hr = S_OK;
+            RecordingCpu  cpu;
+            HRESULT       hr  = S_OK;
+            IrqSourceId   a   = {};
+            IrqSourceId   b   = {};
             InterruptController     ic (&cpu);
-            IrqSourceId             a  = 0;
-            IrqSourceId             b  = 0;
+            a = 0;
+            b = 0;
 
 
 
@@ -157,12 +163,14 @@ namespace Apple2eFidelityIc
 
         TEST_METHOD (UnregisteredSourceRejected)
         {
-            RecordingCpu            cpu;
-            HRESULT                 hr          = S_OK;
-            int                     i           = 0;
+            RecordingCpu  cpu;
+            HRESULT       hr        = S_OK;
+            int           i         = 0;
+            IrqSourceId   id        = {};
+            IrqSourceId   allocated = {};
             InterruptController     ic (&cpu);
-            IrqSourceId             id          = 0;
-            IrqSourceId             allocated   = 0;
+            id = 0;
+            allocated = 0;
 
 
 

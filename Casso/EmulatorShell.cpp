@@ -3469,12 +3469,12 @@ void EmulatorShell::RelayoutJoystickButton()
 void EmulatorShell::ShowPrinterPanel (bool activate)
 {
     HRESULT     hr        = S_OK;
+    HINSTANCE   hInstance = nullptr;
 
 
 
     DXUI_ASSERT_UI_THREAD();   // creates / shows a Dxui window
 
-    HINSTANCE   hInstance = nullptr;
 
     if (m_printerPanel == nullptr || m_printerPanel->Hwnd() == nullptr)
     {
@@ -8844,10 +8844,11 @@ private:
         RECT         r2         = {};
         RECT         r3         = {};
         RECT         filled     = {};
+        HFONT        oldFont    = nullptr;
 
         GetClientRect (hwnd, &rc);
 
-        HFONT  oldFont = (m_font != nullptr) ? (HFONT) SelectObject (hdc, m_font) : nullptr;
+        oldFont = (m_font != nullptr) ? (HFONT) SelectObject (hdc, m_font) : nullptr;
 
         // SetProgress invalidates without erasing (bErase = FALSE) and the
         // text is drawn transparently, so wipe the client area first --

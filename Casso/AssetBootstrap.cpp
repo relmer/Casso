@@ -822,13 +822,14 @@ HRESULT AssetBootstrap::EnsureThemes (
 
     for (const EmbeddedTheme & theme : s_kEmbeddedThemes)
     {
-        fs::path              themeSubdir       = themesDir / theme.dirName;
-        bool                  diskExists        = false;
+        fs::path              themeSubdir      = themesDir / theme.dirName;
+        bool                  diskExists       = false;
         string                diskJsonText;
         string                embeddedJsonText;
-        int                   themeJsonResId    = 0;
+        int                   themeJsonResId   = 0;
+        ThemeBootstrapAction  action           = {};
         fs::path              themeJsonPath     = themeSubdir / "theme.json";
-        ThemeBootstrapAction  action            = ThemeBootstrapAction::Skip;
+        action = ThemeBootstrapAction::Skip;
 
 
 

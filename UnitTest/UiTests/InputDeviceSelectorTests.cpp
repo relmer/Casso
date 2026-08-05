@@ -101,15 +101,16 @@ public:
 
     TEST_METHOD (TooltipText_TracksSplitState)
     {
-        InputDeviceSelector  sel;
-        std::wstring         off;
-        std::wstring         joy;
-        std::wstring         mouse;
-        std::wstring         paddle;
-        RECT                 b          = {};
-        int                  midY       = 0;
-        std::wstring         segTips[3];
-        int                  found      = 0;
+        InputDeviceSelector           sel;
+        std::wstring                  off;
+        std::wstring                  joy;
+        std::wstring                  mouse;
+        std::wstring                  paddle;
+        RECT                          b          = {};
+        int                           midY       = 0;
+        std::wstring                  segTips[3];
+        int                           found      = 0;
+        InputDeviceSelector::Segment  last       = {};
 
         sel.SetState (false, InputMappingMode::Off, true);
         off = sel.TooltipText();
@@ -133,7 +134,7 @@ public:
         InputDeviceSelector           laid       = MakeLaidOut (true);
         b = laid.Bounds();
         midY = (b.top + b.bottom) / 2;
-        InputDeviceSelector::Segment  last       = InputDeviceSelector::Segment::None;
+        last = InputDeviceSelector::Segment::None;
         for (int x = b.left; x < b.right && found < 3; ++x)
         {
             InputDeviceSelector::Segment  seg = laid.SegmentAt (x, midY);

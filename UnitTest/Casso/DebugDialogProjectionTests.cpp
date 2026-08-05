@@ -489,7 +489,8 @@ public:
 
     TEST_METHOD (ResolveSelection_filteredOut_snapsToNearestBefore)
     {
-        std::vector<size_t>  filtered;
+        std::vector<size_t>   filtered;
+        DebugSelectionResult  r        = {};
 
 
 
@@ -498,7 +499,7 @@ public:
             { MakeSeq (10), MakeSeq (20), MakeSeq (30), MakeSeq (40), MakeSeq (50) };
         filtered = { 0, 1, 3, 4 };
 
-        DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (30, events, filtered);
+        r = DebugDialogProjection::ResolveSelection (30, events, filtered);
 
         // Largest surviving seq <= 30 is 20 (deque idx 1, row 1).
         Assert::AreEqual (1,             r.row);
@@ -508,7 +509,8 @@ public:
 
     TEST_METHOD (ResolveSelection_nearestBefore_honorsReorderedFilteredSet)
     {
-        std::vector<size_t>  filtered;
+        std::vector<size_t>   filtered;
+        DebugSelectionResult  r        = {};
 
 
 
@@ -519,7 +521,7 @@ public:
         // never present; nearest at-or-before is seq 20, now at row 2.
         filtered = { 3, 2, 1, 0 };
 
-        DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (30, events, filtered);
+        r = DebugDialogProjection::ResolveSelection (30, events, filtered);
 
         Assert::AreEqual (2,             r.row);
         Assert::AreEqual (uint64_t (20), r.seq);

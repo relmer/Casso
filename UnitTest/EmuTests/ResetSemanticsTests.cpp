@@ -138,10 +138,10 @@ public:
     TEST_METHOD (SoftResetSetsCpuIFlagAndAdjustsSP)
     {
         MemoryBus            bus;
+        Cpu6502Registers     regs = {};
         RamDevice            ramLo (0x0000, 0xBFFF);
         RamDevice            ramHi (0xC000, 0xFFFF);
         MemoryBusCpu         cpu (bus);
-        Cpu6502Registers     regs = {};
 
         bus.AddDevice (&ramLo);
         bus.AddDevice (&ramHi);

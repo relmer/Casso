@@ -185,6 +185,7 @@ namespace ConformanceTests
     {
         std::string        source   = ReadTextFile (a65Path);
         std::vector<Byte>  expected;
+        AssemblyResult     result;
 
         Assert::IsFalse (source.empty(),
             (L"Cannot read source: " + std::wstring (testName.begin(), testName.end())).c_str());
@@ -195,7 +196,7 @@ namespace ConformanceTests
             (L"Cannot read expected: " + std::wstring (testName.begin(), testName.end())).c_str());
 
         Assembler         asm6502 = BuildAssembler();
-        AssemblyResult    result  = asm6502.Assemble (source);
+        result = asm6502.Assemble (source);
 
         if (!result.success)
         {

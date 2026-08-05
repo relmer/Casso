@@ -47,10 +47,11 @@ public:
 
     TEST_METHOD (Save_ThenLoad_RoundTripsBounds)
     {
-        GlobalUserPrefs                  prefs;
-        WindowPlacementProfile::Bounds   loaded;
+        GlobalUserPrefs                 prefs;
+        WindowPlacementProfile::Bounds  loaded;
+        WindowPlacementProfile::Bounds  saved  = {};
         WindowPlacementProfile           profile (prefs);
-        WindowPlacementProfile::Bounds   saved   = { s_kSavedX, s_kSavedY, s_kSavedW, s_kSavedH };
+        saved = { s_kSavedX, s_kSavedY, s_kSavedW, s_kSavedH };
 
         profile.Save (s_kpszKeyA, saved);
 
@@ -65,9 +66,10 @@ public:
 
     TEST_METHOD (Save_LandsInWindowPlacementsMap)
     {
-        GlobalUserPrefs                  prefs;
+        GlobalUserPrefs                 prefs;
+        WindowPlacementProfile::Bounds  saved = {};
         WindowPlacementProfile           profile (prefs);
-        WindowPlacementProfile::Bounds   saved   = { 10, 20, 800, 600 };
+        saved = { 10, 20, 800, 600 };
 
         profile.Save (s_kpszKeyA, saved);
 
@@ -81,11 +83,13 @@ public:
 
     TEST_METHOD (PerTopology_IsolatedFromOtherTopologies)
     {
-        GlobalUserPrefs                  prefs;
-        WindowPlacementProfile::Bounds   loaded;
+        GlobalUserPrefs                 prefs;
+        WindowPlacementProfile::Bounds  loaded;
+        WindowPlacementProfile::Bounds  boundsA = {};
+        WindowPlacementProfile::Bounds  boundsB = {};
         WindowPlacementProfile           profile (prefs);
-        WindowPlacementProfile::Bounds   boundsA = { 100, 100, 1024, 768 };
-        WindowPlacementProfile::Bounds   boundsB = { 500, 250,  640, 480 };
+        boundsA = { 100, 100, 1024, 768 };
+        boundsB = { 500, 250,  640, 480 };
 
         profile.Save (s_kpszKeyA, boundsA);
         profile.Save (s_kpszKeyB, boundsB);
@@ -114,11 +118,13 @@ public:
 
     TEST_METHOD (Save_OverwritesPreviousBoundsForSameTopology)
     {
-        GlobalUserPrefs                  prefs;
-        WindowPlacementProfile::Bounds   loaded;
+        GlobalUserPrefs                 prefs;
+        WindowPlacementProfile::Bounds  loaded;
+        WindowPlacementProfile::Bounds  first  = {};
+        WindowPlacementProfile::Bounds  second = {};
         WindowPlacementProfile           profile (prefs);
-        WindowPlacementProfile::Bounds   first   = { 10, 10, 100, 100 };
-        WindowPlacementProfile::Bounds   second  = { 50, 60, 700, 400 };
+        first = { 10, 10, 100, 100 };
+        second = { 50, 60, 700, 400 };
 
         profile.Save (s_kpszKeyA, first);
         profile.Save (s_kpszKeyA, second);

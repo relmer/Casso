@@ -179,6 +179,8 @@ public:
             DiskImage              * img             = nullptr;
             Apple2eSoftSwitchBank  * ss              = nullptr;
             Byte                   * auxBuf          = nullptr;
+            AssemblyResult           asmResult;
+            AssemblyResult           stage2Result;
             Assert::IsFalse (source.empty(), L"casso-rocks.a65 must not be empty");
             Assert::IsFalse (stage2Source.empty(),
                 L"casso-rocks-stage2.a65 must not be empty");
@@ -201,7 +203,7 @@ public:
 
             Assembler       assembler (cpu.GetInstructionSet());
 
-            AssemblyResult  asmResult = assembler.Assemble (source);
+            asmResult = assembler.Assemble (source);
             if (!asmResult.success)
             {
                 wchar_t  msg[256] = {};
@@ -213,7 +215,7 @@ public:
                 Assert::Fail (msg);
             }
 
-            AssemblyResult  stage2Result = assembler.Assemble (stage2Source);
+            stage2Result = assembler.Assemble (stage2Source);
             if (!stage2Result.success)
             {
                 wchar_t  msg[256] = {};

@@ -239,6 +239,7 @@ public:
         DxuiDpiScaler     scaler;
         DxuiMouseEvent    down    = {};
         bool              clicked = false;
+        DxuiMouseEvent    up      = {};
 
 
         scaler.SetDpi (96);
@@ -252,7 +253,6 @@ public:
         down.button      = DxuiMouseButton::Left;
         down.positionDip = POINT { 10, 10 };
 
-        DxuiMouseEvent  up = {};
         up.kind        = DxuiMouseEventKind::Up;
         up.button      = DxuiMouseButton::Left;
         up.positionDip = POINT { 10, 10 };

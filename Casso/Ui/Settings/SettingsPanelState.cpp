@@ -1131,11 +1131,12 @@ HRESULT SettingsPanelState::ExtractHardware (
     const JsonValue              & mergedJson,
     std::vector<HardwareEntry>   & outEntries)
 {
-    HRESULT             hr             = S_OK;
-    const JsonValue *   devArr         = nullptr;
-    const JsonValue *   slotArr        = nullptr;
-    size_t              i              = 0;
-    size_t              j              = 0;
+    HRESULT            hr             = S_OK;
+    const JsonValue  * devArr         = nullptr;
+    const JsonValue  * slotArr        = nullptr;
+    size_t             i              = 0;
+    size_t             j              = 0;
+    JsonType           mergedRootType = {};
 
 
 
@@ -1170,7 +1171,7 @@ HRESULT SettingsPanelState::ExtractHardware (
         { "apple2e-mmu",             "Memory Management Unit" },
     };
 
-    JsonType            mergedRootType = JsonType::Null;
+    mergedRootType = JsonType::Null;
 
 
     mergedRootType = mergedJson.GetType();

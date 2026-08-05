@@ -1858,10 +1858,11 @@ namespace AssemblerTests
         // Helper to build assembler with specific warning mode
         static Assembler BuildWithWarningMode (WarningMode mode)
         {
-            TestCpu cpu;
+            TestCpu           cpu;
+            AssemblerOptions  options;
             cpu.InitForTest();
 
-            AssemblerOptions options = {};
+            options = {};
             options.warningMode = mode;
 
             return Assembler (cpu.GetInstructionSet(), options);

@@ -58,11 +58,14 @@ using namespace ChromeMetrics;
 // resolve where the system has a message and degrade to just the hex code.
 std::wstring  WindowCommandManager::FormatSystemError (HRESULT hr)
 {
+    LPWSTR         text   = nullptr;
+
+
+
     std::wstring   detail = std::format (L"0x{:08X}", (uint32_t) hr);
     DWORD          code   = (HRESULT_FACILITY (hr) == FACILITY_WIN32)
                                 ? (DWORD) HRESULT_CODE (hr)
                                 : (DWORD) hr;
-    LPWSTR         text   = nullptr;
 
     DWORD  n = FormatMessageW (
         FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -647,6 +650,8 @@ void WindowCommandManager::OnMachineCommand (int id)
 
         case IDM_MACHINE_INFO:
         {
+            DialogDefinition  def;
+
             std::wstring info = std::format (
                 L"Machine: {}\n"
                 L"CPU: {}\n"
@@ -659,7 +664,7 @@ void WindowCommandManager::OnMachineCommand (int id)
                 (m_shell.m_config.ram.size() + 1 + m_shell.m_config.slots.size()),
                 (m_shell.m_config.internalDevices.size() + m_shell.m_config.slots.size()));
 
-            DialogDefinition def = {};
+            def = {};
             def.title = L"Machine info";
             def.icon  = DialogIcon::Info;
             def.body.push_back ({ info, false, L"" });

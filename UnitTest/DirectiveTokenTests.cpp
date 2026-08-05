@@ -69,8 +69,10 @@ public:
     {
         for (const DirectiveTable::Spelling & entry : DirectiveTable::GetAllSpellings())
         {
+            ParsedLine  parsed = {};
+
             std::string  line   = std::string (entry.name) + " " + SampleArgFor (entry.token);
-            ParsedLine   parsed = Parser::ParseLine (line, 1);
+            parsed = Parser::ParseLine (line, 1);
             std::wstring what (line.begin(), line.end());
 
             Assert::IsTrue (parsed.isDirective,
@@ -154,7 +156,9 @@ public:
 
         for (const auto & pair : s_kPairs)
         {
-            TestCpu  cpu;
+            TestCpu         cpu;
+            AssemblyResult  resLong;
+            AssemblyResult  resShort;
             cpu.InitForTest();
 
             Assembler  asm6502 (cpu.GetInstructionSet());
@@ -163,8 +167,8 @@ public:
             std::string  srcLong  = std::string ("        org $800\n        ") + pair[0] + "\n        .byte $ff\n";
             std::string  srcShort = std::string ("        org $800\n        ") + pair[1] + "\n        .byte $ff\n";
 
-            AssemblyResult  resLong  = asm6502.Assemble (srcLong);
-            AssemblyResult  resShort = asmShort.Assemble (srcShort);
+            resLong = asm6502.Assemble (srcLong);
+            resShort = asmShort.Assemble (srcShort);
             std::string     what     = std::string (pair[0]) + " vs " + pair[1];
             std::wstring    msg (what.begin(), what.end());
 

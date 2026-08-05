@@ -164,9 +164,10 @@ namespace PrinterCardTests
 
         TEST_METHOD (FactoryBuildsCardForConfiguredSlot)
         {
-            ComponentRegistry   registry;
-            MemoryBus           bus;
-            DeviceConfig        cfg;
+            ComponentRegistry         registry;
+            MemoryBus                 bus;
+            DeviceConfig              cfg;
+            unique_ptr<MemoryDevice>  device;
 
             ComponentRegistry::RegisterBuiltinDevices (registry);
 
@@ -174,7 +175,7 @@ namespace PrinterCardTests
             cfg.slot    = 2;
             cfg.hasSlot = true;
 
-            unique_ptr<MemoryDevice>   device = registry.Create (cfg.type, cfg, bus);
+            device = registry.Create (cfg.type, cfg, bus);
 
             Assert::IsNotNull (device.get());
             Assert::AreEqual ((Word) 0xC0A0, device->GetStart());

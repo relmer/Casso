@@ -197,17 +197,18 @@ bool JoystickToggleButton::HitTest (int x, int y) const
 
 void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & dxuiTheme)
 {
-    HRESULT   hr       = S_OK;
-    bool      active   = false;
-    float     fontDip  = 0.0f;
-    float     bl       = 0.0f;
-    float     bt       = 0.0f;
-    float     bw       = 0.0f;
-    float     bh       = 0.0f;
-    uint32_t  coreArgb = 0;
-    uint32_t  haloArgb = 0;
-    int       ledGap   = 0;
-    float     textX    = 0.0f;
+    HRESULT             hr       = S_OK;
+    bool                active   = false;
+    float               fontDip  = 0.0f;
+    float               bl       = 0.0f;
+    float               bt       = 0.0f;
+    float               bw       = 0.0f;
+    float               bh       = 0.0f;
+    uint32_t            coreArgb = 0;
+    uint32_t            haloArgb = 0;
+    int                 ledGap   = 0;
+    float               textX    = 0.0f;
+    LedIndicatorLayout  ledRect  = {};
 
 
 
@@ -222,7 +223,7 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
     bh = (float) (m_bounds.bottom - m_bounds.top);
     coreArgb = m_on ? s_kLedOnCoreArgb : s_kLedOffCoreArgb;
     haloArgb = m_on ? s_kLedOnHaloArgb : 0;
-    LedIndicatorLayout  ledRect  = m_led.GetLayout();
+    ledRect = m_led.GetLayout();
     ledGap = MulDiv (s_kLedGapDp, (int) m_dpi, s_kBaseDpi);
     textX = (float) (ledRect.coreRect.right + ledGap);
 

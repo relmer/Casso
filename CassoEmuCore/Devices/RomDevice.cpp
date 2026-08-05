@@ -103,12 +103,12 @@ unique_ptr<MemoryDevice> RomDevice::CreateFromFile (
     size_t                    expectedSize = 0;
     unique_ptr<MemoryDevice>  device;
     bool                      ok           = false;
+    streampos                 fileSize     = 0;
 
 
 
     ifstream                    file (filePath, ios::binary | ios::ate);
     expectedSize = static_cast<size_t> (end - start + 1);
-    streampos                   fileSize     = 0;
     ok = file.good();
 
     // Null out, message in outError. The size must match EXACTLY: a ROM that

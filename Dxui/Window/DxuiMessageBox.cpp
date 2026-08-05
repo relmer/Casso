@@ -252,13 +252,13 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     int                       choice     = 0;
     DxuiMessageBoxWindow      dlg;
     DxuiWindow::CreateParams  params;
+    HINSTANCE                 hInst      = nullptr;
 
 
 
     std::vector<ButtonSpec>   buttons;
     std::wstring              body       = (text != nullptr) ? text : L"";
     defaultCmd = IDOK;
-    HINSTANCE                 hInst      = nullptr;
     choice = IDOK;
 
     switch (uType & MB_TYPEMASK)

@@ -490,6 +490,7 @@ void SettingsSheet::UpdatePreviewCompose()
 {
     RECT  emuOverlapClient = {};
     RECT  focusClient      = {};
+    HWND  hwnd             = nullptr;
 
 
 
@@ -498,7 +499,7 @@ void SettingsSheet::UpdatePreviewCompose()
         return;
     }
 
-    HWND  hwnd             = Hwnd();
+    hwnd = Hwnd();
 
     if (m_previewActive && hwnd != nullptr)
     {

@@ -316,8 +316,9 @@ void SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
     std::string            bootstrapError;
     bool                   userExited     = false;
     bool                   selected       = false;
+    HINSTANCE              hInstance      = nullptr;
     std::wstring      wideName (machineName.begin(), machineName.end());
-    HINSTANCE         hInstance   = (HINSTANCE) GetModuleHandleW (nullptr);
+    hInstance = (HINSTANCE) GetModuleHandleW (nullptr);
     HWND              hwndParent  = (m_emuShell != nullptr && m_emuShell->m_hwnd != nullptr)
                                         ? m_emuShell->m_hwnd
                                         : GetActiveWindow();
@@ -363,8 +364,10 @@ void SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
 
         if (selected && FAILED (hr))
         {
+            DialogDefinition  def;
+
             std::wstring     wErr (bootstrapError.begin(), bootstrapError.end());
-            DialogDefinition def  = {};
+            def = {};
 
             def.title = L"Casso";
             def.icon  = DialogIcon::Error;

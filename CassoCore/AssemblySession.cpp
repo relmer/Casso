@@ -756,6 +756,8 @@ bool AssemblySession::TryEvaluateDirectiveArgs (
 
     for (const auto & arg : args)
     {
+        ExprResult  er;
+
         // Check for quoted string — emit each character as a value
         if (arg.size() >= 2 && arg.front() == '"' && arg.back() == '"')
         {
@@ -770,7 +772,7 @@ bool AssemblySession::TryEvaluateDirectiveArgs (
             continue;
         }
 
-        ExprResult er = ExpressionEvaluator::Evaluate (arg, ctx);
+        er = ExpressionEvaluator::Evaluate (arg, ctx);
 
         if (!er.success)
         {
@@ -1701,10 +1703,11 @@ std::span<const AssemblySession::StructMemberType> AssemblySession::GetStructMem
 
 HRESULT AssemblySession::GetStructMemberSize (const std::string & operand, int32_t & outSize)
 {
-    HRESULT                   hr        = S_OK;
-    const StructMemberType *  match     = nullptr;
+    HRESULT                   hr    = S_OK;
+    const StructMemberType  * match = nullptr;
+    Directive                 token = {};
     size_t                    split     = operand.find_first_of (" \t");
-    Directive                 token     = DirectiveTable::FromStorageSpelling (ToUpperCase (operand.substr (0, split)));
+    token = DirectiveTable::FromStorageSpelling (ToUpperCase (operand.substr (0, split)));
     std::string               countExpr = (split == std::string::npos) ? "" : operand.substr (split);
     size_t                    exprStart = countExpr.find_first_not_of (" \t");
 
@@ -1729,12 +1732,14 @@ HRESULT AssemblySession::GetStructMemberSize (const std::string & operand, int32
     {
         if (match->elementSize == kSizeFromOperand)
         {
+            ExprResult  er;
+
             // `.DS <count>` -- the operand carries the width. An expression that
             // does not evaluate falls back to one byte rather than dropping the
             // member, so offsets after it stay plausible for the rest of pass 1.
             m_pass1Ctx.currentPC = (int32_t) m_pc;
 
-            ExprResult  er = ExpressionEvaluator::Evaluate (countExpr, m_pass1Ctx);
+            er = ExpressionEvaluator::Evaluate (countExpr, m_pass1Ctx);
 
             outSize = er.success ? er.value : 1;
         }
@@ -2102,8 +2107,10 @@ HRESULT AssemblySession::HandleIfDirective (const PendingLine & current, const s
 
     if (state.parentAssembling)
     {
+        ExprResult  er;
+
         m_pass1Ctx.currentPC = (int32_t) m_pc;
-        ExprResult er = ExpressionEvaluator::Evaluate (condArg, m_pass1Ctx);
+        er = ExpressionEvaluator::Evaluate (condArg, m_pass1Ctx);
 
         if (!er.success)
         {
@@ -2302,12 +2309,13 @@ HRESULT AssemblySession::HandleEndifDirective (const PendingLine & current)
 
 HRESULT AssemblySession::HandleOrgDirective (const PendingLine & current, LineInfo & info)
 {
-    HRESULT hr = S_OK;
+    HRESULT     hr = S_OK;
+    ExprResult  er;
 
 
 
     m_pass1Ctx.currentPC = (int32_t) m_pc;
-    ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass1Ctx);
+    er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass1Ctx);
 
     if (!er.success)
     {
@@ -3122,6 +3130,7 @@ HRESULT AssemblySession::HandleIncludeDirective (const PendingLine & current, Li
         std::string               filename   = Parser::ParseQuotedString (info.parsed.directiveArg);
         std::string               ext;
         std::vector<std::string>  synthLines;
+        FileReadResult            fr         = {};
 
         if (filename.empty())
         {
@@ -3135,7 +3144,7 @@ HRESULT AssemblySession::HandleIncludeDirective (const PendingLine & current, Li
             }
         }
 
-        FileReadResult fr = m_options.fileReader->ReadFile (filename, m_options.baseDir);
+        fr = m_options.fileReader->ReadFile (filename, m_options.baseDir);
 
         CBRFEx (fr.success, S_OK, RecordError (current.sourceLineNumber, fr.error));
 
@@ -3232,8 +3241,10 @@ HRESULT AssemblySession::StartStructDefinition (const PendingLine & current, Lin
 
         if (args.size() >= 2)
         {
+            ExprResult  er;
+
             m_pass1Ctx.currentPC = (int32_t) m_pc;
-            ExprResult er = ExpressionEvaluator::Evaluate (args[1], m_pass1Ctx);
+            er = ExpressionEvaluator::Evaluate (args[1], m_pass1Ctx);
 
             if (er.success)
             {
@@ -3357,6 +3368,7 @@ HRESULT AssemblySession::ParseCmapMapping (const std::string & arg)
     {
         std::string lhs = arg.substr (0, eqPos);
         std::string rhs = arg.substr (eqPos + 1);
+        ExprResult  rhsVal;
 
         {
             size_t ls = lhs.find_last_not_of (" \t");
@@ -3375,7 +3387,7 @@ HRESULT AssemblySession::ParseCmapMapping (const std::string & arg)
         }
 
         m_pass1Ctx.currentPC = (int32_t) m_pc;
-        ExprResult rhsVal = ExpressionEvaluator::Evaluate (rhs, m_pass1Ctx);
+        rhsVal = ExpressionEvaluator::Evaluate (rhs, m_pass1Ctx);
 
         if (rhsVal.success)
         {
@@ -4169,12 +4181,13 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
 
 
     {
+        OpcodeEntry entry = {};
+
         GlobalAddressingMode::AddressingMode mode = ResolveAddressingMode (
             info.classified.syntax, info.parsed.mnemonic,
             exprValue, exprResolved);
         info.resolvedMode = mode;
 
-        OpcodeEntry entry = {};
 
         if (m_opcodeTable.TryLookup (info.parsed.mnemonic, mode, entry))
         {
@@ -4323,8 +4336,10 @@ HRESULT AssemblySession::HandleMultiNop (const PendingLine & current, LineInfo &
     BAIL_OUT_IF (info.parsed.mnemonic != "NOP" || info.parsed.operand.empty(), S_OK);
 
     {
+        ExprResult  er;
+
         m_pass1Ctx.currentPC = (int32_t) m_pc;
-        ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.operand, m_pass1Ctx);
+        er = ExpressionEvaluator::Evaluate (info.parsed.operand, m_pass1Ctx);
 
         if (er.success && er.value > 0)
         {
@@ -4503,8 +4518,10 @@ HRESULT AssemblySession::ResolveEquConstants()
             }
             else
             {
+                ExprResult  er;
+
                 m_pass2Ctx.currentPC = (int32_t) info.pc;
-                ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.constantExpr, m_pass2Ctx);
+                er = ExpressionEvaluator::Evaluate (info.parsed.constantExpr, m_pass2Ctx);
 
                 if (er.success)
                 {
@@ -5102,11 +5119,12 @@ HRESULT AssemblySession::ResolveInstructionValue (const LineInfo & info, int32_t
 
         if (!er.success)
         {
+            OpcodeEntry entry = {};
+
             RecordError (info.parsed.lineNumber,
                 "Undefined symbol in: " + info.classified.expression);
             emit = false;
 
-            OpcodeEntry entry = {};
 
             if (m_opcodeTable.TryLookup (info.parsed.mnemonic, mode, entry))
             {
