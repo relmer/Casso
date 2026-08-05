@@ -24,7 +24,8 @@ string JsonWriter::Write (const JsonValue & value)
 
     opts.fPretty = false;
 
-    IGNORE_RETURN_VALUE (hr, Write (value, opts, text));
+    hr = Write (value, opts, text);
+    IGNORE_RETURN_VALUE (hr, S_OK);
     return text;
 }
 

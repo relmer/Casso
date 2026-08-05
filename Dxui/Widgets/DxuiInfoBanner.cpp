@@ -147,16 +147,17 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     }
 
     // Wrapping body text.
-    IGNORE_RETURN_VALUE (hr, text.DrawString (m_text.c_str(),
-                                              textX,
-                                              top + padY,
-                                              (textW > 1.0f) ? textW : 1.0f,
-                                              height - padY * 2.0f,
-                                              theme.InfoBannerForeground(),
-                                              fontPx,
-                                              DxuiTheme::kBodyFace,
-                                              DxuiTextHAlign::Left,
-                                              DxuiTextVAlign::Top,
-                                              DxuiFontWeight::Normal,
-                                              true));
+    hr = text.DrawString (m_text.c_str(),
+                          textX,
+                          top + padY,
+                          (textW > 1.0f) ? textW : 1.0f,
+                          height - padY * 2.0f,
+                          theme.InfoBannerForeground(),
+                          fontPx,
+                          DxuiTheme::kBodyFace,
+                          DxuiTextHAlign::Left,
+                          DxuiTextVAlign::Top,
+                          DxuiFontWeight::Normal,
+                          true);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }

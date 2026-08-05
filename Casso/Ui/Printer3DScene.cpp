@@ -2174,7 +2174,8 @@ void Printer3DScene::Render (const RECT & targetPx)
     BuildBackdrop (m_backdrop);
     BuildPaper    (m_paper);
 
-    IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_backdrop.data(), m_backdrop.size(), identity, false, vp));
+    hr = m_renderer.DrawTriangles (m_backdrop.data(), m_backdrop.size(), identity, false, vp);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (HasModel())
     {
@@ -2185,15 +2186,20 @@ void Printer3DScene::Render (const RECT & targetPx)
         BuildHeadOverlay (m_solidFront);
         BuildCassoLogo   (m_solidFront, m_meshFrontZ);
 
-        IGNORE_RETURN_VALUE (hr, m_renderer.BeginDepthPass());
-        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_mesh.data(),       m_mesh.size(),       mvp, false, vp, true));
-        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_paper.data(),      m_paper.size(),      mvp, true,  vp, true));
-        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_solidFront.data(), m_solidFront.size(), mvp, false, vp, true));
+        hr = m_renderer.BeginDepthPass();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = m_renderer.DrawTriangles (m_mesh.data(),       m_mesh.size(),       mvp, false, vp, true);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = m_renderer.DrawTriangles (m_paper.data(),      m_paper.size(),      mvp, true,  vp, true);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = m_renderer.DrawTriangles (m_solidFront.data(), m_solidFront.size(), mvp, false, vp, true);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         // The smoked window last, over everything it must show through.
         if (!m_meshGlass.empty())
         {
-            IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_meshGlass.data(), m_meshGlass.size(), mvp, false, vp, true));
+            hr = m_renderer.DrawTriangles (m_meshGlass.data(), m_meshGlass.size(), mvp, false, vp, true);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
         // Front-panel LEDs over the finished body: a glow halo per lit lamp,
@@ -2202,12 +2208,14 @@ void Printer3DScene::Render (const RECT & targetPx)
         BuildLedBatches();
         if (!m_glowBatch.empty())
         {
-            IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_glowBatch.data(), m_glowBatch.size(), mvp, false, vp, false));
+            hr = m_renderer.DrawTriangles (m_glowBatch.data(), m_glowBatch.size(), mvp, false, vp, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
         if (!m_ledBatch.empty())
         {
-            IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_ledBatch.data(), m_ledBatch.size(), mvp, false, vp, false));
+            hr = m_renderer.DrawTriangles (m_ledBatch.data(), m_ledBatch.size(), mvp, false, vp, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }
     else
@@ -2216,8 +2224,11 @@ void Printer3DScene::Render (const RECT & targetPx)
         BuildBodyBack  (m_solidBack);
         BuildBodyFront (m_solidFront);
 
-        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_solidBack.data(),  m_solidBack.size(),  mvp, false, vp));
-        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_paper.data(),      m_paper.size(),      mvp, true,  vp));
-        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_solidFront.data(), m_solidFront.size(), mvp, false, vp));
+        hr = m_renderer.DrawTriangles (m_solidBack.data(),  m_solidBack.size(),  mvp, false, vp);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = m_renderer.DrawTriangles (m_paper.data(),      m_paper.size(),      mvp, true,  vp);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = m_renderer.DrawTriangles (m_solidFront.data(), m_solidFront.size(), mvp, false, vp);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }

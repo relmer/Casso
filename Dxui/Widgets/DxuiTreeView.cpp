@@ -684,30 +684,32 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             // widget. Earlier impl drew a filled inner square which
             // read more like a focus ring than a tick.
             float  boxYPx = rowY + (rowHeight - (float) m_checkboxPx) * 0.5f;
-            IGNORE_RETURN_VALUE (hr, text.DrawString (s_kpszCheckMark,
-                                                      checkboxX,
-                                                      boxYPx,
-                                                      (float) m_checkboxPx,
-                                                      (float) m_checkboxPx,
-                                                      glyphCol,
-                                                      (float) m_checkboxPx * 0.95f,
-                                                      L"Segoe UI Symbol",
-                                                      DxuiTextHAlign::Center,
-                                                      DxuiTextVAlign::Center));
+            hr = text.DrawString (s_kpszCheckMark,
+                                  checkboxX,
+                                  boxYPx,
+                                  (float) m_checkboxPx,
+                                  (float) m_checkboxPx,
+                                  glyphCol,
+                                  (float) m_checkboxPx * 0.95f,
+                                  L"Segoe UI Symbol",
+                                  DxuiTextHAlign::Center,
+                                  DxuiTextVAlign::Center);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
         if (node != nullptr)
         {
-            IGNORE_RETURN_VALUE (hr, text.DrawString (node->label.c_str(),
-                                                      textX,
-                                                      rowY,
-                                                      (float) m_boundsDip.right - textX,
-                                                      rowHeight,
-                                                      textCol,
-                                                      fontDip,
-                                                      DxuiTheme::kBodyFace,
-                                                      DxuiTextHAlign::Left,
-                                                      DxuiTextVAlign::CenterOnCapHeight));
+            hr = text.DrawString (node->label.c_str(),
+                                  textX,
+                                  rowY,
+                                  (float) m_boundsDip.right - textX,
+                                  rowHeight,
+                                  textCol,
+                                  fontDip,
+                                  DxuiTheme::kBodyFace,
+                                  DxuiTextHAlign::Left,
+                                  DxuiTextVAlign::CenterOnCapHeight);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }
 }

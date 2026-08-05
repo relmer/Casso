@@ -75,19 +75,20 @@ public:
             wchar_t  g[2]      = { m_glyph, L'\0' };
             int      iconColPx = m_scaler.Px (s_kIconColDip);
 
-            IGNORE_RETURN_VALUE (hr, text.DrawString (
-                g,
-                (float) m_bounds.left,
-                (float) m_bounds.top,
-                (float) iconColPx,
-                (float) (m_bounds.bottom - m_bounds.top),
-                m_glyphArgb,
-                m_scaler.Pxf ((float) s_kGlyphSizeDip),
-                s_kMdl2Font,
-                DxuiTextHAlign::Center,
-                DxuiTextVAlign::Center,
-                DxuiFontWeight::Normal,
-                false));
+            hr = text.DrawString (
+g,
+(float) m_bounds.left,
+(float) m_bounds.top,
+(float) iconColPx,
+(float) (m_bounds.bottom - m_bounds.top),
+m_glyphArgb,
+m_scaler.Pxf ((float) s_kGlyphSizeDip),
+s_kMdl2Font,
+DxuiTextHAlign::Center,
+DxuiTextVAlign::Center,
+DxuiFontWeight::Normal,
+false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
 
             tr.left += iconColPx + m_scaler.Px (s_kIconTextGapDip);
         }
@@ -95,19 +96,20 @@ public:
         {
             DxuiFontHandle  bf = theme.BodyFont();
 
-            IGNORE_RETURN_VALUE (hr, text.DrawString (
-                m_text.c_str(),
-                (float) tr.left,
-                (float) tr.top,
-                (float) (tr.right  - tr.left),
-                (float) (tr.bottom - tr.top),
-                theme.TextColor (DxuiTextRole::Body),
-                m_scaler.Pxf (bf.sizeDip),
-                bf.face,
-                DxuiTextHAlign::Left,
-                DxuiTextVAlign::Center,
-                bf.weight,
-                true));
+            hr = text.DrawString (
+m_text.c_str(),
+(float) tr.left,
+(float) tr.top,
+(float) (tr.right  - tr.left),
+(float) (tr.bottom - tr.top),
+theme.TextColor (DxuiTextRole::Body),
+m_scaler.Pxf (bf.sizeDip),
+bf.face,
+DxuiTextHAlign::Left,
+DxuiTextVAlign::Center,
+bf.weight,
+true);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }
 

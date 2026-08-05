@@ -405,14 +405,15 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     painter.FillRect    (boxLeft, boxTop, width, height, m_bgArgb);
     painter.OutlineRect (boxLeft, boxTop, width, height, borderPx, m_borderArgb);
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (m_text.c_str(),
-                                              boxLeft + padX,
-                                              boxTop  + padY,
-                                              width  - padX * 2.0f,
-                                              height - padY * 2.0f,
-                                              m_textArgb,
-                                              fontPx,
-                                              s_kFontFamily));
+    hr = text.DrawString (m_text.c_str(),
+                          boxLeft + padX,
+                          boxTop  + padY,
+                          width  - padX * 2.0f,
+                          height - padY * 2.0f,
+                          m_textArgb,
+                          fontPx,
+                          s_kFontFamily);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -489,12 +490,13 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
 
     painter.OutlineRect (0.0f, 0.0f, width, height, borderPx, m_borderArgb);
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (m_text.c_str(),
-                                              padX,
-                                              padY,
-                                              width  - padX * 2.0f,
-                                              height - padY * 2.0f,
-                                              m_textArgb,
-                                              fontPx,
-                                              s_kFontFamily));
+    hr = text.DrawString (m_text.c_str(),
+                          padX,
+                          padY,
+                          width  - padX * 2.0f,
+                          height - padY * 2.0f,
+                          m_textArgb,
+                          fontPx,
+                          s_kFontFamily);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }

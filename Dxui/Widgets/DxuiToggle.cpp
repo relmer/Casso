@@ -242,17 +242,18 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
 
         // An unlabeled toggle narrates its own state instead, so the pill is
         // never left with nothing beside it.
-        IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.empty() ? (m_checked ? L"On" : L"Off")
-                                                                  : m_label.c_str(),
-                                                  pillLeft + pillW + labelGap,
-                                                  (float) m_boundsDip.top,
-                                                  (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
-                                                  (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                                  textColor,
-                                                  fontDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center));
+        hr = text.DrawString (m_label.empty() ? (m_checked ? L"On" : L"Off")
+                                              : m_label.c_str(),
+                              pillLeft + pillW + labelGap,
+                              (float) m_boundsDip.top,
+                              (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
+                              (float) (m_boundsDip.bottom - m_boundsDip.top),
+                              textColor,
+                              fontDip,
+                              DxuiTheme::kBodyFace,
+                              DxuiTextHAlign::Left,
+                              DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 

@@ -167,16 +167,17 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         int    btnMaxRight = 0;
         int    btnMinRight = 0;
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (L"Casso emulator",
-                                                  (float) (prevRect.left + ScalePx (12)),
-                                                  (float) btnTop,
-                                                  (float) (prevW - 3 * (sysBtnW + sysBtnGap) - ScalePx (24)),
-                                                  (float) btnH,
-                                                  theme.titleText,
-                                                  captionDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextRenderer::HAlign::Left,
-                                                  DxuiTextRenderer::VAlign::Center));
+        hr = text.DrawString (L"Casso emulator",
+                              (float) (prevRect.left + ScalePx (12)),
+                              (float) btnTop,
+                              (float) (prevW - 3 * (sysBtnW + sysBtnGap) - ScalePx (24)),
+                              (float) btnH,
+                              theme.titleText,
+                              captionDip,
+                              DxuiTheme::kBodyFace,
+                              DxuiTextRenderer::HAlign::Left,
+                              DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         // Close (rightmost) -- drawn in its IDLE state (like min/max), NOT
         // the red hover fill, so the mockup matches a fresh app caption
@@ -186,16 +187,17 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         painter.FillRect ((float) (btnRight - sysBtnW), (float) btnTop,
                           (float) sysBtnW, (float) btnH,
                           theme.sysButtonIdle);
-        IGNORE_RETURN_VALUE (hr, text.DrawString (s_kpszMultiplyX,
-                                                  (float) (btnRight - sysBtnW),
-                                                  (float) btnTop,
-                                                  (float) sysBtnW,
-                                                  (float) btnH,
-                                                  theme.titleText,
-                                                  captionDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextRenderer::HAlign::Center,
-                                                  DxuiTextRenderer::VAlign::Center));
+        hr = text.DrawString (s_kpszMultiplyX,
+                              (float) (btnRight - sysBtnW),
+                              (float) btnTop,
+                              (float) sysBtnW,
+                              (float) btnH,
+                              theme.titleText,
+                              captionDip,
+                              DxuiTheme::kBodyFace,
+                              DxuiTextRenderer::HAlign::Center,
+                              DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         btnMaxRight = btnRight - sysBtnW - sysBtnGap;
         painter.FillRect ((float) (btnMaxRight - sysBtnW), (float) btnTop,
@@ -223,16 +225,17 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         painter.FillRect ((float) prevRect.left, (float) navTop,
                           (float) prevW, (float) navH,
                           theme.navStrip);
-        IGNORE_RETURN_VALUE (hr, text.DrawString (L"File   Edit   Machine   Disk   View   Help",
-                                                  (float) (prevRect.left + ScalePx (12)),
-                                                  (float) navTop,
-                                                  (float) (prevW - ScalePx (24)),
-                                                  (float) navH,
-                                                  theme.navItemText,
-                                                  navDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextRenderer::HAlign::Left,
-                                                  DxuiTextRenderer::VAlign::Center));
+        hr = text.DrawString (L"File   Edit   Machine   Disk   View   Help",
+                              (float) (prevRect.left + ScalePx (12)),
+                              (float) navTop,
+                              (float) (prevW - ScalePx (24)),
+                              (float) navH,
+                              theme.navItemText,
+                              navDip,
+                              DxuiTheme::kBodyFace,
+                              DxuiTextRenderer::HAlign::Left,
+                              DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
     // Screen area: live emulator framebuffer, aspect-fit.

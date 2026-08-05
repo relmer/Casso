@@ -1148,12 +1148,12 @@ private:
     // monitor is active. Defaults to white.
     atomic<uint32_t>              m_colorMonitorTextArgb{ColorUtil::kWhiteArgb};
 
-    // Double framebuffer (CPU renders, UI presents, protected by m_fbMutex)
-    mutex                         m_fbMutex;
+    // Double framebuffer (CPU renders, UI presents, protected by m_framebufferMutex)
+    mutex                         m_framebufferMutex;
     vector<uint32_t>              m_cpuFramebuffer;
     vector<uint32_t>              m_textOverlay;
     vector<uint32_t>              m_uiFramebuffer;
-    bool                          m_fbReady = false;
+    bool                          m_framebufferReady = false;
 
     // Auto-reset event the CPU thread signals after publishing a new frame so
     // the idle UI loop blocks on MsgWaitForMultipleObjects instead of spin-

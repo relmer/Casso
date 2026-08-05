@@ -390,7 +390,8 @@ HRESULT PrinterPanel::Create (
 
                 if (!obj.empty())
                 {
-                    IGNORE_RETURN_VALUE (hr, m_scene->SetModel (obj, mtl));
+                    hr = m_scene->SetModel (obj, mtl);
+                    IGNORE_RETURN_VALUE (hr, S_OK);
                 }
             }
 
@@ -1522,7 +1523,8 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
 
         m_scene->SetPaperFeed01 ((float) std::clamp ((std::max) (bottomAbsRow, kLeaderRows), 0, canvasH)
                                  / (float) canvasH);
-        IGNORE_RETURN_VALUE (hr, m_scene->SetContent (m_canvas.data(), canvasW, canvasH));
+        hr = m_scene->SetContent (m_canvas.data(), canvasW, canvasH);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
     else
     {
@@ -1842,22 +1844,23 @@ void PrinterPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     {
         DxuiFontHandle  bf = theme.BodyFont();
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (
-            s_kpszScrollHint,
-            (float) m_hintRect.left,
-            (float) m_hintRect.top,
-            (float) (m_hintRect.right  - m_hintRect.left),
-            (float) (m_hintRect.bottom - m_hintRect.top),
-            0xFF8A8F98,
-            m_hintFontPx,
-            bf.face,
-            DxuiTextHAlign::Center,
-            DxuiTextVAlign::Center,
-            DxuiFontWeight::Normal,
-            // Wrap: the hint must never be the thing that sets the window's
-            // minimum width. The strip is laid out two lines tall, so a narrow
-            // panel spills onto the second line instead of losing both ends,
-            // and a wide one centers a single line in the same box.
-            true));
+        hr = text.DrawString (
+s_kpszScrollHint,
+(float) m_hintRect.left,
+(float) m_hintRect.top,
+(float) (m_hintRect.right  - m_hintRect.left),
+(float) (m_hintRect.bottom - m_hintRect.top),
+0xFF8A8F98,
+m_hintFontPx,
+bf.face,
+DxuiTextHAlign::Center,
+DxuiTextVAlign::Center,
+DxuiFontWeight::Normal,
+// Wrap: the hint must never be the thing that sets the window's
+// minimum width. The strip is laid out two lines tall, so a narrow
+// panel spills onto the second line instead of losing both ends,
+// and a wide one centers a single line in the same box.
+true);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }

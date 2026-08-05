@@ -316,16 +316,17 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
                                  focusThick, focusArgb);
         }
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (t.label.c_str(),
-                                                  (float) t.rect.left + padX,
-                                                  (float) t.rect.top  + padY,
-                                                  (float) (t.rect.right  - t.rect.left) - padX * 2.0f,
-                                                  (float) (t.rect.bottom - t.rect.top)  - padY * 2.0f,
-                                                  isSel ? textArgb : mutedText,
-                                                  fontDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextHAlign::Center,
-                                                  DxuiTextVAlign::Center));
+        hr = text.DrawString (t.label.c_str(),
+                              (float) t.rect.left + padX,
+                              (float) t.rect.top  + padY,
+                              (float) (t.rect.right  - t.rect.left) - padX * 2.0f,
+                              (float) (t.rect.bottom - t.rect.top)  - padY * 2.0f,
+                              isSel ? textArgb : mutedText,
+                              fontDip,
+                              DxuiTheme::kBodyFace,
+                              DxuiTextHAlign::Center,
+                              DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 

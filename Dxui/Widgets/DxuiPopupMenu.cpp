@@ -505,24 +505,26 @@ void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
         if (m_items[i].checked)
         {
-            IGNORE_RETURN_VALUE (hr, text.DrawString (s_kpszCheckMark,
-                                                      left + (float) glyphX,
-                                                      iy,
-                                                      (float) (padL - glyphX),
-                                                      (float) itemH,
-                                                      fgArgb, fontDip, DxuiTheme::kBodyFace,
-                                                      DxuiTextHAlign::Left,
-                                                      DxuiTextVAlign::Center));
+            hr = text.DrawString (s_kpszCheckMark,
+                                  left + (float) glyphX,
+                                  iy,
+                                  (float) (padL - glyphX),
+                                  (float) itemH,
+                                  fgArgb, fontDip, DxuiTheme::kBodyFace,
+                                  DxuiTextHAlign::Left,
+                                  DxuiTextVAlign::Center);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (m_items[i].label.c_str(),
-                                                  left + (float) padL,
-                                                  iy,
-                                                  width - (float) padL - (float) padR,
-                                                  (float) itemH,
-                                                  fgArgb, fontDip, DxuiTheme::kBodyFace,
-                                                  DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center));
+        hr = text.DrawString (m_items[i].label.c_str(),
+                              left + (float) padL,
+                              iy,
+                              width - (float) padL - (float) padR,
+                              (float) itemH,
+                              fgArgb, fontDip, DxuiTheme::kBodyFace,
+                              DxuiTextHAlign::Left,
+                              DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 

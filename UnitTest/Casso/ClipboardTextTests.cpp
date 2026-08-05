@@ -66,14 +66,14 @@ TEST_CLASS (ClipboardTextTests)
     // reads them, but they must outlive the manager, so they live on the
     // (per-test) fixture rather than as shared statics.
     std::mutex             m_cmdMutex;
-    std::mutex             m_fbMutex;
+    std::mutex             m_framebufferMutex;
     std::string            m_pasteBuffer;
     std::vector<uint32_t>  m_uiFramebuffer;
     AppleKeyboard *        m_keyboardSlot = nullptr;
 
     ClipboardManager  MakeClipboard (MemoryBus & bus)
     {
-        return ClipboardManager (bus, m_cmdMutex, m_pasteBuffer, m_fbMutex,
+        return ClipboardManager (bus, m_cmdMutex, m_pasteBuffer, m_framebufferMutex,
                                  m_uiFramebuffer, 0, 0, &m_keyboardSlot);
     }
 

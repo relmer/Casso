@@ -300,16 +300,17 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                  theme.FocusRing());
         }
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (opt.label.c_str(),
-                                                  boxLeft + boxSize + labelGap,
-                                                  (float) opt.rect.top,
-                                                  (float) (opt.rect.right - opt.rect.left) - boxSize - labelGap,
-                                                  (float) (opt.rect.bottom - opt.rect.top),
-                                                  textColor,
-                                                  fontDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center));
+        hr = text.DrawString (opt.label.c_str(),
+                              boxLeft + boxSize + labelGap,
+                              (float) opt.rect.top,
+                              (float) (opt.rect.right - opt.rect.left) - boxSize - labelGap,
+                              (float) (opt.rect.bottom - opt.rect.top),
+                              textColor,
+                              fontDip,
+                              DxuiTheme::kBodyFace,
+                              DxuiTextHAlign::Left,
+                              DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 

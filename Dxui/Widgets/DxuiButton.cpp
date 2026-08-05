@@ -233,16 +233,17 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
             linkColor = (linkColor & s_kDisabledMask);
         }
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),
-                                                  (float) m_boundsDip.left,
-                                                  (float) m_boundsDip.top,
-                                                  (float) (m_boundsDip.right  - m_boundsDip.left),
-                                                  (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                                  linkColor,
-                                                  fontDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center));
+        hr = text.DrawString (m_label.c_str(),
+                              (float) m_boundsDip.left,
+                              (float) m_boundsDip.top,
+                              (float) (m_boundsDip.right  - m_boundsDip.left),
+                              (float) (m_boundsDip.bottom - m_boundsDip.top),
+                              linkColor,
+                              fontDip,
+                              DxuiTheme::kBodyFace,
+                              DxuiTextHAlign::Left,
+                              DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         if (m_focused)
         {
@@ -303,16 +304,17 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                              borderColor);
     }
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),
-                                              (float) m_boundsDip.left,
-                                              (float) m_boundsDip.top,
-                                              (float) (m_boundsDip.right  - m_boundsDip.left),
-                                              (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                              textColor,
-                                              fontDip,
-                                              DxuiTheme::kBodyFace,
-                                              DxuiTextHAlign::Center,
-                                              DxuiTextVAlign::Center));
+    hr = text.DrawString (m_label.c_str(),
+                          (float) m_boundsDip.left,
+                          (float) m_boundsDip.top,
+                          (float) (m_boundsDip.right  - m_boundsDip.left),
+                          (float) (m_boundsDip.bottom - m_boundsDip.top),
+                          textColor,
+                          fontDip,
+                          DxuiTheme::kBodyFace,
+                          DxuiTextHAlign::Center,
+                          DxuiTextVAlign::Center);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (m_focused)
     {

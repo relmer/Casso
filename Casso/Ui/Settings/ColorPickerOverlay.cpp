@@ -797,18 +797,19 @@ void ColorPickerOverlay::PaintCopyIcon (
         painter.FillRect (cl, ct, cw, ch, theme.HoverBackground());
     }
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (glyph,
-                                              cl,
-                                              ct,
-                                              cw,
-                                              ch,
-                                              glyphArgb,
-                                              glyphDip,
-                                              s_kpszMdl2Family,
-                                              DxuiTextHAlign::Center,
-                                              DxuiTextVAlign::Center,
-                                              DxuiFontWeight::Normal,
-                                              false));
+    hr = text.DrawString (glyph,
+                          cl,
+                          ct,
+                          cw,
+                          ch,
+                          glyphArgb,
+                          glyphDip,
+                          s_kpszMdl2Family,
+                          DxuiTextHAlign::Center,
+                          DxuiTextVAlign::Center,
+                          DxuiFontWeight::Normal,
+                          false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

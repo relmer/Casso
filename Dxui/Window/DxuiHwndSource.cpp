@@ -2159,7 +2159,8 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             if (m_client != nullptr)
             {
                 // The client is told, but WM_SIZE always reaches DefaultProc.
-                IGNORE_RETURN_VALUE (sizeResult, m_client->OnSize (LOWORD (lp), HIWORD (lp)));
+                sizeResult = m_client->OnSize (LOWORD (lp), HIWORD (lp));
+                IGNORE_RETURN_VALUE (sizeResult, DxuiMessageResult::NotHandled);
             }
 
             isHandled = false;

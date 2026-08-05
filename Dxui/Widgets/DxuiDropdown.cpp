@@ -759,16 +759,17 @@ void DxuiDropdown::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                          (float) (m_boundsDip.bottom - m_boundsDip.top),
                          edgePx,
                          edgeColor);
-    IGNORE_RETURN_VALUE (hr, text.DrawString (label.c_str(),
-                                              (float) (m_boundsDip.left + textInset),
-                                              (float) m_boundsDip.top,
-                                              (float) textWidth,
-                                              (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                              textColor,
-                                              fontDip,
-                                              s_kFontFamily,
-                                              DxuiTextHAlign::Left,
-                                              DxuiTextVAlign::Center, DxuiFontWeight::Normal, false));
+    hr = text.DrawString (label.c_str(),
+                          (float) (m_boundsDip.left + textInset),
+                          (float) m_boundsDip.top,
+                          (float) textWidth,
+                          (float) (m_boundsDip.bottom - m_boundsDip.top),
+                          textColor,
+                          fontDip,
+                          s_kFontFamily,
+                          DxuiTextHAlign::Left,
+                          DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     // Chevron: stack of horizontal rects forming a downward triangle.
     for (int row = 0; row < chevronH; row++)
@@ -839,21 +840,23 @@ void DxuiDropdown::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
         // D2D fill (not D3D painter) so the menu background composites
         // in submission order with prior text and hides sibling text
         // underneath the open menu.
-        IGNORE_RETURN_VALUE (hr, text.FillRect ((float) row.left,
-                                                (float) row.top,
-                                                (float) (row.right - row.left),
-                                                (float) (row.bottom - row.top),
-                                                color));
-        IGNORE_RETURN_VALUE (hr, text.DrawString (m_items[(size_t) i].c_str(),
-                                                  (float) (row.left + textInset),
-                                                  (float) row.top,
-                                                  (float) (row.right - row.left - textInset),
-                                                  (float) (row.bottom - row.top),
-                                                  c.text,
-                                                  fontDip,
-                                                  s_kFontFamily,
-                                                  DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center, DxuiFontWeight::Normal, false));
+        hr = text.FillRect ((float) row.left,
+                            (float) row.top,
+                            (float) (row.right - row.left),
+                            (float) (row.bottom - row.top),
+                            color);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = text.DrawString (m_items[(size_t) i].c_str(),
+                              (float) (row.left + textInset),
+                              (float) row.top,
+                              (float) (row.right - row.left - textInset),
+                              (float) (row.bottom - row.top),
+                              c.text,
+                              fontDip,
+                              s_kFontFamily,
+                              DxuiTextHAlign::Left,
+                              DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 
@@ -893,21 +896,23 @@ void DxuiDropdown::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
         RECT      row   = { 0, i * rowHeight, width, (i + 1) * rowHeight };
         uint32_t  color = (i == m_highlight) ? c.menuHover : c.menu;
 
-        IGNORE_RETURN_VALUE (hr, text.FillRect ((float) row.left,
-                                                (float) row.top,
-                                                (float) (row.right - row.left),
-                                                (float) (row.bottom - row.top),
-                                                color));
-        IGNORE_RETURN_VALUE (hr, text.DrawString (m_items[(size_t) i].c_str(),
-                                                  (float) (row.left + textInset),
-                                                  (float) row.top,
-                                                  (float) (row.right - row.left - textInset),
-                                                  (float) (row.bottom - row.top),
-                                                  c.text,
-                                                  fontPx,
-                                                  s_kFontFamily,
-                                                  DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center, DxuiFontWeight::Normal, false));
+        hr = text.FillRect ((float) row.left,
+                            (float) row.top,
+                            (float) (row.right - row.left),
+                            (float) (row.bottom - row.top),
+                            color);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = text.DrawString (m_items[(size_t) i].c_str(),
+                              (float) (row.left + textInset),
+                              (float) row.top,
+                              (float) (row.right - row.left - textInset),
+                              (float) (row.bottom - row.top),
+                              c.text,
+                              fontPx,
+                              s_kFontFamily,
+                              DxuiTextHAlign::Left,
+                              DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 

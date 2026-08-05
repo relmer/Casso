@@ -139,7 +139,8 @@ void PrinterPaperView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
                 painter.FillRect    (dX + scaler.Pxf (3.0f), dY + scaler.Pxf (3.0f), dW, dH, s_kShadow);
                 painter.OutlineRect (dX, dY, dW, dH, 1.0f, s_kBorder);
 
-                IGNORE_RETURN_VALUE (hr, text.DrawIconBitmap (m_bgra.data(), m_srcW, m_srcH, dX, dY, dW, dH));
+                hr = text.DrawIconBitmap (m_bgra.data(), m_srcW, m_srcH, dX, dY, dW, dH);
+                IGNORE_RETURN_VALUE (hr, S_OK);
             }
         }
     }

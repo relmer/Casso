@@ -28,19 +28,19 @@ ClipboardManager::ClipboardManager (
     MemoryBus                & memoryBus,
     std::mutex               & cmdMutex,
     std::string              & pasteBuffer,
-    std::mutex               & fbMutex,
+    std::mutex               & framebufferMutex,
     std::vector<uint32_t>    & uiFramebuffer,
     int                        framebufferWidth,
     int                        framebufferHeight,
     AppleKeyboard          * * pKeyboardSlot)
-    : m_memoryBus         (memoryBus),
-      m_cmdMutex          (cmdMutex),
-      m_pasteBuffer       (pasteBuffer),
-      m_fbMutex           (fbMutex),
-      m_uiFramebuffer     (uiFramebuffer),
-      m_pKeyboardSlot     (pKeyboardSlot),
-      m_framebufferWidth  (framebufferWidth),
-      m_framebufferHeight (framebufferHeight)
+    : m_memoryBus          (memoryBus),
+      m_cmdMutex           (cmdMutex),
+      m_pasteBuffer        (pasteBuffer),
+      m_framebufferMutex   (framebufferMutex),
+      m_uiFramebuffer      (uiFramebuffer),
+      m_pKeyboardSlot      (pKeyboardSlot),
+      m_framebufferWidth   (framebufferWidth),
+      m_framebufferHeight  (framebufferHeight)
 {
 }
 
@@ -253,7 +253,7 @@ void ClipboardManager::CopyScreenshot (HWND hwnd)
 
 
     {
-        std::lock_guard<std::mutex>  lock (m_fbMutex);
+        std::lock_guard<std::mutex>  lock (m_framebufferMutex);
 
         dataSize  = static_cast<size_t> (w) * h * kBytesPerPixel;
         totalSize = sizeof (BITMAPINFOHEADER) + dataSize;

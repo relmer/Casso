@@ -415,8 +415,10 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     }
 
     caretPrefix.assign (m_text, 0, m_caret);
-    IGNORE_RETURN_VALUE (hr, text.MeasureString (caretPrefix.c_str(), fontPx, DxuiTheme::kBodyFace, caretX,    textMeasH));
-    IGNORE_RETURN_VALUE (hr, text.MeasureString (m_text.c_str(),      fontPx, DxuiTheme::kBodyFace, fullTextW, textMeasH));
+    hr = text.MeasureString (caretPrefix.c_str(), fontPx, DxuiTheme::kBodyFace, caretX,    textMeasH);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    hr = text.MeasureString (m_text.c_str(),      fontPx, DxuiTheme::kBodyFace, fullTextW, textMeasH);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (innerW <= 0.0f)
     {
@@ -430,7 +432,8 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         if (m_scrollPx < 0.0f)                     { m_scrollPx = 0.0f; }
     }
 
-    IGNORE_RETURN_VALUE (hr, text.PushClipRect (x + padL, y, innerW, h));
+    hr = text.PushClipRect (x + padL, y, innerW, h);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (selStart != selEnd)
     {
@@ -440,24 +443,27 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         before.assign (m_text, 0, selStart);
         sel.assign    (m_text, selStart, selEnd - selStart);
 
-        IGNORE_RETURN_VALUE (hr, text.MeasureString (before.c_str(), fontPx, DxuiTheme::kBodyFace, bx, textMeasH));
-        IGNORE_RETURN_VALUE (hr, text.MeasureString (sel.c_str(),    fontPx, DxuiTheme::kBodyFace, sx, textMeasH));
+        hr = text.MeasureString (before.c_str(), fontPx, DxuiTheme::kBodyFace, bx, textMeasH);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = text.MeasureString (sel.c_str(),    fontPx, DxuiTheme::kBodyFace, sx, textMeasH);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         text.FillRect (x + padL + bx - m_scrollPx, y + 2.0f, sx, h - 4.0f, selArgb);
     }
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (m_text.c_str(),
-                                              x + padL - m_scrollPx,
-                                              y,
-                                              std::max (innerW + m_scrollPx, fullTextW + 1.0f),
-                                              h,
-                                              fgArgb,
-                                              fontPx,
-                                              DxuiTheme::kBodyFace,
-                                              DxuiTextHAlign::Left,
-                                              DxuiTextVAlign::Center,
-                                              DxuiFontWeight::Normal,
-                                              false));
+    hr = text.DrawString (m_text.c_str(),
+                          x + padL - m_scrollPx,
+                          y,
+                          std::max (innerW + m_scrollPx, fullTextW + 1.0f),
+                          h,
+                          fgArgb,
+                          fontPx,
+                          DxuiTheme::kBodyFace,
+                          DxuiTextHAlign::Left,
+                          DxuiTextVAlign::Center,
+                          DxuiFontWeight::Normal,
+                          false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (m_text.empty() && !m_placeholder.empty())
     {
@@ -509,7 +515,8 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         }
     }
 
-    IGNORE_RETURN_VALUE (hr, text.PopClipRect());
+    hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -586,7 +593,8 @@ size_t DxuiTextInput::CaretFromX (IDxuiTextRenderer & text, int xPx) const
             float  dist = 0.0f;
 
             prefix.assign (m_text, 0, i);
-            IGNORE_RETURN_VALUE (hr, text.MeasureString (prefix.c_str(), fontPx, DxuiTheme::kBodyFace, w, h));
+            hr = text.MeasureString (prefix.c_str(), fontPx, DxuiTheme::kBodyFace, w, h);
+            IGNORE_RETURN_VALUE (hr, S_OK);
 
             dist = std::abs (w - target);
 

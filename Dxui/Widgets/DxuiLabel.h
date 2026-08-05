@@ -113,17 +113,18 @@ private:
 
         UNREFERENCED_PARAMETER (painter);
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (m_text.c_str(),
-                                                  (float) m_boundsDip.left,
-                                                  (float) m_boundsDip.top,
-                                                  (float) (m_boundsDip.right  - m_boundsDip.left),
-                                                  (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                                  argb,
-                                                  m_scaler.Pxf (fontDip),
-                                                  m_fontFace.c_str(),
-                                                  m_hAlign,
-                                                  m_vAlign,
-                                                  m_weight));
+        hr = text.DrawString (m_text.c_str(),
+                              (float) m_boundsDip.left,
+                              (float) m_boundsDip.top,
+                              (float) (m_boundsDip.right  - m_boundsDip.left),
+                              (float) (m_boundsDip.bottom - m_boundsDip.top),
+                              argb,
+                              m_scaler.Pxf (fontDip),
+                              m_fontFace.c_str(),
+                              m_hAlign,
+                              m_vAlign,
+                              m_weight);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
 

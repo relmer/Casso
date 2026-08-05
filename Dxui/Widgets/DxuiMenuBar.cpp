@@ -917,18 +917,19 @@ void DxuiMenuBar::PaintStrip (
                               stripHov);
         }
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (stripped.c_str(),
-                                                  (float) m_titleRects[i].left,
-                                                  (float) m_titleRects[i].top,
-                                                  rectW,
-                                                  rectH,
-                                                  stripFg,
-                                                  fontDip,
-                                                  s_kFontFamily,
-                                                  DxuiTextHAlign::Center,
-                                                  DxuiTextVAlign::Center,
-                                                  DxuiFontWeight::Normal,
-                                                  false));
+        hr = text.DrawString (stripped.c_str(),
+                              (float) m_titleRects[i].left,
+                              (float) m_titleRects[i].top,
+                              rectW,
+                              rectH,
+                              stripFg,
+                              fontDip,
+                              s_kFontFamily,
+                              DxuiTextHAlign::Center,
+                              DxuiTextVAlign::Center,
+                              DxuiFontWeight::Normal,
+                              false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         if (showCues && mnIdx >= 0 && !stripped.empty())
         {
@@ -950,13 +951,15 @@ void DxuiMenuBar::PaintStrip (
             if (!prefix.empty())
             {
                 float ignH = 0.0f;
-                IGNORE_RETURN_VALUE (hrM, text.MeasureString (prefix.c_str(), fontDip, s_kFontFamily, prefixW, ignH));
+                hrM = text.MeasureString (prefix.c_str(), fontDip, s_kFontFamily, prefixW, ignH);
+                IGNORE_RETURN_VALUE (hrM, S_OK);
             }
 
             {
                 float pcW  = 0.0f;
                 float ignH = 0.0f;
-                IGNORE_RETURN_VALUE (hrM, text.MeasureString (prefixCh.c_str(), fontDip, s_kFontFamily, pcW, ignH));
+                hrM = text.MeasureString (prefixCh.c_str(), fontDip, s_kFontFamily, pcW, ignH);
+                IGNORE_RETURN_VALUE (hrM, S_OK);
                 charW = pcW - prefixW;
             }
 
@@ -1090,25 +1093,27 @@ void DxuiMenuBar::PaintDropdownRows (
                               pal.hover);
         }
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (stripped.c_str(),
-                                                  (float) (rect.left + labelLeftPx),
-                                                  (float) (rect.top + y + rowPadTopPx),
-                                                  (float) accelOffsetPx,
-                                                  (float) entryHeight,
-                                                  labelArgb,
-                                                  fontDip,
-                                                  s_kFontFamily));
+        hr = text.DrawString (stripped.c_str(),
+                              (float) (rect.left + labelLeftPx),
+                              (float) (rect.top + y + rowPadTopPx),
+                              (float) accelOffsetPx,
+                              (float) entryHeight,
+                              labelArgb,
+                              fontDip,
+                              s_kFontFamily);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         if (sub.checkable && sub.isChecked && sub.isChecked())
         {
-            IGNORE_RETURN_VALUE (hr, text.DrawString (s_kpszCheckMark,
-                                                      (float) (rect.left + rowPadLeftPx),
-                                                      (float) (rect.top + y + rowPadTopPx),
-                                                      (float) checkGutterPx,
-                                                      (float) entryHeight,
-                                                      labelArgb,
-                                                      fontDip,
-                                                      s_kFontFamily));
+            hr = text.DrawString (s_kpszCheckMark,
+                                  (float) (rect.left + rowPadLeftPx),
+                                  (float) (rect.top + y + rowPadTopPx),
+                                  (float) checkGutterPx,
+                                  (float) entryHeight,
+                                  labelArgb,
+                                  fontDip,
+                                  s_kFontFamily);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
         if (showCues && mnIdx >= 0 && !stripped.empty() && sub.enabled)
@@ -1124,19 +1129,22 @@ void DxuiMenuBar::PaintDropdownRows (
 
             if (!prefix.empty())
             {
-                IGNORE_RETURN_VALUE (hrM, text.MeasureString (prefix.c_str(), fontDip, s_kFontFamily, prefixW, fullH));
+                hrM = text.MeasureString (prefix.c_str(), fontDip, s_kFontFamily, prefixW, fullH);
+                IGNORE_RETURN_VALUE (hrM, S_OK);
             }
             else
             {
                 std::wstring oneCh (1, stripped[(size_t) mnIdx]);
-                IGNORE_RETURN_VALUE (hrM, text.MeasureString (oneCh.c_str(), fontDip, s_kFontFamily, prefixW, fullH));
+                hrM = text.MeasureString (oneCh.c_str(), fontDip, s_kFontFamily, prefixW, fullH);
+                IGNORE_RETURN_VALUE (hrM, S_OK);
                 prefixW = 0.0f;
             }
 
             {
                 float pcW  = 0.0f;
                 float ignH = 0.0f;
-                IGNORE_RETURN_VALUE (hrM, text.MeasureString (prefixCh.c_str(), fontDip, s_kFontFamily, pcW, ignH));
+                hrM = text.MeasureString (prefixCh.c_str(), fontDip, s_kFontFamily, pcW, ignH);
+                IGNORE_RETURN_VALUE (hrM, S_OK);
                 charW = pcW - prefixW;
             }
 
@@ -1148,14 +1156,15 @@ void DxuiMenuBar::PaintDropdownRows (
 
         if (!sub.hotkey.empty())
         {
-            IGNORE_RETURN_VALUE (hr, text.DrawString (sub.hotkey.c_str(),
-                                                      (float) (rect.left + accelOffsetPx),
-                                                      (float) (rect.top + y + rowPadTopPx),
-                                                      (float) (rect.right - rect.left - accelOffsetPx),
-                                                      (float) entryHeight,
-                                                      hotkeyArgb,
-                                                      fontDip,
-                                                      s_kFontFamily));
+            hr = text.DrawString (sub.hotkey.c_str(),
+                                  (float) (rect.left + accelOffsetPx),
+                                  (float) (rect.top + y + rowPadTopPx),
+                                  (float) (rect.right - rect.left - accelOffsetPx),
+                                  (float) entryHeight,
+                                  hotkeyArgb,
+                                  fontDip,
+                                  s_kFontFamily);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
         y += entryHeight;

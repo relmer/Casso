@@ -510,7 +510,7 @@ EmulatorShell::EmulatorShell()
     m_clipboardManager = std::make_unique<ClipboardManager> (m_memoryBus,
                                                               m_cpuManager.GetCommandMutex(),
                                                               m_cpuManager.GetPasteBuffer(),
-                                                              m_fbMutex,
+                                                              m_framebufferMutex,
                                                               m_uiFramebuffer,
                                                               kFramebufferWidth,
                                                               kFramebufferHeight,
@@ -882,14 +882,14 @@ void EmulatorShell::InitAssetPathsAndStores()
 
 void EmulatorShell::AllocateFramebuffers()
 {
-    size_t  fbSize = static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight;
+    size_t  framebufferSize = static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight;
 
 
 
     // Create framebuffers (CPU renders to one, UI reads the other)
-    m_cpuFramebuffer.resize (fbSize, 0);
-    m_textOverlay.resize (fbSize, 0);
-    m_uiFramebuffer.resize (fbSize, 0);
+    m_cpuFramebuffer.resize (framebufferSize, 0);
+    m_textOverlay.resize (framebufferSize, 0);
+    m_uiFramebuffer.resize (framebufferSize, 0);
 }
 
 
@@ -2583,8 +2583,8 @@ SIZE EmulatorShell::ClientSizeForCenterPx (int centerWidthPx, int centerHeightPx
 SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int framebufferHeightDp)
 {
     SIZE  client = {};
-    int   fbWpx  = m_scaler.Px (framebufferWidthDp);
-    int   fbHpx  = m_scaler.Px (framebufferHeightDp);
+    int   framebufferWpx  = m_scaler.Px (framebufferWidthDp);
+    int   framebufferHpx  = m_scaler.Px (framebufferHeightDp);
 
 
 
@@ -2597,7 +2597,7 @@ SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int fram
     // the framebuffer directly at classic sizes.
     if (MonitorFrameEnabled())
     {
-        SIZE   center     = MonitorFrame::CenterSizeForScreenPx (fbWpx, fbHpx);
+        SIZE   center     = MonitorFrame::CenterSizeForScreenPx (framebufferWpx, framebufferHpx);
         float  savedScale = m_chromeSceneScale;
 
         m_chromeSceneScale = s_kDeskDriveScale;
@@ -2606,7 +2606,7 @@ SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int fram
     }
     else
     {
-        client = ClientSizeForCenterPx (fbWpx, fbHpx);
+        client = ClientSizeForCenterPx (framebufferWpx, framebufferHpx);
     }
 
     return client;
@@ -4528,21 +4528,21 @@ Error:
 
 bool EmulatorShell::TryPresentUiFrame()
 {
-    HRESULT  hr           = S_OK;
-    bool     didPresent   = false;
-    bool     anyDriveLive = false;
+    HRESULT  hr                        = S_OK;
+    bool     didPresent                = false;
+    bool     anyDriveLive              = false;
+    bool     framebufferDirtyThisFrame = false;
 
 
 
     // Copy latest framebuffer under lock, then present with vsync
-    bool  fbDirtyThisFrame = false;
     {
-        lock_guard<mutex> lock (m_fbMutex);
+        lock_guard<mutex> lock (m_framebufferMutex);
 
-        if (m_fbReady)
+        if (m_framebufferReady)
         {
-            m_fbReady        = false;
-            fbDirtyThisFrame = true;
+            m_framebufferReady                 = false;
+            framebufferDirtyThisFrame = true;
         }
     }
 
@@ -4637,7 +4637,8 @@ bool EmulatorShell::TryPresentUiFrame()
 
     if (m_printerPanel != nullptr)
     {
-        IGNORE_RETURN_VALUE (hr, m_printerPanel->RenderFrame());
+        hr = m_printerPanel->RenderFrame();
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
     if (m_mainMenu.IsOpen())
@@ -4679,7 +4680,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // into it live as the guest prints (non-destructive snapshot).
     UpdatePrinterPreview();
 
-    didPresent = m_d3dRenderer.NeedsPresent (fbDirtyThisFrame);
+    didPresent = m_d3dRenderer.NeedsPresent (framebufferDirtyThisFrame);
 
     if (didPresent)
     {
@@ -4687,7 +4688,7 @@ bool EmulatorShell::TryPresentUiFrame()
         // framebuffer for the before-present hook, then request a
         // synchronous WM_PAINT: the host clears, the hook composites the
         // framebuffer, the chrome paints on top, and the host presents.
-        m_pendingFramebuffer = fbDirtyThisFrame ? m_uiFramebuffer.data() : nullptr;
+        m_pendingFramebuffer = framebufferDirtyThisFrame ? m_uiFramebuffer.data() : nullptr;
         InvalidateRect (m_hwnd, nullptr, FALSE);
         UpdateWindow   (m_hwnd);
     }
@@ -5157,7 +5158,7 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 //
 //  Steps the CPU, ticks the disk controller in step, then runs one
 //  full video frame and publishes the framebuffer so the main UI
-//  loop sees fbDirty next iteration and presents.
+//  loop sees the framebuffer-dirty flag next iteration and presents.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -5200,7 +5201,7 @@ void EmulatorShell::StepInstructionWhilePaused()
 //  PublishFramebuffer
 //
 //  Copies the freshly-rendered CPU framebuffer into the UI-visible
-//  framebuffer under m_fbMutex and wakes the UI thread. Skips the whole
+//  framebuffer under m_framebufferMutex and wakes the UI thread. Skips the whole
 //  handoff when the frame is byte-identical to the one last published, so a
 //  static screen stops driving the CRT post-process + Present at 60 Hz.
 //
@@ -5217,10 +5218,10 @@ void EmulatorShell::PublishFramebuffer()
     // changed, so this always publishes -- no per-frame hash. Copy under the
     // mutex, then wake the UI thread.
     {
-        lock_guard<mutex>  lock (m_fbMutex);
+        lock_guard<mutex>  lock (m_framebufferMutex);
 
         m_uiFramebuffer = m_cpuFramebuffer;
-        m_fbReady       = true;
+        m_framebufferReady       = true;
     }
 
     if (m_frameReadyEvent != nullptr)
@@ -8426,7 +8427,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
     // (Viewport layout already settled above, before the drive widgets.)
 
     {
-        lock_guard<mutex> lock (m_fbMutex);
+        lock_guard<mutex> lock (m_framebufferMutex);
 
         if (!m_uiFramebuffer.empty())
         {

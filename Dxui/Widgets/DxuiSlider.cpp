@@ -534,16 +534,17 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
             swprintf_s (buf, L"%d%ls", pct, m_suffix.c_str());
         }
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (buf,
-                                                  trackLeft + trackAvailW + valueGap,
-                                                  (float) m_boundsDip.top,
-                                                  valueWidth,
-                                                  rectH,
-                                                  s_kValueText,
-                                                  valueFontDip,
-                                                  s_kFont,
-                                                  DxuiTextHAlign::Right,
-                                                  DxuiTextVAlign::Center));
+        hr = text.DrawString (buf,
+                              trackLeft + trackAvailW + valueGap,
+                              (float) m_boundsDip.top,
+                              valueWidth,
+                              rectH,
+                              s_kValueText,
+                              valueFontDip,
+                              s_kFont,
+                              DxuiTextHAlign::Right,
+                              DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 

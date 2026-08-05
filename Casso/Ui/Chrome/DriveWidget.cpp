@@ -432,16 +432,17 @@ void DriveWidget::Paint (
                                  (float) bodyWcompact, (float) bodyHcompact, 1.0f, bezelEdge);
 
             swprintf_s (label, L"Drive %d", m_drive + 1);
-            IGNORE_RETURN_VALUE (hr, text.DrawString (label,
-                                                      (float) (m_bodyRect.left + pad),
-                                                      (float) m_bodyRect.top,
-                                                      (float) (bodyWcompact - 2 * pad - Scale (16, dpi)),
-                                                      (float) bodyHcompact,
-                                                      labelArgb,
-                                                      fontDip,
-                                                      kFontFamily,
-                                                      DxuiTextRenderer::HAlign::Left,
-                                                      DxuiTextRenderer::VAlign::Center));
+            hr = text.DrawString (label,
+                                  (float) (m_bodyRect.left + pad),
+                                  (float) m_bodyRect.top,
+                                  (float) (bodyWcompact - 2 * pad - Scale (16, dpi)),
+                                  (float) bodyHcompact,
+                                  labelArgb,
+                                  fontDip,
+                                  kFontFamily,
+                                  DxuiTextRenderer::HAlign::Left,
+                                  DxuiTextRenderer::VAlign::Center);
+            IGNORE_RETURN_VALUE (hr, S_OK);
 
             UNREFERENCED_PARAMETER (bodyW);
             UNREFERENCED_PARAMETER (faceW);
@@ -833,25 +834,27 @@ void DriveWidget::Paint (
         // rendering completes, so it's the same code path in both
         // skeuomorphic and compact modes.
         swprintf_s (label, L"DRIVE %d", m_drive + 1);
-        IGNORE_RETURN_VALUE (hr, text.DrawString (label,
-                                                  (float) (m_faceRect.left + labelPad),
-                                                  (float) (m_faceRect.top + labelPad - 2),
-                                                  (float) (faceW - 2 * labelPad),
-                                                  labelFontDip + 4.0f,
-                                                  theme.driveLabel,
-                                                  labelFontDip,
-                                                  kFontFamily));
+        hr = text.DrawString (label,
+                              (float) (m_faceRect.left + labelPad),
+                              (float) (m_faceRect.top + labelPad - 2),
+                              (float) (faceW - 2 * labelPad),
+                              labelFontDip + 4.0f,
+                              theme.driveLabel,
+                              labelFontDip,
+                              kFontFamily);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         // "IN USE >" label bottom-left of faceplate, LED to its right.
         swprintf_s (label, L"IN USE %s", s_kpszTriangleRight);
-        IGNORE_RETURN_VALUE (hr, text.DrawString (label,
-                                                  (float) (m_faceRect.left + labelPad),
-                                                  (float) (m_led.GetLayout().coreRect.top - 3),
-                                                  (float) inUseW,
-                                                  inUseFontDip + 4.0f,
-                                                  theme.driveLabel,
-                                                  inUseFontDip,
-                                                  kFontFamily));
+        hr = text.DrawString (label,
+                              (float) (m_faceRect.left + labelPad),
+                              (float) (m_led.GetLayout().coreRect.top - 3),
+                              (float) inUseW,
+                              inUseFontDip + 4.0f,
+                              theme.driveLabel,
+                              inUseFontDip,
+                              kFontFamily);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         UNREFERENCED_PARAMETER (bodyW);
         m_led.Paint (painter, text, theme);
@@ -971,16 +974,17 @@ void DriveWidget::PaintBasenameLabel (
     if (textW <= labelW)
     {
         // Fits: static and centered.
-        IGNORE_RETURN_VALUE (hr, text.DrawString (basename.c_str(),
-                                                  labelLeft,
-                                                  labelTop,
-                                                  labelW,
-                                                  labelH,
-                                                  theme.driveLabel,
-                                                  basenameDip,
-                                                  kFontFamily,
-                                                  DxuiTextRenderer::HAlign::Center,
-                                                  DxuiTextRenderer::VAlign::Center));
+        hr = text.DrawString (basename.c_str(),
+                              labelLeft,
+                              labelTop,
+                              labelW,
+                              labelH,
+                              theme.driveLabel,
+                              basenameDip,
+                              kFontFamily,
+                              DxuiTextRenderer::HAlign::Center,
+                              DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
     else
     {
@@ -1044,7 +1048,8 @@ void DriveWidget::PaintBasenameLabel (
 
     if (clipped)
     {
-        IGNORE_RETURN_VALUE (hr, text.PopClipRect());
+        hr = text.PopClipRect();
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 
