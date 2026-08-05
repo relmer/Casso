@@ -39,11 +39,11 @@ public:
     // `mtlText` (defining `Kd` per `newmtl`) into a flat triangle list with
     // each triangle's color baked from whichever material was active when
     // its face was declared. A face's material is a plain lookup; unknown or
-    // not-yet-defined materials fall back to white (1,1,1). Returns false
-    // only if `objText` contains no vertices at all.
-    static bool Parse (const std::string        & objText,
-                       const std::string        & mtlText,
-                       std::vector<ObjTriangle>  & outTriangles);
+    // not-yet-defined materials fall back to white (1,1,1). Fails only if
+    // `objText` contains no vertices at all.
+    static HRESULT Parse (const std::string        & objText,
+                          const std::string        & mtlText,
+                          std::vector<ObjTriangle>  & outTriangles);
 
 private:
     struct Rgb { float r, g, b; };

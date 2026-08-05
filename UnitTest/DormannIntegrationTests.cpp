@@ -75,7 +75,7 @@ namespace DormannIntegrationTests
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    static bool DownloadFile (const std::string & url, const std::string & destPath)
+    static HRESULT DownloadFile (const std::string & url, const std::string & destPath)
     {
         // Use curl.exe directly rather than `powershell Invoke-WebRequest`.
         // Windows Defender heuristically flags the
@@ -83,9 +83,10 @@ namespace DormannIntegrationTests
         // pattern as Trojan:Win32/ClickFix.R!ml (the same false-positive
         // worked around in scripts/RunDormannTest.ps1). curl.exe ships with
         // Win10 1803+ / Win11 and avoids the heuristic.
-        std::string cmd = "curl.exe -sSL -o \"" + destPath + "\" \"" + url + "\"";
+        std::string cmd      = "curl.exe -sSL -o \"" + destPath + "\" \"" + url + "\"";
+        int         exitCode = system (cmd.c_str());
 
-        return system (cmd.c_str()) == 0;
+        return exitCode == 0 ? S_OK : E_FAIL;
     }
 
 
@@ -204,7 +205,9 @@ namespace DormannIntegrationTests
             std::string sourceFile = "dormann_test_source.dormann.tmp";
 
             // Download source
-            if (!DownloadFile (sourceUrl, sourceFile))
+            HRESULT hrDownload = DownloadFile (sourceUrl, sourceFile);
+
+            if (FAILED (hrDownload))
             {
                 Logger::WriteMessage ("SKIPPED: Cannot download Dormann source (no network?)");
                 return;
@@ -312,11 +315,14 @@ namespace DormannIntegrationTests
             std::string   sourceFile = "dormann_cpu_source.dormann.tmp";
             std::string   source;
             const char *  skipReason = nullptr;
+            HRESULT       hrDownload = S_OK;
 
             // No network and no source are environment problems, not defects.
             // This test is Integration-tagged and skips rather than failing a
             // build that cannot reach GitHub.
-            if (!DownloadFile (sourceUrl, sourceFile))
+            hrDownload = DownloadFile (sourceUrl, sourceFile);
+
+            if (FAILED (hrDownload))
             {
                 skipReason = "SKIPPED: Cannot download Dormann source (no network?)";
             }
@@ -482,7 +488,9 @@ namespace DormannIntegrationTests
         {
             std::string sourceFile = "dormann65_source.dormann.tmp";
 
-            if (!DownloadFile (kSourceUrl, sourceFile))
+            HRESULT hrDownload = DownloadFile (kSourceUrl, sourceFile);
+
+            if (FAILED (hrDownload))
             {
                 Logger::WriteMessage ("SKIPPED: Cannot download Dormann 65C02 source (no network?)");
                 return;
@@ -537,11 +545,14 @@ namespace DormannIntegrationTests
             std::string   sourceFile = "dormann65_cpu_source.dormann.tmp";
             std::string   source;
             const char *  skipReason = nullptr;
+            HRESULT       hrDownload = S_OK;
 
             // No network and no source are environment problems, not defects:
             // an Integration-tagged test skips rather than failing a build that
             // cannot reach GitHub.
-            if (!DownloadFile (kSourceUrl, sourceFile))
+            hrDownload = DownloadFile (kSourceUrl, sourceFile);
+
+            if (FAILED (hrDownload))
             {
                 skipReason = "SKIPPED: Cannot download Dormann 65C02 source (no network?)";
             }

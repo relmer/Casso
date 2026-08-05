@@ -87,7 +87,7 @@ void DxuiPropertySheet::OnCreate()
 
 HRESULT DxuiPropertySheet::OnApply()
 {
-    return ApplyAllDirtyPages() ? S_OK : S_FALSE;
+    return TryApplyAllDirtyPages() ? S_OK : S_FALSE;
 }
 
 
@@ -508,16 +508,17 @@ void DxuiPropertySheet::RefreshApplyEnabled()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ApplyAllDirtyPages
+//  TryApplyAllDirtyPages
 //
 //  Commits every dirty page in order. A page whose OnApply() returns false
 //  blocks the operation: that page becomes active and the method returns
-//  false (so OK does not close). On success each committed page is marked
-//  clean and Apply is disabled.
+//  false (so OK does not close). A veto is a supported outcome, not an
+//  error -- hence the Try name and bool rather than an HRESULT. On success
+//  each committed page is marked clean and Apply is disabled.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiPropertySheet::ApplyAllDirtyPages()
+bool DxuiPropertySheet::TryApplyAllDirtyPages()
 {
     bool    ok = true;
     size_t  i  = 0;

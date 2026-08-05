@@ -107,18 +107,19 @@ void DxuiPanel::Adopt (IDxuiControl & nonOwnedChild)
 //
 //  RemoveAdopted
 //
-//  Drops a previously adopted child by pointer match. Returns false
-//  for children not present or for owned children (use Remove for
+//  Drops a previously adopted child by pointer match. Fails for
+//  children not present or for owned children (use Remove for
 //  those). The pointer's lifetime is unaffected; only the panel's
 //  participation reference is removed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiPanel::RemoveAdopted (IDxuiControl & child)
+HRESULT DxuiPanel::RemoveAdopted (IDxuiControl & child)
 {
-    auto  found   = m_children.end();
-    auto  it      = m_children.begin();
-    bool  removed = false;
+    HRESULT  hr      = S_OK;
+    auto     found   = m_children.end();
+    auto     it      = m_children.begin();
+    bool     located = false;
 
 
 
@@ -137,15 +138,15 @@ bool DxuiPanel::RemoveAdopted (IDxuiControl & child)
         }
     }
 
-    if (found != m_children.end())
-    {
-        found->raw->SetParent (nullptr);
-        m_children.erase (found);
-        MarkDirty();
-        removed = true;
-    }
+    located = found != m_children.end();
+    CBR (located);
 
-    return removed;
+    found->raw->SetParent (nullptr);
+    m_children.erase (found);
+    MarkDirty();
+
+Error:
+    return hr;
 }
 
 
@@ -189,25 +190,27 @@ void DxuiPanel::ClearAdopted()
 //
 //  Remove
 //
-//  Drops the matching child. Returns false for null inputs or for
-//  controls that aren't owned by this panel.
+//  Drops the matching child. Fails for null inputs or for controls
+//  that aren't owned by this panel.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiPanel::Remove (IDxuiControl * child)
+HRESULT DxuiPanel::Remove (IDxuiControl * child)
 {
-    auto  found   = m_children.end();
-    auto  it      = m_children.begin();
-    bool  removed = false;
+    HRESULT  hr      = S_OK;
+    auto     found   = m_children.end();
+    auto     it      = m_children.begin();
+    bool     located = false;
 
 
 
     DXUI_ASSERT_UI_THREAD();
 
+    CBREx (child != nullptr, E_INVALIDARG);
+
     // Mirror of RemoveAdopted, with the ownership test inverted: this one
-    // takes only OWNED children. The null test stays explicit in the loop
-    // condition rather than resting on "no slot holds a null raw".
-    for ( ; child != nullptr && found == m_children.end() && it != m_children.end(); ++it)
+    // takes only OWNED children.
+    for ( ; found == m_children.end() && it != m_children.end(); ++it)
     {
         if (it->raw == child && it->owned != nullptr)
         {
@@ -215,15 +218,15 @@ bool DxuiPanel::Remove (IDxuiControl * child)
         }
     }
 
-    if (found != m_children.end())
-    {
-        found->owned->SetParent (nullptr);
-        m_children.erase (found);
-        MarkDirty();
-        removed = true;
-    }
+    located = found != m_children.end();
+    CBR (located);
 
-    return removed;
+    found->owned->SetParent (nullptr);
+    m_children.erase (found);
+    MarkDirty();
+
+Error:
+    return hr;
 }
 
 

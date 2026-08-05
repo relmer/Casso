@@ -8647,7 +8647,7 @@ void EmulatorShell::PowerCycle()
 class TraceProgressWindow
 {
 public:
-    bool Create (const std::wstring & reason, const std::wstring & path, uint64_t total)
+    HRESULT Create (const std::wstring & reason, const std::wstring & path, uint64_t total)
     {
         HRESULT     hr      = S_OK;
         WNDCLASSEXW wc      = { sizeof (wc) };
@@ -8721,7 +8721,7 @@ public:
         UpdateWindow (m_hwnd);
 
     Error:
-        return m_hwnd != nullptr;
+        return hr;
     }
 
     void SetProgress (uint64_t done, uint64_t total)

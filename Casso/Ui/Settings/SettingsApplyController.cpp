@@ -392,11 +392,11 @@ void SettingsApplyController::CommitApply()
     {
         if (!pendingMachine.empty() && pendingMachine != currentMachineNarrow)
         {
-            (void) m_catalog->DoMachineSelect (pendingMachine);
+            m_catalog->DoMachineSelect (pendingMachine);
         }
         else if (adapter.ResetQueued() && !currentMachineNarrow.empty())
         {
-            (void) m_catalog->DoMachineSelect (currentMachineNarrow);
+            m_catalog->DoMachineSelect (currentMachineNarrow);
         }
     }
 }

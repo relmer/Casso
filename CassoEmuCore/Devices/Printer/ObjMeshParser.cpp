@@ -108,15 +108,17 @@ int ObjMeshParser::ParseFaceIndex (const std::string & token, size_t vertexCount
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ObjMeshParser::Parse (const std::string        & objText,
-                           const std::string        & mtlText,
-                           std::vector<ObjTriangle>  & outTriangles)
+HRESULT ObjMeshParser::Parse (const std::string        & objText,
+                              const std::string        & mtlText,
+                              std::vector<ObjTriangle>  & outTriangles)
 {
+    HRESULT                                hr        = S_OK;
     std::unordered_map<std::string, Rgb>   materials = ParseMtl (mtlText);
     std::vector<std::array<float, 3>>      verts;
-    Rgb                                    curColor = { 1.0f, 1.0f, 1.0f };
+    Rgb                                    curColor  = { 1.0f, 1.0f, 1.0f };
     std::istringstream                     stream (objText);
     std::string                            line;
+    bool                                   hasVerts  = false;
 
     outTriangles.clear();
 
@@ -177,5 +179,9 @@ bool ObjMeshParser::Parse (const std::string        & objText,
         }
     }
 
-    return !verts.empty();
+    hasVerts = !verts.empty();
+    CBR (hasVerts);
+
+Error:
+    return hr;
 }

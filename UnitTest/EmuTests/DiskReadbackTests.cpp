@@ -300,11 +300,12 @@ public:
 
     // Spin the bus reading the latch until we find an address-field
     // matching the requested logical sector on the current track.
-    // Returns true on success; the caller can then call
-    // ReadDataFieldAtCursor to harvest the 256 decoded bytes.
-    bool FindAddressField (EmulatorCore & core, int wantTrack, int wantSector,
-                           int & outVolume)
+    // On success the caller can then call ReadDataFieldAtCursor to
+    // harvest the 256 decoded bytes.
+    HRESULT FindAddressField (EmulatorCore & core, int wantTrack, int wantSector,
+                              int & outVolume)
     {
+        HRESULT  hr = S_OK;
         Byte    n0    = 0, n1 = 0, n2 = 0;
         uint64_t spent = 0;
         // Bound: ~3 disk revolutions worth of cycles.
@@ -359,23 +360,34 @@ public:
             }
         }
 
-        return found;
+        CBR (found);
+
+    Error:
+        return hr;
     }
 
 
     // After FindAddressField succeeds, spin until the data prologue
     // (D5 AA AD) appears, then decode the 343 nibbles and unpack
     // back into 256 bytes per the standard 6-and-2 inverse.
-    bool ReadDataFieldAtCursor (EmulatorCore & core, vector<Byte> & outData)
+    HRESULT ReadDataFieldAtCursor (EmulatorCore & core, vector<Byte> & outData)
     {
+        HRESULT  hr = S_OK;
         Byte n0 = 0, n1 = 0, n2 = 0;
         uint64_t spent = 0;
         const uint64_t kMaxSpent = 500'000ULL;
+        // 342 raw + 1 checksum
+        Byte encoded[342] = {};
+        Byte prev   = 0;
+        Byte chkNib = 0;
+        Byte chk    = 0;
 
         while (spent < kMaxSpent)
         {
             n0 = ReadNextNibble (core, spent);
-            if (n0 == 0) return false;
+            // A zero nibble is the per-nibble timeout: the head is not
+            // producing bytes, so no amount of further spinning helps.
+            CBR (n0 != 0);
             if (n0 != kAddrProlog0) continue;
             n1 = ReadNextNibble (core, spent);
             if (n1 != kAddrProlog1) continue;
@@ -383,11 +395,7 @@ public:
             if (n2 == kDataProlog2) break;
         }
 
-        if (spent >= kMaxSpent) return false;
-
-        // 342 raw + 1 checksum
-        Byte encoded[342] = {};
-        Byte prev = 0;
+        CBR (spent < kMaxSpent);
 
         for (int i = 0; i < 342; i++)
         {
@@ -398,9 +406,9 @@ public:
         }
 
         // Verify checksum
-        Byte chkNib = ReadNextNibble (core, spent);
-        Byte chk    = static_cast<Byte> (InverseTranslate (chkNib) ^ prev);
-        if (chk != 0) return false;
+        chkNib = ReadNextNibble (core, spent);
+        chk    = static_cast<Byte> (InverseTranslate (chkNib) ^ prev);
+        CBR (chk == 0);
 
         // Unpack: bytes 86..341 carry high 6 bits; bytes 0..85 each
         // carry 2 low bits for three source bytes.
@@ -419,7 +427,8 @@ public:
             outData[i] = static_cast<Byte> (high | (b0 << 0) | (b1 << 1));
         }
 
-        return true;
+    Error:
+        return hr;
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -492,10 +501,12 @@ public:
 
         for (int sec = 0; sec < kSectorsPerTrack; sec++)
         {
-            int           volume = 0;
+            int           volume  = 0;
             vector<Byte>  decoded;
+            HRESULT       hrField = FindAddressField (core, trk, sec, volume);
+            HRESULT       hrData  = S_OK;
 
-            if (!FindAddressField (core, trk, sec, volume))
+            if (FAILED (hrField))
             {
                 wchar_t msg[128] = {};
                 swprintf_s (msg, L"T%dS%d address-field not found. ", trk, sec);
@@ -503,7 +514,9 @@ public:
                 continue;
             }
 
-            if (!ReadDataFieldAtCursor (core, decoded))
+            hrData = ReadDataFieldAtCursor (core, decoded);
+
+            if (FAILED (hrData))
             {
                 wchar_t msg[128] = {};
                 swprintf_s (msg, L"T%dS%d data-field decode failed. ", trk, sec);
@@ -558,13 +571,15 @@ public:
 
         MountAndSpinUp (host, core, raw);
 
-        int           volume = 0;
+        int           volume  = 0;
         vector<Byte>  decoded;
+        HRESULT       hrField = FindAddressField (core, 0, 0, volume);
 
-        Assert::IsTrue (FindAddressField (core, 0, 0, volume),
-                        L"T0S0 address-field not found");
-        Assert::IsTrue (ReadDataFieldAtCursor (core, decoded),
-                        L"T0S0 data-field decode failed");
+        Assert::IsTrue (SUCCEEDED (hrField), L"T0S0 address-field not found");
+
+        HRESULT       hrData  = ReadDataFieldAtCursor (core, decoded);
+
+        Assert::IsTrue (SUCCEEDED (hrData), L"T0S0 data-field decode failed");
 
         wstring  failures;
         for (int i = 0; i < 256; i++)
@@ -621,10 +636,12 @@ public:
 
             for (int sec = 0; sec < kSectorsPerTrack; sec++)
             {
-                int           volume = 0;
+                int           volume  = 0;
                 vector<Byte>  decoded;
+                HRESULT       hrField = FindAddressField (core, trk, sec, volume);
+                HRESULT       hrData  = S_OK;
 
-                if (!FindAddressField (core, trk, sec, volume))
+                if (FAILED (hrField))
                 {
                     wchar_t msg[128] = {};
                     swprintf_s (msg, L"T%dS%d address-field not found. ", trk, sec);
@@ -632,7 +649,9 @@ public:
                     continue;
                 }
 
-                if (!ReadDataFieldAtCursor (core, decoded))
+                hrData = ReadDataFieldAtCursor (core, decoded);
+
+                if (FAILED (hrData))
                 {
                     wchar_t msg[128] = {};
                     swprintf_s (msg, L"T%dS%d data-field decode failed. ", trk, sec);

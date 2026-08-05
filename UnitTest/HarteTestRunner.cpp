@@ -20,7 +20,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ReadByte (std::ifstream & f, Byte & out)
+static HRESULT ReadByte (std::ifstream & f, Byte & out)
 {
     HRESULT hr = S_OK;
 
@@ -37,7 +37,7 @@ static bool ReadByte (std::ifstream & f, Byte & out)
     out = static_cast<Byte> (c);
 
 Error:
-    return SUCCEEDED (hr);
+    return hr;
 }
 
 
@@ -50,7 +50,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ReadWord (std::ifstream & f, Word & out)
+static HRESULT ReadWord (std::ifstream & f, Word & out)
 {
     HRESULT hr = S_OK;
 
@@ -58,21 +58,19 @@ static bool ReadWord (std::ifstream & f, Word & out)
 
     Byte    lo;
     Byte    hi;
-    bool    fReadLo;
-    bool    fReadHi;
 
 
 
-    fReadLo = ReadByte (f, lo);
-    CBR (fReadLo);
+    hr = ReadByte (f, lo);
+    CHR (hr);
 
-    fReadHi = ReadByte (f, hi);
-    CBR (fReadHi);
+    hr = ReadByte (f, hi);
+    CHR (hr);
 
     out = (Word) hi << 8 | lo;
 
 Error:
-    return SUCCEEDED (hr);
+    return hr;
 }
 
 
@@ -101,25 +99,24 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ReadCpuState (std::ifstream & f, HarteCpuState & state)
+static HRESULT ReadCpuState (std::ifstream & f, HarteCpuState & state)
 {
     HRESULT hr = S_OK;
 
 
 
     Byte    ramCount;
-    bool    fOk;
 
 
 
-    fOk = ReadWord (f, state.pc);   CBR (fOk);
-    fOk = ReadByte (f, state.s);    CBR (fOk);
-    fOk = ReadByte (f, state.a);    CBR (fOk);
-    fOk = ReadByte (f, state.x);    CBR (fOk);
-    fOk = ReadByte (f, state.y);    CBR (fOk);
-    fOk = ReadByte (f, state.p);    CBR (fOk);
+    hr = ReadWord (f, state.pc);   CHR (hr);
+    hr = ReadByte (f, state.s);    CHR (hr);
+    hr = ReadByte (f, state.a);    CHR (hr);
+    hr = ReadByte (f, state.x);    CHR (hr);
+    hr = ReadByte (f, state.y);    CHR (hr);
+    hr = ReadByte (f, state.p);    CHR (hr);
 
-    fOk = ReadByte (f, ramCount);   CBR (fOk);
+    hr = ReadByte (f, ramCount);   CHR (hr);
 
     state.ramCount = ramCount;
 
@@ -127,12 +124,12 @@ static bool ReadCpuState (std::ifstream & f, HarteCpuState & state)
 
     for (int i = 0; i < state.ramCount; i++)
     {
-        fOk = ReadWord (f, state.ram[i].address);   CBR (fOk);
-        fOk = ReadByte (f, state.ram[i].value);     CBR (fOk);
+        hr = ReadWord (f, state.ram[i].address);   CHR (hr);
+        hr = ReadByte (f, state.ram[i].value);     CHR (hr);
     }
 
 Error:
-    return SUCCEEDED (hr);
+    return hr;
 }
 
 
@@ -163,7 +160,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
+HRESULT LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
 {
     HRESULT       hr = S_OK;
 
@@ -181,9 +178,9 @@ bool LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
     CBR (isOpen);
 
     // Header: vector_count (uint16), opcode (uint8), reserved (uint8)
-    fOk = ReadWord (f, count);             CBR (fOk);
-    fOk = ReadByte (f, outFile.opcode);    CBR (fOk);
-    fOk = ReadByte (f, reserved);          CBR (fOk);
+    hr = ReadWord (f, count);             CHR (hr);
+    hr = ReadByte (f, outFile.opcode);    CHR (hr);
+    hr = ReadByte (f, reserved);          CHR (hr);
 
     outFile.vectorCount = count;
     outFile.vectors.resize (count);
@@ -195,8 +192,8 @@ bool LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
         // Name: length byte + ASCII chars
         Byte nameLen;
 
-        fOk = ReadByte (f, nameLen);
-        CBR (fOk);
+        hr = ReadByte (f, nameLen);
+        CHR (hr);
 
         CBRA (nameLen < sizeof (v.name));
 
@@ -206,12 +203,12 @@ bool LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
         v.name[nameLen] = '\0';
 
         // Initial and final state
-        fOk = ReadCpuState (f, v.initial);    CBR (fOk);
-        fOk = ReadCpuState (f, v.final);      CBR (fOk);
+        hr = ReadCpuState (f, v.initial);    CHR (hr);
+        hr = ReadCpuState (f, v.final);      CHR (hr);
     }
 
 Error:
-    return SUCCEEDED (hr);
+    return hr;
 }
 
 
@@ -491,8 +488,9 @@ static void RunHarteOpcode (const char * cpuDir, Byte opcode)
 
     std::string   path = dir + "\\" + hex + ".bin";
     HarteTestFile file;
+    HRESULT       hrLoad = LoadHarteTestFile (path, file);
 
-    if (!LoadHarteTestFile (path, file))
+    if (FAILED (hrLoad))
     {
         // Skip if the file doesn't exist (opcode not generated).
         return;

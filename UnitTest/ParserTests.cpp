@@ -359,8 +359,10 @@ namespace ParserTests
 
         TEST_METHOD (ParseValue_Hex)
         {
-            int value = 0;
-            Assert::IsTrue (Parser::ParseValue ("$FF", value));
+            int      value = 0;
+            HRESULT  hr    = Parser::ParseValue ("$FF", value);
+
+            Assert::IsTrue (SUCCEEDED (hr));
             Assert::AreEqual (255, value);
         }
 
@@ -376,8 +378,10 @@ namespace ParserTests
 
         TEST_METHOD (ParseValue_HexLowerCase)
         {
-            int value = 0;
-            Assert::IsTrue (Parser::ParseValue ("$ff", value));
+            int      value = 0;
+            HRESULT  hr    = Parser::ParseValue ("$ff", value);
+
+            Assert::IsTrue (SUCCEEDED (hr));
             Assert::AreEqual (255, value);
         }
 
@@ -393,8 +397,10 @@ namespace ParserTests
 
         TEST_METHOD (ParseValue_Binary)
         {
-            int value = 0;
-            Assert::IsTrue (Parser::ParseValue ("%10101010", value));
+            int      value = 0;
+            HRESULT  hr    = Parser::ParseValue ("%10101010", value);
+
+            Assert::IsTrue (SUCCEEDED (hr));
             Assert::AreEqual (170, value);
         }
 
@@ -410,8 +416,10 @@ namespace ParserTests
 
         TEST_METHOD (ParseValue_BinaryLowNibble)
         {
-            int value = 0;
-            Assert::IsTrue (Parser::ParseValue ("%00001111", value));
+            int      value = 0;
+            HRESULT  hr    = Parser::ParseValue ("%00001111", value);
+
+            Assert::IsTrue (SUCCEEDED (hr));
             Assert::AreEqual (15, value);
         }
 
@@ -427,8 +435,10 @@ namespace ParserTests
 
         TEST_METHOD (ParseValue_Decimal)
         {
-            int value = 0;
-            Assert::IsTrue (Parser::ParseValue ("255", value));
+            int      value = 0;
+            HRESULT  hr    = Parser::ParseValue ("255", value);
+
+            Assert::IsTrue (SUCCEEDED (hr));
             Assert::AreEqual (255, value);
         }
 
@@ -444,8 +454,10 @@ namespace ParserTests
 
         TEST_METHOD (ParseValue_DecimalZero)
         {
-            int value = 0;
-            Assert::IsTrue (Parser::ParseValue ("0", value));
+            int      value = 0;
+            HRESULT  hr    = Parser::ParseValue ("0", value);
+
+            Assert::IsTrue (SUCCEEDED (hr));
             Assert::AreEqual (0, value);
         }
     };

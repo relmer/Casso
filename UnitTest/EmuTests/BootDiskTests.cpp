@@ -1006,7 +1006,7 @@ public:
         HeadlessHost   host;
         EmulatorCore   core;
         size_t         consumed    = 0;
-        bool           returnTaken = false;
+        HRESULT        hrReturn    = S_OK;
         uint64_t       startCycles = 0;
         uint64_t       elapsed     = 0;
 
@@ -1024,9 +1024,9 @@ public:
         Assert::AreEqual (strlen (kSweepOneLiner), consumed,
             L"The whole one-liner must be consumed by the ROM input routine");
 
-        returnTaken = KeystrokeInjector::InjectKey (
+        hrReturn = KeystrokeInjector::InjectKey (
             core, KeystrokeInjector::kAppleReturn);
-        Assert::IsTrue (returnTaken, L"Return must be consumed");
+        AssertSucceeded (hrReturn, L"Return must be consumed");
 
         startCycles = core.cpu->GetTotalCycles();
 

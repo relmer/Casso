@@ -31,8 +31,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParseBoundedHex (const char * text, long maxValue, long & outValue)
+static HRESULT ParseBoundedHex (const char * text, long maxValue, long & outValue)
 {
+    HRESULT       hr      = S_OK;
     const char *  hex     = text;
     char       *  end     = nullptr;
     long          value   = 0;
@@ -40,23 +41,22 @@ static bool ParseBoundedHex (const char * text, long maxValue, long & outValue)
 
 
 
-    if (text != nullptr && text[0] != '\0')
-    {
-        if (hex[0] == '$')
-        {
-            hex++;
-        }
+    CBREx (text != nullptr, E_INVALIDARG);
+    CBREx (text[0] != '\0', E_INVALIDARG);
 
-        value   = strtol (hex, &end, 16);
-        isValid = end != hex && *end == '\0' && value >= 0 && value <= maxValue;
+    if (hex[0] == '$')
+    {
+        hex++;
     }
 
-    if (isValid)
-    {
-        outValue = value;
-    }
+    value   = strtol (hex, &end, 16);
+    isValid = end != hex && *end == '\0' && value >= 0 && value <= maxValue;
+    CBREx (isValid, E_INVALIDARG);
 
-    return isValid;
+    outValue = value;
+
+Error:
+    return hr;
 }
 
 
@@ -69,19 +69,20 @@ static bool ParseBoundedHex (const char * text, long maxValue, long & outValue)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParseAddress (const char * text, Word & address)
+static HRESULT ParseAddress (const char * text, Word & address)
 {
-    long  value   = 0;
-    bool  isValid = ParseBoundedHex (text, 0xFFFF, value);
+    HRESULT  hr    = S_OK;
+    long     value = 0;
 
 
 
-    if (isValid)
-    {
-        address = (Word) value;
-    }
+    hr = ParseBoundedHex (text, 0xFFFF, value);
+    CHR (hr);
 
-    return isValid;
+    address = (Word) value;
+
+Error:
+    return hr;
 }
 
 
@@ -94,26 +95,26 @@ static bool ParseAddress (const char * text, Word & address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParseDecimal (const char * text, uint32_t & value)
+static HRESULT ParseDecimal (const char * text, uint32_t & value)
 {
-    char *  end     = nullptr;
-    long    val     = 0;
-    bool    isValid = false;
+    HRESULT  hr      = S_OK;
+    char *   end     = nullptr;
+    long     val     = 0;
+    bool     isValid = false;
 
 
 
-    if (text != nullptr && text[0] != '\0')
-    {
-        val     = strtol (text, &end, 10);
-        isValid = end != text && *end == '\0' && val >= 0;
-    }
+    CBREx (text != nullptr, E_INVALIDARG);
+    CBREx (text[0] != '\0', E_INVALIDARG);
 
-    if (isValid)
-    {
-        value = (uint32_t) val;
-    }
+    val     = strtol (text, &end, 10);
+    isValid = end != text && *end == '\0' && val >= 0;
+    CBREx (isValid, E_INVALIDARG);
 
-    return isValid;
+    value = (uint32_t) val;
+
+Error:
+    return hr;
 }
 
 
@@ -126,19 +127,20 @@ static bool ParseDecimal (const char * text, uint32_t & value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParseFillByte (const char * text, Byte & fillByte)
+static HRESULT ParseFillByte (const char * text, Byte & fillByte)
 {
-    long  value   = 0;
-    bool  isValid = ParseBoundedHex (text, 0xFF, value);
+    HRESULT  hr    = S_OK;
+    long     value = 0;
 
 
 
-    if (isValid)
-    {
-        fillByte = (Byte) value;
-    }
+    hr = ParseBoundedHex (text, 0xFF, value);
+    CHR (hr);
 
-    return isValid;
+    fillByte = (Byte) value;
+
+Error:
+    return hr;
 }
 
 
@@ -151,47 +153,22 @@ static bool ParseFillByte (const char * text, Byte & fillByte)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ReadFileContents (const std::string & path, std::string & contents)
+static HRESULT ReadFileContents (const std::string & path, std::string & contents)
 {
+    HRESULT             hr = S_OK;
     std::ifstream       file (path, std::ios::binary);
     std::ostringstream  ss;
     bool                isOpen = file.is_open();
 
 
 
-    if (isOpen)
-    {
-        ss << file.rdbuf();
-        contents = ss.str();
-    }
+    CBR (isOpen);
 
-    return isOpen;
-}
+    ss << file.rdbuf();
+    contents = ss.str();
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WriteBinaryFile
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static bool WriteBinaryFile (const std::string & path, const std::vector<Byte> & data)
-{
-    std::ofstream  file (path, std::ios::binary);
-    bool           wasWritten = false;
-
-
-
-    if (file.is_open())
-    {
-        file.write (reinterpret_cast<const char *> (data.data()), data.size());
-        wasWritten = file.good();
-    }
-
-    return wasWritten;
+Error:
+    return hr;
 }
 
 
@@ -217,40 +194,43 @@ static bool WriteBinaryFile (const std::string & path, const std::vector<Byte> &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool WriteFlatBinaryFile (const std::string & path,
-                                 const std::vector<Byte> & data,
-                                 Word startAddress,
-                                 Byte fillByte)
+static HRESULT WriteFlatBinaryFile (const std::string & path,
+                                    const std::vector<Byte> & data,
+                                    Word startAddress,
+                                    Byte fillByte)
 {
+    HRESULT        hr = S_OK;
     std::ofstream  file (path, std::ios::binary);
     uint32_t       endAddress = 0;
+    bool           isOpen     = file.is_open();
     bool           wasWritten = false;
 
 
 
-    if (file.is_open())
+    CBR (isOpen);
+
+    // Pad from address 0 to startAddress
+    for (Word i = 0; i < startAddress; i++)
     {
-        // Pad from address 0 to startAddress
-        for (Word i = 0; i < startAddress; i++)
-        {
-            file.put ((char) fillByte);
-        }
-
-        // Write assembled bytes
-        file.write (reinterpret_cast<const char *> (data.data()), data.size());
-
-        // Pad from end to fill full 64KB address space
-        endAddress = (uint32_t) startAddress + (uint32_t) data.size();
-
-        for (uint32_t i = endAddress; i < 0x10000u; i++)
-        {
-            file.put ((char) fillByte);
-        }
-
-        wasWritten = file.good();
+        file.put ((char) fillByte);
     }
 
-    return wasWritten;
+    // Write assembled bytes
+    file.write (reinterpret_cast<const char *> (data.data()), data.size());
+
+    // Pad from end to fill full 64KB address space
+    endAddress = (uint32_t) startAddress + (uint32_t) data.size();
+
+    for (uint32_t i = endAddress; i < 0x10000u; i++)
+    {
+        file.put ((char) fillByte);
+    }
+
+    wasWritten = file.good();
+    CBR (wasWritten);
+
+Error:
+    return hr;
 }
 
 
@@ -263,31 +243,34 @@ static bool WriteFlatBinaryFile (const std::string & path,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool WriteSymbolFile (const std::string & path, const std::unordered_map<std::string, Word> & symbols)
+static HRESULT WriteSymbolFile (const std::string & path, const std::unordered_map<std::string, Word> & symbols)
 {
+    HRESULT                                    hr = S_OK;
     std::ofstream                              file (path);
     std::vector<std::pair<std::string, Word>>  sorted;
+    bool                                       isOpen     = file.is_open();
     bool                                       wasWritten = false;
 
 
 
-    if (file.is_open())
+    CBR (isOpen);
+
+    // Sort symbols by address for deterministic output
+    sorted.assign (symbols.begin(), symbols.end());
+
+    std::sort (sorted.begin(), sorted.end(),
+        [] (const auto & a, const auto & b) { return a.second < b.second; });
+
+    for (const auto & pair : sorted)
     {
-        // Sort symbols by address for deterministic output
-        sorted.assign (symbols.begin(), symbols.end());
-
-        std::sort (sorted.begin(), sorted.end(),
-            [] (const auto & a, const auto & b) { return a.second < b.second; });
-
-        for (const auto & pair : sorted)
-        {
-            file << std::format ("${:04X}  {}\n", pair.second, pair.first);
-        }
-
-        wasWritten = file.good();
+        file << std::format ("${:04X}  {}\n", pair.second, pair.first);
     }
 
-    return wasWritten;
+    wasWritten = file.good();
+    CBR (wasWritten);
+
+Error:
+    return hr;
 }
 
 
@@ -557,17 +540,17 @@ static AssembleResult AssembleFile (const std::string & inputFile,
                                    const Microcode instructionSet[256],
                                    const AssemblerOptions & asmOptions)
 {
-    AssembleResult  ar     = {};
+    HRESULT         hr = S_OK;
+    AssembleResult  ar = {};
     std::string     source;
-    bool            wasRead = false;
 
     ar.inputFile = inputFile;
 
 
 
-    wasRead = ReadFileContents (inputFile, source);
+    hr = ReadFileContents (inputFile, source);
 
-    if (!wasRead)
+    if (FAILED (hr))
     {
         std::cerr << "Error: Cannot read input file: " << inputFile << "\n";
         ar.ok = false;
@@ -637,14 +620,15 @@ static void ReportAssemblyDiagnostics (const AssembleResult & ar)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool WriteBinaryOutput (const AssemblyResult & result,
-                               const CommandLineOptions & options)
+static HRESULT WriteBinaryOutput (const AssemblyResult & result,
+                                  const CommandLineOptions & options)
 {
+    HRESULT      hr       = S_OK;
     std::string  outLower = options.outputFile;
     bool         isNul    = false;
     bool         isSRec   = false;
     bool         isHex    = false;
-    bool         ok       = true;
+    bool         isOpen   = false;
 
 
 
@@ -662,30 +646,33 @@ static bool WriteBinaryOutput (const AssemblyResult & result,
     {
         std::ofstream  outFile (options.outputFile);
 
-        ok = outFile.is_open();
+        isOpen = outFile.is_open();
+        CBR (isOpen);
 
-        if (ok && isSRec)
+        if (isSRec)
         {
             OutputFormats::WriteSRecord (result.bytes, result.startAddress, result.endAddress, result.startAddress, outFile);
         }
-        else if (ok)
+        else
         {
             OutputFormats::WriteIntelHex (result.bytes, result.startAddress, result.endAddress, result.startAddress, outFile);
         }
     }
     else if (!isNul)
     {
-        ok = WriteFlatBinaryFile (options.outputFile, result.bytes, result.startAddress, options.fillByte);
+        hr = WriteFlatBinaryFile (options.outputFile, result.bytes, result.startAddress, options.fillByte);
+        CHR (hr);
     }
 
+Error:
     // One diagnostic for all three paths -- it was written out identically at
     // four sites before, which is three chances for the wording to drift.
-    if (!ok)
+    if (FAILED (hr))
     {
         std::cerr << "Error: Cannot write output file: " << options.outputFile << "\n";
     }
 
-    return ok;
+    return hr;
 }
 
 
@@ -700,7 +687,7 @@ static bool WriteBinaryOutput (const AssemblyResult & result,
 //  otherwise.
 //
 //  Defaulting to stdout is what makes `casso -l` pipeable, and it cannot fail
-//  to open -- hence the ok flag only ever reflects the named-file case.
+//  to open -- hence failure is only possible in the named-file case.
 //
 //  Page breaks are driven from the SOURCE TEXT rather than from a parsed
 //  directive, because the listing is a faithful rendering of the input: a
@@ -710,12 +697,13 @@ static bool WriteBinaryOutput (const AssemblyResult & result,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool WriteListingOutput (const AssemblyResult & result,
-                                const CommandLineOptions & options)
+static HRESULT WriteListingOutput (const AssemblyResult & result,
+                                   const CommandLineOptions & options)
 {
+    HRESULT         hr      = S_OK;
     std::ostream *  listOut = &std::cout;
     std::ofstream   listFile;
-    bool            ok      = true;
+    bool            isOpen  = false;
 
 
 
@@ -724,30 +712,25 @@ static bool WriteListingOutput (const AssemblyResult & result,
     if (!options.listingFile.empty())
     {
         listFile.open (options.listingFile);
-        ok = listFile.is_open();
+        isOpen = listFile.is_open();
 
-        if (ok)
-        {
-            listOut = &listFile;
-        }
-        else
+        if (!isOpen)
         {
             std::cerr << "Error: Cannot write listing file: " << options.listingFile << "\n";
         }
+
+        CBR (isOpen);
+
+        listOut = &listFile;
     }
 
-    if (ok && !result.listingTitle.empty())
+    if (!result.listingTitle.empty())
     {
         *listOut << result.listingTitle << "\n\n";
     }
 
     for (const auto & line : result.listing)
     {
-        if (!ok)
-        {
-            break;
-        }
-
         if (line.sourceText.find (".page") != std::string::npos ||
             line.sourceText.find (".PAGE") != std::string::npos ||
             line.sourceText.find ("page") == 0)
@@ -763,7 +746,8 @@ static bool WriteListingOutput (const AssemblyResult & result,
         *listOut << Assembler::FormatListingLine (line, options.cycleCounts) << "\n";
     }
 
-    return ok;
+Error:
+    return hr;
 }
 
 
@@ -792,24 +776,26 @@ static void WriteSymbolTableOutput (const AssemblyResult & result)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool WriteDebugInfoOutput (const AssemblyResult & result,
-                                  const std::string & debugFile)
+static HRESULT WriteDebugInfoOutput (const AssemblyResult & result,
+                                     const std::string & debugFile)
 {
+    HRESULT        hr = S_OK;
     std::ofstream  dbgFile (debugFile);
-    bool           ok = dbgFile.is_open();
+    bool           isOpen = dbgFile.is_open();
 
 
 
-    if (ok)
-    {
-        dbgFile << Assembler::FormatDebugInfo (result.symbols);
-    }
-    else
+    if (!isOpen)
     {
         std::cerr << "Error: Cannot write debug file: " << debugFile << "\n";
     }
 
-    return ok;
+    CBR (isOpen);
+
+    dbgFile << Assembler::FormatDebugInfo (result.symbols);
+
+Error:
+    return hr;
 }
 
 
@@ -844,32 +830,35 @@ static void LoadAssembledIntoMemory (Cpu & cpu, const AssemblyResult & result)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool LoadBinaryFileIntoMemory (Cpu & cpu,
-                                      const std::string & inputFile,
-                                      Word loadAddr,
-                                      Word & entryPoint)
+static HRESULT LoadBinaryFileIntoMemory (Cpu & cpu,
+                                         const std::string & inputFile,
+                                         Word loadAddr,
+                                         Word & entryPoint)
 {
+    HRESULT      hr = S_OK;
     std::string  contents;
-    size_t       i       = 0;
-    bool         wasRead = ReadFileContents (inputFile, contents);
+    size_t       i  = 0;
 
 
 
-    if (wasRead)
-    {
-        for (i = 0; i < contents.size(); i++)
-        {
-            cpu.PokeByte (loadAddr + (Word) i, (Byte) contents[i]);
-        }
+    hr = ReadFileContents (inputFile, contents);
 
-        entryPoint = loadAddr;
-    }
-    else
+    if (FAILED (hr))
     {
         std::cerr << "Error: Cannot read input file: " << inputFile << "\n";
     }
 
-    return wasRead;
+    CHR (hr);
+
+    for (i = 0; i < contents.size(); i++)
+    {
+        cpu.PokeByte (loadAddr + (Word) i, (Byte) contents[i]);
+    }
+
+    entryPoint = loadAddr;
+
+Error:
+    return hr;
 }
 
 
@@ -1137,8 +1126,9 @@ static void ParseAs65Flags (int argc, char * argv[], CommandLineOptions & option
                 if (!rest.empty())
                 {
                     uint32_t val = 0;
+                    HRESULT  hr  = ParseDecimal (rest.c_str(), val);
 
-                    if (ParseDecimal (rest.c_str(), val))
+                    if (SUCCEEDED (hr))
                     {
                         options.pageHeight = (int) val;
                     }
@@ -1158,8 +1148,9 @@ static void ParseAs65Flags (int argc, char * argv[], CommandLineOptions & option
                 if (!rest.empty())
                 {
                     uint32_t val = 0;
+                    HRESULT  hr  = ParseDecimal (rest.c_str(), val);
 
-                    if (ParseDecimal (rest.c_str(), val))
+                    if (SUCCEEDED (hr))
                     {
                         options.pageWidth = (int) val;
                     }
@@ -1449,14 +1440,18 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
         }
         else if (arg == "--fill" && argIndex + 1 < argc)
         {
-            if (!ParseFillByte (argv[++argIndex], options.fillByte))
+            hr = ParseFillByte (argv[++argIndex], options.fillByte);
+
+            if (FAILED (hr))
             {
                 std::cerr << "Error: Invalid fill byte value\n";
             }
         }
         else if (arg == "--load" && argIndex + 1 < argc)
         {
-            if (ParseAddress (argv[++argIndex], options.loadAddress))
+            hr = ParseAddress (argv[++argIndex], options.loadAddress);
+
+            if (SUCCEEDED (hr))
             {
                 options.hasLoadAddress = true;
             }
@@ -1467,7 +1462,9 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
         }
         else if (arg == "--entry" && argIndex + 1 < argc)
         {
-            if (ParseAddress (argv[++argIndex], options.entryAddress))
+            hr = ParseAddress (argv[++argIndex], options.entryAddress);
+
+            if (SUCCEEDED (hr))
             {
                 options.hasEntryAddress = true;
             }
@@ -1478,7 +1475,9 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
         }
         else if (arg == "--stop" && argIndex + 1 < argc)
         {
-            if (ParseAddress (argv[++argIndex], options.stopAddress))
+            hr = ParseAddress (argv[++argIndex], options.stopAddress);
+
+            if (SUCCEEDED (hr))
             {
                 options.hasStopAddress = true;
             }
@@ -1489,7 +1488,9 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
         }
         else if (arg == "--max-cycles" && argIndex + 1 < argc)
         {
-            if (!ParseDecimal (argv[++argIndex], options.maxCycles))
+            hr = ParseDecimal (argv[++argIndex], options.maxCycles);
+
+            if (FAILED (hr))
             {
                 std::cerr << "Error: Invalid max-cycles value\n";
             }
@@ -1787,7 +1788,8 @@ int DoRun (const CommandLineOptions & options)
     else
     {
         loadAddr  = options.hasLoadAddress ? options.loadAddress : (Word) 0x8000;
-        wasLoaded = LoadBinaryFileIntoMemory (cpu, options.inputFile, loadAddr, entryPoint);
+        hr        = LoadBinaryFileIntoMemory (cpu, options.inputFile, loadAddr, entryPoint);
+        wasLoaded = SUCCEEDED (hr);
         exitCode  = wasLoaded ? 0 : 2;
 
         if (wasLoaded)
@@ -1933,12 +1935,14 @@ int DoAs65 (const CommandLineOptions & options)
 
     // Each output artifact is optional but fails the run the same way, so the
     // exit code is set once and each step just reports whether it wrote.
-    wasWritten = !options.generateListing || WriteListingOutput (ar.result, options);
+    hr         = options.generateListing ? WriteListingOutput (ar.result, options) : S_OK;
+    wasWritten = SUCCEEDED (hr);
     exitCode   = wasWritten ? 0 : 2;
 
     BAIL_OUT_IF (!wasWritten, S_OK);
 
-    wasWritten = WriteBinaryOutput (ar.result, options);
+    hr         = WriteBinaryOutput (ar.result, options);
+    wasWritten = SUCCEEDED (hr);
     exitCode   = wasWritten ? 0 : 2;
 
     BAIL_OUT_IF (!wasWritten, S_OK);
@@ -1948,14 +1952,18 @@ int DoAs65 (const CommandLineOptions & options)
         WriteSymbolTableOutput (ar.result);
     }
 
-    wasWritten = !options.debugInfo || options.debugFile.empty() ||
-                 WriteDebugInfoOutput (ar.result, options.debugFile);
+    hr         = (!options.debugInfo || options.debugFile.empty())
+                     ? S_OK
+                     : WriteDebugInfoOutput (ar.result, options.debugFile);
+    wasWritten = SUCCEEDED (hr);
     exitCode   = wasWritten ? 0 : 2;
 
     BAIL_OUT_IF (!wasWritten, S_OK);
 
-    wasWritten = options.symbolFile.empty() ||
-                 WriteSymbolFile (options.symbolFile, ar.result.symbols);
+    hr         = options.symbolFile.empty()
+                     ? S_OK
+                     : WriteSymbolFile (options.symbolFile, ar.result.symbols);
+    wasWritten = SUCCEEDED (hr);
     exitCode   = wasWritten ? 0 : 2;
 
     if (!wasWritten)

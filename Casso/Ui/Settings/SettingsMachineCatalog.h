@@ -52,9 +52,9 @@ public:
     void  PopulateThemeList           ();
 
     // Runs the asset bootstrap flow then posts IDM_FILE_OPEN with the
-    // selected machine name. Returns false if the user canceled the
-    // bootstrap dialog (caller should leave the active machine alone).
-    bool  DoMachineSelect             (const std::string & machineName);
+    // selected machine name. If the user cancels the bootstrap dialog
+    // nothing is posted and the active machine is left alone.
+    void  DoMachineSelect             (const std::string & machineName);
 
 
 private:

@@ -139,11 +139,11 @@ public:
     // Run until PC reaches the loaded boot-loader entry at $0801
     // (the boot ROM JMPs here only after a successful sector read +
     // address-field checksum + data-field checksum verification).
-    // Returns true if PC ever escaped the $C6xx ROM range into the
-    // RAM bootstrap, false if we burned the cycle budget without
+    // Succeeds if PC ever escaped the $C6xx ROM range into the
+    // RAM bootstrap; fails if we burned the cycle budget without
     // ever leaving the boot ROM (i.e. the read attempt failed
     // checksums and the ROM is still spinning).
-    bool RunUntilBootLoaderRuns (EmulatorCore & core)
+    HRESULT RunUntilBootLoaderRuns (EmulatorCore & core)
     {
         char  path[260] = {};
         DWORD pl = GetTempPathA (260, path);
@@ -247,7 +247,7 @@ public:
             fclose (fp);
         }
 
-        return ranBootLoader;
+        return ranBootLoader ? S_OK : E_FAIL;
     }
 
 
@@ -259,7 +259,9 @@ public:
 
         MountSentinelDsk (host, core, raw);
 
-        if (!RunUntilBootLoaderRuns (core))
+        HRESULT   hrBoot = RunUntilBootLoaderRuns (core);
+
+        if (FAILED (hrBoot))
         {
             wchar_t   msg[512] = {};
             swprintf_s (msg,

@@ -383,7 +383,6 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
     float                      maxAbsX = 0.0f;
     float                      preMinY = 0.0f, preMaxY = 0.0f, preMaxZ = 0.0f;
     bool                       first   = true;
-    bool                       parsed  = false;
     bool                       hasTris = false;
 
 
@@ -400,10 +399,11 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         { 0.6549f, 0.6784f, 0.6941f, s_kArgbButton   },   // gray: control caps
     };
 
-    parsed  = ObjMeshParser::Parse (objText, mtlText, tris);
-    hasTris = !tris.empty();
+    hr = ObjMeshParser::Parse (objText, mtlText, tris);
+    CHR (hr);
 
-    CBR (parsed && hasTris);
+    hasTris = !tris.empty();
+    CBR (hasTris);
 
     m_mesh.clear();
     m_meshGlass.clear();

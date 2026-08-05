@@ -320,8 +320,8 @@ public:
     //  Tests should drive `OnTimer` directly rather than relying
     //  on the OS timer queue.
     //
-    bool          SetTimer       (UINT_PTR timerId, UINT intervalMs);
-    bool          KillTimer      (UINT_PTR timerId);
+    HRESULT       SetTimer       (UINT_PTR timerId, UINT intervalMs);
+    HRESULT       KillTimer      (UINT_PTR timerId);
 
     //
     //  Install an optional client object that receives the Win32

@@ -401,7 +401,7 @@ namespace CpuOperationTests
         //
         //  Assembler_CannotEmitUndocumented_ButNopStaysCanonical
         //
-        //  Every undocumented mnemonic is hidden from OpcodeTable::Lookup, so the
+        //  Every undocumented mnemonic is hidden from OpcodeTable::TryLookup, so the
         //  assembler cannot emit one, and the only NOP it resolves is the
         //  canonical $EA -- never one of the undocumented NOP fillers.
         //
@@ -413,10 +413,10 @@ namespace CpuOperationTests
             OpcodeTable table (cpu.GetInstructionSet());
             OpcodeEntry entry = {};
 
-            Assert::IsFalse (table.Lookup ("SLO", GlobalAddressingMode::ZeroPage, entry));
-            Assert::IsFalse (table.Lookup ("LAX", GlobalAddressingMode::ZeroPage, entry));
+            Assert::IsFalse (table.TryLookup ("SLO", GlobalAddressingMode::ZeroPage, entry));
+            Assert::IsFalse (table.TryLookup ("LAX", GlobalAddressingMode::ZeroPage, entry));
 
-            Assert::IsTrue (table.Lookup ("NOP", GlobalAddressingMode::SingleByteNoOperand, entry));
+            Assert::IsTrue (table.TryLookup ("NOP", GlobalAddressingMode::SingleByteNoOperand, entry));
             Assert::AreEqual ((Byte) 0xEA, entry.opcode);
         }
     };

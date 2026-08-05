@@ -54,29 +54,35 @@ public:
     }
 
 
-    TEST_METHOD (Remove_NullReturnsFalse)
+    TEST_METHOD (Remove_NullFails)
     {
         DxuiPanel  panel;
 
-        Assert::IsFalse (panel.Remove (nullptr));
+        HRESULT  hr = panel.Remove (nullptr);
+
+        Assert::AreEqual (E_INVALIDARG, hr);
     }
 
 
-    TEST_METHOD (Remove_UnknownReturnsFalse)
+    TEST_METHOD (Remove_UnknownFails)
     {
         DxuiPanel        panel;
         MockDxuiControl  stranger;
 
-        Assert::IsFalse (panel.Remove (&stranger));
+        HRESULT  hr = panel.Remove (&stranger);
+
+        Assert::IsTrue (FAILED (hr));
     }
 
 
-    TEST_METHOD (Remove_KnownReturnsTrueAndDestroysChild)
+    TEST_METHOD (Remove_KnownSucceedsAndDestroysChild)
     {
         DxuiPanel          panel;
         MockDxuiControl &  child = panel.Add<MockDxuiControl>();
 
-        Assert::IsTrue   (panel.Remove (&child));
+        HRESULT  hr = panel.Remove (&child);
+
+        Assert::IsTrue   (SUCCEEDED (hr));
         Assert::AreEqual ((size_t) 0, panel.ChildCount());
     }
 
@@ -278,19 +284,24 @@ public:
 
 
         panel.Adopt (caller);
-        Assert::IsTrue   (panel.RemoveAdopted (caller));
+
+        HRESULT  hr = panel.RemoveAdopted (caller);
+
+        Assert::IsTrue   (SUCCEEDED (hr));
         Assert::AreEqual ((size_t) 0, panel.ChildCount());
         Assert::IsNull   (caller.Parent());
     }
 
 
-    TEST_METHOD (RemoveAdopted_UnknownReturnsFalse)
+    TEST_METHOD (RemoveAdopted_UnknownFails)
     {
         DxuiPanel        panel;
         MockDxuiControl  stranger;
 
 
-        Assert::IsFalse (panel.RemoveAdopted (stranger));
+        HRESULT  hr = panel.RemoveAdopted (stranger);
+
+        Assert::IsTrue (FAILED (hr));
     }
 
 
@@ -300,7 +311,9 @@ public:
         MockDxuiControl &  owned = panel.Add<MockDxuiControl>();
 
 
-        Assert::IsFalse (panel.RemoveAdopted (owned));
+        HRESULT  hr = panel.RemoveAdopted (owned);
+
+        Assert::IsTrue   (FAILED (hr));
         Assert::AreEqual ((size_t) 1, panel.ChildCount());
     }
 

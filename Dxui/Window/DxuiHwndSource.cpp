@@ -1155,12 +1155,12 @@ void DxuiHwndSource::SetContentRootRef (DxuiPanel * root)
 //  Thin convenience wrapper around `::SetTimer` so consumers don't
 //  have to reach for the global symbol. WM_TIMER dispatches to
 //  `IDxuiHostClient::OnTimer` (DxuiHwndSource's WndProc already
-//  forwards the message). Returns true iff the timer was scheduled;
-//  no-ops in release when the host has no HWND.
+//  forwards the message). Succeeds iff the timer was scheduled;
+//  fails (asserting) when the host has no HWND.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiHwndSource::SetTimer (UINT_PTR timerId, UINT intervalMs)
+HRESULT DxuiHwndSource::SetTimer (UINT_PTR timerId, UINT intervalMs)
 {
     HRESULT   hr     = S_OK;
     UINT_PTR  result = 0;
@@ -1171,9 +1171,10 @@ bool DxuiHwndSource::SetTimer (UINT_PTR timerId, UINT intervalMs)
     CBRA (m_hwnd != nullptr);
 
     result = ::SetTimer (m_hwnd, timerId, intervalMs, nullptr);
+    CWR (result != 0);
 
 Error:
-    return (result != 0);
+    return hr;
 }
 
 
@@ -1184,13 +1185,13 @@ Error:
 //
 //  KillTimer
 //
-//  Thin convenience wrapper around `::KillTimer`. Returns true iff
-//  the timer was found and canceled; no-ops in release when the
-//  host has no HWND.
+//  Thin convenience wrapper around `::KillTimer`. Succeeds iff the
+//  timer was found and canceled; fails (asserting) when the host
+//  has no HWND.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiHwndSource::KillTimer (UINT_PTR timerId)
+HRESULT DxuiHwndSource::KillTimer (UINT_PTR timerId)
 {
     HRESULT  hr     = S_OK;
     BOOL     result = FALSE;
@@ -1201,9 +1202,10 @@ bool DxuiHwndSource::KillTimer (UINT_PTR timerId)
     CBRA (m_hwnd != nullptr);
 
     result = ::KillTimer (m_hwnd, timerId);
+    CWR (result);
 
 Error:
-    return (result != FALSE);
+    return hr;
 }
 
 

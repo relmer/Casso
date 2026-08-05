@@ -473,7 +473,7 @@ bool AssemblySession::IsBitOpMnemonic (const std::string & mnemonic)
 //  Two things the old form hid. `IsBranchMnemonic` was a separate concept only
 //  because it predated the opcode table answering it -- it is now exactly the
 //  ungated Relative candidate, so Bare's three-way decision is a plain list.
-//  And each case built an OpcodeEntry it never read, because Lookup was being
+//  And each case built an OpcodeEntry it never read, because TryLookup was being
 //  used as an existence test; that is HasMode.
 //
 //  Indexed by OperandSyntax, so the rows must stay in enum order. The `syntax`
@@ -2416,8 +2416,9 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
 
     {
         std::string labelError;
+        HRESULT     hrLabel = Parser::ValidateLabel (info.parsed.label, m_opcodeTable, labelError);
 
-        if (!Parser::ValidateLabel (info.parsed.label, m_opcodeTable, labelError))
+        if (FAILED (hrLabel))
         {
             RecordError (current.sourceLineNumber, labelError);
         }
@@ -3866,11 +3867,14 @@ HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, Line
     {
         std::string labelName;
         std::string labelError;
+        HRESULT     hrLabel = S_OK;
 
         hr = ExtractColonlessLabelName (current, labelName);
         CHR (hr);
 
-        if (!Parser::ValidateLabel (labelName, m_opcodeTable, labelError))
+        hrLabel = Parser::ValidateLabel (labelName, m_opcodeTable, labelError);
+
+        if (FAILED (hrLabel))
         {
             RecordError (current.sourceLineNumber, labelError);
         }
@@ -4145,7 +4149,7 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
 
         OpcodeEntry entry = {};
 
-        if (m_opcodeTable.Lookup (info.parsed.mnemonic, mode, entry))
+        if (m_opcodeTable.TryLookup (info.parsed.mnemonic, mode, entry))
         {
             m_pc += 1 + entry.operandSize;
         }
@@ -4166,7 +4170,7 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
                 altMode = GlobalAddressingMode::AbsoluteY;
             }
 
-            if (altMode != mode && m_opcodeTable.Lookup (info.parsed.mnemonic, altMode, entry))
+            if (altMode != mode && m_opcodeTable.TryLookup (info.parsed.mnemonic, altMode, entry))
             {
                 info.resolvedMode = altMode;
                 m_pc += 1 + entry.operandSize;
@@ -5075,7 +5079,7 @@ HRESULT AssemblySession::ResolveInstructionValue (const LineInfo & info, int32_t
 
             OpcodeEntry entry = {};
 
-            if (m_opcodeTable.Lookup (info.parsed.mnemonic, mode, entry))
+            if (m_opcodeTable.TryLookup (info.parsed.mnemonic, mode, entry))
             {
                 // Emit placeholder bytes handled by caller
             }
@@ -5165,7 +5169,7 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
         Byte        offsetByte  = 0;
         bool        hasEncoding = false;
 
-        hasEncoding = m_opcodeTable.Lookup (info.parsed.mnemonic, mode, entry);
+        hasEncoding = m_opcodeTable.TryLookup (info.parsed.mnemonic, mode, entry);
 
         if (!hasEncoding)
         {
@@ -5209,7 +5213,7 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
     {
         OpcodeEntry entry = {};
 
-        if (!m_opcodeTable.Lookup (info.parsed.mnemonic, mode, entry))
+        if (!m_opcodeTable.TryLookup (info.parsed.mnemonic, mode, entry))
         {
             RecordError (info.parsed.lineNumber, "Cannot encode: " + info.parsed.mnemonic);
         }
@@ -5286,7 +5290,7 @@ HRESULT AssemblySession::BuildListingEntry (const LineInfo & info, Word emitPCSt
         {
             OpcodeEntry cycleEntry = {};
 
-            if (m_opcodeTable.Lookup (info.parsed.mnemonic, info.resolvedMode, cycleEntry))
+            if (m_opcodeTable.TryLookup (info.parsed.mnemonic, info.resolvedMode, cycleEntry))
             {
                 listLine.cycleCounts = cycleEntry.cycleCounts;
             }

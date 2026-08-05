@@ -63,7 +63,7 @@ namespace OpcodeTableTests
             OpcodeTable table = BuildTable();
             OpcodeEntry entry = {};
 
-            bool found = table.Lookup ("LDA", GlobalAddressingMode::Immediate, entry);
+            bool found = table.TryLookup ("LDA", GlobalAddressingMode::Immediate, entry);
 
             Assert::IsTrue (found);
             Assert::AreEqual ((Byte) 0xA9, entry.opcode);
@@ -85,7 +85,7 @@ namespace OpcodeTableTests
             OpcodeTable table = BuildTable();
             OpcodeEntry entry = {};
 
-            bool found = table.Lookup ("STA", GlobalAddressingMode::ZeroPage, entry);
+            bool found = table.TryLookup ("STA", GlobalAddressingMode::ZeroPage, entry);
 
             Assert::IsTrue (found);
             Assert::AreEqual ((Byte) 0x85, entry.opcode);
@@ -232,7 +232,7 @@ namespace OpcodeTableTests
         void VerifyOpcode (OpcodeTable & table, const char * mnemonic, GlobalAddressingMode::AddressingMode mode, Byte expectedOpcode)
         {
             OpcodeEntry entry = {};
-            bool found = table.Lookup (mnemonic, mode, entry);
+            bool found = table.TryLookup (mnemonic, mode, entry);
 
             std::wstring msg = L"Expected opcode for " + std::wstring (mnemonic, mnemonic + strlen (mnemonic));
             Assert::IsTrue (found, msg.c_str());

@@ -300,12 +300,15 @@ void SettingsMachineCatalog::PopulateThemeList()
 //  Pre-flights ROM + Disk II audio for the target machine via
 //  AssetBootstrap (which may surface modal download dialogs), then
 //  posts IDM_FILE_OPEN with the new machine name to the emulator
-//  shell's command queue. Returns false on user-cancel (Exit) or
-//  bootstrap failure so the caller can leave the active machine alone.
+//  shell's command queue. On user-cancel (Exit) or bootstrap failure
+//  nothing is posted, so the active machine is left alone. Every
+//  outcome is resolved here (including the failure dialog), which is
+//  why there is nothing to return -- both callers used to discard the
+//  old bool.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
+void SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
 {
     HRESULT           hr          = S_OK;
     std::wstring      wideName (machineName.begin(), machineName.end());
@@ -381,6 +384,4 @@ bool SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
         // re-open.
         m_emuShell->PostCommand (IDM_FILE_OPEN, std::string (machineName));
     }
-
-    return selected;
 }

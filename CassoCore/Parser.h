@@ -113,8 +113,8 @@ public:
     static ParsedLine               ParseLine  (const std::string & line, int lineNumber);
 
     static ClassifiedOperand          ClassifyOperand   (const std::string & operand);
-    static bool                       ParseValue        (const std::string & text, int & value);
-    static bool                       ValidateLabel     (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage);
+    static HRESULT                    ParseValue        (const std::string & text, int & value);
+    static HRESULT                    ValidateLabel     (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage);
     static std::string                ParseQuotedString (const std::string & text);
 
     // Split a comma-separated argument list respecting () [] '' nesting

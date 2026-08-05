@@ -121,7 +121,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////
 //
-//  ParseValue
+//  TryParseValue
 //
 //  Parses either a bare integer or a decimal quarter-track value.
 //  Output is in quarter-track units when `isQt` comes back true,
@@ -129,10 +129,10 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////
 
-bool TrackSectorPredicate::ParseValue (std::wstring_view tok,
-                                       bool               rawQt,
-                                       int &              outVal,
-                                       bool &             outIsQt) noexcept
+bool TrackSectorPredicate::TryParseValue (std::wstring_view tok,
+                                          bool               rawQt,
+                                          int &              outVal,
+                                          bool &             outIsQt) noexcept
 {
     int   qt  = 0;
     int   val = 0;
@@ -279,8 +279,8 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, Mode m
                     while (!loStr.empty() && IsAsciiSpace (loStr.back()))  { loStr.remove_suffix (1); }
                     while (!hiStr.empty() && IsAsciiSpace (hiStr.front())) { hiStr.remove_prefix (1); }
 
-                    if (ParseValue (loStr, rawQt, val,   isQt)   &&
-                        ParseValue (hiStr, rawQt, hiVal, hiIsQt) &&
+                    if (TryParseValue (loStr, rawQt, val,   isQt)   &&
+                        TryParseValue (hiStr, rawQt, hiVal, hiIsQt) &&
                         isQt == hiIsQt)
                     {
                         cap = ValueCap (mode, isQt);
@@ -316,7 +316,7 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, Mode m
                 }
                 else
                 {
-                    if (ParseValue (trimmed, rawQt, val, isQt))
+                    if (TryParseValue (trimmed, rawQt, val, isQt))
                     {
                         cap = ValueCap (mode, isQt);
 

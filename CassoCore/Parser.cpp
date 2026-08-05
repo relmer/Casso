@@ -730,39 +730,41 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Parser::ParseValue (const std::string & text, int & value)
+HRESULT Parser::ParseValue (const std::string & text, int & value)
 {
     // The three radices differ only in their prefix character and base:
     // '$' hex, '%' binary, and bare decimal with nothing to strip. All three
     // then require strtol to consume the whole string, so "$FFg" is rejected
     // rather than silently read as $FF.
+    HRESULT       hr        = S_OK;
     std::string   digits;
-    char        * endPtr = nullptr;
-    long          parsed = 0;
-    int           base   = 10;
-    bool          ok     = false;
+    char        * endPtr    = nullptr;
+    long          parsed    = 0;
+    int           base      = 10;
+    bool          hasText   = false;
+    bool          hasDigits = false;
+    bool          consumed  = false;
 
 
 
-    if (!text.empty())
-    {
-        if      (text[0] == '$') { base = 16; digits = text.substr (1); }
-        else if (text[0] == '%') { base =  2; digits = text.substr (1); }
-        else                     { base = 10; digits = text;            }
+    hasText = !text.empty();
+    CBREx (hasText, E_INVALIDARG);
 
-        if (!digits.empty())
-        {
-            parsed = strtol (digits.c_str(), &endPtr, base);
-            ok     = (*endPtr == '\0');
-        }
-    }
+    if      (text[0] == '$') { base = 16; digits = text.substr (1); }
+    else if (text[0] == '%') { base =  2; digits = text.substr (1); }
+    else                     { base = 10; digits = text;            }
 
-    if (ok)
-    {
-        value = (int) parsed;
-    }
+    hasDigits = !digits.empty();
+    CBREx (hasDigits, E_INVALIDARG);
 
-    return ok;
+    parsed   = strtol (digits.c_str(), &endPtr, base);
+    consumed = (*endPtr == '\0');
+    CBREx (consumed, E_INVALIDARG);
+
+    value = (int) parsed;
+
+Error:
+    return hr;
 }
 
 
@@ -797,7 +799,8 @@ static std::string ToUpperValidate (const std::string & s)
 //
 //  ValidateLabel
 //
-//  Whether a name may be used as a label, with the reason when it may not.
+//  Whether a name may be used as a label -- S_OK when it may, E_INVALIDARG
+//  plus the reason in errorMessage when it may not.
 //
 //  All five conditions are evaluated before any is reported, so the message
 //  names the FIRST rule broken rather than whichever test happened to run --
@@ -814,8 +817,9 @@ static std::string ToUpperValidate (const std::string & s)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage)
+HRESULT Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage)
 {
+    HRESULT      hr = S_OK;
     std::string  upper;
     char         first      = label.empty() ? '\0' : label[0];
     bool         isEmpty    = label.empty();
@@ -855,7 +859,9 @@ bool Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcod
     else if (isMnemonic) { errorMessage = "Label name conflicts with mnemonic: " + label; }
     else                 { valid = true; }
 
-    return valid;
+    hr = valid ? S_OK : E_INVALIDARG;
+
+    return hr;
 }
 
 

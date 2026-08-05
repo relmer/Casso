@@ -218,11 +218,11 @@ OpcodeTable::OpcodeTable (const Microcode instructionSet[256])
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Lookup
+//  TryLookup
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool OpcodeTable::Lookup (const std::string & mnemonic, GlobalAddressingMode::AddressingMode mode, OpcodeEntry & result) const
+bool OpcodeTable::TryLookup (const std::string & mnemonic, GlobalAddressingMode::AddressingMode mode, OpcodeEntry & result) const
 {
     auto  mnemonicIt = m_table.find (mnemonic);
     bool  found      = false;

@@ -109,10 +109,10 @@ private:
     static bool  TryParseDecimalQt  (std::wstring_view tok, int & outQt)  noexcept;
     static bool  TryParseDecimalInt (std::wstring_view tok, int & outVal) noexcept;
 
-    static bool  ParseValue (std::wstring_view tok,
-                             bool               rawQt,
-                             int &              outVal,
-                             bool &             outIsQt) noexcept;
+    static bool  TryParseValue (std::wstring_view tok,
+                                bool               rawQt,
+                                int &              outVal,
+                                bool &             outIsQt) noexcept;
 
     // Trims leading / trailing whitespace from [begin, end) and
     // returns the trimmed substring view into `expr`. Updates the
