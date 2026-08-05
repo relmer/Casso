@@ -77,6 +77,23 @@ Error:
 //
 //  Load
 //
+//  Rebuilds a pending print strip from its two persisted parts: an indexed PNG
+//  of the dot plane and a JSON sidecar of everything else.
+//
+//  Split that way because the dot plane is an IMAGE and compresses as one,
+//  while the metadata -- rows used, page boundaries, head state -- is
+//  structured data that would have nowhere to live inside a PNG. The split
+//  also makes a saved strip inspectable: the PNG opens in any viewer.
+//
+//  The metadata's rowsUsed CLAMPS the decoded height rather than the other way
+//  around. A strip is persisted with at least one row even when empty, so
+//  without the clamp an empty save would rebuild as a one-row strip that looks
+//  like content and would re-offer a blank page to print.
+//
+//  Both parts must load. A strip is only meaningful with its metadata, so a
+//  missing or corrupt sidecar fails the load rather than producing a raster
+//  with invented page boundaries.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT PrintJobPersistence::Load (const vector<Byte> & png, const string & json, PrintRaster & outRaster)

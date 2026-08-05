@@ -43,6 +43,27 @@ enum class JsonType
 //
 //  JsonValue
 //
+//  One JSON value: a tagged union of null, bool, number, string, array, or
+//  object.
+//
+//  Objects are a VECTOR OF PAIRS, not a map, so key order survives a parse and
+//  a rewrite. These documents are hand-maintained -- the version key sits
+//  first, related settings are grouped -- and a map would scatter both on the
+//  first save. Lookup is linear, which is irrelevant for objects of this size.
+//
+//  Constructors are explicit so a bare bool or number cannot silently become a
+//  JsonValue at a call site that meant something else.
+//
+//  Typed accessors combine key lookup, type check, and extraction into one
+//  call returning an HRESULT, so a missing key and a wrong type are reported
+//  the same way and neither can be mistaken for a valid value.
+//
+//  The presence tests exist for OPTIONAL members. Callers were writing
+//  `if (SUCCEEDED (obj.GetString (key, out)))`, which buries a call inside a
+//  macro argument -- and one with an out parameter, so the macro hides both
+//  the operation and where its result went. These make an optional read an
+//  ordinary call in an ordinary if.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class JsonValue
