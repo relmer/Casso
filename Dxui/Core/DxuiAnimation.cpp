@@ -45,6 +45,25 @@ DxuiTweenHandle DxuiAnimation::StartTween (
 //
 //  SampleTween
 //
+//  Evaluates a running tween at a given time.
+//
+//  Sampling is a PURE function of the tween's start time, duration, and the
+//  time passed in -- nothing is advanced or stored. Two callers sampling the
+//  same handle in one frame get the same answer, and a dropped frame does not
+//  desynchronize the animation from wall time the way per-frame stepping does.
+//
+//  Time is passed in rather than read, so animation is deterministic under
+//  test.
+//
+//  The three edge cases are clamped BEFORE the interpolation, which is what
+//  lets the interpolation itself assume 0 < t < 1: a zero-duration tween is
+//  already at its end, a sample before the start time has not begun, and one
+//  past the end is finished. Without those, a zero duration divides by zero
+//  and an easing curve is evaluated outside its domain.
+//
+//  Returning false for an unknown handle lets a caller sample a tween that may
+//  already have been retired without checking first.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiAnimation::SampleTween (

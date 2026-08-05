@@ -422,6 +422,26 @@ bool DxuiFocusManager::MoveFocusSpatial (DxuiFocusKey arrow)
 //
 //  HandleKey
 //
+//  Handles the navigation keys the focus manager owns: Tab, Shift+Tab, and the
+//  arrows.
+//
+//  Tab moves in TREE ORDER while the arrows move SPATIALLY, matching what
+//  users expect of each: Tab follows the declared sequence, an arrow goes
+//  toward the thing that looks that way on screen. They are separate walks
+//  because a tree that reads sensibly can still be laid out in a grid.
+//
+//  Escape is claimed ONLY while a scope is pushed. At the outermost level it
+//  belongs to the dialog as cancel or close, and swallowing it there would
+//  leave a dialog that cannot be dismissed from the keyboard.
+//
+//  Enter and Space are listed and deliberately do nothing. Activation belongs
+//  to the FOCUSED CONTROL through its own OnKey -- what they mean depends
+//  entirely on what has focus -- and naming them here documents that rather
+//  than leaving a reader to wonder where they went.
+//
+//  The return value reports whether focus actually moved, so a caller can fall
+//  through to its own handling when the walk declined.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiFocusManager::HandleKey (DxuiFocusKey key)

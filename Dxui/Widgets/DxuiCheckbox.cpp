@@ -329,7 +329,16 @@ void DxuiCheckbox::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiCheckbox::OnMouse  (IDxuiControl override)
+//  DxuiCheckbox::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move only updates hover and is reported unhandled, so the pointer
+//  crossing the checkbox does not consume moves other widgets want.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

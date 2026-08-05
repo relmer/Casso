@@ -219,6 +219,25 @@ int DxuiMessageBoxWindow::EstimateTextHeightDip (const std::wstring & text, bool
 //
 //  DxuiMessageBox
 //
+//  A themed replacement for the Win32 MessageBox, matching its signature.
+//
+//  The SIGNATURE is deliberately identical -- same uType flags, same return
+//  values -- so a call site converts by changing the name and nothing else,
+//  and no caller has to learn a new vocabulary of button sets and icons.
+//
+//  It exists because a stock MessageBox appears as a system-styled window in
+//  the middle of custom skeuomorphic chrome, ignoring the active theme and the
+//  window's own DPI handling.
+//
+//  The flag decode mirrors Win32's own layering: the type mask picks the
+//  button set, the default mask selects which of them is default by INDEX, and
+//  the icon mask picks a glyph and its color. An out-of-range default index
+//  falls back to the first button rather than indexing past the set, since
+//  MB_DEFBUTTON4 is legal to pass with a two-button type.
+//
+//  Buttons are built as data and handed to a DxuiWindow, so the dialog is the
+//  same machinery as every other themed window rather than a special case.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, const wchar_t * caption, UINT uType)

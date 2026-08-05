@@ -305,7 +305,16 @@ void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiToggle::OnMouse  (IDxuiControl override)
+//  DxuiToggle::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move only updates hover and is reported unhandled, so the pointer
+//  crossing the toggle does not consume moves other widgets want.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

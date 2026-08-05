@@ -475,6 +475,20 @@ int DxuiDragDropTarget::PickAtClient (const DxuiHitTester & hitTester, int xClie
 //
 //  PickAtScreen
 //
+//  Resolves a screen point to a drop-target tag, or -1 for "not a target".
+//
+//  TWO target models are supported and the hit-tester WINS when both are
+//  installed, because it answers a strictly better question: which REGION was
+//  hit -- which drive widget -- while the legacy callback only reports whether
+//  the window as a whole accepts the drop, and so can only ever return tag 0.
+//
+//  OLE delivers screen coordinates, so the hit-tester path converts to client
+//  space first; the legacy callback takes screen coordinates directly, which
+//  is why only one of the two arms converts.
+//
+//  A failed conversion falls through to -1 rather than hit-testing garbage
+//  coordinates, so a drop over a window being torn down is simply refused.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiDragDropTarget::PickAtScreen (POINTL pt) const
