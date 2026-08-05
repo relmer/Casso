@@ -31,11 +31,11 @@ class DxuiListView : public IDxuiControl
 public:
     struct Column
     {
-        std::wstring                  title;
-        int                           widthDip = 0;     // 0 = auto-fit content (or stretch if stretch=true)
-        bool                          stretch = false; // when true, column absorbs any remaining width after fixed/auto
-        DxuiTextHAlign    align   = DxuiTextHAlign::Left;
-        bool                          visible = true;
+        std::wstring    title;
+        int             widthDip = 0;   // 0 = auto-fit content (or stretch if stretch=true)
+        bool            stretch  = false;   // when true, column absorbs any remaining width after fixed/auto
+        DxuiTextHAlign  align    = DxuiTextHAlign::Left;
+        bool            visible  = true;
     };
 
     struct Cell
@@ -307,7 +307,7 @@ private:
     static constexpr int    s_kResizeGrabDip     = 4;
     static constexpr int    s_kHScrollStepDip    = 32;
     static constexpr int    s_kKbResizeStepDip   = 8;
-    static constexpr int    s_kMinThumbPx       = 16;
+    static constexpr int    s_kMinThumbPx        = 16;
     static constexpr float  s_kFontDip           = 13.0f;
     static constexpr float  s_kHeaderFontDip     = 13.0f;
 
@@ -373,6 +373,9 @@ private:
     // per-row half of UpdateAutoFitFromRows, used for the visible window in
     // virtual mode where m_rows is empty).
     void         NoteAutoFitRow      (const std::vector<Cell> & cells) const;
+    // The cell vector for row `r`: the provider scratch in virtual mode
+    // (pulled + auto-fit noted as a side effect), m_rows[r] otherwise.
+    const std::vector<Cell> & RowCells (int r) const;
     // Clamp m_topRow / sticky-tail after the row count changes (shared by
     // SetRows / AppendRows / SetVirtualRowCount / SetRowProvider).
     void         ClampTopAfterCountChange (bool wasSticky);
@@ -449,51 +452,51 @@ private:
     // current DPI; persists across SetRows.
     // Mutable: grown from the visible window during const Paint in virtual
     // mode (mirrors m_measuredWPx, which is likewise refreshed from Paint).
-    mutable std::vector<int>          m_autoMaxChars;
-    bool                              m_preciseAutoFit    = false;
-    mutable bool                      m_measureDirty      = false;
-    DxuiDpiScaler                         m_scaler;
+    mutable std::vector<int>  m_autoMaxChars;
+    bool                      m_preciseAutoFit = false;
+    mutable bool              m_measureDirty   = false;
+    DxuiDpiScaler             m_scaler;
     // Virtual (provider) row model — see SetRowProvider. When m_virtual is
     // true, m_rows is empty and rows are pulled on demand into m_providerScratch.
-    bool                              m_virtual           = false;
-    int                               m_virtualCount      = 0;
-    RowProvider                       m_rowProvider;
-    mutable std::vector<Cell>         m_providerScratch;
-    int                               m_hovered           = -1;
-    int                               m_selectedRow       = -1;
-    int                               m_sortColumn        = -1;
-    bool                              m_sortDescending    = false;
-    bool                              m_showHeader        = false;
-    int                               m_topRow            = 0;
-    bool                              m_stickyTail        = true;
-    bool                              m_listFocused       = false;
-    int                               m_focusedHeaderCol  = -1;
-    int                               m_focusedDividerCol = -1;
-    bool                              m_kbColNavEnabled   = false;
-    bool                              m_kbColResize       = false;
-    int                               m_kbColFocus        = -1;
-    bool                              m_vertDragging          = false;
-    float                             m_vertDragGrab        = 0.0f;
-    bool                              m_hScrollEnabled    = false;
-    int                               m_leftPx            = 0;
+    bool                       m_virtual           = false;
+    int                        m_virtualCount      = 0;
+    RowProvider                m_rowProvider;
+    mutable std::vector<Cell>  m_providerScratch;
+    int                        m_hovered           = -1;
+    int                        m_selectedRow       = -1;
+    int                        m_sortColumn        = -1;
+    bool                       m_sortDescending    = false;
+    bool                       m_showHeader        = false;
+    int                        m_topRow            = 0;
+    bool                       m_stickyTail        = true;
+    bool                       m_listFocused       = false;
+    int                        m_focusedHeaderCol  = -1;
+    int                        m_focusedDividerCol = -1;
+    bool                       m_kbColNavEnabled   = false;
+    bool                       m_kbColResize       = false;
+    int                        m_kbColFocus        = -1;
+    bool                       m_vertDragging      = false;
+    float                      m_vertDragGrab      = 0.0f;
+    bool                       m_hScrollEnabled    = false;
+    int                        m_leftPx            = 0;
     // High-resolution wheel accumulators. Touchpads emit many sub-notch
     // deltas; we bank them and act only when a whole unit is due, so fine
     // scrolls move proportionally instead of snapping a full line/step per
     // event. m_wheelAccumV is in raw WHEEL_DELTA units (acted per notch);
     // m_wheelAccumH is in pixels (acted per whole pixel, for smooth H-scroll).
-    int                               m_wheelAccumV       = 0;
-    float                             m_wheelAccumH       = 0.0f;
-    bool                              m_horzDragging         = false;
-    float                             m_horzDragGrab       = 0.0f;
-    int                               m_resizeColumn      = -1;
-    int                               m_resizeStartXPx    = 0;
-    int                               m_resizeStartWPx    = 0;
-    ScrollRepeat                      m_scrollRepeat      = ScrollRepeat::None;
-    int                               m_scrollRepeatXPx   = 0;
-    int                               m_scrollRepeatYPx   = 0;
-    int64_t                           m_scrollRepeatNextMs = 0;
-    mutable DxuiScrollbar             m_vertScroll;
-    mutable DxuiScrollbar             m_horzScroll;
+    int                    m_wheelAccumV        = 0;
+    float                  m_wheelAccumH        = 0.0f;
+    bool                   m_horzDragging       = false;
+    float                  m_horzDragGrab       = 0.0f;
+    int                    m_resizeColumn       = -1;
+    int                    m_resizeStartXPx     = 0;
+    int                    m_resizeStartWPx     = 0;
+    ScrollRepeat           m_scrollRepeat       = ScrollRepeat::None;
+    int                    m_scrollRepeatXPx    = 0;
+    int                    m_scrollRepeatYPx    = 0;
+    int64_t                m_scrollRepeatNextMs = 0;
+    mutable DxuiScrollbar  m_vertScroll;
+    mutable DxuiScrollbar  m_horzScroll;
     std::function<void (int)>         m_onSelectionChanged;
     std::function<void (int)>         m_onActivateRow;
     std::function<void (int)>         m_onSortColumn;

@@ -397,6 +397,7 @@ static int PayloadDrive (const Disk2Event & src)
             {
                 drive = src.drive;
             }
+
             break;
     }
 
@@ -499,6 +500,24 @@ void DebugDialogProjection::FormatEvent (
 //
 //  DebugDialogProjection::DrainAndProject
 //
+//  Drains the Disk II event ring and projects each event into a display row.
+//
+//  Dropped events are surfaced as a SYNTHETIC EventsLost row rather than
+//  passing silently, and it is emitted BEFORE the drain so it appears in the
+//  log at the point the gap actually occurred. A silent gap reads as a period
+//  of no disk activity, which is exactly the wrong conclusion when the ring
+//  overflowed because there was too much.
+//
+//  Draining loops until a short batch, so a burst that exceeds one batch is
+//  fully consumed in a single call instead of trickling out over frames.
+//
+//  A sequence number is stamped per row so a stable sort can fall back to
+//  arrival order for events sharing a timestamp -- disk events routinely land
+//  in the same cycle.
+//
+//  A free function over plain containers, so the projection is unit-testable
+//  by pushing events into a ring and reading rows out, with no panel involved.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugDialogProjection::DrainAndProject (
@@ -527,6 +546,7 @@ void DebugDialogProjection::DrainAndProject (
         {
             lostEntry.seq = (*seqCounter)++;
         }
+
         deque.push_back (std::move (lostEntry));
     }
 
@@ -543,6 +563,7 @@ void DebugDialogProjection::DrainAndProject (
             {
                 entry.seq = (*seqCounter)++;
             }
+
             deque.push_back (std::move (entry));
         }
     }
@@ -645,24 +666,27 @@ DebugSelectionResult DebugDialogProjection::ResolveSelection (
     {
         for (size_t row = 0; row < filteredIndices.size(); ++row)
         {
-            size_t  idx = filteredIndices[row];
+            size_t    idx = filteredIndices[row];
+            uint64_t  s   = 0;
             if (idx >= events.size())
             {
                 continue;
             }
 
-            uint64_t  s = events[idx].seq;
+            s = events[idx].seq;
 
             // First match wins, matching the old scan's early exit.
             if (s == selectedSeq && exactRow == kNone)
             {
                 exactRow = row;
             }
+
             if (earliestRow == kNone || s < earliestSeq)
             {
                 earliestSeq = s;
                 earliestRow = row;
             }
+
             if (s <= selectedSeq && (bestBeforeRow == kNone || s > bestBeforeSeq))
             {
                 bestBeforeSeq = s;

@@ -19,14 +19,15 @@
 std::unordered_map<std::string, ObjMeshParser::Rgb> ObjMeshParser::ParseMtl (const std::string & mtlText)
 {
     std::unordered_map<std::string, Rgb>   materials;
-    std::istringstream                     stream (mtlText);
     std::string                            line;
     std::string                            curName;
+    std::istringstream                     stream (mtlText);
 
     while (std::getline (stream, line))
     {
-        std::istringstream   ls (line);
         std::string          tag;
+
+        std::istringstream   ls (line);
 
         ls >> tag;
 
@@ -84,24 +85,49 @@ int ObjMeshParser::ParseFaceIndex (const std::string & token, size_t vertexCount
 //
 //  ObjMeshParser::Parse
 //
+//  Parses the subset of Wavefront OBJ the printer model actually uses:
+//  vertices, faces, and material colors.
+//
+//  A DELIBERATE SUBSET. Normals, texture coordinates, groups, and smoothing
+//  are all ignored -- the 3D scene lights per-face and applies no texture, so
+//  parsing them would be work whose results are discarded. The parser is here
+//  to load one known asset, not to be a general OBJ importer.
+//
+//  Materials are resolved to a COLOR at the point of use rather than kept as
+//  names, so each triangle carries its own color and the renderer needs no
+//  material state or per-material batching.
+//
+//  Faces are triangulated as they are read, since OBJ permits arbitrary
+//  polygons and the renderer takes triangle lists only.
+//
+//  Unrecognized tags are skipped silently, which is what makes the parser
+//  tolerant of whatever a modelling tool emits alongside the geometry.
+//
+//  An unknown material falls back to white rather than failing, so a mesh
+//  referencing a material its MTL omits still loads and is visibly plain
+//  rather than absent.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ObjMeshParser::Parse (const std::string        & objText,
-                           const std::string        & mtlText,
-                           std::vector<ObjTriangle>  & outTriangles)
+HRESULT ObjMeshParser::Parse (const std::string        & objText,
+                              const std::string        & mtlText,
+                              std::vector<ObjTriangle>  & outTriangles)
 {
+    HRESULT                                hr        = S_OK;
     std::unordered_map<std::string, Rgb>   materials = ParseMtl (mtlText);
     std::vector<std::array<float, 3>>      verts;
-    Rgb                                    curColor = { 1.0f, 1.0f, 1.0f };
-    std::istringstream                     stream (objText);
+    Rgb                                    curColor  = { 1.0f, 1.0f, 1.0f };
     std::string                            line;
+    bool                                   hasVerts  = false;
+    std::istringstream                     stream (objText);
 
     outTriangles.clear();
 
     while (std::getline (stream, line))
     {
-        std::istringstream   ls (line);
         std::string          tag;
+
+        std::istringstream   ls (line);
 
         ls >> tag;
 
@@ -155,5 +181,9 @@ bool ObjMeshParser::Parse (const std::string        & objText,
         }
     }
 
-    return !verts.empty();
+    hasVerts = !verts.empty();
+    CBR (hasVerts);
+
+Error:
+    return hr;
 }

@@ -87,7 +87,7 @@ void DxuiPropertySheet::OnCreate()
 
 HRESULT DxuiPropertySheet::OnApply()
 {
-    return ApplyAllDirtyPages() ? S_OK : S_FALSE;
+    return TryApplyAllDirtyPages() ? S_OK : S_FALSE;
 }
 
 
@@ -148,6 +148,21 @@ Error:
 //
 //  SetActivePage
 //
+//  Switches which page is showing: exactly one visible, the tab strip synced,
+//  and the page notified.
+//
+//  Visibility is set on EVERY page rather than just the outgoing and incoming
+//  ones. It costs a short loop and makes the invariant unconditional -- there
+//  is no state from which two pages can both be visible, however the sheet got
+//  there.
+//
+//  The tab index is looked up from the page index rather than assumed equal,
+//  because hidden pages hold no tab and the two numberings diverge as soon as
+//  one page is hidden.
+//
+//  OnActivated fires AFTER the visibility flip, so a page that refreshes its
+//  contents on activation is already visible when it does so.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiPropertySheet::SetActivePage (int index)
@@ -187,6 +202,25 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetPageVisible / IsPageVisible
+//
+//  Adds or removes a page from the sheet entirely -- its tab disappears, not
+//  merely its content.
+//
+//  This is how a page that does not apply to the current machine is dropped: a
+//  Disk page on a machine with no controller should not offer a tab at all.
+//
+//  PRESENCE is tracked separately from the page's own visible flag, because
+//  the two answer different questions. Presence means "this page exists for
+//  this machine"; visibility means "this page is the one showing right now".
+//  Collapsing them would make activating a page resurrect a tab that was
+//  deliberately removed.
+//
+//  Hiding the ACTIVE page moves the selection to the first present one, so the
+//  sheet is never left showing nothing.
+//
+//  The relayout is skipped before the first Layout, and the pending change is
+//  honored when Layout first runs -- so a caller may configure page visibility
+//  before the sheet has ever been laid out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -378,9 +412,10 @@ void DxuiPropertySheet::BuildTabList (std::vector<DxuiTabStrip::Tab> & out) cons
     out.reserve (m_pages.size());
     for (i = 0; i < (int) m_pages.size(); ++i)
     {
+        DxuiTabStrip::Tab  tab;
+
         if (!m_present[(size_t) i]) { continue; }
 
-        DxuiTabStrip::Tab  tab;
         tab.label = m_pages[(size_t) i]->Title();
         out.push_back (std::move (tab));
     }
@@ -474,16 +509,17 @@ void DxuiPropertySheet::RefreshApplyEnabled()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ApplyAllDirtyPages
+//  TryApplyAllDirtyPages
 //
 //  Commits every dirty page in order. A page whose OnApply() returns false
 //  blocks the operation: that page becomes active and the method returns
-//  false (so OK does not close). On success each committed page is marked
-//  clean and Apply is disabled.
+//  false (so OK does not close). A veto is a supported outcome, not an
+//  error -- hence the Try name and bool rather than an HRESULT. On success
+//  each committed page is marked clean and Apply is disabled.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiPropertySheet::ApplyAllDirtyPages()
+bool DxuiPropertySheet::TryApplyAllDirtyPages()
 {
     bool    ok = true;
     size_t  i  = 0;
@@ -661,6 +697,7 @@ void DxuiPropertySheet::SetApplyVisible (bool visible)
     {
         m_apply->SetVisible (visible);
     }
+
     if (IsCreated())
     {
         Invalidate();
@@ -684,6 +721,7 @@ void DxuiPropertySheet::SetOkText (std::wstring text)
     {
         m_ok->SetLabel (m_okText);
     }
+
     if (IsCreated())
     {
         Invalidate();

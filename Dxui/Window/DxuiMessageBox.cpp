@@ -75,19 +75,20 @@ public:
             wchar_t  g[2]      = { m_glyph, L'\0' };
             int      iconColPx = m_scaler.Px (s_kIconColDip);
 
-            IGNORE_RETURN_VALUE (hr, text.DrawString (
-                g,
-                (float) m_bounds.left,
-                (float) m_bounds.top,
-                (float) iconColPx,
-                (float) (m_bounds.bottom - m_bounds.top),
-                m_glyphArgb,
-                m_scaler.Pxf ((float) s_kGlyphSizeDip),
-                s_kMdl2Font,
-                DxuiTextHAlign::Center,
-                DxuiTextVAlign::Center,
-                DxuiFontWeight::Normal,
-                false));
+            hr = text.DrawString (
+g,
+(float) m_bounds.left,
+(float) m_bounds.top,
+(float) iconColPx,
+(float) (m_bounds.bottom - m_bounds.top),
+m_glyphArgb,
+m_scaler.Pxf ((float) s_kGlyphSizeDip),
+s_kMdl2Font,
+DxuiTextHAlign::Center,
+DxuiTextVAlign::Center,
+DxuiFontWeight::Normal,
+false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
 
             tr.left += iconColPx + m_scaler.Px (s_kIconTextGapDip);
         }
@@ -95,19 +96,20 @@ public:
         {
             DxuiFontHandle  bf = theme.BodyFont();
 
-            IGNORE_RETURN_VALUE (hr, text.DrawString (
-                m_text.c_str(),
-                (float) tr.left,
-                (float) tr.top,
-                (float) (tr.right  - tr.left),
-                (float) (tr.bottom - tr.top),
-                theme.TextColor (DxuiTextRole::Body),
-                m_scaler.Pxf (bf.sizeDip),
-                bf.face,
-                DxuiTextHAlign::Left,
-                DxuiTextVAlign::Center,
-                bf.weight,
-                true));
+            hr = text.DrawString (
+m_text.c_str(),
+(float) tr.left,
+(float) tr.top,
+(float) (tr.right  - tr.left),
+(float) (tr.bottom - tr.top),
+theme.TextColor (DxuiTextRole::Body),
+m_scaler.Pxf (bf.sizeDip),
+bf.face,
+DxuiTextHAlign::Left,
+DxuiTextVAlign::Center,
+bf.weight,
+true);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }
 
@@ -219,26 +221,47 @@ int DxuiMessageBoxWindow::EstimateTextHeightDip (const std::wstring & text, bool
 //
 //  DxuiMessageBox
 //
+//  A themed replacement for the Win32 MessageBox, matching its signature.
+//
+//  The SIGNATURE is deliberately identical -- same uType flags, same return
+//  values -- so a call site converts by changing the name and nothing else,
+//  and no caller has to learn a new vocabulary of button sets and icons.
+//
+//  It exists because a stock MessageBox appears as a system-styled window in
+//  the middle of custom skeuomorphic chrome, ignoring the active theme and the
+//  window's own DPI handling.
+//
+//  The flag decode mirrors Win32's own layering: the type mask picks the
+//  button set, the default mask selects which of them is default by INDEX, and
+//  the icon mask picks a glyph and its color. An out-of-range default index
+//  falls back to the first button rather than indexing past the set, since
+//  MB_DEFBUTTON4 is legal to pass with a two-button type.
+//
+//  Buttons are built as data and handed to a DxuiWindow, so the dialog is the
+//  same machinery as every other themed window rather than a special case.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, const wchar_t * caption, UINT uType)
 {
-    using ButtonSpec = DxuiMessageBoxWindow::ButtonSpec;
+    using                     ButtonSpec = DxuiMessageBoxWindow::ButtonSpec;
+    wchar_t                   glyph      = 0;
+    uint32_t                  glyphArgb  = 0;
+    int                       defIndex   = 0;
+    int                       defaultCmd = 0;
+    int                       heightDip  = 0;
+    HRESULT                   hr         = S_OK;
+    int                       choice     = 0;
+    DxuiMessageBoxWindow      dlg;
+    DxuiWindow::CreateParams  params;
+    HINSTANCE                 hInst      = nullptr;
 
 
 
     std::vector<ButtonSpec>   buttons;
     std::wstring              body       = (text != nullptr) ? text : L"";
-    wchar_t                   glyph      = 0;
-    uint32_t                  glyphArgb  = 0;
-    int                       defIndex   = 0;
-    int                       defaultCmd = IDOK;
-    int                       heightDip  = 0;
-    HINSTANCE                 hInst      = nullptr;
-    HRESULT                   hr         = S_OK;
-    int                       choice     = IDOK;
-    DxuiMessageBoxWindow      dlg;
-    DxuiWindow::CreateParams  params;
+    defaultCmd = IDOK;
+    choice = IDOK;
 
     switch (uType & MB_TYPEMASK)
     {
@@ -255,6 +278,7 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     {
         defIndex = 0;
     }
+
     defaultCmd = buttons[(size_t) defIndex].id;
 
     switch (uType & MB_ICONMASK)

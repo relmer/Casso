@@ -13,6 +13,27 @@
 //
 //  PrintPagination::Paginate
 //
+//  Splits a continuous fanfold strip into printable pages.
+//
+//  TWO independent things cause a page break, and both must be honored. A
+//  guest form feed is a HARD break the program asked for; a segment longer
+//  than a physical sheet also has to spill onto further sheets. Handling only
+//  form feeds would print a ten-foot banner onto one page; handling only the
+//  page height would ignore the program's own layout.
+//
+//  So form-feed rows become segment boundaries, and each segment is then cut
+//  at the page height. A segment shorter than a sheet yields one short page,
+//  which is correct -- that is what a form feed means.
+//
+//  The break list is bracketed with 0 and the row count so every segment has
+//  both a start and an end, then sorted and deduplicated so a form feed
+//  landing exactly on a strip end cannot produce an empty page.
+//
+//  An EMPTY strip paginates to no pages at all, not one blank one -- printing
+//  nothing should send nothing to the printer.
+//
+//  Ranges are inclusive of the last row, matching how the raster is indexed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 vector<PrintPagination::PageRange> PrintPagination::Paginate (const PrintRaster & raster)

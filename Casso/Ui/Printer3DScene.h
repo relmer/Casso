@@ -166,18 +166,18 @@ private:
     void  BuildCassoLogo  (std::vector<Vertex> & out, float faceZ) const;
     void  BuildHeadOverlay (std::vector<Vertex> & out) const;
 
-    Dxui3DRenderer   m_renderer;
-    float            m_head01        = 0.0f;
-    float            m_paperFeed01   = 1.0f;
-    float            m_zoom          = 1.0f;
-    float            m_panX          = 0.0f;   // world-space horizontal camera offset
-    float            m_worldPanY     = 0.0f;   // world-space vertical shift of the whole scene
-    float            m_camPanY        = 0.0f;   // world-space vertical camera framing offset
-    bool             m_ledOnline     = true;   // SELECT lamp: printer online / ready
-    float            m_ledQuality01  = 0.0f;   // PRINT QUALITY lamp: selected quality (draft = off)
-    bool             m_ledError      = false;  // ERROR lamp: paper out / fault
-    int              m_contentWidth  = 0;
-    int              m_contentHeight = 0;
+    Dxui3DRenderer  m_renderer;
+    float           m_head01        = 0.0f;
+    float           m_paperFeed01   = 1.0f;
+    float           m_zoom          = 1.0f;
+    float           m_panX          = 0.0f;   // world-space horizontal camera offset
+    float           m_worldPanY     = 0.0f;   // world-space vertical shift of the whole scene
+    float           m_camPanY       = 0.0f;   // world-space vertical camera framing offset
+    bool            m_ledOnline     = true;   // SELECT lamp: printer online / ready
+    float           m_ledQuality01  = 0.0f;   // PRINT QUALITY lamp: selected quality (draft = off)
+    bool            m_ledError      = false;   // ERROR lamp: paper out / fault
+    int             m_contentWidth  = 0;
+    int             m_contentHeight = 0;
 
     // The loaded CAD body (already remapped/scaled/re-grounded, lighting
     // baked); empty = procedural fallback. The platen and front-face anchors
@@ -197,10 +197,10 @@ private:
     // recolors those flat faces per role each frame.
     struct LedFace   { float  p[3][3]; float shade; LampRole role; };
     struct LedLamp   { float  cx, cy, cz, halfW, halfH; bool red; LampRole role; };
-    std::vector<LedFace>   m_ledFaces;
-    std::vector<LedLamp>   m_ledLamps;
-    std::vector<Vertex>    m_ledBatch;    // scratch: recolored lens faces
-    std::vector<Vertex>    m_glowBatch;   // scratch: halo fans
+    std::vector<LedFace>  m_ledFaces;
+    std::vector<LedLamp>  m_ledLamps;
+    std::vector<Vertex>   m_ledBatch;   // scratch: recolored lens faces
+    std::vector<Vertex>   m_glowBatch;   // scratch: halo fans
     float                 m_meshFrontZ  = 0.0f;   // front face plane (badge sits on it)
     float                 m_platenY     = 0.0f;   // roller axis
     float                 m_platenZ     = 0.0f;

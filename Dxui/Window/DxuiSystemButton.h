@@ -74,8 +74,8 @@ private:
     void  DispatchClick  ();
 
 
-    DxuiSystemButtonKind  m_kind     = DxuiSystemButtonKind::Min;
-    HWND                  m_hwnd     = nullptr;
+    DxuiSystemButtonKind  m_kind      = DxuiSystemButtonKind::Min;
+    HWND                  m_hwnd      = nullptr;
     DxuiDpiScaler         m_scaler;
     bool                  m_hovered   = false;
     bool                  m_pressed   = false;

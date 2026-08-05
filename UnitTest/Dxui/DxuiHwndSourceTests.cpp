@@ -12,7 +12,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiHwndSourceTests
+//
+//  The host window's own behavior: creation parameters, the custom-chrome NC
+//  handling, and the client dispatch contract.
+//
+//  The NC path is what needs testing. Keeping WS_OVERLAPPEDWINDOW while
+//  collapsing the caption in WM_NCCALCSIZE means the OS still provides
+//  drag-to-move, edge resize, and snap -- but every hit must be classified by
+//  our own WM_NCHITTEST, so a region reported wrong loses one of those for-free
+//  behaviors silently.
+//
+//  Client dispatch is asserted because the WM_NCCREATE / WM_CREATE / WM_SIZE
+//  burst fires synchronously inside CreateWindowEx: a client installed after
+//  Create would miss all of it, and the window would come up unlaid-out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,21 +66,21 @@ public:
     struct SyntheticHost
     {
         std::unique_ptr<DxuiHwndSource>  host;
-        RECT                             minRectDip   = {};
-        RECT                             maxRectDip   = {};
-        RECT                             closeRectDip = {};
+        RECT                             minRectDip     = {};
+        RECT                             maxRectDip     = {};
+        RECT                             closeRectDip   = {};
         RECT                             captionRectDip = {};
     };
 
 
     SyntheticHost  BuildSyntheticHost()
     {
-        SyntheticHost            result;
-        std::unique_ptr<DxuiPanel>     root        = std::make_unique<DxuiPanel>();
-        DxuiCaptionBar &               caption     = root->Add<DxuiCaptionBar>();
-        DxuiSystemButton &             minBtn      = caption.Add<DxuiSystemButton> (DxuiSystemButtonKind::Min);
-        DxuiSystemButton &             maxBtn      = caption.Add<DxuiSystemButton> (DxuiSystemButtonKind::Max);
-        DxuiSystemButton &             closeBtn    = caption.Add<DxuiSystemButton> (DxuiSystemButtonKind::Close);
+        SyntheticHost                 result;
+        std::unique_ptr<DxuiPanel>    root     = std::make_unique<DxuiPanel>();
+        DxuiCaptionBar              & caption  = root->Add<DxuiCaptionBar>();
+        DxuiSystemButton            & minBtn   = caption.Add<DxuiSystemButton> (DxuiSystemButtonKind::Min);
+        DxuiSystemButton            & maxBtn   = caption.Add<DxuiSystemButton> (DxuiSystemButtonKind::Max);
+        DxuiSystemButton            & closeBtn = caption.Add<DxuiSystemButton> (DxuiSystemButtonKind::Close);
 
 
 
@@ -114,8 +127,8 @@ public:
 
     TEST_METHOD (ResizeEdges_TopLeftCorner_ReturnsHtTopLeft)
     {
-        SyntheticHost  sh   = BuildSyntheticHost();
-        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (1, 1));
+        SyntheticHost    sh   = BuildSyntheticHost();
+        DxuiHitTestKind  kind = sh.host->ClassifyHitForTest (MakePoint (1, 1));
 
         Assert::AreEqual ((int) HTTOPLEFT, (int) DxuiHwndSource::KindToHt (kind));
     }
@@ -123,8 +136,8 @@ public:
 
     TEST_METHOD (ResizeEdges_TopRightCorner_ReturnsHtTopRight)
     {
-        SyntheticHost  sh   = BuildSyntheticHost();
-        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip - 1, 1));
+        SyntheticHost    sh   = BuildSyntheticHost();
+        DxuiHitTestKind  kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip - 1, 1));
 
         Assert::AreEqual ((int) HTTOPRIGHT, (int) DxuiHwndSource::KindToHt (kind));
     }
@@ -140,14 +153,15 @@ public:
     //
     TEST_METHOD (ResizeCorner_TopRightOverCloseButton_BeatsClose)
     {
-        SyntheticHost   sh   = BuildSyntheticHost();
-        POINT           pt   = MakePoint (s_kClientWidthDip - 10, 10);
+        SyntheticHost    sh   = BuildSyntheticHost();
+        POINT            pt   = MakePoint (s_kClientWidthDip - 10, 10);
+        DxuiHitTestKind  kind = {};
 
         Assert::IsTrue (pt.x >= sh.closeRectDip.left && pt.x < sh.closeRectDip.right &&
                         pt.y >= sh.closeRectDip.top  && pt.y < sh.closeRectDip.bottom,
                         L"guard: the test point must lie within the close button rect");
 
-        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (pt);
+        kind = sh.host->ClassifyHitForTest (pt);
 
         Assert::AreEqual ((int) HTTOPRIGHT, (int) DxuiHwndSource::KindToHt (kind));
     }
@@ -155,8 +169,8 @@ public:
 
     TEST_METHOD (ResizeEdges_BottomLeftCorner_ReturnsHtBottomLeft)
     {
-        SyntheticHost  sh   = BuildSyntheticHost();
-        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (1, s_kClientHeightDip - 1));
+        SyntheticHost    sh   = BuildSyntheticHost();
+        DxuiHitTestKind  kind = sh.host->ClassifyHitForTest (MakePoint (1, s_kClientHeightDip - 1));
 
         Assert::AreEqual ((int) HTBOTTOMLEFT, (int) DxuiHwndSource::KindToHt (kind));
     }
@@ -174,8 +188,8 @@ public:
 
     TEST_METHOD (ResizeEdges_LeftEdgeMidHeight_ReturnsHtLeft)
     {
-        SyntheticHost  sh   = BuildSyntheticHost();
-        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (1, s_kClientHeightDip / 2));
+        SyntheticHost    sh   = BuildSyntheticHost();
+        DxuiHitTestKind  kind = sh.host->ClassifyHitForTest (MakePoint (1, s_kClientHeightDip / 2));
 
         Assert::AreEqual ((int) HTLEFT, (int) DxuiHwndSource::KindToHt (kind));
     }
@@ -193,8 +207,8 @@ public:
 
     TEST_METHOD (ResizeEdges_TopEdgeMidWidth_ReturnsHtTop)
     {
-        SyntheticHost  sh   = BuildSyntheticHost();
-        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip / 2, 1));
+        SyntheticHost    sh   = BuildSyntheticHost();
+        DxuiHitTestKind  kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip / 2, 1));
 
         Assert::AreEqual ((int) HTTOP, (int) DxuiHwndSource::KindToHt (kind));
     }
@@ -227,10 +241,11 @@ public:
 
     TEST_METHOD (SystemButton_MinCenter_ReturnsHtMinButton)
     {
-        SyntheticHost  sh = BuildSyntheticHost();
+        SyntheticHost    sh   = BuildSyntheticHost();
+        DxuiHitTestKind  kind = {};
         POINT          pt = MakePoint ((sh.minRectDip.left + sh.minRectDip.right) / 2,
                                        (sh.minRectDip.top  + sh.minRectDip.bottom) / 2);
-        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (pt);
+        kind = sh.host->ClassifyHitForTest (pt);
 
         Assert::AreEqual ((int) HTMINBUTTON, (int) DxuiHwndSource::KindToHt (kind));
     }
@@ -238,10 +253,11 @@ public:
 
     TEST_METHOD (SystemButton_CloseCenter_ReturnsHtClose)
     {
-        SyntheticHost  sh = BuildSyntheticHost();
+        SyntheticHost    sh   = BuildSyntheticHost();
+        DxuiHitTestKind  kind = {};
         POINT          pt = MakePoint ((sh.closeRectDip.left + sh.closeRectDip.right) / 2,
                                        (sh.closeRectDip.top  + sh.closeRectDip.bottom) / 2);
-        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (pt);
+        kind = sh.host->ClassifyHitForTest (pt);
 
         Assert::AreEqual ((int) HTCLOSE, (int) DxuiHwndSource::KindToHt (kind));
     }
@@ -267,10 +283,11 @@ public:
 
     TEST_METHOD (SnapLayouts_MaxButtonCenter_ReturnsHtMaxButton)
     {
-        SyntheticHost  sh = BuildSyntheticHost();
+        SyntheticHost    sh   = BuildSyntheticHost();
+        DxuiHitTestKind  kind = {};
         POINT          pt = MakePoint ((sh.maxRectDip.left + sh.maxRectDip.right) / 2,
                                        (sh.maxRectDip.top  + sh.maxRectDip.bottom) / 2);
-        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (pt);
+        kind = sh.host->ClassifyHitForTest (pt);
 
         Assert::AreEqual ((int) DxuiHitTestKind::MaxButton, (int) kind);
         Assert::AreEqual ((int) HTMAXBUTTON, (int) DxuiHwndSource::KindToHt (kind));
@@ -279,6 +296,10 @@ public:
 
     TEST_METHOD (SnapLayouts_MaxButtonCorner_StillReturnsHtMaxButton)
     {
+        DxuiHitTestKind  kind = {};
+
+
+
         // Hit near the bottom-left corner of the max button — still
         // inside its bounds, so Win11 must still get HTMAXBUTTON to
         // surface the snap-layouts popover. Resize-edge check is
@@ -288,7 +309,7 @@ public:
         SyntheticHost  sh = BuildSyntheticHost();
         POINT          pt = MakePoint (sh.maxRectDip.left + 2,
                                        sh.maxRectDip.bottom - 2);
-        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (pt);
+        kind = sh.host->ClassifyHitForTest (pt);
 
         Assert::AreEqual ((int) HTMAXBUTTON, (int) DxuiHwndSource::KindToHt (kind));
     }
@@ -337,8 +358,8 @@ public:
 
     TEST_METHOD (CaptionBar_ChildAtPoint_DefersToChild)
     {
-        DxuiCaptionBar    bar;
-        DxuiSystemButton &  closeBtn = bar.Add<DxuiSystemButton> (DxuiSystemButtonKind::Close);
+        DxuiCaptionBar      bar;
+        DxuiSystemButton  & closeBtn = bar.Add<DxuiSystemButton> (DxuiSystemButtonKind::Close);
 
         bar.SetBounds      (MakeRect (0, 0, 800, 32));
         closeBtn.SetBounds (MakeRect (754, 0, 800, 32));
@@ -405,12 +426,15 @@ public:
 
     TEST_METHOD (SystemButton_MaximizedMaxButton_PaintsRestoreGlyph)
     {
+        DxuiDpiScaler         scaler;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        size_t                normalCallCount = 0;
+
+
+
         DxuiSystemButton    maxBtn (DxuiSystemButtonKind::Max);
-        DxuiDpiScaler       scaler;
-        MockDxuiPainter     painter;
-        MockDxuiTextRenderer text;
-        MockDxuiTheme       theme;
-        size_t              normalCallCount = 0;
 
 
         scaler.SetDpi (96);
@@ -530,12 +554,15 @@ public:
 
     TEST_METHOD (SetContentPanel_ReplacesRootAndInheritsBounds)
     {
-        std::unique_ptr<DxuiPanel>     originalRoot = std::make_unique<DxuiPanel>();
+        std::unique_ptr<DxuiPanel>    originalRoot   = std::make_unique<DxuiPanel>();
+        DxuiPanel                   * replacementRaw = nullptr;
+        RECT                          bounds         = {};
+        std::unique_ptr<DxuiPanel>    replacement;
         DxuiHwndSource                 host (MakeRect (0, 0, s_kClientWidthDip, s_kClientHeightDip),
                                              s_kResizeBorderDip,
                                              std::move (originalRoot));
-        std::unique_ptr<DxuiPanel>     replacement  = std::make_unique<DxuiPanel>();
-        DxuiPanel *                    replacementRaw = replacement.get();
+        replacement = std::make_unique<DxuiPanel>();
+        replacementRaw = replacement.get();
 
 
         host.SetContentPanel (std::move (replacement));
@@ -543,7 +570,7 @@ public:
         Assert::AreEqual ((const void *) replacementRaw,
                           (const void *) &host.Root());
 
-        RECT  bounds = host.Root().Bounds();
+        bounds = host.Root().Bounds();
 
         Assert::AreEqual ((LONG) 0,                  bounds.left);
         Assert::AreEqual ((LONG) 0,                  bounds.top);
@@ -554,11 +581,12 @@ public:
 
     TEST_METHOD (SetContentPanel_NewPanelReceivesChildrenViaAdd)
     {
-        std::unique_ptr<DxuiPanel>     originalRoot = std::make_unique<DxuiPanel>();
+        std::unique_ptr<DxuiPanel>  originalRoot = std::make_unique<DxuiPanel>();
+        std::unique_ptr<DxuiPanel>  replacement;
         DxuiHwndSource                 host (MakeRect (0, 0, s_kClientWidthDip, s_kClientHeightDip),
                                              s_kResizeBorderDip,
                                              std::move (originalRoot));
-        std::unique_ptr<DxuiPanel>     replacement  = std::make_unique<DxuiPanel>();
+        replacement = std::make_unique<DxuiPanel>();
 
         replacement->Add<DxuiCaptionBar>();
 

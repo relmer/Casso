@@ -76,12 +76,13 @@ public:
 
         for (float s : pcm)
         {
-            float  scaled = s * 32767.0f;
+            float    scaled = s * 32767.0f;
+            int16_t  asI16  = 0;
 
             if (scaled >  32767.0f) { scaled =  32767.0f; }
             if (scaled < -32768.0f) { scaled = -32768.0f; }
 
-            int16_t  asI16 = static_cast<int16_t> (scaled);
+            asI16 = static_cast<int16_t> (scaled);
             out.write (reinterpret_cast<const char *> (&asI16), sizeof (asI16));
         }
     }
@@ -89,10 +90,14 @@ public:
 
     static fs::path MakeTempDeviceDir (const wchar_t * suffix)
     {
-        fs::path  base = fs::temp_directory_path() / L"casso_disk_audio_tests";
-        fs::path  dir  = base / suffix;
-
+        fs::path         dir;
         std::error_code  ec;
+
+
+
+        fs::path  base = fs::temp_directory_path() / L"casso_disk_audio_tests";
+        dir = base / suffix;
+
 
         fs::remove_all  (dir, ec);
         fs::create_directories (dir, ec);
@@ -119,6 +124,13 @@ public:
 
     TEST_METHOD (DecodeOggToInterleavedShort_garbageBytes_returnsFailureNoCrash)
     {
+        std::vector<int16_t> pcm;
+        uint32_t             rate     = 0;
+        uint32_t             channels = 0;
+        std::string          err;
+
+
+
         // 64 bytes of pseudo-random non-OGG junk. stb_vorbis must
         // reject this cleanly and report an error rather than crash
         // the test DLL (FR-009 graceful degradation: a corrupt
@@ -130,10 +142,6 @@ public:
             junk[i] = static_cast<uint8_t> (i * 13 + 7);
         }
 
-        std::vector<int16_t> pcm;
-        uint32_t             rate     = 0;
-        uint32_t             channels = 0;
-        std::string          err;
 
         HRESULT  hr = StbVorbisWrapper::DecodeOggToInterleavedShort (
             junk.data(), junk.size(), pcm, rate, channels, err);
@@ -162,10 +170,18 @@ public:
 
     TEST_METHOD (WriteAndLoad_writesWavAndReadsBackThroughLoadSamples_preservesAmplitude)
     {
+        float             amp  = 0.0f;
+        float             hz   = 0.0f;
+        Disk2AudioSource  src1;
+        float             peak = 0.0f;
+        std::error_code   ec;
+
+
+
         // Build a half-amplitude 1 kHz sine.
         std::vector<float>  src (s_kSineFrames);
-        const float         amp = 0.5f;
-        const float         hz  = 1000.0f;
+        amp = 0.5f;
+        hz = 1000.0f;
 
         for (size_t i = 0; i < src.size(); i++)
         {
@@ -179,7 +195,6 @@ public:
 
         WriteMonoPcm16Wav (motorPath, src, s_kTestSampleRate);
 
-        Disk2AudioSource  src1;
 
         HRESULT  hr = src1.LoadSamples (devicesDir.wstring().c_str(),
                                         L"Shugart",
@@ -201,7 +216,6 @@ public:
 
         src1.GeneratePCM (frame.data(), static_cast<uint32_t> (frame.size()));
 
-        float  peak = 0.0f;
 
         for (float s : frame)
         {
@@ -215,7 +229,6 @@ public:
         Assert::IsTrue (peak > 0.02f,
             std::format (L"Round-tripped WAV produced silent motor loop (peak={})", peak).c_str());
 
-        std::error_code  ec;
         fs::remove_all (devicesDir.parent_path(), ec);
     }
 
@@ -232,15 +245,19 @@ public:
 
     TEST_METHOD (LoadSamples_mechanismFallback_picksPerMechanismCopy)
     {
+        std::error_code   ec;
+        Disk2AudioSource  src;
+        float             peak = 0.0f;
+
+
+
         std::vector<float>  pcm (220, 0.5f);    // 5 ms square at full amplitude
         fs::path            devicesDir = MakeTempDeviceDir (L"FallbackPick");
         fs::path            mechDir    = devicesDir / L"Shugart";
-        std::error_code     ec;
 
         fs::create_directories (mechDir, ec);
         WriteMonoPcm16Wav (mechDir / L"MotorLoop.wav", pcm, s_kTestSampleRate);
 
-        Disk2AudioSource  src;
 
         HRESULT  hr = src.LoadSamples (devicesDir.wstring().c_str(),
                                        L"Shugart",
@@ -253,7 +270,6 @@ public:
         std::vector<float>  frame (64);
         src.GeneratePCM (frame.data(), static_cast<uint32_t> (frame.size()));
 
-        float  peak = 0.0f;
         for (float s : frame)
         {
             float  a = (s < 0) ? -s : s;
@@ -268,16 +284,20 @@ public:
 
     TEST_METHOD (LoadSamples_missingPerMechanismFile_fallsBackToShugart)
     {
+        std::error_code   ec;
+        Disk2AudioSource  src;
+        float             peak = 0.0f;
+
+
+
         std::vector<float>  pcm (220, 0.5f);
         fs::path            devicesDir = MakeTempDeviceDir (L"ShugartFallback");
-        std::error_code     ec;
 
         // Alps omits the door sounds; Shugart (the canonical set) has them.
         fs::create_directories (devicesDir / L"Shugart", ec);
         fs::create_directories (devicesDir / L"Alps",    ec);
         WriteMonoPcm16Wav (devicesDir / L"Shugart" / L"DoorOpen.wav", pcm, s_kTestSampleRate);
 
-        Disk2AudioSource  src;
 
         HRESULT  hr = src.LoadSamples (devicesDir.wstring().c_str(),
                                        L"Alps",
@@ -290,7 +310,6 @@ public:
         std::vector<float>  frame (64);
         src.GeneratePCM (frame.data(), static_cast<uint32_t> (frame.size()));
 
-        float  peak = 0.0f;
         for (float s : frame)
         {
             float  a = (s < 0) ? -s : s;

@@ -155,6 +155,10 @@ void Cpu::TracePush (Byte opcode)
 
 void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
 {
+    size_t  i = 0;
+
+
+
     // Short newest-first look-back to stderr -- enough to see the
     // JMP/JSR/RTS chain that landed PC on the bad byte. The full ring
     // (which may be millions of entries under --trace) is written
@@ -163,8 +167,6 @@ void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
 
     size_t  total   = (m_traceCount < (uint64_t) m_traceCapacity) ? (size_t) m_traceCount
                                                                   : m_traceCapacity;
-    size_t  i       = 0;
-    size_t  index   = 0;
 
     if (total > kMaxLookback)
     {
@@ -181,9 +183,7 @@ void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
     {
         // head currently points one PAST the most recent push, so the
         // newest entry is (head - 1) mod size. Step backward from there.
-        index = (m_traceHead + m_traceCapacity - 1 - i) % m_traceCapacity;
-
-        const TraceEntry &  e        = m_trace[index];
+        const TraceEntry &  e        = m_trace[(m_traceHead + m_traceCapacity - 1 - i) % m_traceCapacity];
         const char *        opName   = instructionSet[e.opcode].instructionName != nullptr
                                        ? instructionSet[e.opcode].instructionName
                                        : "???";
@@ -212,27 +212,39 @@ void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
 //    00000001  PC=$XXXX  op=$XX OPS=$XX $XX (NAME)  A=$XX X=$XX Y=$XX SP=$XX P=$XX
 //
 //  `onProgress` (if set) is called every kProgressStride entries and once
-//  at completion with (entriesWritten, totalEntries). Returns true on
-//  success. CassoCore owns no UI; the caller drives any progress dialog.
+//  at completion with (entriesWritten, totalEntries). CassoCore owns no UI;
+//  the caller drives any progress dialog.
+//
+//  The user asks for this dump explicitly, so a failure has to say which one
+//  it was: E_INVALIDARG for an unopenable path, E_UNEXPECTED for a trace ring
+//  that was never allocated (--trace not on), E_FAIL for a write that started
+//  and then failed. A bool collapsed all three into "nothing happened".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Cpu::DumpTraceToFile (const std::wstring & path,
-                           const std::function<void (uint64_t, uint64_t)> & onProgress) const
+HRESULT Cpu::DumpTraceToFile (const std::wstring & path,
+                              const std::function<void (uint64_t, uint64_t)> & onProgress) const
 {
     static constexpr uint64_t  kProgressStride = 100000;
+    size_t                     start           = 0;
+    bool                       isOpen          = false;
+    bool                       wrote           = false;
+    char                       line[160];
 
+    HRESULT        hr    = S_OK;
     std::ofstream  out (path, std::ios::binary | std::ios::trunc);
     uint64_t       total = (m_traceCount < (uint64_t) m_traceCapacity) ? m_traceCount
                                                                        : (uint64_t) m_traceCapacity;
-    size_t         start = 0;
-    bool           wrote = false;
-    char           line[160];
 
-    // An unopenable file and a trace ring that was never allocated are both
-    // "nothing written"; out.good() below reports write failures instead.
-    if (out.is_open() && m_traceCapacity != 0)
+    isOpen = out.is_open();
+
+    CBREx (isOpen,               E_INVALIDARG);
+    CBREx (m_traceCapacity != 0, E_UNEXPECTED);
+
     {
+        uint64_t  irqCount = 0;
+        uint64_t  nmiCount = 0;
+
         // When the ring has wrapped, the oldest surviving entry sits at the
         // current head; otherwise it starts at index 0.
         start = (m_traceCount > (uint64_t) m_traceCapacity) ? m_traceHead : 0;
@@ -244,8 +256,6 @@ bool Cpu::DumpTraceToFile (const std::wstring & path,
         // otherwise invisible in a flat instruction trace, so surface the rate
         // up top. Cheap -- one pass reading a single byte per entry, dwarfed by
         // the write below.
-        uint64_t  irqCount = 0;
-        uint64_t  nmiCount = 0;
 
         for (uint64_t i = 0; i < total; i++)
         {
@@ -310,10 +320,16 @@ bool Cpu::DumpTraceToFile (const std::wstring & path,
             onProgress (total, total);
         }
 
+        // Distinct from the open failure above: the file opened and we wrote
+        // into it, then the stream went bad -- a full disk or a vanished share,
+        // not a bad path. E_FAIL is the CBR default, so no -Ex here.
         wrote = out.good();
+
+        CBR (wrote);
     }
 
-    return wrote;
+Error:
+    return hr;
 }
 
 
@@ -324,13 +340,37 @@ bool Cpu::DumpTraceToFile (const std::wstring & path,
 //
 //  StepOne
 //
+//  Executes one instruction and leaves its exact cycle cost in m_lastCycles,
+//  which the host loop reads to keep emulated time honest. Timing is why this
+//  is more than fetch-decode-execute: two penalties are not in the table.
+//
+//  Page-crossing (+1) applies to indexed READS only. Stores and read-modify-
+//  write instructions always take the extra cycle -- the hardware cannot know
+//  whether the page crossed until it has read, and it must write regardless --
+//  so their cost is already baked into baseCycles and adding it here would
+//  double-count. That is what the long isReadOp exclusion list is for.
+//
+//  ZeroPageIndirectY needs its base recovered as effectiveAddress - Y, because
+//  unlike AbsoluteX/Y the base was never a literal in the instruction; it came
+//  from the zero-page pointer.
+//
+//  Branches (+1 taken, +1 more crossing a page) are detected by comparing PC
+//  against its value after operand fetch, which is simply whether the branch
+//  moved it -- no separate "was it taken" flag to keep in step. BRA counts as
+//  always taken.
+//
+//  An illegal opcode is a 2-cycle NOP that keeps running rather than an
+//  assert: real software executes undocumented NMOS ops this table does not
+//  carry yet (GH #52), and trapping would break titles that work on hardware.
+//
 ////////////////////////////////////////////////////////////////////////////////
 void Cpu::StepOne()
 {
 
-    Byte              opcode      = ReadByte (PC);
-    const Microcode & microcode   = instructionSet[opcode];
-    OperandInfo       operandInfo = { 0 };
+    Byte               opcode       = ReadByte (PC);
+    const Microcode  & microcode    = instructionSet[opcode];
+    OperandInfo        operandInfo  = { 0 };
+    Word               pcAfterFetch = 0;
 
 
 
@@ -410,7 +450,7 @@ void Cpu::StepOne()
         }
     }
 
-    Word pcAfterFetch = PC;
+    pcAfterFetch = PC;
 
     ExecuteInstruction (microcode, operandInfo);
 
@@ -435,6 +475,15 @@ void Cpu::StepOne()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintSingleStepInfo
+//
+//  One trace line per instruction: registers, flags, address, opcode bytes and
+//  disassembly, in fixed columns so a run diffs cleanly against a reference
+//  trace -- which is how this gets used.
+//
+//  The flags[][] pair is a lookup rather than seven conditionals: index 0 is
+//  all dots, index 1 the letters, so a bool selects the row and the flag's
+//  position selects the column. A clear flag shows '.' in the same column its
+//  letter would occupy, keeping the field a constant width.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -476,6 +525,18 @@ void Cpu::PrintSingleStepInfo (Word initialPC, Byte opcode, const OperandInfo & 
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintOperandBytes
+//
+//  The raw operand bytes of an instruction, blank-padded to a fixed width so
+//  the disassembly after them stays in column no matter how many bytes the
+//  addressing mode has.
+//
+//  Grouped by SIZE rather than listed per mode: every mode taking one operand
+//  byte prints the same way, so the cases fall through to three bodies --
+//  none, one byte, two bytes.
+//
+//  Reads go through ReadByte at PC+1 / PC+2 rather than through operandInfo,
+//  so this shows what is actually in memory, including for an instruction
+//  whose operand was never decoded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -519,6 +580,17 @@ void Cpu::PrintOperandBytes (Word initialPC, Byte opcode)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintOperandAndComment
+//
+//  Disassembly half of the single-step debug trace: renders the operand in the
+//  syntax its addressing mode would be written in, plus the value actually
+//  fetched.
+//
+//  The resolved value is the point -- `$1234,X ; $07` shows both what the
+//  source said and what it came to at run time, which is the thing a stepping
+//  session needs and static disassembly cannot give.
+//
+//  Illegal opcodes print nothing: their operand bytes were never decoded, so
+//  any rendering would be invented.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -592,6 +664,19 @@ void Cpu::PrintOperandAndComment (Byte opcode, const OperandInfo & operandInfo)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FetchOperand
+//
+//  Resolves the addressing mode into operandInfo -- the effective address, and
+//  the operand value where the mode implies one -- leaving PC on the LAST byte
+//  of the instruction. StepOne's trailing ++PC is what finally advances past
+//  it, so the two must be read together: the fetch helpers deliberately stop
+//  one short.
+//
+//  A mode with no operand bytes skips the whole block, PC never moves here,
+//  and that same trailing increment lands on the next instruction.
+//
+//  The default arm asserts rather than falling through quietly: an addressing
+//  mode with no fetch would leave operandInfo zeroed, so the instruction would
+//  execute against address $0000 instead of failing visibly.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -725,12 +810,17 @@ void Cpu::FetchOperandJumpAbsolute (Cpu::OperandInfo & operandInfo)
 
 void Cpu::FetchOperandJumpIndirect (Cpu::OperandInfo & operandInfo)
 {
+    Word  lo = 0;
+    Word  hi = 0;
+
+
+
     operandInfo.location = ReadWord (PC++);
 
     // NMOS 6502 bug: JMP indirect wraps within the page.
     // If the pointer is at $xxFF, the high byte is read from $xx00.
-    Word lo = ReadByte (operandInfo.location);
-    Word hi = ReadByte ((operandInfo.location & 0xFF00) | ((operandInfo.location + 1) & 0x00FF));
+    lo = ReadByte (operandInfo.location);
+    hi = ReadByte ((operandInfo.location & 0xFF00) | ((operandInfo.location + 1) & 0x00FF));
 
     operandInfo.effectiveAddress = lo | (hi << 8);
     operandInfo.operand          = operandInfo.effectiveAddress;
@@ -751,10 +841,15 @@ void Cpu::FetchOperandJumpIndirect (Cpu::OperandInfo & operandInfo)
 
 void Cpu::FetchOperandJumpIndirectCmos (Cpu::OperandInfo & operandInfo)
 {
+    Word  lo = 0;
+    Word  hi = 0;
+
+
+
     operandInfo.location = ReadWord (PC++);
 
-    Word lo = ReadByte (operandInfo.location);
-    Word hi = ReadByte (static_cast<Word> (operandInfo.location + 1));
+    lo = ReadByte (operandInfo.location);
+    hi = ReadByte (static_cast<Word> (operandInfo.location + 1));
 
     operandInfo.effectiveAddress = lo | (hi << 8);
     operandInfo.operand          = operandInfo.effectiveAddress;
@@ -798,8 +893,12 @@ void Cpu::FetchOperandZeroPageIndirect (Cpu::OperandInfo & operandInfo)
 
 void Cpu::FetchOperandAbsoluteXIndirect (Cpu::OperandInfo & operandInfo)
 {
+    Word  ptr = 0;
+
+
+
     Word base = ReadWord (PC++);
-    Word ptr  = static_cast<Word> (base + X);
+    ptr = static_cast<Word> (base + X);
 
     operandInfo.location         = base;
     operandInfo.effectiveAddress = ReadByte (ptr) | (ReadByte (static_cast<Word> (ptr + 1)) << 8);
@@ -821,8 +920,12 @@ void Cpu::FetchOperandAbsoluteXIndirect (Cpu::OperandInfo & operandInfo)
 
 void Cpu::FetchOperandZeroPageRelative (Cpu::OperandInfo & operandInfo)
 {
+    Byte  rel = 0;
+
+
+
     Byte zpAddr = ReadByte (PC++);
-    Byte rel    = ReadByte (PC);
+    rel = ReadByte (PC);
 
     operandInfo.location         = zpAddr;
     operandInfo.operand          = ReadByte (zpAddr);
@@ -974,6 +1077,20 @@ void Cpu::FetchOperandAbsoluteX (Cpu::OperandInfo & operandInfo)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExecuteInstruction
+//
+//  Dispatches an already-decoded instruction to its CpuOperations handler.
+//  Pure routing: addressing has been resolved into operandInfo and the cycle
+//  count settled by the caller, so nothing here reads memory or touches PC
+//  except through the operations themselves.
+//
+//  Accumulator mode is turned into a POINTER rather than a flag, which is what
+//  lets the shift and rotate operations take one code path for `ASL A` and
+//  `ASL $1234` alike -- null means "operate on the effective address". Handing
+//  them a mode to branch on would put the same test in six places.
+//
+//  Switching on operation rather than opcode is what collapses 256 opcodes to
+//  this list: the addressing mode is already spent, so every LDA variant
+//  arrives here as one Load.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1205,6 +1322,19 @@ void Cpu::InitializeInstructionSet()
 //
 //  InitializeGroup00
 //
+//  Builds the group-00 opcodes -- the 6502's cc=00 column: branches, flag
+//  ops, the index-register loads and compares, JMP, BIT.
+//
+//  Each row is a mnemonic plus a BITMASK of the addressing modes it supports,
+//  and CreateInstruction expands that into one table entry per mode. The mask
+//  is the encoding: the 6502 derives an opcode from (mnemonic, mode) bit
+//  fields, so a row saying which modes are legal produces exactly the opcodes
+//  the hardware has, and the gaps are the illegal ones.
+//
+//  Source and destination register pointers are what let one Microcode
+//  operation serve several mnemonics -- Load with &Y is LDY, with &X is LDX --
+//  instead of an operation per register.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Cpu::InitializeGroup00()
@@ -1244,6 +1374,13 @@ void Cpu::InitializeGroup00()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InitializeGroup01
+//
+//  The cc=01 column: the eight accumulator ALU operations, which are the only
+//  group where nearly every mnemonic supports the full addressing-mode set --
+//  hence __AMF_AllModes on almost every row.
+//
+//  STA is the exception, masking OFF immediate: storing to a literal has no
+//  meaning, and the hardware leaves that encoding to something else.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1286,6 +1423,18 @@ void Cpu::InitializeGroup01()
 //
 //  InitializeGroup10
 //
+//  The cc=10 column: the read-modify-write shifts and rotates, plus the X
+//  register's load/store and the memory increment/decrement.
+//
+//  Nearly every row masks OFF immediate, because these write their result
+//  back -- there is nowhere to write to a literal. LDX is the exception (it
+//  only reads) and instead masks off accumulator mode, since ASL A has meaning
+//  but LDX A does not.
+//
+//  ASL / ROL / LSR / ROR carry &A as their source register, which is how
+//  accumulator mode reaches the operation; CreateInstruction pairs that with
+//  the mode flag to produce both the `ASL A` and `ASL addr` encodings.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Cpu::InitializeGroup10()
@@ -1326,6 +1475,16 @@ void Cpu::InitializeGroup10()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InitializeMisc
+//
+//  Everything the cc-column encoding does not reach: branches, flag sets and
+//  clears, stack pushes and pulls, the register transfers, BRK / RTI / RTS /
+//  JSR / NOP.
+//
+//  These carry an EXPLICIT addressing mode and cycle count per row rather than
+//  a mode bitmask, because each is a single fixed opcode with no family of
+//  variants -- there is nothing for CreateInstruction to expand. Their cycle
+//  counts are irregular for the same reason (JSR 6, RTI 6, PHA 3), so they are
+//  stated rather than derived.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1549,6 +1708,25 @@ void Cpu::InitializeUndocumented()
 //
 //  CreateInstruction
 //
+//  Expands one table row into every opcode it covers, walking the addressing-
+//  mode flags and emitting an instructionSet entry per set bit. This is what
+//  lets the group tables list eight mnemonics instead of 256 opcodes.
+//
+//  It also assigns baseCycles, and that is the subtle part. The count comes
+//  from the addressing mode, adjusted by what the operation DOES with memory:
+//
+//    isMemoryRmw  a read-modify-write to memory pays for the read, the
+//                 modify and the write ($1234 ASL is 6 cycles where LDA is 4)
+//                 -- but only in memory. Accumulator mode is 2, which is why
+//                 isRmw is further qualified by the mode.
+//
+//    isStore      an indexed store always pays the page-crossing cycle: the
+//                 hardware cannot know whether the page crossed until it has
+//                 read, and it must write regardless. Baking it in here is
+//                 what lets StepOne skip stores when applying that penalty --
+//                 the two must agree, or indexed stores are mistimed by one
+//                 cycle in every instruction.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Cpu::CreateInstruction (uint32_t                      addressingModeMax,
@@ -1560,24 +1738,27 @@ void Cpu::CreateInstruction (uint32_t                      addressingModeMax,
                              Byte                 *        pSourceRegister,
                              Byte                 *        pDestinationRegister)
 {
-    Byte addressingMode = 0;
-    Byte currentAddressingModeFlag = 1;
+    Byte  addressingMode            = 0;
+    Byte  currentAddressingModeFlag = 1;
 
     while (addressingMode < addressingModeMax)
     {
         if (addressingModeFlags & currentAddressingModeFlag)
         {
-            Instruction instruction            = Instruction (opcode, addressingMode, group);
+            Instruction  instruction = Instruction (opcode, addressingMode, group);
+            bool         isStore     = false;
+            bool         isMemoryRmw = false;
+            Byte         cycles      = 0;
             instructionSet[instruction.asByte] = Microcode   (instruction, instructionName[opcode], operation, pSourceRegister, pDestinationRegister);
 
             // Compute base cycle count from addressing mode and operation type
-            bool isStore     = (operation == Microcode::Store);
+            isStore = (operation == Microcode::Store);
             bool isRmw       = (operation == Microcode::ShiftLeft  || operation == Microcode::ShiftRight  ||
                                 operation == Microcode::RotateLeft || operation == Microcode::RotateRight ||
                                 operation == Microcode::Decrement  || operation == Microcode::Increment);
-            bool isMemoryRmw = isRmw && (instructionSet[instruction.asByte].globalAddressingMode != GlobalAddressingMode::Accumulator);
+            isMemoryRmw = isRmw && (instructionSet[instruction.asByte].globalAddressingMode != GlobalAddressingMode::Accumulator);
 
-            Byte cycles = 2;
+            cycles = 2;
 
             switch (instructionSet[instruction.asByte].globalAddressingMode)
             {
@@ -1616,21 +1797,20 @@ void Cpu::CreateInstruction (uint32_t                      addressingModeMax,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Cpu::LoadBinary (const std::string & filename, Word address)
+HRESULT Cpu::LoadBinary (const std::string & filename, Word address)
 {
-    HRESULT       hr      = S_OK;
-    std::ifstream file      (filename, std::ios::binary);
-    bool          fLoaded = false;
-    bool          isOpen  = false;
+    HRESULT       hr     = S_OK;
+    bool          isOpen = false;
+    std::ifstream file     (filename, std::ios::binary);
 
     isOpen = file.is_open();
-    CBRA (isOpen);
+    CBRAEx (isOpen, E_INVALIDARG);
 
-    fLoaded = LoadBinary (file, address);
-    CBR  (fLoaded);
+    hr = LoadBinary (file, address);
+    CHR (hr);
 
 Error:
-    return SUCCEEDED (hr);
+    return hr;
 }
 
 
@@ -1639,25 +1819,47 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LoadBinary
+//  LoadBinary  (stream)
+//
+//  Loads a raw image from a stream directly into CPU memory at an address.
+//
+//  Read straight into the memory array with no intermediate buffer, since the
+//  destination is a plain byte array of known size and copying through a
+//  vector would double the work for a 64 KB image.
+//
+//  The two failure kinds are reported DIFFERENTLY on purpose. A stream fault
+//  is the environment's problem and asserts; a negative size (tellg failed) or
+//  an image that would run off the top of memory is the CALLER's problem and
+//  returns E_INVALIDARG. Collapsing them would make a caller's bad address
+//  look like a broken file.
+//
+//  The bounds test is written as size <= memSize - address rather than
+//  address + size <= memSize, so it cannot overflow on a large address.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Cpu::LoadBinary (std::istream & stream, Word address)
+HRESULT Cpu::LoadBinary (std::istream & stream, Word address)
 {
-    HRESULT hr      = S_OK;
-    bool    readWell = false;
+    HRESULT         hr       = S_OK;
+    bool            readWell = false;
+    bool            fits     = false;
+    std::streampos  size     = 0;
 
 
 
     // Determine stream size
     stream.seekg (0, std::ios::end);
-    auto size = stream.tellg();
+    size = stream.tellg();
     stream.seekg (0, std::ios::beg);
 
     readWell = !stream.bad();
     CBRA (readWell);
-    CBR  (size >= 0 && (size_t) size <= memSize - address);
+
+    // A negative size means tellg failed; too large means the image would run
+    // off the top of memory. Both are the caller's problem, not a stream fault,
+    // so they read as E_INVALIDARG rather than E_FAIL.
+    fits = (size >= 0 && (size_t) size <= memSize - address);
+    CBREx (fits, E_INVALIDARG);
 
     // Read directly into CPU memory — no intermediate buffer
     stream.read (reinterpret_cast<char *>(memory.data() + address), size);
@@ -1666,5 +1868,5 @@ bool Cpu::LoadBinary (std::istream & stream, Word address)
     CBRA (readWell);
 
 Error:
-    return SUCCEEDED (hr);
+    return hr;
 }

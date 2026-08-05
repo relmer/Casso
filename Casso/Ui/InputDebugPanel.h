@@ -166,11 +166,11 @@ private:
 
     InputPanelLayoutSlots                 m_layout = {};
 
-    const CassoTheme                   * m_theme    = nullptr;
-    int                                   m_widthPx  = 0;
-    int                                   m_heightPx = 0;
-    UINT                                  m_dpi      = 96;
-    DxuiDpiScaler                             m_scaler;
+    const CassoTheme  * m_theme    = nullptr;
+    int                 m_widthPx  = 0;
+    int                 m_heightPx = 0;
+    UINT                m_dpi      = 96;
+    DxuiDpiScaler       m_scaler;
 
     DxuiLabel                               * m_emuLabel          = nullptr;
     DxuiLabel                               * m_hostLabel         = nullptr;
@@ -189,22 +189,22 @@ private:
     DxuiPopupMenu                             m_columnMenu;
     DxuiFocusManager                          m_focusMgr;
 
-    InputFilterState                      m_filter;
-    std::array<InputLogicalColumn, kInputColumnCount>  m_columnsModel = {};
-    InputEventRing                        m_ring;
-    std::deque<InputEventDisplay>         m_events;
-    std::vector<size_t>                   m_filteredIndices;
-    std::vector<InputEvent>               m_pendingHostEvents;
-    std::atomic<uint32_t>                 m_droppedSinceLastDrain = 0;
-    std::atomic<bool>                     m_resetAnchorPending    = false;
-    std::atomic<int64_t>                  m_pendingAnchorTicks    = 0;
-    const uint64_t                      * m_cycleCounter = nullptr;
-    std::chrono::steady_clock::time_point m_uptimeAnchor;
-    bool                                  m_paused         = false;
-    int                                   m_sortColumn     = -1;
-    bool                                  m_sortDescending = false;
+    InputFilterState                                     m_filter;
+    std::array<InputLogicalColumn, kInputColumnCount>    m_columnsModel          = {};
+    InputEventRing                                       m_ring;
+    std::deque<InputEventDisplay>                        m_events;
+    std::vector<size_t>                                  m_filteredIndices;
+    std::vector<InputEvent>                              m_pendingHostEvents;
+    std::atomic<uint32_t>                                m_droppedSinceLastDrain = 0;
+    std::atomic<bool>                                    m_resetAnchorPending    = false;
+    std::atomic<int64_t>                                 m_pendingAnchorTicks    = 0;
+    const uint64_t                                     * m_cycleCounter          = nullptr;
+    std::chrono::steady_clock::time_point                m_uptimeAnchor;
+    bool                                                 m_paused                = false;
+    int                                                  m_sortColumn            = -1;
+    bool                                                 m_sortDescending        = false;
 
-    bool                                  m_joystickVisible    = true;
-    bool                                  m_paddleVisible      = false;
-    int                                   m_listSelectedEventIndex = -1;
+    bool  m_joystickVisible        = true;
+    bool  m_paddleVisible          = false;
+    int   m_listSelectedEventIndex = -1;
 };

@@ -65,7 +65,7 @@ struct DialogPaintContext
 {
     DxuiPainter       * painter        = nullptr;
     DxuiTextRenderer  * text           = nullptr;
-    const CassoTheme * theme          = nullptr;
+    const CassoTheme  * theme          = nullptr;
     RECT                customBodyRect = {};
     float               dpiScale       = 1.0f;
 };

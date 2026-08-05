@@ -194,6 +194,7 @@ Error:
     {
         ReleaseComposeTarget();
     }
+
     return hr;
 }
 
@@ -215,11 +216,11 @@ Error:
 
 void DxuiRenderTarget::RenderFrame (const IDxuiTheme * theme)
 {
-    ID3D11RenderTargetView *  backRtv = BackBufferRtv();
-    SIZE                      sz      = {};
+    ID3D11RenderTargetView  * backRtv       = BackBufferRtv();
+    SIZE                      sz            = {};
     float                     clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-    uint32_t                  bgArgb   = 0xFF000000u;
-    bool                      composed = false;
+    uint32_t                  bgArgb        = 0xFF000000u;
+    bool                      composed      = false;
 
     // No render surface yet, or a zero-sized one (minimized / mid-resize):
     // there is nothing to draw into, and Present would fail anyway.
@@ -235,6 +236,7 @@ void DxuiRenderTarget::RenderFrame (const IDxuiTheme * theme)
         {
             bgArgb = theme->Background();
         }
+
         clearColor[0] = (float) ((bgArgb >> 16) & 0xFFu) / 255.0f;
         clearColor[1] = (float) ((bgArgb >>  8) & 0xFFu) / 255.0f;
         clearColor[2] = (float) ((bgArgb      ) & 0xFFu) / 255.0f;
@@ -272,6 +274,7 @@ void DxuiRenderTarget::RenderFrame (const IDxuiTheme * theme)
                 PresentFrame();
                 composed = true;
             }
+
             // EnsureComposeTarget failed -> fall through to the direct path.
         }
 

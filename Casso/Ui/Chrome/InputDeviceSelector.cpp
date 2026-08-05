@@ -35,6 +35,10 @@ void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     int    h       = icon + pad * 2;
     int    segW[3] = {};
     int    txtW[3] = {};
+    int    total   = 0;
+    int    x       = 0;
+    int    y       = 0;
+    int    sx      = 0;
 
 
     m_dpi = eDpi;
@@ -49,6 +53,7 @@ void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
             HRESULT  hrM = m_textRenderer->MeasureString (SegmentLabel (i), fontPx, kFontFamily, tw, th);
             if (FAILED (hrM)) { tw = 0.0f; }
         }
+
         if (tw <= 0.0f)
         {
             tw = (float) wcslen (SegmentLabel (i)) * kFallbackCharPx * (float) eDpi / 96.0f;
@@ -77,6 +82,7 @@ void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
             {
                 hw = (float) wcslen (kPaddleEscHint) * kFallbackCharPx * kSubLabelScale * (float) eDpi / 96.0f;
             }
+
             if (hw > tw) { tw = hw; }
         }
 
@@ -84,27 +90,30 @@ void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
         segW[i] = segPad + ledR * 2 + ledGap + icon + textGap + txtW[i] + segPad;
     }
 
-    int  total = segW[0] + gGap;
+    total = segW[0] + gGap;
     for (int i = 1; i < n; i++)
     {
         total += segW[i] + ((i + 1 < n) ? segGap : 0);
     }
 
-    int  x = boundsDip.left - total / 2;
-    int  y = boundsDip.top  - h / 2;
+    x = boundsDip.left - total / 2;
+    y = boundsDip.top  - h / 2;
 
     m_bounds = RECT { x, y, x + total, y + h };
 
-    int  sx = x;
+    sx = x;
     for (int i = 0; i < n; i++)
     {
+        int  ix = 0;
+        int  tx = 0;
+
         m_segRects[i]   = RECT { sx, y, sx + segW[i], y + h };
         m_ledCenters[i] = POINT { sx + segPad + ledR, y + h / 2 };
 
-        int  ix = sx + segPad + ledR * 2 + ledGap;
+        ix = sx + segPad + ledR * 2 + ledGap;
         m_iconRects[i]  = RECT { ix, y + pad, ix + icon, y + pad + icon };
 
-        int  tx = ix + icon + textGap;
+        tx = ix + icon + textGap;
         m_textRects[i]  = RECT { tx, y, tx + txtW[i], y + h };
 
         sx += segW[i] + ((i == 0) ? gGap : segGap);
@@ -272,19 +281,25 @@ const wchar_t * InputDeviceSelector::TooltipTextAt (int x, int y) const
 void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     static constexpr Segment  kOrder[3] = { Segment::Joystick, Segment::Paddle, Segment::Mouse };
+    float                     fontPx    = 0.0f;
+    float                     ledR      = 0.0f;
 
     if (m_bounds.right <= m_bounds.left)
     {
         return;                       // hidden
     }
 
-    float  fontPx = kFontDip * (float) m_dpi / 96.0f;
-    float  ledR   = 4.0f * (float) m_dpi / 96.0f;
+    fontPx = kFontDip * (float) m_dpi / 96.0f;
+    ledR = 4.0f * (float) m_dpi / 96.0f;
 
     for (int i = 0; i < SegmentCount(); i++)
     {
-        const RECT & r   = m_segRects[i];
-        bool         sel = SegmentSelected (i);
+        const RECT  & r   = m_segRects[i];
+        bool          sel = SegmentSelected (i);
+        float         tx  = 0.0f;
+        float         ty  = 0.0f;
+        float         tw  = 0.0f;
+        float         bh  = 0.0f;
 
         if (m_hovered && m_hoverSegment == kOrder[i])
         {
@@ -298,19 +313,21 @@ void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
             // Soft glow: concentric rings on a quadratic falloff. A single
             // translucent disc reads as a hard-edged puck, not a light.
             constexpr int    kGlowRings  = 10;
-            constexpr float  kGlowSpread = 3.4f;    // glow rim, in LED radii
-            float  cum = 0.0f;                      // opacity composited so far
+            constexpr float  kGlowSpread = 3.4f;   // glow rim, in LED radii
+            float            cum         = 0.0f;   // opacity composited so far
             for (int ring = kGlowRings; ring >= 1; ring--)
             {
-                float  t      = (float) ring / (float) (kGlowRings + 1);
-                float  target = 0.63f * (1.0f - t) * (1.0f - t);
-                float  add    = (target - cum) / (1.0f - cum);
+                float     t      = (float) ring / (float) (kGlowRings + 1);
+                float     target = 0.63f * (1.0f - t) * (1.0f - t);
+                float     add    = (target - cum) / (1.0f - cum);
+                uint32_t  a      = 0;
                 cum = target;
-                uint32_t  a = (uint32_t) (add * 255.0f + 0.5f);
+                a = (uint32_t) (add * 255.0f + 0.5f);
                 painter.FillCircleApprox ((float) m_ledCenters[i].x, (float) m_ledCenters[i].y,
                                           ledR * (1.0f + (kGlowSpread - 1.0f) * t),
                                           (a << 24) | (kLedOnCore & 0x00FFFFFF));
             }
+
             painter.FillCircleApprox ((float) m_ledCenters[i].x, (float) m_ledCenters[i].y, ledR, kLedOnCore);
         }
         else
@@ -325,10 +342,10 @@ void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
             case 2: PaintMouseGlyph    (painter, m_iconRects[i], m_skeuoStyle); break;
         }
 
-        float  tx = (float) m_textRects[i].left;
-        float  ty = (float) m_textRects[i].top;
-        float  tw = (float) (m_textRects[i].right - m_textRects[i].left) + 4.0f;
-        float  bh = (float) (m_textRects[i].bottom - m_textRects[i].top);
+        tx = (float) m_textRects[i].left;
+        ty = (float) m_textRects[i].top;
+        tw = (float) (m_textRects[i].right - m_textRects[i].left) + 4.0f;
+        bh = (float) (m_textRects[i].bottom - m_textRects[i].top);
 
         if (kOrder[i] == Segment::Paddle && sel)
         {
@@ -407,6 +424,7 @@ struct InputDeviceSelector::GlyphMap
         bx = (float) box.left + (float) (box.right  - box.left) * 0.5f - 48.0f * s;
         by = (float) box.top  + (float) (box.bottom - box.top)  * 0.5f - 48.0f * s;
     }
+
     float  X (float v) const { return bx + v * s; }
     float  Y (float v) const { return by + v * s; }
     float  S (float v) const { return v * s; }
@@ -419,6 +437,26 @@ struct InputDeviceSelector::GlyphMap
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PaintJoystickGlyph
+//
+//  Draws the joystick segment's icon, in one of two entirely different
+//  renderings.
+//
+//  The FLAT theme uses a top-down joystick; the SKEUOMORPHIC theme uses a
+//  three-quarter perspective view. They are separate drawings rather than one
+//  parameterized shape, because a flat icon and a period-object illustration
+//  are different design languages -- shading one would not produce the other.
+//
+//  Everything is drawn through a GlyphMap over a nominal 100-unit box, so the
+//  coordinates below match the source SVGs one-to-one and the glyph scales to
+//  any DPI without a second set of numbers to keep in sync.
+//
+//  The perspective form is shrunk about its center while the top-down one is
+//  not: the 3/4 joystick fills its box edge to edge (stick at the top, case at
+//  the bottom), so without the inset it would carry no whitespace and read as
+//  cramped beside the paddle and mouse glyphs, which do.
+//
+//  Both share the lower-right camera used by every skeuomorphic glyph in this
+//  file, so the three segments look lit from one place rather than three.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -487,6 +525,25 @@ void InputDeviceSelector::PaintJoystickGlyph (IDxuiPainter & p, const RECT & box
 //
 //  PaintPaddleGlyph
 //
+//  Draws the paddle segment's icon: a flat top-down view, or a three-quarter
+//  perspective one for the skeuomorphic theme.
+//
+//  Both are hand-translated from the source SVGs through a GlyphMap over a
+//  nominal 100-unit box, so the numbers below match the artwork directly and
+//  the glyph scales to any DPI.
+//
+//  The fire button is built from two quads along the head's own circle rather
+//  than as a separate shape, then partly covered by the housing circle painted
+//  AFTER it. That paint order is what leaves only the curved rim protruding at
+//  two o'clock -- reordering these calls loses the shape entirely.
+//
+//  Dial ticks are generated in a loop instead of being enumerated, so the
+//  count is one number to change and every tick sits at exactly the same
+//  radius.
+//
+//  The case ribs vary their inset per rib, which is what gives the flat
+//  drawing its slight taper toward the bottom.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, bool skeuo)
@@ -504,10 +561,11 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
         p.FillConvexQuad  (g.X (34), g.Y (52), g.X (62), g.Y (52), g.X (58), g.Y (89), g.X (38), g.Y (89), kCase);
         for (int i = 0; i < 4; i++)
         {
-            float  y = 60.0f + 6.0f * (float) i;
+            float  y   = 60.0f + 6.0f * (float) i;
             float  inw = 1.0f + 0.8f * (float) i;
             p.DrawLineApprox (g.X (37.5f + inw), g.Y (y), g.X (58.5f - inw), g.Y (y), g.S (1.6f), kRib);
         }
+
         p.FillCircleApprox (g.X (48), g.Y (34), g.S (25), kCaseEdge);
         p.FillCircleApprox (g.X (48), g.Y (34), g.S (24), kCase);
         p.FillCircleApprox (g.X (48), g.Y (34), g.S (19.8f), kDialEdge);
@@ -519,6 +577,7 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
             p.DrawLineApprox (g.X (48 + ca * 18.5f), g.Y (34 + sa * 18.5f),
                               g.X (48 + ca * 13.5f), g.Y (34 + sa * 13.5f), g.S (1.6f), kTick);
         }
+
         p.FillCircleApprox (g.X (48), g.Y (34), g.S (10.8f), kDialEdge);
         p.FillCircleApprox (g.X (48), g.Y (34), g.S (10), kKnob);
         p.FillCircleApprox (g.X (45), g.Y (31), g.S (3.5f), 0x4DFFFFFF);
@@ -569,6 +628,7 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
         // grip lines wrap over the SE shoulder onto the side face
         p.DrawLineApprox (g.X (sx), g.Y (sy), g.X (sx), g.Y (sy + 2.2f), g.S (1.1f), 0xFF98927F);
     }
+
     // Apple badge chip in the smooth patch near the tip, parting seam
     p.FillConvexQuad  (g.X (20.2f), g.Y (63.5f), g.X (23.1f), g.Y (64.1f), g.X (25.2f), g.Y (61.9f), g.X (22.3f), g.Y (61.3f), 0x99A9A392);
     // shell parting seam along the SE side wall, continuing to the disc
@@ -586,6 +646,7 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
         float  s  = sqrtf (1.0f - (dx / 17.5f) * (dx / 17.5f));
         p.DrawLineApprox (g.X (58 + dx), g.Y (32 + 6.1f * s), g.X (58 + dx), g.Y (38 + 6.1f * s), g.S (1.1f), kTick);
     }
+
     // small-radius fillet where the cap cylinder meets the flat top
     p.FillEllipseApprox (g.X (58), g.Y (31.3f), g.S (10), g.S (3.5f), 0xFFA6A08E);
     // dial upper cylinder (knurled cap), then the groove-and-"0" top
@@ -597,6 +658,7 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
         float  s  = sqrtf (1.0f - (dx / 7.5f) * (dx / 7.5f));
         p.DrawLineApprox (g.X (58 + dx), g.Y (23 + 2.6f * s), g.X (58 + dx), g.Y (32 + 2.6f * s), g.S (1.1f), kTick);
     }
+
     p.FillEllipseApprox (g.X (58), g.Y (23), g.S (7.5f), g.S (2.6f), kKnob);
     p.FillEllipseApprox (g.X (58), g.Y (23), g.S (4.4f), g.S (1.5f), kDialSide);
     p.FillEllipseApprox (g.X (58), g.Y (23), g.S (3.3f), g.S (1.1f), kKnob);
@@ -617,6 +679,22 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PaintMouseGlyph
+//
+//  Draws the mouse segment's icon: a flat top-down view, or a three-quarter
+//  perspective one for the skeuomorphic theme.
+//
+//  The flat form is drawn by hand like the other glyphs. The perspective form
+//  is GENERATED -- scratchpad/mouse_gen_shared.py emits convex-quad strips and
+//  line strokes from the SVG master at a deliberately low tessellation. A
+//  rounded, humped, chamfered body is not something to hand-place quad by
+//  quad, and regenerating from the master is how the shape is edited.
+//
+//  So the coordinate soup below is OUTPUT, not authored: change the SVG and
+//  re-run the generator rather than adjusting numbers here.
+//
+//  It shares the lower-right camera and the button-at-the-far-end convention
+//  with the joystick and paddle glyphs, so the three segments read as one set
+//  of objects photographed together rather than three unrelated icons.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

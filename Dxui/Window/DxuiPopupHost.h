@@ -331,10 +331,10 @@ private:
     bool                                    m_renderReady       = false;
     SIZE                                    m_backBufferSizePx  = {};
 
-    ShowParams                              m_params;
-    bool                                    m_open              = false;
-    int                                     m_resultCode        = 0;
-    RECT                                    m_placedRectScreenPx = {};
+    ShowParams  m_params;
+    bool        m_open               = false;
+    int         m_resultCode         = 0;
+    RECT        m_placedRectScreenPx = {};
 
     DxuiPopupHost                         * m_parent            = nullptr;
     DxuiPopupHost                         * m_activeChild       = nullptr;

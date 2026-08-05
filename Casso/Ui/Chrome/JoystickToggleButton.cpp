@@ -197,21 +197,35 @@ bool JoystickToggleButton::HitTest (int x, int y) const
 
 void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & dxuiTheme)
 {
-    _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
-    const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
-
     HRESULT             hr       = S_OK;
-    bool                active   = m_hovered || m_focused || m_pressed;
-    float               fontDip  = s_kFontDip * (float) m_dpi / (float) s_kBaseDpi;
-    float               bl       = (float) m_bounds.left;
-    float               bt       = (float) m_bounds.top;
-    float               bw       = (float) (m_bounds.right  - m_bounds.left);
-    float               bh       = (float) (m_bounds.bottom - m_bounds.top);
-    uint32_t            coreArgb = m_on ? s_kLedOnCoreArgb : s_kLedOffCoreArgb;
-    uint32_t            haloArgb = m_on ? s_kLedOnHaloArgb : 0;
-    LedIndicatorLayout  ledRect  = m_led.GetLayout();
-    int                 ledGap   = MulDiv (s_kLedGapDp, (int) m_dpi, s_kBaseDpi);
-    float               textX    = (float) (ledRect.coreRect.right + ledGap);
+    bool                active   = false;
+    float               fontDip  = 0.0f;
+    float               bl       = 0.0f;
+    float               bt       = 0.0f;
+    float               bw       = 0.0f;
+    float               bh       = 0.0f;
+    const CassoTheme &  theme    = static_cast<const CassoTheme &> (dxuiTheme);
+    uint32_t            coreArgb = 0;
+    uint32_t            haloArgb = 0;
+    int                 ledGap   = 0;
+    float               textX    = 0.0f;
+    LedIndicatorLayout  ledRect  = {};
+
+
+
+    _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
+
+    active = m_hovered || m_focused || m_pressed;
+    fontDip = s_kFontDip * (float) m_dpi / (float) s_kBaseDpi;
+    bl = (float) m_bounds.left;
+    bt = (float) m_bounds.top;
+    bw = (float) (m_bounds.right  - m_bounds.left);
+    bh = (float) (m_bounds.bottom - m_bounds.top);
+    coreArgb = m_on ? s_kLedOnCoreArgb : s_kLedOffCoreArgb;
+    haloArgb = m_on ? s_kLedOnHaloArgb : 0;
+    ledRect = m_led.GetLayout();
+    ledGap = MulDiv (s_kLedGapDp, (int) m_dpi, s_kBaseDpi);
+    textX = (float) (ledRect.coreRect.right + ledGap);
 
 
 

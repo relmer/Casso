@@ -117,15 +117,31 @@ public:
     //
     //  CPU register state after SoftReset
     //
+    //  A soft reset sets the I flag and ADJUSTS the stack pointer -- it does not
+    //  reset it.
+    //
+    //  Both halves are hardware behavior that a plausible implementation gets
+    //  wrong. The 6502's reset sequence performs three dummy stack pushes, so SP
+    //  ends three lower than it started rather than at $FF -- code that inspects
+    //  the stack after a Ctrl-Reset depends on exactly that.
+    //
+    //  The I flag is SET, masking interrupts until the handler chooses to
+    //  enable them; a reset that cleared it would take an interrupt before the
+    //  vectors were ready.
+    //
+    //  A, X, and Y are asserted UNCHANGED, which is what separates a soft reset
+    //  from a power cycle -- the registers survive, and software has used that
+    //  to detect which kind of reset it just took.
+    //
     ////////////////////////////////////////////////////////////////////////////
 
     TEST_METHOD (SoftResetSetsCpuIFlagAndAdjustsSP)
     {
         MemoryBus            bus;
+        Cpu6502Registers     regs = {};
         RamDevice            ramLo (0x0000, 0xBFFF);
         RamDevice            ramHi (0xC000, 0xFFFF);
         MemoryBusCpu         cpu (bus);
-        Cpu6502Registers     regs = {};
 
         bus.AddDevice (&ramLo);
         bus.AddDevice (&ramHi);
@@ -246,9 +262,12 @@ public:
 
     TEST_METHOD (PowerCycleSeedsAllRamFromPrng)
     {
+        size_t       nonZero = 0;
+
+
+
         RamDevice    ram (0x0000, 0xBFFF);
         Prng         prng (kPinnedSeed);
-        size_t       nonZero = 0;
 
         // Pre-zero so any post-PowerCycle non-zero byte must come from
         // the Prng.
@@ -272,13 +291,16 @@ public:
 
     TEST_METHOD (PowerCycleZeroesNothingButSeedsEverything)
     {
+        bool         pageHasNonZero = false;
+        Word         page           = 0;
+        Word         offset         = 0;
+
+
+
         // No region should remain entirely zero after PowerCycle —
         // every page gets touched by the Prng fill (FR-035, audit §10).
         RamDevice    ram (0x0000, 0xBFFF);
         Prng         prng (kPinnedSeed);
-        bool         pageHasNonZero = false;
-        Word         page           = 0;
-        Word         offset         = 0;
 
         ram.Reset();
         ram.PowerCycle (prng);

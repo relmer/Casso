@@ -104,6 +104,25 @@ MonitorFrame::MonitorFrame()
 //
 //  Layout
 //
+//  Sizes the period monitor housing and its glass recess to the available
+//  area.
+//
+//  The GLASS is sized first, from the display aspect, and the housing is
+//  derived by wrapping it in an even bezel. Doing it the other way -- fitting
+//  a housing and carving a recess out of it -- makes the bezel width vary with
+//  the window shape, and an uneven bezel is the single most obvious way a
+//  skeuomorphic monitor stops looking like an object.
+//
+//  Height is the usual binding constraint in a wide window, so the fit is
+//  computed against height first and then rescaled UNIFORMLY if it overflows
+//  the width. Scaling one axis would distort the housing.
+//
+//  Everything scales together on that rescale -- glass, bezel, housing -- which
+//  is what keeps the proportions constant at any window shape.
+//
+//  The monitor is centered with the desk behind it and sits flat, with no
+//  stand, so the drive widgets below read as sitting on the same surface.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MonitorFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
@@ -202,6 +221,27 @@ SIZE MonitorFrame::CenterSizeForScreenPx (int screenWpx, int screenHpx)
 //
 //  Paint
 //
+//  Draws the desk backdrop and the monitor housing AROUND the screen recess,
+//  never over it.
+//
+//  That is the constraint everything here is shaped by. Chrome paints on top
+//  of the already-composited emulator frame, so filling the recess would hide
+//  the display that has to show through the hole. The backdrop is therefore
+//  emitted as four bands surrounding the recess rather than as one rect, and
+//  the housing paints over whichever of those bands it covers.
+//
+//  The band gradients are SAMPLED from the full-height desk gradient at the
+//  recess edges, so the four pieces read as one continuous surface with a hole
+//  in it rather than as four rectangles that happen to be adjacent.
+//
+//  Hidden mode draws nothing at all -- not a background -- so the emulator
+//  frame composites straight onto the window background with no cost when the
+//  monitor framing is off.
+//
+//  The glass lip and bevel scale with DPI but are floored at a minimum pixel
+//  width, since a sub-pixel highlight disappears entirely and takes the sense
+//  of depth with it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MonitorFrame::Paint (
@@ -209,16 +249,16 @@ void MonitorFrame::Paint (
     IDxuiTextRenderer & text,
     const IDxuiTheme  & theme)
 {
-    float  cl  = (float) m_centerRect.left;
-    float  ct  = (float) m_centerRect.top;
-    float  cr  = (float) m_centerRect.right;
-    float  cb  = (float) m_centerRect.bottom;
-    float  hl  = (float) m_housingRect.left;
-    float  ht  = (float) m_housingRect.top;
-    float  hr  = (float) m_housingRect.right;
-    float  hb  = (float) m_housingRect.bottom;
-    float  sl  = (float) m_screenRect.left;
-    float  st  = (float) m_screenRect.top;
+    float  cl     = (float) m_centerRect.left;
+    float  ct     = (float) m_centerRect.top;
+    float  cr     = (float) m_centerRect.right;
+    float  cb     = (float) m_centerRect.bottom;
+    float  hl     = (float) m_housingRect.left;
+    float  ht     = (float) m_housingRect.top;
+    float  hr     = (float) m_housingRect.right;
+    float  hb     = (float) m_housingRect.bottom;
+    float  sl     = (float) m_screenRect.left;
+    float  st     = (float) m_screenRect.top;
     float  sr     = (float) m_screenRect.right;
     float  sb     = (float) m_screenRect.bottom;
     float  lip    = std::max (s_kMinLipPx, (float) MulDiv (s_kGlassLipDp, (int) m_dpi, s_kBaseDpi));
@@ -280,12 +320,19 @@ void MonitorFrame::Paint (
             // edge shade.
             for (int yy = y0; yy < y1; ++yy)
             {
-                float     y   = (float) yy + 0.5f;
-                float     yf  = (float) yy;
-                float     hIn = EdgeInset (y, ht, hb, hRad, hBarrel);
-                float     hxl = hl + hIn;
-                float     hxr = hr - hIn;
-                float     t   = (y - ht) / std::max (1.0f, hb - ht);
+                float     y        = (float) yy + 0.5f;
+                float     yf       = (float) yy;
+                float     hIn      = EdgeInset (y, ht, hb, hRad, hBarrel);
+                float     hxl      = hl + hIn;
+                float     hxr      = hr - hIn;
+                float     t        = (y - ht) / std::max (1.0f, hb - ht);
+                float     vIn      = 0.0f;
+                float     vxl      = 0.0f;
+                float     vxr      = 0.0f;
+                uint32_t  bevelCol = 0;
+                float     bIn      = 0.0f;
+                float     bxl      = 0.0f;
+                float     bxr      = 0.0f;
                 uint32_t  col = (t < s_kGradientSplit)
                                     ? LerpArgb (s_kShellHilite, s_kShellBase,  t / s_kGradientSplit)
                                     : LerpArgb (s_kShellBase,   s_kShellShadow,
@@ -297,10 +344,10 @@ void MonitorFrame::Paint (
                     continue;
                 }
 
-                float     vIn      = EdgeInset (y, voT, voB, vRad, vBarrel);
-                float     vxl      = voL + vIn;
-                float     vxr      = voR - vIn;
-                uint32_t  bevelCol = LerpArgb (col, s_kBevelShade, s_kBevelBlend);
+                vIn = EdgeInset (y, voT, voB, vRad, vBarrel);
+                vxl = voL + vIn;
+                vxr = voR - vIn;
+                bevelCol = LerpArgb (col, s_kBevelShade, s_kBevelBlend);
 
                 // Flat platinum outside the bevel outline.
                 FillSpan (painter, hxl, vxl, yf, col);
@@ -313,9 +360,9 @@ void MonitorFrame::Paint (
                     continue;
                 }
 
-                float  bIn  = EdgeInset (y, boT, boB, bRad, bBarrel);
-                float  bxl  = boL + bIn;
-                float  bxr  = boR - bIn;
+                bIn = EdgeInset (y, boT, boB, bRad, bBarrel);
+                bxl = boL + bIn;
+                bxr = boR - bIn;
 
                 // Bevel wall (shaded platinum) between the flat shell and glass.
                 FillSpan (painter, vxl, bxl, yf, bevelCol);
@@ -340,8 +387,17 @@ void MonitorFrame::Paint (
         // cassowary -- Casso's period-Apple analog of the rainbow logo -- sits
         // lower-left; the power lamp sits lower-right, balancing it.
         {
-            float  bandTop = sb + lip + bevelW;
-            float  bandH   = hb - bandTop;
+            float  bandTop  = sb + lip + bevelW;
+            float  bandH    = hb - bandTop;
+            float  logoH    = 0.0f;
+            float  logoW    = 0.0f;
+            float  logoX    = 0.0f;
+            float  logoY    = 0.0f;
+            float  lampH    = 0.0f;
+            float  lampBody = 0.0f;
+            float  lampBox  = 0.0f;
+            float  lampX    = 0.0f;
+            float  lampY    = 0.0f;
 
             if (bandH <= s_kMinBrandBandPx)
             {
@@ -350,10 +406,10 @@ void MonitorFrame::Paint (
 
             // Rainbow cassowary, lower-left: aligned under the screen's left edge,
             // matching the Apple logo's placement on the real bezel.
-            float  logoH = bandH * s_kLogoHFrac;
-            float  logoW = logoH * s_kLogoGridAspect;
-            float  logoX = sl;
-            float  logoY = bandTop + (bandH - logoH) * 0.5f;
+            logoH = bandH * s_kLogoHFrac;
+            logoW = logoH * s_kLogoGridAspect;
+            logoX = sl;
+            logoY = bandTop + (bandH - logoH) * 0.5f;
 
             CassoBranding::DrawCassowaryRainbow (painter, logoX, logoY, logoW, logoH, s_kLogoBorderArgb);
 
@@ -362,11 +418,7 @@ void MonitorFrame::Paint (
             // strip's LED dimensions at SceneScale, so the lamp zooms with the
             // monitor it is mounted on. Clamped to the band on tiny layouts,
             // preserving the LED proportion.
-            float  lampH    = (float) MulDiv (s_kLampHDp, (int) m_dpi, s_kBaseDpi) * m_sceneScale;
-            float  lampBody = 0.0f;
-            float  lampBox  = 0.0f;
-            float  lampX    = 0.0f;
-            float  lampY    = 0.0f;
+            lampH = (float) MulDiv (s_kLampHDp, (int) m_dpi, s_kBaseDpi) * m_sceneScale;
 
             lampH    = std::min (lampH, bandH * s_kLampBandFrac);
             lampBody = lampH * ((float) s_kLampWDp / (float) s_kLampHDp);

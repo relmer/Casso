@@ -34,9 +34,9 @@ JsonParser::JsonParser (const string & input)
 
 HRESULT JsonParser::Parse (const string & input, JsonValue & outValue, JsonParseError & outError)
 {
-    HRESULT    hr           = S_OK;
+    HRESULT  hr          = S_OK;
+    bool     consumedAll = false;
     JsonParser parser         (input);
-    bool       consumedAll   = false;
 
 
 
@@ -64,6 +64,23 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  JsonParser::ParseValue
+//
+//  Dispatches on the first non-whitespace character to whichever value parser
+//  the grammar demands, and is the recursive entry point objects and arrays
+//  re-enter for each of their members.
+//
+//  A single lookahead character is enough because JSON is designed that way:
+//  every value type begins with a character no other type can begin with.
+//  There is no backtracking here and none is needed.
+//
+//  Numbers are the one case with no unique opener, so they fall to the default
+//  and are recognized by a digit or a leading minus. Anything else is an error
+//  naming the character, which is what makes a stray comma or a bare word in a
+//  hand-edited config point at itself.
+//
+//  The keyword cases re-assign outValue AFTER ParseKeyword succeeds: the
+//  keyword parser only verifies the spelling, so the typed value is built here
+//  rather than being inferred from a string.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,6 +147,7 @@ HRESULT JsonParser::ParseValue (JsonValue & outValue)
                 SetError (format ("Unexpected character '{}'", ch));
                 CBR (false);
             }
+
             break;
     }
 
@@ -144,6 +162,19 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  JsonParser::ParseString
+//
+//  Parses a quoted string, decoding the JSON escape sequences.
+//
+//  \u escapes are decoded but only EMITTED below U+0080. The parser's output
+//  is a narrow std::string, and the configs it reads -- machine definitions,
+//  theme files, user prefs -- are ASCII by design, so a higher code point is
+//  consumed and dropped rather than being written as a mojibake byte or
+//  forcing a UTF-8 encoder into the core. It stays consumed so the four hex
+//  digits never leak into the string as literal text.
+//
+//  A truncated escape, a truncated \u, and a missing closing quote are all
+//  errors rather than being tolerated at end of input -- a file cut short mid
+//  string should say so, not silently parse as a shorter value.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -219,8 +250,10 @@ HRESULT JsonParser::ParseString (string & outStr)
                 {
                     outStr += static_cast<char> (code);
                 }
+
                 break;
             }
+
             default:
             {
                 SetError (format ("Invalid escape sequence '\\{}'", esc));
@@ -247,6 +280,23 @@ Error:
 //
 //  JsonParser::ParseNumber
 //
+//  Parses a number, with one deliberate extension to the JSON grammar:
+//  `0x` hex literals.
+//
+//  Hex is accepted because the files this parser exists to read are full of
+//  6502 addresses, and a machine config that had to spell $C000 as 49152 would
+//  be unreadable to the people maintaining it. This is a private parser for
+//  first-party configs, not a general-purpose JSON library, so extending the
+//  grammar costs nothing externally.
+//
+//  Everything is stored as a double, matching JSON's single numeric type; the
+//  accessors narrow to int or Word at the point of use, where the expected
+//  range is actually known.
+//
+//  The standard path scans the full number -- sign, fraction, exponent -- and
+//  hands the whole span to strtod rather than accumulating digits by hand, so
+//  rounding matches the platform's own conversion.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT JsonParser::ParseNumber (JsonValue & outValue)
@@ -264,6 +314,8 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
 
     if (isHex)
     {
+        string  hexStr;
+
         Advance();  // '0'
         Advance();  // 'x'
 
@@ -272,12 +324,14 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
             Advance();
         }
 
-        string  hexStr = m_input.substr (start + 2, m_pos - start - 2);
+        hexStr = m_input.substr (start + 2, m_pos - start - 2);
 
         value = static_cast<double> (strtoul (hexStr.c_str(), nullptr, 16));
     }
     else
     {
+        string  numStr;
+
         // Standard JSON number
         if (Peek() == '-')
         {
@@ -314,7 +368,7 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
             }
         }
 
-        string  numStr = m_input.substr (start, m_pos - start);
+        numStr = m_input.substr (start, m_pos - start);
 
         value = strtod (numStr.c_str(), nullptr);
     }
@@ -331,6 +385,23 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  JsonParser::ParseObject
+//
+//  Parses `{ "key": value, ... }`, recursing through ParseValue for each
+//  member.
+//
+//  The empty object is tested before the loop rather than handled inside it,
+//  because the loop is structured as "parse a member, then decide whether
+//  another follows" -- entering it with `}` next would demand a key that is
+//  not there.
+//
+//  A trailing comma is consequently REJECTED: after a comma the loop
+//  unconditionally requires another key. That is stricter than some parsers,
+//  and deliberately so, since a trailing comma in a hand-edited config is
+//  nearly always a half-finished edit.
+//
+//  Entries are collected in a vector of pairs, not a map, so declaration order
+//  survives parsing and duplicate keys are preserved rather than one silently
+//  overwriting the other.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -365,6 +436,9 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
 
         while (!isEmpty)
         {
+            string     key;
+            JsonValue  val;
+
             SkipWhitespace();
 
             hasInput = !AtEnd();
@@ -373,7 +447,6 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
             isQuote = (Peek() == '"');
             CBRF (isQuote, SetError ("Expected string key in object"));
 
-            string key;
             hr = ParseString (key);
             CHR (hr);
 
@@ -384,7 +457,6 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
 
             Advance();
 
-            JsonValue val;
             hr = ParseValue (val);
             CHR (hr);
 
@@ -421,6 +493,17 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  JsonParser::ParseArray
+//
+//  Parses `[ value, ... ]` -- structurally the same walk as ParseObject
+//  without the key and colon.
+//
+//  The empty array is likewise tested before the loop, since the loop starts
+//  by demanding a value.
+//
+//  Elements are parsed through ParseValue, so arrays nest arbitrarily and can
+//  hold mixed types. Nothing here validates homogeneity: that is the consuming
+//  loader's business, and it can say something far more useful than "type
+//  mismatch at element 3".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -526,6 +609,23 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  JsonParser::SkipWhitespace
+//
+//  Skips whitespace and, as the parser's second deliberate extension to the
+//  grammar, `//` line comments.
+//
+//  Comments are supported because these files are hand-maintained
+//  configuration: a machine definition wants to say WHY a ROM sits at a given
+//  address, and strict JSON gives it nowhere to say it. Like the hex literals
+//  in ParseNumber, this is safe precisely because the parser reads only
+//  first-party files.
+//
+//  Comment skipping lives here, in the one function every parse step already
+//  calls between tokens, so a comment is legal anywhere whitespace is and no
+//  individual parser needs to know comments exist.
+//
+//  Block comments are NOT supported. A `//` runs to end of line and cannot be
+//  left unterminated, whereas an unclosed `/*` silently swallows the rest of
+//  the file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -57,6 +57,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
             ReleaseActivePopup();
             ShowPopup();
         }
+
         return;
     }
 
@@ -182,6 +183,25 @@ void DxuiTooltip::HideImmediate()
 //
 //  ShowPopup
 //
+//  Raises the tooltip balloon in a pooled popup window, sized to its text.
+//
+//  Three conditions mean "nothing to do" and none is an error: no host, no
+//  text, or a balloon ALREADY UP. That last one is why the test cannot be
+//  re-derived from m_activePopup further down -- by then this function may
+//  have just acquired one, and it would look like the already-up case.
+//
+//  The DPI is taken from the host at show time, which folds what used to be an
+//  explicit SetDpi push from every consumer into this one path.
+//
+//  Text is measured on the pooled popup's own text renderer BEFORE Show builds
+//  the swap chain, so the balloon is created at the right size rather than
+//  resized after appearing. When that renderer is unavailable -- test mode has
+//  no device -- it falls back to a glyph-count estimate, so placement logic
+//  stays testable without a GPU.
+//
+//  An exhausted pool simply shows nothing. A tooltip is an enhancement, and
+//  failing to show one must never disturb what the user is doing.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTooltip::ShowPopup()
@@ -228,6 +248,7 @@ void DxuiTooltip::ShowPopup()
         {
             textWDip = (float) m_text.size() * m_fontDip * s_kEstCharWidthEm;
         }
+
         if (textHDip <= 0.0f)
         {
             textHDip = m_fontDip * s_kEstLineHeightEm;
@@ -300,6 +321,24 @@ void DxuiTooltip::ReleaseActivePopup()
 //
 //  Paint
 //
+//  Draws the IN-WINDOW tooltip: the fallback used when no popup host is
+//  available.
+//
+//  It exits immediately when a popup IS active, because that balloon renders
+//  itself in its own window. Painting both would double-draw the tooltip, once
+//  clipped to the client area and once not.
+//
+//  The box is placed below the anchor and then CLAMPED to the viewport on both
+//  axes, so a tooltip near a window edge stays fully visible instead of being
+//  clipped away -- which is the whole limitation of the in-window path, and
+//  why the popup-hosted version exists.
+//
+//  Text is measured at paint time rather than cached, since the string changes
+//  with whatever is hovered and the measurement is one call for a short label.
+//
+//  Dimensions are ceiled before padding is added, so a fractional text width
+//  cannot round down and clip the final glyph.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
@@ -346,6 +385,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
         {
             boxLeft = (float) m_viewportWPx - edgePad - width;
         }
+
         if (boxLeft < edgePad)
         {
             boxLeft = edgePad;
@@ -365,14 +405,15 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     painter.FillRect    (boxLeft, boxTop, width, height, m_bgArgb);
     painter.OutlineRect (boxLeft, boxTop, width, height, borderPx, m_borderArgb);
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (m_text.c_str(),
-                                              boxLeft + padX,
-                                              boxTop  + padY,
-                                              width  - padX * 2.0f,
-                                              height - padY * 2.0f,
-                                              m_textArgb,
-                                              fontPx,
-                                              s_kFontFamily));
+    hr = text.DrawString (m_text.c_str(),
+                          boxLeft + padX,
+                          boxTop  + padY,
+                          width  - padX * 2.0f,
+                          height - padY * 2.0f,
+                          m_textArgb,
+                          fontPx,
+                          s_kFontFamily);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -449,12 +490,13 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
 
     painter.OutlineRect (0.0f, 0.0f, width, height, borderPx, m_borderArgb);
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (m_text.c_str(),
-                                              padX,
-                                              padY,
-                                              width  - padX * 2.0f,
-                                              height - padY * 2.0f,
-                                              m_textArgb,
-                                              fontPx,
-                                              s_kFontFamily));
+    hr = text.DrawString (m_text.c_str(),
+                          padX,
+                          padY,
+                          width  - padX * 2.0f,
+                          height - padY * 2.0f,
+                          m_textArgb,
+                          fontPx,
+                          s_kFontFamily);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }

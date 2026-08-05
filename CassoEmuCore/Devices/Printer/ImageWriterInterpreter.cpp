@@ -218,6 +218,28 @@ void ImageWriterInterpreter::Reset()
 //
 //  Consume
 //
+//  Feeds bytes through the ImageWriter escape-sequence state machine, one at a
+//  time.
+//
+//  A STREAMING state machine rather than a buffer-and-parse design, because
+//  the guest writes to the printer port a byte at a time over emulated seconds
+//  and an escape sequence can straddle any number of those writes. There is no
+//  point at which the whole command is available to look at.
+//
+//  Which is why every piece of partial state -- the current state, the
+//  parameter bytes collected so far, how many are still expected -- lives in
+//  the object rather than on the stack. A call may end mid-sequence and the
+//  next one continues it.
+//
+//  The four states are the shape of the protocol: literal text, an escape
+//  seen, collecting a known number of parameter bytes, and streaming graphics
+//  data. Only the parameter case is handled inline, since it is pure counting;
+//  the rest delegate.
+//
+//  Events are appended to the caller's vector rather than dispatched, so the
+//  interpreter stays free of callbacks and is testable by feeding it bytes and
+//  reading back what came out.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ImageWriterInterpreter::Consume (
@@ -248,6 +270,7 @@ void ImageWriterInterpreter::Consume (
             {
                 ExecuteParamCommand (raster, outEvents);
             }
+
             break;
 
         case EscState::GraphicsData:
@@ -540,6 +563,31 @@ void ImageWriterInterpreter::ConsumeEsc (Byte b, PrintRaster & raster, vector<Pr
 //
 //  ExecuteParamCommand
 //
+//  Applies an escape command once all its parameter bytes have arrived.
+//
+//  The parameter ENCODING is not uniform, which is the thing to know before
+//  editing: some commands take ASCII decimal digits, others take raw binary,
+//  and at least one takes binary least-significant byte first. Each arm
+//  therefore decodes its own parameters rather than sharing one path.
+//
+//  Several behaviors here were LOCKED FROM CAPTURES of real output rather than
+//  from documentation, because the documentation disagrees with the hardware:
+//
+//    ESC L  binary-count bit image whose MSB is the TOP pin -- the opposite
+//           bit order from ESC G. Print Shop's welcome message prints upside
+//           down under the documented reading
+//    ESC A  takes ONE binary byte for an n/72" feed. The documented
+//           parameterless "6 lpi" reading fed 24 rows per sign pass, a 1.7x
+//           vertical stretch with visible banding
+//
+//  Graphics commands set up the streaming state and hand off to the
+//  GraphicsData state rather than consuming data here, since the payload
+//  arrives across later Consume calls.
+//
+//  A zero data count returns to Idle instead of entering the graphics state,
+//  so a degenerate command cannot leave the machine waiting for bytes that
+//  will never come and swallow the rest of the document.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<PrinterEvent> & events)
@@ -583,6 +631,7 @@ void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<P
         {
             m_lineFeedRows = n;   // n/144" -> n native rows
         }
+
         m_state = EscState::Idle;
     }
     else if (m_cmd == s_kCmdLineSpace72)
@@ -597,6 +646,7 @@ void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<P
         {
             m_lineFeedRows = n * (PrinterGrid::kRowsPerInch / 72);
         }
+
         m_state = EscState::Idle;
     }
     else if (m_cmd == s_kCmdColor)
@@ -675,6 +725,7 @@ void ImageWriterInterpreter::ConsumeGraphicsByte (Byte b, PrintRaster & raster, 
         m_burstFromDot = dot0;
         m_burstRow     = row;
     }
+
     m_burstToDot = dot1 - 1;
 
     m_headColumnDots = dot1;

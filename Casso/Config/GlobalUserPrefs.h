@@ -94,8 +94,8 @@ struct GlobalUserPrefs
     // The matching ColorMode enum lives in UiCommandTypes.h; we don't
     // pull that include in here so the GlobalUserPrefs header stays
     // free of UI-layer dependencies.
-    static constexpr size_t  kCrtModeCount = 4;
-    Crt          crtByMode[kCrtModeCount];
+    static constexpr size_t  kCrtModeCount            = 4;
+    Crt                      crtByMode[kCrtModeCount];
 
     struct WindowBounds
     {
@@ -177,7 +177,7 @@ struct GlobalUserPrefs
 
 
 private:
-    static bool         GetBoolOpt   (const JsonValue   & obj,
+    static bool         TryGetBoolOpt   (const JsonValue   & obj,
                                       const std::string & key,
                                       bool                fallback);
     static double       GetNumberOpt (const JsonValue   & obj,

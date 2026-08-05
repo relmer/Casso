@@ -594,9 +594,9 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
     // three fixed header blocks.
     for (slot = 0; slot < slotCount; slot++)
     {
-        size_t   bitCount = img.GetTrackBitCount (slot);
-        size_t   byteCount = 0;
-        size_t   blocks    = 0;
+        size_t  bitCount  = img.GetTrackBitCount (slot);
+        size_t  byteCount = 0;
+        size_t  blocks    = 0;
 
         if (bitCount == 0)
         {
@@ -647,6 +647,7 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
         // compatible hardware (+40..41) / required RAM (+42..43): unknown = 0
         Write16LE (info + 44, largestTrack);                   // largest track, in blocks
     }
+
     pos += 8 + kInfoChunkSize;
 
     // TMAP chunk: one slot index (or 0xFF) per quarter-track phase.
@@ -664,6 +665,7 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
                        : kTmapEmptyTrack;
         }
     }
+
     pos += 8 + kTmapChunkSize;
 
     // TRKS chunk: 160 fixed 8-byte records; populated slots reference their

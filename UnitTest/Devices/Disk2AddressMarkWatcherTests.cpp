@@ -34,6 +34,23 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  Disk2AddressMarkWatcherTests
 //
+//  The address-mark watcher: recognizing sector headers in the nibble stream
+//  as the guest reads them.
+//
+//  It watches the READS the guest performs rather than decoding the track
+//  itself, which is what lets the debug panel report which sector the boot ROM
+//  is looking at without interpreting the disk format. So the tests feed nibble
+//  sequences the way a read would deliver them, one at a time.
+//
+//  Partial and interrupted marks are the substance: a prologue that starts and
+//  is cut short by a seek must reset the watcher rather than leaving it
+//  half-matched, or the next stream's bytes complete a mark that never
+//  occurred.
+//
+//  Marks are matched against the actual $D5 $AA $96 and $D5 $AA $AD prologues,
+//  since the difference between an address field and a data field is what makes
+//  the report useful.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace Disk2AddressMarkWatcherTests
@@ -225,11 +242,11 @@ namespace Disk2AddressMarkWatcherTests
         TEST_METHOD (RandomNibbleStream_firesZeroAddressMarks)
         {
             Disk2AddressMarkWatcher  watcher;
-            RecordingSink             sink;
+            RecordingSink            sink;
+            uint32_t                 i            = 0;
+            constexpr uint32_t       kStreamBytes = 1u << 20;   // 1 MiB
             std::mt19937              rng (0xC0FFEEu);
             std::uniform_int_distribution<int>  dist (0, 255);
-            uint32_t                  i = 0;
-            constexpr uint32_t        kStreamBytes = 1u << 20;   // 1 MiB
 
             watcher.SetEventSink (&sink);
 
@@ -376,11 +393,13 @@ namespace Disk2AddressMarkWatcherTests
             {
                 stream.push_back (0xFF);
             }
+
             AppendAddressMark (stream, 254, 17, 5, 0, false);
             for (i = 0; i < 8; i++)
             {
                 stream.push_back (0xFF);
             }
+
             AppendDataMark (stream);
             for (i = 0; i < 8; i++)
             {
@@ -398,6 +417,7 @@ namespace Disk2AddressMarkWatcherTests
                     img.WriteBit (0, bitOffset + (size_t) b,
                                   (uint8_t) ((nibble >> (7 - b)) & 1));
                 }
+
                 bitOffset += 8;
             }
 

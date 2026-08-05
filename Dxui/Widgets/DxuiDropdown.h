@@ -85,8 +85,10 @@ public:
         {
             Close();
         }
+
         m_popupHost = host;
     }
+
     DxuiHwndSource *  PopupHost () const { return m_popupHost; }
     DxuiPopupHost  *  ActivePopup () const { return m_activePopup; }
 
@@ -123,19 +125,19 @@ private:
     void            OnPopupClick    (POINT localPx);
     ResolvedColors  ResolveColors   () const;
 
-    std::vector<std::wstring>  m_items;
-    SelectFn                  m_select;
-    SelectFn                  m_highlightChange;
-    bool                      m_open      = false;
-    bool                      m_armed     = false;
-    bool                      m_hover     = false;
-    int                       m_highlight = -1;
-    int                       m_selected  = -1;
-    DxuiDpiScaler                 m_scaler;
-    bool                      m_enabled   = true;
-    bool                      m_focused   = false;
-    DxuiHwndSource          * m_popupHost   = nullptr;
-    DxuiPopupHost           * m_activePopup = nullptr;
-    mutable bool               m_hasThemeColors = false;
-    mutable ResolvedColors     m_themeColors    = {};
+    std::vector<std::wstring>    m_items;
+    SelectFn                     m_select;
+    SelectFn                     m_highlightChange;
+    bool                         m_open            = false;
+    bool                         m_armed           = false;
+    bool                         m_hover           = false;
+    int                          m_highlight       = -1;
+    int                          m_selected        = -1;
+    DxuiDpiScaler                m_scaler;
+    bool                         m_enabled         = true;
+    bool                         m_focused         = false;
+    DxuiHwndSource             * m_popupHost       = nullptr;
+    DxuiPopupHost              * m_activePopup     = nullptr;
+    mutable bool                 m_hasThemeColors  = false;
+    mutable ResolvedColors       m_themeColors     = {};
 };

@@ -84,13 +84,14 @@ public:
 
     TEST_METHOD (Phase7_ColdBootReaches_BASIC_Prompt)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        int            promptRow;
+        HeadlessHost              host;
+        EmulatorCore              core;
+        int                       promptRow;
+        std::vector<std::string>  rows;
 
         BootToPrompt (host, core);
 
-        std::vector<std::string>   rows = TextScreenScraper::Scrape (core);
+        rows = TextScreenScraper::Scrape (core);
 
         Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size(),
             L"Scraper must produce 24 rows");
@@ -112,16 +113,18 @@ public:
 
     TEST_METHOD (Phase7_ColdBoot_IsDeterministic)
     {
-        HeadlessHost   hostA;
-        HeadlessHost   hostB;
-        EmulatorCore   coreA;
-        EmulatorCore   coreB;
+        HeadlessHost              hostA;
+        HeadlessHost              hostB;
+        EmulatorCore              coreA;
+        EmulatorCore              coreB;
+        std::vector<std::string>  rowsA;
+        std::vector<std::string>  rowsB;
 
         BootToPrompt (hostA, coreA);
         BootToPrompt (hostB, coreB);
 
-        std::vector<std::string>   rowsA = TextScreenScraper::Scrape (coreA);
-        std::vector<std::string>   rowsB = TextScreenScraper::Scrape (coreB);
+        rowsA = TextScreenScraper::Scrape (coreA);
+        rowsB = TextScreenScraper::Scrape (coreB);
 
         Assert::AreEqual (rowsA.size(), rowsB.size());
 
@@ -142,12 +145,13 @@ public:
 
     TEST_METHOD (Phase7_HOME_PRINT_HELLO_Visible)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        size_t         consumed1;
-        size_t         consumed2;
-        int            helloRow;
-        int            promptRow;
+        HeadlessHost              host;
+        EmulatorCore              core;
+        size_t                    consumed1;
+        size_t                    consumed2;
+        int                       helloRow;
+        int                       promptRow;
+        std::vector<std::string>  rows;
 
         BootToPrompt (host, core);
 
@@ -161,7 +165,7 @@ public:
 
         core.RunCycles (kAfterCommandCycles);
 
-        std::vector<std::string>   rows = TextScreenScraper::Scrape (core);
+        rows = TextScreenScraper::Scrape (core);
 
         helloRow = FindRowContaining (rows, "HELLO");
 
@@ -187,6 +191,19 @@ public:
     ////////////////////////////////////////////////////////////////////////
     //
     //  US1 / T071: PR#3 activates 80-column mode (RD80VID + RD80STORE).
+    //
+    //  Runs the firmware's PR#3 path and asserts both 80-column soft switches
+    //  end up set.
+    //
+    //  PR#3 is how a //e user actually turns on 80 columns, so this exercises
+    //  the FIRMWARE doing it rather than the test setting the switches -- which
+    //  means the $C300 slot ROM, the Cxxx routing, and the soft-switch bank all
+    //  have to be wired correctly for it to pass.
+    //
+    //  BOTH switches are asserted because they are separate and mean different
+    //  things: RD80VID selects the 80-column display, while RD80STORE changes
+    //  what $C054/$C055 do -- and a mode with only one set displays the wrong
+    //  half of memory.
     //
     ////////////////////////////////////////////////////////////////////////
 
@@ -228,11 +245,12 @@ public:
 
     TEST_METHOD (Phase7_PR3_Then_PRINT_LongString_80ColScrape)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        HeadlessHost              host;
+        EmulatorCore              core;
+        size_t                    consumed;
+        int                       row;
+        std::vector<std::string>  rows;
         const char *   needle = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        size_t         consumed;
-        int            row;
 
         BootToPrompt (host, core);
 
@@ -253,7 +271,7 @@ public:
 
         core.RunCycles (kAfterCommandCycles);
 
-        std::vector<std::string>   rows = TextScreenScraper::Scrape (core);
+        rows = TextScreenScraper::Scrape (core);
 
         Assert::AreEqual (size_t (TextScreenScraper::kCols80), rows[0].size(),
             L"80-col scrape rows must be 80 chars wide");

@@ -57,6 +57,10 @@ public:
 
     TEST_METHOD (PowerCycleMenuItemDispatchesPowerCycle)
     {
+        size_t       nonZero = 0;
+
+
+
         // Contract: IDM_MACHINE_POWERCYCLE drives MemoryBus::PowerCycleAll
         // (Prng-seeded fan-out) and the same SoftReset effect. Verify by
         // observing that the RAM is non-zero after the call (the
@@ -64,7 +68,6 @@ public:
         // one that re-seeds DRAM).
         RamDevice    ram (0x0000, 0xBFFF);
         Prng         prng (0xCA550001ULL);
-        size_t       nonZero = 0;
 
         ram.Reset();   // start zeroed
         ram.PowerCycle (prng);

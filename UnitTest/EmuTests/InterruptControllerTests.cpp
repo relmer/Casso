@@ -60,6 +60,23 @@ namespace Apple2eFidelityIc
     //
     //  InterruptControllerTests
     //
+    //  The shared IRQ line: several sources asserting and releasing it
+    //  independently.
+    //
+    //  IRQ is WIRED-OR, and that is the whole subject. The line stays asserted
+    //  while ANY source holds it, so a source releasing must not clear the line
+    //  for the others -- the classic bug being an interrupt handler that
+    //  services one device and inadvertently dismisses another's pending
+    //  request.
+    //
+    //  Source tokens are covered because they are reclaimed on a machine
+    //  switch: a stale token asserting after its device is gone would leave the
+    //  CPU permanently interrupted.
+    //
+    //  Assert and release are tested in several orders, since the count is what
+    //  makes the wired-OR work and an order-dependent implementation passes the
+    //  simple sequence.
+    //
     ////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (InterruptControllerTests)
@@ -67,10 +84,11 @@ namespace Apple2eFidelityIc
     public:
         TEST_METHOD (SingleAssertReachesCpu)
         {
-            RecordingCpu            cpu;
+            RecordingCpu  cpu;
+            HRESULT       hr  = S_OK;
+            IrqSourceId   id  = {};
             InterruptController     ic (&cpu);
-            IrqSourceId             id = 0;
-            HRESULT                 hr = S_OK;
+            id = 0;
 
 
 
@@ -89,12 +107,15 @@ namespace Apple2eFidelityIc
 
         TEST_METHOD (MultipleAssertersOredTogether)
         {
-            RecordingCpu            cpu;
+            RecordingCpu  cpu;
+            HRESULT       hr  = S_OK;
+            IrqSourceId   a   = {};
+            IrqSourceId   b   = {};
+            IrqSourceId   c   = {};
             InterruptController     ic (&cpu);
-            IrqSourceId             a  = 0;
-            IrqSourceId             b  = 0;
-            IrqSourceId             c  = 0;
-            HRESULT                 hr = S_OK;
+            a = 0;
+            b = 0;
+            c = 0;
 
 
 
@@ -113,11 +134,13 @@ namespace Apple2eFidelityIc
 
         TEST_METHOD (ClearOnlyDeassertsWhenAllSourcesClear)
         {
-            RecordingCpu            cpu;
+            RecordingCpu  cpu;
+            HRESULT       hr  = S_OK;
+            IrqSourceId   a   = {};
+            IrqSourceId   b   = {};
             InterruptController     ic (&cpu);
-            IrqSourceId             a  = 0;
-            IrqSourceId             b  = 0;
-            HRESULT                 hr = S_OK;
+            a = 0;
+            b = 0;
 
 
 
@@ -140,12 +163,14 @@ namespace Apple2eFidelityIc
 
         TEST_METHOD (UnregisteredSourceRejected)
         {
-            RecordingCpu            cpu;
+            RecordingCpu  cpu;
+            HRESULT       hr        = S_OK;
+            int           i         = 0;
+            IrqSourceId   id        = {};
+            IrqSourceId   allocated = {};
             InterruptController     ic (&cpu);
-            IrqSourceId             id          = 0;
-            IrqSourceId             allocated   = 0;
-            HRESULT                 hr          = S_OK;
-            int                     i           = 0;
+            id = 0;
+            allocated = 0;
 
 
 
@@ -171,9 +196,9 @@ namespace Apple2eFidelityIc
         TEST_METHOD (WorksWithMockIrqAsserter)
         {
             RecordingCpu            cpu;
+            HRESULT                 hr = S_OK;
             InterruptController     ic (&cpu);
             MockIrqAsserter         asserter (&ic);
-            HRESULT                 hr = S_OK;
 
 
 

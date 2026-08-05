@@ -36,9 +36,9 @@ public:
     TEST_METHOD (SeedDeterminism)
     {
         constexpr uint64_t  kPinnedSeed = 0xCA550001ULL;
+        size_t              i;
         Prng                a (kPinnedSeed);
         Prng                b (kPinnedSeed);
-        size_t              i;
 
         for (i = 0; i < 1024; i++)
         {
@@ -48,9 +48,12 @@ public:
 
     TEST_METHOD (ZeroSeedProducesNonZeroSequence)
     {
-        Prng        prng (0);
         size_t      i;
         uint64_t    sample;
+
+
+
+        Prng        prng (0);
 
         for (i = 0; i < 16; i++)
         {

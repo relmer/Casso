@@ -135,7 +135,7 @@ private:
     // Locates `key` in `obj` and confirms it holds `wanted`. The three
     // TryGet*Field helpers below differ only in the type they ask for and the
     // getter they call, so the lookup lives here once.
-    static bool  FindTypedField (const JsonValue    &  obj,
+    static bool  TryFindTypedField (const JsonValue    &  obj,
                                  const std::string  &  key,
                                  JsonType              wanted,
                                  const JsonValue    *& outValue);
@@ -165,6 +165,13 @@ private:
 
     static bool  IsObjectArray (const JsonValue & v);
 
+    // One DiffJson step for a key present in BOTH current and defaults.
+    static void  DiffMatchedKey (
+        std::vector<std::pair<std::string, JsonValue>> & diff,
+        const std::string                              & key,
+        const JsonValue                                & cv,
+        const JsonValue                                & dv);
+
     // `outFoundLegacy` is false when there was nothing from an older
     // layout to pull forward -- a first run, not a migration failure.
     HRESULT      MigrateLegacyFiles  (GlobalUserPrefs & prefs,
@@ -177,7 +184,7 @@ private:
     HRESULT      LoadCombinedJson    (const JsonValue & root,
                                       GlobalUserPrefs & prefs) const;
 
-    std::wstring                       m_userDir;
-    mutable std::map<std::string, JsonValue>  m_machinePrefs;
-    GlobalUserPrefs                  * m_prefs = nullptr;
+    std::wstring                                m_userDir;
+    mutable std::map<std::string, JsonValue>    m_machinePrefs;
+    GlobalUserPrefs                           * m_prefs        = nullptr;
 };

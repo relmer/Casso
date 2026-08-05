@@ -83,6 +83,25 @@ float DxuiInfoBanner::PreferredHeightPx (float widthPx, const DxuiDpiScaler & sc
 //
 //  DxuiInfoBanner::Paint
 //
+//  Draws an informational notice: an accent-tinted surface, an info badge, and
+//  wrapping body text.
+//
+//  A tinted fill inside a MUTED accent border, rather than a solid accent
+//  panel, so the banner reads as a notice and not as a button. That
+//  distinction is the widget's entire job -- it must be noticed without
+//  inviting a click.
+//
+//  The badge is drawn from PRIMITIVES rather than an icon-font glyph. That
+//  avoids a font dependency for one symbol, and more importantly gives exact
+//  centering: a glyph's optical center rarely coincides with its line-box
+//  center, so a font-drawn "i" sits visibly off inside a disc.
+//
+//  The badge geometry is expressed as fractions of the disc radius, so it
+//  scales with DPI and with any icon size without a second set of constants.
+//
+//  Text is inset past the badge and wraps, since a notice is prose of
+//  unpredictable length -- unlike a label, it must not be clipped.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
@@ -128,16 +147,17 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     }
 
     // Wrapping body text.
-    IGNORE_RETURN_VALUE (hr, text.DrawString (m_text.c_str(),
-                                              textX,
-                                              top + padY,
-                                              (textW > 1.0f) ? textW : 1.0f,
-                                              height - padY * 2.0f,
-                                              theme.InfoBannerForeground(),
-                                              fontPx,
-                                              DxuiTheme::kBodyFace,
-                                              DxuiTextHAlign::Left,
-                                              DxuiTextVAlign::Top,
-                                              DxuiFontWeight::Normal,
-                                              true));
+    hr = text.DrawString (m_text.c_str(),
+                          textX,
+                          top + padY,
+                          (textW > 1.0f) ? textW : 1.0f,
+                          height - padY * 2.0f,
+                          theme.InfoBannerForeground(),
+                          fontPx,
+                          DxuiTheme::kBodyFace,
+                          DxuiTextHAlign::Left,
+                          DxuiTextVAlign::Top,
+                          DxuiFontWeight::Normal,
+                          true);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }

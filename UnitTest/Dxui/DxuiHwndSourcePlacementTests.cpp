@@ -8,7 +8,23 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiHwndSourcePlacementTests
+//
+//  Window placement: clamping to the work area, and rescuing a window saved on
+//  a monitor that no longer exists.
+//
+//  Pure geometry over supplied rects, with no real monitors involved -- which
+//  is the point. The interesting cases are a display configuration the test
+//  machine does not have: a removed screen, a negative-coordinate secondary, a
+//  taskbar on an unusual edge.
+//
+//  The work area rather than the monitor rect is the target throughout, so a
+//  restored window is never left under the taskbar.
+//
+//  A window whose saved rect lands on no monitor must fall back to the default
+//  placement rather than being dragged onto a survivor -- these pin that
+//  choice, which is the difference between a window appearing where the user
+//  expects and appearing somewhere arbitrary.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

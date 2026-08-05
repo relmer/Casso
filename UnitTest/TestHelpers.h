@@ -19,6 +19,21 @@
 //
 //  TestCpu
 //
+//  A Cpu subclass that exposes what tests need and nothing more.
+//
+//  It exists because the CPU's instruction table and internals are protected --
+//  correctly, since nothing in the product should reach them -- while tests
+//  legitimately must. Subclassing keeps that access in ONE place rather than
+//  loosening the real class's encapsulation for every test that needs a peek.
+//
+//  InitForTest builds the instruction set without the rest of a machine, which
+//  is what lets assembler tests obtain a valid table with no bus, no devices,
+//  and no config.
+//
+//  It adds no BEHAVIOR. Anything that changed how the CPU executes would make
+//  every test that uses it prove something about the double rather than about
+//  the product.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class TestCpu : public Cpu6502

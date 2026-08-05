@@ -26,12 +26,12 @@
 class DiskImage : public IDiskImage
 {
 public:
-    static constexpr int      kMaxTracks            = 40;
-    static constexpr int      kDefaultTrackCount    = 35;
-    static constexpr size_t   kDefaultTrackByteSize = 6400;
-    static constexpr size_t   kDos33ImageSize       = 143360;
-    static constexpr int      kQuarterTrackCount    = 160;
-    static constexpr int      kQuarterTracksPerWholeTrack = 4;
+    static constexpr int     kMaxTracks                  = 40;
+    static constexpr int     kDefaultTrackCount          = 35;
+    static constexpr size_t  kDefaultTrackByteSize       = 6400;
+    static constexpr size_t  kDos33ImageSize             = 143360;
+    static constexpr int     kQuarterTrackCount          = 160;
+    static constexpr int     kQuarterTracksPerWholeTrack = 4;
 
     DiskImage ();
 
@@ -64,6 +64,7 @@ public:
         m_fileReadOnly     = readOnly;
         m_fileNoPermission = noPermission;
     }
+
     bool             IsImageWriteProtected  () const { return m_imageWriteProtected; }
     bool             IsUserWriteProtected   () const { return m_userWriteProtected;  }
     WriteProtectInfo GetWriteProtectInfo    () const;
@@ -111,17 +112,17 @@ private:
     // which case neither out-parameter is meaningful.
     bool     TryLocateBit     (int track, size_t bitIndex, size_t & byteIdx, int & shift) const;
 
-    string             m_filePath;
-    vector<vector<Byte>>     m_trackBits;
-    vector<size_t>           m_trackBitCounts;
-    vector<bool>             m_trackDirty;
-    vector<int>              m_quarterTrackMap;
-    DiskFormat               m_format         = DiskFormat::Dsk;
-    bool                     m_loaded         = false;
-    bool                     m_dirty          = false;
-    bool                     m_imageWriteProtected = false;
-    bool                     m_userWriteProtected  = false;
-    bool                     m_fileReadOnly        = false;
-    bool                     m_fileNoPermission    = false;
-    vector<Byte>             m_rawSourceBytes;
+    string                m_filePath;
+    vector<vector<Byte>>  m_trackBits;
+    vector<size_t>        m_trackBitCounts;
+    vector<bool>          m_trackDirty;
+    vector<int>           m_quarterTrackMap;
+    DiskFormat            m_format              = DiskFormat::Dsk;
+    bool                  m_loaded              = false;
+    bool                  m_dirty               = false;
+    bool                  m_imageWriteProtected = false;
+    bool                  m_userWriteProtected  = false;
+    bool                  m_fileReadOnly        = false;
+    bool                  m_fileNoPermission    = false;
+    vector<Byte>          m_rawSourceBytes;
 };

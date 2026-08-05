@@ -53,16 +53,16 @@ TEST_CLASS (BootDiskTests)
 {
 public:
 
-    static constexpr int     kMaxAncestorWalk     = 10;
-    static constexpr size_t  kHgrPayloadSize      = 8192;
-    static constexpr size_t  kLoresPayloadSize    = 1024;
-    static constexpr size_t  kSectorByteSize      = 256;
-    static constexpr int     kSectorsPerTrack     = 16;
-    static constexpr Word    kHgrBase             = 0x2000;
-    static constexpr Word    kBootEntry           = 0xC600;
-    static constexpr Word    kDemoEntry           = 0x0801;
-    static constexpr Word    kStage2Entry         = 0x1000;
-    static constexpr uint64_t  kDemoCycleBudget   = 10'000'000ULL;  // 10M cycles ≈ 9.8 sec emulated; ample for 9 disk tracks (~2 sec real time)
+    static constexpr int       kMaxAncestorWalk  = 10;
+    static constexpr size_t    kHgrPayloadSize   = 8192;
+    static constexpr size_t    kLoresPayloadSize = 1024;
+    static constexpr size_t    kSectorByteSize   = 256;
+    static constexpr int       kSectorsPerTrack  = 16;
+    static constexpr Word      kHgrBase          = 0x2000;
+    static constexpr Word      kBootEntry        = 0xC600;
+    static constexpr Word      kDemoEntry        = 0x0801;
+    static constexpr Word      kStage2Entry      = 0x1000;
+    static constexpr uint64_t  kDemoCycleBudget  = 10'000'000ULL;   // 10M cycles ≈ 9.8 sec emulated; ample for 9 disk tracks (~2 sec real time)
 
 
     // Walks up from the test's working directory (x64\Debug) looking for a
@@ -104,8 +104,11 @@ public:
     // exists, so an empty result surfaces as an assertion on the content.
     std::string ReadFileText (const fs::path & path)
     {
-        std::ifstream  f (path);
         std::string    text;
+
+
+
+        std::ifstream  f (path);
 
         if (f)
         {
@@ -119,8 +122,11 @@ public:
 
     std::vector<Byte> ReadFileBytes (const fs::path & path)
     {
-        std::ifstream      f (path, std::ios::binary);
         std::vector<Byte>  bytes;
+
+
+
+        std::ifstream      f (path, std::ios::binary);
 
         if (f)
         {
@@ -159,17 +165,31 @@ public:
         }
         else
         {
-            std::string source       = ReadFileText (src);
-            std::string stage2Source = ReadFileText (stage2Src);
+            std::string              source          = ReadFileText (src);
+            std::string              stage2Source    = ReadFileText (stage2Src);
+            std::vector<Byte>        hgrPayload;
+            std::vector<Byte>        bandsPayload;
+            std::vector<Byte>        loresPayload;
+            std::vector<Byte>        dhgrAuxPayload;
+            std::vector<Byte>        dhgrMainPayload;
+            Cpu                      cpu;
+            HeadlessHost             host;
+            EmulatorCore             core;
+            HRESULT                  hr              = S_OK;
+            DiskImage              * img             = nullptr;
+            Apple2eSoftSwitchBank  * ss              = nullptr;
+            Byte                   * auxBuf          = nullptr;
+            AssemblyResult           asmResult;
+            AssemblyResult           stage2Result;
             Assert::IsFalse (source.empty(), L"casso-rocks.a65 must not be empty");
             Assert::IsFalse (stage2Source.empty(),
                 L"casso-rocks-stage2.a65 must not be empty");
 
-            std::vector<Byte>  hgrPayload      = ReadFileBytes (hgrPath);
-            std::vector<Byte>  bandsPayload    = ReadFileBytes (bandsPath);
-            std::vector<Byte>  loresPayload    = ReadFileBytes (loresPath);
-            std::vector<Byte>  dhgrAuxPayload  = ReadFileBytes (dhgrAuxPath);
-            std::vector<Byte>  dhgrMainPayload = ReadFileBytes (dhgrMainPath);
+            hgrPayload = ReadFileBytes (hgrPath);
+            bandsPayload = ReadFileBytes (bandsPath);
+            loresPayload = ReadFileBytes (loresPath);
+            dhgrAuxPayload = ReadFileBytes (dhgrAuxPath);
+            dhgrMainPayload = ReadFileBytes (dhgrMainPath);
             Assert::AreEqual (kHgrPayloadSize, hgrPayload.size(),
                 L"cassowary.hgr must be exactly 8192 bytes");
             Assert::AreEqual (kHgrPayloadSize, bandsPayload.size(),
@@ -181,10 +201,9 @@ public:
             Assert::AreEqual (kHgrPayloadSize, dhgrMainPayload.size(),
                 L"dhgr-cassowary-main.bin must be exactly 8192 bytes");
 
-            Cpu             cpu;
             Assembler       assembler (cpu.GetInstructionSet());
 
-            AssemblyResult  asmResult = assembler.Assemble (source);
+            asmResult = assembler.Assemble (source);
             if (!asmResult.success)
             {
                 wchar_t  msg[256] = {};
@@ -196,7 +215,7 @@ public:
                 Assert::Fail (msg);
             }
 
-            AssemblyResult  stage2Result = assembler.Assemble (stage2Source);
+            stage2Result = assembler.Assemble (stage2Source);
             if (!stage2Result.success)
             {
                 wchar_t  msg[256] = {};
@@ -315,10 +334,8 @@ public:
             StitchPayload (6, hgrPayload);            // tracks 6+7 -> HGR1 cassowary @ main $A000
             StitchPayload (8, bandsPayload);          // tracks 8+9 -> HGR2 bands @ main $4000
 
-            HeadlessHost  host;
-            EmulatorCore  core;
 
-            HRESULT  hr = host.BuildApple2eWithDisk2 (core);
+            hr = host.BuildApple2eWithDisk2 (core);
             AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
             core.PowerCycle();
@@ -327,7 +344,7 @@ public:
                                                  DiskFormat::Dsk, raw);
             AssertSucceeded (hr, L"MountFromBytes must succeed");
 
-            DiskImage *  img = core.diskStore->GetImage (6, 0);
+            img = core.diskStore->GetImage (6, 0);
             Assert::IsNotNull (img);
             core.diskController->SetExternalDisk (0, img);
 
@@ -338,7 +355,7 @@ public:
             core.RunCycles (kDemoCycleBudget);
 
             // Verify boot landing soft-switch state (mode 0 = DHGR)
-            Apple2eSoftSwitchBank *   ss = core.softSwitches.get();
+            ss = core.softSwitches.get();
 
             Assert::IsNotNull (ss, L"Apple2eSoftSwitchBank must be present");
             Assert::IsTrue (ss->IsGraphicsMode(),
@@ -382,6 +399,7 @@ public:
                             expectedAtMismatch  = e;
                             actualAtMismatch    = actual;
                         }
+
                         mismatchCount++;
                     }
                 }
@@ -414,7 +432,7 @@ public:
                 L"Stashed HGR1 cassowary (main $A000)");
 
             // The DHGR aux half is at aux $2000 — read via MMU aux buffer.
-            Byte *  auxBuf = core.mmu->GetAuxBuffer();
+            auxBuf = core.mmu->GetAuxBuffer();
             Assert::IsNotNull (auxBuf, L"MMU aux buffer must be available");
             {
                 size_t  m = 0;
@@ -422,6 +440,7 @@ public:
                 {
                     if (auxBuf[0x2000 + i] != dhgrAuxPayload[i]) { m++; }
                 }
+
                 Assert::AreEqual (size_t (0), m,
                     L"DHGR aux half at boot landing must match payload");
             }
@@ -462,9 +481,11 @@ public:
             // Spot-check the LoRes pattern landed in text page 1.
             for (size_t i = 0; i < kLoresPayloadSize; i++)
             {
+                Byte  e = 0;
+
                 Byte  actual = core.bus->ReadByte (
                     static_cast<Word> (0x0400 + i));
-                Byte  e      = loresPayload[i];
+                e = loresPayload[i];
                 if (actual != e)
                 {
                     wchar_t  msg[256] = {};
@@ -614,10 +635,11 @@ public:
 
     static Byte ExpectedFillByte (Byte mask, size_t byteIndex)
     {
-        Byte   pixelBits  = static_cast<Byte> (mask & kMaskPixelBits);
+        Byte  pixelBits = static_cast<Byte> (mask & kMaskPixelBits);
+        Byte  expected  = 0;
         bool   alternates = (pixelBits >= kFlipRangeFirst) &&
                             (pixelBits <= kFlipRangeLast);
-        Byte   expected   = mask;
+        expected = mask;
 
 
 
@@ -944,15 +966,17 @@ public:
 
     TEST_METHOD (Applesoft_HgrColorSweep_RendersDeterministicFrames)
     {
-        HeadlessHost            host;
-        EmulatorCore            core;
+        HeadlessHost  host;
+        EmulatorCore  core;
+        uint64_t      hash      = 0;
+        size_t        maskIndex = 0;
+        size_t        byteIndex = 0;
+        Byte          mask      = 0;
+        HRESULT       hr        = S_OK;
         std::vector<uint32_t>   fb (static_cast<size_t> (kFbWidth) * kFbHeight, 0);
-        uint64_t                hash      = 0xcbf29ce484222325ULL;
-        size_t                  maskIndex = 0;
-        size_t                  byteIndex = 0;
-        Byte                    mask      = 0;
+        hash = 0xcbf29ce484222325ULL;
 
-        HRESULT   hr = host.BuildApple2e (core);
+        hr = host.BuildApple2e (core);
 
 
 
@@ -1004,7 +1028,7 @@ public:
         HeadlessHost   host;
         EmulatorCore   core;
         size_t         consumed    = 0;
-        bool           returnTaken = false;
+        HRESULT        hrReturn    = S_OK;
         uint64_t       startCycles = 0;
         uint64_t       elapsed     = 0;
 
@@ -1022,9 +1046,9 @@ public:
         Assert::AreEqual (strlen (kSweepOneLiner), consumed,
             L"The whole one-liner must be consumed by the ROM input routine");
 
-        returnTaken = KeystrokeInjector::InjectKey (
+        hrReturn = KeystrokeInjector::InjectKey (
             core, KeystrokeInjector::kAppleReturn);
-        Assert::IsTrue (returnTaken, L"Return must be consumed");
+        AssertSucceeded (hrReturn, L"Return must be consumed");
 
         startCycles = core.cpu->GetTotalCycles();
 

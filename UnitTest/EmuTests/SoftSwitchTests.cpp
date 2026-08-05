@@ -161,8 +161,8 @@ public:
     TEST_METHOD (SoftSwitch_ViaBus_Works)
     {
         // Prove soft switches work when accessed through MemoryBus
-        MemoryBus bus;
-        AppleSoftSwitchBank sw;
+        MemoryBus            bus;
+        AppleSoftSwitchBank  sw;
         bus.AddDevice (&sw);
 
         bus.ReadByte (0xC050);  // Graphics on via bus
@@ -255,8 +255,8 @@ public:
     TEST_METHOD (IIeSwitches_Page2Switch_NotifiesBus)
     {
         MemoryBus              bus;
-        Apple2eSoftSwitchBank  sw (&bus);
         int                    callCount = 0;
+        Apple2eSoftSwitchBank  sw (&bus);
 
         bus.SetBankingChangedCallback ([&] () { callCount++; });
 
@@ -353,11 +353,11 @@ public:
 
     TEST_METHOD (BusDispatch_C055_Read_NotifiesBankingThroughBus)
     {
-        MemoryBus              bus;
+        MemoryBus  bus;
+        int        callCount = 0;
         Apple2eSoftSwitchBank  sw (&bus);
         bus.AddDevice (&sw);
 
-        int callCount = 0;
         bus.SetBankingChangedCallback ([&] () { callCount++; });
 
         bus.ReadByte (0xC055);
@@ -409,14 +409,15 @@ public:
 
     TEST_METHOD (IIeSwitches_80StoreToggle_NotifiesBus)
     {
-        MemoryBus              bus;
+        MemoryBus   bus;
+        Apple2eMmu  mmu;
+        int         callCount = 0;
+        HRESULT     hrInit    = S_OK;
         Apple2eSoftSwitchBank  sw (&bus);
-        Apple2eMmu             mmu;
         RamDevice              mainRam (0x0000, 0xBFFF);
-        int                    callCount = 0;
 
         sw.SetMmu (&mmu);
-        HRESULT hrInit = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, &sw);
+        hrInit = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, &sw);
         UNREFERENCED_PARAMETER (hrInit);
         bus.SetBankingChangedCallback ([&] () { callCount++; });
 
@@ -437,9 +438,9 @@ public:
     TEST_METHOD (BusDispatch_C001_Write_Enables80Store)
     {
         MemoryBus              bus;
+        Apple2eMmu             mmu;
         Apple2eSoftSwitchBank  sw  (&bus);
         Apple2eKeyboard        kbd (&bus);
-        Apple2eMmu             mmu;
         sw.SetMmu (&mmu);
         kbd.SetSoftSwitchSibling (&sw);
         kbd.SetMmu (&mmu);

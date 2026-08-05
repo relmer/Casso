@@ -40,6 +40,19 @@ public:
 
     static void WriteSquareWav (const fs::path & path, float amplitude, size_t frames)
     {
+        uint32_t         sampleRate    = 0;
+        uint32_t         dataBytes     = 0;
+        uint32_t         fileSize      = 0;
+        uint16_t         numChannels   = 0;
+        uint16_t         bitsPerSample = 0;
+        uint32_t         byteRate      = 0;
+        uint16_t         blockAlign    = 0;
+        uint16_t         formatPcm     = 0;
+        uint32_t         fmtSize       = 0;
+        std::error_code  ec;
+
+
+
         std::vector<float>  pcm (frames);
 
         for (size_t i = 0; i < frames; i++)
@@ -47,16 +60,15 @@ public:
             pcm[i] = ((i & 1) == 0) ? amplitude : -amplitude;
         }
 
-        uint32_t   sampleRate    = s_kTestSampleRate;
-        uint32_t   dataBytes     = static_cast<uint32_t> (pcm.size() * sizeof (int16_t));
-        uint32_t   fileSize      = 36 + dataBytes;
-        uint16_t   numChannels   = 1;
-        uint16_t   bitsPerSample = 16;
-        uint32_t   byteRate      = sampleRate * numChannels * (bitsPerSample / 8);
-        uint16_t   blockAlign    = numChannels * (bitsPerSample / 8);
-        uint16_t   formatPcm     = 1;
-        uint32_t   fmtSize       = 16;
-        std::error_code ec;
+        sampleRate = s_kTestSampleRate;
+        dataBytes = static_cast<uint32_t> (pcm.size() * sizeof (int16_t));
+        fileSize = 36 + dataBytes;
+        numChannels = 1;
+        bitsPerSample = 16;
+        byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+        blockAlign = numChannels * (bitsPerSample / 8);
+        formatPcm = 1;
+        fmtSize = 16;
 
         fs::create_directories (path.parent_path(), ec);
 
@@ -80,8 +92,8 @@ public:
 
         for (float s : pcm)
         {
-            float  scaled = s * 32767.0f;
-            int16_t  asI16 = static_cast<int16_t> (scaled);
+            float    scaled = s * 32767.0f;
+            int16_t  asI16  = static_cast<int16_t> (scaled);
             out.write (reinterpret_cast<const char *> (&asI16), sizeof (asI16));
         }
     }
@@ -89,9 +101,13 @@ public:
 
     static fs::path MakeDevicesDir (const wchar_t * suffix)
     {
-        fs::path  base = fs::temp_directory_path() / L"casso_mech_tests";
-        fs::path  dir  = base / suffix;
+        fs::path         dir;
         std::error_code  ec;
+
+
+
+        fs::path  base = fs::temp_directory_path() / L"casso_mech_tests";
+        dir = base / suffix;
 
         fs::remove_all  (dir, ec);
         fs::create_directories (dir, ec);
@@ -102,6 +118,10 @@ public:
 
     static float SamplePeak (Disk2AudioSource & src)
     {
+        float  peak = 0.0f;
+
+
+
         // Spec-006 bug 14a: motor loop is gated on disk presence, so
         // tests that just want to measure the loaded motor buffer's
         // amplitude need to insert a (synthetic) disk first.
@@ -111,7 +131,6 @@ public:
         std::vector<float>  frame (128);
         src.GeneratePCM (frame.data(), static_cast<uint32_t> (frame.size()));
 
-        float  peak = 0.0f;
         for (float s : frame)
         {
             float  a = (s < 0) ? -s : s;
@@ -141,6 +160,15 @@ public:
 
     TEST_METHOD (SetMechanism_callsLoadSamplesOnAllRegisteredSources)
     {
+        Disk2AudioSource  srcA;
+        Disk2AudioSource  srcB;
+        DriveAudioMixer   mixer;
+        float             peakA = 0.0f;
+        float             peakB = 0.0f;
+        std::error_code   ec;
+
+
+
         fs::path  devicesDir = MakeDevicesDir (L"AllSources");
 
         // Two distinct amplitudes per mechanism so the source's
@@ -148,9 +176,6 @@ public:
         WriteSquareWav (devicesDir / L"Shugart" / L"MotorLoop.wav", 0.10f, 256);
         WriteSquareWav (devicesDir / L"Alps"    / L"MotorLoop.wav", 0.80f, 256);
 
-        Disk2AudioSource   srcA;
-        Disk2AudioSource   srcB;
-        DriveAudioMixer    mixer;
 
         mixer.RegisterSource (&srcA);
         mixer.RegisterSource (&srcB);
@@ -160,8 +185,8 @@ public:
         HRESULT  hr = mixer.SetMechanism (L"Alps");
         AssertSucceeded (hr, L"SetMechanism(Alps) must succeed with valid context");
 
-        float  peakA = SamplePeak (srcA);
-        float  peakB = SamplePeak (srcB);
+        peakA = SamplePeak (srcA);
+        peakB = SamplePeak (srcB);
 
         // 0.80 amplitude * kMotorVolume (0.90) = 0.72 nominal; allow
         // generous slack for the float<->int16 round trip.
@@ -170,20 +195,25 @@ public:
         Assert::IsTrue (peakB > 0.10f,
             std::format (L"srcB must be at Alps amplitude post-reload (peak={})", peakB).c_str());
 
-        std::error_code  ec;
         fs::remove_all (devicesDir.parent_path(), ec);
     }
 
 
     TEST_METHOD (SetMechanism_alpsToShugart_changesActiveBufferSet)
     {
+        Disk2AudioSource  src;
+        DriveAudioMixer   mixer;
+        float             alpsPeak    = 0.0f;
+        float             shugartPeak = 0.0f;
+        std::error_code   ec;
+
+
+
         fs::path  devicesDir = MakeDevicesDir (L"SwapBack");
 
         WriteSquareWav (devicesDir / L"Shugart" / L"MotorLoop.wav", 0.80f, 256);
         WriteSquareWav (devicesDir / L"Alps"    / L"MotorLoop.wav", 0.10f, 256);
 
-        Disk2AudioSource   src;
-        DriveAudioMixer    mixer;
 
         mixer.RegisterSource (&src);
         mixer.SetSampleLoadContext (devicesDir.wstring(), s_kTestSampleRate);
@@ -191,12 +221,12 @@ public:
         HRESULT  hr = mixer.SetMechanism (L"Alps");
         AssertSucceeded (hr, L"Initial SetMechanism(Alps) must succeed");
 
-        float  alpsPeak = SamplePeak (src);
+        alpsPeak = SamplePeak (src);
 
         hr = mixer.SetMechanism (L"Shugart");
         AssertSucceeded (hr, L"Follow-up SetMechanism(Shugart) must succeed");
 
-        float  shugartPeak = SamplePeak (src);
+        shugartPeak = SamplePeak (src);
 
         // Shugart was written at 8x Alps' amplitude; verify the
         // active buffer actually swapped (the loop position resets
@@ -206,7 +236,6 @@ public:
             std::format (L"Active mechanism's louder buffer must dominate (alps={}, shugart={})",
                          alpsPeak, shugartPeak).c_str());
 
-        std::error_code  ec;
         fs::remove_all (devicesDir.parent_path(), ec);
     }
 

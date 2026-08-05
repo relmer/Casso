@@ -77,7 +77,24 @@ static void EnableXyInterrupts (AppleMouse & mouse)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  AppleMouseDeviceTests
+//
+//  The //c's IOU mouse as a DEVICE: position latching, the button, and the two
+//  interrupt sources.
+//
+//  Position is latched on the VBL EDGE rather than read live, which is the
+//  behavior these pin -- guest software reads a coherent pair of coordinates
+//  from one instant, and a live read would let X and Y come from different
+//  moments mid-move.
+//
+//  The two interrupt sources are asserted independently, since VBL and movement
+//  are separately enabled and a handler distinguishes them from the status
+//  byte -- conflating them makes a mouse that moves generate phantom VBL
+//  interrupts.
+//
+//  The mouse is ticked from the per-instruction cycle fan-out, so the tests
+//  advance cycles rather than frames; that is what keeps interrupt pacing
+//  locked to CPU progress.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -237,7 +254,22 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  AppleMouseFirmwareTests
+//
+//  The mouse as guest software SEES it: the $C4xx firmware entry points and
+//  the soft switches behind them.
+//
+//  A separate suite from the device tests because it exercises the other side
+//  of the contract -- the device can be correct while the firmware interface
+//  it is reached through is wired wrong, and only these would notice.
+//
+//  The PTRIG acknowledgement is covered specifically. The //c's VBL interrupt
+//  latch is sticky and is cleared by a partially-decoded PTRIG access across
+//  $C070-$C07F, which is how MousePaint acks it -- getting that decode wrong
+//  leaves the latch set and produces dead clicks and a laggy cursor.
+//
+//  Entry points are called the way firmware calls them, so the tests fail if
+//  the ROM's expectations and the device's behavior drift apart.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -251,14 +283,17 @@ public:
     // routing). This is how MousePaint-class software finds the mouse.
     TEST_METHOD (FirmwareIdentifiesMouseAtSlot7)
     {
+        HeadlessHost   host;
+        EmulatorCore   core;
+
+
+
         if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
             return;
         }
 
-        HeadlessHost   host;
-        EmulatorCore   core;
 
         AssertSucceeded (host.BuildApple2c (core));
         core.PowerCycle();
@@ -290,8 +325,15 @@ public:
         }
         else
         {
-            HeadlessHost   host;
-            EmulatorCore   core;
+            HeadlessHost  host;
+            EmulatorCore  core;
+            Word          addr    = 0;
+            int           x       = 0;
+            int           y       = 0;
+            Byte          status  = 0;
+            int           tx      = 0;
+            int           ty      = 0;
+            char          msg[96];
 
             AssertSucceeded (host.BuildApple2c (core));
             core.PowerCycle();
@@ -315,7 +357,7 @@ public:
                 0x58,                // CLI
                 0x4C, 0x11, 0x03,    // JMP $0311   spin, interrupts enabled
             };
-            Word  addr = 0x0300;
+            addr = 0x0300;
             for (Byte b : kInit) { core.cpu->WriteByte (addr++, b); }
 
             core.cpu->SetPC (0x0300);
@@ -340,8 +382,8 @@ public:
             core.RunCycles (100'000);
 
             // Slot-7 screen holes: $047F/$057F = X lo/hi, $04FF/$05FF = Y lo/hi.
-            int  x = core.cpu->ReadByte (0x047F) | (core.cpu->ReadByte (0x057F) << 8);
-            int  y = core.cpu->ReadByte (0x04FF) | (core.cpu->ReadByte (0x05FF) << 8);
+            x = core.cpu->ReadByte (0x047F) | (core.cpu->ReadByte (0x057F) << 8);
+            y = core.cpu->ReadByte (0x04FF) | (core.cpu->ReadByte (0x05FF) << 8);
 
             // Diagnostics for the firmware-oracle iteration loop.
             {
@@ -368,7 +410,7 @@ public:
             core.cpu->SetPC (0x0320);
             core.RunCycles (100'000);
 
-            Byte  status = core.cpu->ReadByte (0x077F);
+            status = core.cpu->ReadByte (0x077F);
             Assert::IsTrue ((status & 0x80) != 0, L"$077F bit 7: button currently down");
 
             // Absolute targeting (the GUI path)
@@ -384,9 +426,8 @@ public:
             core.cpu->SetPC (0x0320);                          // READMOUSE stub
             core.RunCycles (100'000);
 
-            int  tx = core.cpu->ReadByte (0x047F) | (core.cpu->ReadByte (0x057F) << 8);
-            int  ty = core.cpu->ReadByte (0x04FF) | (core.cpu->ReadByte (0x05FF) << 8);
-            char  msg[96];
+            tx = core.cpu->ReadByte (0x047F) | (core.cpu->ReadByte (0x057F) << 8);
+            ty = core.cpu->ReadByte (0x04FF) | (core.cpu->ReadByte (0x05FF) << 8);
             sprintf_s (msg, "absolute target -> firmware position (%d, %d)", tx, ty);
             Logger::WriteMessage (msg);
             Assert::IsTrue (tx > 495 && tx < 528, L"absolute X lands near mid-clamp (~511)");
@@ -412,10 +453,12 @@ public:
         }
         else
         {
-            std::vector<uint8_t>  bytes ((std::istreambuf_iterator<char> (f)), std::istreambuf_iterator<char> ());
-
             HeadlessHost  host;
             EmulatorCore  core;
+            char          st[128];
+
+            std::vector<uint8_t>  bytes ((std::istreambuf_iterator<char> (f)), std::istreambuf_iterator<char> ());
+
             AssertSucceeded (host.BuildApple2c (core));
             core.PowerCycle();
             AssertSucceeded (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes));
@@ -444,7 +487,6 @@ public:
             core.mouse->SetButton (true);
             core.RunCycles (2'000'000);
             dump ("---- screen after RUN + motion ----");
-            char  st[128];
             sprintf_s (st, "xyEn=%d mode07FF=%02X PC=%04X",
                        core.mouse->XyInterruptsEnabled() ? 1 : 0,
                        core.cpu->ReadByte (0x07FF), core.cpu->GetPC());
@@ -458,10 +500,13 @@ public:
     // IWM-mode-specific write bug from a general harness/DOS-save issue.
     TEST_METHOD (Diag_ControlSaveOnApple2e)
     {
-        const char *  kDiskPath = "C:\\Users\\relmer\\AppData\\Local\\Casso\\Disks\\DOS 3.3 Writable.woz";
-        char          envBuf[8] = {};
         size_t        envLen    = 0;
         const char *  skipWhy   = nullptr;
+        char          envBuf[8] = {};
+
+
+
+        const char *  kDiskPath = "C:\\Users\\relmer\\AppData\\Local\\Casso\\Disks\\DOS 3.3 Writable.woz";
 
         // Two separate reasons to sit this one out, reported separately so a
         // developer who set the env var still learns the disk is missing.
@@ -484,10 +529,14 @@ public:
         }
         else
         {
+            HeadlessHost    host;
+            EmulatorCore    core;
+            bool            ok       = false;
+            DiskImage     * img      = nullptr;
+            char            diag[96];
+
             std::vector<uint8_t>  bytes ((std::istreambuf_iterator<char> (f)), std::istreambuf_iterator<char> ());
 
-            HeadlessHost  host;
-            EmulatorCore  core;
             AssertSucceeded (host.BuildApple2eWithDisk2 (core));
             core.diskController->SetIwmMode (true);   // discriminator: IWM vs 65C02
             core.PowerCycle();
@@ -502,14 +551,13 @@ public:
             KeystrokeInjector::InjectLine (core, "LIST", 2'000'000);
 
             Logger::WriteMessage ("---- //e control: after SAVE/LOAD/LIST ----");
-            bool  ok = false;
             for (const std::string & row : TextScreenScraper::Scrape (core))
             {
                 Logger::WriteMessage (row.c_str());
                 if (row.find ("PRINT \"HI\"") != std::string::npos) { ok = true; }
             }
-            DiskImage *  img = core.diskStore->GetImage (6, 0);
-            char  diag[96];
+
+            img = core.diskStore->GetImage (6, 0);
             sprintf_s (diag, "//e control: dirty=%d listOk=%d",
                        (img != nullptr && img->IsDirty()) ? 1 : 0, ok ? 1 : 0);
             Logger::WriteMessage (diag);
@@ -526,10 +574,13 @@ public:
     // when CASSO_DIAG_SAVE_MOUSETEST=1 is set; skips otherwise.
     TEST_METHOD (Diag_SaveFixedMouseTestToDisk)
     {
-        const char *  kDiskPath = "C:\\Users\\relmer\\AppData\\Local\\Casso\\Disks\\DOS 3.3 Writable.woz";
-        char          envBuf[8] = {};
         size_t        envLen    = 0;
         const char *  skipWhy   = nullptr;
+        char          envBuf[8] = {};
+
+
+
+        const char *  kDiskPath = "C:\\Users\\relmer\\AppData\\Local\\Casso\\Disks\\DOS 3.3 Writable.woz";
 
         // The env gate is checked FIRST and reported on its own: this test
         // rewrites a file on the developer's disk, so "you did not opt in" has
@@ -567,8 +618,10 @@ public:
 
             // Pass 1: boot, type the fixed program, SAVE, flush
             {
-                HeadlessHost  host;
-                EmulatorCore  core;
+                HeadlessHost    host;
+                EmulatorCore    core;
+                DiskImage     * img       = nullptr;
+                char            diag[128];
                 AssertSucceeded (host.BuildApple2c (core));
                 core.PowerCycle();
                 AssertSucceeded (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes));
@@ -587,8 +640,7 @@ public:
 
                 dump (core, "---- after SAVE + CATALOG ----");
 
-                DiskImage *  img = core.diskStore->GetImage (6, 0);
-                char  diag[128];
+                img = core.diskStore->GetImage (6, 0);
                 sprintf_s (diag, "image dirty=%d writeProtected=%d",
                            (img != nullptr && img->IsDirty()) ? 1 : 0,
                            (img != nullptr && img->IsWriteProtected()) ? 1 : 0);
@@ -599,12 +651,14 @@ public:
 
             // Pass 2: fresh core, mount the WRITTEN file, LOAD + LIST
             {
+                HeadlessHost  host;
+                EmulatorCore  core;
+                bool          sawPr7 = false;
+
                 std::ifstream f2 (kDiskPath, std::ios::binary);
                 Assert::IsTrue (f2.good(), L"written file must exist");
                 std::vector<uint8_t>  bytes2 ((std::istreambuf_iterator<char> (f2)), std::istreambuf_iterator<char> ());
 
-                HeadlessHost  host;
-                EmulatorCore  core;
                 AssertSucceeded (host.BuildApple2c (core));
                 core.PowerCycle();
                 AssertSucceeded (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes2));
@@ -615,11 +669,11 @@ public:
                 KeystrokeInjector::InjectLine (core, "LIST", 3'000'000);
                 dump (core, "---- LIST after reload from written file ----");
 
-                bool  sawPr7 = false;
                 for (const std::string & row : TextScreenScraper::Scrape (core))
                 {
                     if (row.find ("PR#7") != std::string::npos) { sawPr7 = true; }
                 }
+
                 Assert::IsTrue (sawPr7, L"reloaded MOUSE.TEST must contain the PR#7 mouse-on line");
             }
         }

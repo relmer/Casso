@@ -73,6 +73,23 @@ bool  WindowPlacementProfile::TryParseLong (const std::wstring & text, LONG & ou
 //
 //  WindowPlacementProfile::CollectMonitorsProc
 //
+//  EnumDisplayMonitors callback: snapshots each monitor's identity and rects
+//  into the caller's list, which becomes the topology key.
+//
+//  The return value carries the API's own meaning and the two false-ish exits
+//  mean OPPOSITE things: FALSE aborts the entire enumeration, TRUE continues
+//  it. So a null list stops the walk -- there is nowhere to put results -- but
+//  a monitor whose info could not be read returns TRUE and lets the next one
+//  be tried, since a partial topology beats none.
+//
+//  The device NAME is captured alongside the rects because two monitors can
+//  share identical geometry; the name is what distinguishes them, and the
+//  topology key must change when the arrangement does.
+//
+//  The work rect is snapshotted as well as the monitor rect, since a taskbar
+//  moving between edges changes where a window may legitimately sit without
+//  changing the display arrangement.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 BOOL CALLBACK WindowPlacementProfile::CollectMonitorsProc (HMONITOR hMon, HDC hdc, LPRECT prc, LPARAM lParam)
@@ -137,11 +154,11 @@ std::string WindowPlacementProfile::BuildTopologyKey (HMONITOR activeMonitor)
 {
     std::vector<MonitorSnapshot>  monitors;
     std::wstring                  activeDevice;
-    MONITORINFOEXW                activeInfo  = { sizeof (activeInfo) };
+    MONITORINFOEXW                activeInfo                 = { sizeof (activeInfo) };
     std::wstring                  canonical;
-    uint64_t                      hash        = 0;
+    uint64_t                      hash                       = 0;
     char                          hashHex[kHashHexChars + 1] = {};
-    size_t                        i           = 0;
+    size_t                        i                          = 0;
 
 
 
@@ -255,5 +272,6 @@ void WindowPlacementProfile::Save (
     {
         return;
     }
+
     m_prefs->window.placements[topologyKey] = bounds;
 }

@@ -23,17 +23,23 @@ std::wstring DxuiCheckbox::EllipsizeToWidth (IDxuiTextRenderer  & text,
                                              float                fontDip,
                                              float                maxWidth)
 {
-    const wchar_t * const  kEllipsis = L"\x2026";   // …
-
     HRESULT       hr     = S_OK;
     float         w      = 0.0f;
     float         h      = 0.0f;
     size_t        lo     = 0;
-    size_t        hi     = label.size();
+    size_t        hi     = 0;
     size_t        mid    = 0;
     std::wstring  cand;
-    std::wstring  result = label;
-    bool          fits   = (label.empty() || maxWidth <= 0.0f);
+    std::wstring  result;
+    bool          fits   = false;
+
+
+
+    const wchar_t * const  kEllipsis = L"\x2026";   // …
+
+    hi = label.size();
+    result = label;
+    fits = (label.empty() || maxWidth <= 0.0f);
 
     // An empty label or a nonsense width has nothing to trim, and a label
     // that already fits is returned whole -- both leave `result` as-is.
@@ -224,11 +230,13 @@ void DxuiCheckbox::Toggle()
 
 void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    constexpr float     s_kBoxSizeDip    = 16.0f;
-    constexpr float     s_kFocusInsetDip = -2.0f;
-    constexpr float     s_kFocusThickDip = 1.0f;
-    constexpr float     s_kLabelGapDip   = 6.0f;
-    constexpr float     s_kFontDip      = 13.0f;
+    constexpr float  s_kBoxSizeDip    = 16.0f;
+    constexpr float  s_kFocusInsetDip = -2.0f;
+    constexpr float  s_kFocusThickDip = 1.0f;
+    constexpr float  s_kLabelGapDip   = 6.0f;
+    constexpr float  s_kFontDip       = 13.0f;
+    uint32_t         glyphColor       = 0;
+    uint32_t         textColor        = 0;
 
 
 
@@ -243,8 +251,8 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     uint32_t boxColor    = m_enabled
                             ? (m_pressed ? theme.ButtonPressed() : (m_hover ? theme.ButtonHover() : theme.ButtonIdle()))
                             : theme.PressedBackground();
-    uint32_t glyphColor  = m_enabled ? theme.ButtonText()  : theme.ForegroundDisabled();
-    uint32_t textColor   = m_enabled ? theme.Foreground()  : theme.ForegroundDisabled();
+    glyphColor = m_enabled ? theme.ButtonText()  : theme.ForegroundDisabled();
+    textColor = m_enabled ? theme.Foreground()  : theme.ForegroundDisabled();
 
     // No area means this control has not been laid out yet: OnCreate() builds
     // the tree, but the first Layout() waits on the host sizing the window,
@@ -259,6 +267,9 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     if (hasArea)
     {
+        float  labelX = 0.0f;
+        float  labelW = 0.0f;
+
         painter.FillRect (boxLeft, boxTop, boxSize, boxSize, boxColor);
 
         if (m_checked)
@@ -286,8 +297,8 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                                  theme.FocusRing());
         }
 
-        float         labelX = boxLeft + boxSize + labelGap;
-        float         labelW = (float) (m_boundsDip.right - m_boundsDip.left) - boxSize - labelGap;
+        labelX = boxLeft + boxSize + labelGap;
+        labelW = (float) (m_boundsDip.right - m_boundsDip.left) - boxSize - labelGap;
         std::wstring  drawn  = m_singleLineLabel ? EllipsizeToWidth (text, m_label, fontDip, labelW)
                                                  : m_label;
 
@@ -329,7 +340,16 @@ void DxuiCheckbox::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiCheckbox::OnMouse  (IDxuiControl override)
+//  DxuiCheckbox::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move only updates hover and is reported unhandled, so the pointer
+//  crossing the checkbox does not consume moves other widgets want.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

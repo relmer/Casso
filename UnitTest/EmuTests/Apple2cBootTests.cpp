@@ -50,8 +50,8 @@ TEST_CLASS (Apple2cBootTests)
 {
 public:
 
-    static constexpr size_t     kRomSize = 0x8000;      // 32K, two 16K banks
-    static constexpr Word       kMonitorReset = 0xFA62; // ROM 4 RESET vector target
+    static constexpr size_t  kRomSize      = 0x8000;   // 32K, two 16K banks
+    static constexpr Word    kMonitorReset = 0xFA62;   // ROM 4 RESET vector target
 
     bool Apple2cRomAvailable()
     {
@@ -70,6 +70,10 @@ public:
     // no-slots $Cxxx routing, and the slot-6 IWM mode/status register.
     TEST_METHOD (ColdBootsToCheckDiskDrive)
     {
+        std::string screen;
+
+
+
         if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
@@ -81,7 +85,6 @@ public:
         core.PowerCycle();
         core.RunCycles (15'000'000);
 
-        std::string screen;
         for (const auto & row : TextScreenScraper::Scrape (core))
         {
             screen += row;
@@ -144,6 +147,10 @@ public:
     // the marker never lands.
     TEST_METHOD (BootsFromInternalDriveViaIwm)
     {
+        DiskImage * img = nullptr;
+
+
+
         if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
@@ -185,7 +192,7 @@ public:
                                                           DiskFormat::Dsk, raw);
         AssertSucceeded (hrMount, L"MountFromBytes must succeed");
 
-        DiskImage * img = core.diskStore->GetImage (6, 0);
+        img = core.diskStore->GetImage (6, 0);
         Assert::IsNotNull (img, L"mounted image must be retrievable");
         core.diskController->SetExternalDisk (0, img);   // drive 1 = internal
 
@@ -214,6 +221,11 @@ public:
     // would only ever read the empty-drive floating bus.
     TEST_METHOD (ExternalDriveIsReadableViaDriveSelect)
     {
+        DiskImage  * img            = nullptr;
+        bool         sawValidNibble = false;
+
+
+
         if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
@@ -232,7 +244,7 @@ public:
         HRESULT hrMount = core.diskStore->MountFromBytes (6, 1, "ext.dsk",
                                                           DiskFormat::Dsk, raw);
         AssertSucceeded (hrMount, L"external MountFromBytes must succeed");
-        DiskImage * img = core.diskStore->GetImage (6, 1);
+        img = core.diskStore->GetImage (6, 1);
         Assert::IsNotNull (img, L"external image must be retrievable");
         core.diskController->SetExternalDisk (1, img);   // drive 2 = external
 
@@ -247,13 +259,13 @@ public:
         core.bus->ReadByte (0xC0EE);   // Q7 low -> read mode
         core.diskController->Tick (Disk2Controller::kMotorSpinupCycles);
 
-        bool sawValidNibble = false;
         for (int i = 0; i < 4000 && !sawValidNibble; i++)
         {
             if (core.bus->ReadByte (0xC0EC) & 0x80)
             {
                 sawValidNibble = true;
             }
+
             core.diskController->Tick (8);   // advance ~one disk bit-time
         }
 
@@ -266,6 +278,11 @@ public:
     // entry with the ROM correctly mapped through the language card.
     TEST_METHOD (BuildsAndResetsToMonitorEntry)
     {
+        HeadlessHost   host;
+        EmulatorCore   core;
+
+
+
         if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage (
@@ -274,8 +291,6 @@ public:
             return;
         }
 
-        HeadlessHost   host;
-        EmulatorCore   core;
 
         AssertSucceeded (host.BuildApple2c (core),
             L"BuildApple2c must succeed when the ROM is present");
@@ -311,23 +326,26 @@ public:
     // internal firmware.
     TEST_METHOD (PhantomSlotsServeBuiltInPeripherals)
     {
+        FixtureProvider       fp;
+        std::vector<uint8_t>  rom;
+        HeadlessHost          host;
+        EmulatorCore          core;
+        // Pascal firmware ID at each phantom firmware page.
+        const Word            pages[] = { 0xC100, 0xC200, 0xC300, 0xC700 };
+
+
+
         if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
             return;
         }
 
-        FixtureProvider        fp;
-        std::vector<uint8_t>   rom;
         AssertSucceeded (fp.OpenFixture ("Apple2c.rom", rom));
 
-        HeadlessHost   host;
-        EmulatorCore   core;
         AssertSucceeded (host.BuildApple2c (core));
         core.PowerCycle();
 
-        // Pascal firmware ID at each phantom firmware page.
-        const Word  pages[] = { 0xC100, 0xC200, 0xC300, 0xC700 };
         for (Word base : pages)
         {
             Assert::AreEqual<Byte> (0x38, core.bus->ReadByte ((Word) (base + 0x05)),
@@ -362,6 +380,12 @@ public:
     // end to end. (The printer-endpoint bridge is downstream.)
     TEST_METHOD (SerialPortsLoopBackViaBuiltInAcia)
     {
+        HeadlessHost   host;
+        EmulatorCore   core;
+        const Word     dataAddrs[] = { 0xC098, 0xC0A8 };   // port 1 / port 2 data
+
+
+
         if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage (
@@ -370,14 +394,10 @@ public:
             return;
         }
 
-        HeadlessHost   host;
-        EmulatorCore   core;
 
         AssertSucceeded (host.BuildApple2c (core),
             L"BuildApple2c must succeed when the ROM is present");
         core.PowerCycle();
-
-        const Word  dataAddrs[] = { 0xC098, 0xC0A8 };   // port 1 / port 2 data
 
         for (Word data : dataAddrs)
         {
@@ -427,8 +447,10 @@ public:
             outC060 = core.bus->ReadByte (0xC060);
         };
 
-        size_t  inCols  = 0, outCols = 0;
-        Byte    inC060  = 0, outC060 = 0;
+        size_t  inCols  = 0;
+        size_t  outCols = 0;
+        Byte    inC060  = 0;
+        Byte    outC060 = 0;
 
         bootWithSwitch (true,  inCols,  inC060);
         bootWithSwitch (false, outCols, outC060);

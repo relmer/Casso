@@ -145,13 +145,14 @@ namespace StructTests
         //  published for it under the struct's own name.
         static int MeasureMember (const char * declaration)
         {
-            TestCpu  cpu;
+            TestCpu         cpu;
+            AssemblyResult  result;
 
             std::string  source = std::string ("    .org $1000\n    struct S\n")
                                 + "m " + declaration + "\n"
                                 + "    end struct\n    lda #S\n";
 
-            AssemblyResult  result = cpu.Assemble (source.c_str());
+            result = cpu.Assemble (source.c_str());
 
             return result.success ? (int) result.bytes[1] : -1;
         }

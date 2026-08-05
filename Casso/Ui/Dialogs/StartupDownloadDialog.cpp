@@ -68,9 +68,9 @@ struct StartupDownloadDialog::EntryRuntime
 
 struct StartupDownloadDialog::DialogState
 {
-    StartupDownloadSet  *        set         = nullptr;
+    StartupDownloadSet         * set        = nullptr;
     std::vector<EntryRuntime>    runtime;
-    std::vector<DxuiCheckbox>        checkboxes;     // parallel to entries
+    std::vector<DxuiCheckbox>    checkboxes;   // parallel to entries
     std::vector<std::thread>     workers;
     std::atomic<bool>            cancelFlag{false};
     std::atomic<int>             workersInFlight{0};
@@ -106,6 +106,29 @@ struct StartupDownloadDialog::RowMetrics
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WorkerThreadProc
+//
+//  Downloads one asset on a worker thread and publishes its outcome.
+//
+//  Downloading off the UI thread is what keeps the progress dialog painting
+//  and its Cancel button responsive while a fetch is in flight -- the whole
+//  reason this dialog exists rather than a blocking wait.
+//
+//  All cross-thread state is ATOMIC and write-only from here: the status, the
+//  byte counter, and the in-flight count. The UI thread polls them each frame
+//  and never writes back, so there is no lock on the progress path.
+//
+//  Cancellation is cooperative. The flag is passed into the downloader, which
+//  is expected to notice it and return E_ABORT -- and both that code and the
+//  flag itself are checked here, since a downloader may finish normally in the
+//  same instant the user cancels.
+//
+//  A canceled entry is deliberately NOT marked failed, so cancelling does not
+//  raise the any-failed flag and produce an error report for something the
+//  user chose.
+//
+//  The in-flight counter is decremented LAST, after the status is published,
+//  so a UI thread that sees the count hit zero is guaranteed to see every
+//  final status.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -203,6 +226,22 @@ void StartupDownloadDialog::JoinAllWorkers (DialogState & state)
 //
 //  RemovePartialFiles
 //
+//  Deletes the output of any download that did not finish, so a cancelled or
+//  failed run leaves nothing truncated on disk.
+//
+//  A half-written ROM is worse than a missing one. Missing, the bootstrap
+//  offers to fetch it again; truncated, it looks present and the machine boots
+//  into garbage with no obvious cause.
+//
+//  Two conditions guard each delete, and both are needed. A DONE entry is
+//  skipped so a partially-cancelled run keeps everything that actually
+//  completed, and an entry that never STARTED writing is skipped so a file
+//  already on disk from a previous session is not deleted by a run that never
+//  touched it.
+//
+//  Delete failures are ignored: the file may be locked or already gone, and
+//  neither is worth an error at the end of a run the user just cancelled.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void StartupDownloadDialog::RemovePartialFiles (DialogState & state)
@@ -251,8 +290,8 @@ void StartupDownloadDialog::RemovePartialFiles (DialogState & state)
 
 std::wstring StartupDownloadDialog::StatusText (const EntryRuntime & rt, std::uint64_t expected)
 {
-    EntryStatus    s    = (EntryStatus) rt.status.load (std::memory_order_relaxed);
-    std::uint64_t  done = rt.bytesDone.load (std::memory_order_relaxed);
+    EntryStatus    s       = (EntryStatus) rt.status.load (std::memory_order_relaxed);
+    std::uint64_t  done    = rt.bytesDone.load (std::memory_order_relaxed);
     std::wstring   text;
     wchar_t        buf[16] = {};
     int            pct     = 0;
@@ -288,6 +327,7 @@ std::wstring StartupDownloadDialog::StatusText (const EntryRuntime & rt, std::ui
                 swprintf_s (buf, L"%d%%", pct);
                 text = buf;
             }
+
             break;
     }
 
@@ -391,15 +431,15 @@ void StartupDownloadDialog::PaintBody (
     StartupDownloadSet & set,
     DialogState        & state)
 {
-    RowMetrics  m         = {};
-    float       y         = 0.0f;
-    uint32_t    fg        = 0;
-    uint32_t    fgDim     = 0;
-    uint32_t    hdrFg     = 0;
+    RowMetrics  m           = {};
+    float       y           = 0.0f;
+    uint32_t    fg          = 0;
+    uint32_t    fgDim       = 0;
+    uint32_t    hdrFg       = 0;
     wstring     curGroup;
-    DxuiLabel       hdrLabel;
-    DxuiLabel       sourceLabel;
-    DxuiLabel       statusLabel;
+    DxuiLabel   hdrLabel;
+    DxuiLabel   sourceLabel;
+    DxuiLabel   statusLabel;
 
 
 
@@ -551,6 +591,12 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     constexpr int  s_kLineHeightDip = 20;
     constexpr int  s_kIntroPadDip   = 8;
     constexpr int  s_kChromeDip     = 120;   // caption + content pad*2 + button row
+    bool           requiresRoms     = false;
+    int            rowCount         = 0;
+    int            headerCount      = 0;
+    int            introLines       = 0;
+    int            heightDip        = 0;
+    HRESULT        hrCreate         = S_OK;
 
     CassoTheme                             theme        = CassoTheme::ForName (std::string (themeName));
     DialogState                            state;
@@ -564,12 +610,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     std::wstring                           prevGroup;
     UINT                                   sysDpi       = (hwndOwner != nullptr) ? GetDpiForWindow (hwndOwner)
                                                                                  : GetDpiForSystem();
-    bool                                   requiresRoms = false;
-    int                                    rowCount     = 0;
-    int                                    headerCount  = 0;
-    int                                    introLines   = 1;
-    int                                    heightDip    = 0;
-    HRESULT                                hrCreate     = S_OK;
+    introLines = 1;
 
 
     // Nothing missing: never put a dialog on screen just to say so. The

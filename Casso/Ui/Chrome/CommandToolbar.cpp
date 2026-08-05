@@ -234,6 +234,7 @@ int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scale
         {
             return (int) (w + 0.5f);
         }
+
         return (int) ((float) wcslen (label) * s_kFallbackCharPx * (float) dpi / (float) s_kBaseDpi);
     };
 
@@ -300,24 +301,43 @@ int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scale
 
 void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
+    UINT   dpi        = 0;
+    int    padX       = 0;
+    int    padXStack  = 0;
+    int    marginY    = 0;
+    int    btnGap     = 0;
+    int    groupGap   = 0;
+    int    iconGap    = 0;
+    int    sliderW    = 0;
+    int    sliderMinW = 0;
+    int    sliderMaxH = 0;
+    float  iconDip    = 0.0f;
+    int    barPad     = 0;
+    int    avail      = 0;
+    int    x          = 0;
+    int    top        = 0;
+    int    bottom     = 0;
+
+
+
     PlanForWidth (boundsDip.right - boundsDip.left, scaler);
 
-    UINT   dpi        = (scaler.Dpi() == 0) ? (UINT) s_kBaseDpi : scaler.Dpi();
-    int    padX       = MulDiv (s_kBtnPadXDp,     (int) dpi, s_kBaseDpi);
-    int    padXStack  = MulDiv (s_kStackedPadXDp, (int) dpi, s_kBaseDpi);
-    int    marginY    = MulDiv (s_kBtnMarginYDp,  (int) dpi, s_kBaseDpi);
-    int    btnGap     = MulDiv (s_kBtnGapDp,      (int) dpi, s_kBaseDpi);
-    int    groupGap   = MulDiv (s_kGroupGapDp,    (int) dpi, s_kBaseDpi);
-    int    iconGap    = MulDiv (s_kIconGapDp,     (int) dpi, s_kBaseDpi);
-    int    sliderW    = MulDiv (s_kSliderWidthDp, (int) dpi, s_kBaseDpi);
-    int    sliderMinW = MulDiv (s_kSliderMinWidthDp, (int) dpi, s_kBaseDpi);
-    int    sliderMaxH = MulDiv (s_kSliderMaxHDp,  (int) dpi, s_kBaseDpi);
-    float  iconDip    = s_kIconDip * (float) dpi / (float) s_kBaseDpi;
-    int    barPad     = MulDiv (s_kBarPadXDp, (int) dpi, s_kBaseDpi);
-    int    avail      = (boundsDip.right - boundsDip.left) - barPad * 2;
-    int    x          = boundsDip.left + barPad;
-    int    top        = boundsDip.top + marginY;
-    int    bottom     = boundsDip.bottom - marginY;
+    dpi = (scaler.Dpi() == 0) ? (UINT) s_kBaseDpi : scaler.Dpi();
+    padX = MulDiv (s_kBtnPadXDp,     (int) dpi, s_kBaseDpi);
+    padXStack = MulDiv (s_kStackedPadXDp, (int) dpi, s_kBaseDpi);
+    marginY = MulDiv (s_kBtnMarginYDp,  (int) dpi, s_kBaseDpi);
+    btnGap = MulDiv (s_kBtnGapDp,      (int) dpi, s_kBaseDpi);
+    groupGap = MulDiv (s_kGroupGapDp,    (int) dpi, s_kBaseDpi);
+    iconGap = MulDiv (s_kIconGapDp,     (int) dpi, s_kBaseDpi);
+    sliderW = MulDiv (s_kSliderWidthDp, (int) dpi, s_kBaseDpi);
+    sliderMinW = MulDiv (s_kSliderMinWidthDp, (int) dpi, s_kBaseDpi);
+    sliderMaxH = MulDiv (s_kSliderMaxHDp,  (int) dpi, s_kBaseDpi);
+    iconDip = s_kIconDip * (float) dpi / (float) s_kBaseDpi;
+    barPad = MulDiv (s_kBarPadXDp, (int) dpi, s_kBaseDpi);
+    avail = (boundsDip.right - boundsDip.left) - barPad * 2;
+    x = boundsDip.left + barPad;
+    top = boundsDip.top + marginY;
+    bottom = boundsDip.bottom - marginY;
 
     m_dpi     = dpi;
     m_barRect = boundsDip;
@@ -337,6 +357,7 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
         {
             return (int) (w + 0.5f);
         }
+
         return (int) ((float) wcslen (label) * s_kFallbackCharPx * (float) dpi / (float) s_kBaseDpi);
     };
 
@@ -393,9 +414,9 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     {
         // The slider stays a comfortable height, vertically centered -- in the
         // taller ribbon band a full-height slider would look stretched.
-        int   bandH   = bottom - top;
-        int   sliderH = (std::min) (bandH, sliderMaxH);
-        int   sy      = top + (bandH - sliderH) / 2;
+        int   bandH    = bottom - top;
+        int   sliderH  = (std::min) (bandH, sliderMaxH);
+        int   sy       = top + (bandH - sliderH) / 2;
         RECT  sliderRc = { x, sy, x + sliderW, sy + sliderH };
 
         m_volumeSlider.SetRect (sliderRc);
@@ -470,9 +491,12 @@ const wchar_t * CommandToolbar::TooltipAt (int x, int y, RECT & anchor) const
 
 bool CommandToolbar::OnToolbarMouseMove (int x, int y, bool leftDown)
 {
+    bool  over = false;
+
+
+
     UNREFERENCED_PARAMETER (leftDown);
 
-    bool  over = false;
 
     if (m_volumeSlider.OnMouseMove (x, y))
     {
@@ -485,6 +509,7 @@ bool CommandToolbar::OnToolbarMouseMove (int x, int y, bool leftDown)
         if (!btn.hovered) { btn.pressed = false; }
         over = over || btn.hovered;
     }
+
     m_muteButton.hovered = PointIn (m_muteButton.rc, x, y);
     if (!m_muteButton.hovered) { m_muteButton.pressed = false; }
 
@@ -508,6 +533,7 @@ void CommandToolbar::OnToolbarMouseLeave()
         btn.hovered = false;
         btn.pressed = false;
     }
+
     m_muteButton.hovered = false;
     m_muteButton.pressed = false;
 }
@@ -519,6 +545,20 @@ void CommandToolbar::OnToolbarMouseLeave()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CommandToolbar::OnToolbarLButtonDown
+//
+//  Press handling: arm a button, start a slider drag, or eat the click.
+//
+//  The volume slider gets first claim, but only while UNMUTED. A muted slider
+//  is inert, so a press there should fall through to the bar rather than
+//  starting a drag that changes a value nobody can hear.
+//
+//  A press only ARMS a button; the command fires on release. That is what
+//  makes press-then-drag-off cancel, the behavior every Windows button has.
+//
+//  A press on the bar's DEAD SPACE is still consumed. The toolbar sits over
+//  the emulator viewport, so an unclaimed click would otherwise reach the
+//  guest -- clicking the empty part of a toolbar must not type into the //e or
+//  move the guest mouse.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -555,6 +595,21 @@ bool CommandToolbar::OnToolbarLButtonDown (int x, int y)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CommandToolbar::OnToolbarLButtonUp
+//
+//  Release handling: fire the command for a completed click, and clear every
+//  pressed visual.
+//
+//  The loop clears EVERY button's pressed state regardless of where the
+//  release landed, because a press that ends elsewhere is a cancel and must
+//  leave nothing stuck down. Only a press and release on the SAME button fires
+//  its command.
+//
+//  Mute is handled locally rather than dispatched as a command, because it
+//  owns state the slider reads back -- routing it through the command path
+//  would put the toolbar's own model a round trip behind its own control.
+//
+//  Like the press, a release on dead space is consumed so it cannot reach the
+//  emulator viewport underneath.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -604,6 +659,27 @@ bool CommandToolbar::OnToolbarLButtonUp (int x, int y)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CommandToolbar::PaintButton
+//
+//  Draws one toolbar button in whichever of the three display modes is active:
+//  icon only, icon with the label beside it, or ribbon-style with the label
+//  below.
+//
+//  Background chrome is drawn ONLY when hovered or pressed. An idle toolbar
+//  shows bare icons on the bar, which is what keeps a row of eight buttons
+//  from reading as eight boxes.
+//
+//  Disabled buttons dim the ink by rewriting its ALPHA rather than
+//  substituting a theme color, so the disabled look follows whatever the
+//  theme's foreground is instead of needing a matching swatch per theme.
+//
+//  Icon-only and label-right share one draw call and differ only in the x
+//  offset -- centered versus left-padded -- because the icon itself is
+//  identical in both. Only the ribbon mode needs its own path, since it splits
+//  the button vertically into an icon region and a label row.
+//
+//  The status LED is positioned relative to the ICON, not the button, so it
+//  stays pinned to the glyph's corner regardless of how much label space the
+//  current mode leaves around it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -718,13 +794,20 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
 
 void CommandToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & dxuiTheme)
 {
-    _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
-    const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
+    const CassoTheme &  theme = static_cast<const CassoTheme &> (dxuiTheme);
+    float               bl    = 0.0f;
+    float               btTop = 0.0f;
+    float               bw    = 0.0f;
+    float               bhAll = 0.0f;
 
-    float  bl = (float) m_barRect.left;
-    float  btTop = (float) m_barRect.top;
-    float  bw = (float) (m_barRect.right - m_barRect.left);
-    float  bhAll = (float) (m_barRect.bottom - m_barRect.top);
+
+
+    _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
+
+    bl = (float) m_barRect.left;
+    btTop = (float) m_barRect.top;
+    bw = (float) (m_barRect.right - m_barRect.left);
+    bhAll = (float) (m_barRect.bottom - m_barRect.top);
 
     if (bw <= 0.0f)
     {

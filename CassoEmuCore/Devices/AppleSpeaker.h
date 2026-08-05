@@ -55,9 +55,9 @@ public:
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
-    float                       m_speakerState      = -0.25f;
-    float                       m_frameInitialState = -0.25f;
-    vector<uint32_t>       m_toggleTimestamps;
-    uint64_t *                  m_pTotalCycles      = nullptr;
-    uint64_t                    m_frameCycleStart   = 0;
+    float               m_speakerState      = -0.25f;
+    float               m_frameInitialState = -0.25f;
+    vector<uint32_t>    m_toggleTimestamps;
+    uint64_t          * m_pTotalCycles      = nullptr;
+    uint64_t            m_frameCycleStart   = 0;
 };

@@ -135,7 +135,7 @@ size_t PrinterEngine::FlushNow (vector<PrinterEvent> & events)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SnapshotStrip
+//  TrySnapshotStrip
 //
 //  Copies the strip under the raster lock so the live preview reads a consistent
 //  image while the drain thread keeps Ticking -- no Stop()/Start() and no new
@@ -144,7 +144,7 @@ size_t PrinterEngine::FlushNow (vector<PrinterEvent> & events)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PrinterEngine::SnapshotStrip (PrintRaster & out)
+bool PrinterEngine::TrySnapshotStrip (PrintRaster & out)
 {
     bool  ok = false;
 
@@ -168,15 +168,15 @@ bool PrinterEngine::SnapshotStrip (PrintRaster & out)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SnapshotStripSpan
+//  TrySnapshotStripSpan
 //
-//  Viewport-bounded variant of SnapshotStrip: copies only the requested rows
+//  Viewport-bounded variant of TrySnapshotStrip: copies only the requested rows
 //  under the raster lock, so the live preview's per-refresh cost stays flat no
 //  matter how long the banner grows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PrinterEngine::SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & out)
+bool PrinterEngine::TrySnapshotStripSpan (int firstRow, int lastRow, PrintRaster & out)
 {
     bool  ok = false;
 
@@ -199,14 +199,14 @@ bool PrinterEngine::SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SnapshotPresentedSpan
+//  TrySnapshotPresentedSpan
 //
-//  Same as SnapshotStripSpan but over the presented ("wet ink") layer the head
+//  Same as TrySnapshotStripSpan but over the presented ("wet ink") layer the head
 //  paints -- what the live preview renders.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PrinterEngine::SnapshotPresentedSpan (int firstRow, int lastRow, PrintRaster & out)
+bool PrinterEngine::TrySnapshotPresentedSpan (int firstRow, int lastRow, PrintRaster & out)
 {
     bool  ok = false;
 
@@ -313,11 +313,13 @@ void PrinterEngine::Tick (int64_t nowMs)
     }
 
     {
+        int  hostFeeds = 0;
+
         std::lock_guard<std::mutex>   lock (m_rasterMutex);
 
         // Play any host Form Feed requests on this (the single writer) thread,
         // enqueuing their feed motion for the head to slew through.
-        int   hostFeeds = m_hostFormFeeds.exchange (0, std::memory_order_relaxed);
+        hostFeeds = m_hostFormFeeds.exchange (0, std::memory_order_relaxed);
 
         for (int f = 0; f < hostFeeds; f++)
         {
@@ -348,6 +350,8 @@ void PrinterEngine::Tick (int64_t nowMs)
         //    carriage speed; the guest cycle delta only caps it (paused CPU ->
         //    frozen printer, slowed CPU -> slower, never faster than real).
         {
+            double  timeSec = 0.0;
+
             if (!m_pacingSeeded)
             {
                 m_lastTickMs   = nowMs;
@@ -355,7 +359,7 @@ void PrinterEngine::Tick (int64_t nowMs)
                 m_pacingSeeded = true;
             }
 
-            double   timeSec = (double) (nowMs - m_lastTickMs) / 1000.0;
+            timeSec = (double) (nowMs - m_lastTickMs) / 1000.0;
 
             m_lastTickMs = nowMs;
 

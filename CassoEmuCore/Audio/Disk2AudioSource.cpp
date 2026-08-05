@@ -474,13 +474,17 @@ void Disk2AudioSource::OnMotorDisengaged()
 
 void Disk2AudioSource::OnHeadStep (int newQt)
 {
-    (void) newQt;
-
     bool      withinSeekWindow     = false;
     bool      previousStillPlaying = false;
-    bool      wasInSeekMode        = m_seekMode;
+    bool      wasInSeekMode        = false;
     uint64_t  gap                  = 0;
     uint32_t  headLen              = 0;
+
+
+
+    (void) newQt;
+
+    wasInSeekMode = m_seekMode;
 
     if (m_lastStepCycle != 0 && m_currentCycle >= m_lastStepCycle)
     {
@@ -716,6 +720,26 @@ void Disk2AudioSource::OnDiskInserted()
 //
 //  OnDiskEjected
 //
+//  Starts the door-open sound and stops the motor loop, because an empty drive
+//  makes no media noise.
+//
+//  The motor sound is a property of the DISK, not the motor: a spindle turning
+//  with nothing on it is nearly silent, so the loop stops even though the
+//  motor may still be running.
+//
+//  Playback positions are reset so the door sound starts from its beginning
+//  rather than wherever a previous door sound was interrupted -- eject and
+//  insert can follow each other quickly.
+//
+//  The previous presence is captured BEFORE the flag is cleared, so the
+//  loop-stopped event is emitted only when a disk really was there; ejecting
+//  an already-empty drive should report nothing.
+//
+//  A missing sample buffer is reported as an explicit SILENT event rather than
+//  passing quietly. These events drive the debug panel, and "no sound because
+//  the buffer is missing" is a diagnosis, whereas silence with no event is a
+//  mystery.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2AudioSource::OnDiskEjected()
@@ -902,6 +926,7 @@ void Disk2AudioSource::MixTest (float * out, uint32_t n)
     {
         m_testBuf = nullptr;
     }
+
     BAIL_OUT_IF (len == 0, S_OK);
 
     for (i = 0; i < n; i++)

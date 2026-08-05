@@ -541,7 +541,22 @@ static std::unique_ptr<DxuiHwndSource>  BuildSyntheticHostForPool()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiPopupHostPoolTests
+//
+//  The popup POOL: acquiring, releasing, exhaustion, and reuse.
+//
+//  Popups are pooled rather than created per show because each carries an HWND
+//  and a composition swap chain, and building those on every tooltip dwell
+//  would be visible. These assert the accounting that makes reuse safe -- a
+//  released popup returns to the pool, and a reacquired one comes back with no
+//  state from its previous use.
+//
+//  Exhaustion is covered because it is reachable: nested menus plus a tooltip
+//  can outrun the pool, and the required behavior is to show NOTHING rather
+//  than to fail. A tooltip that cannot appear must not disturb anything.
+//
+//  Run in test mode, with no device and no windows, so the pool's bookkeeping
+//  is checked without a GPU.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -281,6 +281,7 @@ void AppendColumnText (std::wstring & out, const Disk2EventDisplay & e, int logi
                 swprintf_s (driveBuf, L"%d", e.drive + 1);
                 out.append (driveBuf);
             }
+
             break;
         case 4:
             label = DebugDialogProjection::EventLabel (e.category, e.type);

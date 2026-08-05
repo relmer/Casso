@@ -161,9 +161,9 @@ public:
         // whole tracks.
         for (step = 0; step < 8; step++)
         {
-            int   phase   = (step + 1) & 3;
-            Word  onAddr  = static_cast<Word> (s_kSlot6Base + 1 + phase * 2);
-            Word  offAddr = static_cast<Word> (s_kSlot6Base + phase * 2);
+            int   phase    = (step + 1) & 3;
+            Word  onAddr   = static_cast<Word> (s_kSlot6Base + 1 + phase * 2);
+            Word  offAddr  = static_cast<Word> (s_kSlot6Base + phase * 2);
             int   beforeQt = disk->GetQuarterTrack();
 
             disk->Read (onAddr);
@@ -212,12 +212,13 @@ public:
 
     TEST_METHOD (Q7ClearQ6ClearReadsNibble)
     {
-        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+        unique_ptr<Disk2Controller>  disk = make_unique<Disk2Controller> (6);
+        Byte                         v    = 0;
 
         disk->Read (s_kQ7Off);
         disk->Read (s_kQ6Off);
 
-        Byte   v = disk->Read (s_kQ6Off);
+        v = disk->Read (s_kQ6Off);
 
         Assert::AreEqual (static_cast<Byte> (0), v,
             L"Q7=Q6=0 with no disk: read latch returns 0");
@@ -225,12 +226,13 @@ public:
 
     TEST_METHOD (Q7ClearQ6SetReadsWriteProtect)
     {
-        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+        unique_ptr<Disk2Controller>  disk = make_unique<Disk2Controller> (6);
+        Byte                         v    = 0;
 
         disk->GetDisk (0)->SetWriteProtected (true);
 
         disk->Read (s_kQ7Off);
-        Byte   v = disk->Read (s_kQ6On);
+        v = disk->Read (s_kQ6On);
 
         Assert::AreEqual (static_cast<Byte> (0x80), v,
             L"Q7=0,Q6=1 with WP disk: bit 7 set");
@@ -270,7 +272,9 @@ public:
 
     TEST_METHOD (NibbleStreamAdvancesAtCorrectBitTime)
     {
-        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+        unique_ptr<Disk2Controller>  disk      = make_unique<Disk2Controller> (6);
+        size_t                       posBefore = 0;
+        size_t                       posAfter  = 0;
 
         disk->GetDisk (0)->ResizeTrack (0, 64);
 
@@ -278,11 +282,11 @@ public:
         disk->Read (s_kQ7Off);
         disk->Read (s_kQ6Off);
 
-        size_t   posBefore = disk->GetEngine (0).GetBitPosition();
+        posBefore = disk->GetEngine (0).GetBitPosition();
 
         disk->Tick (Disk2NibbleEngine::kCyclesPerBit * 4);
 
-        size_t   posAfter = disk->GetEngine (0).GetBitPosition();
+        posAfter = disk->GetEngine (0).GetBitPosition();
 
         Assert::AreEqual (size_t (4), posAfter - posBefore,
             L"4 bits should advance per 16 CPU cycles (4 cycles/bit)");
@@ -437,16 +441,16 @@ public:
 
     TEST_METHOD (LSS_WriteAdvancesHeadAndDepositsFlux)
     {
-        unique_ptr<Disk2Controller>    disk         = make_unique<Disk2Controller> (6);
-        DiskImage *                    img          = disk->GetDisk (0);
-        size_t                         startBit     = 0;
-        size_t                         endBit       = 0;
-        size_t                         advanced     = 0;
-        size_t                         trackBits    = 4096;
-        int                            i            = 0;
-        bool                           allOnes      = true;
-        constexpr int                  kNibbleCount = 6;
-        constexpr int                  kRegionBits  = kNibbleCount * s_kBitsPerNibble;
+        unique_ptr<Disk2Controller>    disk                    = make_unique<Disk2Controller> (6);
+        DiskImage                    * img                     = disk->GetDisk (0);
+        size_t                         startBit                = 0;
+        size_t                         endBit                  = 0;
+        size_t                         advanced                = 0;
+        size_t                         trackBits               = 4096;
+        int                            i                       = 0;
+        bool                           allOnes                 = true;
+        constexpr int                  kNibbleCount            = 6;
+        constexpr int                  kRegionBits             = kNibbleCount * s_kBitsPerNibble;
         constexpr Byte                 kOnesData[kNibbleCount] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 
         img->ResizeTrack (0, trackBits);
@@ -584,11 +588,11 @@ public:
 
     TEST_METHOD (Spinup_RealDataAfterWindowExpires)
     {
-        unique_ptr<Disk2Controller>    disk  = make_unique<Disk2Controller> (6);
-        DiskImage *                    img   = disk->GetDisk (0);
-        size_t                         off   = 0;
-        Byte                           value = 0;
-        uint64_t                       i     = 0;
+        unique_ptr<Disk2Controller>    disk    = make_unique<Disk2Controller> (6);
+        DiskImage                    * img     = disk->GetDisk (0);
+        size_t                         off     = 0;
+        Byte                           value   = 0;
+        uint64_t                       i       = 0;
         const uint64_t                 kBudget = 600'000ULL;
 
         img->ResizeTrack (0, s_kSyntheticTrackBytes * s_kBitsPerNibble);

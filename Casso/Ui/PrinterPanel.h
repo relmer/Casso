@@ -179,12 +179,12 @@ private:
 
     // Top toolbar: document actions (Print / Save / Copy -- all
     // non-destructive) on the left, the zoom cluster on the right.
-    DxuiButton        * m_print    = nullptr;
-    DxuiButton        * m_saveAs   = nullptr;
-    DxuiButton        * m_copy     = nullptr;
-    DxuiButton        * m_zoomOut  = nullptr;
-    DxuiButton        * m_zoomReset = nullptr;
-    DxuiButton        * m_zoomIn   = nullptr;
+    DxuiButton  * m_print     = nullptr;
+    DxuiButton  * m_saveAs    = nullptr;
+    DxuiButton  * m_copy      = nullptr;
+    DxuiButton  * m_zoomOut   = nullptr;
+    DxuiButton  * m_zoomReset = nullptr;
+    DxuiButton  * m_zoomIn    = nullptr;
 
     // Bottom row: paper handling (Form Feed advances a page; Discard is the
     // one destructive tear-off).
@@ -279,14 +279,14 @@ private:
     // Composed-canvas cache: scroll steps memmove the finished canvas and
     // rebuild only the newly exposed rows; reveal-sweep frames rebuild only
     // the live pin band. Anything else falls back to a full compose.
-    std::vector<uint32_t>   m_canvas;
-    int                     m_canvasTopAbs    = 0;
-    int                     m_canvasRevealTop = -2;
-    int                     m_canvasRevealLo  = -1;
-    int                     m_canvasRevealHi  = -1;
-    uint64_t                m_canvasSpanGen   = 0;
-    bool                    m_canvasHasContent = false;
-    bool                    m_canvasValid      = false;
+    std::vector<uint32_t>  m_canvas;
+    int                    m_canvasTopAbs     = 0;
+    int                    m_canvasRevealTop  = -2;
+    int                    m_canvasRevealLo   = -1;
+    int                    m_canvasRevealHi   = -1;
+    uint64_t               m_canvasSpanGen    = 0;
+    bool                   m_canvasHasContent = false;
+    bool                   m_canvasValid      = false;
 
     // 3D presentation (FR-032): the ImageWriter + curled-paper scene, drawn
     // from the window's before-present hook into m_paperRectPx (which the

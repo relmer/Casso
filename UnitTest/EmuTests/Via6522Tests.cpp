@@ -48,6 +48,25 @@ namespace Via6522TestNs
     //
     //  Via6522Tests
     //
+    //  The VIA: port direction, the two timers, and the interrupt flag and
+    //  enable registers.
+    //
+    //  The DATA DIRECTION registers decide whether a port bit is driven or
+    //  read, so they are asserted before anything else -- a port left as an
+    //  output after reset would drive whatever the output register held.
+    //
+    //  Timer 1's free-run versus one-shot modes are covered separately, since
+    //  the Mockingboard drives its interrupt cadence from T1 and the two modes
+    //  differ in whether the counter reloads.
+    //
+    //  The IFR/IER pair gets its own attention because setting a flag does not
+    //  raise the line unless the matching enable is set -- and clearing works
+    //  by WRITING the bit, which is the opposite of what the name suggests and
+    //  the classic way an interrupt ends up stuck asserted.
+    //
+    //  Written from the datasheet, so these encode documented behavior rather
+    //  than another implementation's choices.
+    //
     ////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (Via6522Tests)
@@ -258,9 +277,9 @@ namespace Via6522TestNs
         TEST_METHOD (InterruptControllerSeesTimerIrq)
         {
             ViaTestCpu             cpu;
-            InterruptController    ic (&cpu);
             Via6522                via;
             HRESULT                hr = S_OK;
+            InterruptController    ic (&cpu);
 
 
 

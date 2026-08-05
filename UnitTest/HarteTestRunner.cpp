@@ -20,7 +20,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ReadByte (std::ifstream & f, Byte & out)
+static HRESULT ReadByte (std::ifstream & f, Byte & out)
 {
     HRESULT hr = S_OK;
 
@@ -37,7 +37,7 @@ static bool ReadByte (std::ifstream & f, Byte & out)
     out = static_cast<Byte> (c);
 
 Error:
-    return SUCCEEDED (hr);
+    return hr;
 }
 
 
@@ -50,7 +50,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ReadWord (std::ifstream & f, Word & out)
+static HRESULT ReadWord (std::ifstream & f, Word & out)
 {
     HRESULT hr = S_OK;
 
@@ -58,21 +58,19 @@ static bool ReadWord (std::ifstream & f, Word & out)
 
     Byte    lo;
     Byte    hi;
-    bool    fReadLo;
-    bool    fReadHi;
 
 
 
-    fReadLo = ReadByte (f, lo);
-    CBR (fReadLo);
+    hr = ReadByte (f, lo);
+    CHR (hr);
 
-    fReadHi = ReadByte (f, hi);
-    CBR (fReadHi);
+    hr = ReadByte (f, hi);
+    CHR (hr);
 
     out = (Word) hi << 8 | lo;
 
 Error:
-    return SUCCEEDED (hr);
+    return hr;
 }
 
 
@@ -83,27 +81,42 @@ Error:
 //
 //  ReadCpuState
 //
+//  Reads one CPU state -- registers plus a sparse RAM list -- from the packed
+//  Harte fixture format.
+//
+//  Sparse RAM is what makes the format practical: each test case names only the
+//  handful of addresses it touches, so a suite covering all 256 opcodes at
+//  10,000 cases each stays a manageable size instead of carrying a 64 KB image
+//  per case.
+//
+//  The fields are read in a fixed order with no framing, so this function IS
+//  the format definition -- there is nothing else to consult if the layout is
+//  wrong.
+//
+//  The entry count is bounds-checked against the fixture's own maximum before
+//  it is used to read, so a corrupt or truncated file fails here rather than
+//  reading past the buffer.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ReadCpuState (std::ifstream & f, HarteCpuState & state)
+static HRESULT ReadCpuState (std::ifstream & f, HarteCpuState & state)
 {
     HRESULT hr = S_OK;
 
 
 
     Byte    ramCount;
-    bool    fOk;
 
 
 
-    fOk = ReadWord (f, state.pc);   CBR (fOk);
-    fOk = ReadByte (f, state.s);    CBR (fOk);
-    fOk = ReadByte (f, state.a);    CBR (fOk);
-    fOk = ReadByte (f, state.x);    CBR (fOk);
-    fOk = ReadByte (f, state.y);    CBR (fOk);
-    fOk = ReadByte (f, state.p);    CBR (fOk);
+    hr = ReadWord (f, state.pc);   CHR (hr);
+    hr = ReadByte (f, state.s);    CHR (hr);
+    hr = ReadByte (f, state.a);    CHR (hr);
+    hr = ReadByte (f, state.x);    CHR (hr);
+    hr = ReadByte (f, state.y);    CHR (hr);
+    hr = ReadByte (f, state.p);    CHR (hr);
 
-    fOk = ReadByte (f, ramCount);   CBR (fOk);
+    hr = ReadByte (f, ramCount);   CHR (hr);
 
     state.ramCount = ramCount;
 
@@ -111,12 +124,12 @@ static bool ReadCpuState (std::ifstream & f, HarteCpuState & state)
 
     for (int i = 0; i < state.ramCount; i++)
     {
-        fOk = ReadWord (f, state.ram[i].address);   CBR (fOk);
-        fOk = ReadByte (f, state.ram[i].value);     CBR (fOk);
+        hr = ReadWord (f, state.ram[i].address);   CHR (hr);
+        hr = ReadByte (f, state.ram[i].value);     CHR (hr);
     }
 
 Error:
-    return SUCCEEDED (hr);
+    return hr;
 }
 
 
@@ -127,19 +140,37 @@ Error:
 //
 //  LoadHarteTestFile
 //
+//  Loads one opcode's test vectors: a small header followed by
+//  initial/final state pairs.
+//
+//  A PACKED BINARY format rather than the upstream suite's JSON, because
+//  loading thousands of cases per opcode across 256 opcodes as JSON dominates
+//  the run time -- the point of the suite is executing the vectors, not parsing
+//  them.
+//
+//  Each file holds ONE opcode, so a failing instruction is a file rather than
+//  an offset into a large archive, and a run can be narrowed to it.
+//
+//  The header carries the opcode as well as the count, so a file cannot be
+//  mistaken for another's -- which is what makes the per-file split safe.
+//
+//  Everything is verified as it reads: a truncated or corrupt file fails the
+//  load rather than producing plausible-looking vectors that would report as
+//  CPU failures.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-bool LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
+HRESULT LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
 {
-    HRESULT       hr = S_OK;
+    HRESULT  hr       = S_OK;
+    Word     count;
+    Byte     reserved;
+    bool     fOk;
+    bool     isOpen   = false;
 
 
 
     std::ifstream f (path, std::ios::binary);
-    Word          count;
-    Byte          reserved;
-    bool          fOk;
-    bool          isOpen = false;
 
 
 
@@ -147,9 +178,9 @@ bool LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
     CBR (isOpen);
 
     // Header: vector_count (uint16), opcode (uint8), reserved (uint8)
-    fOk = ReadWord (f, count);             CBR (fOk);
-    fOk = ReadByte (f, outFile.opcode);    CBR (fOk);
-    fOk = ReadByte (f, reserved);          CBR (fOk);
+    hr = ReadWord (f, count);             CHR (hr);
+    hr = ReadByte (f, outFile.opcode);    CHR (hr);
+    hr = ReadByte (f, reserved);          CHR (hr);
 
     outFile.vectorCount = count;
     outFile.vectors.resize (count);
@@ -161,8 +192,8 @@ bool LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
         // Name: length byte + ASCII chars
         Byte nameLen;
 
-        fOk = ReadByte (f, nameLen);
-        CBR (fOk);
+        hr = ReadByte (f, nameLen);
+        CHR (hr);
 
         CBRA (nameLen < sizeof (v.name));
 
@@ -172,12 +203,12 @@ bool LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
         v.name[nameLen] = '\0';
 
         // Initial and final state
-        fOk = ReadCpuState (f, v.initial);    CBR (fOk);
-        fOk = ReadCpuState (f, v.final);      CBR (fOk);
+        hr = ReadCpuState (f, v.initial);    CHR (hr);
+        hr = ReadCpuState (f, v.final);      CHR (hr);
     }
 
 Error:
-    return SUCCEEDED (hr);
+    return hr;
 }
 
 
@@ -307,7 +338,10 @@ static int RunHarteTestFile (const HarteTestFile & file, std::wstring & firstFai
 
     for (int i = 0; i < file.vectorCount; i++)
     {
-        const HarteTestVector & v = file.vectors[i];
+        const HarteTestVector  & v         = file.vectors[i];
+        bool                     failed    = false;
+        Byte                     expectedP = 0;
+        Byte                     actualP   = 0;
 
         CpuT cpu;
         cpu.InitForTest (v.initial.pc);
@@ -329,7 +363,6 @@ static int RunHarteTestFile (const HarteTestFile & file, std::wstring & firstFai
         cpu.Step();
 
         // Compare final state
-        bool failed = false;
 
         // PC
         if (cpu.RegPC() != v.final.pc)
@@ -387,8 +420,8 @@ static int RunHarteTestFile (const HarteTestFile & file, std::wstring & firstFai
         }
 
         // P (status) — mask bits 4 (B) and 5 (unused) for comparison
-        Byte expectedP = v.final.p & 0xCF;
-        Byte actualP   = cpu.Status().status & 0xCF;
+        expectedP = v.final.p & 0xCF;
+        actualP = cpu.Status().status & 0xCF;
 
         if (!failed && actualP != expectedP)
         {
@@ -448,24 +481,27 @@ static int RunHarteTestFile (const HarteTestFile & file, std::wstring & firstFai
 template <class CpuT>
 static void RunHarteOpcode (const char * cpuDir, Byte opcode)
 {
-    std::string dir = GetHarteTestDataDir (cpuDir);
-    char        hex[8];
+    std::string    dir          = GetHarteTestDataDir (cpuDir);
+    char           hex[8];
+    HarteTestFile  file;
+    HRESULT        hrLoad       = S_OK;
+    std::wstring   firstFailure;
+    int            failures     = 0;
 
 
 
     sprintf_s (hex, "%02x", opcode);
 
     std::string   path = dir + "\\" + hex + ".bin";
-    HarteTestFile file;
+    hrLoad = LoadHarteTestFile (path, file);
 
-    if (!LoadHarteTestFile (path, file))
+    if (FAILED (hrLoad))
     {
         // Skip if the file doesn't exist (opcode not generated).
         return;
     }
 
-    std::wstring firstFailure;
-    int          failures = RunHarteTestFile<CpuT> (file, firstFailure);
+    failures = RunHarteTestFile<CpuT> (file, firstFailure);
 
     if (failures > 0)
     {
@@ -488,6 +524,29 @@ namespace HarteTests
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  HarteTestRunner
+    //
+    //  Runs the Tom Harte per-opcode test vectors: set the CPU to an exact
+    //  initial state, execute ONE instruction, compare against the recorded
+    //  final state.
+    //
+    //  Exhaustive where Dormann is functional. Dormann proves programs behave
+    //  correctly; Harte proves each instruction's effect on every register,
+    //  flag, and touched memory cell, across thousands of randomized initial
+    //  states per opcode. Together they cover what neither does alone -- Harte
+    //  catches a flag wrong in a case no sensible program creates, which is
+    //  exactly where copy protection lives.
+    //
+    //  Every field is compared, including ones a program would never read, so a
+    //  discrepancy is caught at the instruction rather than propagating into
+    //  behavior somewhere downstream.
+    //
+    //  The vectors are AUTHORED ELSEWHERE, generated against real hardware,
+    //  which is what makes them an independent oracle rather than a restatement
+    //  of this implementation's assumptions.
+    //
+    //  Failures report the opcode, the case index, and the differing field,
+    //  since ten thousand cases per opcode are only useful if a failure says
+    //  which one.
     //
     ////////////////////////////////////////////////////////////////////////////////
 

@@ -29,14 +29,14 @@ RECT ThemePage::MakeRect (int l, int t, int w, int h)
 // per-channel. Used for the title-bar gradient bands.
 uint32_t ThemePage::LerpArgb (uint32_t a, uint32_t b, float t)
 {
-    uint8_t  aA = (uint8_t) ((a >> 24) & 0xFF);
-    uint8_t  rA = (uint8_t) ((a >> 16) & 0xFF);
-    uint8_t  gA = (uint8_t) ((a >>  8) & 0xFF);
-    uint8_t  bA = (uint8_t) ( a        & 0xFF);
-    uint8_t  aB = (uint8_t) ((b >> 24) & 0xFF);
-    uint8_t  rB = (uint8_t) ((b >> 16) & 0xFF);
-    uint8_t  gB = (uint8_t) ((b >>  8) & 0xFF);
-    uint8_t  bB = (uint8_t) ( b        & 0xFF);
+    uint8_t  aA   = (uint8_t) ((a >> 24) & 0xFF);
+    uint8_t  rA   = (uint8_t) ((a >> 16) & 0xFF);
+    uint8_t  gA   = (uint8_t) ((a >>  8) & 0xFF);
+    uint8_t  bA   = (uint8_t) ( a        & 0xFF);
+    uint8_t  aB   = (uint8_t) ((b >> 24) & 0xFF);
+    uint8_t  rB   = (uint8_t) ((b >> 16) & 0xFF);
+    uint8_t  gB   = (uint8_t) ((b >>  8) & 0xFF);
+    uint8_t  bB   = (uint8_t) ( b        & 0xFF);
     uint8_t  aOut = (uint8_t) (aA + (int) ((aB - (int) aA) * t));
     uint8_t  rOut = (uint8_t) (rA + (int) ((rB - (int) rA) * t));
     uint8_t  gOut = (uint8_t) (gA + (int) ((gB - (int) gA) * t));
@@ -101,9 +101,16 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
                                    std::array<DriveWidget, 2>           & previewDrives,
                                    JoystickToggleButton                 & previewButton)
 {
-    RECT      prevRect = {};
-    float     scale    = 0.0f;
-    HRESULT   hr       = S_OK;
+    RECT     prevRect     = {};
+    float    scale        = 0.0f;
+    HRESULT  hr           = S_OK;
+    int      prevW        = 0;
+    int      prevH        = 0;
+    int      titleH       = 0;
+    int      navH         = 0;
+    int      driveBarH    = 0;
+    int      screenH      = 0;
+    UINT     effectiveDpi = 0;
     auto      ScalePx  = [&scale] (int dp) -> int { return (int) ((float) dp * scale); };
 
     // Bottom inset: a full/compact drive bar when the machine has a Disk ][
@@ -121,13 +128,13 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         return;
     }
 
-    int  prevW       = prevRect.right  - prevRect.left;
-    int  prevH       = prevRect.bottom - prevRect.top;
-    int  titleH      = ScalePx (kPrevTitleBarDp);
-    int  navH        = ScalePx (kPrevNavStripDp);
-    int  driveBarH   = ScalePx (driveBandDp);
-    int  screenH     = std::max (0, prevH - titleH - navH - driveBarH);
-    UINT effectiveDpi = (UINT) std::max (24, (int) (96.0f * scale));
+    prevW = prevRect.right  - prevRect.left;
+    prevH = prevRect.bottom - prevRect.top;
+    titleH = ScalePx (kPrevTitleBarDp);
+    navH = ScalePx (kPrevNavStripDp);
+    driveBarH = ScalePx (driveBandDp);
+    screenH = std::max (0, prevH - titleH - navH - driveBarH);
+    effectiveDpi = (UINT) std::max (24, (int) (96.0f * scale));
 
     // Outer 1px frame so the preview reads as a discrete window
     // on the panel background.
@@ -151,23 +158,26 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
 
     // Caption + system buttons.
     {
-        int    sysBtnW      = ScalePx (kPrevSysButtonWDp);
-        int    sysBtnGap    = std::max (0, ScalePx (kPrevSysButtonGapDp));
-        float  captionDip   = (float) kPrevCaptionFontDp * scale;
-        int    btnRight     = prevRect.right;
-        int    btnTop       = prevRect.top;
-        int    btnH         = titleH;
+        int    sysBtnW     = ScalePx (kPrevSysButtonWDp);
+        int    sysBtnGap   = std::max (0, ScalePx (kPrevSysButtonGapDp));
+        float  captionDip  = (float) kPrevCaptionFontDp * scale;
+        int    btnRight    = prevRect.right;
+        int    btnTop      = prevRect.top;
+        int    btnH        = titleH;
+        int    btnMaxRight = 0;
+        int    btnMinRight = 0;
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (L"Casso emulator",
-                                                  (float) (prevRect.left + ScalePx (12)),
-                                                  (float) btnTop,
-                                                  (float) (prevW - 3 * (sysBtnW + sysBtnGap) - ScalePx (24)),
-                                                  (float) btnH,
-                                                  theme.titleText,
-                                                  captionDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextRenderer::HAlign::Left,
-                                                  DxuiTextRenderer::VAlign::Center));
+        hr = text.DrawString (L"Casso emulator",
+                              (float) (prevRect.left + ScalePx (12)),
+                              (float) btnTop,
+                              (float) (prevW - 3 * (sysBtnW + sysBtnGap) - ScalePx (24)),
+                              (float) btnH,
+                              theme.titleText,
+                              captionDip,
+                              DxuiTheme::kBodyFace,
+                              DxuiTextRenderer::HAlign::Left,
+                              DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         // Close (rightmost) -- drawn in its IDLE state (like min/max), NOT
         // the red hover fill, so the mockup matches a fresh app caption
@@ -177,18 +187,19 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         painter.FillRect ((float) (btnRight - sysBtnW), (float) btnTop,
                           (float) sysBtnW, (float) btnH,
                           theme.sysButtonIdle);
-        IGNORE_RETURN_VALUE (hr, text.DrawString (s_kpszMultiplyX,
-                                                  (float) (btnRight - sysBtnW),
-                                                  (float) btnTop,
-                                                  (float) sysBtnW,
-                                                  (float) btnH,
-                                                  theme.titleText,
-                                                  captionDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextRenderer::HAlign::Center,
-                                                  DxuiTextRenderer::VAlign::Center));
+        hr = text.DrawString (s_kpszMultiplyX,
+                              (float) (btnRight - sysBtnW),
+                              (float) btnTop,
+                              (float) sysBtnW,
+                              (float) btnH,
+                              theme.titleText,
+                              captionDip,
+                              DxuiTheme::kBodyFace,
+                              DxuiTextRenderer::HAlign::Center,
+                              DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
-        int  btnMaxRight = btnRight - sysBtnW - sysBtnGap;
+        btnMaxRight = btnRight - sysBtnW - sysBtnGap;
         painter.FillRect ((float) (btnMaxRight - sysBtnW), (float) btnTop,
                           (float) sysBtnW, (float) btnH, theme.sysButtonIdle);
         painter.OutlineRect ((float) (btnMaxRight - sysBtnW + ScalePx (12)),
@@ -197,7 +208,7 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
                              (float) (btnH - ScalePx (20)),
                              1.0f, theme.titleText);
 
-        int  btnMinRight = btnMaxRight - sysBtnW - sysBtnGap;
+        btnMinRight = btnMaxRight - sysBtnW - sysBtnGap;
         painter.FillRect ((float) (btnMinRight - sysBtnW), (float) btnTop,
                           (float) sysBtnW, (float) btnH, theme.sysButtonIdle);
         painter.FillRect ((float) (btnMinRight - sysBtnW + ScalePx (12)),
@@ -214,16 +225,17 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         painter.FillRect ((float) prevRect.left, (float) navTop,
                           (float) prevW, (float) navH,
                           theme.navStrip);
-        IGNORE_RETURN_VALUE (hr, text.DrawString (L"File   Edit   Machine   Disk   View   Help",
-                                                  (float) (prevRect.left + ScalePx (12)),
-                                                  (float) navTop,
-                                                  (float) (prevW - ScalePx (24)),
-                                                  (float) navH,
-                                                  theme.navItemText,
-                                                  navDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextRenderer::HAlign::Left,
-                                                  DxuiTextRenderer::VAlign::Center));
+        hr = text.DrawString (L"File   Edit   Machine   Disk   View   Help",
+                              (float) (prevRect.left + ScalePx (12)),
+                              (float) navTop,
+                              (float) (prevW - ScalePx (24)),
+                              (float) navH,
+                              theme.navItemText,
+                              navDip,
+                              DxuiTheme::kBodyFace,
+                              DxuiTextRenderer::HAlign::Left,
+                              DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
     // Screen area: live emulator framebuffer, aspect-fit.
@@ -235,9 +247,9 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
 
         if (screenH > 0 && framebufferSource)
         {
-            int               fbW = 0;
-            int               fbH = 0;
-            const uint32_t *  fbPixels = framebufferSource (fbW, fbH);
+            int               fbW      = 0;
+            int               fbH      = 0;
+            const uint32_t  * fbPixels = framebufferSource (fbW, fbH);
 
             if (fbPixels != nullptr && fbW > 0 && fbH > 0)
             {
@@ -268,9 +280,21 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
 
     // Drive bar: real DriveWidget instances at preview scale.
     {
-        int       driveTop  = prevRect.bottom - driveBarH;
-        int       gap       = std::max (1, ScalePx (16));
-        ChromeVisualState  visual = {};
+        int                driveTop      = prevRect.bottom - driveBarH;
+        int                gap           = std::max (1, ScalePx (16));
+        ChromeVisualState  visual        = {};
+        DriveWidgetState   mount0;
+        DriveWidgetState   mount1;
+        DxuiDpiScaler      previewScaler;
+        RECT               previewAnchor = {};
+        RECT               probe         = {};
+        int                widgetW       = 0;
+        int                widgetH       = 0;
+        int                totalW        = 0;
+        int                startX        = 0;
+        int                labelGapPx    = 0;
+        int                widgetY       = 0;
+        int                d             = 0;
 
         painter.FillRect ((float) prevRect.left, (float) driveTop,
                           (float) prevW, (float) driveBarH,
@@ -287,8 +311,6 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         // label strip reflects the live drive state. Falls back to
         // empty (no label) if the host hasn't wired a source or the
         // drive is empty.
-        DriveWidgetState  mount0;
-        DriveWidgetState  mount1;
 
         if (mountedPathSource)
         {
@@ -312,20 +334,18 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         previewDrives[0].SyncFromState (mount0);
         previewDrives[1].SyncFromState (mount1);
 
-        DxuiDpiScaler  previewScaler;
-        RECT           previewAnchor = { 0, 0, 0, 0 };
+        previewAnchor = { 0, 0, 0, 0 };
 
         previewScaler.SetDpi (effectiveDpi);
         previewDrives[0].Layout (previewAnchor, previewScaler);
 
-        RECT  probe   = previewDrives[0].OuterRect();
-        int   widgetW = probe.right  - probe.left;
-        int   widgetH = probe.bottom - probe.top;
-        int   totalW  = widgetW * 2 + gap;
-        int   startX  = prevRect.left + std::max (0, (prevW - totalW) / 2);
-        int   labelGapPx = std::max (1, ScalePx (2));
-        int   widgetY = prevRect.bottom - widgetH - labelGapPx;
-        int   d       = 0;
+        probe = previewDrives[0].OuterRect();
+        widgetW = probe.right  - probe.left;
+        widgetH = probe.bottom - probe.top;
+        totalW = widgetW * 2 + gap;
+        startX = prevRect.left + std::max (0, (prevW - totalW) / 2);
+        labelGapPx = std::max (1, ScalePx (2));
+        widgetY = prevRect.bottom - widgetH - labelGapPx;
 
         for (d = 0; d < 2; d++)
         {
@@ -462,6 +482,22 @@ std::string ThemePage::SelectedThemeId() const
 //
 //  ThemePage::SetThemes
 //
+//  Populates the theme dropdown from parallel id and display-name lists.
+//
+//  Ids and display names are kept SEPARATE because the id is what persists in
+//  prefs and what the theme manager is addressed by, while the display name is
+//  user-facing and may be localized or renamed without invalidating anyone's
+//  saved setting.
+//
+//  A caller mismatch between the two lists falls back to using the ids as
+//  labels rather than failing or truncating. The page stays functional with
+//  slightly uglier text, which is a far better outcome than a theme picker
+//  that cannot pick a theme.
+//
+//  The selection callback re-validates its index. It fires from the dropdown,
+//  which is driven by user input and by SetSelected, and the id list can be
+//  replaced underneath it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ThemePage::SetThemes (std::vector<std::string>  themeIds,
@@ -490,6 +526,7 @@ void ThemePage::SetThemes (std::vector<std::string>  themeIds,
         {
             return;
         }
+
         m_activeIndex = idx;
         UpdateMonitorCheckboxEnabled();
         if (m_onThemeSelected)
@@ -509,21 +546,48 @@ void ThemePage::SetThemes (std::vector<std::string>  themeIds,
 //
 //  ThemePage::Layout
 //
+//  Arranges the theme row, the desk-scene checkbox, and the preview area.
+//
+//  Arrangement is driven through the IDxuiControl tree rather than by setting
+//  each child's rect directly: a form layout policy assigns the label and
+//  field rects, so the page participates in the standard layout contract
+//  instead of hand-placing controls.
+//
+//  Two rects are therefore written in sequence, and the order is deliberate.
+//  The form is run against a SINGLE-ROW anchor so it fills exactly one row
+//  regardless of page height, then the panel's own bounds are re-set to the
+//  full page footprint. The adopted children keep the rects the form's arrange
+//  pass gave them; only the panel's stored bounds change.
+//
+//  The dropdown is then re-fixed to its intended width, because the form
+//  policy stretches the field to fill the row and would leave no space for the
+//  Apply button. Docking the button immediately to its right keeps both near
+//  the left edge, visible no matter how wide the settings window is (FR-132).
+//
+//  The checkbox row spans label + dropdown + gap + button so its caption
+//  cannot truncate against a narrower control.
+//
+//  The preview rect is clamped so a window narrower or shorter than the
+//  padding yields an empty rect rather than an inverted one.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT   dpi        = scaler.Dpi();
-    int    pad        = scaler.Px (kPagePadDp);
-    int    rowHeight  = scaler.Px (kRowHeightDp);
-    int    labelWidth = scaler.Px (kLabelWidthDp);
-    int    dropWidth  = scaler.Px (kDropdownWidthDp);
-    int    x          = rect.left + pad;
-    int    y          = rect.top  + pad;
-    int    rowGap     = scaler.Px (8);
-    int    previewGap = scaler.Px (24);
-    int    previewTop = y + 2 * rowHeight + rowGap + previewGap;
-    RECT   rowBounds  = { x, y, x + labelWidth + dropWidth, y + rowHeight };
+    UINT  dpi        = scaler.Dpi();
+    int   pad        = scaler.Px (kPagePadDp);
+    int   rowHeight  = scaler.Px (kRowHeightDp);
+    int   labelWidth = scaler.Px (kLabelWidthDp);
+    int   dropWidth  = scaler.Px (kDropdownWidthDp);
+    int   x          = rect.left + pad;
+    int   y          = rect.top  + pad;
+    int   rowGap     = scaler.Px (8);
+    int   previewGap = scaler.Px (24);
+    int   previewTop = y + 2 * rowHeight + rowGap + previewGap;
+    RECT  rowBounds  = { x, y, x + labelWidth + dropWidth, y + rowHeight };
+    int   applyGap   = 0;
+    int   applyWidth = 0;
+    RECT  dropB      = {};
     auto   form       = std::make_unique<DxuiFormLayout> ((float) labelWidth,
                                                           (float) rowHeight,
                                                           0.0f,
@@ -558,9 +622,9 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // intended width and dock the "Apply now" button immediately to its
     // right, so both stay near the left of the row (visible regardless of
     // how wide the settings window is).
-    int   applyGap   = scaler.Px (8);
-    int   applyWidth = scaler.Px (88);
-    RECT  dropB      = m_themeDropdown.Bounds();
+    applyGap = scaler.Px (8);
+    applyWidth = scaler.Px (88);
+    dropB = m_themeDropdown.Bounds();
 
     dropB.right = dropB.left + dropWidth;
     m_themeDropdown.SetBounds (dropB);
@@ -611,11 +675,35 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //
 //  ThemePage::Paint
 //
+//  Draws the controls and the live theme preview.
+//
+//  The dropdown is painted in TWO parts around the preview -- PaintBase before,
+//  PaintMenu last -- so an open dropdown appears above the preview window
+//  rather than behind it. Painting it as one call would put the menu underneath.
+//
+//  The preview tracks the dropdown's HIGHLIGHTED item while it is open, not
+//  the committed selection, so both mouse hover and arrow-key navigation
+//  update the mock window immediately. That is what makes the picker browsable
+//  -- a user sees each theme before choosing it -- and it falls back to the
+//  committed value once the dropdown closes.
+//
+//  The interface references are downcast to the concrete Dxui renderers
+//  because the preview needs their actual surface to blit a mock chrome and
+//  framebuffer. That is safe here: the host always paints through those
+//  concrete types.
+//
+//  The preview drives are initialized lazily and reused, so the mock chrome
+//  has real drive widgets to render without building them on every frame.
+//
+//  A degenerate preview rect is skipped, so a settings window too small to
+//  show the preview simply omits it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, const IDxuiTheme & theme)
 {
     static NullDriveCommandSink  s_kNullSink;
+    int                          previewIndex = 0;
 
 
 
@@ -637,7 +725,7 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
     // item while open (so mouse hover and arrow-key nav both update
     // the mock window immediately), and falls back to the committed
     // selection when closed. Matches the monitor dropdown live channel.
-    int  previewIndex = m_activeIndex;
+    previewIndex = m_activeIndex;
 
     if (m_themeDropdown.IsOpen())
     {
@@ -654,6 +742,7 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
         previewIndex >= 0 && previewIndex < (int) m_themeIds.size())
     {
         CassoTheme  preview = CassoTheme::ForName (m_themeIds[(size_t) previewIndex]);
+        bool        hasDisk = false;
 
         if (!m_previewDrivesInitialized)
         {
@@ -662,7 +751,7 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
             m_previewDrivesInitialized = true;
         }
 
-        bool  hasDisk = m_hasDiskSource ? m_hasDiskSource() : true;
+        hasDisk = m_hasDiskSource ? m_hasDiskSource() : true;
 
         PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_previewDrives, m_previewJoystickButton);
     }

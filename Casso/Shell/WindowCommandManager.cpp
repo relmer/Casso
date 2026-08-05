@@ -30,7 +30,22 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Anonymous helpers
+//  File-scope helpers
+//
+//  Error-message plumbing shared by the command handlers: turning an HRESULT
+//  or a spool result into something a dialog can show.
+//
+//  Every user-facing failure in this file is reported as a friendly sentence
+//  plus a technical trailer. The sentence tells the user what went wrong; the
+//  trailer carries the raw code and the OS text, which is what actually
+//  survives being pasted into a bug report. Neither alone is enough -- a bare
+//  hex code is useless to the user, and a friendly sentence is useless to
+//  whoever has to fix it.
+//
+//  A Win32-wrapped HRESULT is unwrapped before lookup, so a code produced by
+//  HRESULT_FROM_WIN32 resolves to its GetLastError text rather than to
+//  nothing. Codes the system has no message for degrade to just the hex, which
+//  is still the useful half.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,11 +58,14 @@ using namespace ChromeMetrics;
 // resolve where the system has a message and degrade to just the hex code.
 std::wstring  WindowCommandManager::FormatSystemError (HRESULT hr)
 {
+    LPWSTR         text   = nullptr;
+
+
+
     std::wstring   detail = std::format (L"0x{:08X}", (uint32_t) hr);
     DWORD          code   = (HRESULT_FACILITY (hr) == FACILITY_WIN32)
                                 ? (DWORD) HRESULT_CODE (hr)
                                 : (DWORD) hr;
-    LPWSTR         text   = nullptr;
 
     DWORD  n = FormatMessageW (
         FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -64,8 +82,10 @@ std::wstring  WindowCommandManager::FormatSystemError (HRESULT hr)
         {
             sys.pop_back();
         }
+
         if (!sys.empty()) { detail += L" -- " + sys; }
     }
+
     if (text != nullptr) { LocalFree (text); }
 
     return detail;
@@ -366,6 +386,22 @@ void WindowCommandManager::HandleCommand (WORD commandId)
 //
 //  OnCommand
 //
+//  Routes a WM_COMMAND id to the handler for its menu.
+//
+//  Dispatch is by RANGE, not by a per-id table, which is why the IDM_ values
+//  in the resource header are grouped and contiguous per menu: adding a
+//  command to an existing menu needs only an id inside that menu's span and a
+//  case in its handler, with nothing to update here.
+//
+//  The ids handled individually are the ones that belong to no menu -- printer
+//  toolbar actions and the two async print-result notifications the worker
+//  posts back -- so they have no range to fall into.
+//
+//  Always returns false: the shell reports every command as not fully handled
+//  so default processing still runs. The return is not a "was it recognized"
+//  signal, and an unrecognized id is silently ignored rather than asserted,
+//  since WM_COMMAND also carries ids from system menus and accelerators.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool WindowCommandManager::OnCommand (HWND hwnd, int id)
@@ -536,14 +572,31 @@ void WindowCommandManager::OnEditCommand (int id)
 //
 //  OnMachineCommand
 //
+//  The Machine menu: reset, power cycle, pause, step, speed, and the input
+//  mapping toggles.
+//
+//  These commands do NOT all reach the CPU the same way, and the difference is
+//  what to understand here.
+//
+//  Reset and power cycle are POSTED to the CPU thread's queue, because they
+//  mutate device state the CPU thread is actively using and must land between
+//  instructions rather than mid-execution.
+//
+//  Step is driven DIRECTLY from the UI thread, which looks like a violation of
+//  that rule and is not. Step only runs while paused, and a paused CPU thread
+//  is provably idle -- blocked in pauseCV.wait -- so there is no concurrent
+//  access to race with. Posting it would in fact deadlock: the CPU thread
+//  cannot drain its command queue while it is parked. It is delegated back
+//  through the shell to keep Disk2Controller's full definition out of this
+//  header.
+//
+//  Speed and pause are plain CpuManager calls -- atomics the CPU thread reads
+//  each frame -- so they need no marshalling at all.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void WindowCommandManager::OnMachineCommand (int id)
 {
-    bool paused = false;
-
-
-
     switch (id)
     {
         case IDM_MACHINE_RESET:
@@ -555,8 +608,7 @@ void WindowCommandManager::OnMachineCommand (int id)
 
         case IDM_MACHINE_PAUSE:
         {
-            paused = m_shell.m_cpuManager.TogglePaused();
-            (void) paused;
+            m_shell.m_cpuManager.TogglePaused();
             m_shell.UpdateWindowTitle();
             break;
         }
@@ -567,6 +619,7 @@ void WindowCommandManager::OnMachineCommand (int id)
             {
                 break;
             }
+
             // CPU thread is provably idle (blocked on pauseCV.wait), so
             // it's safe to drive the step directly from the UI thread.
             // Routing through PostCommand+queue would never run -- the
@@ -597,6 +650,8 @@ void WindowCommandManager::OnMachineCommand (int id)
 
         case IDM_MACHINE_INFO:
         {
+            DialogDefinition  def;
+
             std::wstring info = std::format (
                 L"Machine: {}\n"
                 L"CPU: {}\n"
@@ -609,7 +664,7 @@ void WindowCommandManager::OnMachineCommand (int id)
                 (m_shell.m_config.ram.size() + 1 + m_shell.m_config.slots.size()),
                 (m_shell.m_config.internalDevices.size() + m_shell.m_config.slots.size()));
 
-            DialogDefinition def = {};
+            def = {};
             def.title = L"Machine info";
             def.icon  = DialogIcon::Info;
             def.body.push_back ({ info, false, L"" });
@@ -639,6 +694,29 @@ void WindowCommandManager::OnMachineCommand (int id)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnViewCommand
+//
+//  The View menu: monitor color, fullscreen, reset window size, the debug
+//  panels, and Settings.
+//
+//  Color mode is stored with release ordering because the CPU thread reads it
+//  while rendering; everything else here is UI-thread-only.
+//
+//  Reset-size is the substantial case. The new window size is derived by
+//  MEASURING the current window's non-client overhead -- window rect minus
+//  client rect -- rather than computing it with AdjustWindowRectExForDpi. The
+//  custom WM_NCCALCSIZE handler does not match the stock calculation, so the
+//  theoretical path landed on a wrong size and needed a follow-up correction,
+//  which was visible as a jitter on every Ctrl+0. Neither style nor DPI change
+//  between the measurement and the SetWindowPos, so the measured overhead is a
+//  stable input and the window lands right the first time.
+//
+//  The target client area comes from ClientSizeForFramebufferPx, which owns
+//  the framebuffer scaling policy for the whole shell, so this command cannot
+//  disagree with what a normal resize would produce.
+//
+//  The result is centered on the window's CURRENT monitor, not the primary, so
+//  Ctrl+0 does not fling the window across a multi-monitor desktop. It is a
+//  no-op while fullscreen, where the size is not the window's to choose.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -740,6 +818,7 @@ void WindowCommandManager::OnViewCommand (int id)
 
                 SetWindowPos (m_shell.m_hwnd, nullptr, x, y, w, h, SWP_NOZORDER);
             }
+
             break;
         }
 
@@ -770,6 +849,21 @@ void WindowCommandManager::OnViewCommand (int id)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PromptForDiskImage
+//
+//  Shows the file picker and mounts whatever the user chose into the given
+//  drive.
+//
+//  A CANCEL is reported as success. Backing out of a picker is a decision, not
+//  a failure -- there is simply nothing to mount -- and the sole caller only
+//  tests FAILED, so returning a distinct code would have told nobody anything
+//  while inviting a spurious error dialog.
+//
+//  The drive number is converted from the menu's 1-based numbering to the
+//  controller's 0-based index here, so the command handlers can keep speaking
+//  in the numbers printed on the drives.
+//
+//  The path buffer is shell-allocated and is freed on every exit, including
+//  the failure paths that never reach the mount.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -891,6 +985,19 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnDiskCommand
+//
+//  The Disk menu: insert and eject, per drive.
+//
+//  Insert and eject take different routes for the same reason as reset versus
+//  step in the Machine menu. Insert runs on the UI thread because it opens a
+//  file picker -- a modal shell dialog that must be on the thread owning the
+//  window -- and the mount it performs is itself queued internally. Eject is
+//  POSTED to the CPU thread, since it detaches a disk the drive engine may be
+//  actively reading.
+//
+//  Insert failures are swallowed on purpose. The picker path already reports
+//  anything worth reporting, and a cancel is not a failure at all, so there is
+//  nothing left for this handler to say.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1119,10 +1226,12 @@ Error:
     {
         CoTaskMemFree (pszPath);
     }
+
     if (picturesRaw != nullptr)
     {
         CoTaskMemFree (picturesRaw);
     }
+
     return hr;
 }
 
@@ -1147,17 +1256,17 @@ Error:
 
 HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster, std::wstring & failedStage, PrintOutcome & outOutcome)
 {
-    HRESULT                                hr      = S_OK;
-    const GlobalUserPrefs &                prefs   = m_shell.m_globalPrefs;
-    vector<PrintPagination::PageRange>     pages   = PrintPagination::Paginate (raster);
-    PRINTDLGW                              pd      = {};
-    DOCINFOW                               di      = {};
-    bool                                   started = false;
-    BOOL                                   dlgOk   = FALSE;
-    int                                    pageW   = 0;
-    int                                    pageH   = 0;
-    int                                    pageIx  = 0;
-    bool                                   hasPages = false;
+    HRESULT                               hr       = S_OK;
+    const GlobalUserPrefs               & prefs    = m_shell.m_globalPrefs;
+    vector<PrintPagination::PageRange>    pages    = PrintPagination::Paginate (raster);
+    PRINTDLGW                             pd       = {};
+    DOCINFOW                              di       = {};
+    bool                                  started  = false;
+    BOOL                                  dlgOk    = FALSE;
+    int                                   pageW    = 0;
+    int                                   pageH    = 0;
+    int                                   pageIx   = 0;
+    bool                                  hasPages = false;
 
 
 
@@ -1267,18 +1376,22 @@ Error:
     {
         AbortDoc (pd.hDC);
     }
+
     if (pd.hDC != nullptr)
     {
         DeleteDC (pd.hDC);
     }
+
     if (pd.hDevMode != nullptr)
     {
         GlobalFree (pd.hDevMode);
     }
+
     if (pd.hDevNames != nullptr)
     {
         GlobalFree (pd.hDevNames);
     }
+
     return hr;
 }
 
@@ -1620,12 +1733,12 @@ void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
 
 void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
 {
-    HRESULT        hr           = S_OK;
-    PrintOutcome   outcome      = PrintOutcome::Delivered;
-    fs::path       file;
-    std::wstring   failedStage;
-    wchar_t        forceClassic[8] = {};
-    bool           modernUp     = false;
+    HRESULT       hr              = S_OK;
+    PrintOutcome  outcome         = PrintOutcome::Delivered;
+    fs::path      file;
+    std::wstring  failedStage;
+    wchar_t       forceClassic[8] = {};
+    bool          modernUp        = false;
 
 
 
@@ -1687,6 +1800,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
         {
             msg += failedStage + L"\n";
         }
+
         msg += FormatSystemError (hr);
 
         m_shell.NotePrinterDeliveryResult (true);   // toolbar LED: red until resolved
@@ -1742,6 +1856,22 @@ void WindowCommandManager::OnModernPrintResult (bool succeeded)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnHelpCommand
+//
+//  The Help menu: the keyboard map and the About box.
+//
+//  Both are built as DialogDefinition data and handed to the shared modal
+//  renderer rather than being dialog resources, so they pick up the active
+//  theme and DPI like the rest of the chrome instead of appearing as stock
+//  Win32 dialogs in the middle of custom skeuomorphic UI.
+//
+//  About stamps the version and build timestamp from the compiled-in macros,
+//  so the reported version is necessarily the running binary's rather than
+//  something maintained by hand.
+//
+//  The link layout depends on how body runs flow: they stack at the body line
+//  height with no inter-run gap, so an EMPTY run is exactly one blank line.
+//  That is what groups GitHub with "Log a bug", and the license with the
+//  third-party attribution, as two visually distinct pairs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

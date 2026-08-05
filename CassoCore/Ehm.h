@@ -53,6 +53,9 @@
     #ifndef E_INVALIDARG
         #define E_INVALIDARG      ((HRESULT) 0x80070057L)
     #endif
+    #ifndef E_UNEXPECTED
+        #define E_UNEXPECTED      ((HRESULT) 0x8000FFFFL)
+    #endif
 
     #ifndef SUCCEEDED
         #define SUCCEEDED(hr)     (((HRESULT)(hr)) >= 0)
@@ -218,10 +221,22 @@ void SetBreakpointFunction (EHM_BREAKPOINT_FUNC func);
 //
 // IGNORE_RETURN_VALUE
 //
+// Overwrites an already-captured result with a neutral reset value, making
+// the discard explicit. The reset value must be a COMPILE-TIME CONSTANT --
+// S_OK, false, 0, an enumerator, a constexpr named constant. The constexpr
+// local below is what enforces that: a runtime expression as the second
+// argument -- above all a function call, which would make this an
+// assignment dressed up as an ignore -- fails to compile at the use site
+// (C2131). Capture first, then neutralize:
+//
+//     hr = Foo (...);
+//     IGNORE_RETURN_VALUE (hr, S_OK);
+//
 
 #define IGNORE_RETURN_VALUE(__result, __new_value)                                          \
 {                                                                                           \
-    __result = __new_value;                                                                 \
+    constexpr auto __ehmResetValue = (__new_value);                                         \
+    __result = __ehmResetValue;                                                             \
 }
 
 

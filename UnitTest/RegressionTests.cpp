@@ -23,6 +23,20 @@ namespace RegressionTests
     //
     //  ZeroPageWrappingTests
     //
+    //  Zero-page indexed addressing wrapping at 256 instead of crossing into
+    //  page 1.
+    //
+    //  On the 6502, zero-page,X and zero-page,Y compute their effective address
+    //  MODULO 256 -- $FF plus 5 is $04, not $0104. The natural implementation
+    //  adds an index to a base and gets it wrong only at the boundary, which is
+    //  why the original bug existed and why every test here indexes across it
+    //  deliberately.
+    //
+    //  It matters because page 1 is the STACK. Without the wrap, an indexed
+    //  read near the top of zero page returns stack bytes and an indexed write
+    //  corrupts a return address, so the failure surfaces as a crash somewhere
+    //  unrelated.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (ZeroPageWrappingTests)
@@ -148,6 +162,18 @@ namespace RegressionTests
     //
     //  IndirectXWrappingTests
     //
+    //  (zp,X) wrapping in zero page -- for the POINTER FETCH, not just the
+    //  index.
+    //
+    //  A subtler case than plain zero-page indexing, and a separate bug. Both
+    //  bytes of the pointer are read from zero page with wrap, so a pointer at
+    //  $FF takes its low byte from $FF and its high byte from $00 -- not from
+    //  $0100. Wrapping the index but reading the word normally passes every
+    //  test that does not sit on the boundary.
+    //
+    //  The consequence is worse than a wrong byte: a mis-fetched pointer sends
+    //  the access to an entirely unrelated address.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (IndirectXWrappingTests)
@@ -219,6 +245,18 @@ namespace RegressionTests
     //
     //  IndirectYWrappingTests
     //
+    //  (zp),Y wrapping the POINTER FETCH in zero page while the Y addition
+    //  does not wrap.
+    //
+    //  The asymmetry is the whole point, and it is the opposite of (zp,X). Here
+    //  the pointer is read from zero page with wrap, but Y is added to the
+    //  resulting 16-bit address AFTERWARDS and legitimately crosses pages --
+    //  that page cross is how (zp),Y reaches all of memory.
+    //
+    //  So applying the zero-page wrap to the final sum, by symmetry with the
+    //  other indexed modes, breaks the most commonly used addressing mode on
+    //  the machine.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (IndirectYWrappingTests)
@@ -260,6 +298,21 @@ namespace RegressionTests
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  JmpIndirectPageBoundaryTests
+    //
+    //  The famous JMP ($xxFF) bug: the high byte comes from the START of the
+    //  same page, not the next one.
+    //
+    //  A genuine NMOS 6502 DEFECT that this emulator reproduces deliberately.
+    //  JMP ($10FF) reads its low byte from $10FF and its high byte from $1000
+    //  rather than $1100, because the address increment does not carry into the
+    //  high byte.
+    //
+    //  It is emulated rather than fixed because period software knows about it
+    //  -- some avoids the boundary, some exploits it -- and a "corrected"
+    //  implementation would run code the hardware never would.
+    //
+    //  The 65C02 fixed this, so a divergence here is also what would catch the
+    //  CMOS behavior leaking into the NMOS core.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -327,6 +380,18 @@ namespace RegressionTests
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  JsrStackOperandOverlapTests
+    //
+    //  A JSR whose own operand bytes live where it is about to push -- the
+    //  operand must be read BEFORE the return address is pushed.
+    //
+    //  Only reachable when code executes from page 1, which is exactly what a
+    //  few copy-protection schemes do. The hardware's fetch order makes the
+    //  outcome well-defined, so an implementation that pushed first and read
+    //  its operand afterwards would jump somewhere else entirely.
+    //
+    //  Obscure, and worth a test precisely because nothing else exercises it:
+    //  the ordering is invisible in every ordinary JSR, so a refactor could
+    //  swap the two steps and every other test would still pass.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -401,6 +466,21 @@ namespace RegressionTests
     //
     //  AdcBcdNFlagTests
     //
+    //  ADC in decimal mode: N comes from the INTERMEDIATE binary sum, not the
+    //  final BCD result.
+    //
+    //  An NMOS quirk, and the reason decimal-mode flags cannot be derived from
+    //  the answer. The 6502 computes the binary sum, sets N and V from it, and
+    //  only then applies the decimal adjustment -- so N frequently disagrees
+    //  with the high bit of the value actually stored.
+    //
+    //  A natural implementation sets the flags from the final result and
+    //  produces the right answer with the wrong flags, which is why this needs
+    //  a test rather than being covered by the arithmetic tests.
+    //
+    //  The 65C02 changed this too, so it also guards CMOS behavior leaking into
+    //  the NMOS core.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (AdcBcdNFlagTests)
@@ -411,6 +491,17 @@ namespace RegressionTests
         ////////////////////////////////////////////////////////////////////////////////
         //
         //  ADC_BCD_NFlag_FromIntermediate_NotFinal
+        //
+        //  Picks operands where the intermediate binary sum and the final BCD
+        //  result DISAGREE about bit 7.
+        //
+        //  That disagreement is the entire test. Most decimal additions produce
+        //  the same N either way, so a wrong implementation passes on almost
+        //  any input -- only a case straddling the adjustment distinguishes
+        //  them.
+        //
+        //  The stored value is asserted alongside the flag, so a test failure
+        //  says whether the arithmetic or only the flag went wrong.
         //
         ////////////////////////////////////////////////////////////////////////////////
 
@@ -487,6 +578,18 @@ namespace RegressionTests
     //
     //  SbcBcdFlagTests
     //
+    //  SBC in decimal mode: N, V, and Z all come from the BINARY subtraction,
+    //  before the decimal adjustment.
+    //
+    //  The mirror of the ADC case, and Z is the one that surprises. Unlike ADC,
+    //  where only N and V come from the intermediate, SBC's Z does too -- so a
+    //  decimal subtraction can store a non-zero result with Z set, or zero with
+    //  Z clear.
+    //
+    //  That asymmetry between the two instructions is exactly what a shared
+    //  flag helper would erase, which is why both directions have their own
+    //  tests.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (SbcBcdFlagTests)
@@ -535,6 +638,18 @@ namespace RegressionTests
         //
         //  SBC_BCD_ZFlag_FromBinarySubtraction
         //
+        //  A decimal subtraction whose binary intermediate is zero while the
+        //  adjusted result is not -- so Z must be SET despite a non-zero
+        //  answer.
+        //
+        //  Counter-intuitive enough that it reads as a bug in the test rather
+        //  than a fact about the hardware, which is why it is pinned
+        //  explicitly.
+        //
+        //  It is also the case a shared "set Z from the result" helper would
+        //  quietly get wrong for SBC alone, since that rule IS correct for
+        //  every other instruction.
+        //
         ////////////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (SBC_BCD_ZFlag_FromBinarySubtraction)
@@ -575,6 +690,16 @@ namespace RegressionTests
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  ReadWordWrappingTests
+    //
+    //  A 16-bit read at $FFFF taking its high byte from $0000.
+    //
+    //  The address bus is 16 bits and wraps; it does not fault or read past the
+    //  end. An implementation using a wider intermediate index would read out
+    //  of bounds of the memory array instead -- undefined behavior rather than
+    //  a wrong value, so this guards a crash as much as a correctness bug.
+    //
+    //  It sits at the very top of the address space, next to the interrupt
+    //  vectors, so the wrap is genuinely reachable rather than theoretical.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -620,6 +745,19 @@ namespace RegressionTests
     //
     //  SetVariableTemporalTests
     //
+    //  A `set` variable holding the value it had AT EACH POINT of use, not its
+    //  final value.
+    //
+    //  This is what distinguishes `set` from `equ`. An equ symbol has one value
+    //  the whole assembly; a set variable is reassignable, so a reference must
+    //  see the assignment most recently preceding it -- three uses between
+    //  three assignments must yield three different numbers.
+    //
+    //  The natural two-pass implementation gets this wrong: pass 1 records
+    //  symbols in a table and pass 2 looks them up, so every reference sees the
+    //  LAST value assigned. Getting it right requires resolving set variables
+    //  positionally, and that is what these pin.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (SetVariableTemporalTests)
@@ -647,6 +785,17 @@ namespace RegressionTests
         ////////////////////////////////////////////////////////////////////////////////
         //
         //  Set_ThreeIncrements_TemporalOrdering
+        //
+        //  Three assignments interleaved with three uses, asserting three
+        //  DIFFERENT emitted values.
+        //
+        //  Three rather than two, because two would also pass an implementation
+        //  that happened to be off by one assignment. Three distinct values
+        //  pin the ordering itself.
+        //
+        //  The emitted BYTES are asserted rather than the symbol table, since
+        //  the table only holds the final value by construction -- the evidence
+        //  of temporal resolution exists only in the output.
         //
         ////////////////////////////////////////////////////////////////////////////////
 
@@ -729,6 +878,18 @@ namespace RegressionTests
     //
     //  SetVariableInMacroTests
     //
+    //  A `set` variable incremented inside a macro BODY, advancing once per
+    //  expansion.
+    //
+    //  The temporal case again, now crossing macro expansion -- which is where
+    //  it is most easily lost. Macros expand by splicing lines into the pending
+    //  queue, so the assignment inside a body has to take effect at each
+    //  EXPANSION SITE rather than once at the definition.
+    //
+    //  That makes the classic counter idiom work: a macro invoked several times
+    //  emitting a different value each time is how period sources generate
+    //  tables and unique labels.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (SetVariableInMacroTests)
@@ -756,6 +917,17 @@ namespace RegressionTests
         ////////////////////////////////////////////////////////////////////////////////
         //
         //  Set_IncrementedInMacroBody
+        //
+        //  Invokes one macro repeatedly and asserts the emitted value advances
+        //  with each invocation.
+        //
+        //  The failure it guards is a macro body whose assignment runs once at
+        //  DEFINITION rather than per expansion, which emits the same value
+        //  every time -- an output that looks orderly and is wrong.
+        //
+        //  Asserting a sequence rather than a single value also catches the
+        //  opposite mistake, where the variable advances more than once per
+        //  expansion because the body is processed twice.
         //
         ////////////////////////////////////////////////////////////////////////////////
 

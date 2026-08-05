@@ -167,6 +167,26 @@ void AppendColumnText (std::wstring & out, const InputEventDisplay & e, int logi
 //
 //  BuildClipboardText
 //
+//  Renders the selected event rows as tab-separated text for the clipboard.
+//
+//  TABS, so a paste into a spreadsheet or a Markdown table lands in columns.
+//  Aligning with spaces would look right only in a monospace font and would
+//  make the data unparseable.
+//
+//  Only VISIBLE columns are emitted, matching what the user is looking at. A
+//  copy that included hidden columns would paste data they deliberately
+//  filtered away.
+//
+//  Rows end CRLF rather than LF, because Windows clipboard consumers --
+//  Notepad included -- expect it, and a bug report pasted as one long line is
+//  useless.
+//
+//  The first-column flag emits separators BETWEEN fields rather than after
+//  each, so no row carries a trailing tab into an empty final cell.
+//
+//  Null rows are skipped defensively; the caller builds this list from indices
+//  that could have been invalidated by a trim.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring BuildClipboardText (
@@ -223,7 +243,7 @@ std::vector<DxuiListView::Column> PlanVisibleColumns (
     const std::array<InputLogicalColumn, kInputColumnCount> & model) noexcept
 {
     std::vector<DxuiListView::Column>  out;
-    int                            i = 0;
+    int                                i   = 0;
 
 
     out.reserve (kInputColumnCount);

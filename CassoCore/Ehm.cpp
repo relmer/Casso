@@ -30,7 +30,26 @@ void SetBreakpointFunction (EHM_BREAKPOINT_FUNC func)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EhmBreakpoint
+//  EhmBreakpoint  (wide)
+//
+//  What a failed EHM assertion actually does: format the site, log it, and
+//  hand it to whatever host is installed.
+//
+//  The HOST HOOK is the point. A raw __debugbreak is fine under a debugger,
+//  but with none attached it becomes a bare "stopped working" crash with no
+//  detail at all -- the assertion text, the file, and the line are all lost
+//  exactly when they are needed. Routing through g_pfnBreakpoint lets the GUI
+//  shell show the text with Abort / Retry / Ignore, and lets the test harness
+//  record a failure instead of killing the run.
+//
+//  With no host installed it still breaks, so a library consumer that never
+//  registers one gets the traditional behavior rather than silence.
+//
+//  A failed format yields an EMPTY message rather than an uninitialized
+//  buffer, so the host is never handed garbage; the break still happens.
+//
+//  Two spellings of this function exist because EHM is used from both wide and
+//  narrow translation units; they are identical apart from character type.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,7 +98,14 @@ void EhmBreakpoint (const wchar_t * file, int line, const wchar_t * func, const 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EhmBreakpoint
+//  EhmBreakpoint  (narrow)
+//
+//  The narrow-character build of the same function -- see the wide overload
+//  above for why the host hook exists and what happens without one.
+//
+//  It is a separate definition rather than a TCHAR-style macro so the format
+//  strings and the buffer type are both plainly visible, and so the two can
+//  diverge if a host ever needs different behavior on one of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

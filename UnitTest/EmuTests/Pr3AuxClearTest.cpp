@@ -46,8 +46,8 @@ TEST_CLASS (Pr3AuxClearTest)
 {
 public:
 
-    static constexpr uint64_t  kColdBootCycles = 5'000'000ULL;
-    static constexpr uint64_t  kAfterCommand   = 2'000'000ULL;
+    static constexpr uint64_t  kColdBootCycles  = 5'000'000ULL;
+    static constexpr uint64_t  kAfterCommand    = 2'000'000ULL;
     static constexpr int       kMaxAncestorWalk = 10;
 
 
@@ -100,6 +100,11 @@ public:
 
     TEST_METHOD (RealCharRom_Decodes_SpaceAsBlank_AltSet)
     {
+        CharacterRomData  rom;
+        HRESULT           hr  = S_OK;
+
+
+
         fs::path romPath = FindRomPath ("ROMs/Apple2e_Video.rom");
         if (romPath.empty() || !fs::exists (romPath))
         {
@@ -109,8 +114,7 @@ public:
             return;
         }
 
-        CharacterRomData rom;
-        HRESULT hr = rom.LoadFromFile (romPath.string());
+        hr = rom.LoadFromFile (romPath.string());
         AssertSucceeded (hr, L"Must load Apple2e_Video.rom");
 
         for (int y = 0; y < 8; y++)
@@ -137,8 +141,11 @@ public:
     // companion Pr3_StaticCursor_Lands_At_Main0480 test).
     TEST_METHOD (Pr3_Clears_AuxTextPage1_AllRows)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        HeadlessHost    host;
+        EmulatorCore    core;
+        Byte          * auxBuf    = nullptr;
+        int             totalBad  = 0;
+        wchar_t         msg[1024] = {};
 
         HRESULT  hr = host.BuildApple2e (core);
         AssertSucceeded (hr);
@@ -149,11 +156,9 @@ public:
         size_t  consumed = KeystrokeInjector::InjectLine (core, "PR#3", kAfterCommand);
         Assert::AreEqual (size_t (5), consumed);
 
-        Byte * auxBuf = core.mmu->GetAuxBuffer();
+        auxBuf = core.mmu->GetAuxBuffer();
         Assert::IsNotNull (auxBuf);
 
-        wchar_t  msg[1024] = {};
-        int totalBad = 0;
         for (int row = 0; row < 24; row++)
         {
             Word rowBase = static_cast<Word> (0x0400 + 128 * (row % 8) + 40 * (row / 8));
@@ -164,6 +169,7 @@ public:
                 if (a == 0x0480) continue;     // BASIC prompt ']' lands here
                 if (auxBuf[a] != 0xA0) rowBad++;
             }
+
             if (rowBad > 0)
             {
                 wchar_t  line[64] = {};
@@ -199,8 +205,13 @@ public:
     // can't silently regress.
     TEST_METHOD (Pr3_StaticCursor_Lands_At_Main0480)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        HeadlessHost    host;
+        EmulatorCore    core;
+        Byte          * auxBuf = nullptr;
+        Byte            prompt = 0;
+        Byte            cursor = 0;
+        Byte            ourch  = 0;
+        Byte            cv     = 0;
 
         HRESULT  hr = host.BuildApple2e (core);
         AssertSucceeded (hr);
@@ -211,13 +222,13 @@ public:
         size_t  consumed = KeystrokeInjector::InjectLine (core, "PR#3", kAfterCommand);
         Assert::AreEqual (size_t (5), consumed);
 
-        Byte * auxBuf = core.mmu->GetAuxBuffer();
+        auxBuf = core.mmu->GetAuxBuffer();
         Assert::IsNotNull (auxBuf);
 
-        Byte   prompt   = auxBuf[0x0480];
-        Byte   cursor   = core.bus->ReadByte (0x0480);
-        Byte   ourch    = core.bus->ReadByte (0x057B);
-        Byte   cv       = core.bus->ReadByte (0x0025);
+        prompt = auxBuf[0x0480];
+        cursor = core.bus->ReadByte (0x0480);
+        ourch = core.bus->ReadByte (0x057B);
+        cv = core.bus->ReadByte (0x0025);
 
         Assert::AreEqual (Byte (0xDD), prompt, L"aux $0480 must be the ']' prompt ($DD)");
         Assert::AreEqual (Byte (0x20), cursor, L"main $0480 must be inverse-space ($20) cursor");

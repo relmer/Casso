@@ -202,6 +202,7 @@ void DxuiListView::ProvideRow (int r, std::vector<Cell> & out) const
         {
             m_rowProvider (r, out);
         }
+
         return;
     }
 
@@ -219,6 +220,25 @@ void DxuiListView::ProvideRow (int r, std::vector<Cell> & out) const
 //
 //  NoteAutoFitRow
 //
+//  Tracks the widest cell seen per auto-sized column, so column widths can be
+//  fitted to real content.
+//
+//  Width is measured in CHARACTERS, not pixels, because this is called from
+//  the row-append path where no text renderer is available. It is an
+//  approximation, and a proportional font makes it a loose one, but it is
+//  computed for free on data the caller already has -- measuring every cell
+//  would cost a renderer call per cell per frame in a list that streams.
+//
+//  Columns with an explicit width or a stretch flag are skipped: their width
+//  is already decided, and tracking content for them would waste the work.
+//
+//  The header title participates in the maximum when the header is shown, so a
+//  column whose title is longer than any of its values is not truncated in its
+//  own heading.
+//
+//  Values only ever GROW -- this accumulates a high-water mark across the
+//  rows it is shown, and ResetAutoFit is what clears it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiListView::NoteAutoFitRow (const std::vector<Cell> & cells) const
@@ -230,12 +250,14 @@ void DxuiListView::NoteAutoFitRow (const std::vector<Cell> & cells) const
 
     for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
     {
+        int  chars = 0;
+
         if (m_columns[c].widthDip != 0 || m_columns[c].stretch)
         {
             continue;
         }
 
-        int  chars = (int) cells[c].text.size();
+        chars = (int) cells[c].text.size();
 
         if (m_showHeader)
         {
@@ -309,7 +331,7 @@ void DxuiListView::AppendRows (std::vector<std::vector<Cell>> rows)
 
 void DxuiListView::SetColumnVisible (size_t idx, bool visible)
 {
-    HRESULT  hr         = S_OK;
+    HRESULT  hr          = S_OK;
     size_t   columnCount = 0;
 
 
@@ -339,7 +361,7 @@ Error:
 
 void DxuiListView::SetColumnOverrideWidthPx (size_t idx, int px)
 {
-    HRESULT  hr         = S_OK;
+    HRESULT  hr          = S_OK;
     size_t   columnCount = 0;
 
 
@@ -1059,6 +1081,23 @@ void DxuiListView::SetTopRow (int topRow)
 //
 //  ScrollByWheelDelta
 //
+//  Converts raw wheel deltas into row scrolling, banking the remainder.
+//
+//  Accumulating rather than scrolling per event is what makes a TOUCHPAD feel
+//  right. A precision touchpad sends many sub-notch deltas; treating each as a
+//  scroll event advanced a whole linesPerNotch block per message, which read
+//  as a chunky jump. Banking the delta and moving ONE row per accumulated step
+//  turns the same input into smooth single-row motion.
+//
+//  A real mouse notch is unchanged: a full WHEEL_DELTA banks linesPerNotch
+//  steps at once, so it still advances exactly linesPerNotch rows.
+//
+//  The remainder is CARRIED rather than discarded, so a slow drag accumulates
+//  to a row instead of being rounded away to nothing.
+//
+//  The sign is inverted because a positive wheel delta means scrolling up,
+//  which is a decrease in row index.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiListView::ScrollByWheelDelta (int wheelDelta, int linesPerNotch)
@@ -1484,7 +1523,7 @@ void DxuiListView::SyncHorzScroll() const
 DxuiListView::HorzScrollbarMetrics DxuiListView::GetHorzScrollbarGeometry() const
 {
     HRESULT                 hr = S_OK;
-    HorzScrollbarMetrics       m;
+    HorzScrollbarMetrics    m;
     DxuiScrollbar::Metrics  g;
 
 
@@ -1521,8 +1560,8 @@ Error:
 
 bool DxuiListView::HitTestHorzScrollbarThumb (int xPx, int yPx) const
 {
-    HRESULT            hr     = S_OK;
-    bool               result = false;
+    HRESULT               hr     = S_OK;
+    bool                  result = false;
     HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
 
 
@@ -1548,8 +1587,8 @@ Error:
 
 bool DxuiListView::HitTestHorzScrollbarTrack (int xPx, int yPx) const
 {
-    HRESULT            hr     = S_OK;
-    bool               result = false;
+    HRESULT               hr     = S_OK;
+    bool                  result = false;
     HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
 
 
@@ -1575,8 +1614,8 @@ Error:
 
 bool DxuiListView::HitTestHorzScrollbarArrowLeft (int xPx, int yPx) const
 {
-    HRESULT            hr     = S_OK;
-    bool               result = false;
+    HRESULT               hr     = S_OK;
+    bool                  result = false;
     HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
 
 
@@ -1602,8 +1641,8 @@ Error:
 
 bool DxuiListView::HitTestHorzScrollbarArrowRight (int xPx, int yPx) const
 {
-    HRESULT            hr     = S_OK;
-    bool               result = false;
+    HRESULT               hr     = S_OK;
+    bool                  result = false;
     HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
 
 
@@ -1632,9 +1671,9 @@ Error:
 
 void DxuiListView::PageFromHorzTrackClick (int xPx)
 {
-    HRESULT            hr     = S_OK;
-    HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
-    int                viewW  = ComputeScrollLayout().viewportW;
+    HRESULT               hr    = S_OK;
+    HorzScrollbarMetrics  m     = GetHorzScrollbarGeometry();
+    int                   viewW = ComputeScrollLayout().viewportW;
 
 
 
@@ -1689,12 +1728,12 @@ void DxuiListView::BeginHorzThumbDrag (int grabXPx)
 
 void DxuiListView::UpdateHorzThumbDrag (int xPx)
 {
-    HRESULT            hr        = S_OK;
+    HRESULT               hr        = S_OK;
     HorzScrollbarMetrics  m         = GetHorzScrollbarGeometry();
-    int                maxLeft   = GetMaxLeftPx();
-    float              travel    = 0.0f;
-    float              thumbLeft = 0.0f;
-    float              ratio     = 0.0f;
+    int                   maxLeft   = GetMaxLeftPx();
+    float                 travel    = 0.0f;
+    float                 thumbLeft = 0.0f;
+    float                 ratio     = 0.0f;
 
 
 
@@ -1787,13 +1826,13 @@ int DxuiListView::GetRequiredHeightPx() const
 
 int DxuiListView::HitTestColumnResize (int xPx, int yPx, int tolerancePx) const
 {
-    HRESULT  hr      = S_OK;
-    int      result  = -1;
-    int      headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
-    int      cap     = GetVisibleRowCapacity();
-    bool     needBar = (RowCount() > cap) && (cap > 0);
-    int      fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
-    int      xAdj    = m_hScrollEnabled ? (xPx + m_leftPx) : xPx;
+    HRESULT           hr      = S_OK;
+    int               result  = -1;
+    int               headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
+    int               cap     = GetVisibleRowCapacity();
+    bool              needBar = (RowCount() > cap) && (cap > 0);
+    int               fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
+    int               xAdj    = m_hScrollEnabled ? (xPx + m_leftPx) : xPx;
     std::vector<int>  colXPx;
     std::vector<int>  colWPx;
 
@@ -2256,6 +2295,42 @@ void DxuiListView::PaintHeaderFocusMarkers (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RowCells
+//
+//  The cell vector for row `r`. Virtual mode pulls the row on demand into
+//  the reused provider scratch and grows the auto-fit counts from it; push
+//  mode references m_rows directly, with no per-row copy. Factored from
+//  PaintDataRows so its loop can bind the row's cells at the top of the
+//  body instead of after the mode branch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<DxuiListView::Cell> & DxuiListView::RowCells (int r) const
+{
+    const std::vector<Cell> *  cells = nullptr;
+
+
+
+    if (m_virtual)
+    {
+        ProvideRow (r, m_providerScratch);
+        NoteAutoFitRow (m_providerScratch);
+        cells = &m_providerScratch;
+    }
+    else
+    {
+        cells = &m_rows[(size_t) r];
+    }
+
+    return *cells;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PaintDataRows
 //
 //  Paints the visible data rows in [firstRow, lastRow): selection and
@@ -2286,20 +2361,15 @@ void DxuiListView::PaintDataRows (
 
 
 
-    for (int r = firstRow; r < lastRow; ++r)
+    // Clamp the visible span to the real row range up front, so the loop
+    // body needs no per-row range guard and can bind the row's cells at
+    // its top.
+    for (int r = (std::max) (firstRow, 0); r < (std::min) (lastRow, RowCount()); ++r)
     {
-        float  ry    = 0.0f;
-        bool   isHov = false;
-        bool   isSel = false;
-
-        if (r < 0 || r >= RowCount())
-        {
-            continue;
-        }
-
-        ry    = y + headerH + hdrGap + (float) (r - firstRow) * rowH;
-        isHov = (r == m_hovered);
-        isSel = (m_listFocused && r == m_selectedRow);
+        const std::vector<Cell> &  cells = RowCells (r);
+        float                      ry    = y + headerH + hdrGap + (float) (r - firstRow) * rowH;
+        bool                       isHov = (r == m_hovered);
+        bool                       isSel = (m_listFocused && r == m_selectedRow);
 
         if (isSel)
         {
@@ -2312,24 +2382,6 @@ void DxuiListView::PaintDataRows (
         {
             painter.FillRect (x, ry, layoutW, rowH, pal.bgHover);
         }
-
-        // Virtual mode pulls the row's cells on demand into a reused scratch
-        // buffer and grows auto-fit from it; push mode references m_rows
-        // directly (no per-row copy).
-        const std::vector<Cell> *  cellsPtr = nullptr;
-
-        if (m_virtual)
-        {
-            ProvideRow (r, m_providerScratch);
-            NoteAutoFitRow (m_providerScratch);
-            cellsPtr = &m_providerScratch;
-        }
-        else
-        {
-            cellsPtr = &m_rows[(size_t) r];
-        }
-
-        const std::vector<Cell> &  cells = *cellsPtr;
 
         for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
         {
@@ -2358,6 +2410,8 @@ void DxuiListView::PaintDataRows (
                     float    wE      = 0.0f;
                     float    hIgnore = 0.0f;
                     HRESULT  hrM     = S_OK;
+                    float    hx      = 0.0f;
+                    float    hw      = 0.0f;
 
                     if (s > 0)
                     {
@@ -2370,8 +2424,8 @@ void DxuiListView::PaintDataRows (
                                               fontPx, DxuiTheme::kBodyFace, wE, hIgnore);
                     IGNORE_RETURN_VALUE (hrM, S_OK);
 
-                    float  hx = cellX + wS;
-                    float  hw = wE - wS;
+                    hx = cellX + wS;
+                    hw = wE - wS;
 
                     if (hx < cellX)                 { hw -= (cellX - hx); hx = cellX; }
                     if (hx + hw > cellX + cellMaxW) { hw  = cellX + cellMaxW - hx;    }
@@ -2458,9 +2512,9 @@ void DxuiListView::PaintHScrollbar (
     float           x,
     float           y) const
 {
-    HRESULT            hr    = S_OK;
+    HRESULT               hr    = S_OK;
     HorzScrollbarMetrics  m     = GetHorzScrollbarGeometry();
-    int                viewW = ComputeScrollLayout().viewportW;
+    int                   viewW = ComputeScrollLayout().viewportW;
 
 
 
@@ -2942,6 +2996,7 @@ void DxuiListView::Tick (int64_t nowMs)
                 {
                     PageFromTrackClick (m_scrollRepeatYPx);
                 }
+
                 break;
 
             case ScrollRepeat::HorzTrack:
@@ -2954,6 +3009,7 @@ void DxuiListView::Tick (int64_t nowMs)
                 {
                     PageFromHorzTrackClick (m_scrollRepeatXPx);
                 }
+
                 break;
 
             default:
@@ -3461,6 +3517,7 @@ void DxuiListView::MoveHeaderFocus (int dir)
     {
         next = 0;
     }
+
     if (next > n - 1)
     {
         next = n - 1;

@@ -45,7 +45,22 @@ static Apple2cSwitchBar MakeLaidOutBar (MockDxuiTextRenderer & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  Apple2cSwitchBarTests
+//
+//  The //c switch strip: which part a point hits, and the latched state of each
+//  key.
+//
+//  The keys are LATCHING, not momentary -- they model physical switches that
+//  stay in when pressed, so pressing one twice must return it to out rather
+//  than pressing it harder.
+//
+//  Per-part hit testing is asserted because the strip packs several small
+//  targets side by side, and a boundary one pixel out sends a reset to the
+//  80/40 switch.
+//
+//  A COLLAPSED strip must report a miss everywhere: it is sized to nothing on
+//  every machine that is not a //c, and the hit test is what stops those
+//  machines routing clicks into a control that does not exist.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,13 +123,14 @@ public:
     TEST_METHOD (Hide_ClearsBoundsAndHitRegions)
     {
         MockDxuiTextRenderer  text;
-        Apple2cSwitchBar      bar = MakeLaidOutBar (text);
+        Apple2cSwitchBar      bar  = MakeLaidOutBar (text);
+        int                   midY = 0;
 
         bar.Hide();
 
         Assert::IsTrue (bar.Bounds().right <= bar.Bounds().left, L"hidden bar has empty bounds");
 
-        int  midY = (s_kBand.top + s_kBand.bottom) / 2;
+        midY = (s_kBand.top + s_kBand.bottom) / 2;
         for (int x = s_kBand.left; x < s_kBand.right; ++x)
         {
             Assert::IsTrue (bar.PartAt (x, midY) == Apple2cSwitchBar::Part::None,
@@ -142,8 +158,8 @@ public:
         Apple2cSwitchBar      bar = MakeLaidOutBar (text);
 
         int   midY     = (s_kBand.top + s_kBand.bottom) / 2;
-        bool  sawTip    = false;
-        bool  sawNoTip  = false;
+        bool  sawTip   = false;
+        bool  sawNoTip = false;
 
         for (int x = s_kBand.left; x < s_kBand.right; ++x)
         {
@@ -181,10 +197,11 @@ public:
     {
         MockDxuiTextRenderer  text;
         MockDxuiTheme         theme;
-        Apple2cSwitchBar      barOut = MakeLaidOutBar (text);
-        Apple2cSwitchBar      barIn  = MakeLaidOutBar (text);
+        Apple2cSwitchBar      barOut    = MakeLaidOutBar (text);
+        Apple2cSwitchBar      barIn     = MakeLaidOutBar (text);
         MockDxuiPainter       pOut;
         MockDxuiPainter       pIn;
+        bool                  identical = false;
 
         barOut.SetEightyFortyIn (false);
         barIn.SetEightyFortyIn  (true);
@@ -196,7 +213,7 @@ public:
         // top shadow) vs the raised out key (highlit cap + exposed slot), so
         // the two paints must not be byte-identical — the visual "in vs out"
         // clue is real.
-        bool  identical = pOut.Calls().size() == pIn.Calls().size();
+        identical = pOut.Calls().size() == pIn.Calls().size();
         if (identical)
         {
             for (size_t i = 0; i < pOut.Calls().size(); ++i)

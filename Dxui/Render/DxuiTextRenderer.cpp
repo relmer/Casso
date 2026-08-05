@@ -75,10 +75,10 @@ DxuiTextRenderer::~DxuiTextRenderer()
 
 HRESULT DxuiTextRenderer::Initialize (ID3D11Device * pDevice)
 {
-    HRESULT                hr      = S_OK;
-    ComPtr<IDXGIDevice>    dxgi;
-    D2D1_FACTORY_OPTIONS   options = {};
-    IUnknown             * dwriteRaw = nullptr;
+    HRESULT                 hr        = S_OK;
+    ComPtr<IDXGIDevice>     dxgi;
+    D2D1_FACTORY_OPTIONS    options   = {};
+    IUnknown              * dwriteRaw = nullptr;
 
 
 
@@ -159,6 +159,25 @@ void DxuiTextRenderer::Shutdown()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BindBackBuffer
+//
+//  Wraps the host's DXGI back-buffer surface as a D2D bitmap and makes it the
+//  render target, so text draws directly into the same surface D3D just
+//  composited into.
+//
+//  The previous binding is dropped FIRST, unconditionally. A resize calls this
+//  with a new surface while the old one is still bound, and D2D would
+//  otherwise keep the old back buffer alive.
+//
+//  DPI is baked into the bitmap rather than applied per draw, which is what
+//  lets callers pass DIPs everywhere and get correctly-scaled text on any
+//  monitor. A zero DPI falls back to 96 rather than producing a degenerate
+//  target -- callers legitimately have no DPI before the first WM_NCCREATE.
+//
+//  CANNOT_DRAW is set because this bitmap is a TARGET only; it is never
+//  sampled as a source, and saying so lets D2D skip readback support.
+//
+//  PREMULTIPLIED alpha matches both DxuiPainter and the 3D renderer, so
+//  everything composites into this surface under one blend convention.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -253,6 +272,21 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EndDraw
+//
+//  Closes the D2D batch and handles device loss.
+//
+//  D2D reports errors from the whole batch HERE, not at each draw call, so
+//  this is the only place a painting failure can surface -- the individual
+//  DrawString calls have nothing to report.
+//
+//  D2DERR_RECREATE_TARGET means the device was lost. It is handled rather than
+//  propagated: the target is unbound so the next BindBackBuffer rebuilds it,
+//  and the frame is simply dropped. Callers notice through IsTargetBound and
+//  skip presenting what would be a half-painted frame. Treating it as an error
+//  would fail a frame that a rebind fixes completely.
+//
+//  Calling this without a matching BeginDraw is a no-op rather than an error,
+//  so an early-out paint path does not have to track whether it began.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -441,6 +475,24 @@ Error:
 //
 //  EnsureTextFormat
 //
+//  Returns a cached IDWriteTextFormat for a (family, size, weight) triple,
+//  creating it on first use.
+//
+//  Caching matters because chrome repaints continuously and the distinct
+//  format count is tiny -- a handful of sizes and weights across the whole UI
+//  -- while CreateTextFormat is far too expensive to run per draw.
+//
+//  The cache is keyed on all three properties together, since DirectWrite
+//  bakes size and weight into the format object rather than accepting them per
+//  draw.
+//
+//  A null family falls back to Segoe UI so callers can omit it for ordinary
+//  body text.
+//
+//  The returned pointer is AddRef'd whether it was cached or freshly made, so
+//  every caller releases unconditionally -- otherwise the two paths would need
+//  different cleanup.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiTextRenderer::EnsureTextFormat (
@@ -575,6 +627,14 @@ HRESULT DxuiTextRenderer::EnsureLayout (
     float                 maxHeightDip,
     IDWriteTextLayout  ** outLayout)
 {
+    IDWriteTextFormat           * rawFmt = nullptr;
+    ComPtr<IDWriteTextFormat>     format;
+    ComPtr<IDWriteTextLayout>     layout;
+    DWRITE_TEXT_ALIGNMENT         dwH    = {};
+    DWRITE_PARAGRAPH_ALIGNMENT    dwV    = {};
+
+
+
     // Bound so a scrolling debug panel with many distinct strings cannot grow
     // the cache without limit. Chrome's working set is a few dozen entries; the
     // cap only trips under pathological churn, where a rebuild is cheap.
@@ -583,11 +643,8 @@ HRESULT DxuiTextRenderer::EnsureLayout (
     HRESULT                    hr        = S_OK;
     LayoutCacheKey             key;
     const wchar_t            * useFamily = (family != nullptr) ? family : L"Segoe UI";
-    IDWriteTextFormat        * rawFmt    = nullptr;
-    ComPtr<IDWriteTextFormat>  format;
-    ComPtr<IDWriteTextLayout>  layout;
-    DWRITE_TEXT_ALIGNMENT      dwH       = DWRITE_TEXT_ALIGNMENT_LEADING;
-    DWRITE_PARAGRAPH_ALIGNMENT dwV       = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;
+    dwH = DWRITE_TEXT_ALIGNMENT_LEADING;
+    dwV = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;
 
 
     CBRAEx (outLayout, E_INVALIDARG);
@@ -670,6 +727,29 @@ Error:
 //
 //  EnsureCapMidY
 //
+//  Computes the vertical offset from a line box's top to the MIDDLE OF THE
+//  CAPITAL LETTERS, cached per (family, size, weight).
+//
+//  This is what makes DxuiTextVAlign::Center actually look centered. Centering
+//  by line box centers the FONT's box -- ascender to descender -- which
+//  includes room for descenders and accents that most UI strings never use, so
+//  a label like "Settings" reads visibly high in its button. Centering on the
+//  cap midline puts the visual mass of the text where the eye expects it.
+//
+//  Getting there needs two different pieces of DirectWrite:
+//
+//    baseline    from a laid-out line's metrics -- where the baseline sits
+//                inside the line box, which depends on the layout
+//    cap height  from the font FACE's design metrics, in design units, so it
+//                must be scaled by size/unitsPerEm to reach DIPs
+//
+//  The measurement string is arbitrary ("Mg") because neither value depends on
+//  the content; it exists only to produce a laid-out line to read metrics
+//  from. The oversized measure box keeps that line from wrapping.
+//
+//  The result is cached on the same key as the text format, since it is a
+//  property of the font at that size and weight and never of the string.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiTextRenderer::EnsureCapMidY (
@@ -679,21 +759,22 @@ HRESULT DxuiTextRenderer::EnsureCapMidY (
     IDWriteTextFormat  *  format,
     float              &  outCapMidY)
 {
-    HRESULT                        hr            = S_OK;
+    HRESULT                        hr          = S_OK;
     TextFormatKey                  key;
-    const wchar_t                * useFamily     = (family != nullptr) ? family : L"Segoe UI";
     ComPtr<IDWriteTextLayout>      layout;
     ComPtr<IDWriteFontCollection>  collection;
     ComPtr<IDWriteFontFamily>      familyObj;
     ComPtr<IDWriteFont>            font;
     ComPtr<IDWriteFontFace>        face;
-    UINT32                         familyIndex   = 0;
-    BOOL                           familyFound   = FALSE;
-    DWRITE_FONT_METRICS            metrics       = {};
-    DWRITE_LINE_METRICS            lineMetrics   = {};
-    UINT32                         lineCount     = 0;
-    bool                           isCached      = false;
-    const float                    kMeasureBox   = 4096.0f;
+    BOOL                           familyFound = FALSE;
+    bool                           isCached    = false;
+    float                          kMeasureBox = 0.0f;
+    UINT32                         familyIndex = 0;
+    DWRITE_FONT_METRICS            metrics     = {};
+    DWRITE_LINE_METRICS            lineMetrics = {};
+    UINT32                         lineCount   = 0;
+    const wchar_t                * useFamily     = (family != nullptr) ? family : L"Segoe UI";
+    kMeasureBox = 4096.0f;
     const wchar_t                * kMeasureText  = L"Mg";
 
 
@@ -750,11 +831,13 @@ HRESULT DxuiTextRenderer::EnsureCapMidY (
 
     face->GetMetrics (&metrics);
     {
-        float  upem = (float) metrics.designUnitsPerEm;
+        float  upem         = (float) metrics.designUnitsPerEm;
+        float  capHeightDip = 0.0f;
+        float  baselineY    = 0.0f;
         CBRA (upem > 0.0f);
 
-        float  capHeightDip = (float) metrics.capHeight * (fontSizeDip / upem);
-        float  baselineY    = lineMetrics.baseline;
+        capHeightDip = (float) metrics.capHeight * (fontSizeDip / upem);
+        baselineY = lineMetrics.baseline;
 
         outCapMidY         = baselineY - capHeightDip * 0.5f;
         m_capMidCache[key] = outCapMidY;
@@ -772,6 +855,35 @@ Error:
 //
 //  DrawString
 //
+//  Draws one string into a rect with the given alignment, weight, and wrap
+//  mode -- the workhorse every widget paints text through.
+//
+//  Three things are cached rather than built per call, because this runs many
+//  times per frame: the text format, the brush, and the layout. Alignment and
+//  wrapping are configured on the cached LAYOUT, never on the shared format,
+//  since the format is reused across callers that align differently.
+//
+//  Global alpha is applied as brush OPACITY rather than by tinting the color,
+//  so it multiplies the ARGB alpha instead of replacing it. It is re-applied
+//  every call because the brush is shared and the previous caller may have
+//  left a different value.
+//
+//  CenterOnCapHeight shifts the layout RECT rather than changing the
+//  alignment: the text stays NEAR-aligned inside a rect moved so the cap
+//  midline lands on the true center. That offset is cached per format because
+//  computing it creates roughly six DWrite COM objects, and doing so per cell
+//  per frame could intermittently fail under heavy list scrolling and silently
+//  drop text. A failed measurement leaves the rect alone and degrades to plain
+//  near alignment.
+//
+//  CLIP is applied only when NOT wrapping. A no-wrap draw is a single line
+//  confined to its box, so an over-wide value truncates instead of spilling
+//  into the neighboring column; wrapped text keeps the older unclipped
+//  behavior, where a caller sizing its own box expects overflow to show.
+//
+//  Color fonts are enabled, so emoji and multi-color glyphs render in color
+//  rather than as flat silhouettes.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiTextRenderer::DrawString (
@@ -788,14 +900,14 @@ HRESULT DxuiTextRenderer::DrawString (
     DxuiFontWeight       weight,
     bool                 wrap)
 {
-    HRESULT                            hr      = S_OK;
-    ComPtr<IDWriteTextFormat>          format;
-    IDWriteTextFormat                * rawFmt  = nullptr;
-    ComPtr<ID2D1SolidColorBrush>       brush;
-    D2D1_RECT_F                        layoutRect;
-    ComPtr<IDWriteTextLayout>          layout;
-    IDWriteTextLayout                * rawLayout = nullptr;
-    ID2D1SolidColorBrush             * rawBrush  = nullptr;
+    HRESULT                         hr         = S_OK;
+    ComPtr<IDWriteTextFormat>       format;
+    IDWriteTextFormat             * rawFmt     = nullptr;
+    ComPtr<ID2D1SolidColorBrush>    brush;
+    D2D1_RECT_F                     layoutRect;
+    ComPtr<IDWriteTextLayout>       layout;
+    IDWriteTextLayout             * rawLayout  = nullptr;
+    ID2D1SolidColorBrush          * rawBrush   = nullptr;
 
 
 
@@ -845,6 +957,7 @@ HRESULT DxuiTextRenderer::DrawString (
             layoutRect.top    += shift;
             layoutRect.bottom += shift;
         }
+
         // Silent fallback: if measurement failed we leave the rect in
         // place and use NEAR alignment.
     }
@@ -902,11 +1015,14 @@ HRESULT DxuiTextRenderer::FillRect (
     float    heightDip,
     uint32_t argbColor)
 {
-    DXUI_ASSERT_UI_THREAD();
-
     HRESULT                            hr     = S_OK;
     ComPtr<ID2D1SolidColorBrush>       brush;
     D2D1_RECT_F                        rect   = {};
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
 
 
     CBRA (m_d2dContext);
@@ -949,10 +1065,13 @@ Error:
 
 HRESULT DxuiTextRenderer::PushClipRect (float xDip, float yDip, float widthDip, float heightDip)
 {
-    DXUI_ASSERT_UI_THREAD();
-
     HRESULT      hr   = S_OK;
     D2D1_RECT_F  rect = {};
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
 
 
     CBRA (m_d2dContext);
@@ -981,9 +1100,12 @@ Error:
 
 HRESULT DxuiTextRenderer::PopClipRect()
 {
+    HRESULT  hr = S_OK;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    HRESULT  hr = S_OK;
 
 
     CBRA (m_d2dContext);

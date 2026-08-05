@@ -231,10 +231,12 @@ void PrintRaster::CopyRowSpan (int firstRow, int lastRow, PrintRaster & out) con
     {
         firstRow = 0;
     }
+
     if (lastRow >= m_rowsUsed)
     {
         lastRow = m_rowsUsed - 1;
     }
+
     if (lastRow < firstRow)
     {
         return;

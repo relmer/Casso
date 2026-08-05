@@ -66,8 +66,11 @@ public:
 
     vector<Byte> BuildSentinelDsk (Byte (*patternFn) (size_t))
     {
-        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
         size_t         i   = 0;
+
+
+
+        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
 
         // .dsk physical layout: track N sector N starts at offset
         // (track * 16 + sector_physical) * 256. The DOS 3.3 to-physical
@@ -139,16 +142,20 @@ public:
     // Run until PC reaches the loaded boot-loader entry at $0801
     // (the boot ROM JMPs here only after a successful sector read +
     // address-field checksum + data-field checksum verification).
-    // Returns true if PC ever escaped the $C6xx ROM range into the
-    // RAM bootstrap, false if we burned the cycle budget without
+    // Succeeds if PC ever escaped the $C6xx ROM range into the
+    // RAM bootstrap; fails if we burned the cycle budget without
     // ever leaving the boot ROM (i.e. the read attempt failed
     // checksums and the ROM is still spinning).
-    bool RunUntilBootLoaderRuns (EmulatorCore & core)
+    HRESULT RunUntilBootLoaderRuns (EmulatorCore & core)
     {
-        char  path[260] = {};
-        DWORD pl = GetTempPathA (260, path);
-        FILE * fp = nullptr;
-        if (pl > 0 && pl < 260 - 32)
+        char              path[MAX_PATH]  = {};
+        DWORD             pl              = GetTempPathA (MAX_PATH, path);
+        FILE            * fp              = nullptr;
+        const uint64_t    kBudget         = kSectorReadCycles;
+        uint64_t          cyc             = 0;
+        bool              ranBootLoader   = false;
+        uint64_t          pcVisits[0x100] = {};
+        if (pl > 0 && pl < MAX_PATH - 32)
         {
             strcat_s (path, "bootrom-trace.log");
             (void) fopen_s (&fp, path, "w");
@@ -161,18 +168,15 @@ public:
         // test pattern bytes likely don't form valid 6502 code). The
         // boot ROM JMPs into the bootstrap only when every checksum
         // gate passes -- that PC transition IS our success signal.
-        const uint64_t kBudget = kSectorReadCycles;
-        uint64_t       cyc     = 0;
-        bool           ranBootLoader = false;
 
         // Count visits to each instruction in the slot-6 boot ROM so a
         // failing test can show which checkpoint(s) the firmware spent
         // its time in. Indexed by (pc - 0xC600); array of 256 zeros.
-        uint64_t pcVisits[0x100] = {};
 
         while (cyc < kBudget)
         {
-            Word pc = core.cpu->GetPC();
+            Word      pc     = core.cpu->GetPC();
+            uint32_t  cycles = 0;
 
             if (pc >= 0xC600 && pc < 0xC700)
             {
@@ -186,12 +190,13 @@ public:
             }
 
             core.cpu->StepOne();
-            uint32_t cycles = core.cpu->GetLastInstructionCycles();
+            cycles = core.cpu->GetLastInstructionCycles();
             core.cpu->AddCycles (cycles);
             if (core.diskController != nullptr)
             {
                 core.diskController->Tick (cycles);
             }
+
             cyc += cycles;
 
             if (fp != nullptr && (cyc & 0x7FFF) < cycles)
@@ -226,12 +231,14 @@ public:
                     {
                         if (idxs[k] == j) { taken = true; break; }
                     }
+
                     if (!taken && pcVisits[j] > bestCnt)
                     {
                         bestCnt = pcVisits[j];
                         bestIdx = j;
                     }
                 }
+
                 idxs[slot] = bestIdx;
                 if (bestIdx >= 0)
                 {
@@ -240,22 +247,26 @@ public:
                              (unsigned long long) pcVisits[bestIdx]);
                 }
             }
+
             fclose (fp);
         }
 
-        return ranBootLoader;
+        return ranBootLoader ? S_OK : E_FAIL;
     }
 
 
     void AssertBootRomReadsSector0 (Byte (*patternFn) (size_t), const wchar_t * patternName)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        vector<Byte>   raw = BuildSentinelDsk (patternFn);
+        HeadlessHost  host;
+        EmulatorCore  core;
+        vector<Byte>  raw    = BuildSentinelDsk (patternFn);
+        HRESULT       hrBoot = S_OK;
 
         MountSentinelDsk (host, core, raw);
 
-        if (!RunUntilBootLoaderRuns (core))
+        hrBoot = RunUntilBootLoaderRuns (core);
+
+        if (FAILED (hrBoot))
         {
             wchar_t   msg[512] = {};
             swprintf_s (msg,

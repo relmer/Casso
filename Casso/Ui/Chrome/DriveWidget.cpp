@@ -182,12 +182,26 @@ DriveWidget::DriveWidget()
 
 void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
+    int   x         = 0;
+    int   y         = 0;
+    UINT  dpi       = 0;
+    int   bodyW     = 0;
+    int   bodyH     = 0;
+    int   faceH     = 0;
+    int   slotInset = 0;
+    int   slotH     = 0;
+    int   slotCY    = 0;
+    int   doorW     = 0;
+    int   doorH     = 0;
+
+
+
     // Positioning the widget means the machine has a controller and it is on
     // screen again; clear any prior Hide() latch so Paint resumes.
     m_hidden = false;
 
-    int   x = boundsDip.left;
-    int   y = boundsDip.top;
+    x = boundsDip.left;
+    y = boundsDip.top;
 
 
 
@@ -197,15 +211,15 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     // geometry, fonts, and the probe-based band layout all scale together.
     m_dpi = (scaler.Dpi() == 0) ? (UINT) kBaseDpi : scaler.Dpi();
 
-    UINT  dpi         = m_dpi;
-    int   bodyW       = Scale (kBodyWidthPx, dpi);
-    int   bodyH       = Scale (kBodyHeightPx, dpi);
-    int   faceH       = Scale (kFaceplateHeightPx, dpi);
-    int   slotInset   = Scale (kSlotInsetPx, dpi);
-    int   slotH       = Scale (kSlotHeightPx, dpi);
-    int   slotCY      = Scale (kSlotCenterYPx, dpi);
-    int   doorW       = Scale (kDoorWidthPx, dpi);
-    int   doorH       = Scale (kDoorHeightPx, dpi);
+    dpi = m_dpi;
+    bodyW = Scale (kBodyWidthPx, dpi);
+    bodyH = Scale (kBodyHeightPx, dpi);
+    faceH = Scale (kFaceplateHeightPx, dpi);
+    slotInset = Scale (kSlotInsetPx, dpi);
+    slotH = Scale (kSlotHeightPx, dpi);
+    slotCY = Scale (kSlotCenterYPx, dpi);
+    doorW = Scale (kDoorWidthPx, dpi);
+    doorH = Scale (kDoorHeightPx, dpi);
 
     if (m_compact)
     {
@@ -307,6 +321,30 @@ void DriveWidget::SyncFromState (const DriveWidgetState & state)
 //
 //  Paint
 //
+//  Draws the whole Disk ][ drive: case, face, door, LED, and the mounted
+//  disk's label.
+//
+//  The HIDDEN latch is what actually suppresses the widget. Paint has no
+//  bounds guard of its own, so on a machine with no Disk ][ controller the
+//  zeroed rects alone would not stop it drawing -- the latch is checked first
+//  and nothing is emitted at all.
+//
+//  Everything is drawn in painter primitives rather than from a bitmap, so the
+//  drive is crisp at any DPI and at the desk scene's arbitrary zoom, where a
+//  scaled image would be visibly soft.
+//
+//  The case is drawn with a back inset to give it perspective depth, matching
+//  the skew applied by the layout code -- the two must agree, or the drive
+//  reads as a flat sticker on a three-dimensional desk.
+//
+//  The door animates through a fractional offset rather than a discrete
+//  open/closed state, so the eject motion is smooth and can be interrupted
+//  mid-travel.
+//
+//  The focus ring is drawn OUTSIDE the outer rect so it never crowds the case
+//  art, and the "IN USE" label is positioned against the face rather than the
+//  widget, so it stays put as the door moves.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DriveWidget::Paint (
@@ -319,26 +357,48 @@ void DriveWidget::Paint (
     // bounds guard of its own, so this latch is what actually suppresses it.
     if (!m_hidden)
     {
-        _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
-        const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
+        HRESULT             hr             = S_OK;
+        int                 bodyW          = 0;
+        int                 faceW          = 0;
+        int                 faceH          = 0;
+        int                 slotW          = 0;
+        int                 slotH          = 0;
+        int                 doorH          = 0;
+        UINT                dpi            = 0;
+        int                 notchW         = 0;
+        int                 notchH         = 0;
+        int                 labelPad       = 0;
+        int                 inUseW         = 0;
+        int                 caseBackInset  = 0;
+        float               labelFontDip   = 0.0f;
+        float               inUseFontDip   = 0.0f;
+        float               doorOffset     = 0.0f;
+        int                 recessInsetX   = 0;
+        const CassoTheme  & theme          = static_cast<const CassoTheme &> (dxuiTheme);
+        int                 recessInsetTop = 0;
+        int                 recessInsetBot = 0;
+        float               recessLeft     = 0.0f;
+        float               recessRight    = 0.0f;
+        float               recessTop      = 0.0f;
+        float               recessBottom   = 0.0f;
+        wchar_t             label[32]      = {};
 
-        HRESULT  hr           = S_OK;
-        int      bodyW        = m_bodyRect.right - m_bodyRect.left;
-        int      faceW        = m_faceRect.right - m_faceRect.left;
-        int      faceH        = m_faceRect.bottom - m_faceRect.top;
-        int      slotW        = m_slotRect.right - m_slotRect.left;
-        int      slotH        = m_slotRect.bottom - m_slotRect.top;
-        int      doorH        = m_ejectRect.bottom - m_ejectRect.top;
-        UINT     dpi          = (m_dpi == 0) ? (UINT) kBaseDpi : m_dpi;
-        int      notchW       = Scale (kNotchWidthPx, dpi);
-        int      notchH       = Scale (kNotchHeightPx, dpi);
-        int      labelPad     = Scale (kLabelPadPx, dpi);
-        int      inUseW       = Scale (kInUseWidthPx, dpi);
-        int      caseBackInset = Scale (kCaseBackInsetPx, dpi);
-        float    labelFontDip = kLabelFontDip * (float) dpi / (float) kBaseDpi;
-        float    inUseFontDip = kInUseFontDip * (float) dpi / (float) kBaseDpi;
-        float    doorOffset   = 0.0f;
-        wchar_t  label[32]    = {};
+        _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
+
+        bodyW = m_bodyRect.right - m_bodyRect.left;
+        faceW = m_faceRect.right - m_faceRect.left;
+        faceH = m_faceRect.bottom - m_faceRect.top;
+        slotW = m_slotRect.right - m_slotRect.left;
+        slotH = m_slotRect.bottom - m_slotRect.top;
+        doorH = m_ejectRect.bottom - m_ejectRect.top;
+        dpi = (m_dpi == 0) ? (UINT) kBaseDpi : m_dpi;
+        notchW = Scale (kNotchWidthPx, dpi);
+        notchH = Scale (kNotchHeightPx, dpi);
+        labelPad = Scale (kLabelPadPx, dpi);
+        inUseW = Scale (kInUseWidthPx, dpi);
+        caseBackInset = Scale (kCaseBackInsetPx, dpi);
+        labelFontDip = kLabelFontDip * (float) dpi / (float) kBaseDpi;
+        inUseFontDip = kInUseFontDip * (float) dpi / (float) kBaseDpi;
 
 
 
@@ -372,16 +432,17 @@ void DriveWidget::Paint (
                                  (float) bodyWcompact, (float) bodyHcompact, 1.0f, bezelEdge);
 
             swprintf_s (label, L"Drive %d", m_drive + 1);
-            IGNORE_RETURN_VALUE (hr, text.DrawString (label,
-                                                      (float) (m_bodyRect.left + pad),
-                                                      (float) m_bodyRect.top,
-                                                      (float) (bodyWcompact - 2 * pad - Scale (16, dpi)),
-                                                      (float) bodyHcompact,
-                                                      labelArgb,
-                                                      fontDip,
-                                                      kFontFamily,
-                                                      DxuiTextRenderer::HAlign::Left,
-                                                      DxuiTextRenderer::VAlign::Center));
+            hr = text.DrawString (label,
+                                  (float) (m_bodyRect.left + pad),
+                                  (float) m_bodyRect.top,
+                                  (float) (bodyWcompact - 2 * pad - Scale (16, dpi)),
+                                  (float) bodyHcompact,
+                                  labelArgb,
+                                  fontDip,
+                                  kFontFamily,
+                                  DxuiTextRenderer::HAlign::Left,
+                                  DxuiTextRenderer::VAlign::Center);
+            IGNORE_RETURN_VALUE (hr, S_OK);
 
             UNREFERENCED_PARAMETER (bodyW);
             UNREFERENCED_PARAMETER (faceW);
@@ -421,16 +482,18 @@ void DriveWidget::Paint (
         // faceplate, narrowing toward the back to suggest perspective.
         // Camera is slightly above and in front of the drive.
         {
-            float  frontLeft  = (float) m_bodyRect.left;
-            float  frontRight = (float) m_bodyRect.right;
-            float  backLeft   = (float) (m_bodyRect.left  + caseBackInset + m_perspectiveSkewPx);
-            float  backRight  = (float) (m_bodyRect.right - caseBackInset + m_perspectiveSkewPx);
-            float  frontY     = (float) m_faceRect.top;
-            float  backY      = (float) m_bodyRect.top;
-            uint32_t caseColor   = 0xFFCCB68B;
-            uint32_t caseHilite  = 0xFFE6D3AC;
-            uint32_t caseShade   = 0xFF8E7A55;
-            uint32_t backEdge    = 0xFF5E4F36;
+            float     frontLeft        = (float) m_bodyRect.left;
+            float     frontRight       = (float) m_bodyRect.right;
+            float     backLeft         = (float) (m_bodyRect.left  + caseBackInset + m_perspectiveSkewPx);
+            float     backRight        = (float) (m_bodyRect.right - caseBackInset + m_perspectiveSkewPx);
+            float     frontY           = (float) m_faceRect.top;
+            float     backY            = (float) m_bodyRect.top;
+            uint32_t  caseColor        = 0xFFCCB68B;
+            uint32_t  caseHilite       = 0xFFE6D3AC;
+            uint32_t  caseShade        = 0xFF8E7A55;
+            uint32_t  backEdge         = 0xFF5E4F36;
+            float     panelInsetTop;
+            float     panelInsetBottom;
 
             FillTrapezoidApprox (painter, frontLeft, frontRight, backLeft, backRight,
                                  frontY, backY, caseColor);
@@ -450,7 +513,7 @@ void DriveWidget::Paint (
 
                 for (i = 0; i < edgeH; i++)
                 {
-                    float  t       = (float) i / denom;
+                    float  t         = (float) i / denom;
                     float  leftEdge  = frontLeft  + (backLeft  - frontLeft)  * t;
                     float  rightEdge = frontRight + (backRight - frontRight) * t;
                     float  y         = frontY - 1.0f - (float) i;
@@ -465,8 +528,6 @@ void DriveWidget::Paint (
             // trapezoid that follows the case-top's perspective slant
             // (drawn scanline by scanline so the left/right edges taper
             // toward the back exactly like the case top).
-            float  panelInsetTop;
-            float  panelInsetBottom;
             {
                 float    edgeH        = frontY - backY;
                 float    midGapH      = edgeH * 0.08f;
@@ -506,10 +567,10 @@ void DriveWidget::Paint (
                     {
                         float  t          = (float) i / denom;
                         // Note: i=0 is at yBot (front), i=rows-1 is at yTop (back).
-                        float  l          = bottomEdges.first  + (topEdges.first  - bottomEdges.first)  * t;
-                        float  r          = bottomEdges.second + (topEdges.second - bottomEdges.second) * t;
-                        float  y          = yBot - 1.0f - (float) i;
-                        uint32_t fill     = panelFill;
+                        float     l    = bottomEdges.first  + (topEdges.first  - bottomEdges.first)  * t;
+                        float     r    = bottomEdges.second + (topEdges.second - bottomEdges.second) * t;
+                        float     y    = yBot - 1.0f - (float) i;
+                        uint32_t  fill = panelFill;
 
                         if (i == rows - 1)
                         {
@@ -519,6 +580,7 @@ void DriveWidget::Paint (
                         {
                             fill = panelHilite;
                         }
+
                         painter.FillRect (l, y, r - l, 1.0f, fill);
                         // Left edge shadow, right edge highlight, follow slant.
                         painter.FillRect (l,        y, 1.0f, 1.0f, panelShadow);
@@ -568,10 +630,10 @@ void DriveWidget::Paint (
         {
             int    faceInsetX = Scale (4, dpi);
             int    faceInsetB = Scale (3, dpi);
-            float  ffx = (float) (m_faceRect.left  + faceInsetX);
-            float  ffy = (float) m_faceRect.top;
-            float  ffw = (float) (faceW - 2 * faceInsetX);
-            float  ffh = (float) (faceH - faceInsetB);
+            float  ffx        = (float) (m_faceRect.left  + faceInsetX);
+            float  ffy        = (float) m_faceRect.top;
+            float  ffw        = (float) (faceW - 2 * faceInsetX);
+            float  ffh        = (float) (faceH - faceInsetB);
             // Beige body shows around the faceplate (top edge already
             // butts against the case-top trapezoid; bottom + sides need
             // explicit fill).
@@ -594,13 +656,13 @@ void DriveWidget::Paint (
         // used here AND by the door geometry below so the door visually
         // fits inside the recess (same width, slightly shorter so a
         // strip of recess shows above the hinge when the door is closed).
-        int    recessInsetX   = Scale (4, dpi);
-        int    recessInsetTop = Scale (3, dpi);
-        int    recessInsetBot = Scale (2, dpi);
-        float  recessLeft     = (float) (m_ejectRect.left  + recessInsetX);
-        float  recessRight    = (float) (m_ejectRect.right - recessInsetX);
-        float  recessTop      = (float) (m_ejectRect.top + recessInsetTop);
-        float  recessBottom   = (float) (m_ejectRect.bottom - recessInsetBot);
+        recessInsetX = Scale (4, dpi);
+        recessInsetTop = Scale (3, dpi);
+        recessInsetBot = Scale (2, dpi);
+        recessLeft = (float) (m_ejectRect.left  + recessInsetX);
+        recessRight = (float) (m_ejectRect.right - recessInsetX);
+        recessTop = (float) (m_ejectRect.top + recessInsetTop);
+        recessBottom = (float) (m_ejectRect.bottom - recessInsetBot);
         {
             uint32_t recessArgb = 0xFF050505;
             uint32_t shadowArgb = 0xFF000000;
@@ -614,10 +676,13 @@ void DriveWidget::Paint (
 
         // Door tab vertical position.
         {
+            int64_t  elapsed  = 0;
+            float    progress = 0.0f;
+
             int64_t  nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                     std::chrono::steady_clock::now().time_since_epoch()).count();
-            int64_t  elapsed  = nowMs - m_state.animationStartTimeMs;
-            float    progress = Clamp01 ((float) elapsed / (float) DriveWidgetState::kDoorAnimationMs);
+            elapsed = nowMs - m_state.animationStartTimeMs;
+            progress = Clamp01 ((float) elapsed / (float) DriveWidgetState::kDoorAnimationMs);
 
             if (m_state.doorState == DriveWidgetState::Door::Open)
             {
@@ -651,45 +716,47 @@ void DriveWidget::Paint (
             constexpr int    kHingeOffsetDp       = 4;          // pivot sits this far below the recess top
             constexpr int    kFingerNotchDp       = 8;          // bottom strip of recess that stays visible when closed
 
-            float    hingeY     = recessTop + (float) Scale (kHingeOffsetDp, dpi);
-            float    hingeL     = recessLeft;
-            float    hingeR     = recessRight;
-            float    doorBottomY = recessBottom - (float) Scale (kFingerNotchDp, dpi);
-            float    doorHf     = doorBottomY - hingeY;
-            float    angle      = doorOffset * kMaxAngleRad;
-            float    cosA       = cosf (angle);
-            float    sinA       = sinf (angle);
-            float    visLen     = doorHf * (1.0f - (1.0f - kOpenVisibleFraction) * doorOffset);
-            float    depthBack  = visLen * sinA;
-            float    visibleH   = visLen * cosA;
-            float    caseDepthY = (float) (m_faceRect.top - m_bodyRect.top);
-            float    caseFrontW;
-            float    perDepthTaper;       // case-side taper magnitude per unit depth
-            float    fracL;
-            float    fracR;
-            float    dxBackL;
-            float    dxBackR;
-            float    farL;
-            float    farR;
-            float    farY;
-            uint8_t  shade;
-            uint32_t doorArgb;
-            uint32_t edgeArgb   = 0xFF000000;
-            uint32_t hiliteArgb = 0xFF5A5A5A;
-            float    yTop;
-            float    yBot;
-            int      rows;
-            int      i          = 0;
+            float     hingeY        = recessTop + (float) Scale (kHingeOffsetDp, dpi);
+            float     hingeL        = recessLeft;
+            float     hingeR        = recessRight;
+            float     doorBottomY   = recessBottom - (float) Scale (kFingerNotchDp, dpi);
+            float     doorHf        = doorBottomY - hingeY;
+            float     angle         = doorOffset * kMaxAngleRad;
+            float     cosA          = cosf (angle);
+            float     sinA          = sinf (angle);
+            float     visLen        = doorHf * (1.0f - (1.0f - kOpenVisibleFraction) * doorOffset);
+            float     depthBack     = visLen * sinA;
+            float     visibleH      = visLen * cosA;
+            float     caseDepthY    = (float) (m_faceRect.top - m_bodyRect.top);
+            float     caseFrontW;
+            float     perDepthTaper;   // case-side taper magnitude per unit depth
+            float     fracL;
+            float     fracR;
+            float     dxBackL;
+            float     dxBackR;
+            float     farL;
+            float     farR;
+            float     farY;
+            uint8_t   shade;
+            uint32_t  doorArgb;
+            uint32_t  edgeArgb      = 0xFF000000;
+            uint32_t  hiliteArgb    = 0xFF5A5A5A;
+            float     yTop;
+            float     yBot;
+            int       rows;
+            int       i             = 0;
 
             if (caseDepthY < 1.0f)
             {
                 caseDepthY = 1.0f;
             }
+
             caseFrontW      = (float) (m_bodyRect.right - m_bodyRect.left);
             if (caseFrontW < 1.0f)
             {
                 caseFrontW = 1.0f;
             }
+
             perDepthTaper = (float) caseBackInset / caseDepthY;
 
             // Per-edge perspective: each side of the door's far edge
@@ -747,6 +814,7 @@ void DriveWidget::Paint (
                 {
                     t = (hingeY - y) / std::max (hingeY - farY, 1.0f);
                 }
+
                 lx = hingeL + t * (farL - hingeL);
                 rx = hingeR + t * (farR - hingeR);
                 painter.FillRect (lx, y, rx - lx, 1.0f, doorArgb);
@@ -766,25 +834,27 @@ void DriveWidget::Paint (
         // rendering completes, so it's the same code path in both
         // skeuomorphic and compact modes.
         swprintf_s (label, L"DRIVE %d", m_drive + 1);
-        IGNORE_RETURN_VALUE (hr, text.DrawString (label,
-                                                  (float) (m_faceRect.left + labelPad),
-                                                  (float) (m_faceRect.top + labelPad - 2),
-                                                  (float) (faceW - 2 * labelPad),
-                                                  labelFontDip + 4.0f,
-                                                  theme.driveLabel,
-                                                  labelFontDip,
-                                                  kFontFamily));
+        hr = text.DrawString (label,
+                              (float) (m_faceRect.left + labelPad),
+                              (float) (m_faceRect.top + labelPad - 2),
+                              (float) (faceW - 2 * labelPad),
+                              labelFontDip + 4.0f,
+                              theme.driveLabel,
+                              labelFontDip,
+                              kFontFamily);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         // "IN USE >" label bottom-left of faceplate, LED to its right.
         swprintf_s (label, L"IN USE %s", s_kpszTriangleRight);
-        IGNORE_RETURN_VALUE (hr, text.DrawString (label,
-                                                  (float) (m_faceRect.left + labelPad),
-                                                  (float) (m_led.GetLayout().coreRect.top - 3),
-                                                  (float) inUseW,
-                                                  inUseFontDip + 4.0f,
-                                                  theme.driveLabel,
-                                                  inUseFontDip,
-                                                  kFontFamily));
+        hr = text.DrawString (label,
+                              (float) (m_faceRect.left + labelPad),
+                              (float) (m_led.GetLayout().coreRect.top - 3),
+                              (float) inUseW,
+                              inUseFontDip + 4.0f,
+                              theme.driveLabel,
+                              inUseFontDip,
+                              kFontFamily);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         UNREFERENCED_PARAMETER (bodyW);
         m_led.Paint (painter, text, theme);
@@ -847,23 +917,30 @@ void DriveWidget::PaintBasenameLabel (
     const CassoTheme & theme,
     UINT                dpi)
 {
-    HRESULT                hr             = S_OK;
-    int64_t                nowMs          = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                                                std::chrono::steady_clock::now().time_since_epoch()).count();
-    float                  basenameDip    = kBasenameFontDip * (float) dpi / (float) kBaseDpi;
-    float                  labelLeft      = (float) m_labelRect.left;
-    float                  labelTop       = (float) m_labelRect.top;
-    float                  labelW         = (float) (m_labelRect.right  - m_labelRect.left);
-    float                  labelH         = (float) (m_labelRect.bottom - m_labelRect.top);
-    float                  speedPxPerSec  = kMarqueeSpeedDipPerSec * (float) dpi / (float) kBaseDpi;
-    float                  gap            = kMarqueeGapDip * (float) dpi / (float) kBaseDpi;
+    HRESULT                hr            = S_OK;
+    float                  basenameDip   = 0.0f;
+    float                  labelLeft     = 0.0f;
+    float                  labelTop      = 0.0f;
+    float                  labelW        = 0.0f;
+    float                  labelH        = 0.0f;
+    float                  speedPxPerSec = 0.0f;
+    float                  gap           = 0.0f;
     std::filesystem::path  imagePath;
     std::wstring           basename;
-    float                  textW          = 0.0f;
-    float                  textH          = 0.0f;
-    float                  offset         = 0.0f;
-    float                  drawX          = 0.0f;
-    bool                   clipped        = false;
+    float                  textW         = 0.0f;
+    float                  textH         = 0.0f;
+    float                  offset        = 0.0f;
+    float                  drawX         = 0.0f;
+    bool                   clipped       = false;
+    int64_t                nowMs          = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                                std::chrono::steady_clock::now().time_since_epoch()).count();
+    basenameDip = kBasenameFontDip * (float) dpi / (float) kBaseDpi;
+    labelLeft = (float) m_labelRect.left;
+    labelTop = (float) m_labelRect.top;
+    labelW = (float) (m_labelRect.right  - m_labelRect.left);
+    labelH = (float) (m_labelRect.bottom - m_labelRect.top);
+    speedPxPerSec = kMarqueeSpeedDipPerSec * (float) dpi / (float) kBaseDpi;
+    gap = kMarqueeGapDip * (float) dpi / (float) kBaseDpi;
 
 
 
@@ -897,16 +974,17 @@ void DriveWidget::PaintBasenameLabel (
     if (textW <= labelW)
     {
         // Fits: static and centered.
-        IGNORE_RETURN_VALUE (hr, text.DrawString (basename.c_str(),
-                                                  labelLeft,
-                                                  labelTop,
-                                                  labelW,
-                                                  labelH,
-                                                  theme.driveLabel,
-                                                  basenameDip,
-                                                  kFontFamily,
-                                                  DxuiTextRenderer::HAlign::Center,
-                                                  DxuiTextRenderer::VAlign::Center));
+        hr = text.DrawString (basename.c_str(),
+                              labelLeft,
+                              labelTop,
+                              labelW,
+                              labelH,
+                              theme.driveLabel,
+                              basenameDip,
+                              kFontFamily,
+                              DxuiTextRenderer::HAlign::Center,
+                              DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
     else
     {
@@ -970,7 +1048,8 @@ void DriveWidget::PaintBasenameLabel (
 
     if (clipped)
     {
-        IGNORE_RETURN_VALUE (hr, text.PopClipRect());
+        hr = text.PopClipRect();
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 

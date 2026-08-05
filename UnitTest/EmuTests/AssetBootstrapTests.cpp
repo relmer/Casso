@@ -176,12 +176,12 @@ public:
         for (const EmbeddedConfig & cfg : s_kEmbeddedConfigs)
         {
             std::string     jsonText = LoadEmbeddedJson (cfg.resourceId);
-            std::wstring    machine  (cfg.machineName.begin(), cfg.machineName.end());
             JsonValue       root;
             JsonParseError  parseError;
             int             version  = 0;
             HRESULT         hrParse  = S_OK;
             HRESULT         hrVer    = S_OK;
+            std::wstring    machine  (cfg.machineName.begin(), cfg.machineName.end());
 
 
             hrParse = JsonParser::Parse (jsonText, root, parseError);

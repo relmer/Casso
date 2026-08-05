@@ -42,13 +42,16 @@ public:
 
     TEST_METHOD (Extract_DefaultCapabilities_PerFR015)
     {
+        std::vector<HardwareEntry>  out;
+
+
+
         // FR-015 default: internal devices -> Required, slots -> Optional.
         const char * j = R"JSON({
             "internalDevices": [ { "type": "keyboard" } ],
             "slots":           [ { "slot": 6, "device": "disk-ii" } ]
         })JSON";
 
-        std::vector<HardwareEntry>  out;
         AssertSucceeded (SettingsPanelState::ExtractHardware (ParseOrFail (j), out));
 
         Assert::AreEqual<size_t> (2u, out.size());
@@ -65,13 +68,16 @@ public:
 
     TEST_METHOD (Extract_RequiredFlag_NotInteractive)
     {
+        std::vector<HardwareEntry>  out;
+
+
+
         const char * j = R"JSON({
             "slots": [
                 { "slot": 6, "device": "disk-ii", "capabilityFlag": "required" }
             ]
         })JSON";
 
-        std::vector<HardwareEntry>  out;
         SettingsPanelState::ExtractHardware (ParseOrFail (j), out);
 
         Assert::IsTrue (out[0].capability == CapabilityFlag::Required,
@@ -81,6 +87,10 @@ public:
 
     TEST_METHOD (Extract_PlatformLocked_CarriesLockReason)
     {
+        std::vector<HardwareEntry>  out;
+
+
+
         const char * j = R"JSON({
             "internalDevices": [
                 { "type": "80col-card",
@@ -89,7 +99,6 @@ public:
             ]
         })JSON";
 
-        std::vector<HardwareEntry>  out;
         SettingsPanelState::ExtractHardware (ParseOrFail (j), out);
 
         Assert::IsTrue (out[0].capability == CapabilityFlag::PlatformLocked);
@@ -99,13 +108,16 @@ public:
 
     TEST_METHOD (Extract_EnabledFlag_RoundTrips)
     {
+        std::vector<HardwareEntry>  out;
+
+
+
         const char * j = R"JSON({
             "slots": [
                 { "slot": 4, "device": "mockingboard", "enabled": false }
             ]
         })JSON";
 
-        std::vector<HardwareEntry>  out;
         SettingsPanelState::ExtractHardware (ParseOrFail (j), out);
 
         Assert::IsFalse (out[0].enabled, L"explicit enabled:false respected");
@@ -114,6 +126,10 @@ public:
 
     TEST_METHOD (Extract_UnknownCapability_FallsBackToKindDefault)
     {
+        std::vector<HardwareEntry> out;
+
+
+
         const char * j = R"JSON({
             "internalDevices": [
                 { "type": "keyboard", "capabilityFlag": "bogus" }
@@ -123,7 +139,6 @@ public:
             ]
         })JSON";
 
-        std::vector<HardwareEntry> out;
         SettingsPanelState::ExtractHardware (ParseOrFail (j), out);
 
         Assert::AreEqual<size_t> (2u, out.size());
@@ -134,6 +149,10 @@ public:
 
     TEST_METHOD (Extract_PreservesInternalThenSlotOrdering)
     {
+        std::vector<HardwareEntry>  out;
+
+
+
         // Verifies the renderer's traversal order -- internal devices
         // first (nested at the top of the tree), then slots. This is
         // what the C++ side relies on to label rows.
@@ -148,7 +167,6 @@ public:
             ]
         })JSON";
 
-        std::vector<HardwareEntry>  out;
         SettingsPanelState::ExtractHardware (ParseOrFail (j), out);
 
         Assert::AreEqual<size_t> (4u, out.size());
@@ -170,11 +188,14 @@ public:
 
     TEST_METHOD (Extract_SlotDisplayName_FormattedWithSlotNumberAndDevice)
     {
+        std::vector<HardwareEntry>  out;
+
+
+
         const char * j = R"JSON({
             "slots": [ { "slot": 6, "device": "disk-ii" } ]
         })JSON";
 
-        std::vector<HardwareEntry>  out;
         SettingsPanelState::ExtractHardware (ParseOrFail (j), out);
 
         Assert::AreEqual (std::string ("Slot 6: Disk ]["), out[0].displayName);

@@ -145,14 +145,14 @@ static constexpr CrtFieldDesc  s_kCrtFields[] = {
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GlobalUserPrefs::GetBoolOpt
+//  GlobalUserPrefs::TryGetBoolOpt
 //
 //  Read an optional boolean leaf, falling back to `fallback` when absent or
 //  not a boolean.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool GlobalUserPrefs::GetBoolOpt (
+bool GlobalUserPrefs::TryGetBoolOpt (
     const JsonValue   & obj,
     const std::string & key,
     bool                fallback)
@@ -369,6 +369,16 @@ InputMappingMode GlobalUserPrefs::InputMappingModeFromString (const std::string 
 //
 //  GlobalUserPrefs::ColorTextModeToString
 //
+//  Maps the text-color mode to its persisted spelling.
+//
+//  Prefs are stored as NAMES rather than as enum ordinals, so inserting a mode
+//  later cannot silently reinterpret everyone's saved setting as a different
+//  one. That is the whole reason this function exists instead of a cast.
+//
+//  Unknown values fall back to white -- the default -- so a value written by a
+//  newer build round-trips through an older one as something sensible rather
+//  than as an empty string that would fail to parse.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 const char * GlobalUserPrefs::ColorTextModeToString (ColorMonitorTextMode mode)
@@ -542,8 +552,8 @@ JsonValue GlobalUserPrefs::RecentDiskTimesToJson (const std::vector<std::int64_t
 
 void GlobalUserPrefs::CrtModeFromJson (const JsonValue & modeObj, Crt & c)
 {
-    HRESULT           hr                      = S_OK;
-    const JsonValue * sources[s_kcCrtGroup] = {};
+    HRESULT            hr                    = S_OK;
+    const JsonValue  * sources[s_kcCrtGroup] = {};
 
 
 
@@ -575,7 +585,7 @@ void GlobalUserPrefs::CrtModeFromJson (const JsonValue & modeObj, Crt & c)
 
         if (field.type == CrtScalar::Bool)
         {
-            c.*field.boolMember = GetBoolOpt (*source, field.key, c.*field.boolMember);
+            c.*field.boolMember = TryGetBoolOpt (*source, field.key, c.*field.boolMember);
         }
         else
         {
@@ -608,12 +618,13 @@ void GlobalUserPrefs::PlacementsFromJson (
 
     for (const auto & kv : entries)
     {
+        WindowBounds  b;
+
         if (kv.second.GetType() != JsonType::Object)
         {
             continue;
         }
 
-        WindowBounds  b;
 
         b.x = GetIntOpt (kv.second, "x", 0);
         b.y = GetIntOpt (kv.second, "y", 0);
@@ -646,14 +657,15 @@ void GlobalUserPrefs::RecentDisksFromJson (
     recentDisks.reserve (recentArr.ArraySize());
     for (ri = 0; ri < recentArr.ArraySize(); ri++)
     {
-        const JsonValue &  entry = recentArr.ArrayAt (ri);
+        const JsonValue   &  entry = recentArr.ArrayAt (ri);
+        // GetString is a plain accessor (empty for non-strings), so the
+        // binding is safe before the type test.
+        const std::string &  s     = entry.GetString();
 
         if (entry.GetType() != JsonType::String)
         {
             continue;
         }
-
-        const std::string &  s = entry.GetString();
 
         if (s.empty())
         {
@@ -723,6 +735,7 @@ std::wstring GlobalUserPrefs::FilePath (const std::wstring & baseDir)
     {
         result += L'\\';
     }
+
     result += L"UserPrefs.json";
 
     return result;
@@ -860,6 +873,7 @@ HRESULT GlobalUserPrefs::Save (
                 }
             }
         }
+
         hr = S_OK;
     }
 
@@ -884,6 +898,26 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GlobalUserPrefs::ToJson
+//
+//  Serializes the global prefs. Every field is written unconditionally, so the
+//  document is complete and a round trip is deterministic.
+//
+//  The version key is written FIRST because this file is meant to be read and
+//  hand-edited; the reader should see what schema they are looking at before
+//  anything else.
+//
+//  CRT blocks are persisted for every monitor type even when userOverride is
+//  false. The override flag governs whether those values are APPLIED, not
+//  whether they exist, so writing them keeps a user's customizations for a
+//  mode they have temporarily switched away from -- and keeps save-load-save
+//  byte-identical.
+//
+//  Enum-valued fields go out as names via their ToString helpers, so inserting
+//  an enumerator later cannot reinterpret an existing file.
+//
+//  The custom text color is written WITHOUT its alpha byte: it is always
+//  opaque, so persisting the alpha would only invite a hand edit that makes
+//  the text invisible. FromJson masks it back on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -962,6 +996,35 @@ JsonValue GlobalUserPrefs::ToJson() const
 //
 //  GlobalUserPrefs::FromJson
 //
+//  Reads the global prefs object, migrating older key shapes as it goes.
+//
+//  The whole struct is RESET to defaults first, so a partial or truncated JSON
+//  object cannot leak the previous load's values into the gaps -- a second
+//  Load would otherwise inherit fields the new document never mentioned.
+//
+//  Every key is read optionally, defaulting to what the reset just installed.
+//  A prefs file is user-writable and version-skewed by nature, so a missing or
+//  malformed key must cost one setting rather than the whole file.
+//
+//  Two live migrations run here, both following the same rule -- the NEW key
+//  wins, and the legacy shape is consulted only when it is absent:
+//
+//    mapArrowsToJoystick  the old bool becomes inputMappingMode::Joystick
+//    inputMappingMode     the old single mode splits into arrowsToJoystick
+//                         (keys) plus pointerMapping (paddle / mouse)
+//
+//  The split is what makes the two independent: arrow-to-joystick mapping and
+//  a pointer mode are unrelated choices that the single field forced into one.
+//  A legacy Joystick value therefore migrates to the keys half and leaves the
+//  pointer Off.
+//
+//  pointerMapping additionally rejects Joystick outright, since it is not a
+//  pointer mode -- a hand-edited or migrated file that names it there falls
+//  back to Off rather than producing a state the UI cannot represent.
+//
+//  The custom text color is masked back to opaque, so an alpha byte that a
+//  hand edit dropped or zeroed cannot yield invisible text.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
@@ -990,14 +1053,14 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     version              = GetIntOpt    (v, s_kpszVersionKey,        s_kCurrentVersion);
     activeTheme          = GetStringOpt (v, "activeTheme",            activeTheme);
-    skeuoMonitorFrame    = GetBoolOpt   (v, "skeuoMonitorFrame",      skeuoMonitorFrame);
+    skeuoMonitorFrame    = TryGetBoolOpt   (v, "skeuoMonitorFrame",      skeuoMonitorFrame);
     lastSelectedMachine  = GetStringOpt (v, "lastSelectedMachine",    lastSelectedMachine);
     audioDownloadConsent = GetStringOpt (v, "audioDownloadConsent",   audioDownloadConsent);
 
     // inputMappingMode supersedes the legacy bool "mapArrowsToJoystick";
     // when the new key is absent, a true legacy bool migrates to Joystick.
     inputModeStr = GetStringOpt (v, "inputMappingMode",   "");
-    legacyArrows = GetBoolOpt   (v, "mapArrowsToJoystick", false);
+    legacyArrows = TryGetBoolOpt   (v, "mapArrowsToJoystick", false);
 
     if (!inputModeStr.empty())
     {
@@ -1010,7 +1073,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     // Split model. New keys win; absent keys migrate from the
     // legacy single mode (joystick -> Keys on; paddle/mouse -> Pointer).
-    arrowsToJoystick = GetBoolOpt (v, "arrowsToJoystick",
+    arrowsToJoystick = TryGetBoolOpt (v, "arrowsToJoystick",
                                    inputMappingMode == InputMappingMode::Joystick);
     {
         std::string  pointerStr = GetStringOpt (v, "pointerMapping", "");
@@ -1057,7 +1120,8 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
         {
             PlacementsFromJson (*placementsObj, window.placements);
         }
-        window.fullscreen = GetBoolOpt (*windowSub, "fullscreen", window.fullscreen);
+
+        window.fullscreen = TryGetBoolOpt (*windowSub, "fullscreen", window.fullscreen);
     }
 
     // recentDisks: drop non-string and empty entries silently per
@@ -1083,17 +1147,17 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     // Printer mechanical-audio prefs (FR-034); absent keys keep struct defaults.
     // Legacy pre-toggle files stored the inverse `printerAudioMuted`; fall back
     // to it (inverted) so an older mute survives the rename to `enabled`.
-    printerAudioEnabled     = GetBoolOpt   (v, "printerAudioEnabled",
-                                            !GetBoolOpt (v, "printerAudioMuted", !printerAudioEnabled));
+    printerAudioEnabled     = TryGetBoolOpt   (v, "printerAudioEnabled",
+                                            !TryGetBoolOpt (v, "printerAudioMuted", !printerAudioEnabled));
     printerAudioVolume      = (float) GetNumberOpt (v, "printerAudioVolume",      printerAudioVolume);
-    printerAudioPanOverride = GetBoolOpt   (v, "printerAudioPanOverride", printerAudioPanOverride);
+    printerAudioPanOverride = TryGetBoolOpt   (v, "printerAudioPanOverride", printerAudioPanOverride);
     printerAudioPan         = (float) GetNumberOpt (v, "printerAudioPan",         printerAudioPan);
     printerAudioVolume      = std::clamp (printerAudioVolume, 0.0f, 1.0f);
     printerAudioPan         = std::clamp (printerAudioPan,   -1.0f, 1.0f);
 
     // Master output volume (chrome toolbar); absent keys keep struct defaults.
     masterVolume = (float) GetNumberOpt (v, "masterVolume", masterVolume);
-    masterMuted  = GetBoolOpt (v, "masterMuted", masterMuted);
+    masterMuted  = TryGetBoolOpt (v, "masterMuted", masterMuted);
     masterVolume = std::clamp (masterVolume, 0.0f, 1.0f);
 
     // Capture unknown top-level keys for round-tripping.

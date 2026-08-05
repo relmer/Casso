@@ -36,8 +36,8 @@ public:
     {
         MemoryBus             bus;
         RamDevice             ram {0x0000, 0xBFFF};
-        std::vector<Byte>     romData;
-        std::unique_ptr<MemoryDevice> rom;
+        std::vector<Byte>              romData;
+        std::unique_ptr<MemoryDevice>  rom;
 
         TestEnv()
             : romData (0x3000, 0xEA)
@@ -109,6 +109,12 @@ public:
 
     TEST_METHOD (StaVisibleToVideoRam)
     {
+        const int  fbW      = 560;
+        const int  fbH      = 384;
+        bool       hasGreen = false;
+
+
+
         // STA $0400 should be visible via GetMemory() for video rendering
         TestEnv env;
         env.romData[0x0000] = 0xA9;  // LDA #$C1
@@ -137,13 +143,10 @@ public:
         AppleTextMode textMode (env.bus);
         textMode.SetPage2 (false);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0xFF000000u);
 
         textMode.Render (cpu.GetMemory(), fb.data(), fbW, fbH);
 
-        bool hasGreen = false;
 
         for (int y = 0; y < 16 && !hasGreen; y++)
         {
@@ -220,9 +223,13 @@ public:
 
     TEST_METHOD (IORead_GoesToBusDevice)
     {
+        Byte  val = 0;
+
+
+
         // Register keyboard at $C000, read via CPU -> should go through bus
-        TestEnv env;
-        AppleKeyboard kbd;
+        TestEnv        env;
+        AppleKeyboard  kbd;
         env.bus.AddDevice (&kbd);
         env.BuildRom();
 
@@ -232,7 +239,7 @@ public:
         kbd.KeyPress ('H');
 
         // EmuCpu::ReadByte for $C000-$CFFF goes through bus
-        Byte val = cpu.ReadByte (0xC000);
+        val = cpu.ReadByte (0xC000);
 
         Assert::AreEqual (static_cast<Byte> (0xC8), val,
             L"I/O read at $C000 must go through bus to keyboard");
@@ -240,9 +247,13 @@ public:
 
     TEST_METHOD (IOWrite_GoesToBusDevice)
     {
+        Byte  val = 0;
+
+
+
         // Writing to $C010 should clear keyboard strobe via bus
-        TestEnv env;
-        AppleKeyboard kbd;
+        TestEnv        env;
+        AppleKeyboard  kbd;
         env.bus.AddDevice (&kbd);
         env.BuildRom();
 
@@ -254,7 +265,7 @@ public:
         // Write to $C010 to clear strobe (via bus)
         cpu.WriteByte (0xC010, 0x00);
 
-        Byte val = cpu.ReadByte (0xC000);
+        val = cpu.ReadByte (0xC000);
         Assert::IsTrue ((val & 0x80) == 0,
             L"I/O write to $C010 must clear keyboard strobe via bus");
     }
@@ -280,7 +291,8 @@ public:
 
     TEST_METHOD (NopSled_100000Steps_PCInRomRange)
     {
-        TestEnv env;
+        TestEnv  env;
+        Word     pc  = 0;
         env.BuildRom();
 
         EmuCpu cpu (env.bus);
@@ -291,7 +303,7 @@ public:
             cpu.StepOne();
         }
 
-        Word pc = cpu.GetPC();
+        pc = cpu.GetPC();
 
         Assert::IsTrue (pc >= 0xD000 && pc <= 0xFFFF,
             std::format (L"After 1000 NOPs, PC=${:04X} should be in ROM range $D000-$FFFF", pc).c_str());
@@ -299,6 +311,14 @@ public:
 
     TEST_METHOD (RealRom_ResetVector_IfAvailable)
     {
+        MemoryBus                        bus;
+        std::string                      error;
+        const Byte                     * romData = nullptr;
+        size_t                           romSize = 0;
+        std::unique_ptr<MemoryDevice>    rom;
+
+
+
         // If Apple2Plus.rom is available, load it and verify reset vector
         auto paths = PathResolver::BuildSearchPaths (
             PathResolver::GetExecutableDirectory(),
@@ -312,12 +332,10 @@ public:
             return;
         }
 
-        MemoryBus bus;
         RamDevice ram (0x0000, 0xBFFF);
         bus.AddDevice (&ram);
 
-        std::string error;
-        auto rom = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
+        rom = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
 
         Assert::IsNotNull (rom.get(),
             std::format (L"Failed to load ROM: {}", std::wstring (error.begin(), error.end())).c_str());
@@ -327,8 +345,8 @@ public:
         EmuCpu cpu (bus);
 
         // Copy ROM into internal memory
-        const Byte * romData = static_cast<RomDevice *> (rom.get())->GetData();
-        size_t romSize = 0xFFFF - 0xD000 + 1;
+        romData = static_cast<RomDevice *> (rom.get())->GetData();
+        romSize = 0xFFFF - 0xD000 + 1;
 
         for (size_t i = 0; i < romSize; i++)
         {
@@ -345,6 +363,16 @@ public:
 
     TEST_METHOD (RealRom_100000Cycles_PCInRomRange)
     {
+        MemoryBus                        bus;
+        AppleKeyboard                    kbd;
+        std::string                      error;
+        const Byte                     * romData = nullptr;
+        size_t                           romSize = 0;
+        Word                             pc      = 0;
+        std::unique_ptr<MemoryDevice>    rom;
+
+
+
         // If ROM available, verify CPU stays in ROM after many cycles
         auto paths = PathResolver::BuildSearchPaths (
             PathResolver::GetExecutableDirectory(),
@@ -357,22 +385,19 @@ public:
             return;
         }
 
-        MemoryBus bus;
         RamDevice ram (0x0000, 0xBFFF);
         bus.AddDevice (&ram);
 
-        AppleKeyboard kbd;
         bus.AddDevice (&kbd);
 
-        std::string error;
-        auto rom = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
+        rom = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
         Assert::IsNotNull (rom.get());
         bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
-        const Byte * romData = static_cast<RomDevice *> (rom.get())->GetData();
-        size_t romSize = 0xFFFF - 0xD000 + 1;
+        romData = static_cast<RomDevice *> (rom.get())->GetData();
+        romSize = 0xFFFF - 0xD000 + 1;
 
         for (size_t i = 0; i < romSize; i++)
         {
@@ -387,7 +412,7 @@ public:
             cpu.StepOne();
         }
 
-        Word pc = cpu.GetPC();
+        pc = cpu.GetPC();
 
         // PC should be somewhere in ROM, not stuck at 0
         Assert::IsTrue (pc != 0x0000,

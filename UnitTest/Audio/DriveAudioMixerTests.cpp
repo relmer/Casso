@@ -52,6 +52,22 @@ public:
 //
 //  DriveAudioMixerTests
 //
+//  The drive-audio mixer: source registration, per-drive panning, and
+//  mechanism switching.
+//
+//  PANNING is why the mixer is stereo at all -- two drives audible at once must
+//  be distinguishable by ear, so the tests assert the channels differ rather
+//  than merely that sound was produced.
+//
+//  Mechanism switching pins two rules that are easy to lose. Bad input must NOT
+//  mutate state, so a rejected switch leaves the running frame undisturbed; and
+//  a per-source load failure must MUTE that source rather than fail the switch,
+//  so one missing sample does not silence every drive (FR-009, SC-010).
+//
+//  Switching before the asset context exists is covered, since that is the
+//  normal startup order -- the mechanism has to be remembered so the eventual
+//  first load uses it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (DriveAudioMixerTests)

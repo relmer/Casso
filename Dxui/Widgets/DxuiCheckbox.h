@@ -86,13 +86,13 @@ private:
                                            float                maxWidth);
 
 
-    std::wstring  m_label;
-    ChangeFn      m_change;
-    bool          m_checked = false;
-    bool          m_enabled = true;
-    bool          m_singleLineLabel = false;
-    bool          m_focused = false;
-    bool          m_hover   = false;
-    bool          m_pressed = false;
-    DxuiDpiScaler     m_scaler;
+    std::wstring   m_label;
+    ChangeFn       m_change;
+    bool           m_checked         = false;
+    bool           m_enabled         = true;
+    bool           m_singleLineLabel = false;
+    bool           m_focused         = false;
+    bool           m_hover           = false;
+    bool           m_pressed         = false;
+    DxuiDpiScaler  m_scaler;
 };

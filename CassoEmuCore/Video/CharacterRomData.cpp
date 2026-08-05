@@ -30,16 +30,35 @@ CharacterRomData::CharacterRomData()
 //
 //  LoadFromFile
 //
+//  Loads a character generator ROM, accepting the two sizes that exist.
+//
+//  The SIZE selects the decoder, and the two are genuinely different layouts:
+//  a 2 KB ROM is the original single character set, while a 4 KB ROM carries
+//  the //e's primary and alternate sets and needs its own unpacking. Size is
+//  the only thing distinguishing them -- these files carry no header.
+//
+//  Any other size is REJECTED rather than partially decoded. A ROM of
+//  unexpected length is not a character generator, and decoding it anyway
+//  produces a screen of garbage glyphs that looks like a video bug rather than
+//  a bad file.
+//
+//  The read is verified against the reported size, so a truncated file fails
+//  here instead of leaving half the glyphs blank.
+//
+//  Everything asserts: the caller falls back to the embedded font, so a bad
+//  ROM is a developer-visible problem rather than a user-facing failure.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CharacterRomData::LoadFromFile (const string & filePath)
 {
-    HRESULT       hr      = S_OK;
-    ifstream      file (filePath, ios::binary | ios::ate);
-    bool          fileOk  = false;
-    auto          rawSize = streamsize {0};
-    vector<Byte>  raw;
+    HRESULT          hr        = S_OK;
+    bool             fileOk    = false;
+    vector<Byte>     raw;
     std::streamsize  bytesRead = 0;
+    std::streamsize  rawSize   = 0;
+    ifstream      file (filePath, ios::binary | ios::ate);
+    rawSize = streamsize {0};
 
 
 
@@ -238,6 +257,10 @@ void CharacterRomData::Decode2K (const vector<Byte> & raw)
 
 void CharacterRomData::Decode4K (const vector<Byte> & raw)
 {
+    int RA = 0;
+
+
+
     memset (m_glyphs, 0, sizeof (m_glyphs));
     m_hasAltCharSet = true;
 
@@ -267,7 +290,6 @@ void CharacterRomData::Decode4K (const vector<Byte> & raw)
     //
     // Bytes in the ROM file have lit dots stored as 0; the renderer
     // wants 1=lit, hence the XOR with 0xFF.
-    int RA = 0;
 
     for (int i = 0; i < 64; i++, RA += 8)
     {

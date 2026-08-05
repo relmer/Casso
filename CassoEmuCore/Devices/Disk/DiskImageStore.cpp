@@ -180,8 +180,9 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path)
     CHR (hr);
 
     {
-        ifstream  file (path, ios::binary | ios::ate);
         streamsize  size = 0;
+
+        ifstream  file (path, ios::binary | ios::ate);
 
         fileOk = file.good();
         CBR (fileOk);

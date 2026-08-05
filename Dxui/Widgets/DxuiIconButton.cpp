@@ -98,7 +98,16 @@ void DxuiIconButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnMouse  (IDxuiControl override)
+//  OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move only updates hover and is reported unhandled, so the pointer
+//  crossing the button does not consume moves other widgets want.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,6 +133,7 @@ bool DxuiIconButton::OnMouse (const DxuiMouseEvent & ev)
             SetMouse (ev.positionDip.x, ev.positionDip.y, true);
             handled = m_pressed;
         }
+
         break;
 
     case DxuiMouseEventKind::Up:
@@ -136,6 +146,7 @@ bool DxuiIconButton::OnMouse (const DxuiMouseEvent & ev)
                 Click();
             }
         }
+
         break;
 
     default:
@@ -176,27 +187,53 @@ bool DxuiIconButton::OnKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Paint  (IDxuiControl override)
+//  Paint
+//
+//  Draws a glyph-only button: no border, no fill, until it is interacted with.
+//
+//  The glyph comes from Segoe MDL2 Assets, so these buttons use the same icon
+//  set as the rest of Windows and need no bitmap assets shipped or scaled.
+//
+//  An idle icon button paints ONLY its glyph. That is what makes a row of them
+//  read as a strip of icons rather than a row of boxes; the hover fill appears
+//  only when the pointer is actually over one.
+//
+//  Hover changes the glyph to the accent color as well as filling the
+//  background, so the affordance is legible even where the fill is subtle.
+//
+//  The focus ring insets NEGATIVELY -- drawn just outside the bounds -- so it
+//  never crowds the glyph in what is already a small target.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    constexpr wchar_t  kMdl2Family[]  = L"Segoe MDL2 Assets";
-    constexpr float    kGlyphFontDip  = 12.0f;
-    constexpr float    kFocusRingPx   = 1.5f;
-    constexpr float    kFocusInsetPx  = -2.0f;
-    constexpr float    kDoubleInset   = 2.0f;
+    constexpr float  kGlyphFontDip = 12.0f;
+    constexpr float  kFocusRingPx  = 1.5f;
+    constexpr float  kFocusInsetPx = -2.0f;
+    constexpr float  kDoubleInset  = 2.0f;
+    HRESULT          hr            = S_OK;
+    float            x             = 0.0f;
+    float            y             = 0.0f;
+    float            w             = 0.0f;
+    float            h             = 0.0f;
+    float            glyphDip      = 0.0f;
+    float            focusInset    = 0.0f;
+    float            focusThick    = 0.0f;
+    uint32_t         glyphArgb     = 0;
 
-    HRESULT   hr         = S_OK;
-    float     x          = (float) m_boundsDip.left;
-    float     y          = (float) m_boundsDip.top;
-    float     w          = (float) (m_boundsDip.right  - m_boundsDip.left);
-    float     h          = (float) (m_boundsDip.bottom - m_boundsDip.top);
-    float     glyphDip   = m_scaler.Pxf (kGlyphFontDip);
-    float     focusInset = m_scaler.Pxf (kFocusInsetPx);
-    float     focusThick = m_scaler.Pxf (kFocusRingPx);
-    uint32_t  glyphArgb  = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
+
+
+    constexpr wchar_t  kMdl2Family[]  = L"Segoe MDL2 Assets";
+
+    x = (float) m_boundsDip.left;
+    y = (float) m_boundsDip.top;
+    w = (float) (m_boundsDip.right  - m_boundsDip.left);
+    h = (float) (m_boundsDip.bottom - m_boundsDip.top);
+    glyphDip = m_scaler.Pxf (kGlyphFontDip);
+    focusInset = m_scaler.Pxf (kFocusInsetPx);
+    focusThick = m_scaler.Pxf (kFocusRingPx);
+    glyphArgb = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
 
 
 

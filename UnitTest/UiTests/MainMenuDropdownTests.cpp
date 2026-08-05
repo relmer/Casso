@@ -11,7 +11,21 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  MainMenuDropdownTests
+//
+//  The emulator's own menu content: which commands exist, their accelerators,
+//  and their grouping.
+//
+//  A test of the TABLE rather than of the menu bar widget, which is covered
+//  elsewhere. It pins that every command has an id, a label, and -- where one
+//  is documented -- an accelerator, so a menu item added without wiring its
+//  command fails here rather than appearing and doing nothing.
+//
+//  Duplicate accelerators are checked for, since two commands claiming one
+//  chord means the second is unreachable and nothing else would notice.
+//
+//  The same table generates the parity documentation, so this suite is also
+//  what keeps that document honest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

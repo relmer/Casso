@@ -11,6 +11,28 @@
 //
 //  Cpu
 //
+//  The 6502 core: registers, a private 64 KB memory array, and the microcode
+//  table that drives execution.
+//
+//  This class owns its OWN memory rather than reading through a bus, which is
+//  what makes it usable standalone -- the CLI runs programs against it with no
+//  machine, no devices, and no configuration, and the conformance suites drive
+//  it directly. The emulator layers a bus-backed CPU over it rather than the
+//  other way around.
+//
+//  Execution is TABLE-DRIVEN through Microcode: an opcode indexes a row
+//  carrying its operation, addressing mode, size, and cycle count, so
+//  StepOne is one operand fetch plus one operation dispatch instead of a
+//  256-case switch.
+//
+//  CpuOperations is a friend so the ALU primitives can act on registers and
+//  flags directly. They are the CPU's own internals split out for readability,
+//  not an external collaborator.
+//
+//  Peek and Poke are deliberately side-effect free and are what the
+//  disassembler and debugger read through; nothing here dispatches to a
+//  device, so inspecting memory can never disturb the machine.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class Cpu
@@ -39,15 +61,15 @@ public:
     const Byte * GetMemory        () const                   { return memory.data (); }
 
     // Load a raw binary file into memory at the specified address.
-    // Returns true on success; false if the file cannot be opened or does not
-    // fit within the 64 KB address space starting at `address`.
-    // On failure, memory contents are left unchanged.
-    bool LoadBinary (const std::string & filename, Word address);
+    // E_INVALIDARG if the file cannot be opened, or if the image does not fit
+    // within the 64 KB address space starting at `address`; E_FAIL if the read
+    // itself goes bad. On failure, memory contents are left unchanged.
+    HRESULT LoadBinary (const std::string & filename, Word address);
 
     // Stream-based overload. Reads all remaining bytes from `stream` into
     // memory starting at `address`. Used directly by unit tests to avoid
     // touching the filesystem; the filename overload is a thin wrapper.
-    bool LoadBinary (std::istream & stream, Word address);
+    HRESULT LoadBinary (std::istream & stream, Word address);
 
 protected:
     struct OperandInfo
@@ -115,6 +137,7 @@ protected:
 
         return ReadByteSlow (address);
     }
+
     virtual Byte ReadByteSlow  (Word address);
     virtual Word ReadWord      (Word address);
 
@@ -201,11 +224,11 @@ protected:
     static constexpr Byte    kTraceIntrIrq  = 1;
     static constexpr Byte    kTraceIntrNmi  = 2;
 
-    std::vector<TraceEntry>  m_trace;                  // sized by EnableTrace
-    size_t                   m_traceCapacity = 0;
-    size_t                   m_traceHead     = 0;      // next slot to write
-    uint64_t                 m_traceCount    = 0;      // total entries pushed
-    bool                     m_traceEnabled  = false;
+    std::vector<TraceEntry>  m_trace;   // sized by EnableTrace
+    size_t                   m_traceCapacity    = 0;
+    size_t                   m_traceHead        = 0;   // next slot to write
+    uint64_t                 m_traceCount       = 0;   // total entries pushed
+    bool                     m_traceEnabled     = false;
     Byte                     m_pendingTraceIntr = kTraceIntrNone;
 
     // Called from the interrupt-dispatch path just before the vector is taken.
@@ -224,7 +247,7 @@ public:
     // (may be empty) is invoked periodically with (entriesWritten,
     // totalEntries) so a UI can show progress. Returns true on success.
     // CassoCore stays UI-free; the caller owns any progress dialog.
-    bool     DumpTraceToFile (const std::wstring & path,
+    HRESULT  DumpTraceToFile (const std::wstring & path,
                               const std::function<void (uint64_t, uint64_t)> & onProgress) const;
 
 protected:

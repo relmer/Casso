@@ -13,7 +13,21 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiPanelTests
+//
+//  The panel tree's contracts: child ownership, adoption, and the paint and
+//  layout fan-outs.
+//
+//  The FAN-OUT is a documented guarantee, not an implementation detail -- a
+//  panel paints every visible child in order and lays out every child, and
+//  widgets are written assuming it. So the tests use stub children with no
+//  bounds and assert they are still visited: adding a bounds guard here to
+//  paper over a widget's own bug would silently change the framework's
+//  promise, and these are what catch that.
+//
+//  Adoption is covered separately from ownership because adopted children are
+//  raw pointers the panel does not own -- the walks must include them while the
+//  destruction must not.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,29 +54,35 @@ public:
     }
 
 
-    TEST_METHOD (Remove_NullReturnsFalse)
+    TEST_METHOD (Remove_NullFails)
     {
         DxuiPanel  panel;
 
-        Assert::IsFalse (panel.Remove (nullptr));
+        HRESULT  hr = panel.Remove (nullptr);
+
+        Assert::AreEqual (E_INVALIDARG, hr);
     }
 
 
-    TEST_METHOD (Remove_UnknownReturnsFalse)
+    TEST_METHOD (Remove_UnknownFails)
     {
         DxuiPanel        panel;
         MockDxuiControl  stranger;
 
-        Assert::IsFalse (panel.Remove (&stranger));
+        HRESULT  hr = panel.Remove (&stranger);
+
+        Assert::IsTrue (FAILED (hr));
     }
 
 
-    TEST_METHOD (Remove_KnownReturnsTrueAndDestroysChild)
+    TEST_METHOD (Remove_KnownSucceedsAndDestroysChild)
     {
         DxuiPanel          panel;
         MockDxuiControl &  child = panel.Add<MockDxuiControl>();
 
-        Assert::IsTrue   (panel.Remove (&child));
+        HRESULT  hr = panel.Remove (&child);
+
+        Assert::IsTrue   (SUCCEEDED (hr));
         Assert::AreEqual ((size_t) 0, panel.ChildCount());
     }
 
@@ -234,6 +254,7 @@ public:
             DxuiPanel  panel;
             panel.Adopt (caller);
         }
+
         // If the panel had taken ownership the dtor would have freed
         // caller; we still have a live local, so its destructor must
         // run after this scope on its own terms. (Test simply asserts
@@ -260,22 +281,28 @@ public:
     {
         DxuiPanel        panel;
         MockDxuiControl  caller;
+        HRESULT          hr     = S_OK;
 
 
         panel.Adopt (caller);
-        Assert::IsTrue   (panel.RemoveAdopted (caller));
+
+        hr = panel.RemoveAdopted (caller);
+
+        Assert::IsTrue   (SUCCEEDED (hr));
         Assert::AreEqual ((size_t) 0, panel.ChildCount());
         Assert::IsNull   (caller.Parent());
     }
 
 
-    TEST_METHOD (RemoveAdopted_UnknownReturnsFalse)
+    TEST_METHOD (RemoveAdopted_UnknownFails)
     {
         DxuiPanel        panel;
         MockDxuiControl  stranger;
 
 
-        Assert::IsFalse (panel.RemoveAdopted (stranger));
+        HRESULT  hr = panel.RemoveAdopted (stranger);
+
+        Assert::IsTrue (FAILED (hr));
     }
 
 
@@ -285,7 +312,9 @@ public:
         MockDxuiControl &  owned = panel.Add<MockDxuiControl>();
 
 
-        Assert::IsFalse (panel.RemoveAdopted (owned));
+        HRESULT  hr = panel.RemoveAdopted (owned);
+
+        Assert::IsTrue   (FAILED (hr));
         Assert::AreEqual ((size_t) 1, panel.ChildCount());
     }
 

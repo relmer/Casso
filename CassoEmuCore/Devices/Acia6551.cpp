@@ -109,6 +109,7 @@ void Acia6551::Write (Word address, Byte value)
         {
             RaiseIrq();
         }
+
         break;
 
     case kRegControl:

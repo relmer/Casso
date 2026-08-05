@@ -18,6 +18,23 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  AppleTextModeTests
 //
+//  40-column text rendering: glyphs, the display attributes, and the dirty-row
+//  cache.
+//
+//  The three ATTRIBUTE ranges are the substance. A character's high bits select
+//  normal, inverse, or flashing, so the same code renders differently depending
+//  on bits that are not part of its value -- and flashing additionally depends
+//  on a phase pushed in from emulated time.
+//
+//  The dirty-row cache gets its own coverage because it is an optimization that
+//  can be WRONG rather than merely slow: a row wrongly considered clean keeps
+//  stale pixels. The tests therefore render twice and assert the second render
+//  produces the correct image, including after a page, charset, or color change
+//  -- each of which must force a full redraw.
+//
+//  Both text pages are covered, since the page-2 base address is a separate
+//  calculation.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (AppleTextModeTests)
@@ -26,6 +43,11 @@ public:
 
     TEST_METHOD (Render_Row0Col0_NormalSpace_AllBlack)
     {
+        const int fbW = 560;
+        const int fbH = 384;
+
+
+
         // Normal space character ($A0) at row 0 col 0 should produce
         // black pixels in the first character cell
         MemoryBus bus;
@@ -39,8 +61,6 @@ public:
         textMode.SetPage2 (false);
 
         // Framebuffer: 560x384 (40*7*2 x 24*8*2)
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
         textMode.Render (nullptr, fb.data(), fbW, fbH);
@@ -58,6 +78,12 @@ public:
 
     TEST_METHOD (Render_InverseChar_HasGreenPixels)
     {
+        const int  fbW      = 560;
+        const int  fbH      = 384;
+        bool       hasGreen = false;
+
+
+
         // Inverse 'A' ($01) should render with some green (inverted) pixels
         MemoryBus bus;
         RamDevice ram (0x0000, 0x0BFF);
@@ -69,14 +95,11 @@ public:
         AppleTextMode textMode (bus);
         textMode.SetPage2 (false);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
         textMode.Render (nullptr, fb.data(), fbW, fbH);
 
         // Inverse character should have some green pixels (inverted rendering)
-        bool hasGreen = false;
 
         for (int y = 0; y < 16 && !hasGreen; y++)
         {
@@ -94,6 +117,12 @@ public:
 
     TEST_METHOD (Render_NormalA_HasGreenPixels)
     {
+        const int  fbW      = 560;
+        const int  fbH      = 384;
+        bool       hasGreen = false;
+
+
+
         // Normal 'A' = $C1 at row 0 col 0
         MemoryBus bus;
         RamDevice ram (0x0000, 0x0BFF);
@@ -104,14 +133,11 @@ public:
         AppleTextMode textMode (bus);
         textMode.SetPage2 (false);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
         textMode.Render (nullptr, fb.data(), fbW, fbH);
 
         // Normal 'A' glyph should have some green pixels
-        bool hasGreen = false;
 
         for (int y = 0; y < 16 && !hasGreen; y++)
         {
@@ -129,6 +155,12 @@ public:
 
     TEST_METHOD (Render_FlashChar_AlternatesAcrossFrames)
     {
+        const int  fbW     = 560;
+        const int  fbH     = 384;
+        bool       differs = false;
+
+
+
         // Flash 'A' = $41 should alternate between inverse and normal as the
         // externally-driven flash phase toggles. Render() no longer advances
         // flash itself -- the caller sets it via SetFlashState -- so drive
@@ -142,8 +174,6 @@ public:
         AppleTextMode textMode (bus);
         textMode.SetPage2 (false);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb1 (fbW * fbH, 0);
         std::vector<uint32_t> fb2 (fbW * fbH, 0);
 
@@ -156,7 +186,6 @@ public:
         textMode.Render (nullptr, fb2.data(), fbW, fbH);
 
         // The two phases should differ since flash toggled
-        bool differs = false;
 
         for (int y = 0; y < 16 && !differs; y++)
         {
@@ -174,6 +203,12 @@ public:
 
     TEST_METHOD (Render_Row8_UsesInterleavedAddress)
     {
+        const int  fbW      = 560;
+        const int  fbH      = 384;
+        bool       hasGreen = false;
+
+
+
         // Row 8 text address = $0400 + 128*(8%8) + 40*(8/8) = $0400 + 0 + 40 = $0428
         // Writing a visible char there should produce pixels in row 8's cell
         MemoryBus bus;
@@ -192,14 +227,11 @@ public:
         AppleTextMode textMode (bus);
         textMode.SetPage2 (false);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
         textMode.Render (nullptr, fb.data(), fbW, fbH);
 
         // Row 8 starts at fbY = 8*8*2 = 128
-        bool hasGreen = false;
 
         for (int y = 128; y < 144 && !hasGreen; y++)
         {
@@ -217,7 +249,10 @@ public:
 
     TEST_METHOD (Render_Page2_ReadsFrom0800)
     {
-        MemoryBus bus;
+        MemoryBus  bus;
+        const int  fbW      = 560;
+        const int  fbH      = 384;
+        bool       hasGreen = false;
         RamDevice ram (0x0000, 0x0BFF);
         bus.AddDevice (&ram);
 
@@ -239,13 +274,10 @@ public:
         AppleTextMode textMode (bus);
         textMode.SetPage2 (true);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
         textMode.Render (nullptr, fb.data(), fbW, fbH);
 
-        bool hasGreen = false;
 
         for (int y = 0; y < 16 && !hasGreen; y++)
         {
@@ -282,6 +314,21 @@ public:
 //
 //  AppleLoResModeTests
 //
+//  Lo-res graphics: two blocks per byte, from the SAME memory the text screen
+//  uses.
+//
+//  That sharing is the hardware's design and the first thing to get right --
+//  lo-res and text occupy identical addresses and differ only in
+//  interpretation, so the row addressing must match the text layout exactly.
+//
+//  The nybble split is the other half: the LOW nybble is the top block and the
+//  high nybble the bottom, giving 48 rows out of 24 bytes. Reversing them
+//  produces a picture that looks plausible and is vertically scrambled, so the
+//  fixtures use bytes whose two nybbles differ.
+//
+//  The sixteen-color palette is asserted by value rather than by index, since
+//  the colors are a hardware fact rather than an arbitrary table.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (AppleLoResModeTests)
@@ -290,6 +337,13 @@ public:
 
     TEST_METHOD (Render_NybbleDecoding_TopAndBottomColors)
     {
+        const int  fbW            = 560;
+        const int  fbH            = 384;
+        uint32_t   expectedTop    = 0;
+        uint32_t   expectedBottom = 0;
+
+
+
         // Byte $D7 = low nybble 7 (light blue), high nybble D (yellow)
         MemoryBus bus;
         RamDevice ram (0x0000, 0x0BFF);
@@ -308,16 +362,14 @@ public:
         lores.SetPage2 (false);
 
         // Framebuffer: 560x384 (40*14 x 48*8)
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
         lores.Render (nullptr, fb.data(), fbW, fbH);
 
         // Lo-res palette color 7 = Light Blue (kLoResColors[7] = 0xFF66AAFF)
         // Lo-res palette color 13 = Yellow (kLoResColors[13] = 0xFFFFFF00)
-        uint32_t expectedTop    = 0xFF66AAFFu;  // color index 7
-        uint32_t expectedBottom = 0xFFFFFF00u;  // color index 13
+        expectedTop = 0xFF66AAFFu; // color index 7
+        expectedBottom = 0xFFFFFF00u; // color index 13
 
         // Block dimensions: 560/40 = 14 wide, 384/48 = 8 tall
         // Top block at lo-res row 0: fbY 0-7
@@ -332,6 +384,8 @@ public:
     TEST_METHOD (Render_Color0_IsBlack)
     {
         MemoryBus bus;
+        const int fbW = 560;
+        const int fbH = 384;
         RamDevice ram (0x0000, 0x0BFF);
         bus.AddDevice (&ram);
 
@@ -340,8 +394,6 @@ public:
         AppleLoResMode lores (bus);
         lores.SetPage2 (false);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0xFFFFFFFF);
 
         lores.Render (nullptr, fb.data(), fbW, fbH);
@@ -353,6 +405,8 @@ public:
     TEST_METHOD (Render_ColorF_IsWhite)
     {
         MemoryBus bus;
+        const int fbW = 560;
+        const int fbH = 384;
         RamDevice ram (0x0000, 0x0BFF);
         bus.AddDevice (&ram);
 
@@ -361,8 +415,6 @@ public:
         AppleLoResMode lores (bus);
         lores.SetPage2 (false);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
         lores.Render (nullptr, fb.data(), fbW, fbH);
@@ -391,6 +443,23 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AppleHiResModeTests
+//
+//  Hi-res graphics: the interleaved scanline addressing and NTSC artifact
+//  color.
+//
+//  Hi-res line addressing is famously NON-LINEAR -- consecutive scanlines are
+//  scattered across the page in a three-level interleave -- so the address
+//  calculation is a lookup-shaped formula that is wrong in an obvious way or
+//  right, and the tests check lines at each interleave boundary rather than a
+//  contiguous run.
+//
+//  Artifact color is the other half, and it is why the fixtures set ADJACENT
+//  bits rather than isolated ones: a lone dot is colored while neighbors merge
+//  to white, so a renderer ignoring neighbors passes any single-pixel test.
+//
+//  The palette bit (bit 7) is covered specifically, including a run crossing a
+//  byte boundary into a different palette -- which is where a per-byte
+//  implementation diverges from a per-pixel one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -449,16 +518,19 @@ public:
 
     TEST_METHOD (ScanlineAddress_Page2Base)
     {
-        Word addr = AppleHiResMode::ScanlineAddress (0, 0x4000);
+        Word  addr   = AppleHiResMode::ScanlineAddress (0, 0x4000);
+        Word  addr64 = 0;
         Assert::AreEqual (static_cast<Word> (0x4000), addr);
 
-        Word addr64 = AppleHiResMode::ScanlineAddress (64, 0x4000);
+        addr64 = AppleHiResMode::ScanlineAddress (64, 0x4000);
         Assert::AreEqual (static_cast<Word> (0x4028), addr64);
     }
 
     TEST_METHOD (Render_AllZeros_AllBlack)
     {
         MemoryBus bus;
+        const int fbW = 560;
+        const int fbH = 384;
         RamDevice ram (0x0000, 0x5FFF);
         bus.AddDevice (&ram);
 
@@ -471,8 +543,6 @@ public:
         AppleHiResMode hires (bus);
         hires.SetPage2 (false);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0xFFFFFFFF);
 
         hires.Render (nullptr, fb.data(), fbW, fbH);
@@ -485,6 +555,8 @@ public:
     TEST_METHOD (Render_SinglePixelPalette0EvenCol_Violet)
     {
         MemoryBus bus;
+        const int fbW = 560;
+        const int fbH = 384;
         RamDevice ram (0x0000, 0x5FFF);
         bus.AddDevice (&ram);
 
@@ -500,8 +572,6 @@ public:
         AppleHiResMode hires (bus);
         hires.SetPage2 (false);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
         hires.Render (nullptr, fb.data(), fbW, fbH);
@@ -515,6 +585,8 @@ public:
     TEST_METHOD (Render_SinglePixelPalette1EvenCol_Blue)
     {
         MemoryBus bus;
+        const int fbW = 560;
+        const int fbH = 384;
         RamDevice ram (0x0000, 0x5FFF);
         bus.AddDevice (&ram);
 
@@ -530,8 +602,6 @@ public:
         AppleHiResMode hires (bus);
         hires.SetPage2 (false);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
         hires.Render (nullptr, fb.data(), fbW, fbH);
@@ -544,6 +614,8 @@ public:
     TEST_METHOD (Render_AdjacentPixels_White)
     {
         MemoryBus bus;
+        const int fbW = 560;
+        const int fbH = 384;
         RamDevice ram (0x0000, 0x5FFF);
         bus.AddDevice (&ram);
 
@@ -558,8 +630,6 @@ public:
         AppleHiResMode hires (bus);
         hires.SetPage2 (false);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
         hires.Render (nullptr, fb.data(), fbW, fbH);
@@ -586,6 +656,17 @@ public:
 
     TEST_METHOD (HiRes_NTSCArtifact_ProducesSixColorOutput)
     {
+        const int  fbW       = 560;
+        const int  fbH       = 384;
+        bool       sawBlack  = false;
+        bool       sawWhite  = false;
+        bool       sawViolet = false;
+        bool       sawGreen  = false;
+        bool       sawBlue   = false;
+        bool       sawOrange = false;
+
+
+
         // FR-018: hi-res NTSC artifact produces a 6-color palette.
         // Place patterns that yield each of black, white, violet, green,
         // blue, orange and assert all six colors appear in the framebuffer.
@@ -614,18 +695,10 @@ public:
         AppleHiResMode hires (bus);
         hires.SetPage2 (false);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
         hires.Render (nullptr, fb.data(), fbW, fbH);
 
-        bool sawBlack  = false;
-        bool sawWhite  = false;
-        bool sawViolet = false;
-        bool sawGreen  = false;
-        bool sawBlue   = false;
-        bool sawOrange = false;
 
         for (uint32_t pixel : fb)
         {
@@ -652,7 +725,24 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Apple80ColTextModeTests
+//  Phase12VideoTestHelpers
+//
+//  Builds a SYNTHETIC character ROM so ALTCHARSET switching can be tested
+//  without shipping a real //e video ROM into the test tree.
+//
+//  The two character sets carry deliberately DIFFERENT dot patterns, so which
+//  set was used is visible in the rendered output -- a real ROM's two sets
+//  share many glyphs, and a switching bug would be invisible for most
+//  characters.
+//
+//  It reproduces the //e 4K ROM's actual layout rather than a convenient flat
+//  one, because that layout is what Decode4K unpacks: the primary set's
+//  inverse and flash ranges share offsets, and the alt set reads linearly. A
+//  simplified fixture would pass against a decoder that got the real layout
+//  wrong.
+//
+//  The source bytes are PRE-INVERTED because Decode4K XORs with $FF, so the
+//  patterns above are what the renderer ends up seeing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -667,6 +757,11 @@ namespace Phase12VideoTestHelpers
     // The Decode4K path XORs the source bytes with 0xFF, so we pre-invert.
     static std::vector<Byte> Build4KSyntheticCharRom (Byte normalDots, Byte altDots)
     {
+        Byte  normalSrc = 0;
+        Byte  altSrc    = 0;
+
+
+
         // //e enhanced video ROM layout per UTAIIe ch. 8 / AppleWin
         // userVideoRom4K (matched by CharacterRomData::Decode4K):
         //   Primary set [00..3F] inverse + [40..7F] flash share offsets
@@ -684,8 +779,8 @@ namespace Phase12VideoTestHelpers
         // compare primary vs alt rendering must use a char in $00-$7F
         // since $80-$FF is identical between the two sets.
         std::vector<Byte> raw (4096, 0xFF);
-        Byte normalSrc = static_cast<Byte> (~normalDots & 0xFF);
-        Byte altSrc    = static_cast<Byte> (~altDots & 0xFF);
+        normalSrc = static_cast<Byte> (~normalDots & 0xFF);
+        altSrc = static_cast<Byte> (~altDots & 0xFF);
 
         for (size_t i = 0; i < 0x400; i++)
         {
@@ -707,7 +802,22 @@ namespace Phase12VideoTestHelpers
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  Apple80ColTextModeTests
+//
+//  80-column text: the aux/main column interleave, and ALTCHARSET.
+//
+//  The interleave is the whole mode. Aux memory supplies the EVEN screen
+//  columns and main supplies the ODD ones, both read from the same addresses --
+//  so the renderer walks one address range twice through different memory. An
+//  implementation reading only main produces a readable 40-column screen with
+//  every other character missing, which looks like a font bug rather than a
+//  banking one.
+//
+//  The fixtures put DIFFERENT content in aux and main at the same addresses,
+//  which is the only way that swap is visible.
+//
+//  Page 1 is used unconditionally: 80-column mode has no page 2, and honoring
+//  PAGE2 here would display the wrong half of memory.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -717,6 +827,13 @@ public:
 
     TEST_METHOD (TextMode80_RendersAuxMainInterleave)
     {
+        const int  fbW          = 560;
+        const int  fbH          = 384;
+        bool       col0HasGreen = false;
+        bool       col1HasGreen = false;
+
+
+
         // 80-col: aux at even screen columns, main at odd screen columns.
         // Screen col 0 reads from aux memory at $0400; col 1 reads from
         // main memory at $0400. Place a different glyph in each and
@@ -742,16 +859,12 @@ public:
         Apple80ColTextMode text80 (bus);
         text80.SetAuxMemory (auxBuf.data());
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
         text80.Render (nullptr, fb.data(), fbW, fbH);
 
         // Cell 0 occupies fb x=0..6 (7 dots wide in 80-col, no horizontal scaling).
         // Cell 1 occupies fb x=7..13.
-        bool col0HasGreen = false;
-        bool col1HasGreen = false;
 
         for (int y = 0; y < 16; y++)
         {
@@ -759,6 +872,7 @@ public:
             {
                 if (fb[y * fbW + x] == 0xFF00FF00u) { col0HasGreen = true; }
             }
+
             for (int x = 7; x < 14; x++)
             {
                 if (fb[y * fbW + x] == 0xFF00FF00u) { col1HasGreen = true; }
@@ -771,6 +885,14 @@ public:
 
     TEST_METHOD (TextMode80_AltCharsetSwitchesGlyphSet)
     {
+        std::vector<Byte>  raw;
+        CharacterRomData   rom;
+        const int          fbW     = 560;
+        const int          fbH     = 384;
+        bool               differs = false;
+
+
+
         // Audit M13: ALTCHARSET=1 must select the alt char set glyphs.
         // Build a synthetic 4KB ROM where normal set lights every pixel
         // (0x7F) and alt set lights none (0x00). Toggling ALTCHARSET on a
@@ -787,15 +909,12 @@ public:
         bus.WriteByte (0x0400, 0x40);   // main col 1 = char $40 ('@' inverse
                                         // in primary, MouseText 0 in alt)
 
-        std::vector<Byte> raw = Phase12VideoTestHelpers::Build4KSyntheticCharRom (0x7F, 0x00);
-        CharacterRomData rom;
+        raw = Phase12VideoTestHelpers::Build4KSyntheticCharRom (0x7F, 0x00);
         Assert::AreEqual (S_OK, rom.LoadFromMemory (raw.data(), raw.size()));
         Assert::IsTrue (rom.HasAltCharSet(), L"4KB synthetic rom must report alt char set");
 
         Apple80ColTextMode text80 (bus, rom);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb1 (fbW * fbH, 0);
         std::vector<uint32_t> fb2 (fbW * fbH, 0);
 
@@ -807,7 +926,6 @@ public:
 
         // Normal set lights every dot (greens), alt set lights none (blacks).
         // The two framebuffers must differ inside cell 1 (x=7..13).
-        bool differs = false;
 
         for (int y = 0; y < 16 && !differs; y++)
         {
@@ -825,6 +943,14 @@ public:
 
     TEST_METHOD (TextMode80_FlashesWhenAltCharSetSelectsFlashingSet)
     {
+        std::vector<Byte>  raw;
+        CharacterRomData   rom;
+        const int          fbW     = 560;
+        const int          fbH     = 384;
+        bool               differs = false;
+
+
+
         // Audit M14: when ALTCHARSET=0, chars $40-$7F flash. Render the
         // same char with two different m_flashOn states and assert the
         // framebuffer differs. (When ALTCHARSET=1, no flash — covered by
@@ -841,16 +967,13 @@ public:
         // Main $0400 = $41 ('A' in flash range), screen col 1.
         bus.WriteByte (0x0400, 0x41);
 
-        std::vector<Byte> raw = Phase12VideoTestHelpers::Build4KSyntheticCharRom (0x7F, 0x7F);
-        CharacterRomData rom;
+        raw = Phase12VideoTestHelpers::Build4KSyntheticCharRom (0x7F, 0x7F);
         Assert::AreEqual (S_OK, rom.LoadFromMemory (raw.data(), raw.size()));
 
         Apple80ColTextMode text80 (bus, rom);
 
         text80.SetAltCharSet (false);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fbFlashOn  (fbW * fbH, 0);
         std::vector<uint32_t> fbFlashOff (fbW * fbH, 0);
 
@@ -860,7 +983,6 @@ public:
         text80.SetFlashState (false);
         text80.RenderRowRange (0, 1, nullptr, fbFlashOff.data(), fbW, fbH);
 
-        bool differs = false;
 
         for (int y = 0; y < 16 && !differs; y++)
         {
@@ -901,6 +1023,14 @@ public:
 
     TEST_METHOD (MixedMode_BottomFourRowsAre40ColWhen80ColClear)
     {
+        const int  fbW          = 560;
+        const int  fbH          = 384;
+        uint32_t   kRed         = 0;
+        bool       topUntouched = false;
+        bool       sawGreen     = false;
+
+
+
         // Build a //e-shaped scenario: graphics frame (filled red), then
         // route bottom 4 text rows through AppleTextMode::RenderRowRange
         // (40-col, the 80COL=0 dispatch). Only fbY in rows 20-23 should
@@ -922,15 +1052,13 @@ public:
         AppleTextMode text40 (bus);
         text40.SetPage2 (false);
 
-        const int      fbW   = 560;
-        const int      fbH   = 384;
-        const uint32_t kRed  = 0xFFFF0000;
+        kRed = 0xFFFF0000;
         std::vector<uint32_t> fb (fbW * fbH, kRed);
 
         text40.RenderRowRange (20, 24, nullptr, fb.data(), fbW, fbH);
 
         // Rows 0-19 (fbY 0..319) must be unchanged (still red).
-        bool topUntouched = true;
+        topUntouched = true;
         for (int y = 0; y < 320 && topUntouched; y++)
         {
             for (int x = 0; x < fbW && topUntouched; x++)
@@ -938,11 +1066,11 @@ public:
                 if (fb[y * fbW + x] != kRed) { topUntouched = false; }
             }
         }
+
         Assert::IsTrue (topUntouched, L"Rows 0-19 must stay red (untouched by row-range render)");
 
         // Rows 20-23 must contain green pixels from the 'A' glyph at col 0
         // (fbY 320-383, fbX 0..13).
-        bool sawGreen = false;
         for (int y = 320; y < 384 && !sawGreen; y++)
         {
             for (int x = 0; x < 14 && !sawGreen; x++)
@@ -950,11 +1078,21 @@ public:
                 if (fb[y * fbW + x] == 0xFF00FF00u) { sawGreen = true; }
             }
         }
+
         Assert::IsTrue (sawGreen, L"40-col 'A' must render in row 20 of the framebuffer");
     }
 
     TEST_METHOD (MixedMode_BottomFourRowsAre80ColWhen80ColSet_RoutedThroughComposedRenderer)
     {
+        const int  fbW          = 560;
+        const int  fbH          = 384;
+        uint32_t   kBlue        = 0;
+        bool       topUntouched = false;
+        bool       col0Green    = false;
+        bool       col1Green    = false;
+
+
+
         // FR-017a: when 80COL is set, the bottom 4 rows route through
         // Apple80ColTextMode::RenderRowRange. Verify the helper writes
         // only into rows 20-23 and that aux/main interleaving applies
@@ -978,15 +1116,13 @@ public:
         Apple80ColTextMode text80 (bus);
         text80.SetAuxMemory (auxBuf.data());
 
-        const int      fbW    = 560;
-        const int      fbH    = 384;
-        const uint32_t kBlue  = 0xFF0000FF;
+        kBlue = 0xFF0000FF;
         std::vector<uint32_t> fb (fbW * fbH, kBlue);
 
         text80.RenderRowRange (20, 24, nullptr, fb.data(), fbW, fbH);
 
         // Rows 0-19 must remain untouched (still blue).
-        bool topUntouched = true;
+        topUntouched = true;
         for (int y = 0; y < 320 && topUntouched; y++)
         {
             for (int x = 0; x < fbW && topUntouched; x++)
@@ -994,18 +1130,18 @@ public:
                 if (fb[y * fbW + x] != kBlue) { topUntouched = false; }
             }
         }
+
         Assert::IsTrue (topUntouched, L"Top 20 rows must be untouched by row-range 80-col render");
 
         // Both screen col 0 (aux 'A') and col 1 (main 'B') should produce
         // green pixels in row 20 — proving aux/main interleave.
-        bool col0Green = false;
-        bool col1Green = false;
         for (int y = 320; y < 336; y++)
         {
             for (int x = 0; x < 7; x++)
             {
                 if (fb[y * fbW + x] == 0xFF00FF00u) { col0Green = true; }
             }
+
             for (int x = 7; x < 14; x++)
             {
                 if (fb[y * fbW + x] == 0xFF00FF00u) { col1Green = true; }
@@ -1025,6 +1161,22 @@ public:
 //
 //  AppleDoubleHiResModeTests
 //
+//  Double hi-res: 560 pixels wide, interleaving AUX and MAIN memory
+//  byte by byte.
+//
+//  The mode needs both DHIRES and 80COL, which is a fact about the hardware
+//  rather than a convention -- it borrows the 80-column circuitry to clock the
+//  interleave -- so the fixtures set both, and a test with DHIRES alone would
+//  be exercising ordinary hi-res.
+//
+//  Aux supplies the EVEN bytes and main the odd ones, so the fixtures put
+//  distinguishable content in each; identical content would render correctly
+//  under a renderer that ignored aux entirely.
+//
+//  Color here comes from four-bit groups across the interleaved stream rather
+//  than from artifact adjacency, so the palette is genuinely different from
+//  hi-res and is asserted separately (FR-019).
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (AppleDoubleHiResModeTests)
@@ -1033,6 +1185,14 @@ public:
 
     TEST_METHOD (DHR_AuxMainInterleaveProduces16ColorOutput)
     {
+        const int                          fbW            = 560;
+        const int                          fbH            = 384;
+        std::unordered_map<uint32_t, int>  distinctColors;
+        bool                               sawWhite       = false;
+        bool                               sl1AllBlack    = false;
+
+
+
         // FR-019, audit M8: DHR is 560x192 with 4-bit-nibble 16-color cells
         // sourced from interleaved aux+main 7-bit bytes. Place patterns
         // that exercise multiple distinct 4-bit nibble values across the
@@ -1068,8 +1228,6 @@ public:
         dhr.SetAuxMemory (auxBuf.data());
         dhr.SetPage2 (false);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0xFFCCCCCC);
 
         dhr.Render (nullptr, fb.data(), fbW, fbH);
@@ -1077,7 +1235,6 @@ public:
         // Sample first 56 pixels of scanline 0 (covers ~14 nibbles) and
         // collect distinct colors. Must include at least 4 distinct
         // palette entries to prove 16-color decoding.
-        std::unordered_map<uint32_t, int> distinctColors;
 
         for (int x = 0; x < 56; x++)
         {
@@ -1089,20 +1246,21 @@ public:
 
         // The all-off region (aux=0x7F, main=0x00 packs 7 ones+7 zeros)
         // must include white (nibble 0xF) somewhere within bytes-1..2.
-        bool sawWhite = false;
         for (int x = 14; x < 28 && !sawWhite; x++)
         {
             if (fb[0 * fbW + x] == 0xFFFFFFFFu) { sawWhite = true; }
         }
+
         Assert::IsTrue (sawWhite, L"DHR all-on aux byte must include white cells");
 
         // The all-zero scanline 1 must be all black (proves DHR didn't
         // bleed pixels from scanline 0).
-        bool sl1AllBlack = true;
+        sl1AllBlack = true;
         for (int x = 0; x < 560 && sl1AllBlack; x++)
         {
             if (fb[2 * fbW + x] != 0xFF000000u) { sl1AllBlack = false; }
         }
+
         Assert::IsTrue (sl1AllBlack, L"All-zero scanline 1 must be all black");
     }
 

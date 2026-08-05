@@ -142,6 +142,27 @@ static Byte GetCycleCounts (Byte opcode)
 //
 //  OpcodeTable
 //
+//  Inverts the instruction set: builds a mnemonic-and-addressing-mode lookup
+//  so the ASSEMBLER can find the opcode for what a source line says.
+//
+//  The CPU indexes by opcode; the assembler needs the opposite direction, and
+//  building it from the same Microcode table is what keeps the two from ever
+//  disagreeing about what an instruction does.
+//
+//  Two classes of opcode are deliberately EXCLUDED. Illegal opcodes and
+//  assembler-hidden fills -- the 65C02's reserved-NOP slots, for instance --
+//  still execute and still disassemble, but must not be selectable by
+//  mnemonic. Including them would let a filler NOP shadow the real $EA, so a
+//  plain `NOP` could assemble to the wrong byte.
+//
+//  Synonyms are aliased to an existing mnemonic's entries rather than given
+//  their own, so an alias cannot drift from the instruction it names. They
+//  exist because period assemblers accepted these spellings and period sources
+//  still use them.
+//
+//  Mnemonics are uppercased on the way in, so lookup is case-insensitive
+//  without a comparator.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 OpcodeTable::OpcodeTable (const Microcode instructionSet[256])
@@ -197,11 +218,11 @@ OpcodeTable::OpcodeTable (const Microcode instructionSet[256])
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Lookup
+//  TryLookup
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool OpcodeTable::Lookup (const std::string & mnemonic, GlobalAddressingMode::AddressingMode mode, OpcodeEntry & result) const
+bool OpcodeTable::TryLookup (const std::string & mnemonic, GlobalAddressingMode::AddressingMode mode, OpcodeEntry & result) const
 {
     auto  mnemonicIt = m_table.find (mnemonic);
     bool  found      = false;

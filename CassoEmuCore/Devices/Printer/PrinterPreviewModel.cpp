@@ -116,6 +116,27 @@ bool PrinterPreviewModel::RevealMoved (int revealRow, int revealCol, int rendere
 //
 //  PrinterPreviewModel::AudioSampleWindow
 //
+//  Picks the column span to check for ink when deciding whether the head is
+//  currently PRINTING or merely traversing -- which is what selects the print
+//  sound rather than the quiet carriage sound.
+//
+//  The span is the ground the head just swept, extended slightly BEHIND it.
+//  That bridge exists because ink is laid at the strike position while the
+//  animation samples a moment later: without it, sparse text produces gaps
+//  where the head has passed the last dot but not yet reached the next, and
+//  the sound stutters mid-word. Which side is "behind" depends on the sweep
+//  direction, hence the two arms.
+//
+//  A LINE WRAP is detected and handled separately: when the row changed or the
+//  column jumped more than half a line, no contiguous swept span exists at
+//  all, so the whole row is sampled and any ink counts as a printing pass.
+//
+//  A negative previous column -- the first sample of a pass -- is treated as a
+//  wrap for the same reason: there is no prior position to sweep from.
+//
+//  The result is clamped to the row, so the bridge cannot index past either
+//  margin.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 PrinterPreviewModel::InkSample PrinterPreviewModel::AudioSampleWindow (bool sweepLtr, int prevCol, int curCol,

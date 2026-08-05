@@ -78,8 +78,8 @@ struct RomSpec
     // appleWinName). ROMs AppleWin does not carry (e.g. the Apple //c, which
     // AppleWin does not emulate) set an explicit host + fully-formed,
     // percent-encoded urlPath and leave appleWinName empty.
-    string_view  altHost    = {};
-    string_view  altUrlPath = {};
+    string_view  altHost     = {};
+    string_view  altUrlPath  = {};
     string_view  sourceLabel = {};   // shown in the download dialog (defaults to AppleWin)
 };
 
@@ -166,6 +166,17 @@ static constexpr BootDiskSpec s_kProDOSDisk =
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MachineDisplayName
+//
+//  Maps a machine id to the name a user would recognize.
+//
+//  The two are separate because the id is a filesystem-safe identifier used in
+//  paths and prefs, while the display name carries the punctuation the real
+//  machines were sold under -- "Apple ][+" and "Apple //e" cannot be directory
+//  names.
+//
+//  An unrecognized id WIDENS AS-IS rather than falling back to a placeholder,
+//  so a machine added to the catalog before it is listed here still shows
+//  something recognizable instead of "(unknown)".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -621,9 +632,11 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
 
         if (diskExists)
         {
-            ifstream            diskFile (target);
             stringstream        ss;
-            array<uint8_t, 32>  diskHash = {};
+            array<uint8_t, 32>  diskHash;
+
+            ifstream            diskFile (target);
+            diskHash = {};
 
             if (!diskFile.good())
             {
@@ -809,13 +822,14 @@ HRESULT AssetBootstrap::EnsureThemes (
 
     for (const EmbeddedTheme & theme : s_kEmbeddedThemes)
     {
-        fs::path              themeSubdir       = themesDir / theme.dirName;
-        fs::path              themeJsonPath     = themeSubdir / "theme.json";
-        bool                  diskExists        = false;
+        fs::path              themeSubdir      = themesDir / theme.dirName;
+        bool                  diskExists       = false;
         string                diskJsonText;
         string                embeddedJsonText;
-        ThemeBootstrapAction  action            = ThemeBootstrapAction::Skip;
-        int                   themeJsonResId    = 0;
+        int                   themeJsonResId   = 0;
+        ThemeBootstrapAction  action           = {};
+        fs::path              themeJsonPath     = themeSubdir / "theme.json";
+        action = ThemeBootstrapAction::Skip;
 
 
 
@@ -823,8 +837,9 @@ HRESULT AssetBootstrap::EnsureThemes (
 
         if (diskExists)
         {
-            ifstream      file (themeJsonPath);
             stringstream  ss;
+
+            ifstream      file (themeJsonPath);
 
             if (file.good())
             {
@@ -1013,8 +1028,8 @@ fs::path AssetBootstrap::GetAssetBaseDirectory()
 fs::path AssetBootstrap::GetDiskDirectory()
 {
     fs::path     base   = GetAssetBaseDirectory();
-    fs::path     disks  = base / L"Disks";
     error_code   ec;
+    fs::path     disks  = base / L"Disks";
 
 
 
@@ -1056,6 +1071,31 @@ bool AssetBootstrap::IsForeignCheckoutDisk (const fs::path & p)
 //
 //  AppendBundledDemoDisks
 //
+//  Offers the repo's Apple2/Demos images in the disk picker, so a developer
+//  build always has something to boot.
+//
+//  Two different cache lifetimes are at work here, and the split is the point.
+//
+//  The DIRECTORY is located once per process and remembered, including its
+//  absence. Demos ships in the source tree rather than an installed layout, so
+//  its location is purely a function of the exe path and the repo shape, and
+//  neither changes while the process runs. A miss means this is not a repo
+//  build -- which also cannot change at runtime -- so the walk-up is never
+//  re-attempted. std::nullopt records that absence distinctly from "not yet
+//  looked".
+//
+//  The CONTENTS are enumerated fresh on every open, because a user can drop a
+//  new image into that directory while Casso is running and the picker should
+//  pick it up. The directory is small, so the listing is cheap.
+//
+//  The walk-up tries a few levels because the exe lives at
+//  <repo>/<platform>/<config>/Casso.exe, and also tries the working directory
+//  for a run launched from the repo root.
+//
+//  De-duplication uses fs::equivalent rather than string comparison, so the
+//  same file reached through a different spelling -- a symlink, a mapped
+//  drive, differing case -- is not listed twice.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable)
@@ -1086,6 +1126,7 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
             {
                 return candidate;
             }
+
             cursor = cursor.parent_path();
         }
 
@@ -1148,6 +1189,26 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AppendSiblingDisksFromMruFolders
+//
+//  Surfaces disk images sitting NEXT TO recently-mounted ones, so a personal
+//  disk stash appears in the picker without every image having been mounted
+//  once first.
+//
+//  The folder set comes from the MRU rather than from a configured search
+//  path: where the user keeps disks is revealed by where they have opened
+//  them, and no setting has to be maintained.
+//
+//  Each folder is enumerated fresh on every open, since a user can drop a new
+//  image beside a recent one -- or a tool can hand one back -- while Casso is
+//  running. These are small directories (a disk stash or the Demos folder), so
+//  the walk is cheap.
+//
+//  Foreign checkout disks are filtered out, which keeps a developer's picker
+//  from filling with test images that happen to live under a build tree.
+//
+//  De-duplication matches AppendBundledDemoDisks: fs::equivalent against both
+//  the existing entries and anything appended earlier in this same pass, so
+//  two MRU folders that resolve to the same directory cannot double-list.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1618,9 +1679,10 @@ HRESULT AssetBootstrap::HasDiskController (
 
     for (idx = 0; idx < pSlots->ArraySize(); idx++)
     {
-        const JsonValue &  entry   = pSlots->ArrayAt (idx);
+        const JsonValue  & entry   = pSlots->ArrayAt (idx);
+        bool               enabled = false;
         HRESULT            hrDev   = entry.GetString ("device", device);
-        bool               enabled = true;   // optional key; defaults enabled
+        enabled = true; // optional key; defaults enabled
 
         if (SUCCEEDED (hrDev) && device == "disk-ii")
         {
@@ -1777,6 +1839,7 @@ Error:
 static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
 {
     constexpr std::streamsize  kChunk = 64 * 1024;
+    bool                       same   = false;
 
 
 
@@ -1789,7 +1852,7 @@ static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
     std::ifstream     fb;
     std::vector<char> bufA ((size_t) kChunk);
     std::vector<char> bufB ((size_t) kChunk);
-    bool              same      = !ec;
+    same = !ec;
 
 
     // Size first: a stat per side rules out the common "not the same file"
@@ -1877,27 +1940,27 @@ private:
     int                 ChosenResultAt     (int visibleRow) const;
     static std::wstring FormatLastLoaded   (std::int64_t loadedUnix);
 
-    static constexpr int    s_kColLastLoaded        = 0;
-    static constexpr int    s_kColDiskImage         = 1;
-    static constexpr int    s_kColLocation          = 2;
-    static constexpr int    s_kColumnCount          = 3;
-    static constexpr int    s_kListStop             = 0;
-    static constexpr int    s_kSearchStop           = 1;
-    static constexpr int    s_kFocusStopCount       = 2;
-    static constexpr int    s_kSearchHeightDip      = 30;
-    static constexpr int    s_kSearchListGapDip     = 8;
-    static constexpr int    s_kChromeReserveDip     = 240;
-    static constexpr int    s_kMinBodyHeightDip     = 160;
-    static constexpr int    s_kResizeGrabDip        = 4;
+    static constexpr int    s_kColLastLoaded         = 0;
+    static constexpr int    s_kColDiskImage          = 1;
+    static constexpr int    s_kColLocation           = 2;
+    static constexpr int    s_kColumnCount           = 3;
+    static constexpr int    s_kListStop              = 0;
+    static constexpr int    s_kSearchStop            = 1;
+    static constexpr int    s_kFocusStopCount        = 2;
+    static constexpr int    s_kSearchHeightDip       = 30;
+    static constexpr int    s_kSearchListGapDip      = 8;
+    static constexpr int    s_kChromeReserveDip      = 240;
+    static constexpr int    s_kMinBodyHeightDip      = 160;
+    static constexpr int    s_kResizeGrabDip         = 4;
     static constexpr int    s_kResizableMinWidthDip  = 480;
     static constexpr int    s_kResizableMinHeightDip = 320;
     static constexpr int    s_kResizableDefWidthDip  = 720;
     static constexpr int    s_kResizableDefHeightDip = 520;
     static constexpr int    s_kUnclampedBodyHeightPx = 100000;
-    static constexpr int    s_kDateTimeBufChars     = 64;
-    static constexpr int    s_kBaseDpi              = 96;
-    static constexpr UINT   s_kTickIntervalMs       = 30;
-    static constexpr float  s_kIconSizeDip          = 64.0f;
+    static constexpr int    s_kDateTimeBufChars      = 64;
+    static constexpr int    s_kBaseDpi               = 96;
+    static constexpr UINT   s_kTickIntervalMs        = 30;
+    static constexpr float  s_kIconSizeDip           = 64.0f;
 
     static constexpr std::uint64_t  s_kFiletimeTicksPerSec = 10000000ULL;
     static constexpr std::uint64_t  s_kUnixEpochFiletime   = 116444736000000000ULL;
@@ -1975,15 +2038,15 @@ Error:
 
 std::wstring DiskMruPickerSession::FormatLastLoaded (std::int64_t loadedUnix)
 {
-    HRESULT         hr      = S_OK;
+    HRESULT         hr                           = S_OK;
     std::wstring    result;
-    ULARGE_INTEGER  uli     = {};
-    FILETIME        ftUtc   = {};
-    FILETIME        ftLocal = {};
-    SYSTEMTIME      st      = {};
-    BOOL            ok      = FALSE;
-    int             dateLen = 0;
-    int             timeLen = 0;
+    ULARGE_INTEGER  uli                          = {};
+    FILETIME        ftUtc                        = {};
+    FILETIME        ftLocal                      = {};
+    SYSTEMTIME      st                           = {};
+    BOOL            ok                           = FALSE;
+    int             dateLen                      = 0;
+    int             timeLen                      = 0;
     wchar_t         dateBuf[s_kDateTimeBufChars] = {};
     wchar_t         timeBuf[s_kDateTimeBufChars] = {};
 
@@ -2107,10 +2170,12 @@ void DiskMruPickerSession::RebuildView()
     auto  matchesIn = [&tokens, &lower] (const std::wstring & text) -> std::vector<std::pair<int, int>>
     {
         std::vector<std::pair<int, int>>  out;
+        std::wstring                      hay;
+        std::vector<std::pair<int, int>>  merged;
 
         if (tokens.empty() || text.empty()) { return out; }
 
-        std::wstring  hay = lower (text);
+        hay = lower (text);
 
         for (const std::wstring & tok : tokens)
         {
@@ -2122,7 +2187,6 @@ void DiskMruPickerSession::RebuildView()
 
         std::sort (out.begin(), out.end());
 
-        std::vector<std::pair<int, int>>  merged;
         for (const std::pair<int, int> & r : out)
         {
             if (!merged.empty() && r.first <= merged.back().second)
@@ -2140,9 +2204,11 @@ void DiskMruPickerSession::RebuildView()
 
     auto  rowPasses = [&tokens, &lower] (const ModelRow & row) -> bool
     {
+        std::wstring  hay;
+
         if (tokens.empty()) { return true; }
 
-        std::wstring  hay = lower (row.name);
+        hay = lower (row.name);
         hay += L'\n';
         hay += lower (row.location);
         hay += L'\n';
@@ -2475,8 +2541,8 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 
     for (int i = 0; i < mruCount; ++i)
     {
-        const DiskMru::Entry &       entry = mruEntries[(size_t) i];
-        DiskMruPickerSession::ModelRow  row;
+        const DiskMru::Entry            & entry = mruEntries[(size_t) i];
+        DiskMruPickerSession::ModelRow    row;
 
         row.name        = (mruLabels[(size_t) i] != nullptr) ? std::wstring (mruLabels[(size_t) i]->label)
                                                              : entry.path.filename().wstring();
@@ -2490,10 +2556,10 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 
     for (int j = 0; j < downloadCount; ++j)
     {
-        const DownloadRow *          dr       = shownDownloads[(size_t) j];
-        fs::path                     wantPath = diskDir / string (dr->spec->cassoName);
-        bool                         present  = fs::exists (wantPath, ec);
-        DiskMruPickerSession::ModelRow  row;
+        const DownloadRow               * dr       = shownDownloads[(size_t) j];
+        fs::path                          wantPath = diskDir / string (dr->spec->cassoName);
+        bool                              present  = fs::exists (wantPath, ec);
+        DiskMruPickerSession::ModelRow    row;
 
         row.name        = dr->label;
         row.location    = present ? L"Installed" : L"Asimov archive (Download)";
@@ -2643,8 +2709,8 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
     for (int i = 0; i < mruCount; ++i)
     {
-        const DiskMru::Entry &       entry = mruEntries[(size_t) i];
-        DiskMruPickerSession::ModelRow  row;
+        const DiskMru::Entry            & entry = mruEntries[(size_t) i];
+        DiskMruPickerSession::ModelRow    row;
 
         row.name        = (mruLabels[(size_t) i] != nullptr) ? std::wstring (mruLabels[(size_t) i]->label)
                                                              : entry.path.filename().wstring();
@@ -2658,10 +2724,10 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
     for (int j = 0; j < downloadCount; ++j)
     {
-        const DownloadRow *          dr       = shownDownloads[(size_t) j];
-        fs::path                     wantPath = diskDir / string (dr->spec->cassoName);
-        bool                         present  = fs::exists (wantPath, ec);
-        DiskMruPickerSession::ModelRow  row;
+        const DownloadRow               * dr       = shownDownloads[(size_t) j];
+        fs::path                          wantPath = diskDir / string (dr->spec->cassoName);
+        bool                              present  = fs::exists (wantPath, ec);
+        DiskMruPickerSession::ModelRow    row;
 
         row.name        = dr->label;
         row.location    = present ? L"Installed" : L"Asimov archive (Download)";
@@ -2751,9 +2817,12 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
     // Build a printable short name from the URL's last path component
     // so download errors are searchable in logs.
     {
+        size_t   slash = 0;
+        wstring  tail;
+
         wstring  wUrl (urlPath);
-        size_t   slash = wUrl.find_last_of (L'/');
-        wstring  tail  = (slash == wstring::npos) ? wUrl : wUrl.substr (slash + 1);
+        slash = wUrl.find_last_of (L'/');
+        tail = (slash == wstring::npos) ? wUrl : wUrl.substr (slash + 1);
 
         narrowName.reserve (tail.size());
 
@@ -2982,9 +3051,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
     StartupDownloadResult  result         = StartupDownloadResult::NothingToDo;
     vector<string>         romFiles;
     string                 narrowMachine;
-    fs::path               devicesDir     = assetBaseDir / "Devices" / "DiskII";
     bool                   audioIncluded  = false;
     error_code             ec;
+    fs::path               devicesDir     = assetBaseDir / "Devices" / "DiskII";
 
     UNREFERENCED_PARAMETER (hInstance);
 
@@ -3036,7 +3105,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
             std::atomic<bool>          & cancel,
             std::string                & err) -> HRESULT
         {
-            HRESULT       hr = S_OK;
+            HRESULT       hr      = S_OK;
             HINTERNET     hSes    = nullptr;
             vector<Byte>  payload;
             error_code    ecLocal;
@@ -3076,6 +3145,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
             {
                 WinHttpCloseHandle (hSes);
             }
+
             return hr;
         };
 
@@ -3087,9 +3157,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         for (string_view mechanism : s_kDiskAudioMechanisms)
         {
             StartupAssetEntry  entry;
+            size_t             missingCount = 0;
             string             mechStr   (mechanism);
             wstring            mechW     (mechanism.begin(), mechanism.end());
-            size_t             missingCount = 0;
 
             for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
             {
@@ -3142,11 +3212,11 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
                 for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
                 {
-                    fs::path                     mechDir = devicesDir / string (spec.mechanism);
-                    fs::path                     wavPath = mechDir / string (spec.wavBasename);
-                    vector<float>                pcm;
-                    wstring                      urlPath;
-                    bool                         fAborted = false;
+                    fs::path       mechDir  = devicesDir / string (spec.mechanism);
+                    fs::path       wavPath  = mechDir / string (spec.wavBasename);
+                    vector<float>  pcm;
+                    wstring        urlPath;
+                    bool           fAborted = false;
                     std::atomic<std::uint64_t>   perFileBytes{0};
 
                     if (spec.mechanism != mechStr)
@@ -3224,6 +3294,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                 {
                     WinHttpCloseHandle (hSes);
                 }
+
                 return hr;
             };
 
@@ -3246,6 +3317,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         {
             prefs.audioDownloadConsent = "allow";
         }
+
         hr = S_OK;
         break;
 
@@ -3254,6 +3326,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         {
             prefs.audioDownloadConsent = "decline";
         }
+
         hr = S_OK;
         break;
 

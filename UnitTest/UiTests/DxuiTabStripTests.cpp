@@ -12,6 +12,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  TabStripTests
 //
+//  Tab strip: selection, hit testing across tab widths, and Left/Right
+//  navigation.
+//
+//  Tabs are sized to their LABELS, so hit testing is not a division -- the
+//  tests use tabs of deliberately different widths, where an implementation
+//  assuming uniform tabs selects the wrong one everywhere except the first.
+//
+//  Only the horizontal arrows are bound, and that is pinned: a tab strip is
+//  always laid out horizontally, so Up and Down belong to whatever the tab is
+//  displaying.
+//
+//  Selection wraps, and moving it commits -- switching tabs is the point, so
+//  there is no separate activation.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 
@@ -52,7 +66,7 @@ public:
     TEST_METHOD (Click_SelectsAndFiresOnChange)
     {
         DxuiTabStrip  ts;
-        int       last = -1;
+        int           last = -1;
         ts.SetTabs (MakeThreeTabs());
         ts.SetOnChange ([&] (int idx) { last = idx; });
 

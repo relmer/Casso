@@ -82,8 +82,8 @@ std::wstring TruncateToWidth (
     const std::function<float (std::wstring_view)>   & measure)
 {
     std::wstring  result;
-    std::wstring  ellipsisOnly (1, s_kchEllipsis);
     size_t        bestPrefixLen = 0;
+    std::wstring  ellipsisOnly (1, s_kchEllipsis);
 
 
 

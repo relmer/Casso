@@ -29,11 +29,15 @@ public:
 
     TEST_METHOD (KeyPress_A_ReadsC1WithHighBit)
     {
+        Byte  val = 0;
+
+
+
         // Apple II: 'A' = $41. With strobe bit 7 set: $C1.
         AppleKeyboard kbd;
         kbd.KeyPress ('A');
 
-        Byte val = kbd.Read (0xC000);
+        val = kbd.Read (0xC000);
 
         Assert::AreEqual (static_cast<Byte> (0xC1), val,
             L"Press 'A' -> $C000 should return $C1 (ASCII $41 | $80)");
@@ -41,13 +45,14 @@ public:
 
     TEST_METHOD (ReadC010_ClearsStrobeBit7)
     {
-        AppleKeyboard kbd;
+        AppleKeyboard  kbd;
+        Byte           val = 0;
         kbd.KeyPress ('B');
 
         // Read $C010 to clear strobe
         kbd.Read (0xC010);
 
-        Byte val = kbd.Read (0xC000);
+        val = kbd.Read (0xC000);
 
         Assert::AreEqual (static_cast<Byte> (0x42), val,
             L"After strobe clear, $C000 should return $42 (no high bit)");
@@ -57,13 +62,17 @@ public:
 
     TEST_METHOD (SecondKeyPress_OverwritesFirst)
     {
+        Byte  val = 0;
+
+
+
         // Press 'X', don't clear strobe, press 'Y'.
         // $C000 should show 'Y' with strobe, not 'X'.
         AppleKeyboard kbd;
         kbd.KeyPress ('X');
         kbd.KeyPress ('Y');
 
-        Byte val = kbd.Read (0xC000);
+        val = kbd.Read (0xC000);
 
         Assert::AreEqual (static_cast<Byte> ('Y'), static_cast<Byte> (val & 0x7F),
             L"Second key press should overwrite first");
@@ -73,10 +82,11 @@ public:
 
     TEST_METHOD (LowercaseConverted_ToUppercase)
     {
-        AppleKeyboard kbd;
+        AppleKeyboard  kbd;
+        Byte           val = 0;
         kbd.KeyPress ('a');
 
-        Byte val = kbd.Read (0xC000);
+        val = kbd.Read (0xC000);
 
         Assert::AreEqual (static_cast<Byte> ('A'), static_cast<Byte> (val & 0x7F),
             L"Lowercase 'a' should be converted to uppercase 'A'");
@@ -87,11 +97,13 @@ public:
         // Verify all printable ASCII characters produce correct output
         for (Byte ch = 0x20; ch <= 0x5F; ch++)
         {
-            AppleKeyboard kbd;
+            AppleKeyboard  kbd;
+            Byte           val       = 0;
+            Byte           asciiPart = 0;
             kbd.KeyPress (ch);
 
-            Byte val = kbd.Read (0xC000);
-            Byte asciiPart = val & 0x7F;
+            val = kbd.Read (0xC000);
+            asciiPart = val & 0x7F;
 
             Assert::AreEqual (ch, asciiPart,
                 std::format (L"Key ${:02X} should read back as ${:02X}, got ${:02X}",
@@ -103,10 +115,11 @@ public:
 
     TEST_METHOD (ReturnKey_Produces0D)
     {
-        AppleKeyboard kbd;
+        AppleKeyboard  kbd;
+        Byte           val = 0;
         kbd.KeyPress (0x0D);  // Return/Enter
 
-        Byte val = kbd.Read (0xC000);
+        val = kbd.Read (0xC000);
 
         Assert::AreEqual (static_cast<Byte> (0x0D), static_cast<Byte> (val & 0x7F),
             L"Return key should produce $0D");
@@ -116,10 +129,11 @@ public:
 
     TEST_METHOD (EscapeKey_Produces1B)
     {
-        AppleKeyboard kbd;
+        AppleKeyboard  kbd;
+        Byte           val = 0;
         kbd.KeyPress (0x1B);  // Escape
 
-        Byte val = kbd.Read (0xC000);
+        val = kbd.Read (0xC000);
 
         Assert::AreEqual (static_cast<Byte> (0x1B), static_cast<Byte> (val & 0x7F),
             L"Escape key should produce $1B");
@@ -137,13 +151,17 @@ public:
 
     TEST_METHOD (StrobePersists_UntilC010Read)
     {
-        AppleKeyboard kbd;
+        AppleKeyboard  kbd;
+        Byte           val1 = 0;
+        Byte           val2 = 0;
+        Byte           val3 = 0;
+        Byte           val4 = 0;
         kbd.KeyPress ('Z');
 
         // Multiple reads of $C000 should all have strobe set
-        Byte val1 = kbd.Read (0xC000);
-        Byte val2 = kbd.Read (0xC000);
-        Byte val3 = kbd.Read (0xC000);
+        val1 = kbd.Read (0xC000);
+        val2 = kbd.Read (0xC000);
+        val3 = kbd.Read (0xC000);
 
         Assert::IsTrue ((val1 & 0x80) != 0, L"1st read should have strobe");
         Assert::IsTrue ((val2 & 0x80) != 0, L"2nd read should have strobe");
@@ -151,33 +169,40 @@ public:
 
         // Now clear and verify
         kbd.Read (0xC010);
-        Byte val4 = kbd.Read (0xC000);
+        val4 = kbd.Read (0xC000);
         Assert::IsTrue ((val4 & 0x80) == 0, L"After clear, no strobe");
     }
 
     TEST_METHOD (KeyPress_ViaBus_ReturnsCorrectValue)
     {
+        Byte  val  = 0;
+        Byte  val2 = 0;
+
+
+
         // Prove keyboard works when accessed through MemoryBus
-        MemoryBus bus;
-        AppleKeyboard kbd;
+        MemoryBus      bus;
+        AppleKeyboard  kbd;
         bus.AddDevice (&kbd);
 
         kbd.KeyPress ('H');
-        Byte val = bus.ReadByte (0xC000);
+        val = bus.ReadByte (0xC000);
 
         Assert::AreEqual (static_cast<Byte> (0xC8), val,
             L"'H' via bus should read $C8 at $C000");
 
         // Clear strobe via bus
         bus.ReadByte (0xC010);
-        Byte val2 = bus.ReadByte (0xC000);
+        val2 = bus.ReadByte (0xC000);
         Assert::IsTrue ((val2 & 0x80) == 0,
             L"Strobe should be clear after bus read of $C010");
     }
 
     TEST_METHOD (SetKeyDown_AffectsC010ReadValue)
     {
-        AppleKeyboard kbd;
+        AppleKeyboard  kbd;
+        Byte           val  = 0;
+        Byte           val2 = 0;
         kbd.KeyPress ('X');
 
         // Clear strobe
@@ -185,23 +210,24 @@ public:
 
         // With key physically held, $C010 should show bit 7
         kbd.SetKeyDown (true);
-        Byte val = kbd.Read (0xC010);
+        val = kbd.Read (0xC010);
         Assert::IsTrue ((val & 0x80) != 0,
             L"$C010 should show bit 7 when key is physically held");
 
         kbd.SetKeyDown (false);
-        Byte val2 = kbd.Read (0xC010);
+        val2 = kbd.Read (0xC010);
         Assert::IsTrue ((val2 & 0x80) == 0,
             L"$C010 should not show bit 7 when key is released");
     }
 
     TEST_METHOD (IIeKeyboard_UpcastToBase_Works)
     {
-        Apple2eKeyboard iieKbd;
-        AppleKeyboard * basePtr = &iieKbd;
+        Apple2eKeyboard    iieKbd;
+        AppleKeyboard    * basePtr = &iieKbd;
+        Byte               val     = 0;
 
         basePtr->KeyPress ('A');
-        Byte val = basePtr->Read (0xC000);
+        val = basePtr->Read (0xC000);
 
         Assert::AreEqual (static_cast<Byte> (0xC1), val,
             L"IIe keyboard upcast should work identically to base");
@@ -209,14 +235,15 @@ public:
 
     TEST_METHOD (IIeKeyboard_ForwardsC001WriteToSoftSwitch)
     {
-        MemoryBus              bus;
+        MemoryBus   bus;
+        Apple2eMmu  mmu;
+        HRESULT     hrInit = S_OK;
         RamDevice              mainRam (0x0000, 0xBFFF);
-        Apple2eMmu             mmu;
         Apple2eSoftSwitchBank  sw  (&bus);
         Apple2eKeyboard        iieKbd (&bus);
 
         sw.SetMmu (&mmu);
-        HRESULT hrInit = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, &sw);
+        hrInit = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, &sw);
         UNREFERENCED_PARAMETER (hrInit);
 
         iieKbd.SetSoftSwitchSibling (&sw);
@@ -273,13 +300,14 @@ public:
 
     TEST_METHOD (Reset_ClearsAllState)
     {
-        AppleKeyboard kbd;
+        AppleKeyboard  kbd;
+        Byte           val = 0;
         kbd.KeyPress ('Z');
         kbd.SetKeyDown (true);
 
         kbd.Reset();
 
-        Byte val = kbd.Read (0xC000);
+        val = kbd.Read (0xC000);
 
         Assert::AreEqual (static_cast<Byte> (0x00), val,
             L"After Reset, $C000 should return $00 (no key, no strobe)");
@@ -298,7 +326,8 @@ public:
 
     TEST_METHOD (OpenAppleReadable_C061)
     {
-        Apple2eKeyboard kbd;
+        Apple2eKeyboard  kbd;
+        Byte             pressed = 0;
 
         Byte released = kbd.Read (0xC061);
         Assert::AreEqual (static_cast<Byte> (0x00), released,
@@ -306,14 +335,15 @@ public:
 
         kbd.SetOpenApple (true);
 
-        Byte pressed = kbd.Read (0xC061);
+        pressed = kbd.Read (0xC061);
         Assert::IsTrue ((pressed & 0x80) != 0,
             L"$C061 bit 7 must be set when Open Apple is pressed");
     }
 
     TEST_METHOD (ClosedAppleReadable_C062)
     {
-        Apple2eKeyboard kbd;
+        Apple2eKeyboard  kbd;
+        Byte             pressed = 0;
 
         Byte released = kbd.Read (0xC062);
         Assert::AreEqual (static_cast<Byte> (0x00), released,
@@ -321,14 +351,15 @@ public:
 
         kbd.SetClosedApple (true);
 
-        Byte pressed = kbd.Read (0xC062);
+        pressed = kbd.Read (0xC062);
         Assert::IsTrue ((pressed & 0x80) != 0,
             L"$C062 bit 7 must be set when Closed Apple is pressed");
     }
 
     TEST_METHOD (ShiftReadable_C063)
     {
-        Apple2eKeyboard kbd;
+        Apple2eKeyboard  kbd;
+        Byte             pressed = 0;
 
         Byte released = kbd.Read (0xC063);
         Assert::AreEqual (static_cast<Byte> (0x00), released,
@@ -336,7 +367,7 @@ public:
 
         kbd.SetShift (true);
 
-        Byte pressed = kbd.Read (0xC063);
+        pressed = kbd.Read (0xC063);
         Assert::IsTrue ((pressed & 0x80) != 0,
             L"$C063 bit 7 must be set when Shift is pressed");
     }
@@ -448,6 +479,10 @@ public:
 
     TEST_METHOD (Audit_ShiftKeyImplemented)
     {
+        Byte  val = 0;
+
+
+
         // Phase 6 / FR-013: $C063 (Shift) must be a real read site,
         // not stub-zero. SetShift(true) must produce bit 7 = 1.
         Apple2eKeyboard kbd;
@@ -457,7 +492,7 @@ public:
 
         kbd.SetShift (true);
 
-        Byte val = kbd.Read (0xC063);
+        val = kbd.Read (0xC063);
         Assert::IsTrue ((val & 0x80) != 0,
             L"Phase 6 / FR-013: Shift must be implemented at $C063");
     }
@@ -497,7 +532,8 @@ public:
 
     TEST_METHOD (AutoRepeat_StrobeRearmsAfterDelay)
     {
-        AppleKeyboard kbd;
+        AppleKeyboard  kbd;
+        Byte           val = 0;
 
         kbd.KeyPress      ('A');
         kbd.SetKeyDown    (true);
@@ -512,7 +548,7 @@ public:
         Assert::IsFalse (kbd.IsStrobeClear(),
             L"Strobe must re-arm once the initial repeat delay elapses");
 
-        Byte val = kbd.Read (0xC000);
+        val = kbd.Read (0xC000);
         Assert::AreEqual (static_cast<Byte> ('A'),
             static_cast<Byte> (val & 0x7F),
             L"Auto-repeat must re-latch the held key");

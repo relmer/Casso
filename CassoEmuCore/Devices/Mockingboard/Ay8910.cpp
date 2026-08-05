@@ -196,6 +196,24 @@ Error:
 //
 //  Reset
 //
+//  Returns the PSG to its power-on state: registers cleared and every
+//  generator re-armed.
+//
+//  The LFSR seeds to 1, not 0. A linear-feedback shift register at zero is a
+//  fixed point -- it stays zero forever -- so the noise channel would be
+//  permanently silent. Any non-zero seed works; 1 is the conventional one.
+//
+//  Tone and noise counters are reloaded from their PERIODS rather than zeroed,
+//  so each generator starts a full period rather than firing immediately on
+//  the first tick and producing a click.
+//
+//  The noise and envelope counters load twice their period because both are
+//  clocked at half the tone rate in the real part -- the factor is the divider,
+//  not a fudge.
+//
+//  SetSampleRate is re-applied last so the tick accumulator's scale matches
+//  the freshly cleared state.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Ay8910::Reset()

@@ -154,6 +154,42 @@ namespace MacroTests
             Assert::AreEqual ((Byte) 0xA9, result.bytes[1]);
             Assert::AreEqual ((Byte) 0x42, result.bytes[2]);
         }
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  UnclosedMacro_ReportedAtTheOpeningLine
+        //
+        //  The third of ValidateAssemblyCompletion's end-of-pass checks, and
+        //  the one with the best diagnostic: a MACRO with no ENDM is reported
+        //  at the line the definition OPENED on, not at EOF where the pass
+        //  finally noticed. That is where the fix goes, and it is what the
+        //  unclosed-IF error cannot do -- ConditionalState keeps no opening
+        //  line, so that one can only report a depth.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (UnclosedMacro_ReportedAtTheOpeningLine)
+        {
+            TestCpu cpu;
+
+            auto result = cpu.Assemble (
+                "    .org $1000\n"
+                "    nop\n"
+                "test macro\n"
+                "    nop\n"
+            );
+
+            Assert::IsFalse (result.success, L"a macro with no endm must fail the assembly");
+            Assert::IsTrue  (result.errors.size() >= 1, L"and must say so");
+            Assert::IsTrue  (result.errors[0].message.find ("Unclosed macro definition") != std::string::npos,
+                             L"the message names the actual problem");
+            // Stored as the parser normalized it -- mnemonics are uppercased --
+            // so the message carries TEST, not the source's `test`.
+            Assert::IsTrue  (result.errors[0].message.find ("TEST") != std::string::npos,
+                             L"and names WHICH macro");
+            Assert::AreEqual (3, result.errors[0].lineNumber,
+                              L"reported where the definition opened, not at EOF");
+        }
     };
 
 

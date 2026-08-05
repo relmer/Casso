@@ -42,6 +42,7 @@ SettingsSheet::~SettingsSheet()
     {
         PopupHost()->SetComposeHook (nullptr);
     }
+
     m_compositor.Shutdown();
 }
 
@@ -83,6 +84,33 @@ void SettingsSheet::OnBuildPages()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OpenModeless
+//
+//  Creates and shows the Settings sheet as a MODELESS window, wiring in every
+//  service its pages need.
+//
+//  Modeless is the whole design. Settings edits apply live -- brightness,
+//  scanlines, text color all reflect in the emulator as they change -- and a
+//  modal dialog would block the message loop that presents those frames, so
+//  the user would be adjusting a picture they could not see.
+//
+//  Dependencies arrive as REFERENCES stored for the sheet's lifetime rather
+//  than being reached through a global, so the pages are testable against
+//  substitutes and the sheet cannot outlive what it borrows.
+//
+//  There is no Apply button, and its visibility is set BEFORE Create so
+//  OnCreate lays out without it. Live application makes Apply meaningless:
+//  changes are already in effect, and OK versus Cancel is commit versus
+//  revert.
+//
+//  OK keeps the standard command-button width matching Cancel until a pending
+//  reboot relabels it, at which point RefreshOkLabel widens it and narrows it
+//  back on revert (FR-131) -- so it is never wider than Cancel while it just
+//  reads "OK".
+//
+//  Minimum size equals the initial size: the pages have no smaller valid form.
+//
+//  The app icon is loaded LR_SHARED, which hands back a process-cached handle
+//  needing no DestroyIcon, so the sheet is not generic in alt-tab.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -232,6 +260,7 @@ HRESULT SettingsSheet::OpenModeless (
             m_previewActive  = false;
             m_previewFocusId = -1;
         }
+
         UpdatePreviewCompose();   // reflect the new state on the next composed frame
     });
 
@@ -298,6 +327,7 @@ HRESULT SettingsSheet::OpenModeless (
                 m_emuShell->SetColorMonitorTextArgbLive (argb);
             }
         }
+
         Invalidate();
     });
 
@@ -436,6 +466,7 @@ void SettingsSheet::OnDialogTick()
         m_previewActive  = false;
         m_previewFocusId = -1;
     }
+
     UpdatePreviewCompose();
 }
 
@@ -457,14 +488,18 @@ void SettingsSheet::OnDialogTick()
 
 void SettingsSheet::UpdatePreviewCompose()
 {
+    RECT  emuOverlapClient = {};
+    RECT  focusClient      = {};
+    HWND  hwnd             = nullptr;
+
+
+
     if (!m_compositor.IsInitialized())
     {
         return;
     }
 
-    RECT  emuOverlapClient = {};
-    RECT  focusClient      = {};
-    HWND  hwnd             = Hwnd();
+    hwnd = Hwnd();
 
     if (m_previewActive && hwnd != nullptr)
     {
@@ -545,9 +580,9 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     {
         int   rowH    = scaler.Px (DxuiButtonRow::kRowHeightDip);
         int   edge    = scaler.Px (DxuiButtonRow::kEdgePadDip);
+        RECT  r;
         int   reserve = scaler.Px (DxuiButtonRow::kEdgePadDip + DxuiButtonRow::kButtonWidthDip
                                    + DxuiButtonRow::kGapDip + 132);   // cancel + gap + OK(reboot)
-        RECT  r;
 
         r.left   = boundsPx.left   + edge;
         r.top    = boundsPx.bottom - rowH;
@@ -719,6 +754,7 @@ bool SettingsSheet::OnOverlayChar (wchar_t ch)
     {
         Invalidate();
     }
+
     return handled;
 }
 
@@ -742,6 +778,7 @@ bool SettingsSheet::OnOverlayKey (WPARAM vk)
     {
         Invalidate();
     }
+
     return handled;
 }
 
@@ -762,17 +799,16 @@ bool SettingsSheet::OnOverlayKey (WPARAM vk)
 
 void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
 {
-    char   test[16] = {};
-    float  pan0     = 0.0f;
-    float  pan1     = 0.0f;
+    char                     test[16] = {};
+    float                    pan0     = 0.0f;
+    float                    pan1     = 0.0f;
+    const SettingsUiPrefs  & prefs    = m_state.Prefs();
 
 
     if (m_emuShell == nullptr)
     {
         return;
     }
-
-    const SettingsUiPrefs &  prefs = m_state.Prefs();
 
     pan0 = prefs.driveOnePan;
     pan1 = prefs.driveTwoPan;

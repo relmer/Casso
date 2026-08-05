@@ -476,7 +476,8 @@ void Disk2DebugPanel::ApplyListSelection()
 
 void Disk2DebugPanel::OnListSelectionMoved()
 {
-    int  row = m_eventList->GetSelectedRow();
+    int     row = m_eventList->GetSelectedRow();
+    size_t  idx = 0;
 
 
 
@@ -486,7 +487,7 @@ void Disk2DebugPanel::OnListSelectionMoved()
         return;
     }
 
-    size_t  idx = m_filteredIndices[(size_t) row];
+    idx = m_filteredIndices[(size_t) row];
     m_selectedSeq = (idx < m_events.size()) ? m_events[idx].seq : 0;
 }
 
@@ -515,6 +516,7 @@ void Disk2DebugPanel::SortByColumn (int absCol)
         m_sortColumn     = absCol;
         m_sortDescending = false;
     }
+
     m_eventList->SetSortIndicator (m_sortColumn, m_sortDescending);
     RebuildFilteredIndices();
     SyncListRowCount();
@@ -813,6 +815,23 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
 //
 //  OnKey
 //
+//  Keyboard routing for the panel, in three tiers.
+//
+//  A VISIBLE column popup captures every key-down outright -- it is modal in
+//  practice, so nothing behind it may act on a keystroke.
+//
+//  Otherwise the FOCUSED control sees the key before the panel's Tab
+//  traversal, and that order is what makes the list's nested navigation work.
+//  A focused list owns Tab itself, cycling its header, divider, and body
+//  sub-stops -- column sort, column resize, row navigation -- and declines only
+//  when Tab steps past either end. The panel then advances control focus with
+//  the key the list handed back. Checking Tab first would make the list's
+//  sub-stops unreachable.
+//
+//  Char events go only to the text inputs. Each edit inserts the character
+//  when it owns focus and reports whether it consumed it, so no separate
+//  focus test is needed here.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool Disk2DebugPanel::OnKey (const DxuiKeyEvent & ev)
@@ -1000,6 +1019,11 @@ void Disk2DebugPanel::UpdateDynamicLabels()
 
 void Disk2DebugPanel::LayoutWidgets()
 {
+    std::vector<DxuiRadioOption>  driveOpts;
+    RECT                          driveGroupBounds = {};
+
+
+
     m_trackFilterLabel->Layout   (m_layout.trackFilterLabel,  m_scaler);
     m_sectorFilterLabel->Layout  (m_layout.sectorFilterLabel, m_scaler);
     m_trackInvalidLabel->Layout  (m_layout.trackInvalidLabel, m_scaler);
@@ -1027,8 +1051,7 @@ void Disk2DebugPanel::LayoutWidgets()
     // labels are static; only the rects change per resize. Laying the
     // group out (bounds = union of the option rects) folds in the DPI via
     // the scaler -- no separate SetDpi needed.
-    std::vector<DxuiRadioOption>  driveOpts;
-    RECT                          driveGroupBounds = m_layout.driveRadios[0];
+    driveGroupBounds = m_layout.driveRadios[0];
 
     for (int i = 0; i < kDriveRadioCount; i++)
     {
@@ -1077,6 +1100,10 @@ void Disk2DebugPanel::LayoutWidgets()
 
 void Disk2DebugPanel::ConfigureWidgets()
 {
+    std::vector<DxuiListView::Column>  cols;
+
+
+
     static const std::array<uint32_t, kEventTypeCheckCount> s_kCheckBits =
     {
         FilterState::kEventCatMotor,    FilterState::kEventCatHeadStep,
@@ -1088,8 +1115,10 @@ void Disk2DebugPanel::ConfigureWidgets()
 
     for (int i = 0; i < kEventTypeCheckCount; i++)
     {
+        uint32_t  bit = 0;
+
         m_eventChecks[i]->SetChecked  ((m_filter.eventTypeMask & s_kCheckBits[i]) != 0);
-        uint32_t  bit = s_kCheckBits[i];
+        bit = s_kCheckBits[i];
         m_eventChecks[i]->SetOnChange ([this, bit] (bool checked)
         {
             if (checked) { m_filter.eventTypeMask |=  bit; }
@@ -1114,9 +1143,11 @@ void Disk2DebugPanel::ConfigureWidgets()
 
     for (int i = 0; i < kAudioSubCheckCount; i++)
     {
+        bool * backer = nullptr;
+
         m_audioSubChecks[i]->SetChecked  (*s_kAudioSubBackers[i]);
         m_audioSubChecks[i]->SetEnabled  (m_filter.audioMaster);
-        bool * backer = s_kAudioSubBackers[i];
+        backer = s_kAudioSubBackers[i];
         m_audioSubChecks[i]->SetOnChange ([this, backer] (bool checked)
         {
             *backer = checked;
@@ -1155,7 +1186,6 @@ void Disk2DebugPanel::ConfigureWidgets()
 
     m_clearButton->SetOnClick ([this] () { ClearEvents(); });
 
-    std::vector<DxuiListView::Column>  cols;
     cols.push_back ({ L"Time",   0, false, DxuiTextRenderer::HAlign::Left  });
     cols.push_back ({ L"Uptime", 0, false, DxuiTextRenderer::HAlign::Left  });
     cols.push_back ({ L"Cycle",  0, false, DxuiTextRenderer::HAlign::Right });
@@ -1236,8 +1266,9 @@ void Disk2DebugPanel::ConfigureWidgets()
 
 void Disk2DebugPanel::DrainAndProject()
 {
-    uint32_t  dropped = 0;
-    int64_t   ticks   = 0;
+    uint32_t  dropped   = 0;
+    int64_t   ticks     = 0;
+    uint64_t  seqBefore = 0;
 
 
 
@@ -1266,7 +1297,7 @@ void Disk2DebugPanel::DrainAndProject()
     // the deque, so the filtered set and rows are already current. Skip the
     // O(n) rebuild/re-sort on idle frames; the disk-heavy path (GH #88) still
     // rebuilds, but only when there is genuinely new data to show.
-    uint64_t  seqBefore = m_nextSeq;
+    seqBefore = m_nextSeq;
 
     DebugDialogProjection::DrainAndProject (m_ring, m_events, dropped, m_uptimeAnchor, &m_nextSeq);
 
@@ -1286,10 +1317,38 @@ void Disk2DebugPanel::DrainAndProject()
 //
 //  RebuildFilteredIndices
 //
+//  Recomputes which events are visible, then orders them by the active sort
+//  column.
+//
+//  Indices are stored rather than copies, so filtering and sorting move
+//  machine words instead of event records, and the events themselves stay put
+//  in the deque.
+//
+//  The sort is STABLE, so events sharing a sort key keep their arrival order
+//  -- which for a capture log is the order the reader most wants preserved.
+//
+//  Comparison is done on the DISPLAY strings, so the ordering always matches
+//  what is on screen rather than an underlying value the reader cannot see.
+//
+//  Cycle counts get their own comparator for that reason: they are formatted
+//  with thousands separators and no leading zeros, so a plain lexical compare
+//  would order 9,999 after 10,000. Comparing LENGTH first and then
+//  lexically is equivalent to numeric ordering for exactly that format -- and
+//  it stays correct only while the format keeps those two properties.
+//
+//  An unsorted panel skips the sort entirely and keeps insertion order, which
+//  is the common streaming case.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2DebugPanel::RebuildFilteredIndices()
 {
+    const std::deque<Disk2EventDisplay> &  events = m_events;
+    int                                    col    = 0;
+    bool                                   desc   = false;
+
+
+
     m_filteredIndices.clear();
     m_filteredIndices.reserve (m_events.size());
 
@@ -1306,9 +1365,8 @@ void Disk2DebugPanel::RebuildFilteredIndices()
         return;
     }
 
-    const std::deque<Disk2EventDisplay> &  events = m_events;
-    int                                     col    = m_sortColumn;
-    bool                                    desc   = m_sortDescending;
+    col  = m_sortColumn;
+    desc = m_sortDescending;
 
     auto cmpStr = [] (const wchar_t * a, const wchar_t * b) -> int
     {
@@ -1329,9 +1387,9 @@ void Disk2DebugPanel::RebuildFilteredIndices()
                       m_filteredIndices.end(),
                       [&] (size_t ia, size_t ib) -> bool
     {
-        const Disk2EventDisplay &  ea = events[ia];
-        const Disk2EventDisplay &  eb = events[ib];
-        int                         c  = 0;
+        const Disk2EventDisplay  & ea = events[ia];
+        const Disk2EventDisplay  & eb = events[ib];
+        int                        c  = 0;
 
         switch (col)
         {
@@ -1348,6 +1406,7 @@ void Disk2DebugPanel::RebuildFilteredIndices()
                 c = la.compare (lb);
                 break;
             }
+
             case 5: c = ea.detail.compare (eb.detail); break;
             default: break;
         }
@@ -1358,6 +1417,7 @@ void Disk2DebugPanel::RebuildFilteredIndices()
             // keys keep a stable, predictable arrangement.
             return ia < ib;
         }
+
         return desc ? (c > 0) : (c < 0);
     });
 }
@@ -1381,8 +1441,8 @@ void Disk2DebugPanel::RebuildFilteredIndices()
 
 void Disk2DebugPanel::FillRow (int row, std::vector<DxuiListView::Cell> & out) const
 {
-    bool     inRange = (row >= 0 && (size_t) row < m_filteredIndices.size());
-    size_t   idx     = inRange ? m_filteredIndices[(size_t) row] : m_events.size();
+    bool     inRange     = (row >= 0 && (size_t) row < m_filteredIndices.size());
+    size_t   idx         = inRange ? m_filteredIndices[(size_t) row] : m_events.size();
     wchar_t  driveBuf[8] = {};
 
     // The list can ask for a row that the filter has since dropped, or whose
@@ -1561,8 +1621,8 @@ void Disk2DebugPanel::UpdatePauseLabel()
 
 void Disk2DebugPanel::ClearEvents()
 {
-    constexpr uint32_t  kClearDrainBatchSize = 64;
-    Disk2Event         scratch[kClearDrainBatchSize] = {};
+    constexpr uint32_t  kClearDrainBatchSize          = 64;
+    Disk2Event          scratch[kClearDrainBatchSize] = {};
     uint32_t            drained                       = 0;
 
 
@@ -1618,6 +1678,7 @@ void Disk2DebugPanel::OnMotorCommandOn()
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::MotorCommandOn);
     PublishToRing (e);
 }
+
 void Disk2DebugPanel::OnMotorEngaged()
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::MotorEngaged);
@@ -1762,8 +1823,12 @@ void Disk2DebugPanel::OnDataMarkWrite (int track, int sector, int volume, int by
 
 void Disk2DebugPanel::OnDriveSelect (int drive)
 {
+    Disk2Event  e = {};
+
+
+
     m_currentDrive = drive;
-    Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::DriveSelect);
+    e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::DriveSelect);
     e.drive               = (int8_t) drive;
     e.payload.drive.drive = drive;
     PublishToRing (e);

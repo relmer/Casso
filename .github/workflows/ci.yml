@@ -10,6 +10,23 @@ permissions:
   contents: write   # required by `release` job to push tags + create releases
 
 jobs:
+  # Full-tree style audit. The pre-push hook checks only the lines a push
+  # adds; this is the backstop that keeps the swept-to-zero backlog at zero
+  # -- Tree mode fails on ANY violation anywhere, so a rule can never drift
+  # back the way the hand-enforced standards did. Runs on every push and PR,
+  # and is deliberately its own job: a style failure should read as "style",
+  # not surface as a mysterious build error.
+  style:
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Style gate (full tree)
+        shell: pwsh
+        run: scripts/CheckStyle.ps1 -Mode Tree
+
   build-and-test:
     runs-on: windows-latest
     timeout-minutes: 30

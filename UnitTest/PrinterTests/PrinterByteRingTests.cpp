@@ -187,6 +187,12 @@ namespace PrinterByteRingTests
 
         TEST_METHOD (TwoThreadStressNoDropsNoReorder)
         {
+            constexpr uint32_t  kTotal = 500000;
+            uint32_t            seen   = 0;
+            Byte                out    = 0;
+
+
+
             // One producer pushes 500,000 bytes whose values step through
             // 0..255 repeatedly; one consumer drains. Every push that
             // returns false is retried, so the consumer must observe every
@@ -194,7 +200,6 @@ namespace PrinterByteRingTests
             // (i mod 256).
             PrinterByteRing         ring;
             std::atomic<uint32_t>   failedPushes { 0 };
-            constexpr uint32_t      kTotal       = 500000;
 
             std::thread  producer ([&]()
             {
@@ -210,8 +215,6 @@ namespace PrinterByteRingTests
                 }
             });
 
-            uint32_t   seen = 0;
-            Byte       out  = 0;
 
             while (seen < kTotal)
             {

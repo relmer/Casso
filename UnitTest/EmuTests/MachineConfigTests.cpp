@@ -84,11 +84,14 @@ public:
 
     TEST_METHOD (Load_MissingName_ReturnsError)
     {
-        std::string json = R"({ "cpu": "6502" })";
-        MachineConfig config;
-        std::string   error;
+        MachineConfig          config;
+        std::string            error;
+        std::vector<fs::path>  paths;
 
-        std::vector<fs::path> paths;
+
+
+        std::string json = R"({ "cpu": "6502" })";
+
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, config, error);
 
         AssertFailed (hr,
@@ -99,6 +102,12 @@ public:
 
     TEST_METHOD (Load_InvalidCpu_ReturnsError)
     {
+        MachineConfig          config;
+        std::string            error;
+        std::vector<fs::path>  paths;
+
+
+
         std::string json = R"({
             "name": "Test",
             "cpu": "z80",
@@ -114,10 +123,7 @@ public:
             "keyboard": { "type": "test" }
         })";
 
-        MachineConfig config;
-        std::string   error;
 
-        std::vector<fs::path> paths;
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, config, error);
 
         AssertFailed (hr,
@@ -128,6 +134,11 @@ public:
 
     TEST_METHOD (Load_Cpu65C02_Accepted)
     {
+        MachineConfig config;
+        std::string   error;
+
+
+
         std::string json = R"({
             "name": "Test",
             "cpu": "65C02",
@@ -143,8 +154,6 @@ public:
             "keyboard": { "type": "test" }
         })";
 
-        MachineConfig config;
-        std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
@@ -159,6 +168,11 @@ public:
 
     TEST_METHOD (Load_BankedSystemRom_Parsed)
     {
+        MachineConfig config;
+        std::string   error;
+
+
+
         // Apple //c: a 32K ROM mapped as two 16K banks at $C000, toggled by
         // $C028. Each bank (not the whole file) must fit in 64K.
         std::string json = R"({
@@ -177,8 +191,6 @@ public:
             "keyboard": { "type": "test" }
         })";
 
-        MachineConfig config;
-        std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
@@ -197,6 +209,11 @@ public:
 
     TEST_METHOD (Load_BankedSystemRom_RequiresSelect)
     {
+        MachineConfig config;
+        std::string   error;
+
+
+
         // romBankSize without romBankSelect is a config error.
         std::string json = R"({
             "name": "Test //c",
@@ -209,8 +226,6 @@ public:
             "keyboard": { "type": "test" }
         })";
 
-        MachineConfig config;
-        std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
@@ -261,6 +276,11 @@ public:
 
     TEST_METHOD (Load_Slot_RangeValidation)
     {
+        MachineConfig config;
+        std::string   error;
+
+
+
         std::string json = R"({
             "name": "Test",
             "cpu": "6502",
@@ -279,8 +299,6 @@ public:
             "keyboard": { "type": "test" }
         })";
 
-        MachineConfig config;
-        std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
@@ -294,6 +312,11 @@ public:
 
     TEST_METHOD (Load_Slot_MissingDeviceAndRom_Fails)
     {
+        MachineConfig config;
+        std::string   error;
+
+
+
         std::string json = R"({
             "name": "Test",
             "cpu": "6502",
@@ -312,8 +335,6 @@ public:
             "keyboard": { "type": "test" }
         })";
 
-        MachineConfig config;
-        std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
@@ -414,11 +435,15 @@ public:
 
     TEST_METHOD (CollectRomFiles_MalformedJson_ReturnsError)
     {
-        std::string              json  = "{ not valid json";
-        std::vector<std::string> files;
-        std::string              error;
+        std::vector<std::string>  files;
+        std::string               error;
+        HRESULT                   hr    = S_OK;
 
-        HRESULT hr = MachineConfigLoader::CollectRomFiles (json, files, error);
+
+
+        std::string              json  = "{ not valid json";
+
+        hr = MachineConfigLoader::CollectRomFiles (json, files, error);
 
         AssertFailed (hr,
             L"Malformed JSON must surface as an error");
@@ -440,6 +465,11 @@ public:
 
     TEST_METHOD (Load_CapabilityFlag_DefaultInversion)
     {
+        MachineConfig config;
+        std::string   error;
+
+
+
         std::string json = R"({
             "name": "Test",
             "cpu": "6502",
@@ -460,8 +490,6 @@ public:
             "keyboard": { "type": "test" }
         })";
 
-        MachineConfig config;
-        std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
@@ -482,6 +510,11 @@ public:
 
     TEST_METHOD (Load_CapabilityFlag_ExplicitPlatformLocked_Preserved)
     {
+        MachineConfig config;
+        std::string   error;
+
+
+
         std::string json = R"({
             "name": "Test",
             "cpu": "6502",
@@ -501,8 +534,6 @@ public:
             "keyboard": { "type": "test" }
         })";
 
-        MachineConfig config;
-        std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
@@ -517,6 +548,11 @@ public:
 
     TEST_METHOD (Load_CapabilityFlag_InvalidValue_Rejected)
     {
+        MachineConfig config;
+        std::string   error;
+
+
+
         std::string json = R"({
             "name": "Test",
             "cpu": "6502",
@@ -535,8 +571,6 @@ public:
             "keyboard": { "type": "test" }
         })";
 
-        MachineConfig config;
-        std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
@@ -601,11 +635,16 @@ private:
         const std::vector<fs::path> & searchPaths,
         const fs::path              & relativePath)
     {
+        std::string  filename;
+        size_t       expectedSize = 0;
+        bool         needCreate   = false;
+
+
+
         UNREFERENCED_PARAMETER (searchPaths);
 
         // Determine expected size from filename
-        std::string filename = relativePath.filename().string();
-        size_t      expectedSize = 0;
+        filename = relativePath.filename().string();
 
         if (filename == "Apple2Plus.rom" || filename == "Apple2.rom")
         {
@@ -639,7 +678,7 @@ private:
         // Create temp file with the expected size if not already present
         fs::path tempPath = fs::temp_directory_path() / ("casso_test_" + filename);
 
-        bool needCreate = !fs::exists (tempPath);
+        needCreate = !fs::exists (tempPath);
 
         if (!needCreate)
         {

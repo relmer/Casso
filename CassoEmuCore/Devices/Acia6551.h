@@ -43,15 +43,15 @@ class Acia6551 : public MemoryDevice
 public:
     // Slot I/O geometry: slot n decodes $C080 + n*16; the ACIA sits at
     // offset 8 within that page.
-    static constexpr Word    kSlotIoBase   = 0xC080;
-    static constexpr Word    kSlotIoStride = 0x10;
-    static constexpr Word    kAciaRegOffset = 0x08;
+    static constexpr Word  kSlotIoBase    = 0xC080;
+    static constexpr Word  kSlotIoStride  = 0x10;
+    static constexpr Word  kAciaRegOffset = 0x08;
 
-    static constexpr Word    kRegData    = 0;
-    static constexpr Word    kRegStatus  = 1;
-    static constexpr Word    kRegCommand = 2;
-    static constexpr Word    kRegControl = 3;
-    static constexpr Word    kRegisterCount = 4;
+    static constexpr Word  kRegData       = 0;
+    static constexpr Word  kRegStatus     = 1;
+    static constexpr Word  kRegCommand    = 2;
+    static constexpr Word  kRegControl    = 3;
+    static constexpr Word  kRegisterCount = 4;
 
     // Status register bits.
     static constexpr Byte    kStatusParityError  = 0x01;

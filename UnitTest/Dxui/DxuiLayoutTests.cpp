@@ -31,7 +31,21 @@ static RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiGridLayoutTests
+//
+//  Grid layout: uniform cells, gaps, and row and column SPANS.
+//
+//  Spans carry the weight. A spanned cell has to absorb the gaps it crosses so
+//  its far edge lands exactly where an unspanned neighbor's would -- computing
+//  it as cells times width plus gaps leaves a span consistently short, which
+//  reads as a misaligned control rather than as a layout bug.
+//
+//  Out-of-range cell assignments are covered because they are reachable: a
+//  grid reshaped smaller leaves stale assignments behind, and the child must
+//  clamp to the edge rather than land outside it.
+//
+//  A child with no assignment defaults to (0,0) rather than being skipped, so
+//  it is visibly misplaced instead of invisible.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,14 +55,18 @@ public:
 
     TEST_METHOD (TwoByTwoGrid_AssignsExpectedCellRects)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  a;
+        MockDxuiControl  b;
+        MockDxuiControl  c;
+        MockDxuiControl  d;
+        RECT             bounds = {};
+
+
+
         DxuiGridLayout    layout (2, 2, 0.0f);
-        DxuiDpiScaler     scaler;
-        MockDxuiControl   a;
-        MockDxuiControl   b;
-        MockDxuiControl   c;
-        MockDxuiControl   d;
         IDxuiControl *    kids[4] = { &a, &b, &c, &d };
-        RECT              bounds  = MakeRect (0, 0, 200, 100);
+        bounds = MakeRect (0, 0, 200, 100);
 
 
         layout.SetCell (&a, 0, 0);
@@ -67,12 +85,16 @@ public:
 
     TEST_METHOD (GapBetweenCells_ReducesCellSize)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  a;
+        MockDxuiControl  b;
+        RECT             bounds = {};
+
+
+
         DxuiGridLayout    layout (1, 2, 10.0f);
-        DxuiDpiScaler     scaler;
-        MockDxuiControl   a;
-        MockDxuiControl   b;
         IDxuiControl *    kids[2] = { &a, &b };
-        RECT              bounds  = MakeRect (0, 0, 210, 50);
+        bounds = MakeRect (0, 0, 210, 50);
 
 
         layout.SetCell (&a, 0, 0);
@@ -89,11 +111,15 @@ public:
 
     TEST_METHOD (ColSpan_ClaimsUnionRect)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  wide;
+        RECT             bounds = {};
+
+
+
         DxuiGridLayout    layout (1, 3, 0.0f);
-        DxuiDpiScaler     scaler;
-        MockDxuiControl   wide;
         IDxuiControl *    kids[1] = { &wide };
-        RECT              bounds  = MakeRect (0, 0, 300, 50);
+        bounds = MakeRect (0, 0, 300, 50);
 
 
         layout.SetCell (&wide, 0, 0, 1, 3);
@@ -110,7 +136,22 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiFormLayoutTests
+//
+//  Form layout: label-and-field rows sharing one aligned label column.
+//
+//  The shared column is the point -- every label is the same width regardless
+//  of its text, so the fields line up down the page. A layout sizing each label
+//  to its own text produces a ragged left edge on the controls, which is what
+//  the policy exists to prevent.
+//
+//  The field STRETCHES to fill the remaining width, which is the behavior
+//  callers have to work around when they want a fixed-width control with
+//  something beside it -- so it is pinned here rather than left implicit.
+//
+//  A row with no field, and a form narrower than its label column, are both
+//  covered: the first is how a section heading is expressed, and the second is
+//  reachable at small window sizes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,13 +161,17 @@ public:
 
     TEST_METHOD (TwoRows_StackedWithRowGap)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  lab1;
+        MockDxuiControl  fld1;
+        MockDxuiControl  lab2;
+        MockDxuiControl  fld2;
+        RECT             bounds = {};
+
+
+
         DxuiFormLayout    layout (100.0f, 24.0f, 8.0f, 16.0f, 12.0f);
-        DxuiDpiScaler     scaler;
-        MockDxuiControl   lab1;
-        MockDxuiControl   fld1;
-        MockDxuiControl   lab2;
-        MockDxuiControl   fld2;
-        RECT              bounds = MakeRect (0, 0, 400, 200);
+        bounds = MakeRect (0, 0, 400, 200);
 
 
         layout.AddRow (&lab1, &fld1);
@@ -144,13 +189,17 @@ public:
 
     TEST_METHOD (SubRow_IndentsLabelByConfiguredAmount)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  labMain;
+        MockDxuiControl  fldMain;
+        MockDxuiControl  labSub;
+        MockDxuiControl  fldSub;
+        RECT             bounds  = {};
+
+
+
         DxuiFormLayout    layout (100.0f, 24.0f, 8.0f, 16.0f, 12.0f);
-        DxuiDpiScaler     scaler;
-        MockDxuiControl   labMain;
-        MockDxuiControl   fldMain;
-        MockDxuiControl   labSub;
-        MockDxuiControl   fldSub;
-        RECT              bounds = MakeRect (0, 0, 400, 200);
+        bounds = MakeRect (0, 0, 400, 200);
 
 
         layout.AddRow    (&labMain, &fldMain);
@@ -164,13 +213,17 @@ public:
 
     TEST_METHOD (SectionGap_AdvancesYWithoutDrawingARow)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  lab1;
+        MockDxuiControl  fld1;
+        MockDxuiControl  lab2;
+        MockDxuiControl  fld2;
+        RECT             bounds = {};
+
+
+
         DxuiFormLayout    layout (100.0f, 24.0f, 8.0f, 16.0f, 12.0f);
-        DxuiDpiScaler     scaler;
-        MockDxuiControl   lab1;
-        MockDxuiControl   fld1;
-        MockDxuiControl   lab2;
-        MockDxuiControl   fld2;
-        RECT              bounds = MakeRect (0, 0, 400, 200);
+        bounds = MakeRect (0, 0, 400, 200);
 
 
         layout.AddRow         (&lab1, &fld1);

@@ -40,14 +40,19 @@ namespace ConformanceTests
 
     static std::string GetTestDataDir()
     {
+        std::string  unitDir;
+        std::string  repoRoot;
+
+
+
         // __FILE__ points to UnitTest/ConformanceTests.cpp
         // Navigate up to repo root, then into testdata/conformance
         std::string thisFile = __FILE__;
         size_t      lastSep  = thisFile.find_last_of ("\\/");
-        std::string unitDir  = thisFile.substr (0, lastSep);
+        unitDir = thisFile.substr (0, lastSep);
 
         lastSep = unitDir.find_last_of ("\\/");
-        std::string repoRoot = unitDir.substr (0, lastSep);
+        repoRoot = unitDir.substr (0, lastSep);
 
         return repoRoot + "\\specs\\002-as65-assembler-compat\\testdata\\conformance";
     }
@@ -64,9 +69,12 @@ namespace ConformanceTests
 
     static std::string ReadTextFile (const std::string & path)
     {
-        std::ifstream       file (path);
         std::ostringstream  ss;
         std::string         text;
+
+
+
+        std::ifstream       file (path);
 
         // A missing fixture reads as empty rather than throwing: callers assert
         // on the content, so an absent file fails as a content mismatch (which
@@ -92,8 +100,11 @@ namespace ConformanceTests
 
     static std::vector<Byte> ReadBinaryFile (const std::string & path)
     {
-        std::ifstream      file (path, std::ios::binary | std::ios::ate);
         std::vector<Byte>  data;
+
+
+
+        std::ifstream      file (path, std::ios::binary | std::ios::ate);
 
         // Same contract as ReadTextFile: absent reads as empty. Opened `ate`
         // so tellg is the size before the seek back to the start.
@@ -125,12 +136,13 @@ namespace ConformanceTests
 
         for (size_t i = 0; i < bytes.size(); i++)
         {
+            char buf[4];
+
             if (i > 0)
             {
                 ss << " ";
             }
 
-            char buf[4];
             snprintf (buf, sizeof (buf), "%02X", bytes[i]);
             ss << buf;
         }
@@ -146,24 +158,45 @@ namespace ConformanceTests
     //
     //  RunOneConformanceTest
     //
+    //  Assembles one .a65 fixture and compares the output against its
+    //  checked-in reference binary, byte for byte.
+    //
+    //  The reference images are GOLDEN FILES -- produced once, reviewed, and
+    //  committed. That is what lets a fixture assert on a whole program's
+    //  output rather than on a handful of bytes someone had the patience to
+    //  write out.
+    //
+    //  A byte-for-byte compare is deliberate: partial matching would let a
+    //  change that shifts everything by one byte pass while breaking every
+    //  address in the image.
+    //
+    //  Mismatches report the OFFSET and both values, since a golden-file
+    //  failure is otherwise just "the output changed" and the whole diagnosis
+    //  is where.
+    //
+    //  Shared by every fixture below, so adding a conformance case is a source
+    //  file and its reference rather than any new code.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     static void RunOneConformanceTest (const std::string & a65Path,
                                        const std::string & binPath,
                                        const std::string & testName)
     {
-        std::string source = ReadTextFile (a65Path);
+        std::string        source   = ReadTextFile (a65Path);
+        std::vector<Byte>  expected;
+        Assembler          asm6502  = BuildAssembler();
+        AssemblyResult     result;
 
         Assert::IsFalse (source.empty(),
             (L"Cannot read source: " + std::wstring (testName.begin(), testName.end())).c_str());
 
-        std::vector<Byte> expected = ReadBinaryFile (binPath);
+        expected = ReadBinaryFile (binPath);
 
         Assert::IsFalse (expected.empty(),
             (L"Cannot read expected: " + std::wstring (testName.begin(), testName.end())).c_str());
 
-        Assembler         asm6502 = BuildAssembler();
-        AssemblyResult    result  = asm6502.Assemble (source);
+        result = asm6502.Assemble (source);
 
         if (!result.success)
         {
@@ -209,6 +242,23 @@ namespace ConformanceTests
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  ConformanceTests
+    //
+    //  One fixture per assembler feature area, each assembled and compared
+    //  against its golden reference image.
+    //
+    //  Fixtures rather than inline sources, which is the point of the suite:
+    //  they are real .a65 files that can be assembled by hand, diffed against
+    //  another assembler, and read as example code -- so they document the
+    //  accepted syntax as well as testing it.
+    //
+    //  The areas mirror the feature set -- expressions, constants,
+    //  conditionals, macros, colonless labels, storage directives, alignment,
+    //  addressing modes, forward references -- so a failure names the area
+    //  before anyone opens the file.
+    //
+    //  These are WHOLE-PROGRAM assertions, complementing the unit tests'
+    //  single-construct ones: a feature that works alone can still break when
+    //  combined with the rest of a source file.
     //
     ////////////////////////////////////////////////////////////////////////////////
 

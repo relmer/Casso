@@ -11,6 +11,25 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  JsonParserTests
 //
+//  The config parser: standard JSON, the two deliberate extensions, and error
+//  reporting.
+//
+//  The EXTENSIONS get as much attention as the standard grammar, because they
+//  are the reason this parser exists rather than a library one -- `0x` hex
+//  literals for 6502 addresses, and `//` line comments so a machine config can
+//  explain itself.
+//
+//  Comments are tested in every position whitespace is legal, since they are
+//  implemented in SkipWhitespace precisely so no individual parser needs to
+//  know about them -- and that is only true if every parse step routes through
+//  it.
+//
+//  The strictness is pinned too: a trailing comma must be rejected, since in a
+//  hand-edited config it is nearly always a half-finished edit.
+//
+//  Error line and column are asserted, since the reader is editing by hand and
+//  a byte offset would not help them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (JsonParserTests)
@@ -19,8 +38,8 @@ public:
 
     TEST_METHOD (Parse_String_ReturnsValue)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("\"hello\"", value, error);
 
         AssertSucceeded (hr);
@@ -30,8 +49,8 @@ public:
 
     TEST_METHOD (Parse_Number_Integer)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("42", value, error);
 
         AssertSucceeded (hr);
@@ -41,8 +60,8 @@ public:
 
     TEST_METHOD (Parse_Number_Hex)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("0xC000", value, error);
 
         AssertSucceeded (hr);
@@ -51,8 +70,8 @@ public:
 
     TEST_METHOD (Parse_Boolean_True)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("true", value, error);
 
         AssertSucceeded (hr);
@@ -62,8 +81,8 @@ public:
 
     TEST_METHOD (Parse_Boolean_False)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("false", value, error);
 
         AssertSucceeded (hr);
@@ -72,8 +91,8 @@ public:
 
     TEST_METHOD (Parse_Null)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("null", value, error);
 
         AssertSucceeded (hr);
@@ -82,8 +101,8 @@ public:
 
     TEST_METHOD (Parse_EmptyObject)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("{}", value, error);
 
         AssertSucceeded (hr);
@@ -92,8 +111,8 @@ public:
 
     TEST_METHOD (Parse_EmptyArray)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("[]", value, error);
 
         AssertSucceeded (hr);
@@ -132,8 +151,8 @@ public:
 
     TEST_METHOD (Parse_Array_WithValues)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("[1, \"two\", true]", value, error);
 
         AssertSucceeded (hr);
@@ -145,8 +164,8 @@ public:
 
     TEST_METHOD (Parse_EscapedString)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("\"hello\\nworld\"", value, error);
 
         AssertSucceeded (hr);
@@ -155,8 +174,8 @@ public:
 
     TEST_METHOD (Parse_MalformedJSON_ReportsError)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("{\"key\":", value, error);
 
         AssertFailed (hr);
@@ -164,8 +183,8 @@ public:
 
     TEST_METHOD (Parse_UnterminatedString_ReportsError)
     {
-        JsonValue value;
-        JsonParseError error;
+        JsonValue       value;
+        JsonParseError  error;
         HRESULT hr = JsonParser::Parse ("\"unterminated", value, error);
 
         AssertFailed (hr);

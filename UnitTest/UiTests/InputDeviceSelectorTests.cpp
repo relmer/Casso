@@ -33,10 +33,11 @@ public:
     {
         InputDeviceSelector  sel;
         DxuiDpiScaler        scaler;
+        RECT                 anchor = {};
         scaler.SetDpi (96);
 
         sel.SetState (false, InputMappingMode::Off, mouseAvailable);
-        RECT  anchor = { 200, 100, 200, 100 };   // center point
+        anchor = { 200, 100, 200, 100 }; // center point
         sel.Layout (anchor, scaler);
         return sel;
     }
@@ -58,8 +59,11 @@ public:
 
     TEST_METHOD (SegmentAt_MapsChipsAndRejectsGaps)
     {
-        InputDeviceSelector  sel = MakeLaidOut (true);
-        RECT  b = sel.Bounds();
+        InputDeviceSelector  sel   = MakeLaidOut (true);
+        InputDeviceSelector  two   = MakeLaidOut (false);
+        RECT                 b     = sel.Bounds();
+        RECT                 c     = {};
+        bool                 sawM2 = false;
 
         // Walk the control horizontally at mid height; collect segments.
         int   midY = (b.top + b.bottom) / 2;
@@ -82,9 +86,7 @@ public:
             L"outside bounds -> None");
 
         // Without the mouse, the third segment must be gone.
-        InputDeviceSelector  two = MakeLaidOut (false);
-        RECT  c = two.Bounds();
-        bool  sawM2 = false;
+        c = two.Bounds();
         for (int x = c.left; x < c.right; ++x)
         {
             if (two.SegmentAt (x, (c.top + c.bottom) / 2) == InputDeviceSelector::Segment::Mouse)
@@ -92,25 +94,36 @@ public:
                 sawM2 = true;
             }
         }
+
         Assert::IsFalse (sawM2, L"no Mouse segment when unavailable");
     }
 
 
     TEST_METHOD (TooltipText_TracksSplitState)
     {
-        InputDeviceSelector  sel;
+        InputDeviceSelector           sel;
+        InputDeviceSelector           laid       = MakeLaidOut (true);
+        std::wstring                  off;
+        std::wstring                  joy;
+        std::wstring                  mouse;
+        std::wstring                  paddle;
+        RECT                          b          = {};
+        int                           midY       = 0;
+        std::wstring                  segTips[3];
+        int                           found      = 0;
+        InputDeviceSelector::Segment  last       = {};
 
         sel.SetState (false, InputMappingMode::Off, true);
-        std::wstring  off = sel.TooltipText();
+        off = sel.TooltipText();
 
         sel.SetState (true, InputMappingMode::Off, true);
-        std::wstring  joy = sel.TooltipText();
+        joy = sel.TooltipText();
 
         sel.SetState (true, InputMappingMode::Mouse, true);
-        std::wstring  mouse = sel.TooltipText();
+        mouse = sel.TooltipText();
 
         sel.SetState (false, InputMappingMode::Paddle, true);
-        std::wstring  paddle = sel.TooltipText();
+        paddle = sel.TooltipText();
 
         Assert::IsTrue (off != joy && joy != mouse && mouse != paddle,
             L"each state maps to a distinct tooltip");
@@ -119,12 +132,9 @@ public:
 
         // Positional tooltips: each segment describes ITSELF, regardless of
         // the current state.
-        InputDeviceSelector  laid = MakeLaidOut (true);
-        RECT  b = laid.Bounds();
-        int   midY = (b.top + b.bottom) / 2;
-        std::wstring  segTips[3];
-        int           found = 0;
-        InputDeviceSelector::Segment  last = InputDeviceSelector::Segment::None;
+        b = laid.Bounds();
+        midY = (b.top + b.bottom) / 2;
+        last = InputDeviceSelector::Segment::None;
         for (int x = b.left; x < b.right && found < 3; ++x)
         {
             InputDeviceSelector::Segment  seg = laid.SegmentAt (x, midY);
@@ -134,6 +144,7 @@ public:
                 last = seg;
             }
         }
+
         Assert::AreEqual (3, found, L"three segment tooltips collected");
         Assert::IsTrue (segTips[0] != segTips[1] && segTips[1] != segTips[2],
             L"segment tooltips are independent");

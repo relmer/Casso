@@ -11,6 +11,28 @@
 //
 //  AddWithCarry
 //
+//  ADC, in both binary and BCD mode. The decimal path is the NMOS 6502
+//  algorithm specifically, quirks included -- Dormann's functional tests check
+//  these exactly, so "simplify" here means "fail".
+//
+//  Three of those quirks are deliberate and easy to mistake for bugs:
+//
+//    Z comes from the BINARY sum even in decimal mode, which is why it is set
+//    from `sum` before any BCD correction happens.
+//
+//    N and V come from the high-nibble intermediate BEFORE the +$60
+//    correction, not from the stored result. On real hardware they fall out of
+//    the adder mid-operation, so a decimal ADC can leave N disagreeing with
+//    the sign bit of A.
+//
+//    The nibble corrections cascade: the low nibble is fixed first, and its
+//    carry feeds the high nibble, so an invalid BCD input still produces the
+//    same defined value the hardware does.
+//
+//  V is the signed-overflow rule -- set when both operands share a sign and
+//  the result does not -- which is what (~(a^operand) & (a^result) & 0x80)
+//  computes.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CpuOperations::AddWithCarry (Cpu & cpu, Byte operand)
@@ -23,18 +45,21 @@ void CpuOperations::AddWithCarry (Cpu & cpu, Byte operand)
 
     if (cpu.status.flags.decimal)
     {
+        Word  lo = 0;
+        Word  hi = 0;
+
         // BCD add: adjust low nibble then high nibble (NMOS 6502 algorithm).
         // Z flag is always from the binary result on NMOS 6502.
         cpu.status.flags.zero = (Byte) sum == 0;
 
-        Word lo = (originalA & 0x0F) + (operand & 0x0F) + carryIn;
+        lo = (originalA & 0x0F) + (operand & 0x0F) + carryIn;
 
         if (lo > 0x09)
         {
             lo += 0x06;
         }
 
-        Word hi = (originalA & 0xF0) + (operand & 0xF0) + (lo > 0x0F ? 0x10 : 0x00);
+        hi = (originalA & 0xF0) + (operand & 0xF0) + (lo > 0x0F ? 0x10 : 0x00);
 
         // N and V flags are from the high nibble intermediate, before BCD correction.
         cpu.status.flags.negative = (bool) (hi & 0x80);
@@ -459,6 +484,10 @@ void CpuOperations::Jump (Cpu & cpu, Instruction instruction, Word operand)
 
 void CpuOperations::JumpSubroutine (Cpu & cpu, Word operand)
 {
+    Byte  hi = 0;
+
+
+
     // On the real 6502, JSR reads the low operand byte, pushes the return
     // address, then reads the high operand byte. If the stack overlaps the
     // operand, the push can overwrite the high byte before it's read.
@@ -468,7 +497,7 @@ void CpuOperations::JumpSubroutine (Cpu & cpu, Word operand)
 
     cpu.PushWord (cpu.PC - 1);
 
-    Byte hi = cpu.ReadByte (hiByteAddr);
+    hi = cpu.ReadByte (hiByteAddr);
     cpu.PC  = lo | ((Word) hi << 8);
 }
 
@@ -785,6 +814,21 @@ void CpuOperations::Store (Cpu & cpu, Byte & registerAffected, Word effectiveAdd
 //
 //  SubtractWithCarry
 //
+//  SBC, and NOT a mirror of AddWithCarry despite the symmetry the names
+//  suggest. Every flag here -- V, N, Z and C -- comes from the BINARY
+//  subtraction even in decimal mode; only the stored A is BCD-adjusted. ADC
+//  computes N and V from a decimal intermediate. That asymmetry is real NMOS
+//  6502 behavior, not an oversight, which is why the flags are set once up
+//  front and the decimal branch touches nothing but A.
+//
+//  Carry is an inverted BORROW: set means no borrow occurred, so it is read in
+//  as `!carry` and written back as the sign bit of the 16-bit difference being
+//  clear. A caller that forgets to SEC first subtracts one too many.
+//
+//  The nibble corrections work downward -- the low nibble borrows $06 and
+//  propagates -$10 into the high one, which then borrows $60 -- mirroring the
+//  upward cascade in ADC.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CpuOperations::SubtractWithCarry (Cpu & cpu, Byte operand)
@@ -806,6 +850,8 @@ void CpuOperations::SubtractWithCarry (Cpu & cpu, Byte operand)
 
     if (cpu.status.flags.decimal)
     {
+        int  hi = 0;
+
         // BCD subtract: adjust low nibble then high nibble (NMOS 6502 algorithm).
         int lo = (int) (cpu.A & 0x0F) - (int) (operand & 0x0F) - (int) borrowIn;
 
@@ -814,7 +860,7 @@ void CpuOperations::SubtractWithCarry (Cpu & cpu, Byte operand)
             lo = ((lo - 0x06) & 0x0F) - 0x10;
         }
 
-        int hi = (int) (cpu.A & 0xF0) - (int) (operand & 0xF0) + lo;
+        hi = (int) (cpu.A & 0xF0) - (int) (operand & 0xF0) + lo;
 
         if (hi < 0)
         {
@@ -1064,14 +1110,15 @@ void CpuOperations::AddWithCarryCmos (Cpu & cpu, Byte operand)
 
     if (cpu.status.flags.decimal)
     {
-        Word lo = (originalA & 0x0F) + (operand & 0x0F) + carryIn;
+        Word  lo = (originalA & 0x0F) + (operand & 0x0F) + carryIn;
+        Word  hi = 0;
 
         if (lo > 0x09)
         {
             lo += 0x06;
         }
 
-        Word hi = (originalA & 0xF0) + (operand & 0xF0) + (lo > 0x0F ? 0x10 : 0x00);
+        hi = (originalA & 0xF0) + (operand & 0xF0) + (lo > 0x0F ? 0x10 : 0x00);
 
         // V is from the pre-correction intermediate, as on NMOS.
         cpu.status.flags.overflow = ((~(originalA ^ operand)) & (originalA ^ hi) & 0x80) != 0;

@@ -447,7 +447,19 @@ public:
 
     ////////////////////////////////////////////////////////////////////////
     //
-    //  AppleIIPlus_NoAuxRam_NoExtendedVideoModes — same surface for ][+.
+    //  AppleIIPlus_NoAuxRam_NoExtendedVideoModes
+    //
+    //  A ][+ config must declare NO aux RAM and none of the //e video modes.
+    //
+    //  An ABSENCE test, which is the shape backwards compatibility needs. //e
+    //  support was added on top of the earlier machines, and the risk is not
+    //  that the //e stops working -- it is that the ][+ quietly acquires
+    //  capabilities it never had, so software that probes for them takes the
+    //  wrong path.
+    //
+    //  It asserts against the shipped Apple2Plus.json rather than a fixture, so
+    //  it fails if the config itself grows an aux region -- which is exactly
+    //  the edit this guards against.
     //
     ////////////////////////////////////////////////////////////////////////
 
@@ -531,7 +543,19 @@ public:
 
     ////////////////////////////////////////////////////////////////////////
     //
-    //  AppleIIPlus_KeyboardAndDevices_Unchanged — same gate for ][+.
+    //  AppleIIPlus_KeyboardAndDevices_Unchanged
+    //
+    //  The ][+'s keyboard type and device list must stay exactly what they
+    //  were.
+    //
+    //  A PIN, not a behavior test. The //e keyboard added modifier reporting
+    //  and its soft-switch bank added switches the ][+ never had, and both are
+    //  selected by config -- so this fails if the earlier machine is
+    //  accidentally pointed at the later machine's parts.
+    //
+    //  Device identity is asserted by TYPE STRING rather than by count, since a
+    //  substitution that keeps the count is precisely the change that would
+    //  otherwise pass.
     //
     ////////////////////////////////////////////////////////////////////////
 
@@ -622,7 +646,20 @@ public:
 
     ////////////////////////////////////////////////////////////////////////
     //
-    //  AppleIIPlus_HeadlessHost_Composes — same pin for ][+.
+    //  AppleIIPlus_HeadlessHost_Composes
+    //
+    //  A ][+ machine must build and run with no window, no device, and no
+    //  renderer.
+    //
+    //  Composability is what the emulation core promises, and this is where it
+    //  is checked for the earlier machine. A machine that can only be built by
+    //  the GUI shell cannot be tested, batch-run, or reasoned about
+    //  independently -- and the coupling that breaks it is usually introduced
+    //  while working on the //e.
+    //
+    //  It builds the whole graph rather than a device or two, so a dependency
+    //  added anywhere in the wiring is caught here rather than at the point it
+    //  was written.
     //
     ////////////////////////////////////////////////////////////////////////
 

@@ -30,6 +30,29 @@ struct BusEntry
 //
 //  MemoryBus
 //
+//  The machine's address space: a page table for the fast paths, a device list
+//  for everything else.
+//
+//  A ROUTING TABLE, not a container -- devices are held as bare pointers and
+//  owned elsewhere. That is what lets the MMU re-point pages and the shell
+//  tear the whole device set down on a machine switch.
+//
+//  The page table exists so a RAM access is one indexed load rather than a
+//  range search. Only RAM pages participate; the I/O range always dispatches
+//  through the device list, because those reads have side effects that a table
+//  lookup would skip. Banking changes update entries IN PLACE, which is why a
+//  CPU may cache the table pointer and serve reads inline.
+//
+//  Reset is split three ways because the distinctions are real. SoftReset is
+//  Ctrl-Reset; PowerCycle additionally re-seeds indeterminate DRAM, threading
+//  one shared Prng so every DRAM-owning device sees the same deterministic
+//  pattern and a fault can be reproduced from a logged seed (FR-034/FR-035).
+//
+//  Video-dirty tracking lives here rather than in the renderer because this is
+//  the only place that sees every write. Watched pages are marked by INDEX, so
+//  main and aux are covered together -- the MMU re-points the same indices --
+//  and the flag starts dirty so the very first frame paints.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class MemoryBus
@@ -84,6 +107,7 @@ public:
             m_videoWatched[pageIndex] = watched;
         }
     }
+
     bool VideoDirty      () const { return m_videoDirty; }
     void MarkVideoDirty  ()       { m_videoDirty = true; }
     void ClearVideoDirty ()       { m_videoDirty = false; }

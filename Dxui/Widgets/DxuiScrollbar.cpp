@@ -314,6 +314,24 @@ RECT DxuiScrollbar::MainRect (int mainStart, int mainExtent) const
 //
 //  DxuiScrollbar::GetMetrics
 //
+//  Computes every rect the scrollbar occupies -- bar, track, thumb, and the
+//  two arrows -- in one call.
+//
+//  Painting and hit-testing both read from this, which is the point: computing
+//  them separately is how a thumb ends up drawn in one place and clickable in
+//  another.
+//
+//  The geometry is expressed through MainRect and a main-axis start and
+//  length, so one set of formulas serves both orientations. A vertical and a
+//  horizontal scrollbar differ only in which axis MainRect maps onto.
+//
+//  Arrow rects are omitted when the arrow extent is zero, since a scrollbar
+//  styled without arrows has no such regions to hit-test -- and the track
+//  already spans the full length in that case.
+//
+//  An invisible scrollbar returns a zeroed Metrics with visible false, so
+//  callers test one field instead of guarding every use.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiScrollbar::Metrics DxuiScrollbar::GetMetrics() const
@@ -603,11 +621,15 @@ void DxuiScrollbar::PaintArrow (IDxuiPainter & painter, const RECT & rect, bool 
 
     for (i = 0; i < depth; i++)
     {
+        float  sliceLen = 0.0f;
+        float  mainOff  = 0.0f;
+        float  crossOff = 0.0f;
+
         float  frac     = less ? (float) (i + 1) / (float) depth
                                : (float) (depth - i) / (float) depth;
-        float  sliceLen = (float) width * frac;
-        float  mainOff  = (float) ((rectMain - depth) / 2 + i);
-        float  crossOff = ((float) rectCross - sliceLen) / 2.0f;
+        sliceLen = (float) width * frac;
+        mainOff = (float) ((rectMain - depth) / 2 + i);
+        crossOff = ((float) rectCross - sliceLen) / 2.0f;
 
         if (vertical)
         {

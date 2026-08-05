@@ -41,6 +41,7 @@ std::string SettingsMachineCatalog::NarrowMachineName (const std::wstring & wide
     {
         narrowName.push_back ((char) (unsigned char) c);
     }
+
     return narrowName;
 }
 
@@ -165,6 +166,25 @@ void SettingsMachineCatalog::LoadCurrentMachineIntoState()
 //
 //  PopulateMachineList
 //
+//  Scans the search paths for machine configs and fills the machine dropdown.
+//
+//  Machines are DISCOVERED on disk rather than hard-coded, so dropping a new
+//  machine folder in makes it selectable with no code change -- and the same
+//  search paths are used as everywhere else, so a development tree's machines
+//  are found the same way an installed layout's are.
+//
+//  Display names come from each config's own field, falling back to the file
+//  name, so a machine ships its own presentation and an incomplete config
+//  still lists as something.
+//
+//  The final fallback matters most: if the scan finds NOTHING but a machine is
+//  running, that machine is inserted so the dropdown shows what is actually
+//  loaded. An empty list on a working emulator reads as a broken dialog, and
+//  it would also make the current machine unselectable.
+//
+//  The active index is captured during the same pass, so no second search is
+//  needed to pre-select the running machine.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void SettingsMachineCatalog::PopulateMachineList()
@@ -253,6 +273,7 @@ void SettingsMachineCatalog::PopulateThemeList()
         {
             activeIndex = i;
         }
+
         themeIds.push_back (t.name);
         displayNames.emplace_back (t.name.begin(), t.name.end());
         i++;
@@ -279,24 +300,29 @@ void SettingsMachineCatalog::PopulateThemeList()
 //  Pre-flights ROM + Disk II audio for the target machine via
 //  AssetBootstrap (which may surface modal download dialogs), then
 //  posts IDM_FILE_OPEN with the new machine name to the emulator
-//  shell's command queue. Returns false on user-cancel (Exit) or
-//  bootstrap failure so the caller can leave the active machine alone.
+//  shell's command queue. On user-cancel (Exit) or bootstrap failure
+//  nothing is posted, so the active machine is left alone. Every
+//  outcome is resolved here (including the failure dialog), which is
+//  why there is nothing to return -- both callers used to discard the
+//  old bool.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
+void SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
 {
-    HRESULT           hr          = S_OK;
+    HRESULT                hr             = S_OK;
+    std::vector<fs::path>  searchPaths;
+    fs::path               assetBaseDir;
+    std::string            bootstrapError;
+    bool                   userExited     = false;
+    bool                   selected       = false;
+    HINSTANCE              hInstance      = nullptr;
     std::wstring      wideName (machineName.begin(), machineName.end());
-    HINSTANCE         hInstance   = (HINSTANCE) GetModuleHandleW (nullptr);
+    hInstance = (HINSTANCE) GetModuleHandleW (nullptr);
     HWND              hwndParent  = (m_emuShell != nullptr && m_emuShell->m_hwnd != nullptr)
                                         ? m_emuShell->m_hwnd
                                         : GetActiveWindow();
-    std::vector<fs::path>  searchPaths;
-    fs::path          assetBaseDir;
-    std::string       bootstrapError;
-    bool              userExited  = false;
-    bool              selected    = (m_emuShell != nullptr && !machineName.empty());
+    selected = (m_emuShell != nullptr && !machineName.empty());
 
 
 
@@ -338,8 +364,10 @@ bool SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
 
         if (selected && FAILED (hr))
         {
+            DialogDefinition  def;
+
             std::wstring     wErr (bootstrapError.begin(), bootstrapError.end());
-            DialogDefinition def  = {};
+            def = {};
 
             def.title = L"Casso";
             def.icon  = DialogIcon::Error;
@@ -360,6 +388,4 @@ bool SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
         // re-open.
         m_emuShell->PostCommand (IDM_FILE_OPEN, std::string (machineName));
     }
-
-    return selected;
 }

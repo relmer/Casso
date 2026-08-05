@@ -94,13 +94,13 @@ struct SettingsUiPrefs
     // Per-drive stereo pan in [-1, +1] (-1 = hard left, +1 = hard
     // right). Drive 1 sits left-of-center, Drive 2 right-of-center,
     // mirroring DriveAudioMixer::kDefaultDriveOnePan / ...TwoPan.
-    static constexpr float kDefaultDriveOnePan      = -0.5f;
-    static constexpr float kDefaultDriveTwoPan      = +0.5f;
-    float              driveMotorVolume      = kDefaultDriveMotorVolume;
-    float              driveHeadVolume       = kDefaultDriveHeadVolume;
-    float              driveDoorVolume       = kDefaultDriveDoorVolume;
-    float              driveOnePan           = kDefaultDriveOnePan;
-    float              driveTwoPan           = kDefaultDriveTwoPan;
+    static constexpr float  kDefaultDriveOnePan = -0.5f;
+    static constexpr float  kDefaultDriveTwoPan = +0.5f;
+    float                   driveMotorVolume    = kDefaultDriveMotorVolume;
+    float                   driveHeadVolume     = kDefaultDriveHeadVolume;
+    float                   driveDoorVolume     = kDefaultDriveDoorVolume;
+    float                   driveOnePan         = kDefaultDriveOnePan;
+    float                   driveTwoPan         = kDefaultDriveTwoPan;
     // Last-mounted disk paths per drive, stored as exe-relative when
     // possible (PathResolver::MakeExeRelativePath). Empty = no
     // remembered disk. Replaces the per-machine HKCU\...\Disk{1,2}
@@ -192,6 +192,30 @@ public:
 //
 //  SettingsPanelState
 //
+//  The Settings sheet's model: the machine's settings as loaded, as currently
+//  staged, and the questions the pages ask about the difference.
+//
+//  Two copies are held -- baseline and current -- which is what makes Cancel
+//  possible at all. Edits apply live to the running emulator, so reverting
+//  means restoring the baseline rather than simply discarding a pending edit;
+//  without a saved copy there would be nothing to restore.
+//
+//  IsDirty and RequiresReset are separate questions. Dirty decides whether
+//  anything needs saving; RequiresReset is narrower -- only a hardware ENABLE
+//  change needs a machine rebuild -- and it is what relabels OK to warn about
+//  the reboot.
+//
+//  HasDiskIIController drives the sheet's dynamic Disk tab (#84), and its
+//  banked-ROM special case is easy to mistake for a hack. The //c's drive is a
+//  built-in IWM rather than a config slot, so it never appears in the hardware
+//  list; a banked system ROM is the //c's defining trait and the same signal
+//  that creates that IWM, so it counts as a controller here. Without it the
+//  //c would wrongly lose its Disk tab.
+//
+//  It answers from the STAGED hardware, not the running machine, so the tab
+//  appears and disappears as the user toggles a controller rather than after a
+//  reboot.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class SettingsPanelState
@@ -229,10 +253,12 @@ public:
         {
             return true;
         }
+
         for (const HardwareEntry & e : m_current.hardware)
         {
             if (e.type == "disk-ii" && e.enabled) { return true; }
         }
+
         return false;
     }
 
@@ -292,7 +318,7 @@ private:
         const std::vector<std::pair<std::string, JsonValue>> & entries,
         const std::string                                    & key);
 
-    static bool  GetBoolOpt (
+    static bool  TryGetBoolOpt (
         const JsonValue   & obj,
         const std::string & key,
         bool                fallback);

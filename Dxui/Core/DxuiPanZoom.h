@@ -68,22 +68,22 @@ class DxuiPanZoom
 public:
     struct Config
     {
-        float   zoomMin    = 1.0f;
-        float   zoomMax    = 4.0f;
-        float   zoomStep   = 1.25f;    // multiplicative per wheel notch / key press
-        float   wheelPanY  = 96.0f;    // content units per vertical wheel notch
-        float   wheelPanX  = 96.0f;    // content units per horizontal wheel notch
-        double  easeTauSec     = 0.06; // pan glide time constant (0 = snap, no ease)
-        double  zoomEaseTauSec = 0.06; // zoom glide time constant (0 = instant zoom)
+        float   zoomMin        = 1.0f;
+        float   zoomMax        = 4.0f;
+        float   zoomStep       = 1.25f;   // multiplicative per wheel notch / key press
+        float   wheelPanY      = 96.0f;   // content units per vertical wheel notch
+        float   wheelPanX      = 96.0f;   // content units per horizontal wheel notch
+        double  easeTauSec     = 0.06;   // pan glide time constant (0 = snap, no ease)
+        double  zoomEaseTauSec = 0.06;   // zoom glide time constant (0 = instant zoom)
         // Direct manipulation (wheel / drag / PanByUser) tracks 1:1 with no
         // glide, so the content sticks to the fingers instead of trailing them;
         // only programmatic pan (SetPanYTarget follow mode) keeps easeTauSec's
         // glide. Leave false for a fully-eased view.
-        bool    userPanInstant = false;
-        bool    enableZoom = true;
-        bool    enablePanX = true;
-        bool    enablePanY = true;
-        bool    enableDrag = true;     // left-drag pans
+        bool  userPanInstant = false;
+        bool  enableZoom     = true;
+        bool  enablePanX     = true;
+        bool  enablePanY     = true;
+        bool  enableDrag     = true;   // left-drag pans
     };
 
     explicit DxuiPanZoom (const Config & cfg = Config ());
@@ -189,9 +189,9 @@ private:
     Eased   m_panYCam;       // camera vertical framing (independent of content scroll)
     Eased   m_overscrollY;   // bounded panY overflow -> host view translation
 
-    double  m_panXlo = 0.0, m_panXhi = 0.0;
-    double  m_panYlo = 0.0, m_panYhi = 0.0;
-    double  m_panYCamLo = 0.0, m_panYCamHi = 0.0;
+    double  m_panXlo        = 0.0, m_panXhi = 0.0;
+    double  m_panYlo        = 0.0, m_panYhi = 0.0;
+    double  m_panYCamLo     = 0.0, m_panYCamHi = 0.0;
     float   m_overscrollMax = 0.0f;
 
     float   m_viewCenterX = 0.0f;

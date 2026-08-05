@@ -10,7 +10,23 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiPropertyPageTests
+//
+//  Property-sheet pages: activation, and page PRESENCE as distinct from
+//  visibility.
+//
+//  The distinction is the whole subject. Presence means the page exists for
+//  this configuration and gets a tab; visibility means it is the page showing
+//  right now. Collapsing them would make activating a page resurrect a tab that
+//  was deliberately removed -- which is how the Disk tab would reappear on a
+//  machine with no controller.
+//
+//  Hiding the ACTIVE page is covered specifically, since the sheet must move
+//  the selection somewhere rather than be left showing nothing.
+//
+//  Tab indices are asserted against page indices, because the two diverge as
+//  soon as any page is hidden and a lookup that assumed them equal would
+//  select the wrong page.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

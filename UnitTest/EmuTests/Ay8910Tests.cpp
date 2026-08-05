@@ -19,6 +19,26 @@ namespace Ay8910TestNs
     //
     //  Ay8910Tests
     //
+    //  The PSG: register access, the three tone channels, the noise LFSR, and
+    //  the envelope generator.
+    //
+    //  Written from the DATASHEET rather than from another emulator, so the
+    //  tests encode documented behavior -- the register map, the counter reload
+    //  rules, and the envelope shapes -- rather than another implementation's
+    //  choices.
+    //
+    //  The LFSR gets specific coverage because a zero seed is a fixed point: it
+    //  stays zero forever and the noise channel is silently dead, which sounds
+    //  like a mixing bug rather than a reset bug.
+    //
+    //  Envelope SHAPES are the fiddly part -- the four control bits produce
+    //  attack, hold, alternate, and continue combinations that are not
+    //  orthogonal, so each documented shape is asserted rather than the bits
+    //  being tested individually.
+    //
+    //  Reset is covered because a counter left at zero underflows on the next
+    //  tick and produces a click at power-on.
+    //
     ////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (Ay8910Tests)
@@ -72,13 +92,18 @@ namespace Ay8910TestNs
 
         TEST_METHOD (ToneFrequencyMatchesDatasheetFormula)
         {
+            int       period     = 0;
+            int       toggles    = 0;
+            bool      prevState  = false;
+            uint32_t  i          = 0;
+            double    expectedHz = 0.0;
+            double    measuredHz = 0.0;
+
+
+
             Ay8910    ay (kClockHz);
-            int       period      = 254;
-            int       toggles     = 0;
-            bool      prevState   = false;
-            uint32_t  i           = 0;
-            double    expectedHz  = kClockHz / (16.0 * period);
-            double    measuredHz  = 0.0;
+            period = 254;
+            expectedHz = kClockHz / (16.0 * period);
 
 
 
@@ -90,20 +115,20 @@ namespace Ay8910TestNs
 
             // Give channel A a non-zero amplitude so the chip is audible: a
             // fully muted chip freezes its generators as an inaudible fast-path,
-            // and this test measures the running generator via GetToneState.
+            // and this test measures the running generator via TryGetToneState.
             ay.WriteRegister (Ay8910::kRegAmpA, 0x0F);
 
-            prevState = ay.GetToneState (0);
+            prevState = ay.TryGetToneState (0);
 
             // Generate exactly one second and count the square-wave toggles.
             for (i = 0; i < kSampleRate; i++)
             {
                 ay.GenerateSample();
 
-                if (ay.GetToneState (0) != prevState)
+                if (ay.TryGetToneState (0) != prevState)
                 {
                     toggles++;
-                    prevState = ay.GetToneState (0);
+                    prevState = ay.TryGetToneState (0);
                 }
             }
 
@@ -117,9 +142,12 @@ namespace Ay8910TestNs
 
         TEST_METHOD (SilentChipProducesNoOutput)
         {
-            Ay8910    ay (kClockHz);
             uint32_t  i   = 0;
             float     sum = 0.0f;
+
+
+
+            Ay8910    ay (kClockHz);
 
 
 
@@ -138,10 +166,13 @@ namespace Ay8910TestNs
 
         TEST_METHOD (MutedThenUnmuted_ResumesOutput)
         {
-            Ay8910    ay (kClockHz);
             uint32_t  i    = 0;
             float     sum  = 0.0f;
             float     peak = 0.0f;
+
+
+
+            Ay8910    ay (kClockHz);
 
 
 
@@ -181,9 +212,12 @@ namespace Ay8910TestNs
 
         TEST_METHOD (AmplitudeScalesOutput)
         {
-            Ay8910    ay (kClockHz);
             uint32_t  i    = 0;
             float     peak = 0.0f;
+
+
+
+            Ay8910    ay (kClockHz);
 
 
 
@@ -212,10 +246,15 @@ namespace Ay8910TestNs
 
         TEST_METHOD (NoiseOutputVaries)
         {
+            uint32_t  i    = 0;
+            float     minv = 0.0f;
+            float     maxv = 0.0f;
+
+
+
             Ay8910    ay (kClockHz);
-            uint32_t  i        = 0;
-            float     minv     = 1.0e9f;
-            float     maxv     = -1.0e9f;
+            minv = 1.0e9f;
+            maxv = -1.0e9f;
 
 
 
@@ -243,11 +282,14 @@ namespace Ay8910TestNs
 
         TEST_METHOD (EnvelopeSawtoothUpRampsAndRepeats)
         {
-            Ay8910    ay (kClockHz);
             uint32_t  i        = 0;
             int       maxLevel = 0;
             bool      dropped  = false;
             int       lastPeak = 0;
+
+
+
+            Ay8910    ay (kClockHz);
 
 
 
@@ -260,9 +302,11 @@ namespace Ay8910TestNs
 
             for (i = 0; i < 4000; i++)
             {
+                int  level = 0;
+
                 ay.GenerateSample();
 
-                int  level = ay.GetEnvLevel();
+                level = ay.GetEnvLevel();
 
                 maxLevel = (level > maxLevel) ? level : maxLevel;
 
@@ -284,8 +328,11 @@ namespace Ay8910TestNs
 
         TEST_METHOD (EnvelopeOneShotDecayHoldsAtZero)
         {
-            Ay8910    ay (kClockHz);
             uint32_t  i = 0;
+
+
+
+            Ay8910    ay (kClockHz);
 
 
 
@@ -310,8 +357,11 @@ namespace Ay8910TestNs
 
         TEST_METHOD (EnvelopeAttackHoldReachesAndHoldsTop)
         {
-            Ay8910    ay (kClockHz);
             uint32_t  i = 0;
+
+
+
+            Ay8910    ay (kClockHz);
 
 
 
@@ -335,9 +385,12 @@ namespace Ay8910TestNs
 
         TEST_METHOD (OutputIsDeterministic)
         {
+            uint32_t  i = 0;
+
+
+
             Ay8910    a (kClockHz);
             Ay8910    b (kClockHz);
-            uint32_t  i = 0;
 
 
 

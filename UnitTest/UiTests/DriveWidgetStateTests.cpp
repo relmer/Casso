@@ -163,10 +163,11 @@ public:
 
     TEST_METHOD (DoubleInsert_SamePathLeavesDoorClosedWithoutGlitching)
     {
-        DriveWidgetState  st;
+        DriveWidgetState        st;
+        DriveWidgetState::Door  before = {};
 
         st.BeginInsert (L"same.dsk", 0);
-        DriveWidgetState::Door  before = st.doorState;
+        before = st.doorState;
 
         st.BeginInsert (L"same.dsk", 100);
 

@@ -31,6 +31,22 @@ static constexpr UINT_PTR  s_kModalLoopTimerId = 0xDCE1;
 //
 //  NudgeWindowOnScreen
 //
+//  Pulls a window back onto the desktop if its saved placement puts it
+//  somewhere unreachable -- the classic case being a monitor that has since
+//  been unplugged.
+//
+//  The work area, not the full monitor rect, is the target, so a restored
+//  window is never left under the taskbar.
+//
+//  Fallbacks degrade in order: the window's nearest monitor, then the primary
+//  work area, then a 1920x1080 guess. The last is arbitrary but bounded, and
+//  it only matters if both system queries fail -- at which point ANY on-screen
+//  guess beats leaving the window where nobody can reach it.
+//
+//  The move is skipped when the clamp changes nothing, so a normally-placed
+//  window is never gratuitously repositioned. NOACTIVATE keeps the nudge from
+//  stealing focus, since this runs during window setup.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void  DxuiHwndSource::NudgeWindowOnScreen (HWND hwnd)
@@ -269,6 +285,7 @@ BOOL CALLBACK DxuiHwndSource::FirstIconGroupProc (HMODULE, LPCWSTR, LPWSTR name,
         (void) wcsncpy_s (out->nameBuf, name, _TRUNCATE);
         out->id = out->nameBuf;
     }
+
     out->found = true;
 
     return FALSE;   // first group only
@@ -281,6 +298,25 @@ BOOL CALLBACK DxuiHwndSource::FirstIconGroupProc (HMODULE, LPCWSTR, LPWSTR name,
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DefaultAppIcon
+//
+//  Finds the executable's own icon so a host that supplies none still shows
+//  something recognizable in its caption and on the taskbar.
+//
+//  The icon is DISCOVERED by enumerating RT_GROUP_ICON and taking the first
+//  group, rather than looking up a fixed resource id. Dxui is a library used
+//  by applications it knows nothing about, so it cannot name their resource
+//  ids -- and enumerating gets the same icon the shell picks for the exe,
+//  which is by convention the lowest-numbered group.
+//
+//  Both sizes are loaded and cached on FIRST use only, with the attempt marked
+//  before it runs. That makes a failed lookup cost one enumeration for the
+//  process rather than one per window created.
+//
+//  Sizes come from the system metrics rather than being hard-coded, so the
+//  loaded images match what the shell will ask for.
+//
+//  Returning null is fine: callers treat it as "no icon", which is the same
+//  outcome as an application that ships none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -334,19 +370,19 @@ HICON DxuiHwndSource::DefaultAppIcon (bool big)
 
 HRESULT DxuiHwndSource::Create (const CreateParams & params)
 {
-    HRESULT      hr             = S_OK;
-    WNDCLASSEXW  wc             = { sizeof (wc) };
-    DWORD        style          = 0;
-    DWORD        exStyle        = 0;
-    HINSTANCE    hInstance      = nullptr;
+    HRESULT      hr               = S_OK;
+    WNDCLASSEXW  wc               = { sizeof (wc) };
+    DWORD        style            = 0;
+    DWORD        exStyle          = 0;
+    HINSTANCE    hInstance        = nullptr;
     wchar_t      classNameBuf[64] = {};
-    uint32_t     serial         = 0;
-    UINT         dpiAtCreate    = 0;
-    int          windowX        = 0;
-    int          windowY        = 0;
-    int          widthPx        = 0;
-    int          heightPx       = 0;
-    ATOM         classAtom      = 0;
+    uint32_t     serial           = 0;
+    UINT         dpiAtCreate      = 0;
+    int          windowX          = 0;
+    int          windowY          = 0;
+    int          widthPx          = 0;
+    int          heightPx         = 0;
+    ATOM         classAtom        = 0;
 
 
 
@@ -393,6 +429,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     {
         style &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
     }
+
     exStyle = WS_EX_APPWINDOW;
     if (params.createNoActivate)
     {
@@ -415,6 +452,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     {
         dpiAtCreate = s_kDefaultDpi;
     }
+
     m_scaler.SetDpi (dpiAtCreate);
 
     if (params.useInitialWindowRectPx)
@@ -495,6 +533,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
         {
             SendMessageW (m_hwnd, WM_SETICON, ICON_BIG, (LPARAM) iconBig);
         }
+
         if (iconSmall != nullptr)
         {
             SendMessageW (m_hwnd, WM_SETICON, ICON_SMALL, (LPARAM) iconSmall);
@@ -530,6 +569,7 @@ Error:
     {
         Destroy();
     }
+
     return hr;
 }
 
@@ -604,6 +644,7 @@ void DxuiHwndSource::Destroy()
     {
         DestroyWindow (m_hwnd);
     }
+
     m_hwnd       = nullptr;
     m_ownsHwnd   = false;
     m_adoptMode  = false;
@@ -663,10 +704,12 @@ HRESULT DxuiHwndSource::CreateInAdoptMode (
     {
         dpi = GetDpiForWindow (existingHwnd);
     }
+
     if (dpi == 0)
     {
         dpi = s_kDefaultDpi;
     }
+
     host->m_scaler.SetDpi (dpi);
 
     // Host-owned caption in adopt mode: build it now (HWND + DPI are
@@ -815,6 +858,7 @@ void DxuiHwndSource::SetComposedOpacity (float opacity)
     {
         (void) visual3->SetOpacity (opacity);
     }
+
     (void) m_compDevice->Commit();
 }
 
@@ -1111,12 +1155,12 @@ void DxuiHwndSource::SetContentRootRef (DxuiPanel * root)
 //  Thin convenience wrapper around `::SetTimer` so consumers don't
 //  have to reach for the global symbol. WM_TIMER dispatches to
 //  `IDxuiHostClient::OnTimer` (DxuiHwndSource's WndProc already
-//  forwards the message). Returns true iff the timer was scheduled;
-//  no-ops in release when the host has no HWND.
+//  forwards the message). Succeeds iff the timer was scheduled;
+//  fails (asserting) when the host has no HWND.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiHwndSource::SetTimer (UINT_PTR timerId, UINT intervalMs)
+HRESULT DxuiHwndSource::SetTimer (UINT_PTR timerId, UINT intervalMs)
 {
     HRESULT   hr     = S_OK;
     UINT_PTR  result = 0;
@@ -1127,9 +1171,10 @@ bool DxuiHwndSource::SetTimer (UINT_PTR timerId, UINT intervalMs)
     CBRA (m_hwnd != nullptr);
 
     result = ::SetTimer (m_hwnd, timerId, intervalMs, nullptr);
+    CWR (result != 0);
 
 Error:
-    return (result != 0);
+    return hr;
 }
 
 
@@ -1140,13 +1185,13 @@ Error:
 //
 //  KillTimer
 //
-//  Thin convenience wrapper around `::KillTimer`. Returns true iff
-//  the timer was found and canceled; no-ops in release when the
-//  host has no HWND.
+//  Thin convenience wrapper around `::KillTimer`. Succeeds iff the
+//  timer was found and canceled; fails (asserting) when the host
+//  has no HWND.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiHwndSource::KillTimer (UINT_PTR timerId)
+HRESULT DxuiHwndSource::KillTimer (UINT_PTR timerId)
 {
     HRESULT  hr     = S_OK;
     BOOL     result = FALSE;
@@ -1157,9 +1202,10 @@ bool DxuiHwndSource::KillTimer (UINT_PTR timerId)
     CBRA (m_hwnd != nullptr);
 
     result = ::KillTimer (m_hwnd, timerId);
+    CWR (result);
 
 Error:
-    return (result != FALSE);
+    return hr;
 }
 
 
@@ -1299,6 +1345,9 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain()
 
     if (m_params.composited)
     {
+        ComPtr<IDCompositionDesktopDevice>  desktopDevice;
+        ComPtr<IDCompositionVisual2>        compVisual2;
+
         // Composition swap chains require explicit non-zero dimensions
         // (unlike CreateSwapChainForHwnd, which auto-sizes from the HWND
         // when passed 0). Seed from the current client area; HandleSize
@@ -1323,8 +1372,6 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain()
         // needs one. A v1 visual has no SetEffect, so the live-preview fade would
         // silently no-op. The concrete object still exposes the v1 IDCompositionDevice
         // interface (Commit + CreateTargetForHwnd) and QIs to IDCompositionDevice3.
-        ComPtr<IDCompositionDesktopDevice>  desktopDevice;
-        ComPtr<IDCompositionVisual2>        compVisual2;
 
         hr = DCompositionCreateDevice2 (dxgiDevice.Get(),
                                         IID_PPV_ARGS (desktopDevice.GetAddressOf()));
@@ -1440,6 +1487,7 @@ void DxuiHwndSource::ReleaseRenderResources()
         m_textRenderer->Shutdown();
         m_textRenderer.reset();
     }
+
     if (m_painter != nullptr)
     {
         m_painter->Shutdown();
@@ -1574,12 +1622,14 @@ void DxuiHwndSource::ReleaseBackBufferRtv()
     {
         m_textRenderer->UnbindBackBuffer();
     }
+
     if (m_context && m_rtv)
     {
         ID3D11RenderTargetView *  nullRtv[1] = { nullptr };
 
         m_context->OMSetRenderTargets (1, nullRtv, nullptr);
     }
+
     m_rtv.Reset();
 }
 
@@ -1715,10 +1765,12 @@ Error:
     {
         (void) m_textRenderer->EndDraw();
     }
+
     if (painterBegun)
     {
         (void) m_painter->End (target);
     }
+
     return;
 }
 
@@ -1987,6 +2039,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             {
                 result = hostHt;
             }
+
             break;
 
         // The four NC mouse messages offer the client first refusal and
@@ -2030,6 +2083,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             {
                 result = HandleNcMouse (msg, wp, lp);
             }
+
             break;
 
         case WM_DPICHANGED:
@@ -2089,6 +2143,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             {
                 isHandled = false;
             }
+
             break;
 
         case WM_SETTINGCHANGE:
@@ -2104,7 +2159,8 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             if (m_client != nullptr)
             {
                 // The client is told, but WM_SIZE always reaches DefaultProc.
-                IGNORE_RETURN_VALUE (sizeResult, m_client->OnSize (LOWORD (lp), HIWORD (lp)));
+                sizeResult = m_client->OnSize (LOWORD (lp), HIWORD (lp));
+                IGNORE_RETURN_VALUE (sizeResult, DxuiMessageResult::NotHandled);
             }
 
             isHandled = false;
@@ -2155,6 +2211,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             {
                 isHandled = false;
             }
+
             break;
 
         default:
@@ -2602,6 +2659,24 @@ Error:
 //
 //  DispatchNcUpToTrackedButton
 //
+//  Delivers a non-client button release to whichever caption control was being
+//  tracked, then drops the tracking.
+//
+//  This exists because NC messages and the panel tree speak different
+//  coordinate systems and the OS does not pair NC presses with NC releases the
+//  way a client-area control expects. The pressed control is remembered on the
+//  way down so its release can be routed back to it here, which is what lets a
+//  min / max / close button clear its pressed visual even when the pointer
+//  drifted off it before the release.
+//
+//  The position is converted twice, and both steps are needed: NC coordinates
+//  are SCREEN pixels, so ScreenToClient first, then physical-to-DIP so the
+//  control receives the same units it laid out in.
+//
+//  The tracked pointer is cleared unconditionally after dispatch, so a release
+//  can never be delivered twice, and a repaint is requested so the cleared
+//  pressed state actually shows.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiHwndSource::DispatchNcUpToTrackedButton (LPARAM lp)
@@ -2663,6 +2738,7 @@ void DxuiHwndSource::HandleDpiChanged (WPARAM wp, LPARAM lp)
     {
         newDpi = s_kDefaultDpi;
     }
+
     m_scaler.SetDpi (newDpi);
 
     if (suggested != nullptr && m_hwnd != nullptr)
@@ -2689,6 +2765,31 @@ void DxuiHwndSource::HandleDpiChanged (WPARAM wp, LPARAM lp)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HandleSize
+//
+//  Resizes the swap chain, relayouts the panel tree, and re-renders -- the
+//  host-side counterpart to a client's own OnSize.
+//
+//  The explicit width and height from WM_SIZE are passed to ResizeBuffers
+//  rather than the usual (0, 0) "inherit from the window". A COMPOSITION swap
+//  chain has no window to inherit from and fails outright with "a non-zero
+//  Width and Height must be specified for Composition SwapChains" -- and since
+//  passing the real size also works for an HWND swap chain, one call serves
+//  both modes.
+//
+//  A zero extent is skipped entirely. Minimizing produces one, and resizing to
+//  it would discard the buffers for a window that is about to be restored at
+//  its previous size.
+//
+//  The synchronous re-render at the end is not an optimization. ResizeBuffers
+//  discards the back buffer, so without an immediate frame the DWM composites
+//  a blank or stale swap chain during a live edge-drag, which reads as the
+//  content subtly shifting while the window resizes. It applies only in
+//  full-ownership mode; in adopt mode the client repaints through its own
+//  OnSize.
+//
+//  The maximized notification is pushed to the system buttons here because the
+//  restore glyph has to change with the state, and WM_SIZE is where that state
+//  is reported.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2919,6 +3020,7 @@ void DxuiHwndSource::SetTitle (const std::wstring & title)
     {
         SetWindowTextW (m_hwnd, title.c_str());
     }
+
     if (m_caption)
     {
         m_caption->SetTitle (title);
@@ -3099,6 +3201,7 @@ bool DxuiHwndSource::RouteCaptionNcMouse (UINT msg, WPARAM wp, LPARAM lp)
                 ev.kind = DxuiMouseEventKind::Leave;
                 m_lastHoveredNcControl->OnMouse (ev);
             }
+
             ev.kind                = DxuiMouseEventKind::Move;
             m_lastHoveredNcControl = control;
             consumed               = true;
@@ -3183,6 +3286,26 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitForTest (POINT clientDip) const
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FindNcSystemControlAt
+//
+//  Finds the min / max / close control under a point, so NC mouse messages can
+//  be routed to a real widget.
+//
+//  Two separate trees have to be searched, and their order is the z-order. The
+//  HOST-OWNED caption is checked first because its system buttons sit above
+//  everything and are deliberately NOT part of the consumer's root tree -- the
+//  host owns the caption so applications need not build one.
+//
+//  The consumer's children are then walked in REVERSE, since the panel tree
+//  paints front-to-back; walking forward would return the control underneath
+//  whichever one the user can actually see and click.
+//
+//  Each child gets two chances. A nested search finds a system button
+//  somewhere in its subtree; failing that, ClassifyHit lets the child itself
+//  claim the point as a system button, which is how a control that paints its
+//  own caption buttons participates without exposing them as children.
+//
+//  The walk stops at the first hit -- `found` is part of the loop condition --
+//  so no later sibling can override a topmost match.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

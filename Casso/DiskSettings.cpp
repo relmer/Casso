@@ -14,7 +14,24 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Anonymous helpers
+//  File-scope helpers
+//
+//  Loading a machine's default config and the narrow / wide conversions the
+//  JSON layer needs.
+//
+//  A MISSING config is reported distinctly, as
+//  HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND), rather than as a generic failure.
+//  Callers read it as "this machine has no saved config" -- an ordinary first
+//  run -- while any other error is a real load or parse problem worth
+//  surfacing. Collapsing the two would make a fresh install look broken.
+//
+//  Paths are resolved through the shared search-path builder rather than
+//  assembled from the executable directory, so a machine found in a
+//  development tree loads from that tree instead of an installed copy.
+//
+//  The string conversions exist because the JSON layer is narrow while the
+//  Windows path API is wide; they are kept here rather than shared so the
+//  encoding assumption stays visible at its point of use.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,6 +151,22 @@ Error:
 //
 //  ReadSavedDiskPath
 //
+//  Reads the disk image a machine last had mounted in the given drive.
+//
+//  "Nothing saved" is reported by an EMPTY outPath and S_OK, not by a distinct
+//  result code -- and there are four different ways to arrive there: no config
+//  file, a non-object merge result, no $cassoUiPrefs block, or no key. Every
+//  caller already tests the path, so collapsing all four onto that one signal
+//  keeps them from having to distinguish cases that mean the same thing. Only
+//  a genuine load or parse failure propagates.
+//
+//  The path is stored EXE-RELATIVE and resolved back on read, so a Casso
+//  folder moved or copied to another machine keeps finding its disks.
+//
+//  Reading goes through the user-config merge rather than the raw file, so a
+//  disk recorded as a machine default and one the user mounted are found by
+//  the same lookup.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskSettings::ReadSavedDiskPath (
@@ -148,8 +181,8 @@ HRESULT DiskSettings::ReadSavedDiskPath (
     JsonValue         mergedJson;
     const JsonValue * uiPrefs       = nullptr;
     std::string       pathNarrow;
-    const char      * keyName       = (drive == 0) ? "disk1Path" : "disk2Path";
     bool              hasMachine    = false;
+    const char      * keyName       = (drive == 0) ? "disk1Path" : "disk2Path";
 
 
 
@@ -194,6 +227,25 @@ Error:
 //
 //  WriteSavedDiskPath
 //
+//  Records the disk image mounted in a drive, so the machine remounts it on
+//  the next launch.
+//
+//  The path is made EXE-RELATIVE before storing, mirroring what
+//  ReadSavedDiskPath resolves, so a Casso folder that is moved or copied keeps
+//  finding its disks.
+//
+//  The write is a SPLICE, not a rewrite. The merged document is decomposed
+//  into entries, one key inside $cassoUiPrefs is replaced or appended, and the
+//  whole is rebuilt -- so every other preference in that block survives
+//  untouched. Writing a fresh object with just this key would silently discard
+//  the user's color mode, speed, and peripheral settings.
+//
+//  The rebuild is verbose because the JsonValue API is read-mostly: there is
+//  no in-place mutation, so swap-and-replace is the available shape.
+//
+//  A machine with no config on disk is skipped rather than having one created,
+//  since there is nothing for the delta to be a delta against.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskSettings::WriteSavedDiskPath (
@@ -203,18 +255,19 @@ HRESULT DiskSettings::WriteSavedDiskPath (
     const std::wstring & machineName,
     const std::wstring & path)
 {
-    HRESULT                                          hr             = S_OK;
-    JsonValue                                        defaultJson;
-    JsonValue                                        mergedJson;
-    JsonValue                                        updatedJson;
-    std::wstring                                     stored;
-    std::string                                      storedNarrow;
+    HRESULT                                         hr             = S_OK;
+    JsonValue                                       defaultJson;
+    JsonValue                                       mergedJson;
+    JsonValue                                       updatedJson;
+    std::wstring                                    stored;
+    std::string                                     storedNarrow;
+    std::vector<std::pair<std::string, JsonValue>>  rootEntries;
+    std::vector<std::pair<std::string, JsonValue>>  uiPrefsEntries;
+    int                                             uiPrefsIdx     = 0;
+    int                                             i              = 0;
+    bool                                            hasMachine     = false;
     const char                                     * keyName        = (drive == 0) ? "disk1Path" : "disk2Path";
-    std::vector<std::pair<std::string, JsonValue>>   rootEntries;
-    std::vector<std::pair<std::string, JsonValue>>   uiPrefsEntries;
-    int                                              uiPrefsIdx     = -1;
-    int                                              i              = 0;
-    bool                                             hasMachine     = false;
+    uiPrefsIdx = -1;
 
 
 
@@ -247,6 +300,7 @@ HRESULT DiskSettings::WriteSavedDiskPath (
             {
                 uiPrefsEntries = rootEntries[(size_t) i].second.GetObjectEntries();
             }
+
             break;
         }
     }
@@ -263,6 +317,7 @@ HRESULT DiskSettings::WriteSavedDiskPath (
                 break;
             }
         }
+
         if (!replaced)
         {
             uiPrefsEntries.emplace_back (keyName, JsonValue (storedNarrow));
@@ -346,6 +401,7 @@ HRESULT DiskSettings::WriteSavedUiPrefBool (
             {
                 uiPrefsEntries = rootEntries[(size_t) i].second.GetObjectEntries();
             }
+
             break;
         }
     }
@@ -361,6 +417,7 @@ HRESULT DiskSettings::WriteSavedUiPrefBool (
                 break;
             }
         }
+
         if (!replaced)
         {
             uiPrefsEntries.emplace_back (key, JsonValue (value));

@@ -52,6 +52,7 @@ public:
         m_labelRect = {};
         m_hidden    = true;
     }
+
     void               SetPerspectiveSkewPx (int skewPx) { m_perspectiveSkewPx = skewPx; }
     void               SetCompact      (bool compact)    { m_compact = compact; }
     bool               IsCompact       () const          { return m_compact; }
@@ -105,6 +106,7 @@ public:
         if (m_labelRect.bottom > r.bottom) { r.bottom = m_labelRect.bottom; }
         return r;
     }
+
     RECT               EjectRect       () const { return m_ejectRect; }
     LedState           Led             () const { return m_led.GetState(); }
     int                Drive           () const { return m_drive; }
@@ -113,36 +115,36 @@ private:
     // Widget geometry, palette, and the primitive-drawing helpers that
     // consume it. Every reader is a DriveWidget method, so the whole block
     // belongs to the class rather than to the translation unit.
-    static constexpr int     kBaseDpi           = 96;
-    static constexpr int     kBodyWidthPx       = 220;
-    static constexpr int     kBodyHeightPx      = 160;
-    static constexpr int     kFaceplateHeightPx = 104;
-    static constexpr int     kCaseBackInsetPx   = 30;
-    static constexpr int     kLabelPadPx        = 10;
-    static constexpr float   kLabelFontDip      = 13.0f;
-    static constexpr float   kInUseFontDip      = 10.0f;
-    static constexpr int     kSlotInsetPx       = 22;
-    static constexpr int     kSlotHeightPx      = 6;
-    static constexpr int     kSlotCenterYPx     = 50;
-    static constexpr int     kDoorWidthPx       = 72;
-    static constexpr int     kDoorHeightPx      = 44;
-    static constexpr int     kDoorTravelPx      = 32;
-    static constexpr int     kNotchWidthPx      = 28;
-    static constexpr int     kNotchHeightPx     = 8;
-    static constexpr int     kLedCenterYPx      = 84;
-    static constexpr int     kInUseGapPx        = 4;
-    static constexpr int     kInUseWidthPx      = 56;
-    static constexpr int     kRidgeCountPx      = 2;
-    static constexpr int     kVentCountPx       = 9;        // matches real Disk II side-vent count
-    static constexpr int     kVentSlotHeightPx  = 1;        // each vent is 1 px tall (scaled by DPI)
-    static constexpr int     kVentSlotGapPx     = 2;        // vertical gap between vents
-    static constexpr int     kCassowaryWidthPx  = 28;
-    static constexpr int     kCassowaryHeightPx = 42;
-    static constexpr int     kCassowaryMarginPx = 6;
-    static constexpr int     kLabelStripHeightPx = 18;
-    static constexpr int     kLabelStripGapPx    = 2;
-    static constexpr float   kBasenameFontDip    = 11.0f;
-    static constexpr const wchar_t * kFontFamily      = DxuiTheme::kBodyFace;
+    static constexpr int              kBaseDpi            = 96;
+    static constexpr int              kBodyWidthPx        = 220;
+    static constexpr int              kBodyHeightPx       = 160;
+    static constexpr int              kFaceplateHeightPx  = 104;
+    static constexpr int              kCaseBackInsetPx    = 30;
+    static constexpr int              kLabelPadPx         = 10;
+    static constexpr float            kLabelFontDip       = 13.0f;
+    static constexpr float            kInUseFontDip       = 10.0f;
+    static constexpr int              kSlotInsetPx        = 22;
+    static constexpr int              kSlotHeightPx       = 6;
+    static constexpr int              kSlotCenterYPx      = 50;
+    static constexpr int              kDoorWidthPx        = 72;
+    static constexpr int              kDoorHeightPx       = 44;
+    static constexpr int              kDoorTravelPx       = 32;
+    static constexpr int              kNotchWidthPx       = 28;
+    static constexpr int              kNotchHeightPx      = 8;
+    static constexpr int              kLedCenterYPx       = 84;
+    static constexpr int              kInUseGapPx         = 4;
+    static constexpr int              kInUseWidthPx       = 56;
+    static constexpr int              kRidgeCountPx       = 2;
+    static constexpr int              kVentCountPx        = 9;   // matches real Disk II side-vent count
+    static constexpr int              kVentSlotHeightPx   = 1;   // each vent is 1 px tall (scaled by DPI)
+    static constexpr int              kVentSlotGapPx      = 2;   // vertical gap between vents
+    static constexpr int              kCassowaryWidthPx   = 28;
+    static constexpr int              kCassowaryHeightPx  = 42;
+    static constexpr int              kCassowaryMarginPx  = 6;
+    static constexpr int              kLabelStripHeightPx = 18;
+    static constexpr int              kLabelStripGapPx    = 2;
+    static constexpr float            kBasenameFontDip    = 11.0f;
+    static constexpr const wchar_t  * kFontFamily         = DxuiTheme::kBodyFace;
 
     // Marquee timing for an overflowing basename label. The hold delay is
     // both the lead-in before a freshly mounted disk first scrolls and the
@@ -206,20 +208,20 @@ private:
                                             const CassoTheme & theme,
                                             UINT                dpi);
 
-    int                 m_slot      = 6;
-    int                 m_drive     = 0;
-    IDriveCommandSink * m_sink      = nullptr;
-    RECT                m_bodyRect  = {};
-    RECT                m_faceRect  = {};
-    RECT                m_slotRect  = {};
-    RECT                m_ejectRect = {};
-    RECT                m_labelRect = {};
-    LedIndicator        m_led;
-    DriveWidgetState    m_state;
-    UINT                m_dpi               = 96;
-    int                 m_perspectiveSkewPx = 0;
-    bool                m_compact           = false;
-    bool                m_focused           = false;
+    int                  m_slot              = 6;
+    int                  m_drive             = 0;
+    IDriveCommandSink  * m_sink              = nullptr;
+    RECT                 m_bodyRect          = {};
+    RECT                 m_faceRect          = {};
+    RECT                 m_slotRect          = {};
+    RECT                 m_ejectRect         = {};
+    RECT                 m_labelRect         = {};
+    LedIndicator         m_led;
+    DriveWidgetState     m_state;
+    UINT                 m_dpi               = 96;
+    int                  m_perspectiveSkewPx = 0;
+    bool                 m_compact           = false;
+    bool                 m_focused           = false;
 
     // Latched by Hide(), cleared by Layout(). When set, Paint draws nothing so
     // a controller-less machine shows no drive body, LED, or "IN USE" text.

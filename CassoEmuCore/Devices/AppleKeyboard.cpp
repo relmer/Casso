@@ -25,6 +25,26 @@ AppleKeyboard::AppleKeyboard()
 //
 //  Read
 //
+//  The keyboard's two soft switches: read the latch, or clear the strobe.
+//
+//  Both ranges are decoded 16 addresses wide because the hardware decodes only
+//  the high address bits. Software genuinely uses the mirrors -- $C010 and
+//  $C01F are the same switch -- so responding only to the canonical address
+//  breaks programs that do.
+//
+//  Reading $C000 has NO side effect; it is the strobe clear at $C010 that
+//  acknowledges the key. That asymmetry is why they are separate switches, and
+//  why the read path can be polled freely.
+//
+//  Bit 7 means two different things across the two ranges, which is the
+//  detail most easily gotten wrong. On the data read it is the STROBE -- a key
+//  is waiting. On the strobe clear it is rewritten to reflect ANY-KEY-DOWN, so
+//  the same bit answers "is a key held" once the strobe has been consumed.
+//
+//  The latch is atomic because it is written from the UI thread and read from
+//  the CPU thread; fetch_and does the clear and the read as one operation, so
+//  a key arriving mid-clear cannot be lost.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte AppleKeyboard::Read (Word address)

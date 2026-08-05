@@ -578,6 +578,7 @@ void EmulatorCore::PowerCycle()
     {
         interruptController->PowerCycle();
     }
+
     if (mouse != nullptr)
     {
         mouse->Reset();
@@ -619,6 +620,7 @@ void EmulatorCore::SoftReset()
     {
         interruptController->SoftReset();
     }
+
     if (mouse != nullptr)
     {
         mouse->Reset();

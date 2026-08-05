@@ -10,7 +10,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiStackLayoutTests
+//
+//  Stack layout: children laid end to end along one axis, with a uniform gap.
+//
+//  Gaps go BETWEEN children, not after each, so N children carry N-1 gaps --
+//  the off-by-one leaves a trailing gutter that shows up as a stack looking
+//  mis-centered rather than as an obvious layout error.
+//
+//  Both orientations are covered because they are the same arithmetic on
+//  different axes, and a transposition is invisible in a square container.
+//
+//  Zero and one child are tested: no gaps in either case, and the single-child
+//  case is the one an implementation subtracting a gap unconditionally gets
+//  wrong.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,14 +44,18 @@ public:
 
     TEST_METHOD (HorizontalNoWeights_StacksAtNaturalWidths)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  a;
+        MockDxuiControl  b;
+        RECT             bounds = {};
+
+
+
         DxuiStackLayout       layout (DxuiStackLayout::Orientation::Horizontal,
                                       0.0f,
                                       DxuiStackLayout::Align::Stretch);
-        DxuiDpiScaler         scaler;
-        MockDxuiControl       a;
-        MockDxuiControl       b;
         IDxuiControl *        kids[2] = { &a, &b };
-        RECT                  bounds  = MakeRect (0, 0, 200, 50);
+        bounds = MakeRect (0, 0, 200, 50);
 
 
         a.SetBounds (MakeRect (0, 0, 60, 50));
@@ -55,14 +72,18 @@ public:
 
     TEST_METHOD (HorizontalWithSpacing_AccountsForGaps)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  a;
+        MockDxuiControl  b;
+        RECT             bounds = {};
+
+
+
         DxuiStackLayout       layout (DxuiStackLayout::Orientation::Horizontal,
                                       10.0f,
                                       DxuiStackLayout::Align::Stretch);
-        DxuiDpiScaler         scaler;
-        MockDxuiControl       a;
-        MockDxuiControl       b;
         IDxuiControl *        kids[2] = { &a, &b };
-        RECT                  bounds  = MakeRect (0, 0, 200, 50);
+        bounds = MakeRect (0, 0, 200, 50);
 
 
         a.SetBounds (MakeRect (0, 0, 60, 50));
@@ -78,15 +99,19 @@ public:
 
     TEST_METHOD (HorizontalWithWeights_DistributesRemainder)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  fixed;
+        MockDxuiControl  flex1;
+        MockDxuiControl  flex2;
+        RECT             bounds = {};
+
+
+
         DxuiStackLayout       layout (DxuiStackLayout::Orientation::Horizontal,
                                       0.0f,
                                       DxuiStackLayout::Align::Stretch);
-        DxuiDpiScaler         scaler;
-        MockDxuiControl       fixed;
-        MockDxuiControl       flex1;
-        MockDxuiControl       flex2;
         IDxuiControl *        kids[3] = { &fixed, &flex1, &flex2 };
-        RECT                  bounds  = MakeRect (0, 0, 200, 50);
+        bounds = MakeRect (0, 0, 200, 50);
 
 
         fixed.SetBounds (MakeRect (0, 0, 50, 50));
@@ -104,13 +129,17 @@ public:
 
     TEST_METHOD (VerticalCenterAlign_OffsetsByHalfRemainingCross)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  a;
+        RECT             bounds = {};
+
+
+
         DxuiStackLayout       layout (DxuiStackLayout::Orientation::Vertical,
                                       0.0f,
                                       DxuiStackLayout::Align::Center);
-        DxuiDpiScaler         scaler;
-        MockDxuiControl       a;
         IDxuiControl *        kids[1] = { &a };
-        RECT                  bounds  = MakeRect (0, 0, 100, 80);
+        bounds = MakeRect (0, 0, 100, 80);
 
 
         a.SetBounds (MakeRect (0, 0, 40, 30));
@@ -126,13 +155,17 @@ public:
 
     TEST_METHOD (StretchAlign_ExpandsCrossAxisToBandSize)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  a;
+        RECT             bounds = {};
+
+
+
         DxuiStackLayout       layout (DxuiStackLayout::Orientation::Horizontal,
                                       0.0f,
                                       DxuiStackLayout::Align::Stretch);
-        DxuiDpiScaler         scaler;
-        MockDxuiControl       a;
         IDxuiControl *        kids[1] = { &a };
-        RECT                  bounds  = MakeRect (0, 0, 100, 80);
+        bounds = MakeRect (0, 0, 100, 80);
 
 
         a.SetBounds (MakeRect (0, 0, 60, 20));

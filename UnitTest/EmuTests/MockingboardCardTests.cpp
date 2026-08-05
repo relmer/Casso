@@ -60,6 +60,23 @@ namespace MockingboardCardTestNs
     //
     //  MockingboardCardTests
     //
+    //  The card as a whole: two VIA/PSG pairs behind one slot, and the
+    //  interrupt path from timer to CPU.
+    //
+    //  The card is TWO independent channels, and that pairing is what these
+    //  test -- each VIA drives its own PSG, so a card wiring both VIAs to one
+    //  PSG produces mono output from stereo software and looks like a mixing
+    //  bug.
+    //
+    //  The register handshake gets specific coverage: a PSG register is
+    //  addressed and latched through VIA port operations rather than written
+    //  directly, so the sequence matters and a reordering writes the right
+    //  value to the wrong register.
+    //
+    //  The interrupt path is exercised end to end -- VIA timer to the shared
+    //  controller to the CPU -- since that is how the card paces music, and
+    //  each link works in isolation while the chain can still be broken.
+    //
     ////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (MockingboardCardTests)
@@ -160,9 +177,9 @@ namespace MockingboardCardTestNs
         TEST_METHOD (Timer1ContinuousDrivesSharedIrq)
         {
             MbTestCpu             cpu;
+            HRESULT               hr = S_OK;
             InterruptController   ic (&cpu);
             MockingboardCard      card (4);
-            HRESULT               hr = S_OK;
 
 
 
@@ -189,9 +206,9 @@ namespace MockingboardCardTestNs
         TEST_METHOD (SecondViaTimerAlsoDrivesIrq)
         {
             MbTestCpu             cpu;
+            HRESULT               hr = S_OK;
             InterruptController   ic (&cpu);
             MockingboardCard      card (4);
-            HRESULT               hr = S_OK;
 
 
 
@@ -212,10 +229,13 @@ namespace MockingboardCardTestNs
 
         TEST_METHOD (ProgrammedToneProducesAudio)
         {
+            uint32_t  i            = 0;
+            float     peak         = 0.0f;
+            float     buffer[2000] = {};
+
+
+
             MockingboardCard    card (4);
-            float               buffer[2000] = {};
-            uint32_t            i    = 0;
-            float               peak = 0.0f;
 
 
 

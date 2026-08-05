@@ -82,13 +82,13 @@ public:
     //  reparenting). Adopting a control already owned by this panel
     //  via Add<T>() is a programming error and asserts.
     //
-    void  Adopt         (IDxuiControl & nonOwnedChild);
-    bool  RemoveAdopted (IDxuiControl & child);
-    void  ClearAdopted  ();
+    void     Adopt         (IDxuiControl & nonOwnedChild);
+    HRESULT  RemoveAdopted (IDxuiControl & child);
+    void     ClearAdopted  ();
 
-    bool  Remove        (IDxuiControl * child);
-    void  Clear         ();
-    void  SetLayout     (std::unique_ptr<IDxuiLayout> layout);
+    HRESULT  Remove        (IDxuiControl * child);
+    void     Clear         ();
+    void     SetLayout     (std::unique_ptr<IDxuiLayout> layout);
 
     void  PropagateDpi  (const DxuiDpiScaler & scaler);
     void  PropagateTheme();
@@ -133,10 +133,10 @@ private:
         std::unique_ptr<IDxuiControl>   owned;
     };
 
-    std::vector<ChildSlot>                      m_children;
-    std::unique_ptr<IDxuiLayout>                m_layout;
-    bool                                        m_dirty       = false;
-    RECT                                        m_lastBoundsDip = {};
-    DxuiDpiScaler                               m_lastScaler;
-    bool                                        m_haveLast    = false;
+    std::vector<ChildSlot>        m_children;
+    std::unique_ptr<IDxuiLayout>  m_layout;
+    bool                          m_dirty         = false;
+    RECT                          m_lastBoundsDip = {};
+    DxuiDpiScaler                 m_lastScaler;
+    bool                          m_haveLast      = false;
 };

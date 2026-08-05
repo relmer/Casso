@@ -343,6 +343,7 @@ bool DxuiWindow::ProcessDialogMessage (const MSG & msg)
                 {
                     isHandled = (DispatchDialogKey (msg.wParam) == DxuiMessageResult::Handled);
                 }
+
                 break;
         }
     }
@@ -680,6 +681,21 @@ DxuiMessageResult DxuiWindow::OnKeyDown (WPARAM vk, LPARAM lParam)
 //
 //  OnChar
 //
+//  Routes a typed character, in three tiers by what currently owns text entry.
+//
+//  A MODAL OVERLAY takes precedence over everything and always reports
+//  handled, because it is modal: a character reaching anything behind it --
+//  the color picker's hex field being the case in point -- would type into a
+//  control the user cannot see.
+//
+//  A DIALOG routes to the focused control only, with no fan-out. There is no
+//  sensible recipient for a character when nothing has focus, so an unfocused
+//  dialog reports NotHandled and lets default processing run rather than
+//  swallowing the keystroke.
+//
+//  Everything else goes through the normal key dispatch, which is the path a
+//  plain window's content uses.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult DxuiWindow::OnChar (WPARAM ch, LPARAM lParam)
@@ -996,6 +1012,7 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
                 isHandled = true;
                 break;
             }
+
             isHandled = m_focus.HandleKey (shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
             break;
 

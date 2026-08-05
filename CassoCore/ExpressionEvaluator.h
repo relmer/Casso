@@ -50,6 +50,29 @@ struct ExprResult
 //
 //  ExpressionEvaluator
 //
+//  Evaluates an assembler expression against a symbol table and a program
+//  counter.
+//
+//  A pure STATIC entry point taking its context by parameter, so evaluation
+//  carries no state between calls and can be tested by passing a string and a
+//  symbol map.
+//
+//  Precedence is expressed as a TABLE -- one row per binary operator, naming
+//  its token, its binding level, and how it folds its operands. That replaced
+//  ten hand-written parse levels that were identical apart from their token
+//  set and which function they called next. Precedence used to live only in
+//  that call order, so it could not be read without tracing all ten; now it is
+//  a column.
+//
+//  The tokenizer is declared here and defined in the .cpp because it is a few
+//  hundred lines of pure implementation detail with no business in a header.
+//  TokType cannot follow it: a nested enumeration has to be complete where the
+//  class is defined.
+//
+//  An unresolved symbol is reported distinctly from an expression error, since
+//  the caller needs to tell a legitimate forward reference in pass 1 from a
+//  genuine mistake.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class ExpressionEvaluator
@@ -100,24 +123,24 @@ private:
 
     static const BinaryOp   s_kBinaryOps[18];
 
-    static bool  ApplyLogOr  (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplyLogAnd (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplyBitOr  (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplyBitXor (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplyBitAnd (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplyEq     (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplyNe     (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplyLt     (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplyGt     (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplyLe     (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplyGe     (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplyShl    (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplyShr    (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplyAdd    (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplySub    (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplyMul    (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplyDiv    (int32_t a, int32_t b, int32_t & o, std::string & e);
-    static bool  ApplyMod    (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyLogOr  (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyLogAnd (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyBitOr  (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyBitXor (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyBitAnd (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyEq     (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyNe     (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyLt     (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyGt     (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyLe     (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyGe     (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyShl    (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyShr    (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyAdd    (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplySub    (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyMul    (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyDiv    (int32_t a, int32_t b, int32_t & o, std::string & e);
+    static bool  TryApplyMod    (int32_t a, int32_t b, int32_t & o, std::string & e);
 
     static const BinaryOp *  FindBinaryOp (TokType token);
 
@@ -167,9 +190,9 @@ private:
     // Precedence climbing. `minLevel` is the loosest operator this call is
     // allowed to absorb; recursing at level+1 makes every operator here
     // left-associative, which is what the old ladder's loops did.
-    static bool         ParseBinary     (Tokenizer & tok, const ExprContext & ctx, int minLevel, int32_t & result, std::string & error);
-    static bool         ParseUnary      (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
-    static bool         ParsePrimary    (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
+    static bool         TryParseBinary     (Tokenizer & tok, const ExprContext & ctx, int minLevel, int32_t & result, std::string & error);
+    static bool         TryParseUnary      (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
+    static bool         TryParsePrimary    (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
 
     static std::string  ToUpperIdent    (const std::string & s);
 };

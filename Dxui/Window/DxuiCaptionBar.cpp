@@ -226,12 +226,14 @@ void DxuiCaptionBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
         m_closeBtn->Layout (rc, scaler);
         right -= kButtonWidthDip;
     }
+
     if (m_maxBtn)
     {
         rc = { right - kButtonWidthDip, top, right, bottom };
         m_maxBtn->Layout (rc, scaler);
         right -= kButtonWidthDip;
     }
+
     if (m_minBtn)
     {
         rc = { right - kButtonWidthDip, top, right, bottom };
@@ -263,19 +265,19 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 
 
-    RECT     b            = {};
-    float    xPx          = 0.0f;
-    float    yPx          = 0.0f;
-    float    wPx          = 0.0f;
-    float    hPx          = 0.0f;
-    float    iconPadPx    = 0.0f;
-    float    iconSizePx   = 0.0f;
-    float    textLeftPx   = 0.0f;
-    float    textOffsetPx = 0.0f;
-    float    titleWidthPx = 0.0f;
-    float    fontPx       = 0.0f;
-    float    buttonStripPx = 0.0f;
-    int      buttonCount   = 0;
+    RECT   b             = {};
+    float  xPx           = 0.0f;
+    float  yPx           = 0.0f;
+    float  wPx           = 0.0f;
+    float  hPx           = 0.0f;
+    float  iconPadPx     = 0.0f;
+    float  iconSizePx    = 0.0f;
+    float  textLeftPx    = 0.0f;
+    float  textOffsetPx  = 0.0f;
+    float  titleWidthPx  = 0.0f;
+    float  fontPx        = 0.0f;
+    float  buttonStripPx = 0.0f;
+    int    buttonCount   = 0;
 
 
 

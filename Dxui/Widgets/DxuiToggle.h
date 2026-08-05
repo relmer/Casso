@@ -67,12 +67,12 @@ private:
 
     void  PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t accentArgb, uint32_t focusArgb) const;
     void  Flip ();
-    std::wstring  m_label;
-    ChangeFn      m_change;
-    bool          m_checked = false;
-    bool          m_enabled = true;
-    bool          m_focused = false;
-    bool          m_hover   = false;
-    bool          m_pressed = false;
-    DxuiDpiScaler     m_scaler;
+    std::wstring   m_label;
+    ChangeFn       m_change;
+    bool           m_checked = false;
+    bool           m_enabled = true;
+    bool           m_focused = false;
+    bool           m_hover   = false;
+    bool           m_pressed = false;
+    DxuiDpiScaler  m_scaler;
 };

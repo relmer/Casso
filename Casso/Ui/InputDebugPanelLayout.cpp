@@ -62,6 +62,25 @@ static RECT MakeRect (int x, int y, int w, int h) noexcept
 //
 //  ComputeInputDebugPanelLayout
 //
+//  Computes every control rect for the input debug panel, as a pure function
+//  of size, DPI, and which optional filters are shown.
+//
+//  A FREE function returning a struct of rects, deliberately -- the panel's
+//  geometry is then unit-testable with no window, no device, and no widgets,
+//  which is where the awkward cases (a narrow panel, a hidden filter row, a
+//  high DPI) are actually covered.
+//
+//  Hidden filters collapse rather than reserving space: their rect is left
+//  empty and the running x does not advance, so the remaining controls close
+//  up instead of leaving a gap where a checkbox would have been.
+//
+//  Every metric is authored at 96 DPI and scaled once here, so the layout is
+//  read in design units and there is one place where scaling can be wrong.
+//
+//  The list view takes whatever remains after the fixed rows, which is what
+//  lets the panel resize usefully -- the control the user is reading grows,
+//  and the filter strip does not.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 InputPanelLayoutSlots ComputeInputDebugPanelLayout (
@@ -103,11 +122,13 @@ InputPanelLayoutSlots ComputeInputDebugPanelLayout (
         slots.joystickCheck = MakeRect (x, y, checkWidth, rowHeight);
         x += checkWidth + rowGap;
     }
+
     if (showPaddleCheck)
     {
         slots.paddleCheck = MakeRect (x, y, checkWidth, rowHeight);
         x += checkWidth + rowGap;
     }
+
     y += rowHeight + rowVGap;
 
     x = margin;

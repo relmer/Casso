@@ -173,6 +173,6 @@ private:
 
     // Last-emitted byte per button for coalescing (CPU thread only).
     // -1 means "nothing emitted yet"; a Byte never matches it.
-    int                            m_lastEmittedButton[kButtonCount]        = { -1, -1, -1 };
-    int                            m_lastEmittedHostButton[kHostButtonCount] = { -1, -1 };
+    int  m_lastEmittedButton[kButtonCount]         = { -1, -1, -1 };
+    int  m_lastEmittedHostButton[kHostButtonCount] = { -1, -1 };
 };

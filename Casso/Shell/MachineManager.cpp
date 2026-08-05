@@ -113,6 +113,30 @@ MachineManager::MachineManager (EmulatorShell & shell)
 //
 //  CreateMemoryDevices
 //
+//  Builds the machine's address space from its config: character ROM, RAM
+//  regions, system ROM, soft switches, and the slot cards.
+//
+//  Devices are added to the bus AND kept in an owned list, because the bus
+//  holds raw pointers -- it is a routing table, not an owner -- so the owned
+//  list is what keeps them alive and what a machine switch tears down.
+//
+//  Aux-bank RAM regions are SKIPPED here. The Apple2eMmu owns the auxiliary
+//  64 KiB internally and re-points pages at it, so adding a bus device for the
+//  same addresses would put two claimants on one range. The first main region
+//  is remembered separately, since the MMU page-table wiring needs to name it.
+//
+//  A missing or unreadable character ROM falls back to the embedded font
+//  rather than failing. Text is how the machine tells the user anything,
+//  including that something is wrong, so a machine that boots with the wrong
+//  font is far more useful than one that will not boot at all.
+//
+//  System ROM has two shapes. A flat image (//e and earlier) maps directly. A
+//  banked image (//c) has its BANK 0 added here as an ordinary flat
+//  $C000-$FFFF device, specifically so the normal WireLanguageCard split
+//  applies unchanged; the $C028 bank flip is layered on afterwards by
+//  WireApple2cRomBank. Building the banking into this step would fork the
+//  language-card wiring for one machine.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
@@ -149,15 +173,19 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // MMU page-table wiring.
     for (const auto & region : config.ram)
     {
+        Word                        start  = 0;
+        Word                        end    = 0;
+        std::unique_ptr<RamDevice>  device;
+
         if (!region.bank.empty())
         {
             continue;
         }
 
-        Word start = region.address;
-        Word end   = static_cast<Word> (region.address + region.size - 1);
+        start = region.address;
+        end = static_cast<Word> (region.address + region.size - 1);
 
-        auto device = std::make_unique<RamDevice> (start, end);
+        device = std::make_unique<RamDevice> (start, end);
 
         if (m_shell.m_refs.mainRamDev == nullptr)
         {
@@ -178,6 +206,8 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     if (config.systemRom.romBankSize != 0)
     {
         std::vector<Byte>  fileBytes;
+        Word               romStart  = 0;
+        Word               romEnd    = 0;
 
         hr = ReadRomFileBytes (config.systemRom.resolvedPath, fileBytes);
 
@@ -189,8 +219,8 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             CBRN (false, wideError.c_str());
         }
 
-        Word romStart = config.systemRom.address;
-        Word romEnd   = static_cast<Word> (config.systemRom.address + config.systemRom.romBankSize - 1);
+        romStart = config.systemRom.address;
+        romEnd = static_cast<Word> (config.systemRom.address + config.systemRom.romBankSize - 1);
 
         auto device = RomDevice::CreateFromData (romStart, romEnd,
                                                  fileBytes.data(),
@@ -224,7 +254,8 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // Internal motherboard devices
     for (const auto & idev : config.internalDevices)
     {
-        DeviceConfig devCfg;
+        DeviceConfig                   devCfg;
+        std::unique_ptr<MemoryDevice>  device;
         devCfg.type = idev.type;
 
         // The //e MMU is a coordinator object, not a bus device -- it
@@ -237,7 +268,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             continue;
         }
 
-        auto device = m_shell.m_registry.Create (devCfg.type, devCfg, m_shell.m_memoryBus);
+        device = m_shell.m_registry.Create (devCfg.type, devCfg, m_shell.m_memoryBus);
 
         if (!device)
         {
@@ -342,12 +373,13 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         // Slot device (e.g., disk-ii)
         if (!slot.device.empty())
         {
-            DeviceConfig devCfg;
+            DeviceConfig                   devCfg;
+            std::unique_ptr<MemoryDevice>  device;
             devCfg.type    = slot.device;
             devCfg.slot    = slot.slot;
             devCfg.hasSlot = true;
 
-            auto device = m_shell.m_registry.Create (devCfg.type, devCfg, m_shell.m_memoryBus);
+            device = m_shell.m_registry.Create (devCfg.type, devCfg, m_shell.m_memoryBus);
 
             if (!device)
             {
@@ -472,9 +504,13 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         // IRQ lines aggregate through the shared interrupt controller; the
         // CPU cycle fan-out tick is wired in CreateCpu.
         {
+            HRESULT                  hrIc   = S_OK;
+            Apple2eKeyboard        * iieKbd = nullptr;
+            Apple2eSoftSwitchBank  * iieSw  = nullptr;
+
             m_shell.m_mouse = std::make_unique<AppleMouse> ();
 
-            HRESULT  hrIc = m_shell.m_mouse->AttachInterruptController (&m_shell.m_interruptController);
+            hrIc = m_shell.m_mouse->AttachInterruptController (&m_shell.m_interruptController);
             IGNORE_RETURN_VALUE (hrIc, S_OK);
 
             m_shell.m_mouse->SetBus (&m_shell.m_memoryBus);
@@ -484,8 +520,8 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
                 m_shell.m_mouse->SetVideoTiming (m_shell.m_videoTiming.get());
             }
 
-            auto * iieKbd = dynamic_cast<Apple2eKeyboard *>       (m_shell.m_refs.keyboard);
-            auto * iieSw  = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+            iieKbd = dynamic_cast<Apple2eKeyboard *>       (m_shell.m_refs.keyboard);
+            iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
 
             if (iieKbd != nullptr)
             {
@@ -495,6 +531,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
                 // keyboard-layout remap). Dormant on the //e.
                 iieKbd->SetApple2cMode (true);
             }
+
             if (iieSw != nullptr)
             {
                 iieSw->SetMouse (m_shell.m_mouse.get());
@@ -510,15 +547,19 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         // downstream work.
         for (int slot = 1; slot <= 2; ++slot)
         {
+            HRESULT                                hrIc     = S_OK;
+            std::unique_ptr<Acia6551>              acia;
+            std::unique_ptr<AciaLoopbackEndpoint>  loopback;
+
             Word  base = static_cast<Word> (Acia6551::kSlotIoBase
                                             + slot * Acia6551::kSlotIoStride
                                             + Acia6551::kAciaRegOffset);
-            auto  acia = std::make_unique<Acia6551> (base);
+            acia = std::make_unique<Acia6551> (base);
 
-            HRESULT  hrIc = acia->AttachInterruptController (&m_shell.m_interruptController);
+            hrIc = acia->AttachInterruptController (&m_shell.m_interruptController);
             IGNORE_RETURN_VALUE (hrIc, S_OK);
 
-            auto  loopback = std::make_unique<AciaLoopbackEndpoint> (acia.get());
+            loopback = std::make_unique<AciaLoopbackEndpoint> (acia.get());
             acia->SetEndpoint (loopback.get());
 
             m_shell.m_memoryBus.AddDevice (acia.get());
@@ -568,9 +609,9 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
 
         for (drive = 0; drive < driveCount; drive++)
         {
-            auto  src = std::make_unique<Disk2AudioSource>();
-            float panL = DriveAudioMixer::kSpeakerCenter;
-            float panR = DriveAudioMixer::kSpeakerCenter;
+            auto   src  = std::make_unique<Disk2AudioSource>();
+            float  panL = DriveAudioMixer::kSpeakerCenter;
+            float  panR = DriveAudioMixer::kSpeakerCenter;
 
             // Per-drive stereo position from the shell's stored pan
             // (user-adjustable; defaults place Drive 1 left-of-center and
@@ -684,6 +725,34 @@ Error:
 //
 //  WireLanguageCard
 //
+//  Converts a flat ROM device into the language-card arrangement: the ROM
+//  image moves INTO the card, the flat device leaves the bus, and a bank
+//  device takes over $D000-$FFFF to route each access to card RAM or ROM
+//  according to the soft switches.
+//
+//  Both halves are found by searching the existing device set rather than
+//  being passed in, which keeps this a post-pass over whatever
+//  CreateMemoryDevices built -- a machine with no language card, or no ROM
+//  covering $D000-$FFFF, simply gets nothing wired and needs no special case.
+//
+//  Splitting the flat ROM is the delicate part. A ROM image starting below
+//  $D000 also covers the slot ROM area, so the part below is re-added
+//  SEPARATELY and clamped to start at $C100 -- $C000-$C0FF is I/O space, and
+//  shadowing it with ROM would break every soft switch in the machine.
+//
+//  Where that lower ROM goes depends on the machine. A //e hands it to the
+//  MMU's CxxxRomRouter, which arbitrates internal ROM against slot cards; a
+//  ][ or ][+ has no such arbitration and keeps a plain bus-resident device.
+//
+//  The //e cross-links exist because three unrelated things need to see
+//  language-card state: the MMU re-points the card's read window on ALTZP
+//  flips, and both the keyboard and the soft-switch bank report card status
+//  through $C011/$C012.
+//
+//  RebindWindow is called last to seed the read-page mapping now that the ROM
+//  image and the MMU are both in place; after this it re-points on its own for
+//  every card switch, reset, and ALTZP flip.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineManager::WireLanguageCard()
@@ -720,7 +789,10 @@ void MachineManager::WireLanguageCard()
     // No card or no covering ROM: this machine has no language card to wire.
     if (romDevice != nullptr)
     {
-        Word romStart = romDevice->GetStart();
+        Word                                 romStart = romDevice->GetStart();
+        std::unique_ptr<LanguageCardBank>    lcBank;
+        Apple2eKeyboard                    * iieKbd   = nullptr;
+        Apple2eSoftSwitchBank              * iieSw    = nullptr;
 
         // Copy $D000-$FFFF ROM data to language card
         std::vector<Byte>  lcRomData (0x3000);
@@ -768,7 +840,7 @@ void MachineManager::WireLanguageCard()
         }
 
         // Bank device intercepts $D000-$FFFF, routing to LC RAM or ROM
-        auto lcBank = std::make_unique<LanguageCardBank> (*lc);
+        lcBank = std::make_unique<LanguageCardBank> (*lc);
         m_shell.m_memoryBus.AddDevice (lcBank.get());
         m_shell.m_ownedDevices.push_back (std::move (lcBank));
 
@@ -783,14 +855,14 @@ void MachineManager::WireLanguageCard()
             m_shell.m_mmu->SetLanguageCard (lc);
         }
 
-        auto * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_shell.m_refs.keyboard);
+        iieKbd = dynamic_cast<Apple2eKeyboard *> (m_shell.m_refs.keyboard);
 
         if (iieKbd != nullptr)
         {
             iieKbd->SetLanguageCard (lc);
         }
 
-        auto * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+        iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
 
         if (iieSw != nullptr)
         {
@@ -819,11 +891,11 @@ void MachineManager::WireLanguageCard()
 HRESULT MachineManager::ReadRomFileBytes (const std::string & path, std::vector<Byte> & out)
 {
     HRESULT         hr       = S_OK;
-    std::ifstream   file (path, std::ios::binary | std::ios::ate);
-    std::streamoff  size     = 0;
     bool            isOpen   = false;
     bool            hasBytes = false;
     bool            wasRead  = false;
+    std::streamoff  size     = 0;
+    std::ifstream   file (path, std::ios::binary | std::ios::ate);
 
 
     isOpen = file.good();
@@ -936,12 +1008,16 @@ void MachineManager::WireApple2cRomBank()
 
 void MachineManager::WirePageTable()
 {
+    Byte * mainRam = nullptr;
+
+
+
     if (!m_shell.m_cpu)
     {
         return;
     }
 
-    Byte * mainRam = const_cast<Byte *> (m_shell.m_cpu->GetMemory());
+    mainRam = const_cast<Byte *> (m_shell.m_cpu->GetMemory());
 
     // Map all RAM pages ($0000-$BFFF) to main memory
     for (int page = 0x00; page < 0xC0; page++)
@@ -1034,36 +1110,60 @@ void MachineManager::RebuildBankingPages()
 //
 //  CreateVideoModes
 //
+//  Builds all five renderers up front and installs 40-column text as the
+//  active one.
+//
+//  The order is a CONTRACT, not a construction convenience -- callers index
+//  this vector positionally (0 text40, 1 lo-res, 2 hi-res, 3 double hi-res,
+//  4 text80), so inserting a mode anywhere but the end would silently
+//  re-point every existing lookup.
+//
+//  Every mode is created regardless of machine, because SelectVideoMode
+//  switches between them per frame from the soft-switch state and cannot
+//  afford to construct one mid-render.
+//
+//  Aux memory is wired into the two modes that read it -- 80-column text and
+//  double hi-res -- only when an MMU actually provides it, so a ][+ gets the
+//  same objects with nothing aux-backed rather than a shorter list.
+//
+//  Text mode starts active because that is what a machine displays at power-on
+//  before any program selects otherwise.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineManager::CreateVideoModes()
 {
-    auto textMode = std::make_unique<AppleTextMode> (m_shell.m_memoryBus, m_shell.m_charRom);
+    auto                                     textMode        = std::make_unique<AppleTextMode> (m_shell.m_memoryBus, m_shell.m_charRom);
+    Byte                                   * auxBuf          = nullptr;
+    std::unique_ptr<AppleLoResMode>          loResMode;
+    std::unique_ptr<AppleHiResMode>          hiResMode;
+    std::unique_ptr<AppleDoubleHiResMode>    doubleHiResMode;
+    std::unique_ptr<Apple80ColTextMode>      text80;
     m_shell.m_refs.activeVideoMode = textMode.get();
     m_shell.m_videoModes.push_back (std::move (textMode));
 
-    auto loResMode = std::make_unique<AppleLoResMode> (m_shell.m_memoryBus);
+    loResMode = std::make_unique<AppleLoResMode> (m_shell.m_memoryBus);
     m_shell.m_videoModes.push_back (std::move (loResMode));
 
-    auto hiResMode = std::make_unique<AppleHiResMode> (m_shell.m_memoryBus);
+    hiResMode = std::make_unique<AppleHiResMode> (m_shell.m_memoryBus);
     m_shell.m_videoModes.push_back (std::move (hiResMode));
 
-    auto doubleHiResMode = std::make_unique<AppleDoubleHiResMode> (m_shell.m_memoryBus);
+    doubleHiResMode = std::make_unique<AppleDoubleHiResMode> (m_shell.m_memoryBus);
     m_shell.m_videoModes.push_back (std::move (doubleHiResMode));
 
     // Index 4: 80-column text (used on //e). Wired with aux memory
     // from the Apple2eMmu when present.
-    auto text80 = std::make_unique<Apple80ColTextMode> (m_shell.m_memoryBus, m_shell.m_charRom);
+    text80 = std::make_unique<Apple80ColTextMode> (m_shell.m_memoryBus, m_shell.m_charRom);
 
-    Byte * auxBuf = GetAuxRamBuffer();
+    auxBuf = GetAuxRamBuffer();
 
     if (auxBuf != nullptr)
     {
-        text80->SetAuxMemory (auxBuf);
-
         // DHR also needs aux memory access (FR-019). Index 3 =
         // AppleDoubleHiResMode.
-        auto * dhr = static_cast<AppleDoubleHiResMode *> (m_shell.m_videoModes[3].get());
+        auto *  dhr = static_cast<AppleDoubleHiResMode *> (m_shell.m_videoModes[3].get());
+
+        text80->SetAuxMemory (auxBuf);
         dhr->SetAuxMemory (auxBuf);
     }
 
@@ -1077,6 +1177,34 @@ void MachineManager::CreateVideoModes()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreateCpu
+//
+//  Builds the CPU the config asks for and wires everything that rides on its
+//  cycle fan-out.
+//
+//  The core is chosen through CpuFactory -- 65C02 for the Enhanced //e and the
+//  //c, NMOS 6502 for everything else -- and that seam exists to stop the
+//  wrong part being built silently. An unbuildable strategy means a shipped
+//  config names a CPU we do not have, which is our bug, so it asserts here
+//  while CpuFactory itself merely returns E_INVALIDARG and stays a clean,
+//  testable validator.
+//
+//  Three consumers hang off the per-cycle fan-out, and all three are here
+//  because they must stay phase-locked to CPU progress rather than to frames:
+//
+//    video timing        every AddCycles ticks it, so $C019 (RDVBLBAR) tracks
+//                        the 17,030-cycle frame
+//    interrupt lines     the //c's mouse VBL / movement and the two ACIAs
+//                        assert through the controller; quiet on earlier
+//                        machines, but the seam is shared
+//    //c mouse           VBL-edge latching and paced movement interrupts
+//
+//  System and slot ROMs are additionally COPIED into the base Cpu's internal
+//  memory array. That array is not what execution reads -- the bus is -- but
+//  PeekByte and the disassembler read it, so without the copy the debugger
+//  shows zeros wherever ROM lives.
+//
+//  Both the initial build and a machine switch run through here, which is why
+//  the trace ring is (re)allocated in this function rather than at startup.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1273,16 +1401,65 @@ void MachineManager::ShowMachinePicker()
 //
 //  SwitchMachine
 //
+//  Replaces the running machine in place: load the new config, tear the old
+//  one down, rebuild, and carry forward what the user would expect to survive.
+//
+//  Runs on the CPU THREAD, which shapes several decisions below. Anything
+//  UI-facing is posted rather than called -- the color-mode application goes
+//  through PostMessage instead of the command dispatcher, because that
+//  dispatcher is a UI-thread surface and today's harmless atomic store would
+//  quietly inherit this thread the moment anything else were added to it.
+//
+//  Assets are NOT fetched here. ROM and disk-audio bootstrap happens on the UI
+//  thread in ShowMachinePicker before the switch is enqueued, so by the time
+//  this runs everything the new machine needs is already on disk.
+//
+//  The machine is built from the USER-MERGED config, not the shipped config
+//  text. Without that, a machine-level edit -- a slot disabled in Settings >
+//  Hardware, say -- would apply only to the live speed and color and silently
+//  revert on every switch or reboot. The extra $cassoUiPrefs and version keys
+//  the merge carries are ignored by the loader.
+//
+//  Teardown order is the delicate half, and every step is placed against a
+//  reference that would otherwise dangle:
+//
+//    debug panels    hold raw pointers into the OLD CPU's cycle counter
+//    event sinks     keyboard, //e soft switches, and game port all point at
+//                    panels that outlive the devices
+//    printer worker  its drain thread holds a reference into the card's ring,
+//                    which clearing the owned devices is about to free
+//    audio mixer     borrows PSG sources owned by the Mockingboard card
+//    IRQ tokens      reclaimed before their holders are destroyed
+//    //c ROM bank    references the language card and the MMU
+//
+//  m_refs is reset AS A WHOLE rather than field by field. It is a struct of
+//  observer pointers into the owning collections, so resetting it wholesale
+//  keeps the "every observer dies with its owner" invariant from rotting as
+//  observers are added. m_mmu needs its own explicit reset because it survives
+//  across switches and is only reassigned when the new config carries an
+//  apple2e-mmu -- otherwise a //e to ][ switch keeps a stale RamDevice pointer.
+//
+//  Three things deliberately CARRY ACROSS the switch:
+//
+//    dirty disks     flushed before teardown, so user writes are not lost
+//    mounted disks   re-mounted on the new machine. The mental model is
+//                    physical -- the user changed the computer, not the disk
+//                    in the drive -- and re-mounting also updates the new
+//                    machine's prefs so it sticks on later launches
+//    pending print   persisted while m_currentMachineName still names the
+//                    OUTGOING machine, so the strip lands in its folder
+//                    (FR-026)
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 {
-    HRESULT                hr             = S_OK;
+    HRESULT                hr                = S_OK;
     std::vector<fs::path>  searchPaths;
     fs::path               configRelPath;
     fs::path               configPath;
     std::ifstream          configFile;
-    bool                   configGood     = false;
+    bool                   configGood        = false;
     std::stringstream      ss;
     std::string            jsonText;
     std::vector<fs::path>  romSearchPaths;
@@ -1292,10 +1469,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     JsonValue              defaultJson;
     JsonValue              mergedJson;
     JsonParseError         parseErr;
-    WORD                   speedCmd = 0;
-    bool                   foundConfig = false;
-    HRESULT                hrParse     = S_OK;
-    HRESULT                hrMerge     = S_OK;
+    WORD                   speedCmd          = 0;
+    bool                   foundConfig       = false;
+    HRESULT                hrParse           = S_OK;
+    HRESULT                hrMerge           = S_OK;
     std::string            carryDisk1;
     std::string            carryDisk2;
 
@@ -1377,8 +1554,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                 // machines (ShouldShowExternalDrive ignores it when the system
                 // ROM is not banked).
                 {
-                    const JsonValue *  extPrefs  = nullptr;
+                    const JsonValue  * extPrefs  = nullptr;
                     bool               connected = false;
+                    bool               mouseConn = false;
 
                     if (mergedJson.HasObject ("$cassoUiPrefs", extPrefs) &&
                         extPrefs != nullptr)
@@ -1386,16 +1564,18 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                         HRESULT  hrExt = extPrefs->GetBool ("externalDriveConnected", connected);
                         IGNORE_RETURN_VALUE (hrExt, S_OK);
                     }
+
                     m_shell.m_externalDriveConnected = connected;
 
                     // //c mouse peripheral: adopt the switched-to machine's
                     // persisted connected state (default CONNECTED).
-                    bool  mouseConn = true;
+                    mouseConn = true;
                     if (extPrefs != nullptr)
                     {
                         HRESULT  hrM = extPrefs->GetBool ("mouseConnected", mouseConn);
                         IGNORE_RETURN_VALUE (hrM, S_OK);
                     }
+
                     m_shell.m_mouseConnected = mouseConn;
 
                     // //c: default Pointer -> Mouse when connected and no
@@ -1460,10 +1640,12 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     {
         m_shell.m_disk2DebugPanel->SetCycleCounter (nullptr);
     }
+
     if (m_shell.m_inputDebugPanel != nullptr)
     {
         m_shell.m_inputDebugPanel->SetCycleCounter (nullptr);
     }
+
     if (m_shell.m_refs.keyboard != nullptr)
     {
         m_shell.m_refs.keyboard->SetInputEventSink (nullptr);
@@ -1571,6 +1753,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     {
         m_shell.m_disk2DebugPanel->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
     }
+
     if (m_shell.m_inputDebugPanel != nullptr && m_shell.m_cpu != nullptr)
     {
         m_shell.m_inputDebugPanel->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
@@ -1620,6 +1803,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         carryDisk1.clear();
         carryDisk2.clear();
     }
+
     m_shell.m_diskManager->MountCommandLineDisks (carryDisk1, carryDisk2);
 
     if (speedCmd != 0)
@@ -1754,10 +1938,38 @@ void MachineManager::PowerCycle()
 //
 //  SelectVideoMode
 //
+//  Resolves the soft-switch state into the active renderer, once per frame.
+//
+//  The switches are read fresh each call rather than being tracked on change,
+//  because a program may flip them at any point in a frame and the renderer
+//  only needs their state at render time.
+//
+//  Two //e cases are not obvious from the switch names.
+//
+//  When 80STORE is active, $C054/$C055 no longer mean page 1 / page 2 -- they
+//  select MAIN vs AUX memory. So page2 is forced false for rendering purposes;
+//  honoring it would display the wrong half of memory whenever a program uses
+//  80STORE banking, which is most //e software that touches aux.
+//
+//  Double hi-res requires DHIRES *and* 80COL together. DHIRES alone is not
+//  enough -- the mode depends on the 80-column circuitry to interleave main
+//  and aux -- so a program that sets only DHIRES still gets standard hi-res,
+//  which is what the hardware does (FR-019).
+//
+//  Page 2 and ALTCHARSET are pushed to renderers OTHER than the active one on
+//  purpose: mixed mode overlays text rows over graphics, so the text renderers
+//  must stay current even while a graphics mode is active.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineManager::SelectVideoMode()
 {
+    bool                     is80ColMode     = false;
+    bool                     altCharSet      = false;
+    Apple2eSoftSwitchBank  * iieSoftSwitches = nullptr;
+
+
+
     if (m_shell.m_videoModes.size() < 3)
     {
         return;
@@ -1775,15 +1987,15 @@ void MachineManager::SelectVideoMode()
     // When 80STORE is active on the //e, $C054/$C055 control aux/main
     // memory selection -- not page 1/page 2. Suppress page2 for video
     // rendering.
-    auto * iieSoftSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+    iieSoftSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
 
     if (iieSoftSwitches != nullptr && iieSoftSwitches->Is80Store())
     {
         m_shell.m_page2 = false;
     }
 
-    bool is80ColMode  = iieSoftSwitches != nullptr && iieSoftSwitches->Is80ColMode();
-    bool altCharSet   = iieSoftSwitches != nullptr && iieSoftSwitches->IsAltCharSet();
+    is80ColMode = iieSoftSwitches != nullptr && iieSoftSwitches->Is80ColMode();
+    altCharSet = iieSoftSwitches != nullptr && iieSoftSwitches->IsAltCharSet();
 
     // Select video mode based on soft switch state
     if (!m_shell.m_graphicsMode)

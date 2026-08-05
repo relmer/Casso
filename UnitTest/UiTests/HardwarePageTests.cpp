@@ -44,7 +44,7 @@ public:
     TEST_METHOD (BuildNodes_GroupsInternalAndSlotsSeparately)
     {
         std::vector<HardwareEntry>  entries;
-        std::vector<DxuiTreeNode>       nodes;
+        std::vector<DxuiTreeNode>   nodes;
 
         entries.push_back (MakeEntry (HardwareEntryKind::InternalDevice, "keyboard", CapabilityFlag::Required, true));
         entries.push_back (MakeEntry (HardwareEntryKind::Slot,           "Slot 6: disk-ii", CapabilityFlag::Optional, true));
@@ -63,7 +63,7 @@ public:
     TEST_METHOD (BuildNodes_HidesEmptyGroup)
     {
         std::vector<HardwareEntry>  entries;
-        std::vector<DxuiTreeNode>       nodes;
+        std::vector<DxuiTreeNode>   nodes;
 
         entries.push_back (MakeEntry (HardwareEntryKind::InternalDevice, "kbd", CapabilityFlag::Required, true));
         nodes = HardwarePage::BuildNodes (entries);
@@ -77,7 +77,7 @@ public:
     TEST_METHOD (BuildNodes_MapsRequiredFlag)
     {
         std::vector<HardwareEntry>  entries;
-        std::vector<DxuiTreeNode>       nodes;
+        std::vector<DxuiTreeNode>   nodes;
 
         entries.push_back (MakeEntry (HardwareEntryKind::InternalDevice, "kbd", CapabilityFlag::Required, true));
         nodes = HardwarePage::BuildNodes (entries);
@@ -90,7 +90,7 @@ public:
     TEST_METHOD (BuildNodes_MapsOptionalFlag)
     {
         std::vector<HardwareEntry>  entries;
-        std::vector<DxuiTreeNode>       nodes;
+        std::vector<DxuiTreeNode>   nodes;
 
         entries.push_back (MakeEntry (HardwareEntryKind::Slot, "Slot 6: disk-ii", CapabilityFlag::Optional, true));
         nodes = HardwarePage::BuildNodes (entries);
@@ -102,7 +102,7 @@ public:
     TEST_METHOD (BuildNodes_MapsPlatformLockedFlag_PreservesLockReason)
     {
         std::vector<HardwareEntry>  entries;
-        std::vector<DxuiTreeNode>       nodes;
+        std::vector<DxuiTreeNode>   nodes;
 
         entries.push_back (MakeEntry (HardwareEntryKind::InternalDevice,
                                       "80col-card",
@@ -120,7 +120,7 @@ public:
     TEST_METHOD (BuildNodes_PreservesCheckedStateFromEnabled)
     {
         std::vector<HardwareEntry>  entries;
-        std::vector<DxuiTreeNode>       nodes;
+        std::vector<DxuiTreeNode>   nodes;
 
         entries.push_back (MakeEntry (HardwareEntryKind::Slot, "Slot 4: mockingboard", CapabilityFlag::Optional, false));
         nodes = HardwarePage::BuildNodes (entries);
@@ -180,12 +180,16 @@ public:
 
     TEST_METHOD (BuildNodes_NoExternalDriveNodeWhenUnsupported)
     {
+        std::vector<DxuiTreeNode>  nodes;
+
+
+
         // Default (supportsExternalDrive = false): no external-drive leaf, so
         // //e / ][ machines are unchanged.
         std::vector<HardwareEntry>  entries;
         entries.push_back (MakeEntry (HardwareEntryKind::Slot, "Slot 6: disk-ii", CapabilityFlag::Optional, true));
 
-        std::vector<DxuiTreeNode>  nodes = HardwarePage::BuildNodes (entries);
+        nodes = HardwarePage::BuildNodes (entries);
 
         for (const DxuiTreeNode & n : nodes)
         {

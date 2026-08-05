@@ -164,21 +164,21 @@ void DxuiToggle::Flip()
 
 void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t accentArgb, uint32_t focusArgb) const
 {
-    constexpr uint32_t  s_kPillOff      = 0xFF4A5260;
-    constexpr uint32_t  s_kPillOffHover = 0xFF5A6271;
-    constexpr uint32_t  s_kPillDisabled = 0xFF2A2F38;
-    constexpr uint32_t  s_kThumb        = 0xFFFFFFFF;
-    constexpr uint32_t  s_kThumbDisabled= 0xFF707070;
-    constexpr uint32_t  s_kTextIdle     = 0xFFE8EEF4;
-    constexpr uint32_t  s_kTextDisabled = 0xFF707070;
+    constexpr uint32_t  s_kPillOff       = 0xFF4A5260;
+    constexpr uint32_t  s_kPillOffHover  = 0xFF5A6271;
+    constexpr uint32_t  s_kPillDisabled  = 0xFF2A2F38;
+    constexpr uint32_t  s_kThumb         = 0xFFFFFFFF;
+    constexpr uint32_t  s_kThumbDisabled = 0xFF707070;
+    constexpr uint32_t  s_kTextIdle      = 0xFFE8EEF4;
+    constexpr uint32_t  s_kTextDisabled  = 0xFF707070;
     constexpr float     s_kPillWidthDip  = 36.0f;
     constexpr float     s_kPillHeightDip = 18.0f;
     constexpr float     s_kThumbInsetDip = 3.0f;
     constexpr float     s_kFocusInsetDip = -2.0f;
     constexpr float     s_kFocusThickDip = 1.0f;
     constexpr float     s_kLabelGapDip   = 8.0f;
-    constexpr float     s_kFontDip      = 13.0f;
-    constexpr float     s_kPillRatio    = 3.0f;    // WCAG 1.4.11 min contrast of pill vs white thumb
+    constexpr float     s_kFontDip       = 13.0f;
+    constexpr float     s_kPillRatio     = 3.0f;    // WCAG 1.4.11 min contrast of pill vs white thumb
 
     HRESULT  hr         = S_OK;
     float    pillW      = m_scaler.Pxf (s_kPillWidthDip);
@@ -242,17 +242,18 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
 
         // An unlabeled toggle narrates its own state instead, so the pill is
         // never left with nothing beside it.
-        IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.empty() ? (m_checked ? L"On" : L"Off")
-                                                                  : m_label.c_str(),
-                                                  pillLeft + pillW + labelGap,
-                                                  (float) m_boundsDip.top,
-                                                  (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
-                                                  (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                                  textColor,
-                                                  fontDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center));
+        hr = text.DrawString (m_label.empty() ? (m_checked ? L"On" : L"Off")
+                                              : m_label.c_str(),
+                              pillLeft + pillW + labelGap,
+                              (float) m_boundsDip.top,
+                              (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
+                              (float) (m_boundsDip.bottom - m_boundsDip.top),
+                              textColor,
+                              fontDip,
+                              DxuiTheme::kBodyFace,
+                              DxuiTextHAlign::Left,
+                              DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 
@@ -305,7 +306,16 @@ void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiToggle::OnMouse  (IDxuiControl override)
+//  DxuiToggle::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move only updates hover and is reported unhandled, so the pointer
+//  crossing the toggle does not consume moves other widgets want.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

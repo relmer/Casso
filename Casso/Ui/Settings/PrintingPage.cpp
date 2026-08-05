@@ -119,6 +119,23 @@ void PrintingPage::SetPopupHost (DxuiHwndSource * host)
 //
 //  PrintingPage::Layout
 //
+//  Lays out the Printing page: a status banner across the top, then the
+//  labeled option rows below it.
+//
+//  The banner's height is MEASURED, not fixed, and the running y advances by
+//  whatever it comes back as. Its message wraps, so a long one -- "no printer
+//  card in this machine", say -- pushes every control below it down rather
+//  than being clipped to a guessed height.
+//
+//  Which is why it comes first: reflow only works downward, so anything whose
+//  height depends on content has to be laid out before what follows it.
+//
+//  Every control shares one x column so the page reads as an aligned form,
+//  matching the other settings pages.
+//
+//  Dropdown items are set here beside the geometry, since the widest item and
+//  the dropdown's width are the same design decision.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
@@ -388,6 +405,7 @@ void PrintingPage::ConfigurePanSlider (DxuiSlider & slider, const RECT & rect)
         {
             result = std::to_wstring (pct) + L"% R";
         }
+
         return result;
     });
 }

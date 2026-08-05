@@ -12,7 +12,22 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiViewportTests
+//
+//  The viewport control: its bounds, and the input-consumption flags that make
+//  it the guest's keyboard.
+//
+//  SetConsumesInput and SetWantsAllKeys are what these are really about. With
+//  both set the viewport claims every keystroke -- Esc, Tab, and the arrows
+//  included -- and forwards them to its sink, which is how emulator input stays
+//  on the single Dxui path instead of the shell reaching around the framework.
+//
+//  Those keys are exactly the ones the framework would otherwise consume for
+//  focus traversal and dismissal, so the tests assert they reach the sink
+//  rather than merely that ordinary characters do.
+//
+//  A viewport WITHOUT the flags is covered too, since that is the default and
+//  must behave like an ordinary control.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,10 +47,10 @@ public:
     class RecordingSink : public IDxuiViewportInputSink
     {
     public:
-        int             mouseCount  = 0;
-        int             keyCount    = 0;
-        DxuiMouseEvent  lastMouse   = {};
-        DxuiKeyEvent    lastKey     = {};
+        int             mouseCount   = 0;
+        int             keyCount     = 0;
+        DxuiMouseEvent  lastMouse    = {};
+        DxuiKeyEvent    lastKey      = {};
         bool            consumeMouse = true;
         bool            consumeKey   = true;
 
@@ -114,7 +129,7 @@ public:
     {
         DxuiViewport   vp;
         DxuiDpiScaler  scaler;
-        RECT           bounds   = MakeRect (0, 0, 200, 100);
+        RECT           bounds    = MakeRect (0, 0, 200, 100);
         int            fireCount = 0;
         RECT           seen      = {};
 
@@ -130,7 +145,7 @@ public:
     {
         DxuiViewport   vp;
         DxuiDpiScaler  scaler;
-        RECT           bounds   = MakeRect (0, 0, 200, 100);
+        RECT           bounds    = MakeRect (0, 0, 200, 100);
         int            fireCount = 0;
 
         vp.SetOnBoundsChanged ([&] (const RECT &) { ++fireCount; });

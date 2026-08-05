@@ -96,6 +96,7 @@ public:
         {
             pz.OnMouse (Wheel (+1.0f, false, true));
         }
+
         Assert::AreEqual (4.0f, pz.ZoomTarget(), 0.0001f);   // clamped at zoomMax
     }
 
@@ -109,12 +110,14 @@ public:
         {
             pz.OnMouse (Wheel (+1.0f, false, true));
         }
+
         Assert::IsTrue (pz.ZoomTarget() > 1.0f);
 
         for (int i = 0; i < 20; i++)
         {
             pz.OnMouse (Wheel (-1.0f, false, true));
         }
+
         Assert::AreEqual (1.0f, pz.ZoomTarget(), 0.0001f);   // clamped at zoomMin
     }
 
@@ -178,6 +181,7 @@ public:
         {
             pz.OnMouse (Wheel (-1.0f));   // push up past the +50 ceiling
         }
+
         Settle (pz);
         Assert::AreEqual (50.0f, pz.PanY(), 0.001f);
     }
@@ -198,6 +202,7 @@ public:
         {
             pz.OnMouse (Wheel (-0.1f));   // ten tenth-notch deltas == one notch
         }
+
         Settle (pz);
         Assert::AreEqual (96.0f, pz.PanY(), 0.01f);
     }
@@ -280,13 +285,14 @@ public:
     TEST_METHOD (DragAfterUp_DoesNotPan)
     {
         DxuiPanZoom  pz;
+        bool         consumed = false;
         pz.SetPanYBounds (-1000.0f, 1000.0f);
         pz.SetDragScale (1.0f, 1.0f);
 
         pz.OnMouse (Mouse (DxuiMouseEventKind::Down, DxuiMouseButton::Left, 0, 0));
         pz.OnMouse (Mouse (DxuiMouseEventKind::Up,   DxuiMouseButton::Left, 0, 0));
 
-        bool consumed = pz.OnMouse (Mouse (DxuiMouseEventKind::Move, DxuiMouseButton::None, 50, 50));
+        consumed = pz.OnMouse (Mouse (DxuiMouseEventKind::Move, DxuiMouseButton::None, 50, 50));
         Settle (pz);
         Assert::IsFalse  (consumed);
         Assert::AreEqual (0.0f, pz.PanY(), 0.0001f);
@@ -330,9 +336,9 @@ public:
     TEST_METHOD (SetPanYTarget_DoesNotFireUserPan_ButWheelDoes)
     {
         DxuiPanZoom  pz;
+        int          userPans = 0;
         pz.SetPanYBounds (-1000.0f, 1000.0f);
 
-        int  userPans = 0;
         pz.SetOnUserPanY ([&] { userPans++; });
 
         pz.SetPanYTarget (100.0f);            // programmatic (follow mode)
@@ -359,10 +365,10 @@ public:
     TEST_METHOD (PanByUser_MovesPanAndFiresUserPan)
     {
         DxuiPanZoom  pz;
+        int          userPans = 0;
         pz.SetPanYBounds (-1000.0f, 1000.0f);
         pz.SetPanXBounds (-1000.0f, 1000.0f);
 
-        int  userPans = 0;
         pz.SetOnUserPanY ([&] { userPans++; });
 
         pz.PanByUser (10.0f, -48.0f);
@@ -421,9 +427,9 @@ public:
     TEST_METHOD (OnChange_FiresForZoomAndPan)
     {
         DxuiPanZoom  pz;
+        int          changes = 0;
         pz.SetPanYBounds (-1000.0f, 1000.0f);
 
-        int  changes = 0;
         pz.SetOnChange ([&] { changes++; });
 
         pz.OnMouse (Wheel (+1.0f, false, true));   // zoom
@@ -459,6 +465,7 @@ public:
     TEST_METHOD (CtrlWheelZoom_AnchorsCameraFramingNotContent)
     {
         DxuiPanZoom::Config  cfg;
+        int                  userPans = 0;
         cfg.userPanInstant = true;
         DxuiPanZoom  pz (cfg);
         pz.SetPanXBounds    (-1000.0f, 1000.0f);
@@ -467,7 +474,6 @@ public:
         pz.SetDragScale (2.0f, 3.0f);
         pz.SetViewCenter (100.0f, 100.0f);
 
-        int  userPans = 0;
         pz.SetOnUserPanY ([&] { userPans++; });
 
         pz.OnMouse (WheelAt (+1.0f, 100, 200));   // cursor 100px below center
@@ -513,6 +519,7 @@ public:
         {
             pz.OnMouse (Wheel (-1.0f));   // push panY toward +50, then overscroll
         }
+
         Settle (pz);
 
         Assert::AreEqual (50.0f, pz.PanY(),       0.001f);   // paper pinned at the limit
@@ -561,6 +568,7 @@ public:
         {
             pz.OnMouse (Wheel (-1.0f));   // into overscroll
         }
+
         Assert::IsTrue (pz.OverscrollY() > 0.0f);
 
         pz.SetPanYTarget (0.0f);          // follow mode reclaims the paper position
@@ -584,6 +592,7 @@ public:
         {
             pz.OnMouse (Wheel (-1.0f));
         }
+
         Settle (pz);
         Assert::AreEqual (50.0f, pz.PanY(),       0.001f);
         Assert::AreEqual (0.0f,  pz.OverscrollY(), 0.001f);
@@ -604,6 +613,7 @@ public:
         {
             pz.OnMouse (Wheel (-1.0f));
         }
+
         Assert::IsTrue (pz.OverscrollY() > 0.0f);
 
         pz.SnapPanY (0.0f);               // torn / replaced content

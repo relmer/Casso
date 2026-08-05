@@ -159,6 +159,24 @@ const wchar_t * MainMenu::GetMenuName (MainMenuId menu)
 //
 //  MainMenu::EmitParityMarkdown
 //
+//  Emits the menu-command parity table as Markdown, generated from the same
+//  entry table the menu itself is built from.
+//
+//  Generated rather than hand-written precisely because a hand-maintained
+//  table of commands drifts the moment anyone adds a menu item. Reading the
+//  live table means the document cannot disagree with the product -- and the
+//  header says so, so nobody edits the output.
+//
+//  Mnemonic ampersands are STRIPPED from both the menu and the label, since
+//  they are display markup for the menu bar and would read as literal
+//  ampersands in Markdown.
+//
+//  Separators are skipped: they are layout, not commands, and have no id,
+//  label, or accelerator to report.
+//
+//  Text is converted to UTF-8 because the output is a Markdown file; the menu
+//  itself is wide throughout.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string MainMenu::EmitParityMarkdown()
@@ -341,6 +359,7 @@ void MainMenu::Rebuild()
         for (const MainMenuCommandEntry & e : s_kEntries)
         {
             DxuiMenuBarSubitem  sub;
+            WORD                commandId = 0;
 
             if (e.menu != (MainMenuId) m)
             {
@@ -360,7 +379,7 @@ void MainMenu::Rebuild()
             sub.checkable   = e.checkable;
             sub.isSeparator = false;
 
-            WORD  commandId = e.commandId;
+            commandId = e.commandId;
 
             sub.dispatch = [this, commandId] ()
             {

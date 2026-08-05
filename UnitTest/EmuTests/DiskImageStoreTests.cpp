@@ -50,6 +50,7 @@ public:
         {
             raw[i] = static_cast<Byte> ((i * 31u + seed) & 0xFF);
         }
+
         return raw;
     }
 
@@ -127,15 +128,16 @@ public:
 
     TEST_METHOD (MountFromBytes_DskRunsNibblization)
     {
-        DiskImageStore   store;
-        vector<Byte>     raw = MakeDsk (0xA5);
+        DiskImageStore    store;
+        vector<Byte>      raw   = MakeDsk (0xA5);
+        DiskImage       * img   = nullptr;
 
         HRESULT   hr = store.MountFromBytes (kSlot, kDrive, "synthetic.dsk", DiskFormat::Dsk, raw);
 
         AssertSucceeded (hr);
         Assert::IsTrue (store.IsMounted (kSlot, kDrive));
 
-        DiskImage *  img = store.GetImage (kSlot, kDrive);
+        img = store.GetImage (kSlot, kDrive);
 
         Assert::IsNotNull (img);
         Assert::IsTrue   (img->GetTrackBitCount (0) > 0,
@@ -144,9 +146,10 @@ public:
 
     TEST_METHOD (MountFromBytes_WozNativeNoNibblization)
     {
-        DiskImageStore   store;
+        DiskImageStore    store;
+        vector<Byte>      woz;
+        DiskImage       * img   = nullptr;
         vector<Byte>     bits ((6400), 0xFF);
-        vector<Byte>     woz;
 
         AssertSucceeded (WozLoader::BuildSyntheticV2 (1, false, bits, 51200, woz));
 
@@ -154,7 +157,7 @@ public:
 
         AssertSucceeded (hr);
 
-        DiskImage *  img = store.GetImage (kSlot, kDrive);
+        img = store.GetImage (kSlot, kDrive);
 
         Assert::IsNotNull (img);
         Assert::IsTrue   (img->GetSourceFormat() == DiskFormat::Woz);
@@ -251,14 +254,15 @@ public:
     {
         ScopedFlushNotifyCapture  capture;
         DiskImageStore            store;
-        vector<Byte>              raw = MakeDsk (0);
+        vector<Byte>              raw     = MakeDsk (0);
+        HRESULT                   hr      = S_OK;
 
         store.SetFlushSink ([] (const string &, const vector<Byte> &) { return E_FAIL; });
 
         AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "boom.dsk", DiskFormat::Dsk, raw));
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);   // dirty
 
-        HRESULT   hr = store.Flush (kSlot, kDrive);
+        hr = store.Flush (kSlot, kDrive);
 
         AssertFailed (hr);
         Assert::AreEqual (1, s_flushNotifyCount, L"a failed flush must be surfaced, not swallowed");
@@ -390,13 +394,14 @@ public:
 
     TEST_METHOD (RemountReplacesPreviousImage)
     {
-        DiskImageStore   store;
-        vector<Byte>     raw1 = MakeDsk (0x11);
-        vector<Byte>     raw2 = MakeDsk (0x22);
+        DiskImageStore    store;
+        vector<Byte>      raw1  = MakeDsk (0x11);
+        vector<Byte>      raw2  = MakeDsk (0x22);
+        DiskImage       * first = nullptr;
 
         AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "a.dsk", DiskFormat::Dsk, raw1));
 
-        DiskImage *  first = store.GetImage (kSlot, kDrive);
+        first = store.GetImage (kSlot, kDrive);
         Assert::IsNotNull (first);
 
         AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "b.dsk", DiskFormat::Dsk, raw2));
@@ -462,6 +467,7 @@ public:
         vector<Byte>     woz        = MakeWoz();
         vector<Byte>     captured;
         const size_t     flippedBit = 200;
+        DiskImageStore   store2;
 
         store.SetFlushSink ([&] (const string &, const vector<Byte> & b) { captured = b; return S_OK; });
 
@@ -473,7 +479,6 @@ public:
 
         // Reload the flushed bytes: the write must survive the full WOZ
         // serialize -> file -> reload cycle (DiskImage::Serialize dispatch).
-        DiskImageStore   store2;
         AssertSucceeded (store2.MountFromBytes (kSlot, kDrive, "g.woz", DiskFormat::Woz, captured));
         Assert::AreEqual (Byte (0), store2.GetImage (kSlot, kDrive)->ReadBit (0, flippedBit),
             L"a guest write to a .woz must survive flush + reload through the store");
@@ -536,6 +541,7 @@ public:
         vector<Byte>     captured;
         bool             flushed    = false;
         const size_t     flippedBit = 200;
+        DiskImageStore   store2;
 
         store.SetFlushSink ([&] (const string &, const vector<Byte> & b)
         {
@@ -557,7 +563,6 @@ public:
         Assert::IsTrue (flushed, L"motor spin-down must persist dirty images via the store");
 
         // The write must have made it into the persisted bytes.
-        DiskImageStore   store2;
         AssertSucceeded (store2.MountFromBytes (6, 0, "m.woz", DiskFormat::Woz, captured));
         Assert::AreEqual (Byte (0), store2.GetImage (6, 0)->ReadBit (0, flippedBit),
             L"the write persisted at motor-off must survive reload");

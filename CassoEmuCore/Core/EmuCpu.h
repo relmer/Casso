@@ -90,6 +90,7 @@ public:
             m_cpu6502->StepOne();
         }
     }
+
     Byte             GetLastInstructionCycles () const                        { return m_cpu6502->GetLastInstructionCycles (); }
 
     // Interrupt-aware companion to StepOne; see Cpu6502::TryStepInterrupt.
@@ -99,7 +100,7 @@ public:
     void             EnableTrace     (size_t capacity)  { m_cpu6502->EnableTrace (capacity); }
     bool             IsTraceEnabled  () const           { return m_cpu6502->IsTraceEnabled (); }
     uint64_t         GetTraceCount   () const           { return m_cpu6502->GetTraceCount (); }
-    bool             DumpTraceToFile (const std::wstring & path,
+    HRESULT          DumpTraceToFile (const std::wstring & path,
                                       const std::function<void (uint64_t, uint64_t)> & onProgress) const
                                                         { return m_cpu6502->DumpTraceToFile (path, onProgress); }
 

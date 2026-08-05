@@ -61,6 +61,7 @@ void SettingsApplyController::SnapshotBaselines()
             m_baselineCrt[i] = m_prefs->crtByMode[i];
         }
     }
+
     if (m_state != nullptr)
     {
         m_baselineColorMode = (int) m_state->Prefs().colorMode;
@@ -151,18 +152,23 @@ void SettingsApplyController::StagePendingTheme (const std::string & name)
 
 void SettingsApplyController::ApplyThemeLive (const std::string & name)
 {
+    HRESULT  hr = S_OK;
+
+
+
     if (m_emuShell == nullptr || name.empty())
     {
         return;
     }
 
-    HRESULT  hr = m_emuShell->ApplyThemeLive (name);
+    hr = m_emuShell->ApplyThemeLive (name);
 
     IGNORE_RETURN_VALUE (hr, S_OK);
     if (m_onChromeThemeChanged)
     {
         m_onChromeThemeChanged();
     }
+
     m_pendingTheme     = name;   // OK still persists the chosen theme
     m_themeAppliedLive = true;
 }
@@ -244,12 +250,15 @@ bool SettingsApplyController::IsResetRequired() const
 
 void SettingsApplyController::CommitApply()
 {
-    SettingsApplyAdapter  adapter (*m_emuShell);
     JsonValue             currentJson;
     HRESULT               hr             = S_OK;
     std::string           pendingMachine;
     std::wstring          currentMachine;
     std::string           currentMachineNarrow;
+
+
+
+    SettingsApplyAdapter  adapter (*m_emuShell);
 
 
 
@@ -328,6 +337,7 @@ void SettingsApplyController::CommitApply()
             {
                 hrSave = m_prefs->Save (m_emuShell->AssetBaseDir(), *m_fs);
             }
+
             IGNORE_RETURN_VALUE (hrSave, S_OK);
         }
 
@@ -346,6 +356,7 @@ void SettingsApplyController::CommitApply()
         m_baselinePrinterAudioPanOverride = m_prefs->printerAudioPanOverride;
         m_baselinePrinterAudioPan         = m_prefs->printerAudioPan;
     }
+
     m_baselineColorMode = (int) m_state->Prefs().colorMode;
 
     // Apply the staged theme BEFORE any machine switch so the chrome
@@ -362,6 +373,7 @@ void SettingsApplyController::CommitApply()
         {
             m_onChromeThemeChanged();
         }
+
         m_pendingTheme.clear();
     }
 
@@ -387,11 +399,11 @@ void SettingsApplyController::CommitApply()
     {
         if (!pendingMachine.empty() && pendingMachine != currentMachineNarrow)
         {
-            (void) m_catalog->DoMachineSelect (pendingMachine);
+            m_catalog->DoMachineSelect (pendingMachine);
         }
         else if (adapter.ResetQueued() && !currentMachineNarrow.empty())
         {
-            (void) m_catalog->DoMachineSelect (currentMachineNarrow);
+            m_catalog->DoMachineSelect (currentMachineNarrow);
         }
     }
 }
@@ -435,6 +447,7 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
         m_prefs->printerAudioPanOverride = m_baselinePrinterAudioPanOverride;
         m_prefs->printerAudioPan         = m_baselinePrinterAudioPan;
     }
+
     if (m_emuShell != nullptr && m_baselineColorMode >= 0)
     {
         m_emuShell->SetColorModeLive (m_baselineColorMode);
@@ -453,6 +466,7 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
             m_onChromeThemeChanged();
         }
     }
+
     m_themeAppliedLive = false;
 
     preview.Reset();

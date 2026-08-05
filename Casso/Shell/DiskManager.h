@@ -98,18 +98,18 @@ public:
                                        bool              & outNoPermission);
 
 private:
-    std::vector<std::unique_ptr<MemoryDevice>>       & m_ownedDevices;
-    DiskImageStore                                   & m_diskStore;
+    std::vector<std::unique_ptr<MemoryDevice>>      & m_ownedDevices;
+    DiskImageStore                                  & m_diskStore;
     std::vector<std::unique_ptr<Disk2AudioSource>>  & m_diskAudioSources;
-    WasapiAudio                                      & m_wasapiAudio;
-    DriveWidgetController                            & m_driveWidgets;
-    std::array<DriveWidgetState, 2>                  & m_driveWidgetState;
-    std::array<DriveWidget, 2>                       & m_driveChrome;
-    CpuManager                                       & m_cpuManager;
-    const std::wstring                               & m_currentMachineName;
-    UserConfigStore                                  & m_userConfigStore;
-    IFileSystem                                      & m_fileSystem;
-    std::array<bool, 2>                              & m_userWriteProtect;
+    WasapiAudio                                     & m_wasapiAudio;
+    DriveWidgetController                           & m_driveWidgets;
+    std::array<DriveWidgetState, 2>                 & m_driveWidgetState;
+    std::array<DriveWidget, 2>                      & m_driveChrome;
+    CpuManager                                      & m_cpuManager;
+    const std::wstring                              & m_currentMachineName;
+    UserConfigStore                                 & m_userConfigStore;
+    IFileSystem                                     & m_fileSystem;
+    std::array<bool, 2>                             & m_userWriteProtect;
 
     std::array<uint64_t, 2>  m_lastReadNibbles      {};
     std::array<uint64_t, 2>  m_lastWriteNibbles     {};

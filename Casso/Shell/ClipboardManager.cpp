@@ -28,19 +28,19 @@ ClipboardManager::ClipboardManager (
     MemoryBus                & memoryBus,
     std::mutex               & cmdMutex,
     std::string              & pasteBuffer,
-    std::mutex               & fbMutex,
+    std::mutex               & framebufferMutex,
     std::vector<uint32_t>    & uiFramebuffer,
     int                        framebufferWidth,
     int                        framebufferHeight,
     AppleKeyboard          * * pKeyboardSlot)
-    : m_memoryBus         (memoryBus),
-      m_cmdMutex          (cmdMutex),
-      m_pasteBuffer       (pasteBuffer),
-      m_fbMutex           (fbMutex),
-      m_uiFramebuffer     (uiFramebuffer),
-      m_pKeyboardSlot     (pKeyboardSlot),
-      m_framebufferWidth  (framebufferWidth),
-      m_framebufferHeight (framebufferHeight)
+    : m_memoryBus          (memoryBus),
+      m_cmdMutex           (cmdMutex),
+      m_pasteBuffer        (pasteBuffer),
+      m_framebufferMutex   (framebufferMutex),
+      m_uiFramebuffer      (uiFramebuffer),
+      m_pKeyboardSlot      (pKeyboardSlot),
+      m_framebufferWidth   (framebufferWidth),
+      m_framebufferHeight  (framebufferHeight)
 {
 }
 
@@ -97,13 +97,14 @@ wchar_t ClipboardManager::DecodeScreenByte (Byte ch)
 
 std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
 {
-    constexpr int   kTextRows         = 24;
-    constexpr int   kTextCols         = 40;
-    constexpr Word  kTextBase         = 0x0400;
-    constexpr Word  kRowGroupStride   = 0x28;
+    constexpr int   kTextRows          = 24;
+    constexpr int   kTextCols          = 40;
+    constexpr Word  kTextBase          = 0x0400;
+    constexpr Word  kRowGroupStride    = 0x28;
     constexpr Word  kRowSubgroupStride = 0x80;
-    constexpr int   kRowsPerGroup     = 8;
-    constexpr int   kTextCols80       = 80;
+    constexpr int   kRowsPerGroup      = 8;
+    constexpr int   kTextCols80        = 80;
+    int             cols               = 0;
 
 
 
@@ -115,7 +116,7 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
     // (RD80VID, $C01F bit 7); otherwise the plain 40-column main page is read.
     bool  eighty = (auxRam != nullptr)
                 && ((m_memoryBus.ReadByte (kRd80Vid) & kHighBitMask) != 0);
-    int   cols   = eighty ? kTextCols80 : kTextCols;
+    cols = eighty ? kTextCols80 : kTextCols;
 
 
 
@@ -214,6 +215,23 @@ void ClipboardManager::CopyScreenText (HWND hwnd, const Byte * auxRam) const
 //
 //  CopyScreenshot
 //
+//  Copies the current emulator framebuffer to the clipboard as a CF_DIB.
+//
+//  CF_DIB is chosen over CF_BITMAP because it is device-independent: the
+//  bytes are self-describing and every paste target understands them, with no
+//  GDI object to create or leak.
+//
+//  Rows go out in REVERSE. A DIB with positive height is bottom-up by
+//  definition, while the framebuffer is stored top-down, so copying it
+//  straight through pastes the screen upside down.
+//
+//  The whole operation is done under the framebuffer lock, so the copy is one
+//  coherent frame rather than a tear across two.
+//
+//  Once the clipboard is open it MUST be closed on every path, which is why
+//  the two allocation failures fall through to the close rather than returning
+//  -- leaving the clipboard open locks it for the entire desktop.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ClipboardManager::CopyScreenshot (HWND hwnd)
@@ -235,7 +253,7 @@ void ClipboardManager::CopyScreenshot (HWND hwnd)
 
 
     {
-        std::lock_guard<std::mutex>  lock (m_fbMutex);
+        std::lock_guard<std::mutex>  lock (m_framebufferMutex);
 
         dataSize  = static_cast<size_t> (w) * h * kBytesPerPixel;
         totalSize = sizeof (BITMAPINFOHEADER) + dataSize;
@@ -292,13 +310,32 @@ void ClipboardManager::CopyScreenshot (HWND hwnd)
 //
 //  PasteFromClipboard
 //
+//  Queues clipboard text for delivery to the guest keyboard, translating it
+//  to what an Apple II can actually receive.
+//
+//  Three translations happen, all of them necessary:
+//
+//    LF dropped     the Apple II line terminator is CR alone, so a Windows
+//                   CRLF would deliver a spurious extra keystroke
+//    CR mapped      to $0D, the code the keyboard latch expects
+//    non-ASCII      dropped entirely -- there is no key for a character the
+//                   machine has no encoding for, and passing one through
+//                   would land as an arbitrary control code
+//
+//  Text is queued rather than typed. The guest reads the keyboard latch at its
+//  own pace, so delivery is paced by DrainPasteBuffer against the strobe; this
+//  function only fills the buffer.
+//
+//  The buffer is filled under the command mutex because it is drained on the
+//  CPU thread.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ClipboardManager::PasteFromClipboard (HWND hwnd)
 {
-    constexpr Byte  kCarriageReturn   = 0x0D;
-    constexpr wchar_t  kNewline       = L'\n';
-    constexpr wchar_t  kReturn        = L'\r';
+    constexpr Byte     kCarriageReturn = 0x0D;
+    constexpr wchar_t  kNewline        = L'\n';
+    constexpr wchar_t  kReturn         = L'\r';
 
 
 
@@ -356,6 +393,23 @@ void ClipboardManager::PasteFromClipboard (HWND hwnd)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DrainPasteBuffer
+//
+//  Feeds ONE queued character to the guest keyboard, and only once the guest
+//  has consumed the previous one.
+//
+//  The strobe is the handshake, and it is what makes paste work at all. The
+//  Apple II keyboard latch holds a single character; writing a second before
+//  the guest has read the first simply overwrites it, so a paste that ignored
+//  the strobe would deliver a few random characters out of a whole paragraph.
+//  Gating on IsStrobeClear paces the entire paste at exactly the speed the
+//  running program reads.
+//
+//  Called from the per-instruction path, so it is deliberately cheap: a null
+//  check, a strobe read, and a lock taken only when there is something to
+//  send.
+//
+//  A zero character doubles as "nothing to send" -- the paste path never
+//  queues a NUL, so it needs no separate empty flag.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

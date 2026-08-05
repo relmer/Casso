@@ -186,27 +186,34 @@ void DxuiFocusManager::Rebuild()
         std::sort (raw.begin(), raw.end(),
             [eps] (IDxuiControl * a, IDxuiControl * b) -> bool
             {
-                int  taIdx = a->TabIndex();
-                int  tbIdx = b->TabIndex();
-                bool aExpl = (taIdx >= 0);
-                bool bExpl = (tbIdx >= 0);
+                int   taIdx = a->TabIndex();
+                int   tbIdx = b->TabIndex();
+                bool  aExpl = (taIdx >= 0);
+                bool  bExpl = (tbIdx >= 0);
+                RECT  ra    = {};
+                RECT  rb    = {};
+                int   ba    = 0;
+                int   bb    = 0;
 
                 if (aExpl && bExpl)
                 {
                     return taIdx < tbIdx;
                 }
+
                 if (aExpl != bExpl)
                 {
                     return aExpl;  // explicit indices come first
                 }
-                RECT  ra = a->Bounds();
-                RECT  rb = b->Bounds();
-                int   ba = (int) ((float) ra.top / eps);
-                int   bb = (int) ((float) rb.top / eps);
+
+                ra = a->Bounds();
+                rb = b->Bounds();
+                ba = (int) ((float) ra.top / eps);
+                bb = (int) ((float) rb.top / eps);
                 if (ba != bb)
                 {
                     return ba < bb;
                 }
+
                 return ra.left < rb.left;
             });
 
@@ -225,6 +232,7 @@ void DxuiFocusManager::Rebuild()
                     break;
                 }
             }
+
             if (!stillThere)
             {
                 m_focused = nullptr;
@@ -374,6 +382,7 @@ bool DxuiFocusManager::MoveFocusSpatial (DxuiFocusKey arrow)
             {
                 continue;
             }
+
             rr = candidate->Bounds();
             cx = (rr.left + rr.right)  / 2;
             cy = (rr.top  + rr.bottom) / 2;
@@ -422,6 +431,26 @@ bool DxuiFocusManager::MoveFocusSpatial (DxuiFocusKey arrow)
 //
 //  HandleKey
 //
+//  Handles the navigation keys the focus manager owns: Tab, Shift+Tab, and the
+//  arrows.
+//
+//  Tab moves in TREE ORDER while the arrows move SPATIALLY, matching what
+//  users expect of each: Tab follows the declared sequence, an arrow goes
+//  toward the thing that looks that way on screen. They are separate walks
+//  because a tree that reads sensibly can still be laid out in a grid.
+//
+//  Escape is claimed ONLY while a scope is pushed. At the outermost level it
+//  belongs to the dialog as cancel or close, and swallowing it there would
+//  leave a dialog that cannot be dismissed from the keyboard.
+//
+//  Enter and Space are listed and deliberately do nothing. Activation belongs
+//  to the FOCUSED CONTROL through its own OnKey -- what they mean depends
+//  entirely on what has focus -- and naming them here documents that rather
+//  than leaving a reader to wonder where they went.
+//
+//  The return value reports whether focus actually moved, so a caller can fall
+//  through to its own handling when the walk declined.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiFocusManager::HandleKey (DxuiFocusKey key)
@@ -457,6 +486,7 @@ bool DxuiFocusManager::HandleKey (DxuiFocusKey key)
             PopScope();
             handled = true;
         }
+
         break;
 
     case DxuiFocusKey::Enter:

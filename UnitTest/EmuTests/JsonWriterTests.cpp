@@ -13,6 +13,24 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  JsonWriterTests
 //
+//  The writer: number formatting, key order, escaping, and pretty versus
+//  compact output.
+//
+//  The INTEGER-VALUED double is the case that matters. JSON has one numeric
+//  type, so a version stamp and a slot number both arrive as doubles -- writing
+//  them as floats would turn every `4` into `4.0` and churn every
+//  hand-maintained file the first time it was saved.
+//
+//  Key ORDER is asserted because these documents are read by people: the
+//  version sits first and related settings are grouped, and a writer that
+//  sorted would scatter both.
+//
+//  Round-tripping through the parser is checked as well as the literal text,
+//  since the two halves have to agree about escaping and about the extensions.
+//
+//  Non-finite values are asserted to FAIL rather than be written, since JSON
+//  cannot spell them and the output would be unreadable by anything.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (JsonWriterTests)
@@ -43,8 +61,12 @@ public:
 
     TEST_METHOD (Write_Null)
     {
+        string  out;
+
+
+
         JsonValue   v (nullptr);
-        string      out = JsonWriter::Write (v);
+        out = JsonWriter::Write (v);
         Assert::AreEqual (string ("null"), out);
     }
 
@@ -74,13 +96,18 @@ public:
 
     TEST_METHOD (Write_Float)
     {
+        string          out;
+        JsonValue       parsed;
+        JsonParseError  err;
+        HRESULT         hr     = S_OK;
+
+
+
         JsonValue  v (3.14);
-        string     out = JsonWriter::Write (v);
+        out = JsonWriter::Write (v);
 
         // Verify it round-trips, not exact text (formatting may vary).
-        JsonValue        parsed;
-        JsonParseError   err;
-        HRESULT          hr = JsonParser::Parse (out, parsed, err);
+        hr = JsonParser::Parse (out, parsed, err);
         AssertSucceeded (hr);
         Assert::AreEqual (3.14, parsed.GetNumber(), 1e-12);
     }
@@ -164,10 +191,10 @@ public:
     TEST_METHOD (Write_Object_Compact)
     {
         vector<pair<string, JsonValue>>  entries;
-        JsonValue                         v;
-        JsonWriter::Options               opts;
-        string                            out;
-        HRESULT                           hr;
+        JsonValue                        v;
+        JsonWriter::Options              opts;
+        string                           out;
+        HRESULT                          hr;
 
         entries.push_back ({ "a", JsonValue (1.0) });
         entries.push_back ({ "b", JsonValue (string ("two")) });
@@ -183,10 +210,10 @@ public:
     TEST_METHOD (Write_Object_Pretty)
     {
         vector<pair<string, JsonValue>>  entries;
-        JsonValue                         v;
-        JsonWriter::Options               opts;
-        string                            out;
-        HRESULT                           hr;
+        JsonValue                        v;
+        JsonWriter::Options              opts;
+        string                           out;
+        HRESULT                          hr;
 
         entries.push_back ({ "a", JsonValue (1.0) });
         v = JsonValue (move (entries));
@@ -231,10 +258,13 @@ public:
 
     TEST_METHOD (Write_Nan_Fails)
     {
-        JsonValue            v (std::nan (""));
         JsonWriter::Options  opts;
         string               out;
         HRESULT              hr;
+
+
+
+        JsonValue            v (std::nan (""));
 
         hr = JsonWriter::Write (v, opts, out);
         AssertFailed (hr);

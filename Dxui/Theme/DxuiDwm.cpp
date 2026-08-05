@@ -17,7 +17,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiDwm::GetOsBuild (DWORD & outMajor, DWORD & outBuild)
+bool DxuiDwm::TryGetOsBuild (DWORD & outMajor, DWORD & outBuild)
 {
     HMODULE              hNtDll  = nullptr;
     PFN_RtlGetVersion    pfn     = nullptr;
@@ -77,7 +77,7 @@ bool DxuiDwm::IsWindows11OrGreater()
 
     // Win11 reports major == 10, build >= 22000. A failed lookup leaves both
     // zero, which fails the comparison -- no separate guard needed.
-    (void) GetOsBuild (major, build);
+    (void) TryGetOsBuild (major, build);
 
     return major >= 10 && build >= 22000;
 }
@@ -104,7 +104,7 @@ bool DxuiDwm::IsWindows10_1809OrGreater()
 
     // Same shape as IsWindows11OrGreater: a failed lookup zeroes both outputs
     // and therefore reports "older".
-    (void) GetOsBuild (major, build);
+    (void) TryGetOsBuild (major, build);
 
     return major >= 10 && build >= 17763;
 }

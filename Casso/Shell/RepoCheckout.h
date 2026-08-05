@@ -111,6 +111,7 @@ namespace RepoCheckout
             {
                 return false;                            // child is shorter
             }
+
             if (_wcsicmp (ci->c_str(), ai->c_str()) != 0)
             {
                 return false;                            // component mismatch

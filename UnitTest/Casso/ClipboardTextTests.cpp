@@ -57,6 +57,7 @@ TEST_CLASS (ClipboardTextTests)
         {
             bus.SetReadPage (page, main.data() + page * 0x100);
         }
+
         main[kRow0 + 0] = Screen ('B');   // odd display column 1
         main[kRow0 + 1] = Screen ('D');   // odd display column 3
     }
@@ -65,14 +66,14 @@ TEST_CLASS (ClipboardTextTests)
     // reads them, but they must outlive the manager, so they live on the
     // (per-test) fixture rather than as shared statics.
     std::mutex             m_cmdMutex;
-    std::mutex             m_fbMutex;
+    std::mutex             m_framebufferMutex;
     std::string            m_pasteBuffer;
     std::vector<uint32_t>  m_uiFramebuffer;
     AppleKeyboard *        m_keyboardSlot = nullptr;
 
     ClipboardManager  MakeClipboard (MemoryBus & bus)
     {
-        return ClipboardManager (bus, m_cmdMutex, m_pasteBuffer, m_fbMutex,
+        return ClipboardManager (bus, m_cmdMutex, m_pasteBuffer, m_framebufferMutex,
                                  m_uiFramebuffer, 0, 0, &m_keyboardSlot);
     }
 
@@ -88,17 +89,19 @@ public:
     {
         MemoryBus          bus;
         std::vector<Byte>  main;
+        std::wstring       row;
         std::vector<Byte>  aux (0x10000, 0);
         Rd80VidStub        rd80 (/*on*/ true);
+        // Construction only wires references; nothing is read until
+        // BuildScreenText, so the manager can bind before the bus is set up.
+        ClipboardManager   clip = MakeClipboard (bus);
 
         MapMainTextPages (bus, main);
         bus.AddDevice (&rd80);
         aux[kRow0 + 0] = Screen ('A');   // even display column 0
         aux[kRow0 + 1] = Screen ('C');   // even display column 2
 
-        ClipboardManager  clip = MakeClipboard (bus);
-
-        std::wstring  row = FirstRow (clip.BuildScreenText (aux.data()));
+        row = FirstRow (clip.BuildScreenText (aux.data()));
 
         Assert::AreEqual (std::wstring (L"ABCD"), row,
                           L"80-column scrape must interleave aux(even)+main(odd)");
@@ -108,15 +111,15 @@ public:
     {
         MemoryBus          bus;
         std::vector<Byte>  main;
+        std::wstring       row;
         Rd80VidStub        rd80 (/*on*/ false);
+        ClipboardManager   clip = MakeClipboard (bus);
 
         MapMainTextPages (bus, main);
         bus.AddDevice (&rd80);
 
-        ClipboardManager  clip = MakeClipboard (bus);
-
         // No aux bank (nullptr) => plain 40-column main-page read.
-        std::wstring  row = FirstRow (clip.BuildScreenText (nullptr));
+        row = FirstRow (clip.BuildScreenText (nullptr));
 
         Assert::AreEqual (std::wstring (L"BD"), row,
                           L"40-column scrape reads the main text page unchanged");
@@ -126,8 +129,10 @@ public:
     {
         MemoryBus          bus;
         std::vector<Byte>  main;
+        std::wstring       row;
         std::vector<Byte>  aux (0x10000, 0);
         Rd80VidStub        rd80 (/*on*/ false);
+        ClipboardManager   clip = MakeClipboard (bus);
 
         // Aux bank is wired, but the 80-column display is OFF (RD80VID clear),
         // so the scrape must not fold aux memory in.
@@ -136,9 +141,7 @@ public:
         aux[kRow0 + 0] = Screen ('A');
         aux[kRow0 + 1] = Screen ('C');
 
-        ClipboardManager  clip = MakeClipboard (bus);
-
-        std::wstring  row = FirstRow (clip.BuildScreenText (aux.data()));
+        row = FirstRow (clip.BuildScreenText (aux.data()));
 
         Assert::AreEqual (std::wstring (L"BD"), row,
                           L"RD80VID clear must gate off the aux interleave");

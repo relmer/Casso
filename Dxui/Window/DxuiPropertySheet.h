@@ -130,9 +130,9 @@ protected:
 
 
 private:
-    void  RegisterPage        (DxuiPropertyPage * page);
-    void  RefreshApplyEnabled ();
-    bool  ApplyAllDirtyPages  ();
+    void  RegisterPage          (DxuiPropertyPage * page);
+    void  RefreshApplyEnabled   ();
+    bool  TryApplyAllDirtyPages ();
 
     // Present-page <-> tab-position mapping. A page is "present" when its
     // m_present flag is set; only present pages get a tab, so a page index is

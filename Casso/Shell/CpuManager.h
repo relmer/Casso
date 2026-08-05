@@ -68,7 +68,7 @@ public:
     bool    IsRunning      () const noexcept;
     bool    IsPaused       () const noexcept;
     void    SetPaused      (bool paused) noexcept;
-    bool    TogglePaused   () noexcept;
+    void    TogglePaused   () noexcept;
 
     SpeedMode  GetSpeedMode  () const noexcept;
     void       SetSpeedMode  (SpeedMode mode) noexcept;

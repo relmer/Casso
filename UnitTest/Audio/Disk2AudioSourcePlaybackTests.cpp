@@ -39,8 +39,8 @@ public:
     TEST_METHOD (MotorRunning_wrapsAtBufferEnd)
     {
         Disk2AudioSource   src;
-        vector<float>      motor (4);
         float              out[16] = {};
+        vector<float>      motor (4);
 
         motor[0] = 1.0f;
         motor[1] = 2.0f;
@@ -78,8 +78,8 @@ public:
     TEST_METHOD (OnHeadStep_then_GeneratePCM_outputsScaledStepSampleOnce_thenZero)
     {
         Disk2AudioSource   src;
-        vector<float>      step (4, 0.5f);
         float              out[8] = {};
+        vector<float>      step (4, 0.5f);
 
         src.SetSampleBufferForTest (L"HeadStep", std::move (step));
         src.OnHeadStep (1);
@@ -90,6 +90,7 @@ public:
         {
             Assert::AreEqual (0.5f * Disk2AudioSource::kHeadVolume, out[i], 1e-6f);
         }
+
         for (int i = 4; i < 8; i++)
         {
             Assert::AreEqual (0.0f, out[i], 1e-6f);
@@ -180,6 +181,7 @@ public:
         {
             Assert::AreEqual (0.5f * Disk2AudioSource::kHeadVolume, out[i], 1e-6f);
         }
+
         for (int i = 4; i < 8; i++)
         {
             Assert::AreEqual (0.0f, out[i], 1e-6f);

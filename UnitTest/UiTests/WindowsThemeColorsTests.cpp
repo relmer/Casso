@@ -39,9 +39,9 @@ namespace WindowsThemeColorsTests
 
         TEST_METHOD (CloseButton_Glyph_Hover_Opaque_Pressed_Slightly_Faded)
         {
-            DxuiWindowsThemeColors &  sys = DxuiWindowsThemeColors::Instance();
-            uint32_t              hoverAlpha   = (sys.CloseButtonGlyphHoverArgb()   >> 24) & 0xFFu;
-            uint32_t              pressedAlpha = (sys.CloseButtonGlyphPressedArgb() >> 24) & 0xFFu;
+            DxuiWindowsThemeColors  & sys          = DxuiWindowsThemeColors::Instance();
+            uint32_t                  hoverAlpha   = (sys.CloseButtonGlyphHoverArgb()   >> 24) & 0xFFu;
+            uint32_t                  pressedAlpha = (sys.CloseButtonGlyphPressedArgb() >> 24) & 0xFFu;
 
 
             Assert::AreEqual ((unsigned long) 0xFFu, (unsigned long) hoverAlpha);
@@ -61,9 +61,9 @@ namespace WindowsThemeColorsTests
 
         TEST_METHOD (Caption_Hover_Pressed_Tokens_Match_Active_Mode)
         {
-            DxuiWindowsThemeColors &  sys = DxuiWindowsThemeColors::Instance();
-            uint32_t              expectedHover   = sys.IsDarkMode() ? 0x0FFFFFFFu : 0x09000000u;
-            uint32_t              expectedPressed = sys.IsDarkMode() ? 0x0AFFFFFFu : 0x06000000u;
+            DxuiWindowsThemeColors  & sys             = DxuiWindowsThemeColors::Instance();
+            uint32_t                  expectedHover   = sys.IsDarkMode() ? 0x0FFFFFFFu : 0x09000000u;
+            uint32_t                  expectedPressed = sys.IsDarkMode() ? 0x0AFFFFFFu : 0x06000000u;
 
 
             Assert::AreEqual ((unsigned long) expectedHover,

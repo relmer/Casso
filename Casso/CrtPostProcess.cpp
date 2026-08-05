@@ -43,6 +43,24 @@ static constexpr const char *  s_kpszVertexShaderSrc =
 //
 //  LoadShaderSource
 //
+//  Points at one HLSL source blob embedded in the executable as an RT_RCDATA
+//  resource.
+//
+//  Shaders ship as source rather than bytecode so they can be edited and
+//  recompiled without a separate build step, and they are embedded rather than
+//  shipped as files so the executable cannot be run against a mismatched or
+//  missing .hlsl.
+//
+//  No copy is made and nothing is freed. Module resources are mapped for the
+//  lifetime of the loaded module, so LockResource yields a pointer that stays
+//  valid -- and there is no matching UnlockResource to pair with. The returned
+//  span therefore aliases into the image, which is safe exactly because the
+//  caller compiles from it immediately.
+//
+//  Every failure asserts. All of these are load-time facts about our own
+//  binary: a missing shader resource means the build is broken, not that the
+//  user did something.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CrtPostProcess::LoadShaderSource (int resourceId, ShaderSource * outSource)
@@ -149,12 +167,14 @@ CrtParams MakeCrtParams (
             scanEn  = themeDefaults->scanlinesEnabled;
             scanInt = themeDefaults->scanlinesIntensity;
         }
+
         if (themeDefaults->hasBloom)
         {
             bloomEn = themeDefaults->bloomEnabled;
             bloomR  = themeDefaults->bloomRadius;
             bloomS  = themeDefaults->bloomStrength;
         }
+
         if (themeDefaults->hasColorBleed)
         {
             bleedEn = themeDefaults->colorBleedEnabled;
@@ -326,6 +346,24 @@ CrtPostProcess::~CrtPostProcess()
 //
 //  CompilePixelShader
 //
+//  Loads one embedded HLSL blob and compiles it to a pixel shader.
+//
+//  Compilation happens at RUNTIME rather than at build time, which is the
+//  trade that makes the CRT pipeline editable: a shader can be changed and
+//  recompiled without a build step, at the cost of a few milliseconds during
+//  Initialize.
+//
+//  sourceName is passed to the compiler purely so its diagnostics name the
+//  shader; without it, an error in any of the nine passes reports against an
+//  anonymous blob and says nothing about which one failed.
+//
+//  ps_4_0 is the target, matching the feature level the renderer requires;
+//  nothing in these shaders needs a later model, and asking for one would
+//  narrow the hardware that runs.
+//
+//  Everything asserts, for the same reason as LoadShaderSource: a shader that
+//  will not compile is a broken build.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CrtPostProcess::CompilePixelShader (
@@ -378,6 +416,30 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Initialize
+//
+//  Builds every size-independent GPU object the CRT chain needs: the shared
+//  vertex shader, the nine pixel shaders, the full-screen quad, the constant
+//  buffer, and the sampler and blend states.
+//
+//  Only size-INDEPENDENT resources live here; the render targets that scale
+//  with the window are built by EnsureSize. Splitting them that way is what
+//  lets a resize recreate three textures instead of recompiling nine shaders.
+//
+//  One vertex shader serves all nine passes because every pass is the same
+//  full-screen quad -- the passes differ only in the pixel shader, so the
+//  geometry, input layout, and index buffer are created once and shared.
+//
+//  The constant buffer is DYNAMIC because CrtParams is rewritten every frame
+//  from the UI thread (TryPresentUiFrame pushes the live slider values); a default-
+//  usage buffer would have to be recreated or staged for each update.
+//
+//  The sampler clamps rather than wraps, so a bloom or color-bleed tap that
+//  reaches past an edge repeats the edge pixel instead of wrapping in content
+//  from the opposite side of the screen.
+//
+//  Blending is disabled: the chain is internally opaque, and the final
+//  composite is meant to OVERWRITE the cleared-black letterbox bars rather
+//  than blend with them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -497,6 +559,27 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EnsureSize
+//
+//  Recreates the size-dependent render targets when the output size changes.
+//  A call at the current size is a no-op, so this is cheap to call every frame.
+//
+//  Everything is UNBOUND from the pipeline before the old textures are
+//  released, and that is not tidiness. D3D11 keeps internal references to
+//  bound RTVs and SRVs, so releasing the ComPtrs while they are still bound
+//  leaves the old full-window textures alive on the GPU until the next rebind.
+//  During a rapid drag-resize that stacks up VRAM and command-buffer pressure
+//  and is a well-known trigger for DXGI_ERROR_DRIVER_INTERNAL_ERROR. Unbinding
+//  first makes the releases actually free the memory.
+//
+//  The main and bloom targets are PING-PONG pairs, because a pass cannot read
+//  and write the same texture: each of the nine passes reads one and writes
+//  the other, and they swap.
+//
+//  Persistence is a single texture, not a pair, and is the one thing here that
+//  carries state ACROSS frames -- it holds the previous frame's pre-gamma
+//  color so the phosphor trail can decay into the current one. It is marked
+//  unprimed on every resize, since its contents describe a differently-sized
+//  image and blending them would smear the first frame after a resize.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -634,14 +717,14 @@ void CrtPostProcess::DrawFullscreen (
     int                        viewportH,
     const RECT               * subViewport)
 {
-    UINT                       stride        = sizeof (CrtVertex);
-    UINT                       offset        = 0;
-    float                      clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-    D3D11_VIEWPORT             vp            = {};
-    ID3D11ShaderResourceView * srvs[kMaxBoundPsSrvSlots]     = { srv0, srv1 };
-    ID3D11ShaderResourceView * nullSrvs[kMaxBoundPsSrvSlots] = {};
-    ID3D11Buffer             * cbs[1]        = { m_constantBuffer.Get() };
-    float                      blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    UINT                        stride                        = sizeof (CrtVertex);
+    UINT                        offset                        = 0;
+    float                       clearColor[4]                 = { 0.0f, 0.0f, 0.0f, 1.0f };
+    D3D11_VIEWPORT              vp                            = {};
+    ID3D11ShaderResourceView  * srvs[kMaxBoundPsSrvSlots]     = { srv0, srv1 };
+    ID3D11ShaderResourceView  * nullSrvs[kMaxBoundPsSrvSlots] = {};
+    ID3D11Buffer              * cbs[1]                        = { m_constantBuffer.Get() };
+    float                       blendFactor[4]                = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 
     // Unbind RTs first so a previously-bound RT isn't simultaneously bound
@@ -662,6 +745,7 @@ void CrtPostProcess::DrawFullscreen (
         vp.Width    = (float) viewportW;
         vp.Height   = (float) viewportH;
     }
+
     vp.MaxDepth = 1.0f;
     m_context->RSSetViewports (1, &vp);
 
@@ -690,6 +774,38 @@ void CrtPostProcess::DrawFullscreen (
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Process
+//
+//  Runs the CRT chain: emulator framebuffer in, composited image on the back
+//  buffer out.
+//
+//  Pass order is a rendering decision, not an arbitrary sequence:
+//
+//    brightness    always runs. It applies contrast AND is the only pass that
+//                  knows the letterbox viewport rect, so it is what puts the
+//                  image in the right place and leaves the bars black
+//    bloom         3 passes -- horizontal blur, vertical blur, composite
+//    color bleed   1 pass
+//    persistence   the phosphor trail
+//    scanlines     1 pass
+//    gamma         1 pass
+//    copy          to the back buffer
+//
+//  Persistence MUST run BEFORE scanlines. It combines with max(), which only
+//  ever brightens, so running it afterwards would erase the scanline darkening
+//  every frame and the scanlines would simply vanish.
+//
+//  On the first frame after a resize the persistence texture holds nothing
+//  usable, so the shader is skipped and the frame is merely CAPTURED -- giving
+//  the next frame a prior to decay from instead of blending against garbage.
+//
+//  Every optional pass is skipped when its parameter is zero, which is both a
+//  real GPU saving on presets that disable it and the difference between a
+//  toggle that turns an effect OFF and one that merely sets it to a strength
+//  that still costs a full-screen pass. Gamma uses a small epsilon around 1.0
+//  because a pow of 1 is a no-op and the UI slider steps by 0.1.
+//
+//  The ping-pong index is flipped only by passes that actually ran, so the
+//  final copy always reads whichever target genuinely holds the newest image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -780,6 +896,7 @@ HRESULT CrtPostProcess::Process (
                             nullptr);
             cur = 1 - cur;
         }
+
         if (m_persistenceTex && m_ppMainTex[cur])
         {
             m_context->CopyResource (m_persistenceTex.Get(), m_ppMainTex[cur].Get());
@@ -830,6 +947,18 @@ Error:
 //
 //  Shutdown
 //
+//  Releases every GPU resource and returns the object to its pre-Initialize
+//  state.
+//
+//  Explicitly re-initializing the size and the primed flag is what makes this
+//  more than a destructor: the object is REUSED across a device reset, so a
+//  later Initialize must not find a stale size that would make EnsureSize
+//  decide the targets it no longer owns are still the right ones.
+//
+//  The device and context pointers are cleared because they are borrowed, not
+//  owned; holding them past shutdown would outlive the renderer that lent
+//  them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CrtPostProcess::Shutdown()
@@ -847,6 +976,7 @@ void CrtPostProcess::Shutdown()
         m_ppBloomRtv[i].Reset();
         m_ppBloomTex[i].Reset();
     }
+
     m_persistenceSrv.Reset();
     m_persistenceRtv.Reset();
     m_persistenceTex.Reset();

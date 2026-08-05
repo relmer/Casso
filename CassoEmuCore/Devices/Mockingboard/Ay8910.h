@@ -58,8 +58,8 @@ public:
 
     // Amplitude register: bits 0..3 select a fixed level, bit 4 selects
     // the envelope level instead.
-    static constexpr Byte    kAmpLevelMask = 0x0F;
-    static constexpr Byte    kAmpUseEnvelope = 0x10;
+    static constexpr Byte  kAmpLevelMask   = 0x0F;
+    static constexpr Byte  kAmpUseEnvelope = 0x10;
 
     // Envelope shape (R13) control bits.
     static constexpr Byte    kEnvHold      = 0x01;
@@ -98,7 +98,7 @@ public:
 
     // Inspectors for tests.
     Byte     GetLatchedAddress () const { return m_latched; }
-    bool     GetToneState  (int channel) const { return m_toneState[channel] != 0; }
+    bool     TryGetToneState  (int channel) const { return m_toneState[channel] != 0; }
     uint32_t GetNoiseLfsr  () const { return m_lfsr; }
     int      GetEnvLevel   () const { return m_envLevel; }
     bool     IsEnvHolding  () const { return m_envHolding; }
@@ -129,8 +129,8 @@ private:
         0.35355339f, 0.50000000f, 0.70710678f, 1.00000000f
     };
 
-    Byte     m_regs[kRegCount] = {};
-    Byte     m_latched = 0;
+    Byte  m_regs[kRegCount] = {};
+    Byte  m_latched         = 0;
 
     double   m_clockHz        = kDefaultClockHz;
     uint32_t m_sampleRate     = 0;

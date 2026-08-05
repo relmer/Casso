@@ -31,8 +31,11 @@ vector<fs::path> PathResolver::BuildSearchPaths (
     const fs::path & /*exeDir*/,
     const fs::path & /*cwd*/)
 {
-    fs::path          localAppData = GetLocalAppDataDir (L"Casso");
     vector<fs::path>  searchBases;
+
+
+
+    fs::path          localAppData = GetLocalAppDataDir (L"Casso");
 
 
 
@@ -186,12 +189,12 @@ fs::path PathResolver::GetWorkingDirectory()
 
 fs::path PathResolver::GetLocalAppDataDir (const std::wstring & appName)
 {
-    HRESULT      hr      = S_OK;
-    PWSTR        pszPath = nullptr;
-    fs::path     result;
-    error_code   ec;
-    wchar_t      env[MAX_PATH] = {};
-    DWORD        envLen  = 0;
+    HRESULT     hr            = S_OK;
+    PWSTR       pszPath       = nullptr;
+    fs::path    result;
+    error_code  ec;
+    wchar_t     env[MAX_PATH] = {};
+    DWORD       envLen        = 0;
 
 
 
@@ -239,6 +242,22 @@ fs::path PathResolver::GetLocalAppDataDir (const std::wstring & appName)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MakeExeRelativePath
+//
+//  Rewrites a path as relative to the executable when it lives under the exe
+//  directory, so a persisted path survives the folder being moved.
+//
+//  A path that ESCAPES via ".." stays absolute. Baking a climb-out into a
+//  prefs file is worse than an absolute path: it breaks the moment the install
+//  moves, and it breaks silently, resolving to some unrelated location rather
+//  than failing.
+//
+//  Every failure yields the input unchanged, which is why result starts there
+//  and only a clean relativization overwrites it. An absolute path always
+//  works; a wrong relative one does not.
+//
+//  fs::relative is used with an error_code rather than the throwing overload,
+//  since a path on a different volume has no relative form at all and that is
+//  an ordinary case here, not an exception.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

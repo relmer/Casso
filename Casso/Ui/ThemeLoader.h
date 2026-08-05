@@ -86,10 +86,10 @@ struct LoadedTheme
     bool                isBuiltIn            = false; // $cassoBuiltIn
     bool                useMicaBackdrop      = false;
 
-    std::wstring        directoryPath;               // absolute, no trailing sep
-    ThemeCrtDefaults    crtDefaults;
-    JsonValue           uiTokens;
-    ThemeDriveVisualProfile driveVisualProfile;
+    std::wstring             directoryPath;   // absolute, no trailing sep
+    ThemeCrtDefaults         crtDefaults;
+    JsonValue                uiTokens;
+    ThemeDriveVisualProfile  driveVisualProfile;
 
     // Optional per-machine overrides keyed by the machine's human-readable
     // display name ("Apple ][", "Apple ][ plus", "Apple //e", "Apple //c",
@@ -150,7 +150,7 @@ public:
 private:
     static std::wstring  Utf8ToWide       (const std::string & s);
     static std::wstring  StripTrailingSep (const std::wstring & p);
-    static bool          GetBoolOpt       (const JsonValue & obj, const std::string & key, bool fallback);
+    static bool          TryGetBoolOpt       (const JsonValue & obj, const std::string & key, bool fallback);
     static double        GetNumberOpt     (const JsonValue & obj, const std::string & key, double fallback);
     static std::string   GetStringOpt     (const JsonValue & obj, const std::string & key, const std::string & fallback);
 };

@@ -450,16 +450,18 @@ void Apple2eMmu::ResolveMain02_BF()
 
     for (int page = kMain02_BFFirst; page <= kMain02_BFLast; page++)
     {
-        bool  inText  = (page >= kText04_07First  && page <= kText04_07Last);
-        bool  inHires = (page >= kHires20_3FFirst && page <= kHires20_3FLast);
+        bool    inText   = (page >= kText04_07First  && page <= kText04_07Last);
+        bool    inHires  = (page >= kHires20_3FFirst && page <= kHires20_3FLast);
+        Byte  * readPtr  = nullptr;
+        Byte  * writePtr = nullptr;
 
         if (m_store80 && (inText || inHires))
         {
             continue;
         }
 
-        Byte *  readPtr  = SelectMainRead  (page);
-        Byte *  writePtr = SelectMainWrite (page);
+        readPtr = SelectMainRead  (page);
+        writePtr = SelectMainWrite (page);
 
         m_bus->SetReadPage  (page, readPtr);
         m_bus->SetWritePage (page, writePtr);

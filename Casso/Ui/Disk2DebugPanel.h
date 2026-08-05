@@ -201,22 +201,22 @@ private:
     DxuiPopupMenu                                    m_columnMenu;
     DxuiFocusManager                                 m_focusMgr;
 
-    FilterState                           m_filter;
-    Disk2EventRing                       m_ring;
-    std::deque<Disk2EventDisplay>        m_events;
-    std::vector<size_t>                   m_filteredIndices;
-    std::atomic<uint32_t>                 m_droppedSinceLastDrain = 0;
-    std::atomic<bool>                     m_resetAnchorPending    = false;
-    std::atomic<int64_t>                  m_pendingAnchorTicks    = 0;
-    const uint64_t                      * m_cycleCounter = nullptr;
-    std::chrono::steady_clock::time_point  m_uptimeAnchor;
-    bool                                  m_paused          = false;
-    bool                                  m_multiController = false;
-    int                                   m_currentDrive    = 0;
-    int                                   m_sortColumn      = -1;
-    bool                                  m_sortDescending  = false;
-    bool                                  m_trackEditValid  = true;
-    bool                                  m_sectorEditValid = true;
+    FilterState                              m_filter;
+    Disk2EventRing                           m_ring;
+    std::deque<Disk2EventDisplay>            m_events;
+    std::vector<size_t>                      m_filteredIndices;
+    std::atomic<uint32_t>                    m_droppedSinceLastDrain = 0;
+    std::atomic<bool>                        m_resetAnchorPending    = false;
+    std::atomic<int64_t>                     m_pendingAnchorTicks    = 0;
+    const uint64_t                         * m_cycleCounter          = nullptr;
+    std::chrono::steady_clock::time_point    m_uptimeAnchor;
+    bool                                     m_paused                = false;
+    bool                                     m_multiController       = false;
+    int                                      m_currentDrive          = 0;
+    int                                      m_sortColumn            = -1;
+    bool                                     m_sortDescending        = false;
+    bool                                     m_trackEditValid        = true;
+    bool                                     m_sectorEditValid       = true;
 
     // Selection/focus is tracked by the selected event's stable seq (see
     // Disk2EventDisplay::seq), not by a row or deque index, so a sort

@@ -56,10 +56,10 @@ struct StartupAssetEntry
     std::wstring                      displayName;        // tree leaf ("Apple //e ROM")
     std::wstring                      kindLabel;          // e.g. "ROM" / "Drive audio"
     std::wstring                      source;             // human-readable origin ("AppleWin (GitHub)")
-    std::vector<std::filesystem::path>  destPaths;        // every file produced (for cleanup)
-    std::uint64_t                     expectedBytes = 0;  // 0 = unknown
-    bool                              selectable    = true;   // user can toggle the checkbox?
-    bool                              selected      = true;   // initial / current checkbox state
+    std::vector<std::filesystem::path>  destPaths;   // every file produced (for cleanup)
+    std::uint64_t                       expectedBytes = 0;   // 0 = unknown
+    bool                                selectable    = true;   // user can toggle the checkbox?
+    bool                                selected      = true;   // initial / current checkbox state
 
     // Performs the entire fetch (HTTP + decode + write). MUST update
     // `bytesDone` as bytes are received and MUST check `cancel`
@@ -88,6 +88,7 @@ struct StartupDownloadSet
                 return true;
             }
         }
+
         return false;
     }
 };

@@ -41,9 +41,9 @@ public:
 
     DxuiTreeView  MakeFlatTree()
     {
-        DxuiTreeView                  tv;
-        std::vector<DxuiTreeNode>     nodes;
-        RECT                      rect = { 0, 0, 200, 220 };
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  nodes;
+        RECT                       rect  = { 0, 0, 200, 220 };
 
         nodes.push_back (MakeNode (L"speaker",  DxuiTreeCapabilityFlag::Required,       true));
         nodes.push_back (MakeNode (L"joystick", DxuiTreeCapabilityFlag::Optional,       false));
@@ -82,10 +82,10 @@ public:
 
     TEST_METHOD (Click_OnOptionalCheckbox_Toggles)
     {
-        DxuiTreeView  tv     = MakeFlatTree();
-        int       x      = 20;   // depth=0, twisty 0..16, checkbox 16..32
-        int       y      = 25;
-        bool      checkedAfter = false;
+        DxuiTreeView  tv           = MakeFlatTree();
+        int           x            = 20;   // depth=0, twisty 0..16, checkbox 16..32
+        int           y            = 25;
+        bool          checkedAfter = false;
 
         Assert::IsTrue (tv.OnLButtonDown (x, y));
         Assert::IsTrue (tv.OnLButtonUp   (x, y));
@@ -97,10 +97,10 @@ public:
 
     TEST_METHOD (Click_OnRequiredCheckbox_NoToggle)
     {
-        DxuiTreeView  tv = MakeFlatTree();
-        int       x  = 20;
-        int       y  = 5;
-        bool      beforeChecked = tv.NodeAt (0)->checked;
+        DxuiTreeView  tv            = MakeFlatTree();
+        int           x             = 20;
+        int           y             = 5;
+        bool          beforeChecked = tv.NodeAt (0)->checked;
 
         Assert::IsTrue (tv.OnLButtonDown (x, y));
         Assert::IsTrue (tv.OnLButtonUp   (x, y));
@@ -112,8 +112,8 @@ public:
     TEST_METHOD (Click_OnPlatformLockedCheckbox_NoToggle)
     {
         DxuiTreeView  tv = MakeFlatTree();
-        int       x  = 20;
-        int       y  = 45;
+        int           x  = 20;
+        int           y  = 45;
 
         Assert::IsTrue (tv.OnLButtonDown (x, y));
         Assert::IsTrue (tv.OnLButtonUp   (x, y));
@@ -158,11 +158,11 @@ public:
 
     TEST_METHOD (ParentChild_ExpandCollapsedNotShowChildren)
     {
-        DxuiTreeView                  tv;
-        std::vector<DxuiTreeNode>     nodes;
-        DxuiTreeNode                  parent;
-        DxuiTreeNode                  child;
-        RECT                      rect = { 0, 0, 200, 200 };
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  nodes;
+        DxuiTreeNode               parent;
+        DxuiTreeNode               child;
+        RECT                       rect   = { 0, 0, 200, 200 };
 
         child.label  = L"sub";
         child.checked = true;

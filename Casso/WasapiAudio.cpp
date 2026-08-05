@@ -61,6 +61,28 @@ WasapiAudio::~WasapiAudio()
 //
 //  Initialize
 //
+//  Opens the default render endpoint in shared mode, preferring 32-bit float
+//  stereo and falling back to whatever the device actually offers.
+//
+//  STEREO is requested rather than mono because the drive-audio mixer carries
+//  per-drive panning (spec 005, FR-010 / FR-012) -- two drives on one channel
+//  lose the separation that makes them distinguishable by ear.
+//
+//  The fallback to the device's own mix format is what keeps unusual endpoints
+//  working. A device that rejects float stereo still gets audio, and
+//  SubmitFrame's downmix path handles a mono result.
+//
+//  The sample rate is TAKEN from the mix format rather than requested, since
+//  shared mode resamples anything else and asking for a rate the device does
+//  not use only adds a conversion.
+//
+//  SHARED mode is deliberate: exclusive mode would give lower latency but take
+//  the endpoint away from every other application, which is not a trade an
+//  emulator should make on the user's behalf.
+//
+//  A 100 ms buffer is long enough to absorb a scheduling hiccup without an
+//  audible dropout and short enough that speaker latency stays imperceptible.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT WasapiAudio::Initialize()
@@ -200,6 +222,30 @@ void WasapiAudio::Shutdown()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SubmitFrame
+//
+//  Generates one slice of audio -- speaker, drives, Mockingboard -- mixes it,
+//  and drains as much as the endpoint will currently take.
+//
+//  Generation and submission are DECOUPLED through a pending buffer, because
+//  the two run at unrelated rates: the emulator produces samples per CPU
+//  slice, while the endpoint accepts them only as its buffer drains. Anything
+//  not written now is carried to the next call.
+//
+//  That buffer is capped at roughly three frames. If the endpoint stalls or
+//  the emulator runs ahead at Maximum speed, unbounded growth would turn into
+//  both a memory leak and seconds of audio latency; dropping generation
+//  instead keeps the sound current, which is what matters for an emulator.
+//
+//  Everything is mixed as interleaved STEREO regardless of the device's actual
+//  channel count, and mono devices downmix at drain time. One internal format
+//  means the mixers need no per-device variants.
+//
+//  The speaker is centered with an EQUAL-POWER factor rather than being copied
+//  to both channels at full amplitude, so it does not sound louder than the
+//  panned drive sources beside it.
+//
+//  Scratch buffers are grown and reused rather than allocated per call, since
+//  this runs on the CPU thread for every slice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -175,8 +175,10 @@ HRESULT PrinterAudioSource::LoadSounds (const wchar_t * dir, uint32_t targetSamp
     // first; declaring the lambda has no side effect to guard against.
     auto  decode = [&] (const wchar_t * name, vector<float> & dst)
     {
+        HRESULT  hrDecode = S_OK;
+
         wstring  path     = wstring (dir) + L"\\" + name;
-        HRESULT  hrDecode = DecodeToMonoFloat (path.c_str(), targetSampleRate, dst);
+        hrDecode = DecodeToMonoFloat (path.c_str(), targetSampleRate, dst);
 
         if (FAILED (hrDecode))
         {
@@ -292,9 +294,13 @@ void PrinterAudioSource::PlayFormFeed (float unusedPage01)
 
 void PrinterAudioSource::PlayTearOff()
 {
+    int  pick = 0;
+
+
+
     // Cheap LCG; UI-thread only, so no synchronization needed on m_rng.
     m_rng = m_rng * 1664525u + 1013904223u;
-    int  pick = (int) ((m_rng >> 24) % (uint32_t) kNumTears);
+    pick = (int) ((m_rng >> 24) % (uint32_t) kNumTears);
 
     m_pendingAction.store (1 + kNumPageFeeds + pick, std::memory_order_release);
 }
@@ -353,6 +359,19 @@ void PrinterAudioSource::SetPan (float panLeft, float panRight)
 
 void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
 {
+    int64_t  progress     = 0;
+    int32_t  col          = 0;
+    bool     ink          = false;
+    int64_t  rows         = 0;
+    bool     rowsAdvanced = false;
+    int32_t  sweepW       = 0;
+    int32_t  wrapDrop     = 0;
+    bool     lineWrapped  = false;
+    bool     blankFeed    = false;
+    int32_t  action       = 0;
+
+
+
     if (outMono == nullptr || numSamples == 0)
     {
         return;
@@ -360,9 +379,9 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
 
     memset (outMono, 0, sizeof (float) * numSamples);
 
-    int64_t  progress = m_revealProgress.load (std::memory_order_relaxed);
-    int32_t  col      = m_revealCol.load (std::memory_order_relaxed);
-    bool     ink      = m_revealInk.load (std::memory_order_relaxed) != 0;
+    progress = m_revealProgress.load (std::memory_order_relaxed);
+    col = m_revealCol.load (std::memory_order_relaxed);
+    ink = m_revealInk.load (std::memory_order_relaxed) != 0;
 
     // A completed pass stepped the reveal into the next pin band while the buzz
     // was live: the real machine stops printing for the line feed between
@@ -370,8 +389,8 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
     // as its own burst instead of consecutive lines fusing into one long zip
     // (the hold below would otherwise bridge a text line's ~20 ms blank feed).
     // The buzz re-arms by itself after the gap when the next band is inked.
-    int64_t  rows         = progress / (int64_t) PrinterGrid::kDotsPerRow;
-    bool     rowsAdvanced = (rows > m_lastRows);
+    rows = progress / (int64_t) PrinterGrid::kDotsPerRow;
+    rowsAdvanced = (rows > m_lastRows);
 
     if (rowsAdvanced && m_printHoldSamples > 0)
     {
@@ -379,6 +398,7 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
         m_lineGapSamples   = (int32_t) (kLineFeedGapSec * (double) m_sampleRate);
         m_pendingBuzz      = ink;
     }
+
     m_lastRows = rows;
 
     // Head advanced this frame AND is laying ink -> (re)arm the carriage buzz for
@@ -416,10 +436,10 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
     // The two never overlap for one motion (an inked wrap carries ink=true; a
     // parked feed has no wrap), and the throttle keeps a fast slew from
     // rattling. Each clack rotates through the three variants; empties skipped.
-    int32_t  sweepW      = m_revealSweepW.load (std::memory_order_relaxed);
-    int32_t  wrapDrop    = (std::max) ((int32_t) kLineWrapDropFloor, sweepW / 2);
-    bool     lineWrapped = (col + wrapDrop < m_lastCol);
-    bool     blankFeed   = (rowsAdvanced && !ink);
+    sweepW = m_revealSweepW.load (std::memory_order_relaxed);
+    wrapDrop = (std::max) ((int32_t) kLineWrapDropFloor, sweepW / 2);
+    lineWrapped = (col + wrapDrop < m_lastCol);
+    blankFeed = (rowsAdvanced && !ink);
 
     if ((lineWrapped || blankFeed) && m_feedThrottle <= 0)
     {
@@ -441,12 +461,13 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
     // one window -- discard-then-tear reads naturally as the later sound. Any such
     // action cuts the carriage buzz so a form feed / tear plays clean under its
     // own grain and never trails the (now longer) print hold across the advance.
-    int32_t  action = m_pendingAction.exchange (0, std::memory_order_acquire);
+    action = m_pendingAction.exchange (0, std::memory_order_acquire);
     if (action != 0)
     {
         m_printHoldSamples = 0;
         m_pendingBuzz      = false;
     }
+
     if (action >= 1 && action <= kNumPageFeeds)
     {
         const vector<float> &  buf = m_pageFeeds[action - 1];
@@ -531,12 +552,16 @@ void PrinterAudioSource::MixCarriage (float * out, uint32_t n)
 
 void PrinterAudioSource::MixLineFeed (float * out, uint32_t n)
 {
+    uint32_t  len = 0;
+
+
+
     if (m_lineFeedBuf == nullptr)
     {
         return;
     }
 
-    uint32_t  len = (uint32_t) m_lineFeedBuf->size();
+    len = (uint32_t) m_lineFeedBuf->size();
 
     for (uint32_t i = 0; i < n; i++)
     {
@@ -565,12 +590,16 @@ void PrinterAudioSource::MixLineFeed (float * out, uint32_t n)
 
 void PrinterAudioSource::MixAction (float * out, uint32_t n)
 {
+    uint32_t  len = 0;
+
+
+
     if (m_actionBuf == nullptr)
     {
         return;
     }
 
-    uint32_t  len = (uint32_t) m_actionBuf->size();
+    len = (uint32_t) m_actionBuf->size();
 
     for (uint32_t i = 0; i < n; i++)
     {

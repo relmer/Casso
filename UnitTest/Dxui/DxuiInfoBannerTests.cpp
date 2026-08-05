@@ -37,13 +37,15 @@ namespace DxuiInfoBannerTests
 
         TEST_METHOD (LongerTextWrapsTaller)
         {
-            DxuiDpiScaler   scaler = Scaler96();
+            DxuiDpiScaler  scaler = Scaler96();
+            float          hShort = 0.0f;
+            float          hLong  = 0.0f;
             DxuiInfoBanner  shortBanner (L"Short.");
             DxuiInfoBanner  longBanner  (L"A considerably longer notice that has to wrap across several "
                                          L"lines when the banner is only a couple hundred pixels wide.");
 
-            float  hShort = shortBanner.PreferredHeightPx (220.0f, scaler);
-            float  hLong  = longBanner.PreferredHeightPx  (220.0f, scaler);
+            hShort = shortBanner.PreferredHeightPx (220.0f, scaler);
+            hLong = longBanner.PreferredHeightPx  (220.0f, scaler);
 
             Assert::IsTrue (hShort > 0.0f, L"a one-line banner has a positive height");
             Assert::IsTrue (hLong > hShort, L"a longer message wraps to a taller banner");
@@ -52,12 +54,14 @@ namespace DxuiInfoBannerTests
 
         TEST_METHOD (WiderBannerWrapsShorter)
         {
-            DxuiDpiScaler   scaler = Scaler96();
+            DxuiDpiScaler  scaler  = Scaler96();
+            float          hNarrow = 0.0f;
+            float          hWide   = 0.0f;
             DxuiInfoBanner  banner (L"A considerably longer notice that has to wrap across several lines "
                                     L"when the banner is narrow, but fits far fewer when it is wide.");
 
-            float  hNarrow = banner.PreferredHeightPx (200.0f, scaler);
-            float  hWide   = banner.PreferredHeightPx (700.0f, scaler);
+            hNarrow = banner.PreferredHeightPx (200.0f, scaler);
+            hWide = banner.PreferredHeightPx (700.0f, scaler);
 
             Assert::IsTrue (hWide <= hNarrow, L"a wider banner wraps to fewer-or-equal lines");
         }

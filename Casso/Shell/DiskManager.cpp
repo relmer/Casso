@@ -100,8 +100,8 @@ void DiskManager::ProbeFileWritability (
     bool              & outNoPermission)
 {
     std::error_code  ec;
-    fs::path         p (path);
     fs::file_status  st;
+    fs::path         p (path);
 
 
     outReadOnly     = false;
@@ -465,6 +465,7 @@ void DiskManager::RemountSlot6Disks()
             IGNORE_RETURN_VALUE (hrMount, S_OK);
         }
     }
+
     m_programmaticRemount = false;
 }
 
@@ -508,7 +509,23 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Eject  (IDriveCommandSink-style)
+//  Eject
+//
+//  Ejects a drive: posts the command to the CPU thread and starts the door
+//  animation.
+//
+//  The command is POSTED rather than performed, because ejecting detaches a
+//  disk the drive engine may be actively reading -- it has to land between
+//  instructions.
+//
+//  The door animation is started HERE rather than being left to the
+//  path-change watcher, and that is the point of this function. The watcher in
+//  UpdateDriveWidgets only calls BeginEject when the mounted path actually
+//  transitions to empty, so clicking eject on an already-empty drive would be
+//  a visual no-op -- the user would press the button and see nothing happen.
+//
+//  Only slot 6 drives 1 and 2 have an eject affordance; anything else leaves
+//  the command at 0, which is the nothing-to-do signal for both halves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -557,16 +574,22 @@ void DiskManager::Eject (int slot, int drive)
 
 void DiskManager::UpdateDriveWidgets()
 {
-    Disk2Controller *  controller = FindSlot6Controller();
-    int64_t             nowMs      = NowMs();
-    std::vector<DriveWidgetController::DriveSyncEvent>  syncEvents = m_driveWidgets.ConsumeSyncEvents();
-    int                 drive      = 0;
+    Disk2Controller                                     * controller = FindSlot6Controller();
+    int64_t                                               nowMs      = NowMs();
+    std::vector<DriveWidgetController::DriveSyncEvent>    syncEvents = m_driveWidgets.ConsumeSyncEvents();
+    int                                                   drive      = 0;
 
 
 
     for (drive = 0; drive < static_cast<int> (m_driveWidgetState.size()); drive++)
     {
-        DriveWidgetState &  st = m_driveWidgetState[drive];
+        DriveWidgetState    & st      = m_driveWidgetState[drive];
+        const std::string   & src     = m_diskStore.GetSourcePath (6, drive);
+        std::wstring          wPath;
+        bool                  motorOn = false;
+        bool                  active  = false;
+        uint64_t              reads   = 0;
+        uint64_t              writes  = 0;
 
         for (const auto & evt : syncEvents)
         {
@@ -584,8 +607,7 @@ void DiskManager::UpdateDriveWidgets()
         // mount path used). A manual wstring(begin,end) widen would
         // sign-extend a high byte like 0xF8 ('o' with stroke) into U+FFF8
         // and render as a tofu box in the drive label.
-        const std::string &  src   = m_diskStore.GetSourcePath (6, drive);
-        std::wstring         wPath = fs::path (src).wstring();
+        wPath = fs::path (src).wstring();
 
         if (wPath != st.mountedImagePath)
         {
@@ -605,10 +627,6 @@ void DiskManager::UpdateDriveWidgets()
         // owned by the device, which the CPU thread mutates; we read
         // the bool + monotonic counters with relaxed atomics
         // semantics (existing audio-system pattern).
-        bool      motorOn  = false;
-        bool      active   = false;
-        uint64_t  reads    = 0;
-        uint64_t  writes   = 0;
 
         if (controller != nullptr)
         {

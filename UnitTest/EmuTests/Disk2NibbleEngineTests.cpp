@@ -309,11 +309,14 @@ public:
 
         for (i = 0; i < 256; i++)
         {
+            uint8_t  a = 0;
+            uint8_t  b = 0;
+
             TickBits (engA, 1);
             TickBits (engB, 1);
 
-            uint8_t  a = engA.ReadLatch();
-            uint8_t  b = engB.ReadLatch();
+            a = engA.ReadLatch();
+            b = engB.ReadLatch();
 
             Assert::AreEqual ((int) a, (int) b,
                 L"Interleaved ConsumeFreshNibble must not change the CPU-visible ReadLatch");

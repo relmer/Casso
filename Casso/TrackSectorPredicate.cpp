@@ -29,7 +29,7 @@ bool TrackSectorPredicate::IsAsciiSpace (wchar_t ch) noexcept
 
 ////////////////////////////////////////////////////////////////////////////
 //
-//  ParseDecimalQt
+//  TryParseDecimalQt
 //
 //  Parses `whole '.' frac` into an integer quarter-track count
 //  (whole * 4 + quarterIndex). Only the four exact fractional
@@ -38,7 +38,7 @@ bool TrackSectorPredicate::IsAsciiSpace (wchar_t ch) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////
 
-bool TrackSectorPredicate::ParseDecimalQt (std::wstring_view tok, int & outQt) noexcept
+bool TrackSectorPredicate::TryParseDecimalQt (std::wstring_view tok, int & outQt) noexcept
 {
     HRESULT            hr      = S_OK;
     size_t             dot     = 0;
@@ -83,13 +83,13 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////
 //
-//  ParseDecimalInt
+//  TryParseDecimalInt
 //
 //  Strict non-negative decimal integer. Returns true on success.
 //
 ////////////////////////////////////////////////////////////////////////////
 
-bool TrackSectorPredicate::ParseDecimalInt (std::wstring_view tok, int & outVal) noexcept
+bool TrackSectorPredicate::TryParseDecimalInt (std::wstring_view tok, int & outVal) noexcept
 {
     HRESULT  hr       = S_OK;
     int      v        = 0;
@@ -121,7 +121,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////
 //
-//  ParseValue
+//  TryParseValue
 //
 //  Parses either a bare integer or a decimal quarter-track value.
 //  Output is in quarter-track units when `isQt` comes back true,
@@ -129,22 +129,22 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////
 
-bool TrackSectorPredicate::ParseValue (std::wstring_view tok,
-                                       bool               rawQt,
-                                       int &              outVal,
-                                       bool &             outIsQt) noexcept
+bool TrackSectorPredicate::TryParseValue (std::wstring_view tok,
+                                          bool               rawQt,
+                                          int &              outVal,
+                                          bool &             outIsQt) noexcept
 {
     int   qt  = 0;
     int   val = 0;
     bool  ok  = false;
 
-    if (ParseDecimalQt (tok, qt))
+    if (TryParseDecimalQt (tok, qt))
     {
         outVal  = qt;
         outIsQt = true;
         ok      = true;
     }
-    else if (ParseDecimalInt (tok, val))
+    else if (TryParseDecimalInt (tok, val))
     {
         outVal  = val;
         outIsQt = rawQt;
@@ -260,10 +260,12 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, Mode m
     {
         if (cursor == exprEnd || expr[(size_t) cursor] == L',')
         {
+            std::wstring_view  trimmed;
+
             trimmedBegin = tokStart;
             trimmedEnd   = cursor;
 
-            std::wstring_view trimmed = TrimSpan (expr, trimmedBegin, trimmedEnd);
+            trimmed = TrimSpan (expr, trimmedBegin, trimmedEnd);
 
             if (!trimmed.empty())
             {
@@ -279,8 +281,8 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, Mode m
                     while (!loStr.empty() && IsAsciiSpace (loStr.back()))  { loStr.remove_suffix (1); }
                     while (!hiStr.empty() && IsAsciiSpace (hiStr.front())) { hiStr.remove_prefix (1); }
 
-                    if (ParseValue (loStr, rawQt, val,   isQt)   &&
-                        ParseValue (hiStr, rawQt, hiVal, hiIsQt) &&
+                    if (TryParseValue (loStr, rawQt, val,   isQt)   &&
+                        TryParseValue (hiStr, rawQt, hiVal, hiIsQt) &&
                         isQt == hiIsQt)
                     {
                         cap = ValueCap (mode, isQt);
@@ -316,7 +318,7 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, Mode m
                 }
                 else
                 {
-                    if (ParseValue (trimmed, rawQt, val, isQt))
+                    if (TryParseValue (trimmed, rawQt, val, isQt))
                     {
                         cap = ValueCap (mode, isQt);
 

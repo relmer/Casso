@@ -12,6 +12,23 @@
 //
 //  ParsedLine
 //
+//  One source line after lexical analysis, before anything has been resolved.
+//
+//  Everything here is SYNTACTIC. No expression has been evaluated, no symbol
+//  looked up, no address assigned -- the operand and the constant expression
+//  are raw strings, deliberately. That is what lets the same parse serve both
+//  assembler passes: pass 1 sizes from this, pass 2 emits from it, and neither
+//  re-parses text.
+//
+//  Directives carry two spellings. directiveToken is what code switches on;
+//  the canonical dotted string is kept alongside it purely for diagnostics, so
+//  an error can quote the directive back the way the source wrote it.
+//
+//  startsAtColumn0 is a lexical fact that only matters much later. A word in
+//  column 0 is a label only once everything else has been ruled out, and by
+//  then the leading whitespace is long gone -- so it is recorded here, where
+//  it is still knowable.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ParsedLine
@@ -96,8 +113,8 @@ public:
     static ParsedLine               ParseLine  (const std::string & line, int lineNumber);
 
     static ClassifiedOperand          ClassifyOperand   (const std::string & operand);
-    static bool                       ParseValue        (const std::string & text, int & value);
-    static bool                       ValidateLabel     (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage);
+    static HRESULT                    ParseValue        (const std::string & text, int & value);
+    static HRESULT                    ValidateLabel     (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage);
     static std::string                ParseQuotedString (const std::string & text);
 
     // Split a comma-separated argument list respecting () [] '' nesting

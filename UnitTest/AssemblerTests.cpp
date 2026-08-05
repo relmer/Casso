@@ -52,6 +52,20 @@ namespace AssemblerTests
     //
     //  InstructionEncodingTests
     //
+    //  One instruction in, the exact bytes out -- the assembler's most basic
+    //  contract.
+    //
+    //  Coverage is by ADDRESSING MODE rather than by mnemonic. The 6502's
+    //  opcodes are largely a cross product of operations and modes, and the
+    //  assembler is table-driven along the same axis, so a bug lives in a mode
+    //  far more often than in a particular instruction. Testing every mnemonic
+    //  in one mode would be a hundred tests exercising one code path.
+    //
+    //  Each test asserts the opcode AND the operand bytes, not just the size.
+    //  A wrong opcode of the right length is exactly the failure that gets
+    //  through a size-only check and produces a program that runs and does
+    //  something else.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (InstructionEncodingTests)
@@ -339,6 +353,20 @@ namespace AssemblerTests
     //
     //  LabelResolutionTests
     //
+    //  Labels resolving to the right addresses -- which is what the whole
+    //  two-pass design exists for.
+    //
+    //  FORWARD references are the point of most of these. A backward reference
+    //  is trivially resolvable during a single walk; a forward one is not, and
+    //  it is the reason pass 1 sizes before pass 2 emits. A bug in that split
+    //  shows up here and almost nowhere else.
+    //
+    //  Branch offsets get particular attention because they are relative to
+    //  the PC AFTER the instruction, not to the instruction. That off-by-two
+    //  is the classic 6502 assembler bug, and it produces code that jumps two
+    //  bytes wrong -- often into the middle of an instruction, where the
+    //  failure looks nothing like a branch problem.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (LabelResolutionTests)
@@ -489,6 +517,19 @@ namespace AssemblerTests
     //
     //  LabelErrorTests
     //
+    //  What happens when a label is WRONG: undefined, duplicated, or out of
+    //  branch range.
+    //
+    //  Every case asserts that assembly FAILS as well as what it reports. An
+    //  assembler that emits a diagnostic and still returns success produces a
+    //  binary nobody trusts and a build that does not stop -- the failure flag
+    //  is as much a contract as the message.
+    //
+    //  Branch range is checked here rather than with the encoding tests because
+    //  it is a label question: the offset is only knowable once the label
+    //  resolves, so a too-distant target is caught in pass 2 and must be
+    //  reported rather than silently truncated to eight bits.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (LabelErrorTests)
@@ -619,6 +660,18 @@ namespace AssemblerTests
     //
     //  OrgDirectiveTests
     //
+    //  .org setting the program counter, and everything downstream following
+    //  it.
+    //
+    //  These matter more than they look. .org moves the PC, so it changes every
+    //  label defined after it and every absolute address that references one --
+    //  a bug here does not corrupt one instruction, it shifts the whole program
+    //  and produces code that assembles cleanly and jumps into nothing.
+    //
+    //  The tests assert the reported start address as well as the emitted
+    //  bytes, since the output image's placement is what a loader uses and it
+    //  can be wrong independently of the code.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (OrgDirectiveTests)
@@ -747,6 +800,18 @@ namespace AssemblerTests
     //
     //  TextDirectiveTests
     //
+    //  String directives emitting the right bytes, including the Apple II's
+    //  high-bit conventions.
+    //
+    //  The high bit is the substance here. Apple II text sets bit 7 for normal
+    //  display, and the several string directives differ precisely in whether
+    //  they set it -- so a test that only checked the character values would
+    //  pass on output the machine renders as inverse or flashing text.
+    //
+    //  Terminator handling is likewise asserted rather than assumed: a
+    //  directive that adds a NUL and one that does not are different tools, and
+    //  the difference is invisible until a routine runs off the end of a string.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (TextDirectiveTests)
@@ -834,6 +899,19 @@ namespace AssemblerTests
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  CommentAndWhitespaceTests
+    //
+    //  Text the assembler must IGNORE: comments, blank lines, and leading or
+    //  trailing whitespace.
+    //
+    //  Unglamorous and load-bearing. Real period sources are full of comment
+    //  columns, tab-aligned operands, and blank separator lines, so a lexer
+    //  that mishandles any of them fails on almost every genuine file while
+    //  passing every hand-written test case.
+    //
+    //  Column 0 gets specific attention because whitespace there is
+    //  SIGNIFICANT: a word starting in column 0 may be a label, while the same
+    //  word indented is a mnemonic. That is the one place the assembler cannot
+    //  simply trim and move on.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -941,6 +1019,22 @@ namespace AssemblerTests
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  ExpressionTests
+    //
+    //  Operand expressions: arithmetic, precedence, the low and high byte
+    //  selectors, and the program counter.
+    //
+    //  PRECEDENCE is the reason most of these exist. The evaluator's binding
+    //  levels are a table now, but the correct answer for a mixed expression is
+    //  a fact about the language rather than about the table -- so the tests
+    //  pin the results and would catch a row edited to the wrong level.
+    //
+    //  The `<` and `>` selectors are covered specifically because they are
+    //  context-dependent: the same characters are comparisons after a value and
+    //  byte selectors otherwise, so these tests are what keep the tokenizer's
+    //  last-was-value rule honest.
+    //
+    //  `*` as the program counter is here for the same reason -- it is
+    //  multiplication in every other position.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -1083,6 +1177,18 @@ namespace AssemblerTests
     //
     //  ErrorReportingTests
     //
+    //  Diagnostics naming the right LINE and saying something useful.
+    //
+    //  The line number is asserted, not just the presence of an error, because
+    //  a diagnostic pointing at the wrong line is worse than a vague one: it
+    //  sends the reader to correct code. Several of these guard specific
+    //  regressions where an error was attributed to the end of the file or to
+    //  a macro's expansion site rather than to its definition.
+    //
+    //  Message text is checked loosely -- by substring -- so wording can be
+    //  improved without breaking tests, while the fact being reported stays
+    //  pinned.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (ErrorReportingTests)
@@ -1156,10 +1262,27 @@ namespace AssemblerTests
         //
         //  BranchOutOfRange_ReportsError
         //
+        //  A branch whose target is one byte past the reachable range must be
+        //  an error, not a truncated offset.
+        //
+        //  The source is generated rather than written out because the boundary
+        //  is 128 bytes away -- and it is built to land EXACTLY one past the
+        //  limit, since a test at some comfortably-distant target would pass
+        //  against an off-by-one range check.
+        //
+        //  Silently truncating the offset is the failure this guards: the
+        //  program would assemble cleanly and branch to an address unrelated to
+        //  the label, which is nearly impossible to diagnose from the symptom.
+        //
         ////////////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (BranchOutOfRange_ReportsError)
         {
+            bool            hasRangeError = false;
+            AssemblyResult  result;
+
+
+
             // BEQ (2 bytes) + 128 NOPs → offset = 128, out of range
             Assembler asm6502 = BuildAssembler();
             std::string source = "BEQ target\n";
@@ -1171,11 +1294,10 @@ namespace AssemblerTests
 
             source += "target: NOP";
 
-            auto result = asm6502.Assemble (source);
+            result = asm6502.Assemble (source);
 
             Assert::IsFalse (result.success);
 
-            bool hasRangeError = false;
 
             for (const auto & e : result.errors)
             {
@@ -1228,6 +1350,17 @@ namespace AssemblerTests
     //
     //  Pass1ErrorRecoveryTests
     //
+    //  A pass-1 error must not stop the walk: the assembler keeps going and
+    //  reports everything wrong with the file.
+    //
+    //  Stopping at the first error turns fixing a source into one edit-build
+    //  cycle per mistake. Recovery is what lets a build report all of them at
+    //  once, and it is easy to lose -- a bail added for one error class quietly
+    //  truncates the diagnostics for every later line.
+    //
+    //  So these assert the COUNT and the later lines' diagnostics, not merely
+    //  that the assembly failed.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (Pass1ErrorRecoveryTests)
@@ -1272,6 +1405,21 @@ namespace AssemblerTests
     //
     //  ListingOutputTests
     //
+    //  The assembly listing's content and its exact column layout.
+    //
+    //  Listings are read POSITIONALLY, by people and by tools, so the column
+    //  widths are a specification rather than a preference -- which is why
+    //  these tests assert character offsets and not merely that the right
+    //  values appear somewhere on the line.
+    //
+    //  The AS65 layout is matched deliberately, so listings from this assembler
+    //  can be diffed against reference output from the tool it is compatible
+    //  with. That comparison is only meaningful if the columns line up.
+    //
+    //  Optional elements -- cycle counts, macro-expansion markers, page breaks
+    //  -- are covered because each SHIFTS the line, and a shift is exactly what
+    //  breaks a positional reader.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (ListingOutputTests)
@@ -1287,10 +1435,10 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_InstructionLine)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
             options.generateListing = true;
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -1320,10 +1468,10 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_CommentOnlyLine)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
             options.generateListing = true;
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -1349,10 +1497,10 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_ByteDirective)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
             options.generateListing = true;
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -1379,10 +1527,10 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_LabelOnlyLine)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
             options.generateListing = true;
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -1413,10 +1561,10 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_OrgDirective)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
             options.generateListing = true;
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -1467,10 +1615,11 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_FormatHelper)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options   = {};
+            TestCpu           cpu;
+            std::string       formatted;
             options.generateListing = true;
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -1478,7 +1627,7 @@ namespace AssemblerTests
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 1, result.listing.size());
 
-            std::string formatted = Assembler::FormatListingLine (result.listing[0]);
+            formatted = Assembler::FormatListingLine (result.listing[0]);
             Assert::AreEqual (std::string ("    1 0000   A9 42     LDA #$42"), formatted);
         }
 
@@ -1494,10 +1643,11 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_FormatHelper_NoAddress)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options   = {};
+            TestCpu           cpu;
+            std::string       formatted;
             options.generateListing = true;
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -1505,7 +1655,7 @@ namespace AssemblerTests
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 1, result.listing.size());
 
-            std::string formatted = Assembler::FormatListingLine (result.listing[0]);
+            formatted = Assembler::FormatListingLine (result.listing[0]);
             Assert::AreEqual (std::string ("    1                  ; comment"), formatted);
         }
 
@@ -1517,14 +1667,32 @@ namespace AssemblerTests
         //
         //  Listing_ColumnLayout_MatchesAS65
         //
+        //  Pins the listing's field positions against the AS65 layout, column
+        //  by column.
+        //
+        //  This is the test that makes the layout a contract. Everything else
+        //  checks that the right VALUES appear; this checks they appear at the
+        //  right OFFSETS, which is what a positional reader -- or a diff
+        //  against reference output from the original tool -- actually depends
+        //  on.
+        //
+        //  It is deliberately brittle. A change to any field width is supposed
+        //  to fail here, because that change breaks every consumer of the
+        //  format whether or not it looks fine on screen.
+        //
         ////////////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (Listing_ColumnLayout_MatchesAS65)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
+            std::string       line1;
+            std::string       line2;
+            std::string       line3;
+            std::string       line4;
+            std::string       line5;
             options.generateListing = true;
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -1539,23 +1707,23 @@ namespace AssemblerTests
 
             // Verify key listing lines match AS65 column layout
             // Line 1: .org $1000 — address 1000, no bytes
-            std::string line1 = Assembler::FormatListingLine (result.listing[0]);
+            line1 = Assembler::FormatListingLine (result.listing[0]);
             Assert::AreEqual (std::string ("    1 1000             .org $1000"), line1);
 
             // Line 2: LDA #$05 — address 1000, bytes A9 05
-            std::string line2 = Assembler::FormatListingLine (result.listing[1]);
+            line2 = Assembler::FormatListingLine (result.listing[1]);
             Assert::AreEqual (std::string ("    2 1000   A9 05     LDA #$05"), line2);
 
             // Line 3: CLC — address 1002, byte 18
-            std::string line3 = Assembler::FormatListingLine (result.listing[2]);
+            line3 = Assembler::FormatListingLine (result.listing[2]);
             Assert::AreEqual (std::string ("    3 1002   18        CLC"), line3);
 
             // Line 4: ADC #$03 — address 1003, bytes 69 03
-            std::string line4 = Assembler::FormatListingLine (result.listing[3]);
+            line4 = Assembler::FormatListingLine (result.listing[3]);
             Assert::AreEqual (std::string ("    4 1003   69 03     ADC #$03"), line4);
 
             // Line 5: STA $2000 — address 1005, bytes 8D 00 20
-            std::string line5 = Assembler::FormatListingLine (result.listing[4]);
+            line5 = Assembler::FormatListingLine (result.listing[4]);
             Assert::AreEqual (std::string ("    5 1005   8D 00 20  STA $2000"), line5);
 
             // Verify source text starts at column 24 (index 23)
@@ -1576,6 +1744,10 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_MacroExpansion_HasPrefix)
         {
+            std::string  formatted;
+
+
+
             // Build a line manually with isMacroExpansion = true
             AssemblyLine macroLine = {};
             macroLine.lineNumber       = 7;
@@ -1585,7 +1757,7 @@ namespace AssemblerTests
             macroLine.sourceText       = "LDA #$FF";
             macroLine.isMacroExpansion = true;
 
-            std::string formatted = Assembler::FormatListingLine (macroLine);
+            formatted = Assembler::FormatListingLine (macroLine);
 
             // Column 23 (index 22) should be '>' for macro expansion
             Assert::AreEqual ('>', formatted[22]);
@@ -1602,21 +1774,35 @@ namespace AssemblerTests
         //
         //  Listing_SymbolTable_Format
         //
+        //  The symbol table's rendering: sorted, aligned, and annotated by kind.
+        //
+        //  All three symbol KINDS are present in the fixture on purpose -- a
+        //  label, an equ, and a set. They are formatted differently because
+        //  they mean different things, and a table that rendered them
+        //  identically would hide that a supposed constant is actually
+        //  reassignable.
+        //
+        //  Two symbols share an address, which is the case that catches an
+        //  ordering implemented as a sort on value alone: without a stable
+        //  tiebreak the output would vary between runs and the test would flake
+        //  rather than fail.
+        //
         ////////////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (Listing_SymbolTable_Format)
         {
-            std::unordered_map<std::string, Word> symbols;
+            std::unordered_map<std::string, Word>        symbols;
+            std::unordered_map<std::string, SymbolKind>  symbolKinds;
+            std::string                                  table;
             symbols["START"]   = 0x1000;
             symbols["COUNTER"] = 0x0005;
             symbols["LABEL"]   = 0x1000;
 
-            std::unordered_map<std::string, SymbolKind> symbolKinds;
             symbolKinds["START"]   = SymbolKind::Label;
             symbolKinds["COUNTER"] = SymbolKind::Set;
             symbolKinds["LABEL"]   = SymbolKind::Equ;
 
-            std::string table = Assembler::FormatSymbolTable (symbols, symbolKinds);
+            table = Assembler::FormatSymbolTable (symbols, symbolKinds);
 
             // Should be alphabetically sorted
             size_t posCounter = table.find ("*COUNTER");
@@ -1649,6 +1835,21 @@ namespace AssemblerTests
     //
     //  WarningModeTests
     //
+    //  The three warning modes, and that each diagnostic honors all three.
+    //
+    //  Coverage is a MATRIX -- every warning kind against Warn, NoWarn, and
+    //  FatalWarnings -- because the modes are applied at a single choke point
+    //  and a diagnostic that bypasses it looks correct in the default mode
+    //  while ignoring the other two entirely. That is the exact bug this shape
+    //  of test catches and a per-warning test would not.
+    //
+    //  FatalWarnings asserts the failure FLAG as well as the diagnostic
+    //  landing on the error list, since the point of the mode is a non-zero
+    //  exit for a build script.
+    //
+    //  NoWarn asserts the warning list is empty rather than that it is
+    //  filtered later -- suppressed means never recorded.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (WarningModeTests)
@@ -1658,10 +1859,11 @@ namespace AssemblerTests
         // Helper to build assembler with specific warning mode
         static Assembler BuildWithWarningMode (WarningMode mode)
         {
-            TestCpu cpu;
+            TestCpu           cpu;
+            AssemblerOptions  options;
             cpu.InitForTest();
 
-            AssemblerOptions options = {};
+            options = {};
             options.warningMode = mode;
 
             return Assembler (cpu.GetInstructionSet(), options);
@@ -1887,6 +2089,18 @@ namespace AssemblerTests
     //
     //  InstanceReuseTests
     //
+    //  One Assembler assembling twice must produce two independent results.
+    //
+    //  This is what the per-run AssemblySession buys, asserted from the
+    //  outside. Symbols, macros, the conditional stack, and the output image
+    //  are all per-run state, and holding any of it on the long-lived
+    //  Assembler would let the first assembly contaminate the second -- a
+    //  symbol resolving because a previous file defined it is the kind of bug
+    //  that only appears in a multi-file build.
+    //
+    //  It is asserted rather than assumed because the failure is invisible in
+    //  single-shot use: every other test in this file assembles once.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (InstanceReuseTests)
@@ -1897,6 +2111,17 @@ namespace AssemblerTests
         ////////////////////////////////////////////////////////////////////////////////
         //
         //  AssembleTwice_ResultsAreIndependent
+        //
+        //  Assembles two different programs through the same Assembler and
+        //  asserts each result describes only its own source.
+        //
+        //  The two programs use DIFFERENT instructions, so leaked bytes from
+        //  the first would be visible in the second's output rather than
+        //  coincidentally matching.
+        //
+        //  Both results are checked, not just the second: the first must also
+        //  remain valid after the second run, since results are returned by
+        //  value and a shared buffer would corrupt the earlier one too.
         //
         ////////////////////////////////////////////////////////////////////////////////
 
@@ -1981,6 +2206,17 @@ namespace AssemblerTests
     //
     //  CaseSensitiveLabelTests
     //
+    //  Labels are case-SENSITIVE, while mnemonics and directives are not.
+    //
+    //  That asymmetry is deliberate and is what these pin. Period sources write
+    //  instructions in either case interchangeably, so the parser uppercases
+    //  mnemonics -- but doing the same to labels would silently merge `foo` and
+    //  `FOO` into one symbol, which is both a duplicate-definition error the
+    //  author never made and a resolution to the wrong address.
+    //
+    //  Easy to break precisely because the uppercasing is already there for
+    //  mnemonics: extending it one step too far looks like a simplification.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (CaseSensitiveLabelTests)
@@ -1992,14 +2228,26 @@ namespace AssemblerTests
         //
         //  FooAndFOO_ResolveToDifferentAddresses
         //
+        //  Two labels differing only in case must be two symbols at two
+        //  addresses.
+        //
+        //  Asserting the ADDRESSES rather than merely that assembly succeeded
+        //  is the point: a case-folding assembler would report a duplicate
+        //  definition, but a subtler one might accept both and resolve every
+        //  reference to whichever was defined last -- which succeeds and is
+        //  wrong.
+        //
+        //  Warnings are suppressed so the unused-label diagnostics do not
+        //  obscure what is being asserted.
+        //
         ////////////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (FooAndFOO_ResolveToDifferentAddresses)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
             options.warningMode = WarningMode::NoWarn; // suppress unused label warnings
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -2034,6 +2282,20 @@ namespace AssemblerTests
     //
     //  StressTests
     //
+    //  Sources large enough to shake out anything that only works at small
+    //  scale.
+    //
+    //  Everything else in this file assembles a handful of lines, where a
+    //  quadratic symbol lookup, a fixed-size buffer, or an index that wraps at
+    //  256 all behave perfectly. These exist to reach past those thresholds.
+    //
+    //  Sources are GENERATED rather than written out, so the scale is a number
+    //  to raise rather than a file to edit.
+    //
+    //  Every label's address is verified, not just the final count -- a
+    //  resolution bug at scale typically corrupts some symbols rather than
+    //  failing outright.
+    //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (StressTests)
@@ -2045,19 +2307,34 @@ namespace AssemblerTests
         //
         //  HundredLabels_AllResolveCorrectly
         //
+        //  A hundred labels, each on a one-byte instruction, every address
+        //  checked.
+        //
+        //  One NOP per label makes each expected address trivially predictable
+        //  -- label N sits at the origin plus N -- so the assertion is exact
+        //  rather than approximate, and an off-by-one anywhere in the sequence
+        //  is caught at the label where it starts.
+        //
+        //  A hundred is past a few plausible internal limits while staying fast
+        //  enough to run in every build.
+        //
+        //  Warnings are suppressed because every one of these labels is
+        //  unused, and the diagnostics would swamp the result.
+        //
         ////////////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (HundredLabels_AllResolveCorrectly)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
+            std::string       source;
+            AssemblyResult    result;
             options.warningMode = WarningMode::NoWarn; // lots of "unused" labels otherwise
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
             // Generate a program with 100 labels, each with a NOP
-            std::string source;
 
             for (int i = 0; i < 100; i++)
             {
@@ -2070,7 +2347,7 @@ namespace AssemblerTests
                 source += "JMP label" + std::to_string (i) + "\n";
             }
 
-            auto result = asm6502.Assemble (source);
+            result = asm6502.Assemble (source);
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 103, result.symbols.size());  // 100 labels + 3 built-ins
@@ -2078,8 +2355,10 @@ namespace AssemblerTests
             // Verify labels are at expected addresses
             for (int i = 0; i < 100; i++)
             {
+                Word  expectedAddr = 0;
+
                 std::string name = "label" + std::to_string (i);
-                Word expectedAddr = 0x0000 + (Word) i;
+                expectedAddr = 0x0000 + (Word) i;
 
                 Assert::AreEqual (expectedAddr, result.symbols[name],
                     (std::wstring (L"Label: ") + std::wstring (name.begin(), name.end())).c_str());

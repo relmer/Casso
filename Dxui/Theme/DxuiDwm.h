@@ -47,7 +47,7 @@ private:
 
     typedef LONG (WINAPI * PFN_RtlGetVersion) (OsVersion *);
 
-    static bool GetOsBuild (DWORD & outMajor, DWORD & outBuild);
+    static bool TryGetOsBuild (DWORD & outMajor, DWORD & outBuild);
 
     // DWMWA_* values that are not always declared in older SDK headers.
     static constexpr DWORD kDwmwaUseImmersiveDarkMode       = 20;

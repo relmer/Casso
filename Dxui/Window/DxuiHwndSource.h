@@ -320,8 +320,8 @@ public:
     //  Tests should drive `OnTimer` directly rather than relying
     //  on the OS timer queue.
     //
-    bool          SetTimer       (UINT_PTR timerId, UINT intervalMs);
-    bool          KillTimer      (UINT_PTR timerId);
+    HRESULT       SetTimer       (UINT_PTR timerId, UINT intervalMs);
+    HRESULT       KillTimer      (UINT_PTR timerId);
 
     //
     //  Install an optional client object that receives the Win32
@@ -634,12 +634,12 @@ private:
     DxuiFocusManager                  m_focusManager;
     const IDxuiTheme *                m_theme              = nullptr;
 
-    bool                              m_ownsHwnd           = false;
-    bool                              m_ownsPaintPump      = false;
-    bool                              m_suppressInputInvalidate = false;
-    bool                              m_synthetic          = false;
-    bool                              m_adoptMode          = false;
-    bool                              m_classRegistered    = false;
+    bool  m_ownsHwnd                = false;
+    bool  m_ownsPaintPump           = false;
+    bool  m_suppressInputInvalidate = false;
+    bool  m_synthetic               = false;
+    bool  m_adoptMode               = false;
+    bool  m_classRegistered         = false;
 
     IDxuiHostClient *                 m_client             = nullptr;
 
@@ -650,8 +650,8 @@ private:
     std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> m_overlayPaintHook;
     std::function<LRESULT (HWND, UINT, WPARAM, LPARAM)>    m_defaultProcForTest;
     std::function<BOOL (TRACKMOUSEEVENT *)>                m_trackMouseEventForTest;
-    IDxuiControl *                                         m_lastHoveredNcControl = nullptr;
-    bool                                                   m_clientMouseLeaveTracking = false;
+    IDxuiControl  * m_lastHoveredNcControl     = nullptr;
+    bool            m_clientMouseLeaveTracking = false;
 
     // Popup pool (FR-055). Initial size 3; grows on demand. m_popupPool
     // holds LIFO-available instances; m_popupActive holds currently

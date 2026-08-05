@@ -190,12 +190,13 @@ public:
     {
         AppleKeyboard       kbd;
         RecordingInputSink  sink;
+        int                 baseline = 0;
 
         kbd.SetInputEventSink (&sink);
         kbd.KeyPress ('A');
         kbd.Read (0xC000);
 
-        int baseline = sink.kbdDataReadCount;
+        baseline = sink.kbdDataReadCount;
 
         kbd.SetInputEventSink (nullptr);
         kbd.KeyPress ('B');
@@ -250,8 +251,8 @@ public:
     TEST_METHOD (ButtonRead_CoalescesPerAddress)
     {
         MemoryBus           bus;
-        Apple2eKeyboard     kbd (&bus);
         RecordingInputSink  sink;
+        Apple2eKeyboard     kbd (&bus);
 
         kbd.SetInputEventSink (&sink);
         kbd.SetClosedApple (true);
@@ -331,13 +332,14 @@ public:
     {
         Apple2eSoftSwitchBank  bank;
         RecordingInputSink     sink;
-        uint64_t               cycles = 0;
+        uint64_t               cycles   = 0;
+        int                    baseline = 0;
 
         bank.SetCpuCycleSource (&cycles);
         bank.SetInputEventSink (&sink);
         bank.Read (0xC070);
 
-        int  baseline = sink.paddleTriggerCount;
+        baseline = sink.paddleTriggerCount;
 
         bank.SetInputEventSink (nullptr);
         bank.Read (0xC070);
@@ -371,8 +373,8 @@ public:
     TEST_METHOD (HostButton_Apple2eKeyboardSetters_Coalesce)
     {
         MemoryBus           bus;
-        Apple2eKeyboard     kbd (&bus);
         RecordingInputSink  sink;
+        Apple2eKeyboard     kbd (&bus);
 
         kbd.SetInputEventSink (&sink);
 

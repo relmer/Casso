@@ -10,6 +10,29 @@
 //
 //  CpuOperations
 //
+//  The CPU's ALU and control primitives, one static function per Microcode
+//  operation.
+//
+//  A non-instantiable class of statics rather than free functions, so the set
+//  is named and can be a friend of Cpu -- these need direct access to
+//  registers and flags, and are the CPU's own internals split out for
+//  readability rather than an external collaborator.
+//
+//  The name of each function matches its Microcode::Operation enumerator
+//  exactly, so dispatch reads as a direct correspondence and adding an
+//  operation is a matching pair rather than a lookup to maintain.
+//
+//  Operand-taking and address-taking signatures differ deliberately. An
+//  operation that only READS its operand takes a value; one that reads and
+//  writes back -- the shifts, rotates, and increments -- takes an effective
+//  address and a register pointer, since the same operation targets memory or
+//  the accumulator depending on the addressing mode. A null register pointer
+//  is what selects the memory form.
+//
+//  The undocumented NMOS combined opcodes are implemented here too, composed
+//  from the same primitives, so their flag behavior follows from the parts
+//  rather than being re-derived.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class CpuOperations

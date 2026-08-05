@@ -70,9 +70,13 @@ void DiskImage::InitWholeTrackMap()
 
 int DiskImage::ResolveQuarterTrack (int quarterTrack) const
 {
+    int  slot = 0;
+
+
+
     bool  inMap = (quarterTrack >= 0
                    && quarterTrack < static_cast<int> (m_quarterTrackMap.size()));
-    int   slot  = inMap ? m_quarterTrackMap[quarterTrack] : -1;
+    slot = inMap ? m_quarterTrackMap[quarterTrack] : -1;
 
 
 
@@ -247,6 +251,25 @@ uint8_t DiskImage::ReadBit (int track, size_t bitIndex) const
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WriteBit
+//
+//  Writes one bit into a track's bitstream and marks it dirty.
+//
+//  A single BIT, not a byte, because the Disk II has no byte concept on the
+//  media -- the drive writes a serial flux stream and the controller shifts
+//  bits out one at a time. Modelling the write at that granularity is what
+//  lets copy-protected formats with non-byte-aligned data work.
+//
+//  Write protection is checked BEFORE locating the bit, so a protected image
+//  can never mark a track dirty however valid the address -- otherwise a
+//  rejected write would still cause a flush.
+//
+//  Both a per-track and a whole-image dirty flag are set: the track flag says
+//  what to re-encode, and the image flag says whether to write anything at
+//  all.
+//
+//  An out-of-range track or bit index is silently ignored, matching the
+//  hardware -- a head positioned off the media writes nowhere and reports
+//  nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

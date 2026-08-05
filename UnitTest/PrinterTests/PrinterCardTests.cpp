@@ -47,9 +47,9 @@ namespace PrinterCardTests
 
         TEST_METHOD (DataWritesReachRingInOrder)
         {
-            auto   card = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
-            Word          dataAddr = (Word) (card->GetStart() + PrinterCard::kDataOffset);
-            Byte          out      = 0;
+            auto  card     = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
+            Word  dataAddr = (Word) (card->GetStart() + PrinterCard::kDataOffset);
+            Byte  out      = 0;
 
             card->Write (dataAddr, 'A');
             card->Write (dataAddr, 'B');
@@ -68,8 +68,8 @@ namespace PrinterCardTests
 
         TEST_METHOD (NonDataOffsetWritesIgnored)
         {
-            auto   card = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
-            Word          i    = 0;
+            auto  card = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
+            Word  i    = 0;
 
             // Every offset above the data latch is inert.
             for (i = 1; i < PrinterCard::kSlotIoSize; i++)
@@ -83,8 +83,8 @@ namespace PrinterCardTests
 
         TEST_METHOD (AllOffsetsReadStatusReadyWhenIdle)
         {
-            auto   card = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
-            Word          i    = 0;
+            auto  card = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
+            Word  i    = 0;
 
             for (i = 0; i < PrinterCard::kSlotIoSize; i++)
             {
@@ -102,8 +102,8 @@ namespace PrinterCardTests
             // low -- and our firmware plus the Apple II Parallel driver
             // poll bit 7 set. Both must hold at once or Print Shop shows
             // "PRINTER TEST FAILED" without writing a byte.
-            auto   card = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
-            Byte          status = card->Read ((Word) (card->GetStart() + PrinterCard::kStatusOffset));
+            auto  card   = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
+            Byte  status = card->Read ((Word) (card->GetStart() + PrinterCard::kStatusOffset));
 
             Assert::AreEqual ((Byte) 0x03, (Byte) (status & 0x07));
             Assert::AreEqual ((Byte) 0x80, (Byte) (status & 0x80));
@@ -117,11 +117,11 @@ namespace PrinterCardTests
 
         TEST_METHOD (StatusGoesBusyAtHighWater)
         {
-            auto   card = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
-            Word          dataAddr  = (Word) (card->GetStart() + PrinterCard::kDataOffset);
-            Word          statusAddr = (Word) (card->GetStart() + PrinterCard::kStatusOffset);
-            uint32_t      toFill    = PrinterByteRing::kByteRingCapacity - PrinterCard::kReadyHighWater;
-            uint32_t      i         = 0;
+            auto      card       = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
+            Word      dataAddr   = (Word) (card->GetStart() + PrinterCard::kDataOffset);
+            Word      statusAddr = (Word) (card->GetStart() + PrinterCard::kStatusOffset);
+            uint32_t  toFill     = PrinterByteRing::kByteRingCapacity - PrinterCard::kReadyHighWater;
+            uint32_t  i          = 0;
 
             // Still ready one byte short of the guard.
             for (i = 0; i < toFill - 1; i++)
@@ -139,8 +139,8 @@ namespace PrinterCardTests
 
         TEST_METHOD (FirstTouchFlagArmsOnDataWriteAndResets)
         {
-            auto   card = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
-            Word          dataAddr = (Word) (card->GetStart() + PrinterCard::kDataOffset);
+            auto  card     = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
+            Word  dataAddr = (Word) (card->GetStart() + PrinterCard::kDataOffset);
 
             Assert::IsFalse (card->EverTouched());
 
@@ -164,9 +164,10 @@ namespace PrinterCardTests
 
         TEST_METHOD (FactoryBuildsCardForConfiguredSlot)
         {
-            ComponentRegistry   registry;
-            MemoryBus           bus;
-            DeviceConfig        cfg;
+            ComponentRegistry         registry;
+            MemoryBus                 bus;
+            DeviceConfig              cfg;
+            unique_ptr<MemoryDevice>  device;
 
             ComponentRegistry::RegisterBuiltinDevices (registry);
 
@@ -174,7 +175,7 @@ namespace PrinterCardTests
             cfg.slot    = 2;
             cfg.hasSlot = true;
 
-            unique_ptr<MemoryDevice>   device = registry.Create (cfg.type, cfg, bus);
+            device = registry.Create (cfg.type, cfg, bus);
 
             Assert::IsNotNull (device.get());
             Assert::AreEqual ((Word) 0xC0A0, device->GetStart());

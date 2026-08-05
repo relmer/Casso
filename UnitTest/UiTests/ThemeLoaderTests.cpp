@@ -369,8 +369,8 @@ public:
         LoadedTheme         theme;
         ThemeLoadError      err;
         HRESULT             hr;
-        std::wstring        dir = std::wstring (kThemesBase) + L"\\Variants";
         std::string         kJson;
+        std::wstring        dir = std::wstring (kThemesBase) + L"\\Variants";
 
         kJson = R"({
             "$cassoThemeVersion": 1,
@@ -430,8 +430,8 @@ public:
         LoadedTheme         theme;
         ThemeLoadError      err;
         HRESULT             hr;
-        std::wstring        dir = std::wstring (kThemesBase) + L"\\Variants2";
         std::string         kJson;
+        std::wstring        dir = std::wstring (kThemesBase) + L"\\Variants2";
 
         kJson = R"({
             "$cassoThemeVersion": 1,
@@ -463,8 +463,8 @@ public:
         LoadedTheme         theme;
         ThemeLoadError      err;
         HRESULT             hr;
-        std::wstring        dir = std::wstring (kThemesBase) + L"\\Variants3";
         std::string         kJson;
+        std::wstring        dir = std::wstring (kThemesBase) + L"\\Variants3";
 
         kJson = R"({
             "$cassoThemeVersion": 1,
@@ -518,8 +518,9 @@ public:
         LoadedTheme         theme;
         ThemeLoadError      err;
         HRESULT             hr;
-        std::wstring        dir = std::wstring (kThemesBase) + L"\\Variants4";
         std::string         kJson;
+        float               baseBefore = 0.0f;
+        std::wstring        dir = std::wstring (kThemesBase) + L"\\Variants4";
 
         kJson = R"({
             "$cassoThemeVersion": 1,
@@ -537,7 +538,7 @@ public:
         hr = ThemeLoader::Load (fs, dir, theme, err);
         AssertSucceeded (hr);
 
-        float  baseBefore = theme.crtDefaults.brightness;
+        baseBefore = theme.crtDefaults.brightness;
         {
             LoadedTheme  resolved = theme.ResolveForMachine ("Apple //c");
             Assert::AreEqual (2.0f, resolved.crtDefaults.brightness);

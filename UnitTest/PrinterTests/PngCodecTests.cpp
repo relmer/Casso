@@ -83,15 +83,15 @@ namespace PngCodecTests
 
         TEST_METHOD (IndexPlaneRoundTripIsLossless)
         {
-            vector<Byte>   indices;
-            vector<Byte>   back;
-            vector<Byte>   png;
-            uint32_t       palette[16];
-            int            w = 4;
-            int            h = 4;
-            int            i = 0;
-            int            outW = 0;
-            int            outH = 0;
+            vector<Byte>  indices;
+            vector<Byte>  back;
+            vector<Byte>  png;
+            uint32_t      palette[16];
+            int           w           = 4;
+            int           h           = 4;
+            int           i           = 0;
+            int           outW        = 0;
+            int           outH        = 0;
 
             for (i = 0; i < 16; i++)
             {

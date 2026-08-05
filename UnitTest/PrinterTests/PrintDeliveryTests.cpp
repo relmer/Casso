@@ -43,12 +43,12 @@ namespace PrintDeliveryTests
 
         TEST_METHOD (RendersStrikesToDecodablePng)
         {
-            PrintRaster    raster;
-            vector<Byte>   png;
-            RgbaImage      decoded;
-            int            col   = 0;
-            int            inked = 0;
-            int            x = 0, y = 0;
+            PrintRaster   raster;
+            vector<Byte>  png;
+            RgbaImage     decoded;
+            int           col     = 0;
+            int           inked   = 0;
+            int           x       = 0, y = 0;
 
             for (col = 0; col < 40; col++)
             {
@@ -71,6 +71,7 @@ namespace PrintDeliveryTests
                     if (p[0] < 250 || p[1] < 250 || p[2] < 250) inked++;
                 }
             }
+
             Assert::IsTrue (inked > 0, L"delivered PNG has no ink");
         }
 

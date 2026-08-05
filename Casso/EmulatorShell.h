@@ -100,6 +100,30 @@ public:
 //
 //  EmulatorShell
 //
+//  The application: window, chrome, devices, and the CPU thread that runs the
+//  emulated machine.
+//
+//  It implements three framework interfaces rather than owning three
+//  collaborators, and each is a different conversation. IDxuiHostClient is the
+//  window's message and paint lifecycle; IDriveCommandSink is what the drive
+//  chrome calls to mount and eject; IDxuiViewportInputSink is where guest
+//  keystrokes arrive after the framework has routed them. Implementing them
+//  here is what keeps the shell the single place those three meet.
+//
+//  TWO THREADS run against this object. The CPU thread executes instructions
+//  and publishes frames; the UI thread drains messages, renders, and presents.
+//  Everything shared between them is atomic or mutex-guarded, and several
+//  methods exist purely to marshal work to the right one -- the rule is that
+//  UI state is UI-thread-only and device state belongs to the CPU thread.
+//
+//  Devices are held in an owned list with a separate struct of observer
+//  pointers into it, so a machine switch can tear the whole graph down and
+//  rebuild it while the window, the chrome, and the renderer survive.
+//
+//  Much of the class is delegated to managers -- machine, disk, window,
+//  clipboard, command -- so this header is largely the seam between them
+//  rather than the implementation of any of it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class EmulatorShell : public IDxuiHostClient, public IDriveCommandSink, public IDxuiViewportInputSink
@@ -126,7 +150,7 @@ public:
     // loop owns the thread (otherwise the preview + sound freeze on a title-bar
     // hold, then jump on release). The host owns the keep-alive timer; the shell
     // only supplies this per-frame work.
-    bool PumpUiFrame();
+    bool TryPresentUiFrame();
 
     void HandleCommand (WORD commandId);
 
@@ -443,7 +467,7 @@ private:
         UINT                          dpi,
         float                         sceneScale);
 
-    static bool  GetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor);
+    static bool  TryGetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor);
 
     static void  CenterInWorkArea (
         const RECT & work,
@@ -452,7 +476,7 @@ private:
         LONG       & outX,
         LONG       & outY);
 
-    static bool  LoadIconAsPremulBgra (
+    static HRESULT  LoadIconAsPremulBgra (
         HINSTANCE               hInstance,
         int                     iconResourceId,
         int                     sizePx,
@@ -760,10 +784,10 @@ private:
     friend class SettingsDisplayCrtBridge;
     friend class SettingsMachineCatalog;
 
-    HACCEL              m_accelTable      = nullptr;
-    HINSTANCE           m_hInstance       = nullptr;
-    HWND                m_hwnd            = nullptr;
-    bool                m_initialSizeReconciled = false;
+    HACCEL     m_accelTable            = nullptr;
+    HINSTANCE  m_hInstance             = nullptr;
+    HWND       m_hwnd                  = nullptr;
+    bool       m_initialSizeReconciled = false;
 
     // Authoritative per-window DPI scaler. Mirrors the one inside
     // DxuiHwndSource; updated from OnDpiChanged and seeded after
@@ -771,11 +795,11 @@ private:
     // thicknesses through this member.
     DxuiDpiScaler       m_scaler;
 
-    MemoryBus           m_memoryBus;
-    ComponentRegistry   m_registry;
-    InterruptController m_interruptController;
-    unique_ptr<EmuCpu> m_cpu;
-    unique_ptr<class Prng> m_prng;
+    MemoryBus               m_memoryBus;
+    ComponentRegistry       m_registry;
+    InterruptController     m_interruptController;
+    unique_ptr<EmuCpu>      m_cpu;
+    unique_ptr<class Prng>  m_prng;
     size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
     std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
    
@@ -792,9 +816,9 @@ private:
     // commands and runs alongside the existing Win32 menu bar until the
     // painter retires the latter. The caption (title + icon + min/max/
     // close) is owned and rendered by the DxuiHwndSource, not here.
-    MainMenu            m_mainMenu;
-    CassoTheme         m_chromeTheme    = CassoTheme::Skeuomorphic();
-    std::array<DriveWidget, 2> m_driveChrome;
+    MainMenu                    m_mainMenu;
+    CassoTheme                  m_chromeTheme = CassoTheme::Skeuomorphic();
+    std::array<DriveWidget, 2>  m_driveChrome;
 
     // The command toolbar (spec 015 DCR-2): the strip below the menu bar with
     // Settings / Printer (+status LED) / master Volume + Mute / Screenshot /
@@ -862,17 +886,17 @@ private:
     // Joystick-mode toggle button (mirrors IDM_MACHINE_ARROWS_JOYSTICK),
     // centered in the drive bar above the drive widgets, with its own
     // hover tooltip.
-    InputDeviceSelector   m_joystickButton;   // Segmented device selector
-    DxuiTooltip               m_joystickTooltip;
-    DxuiTooltip               m_toolbarTooltip;   // labels for the toolbar's icon-only mode
+    InputDeviceSelector  m_joystickButton;   // Segmented device selector
+    DxuiTooltip          m_joystickTooltip;
+    DxuiTooltip          m_toolbarTooltip;   // labels for the toolbar's icon-only mode
 
     // Apple //c case-switch strip (reset button + 80/40 and keyboard latching
     // switches + disk-use / power LEDs), painted in its own chrome band between
     // the emulator viewport and the drive bar. Present only on the //c; its
     // band collapses to zero height on every other machine. Manually
     // hit-tested / actioned by the mouse handlers, like the other chrome.
-    Apple2cSwitchBar      m_switchBar;
-    DxuiTooltip               m_switchBarTooltip;
+    Apple2cSwitchBar  m_switchBar;
+    DxuiTooltip       m_switchBarTooltip;
 
     // Hover tooltip for the drive widgets, surfaced when the pointer
     // rests over a write-protected drive. Explains that the disk is
@@ -965,8 +989,8 @@ private:
     // lives in m_driveWidgetState; the CPU thread's motor + nibble
     // counters are sampled once per UI frame and pushed through the
     // controller.
-    DriveWidgetController                m_driveWidgets;
-    DxuiDragDropTarget                       m_dragDropTarget;
+    DriveWidgetController  m_driveWidgets;
+    DxuiDragDropTarget     m_dragDropTarget;
 
     // Native UI shell. Owns the painter, text renderer, hit-tester,
     // focus manager, animation broker, and input translator. Wired
@@ -1124,12 +1148,12 @@ private:
     // monitor is active. Defaults to white.
     atomic<uint32_t>              m_colorMonitorTextArgb{ColorUtil::kWhiteArgb};
 
-    // Double framebuffer (CPU renders, UI presents, protected by m_fbMutex)
-    mutex                         m_fbMutex;
+    // Double framebuffer (CPU renders, UI presents, protected by m_framebufferMutex)
+    mutex                         m_framebufferMutex;
     vector<uint32_t>              m_cpuFramebuffer;
     vector<uint32_t>              m_textOverlay;
     vector<uint32_t>              m_uiFramebuffer;
-    bool                          m_fbReady = false;
+    bool                          m_framebufferReady = false;
 
     // Auto-reset event the CPU thread signals after publishing a new frame so
     // the idle UI loop blocks on MsgWaitForMultipleObjects instead of spin-

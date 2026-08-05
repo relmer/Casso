@@ -12,6 +12,21 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  AudioTests
 //
+//  PCM generation from speaker toggles: the waveform, the cycle-to-sample
+//  mapping, and silence.
+//
+//  The SILENCE case is the one that matters most. A frame with no toggles must
+//  emit zeroes rather than the held speaker level -- a parked non-zero state
+//  becomes a constant DC offset in the mix and buzzes continuously between
+//  sounds, which is the most audible bug this code can have.
+//
+//  The cycle-to-sample mapping is asserted at more than one rate, since the
+//  same toggle stream must produce the same tone at any host sample rate --
+//  that scaling is what replaces a resampler.
+//
+//  Toggles landing on a sample boundary are covered, since that is where an
+//  off-by-one puts an edge in the wrong sample and shifts the phase.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (AudioTests)
@@ -24,8 +39,8 @@ public:
 
     TEST_METHOD (Silence_NoToggles_AllZeroOutput)
     {
-        std::vector<uint32_t> toggles;
-        float samples[100];
+        std::vector<uint32_t>  toggles;
+        float                  samples[100];
 
 
 
@@ -39,8 +54,8 @@ public:
 
     TEST_METHOD (Silence_NoToggles_OutputsZero)
     {
-        std::vector<uint32_t> toggles;
-        float samples[100];
+        std::vector<uint32_t>  toggles;
+        float                  samples[100];
 
 
 
@@ -59,8 +74,8 @@ public:
 
     TEST_METHOD (SingleToggle_MidFrame_ProducesStep)
     {
-        std::vector<uint32_t> toggles = { 8515 };
-        float samples[1000];
+        std::vector<uint32_t>  toggles       = { 8515 };
+        float                  samples[1000];
 
 
 
@@ -85,8 +100,8 @@ public:
 
     TEST_METHOD (SquareWave_EvenToggles_ProducesSymmetricWave)
     {
-        std::vector<uint32_t> toggles = { 0, 4258, 8515, 12773 };
-        float samples[1000];
+        std::vector<uint32_t>  toggles       = { 0, 4258, 8515, 12773 };
+        float                  samples[1000];
 
 
 
@@ -113,6 +128,11 @@ public:
 
     TEST_METHOD (SquareWave_KnownFrequency_CorrectPeriod)
     {
+        const uint32_t  numSamples = 4410;
+        int             crossings  = 0;
+
+
+
         // Toggle every 1000 cycles in a 17030-cycle frame
         std::vector<uint32_t> toggles;
 
@@ -122,7 +142,6 @@ public:
         }
 
         // 18 toggles (0, 1000, 2000, ... 17000)
-        const uint32_t numSamples = 4410;
         std::vector<float> samples (numSamples);
 
 
@@ -130,7 +149,6 @@ public:
         AudioGenerator::GeneratePCM (toggles, 17030, -0.3f, samples.data(), numSamples);
 
         // Count sign changes (zero crossings)
-        int crossings = 0;
 
         for (uint32_t i = 1; i < numSamples; i++)
         {
@@ -151,21 +169,21 @@ public:
 
     TEST_METHOD (RapidToggles_HighFrequency_DoesNotCrash)
     {
-        std::vector<uint32_t> toggles;
+        std::vector<uint32_t>  toggles;
+        float                  samples[735];
+        bool                   hasNonZero   = false;
 
         for (uint32_t i = 0; i < 1000; i++)
         {
             toggles.push_back (i * 17);
         }
 
-        float samples[735];
 
 
 
         AudioGenerator::GeneratePCM (toggles, 17030, -0.3f, samples, 735);
 
         // Just verify no crash and output has values
-        bool hasNonZero = false;
 
         for (int i = 0; i < 735; i++)
         {
@@ -181,14 +199,14 @@ public:
 
     TEST_METHOD (RapidToggles_AlternatingValues)
     {
-        std::vector<uint32_t> toggles;
+        std::vector<uint32_t>  toggles;
+        float                  samples[735];
 
         for (uint32_t i = 0; i < 500; i++)
         {
             toggles.push_back (i * 34);
         }
 
-        float samples[735];
 
 
 
@@ -209,8 +227,8 @@ public:
     TEST_METHOD (AllTogglesAtStart_StateChangesImmediately)
     {
         // 3 toggles all at cycle 0: -0.3 → +0.3 → -0.3 → +0.3
-        std::vector<uint32_t> toggles = { 0, 0, 0 };
-        float samples[100];
+        std::vector<uint32_t>  toggles      = { 0, 0, 0 };
+        float                  samples[100];
 
 
 
@@ -226,8 +244,8 @@ public:
     TEST_METHOD (AllTogglesAtEnd_InitialStateFillsBuffer)
     {
         // All toggles at last cycle — initial state fills almost all
-        std::vector<uint32_t> toggles = { 17049, 17049, 17049 };
-        float samples[1000];
+        std::vector<uint32_t>  toggles       = { 17049, 17049, 17049 };
+        float                  samples[1000];
 
 
 
@@ -243,8 +261,8 @@ public:
 
     TEST_METHOD (ZeroCyclesPerFrame_NoExplode)
     {
-        std::vector<uint32_t> toggles = { 100, 200 };
-        float samples[100];
+        std::vector<uint32_t>  toggles      = { 100, 200 };
+        float                  samples[100];
 
 
 
@@ -261,8 +279,8 @@ public:
 
     TEST_METHOD (ZeroSamples_NoExplode)
     {
-        std::vector<uint32_t> toggles = { 100 };
-        float dummy = 0.0f;
+        std::vector<uint32_t>  toggles = { 100 };
+        float                  dummy   = 0.0f;
 
 
 
@@ -272,8 +290,8 @@ public:
 
     TEST_METHOD (EmptyTimestamps_OutputsSilence)
     {
-        std::vector<uint32_t> toggles;
-        float samples[100];
+        std::vector<uint32_t>  toggles;
+        float                  samples[100];
 
 
 
@@ -292,8 +310,8 @@ public:
 
     TEST_METHOD (SpeakerToggle_RecordsTimestamp)
     {
-        AppleSpeaker spk;
-        uint64_t cycles = 5000;
+        AppleSpeaker  spk;
+        uint64_t      cycles = 5000;
 
         spk.SetCycleCounter (&cycles);
         spk.Read (0xC030);
@@ -304,8 +322,10 @@ public:
 
     TEST_METHOD (SpeakerToAudioPipeline_EndToEnd)
     {
-        AppleSpeaker spk;
-        uint64_t cycles = 0;
+        AppleSpeaker  spk;
+        uint64_t      cycles        = 0;
+        float         initialState  = 0.0f;
+        float         samples[1000];
         spk.SetCycleCounter (&cycles);
 
 
@@ -324,7 +344,6 @@ public:
         const auto & timestamps = spk.GetToggleTimestamps();
         // Initial state before toggles: speaker starts at 0.0,
         // after 3 toggles it's at 0.3. Initial = 0.0.
-        float initialState = 0.0f;
 
         Assert::AreEqual (size_t (3), timestamps.size());
         Assert::AreEqual (uint32_t (4000), timestamps[0]);
@@ -332,7 +351,6 @@ public:
         Assert::AreEqual (uint32_t (12000), timestamps[2]);
 
         // Generate PCM
-        float samples[1000];
 
         AudioGenerator::GeneratePCM (timestamps, 16000, initialState, samples, 1000);
 
@@ -347,8 +365,8 @@ public:
     TEST_METHOD (SpeakerToAudioPipeline_NonZeroInitial)
     {
         // Full pipeline test with non-zero amplitude
-        std::vector<uint32_t> timestamps = { 4000, 8000, 12000 };
-        float samples[1000];
+        std::vector<uint32_t>  timestamps    = { 4000, 8000, 12000 };
+        float                  samples[1000];
 
         float initialState = -0.3f;
 

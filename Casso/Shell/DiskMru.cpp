@@ -50,6 +50,7 @@ void DiskMru::RecordMount (const std::filesystem::path & path, std::int64_t last
         {
             m_entries.erase (it);
         }
+
         m_entries.insert (m_entries.begin(), Entry { path, lastLoadedUnix });
         EnforceCap();
     }
@@ -146,7 +147,7 @@ DiskMru::DistinctFolders (const std::vector<Entry> & entries)
 
     for (const Entry & e : entries)
     {
-        std::filesystem::path  dir = e.path.parent_path().lexically_normal();
+        std::filesystem::path  dir  = e.path.parent_path().lexically_normal();
         std::wstring           key;
         bool                   seen = false;
 
@@ -212,16 +213,19 @@ DiskMru DiskMru::FromUtf8 (const std::vector<std::string> & utf8Entries,
     {
         if (!utf8Entries[i].empty())
         {
+            std::int64_t  when = 0;
+
             // Interpret the stored bytes as UTF-8 so non-ASCII filenames
             // (e.g. the o-slash in "Broderbund") round-trip intact rather
             // than being mangled by the platform-narrow path constructor.
             std::u8string  u8 (reinterpret_cast<const char8_t *> (utf8Entries[i].data()),
                                utf8Entries[i].size());
-            std::int64_t   when = (i < loadedAtUnix.size()) ? loadedAtUnix[i] : 0;
+            when = (i < loadedAtUnix.size()) ? loadedAtUnix[i] : 0;
 
             entries.push_back (Entry { std::filesystem::path (u8), when });
         }
     }
+
     mru.ReplaceAll (std::move (entries));
     return mru;
 }

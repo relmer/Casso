@@ -52,6 +52,29 @@ struct PendingLine
 //
 //  AssemblySession
 //
+//  One run of the assembler over one source text: two passes, and all the
+//  state they share.
+//
+//  A SESSION rather than methods on Assembler, so every assembly starts from a
+//  clean slate. Symbols, macros, the conditional stack, and the output image
+//  are all per-run state, and holding them on a long-lived object is how a
+//  second assembly ends up contaminated by the first.
+//
+//  Two passes because forward references demand it. Pass 1 walks the pending
+//  lines to size and bind every instruction and label; pass 2 walks the
+//  recorded line info to emit bytes, by which time every symbol is known.
+//
+//  The two walk DIFFERENT collections on purpose. Pass 1 consumes a deque that
+//  macros and includes splice into at the front -- expansion happens by
+//  requeuing lines, so the same pass handles them with no recursion -- while
+//  pass 2 walks the flat line list pass 1 produced.
+//
+//  Directives live in ONE table spanning both passes, not two. The passes
+//  previously kept independent lists of which directives exist and could
+//  disagree about it; a single row per directive makes that impossible, and
+//  the uniform handler shape per pass is what lets dispatch be an array
+//  indexed by token rather than an if-chain.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class AssemblySession
@@ -127,6 +150,9 @@ private:
     void    NormalizeBitOp             (const PendingLine & current, LineInfo & info);
     HRESULT ClassifyAndResolve         (const PendingLine & current, LineInfo & info);
     HRESULT ValidateAssemblyCompletion ();
+    
+    // Source order for the final diagnostic lists; recording order is not it.
+    void     SortDiagnosticsByLine();
 
     HRESULT ResolveEquConstants  ();
     HRESULT ReportUnresolvedEqus ();
@@ -277,7 +303,7 @@ private:
     static bool                     IsBitOpMnemonic           (const std::string & mnemonic);
     Byte                            EstimateErrorRecoverySize (OperandSyntax syntax, const std::string & mnemonic) const;
     static std::string              ProcessEscapeSequences    (const std::string & str);
-    static bool                     EvaluateDirectiveArgs     (const std::string & argText,
+    static bool                     TryEvaluateDirectiveArgs     (const std::string & argText,
                                                                const ExprContext & ctx,
                                                                std::vector<int32_t> & values,
                                                                int lineNumber,
@@ -297,36 +323,36 @@ private:
     AssemblyResult           m_result             = {};
 
     std::vector<std::string>                           m_lines;
-    std::vector<LineInfo>                               m_lineInfos;
-    std::unordered_map<std::string, Word>               m_symbols;
-    std::unordered_map<std::string, SymbolKind>         m_symbolKinds;
-    std::unordered_map<std::string, int32_t>            m_exprSymbols;
-    ExprContext                                          m_pass1Ctx           = { &m_exprSymbols, 0 };
-    Word                                                m_pc                 = 0;
-    bool                                                m_originSet          = false;
-    bool                                                m_endAssembly        = false;
-    Segment                                             m_currentSegment     = Segment::Code;
-    Word                                                m_segmentPC[3]       = { 0, 0, 0 };
-    std::vector<ConditionalState>                       m_condStack;
-    std::unordered_map<std::string, MacroDefinition>    m_macros;
-    Pass1State                                          m_pass1State         = Pass1State::Normal;
-    std::string                                         m_currentMacroName;
-    int                                                 m_currentMacroLine   = 0;
-    std::vector<std::string>                            m_currentMacroBody;
-    std::vector<std::string>                            m_currentMacroParams;
-    std::vector<std::string>                            m_currentMacroLocals;
-    int                                                 m_macroUniqueCounter = 0;
-    int                                                 m_listingLevel;
-    std::unordered_map<std::string, StructDefinition>   m_structs;
-    StructDefinition                                    m_currentStruct      = {};
-    CharacterMap                                        m_charMap;
-    std::deque<PendingLine>                             m_pendingLines;
-    std::vector<Byte>                                   m_image;
-    Word                                                m_lowestAddr         = 0xFFFF;
-    Word                                                m_highestAddr        = 0x0000;
-    std::unordered_map<std::string, int>                m_referencedLabels;
-    std::unordered_map<std::string, int32_t>            m_fullSymbols;
-    ExprContext                                          m_pass2Ctx           = { &m_fullSymbols, 0 };
+    std::vector<LineInfo>                              m_lineInfos;
+    std::unordered_map<std::string, Word>              m_symbols;
+    std::unordered_map<std::string, SymbolKind>        m_symbolKinds;
+    std::unordered_map<std::string, int32_t>           m_exprSymbols;
+    ExprContext                                        m_pass1Ctx           = { &m_exprSymbols, 0 };
+    Word                                               m_pc                 = 0;
+    bool                                               m_originSet          = false;
+    bool                                               m_endAssembly        = false;
+    Segment                                            m_currentSegment     = Segment::Code;
+    Word                                               m_segmentPC[3]       = { 0, 0, 0 };
+    std::vector<ConditionalState>                      m_condStack;
+    std::unordered_map<std::string, MacroDefinition>   m_macros;
+    Pass1State                                         m_pass1State         = Pass1State::Normal;
+    std::string                                        m_currentMacroName;
+    int                                                m_currentMacroLine   = 0;
+    std::vector<std::string>                           m_currentMacroBody;
+    std::vector<std::string>                           m_currentMacroParams;
+    std::vector<std::string>                           m_currentMacroLocals;
+    int                                                m_macroUniqueCounter = 0;
+    int                                                m_listingLevel;
+    std::unordered_map<std::string, StructDefinition>  m_structs;
+    StructDefinition                                   m_currentStruct      = {};
+    CharacterMap                                       m_charMap;
+    std::deque<PendingLine>                            m_pendingLines;
+    std::vector<Byte>                                  m_image;
+    Word                                               m_lowestAddr         = 0xFFFF;
+    Word                                               m_highestAddr        = 0x0000;
+    std::unordered_map<std::string, int>               m_referencedLabels;
+    std::unordered_map<std::string, int32_t>           m_fullSymbols;
+    ExprContext                                        m_pass2Ctx           = { &m_fullSymbols, 0 };
 
     static const int kMaxMacroDepth   = 15;
     static const int kMaxIncludeDepth = 16;

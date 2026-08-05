@@ -25,6 +25,24 @@ LedIndicator::LedIndicator()
 //
 //  PositionAt
 //
+//  Places the LED at a point, sizing its core and halo for the DPI.
+//
+//  The halo is grown OUTWARD from the core rather than the core being inset
+//  inside a fixed box, so the caller positions the light itself and the glow
+//  extends around it. Positioning the outer box instead would move the visible
+//  dot whenever the halo size changed.
+//
+//  Both dimensions are FLOORED at their 96-DPI values. A sub-scale LED would
+//  round down to a few pixels and disappear -- and an indicator that vanishes
+//  is worse than one slightly larger than its nominal scale.
+//
+//  A zero DPI falls back to the base rather than producing a zero-size LED,
+//  since callers legitimately position chrome before the window's DPI is
+//  known.
+//
+//  The control's bounds are set to the HALO rect, so hit-testing and
+//  invalidation cover the glow rather than clipping it at the core's edge.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void LedIndicator::PositionAt (int x, int y, UINT dpi)
@@ -132,14 +150,22 @@ uint32_t LedIndicator::HaloArgb (const CassoTheme & theme) const
 
 void LedIndicator::Paint (IDxuiPainter & painter, IDxuiTextRenderer & /*text*/, const IDxuiTheme & dxuiTheme)
 {
-    _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
-    const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
+    const CassoTheme &  theme = static_cast<const CassoTheme &> (dxuiTheme);
+    uint32_t            halo  = 0;
+    float               cx    = 0.0f;
+    float               cy    = 0.0f;
+    float               coreR = 0.0f;
+    float               haloR = 0.0f;
 
-    uint32_t  halo = HaloArgb (theme);
-    float     cx   = (float) (m_layout.coreRect.left + m_layout.coreRect.right) * 0.5f;
-    float     cy   = (float) (m_layout.coreRect.top  + m_layout.coreRect.bottom) * 0.5f;
-    float     coreR = (float) (m_layout.coreRect.right - m_layout.coreRect.left) * 0.5f;
-    float     haloR = (float) (m_layout.haloRect.right - m_layout.haloRect.left) * 0.5f;
+
+
+    _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
+
+    halo = HaloArgb (theme);
+    cx = (float) (m_layout.coreRect.left + m_layout.coreRect.right) * 0.5f;
+    cy = (float) (m_layout.coreRect.top  + m_layout.coreRect.bottom) * 0.5f;
+    coreR = (float) (m_layout.coreRect.right - m_layout.coreRect.left) * 0.5f;
+    haloR = (float) (m_layout.haloRect.right - m_layout.haloRect.left) * 0.5f;
 
 
 

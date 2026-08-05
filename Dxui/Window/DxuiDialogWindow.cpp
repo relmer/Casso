@@ -105,6 +105,7 @@ void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
     {
         (e.anchor == DxuiButtonRow::Anchor::Left ? left : right).push_back (&e);
     }
+
     std::stable_sort (right.begin(), right.end(),
                       [] (const ButtonEntry * a, const ButtonEntry * b)
                       {
@@ -126,6 +127,7 @@ void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
             right[i]->button->Layout (rRects[i]);
             right[i]->button->SetDpi  (scaler.Dpi());
         }
+
         for (i = 0; i < left.size(); ++i)
         {
             left[i]->button->Layout (lRects[i]);

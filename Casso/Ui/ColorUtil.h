@@ -50,7 +50,7 @@ public:
 
     static uint32_t      HsvToArgb     (float h, float s, float v);
     static void          ArgbToHsv     (uint32_t argb, float & outH, float & outS, float & outV);
-    static bool          ParseHexColor (const std::wstring & text, uint32_t & outArgb);
+    static bool          TryParseHexColor (const std::wstring & text, uint32_t & outArgb);
     static std::wstring  FormatHexColor (uint32_t argb);
     static uint32_t      ResolveColorMonitorTextArgb (ColorMonitorTextMode mode, uint32_t customArgb);
 

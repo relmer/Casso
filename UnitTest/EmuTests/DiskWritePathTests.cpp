@@ -31,24 +31,14 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskWritePathTests
-//
-////////////////////////////////////////////////////////////////////////////////
-
 TEST_CLASS (DiskWritePathTests)
 {
 public:
 
-    static constexpr int    kSlot6   = 6;
-    static constexpr int    kDrive1  = 0;
-    static constexpr Word   kCodeOrg = 0x6000;
-    static constexpr Word   kPayloadAddr = 0x7000;
+    static constexpr int   kSlot6       = 6;
+    static constexpr int   kDrive1      = 0;
+    static constexpr Word  kCodeOrg     = 0x6000;
+    static constexpr Word  kPayloadAddr = 0x7000;
 
     // Distinct, valid 6-and-2 nibbles (all MSB-set, no illegal double-zero
     // bit runs) forming a signature unlikely to occur in the surrounding
@@ -171,8 +161,10 @@ public:
                 bitPos++;
                 guard++;
             }
+
             if (value & 0x80) { out.push_back (value); }
         }
+
         return out;
     }
 
@@ -209,8 +201,11 @@ public:
     // the shift-register MSB and deposited ~AA garbage where FF sync belongs.
     TEST_METHOD (LssWrite_DirectEngine_FF_RoundTrips)
     {
-        DiskImage           img;
-        Disk2NibbleEngine   eng;
+        DiskImage          img;
+        Disk2NibbleEngine  eng;
+        constexpr int      kSyncBytes = 6;
+        int                leadingFF  = 0;
+        bool               counting   = false;
 
         img.ResizeTrack (0, 4096);
         eng.SetDiskImage (&img);
@@ -218,7 +213,6 @@ public:
         eng.SetCurrentTrack (0);
         eng.SetWriteMode (true);
 
-        constexpr int  kSyncBytes = 6;
         for (int n = 0; n < kSyncBytes; n++)
         {
             eng.SetShiftLoadMode (true);                    // Q6 high (load)
@@ -234,8 +228,7 @@ public:
         eng.SetMotorOn   (true);
         eng.SetCurrentTrack (0);
 
-        int  leadingFF = 0;
-        bool counting  = true;
+        counting = true;
         for (int cell = 0; cell < 400 && counting; cell++)
         {
             uint8_t  nib = 0;
@@ -254,8 +247,13 @@ public:
 
     TEST_METHOD (LssWrite_KnownNibbles_RoundTripThroughBitstream)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        HeadlessHost         host;
+        EmulatorCore         core;
+        DiskImage          * img       = nullptr;
+        Cpu                  asmCpu;
+        std::vector<Byte>    nibbles;
+        size_t               payloadAt = 0;
+        AssemblyResult       r;
 
         HRESULT  hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
@@ -268,7 +266,7 @@ public:
                                              DiskFormat::Dsk, blank);
         AssertSucceeded (hr, L"MountFromBytes must succeed");
 
-        DiskImage *  img = core.diskStore->GetImage (kSlot6, kDrive1);
+        img = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img);
         core.diskController->SetExternalDisk (kDrive1, img);
 
@@ -283,17 +281,18 @@ public:
         Assert::AreEqual (size_t (26), s_kPayload.size(),
             L"kWriteSource hardcodes PLEN = 26; update both together");
 
-        Cpu             asmCpu;
         Assembler       assembler (asmCpu.GetInstructionSet());
-        AssemblyResult  r = assembler.Assemble (kWriteSource);
+        r = assembler.Assemble (kWriteSource);
 
         if (!r.success)
         {
-            const char *  e = r.errors.empty() ? "(none)" : r.errors[0].message.c_str();
             wchar_t  msg[256] = {};
+
+            const char *  e = r.errors.empty() ? "(none)" : r.errors[0].message.c_str();
             swprintf_s (msg, L"write routine must assemble. First error: %hs", e);
             Assert::Fail (msg);
         }
+
         Assert::AreEqual (Word (kCodeOrg), r.startAddress, L"routine must .org $6000");
 
         for (size_t i = 0; i < r.bytes.size(); i++)
@@ -305,8 +304,8 @@ public:
         core.RunCycles (200'000ULL);
 
         // Frame track 0 back into nibbles and search for the payload.
-        std::vector<Byte>  nibbles   = FrameTrack (*img, 0);
-        size_t             payloadAt = FindSubsequence (nibbles, s_kPayload);
+        nibbles = FrameTrack (*img, 0);
+        payloadAt = FindSubsequence (nibbles, s_kPayload);
 
         Assert::IsTrue (payloadAt != std::string::npos,
             L"Nibbles written through the LSS must frame back to the payload (GH #89).");

@@ -113,12 +113,12 @@ private:
 
     // P6 sequencer command opcodes (low nibble of each ROM entry). See
     // UtA2e Table 9.3 "Logic State Sequencer Commands".
-    static constexpr uint8_t    kLssCmdClr       = 0x0;   // latch <- 0
-    static constexpr uint8_t    kLssCmdNop       = 0x8;   // hold
-    static constexpr uint8_t    kLssCmdShiftZero = 0x9;   // latch <- latch << 1
-    static constexpr uint8_t    kLssCmdShiftRight = 0xA;  // latch >>= 1 (WP -> 0xFF)
-    static constexpr uint8_t    kLssCmdLoad      = 0xB;   // latch <- bus
-    static constexpr uint8_t    kLssCmdShiftOne  = 0xD;   // latch <- (latch << 1) | 1
+    static constexpr uint8_t  kLssCmdClr        = 0x0;   // latch <- 0
+    static constexpr uint8_t  kLssCmdNop        = 0x8;   // hold
+    static constexpr uint8_t  kLssCmdShiftZero  = 0x9;   // latch <- latch << 1
+    static constexpr uint8_t  kLssCmdShiftRight = 0xA;   // latch >>= 1 (WP -> 0xFF)
+    static constexpr uint8_t  kLssCmdLoad       = 0xB;   // latch <- bus
+    static constexpr uint8_t  kLssCmdShiftOne   = 0xD;   // latch <- (latch << 1) | 1
 
 
     // DOS 3.3 / 16-sector P6 Logic State Sequencer ROM. 16 states (rows) x

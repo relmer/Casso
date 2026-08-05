@@ -29,13 +29,15 @@ namespace FirmwareParityTests
 
         TEST_METHOD (SourceAssemblesToEmbeddedBytes)
         {
-            TestCpu          cpu;
+            TestCpu         cpu;
+            size_t          count  = 0;
+            size_t          i      = 0;
+            AssemblyResult  result;
             cpu.InitForTest();
 
             Assembler        asm6502 (cpu.GetInstructionSet());
-            AssemblyResult   result = asm6502.Assemble (s_kParallelFirmwareSource);
-            size_t           count  = sizeof (s_kParallelFirmwareBytes);
-            size_t           i      = 0;
+            result = asm6502.Assemble (s_kParallelFirmwareSource);
+            count = sizeof (s_kParallelFirmwareBytes);
 
             Assert::IsTrue (result.success, L"firmware source must assemble cleanly");
             Assert::AreEqual ((Word) s_kParallelFirmwareOrigin, result.startAddress);

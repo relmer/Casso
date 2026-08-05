@@ -256,6 +256,7 @@ void PrinterHead::Advance (double timeSec, const PrintRaster & built, PrintRaste
 
                 m_phase = Phase::Feeding;
             }
+
             // other event types carry no head motion -- already consumed
         }
     }
@@ -281,15 +282,20 @@ void PrinterHead::Advance (double timeSec, const PrintRaster & built, PrintRaste
 void PrinterHead::PaintPresented (double fromP, double toP,
                                   const PrintRaster & built, PrintRaster & presented)
 {
+    int  row0 = 0;
+    int  row1 = 0;
+    int  c0   = 0;
+    int  c1   = 0;
+
+
+
     if (m_sweepColor == 0 || toP <= fromP)
     {
         return;
     }
 
-    int   row0 = (int) m_headRow;
-    int   row1 = row0 + PrinterGrid::kPinBandRows - 1;
-    int   c0   = 0;
-    int   c1   = 0;
+    row0 = (int) m_headRow;
+    row1 = row0 + PrinterGrid::kPinBandRows - 1;
 
     // Map swept progress to physical carriage columns: a right-to-left pass lays
     // from the right edge inward, so its columns mirror around the sweep width.

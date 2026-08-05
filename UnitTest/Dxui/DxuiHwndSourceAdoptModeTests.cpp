@@ -8,7 +8,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiHwndSourceAdoptModeTests
+//
+//  ADOPT mode: the host attaching to a client's existing window rather than
+//  owning the paint pump itself.
+//
+//  Two modes exist because the emulator shell needs one and standalone panels
+//  need the other. In adopt mode the client owns Present and the message loop,
+//  and the host supplies only chrome and input routing -- so these assert what
+//  the host must NOT do: no swap chain of its own, no paint pump, no
+//  PostQuitMessage.
+//
+//  The distinction is easy to erode. A change made for the full-ownership path
+//  that happens to work there will silently take over the client's window here,
+//  which is why the two modes are tested apart.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

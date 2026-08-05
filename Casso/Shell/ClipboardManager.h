@@ -33,7 +33,7 @@ public:
     ClipboardManager  (MemoryBus                & memoryBus,
                        std::mutex               & cmdMutex,
                        std::string              & pasteBuffer,
-                       std::mutex               & fbMutex,
+                       std::mutex               & framebufferMutex,
                        std::vector<uint32_t>    & uiFramebuffer,
                        int                        framebufferWidth,
                        int                        framebufferHeight,
@@ -68,7 +68,7 @@ private:
     MemoryBus              & m_memoryBus;
     std::mutex             & m_cmdMutex;
     std::string            & m_pasteBuffer;
-    std::mutex             & m_fbMutex;
+    std::mutex             & m_framebufferMutex;
     std::vector<uint32_t>  & m_uiFramebuffer;
     AppleKeyboard *        * m_pKeyboardSlot     = nullptr;
     int                      m_framebufferWidth  = 0;

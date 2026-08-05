@@ -55,10 +55,10 @@ void Disk2AddressMarkWatcher::ObserveNibble (uint8_t nibble) noexcept
 
 void Disk2AddressMarkWatcher::StepAddrMarkState (uint8_t nibble) noexcept
 {
-    uint8_t  vol = 0;
-    uint8_t  trk = 0;
-    uint8_t  sec = 0;
-    uint8_t  chk = 0;
+    uint8_t  vol   = 0;
+    uint8_t  trk   = 0;
+    uint8_t  sec   = 0;
+    uint8_t  chk   = 0;
     uint8_t  chkLo = 0;
 
 
@@ -70,6 +70,7 @@ void Disk2AddressMarkWatcher::StepAddrMarkState (uint8_t nibble) noexcept
             {
                 m_addrState = AddrState::SawD5;
             }
+
             break;
 
         case AddrState::SawD5:
@@ -85,6 +86,7 @@ void Disk2AddressMarkWatcher::StepAddrMarkState (uint8_t nibble) noexcept
             {
                 m_addrState = AddrState::Idle;
             }
+
             break;
 
         case AddrState::SawAA:
@@ -100,6 +102,7 @@ void Disk2AddressMarkWatcher::StepAddrMarkState (uint8_t nibble) noexcept
             {
                 m_addrState = AddrState::Idle;
             }
+
             break;
 
         case AddrState::VolHi:
@@ -207,6 +210,7 @@ void Disk2AddressMarkWatcher::StepDataMarkState (uint8_t nibble) noexcept
             {
                 m_dataState = DataState::SawD5;
             }
+
             break;
 
         case DataState::SawD5:
@@ -222,6 +226,7 @@ void Disk2AddressMarkWatcher::StepDataMarkState (uint8_t nibble) noexcept
             {
                 m_dataState = DataState::Idle;
             }
+
             break;
 
         case DataState::SawAA:
@@ -238,6 +243,7 @@ void Disk2AddressMarkWatcher::StepDataMarkState (uint8_t nibble) noexcept
             {
                 m_dataState = DataState::Idle;
             }
+
             break;
 
         case DataState::Body:
@@ -258,6 +264,7 @@ void Disk2AddressMarkWatcher::StepDataMarkState (uint8_t nibble) noexcept
             {
                 m_dataState = DataState::Idle;
             }
+
             break;
     }
 }

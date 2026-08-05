@@ -161,6 +161,25 @@ HRESULT DxuiPainter::OnDeviceRestored (
 //
 //  CreateShaders
 //
+//  Compiles the painter's vertex / pixel shader pair and its input layout.
+//
+//  The vertex format is 2D position plus color and nothing else -- no texture
+//  coordinate, because this painter draws only solid geometry. Anything
+//  textured goes through the 3D renderer, and anything glyph-shaped through
+//  the text renderer, so the painter stays the cheapest of the three.
+//
+//  Shader source is embedded as string literals rather than as resources,
+//  since both are a few lines and belong beside the vertex struct they must
+//  agree with.
+//
+//  The names passed to D3DCompile are for DIAGNOSTICS only; they make a
+//  compile error name which of the two shaders failed instead of reporting
+//  against an anonymous blob.
+//
+//  The input layout is validated against the compiled vertex-shader blob, so a
+//  mismatch between the struct and the shader signature fails at startup
+//  rather than as garbage geometry.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiPainter::CreateShaders()
@@ -236,6 +255,23 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreatePipelineState
+//
+//  Builds the three fixed-function state objects the painter needs.
+//
+//  Premultiplied-alpha source-over is the compositing convention shared with
+//  the text renderer and the 3D renderer, which is what lets all three draw
+//  into one surface and layer predictably. Changing it here would silently
+//  desynchronize chrome translucency from everything else.
+//
+//  Culling is off because 2D geometry has no meaningful winding order; a quad
+//  emitted either way must paint.
+//
+//  Depth is disabled entirely -- test, write, and stencil. UI is painted in
+//  back-to-front order by the panel tree, so a depth buffer would add cost and
+//  could only ever reject something the tree intended to be on top.
+//
+//  The scissor is off by default; clipping is applied per draw when a widget
+//  needs it, so the common unclipped case costs nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -452,8 +488,7 @@ void DxuiPainter::PushQuad (
     // Two triangles per quad: (tl, tr, bl) and (bl, tr, br). Append all six in
     // one insert so the vector grows/size-checks once rather than six times
     // (the six 24-byte copies are the same either way; Vertex is a POD).
-    const Vertex  quad[6] = { tl, tr, bl, bl, tr, br };
-    m_vertices.insert (m_vertices.end(), quad, quad + 6);
+    m_vertices.insert (m_vertices.end(), { tl, tr, bl, bl, tr, br });
 }
 
 
@@ -642,18 +677,22 @@ void DxuiPainter::FillEllipseApprox (
 
 void DxuiPainter::FillSpanAA (float x0, float x1, float y, float h, uint32_t argbColor)
 {
-    uint32_t  baseA = (argbColor >> 24) & 0xFFu;
+    uint32_t  baseA    = (argbColor >> 24) & 0xFFu;
+    float     xl       = 0.0f;
+    float     xr       = 0.0f;
+    float     leftCov  = 0.0f;
+    float     rightCov = 0.0f;
     auto      withA = [&](float cov) -> uint32_t
     {
+        uint32_t  a = 0;
+
         cov = (cov < 0.0f) ? 0.0f : (cov > 1.0f) ? 1.0f : cov;
-        uint32_t  a = (uint32_t) ((float) baseA * cov + 0.5f);
+        a = (uint32_t) ((float) baseA * cov + 0.5f);
         return (argbColor & 0x00FFFFFFu) | (a << 24);
     };
 
-    float  xl       = floorf (x0);
-    float  xr       = floorf (x1);
-    float  leftCov  = 0.0f;
-    float  rightCov = 0.0f;
+    xl = floorf (x0);
+    xr = floorf (x1);
 
     // Degenerate spans (zero or negative width / height) draw nothing.
     if (x1 > x0 && h > 0.0f)
@@ -699,9 +738,10 @@ void DxuiPainter::FillConvexQuad (
     float x2, float y2, float x3, float y3,
     uint32_t argbColor)
 {
-    float  px[4] = { x0, x1, x2, x3 };
-    float  py[4] = { y0, y1, y2, y3 };
-    float  minY  = py[0], maxY = py[0];
+    float  px[4]  = { x0, x1, x2, x3 };
+    float  py[4]  = { y0, y1, y2, y3 };
+    float  minY   = py[0], maxY = py[0];
+    int    slices = 0;
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -712,7 +752,7 @@ void DxuiPainter::FillConvexQuad (
         if (py[i] > maxY) maxY = py[i];
     }
 
-    int  slices = (int) (maxY - minY);
+    slices = (int) (maxY - minY);
     if (slices < 1)   slices = 1;
     if (slices > 96)  slices = 96;
 
@@ -770,6 +810,7 @@ void DxuiPainter::DrawLineApprox (
     float  dy    = y1 - y0;
     float  len   = sqrtf (dx * dx + dy * dy);
     float  half  = thicknessPx * 0.5f;
+    int    steps = 0;
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -780,7 +821,7 @@ void DxuiPainter::DrawLineApprox (
         return;
     }
 
-    int  steps = (int) len + 1;
+    steps = (int) len + 1;
     if (steps > 96) steps = 96;
 
     for (int i = 0; i <= steps; i++)
@@ -799,18 +840,42 @@ void DxuiPainter::DrawLineApprox (
 //
 //  End
 //
+//  Flushes everything accumulated since Begin as ONE draw call.
+//
+//  Batching is the painter's whole reason for existing. Every FillRect and
+//  OutlineRect between Begin and End only appends triangles to a CPU-side
+//  vector; a chrome frame that draws a hundred rectangles costs one upload and
+//  one Draw rather than a hundred of each.
+//
+//  The full pipeline state is set here, every frame. Nothing is saved or
+//  restored, and that is the shared convention -- the text renderer and the 3D
+//  renderer do the same -- so all three can interleave freely without any of
+//  them assuming what state it inherits.
+//
+//  m_betweenBeginEnd is cleared BEFORE the early-out, so an empty batch or a
+//  null target still closes the Begin/End pair rather than leaving the painter
+//  believing it is mid-batch.
+//
+//  WRITE_DISCARD tells the driver the previous vertex contents are dead, so it
+//  hands back a fresh buffer instead of stalling until the GPU has finished
+//  reading last frame's.
+//
+//  The vertex list is cleared only on the path that actually drew it, so a
+//  failed flush keeps the geometry rather than silently discarding a frame's
+//  worth of work.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiPainter::End (ID3D11RenderTargetView * pRtv)
 {
-    HRESULT                    hr           = S_OK;
-    D3D11_MAPPED_SUBRESOURCE   mapped       = {};
-    UINT                       stride       = sizeof (Vertex);
-    UINT                       offset       = 0;
-    float                      blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    D3D11_VIEWPORT             vp           = {};
-    ID3D11RenderTargetView   * rtvs[1]      = { pRtv };
-    bool                       hasNothingToDraw = false;
+    HRESULT                     hr               = S_OK;
+    D3D11_MAPPED_SUBRESOURCE    mapped           = {};
+    UINT                        stride           = sizeof (Vertex);
+    UINT                        offset           = 0;
+    float                       blendFactor[4]   = { 0.0f, 0.0f, 0.0f, 0.0f };
+    D3D11_VIEWPORT              vp               = {};
+    ID3D11RenderTargetView    * rtvs[1]          = { pRtv };
+    bool                        hasNothingToDraw = false;
 
 
     DXUI_ASSERT_UI_THREAD();

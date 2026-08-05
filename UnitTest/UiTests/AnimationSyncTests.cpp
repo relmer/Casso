@@ -18,7 +18,22 @@ namespace UiTests
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  AnimationSyncTests
+//
+//  Animations advancing by WALL-CLOCK time rather than by frame, and reporting
+//  honestly whether they are still running.
+//
+//  Frame-rate independence is the property under test: the same animation
+//  sampled at 60 Hz and at 30 Hz must reach the same value at the same instant.
+//  A per-frame step looks fine on the developer's machine and runs at half
+//  speed on a 30 Hz display.
+//
+//  The in-flight report matters as much as the value, because it is what tells
+//  the UI loop to keep asking for frames -- an animation that reports finished
+//  early freezes partway, and one that never finishes burns a core forever.
+//
+//  Time is passed in, so a full animation runs instantly and deterministically
+//  with no sleeping.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +45,7 @@ public:
     {
         DxuiAnimation    anim;
         DxuiTweenHandle  h;
-        float        v = 0.0f;
+        float            v    = 0.0f;
 
         anim.AdvanceTime (0.0f);
         h = anim.StartTween (0.0f, 100.0f, 2.0f, DxuiTweenEase::Linear);
@@ -44,7 +59,7 @@ public:
     {
         DxuiAnimation    anim;
         DxuiTweenHandle  h;
-        float        v = 0.0f;
+        float            v    = 0.0f;
 
         h = anim.StartTween (0.0f, 10.0f, 1.0f, DxuiTweenEase::Linear);
 
@@ -55,9 +70,10 @@ public:
 
     TEST_METHOD (DriveSyncBroker_PublishAndConsumeWithinFrame)
     {
-        DxuiAnimation             anim;
-        DxuiDriveSyncBrokerEvent  visual;
-        DxuiDriveSyncBrokerEvent  audio;
+        DxuiAnimation                          anim;
+        DxuiDriveSyncBrokerEvent               visual;
+        DxuiDriveSyncBrokerEvent               audio;
+        std::vector<DxuiDriveSyncBrokerEvent>  events;
 
         visual.driveIndex  = 0;
         visual.tag         = 1;
@@ -69,7 +85,7 @@ public:
         anim.PublishSyncEvent (visual);
         anim.PublishSyncEvent (audio);
 
-        std::vector<DxuiDriveSyncBrokerEvent>  events = anim.ConsumePendingEvents();
+        events = anim.ConsumePendingEvents();
 
         Assert::AreEqual ((size_t) 2, events.size());
         Assert::AreEqual (visual.frameTimeMs, events[0].frameTimeMs);

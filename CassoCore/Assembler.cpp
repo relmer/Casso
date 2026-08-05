@@ -17,9 +17,9 @@
 FileReadResult DefaultFileReader::ReadFile (const std::string & filename, const std::string & baseDir)
 {
     FileReadResult      result   = {};
+    std::ostringstream  ss;
     std::string         fullPath = baseDir.empty() ? filename : baseDir + "/" + filename;
     std::ifstream       file (fullPath);
-    std::ostringstream  ss;
 
 
 
@@ -63,6 +63,18 @@ Assembler::Assembler (const Microcode instructionSet[256], AssemblerOptions opti
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RecordWarning
+//
+//  Files a diagnostic according to the caller's warning mode, which decides
+//  whether it is a warning, an error, or nothing at all.
+//
+//  Routing every warning through this one function is what makes
+//  warnings-as-errors work: no site has to know the mode, and none can forget
+//  to honor it. Under FatalWarnings the diagnostic is pushed onto the ERROR
+//  list and the result is marked failed, so a build script that treats
+//  warnings as errors gets a non-zero exit as well as the message.
+//
+//  NoWarn discards silently rather than filing and filtering later, so a
+//  source with thousands of suppressed warnings costs nothing to assemble.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,15 +131,44 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 //
 //  FormatListingLine
 //
+//  Renders one assembled line in the AS65 listing layout: line number,
+//  address, object bytes, then the original source text.
+//
+//  The COLUMN WIDTHS are the specification, not a preference. Existing tools
+//  and eyeballs read these listings positionally, so the fields are padded to
+//  fixed widths -- 5 for the line number, 4 for the address, 9 for the bytes
+//  -- rather than separated by tabs.
+//
+//  At most three object bytes are shown, which is the longest 6502
+//  instruction. A data directive that emits more is truncated in the listing
+//  while assembling in full; the listing is a reading aid, not the output.
+//
+//  Three line states are distinguished in the address column and they are not
+//  the same thing: a real address prints, a line inside a false conditional
+//  prints a dash so the reader can see it was SKIPPED rather than merely
+//  address-less, and anything else prints blank.
+//
+//  Cycle counts are inserted between the bytes and the source rather than
+//  appended, so enabling them shifts the source text as a block instead of
+//  producing ragged trailing annotations.
+//
+//  The macro-expansion marker occupies its own column, so expanded lines are
+//  scannable down the page without reading their text.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCycleCounts)
 {
+    std::string addrStr;
+    std::string bytesStr;
+    std::string cycleStr;
+
+
+
     // Line number column (cols 1-5, right-justified)
     std::string lineNumStr = std::format ("{:5d}", line.lineNumber);
 
     // Address column (cols 7-10, 4 hex digits, no $ prefix)
-    std::string addrStr;
 
     if (line.isConditionalSkip)
     {
@@ -143,7 +184,6 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCy
     }
 
     // Bytes column (cols 14-22, up to 3 hex bytes, padded to 9 chars)
-    std::string bytesStr;
 
     for (size_t i = 0; i < line.bytes.size() && i < 3; i++)
     {
@@ -161,7 +201,6 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCy
     }
 
     // Cycle counts column (optional, between bytes and prefix)
-    std::string cycleStr;
 
     if (showCycleCounts && line.cycleCounts > 0)
     {
@@ -189,18 +228,21 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCy
 std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, Word> & symbols,
                                            const std::unordered_map<std::string, SymbolKind> & symbolKinds)
 {
+    std::string output;
+
+
+
     // Sort symbols alphabetically
     std::vector<std::pair<std::string, Word>> sorted (symbols.begin(), symbols.end());
 
     std::sort (sorted.begin(), sorted.end(),
         [] (const auto & a, const auto & b) { return a.first < b.first; });
 
-    std::string output;
 
     for (const auto & pair : sorted)
     {
-        auto kindIt = symbolKinds.find (pair.first);
-        bool isRedefinable = (kindIt != symbolKinds.end() && kindIt->second == SymbolKind::Set);
+        auto  kindIt        = symbolKinds.find (pair.first);
+        bool  isRedefinable = (kindIt != symbolKinds.end() && kindIt->second == SymbolKind::Set);
 
         std::string fullName = (isRedefinable ? "*" : "") + pair.first;
         output += std::format ("{:<16s}${:04X}\n", fullName, pair.second);
@@ -221,13 +263,16 @@ std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, 
 
 std::string Assembler::FormatDebugInfo (const std::unordered_map<std::string, Word> & symbols)
 {
+    std::string output;
+
+
+
     // Sort symbols by address for deterministic output
     std::vector<std::pair<std::string, Word>> sorted (symbols.begin(), symbols.end());
 
     std::sort (sorted.begin(), sorted.end(),
         [] (const auto & a, const auto & b) { return a.second < b.second; });
 
-    std::string output;
 
     for (const auto & pair : sorted)
     {

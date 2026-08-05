@@ -262,7 +262,7 @@ bool DxuiSlider::OnLButtonDown (int x, int y)
 
 bool DxuiSlider::OnLButtonUp (int x, int y)
 {
-    bool  consumed = m_dragging;
+    bool  consumed  = m_dragging;
     bool  endedDrag = m_dragging;
 
 
@@ -276,6 +276,7 @@ bool DxuiSlider::OnLButtonUp (int x, int y)
     {
         m_onDragEnd();
     }
+
     return consumed;
 }
 
@@ -312,6 +313,24 @@ bool DxuiSlider::OnMouseMove (int x, int y)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnKey
+//
+//  Keyboard adjustment: the standard slider bindings.
+//
+//  Both axes are bound -- Left/Down decrease, Right/Up increase -- because the
+//  widget does not know whether its host laid it out horizontally or
+//  vertically, and binding one axis would leave half the layouts unusable.
+//
+//  Page Up and Page Down move ten steps, so a slider with a fine step is still
+//  crossable from the keyboard without holding an arrow down. Home and End go
+//  straight to the rails.
+//
+//  Everything routes through ApplyValue, so clamping, snapping, and the change
+//  notification are identical to what a drag produces -- the keyboard cannot
+//  reach a value the mouse could not.
+//
+//  The keyboard callback fires only on a CONSUMED key, and it is separate from
+//  the value change: hosts use it to distinguish deliberate keyboard
+//  adjustment from a drag, typically to keep a focus indicator alive.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -388,7 +407,8 @@ bool DxuiSlider::OnKey (WPARAM vk)
 
 void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
-    constexpr float  s_kInactiveTrackContrast = 1.6f;  // inactive track must stand off the panel bg
+    constexpr float  s_kInactiveTrackContrast = 1.6f;   // inactive track must stand off the panel bg
+    float            tickStep                 = 0.0f;
 
     uint32_t  accentArgb     = theme.Accent();
     uint32_t  s_kTrack       = DxuiColor::TintForContrast (theme.Background(), s_kInactiveTrackContrast);
@@ -401,18 +421,18 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     // All dimensions stored in dp; scaled to physical pixels via the
     // per-widget DxuiDpiScaler (set by SetDpi). DxuiSlider was previously
     // ignoring DPI which made the value readout illegible at >96dpi.
-    constexpr int       s_kTrackHeightDip    = 4;
-    constexpr int       s_kPuckRadiusDip     = 8;
-    constexpr int       s_kPuckRadiusHovDip  = 10;
-    constexpr int       s_kPuckRadiusFocDip  = 11;
-    constexpr float     s_kPuckCoreShare    = 0.45f;   // inner-dot diameter as fraction of outer
-    constexpr float     s_kPuckCoreRatio    = 3.0f;    // WCAG 1.4.11 min contrast of core vs white body
-    constexpr int       s_kTickHeightDip     = 4;
-    constexpr int       s_kTickGapDip        = 4;
-    constexpr int       s_kValueGapDip       = 8;
-    constexpr int       s_kValueFontDip      = 13;
-    constexpr int       s_kValueWidthDip     = 56;
-    constexpr const wchar_t * s_kFont           = DxuiTheme::kBodyFace;
+    constexpr int              s_kTrackHeightDip   = 4;
+    constexpr int              s_kPuckRadiusDip    = 8;
+    constexpr int              s_kPuckRadiusHovDip = 10;
+    constexpr int              s_kPuckRadiusFocDip = 11;
+    constexpr float            s_kPuckCoreShare    = 0.45f;   // inner-dot diameter as fraction of outer
+    constexpr float            s_kPuckCoreRatio    = 3.0f;   // WCAG 1.4.11 min contrast of core vs white body
+    constexpr int              s_kTickHeightDip    = 4;
+    constexpr int              s_kTickGapDip       = 4;
+    constexpr int              s_kValueGapDip      = 8;
+    constexpr int              s_kValueFontDip     = 13;
+    constexpr int              s_kValueWidthDip    = 56;
+    constexpr const wchar_t  * s_kFont             = DxuiTheme::kBodyFace;
 
     HRESULT  hr            = S_OK;
     bool     showValue     = m_explicitShowValue ? m_showValue : !m_suffix.empty();
@@ -467,7 +487,7 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
                       fillWidth, trackHeight, accentArgb);
 
     // Tick marks below the track.
-    float  tickStep = (m_tickInterval > s_kEpsilon) ? m_tickInterval : m_step;
+    tickStep = (m_tickInterval > s_kEpsilon) ? m_tickInterval : m_step;
 
     if (m_showTicks && tickStep > s_kEpsilon && trackAvailW > 0.0f)
     {
@@ -514,16 +534,17 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
             swprintf_s (buf, L"%d%ls", pct, m_suffix.c_str());
         }
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (buf,
-                                                  trackLeft + trackAvailW + valueGap,
-                                                  (float) m_boundsDip.top,
-                                                  valueWidth,
-                                                  rectH,
-                                                  s_kValueText,
-                                                  valueFontDip,
-                                                  s_kFont,
-                                                  DxuiTextHAlign::Right,
-                                                  DxuiTextVAlign::Center));
+        hr = text.DrawString (buf,
+                              trackLeft + trackAvailW + valueGap,
+                              (float) m_boundsDip.top,
+                              valueWidth,
+                              rectH,
+                              s_kValueText,
+                              valueFontDip,
+                              s_kFont,
+                              DxuiTextHAlign::Right,
+                              DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 
@@ -567,7 +588,18 @@ void DxuiSlider::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiSlider::OnMouse  (IDxuiControl override)
+//  DxuiSlider::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move is routed by DRAG STATE, not by position. Mid-drag it adjusts the
+//  value and is claimed -- the pointer has usually left the track by then, and
+//  hit-testing would hand the drag to whatever is under the cursor. Otherwise
+//  it is only a hover update and is reported unhandled.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -588,18 +620,21 @@ bool DxuiSlider::OnMouse (const DxuiMouseEvent & ev)
         {
             SetMouseHover (ev.positionDip.x, ev.positionDip.y);
         }
+
         break;
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left)
         {
             handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }
+
         break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
             handled = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
         }
+
         break;
     default:
         break;

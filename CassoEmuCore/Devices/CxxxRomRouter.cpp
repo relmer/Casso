@@ -144,7 +144,9 @@ Error:
 
 Byte * CxxxRomRouter::FastMapReadPtr (int page)
 {
-    static constexpr int  kPageSize = 0x100;
+    static constexpr int    kPageSize = 0x100;
+    size_t                  offset    = 0;
+    Byte                  * ptr       = nullptr;
 
 
 
@@ -159,8 +161,7 @@ Byte * CxxxRomRouter::FastMapReadPtr (int page)
                        && page != 0xC3
                        && page != 0xCF;
 
-    size_t   offset  = static_cast<size_t> ((page - 0xC1) * kPageSize);
-    Byte *   ptr     = nullptr;
+    offset = static_cast<size_t> ((page - 0xC1) * kPageSize);
 
     if (passive && offset + kPageSize <= m_internal.size())
     {

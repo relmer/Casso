@@ -87,11 +87,11 @@ struct HarteTestFile
 //  LoadHarteTestFile
 //
 //  Loads a binary test file produced by GenerateHarteTests.py.
-//  Returns true on success, false on file-not-found or parse error.
+//  Fails on file-not-found or parse error.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool LoadHarteTestFile (const std::string & path, HarteTestFile & outFile);
+HRESULT LoadHarteTestFile (const std::string & path, HarteTestFile & outFile);
 
 
 

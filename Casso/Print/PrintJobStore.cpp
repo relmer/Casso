@@ -24,9 +24,9 @@ static const wchar_t   s_kszStripJson[] = L"strip.json";
 static HRESULT ReadAllBytes (const fs::path & path, vector<Byte> & out)
 {
     HRESULT         hr       = S_OK;
-    std::ifstream   in (path, std::ios::binary);
     bool            isOpen   = false;
     bool            readWell = false;
+    std::ifstream   in (path, std::ios::binary);
 
 
 
@@ -55,9 +55,9 @@ Error:
 static HRESULT ReadAllText (const fs::path & path, string & out)
 {
     HRESULT         hr       = S_OK;
-    std::ifstream   in (path, std::ios::binary);
     bool            isOpen   = false;
     bool            readWell = false;
+    std::ifstream   in (path, std::ios::binary);
 
 
 
@@ -86,9 +86,9 @@ Error:
 static HRESULT WriteAllBytes (const fs::path & path, const vector<Byte> & bytes)
 {
     HRESULT         hr        = S_OK;
-    std::ofstream   out (path, std::ios::binary | std::ios::trunc);
     bool            isOpen    = false;
     bool            wroteWell = false;
+    std::ofstream   out (path, std::ios::binary | std::ios::trunc);
 
 
 
@@ -117,9 +117,9 @@ Error:
 static HRESULT WriteAllText (const fs::path & path, const string & text)
 {
     HRESULT         hr        = S_OK;
-    std::ofstream   out (path, std::ios::binary | std::ios::trunc);
     bool            isOpen    = false;
     bool            wroteWell = false;
+    std::ofstream   out (path, std::ios::binary | std::ios::trunc);
 
 
 
@@ -142,6 +142,22 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Load
+//
+//  Reads a pending print strip's two sidecar files from a directory and
+//  rebuilds the raster.
+//
+//  BOTH files must exist. A strip is only meaningful with its metadata, so
+//  finding one without the other is treated as nothing pending rather than
+//  attempting a partial rebuild with invented page boundaries.
+//
+//  That case returns ERROR_FILE_NOT_FOUND, which the caller reads as a clean
+//  first run rather than a failure -- it is the normal state for a machine
+//  that has never printed. It is still not a raster the caller can use, hence
+//  a failing code rather than S_OK.
+//
+//  This layer is only file plumbing; the decode and the rebuild live in
+//  PrintJobPersistence, so the format is testable from bytes with no
+//  filesystem at all.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

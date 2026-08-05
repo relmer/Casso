@@ -100,13 +100,13 @@ private:
     void  OnPopupClick    (POINT localPx);
 
 
-    std::vector<Item>     m_items;
-    SelectFn              m_onSelect;
-    const IDxuiTheme    * m_theme    = nullptr;
-    int                   m_hover    = -1;
-    int                   m_pressed  = -1;
-    bool                  m_visible  = false;
-    DxuiDpiScaler             m_scaler;
-    DxuiHwndSource      * m_popupHost     = nullptr;
-    DxuiPopupHost       * m_activePopup   = nullptr;
+    std::vector<Item>    m_items;
+    SelectFn             m_onSelect;
+    const IDxuiTheme   * m_theme       = nullptr;
+    int                  m_hover       = -1;
+    int                  m_pressed     = -1;
+    bool                 m_visible     = false;
+    DxuiDpiScaler        m_scaler;
+    DxuiHwndSource     * m_popupHost   = nullptr;
+    DxuiPopupHost      * m_activePopup = nullptr;
 };

@@ -35,7 +35,7 @@ public:
         Word start, Word end, const Byte * data, size_t size);
 
 private:
-    Word                m_start;
-    Word                m_end;
-    vector<Byte>   m_data;
+    Word          m_start;
+    Word          m_end;
+    vector<Byte>  m_data;
 };

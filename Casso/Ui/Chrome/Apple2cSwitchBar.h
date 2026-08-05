@@ -100,10 +100,10 @@ private:
     static constexpr int  kLabelGapDp  = 7;    // key/LED -> its label
     static constexpr int  kSwitchGapDp = 20;   // switch cluster -> switch cluster
     static constexpr int  kLedWDp      = 8;    // indicator LED -- same size as the latching switches
-    static constexpr int  kLedHDp      = 25;
-    static constexpr int  kIndGapDp    = 18;   // disk-use cluster -> power cluster
-    static constexpr float kFontDip    = 12.5f;
-    static constexpr float kFallbackCharPx = 6.6f;
+    static constexpr int    kLedHDp         = 25;
+    static constexpr int    kIndGapDp       = 18;   // disk-use cluster -> power cluster
+    static constexpr float  kFontDip        = 12.5f;
+    static constexpr float  kFallbackCharPx = 6.6f;
 
     // The real //c case switches are slanted parallelograms (top edge kicked
     // right, matching the italic silk-screen labels). kSlantTan is tan of that
@@ -139,17 +139,17 @@ private:
     static constexpr uint32_t  kSocketRim = 0xFF9A9484;   // thin rim around the cap
     // Raised caps (reset + OUT switches) share the cream kCap/kCapHi face; a
     // latched-in switch keeps that cream but a step darker, reading as recessed.
-    static constexpr uint32_t  kKeyFaceIn = 0xFFD4D1C7;   // cap face top, in (soft recess)
-    static constexpr uint32_t  kKeyLoIn   = 0xFFC9C5BA;   // cap face bottom, in
-    static constexpr uint32_t  kShadeProud  = 0x4E000000; // bottom/right bevel on a raised cap
-    static constexpr uint32_t  kShadePushed = 0x84000000; // deeper top/left bevel on a sunk switch
-    static constexpr uint32_t  kShadowNil   = 0x00000000; // transparent far edge
+    static constexpr uint32_t  kKeyFaceIn   = 0xFFD4D1C7;   // cap face top, in (soft recess)
+    static constexpr uint32_t  kKeyLoIn     = 0xFFC9C5BA;   // cap face bottom, in
+    static constexpr uint32_t  kShadeProud  = 0x4E000000;   // bottom/right bevel on a raised cap
+    static constexpr uint32_t  kShadePushed = 0x84000000;   // deeper top/left bevel on a sunk switch
+    static constexpr uint32_t  kShadowNil   = 0x00000000;   // transparent far edge
 
-    static constexpr uint32_t  kLedOff    = 0xFF25281F;   // dark LED (idle)
-    static constexpr uint32_t  kLedGreen  = 0xFF3CE070;   // lit green (power / disk use)
+    static constexpr uint32_t  kLedOff       = 0xFF25281F;   // dark LED (idle)
+    static constexpr uint32_t  kLedGreen     = 0xFF3CE070;   // lit green (power / disk use)
     static constexpr uint32_t  kLedGreenGlow = 0xFF2FBF5F;
-    static constexpr uint32_t  kLedRim    = 0xFF15140F;
-    static constexpr uint32_t  kLedSpecular = 0x66FFFFFF;  // white specular catch on a lit lamp
+    static constexpr uint32_t  kLedRim       = 0xFF15140F;
+    static constexpr uint32_t  kLedSpecular  = 0x66FFFFFF;   // white specular catch on a lit lamp
 
     static constexpr uint32_t  kHoverWash = 0x18FFFFFF;
 

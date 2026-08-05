@@ -142,6 +142,21 @@ bool DxuiTabStrip::OnLButtonUp (int x, int y)
 //
 //  OnKey
 //
+//  Left / Right arrow navigation between tabs.
+//
+//  Only the horizontal axis is bound, unlike the radio group's four -- a tab
+//  strip is always laid out horizontally, so Up and Down belong to whatever
+//  the tab is displaying.
+//
+//  Selection WRAPS at both ends, matching the platform convention for tabs.
+//
+//  Moving the selection COMMITS it, so arrowing through tabs switches pages as
+//  it goes. That is what a tab strip does; there is no separate activation
+//  step to require.
+//
+//  An unselected strip enters at the first tab going right and the last going
+//  left, so the first key press always lands somewhere sensible.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTabStrip::OnKey (WPARAM vk)
@@ -245,8 +260,8 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
     constexpr float     s_kPadYDp        = 4.0f;
     constexpr float     s_kPressedScale  = 0.82f;   // armed-tab tint, a touch darker than hover
 
-    constexpr float     s_kUnderlineDip  = 3.0f;   // thick active-tab underline
-    constexpr float     s_kMutedTextScale = 0.62f; // dim inactive labels
+    constexpr float  s_kUnderlineDip   = 3.0f;   // thick active-tab underline
+    constexpr float  s_kMutedTextScale = 0.62f;   // dim inactive labels
 
     HRESULT  hr          = S_OK;
     int      i           = 0;
@@ -269,10 +284,10 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
     // armed inactive tab gets a subtle fill hint.
     for (i = 0; i < (int) n; ++i)
     {
-        const Tab & t       = m_tabs[(size_t) i];
-        bool        isSel    = (i == m_selected);
-        bool        isHover  = (i == m_hover);
-        bool        isArmed  = (i == m_pressed && i == m_hover);
+        const Tab  & t       = m_tabs[(size_t) i];
+        bool         isSel   = (i == m_selected);
+        bool         isHover = (i == m_hover);
+        bool         isArmed = (i == m_pressed && i == m_hover);
 
         if (!isSel && (isHover || isArmed))
         {
@@ -301,16 +316,17 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
                                  focusThick, focusArgb);
         }
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (t.label.c_str(),
-                                                  (float) t.rect.left + padX,
-                                                  (float) t.rect.top  + padY,
-                                                  (float) (t.rect.right  - t.rect.left) - padX * 2.0f,
-                                                  (float) (t.rect.bottom - t.rect.top)  - padY * 2.0f,
-                                                  isSel ? textArgb : mutedText,
-                                                  fontDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextHAlign::Center,
-                                                  DxuiTextVAlign::Center));
+        hr = text.DrawString (t.label.c_str(),
+                              (float) t.rect.left + padX,
+                              (float) t.rect.top  + padY,
+                              (float) (t.rect.right  - t.rect.left) - padX * 2.0f,
+                              (float) (t.rect.bottom - t.rect.top)  - padY * 2.0f,
+                              isSel ? textArgb : mutedText,
+                              fontDip,
+                              DxuiTheme::kBodyFace,
+                              DxuiTextHAlign::Center,
+                              DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 
@@ -370,7 +386,16 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTabStrip::OnMouse  (IDxuiControl override)
+//  DxuiTabStrip::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move only updates hover and is reported unhandled, so the pointer
+//  crossing the strip does not consume moves other widgets want.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -390,12 +415,14 @@ bool DxuiTabStrip::OnMouse (const DxuiMouseEvent & ev)
         {
             handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }
+
         break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
             handled = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
         }
+
         break;
     default:
         break;

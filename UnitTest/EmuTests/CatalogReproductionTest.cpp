@@ -66,7 +66,7 @@ public:
         // the file doesn't exist (CI runners don't have the DOS 3.3
         // master disk in the repo); the caller treats that as "skip".
         std::error_code        ec;
-        std::filesystem::path  cursor = std::filesystem::current_path (ec);
+        std::filesystem::path  cursor  = std::filesystem::current_path (ec);
         std::vector<Byte>      bytes;
         bool                   walking = !ec;
 
@@ -106,6 +106,16 @@ public:
 
     TEST_METHOD (DOS33_CATALOG_DoesNotErrorOnMasterDisk)
     {
+        HeadlessHost    host;
+        EmulatorCore    core;
+        HRESULT         hr            = S_OK;
+        DiskImage     * img           = nullptr;
+        bool            promptVisible = false;
+        bool            ioError       = false;
+        bool            volumeBanner  = false;
+
+
+
         std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
         if (raw.empty())
         {
@@ -119,10 +129,8 @@ public:
         Assert::AreEqual (size_t (143360), raw.size(),
             L"DOS 3.3 master disk must be 143360 bytes");
 
-        HeadlessHost   host;
-        EmulatorCore   core;
 
-        HRESULT  hr = host.BuildApple2eWithDisk2 (core);
+        hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
         core.PowerCycle();
@@ -131,7 +139,7 @@ public:
             "dos33-master.dsk", DiskFormat::Dsk, raw);
         AssertSucceeded (hr, L"MountFromBytes must succeed");
 
-        DiskImage *  img = core.diskStore->GetImage (kSlot6, kDrive1);
+        img = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
         core.diskController->SetExternalDisk (kDrive1, img);
 
@@ -143,7 +151,6 @@ public:
         std::vector<std::string>  rows = TextScreenScraper::Scrape40 (
             *core.bus, TextScreenScraper::kTextPage1);
 
-        bool  promptVisible = false;
         for (const auto & r : rows)
         {
             if (r.find (']') != std::string::npos)
@@ -164,14 +171,13 @@ public:
         rows = TextScreenScraper::Scrape40 (
             *core.bus, TextScreenScraper::kTextPage1);
 
-        bool  ioError = false;
-        bool  volumeBanner = false;
         for (const auto & r : rows)
         {
             if (r.find ("I/O ERROR") != std::string::npos)
             {
                 ioError = true;
             }
+
             if (r.find ("DISK VOLUME") != std::string::npos)
             {
                 volumeBanner = true;
@@ -199,6 +205,15 @@ public:
 
     TEST_METHOD (DOS33_SAVE_RoundTripsToDsk)
     {
+        HeadlessHost    host;
+        EmulatorCore    core;
+        HRESULT         hr        = S_OK;
+        DiskImage     * img       = nullptr;
+        std::string     afterSave;
+        std::string     afterList;
+
+
+
         std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
         if (raw.empty())
         {
@@ -210,10 +225,8 @@ public:
         Assert::AreEqual (size_t (143360), raw.size(),
             L"DOS 3.3 master disk must be 143360 bytes");
 
-        HeadlessHost   host;
-        EmulatorCore   core;
 
-        HRESULT  hr = host.BuildApple2eWithDisk2 (core);
+        hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
         core.PowerCycle();
@@ -222,7 +235,7 @@ public:
             "dos33-master.dsk", DiskFormat::Dsk, raw);
         AssertSucceeded (hr, L"MountFromBytes must succeed");
 
-        DiskImage *  img = core.diskStore->GetImage (kSlot6, kDrive1);
+        img = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
         core.diskController->SetExternalDisk (kDrive1, img);
 
@@ -233,9 +246,10 @@ public:
 
         auto Screen = [&] () -> std::string
         {
+            std::string               joined;
+
             std::vector<std::string>  scr = TextScreenScraper::Scrape40 (
                 *core.bus, TextScreenScraper::kTextPage1);
-            std::string               joined;
             for (const auto & r : scr) { joined += r; joined += "\n"; }
             return joined;
         };
@@ -246,7 +260,7 @@ public:
         // Enter a one-line program and SAVE it.
         KeystrokeInjector::InjectLine (core, "10 REM TEST PROGRAM", kCatalogCycles);
         KeystrokeInjector::InjectLine (core, "SAVE TEST", kCatalogCycles);
-        std::string  afterSave = Screen();
+        afterSave = Screen();
 
         // Clear the program, LOAD it back, clear the screen, and LIST so
         // the recovered text is unambiguous (not a SAVE echo left onscreen).
@@ -254,7 +268,7 @@ public:
         KeystrokeInjector::InjectLine (core, "LOAD TEST", kCatalogCycles);
         KeystrokeInjector::InjectLine (core, "HOME", kCatalogCycles);
         KeystrokeInjector::InjectLine (core, "LIST", kCatalogCycles);
-        std::string  afterList = Screen();
+        afterList = Screen();
 
         Assert::IsTrue (afterSave.find ("I/O ERROR") == std::string::npos &&
                         afterList.find ("I/O ERROR") == std::string::npos,

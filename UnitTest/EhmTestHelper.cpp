@@ -24,8 +24,8 @@ namespace UnitTestHelpers
 
     // Non-null while an ExpectedEhmAssert scope is open. Assertions raised
     // inside that scope are counted instead of failing the test.
-    static ExpectedEhmAssert *   s_pExpecting = nullptr;
-    static int                   s_expectedCount = 0;
+    static ExpectedEhmAssert  * s_pExpecting    = nullptr;
+    static int                  s_expectedCount = 0;
 
 
     static void EhmBreakpointHandler (const wchar_t * message)

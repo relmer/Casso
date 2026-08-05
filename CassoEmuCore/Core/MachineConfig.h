@@ -201,6 +201,24 @@ enum class VideoStandard
 //
 //  MachineConfig
 //
+//  The parsed description of one machine: timing, memory map, ROMs, devices,
+//  and slots.
+//
+//  Every timing constant here is DERIVED from the 14.31818 MHz crystal rather
+//  than written as a rounded figure, because that one oscillator is where all
+//  Apple II timing comes from. The CPU clock is the crystal divided by 14 (7
+//  pixels per character times 2 phases), and cycles per frame is the product
+//  of the scanline and frame counts. Writing 1023000 Hz directly would be
+//  close enough to look right and wrong enough to drift the video phase.
+//
+//  Fields default to the NTSC Apple II values, so a config that omits a timing
+//  key yields a working machine rather than a zeroed one.
+//
+//  HasEnabledSlotDevice is the question the UI actually asks -- "can this
+//  machine print?" -- and it deliberately ignores a slot the user disabled in
+//  Settings > Hardware, since a disabled card is not present as far as the
+//  guest or the UI is concerned.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 // Apple II NTSC timing — all values derived from the 14.31818 MHz crystal
@@ -263,6 +281,22 @@ struct MachineConfig
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MachineConfigLoader
+//
+//  Parses machine JSON into a MachineConfig, resolving ROM references through
+//  a caller-supplied resolver.
+//
+//  The FileResolver seam is what makes this whole loader testable: a test
+//  supplies a resolver backed by a table instead of the disk, so config
+//  parsing and validation are covered without shipping ROM files into the test
+//  tree. Production passes one that walks the real search paths.
+//
+//  Every entry point takes the machine name separately from the JSON, because
+//  it selects the per-machine ROM subdirectory -- two machines may reference
+//  files of the same name.
+//
+//  Errors come back as a message string alongside the HRESULT, since the
+//  reader is hand-editing JSON and a result code alone cannot say which field
+//  is wrong.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

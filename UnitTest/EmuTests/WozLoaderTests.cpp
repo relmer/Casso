@@ -57,6 +57,7 @@ public:
                 crc = (crc & 1u) ? ((crc >> 1) ^ 0xEDB88320u) : (crc >> 1);
             }
         }
+
         return ~crc;
     }
 
@@ -65,10 +66,14 @@ public:
     // recognizable bit pattern and map its four quarter-tracks to it.
     void FillTrack (DiskImage & img, int slot, size_t bitCount, Byte fill)
     {
+        size_t  byteCount = 0;
+
+
+
         img.ResizeTrack (slot, bitCount);
 
         vector<Byte> &  buf       = img.GetTrackBitsForWrite (slot);
-        size_t          byteCount = (bitCount + 7) / 8;
+        byteCount = (bitCount + 7) / 8;
 
         for (size_t i = 0; i < byteCount && i < buf.size(); i++)
         {
@@ -99,11 +104,13 @@ public:
                 av = static_cast<Byte> ((av << 1) | (a.ReadBit (slot, i * 8 + bit) & 1));
                 bv = static_cast<Byte> ((bv << 1) | (b.ReadBit (slot, i * 8 + bit) & 1));
             }
+
             if (av != bv)
             {
                 diff++;
             }
         }
+
         return diff;
     }
 
@@ -150,34 +157,41 @@ public:
         {
             out[trk + i] = trackZeroBits[i];
         }
+
         out[trk + 6648] = static_cast<Byte> (bitCount & 0xFF);       // bit count (LE16)
         out[trk + 6649] = static_cast<Byte> ((bitCount >> 8) & 0xFF);
     }
 
     TEST_METHOD (LoadRejectsTruncatedFile)
     {
-        DiskImage     img;
+        DiskImage  img;
+        HRESULT    hr  = S_OK;
         vector<Byte>  bytes (4, 0);
 
-        HRESULT   hr = WozLoader::Load (bytes, img);
+        hr = WozLoader::Load (bytes, img);
 
         AssertFailed (hr);
     }
 
     TEST_METHOD (LoadRejectsBadSignature)
     {
-        DiskImage     img;
+        DiskImage  img;
+        HRESULT    hr  = S_OK;
         vector<Byte>  bytes (32, 0);
 
         bytes[0] = 'W'; bytes[1] = 'O'; bytes[2] = 'Z'; bytes[3] = '9';
 
-        HRESULT   hr = WozLoader::Load (bytes, img);
+        hr = WozLoader::Load (bytes, img);
 
         AssertFailed (hr, L"Unknown WOZ version magic must be rejected");
     }
 
     TEST_METHOD (LoadRejectsMissingMandatoryChunks)
     {
+        HRESULT  hr = S_OK;
+
+
+
         // Only a header — no INFO/TMAP/TRKS chunks.
         DiskImage     img;
         vector<Byte>  bytes (12, 0);
@@ -185,7 +199,7 @@ public:
         bytes[0] = 'W'; bytes[1] = 'O'; bytes[2] = 'Z'; bytes[3] = '2';
         bytes[4] = 0xFF; bytes[5] = 0x0A; bytes[6] = 0x0D; bytes[7] = 0x0A;
 
-        HRESULT   hr = WozLoader::Load (bytes, img);
+        hr = WozLoader::Load (bytes, img);
 
         AssertFailed (hr);
     }
@@ -195,11 +209,12 @@ public:
         DiskImage     img;
         vector<Byte>  bitStream = MakeBitStream();
         vector<Byte>  woz;
+        HRESULT       hr        = S_OK;
 
         AssertSucceeded (WozLoader::BuildSyntheticV2 (
             1, false, bitStream, kTestBitCount, woz));
 
-        HRESULT   hr = WozLoader::Load (woz, img);
+        hr = WozLoader::Load (woz, img);
 
         AssertSucceeded (hr, L"Synthetic v2 WOZ must load");
         Assert::IsTrue (img.GetSourceFormat() == DiskFormat::Woz);
@@ -260,6 +275,7 @@ public:
         DiskImage     img;
         vector<Byte>  bitStream = MakeBitStream();
         vector<Byte>  woz;
+        HRESULT       hr        = S_OK;
 
         AssertSucceeded (WozLoader::BuildSyntheticV2 (
             1, false, bitStream, kTestBitCount, woz));
@@ -270,13 +286,17 @@ public:
         woz[12 + 6] = 0xFF;
         woz[12 + 7] = 0x00;
 
-        HRESULT   hr = WozLoader::Load (woz, img);
+        hr = WozLoader::Load (woz, img);
 
         AssertFailed (hr, L"Chunk size that runs past EOF must be rejected");
     }
 
     TEST_METHOD (LoadIgnoresOptionalMetaChunk)
     {
+        HRESULT  hr = S_OK;
+
+
+
         // Append a META chunk after the build helper output — the loader
         // must silently ignore it (not fail).
         DiskImage     img;
@@ -293,17 +313,20 @@ public:
         woz.push_back ('A');
         woz.push_back (0); woz.push_back (0); woz.push_back (0); woz.push_back (0);
 
-        HRESULT   hr = WozLoader::Load (woz, img);
+        hr = WozLoader::Load (woz, img);
 
         AssertSucceeded (hr, L"META is optional, must not cause load failure");
     }
 
     TEST_METHOD (BuildSyntheticV2_ProducesAtLeastFourBlocks)
     {
+        vector<Byte>  woz;
+
+
+
         // Sanity: smallest synthetic still has header + INFO + TMAP + TRKS
         // payload + 1 block of bit data.
         vector<Byte>  bitStream (8, 0);
-        vector<Byte>  woz;
 
         AssertSucceeded (WozLoader::BuildSyntheticV2 (1, false, bitStream, 64, woz));
         Assert::IsTrue (woz.size() >= 4 * WozLoader::kV2BlockSize);

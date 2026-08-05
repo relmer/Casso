@@ -10,7 +10,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TEST_CLASS
+//  DxuiDockLayoutTests
+//
+//  Dock layout: bands claiming an edge, and the center taking what is left.
+//
+//  ORDER is the substance -- docking is sequential, so the second top band sits
+//  below the first and each dock shrinks the rect the rest see. A layout that
+//  treated docks as independent would stack them on top of each other.
+//
+//  The center's rect is the assertion that matters, since it is the residue of
+//  every other band and is what the emulator viewport actually gets.
+//
+//  Degenerate cases are covered: bands thicker than the available space, and a
+//  container smaller than its own chrome. Both are reachable at small window
+//  sizes and must collapse rather than produce inverted rects.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,11 +81,11 @@ public:
 
     TEST_METHOD (Top_PeelsTopSlab)
     {
-        DxuiDockLayout   layout;
-        DxuiDpiScaler    scaler;
-        MockDxuiControl  top;
-        IDxuiControl *   kids[1] = { &top };
-        RECT             bounds = MakeRect (0, 0, 200, 100);
+        DxuiDockLayout     layout;
+        DxuiDpiScaler      scaler;
+        MockDxuiControl    top;
+        IDxuiControl     * kids[1] = { &top };
+        RECT               bounds  = MakeRect (0, 0, 200, 100);
 
         top.SetBounds (MakeRect (0, 0, 999, 24));   // natural height 24
         layout.SetDock (top, DxuiDock::Top);
@@ -150,9 +163,11 @@ public:
     {
         DxuiDockLayout   layout;
         DxuiDpiScaler    scaler;
-        MockDxuiControl  top, bottom, fill;
+        MockDxuiControl  top;
+        MockDxuiControl  bottom;
+        MockDxuiControl  fill;
         IDxuiControl *   kids[3] = { &top, &bottom, &fill };
-        RECT             bounds = MakeRect (0, 0, 400, 300);
+        RECT             bounds  = MakeRect (0, 0, 400, 300);
 
         top.SetBounds    (MakeRect (0, 0, 999, 24));
         bottom.SetBounds (MakeRect (0, 0, 999, 32));
@@ -174,9 +189,10 @@ public:
     {
         DxuiDockLayout   layout;
         DxuiDpiScaler    scaler;
-        MockDxuiControl  fill, bottom;
+        MockDxuiControl  fill;
+        MockDxuiControl  bottom;
         IDxuiControl *   kids[2] = { &fill, &bottom };   // Fill registered FIRST
-        RECT             bounds = MakeRect (0, 0, 400, 300);
+        RECT             bounds  = MakeRect (0, 0, 400, 300);
 
         bottom.SetBounds (MakeRect (0, 0, 999, 44));
 
@@ -198,9 +214,10 @@ public:
     {
         DxuiDockLayout   layout;
         DxuiDpiScaler    scaler;
-        MockDxuiControl  top1, top2;
+        MockDxuiControl  top1;
+        MockDxuiControl  top2;
         IDxuiControl *   kids[2] = { &top1, &top2 };
-        RECT             bounds = MakeRect (0, 0, 200, 100);
+        RECT             bounds  = MakeRect (0, 0, 200, 100);
 
         top1.SetBounds (MakeRect (0, 0, 999, 24));
         top2.SetBounds (MakeRect (0, 0, 999, 16));
@@ -221,9 +238,13 @@ public:
     {
         DxuiDockLayout   layout;
         DxuiDpiScaler    scaler;
-        MockDxuiControl  top, bottom, left, right, fill;
+        MockDxuiControl  top;
+        MockDxuiControl  bottom;
+        MockDxuiControl  left;
+        MockDxuiControl  right;
+        MockDxuiControl  fill;
         IDxuiControl *   kids[5] = { &top, &bottom, &left, &right, &fill };
-        RECT             bounds = MakeRect (0, 0, 400, 300);
+        RECT             bounds  = MakeRect (0, 0, 400, 300);
 
         top.SetBounds    (MakeRect (0, 0, 999, 20));
         bottom.SetBounds (MakeRect (0, 0, 999, 30));
@@ -259,9 +280,10 @@ public:
     {
         DxuiDockLayout   layout;
         DxuiDpiScaler    scaler;
-        MockDxuiControl  fill1, fill2;
+        MockDxuiControl  fill1;
+        MockDxuiControl  fill2;
         IDxuiControl *   kids[2] = { &fill1, &fill2 };
-        RECT             bounds = MakeRect (0, 0, 200, 100);
+        RECT             bounds  = MakeRect (0, 0, 200, 100);
 
         layout.SetDock (fill1, DxuiDock::Fill);
         layout.SetDock (fill2, DxuiDock::Fill);
@@ -291,7 +313,8 @@ public:
     TEST_METHOD (ContainerSizeForFill_AddsTopBottomToHeight)
     {
         DxuiDockLayout   layout;
-        MockDxuiControl  top, bottom;
+        MockDxuiControl  top;
+        MockDxuiControl  bottom;
         IDxuiControl *   kids[2] = { &top, &bottom };
         SIZE             desired = { 560, 384 };
         SIZE             result  = {};
@@ -312,7 +335,8 @@ public:
     TEST_METHOD (ContainerSizeForFill_AddsLeftRightToWidth)
     {
         DxuiDockLayout   layout;
-        MockDxuiControl  left, right;
+        MockDxuiControl  left;
+        MockDxuiControl  right;
         IDxuiControl *   kids[2] = { &left, &right };
         SIZE             desired = { 560, 384 };
         SIZE             result  = {};
@@ -334,9 +358,13 @@ public:
     {
         DxuiDockLayout   layout;
         DxuiDpiScaler    scaler;
-        MockDxuiControl  top, bottom, left, right, fill;
-        IDxuiControl *   nonFill[4] = { &top, &bottom, &left, &right };
-        IDxuiControl *   all[5]     = { &top, &bottom, &left, &right, &fill };
+        MockDxuiControl  top;
+        MockDxuiControl  bottom;
+        MockDxuiControl  left;
+        MockDxuiControl  right;
+        MockDxuiControl  fill;
+        IDxuiControl *   nonFill[4]  = { &top, &bottom, &left, &right };
+        IDxuiControl *   all[5]      = { &top, &bottom, &left, &right, &fill };
         SIZE             desiredFill = { 560, 384 };
         SIZE             container   = {};
         RECT             bounds      = {};
@@ -366,7 +394,8 @@ public:
     TEST_METHOD (ContainerSizeForFill_IgnoresFillEntriesInSpan)
     {
         DxuiDockLayout   layout;
-        MockDxuiControl  top, stray;
+        MockDxuiControl  top;
+        MockDxuiControl  stray;
         IDxuiControl *   kids[2] = { &top, &stray };
         SIZE             desired = { 100, 100 };
         SIZE             result  = {};
