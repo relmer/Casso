@@ -100,11 +100,16 @@ void RomDevice::Reset()
 unique_ptr<MemoryDevice> RomDevice::CreateFromFile (
     Word start, Word end, const string & filePath, string & outError)
 {
+    size_t                    expectedSize = 0;
+    unique_ptr<MemoryDevice>  device;
+    bool                      ok           = false;
+
+
+
     ifstream                    file (filePath, ios::binary | ios::ate);
-    size_t                      expectedSize = static_cast<size_t> (end - start + 1);
+    expectedSize = static_cast<size_t> (end - start + 1);
     streampos                   fileSize     = 0;
-    unique_ptr<MemoryDevice>    device;
-    bool                        ok           = file.good();
+    ok = file.good();
 
     // Null out, message in outError. The size must match EXACTLY: a ROM that
     // does not fill its declared range would leave a floating-bus hole in the

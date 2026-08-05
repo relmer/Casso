@@ -65,15 +65,16 @@ void DxuiPopupMenu::Show (
 
     for (const auto & it : m_items)
     {
-        float  w = 0.0f;
-        float  h = 0.0f;
+        float  w   = 0.0f;
+        float  h   = 0.0f;
+        int    wpx = 0;
         hr = text.MeasureString (it.label.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
         if (FAILED (hr))
         {
             w = (float) (it.label.size() * 8);
         }
 
-        int wpx = (int) std::ceil (w);
+        wpx = (int) std::ceil (w);
         if (wpx > widestPx) { widestPx = wpx; }
     }
 

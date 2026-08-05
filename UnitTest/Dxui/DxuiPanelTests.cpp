@@ -281,11 +281,12 @@ public:
     {
         DxuiPanel        panel;
         MockDxuiControl  caller;
+        HRESULT          hr     = S_OK;
 
 
         panel.Adopt (caller);
 
-        HRESULT  hr = panel.RemoveAdopted (caller);
+        hr = panel.RemoveAdopted (caller);
 
         Assert::IsTrue   (SUCCEEDED (hr));
         Assert::AreEqual ((size_t) 0, panel.ChildCount());

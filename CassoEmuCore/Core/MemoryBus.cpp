@@ -141,6 +141,10 @@ Byte MemoryBus::ReadByte (Word address)
 
 void MemoryBus::WriteByte (Word address, Byte value)
 {
+    MemoryDevice * device = nullptr;
+
+
+
     // Fast path: page table lookup for $0000-$BFFF
     if (address < 0xC000)
     {
@@ -170,7 +174,7 @@ void MemoryBus::WriteByte (Word address, Byte value)
         // No page mapping -- fall through to device-based write (e.g., for ROM areas)
     }
 
-    MemoryDevice * device = FindDevice (address);
+    device = FindDevice (address);
 
     if (device != nullptr)
     {

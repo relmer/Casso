@@ -45,9 +45,9 @@ std::string AssemblySession::ToUpperCase (const std::string & text)
 std::string AssemblySession::StripCommentAndTrim (const std::string & text)
 {
     std::string  code    = text;
-    size_t       start   = code.find_first_not_of (" \t");
     size_t       comment = 0;
     size_t       end     = 0;
+    size_t       start   = code.find_first_not_of (" \t");
 
 
 
@@ -89,8 +89,8 @@ std::string AssemblySession::StripCommentAndTrim (const std::string & text)
 std::string AssemblySession::GetLeadingWord (const std::string & text)
 {
     std::string  word;
-    size_t       start = text.find_first_not_of (" \t");
     size_t       end   = 0;
+    size_t       start = text.find_first_not_of (" \t");
 
 
 
@@ -208,14 +208,20 @@ int AssemblySession::HexByte (const std::string & s, size_t offset)
 
 std::vector<Byte> AssemblySession::ParseSRecord (const std::string & content)
 {
-    std::vector<Byte> data;
+    std::vector<Byte>  data;
+    std::string        line;
     std::istringstream stream (content);
-    std::string line;
 
 
 
     while (std::getline (stream, line))
     {
+        char    recType    = 0;
+        int     addrBytes  = 0;
+        int     byteCount  = 0;
+        int     dataBytes  = 0;
+        size_t  dataOffset = 0;
+
         // Trim trailing CR
         if (!line.empty() && line.back() == '\r')
         {
@@ -227,10 +233,9 @@ std::vector<Byte> AssemblySession::ParseSRecord (const std::string & content)
             continue;
         }
 
-        char recType = line[1];
+        recType = line[1];
 
         // S1: 2-byte address, S2: 3-byte address, S3: 4-byte address
-        int addrBytes = 0;
 
         if (recType == '1')      addrBytes = 2;
         else if (recType == '2') addrBytes = 3;
@@ -242,7 +247,7 @@ std::vector<Byte> AssemblySession::ParseSRecord (const std::string & content)
             continue;
         }
 
-        int byteCount = HexByte (line, 2);
+        byteCount = HexByte (line, 2);
 
         if (byteCount < 0)
         {
@@ -250,7 +255,7 @@ std::vector<Byte> AssemblySession::ParseSRecord (const std::string & content)
         }
 
         // Data bytes = byteCount - address bytes - 1 checksum byte
-        int dataBytes = byteCount - addrBytes - 1;
+        dataBytes = byteCount - addrBytes - 1;
 
         if (dataBytes <= 0)
         {
@@ -258,7 +263,7 @@ std::vector<Byte> AssemblySession::ParseSRecord (const std::string & content)
         }
 
         // Data starts after "Sn" + 2-char count + address hex chars
-        size_t dataOffset = 4 + (size_t) addrBytes * 2;
+        dataOffset = 4 + (size_t) addrBytes * 2;
 
         for (int i = 0; i < dataBytes; i++)
         {
@@ -299,14 +304,18 @@ std::vector<Byte> AssemblySession::ParseSRecord (const std::string & content)
 
 std::vector<Byte> AssemblySession::ParseIntelHex (const std::string & content)
 {
-    std::vector<Byte> data;
+    std::vector<Byte>  data;
+    std::string        line;
     std::istringstream stream (content);
-    std::string line;
 
 
 
     while (std::getline (stream, line))
     {
+        int     byteCount  = 0;
+        int     recordType = 0;
+        size_t  dataOffset = 0;
+
         // Trim trailing CR
         if (!line.empty() && line.back() == '\r')
         {
@@ -323,8 +332,8 @@ std::vector<Byte> AssemblySession::ParseIntelHex (const std::string & content)
             continue;
         }
 
-        int byteCount  = HexByte (line, 1);
-        int recordType = HexByte (line, 7);
+        byteCount = HexByte (line, 1);
+        recordType = HexByte (line, 7);
 
         if (byteCount < 0 || recordType < 0)
         {
@@ -337,7 +346,7 @@ std::vector<Byte> AssemblySession::ParseIntelHex (const std::string & content)
             continue;
         }
 
-        size_t dataOffset = 9;
+        dataOffset = 9;
 
         for (int i = 0; i < byteCount; i++)
         {
@@ -383,9 +392,11 @@ std::vector<std::string> AssemblySession::GenerateByteDirectives (const std::vec
 
     for (size_t i = 0; i < data.size(); i += kBytesPerLine)
     {
+        size_t  end = 0;
+
         std::string line = "    .byte ";
 
-        size_t end = std::min (i + kBytesPerLine, data.size());
+        end = std::min (i + kBytesPerLine, data.size());
 
         for (size_t j = i; j < end; j++)
         {
@@ -435,13 +446,16 @@ bool AssemblySession::IsBranchMnemonic (const std::string & mnemonic) const
 
 bool AssemblySession::IsBitOpMnemonic (const std::string & mnemonic)
 {
+    bool  found = false;
+
+
+
     // A dialect fact, not a CPU one, which is why it cannot be answered from
     // the opcode table the way IsBranchMnemonic now is: the table holds
     // RMB0..RMB7, and these bare names exist only because as65 spells the bit
     // as an operand. A second dialect supplies a different list here.
     static constexpr std::string_view  s_kBareBitOps[] = { "RMB", "SMB", "BBR", "BBS" };
 
-    bool  found = false;
 
 
 
@@ -1688,11 +1702,11 @@ std::span<const AssemblySession::StructMemberType> AssemblySession::GetStructMem
 HRESULT AssemblySession::GetStructMemberSize (const std::string & operand, int32_t & outSize)
 {
     HRESULT                   hr        = S_OK;
+    const StructMemberType *  match     = nullptr;
     size_t                    split     = operand.find_first_of (" \t");
     Directive                 token     = DirectiveTable::FromStorageSpelling (ToUpperCase (operand.substr (0, split)));
     std::string               countExpr = (split == std::string::npos) ? "" : operand.substr (split);
     size_t                    exprStart = countExpr.find_first_not_of (" \t");
-    const StructMemberType *  match     = nullptr;
 
 
 
@@ -2151,7 +2165,8 @@ HRESULT AssemblySession::HandleIfdefDirective (const PendingLine & current,
 
     if (state.parentAssembling)
     {
-        std::string symName = condArg;
+        std::string  symName = condArg;
+        bool         defined = false;
         size_t s = symName.find_first_not_of (" \t");
         size_t e = symName.find_last_not_of (" \t");
 
@@ -2160,7 +2175,7 @@ HRESULT AssemblySession::HandleIfdefDirective (const PendingLine & current,
             symName = symName.substr (s, e - s + 1);
         }
 
-        bool defined = (m_exprSymbols.find (symName) != m_exprSymbols.end());
+        defined = (m_exprSymbols.find (symName) != m_exprSymbols.end());
         state.assembling = (token == Directive::Ifdef) ? defined : !defined;
     }
     else
@@ -2428,12 +2443,14 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
         }
         else
         {
+            std::string  upper;
+
             m_symbols[info.parsed.label]     = m_pc;
             m_symbolKinds[info.parsed.label] = SymbolKind::Label;
             m_exprSymbols[info.parsed.label] = (int32_t) m_pc;
 
             // Warn if label resembles mnemonic by case
-            std::string  upper = ToUpperCase (info.parsed.label);
+            upper = ToUpperCase (info.parsed.label);
 
             if (upper != info.parsed.label && m_opcodeTable.IsMnemonic (upper))
             {
@@ -3031,14 +3048,14 @@ Error:
 
 HRESULT AssemblySession::HandlePass1DataDirectives (const PendingLine & current, LineInfo & info)
 {
-    HRESULT hr = S_OK;
+    HRESULT                     hr         = S_OK;
+    std::vector<int32_t>        values;
+    std::vector<AssemblyError>  tempErrors;
 
 
 
     m_pass1Ctx.currentPC = (int32_t) m_pc;
 
-    std::vector<int32_t>        values;
-    std::vector<AssemblyError>  tempErrors;
 
     TryEvaluateDirectiveArgs (info.parsed.directiveArg, m_pass1Ctx, values, current.sourceLineNumber, tempErrors);
 
@@ -3102,7 +3119,9 @@ HRESULT AssemblySession::HandleIncludeDirective (const PendingLine & current, Li
                 "Include nesting depth exceeded (max " + std::to_string (kMaxIncludeDepth) + ")"));
 
     {
-        std::string filename = Parser::ParseQuotedString (info.parsed.directiveArg);
+        std::string               filename   = Parser::ParseQuotedString (info.parsed.directiveArg);
+        std::string               ext;
+        std::vector<std::string>  synthLines;
 
         if (filename.empty())
         {
@@ -3120,8 +3139,7 @@ HRESULT AssemblySession::HandleIncludeDirective (const PendingLine & current, Li
 
         CBRFEx (fr.success, S_OK, RecordError (current.sourceLineNumber, fr.error));
 
-        std::string               ext        = GetLowerExtension (filename);
-        std::vector<std::string>  synthLines;
+        ext = GetLowerExtension (filename);
 
         if (ext == ".bin")
         {
@@ -3444,6 +3462,7 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
 
     {
         std::vector<std::string> args;
+        std::vector<std::string> expandedLines;
 
         if (!info.parsed.operand.empty())
         {
@@ -3453,7 +3472,6 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
         m_macroUniqueCounter++;
         std::string uniqueSuffix = std::format ("{:04d}", m_macroUniqueCounter);
 
-        std::vector<std::string> expandedLines;
         hr = SubstituteMacroParams (macroIt->second, args, uniqueSuffix, expandedLines);
         CHR (hr);
 
@@ -3515,7 +3533,8 @@ HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef
 
     for (int bi = 0; bi < (int) body.size(); bi++)
     {
-        std::string expanded = body[bi];
+        std::string  expanded  = body[bi];
+        std::string  firstWord;
 
         // Check for exitm
         bool isExitm = false;
@@ -3541,7 +3560,7 @@ HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef
         // Left as a string compare for the same reason as EXITM: it is a
         // macro-body keyword, and putting it in DirectiveTable would tokenize
         // it on every line in the file.
-        std::string  firstWord = GetLeadingWord (ToUpperCase (expanded));
+        firstWord = GetLeadingWord (ToUpperCase (expanded));
 
         if (firstWord == "LOCAL" || firstWord == ".LOCAL")
         {
@@ -3674,8 +3693,9 @@ HRESULT AssemblySession::ApplyMacroSubstitutions (std::string & expanded,
     // Replace \1 through \9 with arguments
     for (int ai = 9; ai >= 1; ai--)
     {
-        std::string placeholder = "\\" + std::to_string (ai);
         size_t pos = 0;
+
+        std::string placeholder = "\\" + std::to_string (ai);
 
         while ((pos = expanded.find (placeholder, pos)) != std::string::npos)
         {
@@ -3688,15 +3708,17 @@ HRESULT AssemblySession::ApplyMacroSubstitutions (std::string & expanded,
     // Replace named parameters as whole-word matches
     for (int pi = 0; pi < (int) macroDef.paramNames.size(); pi++)
     {
-        const std::string & paramName = macroDef.paramNames[pi];
+        const std::string  & paramName = macroDef.paramNames[pi];
+        size_t               pos       = 0;
         std::string replacement = (pi < (int) args.size()) ? args[pi] : "";
-        size_t pos = 0;
 
         while ((pos = expanded.find (paramName, pos)) != std::string::npos)
         {
+            size_t  endPos = 0;
+
             bool leftOk = (pos == 0) ||
                            (!isalnum ((unsigned char) expanded[pos - 1]) && expanded[pos - 1] != '_');
-            size_t endPos = pos + paramName.size();
+            endPos = pos + paramName.size();
             bool rightOk = (endPos >= expanded.size()) ||
                             (!isalnum ((unsigned char) expanded[endPos]) && expanded[endPos] != '_');
 
@@ -3730,9 +3752,11 @@ HRESULT AssemblySession::ApplyMacroSubstitutions (std::string & expanded,
 
         while ((pos = expanded.find (localLabel, pos)) != std::string::npos)
         {
+            size_t  endPos = 0;
+
             bool leftOk = (pos == 0) ||
                            (!isalnum ((unsigned char) expanded[pos - 1]) && expanded[pos - 1] != '_');
-            size_t endPos = pos + localLabel.size();
+            endPos = pos + localLabel.size();
             bool rightOk = (endPos >= expanded.size()) ||
                             (!isalnum ((unsigned char) expanded[endPos]) && expanded[endPos] != '_');
 
@@ -3939,6 +3963,8 @@ HRESULT AssemblySession::ExtractColonlessLabelName (const PendingLine & current,
 
 
     {
+        size_t  sc = 0;
+
         size_t s = rawTrimmed.find_first_not_of (" \t");
 
         if (s != std::string::npos)
@@ -3957,7 +3983,7 @@ HRESULT AssemblySession::ExtractColonlessLabelName (const PendingLine & current,
             labelName = rawTrimmed;
         }
 
-        size_t sc = labelName.find (';');
+        sc = labelName.find (';');
 
         if (sc != std::string::npos)
         {
@@ -4021,9 +4047,10 @@ void AssemblySession::NormalizeBitOp (const PendingLine & current, LineInfo & in
             }
             else
             {
+                std::string rest;
+
                 info.parsed.mnemonic = m + std::to_string (er.value);
 
-                std::string rest;
 
                 for (size_t i = 1; i < parts.size(); ++i)
                 {
@@ -4067,7 +4094,9 @@ void AssemblySession::NormalizeBitOp (const PendingLine & current, LineInfo & in
 
 HRESULT AssemblySession::ClassifyAndResolve (const PendingLine & current, LineInfo & info)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr           = S_OK;
+    bool     exprResolved = false;
+    int32_t  exprValue    = 0;
 
 
 
@@ -4078,8 +4107,6 @@ HRESULT AssemblySession::ClassifyAndResolve (const PendingLine & current, LineIn
 
     m_pass1Ctx.currentPC = (int32_t) m_pc;
 
-    bool    exprResolved = false;
-    int32_t exprValue    = 0;
 
     if (info.classified.syntax != OperandSyntax::None &&
         info.classified.syntax != OperandSyntax::Accumulator &&
@@ -4694,16 +4721,18 @@ HRESULT AssemblySession::EmitByteDirective (const LineInfo & info, Word & emitPC
 
             if (closeQuote != std::string::npos)
             {
-                std::string raw       = arg.substr (1, closeQuote - 1);
-                std::string processed = ProcessEscapeSequences (raw);
+                std::string  raw             = arg.substr (1, closeQuote - 1);
+                std::string  processed       = ProcessEscapeSequences (raw);
+                std::string  suffix;
+                std::string  suffixProcessed;
 
                 for (char c : processed)
                 {
                     EmitByte (m_charMap.table[(unsigned char) c], emitPC);
                 }
 
-                std::string suffix          = arg.substr (closeQuote + 1);
-                std::string suffixProcessed = ProcessEscapeSequences (suffix);
+                suffix = arg.substr (closeQuote + 1);
+                suffixProcessed = ProcessEscapeSequences (suffix);
 
                 for (char c : suffixProcessed)
                 {

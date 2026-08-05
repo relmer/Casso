@@ -24,9 +24,9 @@ static const wchar_t   s_kszStripJson[] = L"strip.json";
 static HRESULT ReadAllBytes (const fs::path & path, vector<Byte> & out)
 {
     HRESULT         hr       = S_OK;
-    std::ifstream   in (path, std::ios::binary);
     bool            isOpen   = false;
     bool            readWell = false;
+    std::ifstream   in (path, std::ios::binary);
 
 
 
@@ -55,9 +55,9 @@ Error:
 static HRESULT ReadAllText (const fs::path & path, string & out)
 {
     HRESULT         hr       = S_OK;
-    std::ifstream   in (path, std::ios::binary);
     bool            isOpen   = false;
     bool            readWell = false;
+    std::ifstream   in (path, std::ios::binary);
 
 
 
@@ -86,9 +86,9 @@ Error:
 static HRESULT WriteAllBytes (const fs::path & path, const vector<Byte> & bytes)
 {
     HRESULT         hr        = S_OK;
-    std::ofstream   out (path, std::ios::binary | std::ios::trunc);
     bool            isOpen    = false;
     bool            wroteWell = false;
+    std::ofstream   out (path, std::ios::binary | std::ios::trunc);
 
 
 
@@ -117,9 +117,9 @@ Error:
 static HRESULT WriteAllText (const fs::path & path, const string & text)
 {
     HRESULT         hr        = S_OK;
-    std::ofstream   out (path, std::ios::binary | std::ios::trunc);
     bool            isOpen    = false;
     bool            wroteWell = false;
+    std::ofstream   out (path, std::ios::binary | std::ios::trunc);
 
 
 

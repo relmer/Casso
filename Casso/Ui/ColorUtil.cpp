@@ -170,14 +170,14 @@ void ColorUtil::ArgbToHsv (uint32_t argb, float & outH, float & outS, float & ou
 
 bool ColorUtil::TryParseHexColor (const std::wstring & text, uint32_t & outArgb)
 {
-    HRESULT       hr    = S_OK;
-    bool          ok    = false;
-    size_t        first = text.find_first_not_of (L" \t");
-    size_t        last  = text.find_last_not_of (L" \t");
+    HRESULT       hr      = S_OK;
+    bool          ok      = false;
     std::wstring  body;
     uint32_t      rgb     = 0;
     int           i       = 0;
     size_t        bodyLen = 0;
+    size_t        first = text.find_first_not_of (L" \t");
+    size_t        last  = text.find_last_not_of (L" \t");
 
 
 

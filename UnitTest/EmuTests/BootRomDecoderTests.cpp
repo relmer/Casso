@@ -66,8 +66,11 @@ public:
 
     vector<Byte> BuildSentinelDsk (Byte (*patternFn) (size_t))
     {
-        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
         size_t         i   = 0;
+
+
+
+        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
 
         // .dsk physical layout: track N sector N starts at offset
         // (track * 16 + sector_physical) * 256. The DOS 3.3 to-physical
@@ -145,9 +148,12 @@ public:
     // checksums and the ROM is still spinning).
     HRESULT RunUntilBootLoaderRuns (EmulatorCore & core)
     {
-        char     path[260] = {};
-        DWORD    pl        = GetTempPathA (260, path);
-        FILE   * fp        = nullptr;
+        char              path[260]     = {};
+        DWORD             pl            = GetTempPathA (260, path);
+        FILE            * fp            = nullptr;
+        const uint64_t    kBudget       = kSectorReadCycles;
+        uint64_t          cyc           = 0;
+        bool              ranBootLoader = false;
         if (pl > 0 && pl < 260 - 32)
         {
             strcat_s (path, "bootrom-trace.log");
@@ -161,9 +167,6 @@ public:
         // test pattern bytes likely don't form valid 6502 code). The
         // boot ROM JMPs into the bootstrap only when every checksum
         // gate passes -- that PC transition IS our success signal.
-        const uint64_t  kBudget       = kSectorReadCycles;
-        uint64_t        cyc           = 0;
-        bool            ranBootLoader = false;
 
         // Count visits to each instruction in the slot-6 boot ROM so a
         // failing test can show which checkpoint(s) the firmware spent
@@ -172,7 +175,8 @@ public:
 
         while (cyc < kBudget)
         {
-            Word pc = core.cpu->GetPC();
+            Word      pc     = core.cpu->GetPC();
+            uint32_t  cycles = 0;
 
             if (pc >= 0xC600 && pc < 0xC700)
             {
@@ -186,7 +190,7 @@ public:
             }
 
             core.cpu->StepOne();
-            uint32_t cycles = core.cpu->GetLastInstructionCycles();
+            cycles = core.cpu->GetLastInstructionCycles();
             core.cpu->AddCycles (cycles);
             if (core.diskController != nullptr)
             {
@@ -253,13 +257,14 @@ public:
 
     void AssertBootRomReadsSector0 (Byte (*patternFn) (size_t), const wchar_t * patternName)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        vector<Byte>   raw = BuildSentinelDsk (patternFn);
+        HeadlessHost  host;
+        EmulatorCore  core;
+        vector<Byte>  raw    = BuildSentinelDsk (patternFn);
+        HRESULT       hrBoot = S_OK;
 
         MountSentinelDsk (host, core, raw);
 
-        HRESULT   hrBoot = RunUntilBootLoaderRuns (core);
+        hrBoot = RunUntilBootLoaderRuns (core);
 
         if (FAILED (hrBoot))
         {

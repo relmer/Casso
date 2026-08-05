@@ -84,8 +84,11 @@ public:
 
     TEST_METHOD (MotorOnSoftSwitch_firesOnMotorEngaged_exactlyOnce)
     {
-        Disk2Controller   ctrl (6);
         RecordingSink     sink;
+
+
+
+        Disk2Controller   ctrl (6);
 
         ctrl.SetAudioSink (&sink);
 
@@ -97,8 +100,11 @@ public:
 
     TEST_METHOD (MotorOffThenSpindownTick_firesOnMotorDisengaged)
     {
-        Disk2Controller   ctrl (6);
         RecordingSink     sink;
+
+
+
+        Disk2Controller   ctrl (6);
 
         ctrl.SetAudioSink (&sink);
 
@@ -113,8 +119,11 @@ public:
 
     TEST_METHOD (MotorOffThenMotorOnWithinSpindown_doesNotFireOnMotorDisengaged)
     {
-        Disk2Controller   ctrl (6);
         RecordingSink     sink;
+
+
+
+        Disk2Controller   ctrl (6);
 
         ctrl.SetAudioSink (&sink);
 
@@ -132,8 +141,11 @@ public:
 
     TEST_METHOD (PhaseChange_noMovement_firesNothing)
     {
-        Disk2Controller   ctrl (6);
         RecordingSink     sink;
+
+
+
+        Disk2Controller   ctrl (6);
 
         ctrl.SetAudioSink (&sink);
 
@@ -147,8 +159,11 @@ public:
 
     TEST_METHOD (PhaseChange_pastTrack0_firesOnHeadBump_notOnHeadStep)
     {
-        Disk2Controller   ctrl (6);
         RecordingSink     sink;
+
+
+
+        Disk2Controller   ctrl (6);
 
         ctrl.SetAudioSink (&sink);
 
@@ -163,8 +178,11 @@ public:
 
     TEST_METHOD (PhaseChange_oneQuarterStep_firesOnHeadStep_withCorrectQt)
     {
-        Disk2Controller   ctrl (6);
         RecordingSink     sink;
+
+
+
+        Disk2Controller   ctrl (6);
 
         ctrl.SetAudioSink (&sink);
 

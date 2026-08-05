@@ -261,8 +261,9 @@ public:
         RECT                               bounds   = { 0, 0, 800, 600 };
         std::unique_ptr<LayoutSpyPanel>    spyOwned = std::make_unique<LayoutSpyPanel>();
         LayoutSpyPanel                   * spy      = spyOwned.get();
+        RECT                               clientPx = {};
         DxuiHwndSource                  host (bounds, 6.0f, std::move (spyOwned));
-        RECT                            clientPx = { 0, 0, 800, 600 };
+        clientPx = { 0, 0, 800, 600 };
 
         // Dormant pump (the production Casso case): host must NOT lay
         // out the root -- the consumer owns it.

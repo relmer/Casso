@@ -188,7 +188,9 @@ public:
 
     TEST_METHOD (Bank1_WritesIsolatedFromBank2)
     {
-        MemoryBus    bus;
+        MemoryBus  bus;
+        Byte       bank1Val = 0;
+        Byte       bank2Val = 0;
         LanguageCard lc (bus);
 
         lc.Read (0xC082);
@@ -201,10 +203,10 @@ public:
         lc.WriteRam (0xD000, 0xBB);
 
         lc.Read (0xC088);
-        Byte bank1Val = lc.ReadRam (0xD000);
+        bank1Val = lc.ReadRam (0xD000);
 
         lc.Read (0xC080);
-        Byte bank2Val = lc.ReadRam (0xD000);
+        bank2Val = lc.ReadRam (0xD000);
 
         Assert::AreEqual (static_cast<Byte> (0xBB), bank1Val,
             L"Bank 1 $D000 should contain $BB");
@@ -326,15 +328,19 @@ public:
 
     TEST_METHOD (AltZpRoutesLcWindowToAuxBank)
     {
+        Apple2eMmu  mmu;
+        HRESULT     hr  = S_OK;
+
+
+
         // Aux LC routing: when MMU's ALTZP is set, LC window must back
         // to a separate aux RAM bank so writes there are isolated from
         // main-bank contents.
         MemoryBus    bus;
         RamDevice    mainRam (0x0000, 0xBFFF);
-        Apple2eMmu   mmu;
         LanguageCard lc (bus);
 
-        HRESULT hr = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, nullptr);
+        hr = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, nullptr);
 
         UNREFERENCED_PARAMETER (hr);
 
@@ -361,12 +367,13 @@ public:
 
     TEST_METHOD (AltZpAuxAndMain_HighRam_AlsoIsolated)
     {
-        MemoryBus    bus;
+        MemoryBus   bus;
+        Apple2eMmu  mmu;
+        HRESULT     hr  = S_OK;
         RamDevice    mainRam (0x0000, 0xBFFF);
-        Apple2eMmu   mmu;
         LanguageCard lc (bus);
 
-        HRESULT hr = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, nullptr);
+        hr = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, nullptr);
 
         UNREFERENCED_PARAMETER (hr);
 

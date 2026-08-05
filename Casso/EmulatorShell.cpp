@@ -219,14 +219,9 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     UINT                          dpi,
     float                         sceneScale)
 {
-    // Desk-scene zoom: the drives scale with the monitor. Fold the scale
-    // into the effective DPI so widget geometry, fonts, and the inter-
-    // widget gaps all zoom together.
-    dpi = (UINT) lroundf ((float) dpi * sceneScale);
-
-    int            bottomInset   = bottomInsetPx;
-    int            commandBarTop = std::max (0, clientH - bottomInset);
-    int            gap           = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
+    int            bottomInset   = 0;
+    int            commandBarTop = 0;
+    int            gap           = 0;
     int            bottomGap     = 0;
     RECT           probe         = {};
     int            widgetW       = 0;
@@ -237,6 +232,17 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     size_t         i             = 0;
     DxuiDpiScaler  scaler;
     RECT           anchor        = {};
+
+
+
+    // Desk-scene zoom: the drives scale with the monitor. Fold the scale
+    // into the effective DPI so widget geometry, fonts, and the inter-
+    // widget gaps all zoom together.
+    dpi = (UINT) lroundf ((float) dpi * sceneScale);
+
+    bottomInset = bottomInsetPx;
+    commandBarTop = std::max (0, clientH - bottomInset);
+    gap = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
 
 
 
@@ -2103,7 +2109,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // the stale request would leave the chrome painted only to the
     // default width until the user resized the window.
     {
-        RECT  rcActual = {};
+        RECT  rcActual  = {};
+        UINT  windowDpi = 0;
 
 
         if (GetClientRect (m_hwnd, &rcActual))
@@ -2119,7 +2126,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         // another monitor. The actual chrome metrics need to match
         // the monitor the window is actually on so the framebuffer
         // aspect-fit produces no pillarbox at default size.
-        UINT  windowDpi = GetDpiForWindow (m_hwnd);
+        windowDpi = GetDpiForWindow (m_hwnd);
         if (windowDpi != 0)
         {
             dpi = windowDpi;
@@ -2293,6 +2300,10 @@ Error:
 
 void EmulatorShell::SyncChromeBands()
 {
+    int  switchBandDp = 0;
+
+
+
     // When the machine has no Disk ][ controller, remove the drive-widget area
     // entirely (#84 Phase D): the drive band collapses to just the joystick-mode
     // button band (joystick input is independent of disk presence), reclaiming
@@ -2315,7 +2326,7 @@ void EmulatorShell::SyncChromeBands()
 
     // The //c switch strip only exists on the //c; everywhere else the band
     // collapses to zero height so the dock leaves the viewport unchanged.
-    int  switchBandDp = IsApple2c() ? s_kSwitchBandDp : 0;
+    switchBandDp = IsApple2c() ? s_kSwitchBandDp : 0;
 
     m_titleBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.Px (s_kTitleBarBandDp) });
     m_navBand.SetBounds     (RECT{ 0, 0, 0, m_scaler.Px (s_kNavStripBandDp) });
@@ -2429,14 +2440,18 @@ RECT EmulatorShell::EmulatorContentScreenRect()
 
 void EmulatorShell::ReflowChromeForMachineChange()
 {
-    DXUI_ASSERT_UI_THREAD();   // chrome layout: never from the CPU thread
-
     RECT  rcWindow      = {};
-    bool  haveWindow    = m_hwnd != nullptr && GetWindowRect (m_hwnd, &rcWindow);
+    bool  haveWindow    = false;
     bool  newHasDisk    = false;
     bool  newIsApple2c  = false;
     bool  layoutChanged = false;
     bool  didResize     = false;
+
+
+
+    DXUI_ASSERT_UI_THREAD();   // chrome layout: never from the CPU thread
+
+    haveWindow = m_hwnd != nullptr && GetWindowRect (m_hwnd, &rcWindow);
 
     if (haveWindow)
     {
@@ -2877,6 +2892,14 @@ void EmulatorShell::Eject (int slot, int drive)
 
 void EmulatorShell::BrowseForDisk (int drive)
 {
+    DriveWidgetState *     pSt        = nullptr;
+    int64_t                now        = 0;
+    int64_t                deadline   = 0;
+    HRESULT                hrBrowse   = S_OK;
+    MSG                    msg        = {};
+
+
+
     using std::chrono::steady_clock;
     using std::chrono::duration_cast;
     using std::chrono::milliseconds;
@@ -2884,11 +2907,6 @@ void EmulatorShell::BrowseForDisk (int drive)
     auto                   nowMs      = []() -> int64_t {
         return (int64_t) duration_cast<milliseconds> (steady_clock::now().time_since_epoch()).count();
     };
-    DriveWidgetState *     pSt        = nullptr;
-    int64_t                now        = 0;
-    int64_t                deadline   = 0;
-    HRESULT                hrBrowse   = S_OK;
-    MSG                    msg        = {};
 
 
 
@@ -3450,9 +3468,12 @@ void EmulatorShell::RelayoutJoystickButton()
 
 void EmulatorShell::ShowPrinterPanel (bool activate)
 {
+    HRESULT     hr        = S_OK;
+
+
+
     DXUI_ASSERT_UI_THREAD();   // creates / shows a Dxui window
 
-    HRESULT     hr        = S_OK;
     HINSTANCE   hInstance = nullptr;
 
     if (m_printerPanel == nullptr || m_printerPanel->Hwnd() == nullptr)
@@ -3502,6 +3523,9 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
         });
         m_printerPanel->SetOnFormFeed ([this] ()
         {
+            int    rowsOnPage = 0;
+            float  unused     = 0.0f;
+
             // The real ImageWriter's FORM FEED button, honored only while
             // the printer is idle -- pressing it mid-print would interleave
             // a page break into the guest's own stream, so it is ignored
@@ -3519,8 +3543,8 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
             // Scale the form-feed sound by how much of the current page will
             // feed to the tear bar (less unused -> shorter feed -> shorter
             // grain). A page that just wrapped feeds a full sheet (unused ~1).
-            int    rowsOnPage = m_printerWorker.RowsUsed() % PrinterGrid::kPageRows;
-            float  unused     = 1.0f - (float) rowsOnPage / (float) PrinterGrid::kPageRows;
+            rowsOnPage = m_printerWorker.RowsUsed() % PrinterGrid::kPageRows;
+            unused = 1.0f - (float) rowsOnPage / (float) PrinterGrid::kPageRows;
             m_printerAudio.PlayFormFeed (unused);
 
             m_printerWorker.FormFeed();
@@ -3837,7 +3861,9 @@ void EmulatorShell::UpdatePrinterPreview()
     // normalized so the two windows just touching side by side is a hard pan and
     // a fully overlapping (co-centered) window is dead center.
     {
-        float  pan = 0.0f;
+        float  pan  = 0.0f;
+        float  panL = 0.0f;
+        float  panR = 0.0f;
 
         if (m_globalPrefs.printerAudioPanOverride)
         {
@@ -3864,8 +3890,6 @@ void EmulatorShell::UpdatePrinterPreview()
             }
         }
 
-        float  panL = 0.0f;
-        float  panR = 0.0f;
         DriveAudioMixer::PanToStereo (pan, panL, panR);
         m_printerAudio.SetPan (panL, panR);
     }
@@ -4502,8 +4526,9 @@ Error:
 
 bool EmulatorShell::TryPresentUiFrame()
 {
-    HRESULT  hr         = S_OK;
-    bool     didPresent = false;
+    HRESULT  hr           = S_OK;
+    bool     didPresent   = false;
+    bool     anyDriveLive = false;
 
 
 
@@ -4562,7 +4587,6 @@ bool EmulatorShell::TryPresentUiFrame()
         m_diskManager->UpdateDriveWidgets();
     }
 
-    bool  anyDriveLive = false;
 
     for (const DriveWidgetState & st : m_driveWidgetState)
     {
@@ -4723,8 +4747,9 @@ void EmulatorShell::OnCpuThreadStart()
     // per-machine registry already overrode it during Initialize.
     if (m_wasapiAudio.IsInitialized() && !m_diskAudioSources.empty())
     {
-        fs::path          baseDir;
-        wstring           devicesDir;
+        fs::path  baseDir;
+        wstring   devicesDir;
+        HRESULT   hrLoad     = S_OK;
 
         // Use the same user-writable asset root that Main.cpp /
         // AssetBootstrap used when writing the WAVs so the read
@@ -4734,7 +4759,7 @@ void EmulatorShell::OnCpuThreadStart()
 
         m_driveAudioMixer.SetSampleLoadContext (devicesDir, m_wasapiAudio.GetSampleRate());
 
-        HRESULT  hrLoad = m_driveAudioMixer.SetMechanism (m_driveAudioMixer.GetMechanism());
+        hrLoad = m_driveAudioMixer.SetMechanism (m_driveAudioMixer.GetMechanism());
         IGNORE_RETURN_VALUE (hrLoad, S_OK);
     }
 
@@ -4793,8 +4818,10 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
     {
         case IDM_FILE_OPEN:
         {
+            HRESULT  hrSwitch = S_OK;
+
             wstring wideName (cmd.payload.begin(), cmd.payload.end());
-            HRESULT hrSwitch = SwitchMachine (wideName);
+            hrSwitch = SwitchMachine (wideName);
 
             if (FAILED (hrSwitch))
             {
@@ -4897,11 +4924,13 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
 
         case IDM_AUDIO_DRIVE_MECHANISM:
         {
+            HRESULT  hrMech = S_OK;
+
             // Payload is "shugart" or "alps" (canonical lower-case from
             // SettingsPanelState). DriveAudioMixer matches case-insensitively
             // and canonicalizes internally, so hand the token over as-is.
             std::wstring  mechWide (cmd.payload.begin(), cmd.payload.end());
-            HRESULT       hrMech = m_driveAudioMixer.SetMechanism (mechWide);
+            hrMech = m_driveAudioMixer.SetMechanism (mechWide);
 
             IGNORE_RETURN_VALUE (hrMech, S_OK);
             break;
@@ -6195,10 +6224,10 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
     int          vpW       = vp.right  - vp.left;
     int          vpH       = vp.bottom - vp.top;
     bool         isLive    = GuestMouseLive() && vpW > 1 && vpH > 1;
-    bool         isInside  = xPx >= vp.left && xPx < vp.right &&
-                             yPx >= vp.top  && yPx < vp.bottom;
     uint16_t     fx        = 0;
     uint16_t     fy        = 0;
+    bool         isInside  = xPx >= vp.left && xPx < vp.right &&
+                             yPx >= vp.top  && yPx < vp.bottom;
 
 
 
@@ -7225,6 +7254,10 @@ static bool HostKeyboardLayoutIsDvorak()
 
 bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
 {
+    bool  hasKeyboard = false;
+
+
+
     // Arrow keys double as the emulated joystick axes / the X / Z keys as
     // fire buttons when "Map Arrows to Joystick" is on AND a game-port
     // paddle bank is present. Recomputed per event so a mode change between
@@ -7234,7 +7267,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
                            m_refs.gamePort != nullptr);
     // The guest owns every key that reaches here either way; with no keyboard
     // device there is simply nothing to deliver it to.
-    bool  hasKeyboard   = m_refs.keyboard != nullptr;
+    hasKeyboard = m_refs.keyboard != nullptr;
 
     if (hasKeyboard && ev.kind == DxuiKeyEventKind::Down)
     {
@@ -8311,11 +8344,12 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
     m_d3dRenderer.SetBackBufferSize (static_cast<int> (width), renderH);
 
     {
-        UINT     dpi             = GetDpiForWindow (m_hwnd);
+        UINT  dpi           = GetDpiForWindow (m_hwnd);
+        RECT  menuBarBounds = {};
         HRESULT  hrUiR           = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
                                                        m_d3dRenderer.GetBackBufferHeight(),
                                                        dpi);
-        RECT     menuBarBounds   = { 0, m_host->CaptionHeightPx(), static_cast<int> (width), m_host->CaptionHeightPx() };
+        menuBarBounds = { 0, m_host->CaptionHeightPx(), static_cast<int> (width), m_host->CaptionHeightPx() };
 
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
         m_mainMenu.Layout (menuBarBounds, m_scaler);
@@ -8767,9 +8801,12 @@ public:
 private:
     static LRESULT CALLBACK WndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
+        LRESULT                result = 0;
+
+
+
         TraceProgressWindow *  self   = reinterpret_cast<TraceProgressWindow *> (
             GetWindowLongPtrW (hwnd, GWLP_USERDATA));
-        LRESULT                result = 0;
 
         if (msg == WM_CREATE)
         {
@@ -8803,6 +8840,10 @@ private:
         wchar_t      line1[128] = {};
         wchar_t      line3[160] = {};
         HBRUSH       fill       = CreateSolidBrush (RGB (0x2D, 0x7D, 0x46));
+        RECT         r1         = {};
+        RECT         r2         = {};
+        RECT         r3         = {};
+        RECT         filled     = {};
 
         GetClientRect (hwnd, &rc);
 
@@ -8819,13 +8860,13 @@ private:
 
         SetBkMode   (hdc, TRANSPARENT);
 
-        RECT  r1 = { pad, pad, rc.right - pad, pad + line };
+        r1 = { pad, pad, rc.right - pad, pad + line };
         DrawTextW (hdc, line1, -1, &r1, DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
 
-        RECT  r2 = { pad, r1.bottom + gap, rc.right - pad, r1.bottom + gap + line };
+        r2 = { pad, r1.bottom + gap, rc.right - pad, r1.bottom + gap + line };
         DrawTextW (hdc, m_path.c_str(), -1, &r2, DT_LEFT | DT_SINGLELINE | DT_PATH_ELLIPSIS);
 
-        RECT  r3 = { pad, r2.bottom + gap, rc.right - pad, r2.bottom + gap + line };
+        r3 = { pad, r2.bottom + gap, rc.right - pad, r2.bottom + gap + line };
         DrawTextW (hdc, line3, -1, &r3, DT_LEFT | DT_SINGLELINE);
 
         // Anchor the bar to the bottom with a margin equal to the top pad,
@@ -8837,7 +8878,7 @@ private:
         bar.top    = bar.bottom - barH;
         FrameRect (hdc, &bar, (HBRUSH) GetStockObject (GRAY_BRUSH));
 
-        RECT  filled = bar;
+        filled = bar;
         filled.right = bar.left + (LONG) (((bar.right - bar.left) * (LONGLONG) pct) / 100);
         FillRect (hdc, &filled, fill);
 

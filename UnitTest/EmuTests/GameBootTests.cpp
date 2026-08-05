@@ -152,7 +152,14 @@ public:
         const wchar_t      *  label,
         int                   minTracks)
     {
-        fs::path   wozPath = FindRepoFile (relPath);
+        fs::path             wozPath       = FindRepoFile (relPath);
+        std::vector<Byte>    bytes;
+        HeadlessHost         host;
+        EmulatorCore         core;
+        HRESULT              hr            = S_OK;
+        DiskImage          * external      = nullptr;
+        std::set<int>        tracksVisited;
+        size_t               bitsAfter     = 0;
 
         if (wozPath.empty())
         {
@@ -162,13 +169,7 @@ public:
             return;
         }
 
-        std::vector<Byte>   bytes        = ReadFileBytes (wozPath);
-        HeadlessHost        host;
-        EmulatorCore        core;
-        HRESULT             hr           = S_OK;
-        DiskImage        *  external     = nullptr;
-        std::set<int>       tracksVisited;
-        size_t              bitsAfter    = 0;
+        bytes = ReadFileBytes (wozPath);
         wchar_t             failMsg[256] = {};
 
         Assert::IsFalse (bytes.empty(), L"WOZ file must not be empty");

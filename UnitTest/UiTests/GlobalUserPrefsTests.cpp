@@ -160,6 +160,11 @@ public:
 
     TEST_METHOD (ColorMonitorText_PersistsAcrossSaveLoad_AndRestoreClearsIt)
     {
+        GlobalUserPrefs  loaded;
+        GlobalUserPrefs  reloaded;
+
+
+
         // The reported bug booted magenta because a custom text color
         // round-tripped through UserPrefs.json and survived a Restore. Pin
         // both halves: (1) a custom color persists, and (2) after a reset +
@@ -172,7 +177,6 @@ public:
 
         AssertSucceeded (orig.Save (L"C:\\Casso", fs));
 
-        GlobalUserPrefs  loaded;
         AssertSucceeded (loaded.Load (L"C:\\Casso", fs));
         Assert::IsTrue   (ColorMonitorTextMode::Custom == loaded.colorMonitorTextMode);
         Assert::AreEqual (0xFF3399CCu, loaded.colorMonitorTextCustomArgb);
@@ -180,7 +184,6 @@ public:
         loaded.ResetColorMonitorTextToDefault();
         AssertSucceeded (loaded.Save (L"C:\\Casso", fs));
 
-        GlobalUserPrefs  reloaded;
         AssertSucceeded (reloaded.Load (L"C:\\Casso", fs));
         Assert::IsTrue (ColorMonitorTextMode::White == reloaded.colorMonitorTextMode);
     }
@@ -309,8 +312,8 @@ public:
     TEST_METHOD (FromJson_OnNonObject_Fails)
     {
         GlobalUserPrefs  prefs;
-        JsonValue        v (42.0);
         HRESULT          hr;
+        JsonValue        v (42.0);
 
         hr = prefs.FromJson (v);
         AssertFailed (hr);

@@ -412,9 +412,10 @@ void DxuiPropertySheet::BuildTabList (std::vector<DxuiTabStrip::Tab> & out) cons
     out.reserve (m_pages.size());
     for (i = 0; i < (int) m_pages.size(); ++i)
     {
+        DxuiTabStrip::Tab  tab;
+
         if (!m_present[(size_t) i]) { continue; }
 
-        DxuiTabStrip::Tab  tab;
         tab.label = m_pages[(size_t) i]->Title();
         out.push_back (std::move (tab));
     }

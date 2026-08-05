@@ -218,8 +218,11 @@ Error:
 
 string MachineConfigUpgrade::BytesToHex (span<const uint8_t> bytes)
 {
-    static const char  s_kchHexDigits[] = "0123456789abcdef";
     string             out;
+
+
+
+    static const char  s_kchHexDigits[] = "0123456789abcdef";
 
 
 

@@ -41,14 +41,15 @@ public:
 
     TEST_METHOD (Pick_ReturnsLatestRegisteredOnOverlap)
     {
-        DxuiHitTester  tester;
-        DxuiHitRect    a = { { 0, 0, 100, 100 }, DxuiHitSlot::Client, 1 };
-        DxuiHitRect    b = { { 10, 10, 50, 50 }, DxuiHitSlot::Custom, 2 };
+        DxuiHitTester        tester;
+        DxuiHitRect          a      = { { 0, 0, 100, 100 }, DxuiHitSlot::Client, 1 };
+        DxuiHitRect          b      = { { 10, 10, 50, 50 }, DxuiHitSlot::Custom, 2 };
+        const DxuiHitRect  * hit    = nullptr;
 
         tester.Register (a);
         tester.Register (b);
 
-        const DxuiHitRect *  hit = tester.Pick (20, 20);
+        hit = tester.Pick (20, 20);
 
         Assert::IsNotNull (hit);
         Assert::AreEqual (2, hit->tag);

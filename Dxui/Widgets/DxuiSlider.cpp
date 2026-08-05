@@ -407,7 +407,8 @@ bool DxuiSlider::OnKey (WPARAM vk)
 
 void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
-    constexpr float  s_kInactiveTrackContrast = 1.6f;  // inactive track must stand off the panel bg
+    constexpr float  s_kInactiveTrackContrast = 1.6f;   // inactive track must stand off the panel bg
+    float            tickStep                 = 0.0f;
 
     uint32_t  accentArgb     = theme.Accent();
     uint32_t  s_kTrack       = DxuiColor::TintForContrast (theme.Background(), s_kInactiveTrackContrast);
@@ -486,7 +487,7 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
                       fillWidth, trackHeight, accentArgb);
 
     // Tick marks below the track.
-    float  tickStep = (m_tickInterval > s_kEpsilon) ? m_tickInterval : m_step;
+    tickStep = (m_tickInterval > s_kEpsilon) ? m_tickInterval : m_step;
 
     if (m_showTicks && tickStep > s_kEpsilon && trackAvailW > 0.0f)
     {

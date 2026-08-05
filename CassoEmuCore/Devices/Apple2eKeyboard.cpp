@@ -40,6 +40,10 @@ Apple2eKeyboard::Apple2eKeyboard (MemoryBus * bus)
 
 Byte Apple2eKeyboard::Read (Word address)
 {
+    Byte  value = 0;
+
+
+
     // Everything the soft-switch bank owns, forwarded identically:
     //   $C00C-$C00F  80COL / ALTCHARSET
     //   $C011-$C01F  status reads (T061 ownership split)
@@ -52,7 +56,6 @@ Byte Apple2eKeyboard::Read (Word address)
                          || (address == 0xC028)
                          || (address >= 0xC050 && address <= 0xC05F);
 
-    Byte  value = 0;
 
     // Each arm carries its own sibling test rather than sharing one up front:
     // with the sibling absent the address must keep falling through, and for

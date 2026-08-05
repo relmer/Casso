@@ -34,9 +34,9 @@ JsonParser::JsonParser (const string & input)
 
 HRESULT JsonParser::Parse (const string & input, JsonValue & outValue, JsonParseError & outError)
 {
-    HRESULT    hr           = S_OK;
+    HRESULT  hr          = S_OK;
+    bool     consumedAll = false;
     JsonParser parser         (input);
-    bool       consumedAll   = false;
 
 
 
@@ -314,6 +314,8 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
 
     if (isHex)
     {
+        string  hexStr;
+
         Advance();  // '0'
         Advance();  // 'x'
 
@@ -322,12 +324,14 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
             Advance();
         }
 
-        string  hexStr = m_input.substr (start + 2, m_pos - start - 2);
+        hexStr = m_input.substr (start + 2, m_pos - start - 2);
 
         value = static_cast<double> (strtoul (hexStr.c_str(), nullptr, 16));
     }
     else
     {
+        string  numStr;
+
         // Standard JSON number
         if (Peek() == '-')
         {
@@ -364,7 +368,7 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
             }
         }
 
-        string  numStr = m_input.substr (start, m_pos - start);
+        numStr = m_input.substr (start, m_pos - start);
 
         value = strtod (numStr.c_str(), nullptr);
     }
@@ -432,6 +436,9 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
 
         while (!isEmpty)
         {
+            string     key;
+            JsonValue  val;
+
             SkipWhitespace();
 
             hasInput = !AtEnd();
@@ -440,7 +447,6 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
             isQuote = (Peek() == '"');
             CBRF (isQuote, SetError ("Expected string key in object"));
 
-            string key;
             hr = ParseString (key);
             CHR (hr);
 
@@ -451,7 +457,6 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
 
             Advance();
 
-            JsonValue val;
             hr = ParseValue (val);
             CHR (hr);
 

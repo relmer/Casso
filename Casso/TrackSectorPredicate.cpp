@@ -260,10 +260,12 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, Mode m
     {
         if (cursor == exprEnd || expr[(size_t) cursor] == L',')
         {
+            std::wstring_view  trimmed;
+
             trimmedBegin = tokStart;
             trimmedEnd   = cursor;
 
-            std::wstring_view trimmed = TrimSpan (expr, trimmedBegin, trimmedEnd);
+            trimmed = TrimSpan (expr, trimmedBegin, trimmedEnd);
 
             if (!trimmed.empty())
             {

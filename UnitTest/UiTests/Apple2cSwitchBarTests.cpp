@@ -123,13 +123,14 @@ public:
     TEST_METHOD (Hide_ClearsBoundsAndHitRegions)
     {
         MockDxuiTextRenderer  text;
-        Apple2cSwitchBar      bar = MakeLaidOutBar (text);
+        Apple2cSwitchBar      bar  = MakeLaidOutBar (text);
+        int                   midY = 0;
 
         bar.Hide();
 
         Assert::IsTrue (bar.Bounds().right <= bar.Bounds().left, L"hidden bar has empty bounds");
 
-        int  midY = (s_kBand.top + s_kBand.bottom) / 2;
+        midY = (s_kBand.top + s_kBand.bottom) / 2;
         for (int x = s_kBand.left; x < s_kBand.right; ++x)
         {
             Assert::IsTrue (bar.PartAt (x, midY) == Apple2cSwitchBar::Part::None,
@@ -196,10 +197,11 @@ public:
     {
         MockDxuiTextRenderer  text;
         MockDxuiTheme         theme;
-        Apple2cSwitchBar      barOut = MakeLaidOutBar (text);
-        Apple2cSwitchBar      barIn  = MakeLaidOutBar (text);
+        Apple2cSwitchBar      barOut    = MakeLaidOutBar (text);
+        Apple2cSwitchBar      barIn     = MakeLaidOutBar (text);
         MockDxuiPainter       pOut;
         MockDxuiPainter       pIn;
+        bool                  identical = false;
 
         barOut.SetEightyFortyIn (false);
         barIn.SetEightyFortyIn  (true);
@@ -211,7 +213,7 @@ public:
         // top shadow) vs the raised out key (highlit cap + exposed slot), so
         // the two paints must not be byte-identical — the visual "in vs out"
         // clue is real.
-        bool  identical = pOut.Calls().size() == pIn.Calls().size();
+        identical = pOut.Calls().size() == pIn.Calls().size();
         if (identical)
         {
             for (size_t i = 0; i < pOut.Calls().size(); ++i)

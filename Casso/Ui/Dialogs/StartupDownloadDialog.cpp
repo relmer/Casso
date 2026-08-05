@@ -591,6 +591,12 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     constexpr int  s_kLineHeightDip = 20;
     constexpr int  s_kIntroPadDip   = 8;
     constexpr int  s_kChromeDip     = 120;   // caption + content pad*2 + button row
+    bool           requiresRoms     = false;
+    int            rowCount         = 0;
+    int            headerCount      = 0;
+    int            introLines       = 0;
+    int            heightDip        = 0;
+    HRESULT        hrCreate         = S_OK;
 
     CassoTheme                             theme        = CassoTheme::ForName (std::string (themeName));
     DialogState                            state;
@@ -604,12 +610,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     std::wstring                           prevGroup;
     UINT                                   sysDpi       = (hwndOwner != nullptr) ? GetDpiForWindow (hwndOwner)
                                                                                  : GetDpiForSystem();
-    bool                                   requiresRoms = false;
-    int                                    rowCount     = 0;
-    int                                    headerCount  = 0;
-    int                                    introLines   = 1;
-    int                                    heightDip    = 0;
-    HRESULT                                hrCreate     = S_OK;
+    introLines = 1;
 
 
     // Nothing missing: never put a dialog on screen just to say so. The

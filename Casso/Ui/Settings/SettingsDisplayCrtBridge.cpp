@@ -323,6 +323,10 @@ void SettingsDisplayCrtBridge::PromoteActiveToOverride()
 
 void SettingsDisplayCrtBridge::ResetActiveToDefaults()
 {
+    const ThemeCrtDefaults *  themeDefaults = nullptr;
+
+
+
     if (m_prefs == nullptr)
     {
         return;
@@ -330,7 +334,6 @@ void SettingsDisplayCrtBridge::ResetActiveToDefaults()
 
     auto &                    blk           = m_prefs->crtByMode[ActiveModeIdx()];
     const auto &              preset        = CrtPresets::ForMode ((size_t) ActiveModeIdx());
-    const ThemeCrtDefaults *  themeDefaults = nullptr;
     if (m_themes != nullptr)
     {
         const LoadedTheme *  active = m_themes->GetActiveTheme();

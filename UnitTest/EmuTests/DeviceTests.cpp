@@ -40,10 +40,14 @@ public:
 
     TEST_METHOD (RamDevice_ReadWriteRoundtrip)
     {
+        Byte  val = 0;
+
+
+
         RamDevice ram (0x0000, 0x00FF);
 
         ram.Write (0x0042, 0xAB);
-        Byte val = ram.Read (0x0042);
+        val = ram.Read (0x0042);
 
         Assert::AreEqual (static_cast<Byte> (0xAB), val);
     }
@@ -105,15 +109,19 @@ public:
 
     TEST_METHOD (Disk2Controller_Slot6_RespondsAtC0E0)
     {
+        MemoryBus  bus;
+        Byte       val = 0;
+
+
+
         Disk2Controller disk (6);
-        MemoryBus bus;
         bus.AddDevice (&disk);
 
         Assert::AreEqual (static_cast<Word> (0xC0E0), disk.GetStart());
         Assert::AreEqual (static_cast<Word> (0xC0EF), disk.GetEnd());
 
         // Reading $C0EC (Q6=false) should not crash
-        Byte val = bus.ReadByte (0xC0EC);
+        val = bus.ReadByte (0xC0EC);
         UNREFERENCED_PARAMETER (val);
     }
 

@@ -31,6 +31,14 @@ public:
 
     TEST_METHOD (Load_ClampsOutOfRangeValuesToDocumentedBounds)
     {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        JsonValue           parsed;
+        JsonParseError      err;
+        HRESULT             hr;
+
+
+
         // Hand-built JSON with values outside every documented range. The
         // FromJson clamp logic should pull each one back to its bound so
         // a manually-edited prefs file can't drive the shaders into
@@ -49,11 +57,6 @@ public:
             "  }\n"
             "}\n";
 
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     prefs;
-        JsonValue           parsed;
-        JsonParseError      err;
-        HRESULT             hr;
 
         hr = JsonParser::Parse (json, parsed, err);
         AssertSucceeded (hr);
@@ -210,6 +213,13 @@ public:
 
     TEST_METHOD (FromJson_WithoutCrtSection_LeavesUserOverrideFalseAndDefaults)
     {
+        GlobalUserPrefs     prefs;
+        JsonValue           parsed;
+        JsonParseError      err;
+        HRESULT             hr;
+
+
+
         // Document containing every top-level field EXCEPT `crt`. The
         // user-override flag must stay false so the theme defaults path
         // can win on first run, and every CRT field must equal its
@@ -221,10 +231,6 @@ public:
             "  \"window\": { \"fullscreen\": false }\n"
             "}\n";
 
-        GlobalUserPrefs     prefs;
-        JsonValue           parsed;
-        JsonParseError      err;
-        HRESULT             hr;
 
         hr = JsonParser::Parse (json, parsed, err);
         AssertSucceeded (hr);
@@ -246,6 +252,11 @@ public:
 
     TEST_METHOD (ComputeLetterboxRect_HandlesPillarboxAndLetterbox)
     {
+        RECT  lb = {};
+        RECT  ex = {};
+
+
+
         // Wide window -> pillarbox (vertical black bars on left + right).
         RECT  pb = ComputeLetterboxRect (1600, 900);
         Assert::AreEqual (1200L, (long) (pb.right - pb.left));
@@ -254,14 +265,14 @@ public:
         Assert::AreEqual (0L,    (long) pb.top);
 
         // Tall window -> letterbox (horizontal bars on top + bottom).
-        RECT  lb = ComputeLetterboxRect (800, 800);
+        lb = ComputeLetterboxRect (800, 800);
         Assert::AreEqual (800L, (long) (lb.right - lb.left));
         Assert::AreEqual (600L, (long) (lb.bottom - lb.top));
         Assert::AreEqual (0L,   (long) lb.left);
         Assert::AreEqual (100L, (long) lb.top);
 
         // Exact 4:3 -> full window, no bars.
-        RECT  ex = ComputeLetterboxRect (1024, 768);
+        ex = ComputeLetterboxRect (1024, 768);
         Assert::AreEqual (0L,    (long) ex.left);
         Assert::AreEqual (0L,    (long) ex.top);
         Assert::AreEqual (1024L, (long) ex.right);

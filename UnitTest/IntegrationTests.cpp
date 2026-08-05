@@ -317,7 +317,8 @@ namespace IntegrationTests
 
         TEST_METHOD (BRK_PushesStatusAndPC_LoadsIRQVector)
         {
-            TestCpu cpu;
+            TestCpu  cpu;
+            Byte     pushedStatus = 0;
             cpu.InitForTest();
 
             // Set up IRQ vector at $FFFE/$FFFF pointing to handler at $C000
@@ -345,7 +346,7 @@ namespace IntegrationTests
             Assert::AreEqual ((Byte) 0xFC, cpu.RegSP());
 
             // Status byte on stack should have B flag (bit 4) set
-            Byte pushedStatus = cpu.Peek (0x01FD);
+            pushedStatus = cpu.Peek (0x01FD);
             Assert::IsTrue ((pushedStatus & 0x10) != 0, L"B flag should be set in pushed status");
         }
     };
@@ -409,11 +410,12 @@ namespace IntegrationTests
 
         TEST_METHOD (PopWord_AfterPushWord_ReturnsOriginalValue)
         {
-            TestCpu cpu;
+            TestCpu  cpu;
+            Word     value = 0;
             cpu.InitForTest();
 
             cpu.DoPushWord (0xABCD);
-            Word value = cpu.DoPopWord();
+            value = cpu.DoPopWord();
 
             Assert::AreEqual ((Word) 0xABCD, value);
             Assert::AreEqual ((Byte) 0xFF, cpu.RegSP());
@@ -564,6 +566,10 @@ namespace IntegrationTests
 
         TEST_METHOD (AssembledAndWriteBytes_ProduceIdenticalResults)
         {
+            TestCpu cpuRaw;
+
+
+
             // Assemble a program
             TestCpu cpuAsm;
             cpuAsm.InitForTest();
@@ -581,7 +587,6 @@ namespace IntegrationTests
             cpuAsm.RunUntil (doneAddr);
 
             // Write the same raw bytes manually
-            TestCpu cpuRaw;
             cpuRaw.InitForTest();
 
             cpuRaw.WriteBytes (0x8000, {
@@ -649,12 +654,13 @@ namespace IntegrationTests
 
         TEST_METHOD (LoadBinary_ValidStream_LoadsBytesAtAddress)
         {
-            TestCpu cpu;
+            TestCpu  cpu;
+            HRESULT  hr  = S_OK;
             cpu.InitForTest();
 
             auto bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
 
-            HRESULT hr = cpu.LoadBinary (bin, (Word) 0x8000);
+            hr = cpu.LoadBinary (bin, (Word) 0x8000);
 
             AssertSucceeded (hr);
             Assert::AreEqual ((Byte) 0xA9, cpu.Peek (0x8000));
@@ -707,7 +713,8 @@ namespace IntegrationTests
 
         TEST_METHOD (LoadBinary_TooLargeForAddress_ReturnsFalse)
         {
-            TestCpu cpu;
+            TestCpu  cpu;
+            HRESULT  hr  = S_OK;
             cpu.InitForTest();
 
             // 3-byte stream, but loading at 0xFFFE would need address 0x10000 (overflow).
@@ -716,7 +723,7 @@ namespace IntegrationTests
             cpu.Poke (0xFFFE, 0xAB);
             cpu.Poke (0xFFFF, 0xCD);
 
-            HRESULT hr = cpu.LoadBinary (bin, (Word) 0xFFFE);
+            hr = cpu.LoadBinary (bin, (Word) 0xFFFE);
 
             Assert::IsTrue (FAILED (hr), L"an image that overruns the address space must fail");
             // Memory unchanged on failure.
@@ -736,13 +743,14 @@ namespace IntegrationTests
 
         TEST_METHOD (LoadBinary_FitsExactlyAtEnd_Succeeds)
         {
-            TestCpu cpu;
+            TestCpu  cpu;
+            HRESULT  hr  = S_OK;
             cpu.InitForTest();
 
             // 2-byte stream loaded at 0xFFFE fills the last two bytes of the address space.
             auto bin = MakeStream ({ 0xAA, 0xBB });
 
-            HRESULT hr = cpu.LoadBinary (bin, (Word) 0xFFFE);
+            hr = cpu.LoadBinary (bin, (Word) 0xFFFE);
 
             AssertSucceeded (hr);
             Assert::AreEqual ((Byte) 0xAA, cpu.Peek (0xFFFE));
@@ -761,14 +769,15 @@ namespace IntegrationTests
 
         TEST_METHOD (LoadBinary_EmptyStream_Succeeds)
         {
-            TestCpu cpu;
+            TestCpu  cpu;
+            HRESULT  hr  = S_OK;
             cpu.InitForTest();
 
             auto bin = MakeStream ({});
 
             cpu.Poke (0x8000, 0xAB);
 
-            HRESULT hr = cpu.LoadBinary (bin, (Word) 0x8000);
+            hr = cpu.LoadBinary (bin, (Word) 0x8000);
 
             AssertSucceeded (hr);
             // Empty stream means nothing is overwritten.

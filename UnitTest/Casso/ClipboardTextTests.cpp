@@ -89,6 +89,7 @@ public:
     {
         MemoryBus          bus;
         std::vector<Byte>  main;
+        std::wstring       row;
         std::vector<Byte>  aux (0x10000, 0);
         Rd80VidStub        rd80 (/*on*/ true);
 
@@ -99,7 +100,7 @@ public:
 
         ClipboardManager  clip = MakeClipboard (bus);
 
-        std::wstring  row = FirstRow (clip.BuildScreenText (aux.data()));
+        row = FirstRow (clip.BuildScreenText (aux.data()));
 
         Assert::AreEqual (std::wstring (L"ABCD"), row,
                           L"80-column scrape must interleave aux(even)+main(odd)");
@@ -109,6 +110,7 @@ public:
     {
         MemoryBus          bus;
         std::vector<Byte>  main;
+        std::wstring       row;
         Rd80VidStub        rd80 (/*on*/ false);
 
         MapMainTextPages (bus, main);
@@ -117,7 +119,7 @@ public:
         ClipboardManager  clip = MakeClipboard (bus);
 
         // No aux bank (nullptr) => plain 40-column main-page read.
-        std::wstring  row = FirstRow (clip.BuildScreenText (nullptr));
+        row = FirstRow (clip.BuildScreenText (nullptr));
 
         Assert::AreEqual (std::wstring (L"BD"), row,
                           L"40-column scrape reads the main text page unchanged");
@@ -127,6 +129,7 @@ public:
     {
         MemoryBus          bus;
         std::vector<Byte>  main;
+        std::wstring       row;
         std::vector<Byte>  aux (0x10000, 0);
         Rd80VidStub        rd80 (/*on*/ false);
 
@@ -139,7 +142,7 @@ public:
 
         ClipboardManager  clip = MakeClipboard (bus);
 
-        std::wstring  row = FirstRow (clip.BuildScreenText (aux.data()));
+        row = FirstRow (clip.BuildScreenText (aux.data()));
 
         Assert::AreEqual (std::wstring (L"BD"), row,
                           L"RD80VID clear must gate off the aux interleave");

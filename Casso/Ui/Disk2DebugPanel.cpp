@@ -476,7 +476,8 @@ void Disk2DebugPanel::ApplyListSelection()
 
 void Disk2DebugPanel::OnListSelectionMoved()
 {
-    int  row = m_eventList->GetSelectedRow();
+    int     row = m_eventList->GetSelectedRow();
+    size_t  idx = 0;
 
 
 
@@ -486,7 +487,7 @@ void Disk2DebugPanel::OnListSelectionMoved()
         return;
     }
 
-    size_t  idx = m_filteredIndices[(size_t) row];
+    idx = m_filteredIndices[(size_t) row];
     m_selectedSeq = (idx < m_events.size()) ? m_events[idx].seq : 0;
 }
 
@@ -1018,6 +1019,11 @@ void Disk2DebugPanel::UpdateDynamicLabels()
 
 void Disk2DebugPanel::LayoutWidgets()
 {
+    std::vector<DxuiRadioOption>  driveOpts;
+    RECT                          driveGroupBounds = {};
+
+
+
     m_trackFilterLabel->Layout   (m_layout.trackFilterLabel,  m_scaler);
     m_sectorFilterLabel->Layout  (m_layout.sectorFilterLabel, m_scaler);
     m_trackInvalidLabel->Layout  (m_layout.trackInvalidLabel, m_scaler);
@@ -1045,8 +1051,7 @@ void Disk2DebugPanel::LayoutWidgets()
     // labels are static; only the rects change per resize. Laying the
     // group out (bounds = union of the option rects) folds in the DPI via
     // the scaler -- no separate SetDpi needed.
-    std::vector<DxuiRadioOption>  driveOpts;
-    RECT                          driveGroupBounds = m_layout.driveRadios[0];
+    driveGroupBounds = m_layout.driveRadios[0];
 
     for (int i = 0; i < kDriveRadioCount; i++)
     {
@@ -1095,6 +1100,10 @@ void Disk2DebugPanel::LayoutWidgets()
 
 void Disk2DebugPanel::ConfigureWidgets()
 {
+    std::vector<DxuiListView::Column>  cols;
+
+
+
     static const std::array<uint32_t, kEventTypeCheckCount> s_kCheckBits =
     {
         FilterState::kEventCatMotor,    FilterState::kEventCatHeadStep,
@@ -1106,8 +1115,10 @@ void Disk2DebugPanel::ConfigureWidgets()
 
     for (int i = 0; i < kEventTypeCheckCount; i++)
     {
+        uint32_t  bit = 0;
+
         m_eventChecks[i]->SetChecked  ((m_filter.eventTypeMask & s_kCheckBits[i]) != 0);
-        uint32_t  bit = s_kCheckBits[i];
+        bit = s_kCheckBits[i];
         m_eventChecks[i]->SetOnChange ([this, bit] (bool checked)
         {
             if (checked) { m_filter.eventTypeMask |=  bit; }
@@ -1132,9 +1143,11 @@ void Disk2DebugPanel::ConfigureWidgets()
 
     for (int i = 0; i < kAudioSubCheckCount; i++)
     {
+        bool * backer = nullptr;
+
         m_audioSubChecks[i]->SetChecked  (*s_kAudioSubBackers[i]);
         m_audioSubChecks[i]->SetEnabled  (m_filter.audioMaster);
-        bool * backer = s_kAudioSubBackers[i];
+        backer = s_kAudioSubBackers[i];
         m_audioSubChecks[i]->SetOnChange ([this, backer] (bool checked)
         {
             *backer = checked;
@@ -1173,7 +1186,6 @@ void Disk2DebugPanel::ConfigureWidgets()
 
     m_clearButton->SetOnClick ([this] () { ClearEvents(); });
 
-    std::vector<DxuiListView::Column>  cols;
     cols.push_back ({ L"Time",   0, false, DxuiTextRenderer::HAlign::Left  });
     cols.push_back ({ L"Uptime", 0, false, DxuiTextRenderer::HAlign::Left  });
     cols.push_back ({ L"Cycle",  0, false, DxuiTextRenderer::HAlign::Right });
@@ -1254,8 +1266,9 @@ void Disk2DebugPanel::ConfigureWidgets()
 
 void Disk2DebugPanel::DrainAndProject()
 {
-    uint32_t  dropped = 0;
-    int64_t   ticks   = 0;
+    uint32_t  dropped   = 0;
+    int64_t   ticks     = 0;
+    uint64_t  seqBefore = 0;
 
 
 
@@ -1284,7 +1297,7 @@ void Disk2DebugPanel::DrainAndProject()
     // the deque, so the filtered set and rows are already current. Skip the
     // O(n) rebuild/re-sort on idle frames; the disk-heavy path (GH #88) still
     // rebuilds, but only when there is genuinely new data to show.
-    uint64_t  seqBefore = m_nextSeq;
+    seqBefore = m_nextSeq;
 
     DebugDialogProjection::DrainAndProject (m_ring, m_events, dropped, m_uptimeAnchor, &m_nextSeq);
 
@@ -1330,6 +1343,11 @@ void Disk2DebugPanel::DrainAndProject()
 
 void Disk2DebugPanel::RebuildFilteredIndices()
 {
+    int   col  = 0;
+    bool  desc = false;
+
+
+
     m_filteredIndices.clear();
     m_filteredIndices.reserve (m_events.size());
 
@@ -1347,8 +1365,8 @@ void Disk2DebugPanel::RebuildFilteredIndices()
     }
 
     const std::deque<Disk2EventDisplay>  & events = m_events;
-    int                                    col    = m_sortColumn;
-    bool                                   desc   = m_sortDescending;
+    col = m_sortColumn;
+    desc = m_sortDescending;
 
     auto cmpStr = [] (const wchar_t * a, const wchar_t * b) -> int
     {

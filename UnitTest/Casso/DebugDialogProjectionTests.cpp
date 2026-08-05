@@ -287,9 +287,10 @@ public:
 
     TEST_METHOD (DrainAndProject_rollingCapEnforced_oldestDroppedFromFront)
     {
-        Disk2EventRing                   ring;
-        std::deque<Disk2EventDisplay>    deque;
-        auto                             anchor = std::chrono::steady_clock::now();
+        Disk2EventRing                 ring;
+        std::deque<Disk2EventDisplay>  deque;
+        auto                           anchor           = std::chrono::steady_clock::now();
+        std::wstring                   firstBeforeDrain;
 
         // Pre-fill the deque to the cap so a single drained entry
         // is enough to force a pop_front.
@@ -302,7 +303,7 @@ public:
             deque.push_back (std::move (sentinel));
         }
 
-        std::wstring  firstBeforeDrain = deque.front().detail;
+        firstBeforeDrain = deque.front().detail;
 
         Assert::IsTrue (ring.TryPush (MakeStep (7, 8, 9999)));
 
@@ -488,10 +489,14 @@ public:
 
     TEST_METHOD (ResolveSelection_filteredOut_snapsToNearestBefore)
     {
+        std::vector<size_t>  filtered;
+
+
+
         // seq 30 (deque idx 2) is filtered out; survivors ascending.
         std::deque<Disk2EventDisplay>  events =
             { MakeSeq (10), MakeSeq (20), MakeSeq (30), MakeSeq (40), MakeSeq (50) };
-        std::vector<size_t>            filtered = { 0, 1, 3, 4 };
+        filtered = { 0, 1, 3, 4 };
 
         DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (30, events, filtered);
 
@@ -503,12 +508,16 @@ public:
 
     TEST_METHOD (ResolveSelection_nearestBefore_honorsReorderedFilteredSet)
     {
+        std::vector<size_t>  filtered;
+
+
+
         std::deque<Disk2EventDisplay>  events =
             { MakeSeq (10), MakeSeq (20), MakeSeq (40), MakeSeq (50) };
 
         // Descending display order: {50, 40, 20, 10}. Selection seq 30 was
         // never present; nearest at-or-before is seq 20, now at row 2.
-        std::vector<size_t>            filtered = { 3, 2, 1, 0 };
+        filtered = { 3, 2, 1, 0 };
 
         DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (30, events, filtered);
 
@@ -798,12 +807,13 @@ public:
 
     TEST_METHOD (PauseInducedOverflow_singleLostMarkerWithCoalescedCount)
     {
-        Disk2EventRing                   ring;
-        std::deque<Disk2EventDisplay>    deque;
-        uint32_t                         dropped       = 0;
-        uint64_t                         totalPushed   = 8192;
-        uint64_t                         pushAttempted = 0;
-        auto                             anchor        = std::chrono::steady_clock::now();
+        Disk2EventRing                 ring;
+        std::deque<Disk2EventDisplay>  deque;
+        uint32_t                       dropped       = 0;
+        uint64_t                       totalPushed   = 8192;
+        uint64_t                       pushAttempted = 0;
+        auto                           anchor        = std::chrono::steady_clock::now();
+        size_t                         lostCount     = 0;
 
         // Producer never gets drained -> ring fills, every push past
         // capacity returns false.
@@ -824,7 +834,6 @@ public:
 
         // Exactly one EventsLost marker; the rest are the surviving
         // DrainBatch entries.
-        size_t  lostCount = 0;
 
         for (const Disk2EventDisplay & event : deque)
         {
@@ -912,7 +921,9 @@ public:
 
     TEST_METHOD (BuildClipboardText_singleRow_allColumns_tabSeparatedCrlfTerminated)
     {
-        std::array<LogicalColumn, kColumnCount>  columns = {};
+        std::array<LogicalColumn, kColumnCount>  columns  = {};
+        std::vector<const Disk2EventDisplay *>   selected;
+        std::wstring                             out;
         Disk2EventDisplay            row     = MakeFormattedDisplay (
                                                     Disk2EventType::HeadStep,
                                                     EventCategory::Controller,
@@ -920,12 +931,11 @@ public:
                                                     L"00:01.234",
                                                     L"1,000",
                                                     L"quarter-track 4 -> 5");
-        std::vector<const Disk2EventDisplay *>  selected;
 
         SeedDefaultColumns (columns);
         selected.push_back (&row);
 
-        std::wstring  out = BuildClipboardText (selected, columns);
+        out = BuildClipboardText (selected, columns);
 
         Assert::AreEqual (
             std::wstring (L"12:34:56.789\t00:01.234\t1,000\t\tHead step\tquarter-track 4 -> 5\r\n"),
@@ -936,7 +946,9 @@ public:
 
     TEST_METHOD (BuildClipboardText_hiddenColumns_areOmittedIncludingLeadingTab)
     {
-        std::array<LogicalColumn, kColumnCount>  columns = {};
+        std::array<LogicalColumn, kColumnCount>  columns  = {};
+        std::vector<const Disk2EventDisplay *>   selected;
+        std::wstring                             out;
         Disk2EventDisplay            row     = MakeFormattedDisplay (
                                                     Disk2EventType::AddrMark,
                                                     EventCategory::Controller,
@@ -944,7 +956,6 @@ public:
                                                     L"UPTIME",
                                                     L"42",
                                                     L"T0 S0 V254");
-        std::vector<const Disk2EventDisplay *>  selected;
 
         SeedDefaultColumns (columns);
 
@@ -955,7 +966,7 @@ public:
 
         selected.push_back (&row);
 
-        std::wstring  out = BuildClipboardText (selected, columns);
+        out = BuildClipboardText (selected, columns);
 
         Assert::AreEqual (std::wstring (L"UPTIME\tAddress mark\tT0 S0 V254\r\n"), out);
     }
@@ -964,7 +975,9 @@ public:
 
     TEST_METHOD (BuildClipboardText_multipleRows_eachOnItsOwnCrlfTerminatedLine)
     {
-        std::array<LogicalColumn, kColumnCount>  columns = {};
+        std::array<LogicalColumn, kColumnCount>  columns  = {};
+        std::vector<const Disk2EventDisplay *>   selected;
+        std::wstring                             out;
         Disk2EventDisplay            r0      = MakeFormattedDisplay (
                                                     Disk2EventType::MotorEngaged,
                                                     EventCategory::Controller,
@@ -979,13 +992,12 @@ public:
                                                     L"00:00.500",
                                                     L"1,000",
                                                     L"at quarter-track 0");
-        std::vector<const Disk2EventDisplay *>  selected;
 
         SeedDefaultColumns (columns);
         selected.push_back (&r0);
         selected.push_back (&r1);
 
-        std::wstring  out = BuildClipboardText (selected, columns);
+        out = BuildClipboardText (selected, columns);
 
         Assert::AreEqual (
             std::wstring (L"00:00:00.000\t00:00.000\t0\t\tMotor engaged\t\r\n"

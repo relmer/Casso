@@ -70,13 +70,21 @@ static void WriteHexByte (std::ostream & stream, Byte value)
 
 void OutputFormats::WriteSRecord (const std::vector<Byte> & data, Word startAddr, Word endAddr, Word entryPoint, std::ostream & stream)
 {
+    size_t offset = 0;
+
+
+
     // S0 header record
     {
+        int   headerLen = 0;
+        int   byteCount = 0;
+        Byte  checksum  = 0;
+
         // S0 has 2-byte address (0000), data = "HDR" (optional), checksum
         const char * header = "HDR";
-        int          headerLen = 3;
-        int          byteCount = 3 + headerLen;  // 2 addr + data + checksum
-        Byte         checksum  = (Byte) byteCount;
+        headerLen = 3;
+        byteCount = 3 + headerLen; // 2 addr + data + checksum
+        checksum = (Byte) byteCount;
 
         stream << "S0";
         WriteHexByte (stream, (Byte) byteCount);
@@ -105,11 +113,14 @@ void OutputFormats::WriteSRecord (const std::vector<Byte> & data, Word startAddr
         dataLen = data.size();
     }
 
-    size_t offset = 0;
 
     while (offset < dataLen)
     {
-        int chunkSize = 16;
+        int   chunkSize = 16;
+        int   byteCount = 0;
+        Byte  checksum  = 0;
+        Byte  addrHi    = 0;
+        Byte  addrLo    = 0;
 
         if (offset + chunkSize > dataLen)
         {
@@ -117,10 +128,10 @@ void OutputFormats::WriteSRecord (const std::vector<Byte> & data, Word startAddr
         }
 
         // Byte count = 2 (address) + data + 1 (checksum)
-        int  byteCount = 3 + chunkSize;
-        Byte checksum  = (Byte) byteCount;
-        Byte addrHi    = (Byte) ((addr >> 8) & 0xFF);
-        Byte addrLo    = (Byte) (addr & 0xFF);
+        byteCount = 3 + chunkSize;
+        checksum = (Byte) byteCount;
+        addrHi = (Byte) ((addr >> 8) & 0xFF);
+        addrLo = (Byte) (addr & 0xFF);
 
         stream << "S1";
         WriteHexByte (stream, (Byte) byteCount);
@@ -193,8 +204,9 @@ void OutputFormats::WriteSRecord (const std::vector<Byte> & data, Word startAddr
 
 void OutputFormats::WriteIntelHex (const std::vector<Byte> & data, Word startAddr, Word endAddr, Word entryPoint, std::ostream & stream)
 {
-    Word   addr    = startAddr;
-    size_t dataLen = (endAddr > startAddr) ? (endAddr - startAddr) : 0;
+    Word    addr    = startAddr;
+    size_t  dataLen = (endAddr > startAddr) ? (endAddr - startAddr) : 0;
+    size_t  offset  = 0;
 
 
 
@@ -203,23 +215,26 @@ void OutputFormats::WriteIntelHex (const std::vector<Byte> & data, Word startAdd
         dataLen = data.size();
     }
 
-    size_t offset = 0;
 
     while (offset < dataLen)
     {
-        int chunkSize = 16;
+        int   chunkSize = 16;
+        Byte  addrHi    = 0;
+        Byte  addrLo    = 0;
+        Byte  recType   = 0;
+        Byte  checksum  = 0;
 
         if (offset + chunkSize > dataLen)
         {
             chunkSize = (int) (dataLen - offset);
         }
 
-        Byte addrHi  = (Byte) ((addr >> 8) & 0xFF);
-        Byte addrLo  = (Byte) (addr & 0xFF);
-        Byte recType = 0x00;  // Data record
+        addrHi = (Byte) ((addr >> 8) & 0xFF);
+        addrLo = (Byte) (addr & 0xFF);
+        recType = 0x00; // Data record
 
         // Checksum = two's complement of (bytecount + addrHi + addrLo + recType + data bytes)
-        Byte checksum = (Byte) chunkSize + addrHi + addrLo + recType;
+        checksum = (Byte) chunkSize + addrHi + addrLo + recType;
 
         stream << ":";
         WriteHexByte (stream, (Byte) chunkSize);

@@ -621,11 +621,15 @@ void DxuiScrollbar::PaintArrow (IDxuiPainter & painter, const RECT & rect, bool 
 
     for (i = 0; i < depth; i++)
     {
+        float  sliceLen = 0.0f;
+        float  mainOff  = 0.0f;
+        float  crossOff = 0.0f;
+
         float  frac     = less ? (float) (i + 1) / (float) depth
                                : (float) (depth - i) / (float) depth;
-        float  sliceLen = (float) width * frac;
-        float  mainOff  = (float) ((rectMain - depth) / 2 + i);
-        float  crossOff = ((float) rectCross - sliceLen) / 2.0f;
+        sliceLen = (float) width * frac;
+        mainOff = (float) ((rectMain - depth) / 2 + i);
+        crossOff = ((float) rectCross - sliceLen) / 2.0f;
 
         if (vertical)
         {

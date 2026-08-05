@@ -269,12 +269,16 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     {
         const DxuiRadioOption  & opt     = m_options[(size_t) i];
         float                    boxLeft = (float) opt.rect.left;
+        float                    cx      = 0.0f;
+        float                    cy      = 0.0f;
+        float                    outerR  = 0.0f;
+        float                    innerR  = 0.0f;
         float               boxTop   = (float) opt.rect.top
                                        + ((float) (opt.rect.bottom - opt.rect.top) - boxSize) * 0.5f;
-        float               cx       = boxLeft + boxSize * 0.5f;
-        float               cy       = boxTop  + boxSize * 0.5f;
-        float               outerR   = boxSize * 0.5f;
-        float               innerR   = (boxSize - dotInset * 2.0f) * 0.5f;
+        cx = boxLeft + boxSize * 0.5f;
+        cy = boxTop  + boxSize * 0.5f;
+        outerR = boxSize * 0.5f;
+        innerR = (boxSize - dotInset * 2.0f) * 0.5f;
         uint32_t            boxColor = m_enabled
                                             ? (m_hover == i ? theme.ButtonHover() : theme.ButtonIdle())
                                             : theme.PressedBackground();

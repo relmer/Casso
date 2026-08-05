@@ -418,12 +418,15 @@ public:
 
     TEST_METHOD (SystemButton_MaximizedMaxButton_PaintsRestoreGlyph)
     {
-        DxuiSystemButton    maxBtn (DxuiSystemButtonKind::Max);
         DxuiDpiScaler         scaler;
         MockDxuiPainter       painter;
         MockDxuiTextRenderer  text;
         MockDxuiTheme         theme;
         size_t                normalCallCount = 0;
+
+
+
+        DxuiSystemButton    maxBtn (DxuiSystemButtonKind::Max);
 
 
         scaler.SetDpi (96);
@@ -543,12 +546,14 @@ public:
 
     TEST_METHOD (SetContentPanel_ReplacesRootAndInheritsBounds)
     {
-        std::unique_ptr<DxuiPanel>     originalRoot = std::make_unique<DxuiPanel>();
+        std::unique_ptr<DxuiPanel>    originalRoot   = std::make_unique<DxuiPanel>();
+        DxuiPanel                   * replacementRaw = nullptr;
+        RECT                          bounds         = {};
         DxuiHwndSource                 host (MakeRect (0, 0, s_kClientWidthDip, s_kClientHeightDip),
                                              s_kResizeBorderDip,
                                              std::move (originalRoot));
         std::unique_ptr<DxuiPanel>    replacement    = std::make_unique<DxuiPanel>();
-        DxuiPanel                   * replacementRaw = replacement.get();
+        replacementRaw = replacement.get();
 
 
         host.SetContentPanel (std::move (replacement));
@@ -556,7 +561,7 @@ public:
         Assert::AreEqual ((const void *) replacementRaw,
                           (const void *) &host.Root());
 
-        RECT  bounds = host.Root().Bounds();
+        bounds = host.Root().Bounds();
 
         Assert::AreEqual ((LONG) 0,                  bounds.left);
         Assert::AreEqual ((LONG) 0,                  bounds.top);

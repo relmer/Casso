@@ -186,10 +186,14 @@ void DxuiFocusManager::Rebuild()
         std::sort (raw.begin(), raw.end(),
             [eps] (IDxuiControl * a, IDxuiControl * b) -> bool
             {
-                int  taIdx = a->TabIndex();
-                int  tbIdx = b->TabIndex();
-                bool aExpl = (taIdx >= 0);
-                bool bExpl = (tbIdx >= 0);
+                int   taIdx = a->TabIndex();
+                int   tbIdx = b->TabIndex();
+                bool  aExpl = (taIdx >= 0);
+                bool  bExpl = (tbIdx >= 0);
+                RECT  ra    = {};
+                RECT  rb    = {};
+                int   ba    = 0;
+                int   bb    = 0;
 
                 if (aExpl && bExpl)
                 {
@@ -201,10 +205,10 @@ void DxuiFocusManager::Rebuild()
                     return aExpl;  // explicit indices come first
                 }
 
-                RECT  ra = a->Bounds();
-                RECT  rb = b->Bounds();
-                int   ba = (int) ((float) ra.top / eps);
-                int   bb = (int) ((float) rb.top / eps);
+                ra = a->Bounds();
+                rb = b->Bounds();
+                ba = (int) ((float) ra.top / eps);
+                bb = (int) ((float) rb.top / eps);
                 if (ba != bb)
                 {
                     return ba < bb;

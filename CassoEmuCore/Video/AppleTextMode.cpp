@@ -127,6 +127,11 @@ void AppleTextMode::Render (
     int fbWidth,
     int fbHeight)
 {
+    Word  pageBase  = 0;
+    bool  flashFlip = false;
+
+
+
     static_assert (kGridCols == kTextCols && kGridRows == kTextRows,
                    "dirty-row cache grid must match the render grid");
 
@@ -141,7 +146,7 @@ void AppleTextMode::Render (
     // one; tests may not), or a change to page / charset / on-color (which
     // re-shapes every row). On a flash-phase flip only the rows that actually
     // contain a flashing glyph need redrawing.
-    Word pageBase = GetActivePageAddress (m_page2);
+    pageBase = GetActivePageAddress (m_page2);
 
     bool full = !m_cacheValid
              || framebuffer  != m_prevFramebuffer
@@ -149,14 +154,15 @@ void AppleTextMode::Render (
              || m_altCharSet != m_prevAltChar
              || m_onColor    != m_prevOnColor;
 
-    bool flashFlip = m_flashOn != m_prevFlashOn;
+    flashFlip = m_flashOn != m_prevFlashOn;
 
     for (int row = 0; row < kTextRows; row++)
     {
-        Word   rowAddr  = RowBaseAddress (row, pageBase);
-        Byte * cacheRow = &m_prevBytes[row * kTextCols];
-        Byte   rowBytes[kTextCols];
-        bool   changed  = false;
+        Word    rowAddr             = RowBaseAddress (row, pageBase);
+        Byte  * cacheRow            = &m_prevBytes[row * kTextCols];
+        Byte    rowBytes[kTextCols];
+        bool    changed             = false;
+        bool    dirty               = false;
 
         for (int col = 0; col < kTextCols; col++)
         {
@@ -166,7 +172,7 @@ void AppleTextMode::Render (
             changed      |= (b != cacheRow[col]);
         }
 
-        bool dirty = full || changed || (flashFlip && RowHasFlashChar (rowBytes));
+        dirty = full || changed || (flashFlip && RowHasFlashChar (rowBytes));
 
         if (dirty)
         {
@@ -241,10 +247,15 @@ void AppleTextMode::RenderRowRange (
     int          fbWidth,
     int          fbHeight)
 {
+    Word  pageBase   = 0;
+    int   charStride = 0;
+
+
+
     UNREFERENCED_PARAMETER (fbHeight);
 
-    Word pageBase   = GetActivePageAddress (m_page2);
-    int  charStride = kCharWidth * kScaleX;
+    pageBase = GetActivePageAddress (m_page2);
+    charStride = kCharWidth * kScaleX;
 
     for (int row = startRow; row < endRow; row++)
     {
@@ -253,8 +264,10 @@ void AppleTextMode::RenderRowRange (
 
         for (int col = 0; col < kTextCols; col++)
         {
-            Word addr     = static_cast<Word> (rowAddr + col);
-            Byte charCode = videoRam ? videoRam[addr] : m_bus.ReadByte (addr);
+            Word  addr        = static_cast<Word> (rowAddr + col);
+            Byte  charCode    = videoRam ? videoRam[addr] : m_bus.ReadByte (addr);
+            bool  showInverse = false;
+            int   fbColOrigin = 0;
 
             // Decode character mode from high bits
             // $00-$3F: Inverse
@@ -282,8 +295,8 @@ void AppleTextMode::RenderRowRange (
                 flash = !m_altCharSet;
             }
 
-            bool showInverse = (inverse && !isIIeRom) || (flash && m_flashOn);
-            int  fbColOrigin = fbRowOrigin + col * charStride;
+            showInverse = (inverse && !isIIeRom) || (flash && m_flashOn);
+            fbColOrigin = fbRowOrigin + col * charStride;
 
             // Render the 7x8 glyph scaled 2x to 14x16 in the framebuffer.
             for (int py = 0; py < kCharHeight; py++)

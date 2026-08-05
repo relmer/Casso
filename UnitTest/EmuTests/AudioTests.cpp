@@ -128,6 +128,11 @@ public:
 
     TEST_METHOD (SquareWave_KnownFrequency_CorrectPeriod)
     {
+        const uint32_t  numSamples = 4410;
+        int             crossings  = 0;
+
+
+
         // Toggle every 1000 cycles in a 17030-cycle frame
         std::vector<uint32_t> toggles;
 
@@ -137,7 +142,6 @@ public:
         }
 
         // 18 toggles (0, 1000, 2000, ... 17000)
-        const uint32_t numSamples = 4410;
         std::vector<float> samples (numSamples);
 
 
@@ -145,7 +149,6 @@ public:
         AudioGenerator::GeneratePCM (toggles, 17030, -0.3f, samples.data(), numSamples);
 
         // Count sign changes (zero crossings)
-        int crossings = 0;
 
         for (uint32_t i = 1; i < numSamples; i++)
         {
@@ -166,21 +169,21 @@ public:
 
     TEST_METHOD (RapidToggles_HighFrequency_DoesNotCrash)
     {
-        std::vector<uint32_t> toggles;
+        std::vector<uint32_t>  toggles;
+        float                  samples[735];
+        bool                   hasNonZero   = false;
 
         for (uint32_t i = 0; i < 1000; i++)
         {
             toggles.push_back (i * 17);
         }
 
-        float samples[735];
 
 
 
         AudioGenerator::GeneratePCM (toggles, 17030, -0.3f, samples, 735);
 
         // Just verify no crash and output has values
-        bool hasNonZero = false;
 
         for (int i = 0; i < 735; i++)
         {
@@ -196,14 +199,14 @@ public:
 
     TEST_METHOD (RapidToggles_AlternatingValues)
     {
-        std::vector<uint32_t> toggles;
+        std::vector<uint32_t>  toggles;
+        float                  samples[735];
 
         for (uint32_t i = 0; i < 500; i++)
         {
             toggles.push_back (i * 34);
         }
 
-        float samples[735];
 
 
 
@@ -320,7 +323,9 @@ public:
     TEST_METHOD (SpeakerToAudioPipeline_EndToEnd)
     {
         AppleSpeaker  spk;
-        uint64_t      cycles = 0;
+        uint64_t      cycles        = 0;
+        float         initialState  = 0.0f;
+        float         samples[1000];
         spk.SetCycleCounter (&cycles);
 
 
@@ -339,7 +344,6 @@ public:
         const auto & timestamps = spk.GetToggleTimestamps();
         // Initial state before toggles: speaker starts at 0.0,
         // after 3 toggles it's at 0.3. Initial = 0.0.
-        float initialState = 0.0f;
 
         Assert::AreEqual (size_t (3), timestamps.size());
         Assert::AreEqual (uint32_t (4000), timestamps[0]);
@@ -347,7 +351,6 @@ public:
         Assert::AreEqual (uint32_t (12000), timestamps[2]);
 
         // Generate PCM
-        float samples[1000];
 
         AudioGenerator::GeneratePCM (timestamps, 16000, initialState, samples, 1000);
 

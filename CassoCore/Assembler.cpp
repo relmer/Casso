@@ -17,9 +17,9 @@
 FileReadResult DefaultFileReader::ReadFile (const std::string & filename, const std::string & baseDir)
 {
     FileReadResult      result   = {};
+    std::ostringstream  ss;
     std::string         fullPath = baseDir.empty() ? filename : baseDir + "/" + filename;
     std::ifstream       file (fullPath);
-    std::ostringstream  ss;
 
 
 
@@ -159,11 +159,16 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
 std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCycleCounts)
 {
+    std::string addrStr;
+    std::string bytesStr;
+    std::string cycleStr;
+
+
+
     // Line number column (cols 1-5, right-justified)
     std::string lineNumStr = std::format ("{:5d}", line.lineNumber);
 
     // Address column (cols 7-10, 4 hex digits, no $ prefix)
-    std::string addrStr;
 
     if (line.isConditionalSkip)
     {
@@ -179,7 +184,6 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCy
     }
 
     // Bytes column (cols 14-22, up to 3 hex bytes, padded to 9 chars)
-    std::string bytesStr;
 
     for (size_t i = 0; i < line.bytes.size() && i < 3; i++)
     {
@@ -197,7 +201,6 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCy
     }
 
     // Cycle counts column (optional, between bytes and prefix)
-    std::string cycleStr;
 
     if (showCycleCounts && line.cycleCounts > 0)
     {
@@ -225,13 +228,16 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCy
 std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, Word> & symbols,
                                            const std::unordered_map<std::string, SymbolKind> & symbolKinds)
 {
+    std::string output;
+
+
+
     // Sort symbols alphabetically
     std::vector<std::pair<std::string, Word>> sorted (symbols.begin(), symbols.end());
 
     std::sort (sorted.begin(), sorted.end(),
         [] (const auto & a, const auto & b) { return a.first < b.first; });
 
-    std::string output;
 
     for (const auto & pair : sorted)
     {
@@ -257,13 +263,16 @@ std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, 
 
 std::string Assembler::FormatDebugInfo (const std::unordered_map<std::string, Word> & symbols)
 {
+    std::string output;
+
+
+
     // Sort symbols by address for deterministic output
     std::vector<std::pair<std::string, Word>> sorted (symbols.begin(), symbols.end());
 
     std::sort (sorted.begin(), sorted.end(),
         [] (const auto & a, const auto & b) { return a.second < b.second; });
 
-    std::string output;
 
     for (const auto & pair : sorted)
     {

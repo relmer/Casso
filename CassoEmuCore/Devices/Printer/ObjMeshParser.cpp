@@ -19,14 +19,15 @@
 std::unordered_map<std::string, ObjMeshParser::Rgb> ObjMeshParser::ParseMtl (const std::string & mtlText)
 {
     std::unordered_map<std::string, Rgb>   materials;
-    std::istringstream                     stream (mtlText);
     std::string                            line;
     std::string                            curName;
+    std::istringstream                     stream (mtlText);
 
     while (std::getline (stream, line))
     {
-        std::istringstream   ls (line);
         std::string          tag;
+
+        std::istringstream   ls (line);
 
         ls >> tag;
 
@@ -116,16 +117,17 @@ HRESULT ObjMeshParser::Parse (const std::string        & objText,
     std::unordered_map<std::string, Rgb>   materials = ParseMtl (mtlText);
     std::vector<std::array<float, 3>>      verts;
     Rgb                                    curColor  = { 1.0f, 1.0f, 1.0f };
-    std::istringstream                     stream (objText);
     std::string                            line;
     bool                                   hasVerts  = false;
+    std::istringstream                     stream (objText);
 
     outTriangles.clear();
 
     while (std::getline (stream, line))
     {
-        std::istringstream   ls (line);
         std::string          tag;
+
+        std::istringstream   ls (line);
 
         ls >> tag;
 

@@ -932,13 +932,15 @@ void DxuiMenuBar::PaintStrip (
 
         if (showCues && mnIdx >= 0 && !stripped.empty())
         {
-            float        fullW    = 0.0f;
-            float        fullH    = 0.0f;
-            float        prefixW  = 0.0f;
-            float        charW    = 0.0f;
-            std::wstring prefix   = stripped.substr (0, (size_t) mnIdx);
-            std::wstring prefixCh = stripped.substr (0, (size_t) mnIdx + 1);
-            HRESULT      hrM      = text.MeasureString (stripped.c_str(), fontDip, s_kFontFamily, fullW, fullH);
+            float         fullW    = 0.0f;
+            float         fullH    = 0.0f;
+            float         prefixW  = 0.0f;
+            float         charW    = 0.0f;
+            std::wstring  prefix   = stripped.substr (0, (size_t) mnIdx);
+            std::wstring  prefixCh = stripped.substr (0, (size_t) mnIdx + 1);
+            HRESULT       hrM      = text.MeasureString (stripped.c_str(), fontDip, s_kFontFamily, fullW, fullH);
+            float         baseX    = 0.0f;
+            float         baseY    = 0.0f;
 
             if (FAILED (hrM) || fullW <= 0.0f)
             {
@@ -958,8 +960,8 @@ void DxuiMenuBar::PaintStrip (
                 charW = pcW - prefixW;
             }
 
-            float baseX = (float) m_titleRects[i].left + (rectW - fullW) / 2.0f + prefixW;
-            float baseY = (float) m_titleRects[i].top  + (rectH + fullH) / 2.0f;
+            baseX = (float) m_titleRects[i].left + (rectW - fullW) / 2.0f + prefixW;
+            baseY = (float) m_titleRects[i].top  + (rectH + fullH) / 2.0f;
 
             painter.FillRect (baseX, baseY, charW, s_kUnderlineThicknessDip, stripFg);
         }
@@ -1111,12 +1113,14 @@ void DxuiMenuBar::PaintDropdownRows (
 
         if (showCues && mnIdx >= 0 && !stripped.empty() && sub.enabled)
         {
-            float        prefixW  = 0.0f;
-            float        charW    = 0.0f;
-            float        fullH    = 0.0f;
-            std::wstring prefix   = stripped.substr (0, (size_t) mnIdx);
-            std::wstring prefixCh = stripped.substr (0, (size_t) mnIdx + 1);
-            HRESULT      hrM      = S_OK;
+            float         prefixW  = 0.0f;
+            float         charW    = 0.0f;
+            float         fullH    = 0.0f;
+            std::wstring  prefix   = stripped.substr (0, (size_t) mnIdx);
+            std::wstring  prefixCh = stripped.substr (0, (size_t) mnIdx + 1);
+            HRESULT       hrM      = S_OK;
+            float         baseX    = 0.0f;
+            float         baseY    = 0.0f;
 
             if (!prefix.empty())
             {
@@ -1136,8 +1140,8 @@ void DxuiMenuBar::PaintDropdownRows (
                 charW = pcW - prefixW;
             }
 
-            float baseX = (float) (rect.left + labelLeftPx) + prefixW;
-            float baseY = (float) (rect.top + y + rowPadTopPx) + fullH;
+            baseX = (float) (rect.left + labelLeftPx) + prefixW;
+            baseY = (float) (rect.top + y + rowPadTopPx) + fullH;
 
             painter.FillRect (baseX, baseY, charW, s_kUnderlineThicknessDip, labelArgb);
         }

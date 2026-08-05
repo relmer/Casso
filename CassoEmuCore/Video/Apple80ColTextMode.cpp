@@ -100,6 +100,11 @@ void Apple80ColTextMode::Render (
     int fbWidth,
     int fbHeight)
 {
+    Word  pageBase  = 0;
+    bool  flashFlip = false;
+
+
+
     static_assert (kGridCols == kTextCols && kGridRows == kTextRows,
                    "dirty-row cache grid must match the render grid");
 
@@ -110,7 +115,7 @@ void Apple80ColTextMode::Render (
     // forced when reuse is unsafe -- first render, a different target buffer, a
     // change of aux pointer / charset / on-color. See AppleTextMode::Render.
     // 80-col always uses page 1.
-    Word pageBase = static_cast<Word> (0x0400);
+    pageBase = static_cast<Word> (0x0400);
 
     bool full = !m_cacheValid
              || framebuffer  != m_prevFramebuffer
@@ -118,14 +123,15 @@ void Apple80ColTextMode::Render (
              || m_altCharSet != m_prevAltChar
              || m_onColor    != m_prevOnColor;
 
-    bool flashFlip = m_flashOn != m_prevFlashOn;
+    flashFlip = m_flashOn != m_prevFlashOn;
 
     for (int row = 0; row < kTextRows; row++)
     {
-        Word   rowAddr  = static_cast<Word> (pageBase + 128 * (row % 8) + 40 * (row / 8));
-        Byte * cacheRow = &m_prevBytes[row * kTextCols];
-        Byte   rowBytes[kTextCols];
-        bool   changed  = false;
+        Word    rowAddr             = static_cast<Word> (pageBase + 128 * (row % 8) + 40 * (row / 8));
+        Byte  * cacheRow            = &m_prevBytes[row * kTextCols];
+        Byte    rowBytes[kTextCols];
+        bool    changed             = false;
+        bool    dirty               = false;
 
         for (int col = 0; col < kTextCols; col++)
         {
@@ -144,7 +150,7 @@ void Apple80ColTextMode::Render (
             changed      |= (c != cacheRow[col]);
         }
 
-        bool dirty = full || changed || (flashFlip && RowHasFlashChar (rowBytes));
+        dirty = full || changed || (flashFlip && RowHasFlashChar (rowBytes));
 
         if (dirty)
         {
@@ -222,9 +228,13 @@ void Apple80ColTextMode::RenderRowRange (
 
         for (int col = 0; col < kTextCols; col++)
         {
-            int  memCol  = col / 2;
-            bool fromAux = (col % 2) == 0;
-            Word addr    = static_cast<Word> (rowAddr + memCol);
+            int   memCol      = col / 2;
+            bool  fromAux     = (col % 2) == 0;
+            Word  addr        = static_cast<Word> (rowAddr + memCol);
+            bool  isIIeRom    = false;
+            bool  inverse     = false;
+            bool  flash       = false;
+            bool  showInverse = false;
 
             Byte charCode = 0;
 
@@ -263,11 +273,11 @@ void Apple80ColTextMode::RenderRowRange (
             // Without the //e branch the cursor cell ($20 stored as a
             // pre-inverted solid block) would be XOR'd back to empty
             // -- the "missing 80-col cursor" symptom.
-            bool isIIeRom = m_charRom.HasAltCharSet();
-            bool inverse  = charCode < 0x40;
-            bool flash    = !m_altCharSet && (charCode >= 0x40) && (charCode < 0x80);
+            isIIeRom = m_charRom.HasAltCharSet();
+            inverse = charCode < 0x40;
+            flash = !m_altCharSet && (charCode >= 0x40) && (charCode < 0x80);
 
-            bool showInverse = (inverse && !isIIeRom) || (flash && m_flashOn);
+            showInverse = (inverse && !isIIeRom) || (flash && m_flashOn);
 
             for (int py = 0; py < kCharHeight; py++)
             {

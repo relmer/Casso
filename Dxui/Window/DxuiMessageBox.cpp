@@ -242,22 +242,24 @@ int DxuiMessageBoxWindow::EstimateTextHeightDip (const std::wstring & text, bool
 
 int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, const wchar_t * caption, UINT uType)
 {
-    using ButtonSpec = DxuiMessageBoxWindow::ButtonSpec;
+    using                     ButtonSpec = DxuiMessageBoxWindow::ButtonSpec;
+    wchar_t                   glyph      = 0;
+    uint32_t                  glyphArgb  = 0;
+    int                       defIndex   = 0;
+    int                       defaultCmd = 0;
+    int                       heightDip  = 0;
+    HRESULT                   hr         = S_OK;
+    int                       choice     = 0;
+    DxuiMessageBoxWindow      dlg;
+    DxuiWindow::CreateParams  params;
 
 
 
     std::vector<ButtonSpec>   buttons;
     std::wstring              body       = (text != nullptr) ? text : L"";
-    wchar_t                   glyph      = 0;
-    uint32_t                  glyphArgb  = 0;
-    int                       defIndex   = 0;
-    int                       defaultCmd = IDOK;
-    int                       heightDip  = 0;
+    defaultCmd = IDOK;
     HINSTANCE                 hInst      = nullptr;
-    HRESULT                   hr         = S_OK;
-    int                       choice     = IDOK;
-    DxuiMessageBoxWindow      dlg;
-    DxuiWindow::CreateParams  params;
+    choice = IDOK;
 
     switch (uType & MB_TYPEMASK)
     {

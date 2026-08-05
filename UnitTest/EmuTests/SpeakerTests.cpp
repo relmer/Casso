@@ -35,11 +35,12 @@ public:
 
     TEST_METHOD (Read_TogglesSpeakerState)
     {
-        AppleSpeaker spk;
+        AppleSpeaker  spk;
+        float         after = 0.0f;
 
         float before = spk.GetSpeakerState();
         spk.Read (0xC030);
-        float after = spk.GetSpeakerState();
+        after = spk.GetSpeakerState();
 
         Assert::AreNotEqual (before, after);
     }
@@ -124,11 +125,12 @@ public:
 
     TEST_METHOD (Write_TogglesSpeakerState)
     {
-        AppleSpeaker spk;
+        AppleSpeaker  spk;
+        float         after = 0.0f;
 
         float before = spk.GetSpeakerState();
         spk.Write (0xC030, 0x42);
-        float after = spk.GetSpeakerState();
+        after = spk.GetSpeakerState();
 
         Assert::AreNotEqual (before, after,
             L"STA $C030 must toggle the speaker the same as LDA $C030");

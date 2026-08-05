@@ -28,9 +28,12 @@ void CassoBranding::DrawCassowaryRainbow (
     float          height,
     uint32_t       borderArgb)
 {
-    constexpr int         kGridW       = 36;
-    constexpr int         kGridH       = 54;
-    constexpr int         kStripeCount = 6;
+    constexpr int  kGridW       = 36;
+    constexpr int  kGridH       = 54;
+    constexpr int  kStripeCount = 6;
+    int            silhouetteH  = 0;
+    float          rowH         = 0.0f;
+    float          colW         = 0.0f;
     static const uint64_t s_kSilhouette[kGridH] = {
         0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL,
         0x000000FE00ULL, 0x000001FF80ULL, 0x000003FFC0ULL, 0x000007FFE0ULL, 0x00000FFFC0ULL,
@@ -74,9 +77,9 @@ void CassoBranding::DrawCassowaryRainbow (
         return;
     }
 
-    int    silhouetteH = lastRow - firstRow + 1;
-    float  rowH        = height / (float) kGridH;
-    float  colW        = width  / (float) kGridW;
+    silhouetteH = lastRow - firstRow + 1;
+    rowH = height / (float) kGridH;
+    colW = width  / (float) kGridW;
 
     // One pass over the silhouette, offset by (ox, oy). overrideArgb != 0 paints
     // every run that flat color (the outline pass); 0 uses the rainbow stripes.
@@ -93,22 +96,27 @@ void CassoBranding::DrawCassowaryRainbow (
 
             while (col < kGridW)
             {
+                int    runStart = 0;
+                float  x        = 0.0f;
+                float  y        = 0.0f;
+                float  w        = 0.0f;
+
                 if ((bits & (1ULL << col)) == 0)
                 {
                     col++;
                     continue;
                 }
 
-                int  runStart = col;
+                runStart = col;
 
                 while (col < kGridW && (bits & (1ULL << col)) != 0)
                 {
                     col++;
                 }
 
-                float  x = left + ox + (float) runStart * colW;
-                float  y = top  + oy + (float) row      * rowH;
-                float  w = (float) (col - runStart) * colW;
+                x = left + ox + (float) runStart * colW;
+                y = top  + oy + (float) row      * rowH;
+                w = (float) (col - runStart) * colW;
 
                 painter.FillRect (x, y, w, rowH + 0.5f, argb);
             }

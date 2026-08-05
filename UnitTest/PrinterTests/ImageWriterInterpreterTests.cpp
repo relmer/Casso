@@ -183,6 +183,10 @@ namespace ImageWriterInterpreterTests
 
         TEST_METHOD (PrintShopWelcomeMessagePrefixRendersInk)
         {
+            int  bandTop = 0;
+
+
+
             // The exact prefix Print Shop's setup test sends (T011 capture):
             // CR CR, ESC A $0C (1/6" spacing), LF, then ESC L $00 $02 + 512
             // graphics columns, CR LF. The band lands one line feed down and
@@ -201,7 +205,7 @@ namespace ImageWriterInterpreterTests
             stream.push_back (0x0A);
             Feed (interp, raster, events, stream);
 
-            int   bandTop = PrinterGrid::kRowsPerInch / 6;   // one 1/6" line feed
+            bandTop = PrinterGrid::kRowsPerInch / 6; // one 1/6" line feed
 
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::HeadBurst));
             Assert::AreEqual (0, CountEvents (events, PrinterEventType::UnknownCommand));
@@ -473,9 +477,6 @@ namespace ImageWriterInterpreterTests
 
         TEST_METHOD (DeterministicForIdenticalStream)
         {
-            vector<Byte>   stream = { 0x1B, 'G', '0', '0', '0', '3', 0x80, 0xFF, 0x01,
-                                      0x0D, 0x0A, 0x1B, 'T', '1', '2', 0x0A, 0x0C };
-
             ImageWriterInterpreter   a;
             ImageWriterInterpreter   b;
             PrintRaster              ra;
@@ -483,6 +484,12 @@ namespace ImageWriterInterpreterTests
             vector<PrinterEvent>     ea;
             vector<PrinterEvent>     eb;
             size_t                   i = 0;
+
+
+
+            vector<Byte>   stream = { 0x1B, 'G', '0', '0', '0', '3', 0x80, 0xFF, 0x01,
+                                      0x0D, 0x0A, 0x1B, 'T', '1', '2', 0x0A, 0x0C };
+
 
             Feed (a, ra, ea, stream);
             Feed (b, rb, eb, stream);

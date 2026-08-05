@@ -126,6 +126,10 @@ public:
 
     TEST_METHOD (FindFile_IndependentSearch_MachinesAndRoms)
     {
+        std::vector<fs::path>  paths;
+
+
+
         // Verify that machines/ and ROMs/ can be searched independently —
         // both should resolve from the same search paths
         fs::path repoRoot = FindRepoRoot();
@@ -135,7 +139,7 @@ public:
             return;
         }
 
-        std::vector<fs::path> paths = { repoRoot };
+        paths = { repoRoot };
 
         fs::path configFound = PathResolver::FindFile (paths, "Resources/Machines/Apple2Plus/Apple2Plus.json");
         Assert::IsFalse (configFound.empty());
@@ -154,13 +158,14 @@ private:
     // keeps working after that API collapsed to localappdata-only.
     static fs::path FindRepoRoot()
     {
-        fs::path  cursor = PathResolver::GetExecutableDirectory();
+        fs::path  cursor  = PathResolver::GetExecutableDirectory();
+        int       hop     = 0;
+        fs::path  root;
+        bool      walking = false;
         fs::path  marker = fs::path ("Resources") / "Machines" /
                            "Apple2Plus" / "Apple2Plus.json";
-        int       hop    = 0;
 
-        fs::path  root;
-        bool      walking = true;
+        walking = true;
 
         for (hop = 0; walking && root.empty() && hop < 8; hop++)
         {

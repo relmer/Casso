@@ -61,8 +61,12 @@ public:
 
     TEST_METHOD (Write_Null)
     {
+        string  out;
+
+
+
         JsonValue   v (nullptr);
-        string      out = JsonWriter::Write (v);
+        out = JsonWriter::Write (v);
         Assert::AreEqual (string ("null"), out);
     }
 
@@ -92,13 +96,18 @@ public:
 
     TEST_METHOD (Write_Float)
     {
+        string          out;
+        JsonValue       parsed;
+        JsonParseError  err;
+        HRESULT         hr     = S_OK;
+
+
+
         JsonValue  v (3.14);
-        string     out = JsonWriter::Write (v);
+        out = JsonWriter::Write (v);
 
         // Verify it round-trips, not exact text (formatting may vary).
-        JsonValue        parsed;
-        JsonParseError   err;
-        HRESULT          hr = JsonParser::Parse (out, parsed, err);
+        hr = JsonParser::Parse (out, parsed, err);
         AssertSucceeded (hr);
         Assert::AreEqual (3.14, parsed.GetNumber(), 1e-12);
     }
@@ -249,10 +258,13 @@ public:
 
     TEST_METHOD (Write_Nan_Fails)
     {
-        JsonValue            v (std::nan (""));
         JsonWriter::Options  opts;
         string               out;
         HRESULT              hr;
+
+
+
+        JsonValue            v (std::nan (""));
 
         hr = JsonWriter::Write (v, opts, out);
         AssertFailed (hr);

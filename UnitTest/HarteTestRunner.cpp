@@ -162,15 +162,15 @@ Error:
 
 HRESULT LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
 {
-    HRESULT       hr = S_OK;
+    HRESULT  hr       = S_OK;
+    Word     count;
+    Byte     reserved;
+    bool     fOk;
+    bool     isOpen   = false;
 
 
 
     std::ifstream f (path, std::ios::binary);
-    Word          count;
-    Byte          reserved;
-    bool          fOk;
-    bool          isOpen = false;
 
 
 
@@ -338,7 +338,10 @@ static int RunHarteTestFile (const HarteTestFile & file, std::wstring & firstFai
 
     for (int i = 0; i < file.vectorCount; i++)
     {
-        const HarteTestVector & v = file.vectors[i];
+        const HarteTestVector  & v         = file.vectors[i];
+        bool                     failed    = false;
+        Byte                     expectedP = 0;
+        Byte                     actualP   = 0;
 
         CpuT cpu;
         cpu.InitForTest (v.initial.pc);
@@ -360,7 +363,6 @@ static int RunHarteTestFile (const HarteTestFile & file, std::wstring & firstFai
         cpu.Step();
 
         // Compare final state
-        bool failed = false;
 
         // PC
         if (cpu.RegPC() != v.final.pc)
@@ -418,8 +420,8 @@ static int RunHarteTestFile (const HarteTestFile & file, std::wstring & firstFai
         }
 
         // P (status) — mask bits 4 (B) and 5 (unused) for comparison
-        Byte expectedP = v.final.p & 0xCF;
-        Byte actualP   = cpu.Status().status & 0xCF;
+        expectedP = v.final.p & 0xCF;
+        actualP = cpu.Status().status & 0xCF;
 
         if (!failed && actualP != expectedP)
         {
@@ -479,16 +481,19 @@ static int RunHarteTestFile (const HarteTestFile & file, std::wstring & firstFai
 template <class CpuT>
 static void RunHarteOpcode (const char * cpuDir, Byte opcode)
 {
-    std::string dir = GetHarteTestDataDir (cpuDir);
-    char        hex[8];
+    std::string    dir          = GetHarteTestDataDir (cpuDir);
+    char           hex[8];
+    HarteTestFile  file;
+    HRESULT        hrLoad       = S_OK;
+    std::wstring   firstFailure;
+    int            failures     = 0;
 
 
 
     sprintf_s (hex, "%02x", opcode);
 
     std::string   path = dir + "\\" + hex + ".bin";
-    HarteTestFile file;
-    HRESULT       hrLoad = LoadHarteTestFile (path, file);
+    hrLoad = LoadHarteTestFile (path, file);
 
     if (FAILED (hrLoad))
     {
@@ -496,8 +501,7 @@ static void RunHarteOpcode (const char * cpuDir, Byte opcode)
         return;
     }
 
-    std::wstring firstFailure;
-    int          failures = RunHarteTestFile<CpuT> (file, firstFailure);
+    failures = RunHarteTestFile<CpuT> (file, firstFailure);
 
     if (failures > 0)
     {

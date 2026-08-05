@@ -107,6 +107,8 @@ public:
     {
         for (const MainMenuCommandEntry & e : MainMenu::GetCommandEntries())
         {
+            const wchar_t * name = nullptr;
+
             if (MainMenu::IsSeparator (e))
             {
                 continue;
@@ -119,7 +121,7 @@ public:
 
             // GetMenuName returns "?" for unknown enumerators — bare
             // pointer compare against the known menus is enough.
-            const wchar_t * name = MainMenu::GetMenuName (e.menu);
+            name = MainMenu::GetMenuName (e.menu);
             Assert::IsTrue (name[0] != L'?',
                             L"MainMenu entry uses an unknown MainMenuId enumerator");
         }

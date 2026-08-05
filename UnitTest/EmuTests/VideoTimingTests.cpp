@@ -77,6 +77,7 @@ public:
     TEST_METHOD (VblankRegionIsLines192Through261)
     {
         VideoTiming     vt;
+        VideoTiming     vt2;
 
         // Scanline 0..191 — display
         vt.Tick (VideoTiming::kVblankStartCycle - 1);
@@ -90,7 +91,6 @@ public:
         Assert::AreEqual (static_cast<uint32_t> (192), vt.GetCurrentScanline());
 
         // Last cycle of scanline 261 — still vblank
-        VideoTiming     vt2;
         vt2.Tick (VideoTiming::kCyclesPerFrame - 1);
         Assert::IsTrue (vt2.IsInVblank(),
             L"cycle 17029 (last cycle of scanline 261) is in vblank");
@@ -121,6 +121,10 @@ public:
 
     TEST_METHOD (RDVBLBAR_BitInvertedRelativeToIsInVblank)
     {
+        Byte  val = 0;
+
+
+
         // The RDVBLBAR convention: bit 7 = 1 during display, 0 during vblank.
         // Phase 6 / T061: the soft-switch bank owns the $C019 read; the
         // keyboard forwards from $C000-$C063 down into the bank.
@@ -136,7 +140,7 @@ public:
         vt.Tick (100);
         Assert::IsFalse (vt.IsInVblank());
 
-        Byte    val = kbd.Read (0xC019);
+        val = kbd.Read (0xC019);
         Assert::IsTrue ((val & 0x80) != 0,
             L"$C019 bit 7 = 1 during display (RDVBLBAR is inverted)");
 

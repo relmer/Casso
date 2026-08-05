@@ -627,6 +627,12 @@ HRESULT DxuiTextRenderer::EnsureLayout (
     float                 maxHeightDip,
     IDWriteTextLayout  ** outLayout)
 {
+    IDWriteTextFormat        * rawFmt    = nullptr;
+    ComPtr<IDWriteTextFormat>  format;
+    ComPtr<IDWriteTextLayout>  layout;
+
+
+
     // Bound so a scrolling debug panel with many distinct strings cannot grow
     // the cache without limit. Chrome's working set is a few dozen entries; the
     // cap only trips under pathological churn, where a rebuild is cheap.
@@ -635,9 +641,6 @@ HRESULT DxuiTextRenderer::EnsureLayout (
     HRESULT                    hr        = S_OK;
     LayoutCacheKey             key;
     const wchar_t            * useFamily = (family != nullptr) ? family : L"Segoe UI";
-    IDWriteTextFormat        * rawFmt    = nullptr;
-    ComPtr<IDWriteTextFormat>  format;
-    ComPtr<IDWriteTextLayout>  layout;
     DWRITE_TEXT_ALIGNMENT      dwH       = DWRITE_TEXT_ALIGNMENT_LEADING;
     DWRITE_PARAGRAPH_ALIGNMENT dwV       = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;
 
@@ -754,21 +757,22 @@ HRESULT DxuiTextRenderer::EnsureCapMidY (
     IDWriteTextFormat  *  format,
     float              &  outCapMidY)
 {
-    HRESULT                        hr            = S_OK;
+    HRESULT                        hr          = S_OK;
     TextFormatKey                  key;
-    const wchar_t                * useFamily     = (family != nullptr) ? family : L"Segoe UI";
     ComPtr<IDWriteTextLayout>      layout;
     ComPtr<IDWriteFontCollection>  collection;
     ComPtr<IDWriteFontFamily>      familyObj;
     ComPtr<IDWriteFont>            font;
     ComPtr<IDWriteFontFace>        face;
+    BOOL                           familyFound = FALSE;
+    bool                           isCached    = false;
+    float                          kMeasureBox = 0.0f;
+    const wchar_t                * useFamily     = (family != nullptr) ? family : L"Segoe UI";
     UINT32                         familyIndex   = 0;
-    BOOL                           familyFound   = FALSE;
     DWRITE_FONT_METRICS            metrics       = {};
     DWRITE_LINE_METRICS            lineMetrics   = {};
     UINT32                         lineCount     = 0;
-    bool                           isCached      = false;
-    const float                    kMeasureBox   = 4096.0f;
+    kMeasureBox = 4096.0f;
     const wchar_t                * kMeasureText  = L"Mg";
 
 
@@ -825,11 +829,13 @@ HRESULT DxuiTextRenderer::EnsureCapMidY (
 
     face->GetMetrics (&metrics);
     {
-        float  upem = (float) metrics.designUnitsPerEm;
+        float  upem         = (float) metrics.designUnitsPerEm;
+        float  capHeightDip = 0.0f;
+        float  baselineY    = 0.0f;
         CBRA (upem > 0.0f);
 
-        float  capHeightDip = (float) metrics.capHeight * (fontSizeDip / upem);
-        float  baselineY    = lineMetrics.baseline;
+        capHeightDip = (float) metrics.capHeight * (fontSizeDip / upem);
+        baselineY = lineMetrics.baseline;
 
         outCapMidY         = baselineY - capHeightDip * 0.5f;
         m_capMidCache[key] = outCapMidY;
@@ -1007,10 +1013,13 @@ HRESULT DxuiTextRenderer::FillRect (
     float    heightDip,
     uint32_t argbColor)
 {
-    DXUI_ASSERT_UI_THREAD();
-
     HRESULT                            hr     = S_OK;
     ComPtr<ID2D1SolidColorBrush>       brush;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
     D2D1_RECT_F                        rect   = {};
 
 
@@ -1054,9 +1063,12 @@ Error:
 
 HRESULT DxuiTextRenderer::PushClipRect (float xDip, float yDip, float widthDip, float heightDip)
 {
+    HRESULT      hr   = S_OK;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    HRESULT      hr   = S_OK;
     D2D1_RECT_F  rect = {};
 
 
@@ -1086,9 +1098,12 @@ Error:
 
 HRESULT DxuiTextRenderer::PopClipRect()
 {
+    HRESULT  hr = S_OK;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    HRESULT  hr = S_OK;
 
 
     CBRA (m_d2dContext);

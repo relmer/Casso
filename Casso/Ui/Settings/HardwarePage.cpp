@@ -374,6 +374,10 @@ void HardwarePage::Rebuild()
 
     if (state != nullptr)
     {
+        std::wstring  cpuDisplay;
+        size_t        rowsInUse  = 0;
+        size_t        i          = 0;
+
         // Machine + CPU-speed selectors.
         m_speed.SetSelected           ((int) state->Prefs().speedMode);
         m_machineDropdown.SetSelected (m_activeMachineIndex);
@@ -410,7 +414,7 @@ void HardwarePage::Rebuild()
             return s;
         };
 
-        std::wstring  cpuDisplay = Widen (info->cpu);
+        cpuDisplay = Widen (info->cpu);
         if (! info->cpuManufacturer.empty())
         {
             cpuDisplay = Widen (info->cpuManufacturer) + L" " + cpuDisplay;
@@ -420,8 +424,7 @@ void HardwarePage::Rebuild()
         m_infoValues[s_kClockRow].SetText  (FormatGrouped (info->clockSpeed) + L" Hz");
         m_infoValues[s_kMemoryRow].SetText (Widen (info->ramSummary));   // RAM total on the header line
 
-        size_t  rowsInUse = std::min<size_t> (info->memoryRegions.size(), kMaxMemoryRows);
-        size_t  i         = 0;
+        rowsInUse = std::min<size_t> (info->memoryRegions.size(), kMaxMemoryRows);
         for (i = 0; i < kMaxMemoryRows; ++i)
         {
             size_t  slotIdx = kFixedInfoRowCount + i;
@@ -593,6 +596,7 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
     if (supportsExternalDrive)
     {
         DxuiTreeNode  external;
+        DxuiTreeNode  mouse;
 
         external.label          = s_kExternalDriveLabel;
         external.capabilityFlag = DxuiTreeCapabilityFlag::Optional;
@@ -601,7 +605,6 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
         out.push_back (std::move (external));
 
         // //c mouse peripheral: connectable, default connected.
-        DxuiTreeNode  mouse;
         mouse.label          = s_kMouseLabel;
         mouse.capabilityFlag = DxuiTreeCapabilityFlag::Optional;
         mouse.checked        = mouseConnected;

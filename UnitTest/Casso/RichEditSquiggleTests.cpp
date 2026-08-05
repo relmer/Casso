@@ -40,9 +40,12 @@ namespace RichEditSquiggleTests
 
         TEST_METHOD (BuildIgnoredTokensLabel_singleSpan_returnsIgnoredPrefixPlusToken)
         {
+            std::vector<RejectedSpan>  spans;
+
+
+
             // "0-2, abc, 17" -- the "abc" token spans [5..8).
             std::wstring               expr = L"0-2, abc, 17";
-            std::vector<RejectedSpan>  spans;
 
             spans.push_back ({ 5, 8 });
 
@@ -54,9 +57,12 @@ namespace RichEditSquiggleTests
 
         TEST_METHOD (BuildIgnoredTokensLabel_twoSpans_joinedWithCommaSpace)
         {
+            std::vector<RejectedSpan>  spans;
+
+
+
             // "xx, 5, yy" -- "xx" spans [0..2), "yy" spans [7..9).
             std::wstring               expr = L"xx, 5, yy";
-            std::vector<RejectedSpan>  spans;
 
             spans.push_back ({ 0, 2 });
             spans.push_back ({ 7, 9 });
@@ -69,8 +75,11 @@ namespace RichEditSquiggleTests
 
         TEST_METHOD (BuildIgnoredTokensLabel_clipsSpansThatRunPastEnd)
         {
-            std::wstring               expr = L"abc";
             std::vector<RejectedSpan>  spans;
+
+
+
+            std::wstring               expr = L"abc";
 
             spans.push_back ({ 0, 100 });
 
@@ -93,8 +102,11 @@ namespace RichEditSquiggleTests
 
         TEST_METHOD (BuildPerSideInvalidLabel_singleToken_returnsPrefixPlusToken)
         {
-            std::wstring               expr = L"abc, 5";
             std::vector<RejectedSpan>  spans;
+
+
+
+            std::wstring               expr = L"abc, 5";
 
             spans.push_back ({ 0, 3 });
 
@@ -106,8 +118,11 @@ namespace RichEditSquiggleTests
 
         TEST_METHOD (BuildPerSideInvalidLabel_multipleTokens_joinedWithCommaSpace)
         {
-            std::wstring               expr = L"xx, 5, yy";
             std::vector<RejectedSpan>  spans;
+
+
+
+            std::wstring               expr = L"xx, 5, yy";
 
             spans.push_back ({ 0, 2 });
             spans.push_back ({ 7, 9 });
@@ -120,8 +135,11 @@ namespace RichEditSquiggleTests
 
         TEST_METHOD (BuildPerSideInvalidLabel_sectorPrefix_emitsSectorWord)
         {
-            std::wstring               expr = L"99";
             std::vector<RejectedSpan>  spans;
+
+
+
+            std::wstring               expr = L"99";
 
             spans.push_back ({ 0, 2 });
 

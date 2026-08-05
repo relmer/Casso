@@ -321,6 +321,13 @@ namespace Apple2eFidelity
 
         TEST_METHOD (Via6522Timer1IrqReachesCpuThroughHostLoop)
         {
+            Via6522               via;
+            bool                  reachedHandler = false;
+            Word                  a              = 0;
+            int                   i              = 0;
+
+
+
             // End-to-end reproduction of the Rescue Raiders "won't start" hang:
             // a Mockingboard VIA Timer1 IRQ must actually vector the CPU when
             // the shell drives it with the StepOne loop. Wires
@@ -329,10 +336,6 @@ namespace Apple2eFidelity
             // handler.
             TestCpu               cpu;
             InterruptController   ic  (&cpu);
-            Via6522               via;
-            bool                  reachedHandler = false;
-            Word                  a              = 0;
-            int                   i              = 0;
 
 
 

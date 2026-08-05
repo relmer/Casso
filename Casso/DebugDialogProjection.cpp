@@ -666,13 +666,14 @@ DebugSelectionResult DebugDialogProjection::ResolveSelection (
     {
         for (size_t row = 0; row < filteredIndices.size(); ++row)
         {
-            size_t  idx = filteredIndices[row];
+            size_t    idx = filteredIndices[row];
+            uint64_t  s   = 0;
             if (idx >= events.size())
             {
                 continue;
             }
 
-            uint64_t  s = events[idx].seq;
+            s = events[idx].seq;
 
             // First match wins, matching the old scan's early exit.
             if (s == selectedSeq && exactRow == kNone)

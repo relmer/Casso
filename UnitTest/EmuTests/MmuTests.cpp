@@ -51,6 +51,10 @@ public:
               mmu     (),
               sw      (&bus)
         {
+            HRESULT  hr = S_OK;
+
+
+
             // Bind every $0000-$BFFF page to main RAM as the baseline
             // (the same baseline EmulatorShell::WirePageTable establishes).
             Byte * mainPtr = mainRam.GetData();
@@ -62,7 +66,7 @@ public:
             }
 
             sw.SetMmu (&mmu);
-            HRESULT hr = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, &sw);
+            hr = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, &sw);
             UNREFERENCED_PARAMETER (hr);
 
             bus.AddDevice (&sw);

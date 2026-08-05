@@ -99,9 +99,13 @@ Byte LanguageCard::Read (Word address)
 
 void LanguageCard::Write (Word address, Byte value)
 {
+    Byte  switchAddr = 0;
+
+
+
     UNREFERENCED_PARAMETER (value);
 
-    Byte  switchAddr = static_cast<Byte> (address & 0x0F);
+    switchAddr = static_cast<Byte> (address & 0x0F);
 
     ApplySwitch (switchAddr, true);
 }

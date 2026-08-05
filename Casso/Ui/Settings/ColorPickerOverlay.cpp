@@ -778,10 +778,12 @@ void ColorPickerOverlay::PaintCopyIcon (
     float            cw        = (float) (m_copyRect.right  - m_copyRect.left);
     float            ch        = (float) (m_copyRect.bottom - m_copyRect.top);
     float            glyphDip  = m_scaler.Pxf (s_kCopyGlyphDip);
+    const wchar_t  * glyph     = nullptr;
+    uint32_t         glyphArgb = 0;
     bool             flashing  = (m_copyFlashMs != 0) &&
                                  ((int64_t) GetTickCount64() - m_copyFlashMs < s_kCopyFlashMs);
-    const wchar_t  * glyph     = flashing ? s_kpszMdl2Accept : s_kpszMdl2Copy;
-    uint32_t         glyphArgb = theme.Foreground();
+    glyph = flashing ? s_kpszMdl2Accept : s_kpszMdl2Copy;
+    glyphArgb = theme.Foreground();
 
 
 

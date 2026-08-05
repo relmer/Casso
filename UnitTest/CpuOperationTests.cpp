@@ -1389,10 +1389,11 @@ namespace CpuOperationTests
 
         TEST_METHOD (BPL_NotTaken_WhenNegative)
         {
-            TestCpu cpu;
+            TestCpu  cpu;
+            Word     originalPC = 0;
             cpu.InitForTest();
             cpu.Status().flags.negative = 1;
-            Word originalPC = cpu.RegPC();
+            originalPC = cpu.RegPC();
 
             CpuOperations::Branch (cpu, Instruction (0x10), 0x9000);
 
@@ -1768,11 +1769,12 @@ namespace CpuOperationTests
 
         TEST_METHOD (Push_A_WritesToStackAndDecrementsSP)
         {
-            TestCpu cpu;
+            TestCpu  cpu;
+            Byte     spBefore = 0;
             cpu.InitForTest();
             cpu.RegA() = 0x42;
 
-            Byte spBefore = cpu.RegSP();
+            spBefore = cpu.RegSP();
             CpuOperations::Push (cpu, &cpu.RegA());
 
             Assert::AreEqual ((Byte) (spBefore - 1), cpu.RegSP());
@@ -1866,12 +1868,13 @@ namespace CpuOperationTests
 
         TEST_METHOD (Push_Status_SetsBreakAndAlwaysOneInPushedByte)
         {
-            TestCpu cpu;
+            TestCpu  cpu;
+            Byte     spBefore = 0;
             cpu.InitForTest();
             cpu.Status().status = 0x00;
             cpu.Status().flags.carry = 1;     // 0x01
 
-            Byte spBefore = cpu.RegSP();
+            spBefore = cpu.RegSP();
             CpuOperations::Push (cpu, &cpu.Status().status);
 
             // PHP pushes status with B (0x10) and AlwaysOne (0x20) set.

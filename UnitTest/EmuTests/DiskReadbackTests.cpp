@@ -115,10 +115,13 @@ public:
 
     vector<Byte> BuildSentinelDisk()
     {
-        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
         int            track  = 0;
         int            sector = 0;
         int            i      = 0;
+
+
+
+        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
 
         for (track = 0; track < kTrackCount; track++)
         {
@@ -417,13 +420,16 @@ public:
         for (int i = 0; i < kSectorBytes; i++)
         {
             int  idx, shift;
+            Byte  high = 0;
+            Byte  b0 = 0;
+            Byte  b1 = 0;
             if (i < 86)        { idx = i;           shift = 0; }
             else if (i < 172)  { idx = i - 86;      shift = 2; }
             else               { idx = i - 172;     shift = 4; }
 
-            Byte high = static_cast<Byte> (encoded[86 + i] << 2);
-            Byte b0   = static_cast<Byte> ((encoded[idx] >> (shift + 1)) & 1);
-            Byte b1   = static_cast<Byte> ((encoded[idx] >> (shift + 0)) & 1);
+            high = static_cast<Byte> (encoded[86 + i] << 2);
+            b0 = static_cast<Byte> ((encoded[idx] >> (shift + 1)) & 1);
+            b1 = static_cast<Byte> ((encoded[idx] >> (shift + 0)) & 1);
             outData[i] = static_cast<Byte> (high | (b0 << 0) | (b1 << 1));
         }
 
@@ -447,25 +453,26 @@ public:
 
     TEST_METHOD (DumpFirstNibblesOnTrack0)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        vector<Byte>   raw = BuildSentinelDisk();
+        HeadlessHost    host;
+        EmulatorCore    core;
+        vector<Byte>    raw        = BuildSentinelDisk();
+        DWORD           pl         = 0;
+        FILE          * fp         = nullptr;
+        uint64_t        spent      = 0;
+        int             validCount = 0;
 
         MountAndSpinUp (host, core, raw);
 
         // Dump the first 64 nibbles to %TEMP%\readback-trace.log so we
         // can see what the engine actually presents to the bus.
         char     path[260] = {};
-        DWORD    pl        = GetTempPathA (260, path);
-        FILE   * fp        = nullptr;
+        pl = GetTempPathA (260, path);
         if (pl > 0 && pl < 260 - 32)
         {
             strcat_s (path, "readback-trace.log");
             (void) fopen_s (&fp, path, "w");
         }
 
-        uint64_t  spent      = 0;
-        int       validCount = 0;
         for (int i = 0; i < 64; i++)
         {
             Byte n = ReadNextNibble (core, spent);
@@ -489,22 +496,23 @@ public:
 
     TEST_METHOD (ReadAllSectorsOnTrack0_FromSentinelDsk)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        vector<Byte>   raw = BuildSentinelDisk();
+        HeadlessHost  host;
+        EmulatorCore  core;
+        vector<Byte>  raw          = BuildSentinelDisk();
+        wstring       failures;
+        int           successCount = 0;
+        int           trk          = 0;
 
         MountAndSpinUp (host, core, raw);
 
-        wstring  failures;
-        int      successCount = 0;
-        int      trk          = 0;
 
         for (int sec = 0; sec < kSectorsPerTrack; sec++)
         {
-            int           volume  = 0;
+            int           volume   = 0;
             vector<Byte>  decoded;
-            HRESULT       hrField = FindAddressField (core, trk, sec, volume);
-            HRESULT       hrData  = S_OK;
+            HRESULT       hrField  = FindAddressField (core, trk, sec, volume);
+            HRESULT       hrData   = S_OK;
+            Byte          expected = 0;
 
             if (FAILED (hrField))
             {
@@ -524,7 +532,7 @@ public:
                 continue;
             }
 
-            Byte expected = ExpectedSectorByte (trk, sec, 0);
+            expected = ExpectedSectorByte (trk, sec, 0);
             if (decoded[0] != expected)
             {
                 wchar_t msg[128] = {};
@@ -540,9 +548,10 @@ public:
         if (!failures.empty())
         {
             wchar_t  banner[128] = {};
+            wstring  full;
             swprintf_s (banner, L"%d/%d sector reads succeeded. Failures: ",
                         successCount, kSectorsPerTrack);
-            wstring full = banner;
+            full = banner;
             full += failures;
             Assert::Fail (full.c_str());
         }
@@ -560,8 +569,13 @@ public:
     // wrong).
     TEST_METHOD (ReadComplementPatternSector_FromCustomDsk)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        HeadlessHost  host;
+        EmulatorCore  core;
+        int           volume   = 0;
+        vector<Byte>  decoded;
+        HRESULT       hrField  = S_OK;
+        HRESULT       hrData   = S_OK;
+        wstring       failures;
         vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
 
         for (int i = 0; i < 256; i++)
@@ -571,17 +585,14 @@ public:
 
         MountAndSpinUp (host, core, raw);
 
-        int           volume  = 0;
-        vector<Byte>  decoded;
-        HRESULT       hrField = FindAddressField (core, 0, 0, volume);
+        hrField = FindAddressField (core, 0, 0, volume);
 
         Assert::IsTrue (SUCCEEDED (hrField), L"T0S0 address-field not found");
 
-        HRESULT       hrData  = ReadDataFieldAtCursor (core, decoded);
+        hrData = ReadDataFieldAtCursor (core, decoded);
 
         Assert::IsTrue (SUCCEEDED (hrData), L"T0S0 data-field decode failed");
 
-        wstring  failures;
         for (int i = 0; i < 256; i++)
         {
             Byte expected = static_cast<Byte> (~static_cast<Byte> (i));
@@ -612,20 +623,22 @@ public:
 
     TEST_METHOD (ReadEveryTrackAndSector_FromSentinelDsk)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        vector<Byte>   raw = BuildSentinelDisk();
+        HeadlessHost  host;
+        EmulatorCore  core;
+        vector<Byte>  raw          = BuildSentinelDisk();
+        wstring       failures;
+        int           successCount = 0;
 
         MountAndSpinUp (host, core, raw);
 
-        wstring  failures;
-        int      successCount = 0;
 
         for (int trk = 0; trk < kTrackCount; trk++)
         {
+            int  actualTrack = 0;
+
             SeekToTrack (core, trk);
 
-            int actualTrack = core.diskController->GetCurrentTrack();
+            actualTrack = core.diskController->GetCurrentTrack();
             if (actualTrack != trk)
             {
                 wchar_t  msg[128] = {};
@@ -636,10 +649,11 @@ public:
 
             for (int sec = 0; sec < kSectorsPerTrack; sec++)
             {
-                int           volume  = 0;
+                int           volume   = 0;
                 vector<Byte>  decoded;
-                HRESULT       hrField = FindAddressField (core, trk, sec, volume);
-                HRESULT       hrData  = S_OK;
+                HRESULT       hrField  = FindAddressField (core, trk, sec, volume);
+                HRESULT       hrData   = S_OK;
+                Byte          expected = 0;
 
                 if (FAILED (hrField))
                 {
@@ -659,7 +673,7 @@ public:
                     continue;
                 }
 
-                Byte expected = ExpectedSectorByte (trk, sec, 0);
+                expected = ExpectedSectorByte (trk, sec, 0);
                 if (decoded[0] != expected)
                 {
                     wchar_t msg[128] = {};
@@ -676,9 +690,10 @@ public:
         if (!failures.empty())
         {
             wchar_t  banner[128] = {};
+            wstring  full;
             swprintf_s (banner, L"%d/%d sector reads succeeded. Failures: ",
                         successCount, kTrackCount * kSectorsPerTrack);
-            wstring full = banner;
+            full = banner;
             full += failures;
             Assert::Fail (full.c_str());
         }
@@ -700,12 +715,14 @@ public:
 
     TEST_METHOD (BitCursorAdvancesAfterCycleCounterRewind)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        vector<Byte>   raw      = BuildSentinelDisk();
-        uint64_t       cpuCycle = 0;
-        DiskImage *    external = nullptr;
-        HRESULT        hr       = S_OK;
+        HeadlessHost    host;
+        EmulatorCore    core;
+        vector<Byte>    raw       = BuildSentinelDisk();
+        uint64_t        cpuCycle  = 0;
+        DiskImage     * external  = nullptr;
+        HRESULT         hr        = S_OK;
+        size_t          bitBefore = 0;
+        size_t          bitAfter  = 0;
 
         hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2");
@@ -740,7 +757,7 @@ public:
         // the controller's anchor still holds the large value.
         cpuCycle = 0;
 
-        size_t  bitBefore = core.diskController->GetEngine (kDrive1).GetBitPosition();
+        bitBefore = core.diskController->GetEngine (kDrive1).GetBitPosition();
 
         // A handful of post-rewind accesses, each a few bit-cells apart.
         for (int i = 0; i < 8; i++)
@@ -749,7 +766,7 @@ public:
             core.bus->ReadByte (kReadLatch);
         }
 
-        size_t  bitAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
+        bitAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
 
         Assert::IsTrue (bitAfter != bitBefore,
                         L"Bit cursor frozen after cycle-counter rewind "

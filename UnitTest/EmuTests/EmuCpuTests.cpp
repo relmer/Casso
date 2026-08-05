@@ -35,7 +35,8 @@ public:
 
     TEST_METHOD (BusRouting_WriteAndReadRAM)
     {
-        MemoryBus bus;
+        MemoryBus  bus;
+        Byte       val = 0;
         RamDevice ram (0x0000, 0xBFFF);
         bus.AddDevice (&ram);
 
@@ -59,14 +60,15 @@ public:
 
         // EmuCpu::WriteByte routes through bus to RAM
         cpu.WriteByte (0x0300, 0xAB);
-        Byte val = cpu.ReadByte (0x0300);
+        val = cpu.ReadByte (0x0300);
 
         Assert::AreEqual (static_cast<Byte> (0xAB), val);
     }
 
     TEST_METHOD (BusRouting_ReadWord)
     {
-        MemoryBus bus;
+        MemoryBus  bus;
+        Word       val = 0;
         RamDevice ram (0x0000, 0xBFFF);
         bus.AddDevice (&ram);
 
@@ -91,7 +93,7 @@ public:
         cpu.WriteByte (0x0050, 0x34);
         cpu.WriteByte (0x0051, 0x12);
 
-        Word val = cpu.ReadWord (0x0050);
+        val = cpu.ReadWord (0x0050);
 
         Assert::AreEqual (static_cast<Word> (0x1234), val);
     }
@@ -128,6 +130,10 @@ public:
 
     TEST_METHOD (ExecuteProgram_LdaSta_StoresResult)
     {
+        Byte  result = 0;
+
+
+
         // LDA #$77, STA $0200, JMP loop
         MemoryBus bus;
         RamDevice ram (0x0000, 0xBFFF);
@@ -169,12 +175,16 @@ public:
         }
 
         // Store writes to CPU internal memory
-        Byte result = cpu.PeekByte (0x0200);
+        result = cpu.PeekByte (0x0200);
         Assert::AreEqual (static_cast<Byte> (0x77), result);
     }
 
     TEST_METHOD (ExecuteProgram_LdxStx_StoresResult)
     {
+        Byte  result = 0;
+
+
+
         // LDX #$33, STX $0300
         MemoryBus bus;
         RamDevice ram (0x0000, 0xBFFF);
@@ -213,13 +223,14 @@ public:
             cpu.StepOne();
         }
 
-        Byte result = cpu.PeekByte (0x0300);
+        result = cpu.PeekByte (0x0300);
         Assert::AreEqual (static_cast<Byte> (0x33), result);
     }
 
     TEST_METHOD (PCAdvances_DuringExecution)
     {
-        MemoryBus bus;
+        MemoryBus  bus;
+        Word       startPC = 0;
         RamDevice ram (0x0000, 0xBFFF);
         bus.AddDevice (&ram);
 
@@ -239,7 +250,7 @@ public:
         }
 
         cpu.InitForEmulation (m_prng);
-        Word startPC = cpu.GetPC();
+        startPC = cpu.GetPC();
 
         cpu.StepOne();
 
@@ -460,6 +471,12 @@ public:
 
     TEST_METHOD (StoreInstruction_VisibleToVideoRam)
     {
+        const int  fbW      = 560;
+        const int  fbH      = 384;
+        bool       hasGreen = false;
+
+
+
         // End-to-end test: execute STA $0400, then render text mode using
         // GetMemory() — verify framebuffer has non-black pixels.
         // This is the test that would have caught the green screen bug.
@@ -504,14 +521,11 @@ public:
         AppleTextMode textMode (bus);
         textMode.SetPage2 (false);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0xFF000000u);
 
         textMode.Render (cpu.GetMemory(), fb.data(), fbW, fbH);
 
         // Verify the character cell at $0400 (row 0, col 0) has green pixels
-        bool hasGreen = false;
 
         for (int y = 0; y < 16 && !hasGreen; y++)
         {

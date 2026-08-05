@@ -184,58 +184,82 @@ float Apple2cSwitchBar::MeasureLabel (const wchar_t * text, float fontPx) const
 
 void Apple2cSwitchBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    UINT   dpi     = scaler.Dpi();
-    UINT   eDpi    = (dpi == 0) ? 96u : dpi;
+    UINT   dpi        = scaler.Dpi();
+    UINT   eDpi       = (dpi == 0) ? 96u : dpi;
+    int    edge       = 0;
+    int    resetW     = 0;
+    int    resetH     = 0;
+    int    gGap       = 0;
+    int    keyW       = 0;
+    int    keyH       = 0;
+    int    lblGap     = 0;
+    int    swGap      = 0;
+    int    ledW       = 0;
+    int    ledH       = 0;
+    int    indGap     = 0;
+    float  fontPx     = 0.0f;
+    int    cy         = 0;
+    int    slantKey   = 0;
+    int    slantReset = 0;
+    int    x          = 0;
+    int    eightyLblW = 0;
+    int    kbdLblW    = 0;
+    int    slantLed   = 0;
+    int    ledBoxW    = 0;
+    int    diskLblW   = 0;
+    int    powerLblW  = 0;
+    int    rightW     = 0;
+    int    rx         = 0;
     auto   px      = [eDpi] (int dp) { return MulDiv (dp, (int) eDpi, 96); };
-    int    edge    = px (kEdgePadDp);
-    int    resetW  = px (kResetWDp);
-    int    resetH  = px (kResetHDp);
-    int    gGap    = px (kGroupGapDp);
-    int    keyW    = px (kKeyWDp);
-    int    keyH    = px (kKeyHDp);
-    int    lblGap  = px (kLabelGapDp);
-    int    swGap   = px (kSwitchGapDp);
-    int    ledW    = px (kLedWDp);
-    int    ledH    = px (kLedHDp);
-    int    indGap  = px (kIndGapDp);
-    float  fontPx  = kFontDip * (float) eDpi / 96.0f;
-    int    cy      = (boundsDip.top + boundsDip.bottom) / 2;
+    edge = px (kEdgePadDp);
+    resetW = px (kResetWDp);
+    resetH = px (kResetHDp);
+    gGap = px (kGroupGapDp);
+    keyW = px (kKeyWDp);
+    keyH = px (kKeyHDp);
+    lblGap = px (kLabelGapDp);
+    swGap = px (kSwitchGapDp);
+    ledW = px (kLedWDp);
+    ledH = px (kLedHDp);
+    indGap = px (kIndGapDp);
+    fontPx = kFontDip * (float) eDpi / 96.0f;
+    cy = (boundsDip.top + boundsDip.bottom) / 2;
 
     // Slanted caps lean right, so their bounding box is wider than the cap body
     // by the top-edge overhang. Budget it into each hit rect so the parallelogram
     // top-right corner never rides over the next element or its label.
-    int    slantKey   = (int) (keyH   * kSlantTan + 0.5f);
-    int    slantReset = (int) (resetH * kSlantTan + 0.5f);
+    slantKey = (int) (keyH   * kSlantTan + 0.5f);
+    slantReset = (int) (resetH * kSlantTan + 0.5f);
 
 
     m_dpi    = eDpi;
     m_bounds = boundsDip;
 
     // Left group: [reset] [80/40 key] "80/40" [keyboard key] "keyboard".
-    int  x = boundsDip.left + edge;
+    x = boundsDip.left + edge;
 
     m_resetRect = RECT { x, cy - resetH / 2, x + resetW + slantReset, cy + resetH / 2 };
     x += resetW + slantReset + gGap;
 
-    int  eightyLblW = (int) (MeasureLabel (kLabelEighty, fontPx) + 0.5f);
+    eightyLblW = (int) (MeasureLabel (kLabelEighty, fontPx) + 0.5f);
     m_eightyKey   = RECT { x, cy - keyH / 2, x + keyW + slantKey, cy + keyH / 2 };
     m_eightyLabel = RECT { m_eightyKey.right + lblGap, boundsDip.top, m_eightyKey.right + lblGap + eightyLblW, boundsDip.bottom };
     m_eightyRect  = RECT { m_eightyKey.left, m_eightyKey.top, m_eightyLabel.right, m_eightyKey.bottom };
     x = m_eightyLabel.right + swGap;
 
-    int  kbdLblW = (int) (MeasureLabel (kLabelKeyboard, fontPx) + 0.5f);
+    kbdLblW = (int) (MeasureLabel (kLabelKeyboard, fontPx) + 0.5f);
     m_kbdKey   = RECT { x, cy - keyH / 2, x + keyW + slantKey, cy + keyH / 2 };
     m_kbdLabel = RECT { m_kbdKey.right + lblGap, boundsDip.top, m_kbdKey.right + lblGap + kbdLblW, boundsDip.bottom };
     m_kbdRect  = RECT { m_kbdKey.left, m_kbdKey.top, m_kbdLabel.right, m_kbdKey.bottom };
 
     // Right group: [disk-use LED] "disk use"  [power LED] "power", right-anchored.
     // The LEDs lean the same way as the switches, so budget their overhang too.
-    int  slantLed  = (int) (ledH * kSlantTan + 0.5f);
-    int  ledBoxW   = ledW + slantLed;
-    int  diskLblW  = (int) (MeasureLabel (kLabelDiskUse, fontPx) + 0.5f);
-    int  powerLblW = (int) (MeasureLabel (kLabelPower,   fontPx) + 0.5f);
-    int  rightW    = ledBoxW + lblGap + diskLblW + indGap + ledBoxW + lblGap + powerLblW;
-    int  rx        = boundsDip.right - edge - rightW;
+    slantLed = (int) (ledH * kSlantTan + 0.5f);
+    ledBoxW = ledW + slantLed;
+    diskLblW = (int) (MeasureLabel (kLabelDiskUse, fontPx) + 0.5f);
+    powerLblW = (int) (MeasureLabel (kLabelPower,   fontPx) + 0.5f);
+    rightW = ledBoxW + lblGap + diskLblW + indGap + ledBoxW + lblGap + powerLblW;
+    rx = boundsDip.right - edge - rightW;
 
     m_diskLed   = RECT { rx, cy - ledH / 2, rx + ledBoxW, cy + ledH / 2 };
     rx = m_diskLed.right + lblGap;
@@ -554,6 +578,14 @@ void Apple2cSwitchBar::PaintLed (IDxuiPainter & p, const RECT & r, bool lit)
 
 void Apple2cSwitchBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
+    float  x      = 0.0f;
+    float  y      = 0.0f;
+    float  w      = 0.0f;
+    float  h      = 0.0f;
+    float  fontPx = 0.0f;
+
+
+
     (void) theme;
 
     if (m_bounds.right <= m_bounds.left)
@@ -561,11 +593,11 @@ void Apple2cSwitchBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         return;                       // hidden / collapsed
     }
 
-    float  x      = (float) m_bounds.left;
-    float  y      = (float) m_bounds.top;
-    float  w      = (float) (m_bounds.right - m_bounds.left);
-    float  h      = (float) (m_bounds.bottom - m_bounds.top);
-    float  fontPx = kFontDip * (float) m_dpi / 96.0f;
+    x = (float) m_bounds.left;
+    y = (float) m_bounds.top;
+    w = (float) (m_bounds.right - m_bounds.left);
+    h = (float) (m_bounds.bottom - m_bounds.top);
+    fontPx = kFontDip * (float) m_dpi / 96.0f;
 
 
     // Case body: a subtle top-lit platinum panel with molded top/bottom edges.

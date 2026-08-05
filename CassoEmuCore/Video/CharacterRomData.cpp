@@ -52,11 +52,11 @@ CharacterRomData::CharacterRomData()
 
 HRESULT CharacterRomData::LoadFromFile (const string & filePath)
 {
-    HRESULT       hr      = S_OK;
+    HRESULT       hr     = S_OK;
+    bool          fileOk = false;
+    vector<Byte>  raw;
     ifstream      file (filePath, ios::binary | ios::ate);
-    bool             fileOk    = false;
     auto             rawSize   = streamsize {0};
-    vector<Byte>     raw;
     std::streamsize  bytesRead = 0;
 
 
@@ -256,6 +256,10 @@ void CharacterRomData::Decode2K (const vector<Byte> & raw)
 
 void CharacterRomData::Decode4K (const vector<Byte> & raw)
 {
+    int RA = 0;
+
+
+
     memset (m_glyphs, 0, sizeof (m_glyphs));
     m_hasAltCharSet = true;
 
@@ -285,7 +289,6 @@ void CharacterRomData::Decode4K (const vector<Byte> & raw)
     //
     // Bytes in the ROM file have lit dots stored as 0; the renderer
     // wants 1=lit, hence the XOR with 0xFF.
-    int RA = 0;
 
     for (int i = 0; i < 64; i++, RA += 8)
     {

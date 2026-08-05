@@ -41,11 +41,16 @@ fs::path PrintFileNaming::ComposePngPath (
     const SYSTEMTIME &                        when,
     const function<bool (const fs::path &)> & taken)
 {
+    fs::path  result;
+    int       ordinal = 0;
+
+
+
     wstring    base    = std::format (L"Casso Print {:04}-{:02}-{:02} {:02}{:02}{:02}",
                                       (int) when.wYear, (int) when.wMonth, (int) when.wDay,
                                       (int) when.wHour, (int) when.wMinute, (int) when.wSecond);
-    fs::path   result  = folder / CandidateName (base, 1);
-    int        ordinal = 1;
+    result = folder / CandidateName (base, 1);
+    ordinal = 1;
 
     for (ordinal = 1; ordinal <= s_kMaxOrdinal; ordinal++)
     {

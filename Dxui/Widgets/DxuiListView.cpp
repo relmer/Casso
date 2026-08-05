@@ -250,12 +250,14 @@ void DxuiListView::NoteAutoFitRow (const std::vector<Cell> & cells) const
 
     for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
     {
+        int  chars = 0;
+
         if (m_columns[c].widthDip != 0 || m_columns[c].stretch)
         {
             continue;
         }
 
-        int  chars = (int) cells[c].text.size();
+        chars = (int) cells[c].text.size();
 
         if (m_showHeader)
         {
@@ -2325,9 +2327,10 @@ void DxuiListView::PaintDataRows (
 
     for (int r = firstRow; r < lastRow; ++r)
     {
-        float  ry    = 0.0f;
-        bool   isHov = false;
-        bool   isSel = false;
+        float                      ry       = 0.0f;
+        bool                       isHov    = false;
+        bool                       isSel    = false;
+        const std::vector<Cell>  * cellsPtr = nullptr;
 
         if (r < 0 || r >= RowCount())
         {
@@ -2353,7 +2356,6 @@ void DxuiListView::PaintDataRows (
         // Virtual mode pulls the row's cells on demand into a reused scratch
         // buffer and grows auto-fit from it; push mode references m_rows
         // directly (no per-row copy).
-        const std::vector<Cell> *  cellsPtr = nullptr;
 
         if (m_virtual)
         {
@@ -2395,6 +2397,8 @@ void DxuiListView::PaintDataRows (
                     float    wE      = 0.0f;
                     float    hIgnore = 0.0f;
                     HRESULT  hrM     = S_OK;
+                    float    hx      = 0.0f;
+                    float    hw      = 0.0f;
 
                     if (s > 0)
                     {
@@ -2407,8 +2411,8 @@ void DxuiListView::PaintDataRows (
                                               fontPx, DxuiTheme::kBodyFace, wE, hIgnore);
                     IGNORE_RETURN_VALUE (hrM, S_OK);
 
-                    float  hx = cellX + wS;
-                    float  hw = wE - wS;
+                    hx = cellX + wS;
+                    hw = wE - wS;
 
                     if (hx < cellX)                 { hw -= (cellX - hx); hx = cellX; }
                     if (hx + hw > cellX + cellMaxW) { hw  = cellX + cellMaxW - hx;    }

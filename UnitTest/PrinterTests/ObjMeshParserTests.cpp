@@ -16,6 +16,11 @@ namespace ObjMeshParserTests
 
         TEST_METHOD (ParsesTriangleWithMaterialColor)
         {
+            std::vector<ObjTriangle>  tris;
+            HRESULT                   hr   = S_OK;
+
+
+
             std::string   mtl = "newmtl red\nKd 1 0 0\n";
             std::string   obj =
                 "v 0 0 0\n"
@@ -24,9 +29,8 @@ namespace ObjMeshParserTests
                 "usemtl red\n"
                 "f 1 2 3\n";
 
-            std::vector<ObjTriangle>   tris;
 
-            HRESULT   hr = ObjMeshParser::Parse (obj, mtl, tris);
+            hr = ObjMeshParser::Parse (obj, mtl, tris);
 
             Assert::IsTrue  (SUCCEEDED (hr));
             Assert::AreEqual ((size_t) 1, tris.size());
@@ -40,6 +44,10 @@ namespace ObjMeshParserTests
 
         TEST_METHOD (FanTriangulatesQuad)
         {
+            std::vector<ObjTriangle>   tris;
+
+
+
             std::string   obj =
                 "v 0 0 0\n"
                 "v 1 0 0\n"
@@ -47,7 +55,6 @@ namespace ObjMeshParserTests
                 "v 0 1 0\n"
                 "f 1 2 3 4\n";
 
-            std::vector<ObjTriangle>   tris;
 
             HRESULT   hr = ObjMeshParser::Parse (obj, "", tris);
 
@@ -65,13 +72,16 @@ namespace ObjMeshParserTests
 
         TEST_METHOD (SlashSuffixesAreIgnored)
         {
+            std::vector<ObjTriangle>   tris;
+
+
+
             std::string   obj =
                 "v 0 0 0\n"
                 "v 1 0 0\n"
                 "v 0 1 0\n"
                 "f 1/1/1 2/2/2 3//3\n";
 
-            std::vector<ObjTriangle>   tris;
 
             HRESULT   hr = ObjMeshParser::Parse (obj, "", tris);
 
@@ -83,6 +93,10 @@ namespace ObjMeshParserTests
 
         TEST_METHOD (UnknownMaterialFallsBackToWhite)
         {
+            std::vector<ObjTriangle>   tris;
+
+
+
             std::string   obj =
                 "v 0 0 0\n"
                 "v 1 0 0\n"
@@ -90,7 +104,6 @@ namespace ObjMeshParserTests
                 "usemtl no_such_material\n"
                 "f 1 2 3\n";
 
-            std::vector<ObjTriangle>   tris;
 
             HRESULT   hr = ObjMeshParser::Parse (obj, "newmtl other\nKd 0 0 1\n", tris);
 
@@ -104,13 +117,16 @@ namespace ObjMeshParserTests
 
         TEST_METHOD (NegativeIndicesResolveRelative)
         {
+            std::vector<ObjTriangle>   tris;
+
+
+
             std::string   obj =
                 "v 0 0 0\n"
                 "v 1 0 0\n"
                 "v 0 1 0\n"
                 "f -3 -2 -1\n";
 
-            std::vector<ObjTriangle>   tris;
 
             HRESULT   hr = ObjMeshParser::Parse (obj, "", tris);
 
@@ -123,6 +139,11 @@ namespace ObjMeshParserTests
 
         TEST_METHOD (MaterialSwitchBakesPerFace)
         {
+            std::vector<ObjTriangle>  tris;
+            HRESULT                   hr   = S_OK;
+
+
+
             std::string   mtl =
                 "newmtl red\nKd 1 0 0\n"
                 "newmtl blue\nKd 0 0 1\n";
@@ -135,9 +156,8 @@ namespace ObjMeshParserTests
                 "usemtl blue\n"
                 "f 3 2 1\n";
 
-            std::vector<ObjTriangle>   tris;
 
-            HRESULT   hr = ObjMeshParser::Parse (obj, mtl, tris);
+            hr = ObjMeshParser::Parse (obj, mtl, tris);
 
             Assert::IsTrue  (SUCCEEDED (hr));
             Assert::AreEqual ((size_t) 2, tris.size());
@@ -162,6 +182,10 @@ namespace ObjMeshParserTests
 
         TEST_METHOD (OutOfRangeIndicesAreDropped)
         {
+            std::vector<ObjTriangle>   tris;
+
+
+
             // A face referencing a vertex that doesn't exist contributes
             // nothing rather than reading garbage.
             std::string   obj =
@@ -169,7 +193,6 @@ namespace ObjMeshParserTests
                 "v 1 0 0\n"
                 "f 1 2 9\n";
 
-            std::vector<ObjTriangle>   tris;
 
             HRESULT   hr = ObjMeshParser::Parse (obj, "", tris);
 

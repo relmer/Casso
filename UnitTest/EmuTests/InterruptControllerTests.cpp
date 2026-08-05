@@ -85,9 +85,9 @@ namespace Apple2eFidelityIc
         TEST_METHOD (SingleAssertReachesCpu)
         {
             RecordingCpu            cpu;
+            HRESULT                 hr = S_OK;
             InterruptController     ic (&cpu);
             IrqSourceId             id = 0;
-            HRESULT                 hr = S_OK;
 
 
 
@@ -107,11 +107,11 @@ namespace Apple2eFidelityIc
         TEST_METHOD (MultipleAssertersOredTogether)
         {
             RecordingCpu            cpu;
+            HRESULT                 hr = S_OK;
             InterruptController     ic (&cpu);
             IrqSourceId             a  = 0;
             IrqSourceId             b  = 0;
             IrqSourceId             c  = 0;
-            HRESULT                 hr = S_OK;
 
 
 
@@ -131,10 +131,10 @@ namespace Apple2eFidelityIc
         TEST_METHOD (ClearOnlyDeassertsWhenAllSourcesClear)
         {
             RecordingCpu            cpu;
+            HRESULT                 hr = S_OK;
             InterruptController     ic (&cpu);
             IrqSourceId             a  = 0;
             IrqSourceId             b  = 0;
-            HRESULT                 hr = S_OK;
 
 
 
@@ -158,11 +158,11 @@ namespace Apple2eFidelityIc
         TEST_METHOD (UnregisteredSourceRejected)
         {
             RecordingCpu            cpu;
+            HRESULT                 hr          = S_OK;
+            int                     i           = 0;
             InterruptController     ic (&cpu);
             IrqSourceId             id          = 0;
             IrqSourceId             allocated   = 0;
-            HRESULT                 hr          = S_OK;
-            int                     i           = 0;
 
 
 
@@ -188,9 +188,9 @@ namespace Apple2eFidelityIc
         TEST_METHOD (WorksWithMockIrqAsserter)
         {
             RecordingCpu            cpu;
+            HRESULT                 hr = S_OK;
             InterruptController     ic (&cpu);
             MockIrqAsserter         asserter (&ic);
-            HRESULT                 hr = S_OK;
 
 
 

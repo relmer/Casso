@@ -301,24 +301,43 @@ int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scale
 
 void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
+    UINT   dpi        = 0;
+    int    padX       = 0;
+    int    padXStack  = 0;
+    int    marginY    = 0;
+    int    btnGap     = 0;
+    int    groupGap   = 0;
+    int    iconGap    = 0;
+    int    sliderW    = 0;
+    int    sliderMinW = 0;
+    int    sliderMaxH = 0;
+    float  iconDip    = 0.0f;
+    int    barPad     = 0;
+    int    avail      = 0;
+    int    x          = 0;
+    int    top        = 0;
+    int    bottom     = 0;
+
+
+
     PlanForWidth (boundsDip.right - boundsDip.left, scaler);
 
-    UINT   dpi        = (scaler.Dpi() == 0) ? (UINT) s_kBaseDpi : scaler.Dpi();
-    int    padX       = MulDiv (s_kBtnPadXDp,     (int) dpi, s_kBaseDpi);
-    int    padXStack  = MulDiv (s_kStackedPadXDp, (int) dpi, s_kBaseDpi);
-    int    marginY    = MulDiv (s_kBtnMarginYDp,  (int) dpi, s_kBaseDpi);
-    int    btnGap     = MulDiv (s_kBtnGapDp,      (int) dpi, s_kBaseDpi);
-    int    groupGap   = MulDiv (s_kGroupGapDp,    (int) dpi, s_kBaseDpi);
-    int    iconGap    = MulDiv (s_kIconGapDp,     (int) dpi, s_kBaseDpi);
-    int    sliderW    = MulDiv (s_kSliderWidthDp, (int) dpi, s_kBaseDpi);
-    int    sliderMinW = MulDiv (s_kSliderMinWidthDp, (int) dpi, s_kBaseDpi);
-    int    sliderMaxH = MulDiv (s_kSliderMaxHDp,  (int) dpi, s_kBaseDpi);
-    float  iconDip    = s_kIconDip * (float) dpi / (float) s_kBaseDpi;
-    int    barPad     = MulDiv (s_kBarPadXDp, (int) dpi, s_kBaseDpi);
-    int    avail      = (boundsDip.right - boundsDip.left) - barPad * 2;
-    int    x          = boundsDip.left + barPad;
-    int    top        = boundsDip.top + marginY;
-    int    bottom     = boundsDip.bottom - marginY;
+    dpi = (scaler.Dpi() == 0) ? (UINT) s_kBaseDpi : scaler.Dpi();
+    padX = MulDiv (s_kBtnPadXDp,     (int) dpi, s_kBaseDpi);
+    padXStack = MulDiv (s_kStackedPadXDp, (int) dpi, s_kBaseDpi);
+    marginY = MulDiv (s_kBtnMarginYDp,  (int) dpi, s_kBaseDpi);
+    btnGap = MulDiv (s_kBtnGapDp,      (int) dpi, s_kBaseDpi);
+    groupGap = MulDiv (s_kGroupGapDp,    (int) dpi, s_kBaseDpi);
+    iconGap = MulDiv (s_kIconGapDp,     (int) dpi, s_kBaseDpi);
+    sliderW = MulDiv (s_kSliderWidthDp, (int) dpi, s_kBaseDpi);
+    sliderMinW = MulDiv (s_kSliderMinWidthDp, (int) dpi, s_kBaseDpi);
+    sliderMaxH = MulDiv (s_kSliderMaxHDp,  (int) dpi, s_kBaseDpi);
+    iconDip = s_kIconDip * (float) dpi / (float) s_kBaseDpi;
+    barPad = MulDiv (s_kBarPadXDp, (int) dpi, s_kBaseDpi);
+    avail = (boundsDip.right - boundsDip.left) - barPad * 2;
+    x = boundsDip.left + barPad;
+    top = boundsDip.top + marginY;
+    bottom = boundsDip.bottom - marginY;
 
     m_dpi     = dpi;
     m_barRect = boundsDip;
@@ -472,9 +491,12 @@ const wchar_t * CommandToolbar::TooltipAt (int x, int y, RECT & anchor) const
 
 bool CommandToolbar::OnToolbarMouseMove (int x, int y, bool leftDown)
 {
+    bool  over = false;
+
+
+
     UNREFERENCED_PARAMETER (leftDown);
 
-    bool  over = false;
 
     if (m_volumeSlider.OnMouseMove (x, y))
     {
@@ -772,13 +794,20 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
 
 void CommandToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & dxuiTheme)
 {
+    float  bl    = 0.0f;
+    float  btTop = 0.0f;
+    float  bw    = 0.0f;
+    float  bhAll = 0.0f;
+
+
+
     _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
     const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
 
-    float  bl    = (float) m_barRect.left;
-    float  btTop = (float) m_barRect.top;
-    float  bw    = (float) (m_barRect.right - m_barRect.left);
-    float  bhAll = (float) (m_barRect.bottom - m_barRect.top);
+    bl = (float) m_barRect.left;
+    btTop = (float) m_barRect.top;
+    bw = (float) (m_barRect.right - m_barRect.left);
+    bhAll = (float) (m_barRect.bottom - m_barRect.top);
 
     if (bw <= 0.0f)
     {

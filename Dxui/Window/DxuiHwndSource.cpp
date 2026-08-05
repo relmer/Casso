@@ -1345,6 +1345,9 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain()
 
     if (m_params.composited)
     {
+        ComPtr<IDCompositionDesktopDevice>  desktopDevice;
+        ComPtr<IDCompositionVisual2>        compVisual2;
+
         // Composition swap chains require explicit non-zero dimensions
         // (unlike CreateSwapChainForHwnd, which auto-sizes from the HWND
         // when passed 0). Seed from the current client area; HandleSize
@@ -1369,8 +1372,6 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain()
         // needs one. A v1 visual has no SetEffect, so the live-preview fade would
         // silently no-op. The concrete object still exposes the v1 IDCompositionDevice
         // interface (Commit + CreateTargetForHwnd) and QIs to IDCompositionDevice3.
-        ComPtr<IDCompositionDesktopDevice>  desktopDevice;
-        ComPtr<IDCompositionVisual2>        compVisual2;
 
         hr = DCompositionCreateDevice2 (dxgiDevice.Get(),
                                         IID_PPV_ARGS (desktopDevice.GetAddressOf()));

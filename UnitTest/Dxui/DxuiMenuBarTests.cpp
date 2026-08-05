@@ -123,13 +123,15 @@ public:
     {
         DxuiMenuBar           bar;
         MockDxuiTextRenderer  text;
+        RECT                  fileTitle = {};
+        RECT                  editTitle = {};
 
 
         bar.SetItems (MakeTestItems());
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
 
-        RECT  fileTitle = bar.MenuRect (0);
-        RECT  editTitle = bar.MenuRect (1);
+        fileTitle = bar.MenuRect (0);
+        editTitle = bar.MenuRect (1);
 
         // First click opens File.
         Assert::IsTrue (bar.HandleMouseDown ((fileTitle.left + fileTitle.right) / 2,
@@ -168,12 +170,13 @@ public:
     {
         DxuiMenuBar           bar;
         MockDxuiTextRenderer  text;
+        RECT                  fileTitle = {};
 
 
         bar.SetItems (MakeTestItems());
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
 
-        RECT  fileTitle = bar.MenuRect (0);
+        fileTitle = bar.MenuRect (0);
 
         bar.HandleMouseMove ((fileTitle.left + fileTitle.right) / 2,
                              (fileTitle.top  + fileTitle.bottom) / 2);
@@ -395,7 +398,8 @@ public:
         MockDxuiTextRenderer          text;
         MockDxuiTheme                 theme;
         std::vector<DxuiMenuBarItem>  items;
-        bool                          isChecked = true;
+        bool                          isChecked  = true;
+        bool                          foundCheck = false;
 
 
         items.push_back ({ L"&View", 0, {
@@ -407,7 +411,6 @@ public:
         bar.PaintDropdown (painter, text, theme, 96);
 
         // Look for a DrawString carrying the check glyph (U+2713).
-        bool  foundCheck = false;
         for (const RecordedTextCall & call : text.Calls())
         {
             if (call.kind == RecordedTextKind::DrawString && call.text == L"\u2713")
@@ -455,7 +458,11 @@ public:
     {
         DxuiMenuBar           bar;
         MockDxuiTextRenderer  text;
-        int                   dispatched = 0;
+        int                   dispatched  = 0;
+        RECT                  dd          = {};
+        int                   newCenterY  = 0;
+        int                   sepCenterY  = 0;
+        int                   exitCenterY = 0;
 
 
         std::vector<DxuiMenuBarItem>  items;
@@ -468,14 +475,14 @@ public:
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
         bar.Open (0, true);
 
-        RECT  dd = bar.DropdownRect();
+        dd = bar.DropdownRect();
 
         // The separator occupies the band between New and Exit. Compute roughly:
         // New row at y=0 of dropdown, separator next (10 dip), Exit after that.
         // Hit-test in the separator band should not dispatch.
-        int  newCenterY  = dd.top + 13;       // ~middle of New (row height ~26 px)
-        int  sepCenterY  = dd.top + 26 + 5;   // middle of separator (10 px tall)
-        int  exitCenterY = dd.top + 26 + 10 + 13;
+        newCenterY = dd.top + 13; // ~middle of New (row height ~26 px)
+        sepCenterY = dd.top + 26 + 5; // middle of separator (10 px tall)
+        exitCenterY = dd.top + 26 + 10 + 13;
 
         Assert::IsTrue (bar.HandleMouseUp ((dd.left + dd.right) / 2, newCenterY));
         Assert::AreEqual (1, dispatched);
@@ -496,6 +503,7 @@ public:
         MockDxuiPainter       painter;
         MockDxuiTextRenderer  text;
         MockDxuiTheme         theme;
+        bool                  foundDivider = false;
 
 
         bar.SetItems (MakeTestItems());
@@ -504,7 +512,6 @@ public:
         bar.PaintDropdown (painter, text, theme, 96);
 
         // A separator paints a divider-colored FillRect with very thin height (~1 dip).
-        bool  foundDivider = false;
         for (const RecordedPaintCall & call : painter.Calls())
         {
             if (call.kind == RecordedPaintKind::FillRect &&
@@ -525,6 +532,8 @@ public:
         DxuiMenuBar                   bar;
         MockDxuiTextRenderer          text;
         std::vector<DxuiMenuBarItem>  items;
+        RECT                          shortTitle = {};
+        RECT                          longTitle  = {};
 
 
         items.push_back ({ L"&A", 0, {} });
@@ -535,8 +544,8 @@ public:
         bar.SetItems (std::move (items));
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
 
-        RECT  shortTitle = bar.MenuRect (0);
-        RECT  longTitle  = bar.MenuRect (1);
+        shortTitle = bar.MenuRect (0);
+        longTitle = bar.MenuRect (1);
 
         Assert::IsTrue ((longTitle.right - longTitle.left) > (shortTitle.right - shortTitle.left));
         Assert::AreEqual ((LONG) 4, longTitle.left - shortTitle.right);
@@ -556,6 +565,10 @@ public:
         DxuiMenuBar                   bar;
         MockDxuiTextRenderer          text;
         std::vector<DxuiMenuBarItem>  items;
+        RECT                          shortFirst  = {};
+        RECT                          longFirst   = {};
+        RECT                          shortSecond = {};
+        RECT                          longSecond  = {};
 
 
         items.push_back ({ L"&A", 0, {} });
@@ -568,16 +581,16 @@ public:
         // First pass measures successfully and caches the widths.
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
 
-        RECT  shortFirst = bar.MenuRect (0);
-        RECT  longFirst  = bar.MenuRect (1);
+        shortFirst = bar.MenuRect (0);
+        longFirst = bar.MenuRect (1);
 
         // Second pass (simulating resize) measures zero width. The
         // cached widths must be reused, so the rects are unchanged.
         text.SetMeasureReturnsZero (true);
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
 
-        RECT  shortSecond = bar.MenuRect (0);
-        RECT  longSecond  = bar.MenuRect (1);
+        shortSecond = bar.MenuRect (0);
+        longSecond = bar.MenuRect (1);
 
         Assert::AreEqual (shortFirst.right - shortFirst.left, shortSecond.right - shortSecond.left);
         Assert::AreEqual (longFirst.right  - longFirst.left,  longSecond.right  - longSecond.left);
@@ -605,14 +618,17 @@ public:
     {
         DxuiMenuBar           bar;
         MockDxuiTextRenderer  text;
+        RECT                  fileTitle = {};
+        int                   cx        = 0;
+        int                   cy        = 0;
 
 
         bar.SetItems (MakeTestItems());
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
 
-        RECT  fileTitle = bar.MenuRect (0);
-        int   cx        = (fileTitle.left + fileTitle.right) / 2;
-        int   cy        = (fileTitle.top  + fileTitle.bottom) / 2;
+        fileTitle = bar.MenuRect (0);
+        cx = (fileTitle.left + fileTitle.right) / 2;
+        cy = (fileTitle.top  + fileTitle.bottom) / 2;
 
         Assert::IsTrue (bar.HandleMouseDown (cx, cy));
         Assert::IsTrue (bar.IsOpen());

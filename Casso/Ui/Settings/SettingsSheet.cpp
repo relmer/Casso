@@ -488,13 +488,16 @@ void SettingsSheet::OnDialogTick()
 
 void SettingsSheet::UpdatePreviewCompose()
 {
+    RECT  emuOverlapClient = {};
+    RECT  focusClient      = {};
+
+
+
     if (!m_compositor.IsInitialized())
     {
         return;
     }
 
-    RECT  emuOverlapClient = {};
-    RECT  focusClient      = {};
     HWND  hwnd             = Hwnd();
 
     if (m_previewActive && hwnd != nullptr)
@@ -576,9 +579,9 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     {
         int   rowH    = scaler.Px (DxuiButtonRow::kRowHeightDip);
         int   edge    = scaler.Px (DxuiButtonRow::kEdgePadDip);
+        RECT  r;
         int   reserve = scaler.Px (DxuiButtonRow::kEdgePadDip + DxuiButtonRow::kButtonWidthDip
                                    + DxuiButtonRow::kGapDip + 132);   // cancel + gap + OK(reboot)
-        RECT  r;
 
         r.left   = boundsPx.left   + edge;
         r.top    = boundsPx.bottom - rowH;

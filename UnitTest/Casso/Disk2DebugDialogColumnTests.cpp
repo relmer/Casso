@@ -29,10 +29,11 @@ namespace Disk2DebugDialogColumnTests
         TEST_METHOD (PlanVisibleColumns_allVisibleNoneAutoSized_emitsSixSpecsDefaults)
         {
             std::array<LogicalColumn, kColumnCount>  model = {};
+            std::vector<VisibleColumnSpec>           plan;
 
             SeedDefaultColumns (model);
 
-            std::vector<VisibleColumnSpec>  plan = PlanVisibleColumns (model);
+            plan = PlanVisibleColumns (model);
 
             Assert::AreEqual (static_cast<size_t> (kColumnCount), plan.size());
 
@@ -50,11 +51,12 @@ namespace Disk2DebugDialogColumnTests
         TEST_METHOD (PlanVisibleColumns_oneHidden_skipsThatColumn)
         {
             std::array<LogicalColumn, kColumnCount>  model = {};
+            std::vector<VisibleColumnSpec>           plan;
 
             SeedDefaultColumns (model);
             model[2].visible = false;
 
-            std::vector<VisibleColumnSpec>  plan = PlanVisibleColumns (model);
+            plan = PlanVisibleColumns (model);
 
             Assert::AreEqual (static_cast<size_t> (kColumnCount - 1), plan.size());
             Assert::AreEqual (0, plan[0].id);
@@ -70,6 +72,7 @@ namespace Disk2DebugDialogColumnTests
         {
             std::array<LogicalColumn, kColumnCount>  model = {};
             int                                      i     = 0;
+            std::vector<VisibleColumnSpec>           plan;
 
             SeedDefaultColumns (model);
 
@@ -78,7 +81,7 @@ namespace Disk2DebugDialogColumnTests
                 model[i].visible = false;
             }
 
-            std::vector<VisibleColumnSpec>  plan = PlanVisibleColumns (model);
+            plan = PlanVisibleColumns (model);
 
             Assert::IsTrue (plan.empty());
         }
@@ -89,12 +92,13 @@ namespace Disk2DebugDialogColumnTests
         {
             constexpr int                            kUserDraggedDetailWidth = 500;
             std::array<LogicalColumn, kColumnCount>  model                   = {};
+            std::vector<VisibleColumnSpec>           plan;
 
             SeedDefaultColumns (model);
             model[kColumnCount - 1].savedWidth   = kUserDraggedDetailWidth;
             model[kColumnCount - 1].autoSizedYet = true;
 
-            std::vector<VisibleColumnSpec>  plan = PlanVisibleColumns (model);
+            plan = PlanVisibleColumns (model);
 
             Assert::AreEqual (static_cast<size_t> (kColumnCount),    plan.size());
             Assert::AreEqual (kUserDraggedDetailWidth,               plan[kColumnCount - 1].width);
@@ -107,12 +111,13 @@ namespace Disk2DebugDialogColumnTests
         {
             constexpr int                            kReshownColumnSavedWidth = 137;
             std::array<LogicalColumn, kColumnCount>  model                    = {};
+            std::vector<VisibleColumnSpec>           plan;
 
             SeedDefaultColumns (model);
             model[1].savedWidth   = kReshownColumnSavedWidth;
             model[1].autoSizedYet = true;
 
-            std::vector<VisibleColumnSpec>  plan = PlanVisibleColumns (model);
+            plan = PlanVisibleColumns (model);
 
             Assert::AreEqual (1,                          plan[1].id);
             Assert::AreEqual (kReshownColumnSavedWidth,   plan[1].width);

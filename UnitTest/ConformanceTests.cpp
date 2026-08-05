@@ -40,14 +40,19 @@ namespace ConformanceTests
 
     static std::string GetTestDataDir()
     {
+        std::string  unitDir;
+        std::string  repoRoot;
+
+
+
         // __FILE__ points to UnitTest/ConformanceTests.cpp
         // Navigate up to repo root, then into testdata/conformance
         std::string thisFile = __FILE__;
         size_t      lastSep  = thisFile.find_last_of ("\\/");
-        std::string unitDir  = thisFile.substr (0, lastSep);
+        unitDir = thisFile.substr (0, lastSep);
 
         lastSep = unitDir.find_last_of ("\\/");
-        std::string repoRoot = unitDir.substr (0, lastSep);
+        repoRoot = unitDir.substr (0, lastSep);
 
         return repoRoot + "\\specs\\002-as65-assembler-compat\\testdata\\conformance";
     }
@@ -64,9 +69,12 @@ namespace ConformanceTests
 
     static std::string ReadTextFile (const std::string & path)
     {
-        std::ifstream       file (path);
         std::ostringstream  ss;
         std::string         text;
+
+
+
+        std::ifstream       file (path);
 
         // A missing fixture reads as empty rather than throwing: callers assert
         // on the content, so an absent file fails as a content mismatch (which
@@ -92,8 +100,11 @@ namespace ConformanceTests
 
     static std::vector<Byte> ReadBinaryFile (const std::string & path)
     {
-        std::ifstream      file (path, std::ios::binary | std::ios::ate);
         std::vector<Byte>  data;
+
+
+
+        std::ifstream      file (path, std::ios::binary | std::ios::ate);
 
         // Same contract as ReadTextFile: absent reads as empty. Opened `ate`
         // so tellg is the size before the seek back to the start.
@@ -125,12 +136,13 @@ namespace ConformanceTests
 
         for (size_t i = 0; i < bytes.size(); i++)
         {
+            char buf[4];
+
             if (i > 0)
             {
                 ss << " ";
             }
 
-            char buf[4];
             snprintf (buf, sizeof (buf), "%02X", bytes[i]);
             ss << buf;
         }
@@ -171,12 +183,13 @@ namespace ConformanceTests
                                        const std::string & binPath,
                                        const std::string & testName)
     {
-        std::string source = ReadTextFile (a65Path);
+        std::string        source   = ReadTextFile (a65Path);
+        std::vector<Byte>  expected;
 
         Assert::IsFalse (source.empty(),
             (L"Cannot read source: " + std::wstring (testName.begin(), testName.end())).c_str());
 
-        std::vector<Byte> expected = ReadBinaryFile (binPath);
+        expected = ReadBinaryFile (binPath);
 
         Assert::IsFalse (expected.empty(),
             (L"Cannot read expected: " + std::wstring (testName.begin(), testName.end())).c_str());

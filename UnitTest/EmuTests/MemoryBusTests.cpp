@@ -78,11 +78,12 @@ public:
 
     TEST_METHOD (ReadByte_RoutesToCorrectDevice)
     {
-        MemoryBus bus;
+        MemoryBus  bus;
+        Byte       val = 0;
         MockDevice dev (0x1000, 0x1FFF);
         bus.AddDevice (&dev);
 
-        Byte val = bus.ReadByte (0x1500);
+        val = bus.ReadByte (0x1500);
 
         Assert::AreEqual (static_cast<Byte> (0x42), val,
             L"Read should return device value");
@@ -106,6 +107,10 @@ public:
 
     TEST_METHOD (RamRom_Gap_FloatingBus)
     {
+        Byte  val = 0;
+
+
+
         // RAM at $0000-$BFFF, ROM at $D000-$FFFF, gap at $C000-$CFFF
         MemoryBus bus;
         RamDevice ram (0x0000, 0xBFFF);
@@ -116,7 +121,7 @@ public:
             romData.data(), romData.size());
         bus.AddDevice (rom.get());
 
-        Byte val = bus.ReadByte (0xC100);
+        val = bus.ReadByte (0xC100);
 
         Assert::AreEqual (static_cast<Byte> (0xFF), val,
             L"Unmapped I/O at $C100 should return floating bus ($FF)");
@@ -124,11 +129,12 @@ public:
 
     TEST_METHOD (DeviceAtC030_ReadGoesToDevice)
     {
-        MemoryBus bus;
+        MemoryBus  bus;
+        Byte       val = 0;
         MockDevice dev (0xC030, 0xC030);
         bus.AddDevice (&dev);
 
-        Byte val = bus.ReadByte (0xC030);
+        val = bus.ReadByte (0xC030);
 
         Assert::AreEqual (static_cast<Byte> (0x42), val,
             L"Read at $C030 should go to device");
@@ -150,7 +156,8 @@ public:
 
     TEST_METHOD (WriteToRom_SilentlyIgnored)
     {
-        MemoryBus bus;
+        MemoryBus  bus;
+        Byte       val = 0;
 
         std::vector<Byte> romData (0x3000, 0xEA);
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
@@ -161,20 +168,21 @@ public:
         bus.WriteByte (0xD000, 0x42);
 
         // ROM data should be unchanged
-        Byte val = bus.ReadByte (0xD000);
+        val = bus.ReadByte (0xD000);
         Assert::AreEqual (static_cast<Byte> (0xEA), val,
             L"ROM should ignore writes — data must remain $EA");
     }
 
     TEST_METHOD (Validate_OverlappingDevices_WarnsButSucceeds)
     {
-        MemoryBus bus;
+        MemoryBus  bus;
+        HRESULT    hr  = S_OK;
         MockDevice dev1 (0x1000, 0x1FFF);
         MockDevice dev2 (0x1800, 0x2FFF);
         bus.AddDevice (&dev1);
         bus.AddDevice (&dev2);
 
-        HRESULT hr = bus.Validate();
+        hr = bus.Validate();
 
         AssertSucceeded (hr,
             L"Overlapping devices should warn but not fail (first match wins)");
@@ -182,13 +190,14 @@ public:
 
     TEST_METHOD (Validate_NonOverlapping_Succeeds)
     {
-        MemoryBus bus;
+        MemoryBus  bus;
+        HRESULT    hr  = S_OK;
         MockDevice dev1 (0x1000, 0x1FFF);
         MockDevice dev2 (0x2000, 0x2FFF);
         bus.AddDevice (&dev1);
         bus.AddDevice (&dev2);
 
-        HRESULT hr = bus.Validate();
+        hr = bus.Validate();
 
         AssertSucceeded (hr,
             L"Non-overlapping devices should validate successfully");
@@ -196,12 +205,13 @@ public:
 
     TEST_METHOD (RemoveDevice_NoLongerRouted)
     {
-        MemoryBus bus;
+        MemoryBus  bus;
+        Byte       val = 0;
         MockDevice dev (0x3000, 0x3FFF);
         bus.AddDevice (&dev);
         bus.RemoveDevice (&dev);
 
-        Byte val = bus.ReadByte (0x3500);
+        val = bus.ReadByte (0x3500);
 
         Assert::AreEqual (static_cast<Byte> (0), val,
             L"Removed device should not be routed (non-IO returns 0)");
@@ -225,7 +235,8 @@ public:
 
     TEST_METHOD (Reset_ResetsAllDevices)
     {
-        MemoryBus bus;
+        MemoryBus  bus;
+        Byte       val = 0;
         RamDevice ram (0x0000, 0x00FF);
         bus.AddDevice (&ram);
 
@@ -233,13 +244,17 @@ public:
 
         bus.Reset();
 
-        Byte val = bus.ReadByte (0x0050);
+        val = bus.ReadByte (0x0050);
         Assert::AreEqual (static_cast<Byte> (0x00), val,
             L"Reset should zero-fill RAM devices");
     }
 
     TEST_METHOD (FloatingBus_UpdatesOnLastRead)
     {
+        Byte  val = 0;
+
+
+
         // The floating bus value is the last value read from any device
         MemoryBus bus;
         MockDevice dev (0xC030, 0xC030);
@@ -249,7 +264,7 @@ public:
         bus.ReadByte (0xC030);  // Returns 0x77, sets floating bus
 
         // Now read unmapped I/O — should get 0x77
-        Byte val = bus.ReadByte (0xC040);
+        val = bus.ReadByte (0xC040);
         Assert::AreEqual (static_cast<Byte> (0x77), val,
             L"Floating bus should reflect last device read value");
     }
@@ -264,12 +279,13 @@ public:
     {
         MemoryBus  bus;
         Byte       buffer[0x100] = {};
+        Byte       val           = 0;
         buffer[0x42] = 0xAB;
 
         bus.SetReadPage  (0x04, buffer);
         bus.SetWritePage (0x04, buffer);
 
-        Byte val = bus.ReadByte (0x0442);
+        val = bus.ReadByte (0x0442);
 
         Assert::AreEqual (Byte (0xAB), val,
             L"Page table read should return mapped buffer value");
@@ -292,11 +308,12 @@ public:
     TEST_METHOD (PageTable_NoPage_FallsBackToDevice)
     {
         MemoryBus  bus;
+        Byte       val = 0;
         MockDevice dev (0x0400, 0x04FF);
         bus.AddDevice (&dev);
 
         // No page mapped -- should hit device
-        Byte val = bus.ReadByte (0x0442);
+        val = bus.ReadByte (0x0442);
 
         Assert::AreEqual (1, dev.m_readCount,
             L"Without page table mapping, read should fall through to device");
@@ -309,16 +326,18 @@ public:
         MemoryBus  bus;
         Byte       bufferA[0x100] = {};
         Byte       bufferB[0x100] = {};
+        Byte       v1             = 0;
+        Byte       v2             = 0;
         bufferA[0x10] = 0xAA;
         bufferB[0x10] = 0xBB;
 
         // Map page 4 to A
         bus.SetReadPage (0x04, bufferA);
-        Byte v1 = bus.ReadByte (0x0410);
+        v1 = bus.ReadByte (0x0410);
 
         // Remap to B
         bus.SetReadPage (0x04, bufferB);
-        Byte v2 = bus.ReadByte (0x0410);
+        v2 = bus.ReadByte (0x0410);
 
         Assert::AreEqual (Byte (0xAA), v1, L"First read should come from A");
         Assert::AreEqual (Byte (0xBB), v2, L"Second read should come from B");
@@ -349,12 +368,13 @@ public:
     TEST_METHOD (PageTable_UnmappedIoPage_UsesDevice)
     {
         MemoryBus  bus;
+        Byte       val = 0;
         MockDevice dev (0xC000, 0xC0FF);
         bus.AddDevice (&dev);
 
         // I/O pages ($C000-$CFFF) are left unmapped in the page table, so a
         // read dispatches to the device and its read side effects run.
-        Byte val = bus.ReadByte (0xC042);
+        val = bus.ReadByte (0xC042);
 
         Assert::AreEqual (1, dev.m_readCount,
             L"An unmapped $C0xx read should dispatch to the device");
@@ -366,6 +386,7 @@ public:
     {
         MemoryBus  bus;
         Byte       buffer[0x100] = {};
+        Byte       val           = 0;
         buffer[0x42] = 0xAB;
         MockDevice dev (0xD000, 0xD0FF);
         bus.AddDevice (&dev);
@@ -376,7 +397,7 @@ public:
         // page with a non-null entry uses the table, not just $0000-$BFFF.)
         bus.SetReadPage (0xD0, buffer);
 
-        Byte val = bus.ReadByte (0xD042);
+        val = bus.ReadByte (0xD042);
 
         Assert::AreEqual (0, dev.m_readCount,
             L"A mapped $D0xx read should use the page table, not the device");

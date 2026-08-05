@@ -353,7 +353,8 @@ void DxuiPanZoom::SetDragScale (float contentPerPixelX, float contentPerPixelY)
 
 void DxuiPanZoom::SetPanYTarget (float y)
 {
-    double clamped = y;
+    double  clamped = y;
+    bool    changed = false;
     if (m_panYhi >= m_panYlo)
     {
         clamped = std::min (std::max ((double) y, m_panYlo), m_panYhi);
@@ -361,7 +362,7 @@ void DxuiPanZoom::SetPanYTarget (float y)
 
     // Follow mode owns the paper position again, so spring any world overscroll
     // back home (eases via Tick), returning the view to its resting frame.
-    bool  changed = (clamped != m_panY.target) || (m_overscrollY.target != 0.0);
+    changed = (clamped != m_panY.target) || (m_overscrollY.target != 0.0);
 
     m_panY.target        = clamped;
     m_overscrollY.target = 0.0;
@@ -598,12 +599,13 @@ void DxuiPanZoom::NudgePanY (double deltaContent, bool user)
 {
     double  prevPanY = m_panY.target;
     double  prevOver = m_overscrollY.target;
+    bool    changed  = false;
 
 
 
     SpillPanY (deltaContent);
 
-    bool  changed = (m_panY.target != prevPanY) || (m_overscrollY.target != prevOver);
+    changed = (m_panY.target != prevPanY) || (m_overscrollY.target != prevOver);
 
     // Direct manipulation tracks instantly; programmatic follow (user == false)
     // keeps the glide so the snap back to the live row still eases.
@@ -643,7 +645,10 @@ void DxuiPanZoom::NudgePanY (double deltaContent, bool user)
 
 void DxuiPanZoom::SpillPanY (double deltaContent)
 {
-    double  base = m_panY.target + m_overscrollY.target;
+    double  base  = m_panY.target + m_overscrollY.target;
+    double  extLo = 0.0;
+    double  extHi = 0.0;
+    double  ext   = 0.0;
 
 
 
@@ -654,9 +659,9 @@ void DxuiPanZoom::SpillPanY (double deltaContent)
         return;
     }
 
-    double  extLo = m_panYlo - (double) m_overscrollMax;
-    double  extHi = m_panYhi + (double) m_overscrollMax;
-    double  ext   = std::min (std::max (base + deltaContent, extLo), extHi);
+    extLo = m_panYlo - (double) m_overscrollMax;
+    extHi = m_panYhi + (double) m_overscrollMax;
+    ext = std::min (std::max (base + deltaContent, extLo), extHi);
 
     m_panY.target        = std::min (std::max (ext, m_panYlo), m_panYhi);
     m_overscrollY.target = ext - m_panY.target;

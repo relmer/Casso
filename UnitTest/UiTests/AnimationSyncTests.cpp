@@ -70,9 +70,10 @@ public:
 
     TEST_METHOD (DriveSyncBroker_PublishAndConsumeWithinFrame)
     {
-        DxuiAnimation             anim;
-        DxuiDriveSyncBrokerEvent  visual;
-        DxuiDriveSyncBrokerEvent  audio;
+        DxuiAnimation                          anim;
+        DxuiDriveSyncBrokerEvent               visual;
+        DxuiDriveSyncBrokerEvent               audio;
+        std::vector<DxuiDriveSyncBrokerEvent>  events;
 
         visual.driveIndex  = 0;
         visual.tag         = 1;
@@ -84,7 +85,7 @@ public:
         anim.PublishSyncEvent (visual);
         anim.PublishSyncEvent (audio);
 
-        std::vector<DxuiDriveSyncBrokerEvent>  events = anim.ConsumePendingEvents();
+        events = anim.ConsumePendingEvents();
 
         Assert::AreEqual ((size_t) 2, events.size());
         Assert::AreEqual (visual.frameTimeMs, events[0].frameTimeMs);

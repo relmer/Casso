@@ -359,6 +359,7 @@ void MainMenu::Rebuild()
         for (const MainMenuCommandEntry & e : s_kEntries)
         {
             DxuiMenuBarSubitem  sub;
+            WORD                commandId = 0;
 
             if (e.menu != (MainMenuId) m)
             {
@@ -378,7 +379,7 @@ void MainMenu::Rebuild()
             sub.checkable   = e.checkable;
             sub.isSeparator = false;
 
-            WORD  commandId = e.commandId;
+            commandId = e.commandId;
 
             sub.dispatch = [this, commandId] ()
             {

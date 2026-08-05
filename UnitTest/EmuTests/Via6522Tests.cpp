@@ -277,9 +277,9 @@ namespace Via6522TestNs
         TEST_METHOD (InterruptControllerSeesTimerIrq)
         {
             ViaTestCpu             cpu;
-            InterruptController    ic (&cpu);
             Via6522                via;
             HRESULT                hr = S_OK;
+            InterruptController    ic (&cpu);
 
 
 

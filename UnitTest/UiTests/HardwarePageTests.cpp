@@ -180,12 +180,16 @@ public:
 
     TEST_METHOD (BuildNodes_NoExternalDriveNodeWhenUnsupported)
     {
+        std::vector<DxuiTreeNode>  nodes;
+
+
+
         // Default (supportsExternalDrive = false): no external-drive leaf, so
         // //e / ][ machines are unchanged.
         std::vector<HardwareEntry>  entries;
         entries.push_back (MakeEntry (HardwareEntryKind::Slot, "Slot 6: disk-ii", CapabilityFlag::Optional, true));
 
-        std::vector<DxuiTreeNode>  nodes = HardwarePage::BuildNodes (entries);
+        nodes = HardwarePage::BuildNodes (entries);
 
         for (const DxuiTreeNode & n : nodes)
         {

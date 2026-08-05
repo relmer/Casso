@@ -60,8 +60,8 @@ public:
     TEST_METHOD (AppliesBank0OnLoad)
     {
         MemoryBus        bus;
-        LanguageCard     lc (bus);
         Apple2eMmu       mmu;
+        LanguageCard     lc (bus);
         Apple2cRomBank   romBank (lc, mmu);
 
         romBank.SetBankImages (MakeBank (0xA0), MakeBank (0xB1));
@@ -73,8 +73,8 @@ public:
     TEST_METHOD (ToggleFlipsVisibleBank)
     {
         MemoryBus        bus;
-        LanguageCard     lc (bus);
         Apple2eMmu       mmu;
+        LanguageCard     lc (bus);
         Apple2cRomBank   romBank (lc, mmu);
 
         romBank.SetBankImages (MakeBank (0xA0), MakeBank (0xB1));
@@ -91,8 +91,8 @@ public:
     TEST_METHOD (ResetRestoresBank0)
     {
         MemoryBus        bus;
-        LanguageCard     lc (bus);
         Apple2eMmu       mmu;
+        LanguageCard     lc (bus);
         Apple2cRomBank   romBank (lc, mmu);
 
         romBank.SetBankImages (MakeBank (0xA0), MakeBank (0xB1));
@@ -107,8 +107,11 @@ public:
 
     TEST_METHOD (SoftSwitchForwardsC028AccessAndReset)
     {
-        Apple2eSoftSwitchBank   ss (nullptr);
         SpyRomBank              spy;
+
+
+
+        Apple2eSoftSwitchBank   ss (nullptr);
 
         ss.SetRomBankSwitch (&spy);
 

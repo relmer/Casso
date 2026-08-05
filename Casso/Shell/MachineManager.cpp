@@ -173,13 +173,16 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // MMU page-table wiring.
     for (const auto & region : config.ram)
     {
+        Word  start = 0;
+        Word  end   = 0;
+
         if (!region.bank.empty())
         {
             continue;
         }
 
-        Word start = region.address;
-        Word end   = static_cast<Word> (region.address + region.size - 1);
+        start = region.address;
+        end = static_cast<Word> (region.address + region.size - 1);
 
         auto device = std::make_unique<RamDevice> (start, end);
 
@@ -202,6 +205,8 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     if (config.systemRom.romBankSize != 0)
     {
         std::vector<Byte>  fileBytes;
+        Word               romStart  = 0;
+        Word               romEnd    = 0;
 
         hr = ReadRomFileBytes (config.systemRom.resolvedPath, fileBytes);
 
@@ -213,8 +218,8 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             CBRN (false, wideError.c_str());
         }
 
-        Word romStart = config.systemRom.address;
-        Word romEnd   = static_cast<Word> (config.systemRom.address + config.systemRom.romBankSize - 1);
+        romStart = config.systemRom.address;
+        romEnd = static_cast<Word> (config.systemRom.address + config.systemRom.romBankSize - 1);
 
         auto device = RomDevice::CreateFromData (romStart, romEnd,
                                                  fileBytes.data(),
@@ -496,9 +501,11 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         // IRQ lines aggregate through the shared interrupt controller; the
         // CPU cycle fan-out tick is wired in CreateCpu.
         {
+            HRESULT  hrIc = S_OK;
+
             m_shell.m_mouse = std::make_unique<AppleMouse> ();
 
-            HRESULT  hrIc = m_shell.m_mouse->AttachInterruptController (&m_shell.m_interruptController);
+            hrIc = m_shell.m_mouse->AttachInterruptController (&m_shell.m_interruptController);
             IGNORE_RETURN_VALUE (hrIc, S_OK);
 
             m_shell.m_mouse->SetBus (&m_shell.m_memoryBus);
@@ -535,12 +542,14 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         // downstream work.
         for (int slot = 1; slot <= 2; ++slot)
         {
+            HRESULT  hrIc = S_OK;
+
             Word  base = static_cast<Word> (Acia6551::kSlotIoBase
                                             + slot * Acia6551::kSlotIoStride
                                             + Acia6551::kAciaRegOffset);
             auto  acia = std::make_unique<Acia6551> (base);
 
-            HRESULT  hrIc = acia->AttachInterruptController (&m_shell.m_interruptController);
+            hrIc = acia->AttachInterruptController (&m_shell.m_interruptController);
             IGNORE_RETURN_VALUE (hrIc, S_OK);
 
             auto  loopback = std::make_unique<AciaLoopbackEndpoint> (acia.get());
@@ -872,11 +881,11 @@ void MachineManager::WireLanguageCard()
 HRESULT MachineManager::ReadRomFileBytes (const std::string & path, std::vector<Byte> & out)
 {
     HRESULT         hr       = S_OK;
-    std::ifstream   file (path, std::ios::binary | std::ios::ate);
-    std::streamoff  size     = 0;
     bool            isOpen   = false;
     bool            hasBytes = false;
     bool            wasRead  = false;
+    std::ifstream   file (path, std::ios::binary | std::ios::ate);
+    std::streamoff  size     = 0;
 
 
     isOpen = file.good();
@@ -989,12 +998,16 @@ void MachineManager::WireApple2cRomBank()
 
 void MachineManager::WirePageTable()
 {
+    Byte * mainRam = nullptr;
+
+
+
     if (!m_shell.m_cpu)
     {
         return;
     }
 
-    Byte * mainRam = const_cast<Byte *> (m_shell.m_cpu->GetMemory());
+    mainRam = const_cast<Byte *> (m_shell.m_cpu->GetMemory());
 
     // Map all RAM pages ($0000-$BFFF) to main memory
     for (int page = 0x00; page < 0xC0; page++)
@@ -1110,7 +1123,8 @@ void MachineManager::RebuildBankingPages()
 
 void MachineManager::CreateVideoModes()
 {
-    auto textMode = std::make_unique<AppleTextMode> (m_shell.m_memoryBus, m_shell.m_charRom);
+    auto    textMode = std::make_unique<AppleTextMode> (m_shell.m_memoryBus, m_shell.m_charRom);
+    Byte  * auxBuf   = nullptr;
     m_shell.m_refs.activeVideoMode = textMode.get();
     m_shell.m_videoModes.push_back (std::move (textMode));
 
@@ -1127,7 +1141,7 @@ void MachineManager::CreateVideoModes()
     // from the Apple2eMmu when present.
     auto text80 = std::make_unique<Apple80ColTextMode> (m_shell.m_memoryBus, m_shell.m_charRom);
 
-    Byte * auxBuf = GetAuxRamBuffer();
+    auxBuf = GetAuxRamBuffer();
 
     if (auxBuf != nullptr)
     {
@@ -1526,8 +1540,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                 // machines (ShouldShowExternalDrive ignores it when the system
                 // ROM is not banked).
                 {
-                    const JsonValue *  extPrefs  = nullptr;
+                    const JsonValue  * extPrefs  = nullptr;
                     bool               connected = false;
+                    bool               mouseConn = false;
 
                     if (mergedJson.HasObject ("$cassoUiPrefs", extPrefs) &&
                         extPrefs != nullptr)
@@ -1540,7 +1555,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
                     // //c mouse peripheral: adopt the switched-to machine's
                     // persisted connected state (default CONNECTED).
-                    bool  mouseConn = true;
+                    mouseConn = true;
                     if (extPrefs != nullptr)
                     {
                         HRESULT  hrM = extPrefs->GetBool ("mouseConnected", mouseConn);
@@ -1935,6 +1950,11 @@ void MachineManager::PowerCycle()
 
 void MachineManager::SelectVideoMode()
 {
+    bool  is80ColMode = false;
+    bool  altCharSet  = false;
+
+
+
     if (m_shell.m_videoModes.size() < 3)
     {
         return;
@@ -1959,8 +1979,8 @@ void MachineManager::SelectVideoMode()
         m_shell.m_page2 = false;
     }
 
-    bool is80ColMode  = iieSoftSwitches != nullptr && iieSoftSwitches->Is80ColMode();
-    bool altCharSet   = iieSoftSwitches != nullptr && iieSoftSwitches->IsAltCharSet();
+    is80ColMode = iieSoftSwitches != nullptr && iieSoftSwitches->Is80ColMode();
+    altCharSet = iieSoftSwitches != nullptr && iieSoftSwitches->IsAltCharSet();
 
     // Select video mode based on soft switch state
     if (!m_shell.m_graphicsMode)

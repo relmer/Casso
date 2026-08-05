@@ -136,8 +136,11 @@ namespace Acia6551TestNs
 
         TEST_METHOD (TransmitByteReachesEndpoint)
         {
-            Acia6551            acia (kBase);
             RecordingEndpoint   endpoint;
+
+
+
+            Acia6551            acia (kBase);
 
 
 
@@ -151,9 +154,12 @@ namespace Acia6551TestNs
 
         TEST_METHOD (LoopbackDeliversByteToReceiver)
         {
+            Byte                    received = 0;
+
+
+
             Acia6551                acia (kBase);
             AciaLoopbackEndpoint    loopback (&acia);
-            Byte                    received = 0;
 
 
 
@@ -172,12 +178,12 @@ namespace Acia6551TestNs
 
         TEST_METHOD (ReceiverIrqAssertsAndStatusReadClearsIt)
         {
-            AciaTestCpu             cpu;
+            AciaTestCpu  cpu;
+            HRESULT      hr     = S_OK;
+            Byte         status = 0;
             InterruptController     ic (&cpu);
             Acia6551                acia (kBase);
             AciaLoopbackEndpoint    loopback (&acia);
-            HRESULT  hr     = S_OK;
-            Byte     status = 0;
 
 
 
@@ -207,10 +213,10 @@ namespace Acia6551TestNs
         TEST_METHOD (ReceiverIrqSuppressedWhenDisabled)
         {
             AciaTestCpu             cpu;
+            HRESULT                 hr = S_OK;
             InterruptController     ic (&cpu);
             Acia6551                acia (kBase);
             AciaLoopbackEndpoint    loopback (&acia);
-            HRESULT                 hr = S_OK;
 
 
 
@@ -231,10 +237,10 @@ namespace Acia6551TestNs
         TEST_METHOD (TransmitIrqAssertsWhenEnabled)
         {
             AciaTestCpu             cpu;
-            InterruptController     ic (&cpu);
-            Acia6551                acia (kBase);
             RecordingEndpoint       endpoint;
             HRESULT                 hr = S_OK;
+            InterruptController     ic (&cpu);
+            Acia6551                acia (kBase);
 
 
 
@@ -270,8 +276,12 @@ namespace Acia6551TestNs
 
         TEST_METHOD (ProgrammedResetClearsCommandButKeepsParityAndControl)
         {
+            Byte  parityBits = 0;
+
+
+
             Acia6551    acia (kBase);
-            Byte        parityBits = Acia6551::kCommandParityMask;
+            parityBits = Acia6551::kCommandParityMask;
 
 
 

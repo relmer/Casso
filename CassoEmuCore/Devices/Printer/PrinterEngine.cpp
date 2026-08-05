@@ -313,11 +313,13 @@ void PrinterEngine::Tick (int64_t nowMs)
     }
 
     {
+        int  hostFeeds = 0;
+
         std::lock_guard<std::mutex>   lock (m_rasterMutex);
 
         // Play any host Form Feed requests on this (the single writer) thread,
         // enqueuing their feed motion for the head to slew through.
-        int   hostFeeds = m_hostFormFeeds.exchange (0, std::memory_order_relaxed);
+        hostFeeds = m_hostFormFeeds.exchange (0, std::memory_order_relaxed);
 
         for (int f = 0; f < hostFeeds; f++)
         {
@@ -348,6 +350,8 @@ void PrinterEngine::Tick (int64_t nowMs)
         //    carriage speed; the guest cycle delta only caps it (paused CPU ->
         //    frozen printer, slowed CPU -> slower, never faster than real).
         {
+            double  timeSec = 0.0;
+
             if (!m_pacingSeeded)
             {
                 m_lastTickMs   = nowMs;
@@ -355,7 +359,7 @@ void PrinterEngine::Tick (int64_t nowMs)
                 m_pacingSeeded = true;
             }
 
-            double   timeSec = (double) (nowMs - m_lastTickMs) / 1000.0;
+            timeSec = (double) (nowMs - m_lastTickMs) / 1000.0;
 
             m_lastTickMs = nowMs;
 

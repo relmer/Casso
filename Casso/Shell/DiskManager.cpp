@@ -100,8 +100,8 @@ void DiskManager::ProbeFileWritability (
     bool              & outNoPermission)
 {
     std::error_code  ec;
-    fs::path         p (path);
     fs::file_status  st;
+    fs::path         p (path);
 
 
     outReadOnly     = false;
@@ -583,7 +583,12 @@ void DiskManager::UpdateDriveWidgets()
 
     for (drive = 0; drive < static_cast<int> (m_driveWidgetState.size()); drive++)
     {
-        DriveWidgetState &  st = m_driveWidgetState[drive];
+        DriveWidgetState  & st      = m_driveWidgetState[drive];
+        std::wstring        wPath;
+        bool                motorOn = false;
+        bool                active  = false;
+        uint64_t            reads   = 0;
+        uint64_t            writes  = 0;
 
         for (const auto & evt : syncEvents)
         {
@@ -602,7 +607,7 @@ void DiskManager::UpdateDriveWidgets()
         // sign-extend a high byte like 0xF8 ('o' with stroke) into U+FFF8
         // and render as a tofu box in the drive label.
         const std::string &  src   = m_diskStore.GetSourcePath (6, drive);
-        std::wstring         wPath = fs::path (src).wstring();
+        wPath = fs::path (src).wstring();
 
         if (wPath != st.mountedImagePath)
         {
@@ -622,10 +627,6 @@ void DiskManager::UpdateDriveWidgets()
         // owned by the device, which the CPU thread mutates; we read
         // the bool + monotonic counters with relaxed atomics
         // semantics (existing audio-system pattern).
-        bool      motorOn  = false;
-        bool      active   = false;
-        uint64_t  reads    = 0;
-        uint64_t  writes   = 0;
 
         if (controller != nullptr)
         {

@@ -162,12 +162,12 @@ namespace DiskMruTests
 
         TEST_METHOD (ToUtf8_RoundTrips)
         {
-            DiskMru  mru;
+            DiskMru                    mru;
+            std::vector<std::string>   out;
+            std::vector<std::int64_t>  times;
             mru.RecordMount (L"C:\\Disks\\A.dsk");
             mru.RecordMount (L"C:\\Disks\\B.dsk");
 
-            std::vector<std::string>   out;
-            std::vector<std::int64_t>  times;
             mru.ToUtf8 (out, times);
 
             Assert::AreEqual ((size_t) 2, out.size());
@@ -178,17 +178,20 @@ namespace DiskMruTests
 
         TEST_METHOD (Utf8RoundTrip_PreservesNonAsciiFilename)
         {
+            DiskMru                    mru;
+            std::vector<std::string>   serialized;
+            std::vector<std::int64_t>  times;
+
+
+
             // Regression: a non-ASCII filename (the o-slash in "Broderbund")
             // must survive the wide -> UTF-8 -> wide round-trip intact. The
             // old platform-narrow conversion mangled it into invalid UTF-8,
             // so the boot picker's exists-prune silently dropped the entry.
             const wchar_t *  kName = L"C:\\Disks\\Space Quarks (Br\u00F8derbund).woz";
 
-            DiskMru  mru;
             mru.RecordMount (kName);
 
-            std::vector<std::string>   serialized;
-            std::vector<std::int64_t>  times;
             mru.ToUtf8 (serialized, times);
 
             Assert::AreEqual ((size_t) 1, serialized.size());
@@ -246,15 +249,15 @@ namespace DiskMruTests
 
         TEST_METHOD (ToUtf8_FromUtf8_RoundTripsLoadTimes)
         {
-            constexpr std::int64_t  kWhenA = 1700000001;
-            constexpr std::int64_t  kWhenB = 1700000002;
+            constexpr std::int64_t     kWhenA = 1700000001;
+            constexpr std::int64_t     kWhenB = 1700000002;
+            std::vector<std::string>   paths;
+            std::vector<std::int64_t>  times;
 
             DiskMru  mru;
             mru.RecordMount (L"C:\\Disks\\A.dsk", kWhenA);
             mru.RecordMount (L"C:\\Disks\\B.dsk", kWhenB);
 
-            std::vector<std::string>   paths;
-            std::vector<std::int64_t>  times;
             mru.ToUtf8 (paths, times);
 
             Assert::AreEqual ((size_t) 2, times.size());
@@ -270,9 +273,13 @@ namespace DiskMruTests
 
         TEST_METHOD (FromUtf8_ShorterTimesArray_DefaultsMissingToZero)
         {
+            std::vector<std::int64_t>  times;
+
+
+
             // Legacy prefs shape: paths present, no (or partial) load times.
             std::vector<std::string>   paths = { "C:\\Disks\\A.dsk", "C:\\Disks\\B.dsk" };
-            std::vector<std::int64_t>  times = { 1700000000 };   // only the first entry has a time
+            times = { 1700000000 }; // only the first entry has a time
 
             auto  mru  = DiskMru::FromUtf8 (paths, times);
             auto  snap = mru.Snapshot();

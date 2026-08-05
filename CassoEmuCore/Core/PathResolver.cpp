@@ -31,8 +31,11 @@ vector<fs::path> PathResolver::BuildSearchPaths (
     const fs::path & /*exeDir*/,
     const fs::path & /*cwd*/)
 {
-    fs::path          localAppData = GetLocalAppDataDir (L"Casso");
     vector<fs::path>  searchBases;
+
+
+
+    fs::path          localAppData = GetLocalAppDataDir (L"Casso");
 
 
 

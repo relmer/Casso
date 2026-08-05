@@ -262,9 +262,12 @@ public:
 
     TEST_METHOD (PowerCycleSeedsAllRamFromPrng)
     {
+        size_t       nonZero = 0;
+
+
+
         RamDevice    ram (0x0000, 0xBFFF);
         Prng         prng (kPinnedSeed);
-        size_t       nonZero = 0;
 
         // Pre-zero so any post-PowerCycle non-zero byte must come from
         // the Prng.
@@ -288,13 +291,16 @@ public:
 
     TEST_METHOD (PowerCycleZeroesNothingButSeedsEverything)
     {
+        bool         pageHasNonZero = false;
+        Word         page           = 0;
+        Word         offset         = 0;
+
+
+
         // No region should remain entirely zero after PowerCycle —
         // every page gets touched by the Prng fill (FR-035, audit §10).
         RamDevice    ram (0x0000, 0xBFFF);
         Prng         prng (kPinnedSeed);
-        bool         pageHasNonZero = false;
-        Word         page           = 0;
-        Word         offset         = 0;
 
         ram.Reset();
         ram.PowerCycle (prng);

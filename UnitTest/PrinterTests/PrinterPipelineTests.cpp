@@ -101,20 +101,21 @@ namespace PrinterPipelineTests
 
         TEST_METHOD (StreamSurvivesPersistenceRoundTrip)
         {
-            ImageWriterInterpreter   interp;
-            PrintRaster              original;
-            PrintRaster              reloaded;
-            vector<PrinterEvent>     events;
-            vector<Byte>             stream;
-            vector<Byte>             plane;
-            StripMeta                meta;
-            int                      w = 0, h = 0;
+            ImageWriterInterpreter  interp;
+            PrintRaster             original;
+            PrintRaster             reloaded;
+            vector<PrinterEvent>    events;
+            vector<Byte>            stream;
+            vector<Byte>            plane;
+            StripMeta               meta;
+            int                     w        = 0, h = 0;
+            string                  json;
 
             BuildSignStream (stream);
             interp.Consume (stream.data(), stream.size(), original, events);
 
             PrintJobSerializer::ExtractIndexPlane (original, w, h, plane);
-            string   json = PrintJobSerializer::WriteMetaJson (original);
+            json = PrintJobSerializer::WriteMetaJson (original);
 
             AssertSucceeded (PrintJobSerializer::ReadMetaJson (json, meta));
             AssertSucceeded (PrintJobSerializer::RebuildRaster (w, h, plane, meta, reloaded));

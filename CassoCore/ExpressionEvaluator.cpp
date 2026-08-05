@@ -251,9 +251,14 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadOctalNumber()
 
 ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadCharConstant()
 {
+    char  ch  = 0;
+    char  esc = 0;
+
+
+
     Token  token = { TokType::Error, 0, "Unterminated character constant" };
-    char   ch    = '\0';
-    char   esc   = '\0';
+    ch = '\0';
+    esc = '\0';
 
 
 
@@ -419,14 +424,15 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadDecimalNumber()
 
 ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadIdentifier()
 {
-    size_t start = m_pos;
+    size_t       start = m_pos;
+    std::string  name;
 
 
 
     while (m_pos < m_text.size() && (isalnum ((unsigned char) m_text[m_pos]) || m_text[m_pos] == '_' || m_text[m_pos] == '.'))
         m_pos++;
 
-    std::string name = m_text.substr (start, m_pos - start);
+    name = m_text.substr (start, m_pos - start);
     return { TokType::Ident, 0, name };
 }
 
@@ -562,10 +568,16 @@ const ExpressionEvaluator::Monograph * ExpressionEvaluator::FindMonograph (char 
 
 ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadOperator()
 {
+    char               next = 0;
+    const Digraph    * two  = nullptr;
+    const Monograph  * one  = nullptr;
+
+
+
     char               lead  = m_text[m_pos++];
-    char               next  = (m_pos < m_text.size()) ? m_text[m_pos] : '\0';
-    const Digraph *    two   = FindDigraph (lead, next);
-    const Monograph *  one   = (two == nullptr) ? FindMonograph (lead) : nullptr;
+    next = (m_pos < m_text.size()) ? m_text[m_pos] : '\0';
+    two = FindDigraph (lead, next);
+    one = (two == nullptr) ? FindMonograph (lead) : nullptr;
     Token              token = { TokType::Error, 0, std::string ("Unexpected character: ") + lead };
 
     if (two != nullptr)
@@ -597,8 +609,12 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadOperator()
 
 ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadNext()
 {
+    char  c = 0;
+
+
+
     Token  token = { TokType::End, 0, "" };
-    char   c     = '\0';
+    c = '\0';
 
 
 
@@ -1148,8 +1164,8 @@ ExprResult ExpressionEvaluator::Evaluate (const std::string & expr, const ExprCo
     std::string  trimmed = expr;
     std::string  error;
     int32_t      value   = 0;
-    size_t       start   = trimmed.find_first_not_of (" \t");
     size_t       end     = 0;
+    size_t       start   = trimmed.find_first_not_of (" \t");
 
 
 

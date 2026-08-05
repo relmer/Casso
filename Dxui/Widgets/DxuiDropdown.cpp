@@ -706,24 +706,35 @@ void DxuiDropdown::SetTheme (const IDxuiTheme * theme) const
 
 void DxuiDropdown::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
-    HRESULT         hr = S_OK;
-    ResolvedColors  c  = ResolveColors();
+    HRESULT         hr           = S_OK;
+    ResolvedColors  c            = ResolveColors();
+    uint32_t        textColor    = 0;
+    uint32_t        edgeColor    = 0;
+    std::wstring    label;
+    float           edgePx       = 0.0f;
+    float           fontDip      = 0.0f;
+    int             textInset    = 0;
+    int             chevronW     = 0;
+    int             chevronH     = 0;
+    int             chevronRight = 0;
+    int             chevronX     = 0;
+    int             chevronY     = 0;
+    int             textWidth    = 0;
     uint32_t     boxColor      = !m_enabled            ? c.boxDisabled
                                  : (m_armed && m_hover) ? c.boxPressed
                                  : (m_open || m_hover)  ? c.boxHover
                                  :                        c.boxIdle;
-    uint32_t     textColor     = m_enabled ? c.text : c.textDisabled;
-    uint32_t     edgeColor     = m_enabled ? c.edge : c.edgeDisabled;
-    std::wstring label;
-    float        edgePx        = m_scaler.Pxf (s_kEdgePx);
-    float        fontDip       = m_scaler.Pxf (s_kFontDip);
-    int          textInset     = m_scaler.Px (s_kTextInsetDip);
-    int          chevronW      = m_scaler.Px (s_kChevronWidthDip);
-    int          chevronH      = m_scaler.Px (s_kChevronHeightDip);
-    int          chevronRight  = m_scaler.Px (s_kChevronRightDip);
-    int          chevronX      = m_boundsDip.right - chevronRight - chevronW;
-    int          chevronY      = (m_boundsDip.top + m_boundsDip.bottom) / 2 - chevronH / 2;
-    int          textWidth     = (m_boundsDip.right - m_boundsDip.left) - textInset - (chevronRight + chevronW);
+    textColor = m_enabled ? c.text : c.textDisabled;
+    edgeColor = m_enabled ? c.edge : c.edgeDisabled;
+    edgePx = m_scaler.Pxf (s_kEdgePx);
+    fontDip = m_scaler.Pxf (s_kFontDip);
+    textInset = m_scaler.Px (s_kTextInsetDip);
+    chevronW = m_scaler.Px (s_kChevronWidthDip);
+    chevronH = m_scaler.Px (s_kChevronHeightDip);
+    chevronRight = m_scaler.Px (s_kChevronRightDip);
+    chevronX = m_boundsDip.right - chevronRight - chevronW;
+    chevronY = (m_boundsDip.top + m_boundsDip.bottom) / 2 - chevronH / 2;
+    textWidth = (m_boundsDip.right - m_boundsDip.left) - textInset - (chevronRight + chevronW);
 
 
 

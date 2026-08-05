@@ -618,12 +618,13 @@ void GlobalUserPrefs::PlacementsFromJson (
 
     for (const auto & kv : entries)
     {
+        WindowBounds  b;
+
         if (kv.second.GetType() != JsonType::Object)
         {
             continue;
         }
 
-        WindowBounds  b;
 
         b.x = GetIntOpt (kv.second, "x", 0);
         b.y = GetIntOpt (kv.second, "y", 0);

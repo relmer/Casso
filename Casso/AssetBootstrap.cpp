@@ -632,9 +632,11 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
 
         if (diskExists)
         {
-            ifstream            diskFile (target);
             stringstream        ss;
-            array<uint8_t, 32>  diskHash = {};
+            array<uint8_t, 32>  diskHash;
+
+            ifstream            diskFile (target);
+            diskHash = {};
 
             if (!diskFile.good())
             {
@@ -821,12 +823,12 @@ HRESULT AssetBootstrap::EnsureThemes (
     for (const EmbeddedTheme & theme : s_kEmbeddedThemes)
     {
         fs::path              themeSubdir       = themesDir / theme.dirName;
-        fs::path              themeJsonPath     = themeSubdir / "theme.json";
         bool                  diskExists        = false;
         string                diskJsonText;
         string                embeddedJsonText;
-        ThemeBootstrapAction  action            = ThemeBootstrapAction::Skip;
         int                   themeJsonResId    = 0;
+        fs::path              themeJsonPath     = themeSubdir / "theme.json";
+        ThemeBootstrapAction  action            = ThemeBootstrapAction::Skip;
 
 
 
@@ -834,8 +836,9 @@ HRESULT AssetBootstrap::EnsureThemes (
 
         if (diskExists)
         {
-            ifstream      file (themeJsonPath);
             stringstream  ss;
+
+            ifstream      file (themeJsonPath);
 
             if (file.good())
             {
@@ -1024,8 +1027,8 @@ fs::path AssetBootstrap::GetAssetBaseDirectory()
 fs::path AssetBootstrap::GetDiskDirectory()
 {
     fs::path     base   = GetAssetBaseDirectory();
-    fs::path     disks  = base / L"Disks";
     error_code   ec;
+    fs::path     disks  = base / L"Disks";
 
 
 
@@ -1675,9 +1678,10 @@ HRESULT AssetBootstrap::HasDiskController (
 
     for (idx = 0; idx < pSlots->ArraySize(); idx++)
     {
-        const JsonValue &  entry   = pSlots->ArrayAt (idx);
+        const JsonValue  & entry   = pSlots->ArrayAt (idx);
+        bool               enabled = false;
         HRESULT            hrDev   = entry.GetString ("device", device);
-        bool               enabled = true;   // optional key; defaults enabled
+        enabled = true; // optional key; defaults enabled
 
         if (SUCCEEDED (hrDev) && device == "disk-ii")
         {
@@ -1834,6 +1838,7 @@ Error:
 static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
 {
     constexpr std::streamsize  kChunk = 64 * 1024;
+    bool                       same   = false;
 
 
 
@@ -1846,7 +1851,7 @@ static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
     std::ifstream     fb;
     std::vector<char> bufA ((size_t) kChunk);
     std::vector<char> bufB ((size_t) kChunk);
-    bool              same      = !ec;
+    same = !ec;
 
 
     // Size first: a stat per side rules out the common "not the same file"
@@ -2164,10 +2169,12 @@ void DiskMruPickerSession::RebuildView()
     auto  matchesIn = [&tokens, &lower] (const std::wstring & text) -> std::vector<std::pair<int, int>>
     {
         std::vector<std::pair<int, int>>  out;
+        std::wstring                      hay;
+        std::vector<std::pair<int, int>>  merged;
 
         if (tokens.empty() || text.empty()) { return out; }
 
-        std::wstring  hay = lower (text);
+        hay = lower (text);
 
         for (const std::wstring & tok : tokens)
         {
@@ -2179,7 +2186,6 @@ void DiskMruPickerSession::RebuildView()
 
         std::sort (out.begin(), out.end());
 
-        std::vector<std::pair<int, int>>  merged;
         for (const std::pair<int, int> & r : out)
         {
             if (!merged.empty() && r.first <= merged.back().second)
@@ -2197,9 +2203,11 @@ void DiskMruPickerSession::RebuildView()
 
     auto  rowPasses = [&tokens, &lower] (const ModelRow & row) -> bool
     {
+        std::wstring  hay;
+
         if (tokens.empty()) { return true; }
 
-        std::wstring  hay = lower (row.name);
+        hay = lower (row.name);
         hay += L'\n';
         hay += lower (row.location);
         hay += L'\n';
@@ -2808,9 +2816,12 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
     // Build a printable short name from the URL's last path component
     // so download errors are searchable in logs.
     {
+        size_t   slash = 0;
+        wstring  tail;
+
         wstring  wUrl (urlPath);
-        size_t   slash = wUrl.find_last_of (L'/');
-        wstring  tail  = (slash == wstring::npos) ? wUrl : wUrl.substr (slash + 1);
+        slash = wUrl.find_last_of (L'/');
+        tail = (slash == wstring::npos) ? wUrl : wUrl.substr (slash + 1);
 
         narrowName.reserve (tail.size());
 
@@ -3039,9 +3050,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
     StartupDownloadResult  result         = StartupDownloadResult::NothingToDo;
     vector<string>         romFiles;
     string                 narrowMachine;
-    fs::path               devicesDir     = assetBaseDir / "Devices" / "DiskII";
     bool                   audioIncluded  = false;
     error_code             ec;
+    fs::path               devicesDir     = assetBaseDir / "Devices" / "DiskII";
 
     UNREFERENCED_PARAMETER (hInstance);
 
@@ -3145,9 +3156,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         for (string_view mechanism : s_kDiskAudioMechanisms)
         {
             StartupAssetEntry  entry;
+            size_t             missingCount = 0;
             string             mechStr   (mechanism);
             wstring            mechW     (mechanism.begin(), mechanism.end());
-            size_t             missingCount = 0;
 
             for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
             {

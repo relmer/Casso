@@ -70,9 +70,13 @@ void DiskImage::InitWholeTrackMap()
 
 int DiskImage::ResolveQuarterTrack (int quarterTrack) const
 {
+    int  slot = 0;
+
+
+
     bool  inMap = (quarterTrack >= 0
                    && quarterTrack < static_cast<int> (m_quarterTrackMap.size()));
-    int   slot  = inMap ? m_quarterTrackMap[quarterTrack] : -1;
+    slot = inMap ? m_quarterTrackMap[quarterTrack] : -1;
 
 
 

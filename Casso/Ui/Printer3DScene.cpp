@@ -591,9 +591,14 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         // Bake per-face Lambert shading (two-sided: CAD winding is arbitrary).
         for (size_t t = 0; t < argbs.size(); t++)
         {
-            const XYZ &   a = pos[t * 3 + 0];
-            const XYZ &   b = pos[t * 3 + 1];
-            const XYZ &   c = pos[t * 3 + 2];
+            const XYZ  & a    = pos[t * 3 + 0];
+            const XYZ  & b    = pos[t * 3 + 1];
+            const XYZ  & c    = pos[t * 3 + 2];
+            uint32_t     argb = 0;
+            float        ca   = 0.0f;
+            float        cr   = 0.0f;
+            float        cg   = 0.0f;
+            float        cb   = 0.0f;
 
             float  ux    = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
             float  vx    = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
@@ -610,7 +615,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
                 shade = std::clamp (0.30f + 0.70f * std::abs (d), 0.0f, 1.0f);
             }
 
-            uint32_t   argb = argbs[t];
+            argb = argbs[t];
 
             // LED boxes are lifted OUT of the static mesh so their brightness
             // can track printer state. Keep only each box's flat horizontal cap
@@ -621,16 +626,23 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
             // x/z footprint so a box's top and bottom caps share one lamp.
             if (argb == s_kArgbLedOn || argb == s_kArgbLedErr)
             {
+                bool      red = false;
+                float     gx  = 0.0f;
+                float     gy  = 0.0f;
+                float     gz  = 0.0f;
+                int       hit = 0;
+                FaceCand  fc;
+
                 if (nl <= 1e-8f || ny * ny < nx * nx || ny * ny < nz2 * nz2)
                 {
                     continue;   // side wall of the LED box -- never shown
                 }
 
-                bool    red = (argb == s_kArgbLedErr);
-                float   gx  = (a.x + b.x + c.x) / 3.0f;
-                float   gy  = (a.y + b.y + c.y) / 3.0f;
-                float   gz  = (a.z + b.z + c.z) / 3.0f;
-                int     hit = -1;
+                red = (argb == s_kArgbLedErr);
+                gx = (a.x + b.x + c.x) / 3.0f;
+                gy = (a.y + b.y + c.y) / 3.0f;
+                gz = (a.z + b.z + c.z) / 3.0f;
+                hit = -1;
 
                 for (size_t li = 0; li < lampAcc.size(); li++)
                 {
@@ -658,7 +670,6 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
                     L.miny = (std::min) (L.miny, gy); L.maxy = (std::max) (L.maxy, gy);
                 }
 
-                FaceCand   fc;
                 for (int k = 0; k < 3; k++)
                 {
                     const XYZ &   p = pos[t * 3 + k];
@@ -672,10 +683,10 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
                 continue;
             }
 
-            float      ca   = (float) ((argb >> 24) & 0xFF) / 255.0f;
-            float      cr   = (float) ((argb >> 16) & 0xFF) / 255.0f * shade * ca;
-            float      cg   = (float) ((argb >>  8) & 0xFF) / 255.0f * shade * ca;
-            float      cb   = (float) ((argb      ) & 0xFF) / 255.0f * shade * ca;
+            ca = (float) ((argb >> 24) & 0xFF) / 255.0f;
+            cr = (float) ((argb >> 16) & 0xFF) / 255.0f * shade * ca;
+            cg = (float) ((argb >>  8) & 0xFF) / 255.0f * shade * ca;
+            cb = (float) ((argb      ) & 0xFF) / 255.0f * shade * ca;
 
             // Translucent parts (the smoked window) go to the glass pass,
             // drawn after everything they must show through.
@@ -709,7 +720,8 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         // indicator. Roles drive each lamp INDIVIDUALLY (RoleIntensity), so the
         // panel no longer flashes every lamp together while receiving.
         {
-            std::vector<int>   greens;
+            std::vector<int>  greens;
+            int               n      = 0;
             for (size_t i = 0; i < m_ledLamps.size(); i++)
             {
                 if (!m_ledLamps[i].red) { greens.push_back ((int) i); }
@@ -718,7 +730,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
             std::sort (greens.begin(), greens.end(),
                        [&] (int a, int b) { return m_ledLamps[a].cx < m_ledLamps[b].cx; });
 
-            int   n = (int) greens.size();
+            n = (int) greens.size();
             for (int gi = 0; gi < n; gi++)
             {
                 LampRole   role = LampRole::Select;
@@ -734,15 +746,15 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         // upper half of its box's cap span.
         for (const FaceCand & fc : ledCand)
         {
-            const LampAcc &   L   = lampAcc[fc.lampIdx];
-            float             mid = (L.miny + L.maxy) * 0.5f;
+            const LampAcc  & L   = lampAcc[fc.lampIdx];
+            float            mid = (L.miny + L.maxy) * 0.5f;
+            LedFace          f;
 
             if (fc.cy < mid - 1e-6f)
             {
                 continue;
             }
 
-            LedFace   f;
             for (int k = 0; k < 3; k++)
             {
                 f.p[k][0] = fc.p[k][0]; f.p[k][1] = fc.p[k][1]; f.p[k][2] = fc.p[k][2];
@@ -1197,8 +1209,9 @@ void Printer3DScene::AppendLed (std::vector<Vertex> & out,
                                 float cx, float cy, float z,
                                 uint32_t argb, float intensity, float halfW)
 {
-    float   halfH = 0.004f;
-    float   core  = 0.60f * (std::max) (0.0f, intensity - 0.15f);
+    float  halfH = 0.004f;
+    float  core  = 0.60f * (std::max) (0.0f, intensity - 0.15f);
+    float  shade = 0.0f;
 
     // Halo first, so the lens draws over its center and the ring shows around.
     if (core > 0.02f)
@@ -1208,7 +1221,7 @@ void Printer3DScene::AppendLed (std::vector<Vertex> & out,
     }
 
     // Lens: dim base, brightened (over 1.0 clamps to a hot core) with intensity.
-    float   shade = 0.16f + 1.10f * intensity;
+    shade = 0.16f + 1.10f * intensity;
 
     AppendFaceQuad (out, cx - halfW, cx + halfW, cy - halfH, cy + halfH, z + 0.0006f, argb, shade);
 }
@@ -1443,13 +1456,35 @@ static void AppendSideFeather (std::vector<Dxui3DRenderer::Vertex> & out,
 
 void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
 {
+    float  total   = 0.0f;
+    float  dy      = 0.0f;
+    float  dz      = 0.0f;
+    float  ny      = 0.0f;
+    float  nz      = 0.0f;
+    float  wrapR   = 0.0f;
+    float  wrapEnd = 0.0f;
+    float  arcLen  = 0.0f;
+    float  peelY   = 0.0f;
+    float  peelZ   = 0.0f;
+    float  p1y     = 0.0f;
+    float  p1z     = 0.0f;
+    float  cy      = 0.0f;
+    float  cz      = 0.0f;
+    float  prevY   = 0.0f;
+    float  prevZ   = 0.0f;
+    float  prevV   = 0.0f;
+    float  prevSh  = 0.0f;
+    float  sLimit  = 0.0f;
+
+
+
     float   aspect   = (m_contentWidth > 0) ? (float) m_contentHeight / (float) m_contentWidth
                                             : 1584.0f / 1368.0f;
-    float   total    = 2.0f * s_kPaperHalfW * aspect;   // arclength covering the whole canvas
-    float   dy       = std::cos (s_kPaperTilt);
-    float   dz       = -std::sin (s_kPaperTilt);
-    float   ny       = dz;                              // curl normal: down-and-back
-    float   nz       = -dy;
+    total = 2.0f * s_kPaperHalfW * aspect; // arclength covering the whole canvas
+    dy = std::cos (s_kPaperTilt);
+    dz = -std::sin (s_kPaperTilt);
+    ny = dz; // curl normal: down-and-back
+    nz = -dy;
 
     // The live end of the paper takes the real machine's "U" path: it comes
     // up the platen's FRONT (the strike line sits under the head, read
@@ -1458,21 +1493,21 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
     // one continuous ribbon, so a printed row stays visible from the moment
     // the head lays it until it curls away at the top. (The under-platen
     // half of the U is inside the machine and is not built.)
-    float   wrapR    = m_platenR + 0.002f;              // just off the rubber, INSIDE the smoked barrel
-    float   wrapEnd  = s_kPaperTilt;                    // peel where the arc tangent = rise direction
-    float   arcLen   = wrapR * wrapEnd;
+    wrapR = m_platenR + 0.002f; // just off the rubber, INSIDE the smoked barrel
+    wrapEnd = s_kPaperTilt; // peel where the arc tangent = rise direction
+    arcLen = wrapR * wrapEnd;
 
-    float   peelY    = m_platenY + wrapR * std::sin (wrapEnd);
-    float   peelZ    = m_platenZ + wrapR * std::cos (wrapEnd);
-    float   p1y      = peelY + dy * s_kStraightLen;     // where the curl begins
-    float   p1z      = peelZ + dz * s_kStraightLen;
-    float   cy       = p1y + s_kCurlRadius * ny;        // curl center
-    float   cz       = p1z + s_kCurlRadius * nz;
+    peelY = m_platenY + wrapR * std::sin (wrapEnd);
+    peelZ = m_platenZ + wrapR * std::cos (wrapEnd);
+    p1y = peelY + dy * s_kStraightLen; // where the curl begins
+    p1z = peelZ + dz * s_kStraightLen;
+    cy = p1y + s_kCurlRadius * ny; // curl center
+    cz = p1z + s_kCurlRadius * nz;
 
-    float   prevY    = m_platenY;                       // theta = 0: the front strike line
-    float   prevZ    = m_platenZ + wrapR;
-    float   prevV    = 1.0f;
-    float   prevSh   = 0.72f;
+    prevY = m_platenY; // theta = 0: the front strike line
+    prevZ = m_platenZ + wrapR;
+    prevV = 1.0f;
+    prevSh = 0.72f;
 
     // Below the strike line the sheet keeps wrapping down toward the feed
     // slot -- unprinted paper, so it samples a known-white texel inside the
@@ -1518,7 +1553,7 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
     // Only paper that has physically fed PAST the head exists above it: the
     // path stops at the sheet's leading edge (a fresh page is just the edge
     // at the strike line; it grows out of the platen as printing feeds).
-    float   sLimit = total * m_paperFeed01;
+    sLimit = total * m_paperFeed01;
 
     for (int i = 1; i <= s_kPaperSlices && sLimit > 0.0005f; i++)
     {
@@ -1844,11 +1879,16 @@ void Printer3DScene::BuildControls (std::vector<Vertex> & out) const
 
     for (int i = 0; i < s_kButtonCount; i++)
     {
-        float   cx = s_kButtonX0 + (float) i * s_kButtonDx;
-        float   cy = s_kButtonY0 + (float) i * s_kButtonDy;
-        float   x0 = cx - s_kButtonW * 0.5f;
-        float   x1 = cx + s_kButtonW * 0.5f;
-        float   y1 = cy + s_kButtonH;
+        float  cx       = s_kButtonX0 + (float) i * s_kButtonDx;
+        float  cy       = s_kButtonY0 + (float) i * s_kButtonDy;
+        float  x0       = cx - s_kButtonW * 0.5f;
+        float  x1       = cx + s_kButtonW * 0.5f;
+        float  y1       = cy + s_kButtonH;
+        float  qualityI = 0.0f;
+        float  selectI  = 0.0f;
+        float  powerI   = 0.0f;
+        float  errorI   = 0.0f;
+        float  ledCy    = 0.0f;
 
         // Real switches protrude: a shadow on the wall beneath, the paddle's
         // top face catching the light, and its front face standing proud.
@@ -1868,11 +1908,11 @@ void Printer3DScene::BuildControls (std::vector<Vertex> & out) const
         // LED windows flush in the wall above the right three caps, each at its
         // own fixed meaning (i==3 print quality, i==4 select, i==5 on/off pair:
         // red fault + green power) -- no longer all riding one brightness.
-        float   qualityI = RoleIntensity (LampRole::Quality);
-        float   selectI  = RoleIntensity (LampRole::Select);
-        float   powerI   = RoleIntensity (LampRole::Power);
-        float   errorI   = RoleIntensity (LampRole::Error);
-        float   ledCy    = cy + s_kButtonH + 0.012f + 0.004f;
+        qualityI = RoleIntensity (LampRole::Quality);
+        selectI = RoleIntensity (LampRole::Select);
+        powerI = RoleIntensity (LampRole::Power);
+        errorI = RoleIntensity (LampRole::Error);
+        ledCy = cy + s_kButtonH + 0.012f + 0.004f;
 
         if (i == 3)
         {
@@ -1941,13 +1981,15 @@ void Printer3DScene::BuildCassoLogo (std::vector<Vertex> & out, float faceZ) con
 
         while (col < s_kLogoGridW)
         {
+            int  runStart = 0;
+
             if ((bits & (1ULL << col)) == 0)
             {
                 col++;
                 continue;
             }
 
-            int   runStart = col;
+            runStart = col;
 
             while (col < s_kLogoGridW && (bits & (1ULL << col)) != 0)
             {

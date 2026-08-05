@@ -39,17 +39,18 @@ namespace PrintJobSerializerTests
 
         TEST_METHOD (RoundTripPreservesCellsAndState)
         {
-            PrintRaster    original;
-            PrintRaster    rebuilt;
-            StripMeta      meta;
-            vector<Byte>   pixels;
-            int            w = 0;
-            int            h = 0;
+            PrintRaster   original;
+            PrintRaster   rebuilt;
+            StripMeta     meta;
+            vector<Byte>  pixels;
+            int           w        = 0;
+            int           h        = 0;
+            string        json;
 
             BuildSampleStrip (original);
 
             PrintJobSerializer::ExtractIndexPlane (original, w, h, pixels);
-            string   json = PrintJobSerializer::WriteMetaJson (original);
+            json = PrintJobSerializer::WriteMetaJson (original);
 
             AssertSucceeded (PrintJobSerializer::ReadMetaJson (json, meta));
             AssertSucceeded (PrintJobSerializer::RebuildRaster (w, h, pixels, meta, rebuilt));

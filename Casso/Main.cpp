@@ -249,15 +249,16 @@ static HRESULT LoadMachineConfig (
     romDir = AssetBootstrap::GetAssetBaseDirectory();
 
     {
-        bool             hasDisk         = false;
+        bool             hasDisk    = false;
         string           hasDiskErr;
-        HRESULT          hrHasDisk       = AssetBootstrap::HasDiskController (hInstance, machineName,
-                                                                              hasDisk, hasDiskErr);
         GlobalUserPrefs  prefs;
         Win32FileSystem  fs_io;
-        std::wstring     assetBase       = AssetBootstrap::GetAssetBaseDirectory().wstring();
+        std::wstring     assetBase;
         HRESULT          hrLoad;
         HRESULT          hrSave;
+        HRESULT          hrHasDisk       = AssetBootstrap::HasDiskController (hInstance, machineName,
+                                                                              hasDisk, hasDiskErr);
+        assetBase = AssetBootstrap::GetAssetBaseDirectory().wstring();
 
         IGNORE_RETURN_VALUE (hrHasDisk, S_OK);
 
@@ -368,12 +369,13 @@ static HRESULT LoadMachineConfig (
     // in-session reboot. Falls back to the base text on any merge failure.
     {
         Win32FileSystem  fsMerge;
-        UserConfigStore  storeMerge (AssetBootstrap::GetAssetBaseDirectory().wstring());
         JsonValue        defaultJson;
         JsonValue        mergedJson;
         JsonParseError   parseErr;
-        HRESULT          hrParse = S_OK;
-        HRESULT          hrMerge = E_FAIL;
+        HRESULT          hrParse     = S_OK;
+        HRESULT          hrMerge     = S_OK;
+        UserConfigStore  storeMerge (AssetBootstrap::GetAssetBaseDirectory().wstring());
+        hrMerge = E_FAIL;
 
         // The merge only runs when the parse produced something to merge, so
         // hrMerge starts failed rather than being tested unconditionally.
@@ -592,8 +594,9 @@ int WINAPI wWinMain (
     // JSON configs (extracts embedded resources on first run if the
     // user is running a loose casso.exe with no Machines/ folder).
     {
-        HRESULT hrBoot   = AssetBootstrap::EnsureMachineConfigs (hInstance);
-        HRESULT hrThemes = S_OK;
+        HRESULT  hrBoot   = AssetBootstrap::EnsureMachineConfigs (hInstance);
+        HRESULT  hrThemes = S_OK;
+        HRESULT  hrSounds = S_OK;
 
 
 
@@ -608,7 +611,7 @@ int WINAPI wWinMain (
 
         // Extract the ImageWriter II mechanical sound set next to the machine
         // configs and themes so the printer preview has audio on first launch.
-        HRESULT hrSounds = AssetBootstrap::EnsureImageWriterSounds (hInstance);
+        hrSounds = AssetBootstrap::EnsureImageWriterSounds (hInstance);
         IGNORE_RETURN_VALUE (hrSounds, S_OK);
     }
 

@@ -1278,6 +1278,10 @@ namespace AssemblerTests
 
         TEST_METHOD (BranchOutOfRange_ReportsError)
         {
+            bool hasRangeError = false;
+
+
+
             // BEQ (2 bytes) + 128 NOPs → offset = 128, out of range
             Assembler asm6502 = BuildAssembler();
             std::string source = "BEQ target\n";
@@ -1293,7 +1297,6 @@ namespace AssemblerTests
 
             Assert::IsFalse (result.success);
 
-            bool hasRangeError = false;
 
             for (const auto & e : result.errors)
             {
@@ -1431,10 +1434,10 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_InstructionLine)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
             options.generateListing = true;
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -1464,10 +1467,10 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_CommentOnlyLine)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
             options.generateListing = true;
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -1493,10 +1496,10 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_ByteDirective)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
             options.generateListing = true;
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -1523,10 +1526,10 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_LabelOnlyLine)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
             options.generateListing = true;
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -1557,10 +1560,10 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_OrgDirective)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
             options.generateListing = true;
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -1611,10 +1614,11 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_FormatHelper)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options   = {};
+            TestCpu           cpu;
+            std::string       formatted;
             options.generateListing = true;
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -1622,7 +1626,7 @@ namespace AssemblerTests
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 1, result.listing.size());
 
-            std::string formatted = Assembler::FormatListingLine (result.listing[0]);
+            formatted = Assembler::FormatListingLine (result.listing[0]);
             Assert::AreEqual (std::string ("    1 0000   A9 42     LDA #$42"), formatted);
         }
 
@@ -1638,10 +1642,11 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_FormatHelper_NoAddress)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options   = {};
+            TestCpu           cpu;
+            std::string       formatted;
             options.generateListing = true;
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -1649,7 +1654,7 @@ namespace AssemblerTests
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 1, result.listing.size());
 
-            std::string formatted = Assembler::FormatListingLine (result.listing[0]);
+            formatted = Assembler::FormatListingLine (result.listing[0]);
             Assert::AreEqual (std::string ("    1                  ; comment"), formatted);
         }
 
@@ -1678,10 +1683,15 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_ColumnLayout_MatchesAS65)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
+            std::string       line1;
+            std::string       line2;
+            std::string       line3;
+            std::string       line4;
+            std::string       line5;
             options.generateListing = true;
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -1696,23 +1706,23 @@ namespace AssemblerTests
 
             // Verify key listing lines match AS65 column layout
             // Line 1: .org $1000 — address 1000, no bytes
-            std::string line1 = Assembler::FormatListingLine (result.listing[0]);
+            line1 = Assembler::FormatListingLine (result.listing[0]);
             Assert::AreEqual (std::string ("    1 1000             .org $1000"), line1);
 
             // Line 2: LDA #$05 — address 1000, bytes A9 05
-            std::string line2 = Assembler::FormatListingLine (result.listing[1]);
+            line2 = Assembler::FormatListingLine (result.listing[1]);
             Assert::AreEqual (std::string ("    2 1000   A9 05     LDA #$05"), line2);
 
             // Line 3: CLC — address 1002, byte 18
-            std::string line3 = Assembler::FormatListingLine (result.listing[2]);
+            line3 = Assembler::FormatListingLine (result.listing[2]);
             Assert::AreEqual (std::string ("    3 1002   18        CLC"), line3);
 
             // Line 4: ADC #$03 — address 1003, bytes 69 03
-            std::string line4 = Assembler::FormatListingLine (result.listing[3]);
+            line4 = Assembler::FormatListingLine (result.listing[3]);
             Assert::AreEqual (std::string ("    4 1003   69 03     ADC #$03"), line4);
 
             // Line 5: STA $2000 — address 1005, bytes 8D 00 20
-            std::string line5 = Assembler::FormatListingLine (result.listing[4]);
+            line5 = Assembler::FormatListingLine (result.listing[4]);
             Assert::AreEqual (std::string ("    5 1005   8D 00 20  STA $2000"), line5);
 
             // Verify source text starts at column 24 (index 23)
@@ -1733,6 +1743,10 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_MacroExpansion_HasPrefix)
         {
+            std::string  formatted;
+
+
+
             // Build a line manually with isMacroExpansion = true
             AssemblyLine macroLine = {};
             macroLine.lineNumber       = 7;
@@ -1742,7 +1756,7 @@ namespace AssemblerTests
             macroLine.sourceText       = "LDA #$FF";
             macroLine.isMacroExpansion = true;
 
-            std::string formatted = Assembler::FormatListingLine (macroLine);
+            formatted = Assembler::FormatListingLine (macroLine);
 
             // Column 23 (index 22) should be '>' for macro expansion
             Assert::AreEqual ('>', formatted[22]);
@@ -1776,17 +1790,18 @@ namespace AssemblerTests
 
         TEST_METHOD (Listing_SymbolTable_Format)
         {
-            std::unordered_map<std::string, Word> symbols;
+            std::unordered_map<std::string, Word>        symbols;
+            std::unordered_map<std::string, SymbolKind>  symbolKinds;
+            std::string                                  table;
             symbols["START"]   = 0x1000;
             symbols["COUNTER"] = 0x0005;
             symbols["LABEL"]   = 0x1000;
 
-            std::unordered_map<std::string, SymbolKind> symbolKinds;
             symbolKinds["START"]   = SymbolKind::Label;
             symbolKinds["COUNTER"] = SymbolKind::Set;
             symbolKinds["LABEL"]   = SymbolKind::Equ;
 
-            std::string table = Assembler::FormatSymbolTable (symbols, symbolKinds);
+            table = Assembler::FormatSymbolTable (symbols, symbolKinds);
 
             // Should be alphabetically sorted
             size_t posCounter = table.find ("*COUNTER");
@@ -2227,10 +2242,10 @@ namespace AssemblerTests
 
         TEST_METHOD (FooAndFOO_ResolveToDifferentAddresses)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
             options.warningMode = WarningMode::NoWarn; // suppress unused label warnings
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
@@ -2308,15 +2323,15 @@ namespace AssemblerTests
 
         TEST_METHOD (HundredLabels_AllResolveCorrectly)
         {
-            AssemblerOptions options = {};
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
+            std::string       source;
             options.warningMode = WarningMode::NoWarn; // lots of "unused" labels otherwise
 
-            TestCpu cpu;
             cpu.InitForTest();
             Assembler asm6502 (cpu.GetInstructionSet(), options);
 
             // Generate a program with 100 labels, each with a NOP
-            std::string source;
 
             for (int i = 0; i < 100; i++)
             {
@@ -2337,8 +2352,10 @@ namespace AssemblerTests
             // Verify labels are at expected addresses
             for (int i = 0; i < 100; i++)
             {
+                Word  expectedAddr = 0;
+
                 std::string name = "label" + std::to_string (i);
-                Word expectedAddr = 0x0000 + (Word) i;
+                expectedAddr = 0x0000 + (Word) i;
 
                 Assert::AreEqual (expectedAddr, result.symbols[name],
                     (std::wstring (L"Label: ") + std::wstring (name.begin(), name.end())).c_str());

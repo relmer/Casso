@@ -155,10 +155,11 @@ Error:
 
 static HRESULT ReadFileContents (const std::string & path, std::string & contents)
 {
-    HRESULT             hr = S_OK;
-    std::ifstream       file (path, std::ios::binary);
+    HRESULT             hr     = S_OK;
     std::ostringstream  ss;
-    bool                isOpen = file.is_open();
+    bool                isOpen = false;
+    std::ifstream       file (path, std::ios::binary);
+    isOpen = file.is_open();
 
 
 
@@ -199,11 +200,12 @@ static HRESULT WriteFlatBinaryFile (const std::string & path,
                                     Word startAddress,
                                     Byte fillByte)
 {
-    HRESULT        hr = S_OK;
+    HRESULT   hr         = S_OK;
+    uint32_t  endAddress = 0;
+    bool      isOpen     = false;
+    bool      wasWritten = false;
     std::ofstream  file (path, std::ios::binary);
-    uint32_t       endAddress = 0;
-    bool           isOpen     = file.is_open();
-    bool           wasWritten = false;
+    isOpen = file.is_open();
 
 
 
@@ -245,11 +247,12 @@ Error:
 
 static HRESULT WriteSymbolFile (const std::string & path, const std::unordered_map<std::string, Word> & symbols)
 {
-    HRESULT                                    hr = S_OK;
-    std::ofstream                              file (path);
+    HRESULT                                    hr         = S_OK;
     std::vector<std::pair<std::string, Word>>  sorted;
-    bool                                       isOpen     = file.is_open();
+    bool                                       isOpen     = false;
     bool                                       wasWritten = false;
+    std::ofstream                              file (path);
+    isOpen = file.is_open();
 
 
 
@@ -362,18 +365,24 @@ static bool FileExists (const std::string & path)
 
 static std::string TryAutoExtend (const std::string & path)
 {
+    std::string  result;
+    std::string  candidate;
+    size_t       dot       = 0;
+    bool         hasExt    = false;
+    bool         found     = false;
+    int          i         = 0;
+
+
+
     // Common source extensions, tried in order.
     static const char * extensions[] = { ".a65", ".asm", ".s", nullptr };
 
-    std::string  result   = path;
-    std::string  candidate;
-    size_t       dot      = path.rfind ('.');
+    result = path;
+    dot = path.rfind ('.');
     size_t       sep      = path.find_last_of ("/\\");
     // A dot after the last separator is an extension; a dot before it belongs
     // to a directory name and does not count.
-    bool         hasExt   = dot != std::string::npos && (sep == std::string::npos || dot > sep);
-    bool         found    = false;
-    int          i        = 0;
+    hasExt = dot != std::string::npos && (sep == std::string::npos || dot > sep);
 
 
 
@@ -405,9 +414,10 @@ static std::string StripExtension (const std::string & path)
 {
     std::string  result = path;
     size_t       dot    = path.rfind ('.');
+    bool         hasExt = false;
     size_t       sep    = path.find_last_of ("/\\");
     // See TryAutoExtend: only a dot after the last separator is an extension.
-    bool         hasExt = dot != std::string::npos && (sep == std::string::npos || dot > sep);
+    hasExt = dot != std::string::npos && (sep == std::string::npos || dot > sep);
 
 
 
@@ -779,9 +789,10 @@ static void WriteSymbolTableOutput (const AssemblyResult & result)
 static HRESULT WriteDebugInfoOutput (const AssemblyResult & result,
                                      const std::string & debugFile)
 {
-    HRESULT        hr = S_OK;
+    HRESULT  hr     = S_OK;
+    bool     isOpen = false;
     std::ofstream  dbgFile (debugFile);
-    bool           isOpen = dbgFile.is_open();
+    isOpen = dbgFile.is_open();
 
 
 
@@ -895,23 +906,28 @@ static int RunCpu (Cpu & cpu,
                    Word entryPoint,
                    std::vector<std::string> & status)
 {
-    cpu.SetPC (entryPoint);
-    status.push_back (std::format ("Executing from ${:04X}", entryPoint));
-
     uint32_t cycles   = 0;
     int      exitCode = 0;
 
 
 
+    cpu.SetPC (entryPoint);
+    status.push_back (std::format ("Executing from ${:04X}", entryPoint));
+
+
+
+
     for (;;)
     {
+        Byte  opcode = 0;
+
         if (options.maxCycles > 0 && cycles >= options.maxCycles)
         {
             status.push_back (std::format ("Stopped: cycle limit reached ({})", options.maxCycles));
             break;
         }
 
-        Byte opcode = cpu.PeekByte (cpu.GetPC());
+        opcode = cpu.PeekByte (cpu.GetPC());
 
         if (!cpu.GetMicrocode (opcode).isLegal)
         {

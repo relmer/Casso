@@ -35,6 +35,10 @@ void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     int    h       = icon + pad * 2;
     int    segW[3] = {};
     int    txtW[3] = {};
+    int    total   = 0;
+    int    x       = 0;
+    int    y       = 0;
+    int    sx      = 0;
 
 
     m_dpi = eDpi;
@@ -86,27 +90,30 @@ void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
         segW[i] = segPad + ledR * 2 + ledGap + icon + textGap + txtW[i] + segPad;
     }
 
-    int  total = segW[0] + gGap;
+    total = segW[0] + gGap;
     for (int i = 1; i < n; i++)
     {
         total += segW[i] + ((i + 1 < n) ? segGap : 0);
     }
 
-    int  x = boundsDip.left - total / 2;
-    int  y = boundsDip.top  - h / 2;
+    x = boundsDip.left - total / 2;
+    y = boundsDip.top  - h / 2;
 
     m_bounds = RECT { x, y, x + total, y + h };
 
-    int  sx = x;
+    sx = x;
     for (int i = 0; i < n; i++)
     {
+        int  ix = 0;
+        int  tx = 0;
+
         m_segRects[i]   = RECT { sx, y, sx + segW[i], y + h };
         m_ledCenters[i] = POINT { sx + segPad + ledR, y + h / 2 };
 
-        int  ix = sx + segPad + ledR * 2 + ledGap;
+        ix = sx + segPad + ledR * 2 + ledGap;
         m_iconRects[i]  = RECT { ix, y + pad, ix + icon, y + pad + icon };
 
-        int  tx = ix + icon + textGap;
+        tx = ix + icon + textGap;
         m_textRects[i]  = RECT { tx, y, tx + txtW[i], y + h };
 
         sx += segW[i] + ((i == 0) ? gGap : segGap);
@@ -274,19 +281,25 @@ const wchar_t * InputDeviceSelector::TooltipTextAt (int x, int y) const
 void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     static constexpr Segment  kOrder[3] = { Segment::Joystick, Segment::Paddle, Segment::Mouse };
+    float                     fontPx    = 0.0f;
+    float                     ledR      = 0.0f;
 
     if (m_bounds.right <= m_bounds.left)
     {
         return;                       // hidden
     }
 
-    float  fontPx = kFontDip * (float) m_dpi / 96.0f;
-    float  ledR   = 4.0f * (float) m_dpi / 96.0f;
+    fontPx = kFontDip * (float) m_dpi / 96.0f;
+    ledR = 4.0f * (float) m_dpi / 96.0f;
 
     for (int i = 0; i < SegmentCount(); i++)
     {
-        const RECT & r   = m_segRects[i];
-        bool         sel = SegmentSelected (i);
+        const RECT  & r   = m_segRects[i];
+        bool          sel = SegmentSelected (i);
+        float         tx  = 0.0f;
+        float         ty  = 0.0f;
+        float         tw  = 0.0f;
+        float         bh  = 0.0f;
 
         if (m_hovered && m_hoverSegment == kOrder[i])
         {
@@ -304,11 +317,12 @@ void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
             float            cum         = 0.0f;   // opacity composited so far
             for (int ring = kGlowRings; ring >= 1; ring--)
             {
-                float  t      = (float) ring / (float) (kGlowRings + 1);
-                float  target = 0.63f * (1.0f - t) * (1.0f - t);
-                float  add    = (target - cum) / (1.0f - cum);
+                float     t      = (float) ring / (float) (kGlowRings + 1);
+                float     target = 0.63f * (1.0f - t) * (1.0f - t);
+                float     add    = (target - cum) / (1.0f - cum);
+                uint32_t  a      = 0;
                 cum = target;
-                uint32_t  a = (uint32_t) (add * 255.0f + 0.5f);
+                a = (uint32_t) (add * 255.0f + 0.5f);
                 painter.FillCircleApprox ((float) m_ledCenters[i].x, (float) m_ledCenters[i].y,
                                           ledR * (1.0f + (kGlowSpread - 1.0f) * t),
                                           (a << 24) | (kLedOnCore & 0x00FFFFFF));
@@ -328,10 +342,10 @@ void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
             case 2: PaintMouseGlyph    (painter, m_iconRects[i], m_skeuoStyle); break;
         }
 
-        float  tx = (float) m_textRects[i].left;
-        float  ty = (float) m_textRects[i].top;
-        float  tw = (float) (m_textRects[i].right - m_textRects[i].left) + 4.0f;
-        float  bh = (float) (m_textRects[i].bottom - m_textRects[i].top);
+        tx = (float) m_textRects[i].left;
+        ty = (float) m_textRects[i].top;
+        tw = (float) (m_textRects[i].right - m_textRects[i].left) + 4.0f;
+        bh = (float) (m_textRects[i].bottom - m_textRects[i].top);
 
         if (kOrder[i] == Segment::Paddle && sel)
         {

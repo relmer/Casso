@@ -599,22 +599,26 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     for (i = 0; i < (int) n; ++i)
     {
-        const FlatRow       & fr        = m_flatRows[(size_t) i];
-        const DxuiTreeNode  * node      = NodeAt (i);
-        float                 rowY      = (float) (m_boundsDip.top + i * m_rowHeightPx);
-        float                 rowHeight = (float) m_rowHeightPx;
-        float                 twistyX   = (float) (m_boundsDip.left + fr.depth * m_indentPx);
-        float                 checkboxX = twistyX + (float) m_twistyPx;
-        float                 textX     = checkboxX + (float) m_checkboxPx + textGap;
+        const FlatRow       & fr          = m_flatRows[(size_t) i];
+        const DxuiTreeNode  * node        = NodeAt (i);
+        float                 rowY        = (float) (m_boundsDip.top + i * m_rowHeightPx);
+        float                 rowHeight   = (float) m_rowHeightPx;
+        float                 twistyX     = (float) (m_boundsDip.left + fr.depth * m_indentPx);
+        float                 checkboxX   = twistyX + (float) m_twistyPx;
+        float                 textX       = checkboxX + (float) m_checkboxPx + textGap;
+        bool                  hasChildren = false;
+        uint32_t              boxColor    = 0;
+        uint32_t              glyphCol    = 0;
+        uint32_t              textCol     = 0;
         uint32_t          rowFill   = (i == m_highlight) ? s_kRowHighlight
                                        : (i == m_hoverRow ? s_kRowHover : s_kRowIdle);
-        bool              hasChildren = (node != nullptr) && !node->children.empty();
+        hasChildren = (node != nullptr) && !node->children.empty();
         bool              interactive = (node != nullptr)
                                           && node->capabilityFlag == DxuiTreeCapabilityFlag::Optional
                                           && m_enabled;
-        uint32_t          boxColor  = interactive ? s_kBoxIdle : s_kBoxLocked;
-        uint32_t          glyphCol  = interactive ? s_kCheckGlyph : s_kCheckLocked;
-        uint32_t          textCol   = interactive ? s_kTextIdle : s_kTextDisabled;
+        boxColor = interactive ? s_kBoxIdle : s_kBoxLocked;
+        glyphCol = interactive ? s_kCheckGlyph : s_kCheckLocked;
+        textCol = interactive ? s_kTextIdle : s_kTextDisabled;
 
         if (rowFill != 0)
         {

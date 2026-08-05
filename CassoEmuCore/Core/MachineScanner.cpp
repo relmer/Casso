@@ -82,8 +82,10 @@ vector<MachineInfo> MachineScanner::Scan (
 
     for (const auto & basePath : searchPaths)
     {
+        vector<fs::path>  subDirs;
+
         fs::path          machinesDir = basePath / "Machines";
-        vector<fs::path>  subDirs     = lister (machinesDir);
+        subDirs = lister (machinesDir);
 
         if (subDirs.empty())
         {
@@ -93,10 +95,11 @@ vector<MachineInfo> MachineScanner::Scan (
         for (const auto & subDir : subDirs)
         {
             MachineInfo  info;
-            fs::path     jsonPath = subDir / (subDir.filename().string() + ".json");
             string       jsonText;
             wstring      name;
-            HRESULT      hrRead   = reader (jsonPath, jsonText);
+            HRESULT      hrRead   = S_OK;
+            fs::path     jsonPath = subDir / (subDir.filename().string() + ".json");
+            hrRead = reader (jsonPath, jsonText);
 
             if (FAILED (hrRead))
             {
@@ -267,9 +270,9 @@ vector<fs::path> MachineScanner::ListDirectory (const fs::path & dir)
 HRESULT MachineScanner::ReadFile (const fs::path & file, string & outText)
 {
     HRESULT       hr       = S_OK;
-    ifstream      stream (file);
     stringstream  ss;
     bool          readWell = false;
+    ifstream      stream (file);
 
 
 

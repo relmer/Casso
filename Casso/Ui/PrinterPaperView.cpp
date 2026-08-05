@@ -85,14 +85,21 @@ void PrinterPaperView::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
 
 void PrinterPaperView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    UNREFERENCED_PARAMETER (theme);
-
     HRESULT        hr     = S_OK;
     DxuiDpiScaler  scaler;
-    float          x      = (float) m_bounds.left;
-    float          y      = (float) m_bounds.top;
-    float          w      = (float) (m_bounds.right  - m_bounds.left);
-    float          h      = (float) (m_bounds.bottom - m_bounds.top);
+    float          x      = 0.0f;
+    float          y      = 0.0f;
+    float          w      = 0.0f;
+    float          h      = 0.0f;
+
+
+
+    UNREFERENCED_PARAMETER (theme);
+
+    x = (float) m_bounds.left;
+    y = (float) m_bounds.top;
+    w = (float) (m_bounds.right  - m_bounds.left);
+    h = (float) (m_bounds.bottom - m_bounds.top);
 
     // A zero-sized view draws nothing at all -- not even the mat.
     if (w > 0.0f && h > 0.0f)

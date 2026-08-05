@@ -177,9 +177,9 @@ namespace MockingboardCardTestNs
         TEST_METHOD (Timer1ContinuousDrivesSharedIrq)
         {
             MbTestCpu             cpu;
+            HRESULT               hr = S_OK;
             InterruptController   ic (&cpu);
             MockingboardCard      card (4);
-            HRESULT               hr = S_OK;
 
 
 
@@ -206,9 +206,9 @@ namespace MockingboardCardTestNs
         TEST_METHOD (SecondViaTimerAlsoDrivesIrq)
         {
             MbTestCpu             cpu;
+            HRESULT               hr = S_OK;
             InterruptController   ic (&cpu);
             MockingboardCard      card (4);
-            HRESULT               hr = S_OK;
 
 
 
@@ -229,10 +229,13 @@ namespace MockingboardCardTestNs
 
         TEST_METHOD (ProgrammedToneProducesAudio)
         {
-            MockingboardCard    card (4);
-            float     buffer[2000] = {};
             uint32_t  i            = 0;
             float     peak         = 0.0f;
+
+
+
+            MockingboardCard    card (4);
+            float     buffer[2000] = {};
 
 
 

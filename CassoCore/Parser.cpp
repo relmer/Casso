@@ -33,6 +33,8 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
 {
     std::vector<std::string> lines;
     std::string              line;
+    std::vector<std::string> joined;
+    std::string              current;
 
 
 
@@ -72,8 +74,6 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
     }
 
     // Join continuation lines (trailing backslash before EOL)
-    std::vector<std::string> joined;
-    std::string              current;
 
     for (const auto & raw : lines)
     {
@@ -140,8 +140,8 @@ static std::string StripComments (const std::string & line)
 static std::string Trim (const std::string & s)
 {
     std::string  out;
-    size_t       start = s.find_first_not_of (" \t");
     size_t       end   = 0;
+    size_t       start = s.find_first_not_of (" \t");
 
 
 
@@ -320,12 +320,14 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
     // NAME equ EXPR / NAME set EXPR
     if (!isConstant && spacePos != std::string::npos)
     {
-        std::string firstWord  = remainder.substr (0, spacePos);
-        std::string afterFirst = Trim (remainder.substr (spacePos + 1));
+        std::string  firstWord   = remainder.substr (0, spacePos);
+        std::string  afterFirst  = Trim (remainder.substr (spacePos + 1));
+        std::string  secondWord;
+        std::string  secondUpper;
 
         size_t sp2 = afterFirst.find_first_of (" \t");
-        std::string  secondWord  = (sp2 == std::string::npos) ? afterFirst : afterFirst.substr (0, sp2);
-        std::string  secondUpper = ToUpper (secondWord);
+        secondWord = (sp2 == std::string::npos) ? afterFirst : afterFirst.substr (0, sp2);
+        secondUpper = ToUpper (secondWord);
 
         if (secondUpper == "EQU" || secondUpper == "SET")
         {
@@ -891,7 +893,8 @@ std::vector<std::string> Parser::SplitArgList (const std::string & text)
 
     while (start <= text.size())
     {
-        size_t commaPos = FindTopLevelComma (text, start);
+        size_t       commaPos = FindTopLevelComma (text, start);
+        std::string  arg;
 
         if (commaPos == std::string::npos)
         {
@@ -905,7 +908,7 @@ std::vector<std::string> Parser::SplitArgList (const std::string & text)
             break;
         }
 
-        std::string arg = TrimOperand (text.substr (start, commaPos - start));
+        arg = TrimOperand (text.substr (start, commaPos - start));
 
         if (!arg.empty())
         {

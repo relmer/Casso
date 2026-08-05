@@ -644,7 +644,8 @@ void PrinterPanel::UpdateTooltip (int x, int y)
 
 void PrinterPanel::SyncTransform()
 {
-    float   zoom = m_panZoom.Zoom();
+    float  zoom    = m_panZoom.Zoom();
+    float  overMax = 0.0f;
 
 
 
@@ -684,7 +685,6 @@ void PrinterPanel::SyncTransform()
     // row, the top extended just enough to clear the curl -- so there is no
     // world overscroll: hitting a scroll limit stops rather than sliding the 3D
     // world past it. (Cursor zoom / drag pan still move the camera freely.)
-    float   overMax = 0.0f;
     m_panZoom.SetOverscrollYMax (overMax);
 
     if (m_scene != nullptr)
@@ -792,6 +792,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     // so there is nothing to sync a viewport to.
     if (m_paper != nullptr)
     {
+        int  platenRow = 0;
 
         worker.HeadPosition (headRow, headCol);
 
@@ -855,7 +856,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         // text line sweeps back over its own ink, not off to the right margin. The ink
         // reveal itself is the wet-ink presented layer; the column here only drives the
         // audio (which ink the head just crossed) and the re-render change detection.
-        int   platenRow = (std::max) (0, headRow);
+        platenRow = (std::max) (0, headRow);
 
         sweepLtr     = worker.HeadSweepLtr();
         revealRow    = (std::max) (0, worker.RevealBandTop());   // print frontier (change-detect)
@@ -1182,15 +1183,19 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
 
             if (delta >= 0 && delta < spanRows)
             {
+                int  dirtyFirst   = 0;
+                int  exposedFirst = 0;
+                int  renderFirst  = 0;
+
                 if (delta > 0)
                 {
                     memmove (m_spanImg.PixelAt (0, 0), m_spanImg.PixelAt (0, delta),
                              rowBytes * (spanRows - delta));   // shift retained rows up
                 }
 
-                int   dirtyFirst   = (dirtyFromAbs > firstAbsRow) ? (dirtyFromAbs - firstAbsRow) : 0;
-                int   exposedFirst = spanRows - delta;           // rows scrolled into view (spanRows when delta==0)
-                int   renderFirst  = (std::min) (dirtyFirst, exposedFirst);
+                dirtyFirst = (dirtyFromAbs > firstAbsRow) ? (dirtyFromAbs - firstAbsRow) : 0;
+                exposedFirst = spanRows - delta; // rows scrolled into view (spanRows when delta==0)
+                renderFirst = (std::min) (dirtyFirst, exposedFirst);
 
                 if (renderFirst >= spanRows)
                 {
@@ -1294,11 +1299,12 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
 void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbsRow, int bottomAbsRow,
                                   int revealBandTopAbs, int revealLoDots, int revealHiDots, int contentDirtyFromAbs)
 {
-    HRESULT   hr        = S_OK;
-    int       canvasW   = s_kStockWidthPx;
-    int       canvasH   = m_viewport.ViewportRows();   // px == rows at 144 dpi
-    int       topAbsRow = bottomAbsRow - canvasH + 1;   // canvas bottom = span's live row
-    int       holeR     = s_kHoleRadiusPx;
+    HRESULT  hr        = S_OK;
+    int      canvasW   = s_kStockWidthPx;
+    int      canvasH   = m_viewport.ViewportRows();   // px == rows at 144 dpi
+    int      topAbsRow = bottomAbsRow - canvasH + 1;   // canvas bottom = span's live row
+    int      holeR     = s_kHoleRadiusPx;
+    int      delta     = 0;
 
     if (m_canvas.size() != (size_t) canvasW * canvasH)
     {
@@ -1335,15 +1341,19 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
 
             for (int y = 0; y < content->height; y++)
             {
+                uint32_t    * dst    = nullptr;
+                const Byte  * src    = nullptr;
+                int           xStart = 0;
+                int           xEnd   = 0;
+
                 if (yTop + y < rowFirst || yTop + y > rowLast)
                 {
                     continue;
                 }
 
-                uint32_t *     dst    = &m_canvas[(size_t) (yTop + y) * canvasW + s_kContentXPx];
-                const Byte *   src    = content->PixelAt (0, y);
-                int            xStart = 0;
-                int            xEnd   = content->width;
+                dst = &m_canvas[(size_t) (yTop + y) * canvasW + s_kContentXPx];
+                src = content->PixelAt (0, y);
+                xEnd = content->width;
 
                 // Rows in the live pin band reveal only the swept column span in
                 // the carriage's current direction: [0, head] left-to-right, or
@@ -1449,11 +1459,15 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
                      && m_canvasSpanGen == m_spanImgGen
                      && content->height == canvasH
                      && contentFirstAbsRow == topAbsRow;
-    int    delta   = topAbsRow - m_canvasTopAbs;
+    delta = topAbsRow - m_canvasTopAbs;
 
     if (aligned && std::abs (delta) < canvasH)
     {
-        size_t   rowBytes = (size_t) canvasW * 4;
+        size_t  rowBytes     = (size_t) canvasW * 4;
+        int     oldRevealTop = 0;
+        int     newRevealTop = 0;
+        int     contentTop   = 0;
+        int     rebuildTop   = 0;
 
         if (delta > 0)
         {
@@ -1465,10 +1479,10 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
         }
 
         // Union of the dirty regions, all anchored at the canvas bottom.
-        int   oldRevealTop = (m_canvasRevealTop >= 0) ? m_canvasRevealTop - topAbsRow : canvasH;
-        int   newRevealTop = (revealBandTopAbs  >= 0) ? revealBandTopAbs  - topAbsRow : canvasH;
-        int   contentTop   = (contentDirtyFromAbs > topAbsRow) ? (contentDirtyFromAbs - topAbsRow) : 0;
-        int   rebuildTop   = (std::min) (canvasH - 1, (std::min) (oldRevealTop, newRevealTop));
+        oldRevealTop = (m_canvasRevealTop >= 0) ? m_canvasRevealTop - topAbsRow : canvasH;
+        newRevealTop = (revealBandTopAbs  >= 0) ? revealBandTopAbs  - topAbsRow : canvasH;
+        contentTop = (contentDirtyFromAbs > topAbsRow) ? (contentDirtyFromAbs - topAbsRow) : 0;
+        rebuildTop = (std::min) (canvasH - 1, (std::min) (oldRevealTop, newRevealTop));
 
         rebuildTop = (std::min) (rebuildTop, contentTop);
 
@@ -1539,10 +1553,10 @@ bool PrinterPanel::OnMouse (const DxuiMouseEvent & ev)
 {
     bool  isMove    = (ev.kind == DxuiMouseEventKind::Move);
     bool  isDown    = (ev.kind == DxuiMouseEventKind::Down);
+    bool  handled   = false;
     bool  isPaperLb = isDown
                       && ev.button == DxuiMouseButton::Left
                       && PaperHit (ev.positionDip.x, ev.positionDip.y);
-    bool  handled   = false;
 
     if (ev.kind == DxuiMouseEventKind::Wheel)
     {
@@ -1666,10 +1680,14 @@ bool PrinterPanel::OnKey (const DxuiKeyEvent & ev)
 
 void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int   pad      = scaler.Px (kPadDip);
-    int   gap      = scaler.Px (6);
-    int   captionH = CaptionHeightPx();
-    int   toolbarH = scaler.Px (kToolbarHDip);
+    int  pad        = scaler.Px (kPadDip);
+    int  gap        = scaler.Px (6);
+    int  captionH   = CaptionHeightPx();
+    int  toolbarH   = scaler.Px (kToolbarHDip);
+    int  topBandTop = 0;
+    int  topBy      = 0;
+    int  botBandTop = 0;
+    int  botBy      = 0;
     // Two lines' worth. The hint wraps rather than clipping (see Paint), so the
     // strip has to reserve the second line up front -- Layout has no text
     // renderer to measure with, and sizing it per-frame would make the paper
@@ -1685,10 +1703,10 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     // panel's own bounds; set them so Paint's backdrop fills the whole client.
     SetBounds (boundsDip);
 
-    int   topBandTop = boundsDip.top + captionH;
-    int   topBy      = topBandTop + (toolbarH - btnH) / 2;
-    int   botBandTop = boundsDip.bottom - toolbarH;
-    int   botBy      = botBandTop + (toolbarH - btnH) / 2;
+    topBandTop = boundsDip.top + captionH;
+    topBy = topBandTop + (toolbarH - btnH) / 2;
+    botBandTop = boundsDip.bottom - toolbarH;
+    botBy = botBandTop + (toolbarH - btnH) / 2;
 
     // Top band: document actions run left-to-right from the left pad.
     {

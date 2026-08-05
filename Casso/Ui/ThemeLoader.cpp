@@ -659,9 +659,9 @@ HRESULT ThemeLoader::Load (
     ThemeLoadError             & outError)
 {
     HRESULT       hr        = S_OK;
-    std::wstring  themePath = JoinPath (themeDir, L"theme.json");
     std::string   text;
     bool          exists    = false;
+    std::wstring  themePath = JoinPath (themeDir, L"theme.json");
 
 
 

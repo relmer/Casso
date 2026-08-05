@@ -124,16 +124,16 @@ void DxuiStackLayout::Arrange (
 
     for (size_t i = 0; i < children.size(); ++i)
     {
-        IDxuiControl *  child     = children[i];
-        auto            it        = m_weights.find (child);
-        int             weight    = (it == m_weights.end()) ? 0 : it->second;
-        RECT            curBounds = child->Bounds();
+        IDxuiControl  * child       = children[i];
+        auto            it          = m_weights.find (child);
+        int             weight      = (it == m_weights.end()) ? 0 : it->second;
+        RECT            curBounds   = child->Bounds();
+        LONG            crossOffset = 0;
+        RECT            newBounds   = {};
         LONG            mainSize  = horizontal ? (curBounds.right - curBounds.left)
                                                : (curBounds.bottom - curBounds.top);
         LONG            crossSize = horizontal ? (curBounds.bottom - curBounds.top)
                                                : (curBounds.right  - curBounds.left);
-        LONG  crossOffset = 0;
-        RECT  newBounds   = {};
 
         if (weight > 0 && weightSum > 0)
         {

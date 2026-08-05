@@ -81,8 +81,9 @@ namespace Apple2eFidelity
         TEST_METHOD (ResetClearsCycleCount)
         {
             TestCpu     cpu;
-            ICpu      & iface = cpu;
-            HRESULT     hr    = S_OK;
+            ICpu      & iface  = cpu;
+            HRESULT     hr     = S_OK;
+            uint32_t    cycles = 0;
 
 
 
@@ -92,7 +93,6 @@ namespace Apple2eFidelity
             cpu.Poke (0x8000, 0xEA);
             cpu.Poke (0x8001, 0xEA);
 
-            uint32_t    cycles = 0;
             hr = iface.Step (cycles);
             Assert::AreEqual (S_OK, hr);
             hr = iface.Step (cycles);

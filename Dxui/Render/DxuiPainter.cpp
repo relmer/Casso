@@ -678,18 +678,22 @@ void DxuiPainter::FillEllipseApprox (
 
 void DxuiPainter::FillSpanAA (float x0, float x1, float y, float h, uint32_t argbColor)
 {
-    uint32_t  baseA = (argbColor >> 24) & 0xFFu;
+    uint32_t  baseA    = (argbColor >> 24) & 0xFFu;
+    float     xl       = 0.0f;
+    float     xr       = 0.0f;
+    float     leftCov  = 0.0f;
+    float     rightCov = 0.0f;
     auto      withA = [&](float cov) -> uint32_t
     {
+        uint32_t  a = 0;
+
         cov = (cov < 0.0f) ? 0.0f : (cov > 1.0f) ? 1.0f : cov;
-        uint32_t  a = (uint32_t) ((float) baseA * cov + 0.5f);
+        a = (uint32_t) ((float) baseA * cov + 0.5f);
         return (argbColor & 0x00FFFFFFu) | (a << 24);
     };
 
-    float  xl       = floorf (x0);
-    float  xr       = floorf (x1);
-    float  leftCov  = 0.0f;
-    float  rightCov = 0.0f;
+    xl = floorf (x0);
+    xr = floorf (x1);
 
     // Degenerate spans (zero or negative width / height) draw nothing.
     if (x1 > x0 && h > 0.0f)
@@ -735,9 +739,10 @@ void DxuiPainter::FillConvexQuad (
     float x2, float y2, float x3, float y3,
     uint32_t argbColor)
 {
-    float  px[4] = { x0, x1, x2, x3 };
-    float  py[4] = { y0, y1, y2, y3 };
-    float  minY  = py[0], maxY = py[0];
+    float  px[4]  = { x0, x1, x2, x3 };
+    float  py[4]  = { y0, y1, y2, y3 };
+    float  minY   = py[0], maxY = py[0];
+    int    slices = 0;
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -748,7 +753,7 @@ void DxuiPainter::FillConvexQuad (
         if (py[i] > maxY) maxY = py[i];
     }
 
-    int  slices = (int) (maxY - minY);
+    slices = (int) (maxY - minY);
     if (slices < 1)   slices = 1;
     if (slices > 96)  slices = 96;
 
@@ -806,6 +811,7 @@ void DxuiPainter::DrawLineApprox (
     float  dy    = y1 - y0;
     float  len   = sqrtf (dx * dx + dy * dy);
     float  half  = thicknessPx * 0.5f;
+    int    steps = 0;
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -816,7 +822,7 @@ void DxuiPainter::DrawLineApprox (
         return;
     }
 
-    int  steps = (int) len + 1;
+    steps = (int) len + 1;
     if (steps > 96) steps = 96;
 
     for (int i = 0; i <= steps; i++)

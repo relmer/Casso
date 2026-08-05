@@ -386,17 +386,19 @@ public:
 
     TEST_METHOD (US4_MixedMode_80Col_GoldenOutput)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        uint32_t       seed = 0xCA550001u;
-        int            row;
-        int            col;
-        Word           rowBase;
-        Word           hiresAddr;
-        Byte           a;
-        Byte           m;
-        Byte           h;
-        uint64_t       hash;
+        HeadlessHost          host;
+        EmulatorCore          core;
+        uint32_t              seed      = 0xCA550001u;
+        int                   row;
+        int                   col;
+        Word                  rowBase;
+        Word                  hiresAddr;
+        Byte                  a;
+        Byte                  m;
+        Byte                  h;
+        uint64_t              hash;
+        Byte                * auxBuf    = nullptr;
+        constexpr uint64_t    kExpected = 0x2ABA2BA47C35CE05ULL;
 
         HRESULT   hr = host.BuildApple2e (core);
         AssertSucceeded (hr, L"BuildApple2e must succeed");
@@ -414,7 +416,7 @@ public:
         core.bus->WriteByte (kSwitch80StoreOn, 0);
         core.bus->WriteByte (kSwitch80ColOn,   0);
 
-        Byte * auxBuf = core.mmu->GetAuxBuffer();
+        auxBuf = core.mmu->GetAuxBuffer();
 
         // Stamp a deterministic 80-col text pattern into the bottom 4
         // rows (20..23). Aux supplies even columns, main supplies odd.
@@ -474,7 +476,6 @@ public:
         // Video/PixelFormat.h) — pixel bytes are now in BGRA order so
         // the FNV hash over the framebuffer changes for any frame with
         // non-grayscale content.
-        constexpr uint64_t   kExpected = 0x2ABA2BA47C35CE05ULL;
 
         Assert::AreEqual (kExpected, hash,
             std::format (L"Mixed-mode 80COL golden hash mismatch: got 0x{:016X}", hash).c_str());

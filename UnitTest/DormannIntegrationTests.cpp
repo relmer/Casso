@@ -77,6 +77,10 @@ namespace DormannIntegrationTests
 
     static HRESULT DownloadFile (const std::string & url, const std::string & destPath)
     {
+        int  exitCode = 0;
+
+
+
         // Use curl.exe directly rather than `powershell Invoke-WebRequest`.
         // Windows Defender heuristically flags the
         //   cmd.exe -> powershell -NoProfile -Command Invoke-WebRequest -Uri ... -OutFile ...
@@ -84,7 +88,7 @@ namespace DormannIntegrationTests
         // worked around in scripts/RunDormannTest.ps1). curl.exe ships with
         // Win10 1803+ / Win11 and avoids the heuristic.
         std::string cmd      = "curl.exe -sSL -o \"" + destPath + "\" \"" + url + "\"";
-        int         exitCode = system (cmd.c_str());
+        exitCode = system (cmd.c_str());
 
         return exitCode == 0 ? S_OK : E_FAIL;
     }
@@ -101,8 +105,11 @@ namespace DormannIntegrationTests
 
     static std::vector<Byte> ReadBinaryFile (const std::string & path)
     {
-        std::ifstream      file (path, std::ios::binary | std::ios::ate);
         std::vector<Byte>  data;
+
+
+
+        std::ifstream      file (path, std::ios::binary | std::ios::ate);
 
         // The Dormann binaries are downloaded on demand, so "absent" is an
         // expected state; it reads as empty and the caller skips.
@@ -130,9 +137,12 @@ namespace DormannIntegrationTests
 
     static std::string ReadTextFile (const std::string & path)
     {
-        std::ifstream       file (path);
         std::ostringstream  ss;
         std::string         text;
+
+
+
+        std::ifstream       file (path);
 
         // Same contract as ReadBinaryFile: absent reads as empty.
         if (file.is_open())
@@ -199,13 +209,20 @@ namespace DormannIntegrationTests
 
         TEST_METHOD (DormannAssemblesSuccessfully)
         {
+            HRESULT           hrDownload   = S_OK;
+            std::string       source;
+            AssemblerOptions  opts;
+            uint32_t          vectorOffset = 0;
+
+
+
             const std::string sourceUrl =
                 "https://raw.githubusercontent.com/Klaus2m5/6502_65C02_functional_tests/master/6502_functional_test.a65";
 
             std::string sourceFile = "dormann_test_source.dormann.tmp";
 
             // Download source
-            HRESULT hrDownload = DownloadFile (sourceUrl, sourceFile);
+            hrDownload = DownloadFile (sourceUrl, sourceFile);
 
             if (FAILED (hrDownload))
             {
@@ -214,13 +231,12 @@ namespace DormannIntegrationTests
             }
 
             // Read source
-            std::string source = ReadTextFile (sourceFile);
+            source = ReadTextFile (sourceFile);
             remove (sourceFile.c_str());
 
             Assert::IsFalse (source.empty(), L"Source file is empty");
 
             // Assemble
-            AssemblerOptions opts;
             opts.fillByte = 0x00;
 
             Assembler  a      = BuildAssembler (opts);
@@ -246,7 +262,7 @@ namespace DormannIntegrationTests
 
             // Verify vectors are present at $FFFA
             // NMI, RESET, IRQ vectors should be at the end of the output
-            uint32_t vectorOffset = 0xFFFA - result.startAddress;
+            vectorOffset = 0xFFFA - result.startAddress;
             Assert::IsTrue (vectorOffset < result.bytes.size(), L"Vectors should be within output");
         }
     };
@@ -309,13 +325,16 @@ namespace DormannIntegrationTests
 
         TEST_METHOD (DormannRunsInCpu)
         {
+            std::string   source;
+            const char *  skipReason = nullptr;
+            HRESULT       hrDownload = S_OK;
+
+
+
             const std::string sourceUrl =
                 "https://raw.githubusercontent.com/Klaus2m5/6502_65C02_functional_tests/master/6502_functional_test.a65";
 
             std::string   sourceFile = "dormann_cpu_source.dormann.tmp";
-            std::string   source;
-            const char *  skipReason = nullptr;
-            HRESULT       hrDownload = S_OK;
 
             // No network and no source are environment problems, not defects.
             // This test is Integration-tagged and skips rather than failing a
@@ -360,6 +379,14 @@ namespace DormannIntegrationTests
                 }
                 else
                 {
+                    const int  maxInstructions = 100000000;
+                    Word       prevPC          = 0;
+                    int        sameCount       = 0;
+                    int        executed        = 0;
+                    int        i               = 0;
+                    bool       passed          = false;
+                    Word       successTrap     = 0;
+
                     // Load into CPU
                     TestCpu cpu;
                     cpu.InitForTest (0x0400);
@@ -373,13 +400,8 @@ namespace DormannIntegrationTests
                     cpu.RegPC() = 0x0400;
 
                     // Run with a cycle limit — informational only
-                    const int    maxInstructions = 100000000;
-                    Word         prevPC          = 0xFFFF;
-                    int          sameCount       = 0;
-                    int          executed        = 0;
-                    int          i               = 0;
-                    bool         passed          = false;
-                    const Word   successTrap     = 0x3469;   // Dormann success address
+                    prevPC = 0xFFFF;
+                    successTrap = 0x3469; // Dormann success address
 
                     for (i = 0; !passed && i < maxInstructions; i++)
                     {
@@ -486,9 +508,15 @@ namespace DormannIntegrationTests
 
         TEST_METHOD (Dormann65C02AssemblesSuccessfully)
         {
+            HRESULT           hrDownload = S_OK;
+            std::string       source;
+            AssemblerOptions  opts;
+
+
+
             std::string sourceFile = "dormann65_source.dormann.tmp";
 
-            HRESULT hrDownload = DownloadFile (kSourceUrl, sourceFile);
+            hrDownload = DownloadFile (kSourceUrl, sourceFile);
 
             if (FAILED (hrDownload))
             {
@@ -496,14 +524,13 @@ namespace DormannIntegrationTests
                 return;
             }
 
-            std::string source = ReadTextFile (sourceFile);
+            source = ReadTextFile (sourceFile);
             remove (sourceFile.c_str());
 
             Assert::IsFalse (source.empty(), L"Source file is empty");
 
             source = SelectDormannOpcodeSubset (source);
 
-            AssemblerOptions opts;
             opts.fillByte = 0x00;
 
             Assembler a      = BuildAssembler65C02 (opts);
@@ -542,10 +569,13 @@ namespace DormannIntegrationTests
 
         TEST_METHOD (Dormann65C02RunsInCpu)
         {
-            std::string   sourceFile = "dormann65_cpu_source.dormann.tmp";
             std::string   source;
             const char *  skipReason = nullptr;
             HRESULT       hrDownload = S_OK;
+
+
+
+            std::string   sourceFile = "dormann65_cpu_source.dormann.tmp";
 
             // No network and no source are environment problems, not defects:
             // an Integration-tagged test skips rather than failing a build that
@@ -574,9 +604,10 @@ namespace DormannIntegrationTests
             }
             else
             {
+                AssemblerOptions opts;
+
                 source = SelectDormannOpcodeSubset (source);
 
-                AssemblerOptions opts;
                 opts.fillByte = 0xFF;
 
                 Assembler a      = BuildAssembler65C02 (opts);
@@ -591,7 +622,13 @@ namespace DormannIntegrationTests
                 }
                 else
                 {
-                    TestCpu65C02 cpu;
+                    TestCpu65C02  cpu;
+                    const int     maxInstructions = 200000000;
+                    Word          successTrap     = 0;
+                    Word          prevPC          = 0;
+                    int           sameCount       = 0;
+                    int           i               = 0;
+                    bool          passed          = false;
                     cpu.InitForTest (0x0400);
 
                     for (size_t i = 0; i < result.bytes.size(); i++)
@@ -605,12 +642,8 @@ namespace DormannIntegrationTests
                     // opcodes suite runs to a success self-trap at $2569 (~22M instructions).
                     // A self-loop at any other PC is a failing Dormann subtest; its address
                     // identifies which.
-                    const int    maxInstructions = 200000000;
-                    const Word   successTrap     = 0x2569;
-                    Word         prevPC          = 0xFFFF;
-                    int          sameCount       = 0;
-                    int          i               = 0;
-                    bool         passed          = false;
+                    successTrap = 0x2569;
+                    prevPC = 0xFFFF;
 
                     for (i = 0; !passed && i < maxInstructions; i++)
                     {

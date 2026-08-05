@@ -181,8 +181,8 @@ HRESULT DiskSettings::ReadSavedDiskPath (
     JsonValue         mergedJson;
     const JsonValue * uiPrefs       = nullptr;
     std::string       pathNarrow;
-    const char      * keyName       = (drive == 0) ? "disk1Path" : "disk2Path";
     bool              hasMachine    = false;
+    const char      * keyName       = (drive == 0) ? "disk1Path" : "disk2Path";
 
 
 
@@ -255,18 +255,19 @@ HRESULT DiskSettings::WriteSavedDiskPath (
     const std::wstring & machineName,
     const std::wstring & path)
 {
-    HRESULT                                          hr             = S_OK;
-    JsonValue                                        defaultJson;
-    JsonValue                                        mergedJson;
-    JsonValue                                        updatedJson;
-    std::wstring                                     stored;
-    std::string                                      storedNarrow;
+    HRESULT                                         hr             = S_OK;
+    JsonValue                                       defaultJson;
+    JsonValue                                       mergedJson;
+    JsonValue                                       updatedJson;
+    std::wstring                                    stored;
+    std::string                                     storedNarrow;
+    std::vector<std::pair<std::string, JsonValue>>  rootEntries;
+    std::vector<std::pair<std::string, JsonValue>>  uiPrefsEntries;
+    int                                             uiPrefsIdx     = 0;
+    int                                             i              = 0;
+    bool                                            hasMachine     = false;
     const char                                     * keyName        = (drive == 0) ? "disk1Path" : "disk2Path";
-    std::vector<std::pair<std::string, JsonValue>>   rootEntries;
-    std::vector<std::pair<std::string, JsonValue>>   uiPrefsEntries;
-    int                                              uiPrefsIdx     = -1;
-    int                                              i              = 0;
-    bool                                             hasMachine     = false;
+    uiPrefsIdx = -1;
 
 
 

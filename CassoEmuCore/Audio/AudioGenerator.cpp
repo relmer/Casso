@@ -40,12 +40,16 @@ void AudioGenerator::GeneratePCM (
     float * outSamples,
     uint32_t numSamples)
 {
+    float  state = 0.0f;
+
+
+
     if (numSamples == 0 || outSamples == nullptr)
     {
         return;
     }
 
-    float state = initialState;
+    state = initialState;
 
 
 

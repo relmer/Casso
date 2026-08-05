@@ -210,13 +210,14 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 
                 for (i = 0; i < steps; ++i)
                 {
-                    float  t  = (float) i / (float) steps;
-                    float  px = glyphLeft + t * span;
-                    float  py = glyphTop  + t * (glyphBottom - glyphTop);
+                    float  t   = (float) i / (float) steps;
+                    float  px  = glyphLeft + t * span;
+                    float  py  = glyphTop  + t * (glyphBottom - glyphTop);
+                    float  px2 = 0.0f;
 
                     painter.FillRect (px, py, strokePx, strokePx, fg);
 
-                    float  px2 = glyphRight - t * span;
+                    px2 = glyphRight - t * span;
                     painter.FillRect (px2, py, strokePx, strokePx, fg);
                 }
             }

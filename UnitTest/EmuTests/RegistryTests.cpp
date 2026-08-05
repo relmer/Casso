@@ -38,6 +38,7 @@ public:
     {
         ComponentRegistry  registry;
         MemoryBus          bus;
+        DeviceConfig       cfg;
 
         bool factoryCalled = false;
 
@@ -48,7 +49,6 @@ public:
                 return nullptr;
             });
 
-        DeviceConfig cfg;
         cfg.type = "test-device";
         registry.Create ("test-device", cfg, bus);
 

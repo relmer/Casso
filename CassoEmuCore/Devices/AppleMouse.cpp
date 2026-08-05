@@ -215,6 +215,12 @@ void AppleMouse::RetargetFromHoles()
         uint32_t  packed = m_hostTarget.load (std::memory_order_acquire);
         int       fx     = static_cast<int> (packed >> 16);
         int       fy     = static_cast<int> (packed & 0xFFFF);
+        int       xMin   = 0;
+        int       xMax   = 0;
+        int       yMin   = 0;
+        int       yMax   = 0;
+        int       curX   = 0;
+        int       curY   = 0;
 
         auto rd16 = [this] (Word lo, Word hi)
         {
@@ -222,12 +228,12 @@ void AppleMouse::RetargetFromHoles()
                  | (static_cast<int> (m_bus->ReadByte (hi)) << 8);
         };
 
-        int  xMin = rd16 (kHoleXMinLo, kHoleXMinHi);
-        int  xMax = rd16 (kHoleXMaxLo, kHoleXMaxHi);
-        int  yMin = rd16 (kHoleYMinLo, kHoleYMinHi);
-        int  yMax = rd16 (kHoleYMaxLo, kHoleYMaxHi);
-        int  curX = rd16 (kHoleXPosLo, kHoleXPosHi);
-        int  curY = rd16 (kHoleYPosLo, kHoleYPosHi);
+        xMin = rd16 (kHoleXMinLo, kHoleXMinHi);
+        xMax = rd16 (kHoleXMaxLo, kHoleXMaxHi);
+        yMin = rd16 (kHoleYMinLo, kHoleYMinHi);
+        yMax = rd16 (kHoleYMaxLo, kHoleYMaxHi);
+        curX = rd16 (kHoleXPosLo, kHoleXPosHi);
+        curY = rd16 (kHoleYPosLo, kHoleYPosHi);
 
         // Sanity: a live clamp window is ordered, spans at most the firmware's
         // 0..1023 default range, and contains the current position. Failing

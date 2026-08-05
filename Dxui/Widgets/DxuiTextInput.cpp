@@ -434,11 +434,12 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
     if (selStart != selEnd)
     {
+        float bx = 0.0f;
+        float sx = 0.0f;
+
         before.assign (m_text, 0, selStart);
         sel.assign    (m_text, selStart, selEnd - selStart);
 
-        float bx = 0.0f;
-        float sx = 0.0f;
         IGNORE_RETURN_VALUE (hr, text.MeasureString (before.c_str(), fontPx, DxuiTheme::kBodyFace, bx, textMeasH));
         IGNORE_RETURN_VALUE (hr, text.MeasureString (sel.c_str(),    fontPx, DxuiTheme::kBodyFace, sx, textMeasH));
 
@@ -582,10 +583,12 @@ size_t DxuiTextInput::CaretFromX (IDxuiTextRenderer & text, int xPx) const
     {
         for (size_t i = 0; i <= m_text.size(); i++)
         {
+            float  dist = 0.0f;
+
             prefix.assign (m_text, 0, i);
             IGNORE_RETURN_VALUE (hr, text.MeasureString (prefix.c_str(), fontPx, DxuiTheme::kBodyFace, w, h));
 
-            float dist = std::abs (w - target);
+            dist = std::abs (w - target);
 
             if (dist < bestDist)
             {
@@ -638,13 +641,18 @@ void DxuiTextInput::DeleteSelection()
 
 void DxuiTextInput::InsertText (const std::wstring & ins)
 {
+    size_t  room = 0;
+    size_t  take = 0;
+
+
+
     if (m_caret != m_anchor)
     {
         DeleteSelection();
     }
 
-    size_t  room = (m_maxLen > m_text.size()) ? (m_maxLen - m_text.size()) : 0;
-    size_t  take = std::min (ins.size(), room);
+    room = (m_maxLen > m_text.size()) ? (m_maxLen - m_text.size()) : 0;
+    take = std::min (ins.size(), room);
 
 
     if (take == 0)

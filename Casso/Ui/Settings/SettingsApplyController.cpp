@@ -152,12 +152,16 @@ void SettingsApplyController::StagePendingTheme (const std::string & name)
 
 void SettingsApplyController::ApplyThemeLive (const std::string & name)
 {
+    HRESULT  hr = S_OK;
+
+
+
     if (m_emuShell == nullptr || name.empty())
     {
         return;
     }
 
-    HRESULT  hr = m_emuShell->ApplyThemeLive (name);
+    hr = m_emuShell->ApplyThemeLive (name);
 
     IGNORE_RETURN_VALUE (hr, S_OK);
     if (m_onChromeThemeChanged)
@@ -246,12 +250,15 @@ bool SettingsApplyController::IsResetRequired() const
 
 void SettingsApplyController::CommitApply()
 {
-    SettingsApplyAdapter  adapter (*m_emuShell);
     JsonValue             currentJson;
     HRESULT               hr             = S_OK;
     std::string           pendingMachine;
     std::wstring          currentMachine;
     std::string           currentMachineNarrow;
+
+
+
+    SettingsApplyAdapter  adapter (*m_emuShell);
 
 
 

@@ -40,14 +40,15 @@ namespace PrinterJobTests
 
         TEST_METHOD (DrainFeedsRasterFromRing)
         {
-            auto                   ring = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+            auto                  ring    = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+            vector<PrinterEvent>  events;
+            size_t                drained = 0;
             PrinterJob             job (*ring);
-            vector<PrinterEvent>   events;
 
             // ESC G 0001 then one top-pin column (0x01 = LSB = top pin).
             PushAll (*ring, { 0x1B, 'G', '0', '0', '0', '1', 0x01 });
 
-            size_t   drained = job.Drain (events);
+            drained = job.Drain (events);
 
             Assert::AreEqual ((size_t) 7, drained);
             Assert::AreEqual ((Byte) InkPrimary::Black, job.Raster().CellAt (0, 0));
@@ -58,8 +59,8 @@ namespace PrinterJobTests
         TEST_METHOD (EmptyRingDrainsNothing)
         {
             auto                   ring = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
-            PrinterJob             job (*ring);
             vector<PrinterEvent>   events;
+            PrinterJob             job (*ring);
 
             Assert::AreEqual ((size_t) 0, job.Drain (events));
             Assert::IsFalse (job.HasContent());
@@ -68,16 +69,20 @@ namespace PrinterJobTests
 
         TEST_METHOD (HostFormFeedAdvancesToNextPageTop)
         {
+            vector<PrinterEvent>  events;
+            int                   before = 0;
+
+
+
             // The preview's Form Feed button: identical to the guest sending
             // $0C, through the same interpreter path.
             auto                   ring = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
             PrinterJob             job (*ring);
-            vector<PrinterEvent>   events;
 
             PushAll (*ring, { 0x1B, 'G', '0', '0', '0', '1', 0x01, 0x0A });
             job.Drain (events);
 
-            int   before = job.HeadRow();
+            before = job.HeadRow();
 
             job.FormFeed (events);
 
@@ -94,17 +99,18 @@ namespace PrinterJobTests
 
         TEST_METHOD (ObserverSeesEveryDrainedByte)
         {
-            auto                   ring = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+            auto                  ring   = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+            vector<PrinterEvent>  events;
+            vector<Byte>          seen;
+            vector<Byte>          stream;
             PrinterJob             job (*ring);
-            vector<PrinterEvent>   events;
-            vector<Byte>           seen;
 
             job.SetByteObserver ([&] (const Byte * p, size_t n)
             {
                 seen.insert (seen.end(), p, p + n);
             });
 
-            vector<Byte>   stream = { 0x1B, 'T', '1', '2', 0x0A, 0x0C };
+            stream = { 0x1B, 'T', '1', '2', 0x0A, 0x0C };
             PushAll (*ring, stream);
             job.Drain (events);
 
@@ -119,8 +125,8 @@ namespace PrinterJobTests
         TEST_METHOD (CommandSplitAcrossDrainsCompletes)
         {
             auto                   ring = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
-            PrinterJob             job (*ring);
             vector<PrinterEvent>   events;
+            PrinterJob             job (*ring);
 
             // First drain gets the graphics header but no data byte yet.
             PushAll (*ring, { 0x1B, 'G', '0', '0', '0', '1' });
@@ -137,8 +143,8 @@ namespace PrinterJobTests
         TEST_METHOD (ResetClearsStrip)
         {
             auto                   ring = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
-            PrinterJob             job (*ring);
             vector<PrinterEvent>   events;
+            PrinterJob             job (*ring);
 
             PushAll (*ring, { 0x1B, 'G', '0', '0', '0', '1', 0x80, 0x0A });
             job.Drain (events);

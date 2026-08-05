@@ -155,6 +155,11 @@ void Cpu::TracePush (Byte opcode)
 
 void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
 {
+    size_t  i       = 0;
+    size_t  index   = 0;
+
+
+
     // Short newest-first look-back to stderr -- enough to see the
     // JMP/JSR/RTS chain that landed PC on the bad byte. The full ring
     // (which may be millions of entries under --trace) is written
@@ -163,8 +168,6 @@ void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
 
     size_t  total   = (m_traceCount < (uint64_t) m_traceCapacity) ? (size_t) m_traceCount
                                                                   : m_traceCapacity;
-    size_t  i       = 0;
-    size_t  index   = 0;
 
     if (total > kMaxLookback)
     {
@@ -226,15 +229,15 @@ HRESULT Cpu::DumpTraceToFile (const std::wstring & path,
                               const std::function<void (uint64_t, uint64_t)> & onProgress) const
 {
     static constexpr uint64_t  kProgressStride = 100000;
+    size_t                     start           = 0;
+    bool                       isOpen          = false;
+    bool                       wrote           = false;
+    char                       line[160];
 
     HRESULT        hr    = S_OK;
     std::ofstream  out (path, std::ios::binary | std::ios::trunc);
     uint64_t       total = (m_traceCount < (uint64_t) m_traceCapacity) ? m_traceCount
                                                                        : (uint64_t) m_traceCapacity;
-    size_t         start  = 0;
-    bool           isOpen = false;
-    bool           wrote  = false;
-    char           line[160];
 
     isOpen = out.is_open();
 
@@ -242,6 +245,9 @@ HRESULT Cpu::DumpTraceToFile (const std::wstring & path,
     CBREx (m_traceCapacity != 0, E_UNEXPECTED);
 
     {
+        uint64_t  irqCount = 0;
+        uint64_t  nmiCount = 0;
+
         // When the ring has wrapped, the oldest surviving entry sits at the
         // current head; otherwise it starts at index 0.
         start = (m_traceCount > (uint64_t) m_traceCapacity) ? m_traceHead : 0;
@@ -253,8 +259,6 @@ HRESULT Cpu::DumpTraceToFile (const std::wstring & path,
         // otherwise invisible in a flat instruction trace, so surface the rate
         // up top. Cheap -- one pass reading a single byte per entry, dwarfed by
         // the write below.
-        uint64_t  irqCount = 0;
-        uint64_t  nmiCount = 0;
 
         for (uint64_t i = 0; i < total; i++)
         {
@@ -366,9 +370,10 @@ Error:
 void Cpu::StepOne()
 {
 
-    Byte              opcode      = ReadByte (PC);
-    const Microcode & microcode   = instructionSet[opcode];
-    OperandInfo       operandInfo = { 0 };
+    Byte               opcode       = ReadByte (PC);
+    const Microcode  & microcode    = instructionSet[opcode];
+    OperandInfo        operandInfo  = { 0 };
+    Word               pcAfterFetch = 0;
 
 
 
@@ -448,7 +453,7 @@ void Cpu::StepOne()
         }
     }
 
-    Word pcAfterFetch = PC;
+    pcAfterFetch = PC;
 
     ExecuteInstruction (microcode, operandInfo);
 
@@ -808,12 +813,17 @@ void Cpu::FetchOperandJumpAbsolute (Cpu::OperandInfo & operandInfo)
 
 void Cpu::FetchOperandJumpIndirect (Cpu::OperandInfo & operandInfo)
 {
+    Word  lo = 0;
+    Word  hi = 0;
+
+
+
     operandInfo.location = ReadWord (PC++);
 
     // NMOS 6502 bug: JMP indirect wraps within the page.
     // If the pointer is at $xxFF, the high byte is read from $xx00.
-    Word lo = ReadByte (operandInfo.location);
-    Word hi = ReadByte ((operandInfo.location & 0xFF00) | ((operandInfo.location + 1) & 0x00FF));
+    lo = ReadByte (operandInfo.location);
+    hi = ReadByte ((operandInfo.location & 0xFF00) | ((operandInfo.location + 1) & 0x00FF));
 
     operandInfo.effectiveAddress = lo | (hi << 8);
     operandInfo.operand          = operandInfo.effectiveAddress;
@@ -834,10 +844,15 @@ void Cpu::FetchOperandJumpIndirect (Cpu::OperandInfo & operandInfo)
 
 void Cpu::FetchOperandJumpIndirectCmos (Cpu::OperandInfo & operandInfo)
 {
+    Word  lo = 0;
+    Word  hi = 0;
+
+
+
     operandInfo.location = ReadWord (PC++);
 
-    Word lo = ReadByte (operandInfo.location);
-    Word hi = ReadByte (static_cast<Word> (operandInfo.location + 1));
+    lo = ReadByte (operandInfo.location);
+    hi = ReadByte (static_cast<Word> (operandInfo.location + 1));
 
     operandInfo.effectiveAddress = lo | (hi << 8);
     operandInfo.operand          = operandInfo.effectiveAddress;
@@ -881,8 +896,12 @@ void Cpu::FetchOperandZeroPageIndirect (Cpu::OperandInfo & operandInfo)
 
 void Cpu::FetchOperandAbsoluteXIndirect (Cpu::OperandInfo & operandInfo)
 {
+    Word  ptr = 0;
+
+
+
     Word base = ReadWord (PC++);
-    Word ptr  = static_cast<Word> (base + X);
+    ptr = static_cast<Word> (base + X);
 
     operandInfo.location         = base;
     operandInfo.effectiveAddress = ReadByte (ptr) | (ReadByte (static_cast<Word> (ptr + 1)) << 8);
@@ -904,8 +923,12 @@ void Cpu::FetchOperandAbsoluteXIndirect (Cpu::OperandInfo & operandInfo)
 
 void Cpu::FetchOperandZeroPageRelative (Cpu::OperandInfo & operandInfo)
 {
+    Byte  rel = 0;
+
+
+
     Byte zpAddr = ReadByte (PC++);
-    Byte rel    = ReadByte (PC);
+    rel = ReadByte (PC);
 
     operandInfo.location         = zpAddr;
     operandInfo.operand          = ReadByte (zpAddr);
@@ -1725,17 +1748,20 @@ void Cpu::CreateInstruction (uint32_t                      addressingModeMax,
     {
         if (addressingModeFlags & currentAddressingModeFlag)
         {
-            Instruction instruction            = Instruction (opcode, addressingMode, group);
+            Instruction  instruction = Instruction (opcode, addressingMode, group);
+            bool         isStore     = false;
+            bool         isMemoryRmw = false;
+            Byte         cycles      = 0;
             instructionSet[instruction.asByte] = Microcode   (instruction, instructionName[opcode], operation, pSourceRegister, pDestinationRegister);
 
             // Compute base cycle count from addressing mode and operation type
-            bool isStore     = (operation == Microcode::Store);
+            isStore = (operation == Microcode::Store);
             bool isRmw       = (operation == Microcode::ShiftLeft  || operation == Microcode::ShiftRight  ||
                                 operation == Microcode::RotateLeft || operation == Microcode::RotateRight ||
                                 operation == Microcode::Decrement  || operation == Microcode::Increment);
-            bool isMemoryRmw = isRmw && (instructionSet[instruction.asByte].globalAddressingMode != GlobalAddressingMode::Accumulator);
+            isMemoryRmw = isRmw && (instructionSet[instruction.asByte].globalAddressingMode != GlobalAddressingMode::Accumulator);
 
-            Byte cycles = 2;
+            cycles = 2;
 
             switch (instructionSet[instruction.asByte].globalAddressingMode)
             {
@@ -1777,8 +1803,8 @@ void Cpu::CreateInstruction (uint32_t                      addressingModeMax,
 HRESULT Cpu::LoadBinary (const std::string & filename, Word address)
 {
     HRESULT       hr     = S_OK;
-    std::ifstream file     (filename, std::ios::binary);
     bool          isOpen = false;
+    std::ifstream file     (filename, std::ios::binary);
 
     isOpen = file.is_open();
     CBRAEx (isOpen, E_INVALIDARG);

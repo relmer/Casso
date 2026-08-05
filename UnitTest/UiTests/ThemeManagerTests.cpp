@@ -77,8 +77,8 @@ public:
     TEST_METHOD (Discover_IncludesValidExcludesInvalid)
     {
         InMemoryFileSystem  fs;
-        ThemeManager        mgr (fs, kThemesBase);
         HRESULT             hr;
+        ThemeManager        mgr (fs, kThemesBase);
 
         WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\Skeuomorphic", kSkeuoJson);
         WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\DarkModern",   kDarkJson);
@@ -99,8 +99,8 @@ public:
     TEST_METHOD (Discover_MissingBaseDir_EmptyList)
     {
         InMemoryFileSystem  fs;
-        ThemeManager        mgr (fs, L"C:\\Does\\Not\\Exist");
         HRESULT             hr;
+        ThemeManager        mgr (fs, L"C:\\Does\\Not\\Exist");
 
         hr = mgr.Discover();
 
@@ -131,9 +131,9 @@ public:
     TEST_METHOD (Activate_KnownTheme_FiresObserverAndUpdatesActive)
     {
         InMemoryFileSystem  fs;
-        ThemeManager        mgr (fs, kThemesBase);
         std::string         observed;
         int                 hits = 0;
+        ThemeManager        mgr (fs, kThemesBase);
 
         WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\Skeuomorphic", kSkeuoJson);
         WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\DarkModern",   kDarkJson);

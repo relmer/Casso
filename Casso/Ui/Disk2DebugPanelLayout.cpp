@@ -77,25 +77,29 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
     int   topOffsetPx,
     UINT  dpi) noexcept
 {
-    PanelLayoutSlots slots         = {};
-    int              margin        = Scale (kMargin96,             dpi);
-    int              rowHeight     = Scale (kRowHeight96,          dpi);
-    int              rowGap        = Scale (kRowGap96,             dpi);
-    int              rowVGap       = Scale (kRowVGap96,            dpi);
-    int              checkWidth    = Scale (kCheckWidth96,         dpi);
-    int              radioWidth    = Scale (kRadioWidth96,         dpi);
-    int              editWidth     = Scale (kEditWidth96,          dpi);
-    int              labelWidth    = Scale (kFilterLabelWidth96,   dpi);
-    int              driveLblWidth = Scale (kDriveLabelWidth96,    dpi);
-    int              rowLblWidth   = Scale (kRowLabelWidth96,      dpi);
-    int              rawQtWidth    = Scale (kRawQtCheckWidth96,    dpi);
-    int              ignoredHeight = Scale (kIgnoredLabelHeight96, dpi);
-    int              buttonWidth   = Scale (kButtonWidth96,        dpi);
-    int              buttonHeight  = Scale (kButtonHeight96,       dpi);
-    int              x             = 0;
-    int              y             = topOffsetPx + margin;
-    int              trackEditX    = 0;
-    int              sectorEditX   = 0;
+    PanelLayoutSlots  slots             = {};
+    int               margin            = Scale (kMargin96,             dpi);
+    int               rowHeight         = Scale (kRowHeight96,          dpi);
+    int               rowGap            = Scale (kRowGap96,             dpi);
+    int               rowVGap           = Scale (kRowVGap96,            dpi);
+    int               checkWidth        = Scale (kCheckWidth96,         dpi);
+    int               radioWidth        = Scale (kRadioWidth96,         dpi);
+    int               editWidth         = Scale (kEditWidth96,          dpi);
+    int               labelWidth        = Scale (kFilterLabelWidth96,   dpi);
+    int               driveLblWidth     = Scale (kDriveLabelWidth96,    dpi);
+    int               rowLblWidth       = Scale (kRowLabelWidth96,      dpi);
+    int               rawQtWidth        = Scale (kRawQtCheckWidth96,    dpi);
+    int               ignoredHeight     = Scale (kIgnoredLabelHeight96, dpi);
+    int               buttonWidth       = Scale (kButtonWidth96,        dpi);
+    int               buttonHeight      = Scale (kButtonHeight96,       dpi);
+    int               x                 = 0;
+    int               y                 = topOffsetPx + margin;
+    int               trackEditX        = 0;
+    int               sectorEditX       = 0;
+    int               radioBaseX        = 0;
+    int               trackInvalidWidth = 0;
+    int               lvWidth           = 0;
+    int               lvHeight          = 0;
 
 
 
@@ -135,7 +139,7 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
     x = margin;
     slots.driveFilterLabel = MakeRect (x, y, driveLblWidth, rowHeight);
     x += driveLblWidth + rowGap;
-    int radioBaseX = x;
+    radioBaseX = x;
     for (int i = 0; i < kDriveRadioCount; i++)
     {
         slots.driveRadios[i] = MakeRect (radioBaseX + i * checkWidth, y, radioWidth, rowHeight);
@@ -158,7 +162,7 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
     y += rowHeight + rowVGap;
 
     // Row 5: invalid feedback labels beneath the two edits.
-    int trackInvalidWidth = (sectorEditX - trackEditX) - rowGap;
+    trackInvalidWidth = (sectorEditX - trackEditX) - rowGap;
     if (trackInvalidWidth < 1) { trackInvalidWidth = 1; }
     slots.trackInvalidLabel  = MakeRect (trackEditX,  y, trackInvalidWidth, ignoredHeight);
     slots.sectorInvalidLabel = MakeRect (sectorEditX, y, editWidth,         ignoredHeight);
@@ -170,8 +174,8 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
     y += buttonHeight + rowVGap;
 
     // Row 7: ListView fills remainder.
-    int lvWidth  = clientWidthPx  - 2 * margin;
-    int lvHeight = clientHeightPx - y - margin;
+    lvWidth = clientWidthPx  - 2 * margin;
+    lvHeight = clientHeightPx - y - margin;
     if (lvWidth  < 1) { lvWidth  = 1; }
     if (lvHeight < 1) { lvHeight = 1; }
     slots.listView = MakeRect (margin, y, lvWidth, lvHeight);

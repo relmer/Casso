@@ -55,14 +55,18 @@ public:
 
     TEST_METHOD (TwoByTwoGrid_AssignsExpectedCellRects)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  a;
+        MockDxuiControl  b;
+        MockDxuiControl  c;
+        MockDxuiControl  d;
+        RECT             bounds = {};
+
+
+
         DxuiGridLayout    layout (2, 2, 0.0f);
-        DxuiDpiScaler     scaler;
-        MockDxuiControl   a;
-        MockDxuiControl   b;
-        MockDxuiControl   c;
-        MockDxuiControl   d;
         IDxuiControl *    kids[4] = { &a, &b, &c, &d };
-        RECT              bounds  = MakeRect (0, 0, 200, 100);
+        bounds = MakeRect (0, 0, 200, 100);
 
 
         layout.SetCell (&a, 0, 0);
@@ -81,12 +85,16 @@ public:
 
     TEST_METHOD (GapBetweenCells_ReducesCellSize)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  a;
+        MockDxuiControl  b;
+        RECT             bounds = {};
+
+
+
         DxuiGridLayout    layout (1, 2, 10.0f);
-        DxuiDpiScaler     scaler;
-        MockDxuiControl   a;
-        MockDxuiControl   b;
         IDxuiControl *    kids[2] = { &a, &b };
-        RECT              bounds  = MakeRect (0, 0, 210, 50);
+        bounds = MakeRect (0, 0, 210, 50);
 
 
         layout.SetCell (&a, 0, 0);
@@ -103,11 +111,15 @@ public:
 
     TEST_METHOD (ColSpan_ClaimsUnionRect)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  wide;
+        RECT             bounds = {};
+
+
+
         DxuiGridLayout    layout (1, 3, 0.0f);
-        DxuiDpiScaler     scaler;
-        MockDxuiControl   wide;
         IDxuiControl *    kids[1] = { &wide };
-        RECT              bounds  = MakeRect (0, 0, 300, 50);
+        bounds = MakeRect (0, 0, 300, 50);
 
 
         layout.SetCell (&wide, 0, 0, 1, 3);
@@ -149,13 +161,17 @@ public:
 
     TEST_METHOD (TwoRows_StackedWithRowGap)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  lab1;
+        MockDxuiControl  fld1;
+        MockDxuiControl  lab2;
+        MockDxuiControl  fld2;
+        RECT             bounds = {};
+
+
+
         DxuiFormLayout    layout (100.0f, 24.0f, 8.0f, 16.0f, 12.0f);
-        DxuiDpiScaler     scaler;
-        MockDxuiControl   lab1;
-        MockDxuiControl   fld1;
-        MockDxuiControl   lab2;
-        MockDxuiControl   fld2;
-        RECT              bounds = MakeRect (0, 0, 400, 200);
+        bounds = MakeRect (0, 0, 400, 200);
 
 
         layout.AddRow (&lab1, &fld1);
@@ -173,13 +189,17 @@ public:
 
     TEST_METHOD (SubRow_IndentsLabelByConfiguredAmount)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  labMain;
+        MockDxuiControl  fldMain;
+        MockDxuiControl  labSub;
+        MockDxuiControl  fldSub;
+        RECT             bounds  = {};
+
+
+
         DxuiFormLayout    layout (100.0f, 24.0f, 8.0f, 16.0f, 12.0f);
-        DxuiDpiScaler     scaler;
-        MockDxuiControl   labMain;
-        MockDxuiControl   fldMain;
-        MockDxuiControl   labSub;
-        MockDxuiControl   fldSub;
-        RECT              bounds = MakeRect (0, 0, 400, 200);
+        bounds = MakeRect (0, 0, 400, 200);
 
 
         layout.AddRow    (&labMain, &fldMain);
@@ -193,13 +213,17 @@ public:
 
     TEST_METHOD (SectionGap_AdvancesYWithoutDrawingARow)
     {
+        DxuiDpiScaler    scaler;
+        MockDxuiControl  lab1;
+        MockDxuiControl  fld1;
+        MockDxuiControl  lab2;
+        MockDxuiControl  fld2;
+        RECT             bounds = {};
+
+
+
         DxuiFormLayout    layout (100.0f, 24.0f, 8.0f, 16.0f, 12.0f);
-        DxuiDpiScaler     scaler;
-        MockDxuiControl   lab1;
-        MockDxuiControl   fld1;
-        MockDxuiControl   lab2;
-        MockDxuiControl   fld2;
-        RECT              bounds = MakeRect (0, 0, 400, 200);
+        bounds = MakeRect (0, 0, 400, 200);
 
 
         layout.AddRow         (&lab1, &fld1);

@@ -208,21 +208,32 @@ bool DxuiIconButton::OnKey (const DxuiKeyEvent & ev)
 
 void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    constexpr wchar_t  kMdl2Family[]  = L"Segoe MDL2 Assets";
-    constexpr float    kGlyphFontDip  = 12.0f;
-    constexpr float    kFocusRingPx   = 1.5f;
-    constexpr float    kFocusInsetPx  = -2.0f;
-    constexpr float    kDoubleInset   = 2.0f;
+    constexpr float  kGlyphFontDip = 12.0f;
+    constexpr float  kFocusRingPx  = 1.5f;
+    constexpr float  kFocusInsetPx = -2.0f;
+    constexpr float  kDoubleInset  = 2.0f;
+    HRESULT          hr            = S_OK;
+    float            x             = 0.0f;
+    float            y             = 0.0f;
+    float            w             = 0.0f;
+    float            h             = 0.0f;
+    float            glyphDip      = 0.0f;
+    float            focusInset    = 0.0f;
+    float            focusThick    = 0.0f;
+    uint32_t         glyphArgb     = 0;
 
-    HRESULT   hr         = S_OK;
-    float     x          = (float) m_boundsDip.left;
-    float     y          = (float) m_boundsDip.top;
-    float     w          = (float) (m_boundsDip.right  - m_boundsDip.left);
-    float     h          = (float) (m_boundsDip.bottom - m_boundsDip.top);
-    float     glyphDip   = m_scaler.Pxf (kGlyphFontDip);
-    float     focusInset = m_scaler.Pxf (kFocusInsetPx);
-    float     focusThick = m_scaler.Pxf (kFocusRingPx);
-    uint32_t  glyphArgb  = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
+
+
+    constexpr wchar_t  kMdl2Family[]  = L"Segoe MDL2 Assets";
+
+    x = (float) m_boundsDip.left;
+    y = (float) m_boundsDip.top;
+    w = (float) (m_boundsDip.right  - m_boundsDip.left);
+    h = (float) (m_boundsDip.bottom - m_boundsDip.top);
+    glyphDip = m_scaler.Pxf (kGlyphFontDip);
+    focusInset = m_scaler.Pxf (kFocusInsetPx);
+    focusThick = m_scaler.Pxf (kFocusRingPx);
+    glyphArgb = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
 
 
 

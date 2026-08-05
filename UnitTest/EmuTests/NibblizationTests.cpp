@@ -40,8 +40,11 @@ public:
 
     vector<Byte> MakeAlternatingImage (Byte a, Byte b)
     {
-        vector<Byte>   img (kImageSize, 0);
         size_t         i   = 0;
+
+
+
+        vector<Byte>   img (kImageSize, 0);
 
         for (i = 0; i < img.size(); i++)
         {
@@ -53,9 +56,13 @@ public:
 
     vector<Byte> MakePinnedRandomImage (uint32_t seed)
     {
+        uint32_t  state = 0;
+        size_t    i     = 0;
+
+
+
         vector<Byte>   img (kImageSize, 0);
-        uint32_t       state = seed;
-        size_t         i     = 0;
+        state = seed;
 
         for (Byte & byte : img)
         {
@@ -82,8 +89,8 @@ public:
     TEST_METHOD (NibblizeDsk_RejectsShortImage)
     {
         DiskImage      img;
-        vector<Byte>   raw (1024, 0);
         HRESULT        hr  = S_OK;
+        vector<Byte>   raw (1024, 0);
 
         {
             // A wrong-sized image is a caller bug, so the guard asserts.
@@ -176,6 +183,10 @@ public:
 
     TEST_METHOD (PoAndDskInterleavesDifferOnSameSourceBytes)
     {
+        size_t  bits = 0;
+
+
+
         // Same flat 143360-byte source produces different nibble streams
         // when interpreted as DSK vs PO because the sector mapping differs.
         DiskImage      dskImg;
@@ -188,7 +199,7 @@ public:
 
         // Compare track 1 bit streams (track 0 sectors all colocated for this
         // input but other tracks reorder differently).
-        size_t   bits = dskImg.GetTrackBitCount (1);
+        bits = dskImg.GetTrackBitCount (1);
 
         Assert::AreEqual (bits, poImg.GetTrackBitCount (1));
 
@@ -296,6 +307,10 @@ public:
 
     TEST_METHOD (Denibblize_UnformattedTrack_ZeroFillsThatTrackAndKeepsOthers)
     {
+        bool  neighborOk = false;
+
+
+
         // A .dsk is a plain sector image, so a track with no decodable
         // address fields (blank / unformatted bit stream) correctly
         // denibblizes to zeros for THAT track and leaves neighbors intact --
@@ -329,7 +344,7 @@ public:
         }
 
         // Adjacent track 4 -> unaffected, still matches the original.
-        bool  neighborOk = true;
+        neighborOk = true;
         for (size_t i = 0; i < trkBytes; i++)
         {
             size_t  off = static_cast<size_t> (4) * trkBytes + i;

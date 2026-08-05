@@ -92,13 +92,18 @@ namespace Ay8910TestNs
 
         TEST_METHOD (ToneFrequencyMatchesDatasheetFormula)
         {
+            int       period     = 0;
+            int       toggles    = 0;
+            bool      prevState  = false;
+            uint32_t  i          = 0;
+            double    expectedHz = 0.0;
+            double    measuredHz = 0.0;
+
+
+
             Ay8910    ay (kClockHz);
-            int       period      = 254;
-            int       toggles     = 0;
-            bool      prevState   = false;
-            uint32_t  i           = 0;
-            double    expectedHz  = kClockHz / (16.0 * period);
-            double    measuredHz  = 0.0;
+            period = 254;
+            expectedHz = kClockHz / (16.0 * period);
 
 
 
@@ -137,9 +142,12 @@ namespace Ay8910TestNs
 
         TEST_METHOD (SilentChipProducesNoOutput)
         {
-            Ay8910    ay (kClockHz);
             uint32_t  i   = 0;
             float     sum = 0.0f;
+
+
+
+            Ay8910    ay (kClockHz);
 
 
 
@@ -158,10 +166,13 @@ namespace Ay8910TestNs
 
         TEST_METHOD (MutedThenUnmuted_ResumesOutput)
         {
-            Ay8910    ay (kClockHz);
             uint32_t  i    = 0;
             float     sum  = 0.0f;
             float     peak = 0.0f;
+
+
+
+            Ay8910    ay (kClockHz);
 
 
 
@@ -201,9 +212,12 @@ namespace Ay8910TestNs
 
         TEST_METHOD (AmplitudeScalesOutput)
         {
-            Ay8910    ay (kClockHz);
             uint32_t  i    = 0;
             float     peak = 0.0f;
+
+
+
+            Ay8910    ay (kClockHz);
 
 
 
@@ -232,10 +246,15 @@ namespace Ay8910TestNs
 
         TEST_METHOD (NoiseOutputVaries)
         {
+            uint32_t  i    = 0;
+            float     minv = 0.0f;
+            float     maxv = 0.0f;
+
+
+
             Ay8910    ay (kClockHz);
-            uint32_t  i        = 0;
-            float     minv     = 1.0e9f;
-            float     maxv     = -1.0e9f;
+            minv = 1.0e9f;
+            maxv = -1.0e9f;
 
 
 
@@ -263,11 +282,14 @@ namespace Ay8910TestNs
 
         TEST_METHOD (EnvelopeSawtoothUpRampsAndRepeats)
         {
-            Ay8910    ay (kClockHz);
             uint32_t  i        = 0;
             int       maxLevel = 0;
             bool      dropped  = false;
             int       lastPeak = 0;
+
+
+
+            Ay8910    ay (kClockHz);
 
 
 
@@ -280,9 +302,11 @@ namespace Ay8910TestNs
 
             for (i = 0; i < 4000; i++)
             {
+                int  level = 0;
+
                 ay.GenerateSample();
 
-                int  level = ay.GetEnvLevel();
+                level = ay.GetEnvLevel();
 
                 maxLevel = (level > maxLevel) ? level : maxLevel;
 
@@ -304,8 +328,11 @@ namespace Ay8910TestNs
 
         TEST_METHOD (EnvelopeOneShotDecayHoldsAtZero)
         {
-            Ay8910    ay (kClockHz);
             uint32_t  i = 0;
+
+
+
+            Ay8910    ay (kClockHz);
 
 
 
@@ -330,8 +357,11 @@ namespace Ay8910TestNs
 
         TEST_METHOD (EnvelopeAttackHoldReachesAndHoldsTop)
         {
-            Ay8910    ay (kClockHz);
             uint32_t  i = 0;
+
+
+
+            Ay8910    ay (kClockHz);
 
 
 
@@ -355,9 +385,12 @@ namespace Ay8910TestNs
 
         TEST_METHOD (OutputIsDeterministic)
         {
+            uint32_t  i = 0;
+
+
+
             Ay8910    a (kClockHz);
             Ay8910    b (kClockHz);
-            uint32_t  i = 0;
 
 
 

@@ -105,10 +105,10 @@ public:
 
     TEST_METHOD (ClearGlyphClick_WhenFocusedWithText_Clears)
     {
-        DxuiSearchBox  s    = MakeSearchBox();
-        POINT          pt   = ClearGlyphCenter();
-        std::wstring   last = L"sentinel";
+        DxuiSearchBox  s        = MakeSearchBox();
+        POINT          pt       = ClearGlyphCenter();
         bool           consumed = false;
+        std::wstring   last = L"sentinel";
 
         s.SetFocused (true);
         s.SetText (L"abc");

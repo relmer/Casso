@@ -474,13 +474,17 @@ void Disk2AudioSource::OnMotorDisengaged()
 
 void Disk2AudioSource::OnHeadStep (int newQt)
 {
-    (void) newQt;
-
     bool      withinSeekWindow     = false;
     bool      previousStillPlaying = false;
-    bool      wasInSeekMode        = m_seekMode;
+    bool      wasInSeekMode        = false;
     uint64_t  gap                  = 0;
     uint32_t  headLen              = 0;
+
+
+
+    (void) newQt;
+
+    wasInSeekMode = m_seekMode;
 
     if (m_lastStepCycle != 0 && m_currentCycle >= m_lastStepCycle)
     {

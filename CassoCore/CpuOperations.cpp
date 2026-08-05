@@ -45,18 +45,21 @@ void CpuOperations::AddWithCarry (Cpu & cpu, Byte operand)
 
     if (cpu.status.flags.decimal)
     {
+        Word  lo = 0;
+        Word  hi = 0;
+
         // BCD add: adjust low nibble then high nibble (NMOS 6502 algorithm).
         // Z flag is always from the binary result on NMOS 6502.
         cpu.status.flags.zero = (Byte) sum == 0;
 
-        Word lo = (originalA & 0x0F) + (operand & 0x0F) + carryIn;
+        lo = (originalA & 0x0F) + (operand & 0x0F) + carryIn;
 
         if (lo > 0x09)
         {
             lo += 0x06;
         }
 
-        Word hi = (originalA & 0xF0) + (operand & 0xF0) + (lo > 0x0F ? 0x10 : 0x00);
+        hi = (originalA & 0xF0) + (operand & 0xF0) + (lo > 0x0F ? 0x10 : 0x00);
 
         // N and V flags are from the high nibble intermediate, before BCD correction.
         cpu.status.flags.negative = (bool) (hi & 0x80);
@@ -481,6 +484,10 @@ void CpuOperations::Jump (Cpu & cpu, Instruction instruction, Word operand)
 
 void CpuOperations::JumpSubroutine (Cpu & cpu, Word operand)
 {
+    Byte  hi = 0;
+
+
+
     // On the real 6502, JSR reads the low operand byte, pushes the return
     // address, then reads the high operand byte. If the stack overlaps the
     // operand, the push can overwrite the high byte before it's read.
@@ -490,7 +497,7 @@ void CpuOperations::JumpSubroutine (Cpu & cpu, Word operand)
 
     cpu.PushWord (cpu.PC - 1);
 
-    Byte hi = cpu.ReadByte (hiByteAddr);
+    hi = cpu.ReadByte (hiByteAddr);
     cpu.PC  = lo | ((Word) hi << 8);
 }
 
@@ -843,6 +850,8 @@ void CpuOperations::SubtractWithCarry (Cpu & cpu, Byte operand)
 
     if (cpu.status.flags.decimal)
     {
+        int  hi = 0;
+
         // BCD subtract: adjust low nibble then high nibble (NMOS 6502 algorithm).
         int lo = (int) (cpu.A & 0x0F) - (int) (operand & 0x0F) - (int) borrowIn;
 
@@ -851,7 +860,7 @@ void CpuOperations::SubtractWithCarry (Cpu & cpu, Byte operand)
             lo = ((lo - 0x06) & 0x0F) - 0x10;
         }
 
-        int hi = (int) (cpu.A & 0xF0) - (int) (operand & 0xF0) + lo;
+        hi = (int) (cpu.A & 0xF0) - (int) (operand & 0xF0) + lo;
 
         if (hi < 0)
         {
@@ -1101,14 +1110,15 @@ void CpuOperations::AddWithCarryCmos (Cpu & cpu, Byte operand)
 
     if (cpu.status.flags.decimal)
     {
-        Word lo = (originalA & 0x0F) + (operand & 0x0F) + carryIn;
+        Word  lo = (originalA & 0x0F) + (operand & 0x0F) + carryIn;
+        Word  hi = 0;
 
         if (lo > 0x09)
         {
             lo += 0x06;
         }
 
-        Word hi = (originalA & 0xF0) + (operand & 0xF0) + (lo > 0x0F ? 0x10 : 0x00);
+        hi = (originalA & 0xF0) + (operand & 0xF0) + (lo > 0x0F ? 0x10 : 0x00);
 
         // V is from the pre-correction intermediate, as on NMOS.
         cpu.status.flags.overflow = ((~(originalA ^ operand)) & (originalA ^ hi) & 0x80) != 0;

@@ -212,12 +212,13 @@ public:
 
     TEST_METHOD (Q7ClearQ6ClearReadsNibble)
     {
-        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+        unique_ptr<Disk2Controller>  disk = make_unique<Disk2Controller> (6);
+        Byte                         v    = 0;
 
         disk->Read (s_kQ7Off);
         disk->Read (s_kQ6Off);
 
-        Byte   v = disk->Read (s_kQ6Off);
+        v = disk->Read (s_kQ6Off);
 
         Assert::AreEqual (static_cast<Byte> (0), v,
             L"Q7=Q6=0 with no disk: read latch returns 0");
@@ -225,12 +226,13 @@ public:
 
     TEST_METHOD (Q7ClearQ6SetReadsWriteProtect)
     {
-        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+        unique_ptr<Disk2Controller>  disk = make_unique<Disk2Controller> (6);
+        Byte                         v    = 0;
 
         disk->GetDisk (0)->SetWriteProtected (true);
 
         disk->Read (s_kQ7Off);
-        Byte   v = disk->Read (s_kQ6On);
+        v = disk->Read (s_kQ6On);
 
         Assert::AreEqual (static_cast<Byte> (0x80), v,
             L"Q7=0,Q6=1 with WP disk: bit 7 set");
@@ -270,7 +272,9 @@ public:
 
     TEST_METHOD (NibbleStreamAdvancesAtCorrectBitTime)
     {
-        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+        unique_ptr<Disk2Controller>  disk      = make_unique<Disk2Controller> (6);
+        size_t                       posBefore = 0;
+        size_t                       posAfter  = 0;
 
         disk->GetDisk (0)->ResizeTrack (0, 64);
 
@@ -278,11 +282,11 @@ public:
         disk->Read (s_kQ7Off);
         disk->Read (s_kQ6Off);
 
-        size_t   posBefore = disk->GetEngine (0).GetBitPosition();
+        posBefore = disk->GetEngine (0).GetBitPosition();
 
         disk->Tick (Disk2NibbleEngine::kCyclesPerBit * 4);
 
-        size_t   posAfter = disk->GetEngine (0).GetBitPosition();
+        posAfter = disk->GetEngine (0).GetBitPosition();
 
         Assert::AreEqual (size_t (4), posAfter - posBefore,
             L"4 bits should advance per 16 CPU cycles (4 cycles/bit)");

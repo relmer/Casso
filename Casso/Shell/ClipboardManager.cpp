@@ -104,6 +104,7 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
     constexpr Word  kRowSubgroupStride = 0x80;
     constexpr int   kRowsPerGroup      = 8;
     constexpr int   kTextCols80        = 80;
+    int             cols               = 0;
 
 
 
@@ -115,7 +116,7 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
     // (RD80VID, $C01F bit 7); otherwise the plain 40-column main page is read.
     bool  eighty = (auxRam != nullptr)
                 && ((m_memoryBus.ReadByte (kRd80Vid) & kHighBitMask) != 0);
-    int   cols   = eighty ? kTextCols80 : kTextCols;
+    cols = eighty ? kTextCols80 : kTextCols;
 
 
 
