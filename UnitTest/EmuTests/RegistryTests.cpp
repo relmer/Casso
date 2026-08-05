@@ -13,6 +13,21 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  RegistryTests
 //
+//  The device-factory registry: registering a type, creating by name, and
+//  rejecting an unknown one.
+//
+//  Creation BY NAME is what makes machine configs data rather than code -- a
+//  config names "disk-ii" and the registry produces one -- so these assert the
+//  indirection itself, not any particular device.
+//
+//  An unknown name must fail rather than yielding null, since a config naming a
+//  device that does not exist is a mistake to report, and a null quietly
+//  produces a machine missing a card nobody notices is gone.
+//
+//  Re-registration is covered because it decides whether a later registration
+//  wins or is refused, and both are defensible -- so the choice is pinned
+//  rather than left to whoever reads the implementation.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (RegistryTests)

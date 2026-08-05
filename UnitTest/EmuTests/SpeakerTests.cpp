@@ -11,6 +11,22 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  SpeakerTests
 //
+//  The speaker device: $C030 toggling the cone, and the timestamps that become
+//  audio.
+//
+//  The speaker has exactly ONE control -- any access to $C030 flips it -- so
+//  the tests assert that reads toggle as well as writes, which is what period
+//  software relies on and what an implementation modelling it as a data
+//  register gets wrong.
+//
+//  Timestamps are recorded in CPU CYCLES rather than samples, since the audio
+//  layer resamples them later; that separation is what lets the same capture
+//  serve any host sample rate.
+//
+//  Frame boundaries are covered because the buffer is drained per slice: the
+//  initial state must carry across so a tone spanning two slices does not
+//  develop a discontinuity at the seam.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (SpeakerTests)

@@ -11,6 +11,22 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  PathResolverTests
 //
+//  Search-path construction, file resolution, and the exe-relative round trip.
+//
+//  The ROUND TRIP is the substance. A path made relative and resolved back must
+//  name the same file, since that pair is what keeps a casso.exe plus its
+//  Disks/ tree portable across a move -- and a mismatch loses the user's
+//  mounted disks silently on the next launch.
+//
+//  The escape case is pinned specifically: a path outside the exe subtree must
+//  stay ABSOLUTE rather than acquiring a `..` climb-out, which would break the
+//  moment the install moved and would break by resolving somewhere unrelated
+//  rather than by failing.
+//
+//  Search ordering is asserted because it decides which copy of an asset wins
+//  -- a machine found in a development tree must load ROMs from that tree
+//  rather than from an installed copy elsewhere.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (PathResolverTests)

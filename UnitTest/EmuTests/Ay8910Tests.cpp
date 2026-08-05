@@ -19,6 +19,26 @@ namespace Ay8910TestNs
     //
     //  Ay8910Tests
     //
+    //  The PSG: register access, the three tone channels, the noise LFSR, and
+    //  the envelope generator.
+    //
+    //  Written from the DATASHEET rather than from another emulator, so the
+    //  tests encode documented behavior -- the register map, the counter reload
+    //  rules, and the envelope shapes -- rather than another implementation's
+    //  choices.
+    //
+    //  The LFSR gets specific coverage because a zero seed is a fixed point: it
+    //  stays zero forever and the noise channel is silently dead, which sounds
+    //  like a mixing bug rather than a reset bug.
+    //
+    //  Envelope SHAPES are the fiddly part -- the four control bits produce
+    //  attack, hold, alternate, and continue combinations that are not
+    //  orthogonal, so each documented shape is asserted rather than the bits
+    //  being tested individually.
+    //
+    //  Reset is covered because a counter left at zero underflows on the next
+    //  tick and produces a click at power-on.
+    //
     ////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (Ay8910Tests)

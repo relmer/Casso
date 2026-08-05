@@ -12,6 +12,21 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  AudioTests
 //
+//  PCM generation from speaker toggles: the waveform, the cycle-to-sample
+//  mapping, and silence.
+//
+//  The SILENCE case is the one that matters most. A frame with no toggles must
+//  emit zeroes rather than the held speaker level -- a parked non-zero state
+//  becomes a constant DC offset in the mix and buzzes continuously between
+//  sounds, which is the most audible bug this code can have.
+//
+//  The cycle-to-sample mapping is asserted at more than one rate, since the
+//  same toggle stream must produce the same tone at any host sample rate --
+//  that scaling is what replaces a resampler.
+//
+//  Toggles landing on a sample boundary are covered, since that is where an
+//  off-by-one puts an edge in the wrong sample and shifts the phase.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (AudioTests)

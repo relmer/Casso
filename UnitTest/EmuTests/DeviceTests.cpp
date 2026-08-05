@@ -18,6 +18,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DeviceTests
 //
+//  The bus device contract: address ranges, dispatch, and the read side effects
+//  a page-table lookup would skip.
+//
+//  SIDE EFFECTS are the reason these matter. RAM and ROM can be served from the
+//  page table, but a soft switch must be reached through device dispatch --
+//  reading it is what toggles it, and a table lookup would return a value while
+//  changing nothing.
+//
+//  Range boundaries are tested at both ends, since a device claiming one
+//  address too many silently shadows its neighbor's first register.
+//
+//  Overlapping registrations are covered because they are permitted and the
+//  first-match-wins order is a contract several tests deliberately rely on.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (DeviceTests)

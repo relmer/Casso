@@ -13,6 +13,24 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  JsonWriterTests
 //
+//  The writer: number formatting, key order, escaping, and pretty versus
+//  compact output.
+//
+//  The INTEGER-VALUED double is the case that matters. JSON has one numeric
+//  type, so a version stamp and a slot number both arrive as doubles -- writing
+//  them as floats would turn every `4` into `4.0` and churn every
+//  hand-maintained file the first time it was saved.
+//
+//  Key ORDER is asserted because these documents are read by people: the
+//  version sits first and related settings are grouped, and a writer that
+//  sorted would scatter both.
+//
+//  Round-tripping through the parser is checked as well as the literal text,
+//  since the two halves have to agree about escaping and about the extensions.
+//
+//  Non-finite values are asserted to FAIL rather than be written, since JSON
+//  cannot spell them and the output would be unreadable by anything.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (JsonWriterTests)

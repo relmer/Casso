@@ -11,6 +11,25 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  JsonParserTests
 //
+//  The config parser: standard JSON, the two deliberate extensions, and error
+//  reporting.
+//
+//  The EXTENSIONS get as much attention as the standard grammar, because they
+//  are the reason this parser exists rather than a library one -- `0x` hex
+//  literals for 6502 addresses, and `//` line comments so a machine config can
+//  explain itself.
+//
+//  Comments are tested in every position whitespace is legal, since they are
+//  implemented in SkipWhitespace precisely so no individual parser needs to
+//  know about them -- and that is only true if every parse step routes through
+//  it.
+//
+//  The strictness is pinned too: a trailing comma must be rejected, since in a
+//  hand-edited config it is nearly always a half-finished edit.
+//
+//  Error line and column are asserted, since the reader is editing by hand and
+//  a byte offset would not help them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (JsonParserTests)
