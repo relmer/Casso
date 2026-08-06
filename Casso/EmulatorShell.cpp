@@ -2582,9 +2582,9 @@ SIZE EmulatorShell::ClientSizeForCenterPx (int centerWidthPx, int centerHeightPx
 
 SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int framebufferHeightDp)
 {
-    SIZE  client = {};
-    int   framebufferWpx  = m_scaler.Px (framebufferWidthDp);
-    int   framebufferHpx  = m_scaler.Px (framebufferHeightDp);
+    SIZE  client         = {};
+    int   framebufferWpx = m_scaler.Px (framebufferWidthDp);
+    int   framebufferHpx = m_scaler.Px (framebufferHeightDp);
 
 
 

@@ -455,11 +455,11 @@ public:
     {
         HeadlessHost    host;
         EmulatorCore    core;
-        vector<Byte>    raw        = BuildSentinelDisk();
-        DWORD           pl         = 0;
-        FILE          * fp         = nullptr;
-        uint64_t        spent      = 0;
-        int             validCount = 0;
+        vector<Byte>    raw            = BuildSentinelDisk();
+        DWORD           pl             = 0;
+        FILE          * fp             = nullptr;
+        uint64_t        spent          = 0;
+        int             validCount     = 0;
         char            path[MAX_PATH] = {};
         wchar_t         msg[128]       = {};
 
