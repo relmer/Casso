@@ -1005,31 +1005,22 @@ Error:
 //  POSTED to the CPU thread, since it detaches a disk the drive engine may be
 //  actively reading.
 //
-//  Insert failures are swallowed on purpose. The picker path already reports
-//  anything worth reporting, and a cancel is not a failure at all, so there is
-//  nothing left for this handler to say.
+//  Insert routes through BrowseForDisk rather than calling the picker
+//  directly, so the menu gets the same drive-door choreography as a click
+//  on the drive widget: door opens under the modal keep-alive while the
+//  picker is up, closes back on cancel, and the picker path already
+//  reports anything worth reporting.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WindowCommandManager::OnDiskCommand (int id)
 {
-    HRESULT  hr           = S_OK;
-    int      drive        = 0;
-    bool     mountStarted = false;
-
-
-
     switch (id)
     {
         case IDM_DISK_INSERT1:
         case IDM_DISK_INSERT2:
         {
-            drive = (id == IDM_DISK_INSERT1) ? 1 : 2;
-
-            // The menu path has no drive-door theater, so the
-            // mount-started answer has no consumer here.
-            hr = PromptInsertDiskMru (drive, mountStarted);
-            IGNORE_RETURN_VALUE (hr, S_OK);
+            m_shell.BrowseForDisk ((id == IDM_DISK_INSERT1) ? 0 : 1);
             break;
         }
 
