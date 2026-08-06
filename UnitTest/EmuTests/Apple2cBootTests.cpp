@@ -426,6 +426,13 @@ public:
     // polarity: switch in (down) => bit 7 set (80), switch out (up) => clear (40).
     TEST_METHOD (EightyFortySwitchDrivesC060ButNotTheNoDiskScreen)
     {
+        size_t  inCols  = 0;
+        size_t  outCols = 0;
+        Byte    inC060  = 0;
+        Byte    outC060 = 0;
+
+
+
         if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
@@ -447,10 +454,6 @@ public:
             outC060 = core.bus->ReadByte (0xC060);
         };
 
-        size_t  inCols  = 0;
-        size_t  outCols = 0;
-        Byte    inC060  = 0;
-        Byte    outC060 = 0;
 
         bootWithSwitch (true,  inCols,  inC060);
         bootWithSwitch (false, outCols, outC060);
