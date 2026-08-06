@@ -867,7 +867,7 @@ void WindowCommandManager::OnViewCommand (int id)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT WindowCommandManager::PromptForDiskImage (int drive)
+HRESULT WindowCommandManager::PromptForDiskImage (int drive, bool & outMountStarted)
 {
     HRESULT                          hr         = S_OK;
     ComPtr<IFileOpenDialog>          dialog;
@@ -877,6 +877,8 @@ HRESULT WindowCommandManager::PromptForDiskImage (int drive)
                                                     { L"All files",   L"*.*" } };
 
 
+
+    outMountStarted = false;
 
     hr = CoCreateInstance (CLSID_FileOpenDialog,
                            nullptr,
@@ -889,9 +891,9 @@ HRESULT WindowCommandManager::PromptForDiskImage (int drive)
 
     hr = dialog->Show (m_shell.m_hwnd);
 
-    // Backing out of the file picker means there is nothing to mount -- not an
-    // error, and nothing for a caller to distinguish: the sole caller only
-    // checks FAILED, so the old S_FALSE told no one anything.
+    // Backing out of the file picker means there is nothing to mount -- not
+    // an error, so it normalizes to S_OK; outMountStarted (still false) is
+    // what tells the caller no mount happened.
     BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED), S_OK);
     CHR (hr);
 
@@ -903,6 +905,8 @@ HRESULT WindowCommandManager::PromptForDiskImage (int drive)
 
     hr = m_shell.Mount (6, drive - 1, pszPath);
     CHR (hr);
+
+    outMountStarted = true;
 
 Error:
     if (pszPath != nullptr)
@@ -928,7 +932,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT WindowCommandManager::PromptInsertDiskMru (int drive)
+HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, bool & outMountStarted)
 {
     HRESULT                      hr          = S_OK;
     DiskMru                      mru;
@@ -937,6 +941,10 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive)
     std::wstring                 chosenPath;
     std::string                  error;
     bool                         userBrowsed = false;
+
+
+
+    outMountStarted = false;
 
 
 
@@ -965,13 +973,15 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive)
 
     if (userBrowsed)
     {
-        hr = PromptForDiskImage (drive);
+        hr = PromptForDiskImage (drive, outMountStarted);
         CHR (hr);
     }
     else if (!chosenPath.empty())
     {
         hr = m_shell.Mount (6, drive - 1, chosenPath);
         CHR (hr);
+
+        outMountStarted = true;
     }
 
 Error:
@@ -995,28 +1005,22 @@ Error:
 //  POSTED to the CPU thread, since it detaches a disk the drive engine may be
 //  actively reading.
 //
-//  Insert failures are swallowed on purpose. The picker path already reports
-//  anything worth reporting, and a cancel is not a failure at all, so there is
-//  nothing left for this handler to say.
+//  Insert routes through BrowseForDisk rather than calling the picker
+//  directly, so the menu gets the same drive-door choreography as a click
+//  on the drive widget: door opens under the modal keep-alive while the
+//  picker is up, closes back on cancel, and the picker path already
+//  reports anything worth reporting.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WindowCommandManager::OnDiskCommand (int id)
 {
-    HRESULT  hr    = S_OK;
-    int      drive = 0;
-
-
-
     switch (id)
     {
         case IDM_DISK_INSERT1:
         case IDM_DISK_INSERT2:
         {
-            drive = (id == IDM_DISK_INSERT1) ? 1 : 2;
-
-            hr = PromptInsertDiskMru (drive);
-            IGNORE_RETURN_VALUE (hr, S_OK);
+            m_shell.BrowseForDisk ((id == IDM_DISK_INSERT1) ? 0 : 1);
             break;
         }
 

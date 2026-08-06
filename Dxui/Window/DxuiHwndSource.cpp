@@ -1214,6 +1214,66 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BeginModalKeepAlive
+//
+//  Public arming of the same keep-alive tick WM_ENTERSIZEMOVE uses. A
+//  client about to run a MODAL dialog loop on this thread (the disk MRU
+//  picker, a file-open dialog) arms it so OnModalLoopTick keeps chrome
+//  animation, the printer preview, and its paced audio running while the
+//  dialog's own GetMessage loop owns the thread -- that loop's nullptr
+//  filter dispatches this window's WM_TIMER even while the owner is
+//  disabled for input (EnableWindow blocks input, not timers or paints).
+//
+//  Also ticks once immediately, so the first animation frame lands
+//  before the dialog's first paint rather than one timer period later.
+//  No-ops without an HWND (synthetic / adopt-without-HWND test modes).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::BeginModalKeepAlive()
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_hwnd != nullptr)
+    {
+        ::SetTimer (m_hwnd, s_kModalLoopTimerId, USER_TIMER_MINIMUM, nullptr);
+    }
+
+    if (m_client != nullptr)
+    {
+        m_client->OnModalLoopTick();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EndModalKeepAlive
+//
+//  Disarms the keep-alive tick armed by BeginModalKeepAlive once the
+//  modal dialog loop has returned; RunMessageLoop resumes driving frames.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::EndModalKeepAlive()
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_hwnd != nullptr)
+    {
+        ::KillTimer (m_hwnd, s_kModalLoopTimerId);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CreateDeviceAndSwapChain
 //
 //  D3D11 device with BGRA support (R2 — Direct2D interop requirement);
@@ -2113,20 +2173,15 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
 
         case WM_ENTERSIZEMOVE:
             // The OS is about to run its own modal move / size loop, during
-            // which our outer pump stops. Run a short internal timer so the
-            // client can keep painting; report not-handled so the OS loop still
-            // starts normally. Also tick once right now so animation continues
-            // from the first frame of the drag rather than stalling until the
-            // first timer fires.
-            ::SetTimer (m_hwnd, s_kModalLoopTimerId, USER_TIMER_MINIMUM, nullptr);
-
-            if (m_client != nullptr) { m_client->OnModalLoopTick(); }
-
+            // which our outer pump stops. Arm the keep-alive tick so the
+            // client can keep painting; report not-handled so the OS loop
+            // still starts normally.
+            BeginModalKeepAlive();
             isHandled = false;
             break;
 
         case WM_EXITSIZEMOVE:
-            ::KillTimer (m_hwnd, s_kModalLoopTimerId);
+            EndModalKeepAlive();
             isHandled = false;
             break;
 
