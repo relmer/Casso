@@ -2380,45 +2380,20 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 //
 //  EmulatorShell::EmulatorContentScreenRect
 //
-//  The emulator viewport in screen pixels, for the Settings live-preview
-//  compositor's see-through reveal (#8). Recompute the viewport at the live
-//  back-buffer size (client == device pixels; per-monitor-DPI aware) and map
-//  the two corners through the main window's client origin into screen space.
-//  Empty until the window + swap chain exist.
+//  The emulator IMAGE rect in screen pixels, for the Settings live-preview
+//  compositor's see-through reveal (#8). Answered from the renderer's cache
+//  (recorded at the last CRT frame): that is the aspect-FITTED image rect, not
+//  the whole center band, so the reveal hole hugs the picture instead of also
+//  punching through over the letterbox. The cache is at most one frame stale
+//  -- while the settings sheet is open TryPresentUiFrame force-presents every
+//  UI frame -- and empty until the window + swap chain have produced a frame,
+//  which callers read as "no reveal".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT EmulatorShell::EmulatorContentScreenRect()
 {
-    RECT   result   = {};
-    RECT   vr       = {};
-    POINT  tl       = {};
-    POINT  br       = {};
-    int    widthPx  = 0;
-    int    heightPx = 0;
-    bool   hasFrame = false;
-
-
-
-    if (m_hwnd != nullptr)
-    {
-        widthPx  = (int) m_d3dRenderer.GetBackBufferWidth();
-        heightPx = (int) m_d3dRenderer.GetBackBufferHeight();
-        hasFrame = widthPx > 0 && heightPx > 0;
-    }
-
-    if (hasFrame)
-    {
-        vr = ComputeViewportRect (widthPx, heightPx);   // main-window client px
-        tl = POINT{ vr.left,  vr.top    };
-        br = POINT{ vr.right, vr.bottom };
-        ClientToScreen (m_hwnd, &tl);
-        ClientToScreen (m_hwnd, &br);
-
-        result = RECT{ tl.x, tl.y, br.x, br.y };
-    }
-
-    return result;
+    return m_d3dRenderer.GetEmulatorContentScreenRect();
 }
 
 
@@ -4334,6 +4309,15 @@ void EmulatorShell::SetDriveUserWriteProtect (int drive, bool wp)
 //  DestroyFrameReadyEvent is the single cleanup path, and duplicating it is
 //  how one of the two gets missed.
 //
+//  The drain is TIME-BOUNDED. "Drain to empty" is unbounded under a sustained
+//  input + repaint flood: a Display-slider drag invalidates the settings sheet
+//  on every mouse move, the sheet's WM_PAINT is a generated message delivered
+//  INSIDE this drain the moment the queue goes quiet, and each such paint runs
+//  long enough for the next mouse move to arrive -- so the drain never exits
+//  and the emulator present below never runs until the drag pauses. The
+//  deadline forces a present at least every s_kMaxDrainMs; leftover messages
+//  are simply picked up by the next iteration's drain.
+//
 //  When TryPresentUiFrame reports nothing was presented, the thread blocks in
 //  WaitForFrameOrMessage instead of spinning: an idle BASIC prompt produces
 //  no framebuffer changes, and polling it would burn a core for nothing.
@@ -4342,10 +4326,23 @@ void EmulatorShell::SetDriveUserWriteProtect (int drive, bool wp)
 
 int EmulatorShell::RunMessageLoop()
 {
-    MSG      msg      = {};
-    HRESULT  hr       = S_OK;
-    int      exitCode = 0;
-    bool     quitting = false;
+    // Longest one drain pass may run before the loop breaks out to present.
+    // See the banner: without this, an input + repaint flood starves the
+    // present for as long as the input keeps arriving. 8ms leaves room for a
+    // vsynced present in the same ~16ms frame; an uncontended drain still
+    // exits on empty-queue long before the deadline.
+    constexpr int64_t  s_kMaxDrainMs = 8;
+
+    MSG      msg             = {};
+    HRESULT  hr              = S_OK;
+    int      exitCode        = 0;
+    int64_t  drainDeadlineMs = 0;
+    bool     quitting        = false;
+
+    auto  nowMs = []() -> int64_t {
+        return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+    };
 
 
 
@@ -4380,8 +4377,13 @@ int EmulatorShell::RunMessageLoop()
             m_settingsSheetClosePending = false;
         }
 
-        // Process all pending messages
-        while (PeekMessage (&msg, nullptr, 0, 0, PM_REMOVE))
+        // Process pending messages, bounded by the drain deadline (see banner):
+        // the deadline check gates the NEXT retrieval, so a message already
+        // removed from the queue is always dispatched, never dropped.
+        drainDeadlineMs = nowMs() + s_kMaxDrainMs;
+
+        while (nowMs() < drainDeadlineMs &&
+               PeekMessage (&msg, nullptr, 0, 0, PM_REMOVE))
         {
             if (msg.message == WM_QUIT)
             {

@@ -148,6 +148,12 @@ private:
     // Display preview is live so each drag frame recomposes.
     void  UpdatePreviewCompose ();
 
+    // Pin the owner (the emulator main window) directly below this sheet in
+    // the z-order when a live preview begins, so the see-through reveal shows
+    // the emulator rather than whatever unrelated window the user activated
+    // between edits.
+    void  RaiseOwnerBehindSheet ();
+
     // Last mechanism pushed to the engine, so PushDriveAudioToEngine skips a
     // redundant WAV reload when it hasn't changed.
     std::string               m_lastAuditionMechanism;

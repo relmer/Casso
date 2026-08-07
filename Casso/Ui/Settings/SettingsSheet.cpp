@@ -150,6 +150,14 @@ HRESULT SettingsSheet::OpenModeless (
     params.insetContentBelowCaption = true;   // tab strip sits below the caption
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
 
+    // Present without waiting for vblank: the sheet shares the UI thread with
+    // the emulator window's vsynced present, and a live-preview drag repaints
+    // the sheet on every mouse move -- with the default interval of 1 each of
+    // those repaints stacks a second vblank wait onto the thread and starves
+    // the emulator's own present cadence. Windowed flip-model presents are
+    // composed by DWM at vsync either way, so 0 does not tear.
+    params.presentSyncInterval      = 0;
+
     // Casso app icon so the dialog isn't generic in alt-tab / the taskbar.
     // LR_SHARED hands back a process-cached handle -- no DestroyIcon needed.
     params.appIconBig   = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO),
@@ -253,6 +261,7 @@ HRESULT SettingsSheet::OpenModeless (
             m_previewFocusId = controlId;
             m_preview.StartPreview (SettingsPreviewController::Focus::BrightnessSlider, keyboardMode);
             m_previewActive  = true;
+            RaiseOwnerBehindSheet();   // the reveal must find the emulator, not a stranger
         }
         else
         {
@@ -527,6 +536,41 @@ void SettingsSheet::UpdatePreviewCompose()
     if (m_previewActive)
     {
         Invalidate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RaiseOwnerBehindSheet
+//
+//  Pin the owner (the emulator main window) DIRECTLY below this sheet in the
+//  z-order when a live preview begins. The see-through reveal is an OS-level
+//  transparency hole: it shows whatever window sits next below the sheet, and
+//  nothing in the owned-window contract keeps that slot for the owner -- an
+//  unrelated window the user activated between edits (a terminal, an editor)
+//  can occupy it, and the reveal then dutifully shows THAT window, which reads
+//  as an opaque gray block where the emulator should be.
+//
+//  NOACTIVATE so focus stays on the sheet mid-drag; the owner only changes
+//  z-position.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::RaiseOwnerBehindSheet()
+{
+    HWND  sheet = Hwnd();
+    HWND  owner = (sheet != nullptr) ? GetWindow (sheet, GW_OWNER) : nullptr;
+
+
+
+    if (owner != nullptr)
+    {
+        SetWindowPos (owner, sheet, 0, 0, 0, 0,
+                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 }
 

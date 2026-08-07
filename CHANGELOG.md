@@ -6,6 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Fixed
+- fix(settings): the Display live-preview reveal shows the emulator instead of an opaque gray block (DWM frame fill behind the composited sheet; reveal now hugs the CRT image and pins the emulator window behind the sheet)
+- fix(settings): the emulator responds to Display slider drags immediately instead of in bursts when the drag pauses (message-drain deadline + the sheet no longer stacks a second vblank wait)
+
 ## [1.15.1] — drive-door polish + small fixes
 
 ### Fixed

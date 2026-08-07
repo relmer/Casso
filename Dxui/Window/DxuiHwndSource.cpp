@@ -430,6 +430,20 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
         style &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
     }
 
+    // Composited (per-pixel alpha) windows must be pure WS_POPUP. DWM draws an
+    // opaque frame-background fill BEHIND the DirectComposition visual tree of
+    // any framed window -- dark gray in dark mode, and WS_THICKFRAME alone is
+    // enough to bring it back (verified empirically) -- so every alpha-0 pixel
+    // the swap chain presents shows that fill instead of the windows behind.
+    // That turned the Settings live-preview reveal into an opaque gray block
+    // (#96-adjacent; see SettingsCompositor). Caption dragging and border-drag
+    // resizing still work: the host answers WM_NCHITTEST itself, and the HT
+    // codes are what start the OS move / size loops, not the frame styles.
+    if (params.composited)
+    {
+        style = WS_POPUP | WS_CLIPCHILDREN;
+    }
+
     exStyle = WS_EX_APPWINDOW;
     if (params.createNoActivate)
     {
