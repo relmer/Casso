@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [Unreleased]
+## [1.15.1] — drive-door polish + small fixes
 
 ### Fixed
 - fix(chrome): drive door animates in parallel with the disk picker instead of stalling until it closes
