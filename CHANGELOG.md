@@ -6,6 +6,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Fixed
+- fix(chrome): drive door animates in parallel with the disk picker instead of stalling until it closes
+- fix(chrome): canceling the picker closes a mounted drive's door again (the restore was dead code)
+- fix(chrome): eject-click door flap (open-close-reopen race with the CPU-thread eject)
+- fix(chrome): Disk > Insert gets the same door choreography as a drive-widget click
+- fix(printer): 3D preview scales instead of clipping; preview minimum size raised to a renderable size
+- fix(asm): diagnostics report in source order; an unclosed `.if` is reported at the `.if`, not end-of-file
+- fix(config): a corrupt or unreadable prefs file notifies (with the path) instead of asserting
+- fix(theme): an unknown theme name reports failure instead of silently falling back
+- fix(dxui): checkboxes / toggles no longer paint with zero area (WM_PAINT before first layout)
+
+### Changed
+- shell: window caption drops `[Running]` and the Debug tag
+- trace: interrupt-handler entries tagged; IRQ/NMI rates summarized
+- internal: repo-wide style sweep, now gated by CheckStyle in the pre-push hook and CI
+
 ## [1.15.0] — Apple //c mouse fixes
 
 ### Fixed
