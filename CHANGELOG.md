@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [Unreleased]
+## [1.15.2] — settings live-preview fixes
 
 ### Fixed
 - fix(settings): the Display live-preview reveal shows the emulator instead of an opaque gray block (DWM frame fill behind the composited sheet; reveal now hugs the CRT image and pins the emulator window behind the sheet)
