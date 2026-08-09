@@ -58,6 +58,12 @@ public:
     void          Eject             (int slot, int drive);
     HRESULT       Flush             (int slot, int drive);
     HRESULT       FlushAll          ();
+
+    //  Serializer-level persist of the image's CURRENT state, regardless of
+    //  the dirty bit or the image's write-protect flag (that flag gates
+    //  guest writes, not host persistence). The write-protect toggle uses
+    //  this to land the flipped WOZ INFO flag in the backing file.
+    HRESULT       ForceFlush        (int slot, int drive);
     void          SoftReset         ();
     void          PowerCycle        ();
 
@@ -95,7 +101,7 @@ private:
 
     Entry &       At                (int slot, int drive);
     const Entry & At                (int slot, int drive) const;
-    HRESULT       FlushEntry        (Entry & entry);
+    HRESULT       FlushEntry        (Entry & entry, bool force = false);
 
     // Builds the user-facing "could not save" message from the mount path;
     // handed to CHRN/CBRN in FlushEntry on a genuine persist failure.

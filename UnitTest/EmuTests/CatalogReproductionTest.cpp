@@ -473,6 +473,103 @@ public:
 
     ////////////////////////////////////////////////////////////////////////
     //
+    //  DOS33_SAVE_RespectsImageWriteProtect
+    //
+    //  SC-005 gate: with the image write-protect flag set, a guest SAVE
+    //  fails with WRITE PROTECTED; clearing the flag lets the same SAVE
+    //  succeed and round-trip.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (DOS33_SAVE_RespectsImageWriteProtect)
+    {
+        HeadlessHost    host;
+        EmulatorCore    core;
+        HRESULT         hr        = S_OK;
+        DiskImage     * masterImg = nullptr;
+        DiskImage     * blankImg  = nullptr;
+        BlankDiskSpec   spec;
+        vector<Byte>    blankWoz;
+        std::string     afterProtectedSave;
+        std::string     afterWritableSave;
+
+
+
+        std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
+        if (raw.empty())
+        {
+            Logger::WriteMessage ("SKIPPED: Disks/Apple/dos33-master.dsk not "
+                                  "available in this checkout.\n");
+            return;
+        }
+
+        hr = host.BuildApple2eWithDisk2 (core);
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
+
+        core.PowerCycle();
+
+        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+            "dos33-master.dsk", DiskFormat::Dsk, raw);
+        AssertSucceeded (hr, L"master MountFromBytes must succeed");
+
+        masterImg = core.diskStore->GetImage (kSlot6, kDrive1);
+        Assert::IsNotNull (masterImg);
+        core.diskController->SetExternalDisk (kDrive1, masterImg);
+
+        hr = BlankDiskBuilder::Build (spec, BootPayload{}, blankWoz);
+        AssertSucceeded (hr, L"blank WOZ must build");
+
+        hr = core.diskStore->MountFromBytes (kSlot6, kDrive2,
+            "wp-blank.woz", DiskFormat::Woz, blankWoz);
+        AssertSucceeded (hr, L"blank MountFromBytes must succeed");
+
+        blankImg = core.diskStore->GetImage (kSlot6, kDrive2);
+        Assert::IsNotNull (blankImg);
+        core.diskController->SetExternalDisk (kDrive2, blankImg);
+
+        // Protected first: the guest must refuse the write.
+        blankImg->SetImageWriteProtected (true);
+
+        core.bus->WriteByte (kIntCxRomOff, 0);
+        core.cpu->SetPC (kBootRomEntry);
+
+        core.RunCycles (kDos33ColdBootCycles);
+
+        auto Screen = [&] () -> std::string
+        {
+            std::string               joined;
+
+            std::vector<std::string>  scr = TextScreenScraper::Scrape40 (
+                *core.bus, TextScreenScraper::kTextPage1);
+            for (const auto & r : scr) { joined += r; joined += "\n"; }
+            return joined;
+        };
+
+        Assert::IsTrue (Screen().find (']') != std::string::npos,
+            L"DOS 3.3 must reach the ] prompt within the cold-boot budget.");
+
+        KeystrokeInjector::InjectLine (core, "10 REM WP TEST", kCatalogCycles);
+        KeystrokeInjector::InjectLine (core, "SAVE TEST,D2", kCatalogCycles);
+        afterProtectedSave = Screen();
+
+        Assert::IsTrue (afterProtectedSave.find ("WRITE PROTECTED") != std::string::npos,
+            L"a SAVE to a protected image must fail with WRITE PROTECTED (SC-005)");
+
+        // Unprotect and repeat: the same SAVE must now succeed.
+        blankImg->SetImageWriteProtected (false);
+
+        KeystrokeInjector::InjectLine (core, "HOME", kCatalogCycles);
+        KeystrokeInjector::InjectLine (core, "SAVE TEST,D2", kCatalogCycles);
+        afterWritableSave = Screen();
+
+        Assert::IsTrue (afterWritableSave.find ("WRITE PROTECTED") == std::string::npos &&
+                        afterWritableSave.find ("I/O ERROR") == std::string::npos,
+            L"clearing the flag must let the SAVE through");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
     //  BootableDos33Woz_BootsToCleanPrompt
     //
     //  SC-006 gate: a bootable DOS 3.3 WOZ built from the real System

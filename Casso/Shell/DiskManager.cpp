@@ -8,6 +8,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Audio/DriveAudioMixer.h"
 #include "Audio/Disk2AudioSource.h"
+#include "../Config/IFileSystem.h"
 #include "../DiskSettings.h"
 #include "../WasapiAudio.h"
 #include "../Ui/Chrome/DriveWidget.h"
@@ -167,6 +168,100 @@ void DiskManager::ApplyExternalWriteProtect (
 
     image->SetUserWriteProtected (userWp);
     image->SetFileWriteProtect   (readOnly, noPermission);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToggleImageWriteProtect
+//
+//  WOZ carries its own write-protect flag (INFO byte 2), so the toggle
+//  flips the image flag and persists it -- pending guest writes are
+//  flushed FIRST because a protected image drops dirty content at flush,
+//  and the flag itself lands via ForceFlush, which persists regardless of
+//  the (now-set) gate. Sector-image formats have no in-image flag, so the
+//  toggle sets or clears the backing file's read-only attribute instead.
+//
+//  Either way the function ends by re-probing the backing file and
+//  re-applying the external state: the padlock, tooltip, and menu check
+//  reflect what actually happened, never what was merely attempted.
+//  Failures report through the shared EHM notifier.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskManager::ToggleImageWriteProtect (int drive)
+{
+    HRESULT       hr         = S_OK;
+    DiskImage   * image      = nullptr;
+    DiskFormat    fmt        = DiskFormat::Dsk;
+    bool          protecting = false;
+    std::string   path;
+    std::wstring  wide;
+
+
+
+    CBRAEx (drive == 0 || drive == 1, E_INVALIDARG);
+
+    image = m_diskStore.GetImage (6, drive);
+    path  = m_diskStore.GetSourcePath (6, drive);
+
+    CBREx (image != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+
+    hr = DiskImageStore::DetectFormatByExtension (path, fmt);
+    CHR (hr);
+
+    if (fmt == DiskFormat::Woz)
+    {
+        protecting = !image->GetWriteProtectInfo().imageFlag;
+
+        if (protecting)
+        {
+            // Persist pending guest writes while the image still accepts a
+            // flush -- protecting first would drop them.
+            hr = m_diskStore.Flush (6, drive);
+            CHR (hr);
+        }
+
+        image->SetImageWriteProtected (protecting);
+
+        // The flag travels in the file's INFO chunk; ForceFlush persists it
+        // past the write gate the flag itself just closed.
+        hr = m_diskStore.ForceFlush (6, drive);
+        CHRF (hr, image->SetImageWriteProtected (!protecting));
+    }
+    else
+    {
+        bool  readOnly = false;
+
+        wide = fs::path (path).wstring();
+
+        hr = m_fileSystem.GetReadOnlyAttribute (wide, readOnly);
+        CHRN (hr, L"The disk file's attributes could not be read.");
+
+        protecting = !readOnly;
+
+        if (protecting)
+        {
+            hr = m_diskStore.Flush (6, drive);
+            CHR (hr);
+        }
+
+        hr = m_fileSystem.SetReadOnlyAttribute (wide, protecting);
+        CHRN (hr, L"The disk file's read-only attribute could not be changed.");
+    }
+
+Error:
+    // Truth, not intent: whatever happened above, the indicators re-read
+    // the file and the effective state (FR-015 / FR-016).
+    if (image != nullptr)
+    {
+        ApplyExternalWriteProtect (drive, image, path);
+    }
+
+    return hr;
 }
 
 

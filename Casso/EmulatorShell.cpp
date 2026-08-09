@@ -2162,7 +2162,37 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         {
             case IDM_MACHINE_ARROWS_JOYSTICK: return m_arrowsJoystick;
             case IDM_MACHINE_ARROWS_PADDLE:   return m_pointerMode == InputMappingMode::Paddle;
+
+            case IDM_DISK_WP1:
+            case IDM_DISK_WP2:
+            {
+                // The image's own protection only -- the flag that travels
+                // with the file or its read-only attribute; the per-drive
+                // USER write-protect pref is a different toggle.
+                int          drive = (commandId == IDM_DISK_WP1) ? 0 : 1;
+                DiskImage *  image = m_diskStore.GetImage (6, drive);
+
+                if (image == nullptr)
+                {
+                    return false;
+                }
+
+                WriteProtectInfo  info = image->GetWriteProtectInfo();
+
+                return info.imageFlag || info.readOnlyFile;
+            }
+
             default:                          return false;
+        }
+    });
+
+    m_mainMenu.SetEnableQuery ([this] (WORD commandId) -> bool
+    {
+        switch (commandId)
+        {
+            case IDM_DISK_WP1: return m_diskStore.IsMounted (6, 0);
+            case IDM_DISK_WP2: return m_diskStore.IsMounted (6, 1);
+            default:           return true;
         }
     });
 
@@ -4894,6 +4924,19 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
             bool  wp    = (!cmd.payload.empty() && cmd.payload[0] == '1');
 
             SetDriveUserWriteProtect (drive, wp);
+            break;
+        }
+
+        case IDM_DISK_WP1:
+        case IDM_DISK_WP2:
+        {
+            int      drive    = (cmd.id == IDM_DISK_WP1) ? 0 : 1;
+            HRESULT  hrToggle = S_OK;
+
+            // Runs on the CPU thread like mount / eject so the flush never
+            // races the drive engine; failures already reported inside.
+            hrToggle = m_diskManager->ToggleImageWriteProtect (drive);
+            IGNORE_RETURN_VALUE (hrToggle, S_OK);
             break;
         }
 

@@ -414,7 +414,7 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     if      (id >= IDM_EDIT_COPY_TEXT && id <= IDM_EDIT_PASTE)              { OnEditCommand (id); }
     else if (id >= IDM_FILE_OPEN      && id <= IDM_FILE_EXIT)               { OnFileCommand (id); }
     else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_PADDLE)   { OnMachineCommand (id); }
-    else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WRITEPROTECT2)      { OnDiskCommand (id); }
+    else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WP2)                { OnDiskCommand (id); }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { OnViewCommand (id); }
     else if (id == IDM_PRINTER_DISCARD)                                    { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_COPY)                                       { OnPrinterCommand (id); }
@@ -1221,6 +1221,15 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_DISK_EJECT1:
         case IDM_DISK_EJECT2:
         {
+            m_shell.PostCommand (static_cast<WORD> (id));
+            break;
+        }
+
+        case IDM_DISK_WP1:
+        case IDM_DISK_WP2:
+        {
+            // The toggle runs on the CPU thread (like mount / eject) so its
+            // flush never races the drive engine.
             m_shell.PostCommand (static_cast<WORD> (id));
             break;
         }

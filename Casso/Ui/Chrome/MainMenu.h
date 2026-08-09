@@ -61,6 +61,7 @@ public:
 
     void                                   SetDispatch        (DispatchFn dispatch);
     void                                   SetCheckQuery      (CheckFn query);
+    void                                   SetEnableQuery     (CheckFn query);
 
     static std::span<const MainMenuCommandEntry>  GetCommandEntries  ();
     static const wchar_t                       *  GetMenuName        (MainMenuId menu);
@@ -103,4 +104,5 @@ private:
 
     DispatchFn  m_dispatch;
     CheckFn     m_isChecked;
+    CheckFn     m_isEnabled;
 };

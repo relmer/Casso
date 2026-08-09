@@ -252,7 +252,7 @@ wstring DiskImageStore::FormatFlushLossMessage (const string & path)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::FlushEntry (Entry & entry)
+HRESULT DiskImageStore::FlushEntry (Entry & entry, bool force)
 {
     HRESULT       hr     = S_OK;
     vector<Byte>  bytes;
@@ -260,11 +260,14 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
 
 
 
-    // No-op cases -- nothing dirty to persist -- succeed silently.
+    // No-op cases -- nothing dirty to persist -- succeed silently. A
+    // forced flush persists the current state regardless: the dirty bit
+    // and the write-protect gate govern guest writes, not a host-side
+    // persist of (say) a flipped write-protect flag.
     BAIL_OUT_IF (!entry.mounted || entry.image == nullptr, S_OK);
-    BAIL_OUT_IF (!entry.image->IsDirty(), S_OK);
+    BAIL_OUT_IF (!force && !entry.image->IsDirty(), S_OK);
 
-    if (entry.image->IsWriteProtected())
+    if (!force && entry.image->IsWriteProtected())
     {
         entry.image->ClearDirty();
         BAIL_OUT_IF (true, S_OK);
@@ -320,6 +323,30 @@ HRESULT DiskImageStore::Flush (int slot, int drive)
     CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
     hr = FlushEntry (At (slot, drive));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ForceFlush
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::ForceFlush (int slot, int drive)
+{
+    HRESULT   hr = S_OK;
+
+
+
+    CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
+
+    hr = FlushEntry (At (slot, drive), true);
 
 Error:
     return hr;
