@@ -92,6 +92,53 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReorderDosToPo
+//
+//  The skeleton buffer is DOS 3.3 logical order; a .po file stores the same
+//  track's sixteen 256-byte sectors in ProDOS-block order. File index ->
+//  DOS logical sector comes from composing the 2:1 ProDOS physical
+//  interleave with the DOS 3.3 physical-to-logical skew.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlankDiskBuilder::ReorderDosToPo (const vector<Byte> & dosOrdered, vector<Byte> & outPo)
+{
+    constexpr int  kPoFileToDosLogical[16] =
+    {
+        0, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 15
+    };
+
+    int  track = 0;
+    int  file  = 0;
+
+
+
+    outPo.assign (dosOrdered.size(), (Byte) 0);
+
+    for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+    {
+        for (file = 0; file < NibblizationLayer::kSectorsPerTrack; file++)
+        {
+            size_t  src = ((size_t) track * NibblizationLayer::kSectorsPerTrack
+                          + (size_t) kPoFileToDosLogical[file])
+                        * (size_t) NibblizationLayer::kSectorByteSize;
+            size_t  dst = ((size_t) track * NibblizationLayer::kSectorsPerTrack
+                          + (size_t) file)
+                        * (size_t) NibblizationLayer::kSectorByteSize;
+
+            std::copy (dosOrdered.begin() + src,
+                       dosOrdered.begin() + src + NibblizationLayer::kSectorByteSize,
+                       outPo.begin() + dst);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Build
 //
 //  Skeleton buffer -> optional payload install -> format-specific output
@@ -100,18 +147,21 @@ Error:
 //  Deterministic by construction -- no clocks, no randomness -- so identical
 //  inputs yield identical bytes.
 //
-//  Formatted contents produce the buffer via the skeleton writers; the WOZ
-//  path nibblizes it (the same GCR encoding a mounted .dsk gets) and
+//  Formatted contents produce the buffer via the skeleton writers (always in
+//  DOS 3.3 logical layout; ProDOS blocks land through the interleave map).
+//  The WOZ path nibblizes it (the same GCR encoding a mounted .dsk gets) and
 //  serializes WOZ v2 with the write-protect INFO byte clear (a new disk is
-//  never born protected).
+//  never born protected). DSK output is the buffer verbatim; PO output is
+//  the buffer reordered to ProDOS-block order.
 //
 //  "Unformatted" WOZ carries every track sized to the full bit capacity with
 //  all-zero bits: the guest reads it as garbage (exactly like raw media) and
-//  a guest INIT lays its own sync + sectors over the rotating track.
+//  a guest INIT lays its own sync + sectors over the rotating track. An
+//  unformatted sector image is all zeros -- no filesystem until the guest
+//  INITs it.
 //
-//  ProDOS contents, the DSK/PO outputs, and boot-payload install are not yet
-//  implemented; those valid specs fail cleanly as E_NOTIMPL rather than
-//  emitting a wrong image.
+//  Boot-payload install is not yet implemented; a bootable spec fails
+//  cleanly as E_NOTIMPL rather than emitting a wrong image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,8 +184,6 @@ HRESULT BlankDiskBuilder::Build (
     CHR (hr);
 
     CBREx (!spec.bootable, E_NOTIMPL);
-    CBREx (spec.contents != BlankDiskContents::ProDos, E_NOTIMPL);
-    CBREx (spec.format == DiskFormat::Woz, E_NOTIMPL);
 
     buffer.assign ((size_t) NibblizationLayer::kImageByteSize, (Byte) 0);
 
@@ -144,23 +192,46 @@ HRESULT BlankDiskBuilder::Build (
         hr = Dos33Skeleton::Write (buffer, spec.volumeNumber);
         CHR (hr);
     }
-
-    if (spec.contents == BlankDiskContents::Unformatted)
+    else if (spec.contents == BlankDiskContents::ProDos)
     {
-        // Raw media: full-capacity all-zero bit tracks, no sector structure.
-        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
-        {
-            img.ResizeTrack (track, NibblizationLayer::kTrackBitCapacity);
-        }
-    }
-    else
-    {
-        hr = NibblizationLayer::NibblizeDsk (buffer, img);
+        hr = ProDosSkeleton::Write (buffer, spec.volumeName);
         CHR (hr);
     }
 
-    hr = WozLoader::Serialize (img, built);
-    CHR (hr);
+    switch (spec.format)
+    {
+        case DiskFormat::Woz:
+            if (spec.contents == BlankDiskContents::Unformatted)
+            {
+                // Raw media: full-capacity all-zero bit tracks, no structure.
+                for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+                {
+                    img.ResizeTrack (track, NibblizationLayer::kTrackBitCapacity);
+                }
+            }
+            else
+            {
+                hr = NibblizationLayer::NibblizeDsk (buffer, img);
+                CHR (hr);
+            }
+
+            hr = WozLoader::Serialize (img, built);
+            CHR (hr);
+            break;
+
+        case DiskFormat::Dsk:
+            built = buffer;
+            break;
+
+        case DiskFormat::Po:
+            ReorderDosToPo (buffer, built);
+            break;
+
+        default:
+            // ValidateSpec admits exactly the three formats above.
+            CBRAEx (false, E_UNEXPECTED);
+            break;
+    }
 
     outBytes = std::move (built);
 

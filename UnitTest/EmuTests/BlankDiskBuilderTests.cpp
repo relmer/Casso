@@ -3,6 +3,7 @@
 #include "Devices/Disk/BlankDiskBuilder.h"
 #include "Devices/Disk/Dos33Skeleton.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/ProDosSkeleton.h"
 #include "Devices/Disk/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -313,6 +314,130 @@ public:
         Assert::AreEqual ((size_t) 2, out.size());
         Assert::AreEqual ((Byte) 0xDE, out[0]);
     }
+
+    TEST_METHOD (Build_DskDos33_IsTheSkeletonBufferVerbatim)
+    {
+        BlankDiskSpec  spec = MakeSpec (DiskFormat::Dsk, BlankDiskContents::Dos33);
+        vector<Byte>   dsk;
+        vector<Byte>   expected = MakeDos33Buffer();
+
+
+
+        AssertSucceeded (BlankDiskBuilder::Build (spec, BootPayload{}, dsk));
+
+        Assert::AreEqual ((size_t) NibblizationLayer::kImageByteSize, dsk.size());
+        Assert::IsTrue (expected == dsk, L"a .dsk is the DOS-order buffer itself");
+    }
+
+
+    TEST_METHOD (Build_UnformattedSectorImages_AreAllZeros)
+    {
+        vector<Byte>  dsk;
+        vector<Byte>  po;
+        vector<Byte>  zeros ((size_t) NibblizationLayer::kImageByteSize, (Byte) 0);
+
+
+
+        AssertSucceeded (BlankDiskBuilder::Build (
+            MakeSpec (DiskFormat::Dsk, BlankDiskContents::Unformatted), BootPayload{}, dsk));
+        AssertSucceeded (BlankDiskBuilder::Build (
+            MakeSpec (DiskFormat::Po, BlankDiskContents::Unformatted), BootPayload{}, po));
+
+        Assert::IsTrue (zeros == dsk, L"unformatted .dsk is a zero sector image");
+        Assert::IsTrue (zeros == po,  L"unformatted .po is a zero sector image");
+    }
+
+
+    TEST_METHOD (Build_PoProDos_LaysBlocksLinearly)
+    {
+        // In a .po file ProDOS blocks are stored in order, so block b begins
+        // at byte b*512 regardless of the buffer's internal interleave.
+        BlankDiskSpec  spec = MakeSpec (DiskFormat::Po, BlankDiskContents::ProDos);
+        vector<Byte>   po;
+
+
+
+        AssertSucceeded (BlankDiskBuilder::Build (spec, BootPayload{}, po));
+        Assert::AreEqual ((size_t) NibblizationLayer::kImageByteSize, po.size());
+
+        // Key block 2: storage 0xF + name length 7, name NEWDISK.
+        Assert::AreEqual ((Byte) 0xF7, po[2 * 512 + 0x04]);
+        Assert::AreEqual ((Byte) 'N',  po[2 * 512 + 0x05]);
+        Assert::AreEqual ((Byte) 'K',  po[2 * 512 + 0x0B]);
+
+        // Key block links to 3; block 5 ends the chain.
+        Assert::AreEqual ((Byte) 3, po[2 * 512 + 0x02]);
+        Assert::AreEqual ((Byte) 0, po[5 * 512 + 0x02]);
+
+        // Bitmap block 6: blocks 0-6 used, 7-279 free.
+        Assert::AreEqual ((Byte) 0x01, po[6 * 512]);
+        Assert::AreEqual ((Byte) 0xFF, po[6 * 512 + 1]);
+        Assert::AreEqual ((Byte) 0xFF, po[6 * 512 + 34]);
+        Assert::AreEqual ((Byte) 0x00, po[6 * 512 + 35]);
+    }
+
+
+    TEST_METHOD (Build_WozProDos_RoundTripsTheSkeleton)
+    {
+        BlankDiskSpec  spec = MakeSpec (DiskFormat::Woz, BlankDiskContents::ProDos);
+        vector<Byte>   woz;
+        vector<Byte>   readBack;
+        DiskImage      img;
+
+
+
+        AssertSucceeded (BlankDiskBuilder::Build (spec, BootPayload{}, woz));
+        AssertSucceeded (WozLoader::Load (woz, img));
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, readBack));
+
+        vector<Byte>  expected (NibblizationLayer::kImageByteSize, 0);
+        AssertSucceeded (ProDosSkeleton::Write (expected, spec.volumeName));
+
+        Assert::IsTrue (expected == readBack,
+            L"the ProDOS skeleton must survive the GCR round-trip");
+    }
+
+
+    TEST_METHOD (Build_SectorFormats_AreDeterministic)
+    {
+        vector<Byte>  first;
+        vector<Byte>  second;
+
+
+
+        AssertSucceeded (BlankDiskBuilder::Build (
+            MakeSpec (DiskFormat::Dsk, BlankDiskContents::Dos33), BootPayload{}, first));
+        AssertSucceeded (BlankDiskBuilder::Build (
+            MakeSpec (DiskFormat::Dsk, BlankDiskContents::Dos33), BootPayload{}, second));
+        Assert::IsTrue (first == second);
+
+        AssertSucceeded (BlankDiskBuilder::Build (
+            MakeSpec (DiskFormat::Po, BlankDiskContents::ProDos), BootPayload{}, first));
+        AssertSucceeded (BlankDiskBuilder::Build (
+            MakeSpec (DiskFormat::Po, BlankDiskContents::ProDos), BootPayload{}, second));
+        Assert::IsTrue (first == second);
+    }
+
+
+    TEST_METHOD (Build_SectorFormats_MountThroughTheStore)
+    {
+        DiskImageStore  store;
+        vector<Byte>    dsk;
+        vector<Byte>    po;
+
+
+
+        AssertSucceeded (BlankDiskBuilder::Build (
+            MakeSpec (DiskFormat::Dsk, BlankDiskContents::Dos33), BootPayload{}, dsk));
+        AssertSucceeded (store.MountFromBytes (6, 0, "new-blank.dsk", DiskFormat::Dsk, dsk));
+        Assert::IsTrue (store.IsMounted (6, 0));
+
+        AssertSucceeded (BlankDiskBuilder::Build (
+            MakeSpec (DiskFormat::Po, BlankDiskContents::ProDos), BootPayload{}, po));
+        AssertSucceeded (store.MountFromBytes (6, 1, "new-blank.po", DiskFormat::Po, po));
+        Assert::IsTrue (store.IsMounted (6, 1));
+    }
+
 
     TEST_METHOD (Dos33Skeleton_RejectsWrongBufferSize)
     {

@@ -77,4 +77,7 @@ public:
     static HRESULT  Build (const BlankDiskSpec & spec,
                            const BootPayload   & payload,
                            vector<Byte>        & outBytes);
+
+private:
+    static void  ReorderDosToPo (const vector<Byte> & dosOrdered, vector<Byte> & outPo);
 };
