@@ -156,7 +156,7 @@ public:
         model.Bind (&fs);
         AssertSucceeded (model.SetFolder (L"C:\\"));
 
-        Assert::AreEqual (S_FALSE, model.NavigateUp());
+        AssertSucceeded (model.NavigateUp());
         Assert::AreEqual (std::wstring (L"C:\\"), model.CurrentFolder());
     }
 

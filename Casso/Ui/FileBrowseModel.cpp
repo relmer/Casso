@@ -180,7 +180,7 @@ Error:
 //  NavigateUp
 //
 //  Steps to the parent folder. At a drive root there is no parent; the
-//  call is a clean no-op (S_FALSE) so callers need no special casing.
+//  call is a clean successful no-op so callers need no special casing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -194,7 +194,7 @@ HRESULT FileBrowseModel::NavigateUp()
 
     if (m_folder.size() <= 3)
     {
-        return S_FALSE;
+        return S_OK;
     }
 
     cut    = m_folder.find_last_of (L"\\/");
