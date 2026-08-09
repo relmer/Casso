@@ -252,13 +252,13 @@ public:
 
     TEST_METHOD (FileWriter_TwoFilesShareNoBlocks)
     {
-        vector<Byte>  vol   = MakeVolume();
-        vector<Byte>  a     = MakePattern (2'000);
-        vector<Byte>  b     = MakePattern (3'000);
+        vector<Byte>  vol        = MakeVolume();
+        vector<Byte>  a          = MakePattern (2'000);
+        vector<Byte>  b          = MakePattern (3'000);
         vector<Byte>  backA;
         vector<Byte>  backB;
-        Byte          ft    = 0;
-        Word          aux   = 0;
+        Byte          ft         = 0;
+        Word          aux        = 0;
         int           freeBefore = CountFreeBlocks (vol);
         int           freeAfter  = 0;
 

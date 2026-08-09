@@ -292,6 +292,7 @@ HRESULT ProDosReader::ExtractFile (
                     }
                 }
             }
+
             break;
         }
 
@@ -312,7 +313,11 @@ HRESULT ProDosReader::ExtractFile (
         }
     }
 
-    CBREx (data.size() == (size_t) eof, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
+    {
+        bool  complete = data.size() == (size_t) eof;
+
+        CBREx (complete, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
+    }
 
     outBytes = std::move (data);
 
