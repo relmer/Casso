@@ -53,7 +53,7 @@ FR-010 gating; bootable toggle with catalog-downloaded OS payloads.
 **Independent test**: quickstart §2 + §3 — every offered combination yields a
 clean guest volume; bootable disks boot to their OS prompt.
 
-- [ ] T013 [P] [US2] Implement `ProDosSkeleton::Write` (key block 2, dir chain 2–5, bitmap block 6, `NEWDISK`, 280 blocks per R-005) in `CassoEmuCore/Devices/Disk/ProDosSkeleton.cpp`; structural tests in `UnitTest/EmuTests/ProDosVolumeTests.cpp`
+- [X] T013 [P] [US2] Implement `ProDosSkeleton::Write` (key block 2, dir chain 2–5, bitmap block 6, `NEWDISK`, 280 blocks per R-005) in `CassoEmuCore/Devices/Disk/ProDosSkeleton.cpp`; structural tests in `UnitTest/EmuTests/ProDosVolumeTests.cpp`
 - [ ] T014 [US2] Extend `BlankDiskBuilder::Build` to the full matrix: `Dsk` (DOS-order buffer identity), `Po` (ProDOS-order), ProDOS contents on WOZ (block→sector mapping via existing interleave tables), unformatted variants; golden-size + determinism tests; mount-level `CAT`/`CATALOG` cleanliness for each (SC-003)
 - [ ] T015 [US2] Add format/contents dropdowns to `CreateDiskDialog` with live FR-010 constraint gating (illegal pairings disabled with reason), extension follows format in the name field
 - [ ] T016 [US2] Implement `ProDosReader::ExtractFile` (walk volume dir, seedling/sapling/tree data blocks) in `ProDosSkeleton.cpp` (or sibling file) with tests against a synthetic volume built by T017's `ProDosFileWriter` (round-trip; runs after T017)
