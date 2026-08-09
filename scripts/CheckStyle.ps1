@@ -1024,17 +1024,32 @@ function Test-CommitMessages
 
     foreach ($sha in $shas)
     {
-        $body  = git -C $repoRoot log -1 --format=%B $sha 2>$null | Out-String
-        $short = $sha.Substring(0, 8)
+        $body    = git -C $repoRoot log -1 --format=%B $sha 2>$null | Out-String
+        $subject = git -C $repoRoot log -1 --format=%s $sha 2>$null
+        $short   = $sha.Substring(0, 8)
 
         if ($body -imatch 'Co-Authored-By:\s*Claude|Generated with \[Claude Code\]|noreply@anthropic\.com')
         {
-            $bad += "commit ${short} -- Claude attribution is not permitted in commit messages"
+            $bad += [pscustomobject]@{ Id = 'CS0008'
+                Text = "commit ${short} -- Claude attribution is not permitted in commit messages" }
         }
 
         if ($body -match $britishRule.Pattern -and $short -notin $grandfathered)
         {
-            $bad += "commit ${short} -- $($britishRule.Message) (found '$($Matches[0])')"
+            $bad += [pscustomobject]@{ Id = 'CS0008'
+                Text = "commit ${short} -- $($britishRule.Message) (found '$($Matches[0])')" }
+        }
+
+        # CS0020: subjects follow `action(scope): description` -- the scope is
+        # NOT optional (a bare `style:` is the drift this exists to stop).
+        # Merge and revert subjects keep git's own conventions. Scoped to
+        # unpushed commits like everything here, so historical scopeless
+        # subjects on published branches never trip it.
+        if ($subject -notmatch '^(Merge|Revert)\b' -and
+            $subject -notmatch '^[a-z][a-z0-9]*\([^)]+\): .+')
+        {
+            $bad += [pscustomobject]@{ Id = 'CS0020'
+                Text = "commit ${short} -- subject must be 'action(scope): description' (found '$subject')" }
         }
     }
 
@@ -1145,7 +1160,7 @@ if (-not $SkipCommitCheck -and $Mode -eq 'Diff')
 {
     foreach ($b in (Test-CommitMessages -Base $Against -Tip $Revision))
     {
-        $sink.Add([pscustomobject]@{ Id = 'CS0008'; Text = $b })
+        $sink.Add([pscustomobject]@{ Id = $b.Id; Text = $b.Text })
     }
 }
 

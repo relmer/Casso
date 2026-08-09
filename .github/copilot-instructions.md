@@ -448,9 +448,11 @@ namespaces, American spelling, angle-bracket includes, `Pch.h`-first, bare
 messages, the banner/blank-line structure rules (CS0014–CS0017), and
 declaration-run column alignment (CS0019 — flags only runs that
 `scripts/FixDeclAlign.ps1 -Apply` can mechanically repair; late declarations
-have a companion fixer in `scripts/FixLateDecls.ps1`). Rules that need
-judgment — magic numbers, EHM single-exit — are **not** covered and remain
-review's job.
+have a companion fixer in `scripts/FixLateDecls.ps1`). Commit subjects on
+unpushed commits must be `action(scope): description` — the scope is not
+optional (CS0020; merge/revert subjects keep git's conventions, and
+already-pushed history is never re-judged). Rules that need judgment — magic
+numbers, EHM single-exit — are **not** covered and remain review's job.
 
 **`bool` returns must be self-describing.** Return `bool` only when the
 function's name makes `true` / `false` obvious: `IsXxx`, `HasXxx`, `TryXxx`,
