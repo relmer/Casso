@@ -64,7 +64,8 @@ public:
             return E_ACCESSDENIED;
         }
 
-        m_files[key].content = content;
+        m_files[key].content  = content;
+        m_files[key].original = NormalizeSeparators (path);
         return S_OK;
     }
 
@@ -168,7 +169,10 @@ public:
                 continue;
             }
 
-            std::wstring  remainder = kv.first.substr (prefix.size());
+            // Display names come from the case-preserved original path; the
+            // normalized key and the original are position-aligned because
+            // normalization never changes length.
+            std::wstring  remainder = kv.second.original.substr (prefix.size());
             size_t        slashPos  = remainder.find (L'/');
 
             if (remainder.empty())
@@ -284,9 +288,10 @@ public:
 private:
     struct Entry
     {
-        std::string  content;
-        bool         readOnly     = false;
-        int64_t      modifiedUnix = 0;
+        std::string   content;
+        std::wstring  original;       // case-preserved path, separators unified
+        bool          readOnly     = false;
+        int64_t       modifiedUnix = 0;
     };
 
 
@@ -303,6 +308,22 @@ private:
             else if (ch >= L'A' && ch <= L'Z')
             {
                 ch = (wchar_t) (ch - L'A' + L'a');
+            }
+        }
+
+        return result;
+    }
+
+
+    static std::wstring NormalizeSeparators (const std::wstring & path)
+    {
+        std::wstring  result = path;
+
+        for (wchar_t & ch : result)
+        {
+            if (ch == L'\\')
+            {
+                ch = L'/';
             }
         }
 

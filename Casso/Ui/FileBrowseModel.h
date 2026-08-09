@@ -66,11 +66,18 @@ public:
     TargetVerdict  ValidateTarget    (const std::wstring & fileName, int & outDrive) const;
     std::wstring   ComposeTargetPath (const std::wstring & fileName) const;
 
+    //  Windows filename validity (illegal chars, trailing dot/space, reserved
+    //  device names). Static so the dialog can pre-check keystrokes too.
+    static bool  IsValidFileName (const std::wstring & fileName);
+
 private:
+    void  RebuildFilteredView ();
+
     IFileSystem                  * m_fs = nullptr;   // non-owning
     std::wstring                   m_folder;
     std::wstring                   m_extension;      // ".woz" / ".dsk" / ".po"
-    std::vector<FileBrowseEntry>   m_entries;
+    std::vector<FileBrowseEntry>   m_allEntries;     // unfiltered cache
+    std::vector<FileBrowseEntry>   m_entries;        // filtered view
     std::vector<std::wstring>      m_mountedPaths;
     std::vector<int>               m_mountedDrives;
 };
