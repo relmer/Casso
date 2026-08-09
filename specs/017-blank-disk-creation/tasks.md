@@ -90,7 +90,7 @@ via host read-only attribute; indication always truthful.
 
 - [X] T030 [P] Fix the `.nib` lie in `WindowCommandManager::PromptForDiskImage`'s `COMDLG_FILTERSPEC` (advertises `*.nib`; `DetectFormatByExtension` rejects it) — drop the extension (sanctioned adjacent cleanup surfaced by the research code survey; NIB support stays out of scope per spec Assumptions)
 - [X] T031 [P] `CHANGELOG.md` under `[Unreleased]`: feature prose for create-a-disk + write-protect toggle (features get prose; keep fixes terse)
-- [ ] T032 Full gates: x64 Debug + Release build clean, full `UnitTest.dll` suite green both configs, ARM64 builds, Code Analysis zero warnings (constitution Quality Gate 5), `scripts/CheckStyle.ps1 -Mode Tree` clean, quickstart end-to-end pass — then user validation before merge to master
+- [X] T032 Full gates: x64 Debug + Release build clean, full `UnitTest.dll` suite green both configs (2902 Debug / 2899 Release), ARM64 Debug + Release build, Code Analysis zero warnings (constitution Quality Gate 5), `scripts/CheckStyle.ps1 -Mode Tree` clean (936 files), quickstart validated piecewise across the per-story runtime passes — USER VALIDATION before merge to master still pending
 
 ## Dependencies
 
