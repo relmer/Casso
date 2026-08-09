@@ -70,6 +70,24 @@ private:
 
     static constexpr size_t  kVolumeNameBytes = 15;
 
+    //  File-entry fields, relative to the entry.
+    static constexpr size_t  kEntOffTypeName      = 0x00;
+    static constexpr size_t  kEntOffName          = 0x01;
+    static constexpr size_t  kEntOffFileType      = 0x10;
+    static constexpr size_t  kEntOffKeyPointer    = 0x11;
+    static constexpr size_t  kEntOffBlocksUsed    = 0x13;
+    static constexpr size_t  kEntOffEof           = 0x15;
+    static constexpr size_t  kEntOffAccess        = 0x1E;
+    static constexpr size_t  kEntOffAuxType       = 0x1F;
+    static constexpr size_t  kEntOffHeaderPointer = 0x25;
+
+    static constexpr Byte    kStorageSeedling = 0x10;
+    static constexpr Byte    kStorageSapling  = 0x20;
+    static constexpr Byte    kStorageTree     = 0x30;
+
+    friend class ProDosReader;
+    friend class ProDosFileWriter;
+
     //  ProDOS block half -> DOS 3.3 logical sector within the track. Derived
     //  from the standard 2:1 ProDOS physical interleave composed with the
     //  DOS 3.3 physical-to-logical skew; row = block index within the track,
@@ -105,6 +123,11 @@ public:
                                  vector<Byte>       & outBytes,
                                  Byte               & outFileType,
                                  Word               & outAuxType);
+
+private:
+    static void  AppendIndexedBlocks (const vector<Byte> & volume,
+                                      Word                 indexBlock,
+                                      vector<Word>       & dataBlocks);
 };
 
 
@@ -128,4 +151,7 @@ public:
                                Byte                 fileType,
                                Word                 auxType,
                                const vector<Byte> & bytes);
+
+private:
+    static HRESULT  AllocateBlock (vector<Byte> & buffer, Word & outBlock);
 };

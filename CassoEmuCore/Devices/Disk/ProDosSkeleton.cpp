@@ -162,7 +162,12 @@ HRESULT ProDosSkeleton::InstallBoot (vector<Byte> & buffer, const vector<Byte> &
 //
 //  ProDosReader::ExtractFile
 //
-//  Master-image file extraction; not yet implemented.
+//  Minimal ProDOS volume reader: walks the volume directory chain for a
+//  case-insensitive name match, then gathers the file's data blocks per its
+//  storage type -- seedling (the key block IS the data), sapling (key is an
+//  index block of up to 256 data pointers), or tree (key is a master index
+//  of index blocks). A zero pointer anywhere means a sparse hole and reads
+//  as zeros. Output is truncated to the entry's EOF.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -173,13 +178,216 @@ HRESULT ProDosReader::ExtractFile (
     Byte               & outFileType,
     Word               & outAuxType)
 {
-    UNREFERENCED_PARAMETER (volume);
-    UNREFERENCED_PARAMETER (fileName);
-    UNREFERENCED_PARAMETER (outBytes);
-    UNREFERENCED_PARAMETER (outFileType);
-    UNREFERENCED_PARAMETER (outAuxType);
+    HRESULT       hr          = S_OK;
+    size_t        volumeBytes = volume.size();
+    size_t        nameBytes   = fileName.size();
+    int           dirBlock    = 0;
+    size_t        entryOffset = 0;
+    size_t        entry       = 0;
+    Byte          storage     = 0;
+    Word          keyPointer  = 0;
+    uint32_t      eof         = 0;
+    bool          found       = false;
+    vector<Byte>  data;
+    vector<Word>  dataBlocks;
 
-    return E_NOTIMPL;
+
+
+    CBRAEx (volumeBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBRAEx (nameBytes >= 1 && nameBytes <= ProDosSkeleton::kVolumeNameBytes, E_INVALIDARG);
+
+    // Walk the volume directory chain from the key block.
+    dirBlock = ProDosSkeleton::kDirKeyBlock;
+
+    while (!found && dirBlock != 0)
+    {
+        int  first = (dirBlock == ProDosSkeleton::kDirKeyBlock) ? 1 : 0;
+        int  n     = 0;
+
+        for (n = first; !found && n < (int) ProDosSkeleton::kEntriesPerBlock; n++)
+        {
+            size_t  at      = ProDosSkeleton::kOffFirstEntry
+                            + (size_t) n * ProDosSkeleton::kEntryLength;
+            Byte    typeLen = volume[ProDosSkeleton::BlockByteOffset (dirBlock, at)];
+            size_t  len     = (size_t) (typeLen & 0x0F);
+            bool    match   = (typeLen != 0) && (len == nameBytes);
+            size_t  i       = 0;
+
+            for (i = 0; match && i < len; i++)
+            {
+                Byte  c = volume[ProDosSkeleton::BlockByteOffset (
+                              dirBlock, at + ProDosSkeleton::kEntOffName + i)];
+
+                match = toupper ((unsigned char) c)
+                     == toupper ((unsigned char) fileName[i]);
+            }
+
+            if (match)
+            {
+                found       = true;
+                entryOffset = at;
+                entry       = (size_t) dirBlock;
+            }
+        }
+
+        if (!found)
+        {
+            dirBlock = volume[ProDosSkeleton::BlockByteOffset (dirBlock, ProDosSkeleton::kOffNextBlock)]
+                     | (volume[ProDosSkeleton::BlockByteOffset (dirBlock, ProDosSkeleton::kOffNextBlock + 1)] << 8);
+        }
+    }
+
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+    storage = (Byte) (volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset)] & 0xF0);
+
+    keyPointer = (Word)
+        (volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffKeyPointer)]
+       | (volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffKeyPointer + 1)] << 8));
+
+    eof = (uint32_t)
+         (volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffEof)]
+        | (volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffEof + 1)] << 8)
+        | (volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffEof + 2)] << 16));
+
+    outFileType = volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffFileType)];
+
+    outAuxType = (Word)
+        (volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffAuxType)]
+       | (volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffAuxType + 1)] << 8));
+
+    // Resolve the data-block list per storage type. A zero block number in
+    // an index is a sparse hole, kept in the list and emitted as zeros.
+    switch (storage)
+    {
+        case ProDosSkeleton::kStorageSeedling:
+            dataBlocks.push_back (keyPointer);
+            break;
+
+        case ProDosSkeleton::kStorageSapling:
+            AppendIndexedBlocks (volume, keyPointer, dataBlocks);
+            break;
+
+        case ProDosSkeleton::kStorageTree:
+        {
+            int  i = 0;
+
+            for (i = 0; i < (int) NibblizationLayer::kSectorByteSize; i++)
+            {
+                Word  indexBlock = (Word)
+                    (volume[ProDosSkeleton::BlockByteOffset (keyPointer, (size_t) i)]
+                   | (volume[ProDosSkeleton::BlockByteOffset (keyPointer, (size_t) i + 256)] << 8));
+
+                if (indexBlock != 0)
+                {
+                    AppendIndexedBlocks (volume, indexBlock, dataBlocks);
+                }
+                else
+                {
+                    int  hole = 0;
+
+                    for (hole = 0; hole < 256; hole++)
+                    {
+                        dataBlocks.push_back (0);
+                    }
+                }
+            }
+            break;
+        }
+
+        default:
+            CBREx (false, E_UNEXPECTED);
+            break;
+    }
+
+    for (Word block : dataBlocks)
+    {
+        size_t  i = 0;
+
+        for (i = 0; i < 512 && data.size() < (size_t) eof; i++)
+        {
+            data.push_back ((block != 0)
+                ? volume[ProDosSkeleton::BlockByteOffset (block, i)]
+                : (Byte) 0);
+        }
+    }
+
+    CBREx (data.size() == (size_t) eof, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
+
+    outBytes = std::move (data);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosReader::AppendIndexedBlocks
+//
+//  Appends every data-block number in one index block, zero holes included.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosReader::AppendIndexedBlocks (
+    const vector<Byte> & volume,
+    Word                 indexBlock,
+    vector<Word>       & dataBlocks)
+{
+    int  i = 0;
+
+
+
+    for (i = 0; i < (int) NibblizationLayer::kSectorByteSize; i++)
+    {
+        dataBlocks.push_back ((Word)
+            (volume[ProDosSkeleton::BlockByteOffset (indexBlock, (size_t) i)]
+           | (volume[ProDosSkeleton::BlockByteOffset (indexBlock, (size_t) i + 256)] << 8)));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosFileWriter::AllocateBlock
+//
+//  First-fit scan of the volume bitmap: returns the lowest free block and
+//  marks it used. Set bit = free, MSB of byte 0 = block 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosFileWriter::AllocateBlock (vector<Byte> & buffer, Word & outBlock)
+{
+    HRESULT  hr    = S_OK;
+    int      block = 0;
+    bool     found = false;
+
+
+
+    for (block = 0; !found && block < ProDosSkeleton::kTotalBlocks; block++)
+    {
+        size_t  at   = ProDosSkeleton::BlockByteOffset (
+                           ProDosSkeleton::kBitmapBlock, (size_t) (block / 8));
+        Byte    mask = (Byte) (0x80 >> (block % 8));
+
+        if ((buffer[at] & mask) != 0)
+        {
+            buffer[at] = (Byte) (buffer[at] & ~mask);
+            outBlock   = (Word) block;
+            found      = true;
+        }
+    }
+
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
+
+Error:
+    return hr;
 }
 
 
@@ -190,7 +398,11 @@ HRESULT ProDosReader::ExtractFile (
 //
 //  ProDosFileWriter::WriteFile
 //
-//  Volume file writer; not yet implemented.
+//  Writes one real file into a ProDosSkeleton-formatted buffer: allocates
+//  data blocks (plus an index block past the seedling size) from the volume
+//  bitmap, lays the bytes down, fills a free directory entry, and bumps the
+//  volume header's file count. Seedling (<= 512 bytes) and sapling
+//  (<= 256 blocks) layouts cover every file this feature installs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -201,11 +413,134 @@ HRESULT ProDosFileWriter::WriteFile (
     Word                 auxType,
     const vector<Byte> & bytes)
 {
-    UNREFERENCED_PARAMETER (buffer);
-    UNREFERENCED_PARAMETER (fileName);
-    UNREFERENCED_PARAMETER (fileType);
-    UNREFERENCED_PARAMETER (auxType);
-    UNREFERENCED_PARAMETER (bytes);
+    HRESULT       hr          = S_OK;
+    size_t        bufferBytes = buffer.size();
+    size_t        nameBytes   = fileName.size();
+    size_t        dataBytes   = bytes.size();
+    size_t        blockCount  = (dataBytes + 511) / 512;
+    int           dirBlock    = 0;
+    size_t        entryAt     = 0;
+    bool          haveSlot    = false;
+    bool          seedling    = false;
+    Word          keyBlock    = 0;
+    Word          blocksUsed  = 0;
+    size_t        i           = 0;
+    vector<Word>  dataBlocks;
 
-    return E_NOTIMPL;
+
+
+    CBRAEx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBRAEx (nameBytes >= 1 && nameBytes <= ProDosSkeleton::kVolumeNameBytes, E_INVALIDARG);
+    CBRAEx (dataBytes > 0, E_INVALIDARG);
+    CBRAEx (blockCount <= 256, E_INVALIDARG);
+
+    seedling = (blockCount == 1);
+
+    // A free directory entry: the first zero type/name byte in the chain.
+    for (dirBlock = ProDosSkeleton::kDirKeyBlock;
+         !haveSlot && dirBlock <= ProDosSkeleton::kDirLastBlock;
+         dirBlock++)
+    {
+        int  first = (dirBlock == ProDosSkeleton::kDirKeyBlock) ? 1 : 0;
+        int  n     = 0;
+
+        for (n = first; !haveSlot && n < (int) ProDosSkeleton::kEntriesPerBlock; n++)
+        {
+            size_t  at = ProDosSkeleton::kOffFirstEntry
+                       + (size_t) n * ProDosSkeleton::kEntryLength;
+
+            if (buffer[ProDosSkeleton::BlockByteOffset (dirBlock, at)] == 0)
+            {
+                haveSlot = true;
+                entryAt  = at;
+            }
+        }
+    }
+
+    dirBlock--;   // the loop over-advances past the block that matched
+
+    CBREx (haveSlot, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
+
+    // Allocate the data blocks (and the index block first for a sapling).
+    if (!seedling)
+    {
+        hr = AllocateBlock (buffer, keyBlock);
+        CHR (hr);
+
+        blocksUsed++;
+    }
+
+    for (i = 0; i < blockCount; i++)
+    {
+        Word  block = 0;
+
+        hr = AllocateBlock (buffer, block);
+        CHR (hr);
+
+        dataBlocks.push_back (block);
+        blocksUsed++;
+    }
+
+    if (seedling)
+    {
+        keyBlock = dataBlocks[0];
+    }
+    else
+    {
+        for (i = 0; i < dataBlocks.size(); i++)
+        {
+            buffer[ProDosSkeleton::BlockByteOffset (keyBlock, i)]       = (Byte) (dataBlocks[i] & 0xFF);
+            buffer[ProDosSkeleton::BlockByteOffset (keyBlock, i + 256)] = (Byte) (dataBlocks[i] >> 8);
+        }
+    }
+
+    for (i = 0; i < dataBytes; i++)
+    {
+        buffer[ProDosSkeleton::BlockByteOffset (dataBlocks[i / 512], i % 512)] = bytes[i];
+    }
+
+    // The directory entry.
+    {
+        Byte    storage = seedling ? ProDosSkeleton::kStorageSeedling
+                                   : ProDosSkeleton::kStorageSapling;
+        size_t  base    = entryAt;
+
+        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base)] =
+            (Byte) (storage | (Byte) nameBytes);
+
+        for (i = 0; i < nameBytes; i++)
+        {
+            buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffName + i)] =
+                (Byte) toupper ((unsigned char) fileName[i]);
+        }
+
+        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffFileType)]       = fileType;
+        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffKeyPointer)]     = (Byte) (keyBlock & 0xFF);
+        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffKeyPointer + 1)] = (Byte) (keyBlock >> 8);
+        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffBlocksUsed)]     = (Byte) (blocksUsed & 0xFF);
+        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffBlocksUsed + 1)] = (Byte) (blocksUsed >> 8);
+        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffEof)]            = (Byte) (dataBytes & 0xFF);
+        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffEof + 1)]        = (Byte) ((dataBytes >> 8) & 0xFF);
+        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffEof + 2)]        = (Byte) ((dataBytes >> 16) & 0xFF);
+        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffAccess)]         = ProDosSkeleton::kAccessDefault;
+        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffAuxType)]        = (Byte) (auxType & 0xFF);
+        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffAuxType + 1)]    = (Byte) (auxType >> 8);
+        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffHeaderPointer)]  = (Byte) ProDosSkeleton::kDirKeyBlock;
+    }
+
+    // The volume header counts one more file.
+    {
+        size_t  countAt = ProDosSkeleton::kOffFirstEntry + ProDosSkeleton::kHdrOffFileCount;
+        Word    count   = (Word)
+            (buffer[ProDosSkeleton::BlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt)]
+           | (buffer[ProDosSkeleton::BlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt + 1)] << 8));
+
+        count++;
+
+        buffer[ProDosSkeleton::BlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt)]     = (Byte) (count & 0xFF);
+        buffer[ProDosSkeleton::BlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt + 1)] = (Byte) (count >> 8);
+    }
+
+Error:
+    return hr;
 }
