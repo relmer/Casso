@@ -3,6 +3,7 @@
 #include "CreateDiskBodyPanel.h"
 
 #include "Core/DxuiEvents.h"
+#include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiTextInput.h"
@@ -20,16 +21,28 @@
 void CreateDiskBodyPanel::Init (
     DxuiLabel     * pathLabel,
     DxuiListView  * list,
+    DxuiLabel     * formatLabel,
+    DxuiDropdown  * format,
+    DxuiLabel     * contentsLabel,
+    DxuiDropdown  * contents,
     DxuiLabel     * nameLabel,
     DxuiTextInput * nameInput)
 {
-    m_pathLabel = pathLabel;
-    m_list      = list;
-    m_nameLabel = nameLabel;
-    m_nameInput = nameInput;
+    m_pathLabel     = pathLabel;
+    m_list          = list;
+    m_formatLabel   = formatLabel;
+    m_format        = format;
+    m_contentsLabel = contentsLabel;
+    m_contents      = contents;
+    m_nameLabel     = nameLabel;
+    m_nameInput     = nameInput;
 
     Adopt (*pathLabel);
     Adopt (*list);
+    Adopt (*formatLabel);
+    Adopt (*format);
+    Adopt (*contentsLabel);
+    Adopt (*contents);
     Adopt (*nameLabel);
     Adopt (*nameInput);
 }
@@ -42,8 +55,8 @@ void CreateDiskBodyPanel::Init (
 //
 //  Layout
 //
-//  Path strip on top, name strip on the bottom, the listing fills whatever
-//  is left between them.
+//  Path strip on top, the options strip and name strip stacked at the
+//  bottom, the listing fills whatever is left between them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,17 +64,23 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 {
     int  pathH    = scaler.Px (kPathHeightDip);
     int  pathGap  = scaler.Px (kPathGapDip);
+    int  optH     = scaler.Px (kOptionsRowDip);
+    int  optGap   = scaler.Px (kOptionsGapDip);
+    int  optPad   = scaler.Px (kOptionLabelPadDip);
     int  nameH    = scaler.Px (kNameRowDip);
     int  nameGap  = scaler.Px (kNameGapDip);
     int  labelW   = scaler.Px (kNameLabelDip);
     int  labelPad = scaler.Px (kNameLabelPadDip);
     int  nameTop  = 0;
+    int  optTop   = 0;
+    int  x        = 0;
 
 
 
     SetBounds (boundsPx);
 
     nameTop = boundsPx.bottom - nameH;
+    optTop  = nameTop - nameGap - optH;
 
     if (m_pathLabel != nullptr)
     {
@@ -73,9 +92,42 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     if (m_list != nullptr)
     {
         RECT  r = { boundsPx.left, boundsPx.top + pathH + pathGap,
-                    boundsPx.right, nameTop - nameGap };
+                    boundsPx.right, optTop - optGap };
 
         m_list->Layout (r, scaler);
+    }
+
+    x = boundsPx.left;
+
+    if (m_formatLabel != nullptr)
+    {
+        RECT  r = { x, optTop, x + scaler.Px (kFormatLabelDip), optTop + optH };
+
+        m_formatLabel->Layout (r, scaler);
+        x = r.right + optPad;
+    }
+
+    if (m_format != nullptr)
+    {
+        RECT  r = { x, optTop, x + scaler.Px (kFormatDropDip), optTop + optH };
+
+        m_format->Layout (r, scaler);
+        x = r.right + optGap * 2;
+    }
+
+    if (m_contentsLabel != nullptr)
+    {
+        RECT  r = { x, optTop, x + scaler.Px (kContentsLabelDip), optTop + optH };
+
+        m_contentsLabel->Layout (r, scaler);
+        x = r.right + optPad;
+    }
+
+    if (m_contents != nullptr)
+    {
+        RECT  r = { x, optTop, x + scaler.Px (kContentsDropDip), optTop + optH };
+
+        m_contents->Layout (r, scaler);
     }
 
     if (m_nameLabel != nullptr)
@@ -102,9 +154,10 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 //
 //  OnMouse
 //
-//  The list consumes any press inside itself (scroll / select / column
-//  resize) and needs local coordinates; anything it declines falls through
-//  to the default panel fan-out, which serves the text input.
+//  Dropdowns come first: an open menu must see every click, wherever it
+//  lands. The list consumes any press inside itself (scroll / select /
+//  column resize) and needs local coordinates; anything left over falls
+//  through to the text input.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,7 +168,17 @@ bool CreateDiskBodyPanel::OnMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (m_list != nullptr)
+    if (m_format != nullptr)
+    {
+        handled = m_format->OnMouse (ev);
+    }
+
+    if (!handled && m_contents != nullptr)
+    {
+        handled = m_contents->OnMouse (ev);
+    }
+
+    if (!handled && m_list != nullptr)
     {
         RECT  lb = m_list->Bounds();
 

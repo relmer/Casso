@@ -69,6 +69,28 @@ void CreateDiskDialog::OnCreate()
         }
     });
 
+    m_formatLabel.SetDpi       (m_dpi);
+    m_formatLabel.SetTextRole  (DxuiTextRole::Body);
+    m_formatLabel.SetText      (L"Format:");
+    m_formatLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+
+    m_formatDropdown.SetDpi       (m_dpi);
+    m_formatDropdown.SetPopupHost (PopupHost());
+    m_formatDropdown.SetItems     ({ L"WOZ", L"DSK", L"PO" });
+    m_formatDropdown.SetSelected  (0);
+    m_formatDropdown.SetSelect    ([this] (int index) { OnFormatChanged (index); });
+
+    m_contentsLabel.SetDpi       (m_dpi);
+    m_contentsLabel.SetTextRole  (DxuiTextRole::Body);
+    m_contentsLabel.SetText      (L"Contents:");
+    m_contentsLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+
+    m_contentsDropdown.SetDpi       (m_dpi);
+    m_contentsDropdown.SetPopupHost (PopupHost());
+    m_contentsDropdown.SetSelect    ([this] (int index) { OnContentsChanged (index); });
+
+    RebuildContentsChoices();
+
     m_nameLabel.SetDpi       (m_dpi);
     m_nameLabel.SetTextRole  (DxuiTextRole::Body);
     m_nameLabel.SetText      (L"Name:");
@@ -80,7 +102,10 @@ void CreateDiskDialog::OnCreate()
     m_nameInput.SetMaxLength (128);
 
     m_body = CreateDialogContent<CreateDiskBodyPanel>();
-    m_body->Init (&m_pathLabel, &m_list, &m_nameLabel, &m_nameInput);
+    m_body->Init (&m_pathLabel, &m_list,
+                  &m_formatLabel, &m_formatDropdown,
+                  &m_contentsLabel, &m_contentsDropdown,
+                  &m_nameLabel, &m_nameInput);
 
     createButton = AddDialogButton (L"Create", IDOK);
     AddDialogButton (L"Cancel", IDCANCEL);
@@ -100,11 +125,15 @@ void CreateDiskDialog::OnCreate()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RefreshFromModel
+//  RefreshListing
+//
+//  Rebuilds the path label and file rows from the model without touching
+//  the name field -- format changes re-filter the listing but must not
+//  clobber what the user typed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CreateDiskDialog::RefreshFromModel()
+void CreateDiskDialog::RefreshListing()
 {
     std::vector<std::vector<DxuiListView::Cell>>  rows;
 
@@ -128,10 +157,192 @@ void CreateDiskDialog::RefreshFromModel()
 
     m_list.SetRows (std::move (rows));
     m_list.UpdateAutoFitFromRows();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RefreshFromModel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CreateDiskDialog::RefreshFromModel()
+{
+    if (m_model == nullptr)
+    {
+        return;
+    }
+
+    RefreshListing();
 
     m_nameInput.SetText (m_model->UniqueDefaultName (L"Blank Disk"));
 
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatExtension
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * CreateDiskDialog::FormatExtension (DiskFormat format)
+{
+    switch (format)
+    {
+        case DiskFormat::Dsk: return L".dsk";
+        case DiskFormat::Po:  return L".po";
+        default:              return L".woz";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContentsCaption
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CreateDiskDialog::ContentsCaption (BlankDiskContents contents)
+{
+    switch (contents)
+    {
+        case BlankDiskContents::ProDos:      return L"ProDOS 1.1.1";
+        case BlankDiskContents::Unformatted: return L"Unformatted";
+        default:                             return L"DOS 3.3";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReplaceExtension
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CreateDiskDialog::ReplaceExtension (const std::wstring & name, const wchar_t * ext)
+{
+    size_t  dot = name.find_last_of (L'.');
+
+    return ((dot == std::wstring::npos) ? name : name.substr (0, dot)) + ext;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RebuildContentsChoices
+//
+//  The Format choice drives what Contents can pair with it (WOZ takes
+//  anything; DSK is DOS-order, PO is ProDOS-order), so an illegal pairing
+//  is never even listed. The current selection is preserved by value when
+//  it stays legal and snaps to the format's canonical filesystem when not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CreateDiskDialog::RebuildContentsChoices()
+{
+    std::vector<std::wstring>  captions;
+    int                        selected = 0;
+    size_t                     i        = 0;
+
+
+
+    switch (m_format)
+    {
+        case DiskFormat::Dsk:
+            m_contentsChoices = { BlankDiskContents::Dos33, BlankDiskContents::Unformatted };
+            break;
+
+        case DiskFormat::Po:
+            m_contentsChoices = { BlankDiskContents::ProDos, BlankDiskContents::Unformatted };
+            break;
+
+        default:
+            m_contentsChoices = { BlankDiskContents::Dos33, BlankDiskContents::ProDos,
+                                  BlankDiskContents::Unformatted };
+            break;
+    }
+
+    for (i = 0; i < m_contentsChoices.size(); i++)
+    {
+        captions.push_back (ContentsCaption (m_contentsChoices[i]));
+
+        if (m_contentsChoices[i] == m_contents)
+        {
+            selected = (int) i;
+        }
+    }
+
+    m_contents = m_contentsChoices[(size_t) selected];
+
+    m_contentsDropdown.SetItems    (captions);
+    m_contentsDropdown.SetSelected (selected);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnFormatChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CreateDiskDialog::OnFormatChanged (int index)
+{
+    switch (index)
+    {
+        case 1:  m_format = DiskFormat::Dsk; break;
+        case 2:  m_format = DiskFormat::Po;  break;
+        default: m_format = DiskFormat::Woz; break;
+    }
+
+    RebuildContentsChoices();
+
+    m_nameInput.SetText (ReplaceExtension (m_nameInput.Text(), FormatExtension (m_format)));
+
+    if (m_model != nullptr)
+    {
+        m_model->SetExtensionFilter (FormatExtension (m_format));
+        RefreshListing();
+    }
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnContentsChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CreateDiskDialog::OnContentsChanged (int index)
+{
+    if (index >= 0 && index < (int) m_contentsChoices.size())
+    {
+        m_contents = m_contentsChoices[(size_t) index];
+    }
 }
 
 
@@ -162,6 +373,25 @@ void CreateDiskDialog::OnCreateClicked()
     if (m_model == nullptr)
     {
         return;
+    }
+
+    // The file's extension always matches the chosen format.
+    {
+        const wchar_t * ext     = FormatExtension (m_format);
+        size_t          extLen  = wcslen (ext);
+        bool            matches = name.size() >= extLen;
+        size_t          i       = 0;
+
+        for (i = 0; matches && i < extLen; i++)
+        {
+            matches = towlower (name[name.size() - extLen + i]) == (wint_t) ext[i];
+        }
+
+        if (!matches)
+        {
+            name += ext;
+            m_nameInput.SetText (name);
+        }
     }
 
     verdict = m_model->ValidateTarget (name, drive);
@@ -196,8 +426,10 @@ void CreateDiskDialog::OnCreateClicked()
             [[fallthrough]];
 
         case TargetVerdict::Ok:
-            m_result.targetPath = m_model->ComposeTargetPath (name);
-            m_result.confirmed  = true;
+            m_result.spec.format   = m_format;
+            m_result.spec.contents = m_contents;
+            m_result.targetPath    = m_model->ComposeTargetPath (name);
+            m_result.confirmed     = true;
             EndDialog (IDOK);
             break;
 

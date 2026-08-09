@@ -6,6 +6,7 @@
 #include "../FileBrowseModel.h"
 #include "../CreateDiskBodyPanel.h"
 #include "Devices/Disk/BlankDiskBuilder.h"
+#include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiTextInput.h"
@@ -29,8 +30,11 @@
 //  verdict (or a confirmed overwrite) ends the modal with a confirmed
 //  Result. Cancel / Escape / the close box leave Result unconfirmed.
 //
-//  Format / contents / bootable controls and in-dialog folder navigation are
-//  not built yet; the spec returned today is the default configuration.
+//  The Format dropdown (WOZ / DSK / PO) drives the Contents choices: only
+//  legal pairings are ever listed, so an illegal combination cannot be
+//  selected. The name field's extension follows the format, as does the
+//  listing's extension filter. The bootable toggle and in-dialog folder
+//  navigation are not built yet.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,20 +60,35 @@ protected:
     void  OnCreate () override;
 
 private:
-    void  RefreshFromModel ();
-    void  OnCreateClicked  ();
+    void  RefreshFromModel   ();
+    void  RefreshListing     ();
+    void  OnCreateClicked    ();
+    void  OnFormatChanged    (int index);
+    void  OnContentsChanged  (int index);
+    void  RebuildContentsChoices ();
 
-    static std::wstring  FormatSize     (const FileBrowseEntry & entry);
-    static std::wstring  FormatModified (int64_t modifiedUnix);
+    static std::wstring    FormatSize       (const FileBrowseEntry & entry);
+    static std::wstring    FormatModified   (int64_t modifiedUnix);
+    static const wchar_t * FormatExtension  (DiskFormat format);
+    static std::wstring    ContentsCaption  (BlankDiskContents contents);
+    static std::wstring    ReplaceExtension (const std::wstring & name, const wchar_t * ext);
 
     FileBrowseModel     * m_model = nullptr;   // non-owning
     const IDxuiTheme    * m_theme = nullptr;   // non-owning
     UINT                  m_dpi   = 96;
     Result                m_result;
 
+    DiskFormat                      m_format   = DiskFormat::Woz;
+    BlankDiskContents               m_contents = BlankDiskContents::Dos33;
+    std::vector<BlankDiskContents>  m_contentsChoices;
+
     CreateDiskBodyPanel * m_body      = nullptr;   // owned by the child tree
     DxuiLabel             m_pathLabel;
     DxuiListView          m_list;
+    DxuiLabel             m_formatLabel;
+    DxuiDropdown          m_formatDropdown;
+    DxuiLabel             m_contentsLabel;
+    DxuiDropdown          m_contentsDropdown;
     DxuiLabel             m_nameLabel;
     DxuiTextInput         m_nameInput;
 };
