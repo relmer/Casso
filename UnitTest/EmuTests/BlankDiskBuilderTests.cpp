@@ -524,7 +524,7 @@ public:
 
     TEST_METHOD (Build_BootableDos33_InstallsDosAndHello)
     {
-        BlankDiskSpec  spec = MakeSpec (DiskFormat::Woz, BlankDiskContents::Dos33, true);
+        BlankDiskSpec  spec  = MakeSpec (DiskFormat::Woz, BlankDiskContents::Dos33, true);
         BootPayload    payload;
         vector<Byte>   woz;
         vector<Byte>   readBack;
