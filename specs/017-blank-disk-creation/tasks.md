@@ -61,7 +61,7 @@ clean guest volume; bootable disks boot to their OS prompt.
 - [X] T018 [US2] Implement boot-payload installers: `Dos33Skeleton::InstallDos` (tracks 0–2 from System Master) + `Dos33FileWriter::WriteHello` (catalog entry + TS list + data sector, VTOC-honest) per R-006; `ProDosSkeleton::InstallBoot` (blocks 0–1 + `PRODOS` + `BASIC.SYSTEM` via T016/T017) per R-007; unit tests feed SYNTHETIC payload bytes (fabricated tracks 0–2 / synthetic PRODOS+BASIC.SYSTEM files — no host reads; only T020's boot gates touch the real masters) and assert payload placement + skeleton invariants still hold
 - [X] T019 [US2] Promote `DownloadStockBootDisk` to a public `AssetBootstrap` static (R-008); wire bootable availability + disabled-reason + on-demand download affordance into `CreateDiskDialog` (FR-017); shell loads payload bytes and re-checks on Create
 - [X] T020 [US2] Boot gates (SC-006): real-CPU tests — built bootable DOS 3.3 disk boots to the Applesoft prompt (HELLO runs, screen scrape shows no `FILE NOT FOUND`); built bootable ProDOS disk reaches the BASIC.SYSTEM prompt; place beside the existing boot tests in `UnitTest/EmuTests/`
-- [ ] T021 [US2] Runtime validation pass: quickstart §2 + §3 by hand; fix what it finds
+- [X] T021 [US2] Runtime validation pass: quickstart §2 + §3 by hand; fix what it finds (matrix gating, extension-follows-format, DSK create+mount, bootable DOS 3.3 create, raw-media disabled state all verified live; missing-master download state exercised via the same UpdateBootableRow branch logic, not simulated to avoid deleting the user's cache)
 
 ## Phase 5: User Story 4 — Write-protect toggle (P2)
 
