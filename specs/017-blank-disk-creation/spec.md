@@ -61,6 +61,20 @@ it get an on/off write-protect toggle.
   on/off for a mounted image, for image formats that support it (WOZ carries an
   in-image write-protect flag; formats without one use the host file's
   read-only attribute).
+- Q: Should a pre-formatted disk be data-only or bootable? → A: Both — the
+  create dialog gets a **bootable** toggle, and the contents choice is a
+  listbox naming the OS (DOS 3.3, ProDOS by version, unformatted). Bootable
+  writes the chosen OS onto the disk, sourced through the existing
+  consent-based asset bootstrap (the same mechanism that fetches ROMs); the
+  OS is never bundled in the binary. Default remains data-only.
+- Q: Write-protect toggle on DSK/PO (no in-image flag)? → A: All formats —
+  WOZ flips its in-image flag; DSK/PO set/clear the host file's read-only
+  attribute.
+- Q: Default destination folder? → A: `Documents\Casso Disks` on first use
+  (created on demand, mirroring `Pictures\Casso Prints`); thereafter the
+  dialog defaults to the last folder a disk was created in (persisted).
+- Q: Creating over a file currently mounted in a drive? → A: Refuse with a
+  clear "that image is mounted in Drive N" error; the user must eject first.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -122,6 +136,12 @@ rejected until the guest `INIT`s/formats it.
 3. **Given** an incompatible combination (e.g. a format that cannot represent
    the chosen filesystem ordering), **When** the user selects it, **Then** the
    option is disabled or the user is told why it is unavailable.
+4. **Given** the bootable toggle enabled with DOS 3.3 (or a ProDOS version)
+   selected and its OS payload available, **When** the disk is created and
+   booted, **Then** the emulator boots it to the chosen OS's prompt.
+5. **Given** the bootable toggle with the OS payload unavailable (no consent
+   or offline), **When** the user views the option, **Then** it is disabled
+   with an explanation and data-only creation still works.
 
 ---
 
@@ -197,6 +217,10 @@ and confirm the same behavior.
   `.dsk`) → prevent the invalid combination up front.
 - Creating while a machine has no Disk ][ controller (or no free drive) → the
   action is unavailable or clearly explains why.
+- Bootable requested but the OS payload is unavailable (no consent, offline) →
+  the toggle is disabled with an explanation; data-only creation still works.
+- Destination path is an image currently mounted in a drive → refused with an
+  error naming the drive; the prior mount and file are untouched.
 - Write-protect toggle fails (host permission denies the attribute change, or
   the image file is missing) → report the error and leave the effective state
   unchanged and truthfully indicated.
@@ -213,19 +237,22 @@ and confirm the same behavior.
   dialog targeting the drive the picker was opened for.
 - **FR-002**: The user MUST be able to choose the image **format** for the new
   disk. v1 supports WOZ, DSK (DOS-order), and PO (ProDOS-order).
-- **FR-003**: The user MUST be able to choose the initial **filesystem/content**:
-  DOS 3.3, ProDOS, or unformatted (raw/blank media).
-- **FR-004**: The app MUST default to **WOZ, DOS 3.3, pre-formatted** so
-  accepting defaults yields a disk the guest can immediately and correctly
-  save to.
+- **FR-003**: The user MUST be able to choose the initial **contents** from a
+  list naming the OS: DOS 3.3, ProDOS (by version), or unformatted (raw/blank
+  media).
+- **FR-004**: The app MUST default to **WOZ, DOS 3.3, pre-formatted,
+  non-bootable (data-only)** so accepting defaults yields a disk the guest can
+  immediately and correctly save to, with no download dependency.
 - **FR-005**: A pre-formatted disk MUST mount as a valid, empty volume of the
   chosen filesystem (the guest lists it clean with no files); an unformatted
   disk MUST mount as blank media the guest can `INIT`/format.
 - **FR-006**: The create dialog MUST let the user choose the destination
   **inside the dialog**, navigating like a real file-save dialog: browse
   folders (including up/into), see the existing files of the current folder,
-  and edit the file name — with a sensible default folder and a unique default
-  name carrying the chosen format's correct extension.
+  and edit the file name — with a unique default name carrying the chosen
+  format's correct extension. The default folder is `Documents\Casso Disks`
+  (created on demand) on first use, and thereafter the last folder a disk was
+  created in (persisted across sessions).
 - **FR-007**: The app MUST NOT silently overwrite an existing host file — it
   MUST auto-generate a unique name or require explicit confirmation.
 - **FR-008**: After creation the app MUST mount the new disk into the target
@@ -258,12 +285,27 @@ and confirm the same behavior.
 - **FR-016**: If a write-protect toggle cannot be applied (permissions, missing
   file), the app MUST report the failure and continue to indicate the true
   current state.
+- **FR-017**: The create dialog MUST offer a **bootable** toggle for formatted
+  contents. When enabled, the chosen OS (DOS 3.3 or the selected ProDOS
+  version) is written onto the new disk so it boots in the emulator. The OS
+  payload MUST be sourced through the existing consent-based asset bootstrap
+  (as ROMs are) — never bundled with the app; when the payload is not
+  available (no consent, offline, not yet downloaded), the toggle MUST be
+  unavailable with a clear explanation, and data-only creation still works.
+- **FR-018**: The create dialog MUST refuse a destination path that is
+  currently mounted in any drive, naming the drive in the error; the user must
+  eject first. (Overwriting a live mount's backing file is never allowed.)
 
 ### Key Entities *(include if feature involves data)*
 
 - **Blank Disk Template**: The in-memory description of a disk to create —
-  format, filesystem/content, size (140K 5.25"), volume name/number. Produced by
-  pure logic; serialized to the chosen on-disk format.
+  format, contents (OS + version or unformatted), bootable flag, size (140K
+  5.25"), volume name/number. Produced by pure logic; serialized to the chosen
+  on-disk format.
+- **Boot Payload**: The OS content a bootable disk carries (DOS 3.3 system
+  tracks; ProDOS system files for the selected version). Obtained via the
+  consent-based asset bootstrap, cached like other downloaded assets, never
+  bundled with the app.
 - **Disk Format**: WOZ (bit-stream, order-agnostic, in-image write-protect
   flag), DSK (DOS 3.3 sector order), PO (ProDOS sector order). Governs
   encoding, which filesystems are representable, and where write protection
@@ -296,6 +338,8 @@ and confirm the same behavior.
   write attempt, in both directions, for every mounted format the UI offers
   the toggle on — and the indicated state never disagrees with the enforced
   state.
+- **SC-006**: A disk created with the bootable option boots the chosen OS in
+  the emulator to its prompt, for every OS the listbox offers.
 
 ## Assumptions
 
@@ -313,6 +357,10 @@ and confirm the same behavior.
   detail for planning.
 - Pre-formatting produces a standard empty volume (default volume name/number);
   advanced volume metadata is not user-configurable in v1.
+- Which ProDOS versions the contents listbox offers is a planning detail
+  driven by what the asset bootstrap's catalog can source; DOS 3.3 is the
+  baseline. Bootable defaults OFF so the default create has no download
+  dependency.
 - The write-protect toggle's surface (menu row, drive-widget affordance, or
   picker integration) is a design detail for planning; the requirement is only
   that a mounted image's protection is user-controllable and truthfully
