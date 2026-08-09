@@ -53,6 +53,10 @@ public:
     HRESULT  PromptForDiskImage   (int drive, bool & outMountStarted);
     HRESULT  PromptInsertDiskMru  (int drive, bool & outMountStarted);
 
+    // The create-a-blank-disk flow behind the picker's <Create new disk...>
+    // row (spec 017): dialog -> BlankDiskBuilder -> atomic write -> Mount.
+    HRESULT  CreateBlankDiskForDrive (int drive, bool & outMountStarted);
+
 private:
     // How a delivery attempt ended, reported separately from the HRESULT.
     // Backing out of a dialog is not a failure, so it must not ride on the

@@ -923,24 +923,51 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CreateBlankDiskForDrive
+//
+//  The create-a-blank-disk flow (spec 017, contract shell-integration §2).
+//  T011 lands the real orchestration: CreateDiskDialog over a
+//  FileBrowseModel, BlankDiskBuilder, atomic temp+rename write, then the
+//  standard Mount. Until then the picker row backs out cleanly -- no mount
+//  starts, so the caller's door choreography restores the drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMountStarted)
+{
+    UNREFERENCED_PARAMETER (drive);
+
+    outMountStarted = false;
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PromptInsertDiskMru
 //
 //  Shows the themed disk MRU picker. Routes the user's chosen disk
 //  (recent image or stock master download) to Mount(); if the user
 //  clicks "Browse..." this falls through to the IFileOpenDialog path
-//  via PromptForDiskImage.
+//  via PromptForDiskImage. The pinned <Create new disk...> row routes to
+//  CreateBlankDiskForDrive (spec 017).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, bool & outMountStarted)
 {
-    HRESULT                      hr          = S_OK;
+    HRESULT                      hr            = S_OK;
     DiskMru                      mru;
     std::vector<DiskMru::Entry>  mruPruned;
     std::filesystem::path        diskDir;
     std::wstring                 chosenPath;
     std::string                  error;
-    bool                         userBrowsed = false;
+    bool                         userBrowsed   = false;
+    bool                         userCreateNew = false;
 
 
 
@@ -968,12 +995,18 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, bool & outMountSta
                                               m_shell.m_globalPrefs.activeTheme,
                                               chosenPath,
                                               userBrowsed,
+                                              userCreateNew,
                                               error);
     CHR (hr);
 
     if (userBrowsed)
     {
         hr = PromptForDiskImage (drive, outMountStarted);
+        CHR (hr);
+    }
+    else if (userCreateNew)
+    {
+        hr = CreateBlankDiskForDrive (drive, outMountStarted);
         CHR (hr);
     }
     else if (!chosenPath.empty())

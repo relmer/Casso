@@ -151,6 +151,9 @@ public:
     //                  or chose Browse (caller then runs IFileOpenDialog)
     //   outBrowse    = true if the user clicked Browse... (caller
     //                  should fall through to its file-picker path)
+    //   outCreateNew = true if the user chose the pinned
+    //                  <Create new disk...> row (spec 017; caller runs
+    //                  the create-disk flow for the same drive)
     static HRESULT  PromptInsertDiskMru   (HINSTANCE                hInstance,
                                            HWND                     hwndParent,
                                            int                      drive,
@@ -159,6 +162,7 @@ public:
                                            std::string_view         themeName,
                                            wstring                & outDiskPath,
                                            bool                   & outBrowse,
+                                           bool                   & outCreateNew,
                                            string                 & outError);
 
     // Unified startup downloader. Inspects the current install for

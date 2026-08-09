@@ -1920,6 +1920,11 @@ public:
         std::int64_t  loadedUnix  = 0;      // col 2 "Last loaded" source; 0 = none/unknown
         int           resultCode  = 0;      // value returned to the caller when this row is chosen
         bool          dimLocation = false;
+
+        // Pinned rows sort FIRST regardless of sort column/direction and are
+        // immune to the search filter -- the picker's <Create new disk...>
+        // action row (spec 017 FR-001).
+        bool          pinnedFirst = false;
     };
 
     DiskMruPickerSession (HINSTANCE hInstance, HWND hwndParent, std::string_view themeName)
@@ -2206,6 +2211,9 @@ void DiskMruPickerSession::RebuildView()
     {
         std::wstring  hay;
 
+        // Pinned action rows are always available, whatever the filter says.
+        if (row.pinnedFirst) { return true; }
+
         if (tokens.empty()) { return true; }
 
         hay = lower (row.name);
@@ -2227,6 +2235,12 @@ void DiskMruPickerSession::RebuildView()
         const ModelRow &  a   = m_model[(size_t) lhs];
         const ModelRow &  b   = m_model[(size_t) rhs];
         int               cmp = 0;
+
+        // Pinned action rows order first for EVERY column and direction.
+        if (a.pinnedFirst != b.pinnedFirst)
+        {
+            return a.pinnedFirst;
+        }
 
         if (m_sortColumn == s_kColLastLoaded)
         {
@@ -2624,6 +2638,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     std::string_view               themeName,
     wstring                      & outDiskPath,
     bool                         & outBrowse,
+    bool                         & outCreateNew,
     string                       & outError)
 {
     struct DownloadRow { const BootDiskSpec * spec; wstring label; };
@@ -2653,7 +2668,8 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
 
     outDiskPath.clear();
-    outBrowse = false;
+    outBrowse    = false;
+    outCreateNew = false;
 
     mruLabels.assign ((size_t) mruCount, nullptr);
 
@@ -2705,7 +2721,20 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
                          L"Asimov archive.", drive);
     }
 
-    models.reserve ((size_t) rowCount);
+    models.reserve ((size_t) rowCount + 1);
+
+    // The pinned <Create new disk...> action row (spec 017 FR-001): always
+    // the first row regardless of sort order, immune to the search filter.
+    // Its result code sits one past the real rows so the ranges below stay
+    // untouched.
+    {
+        DiskMruPickerSession::ModelRow  row;
+
+        row.name        = L"<Create new disk...>";
+        row.resultCode  = rowCount;
+        row.pinnedFirst = true;
+        models.push_back (std::move (row));
+    }
 
     for (int i = 0; i < mruCount; ++i)
     {
@@ -2762,6 +2791,10 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
         const BootDiskSpec & spec = *shownDownloads[(size_t) (chosen - mruCount)]->spec;
         hr = DownloadStockBootDisk (spec, diskDir, outDiskPath, outError);
         CHR (hr);
+    }
+    else if (chosen == rowCount)
+    {
+        outCreateNew = true;
     }
 
 Error:
