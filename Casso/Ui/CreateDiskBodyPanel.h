@@ -42,11 +42,11 @@ public:
     LPCWSTR  CursorForPoint (POINT clientPx) const override;
 
 private:
-    static constexpr int  kPathHeightDip  = 22;
-    static constexpr int  kPathGapDip     = 6;
-    static constexpr int  kNameRowDip     = 30;
-    static constexpr int  kNameGapDip     = 8;
-    static constexpr int  kNameLabelDip   = 56;
+    static constexpr int  kPathHeightDip   = 22;
+    static constexpr int  kPathGapDip      = 6;
+    static constexpr int  kNameRowDip      = 30;
+    static constexpr int  kNameGapDip      = 8;
+    static constexpr int  kNameLabelDip    = 56;
     static constexpr int  kNameLabelPadDip = 6;
 
     DxuiLabel     * m_pathLabel = nullptr;

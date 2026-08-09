@@ -222,8 +222,7 @@ void CreateDiskDialog::OnCreateClicked()
 std::wstring CreateDiskDialog::FormatSize (const FileBrowseEntry & entry)
 {
     constexpr uint64_t  kBytesPerKb = 1024;
-
-    uint64_t  kb = 0;
+    uint64_t            kb          = 0;
 
 
 
@@ -252,11 +251,10 @@ std::wstring CreateDiskDialog::FormatSize (const FileBrowseEntry & entry)
 
 std::wstring CreateDiskDialog::FormatModified (int64_t modifiedUnix)
 {
-    constexpr size_t  kStampChars = 32;
-
-    wchar_t  buffer[kStampChars] = {};
-    tm       local               = {};
-    time_t   when                = (time_t) modifiedUnix;
+    constexpr size_t  kStampChars         = 32;
+    wchar_t           buffer[kStampChars] = {};
+    tm                local               = {};
+    time_t            when                = (time_t) modifiedUnix;
 
 
 
