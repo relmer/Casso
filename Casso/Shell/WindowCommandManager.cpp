@@ -925,8 +925,8 @@ Error:
 //
 //  CreateBlankDiskForDrive
 //
-//  The create-a-blank-disk flow (spec 017, contract shell-integration §2).
-//  T011 lands the real orchestration: CreateDiskDialog over a
+//  The create-a-blank-disk flow. The real orchestration -- CreateDiskDialog
+//  over a
 //  FileBrowseModel, BlankDiskBuilder, atomic temp+rename write, then the
 //  standard Mount. Until then the picker row backs out cleanly -- no mount
 //  starts, so the caller's door choreography restores the drive.
@@ -954,7 +954,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
 //  (recent image or stock master download) to Mount(); if the user
 //  clicks "Browse..." this falls through to the IFileOpenDialog path
 //  via PromptForDiskImage. The pinned <Create new disk...> row routes to
-//  CreateBlankDiskForDrive (spec 017).
+//  CreateBlankDiskForDrive.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

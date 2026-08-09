@@ -14,15 +14,14 @@
 //
 //  CreateDiskDialog
 //
-//  The themed create-a-blank-disk dialog (spec 017 R-010, contract
-//  shell-integration §3): a save-dialog-style body — current-folder listing,
-//  file-name input, format / contents dropdowns, bootable toggle — over a
-//  FileBrowseModel that owns all navigation and validation logic. The dialog
-//  returns the confirmed BlankDiskSpec + target path; the caller
-//  (WindowCommandManager) builds, writes, and mounts.
+//  The themed create-a-blank-disk dialog: a save-dialog-style body —
+//  current-folder listing, file-name input, format / contents dropdowns,
+//  bootable toggle — over a FileBrowseModel that owns all navigation and
+//  validation logic. The dialog returns the confirmed BlankDiskSpec + target
+//  path; the caller (WindowCommandManager) builds, writes, and mounts.
 //
-//  Built across T009 (US1: defaults + name + verdicts), T015 (US2: format /
-//  contents / bootable), and T027 (US3: full navigation + keyboard pass).
+//  Body construction, the format / contents / bootable controls, and full
+//  folder navigation land incrementally; today this is the skeleton.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

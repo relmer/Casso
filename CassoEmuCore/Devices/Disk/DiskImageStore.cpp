@@ -522,7 +522,7 @@ const string & DiskImageStore::GetSourcePath (int slot, int drive) const
 //
 //  Every mounted entry's backing path with its bay. Entries mounted from
 //  bytes with an empty virtual path are skipped -- there is no host file to
-//  collide with (spec 017 FR-018).
+//  collide with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

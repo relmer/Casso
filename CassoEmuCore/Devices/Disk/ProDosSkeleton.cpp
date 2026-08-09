@@ -10,7 +10,7 @@
 //
 //  ProDosSkeleton::Write
 //
-//  Implemented in T013.
+//  Empty-volume skeleton; not yet implemented.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +30,7 @@ HRESULT ProDosSkeleton::Write (vector<Byte> & buffer, const std::string & volume
 //
 //  ProDosSkeleton::InstallBoot
 //
-//  Implemented in T018.
+//  Boot-payload install; not yet implemented.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +50,7 @@ HRESULT ProDosSkeleton::InstallBoot (vector<Byte> & buffer, const vector<Byte> &
 //
 //  ProDosReader::ExtractFile
 //
-//  Implemented in T016.
+//  Master-image file extraction; not yet implemented.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +78,7 @@ HRESULT ProDosReader::ExtractFile (
 //
 //  ProDosFileWriter::WriteFile
 //
-//  Implemented in T017.
+//  Volume file writer; not yet implemented.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

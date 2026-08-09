@@ -6,11 +6,7 @@
 
 
 
-//  Windows filename rules the name field enforces (spec 017 FR-006/007):
-//  no path separators or reserved punctuation, no trailing dot/space, and
-//  none of the legacy device names.
-static constexpr const wchar_t *  s_kIllegalNameChars = L"<>:\"/\\|?*";
-
+//  Legacy device names Windows refuses as file-name stems.
 static constexpr const wchar_t *  s_kReservedNames[] =
 {
     L"CON", L"PRN", L"AUX", L"NUL",
@@ -32,7 +28,7 @@ static constexpr const wchar_t *  s_kReservedNames[] =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::wstring ToLower (const std::wstring & s)
+std::wstring FileBrowseModel::ToLower (const std::wstring & s)
 {
     std::wstring  result = s;
 
@@ -62,7 +58,7 @@ static std::wstring ToLower (const std::wstring & s)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::wstring NormalizeForCompare (const std::wstring & path)
+std::wstring FileBrowseModel::NormalizeForCompare (const std::wstring & path)
 {
     std::wstring  result = ToLower (path);
 
@@ -141,7 +137,7 @@ Error:
 //
 //  NavigateInto
 //
-//  Implemented in T026.
+//  Folder navigation; not yet implemented.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,7 +156,7 @@ HRESULT FileBrowseModel::NavigateInto (size_t entryIndex)
 //
 //  NavigateUp
 //
-//  Implemented in T026.
+//  Folder navigation; not yet implemented.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -281,7 +277,7 @@ void FileBrowseModel::RebuildFilteredView()
 //  UniqueDefaultName
 //
 //  "Blank Disk.woz", then "Blank Disk (2).woz", ... -- the first name absent
-//  from the current folder (FR-006/FR-007). Existence is asked of the
+//  from the current folder. Existence is asked of the
 //  filesystem, not the cached listing, so a file created since the last
 //  Refresh still collides correctly.
 //
@@ -289,10 +285,10 @@ void FileBrowseModel::RebuildFilteredView()
 
 std::wstring FileBrowseModel::UniqueDefaultName (const std::wstring & baseName) const
 {
-    static constexpr int  s_kMaxSuffix = 999;
-    std::wstring          candidate;
-    int                   suffix       = 1;
-    bool                  available    = false;
+    constexpr int  kMaxSuffix = 999;
+    std::wstring   candidate;
+    int            suffix     = 1;
+    bool           available  = false;
 
 
 
@@ -301,7 +297,7 @@ std::wstring FileBrowseModel::UniqueDefaultName (const std::wstring & baseName) 
         return baseName + m_extension;
     }
 
-    for (suffix = 1; suffix <= s_kMaxSuffix && !available; suffix++)
+    for (suffix = 1; suffix <= kMaxSuffix && !available; suffix++)
     {
         candidate = (suffix == 1)
                   ? baseName + m_extension
@@ -341,13 +337,14 @@ void FileBrowseModel::SetMountedPaths (std::vector<std::wstring> paths, std::vec
 
 bool FileBrowseModel::IsValidFileName (const std::wstring & fileName)
 {
-    std::wstring  stem   = fileName;
-    size_t        dotPos = 0;
-    bool          valid  = !fileName.empty();
+    constexpr const wchar_t *  kIllegalNameChars = L"<>:\"/\\|?*";
+    std::wstring               stem              = fileName;
+    size_t                     dotPos            = 0;
+    bool                       valid             = !fileName.empty();
 
 
 
-    valid = valid && fileName.find_first_of (s_kIllegalNameChars) == std::wstring::npos;
+    valid = valid && fileName.find_first_of (kIllegalNameChars) == std::wstring::npos;
     valid = valid && fileName.back() != L'.' && fileName.back() != L' ';
 
     if (valid)
@@ -385,9 +382,9 @@ bool FileBrowseModel::IsValidFileName (const std::wstring & fileName)
 //
 //  Precedence per the contract: name validity, then the mounted-image
 //  refusal, then existence. The order is load-bearing -- a live mount's
-//  backing file must never reach the overwrite-confirm path (FR-018).
+//  backing file must never reach the overwrite-confirm path.
 //  Folder writability is not probed here; the atomic create itself reports
-//  a failing folder with a clear error (FR-011).
+//  a failing folder with a clear error.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

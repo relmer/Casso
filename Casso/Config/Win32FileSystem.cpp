@@ -378,10 +378,11 @@ Error:
 //
 //  EnumerateEntries
 //
-//  Non-recursive listing of files AND sub-directories with metadata (spec
-//  017). Hidden and system entries are excluded here, at the Win32 layer, so
-//  every consumer sees the same filtered view. modifiedUnix converts the
-//  FILETIME last-write stamp (100ns ticks since 1601) to Unix seconds.
+//  Non-recursive listing of files AND sub-directories with metadata. Hidden
+//  and system entries are excluded here, at the Win32 layer, so every
+//  consumer sees the same filtered view. modifiedUnix converts the FILETIME
+//  last-write stamp (100ns ticks since 1601, converted to seconds) to Unix
+//  seconds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -390,14 +391,13 @@ HRESULT Win32FileSystem::EnumerateEntries (
     std::vector<FileSystemEntry>  & outEntries)
 {
     // FILETIME epoch (1601-01-01) to Unix epoch (1970-01-01), in seconds.
-    static constexpr int64_t  s_kFiletimeToUnixSeconds  = 11644473600LL;
-    static constexpr int64_t  s_kFiletimeTicksPerSecond = 10000000LL;
-
-    HRESULT          hr       = S_OK;
-    HANDLE           hFind    = INVALID_HANDLE_VALUE;
-    WIN32_FIND_DATAW findData = {};
-    std::wstring     pattern;
-    DWORD            err      = 0;
+    constexpr int64_t  kFiletimeToUnixSeconds  = 11644473600LL;
+    constexpr int64_t  kFiletimeTicksPerSecond = 10000000LL;
+    HRESULT            hr                      = S_OK;
+    HANDLE             hFind                   = INVALID_HANDLE_VALUE;
+    WIN32_FIND_DATAW   findData                = {};
+    std::wstring       pattern;
+    DWORD              err                     = 0;
 
 
 
@@ -446,8 +446,8 @@ HRESULT Win32FileSystem::EnumerateEntries (
         entry.name         = findData.cFileName;
         entry.isFolder     = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
         entry.sizeBytes    = entry.isFolder ? 0 : size.QuadPart;
-        entry.modifiedUnix = (int64_t) (ticks.QuadPart / s_kFiletimeTicksPerSecond)
-                           - s_kFiletimeToUnixSeconds;
+        entry.modifiedUnix = (int64_t) (ticks.QuadPart / kFiletimeTicksPerSecond)
+                           - kFiletimeToUnixSeconds;
 
         outEntries.push_back (std::move (entry));
     }

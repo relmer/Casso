@@ -12,10 +12,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  ProDosVolumeTests
 //
-//  Spec 017: ProDOS skeleton structural invariants (R-005), file writer /
-//  reader round-trips and bitmap-directory coherence (T016/T017), and boot
-//  install placement over synthetic payload bytes (T018). No host fixture
-//  files — synthetic volumes throughout.
+//  ProDOS skeleton structural invariants, file writer / reader round-trips
+//  and bitmap-directory coherence, and boot install placement over synthetic
+//  payload bytes. No host fixture files — synthetic volumes throughout.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

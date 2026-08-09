@@ -15,13 +15,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  BlankDiskBuilderTests
 //
-//  Spec 017: BlankDiskSpec validation matrix (FR-010), DOS 3.3 skeleton
-//  structural invariants (R-004), and BlankDiskBuilder output determinism /
-//  format guarantees (FR-011/FR-012). No host fixture files — every input is
-//  built in memory.
-//
-//  Populated across T004 (matrix), T005 (skeleton), T006 (WOZ build),
-//  T014 (full format matrix), T018 (payload installers, synthetic bytes).
+//  BlankDiskSpec validation matrix, DOS 3.3 skeleton structural invariants,
+//  and BlankDiskBuilder output determinism / format guarantees. No host
+//  fixture files — every input is built in memory.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +39,7 @@ public:
         return spec;
     }
 
-    TEST_METHOD (SpecDefaults_MatchFr004)
+    TEST_METHOD (SpecDefaults_AreTheImmediatelyUsableConfiguration)
     {
         BlankDiskSpec  spec;
 
@@ -264,7 +260,7 @@ public:
         AssertSucceeded (BlankDiskBuilder::Build (spec, BootPayload{}, woz));
         AssertSucceeded (WozLoader::Load (woz, img));
 
-        // FR-012: a new disk must not carry the image write-protect flag.
+        // A new disk must not carry the image write-protect flag.
         Assert::IsFalse (img.GetWriteProtectInfo().imageFlag);
     }
 
@@ -309,8 +305,8 @@ public:
 
 
 
-        // Valid spec, unimplemented path (bootable pre-T018): clean failure,
-        // FR-011 -- the output vector is untouched.
+        // Valid spec, not-yet-implemented path (bootable): clean failure
+        // with the output vector untouched.
         spec.bootable = true;
 
         AssertFailed (BlankDiskBuilder::Build (spec, BootPayload{}, out));

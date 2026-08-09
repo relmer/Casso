@@ -13,11 +13,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  FileBrowseModelTests
 //
-//  Spec 017: the create-dialog's navigation / validation engine against the
+//  The create-dialog's navigation / validation engine against the
 //  in-memory IFileSystem — listing order, extension filtering, unique default
 //  names, and the ValidateTarget precedence chain (mounted-path refusal
-//  outranks Exists; FR-006/007/018). Populated across T008 (v1) and T026
-//  (navigation).
+//  outranks Exists).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -192,7 +191,7 @@ public:
         FileBrowseModel  model = MakeModel (fs);
 
         // alpha.woz exists AND is mounted in drive 2: the refusal must win so
-        // the overwrite-confirm path is unreachable for a live mount (FR-018).
+        // the overwrite-confirm path is unreachable for a live mount.
         model.SetMountedPaths ({ L"c:/disks/ALPHA.woz" }, { 1 });
 
         Assert::IsTrue (TargetVerdict::MountedInDrive == model.ValidateTarget (L"alpha.woz", drive));

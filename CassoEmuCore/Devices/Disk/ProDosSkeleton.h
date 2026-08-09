@@ -12,8 +12,8 @@
 //
 //  ProDosSkeleton
 //
-//  Pure ProDOS volume structures for a fresh 143,360-byte sector buffer
-//  (spec 017 R-005/R-007). Write lays down the canonical minimal 280-block
+//  Pure ProDOS volume structures for a fresh 143,360-byte sector buffer.
+//  Write lays down the canonical minimal 280-block
 //  volume: directory key block 2 chained through 5, volume bitmap at block 6
 //  (blocks 0-6 used), boot blocks zeroed. InstallBoot copies boot blocks 0-1
 //  from a caller-supplied ProDOS master image and writes PRODOS +
@@ -33,7 +33,7 @@ public:
     //  Empty formatted volume (data-only). Buffer must be kImageByteSize.
     static HRESULT  Write (vector<Byte> & buffer, const std::string & volumeName);
 
-    //  Boot blocks + PRODOS + BASIC.SYSTEM from the master image (R-007).
+    //  Boot blocks + PRODOS + BASIC.SYSTEM from the master image.
     static HRESULT  InstallBoot (vector<Byte> & buffer, const vector<Byte> & usersDisk);
 };
 
@@ -47,7 +47,7 @@ public:
 //
 //  Minimal ProDOS volume reader: walks the volume directory and extracts one
 //  named file's contents (seedling / sapling / tree). Exists to pull PRODOS
-//  and BASIC.SYSTEM out of the downloaded master image (R-007).
+//  and BASIC.SYSTEM out of the downloaded master image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

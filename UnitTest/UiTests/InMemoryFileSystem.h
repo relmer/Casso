@@ -22,7 +22,7 @@
 //  or the new content — never a partial write) and, like the real
 //  filesystem, fails with E_ACCESSDENIED on a read-only entry.
 //
-//  Entries carry the spec-017 metadata (read-only flag, modified stamp)
+//  Entries carry per-file metadata (read-only flag, modified stamp)
 //  so FileBrowseModel and the write-protect toggle are testable; the
 //  Set* helpers below let tests stage that state directly.
 //

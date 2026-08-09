@@ -54,7 +54,7 @@ public:
     HRESULT  PromptInsertDiskMru  (int drive, bool & outMountStarted);
 
     // The create-a-blank-disk flow behind the picker's <Create new disk...>
-    // row (spec 017): dialog -> BlankDiskBuilder -> atomic write -> Mount.
+    // row: dialog -> BlankDiskBuilder -> atomic write -> Mount.
     HRESULT  CreateBlankDiskForDrive (int drive, bool & outMountStarted);
 
 private:

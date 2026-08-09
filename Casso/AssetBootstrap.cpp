@@ -1923,7 +1923,7 @@ public:
 
         // Pinned rows sort FIRST regardless of sort column/direction and are
         // immune to the search filter -- the picker's <Create new disk...>
-        // action row (spec 017 FR-001).
+        // action row.
         bool          pinnedFirst = false;
     };
 
@@ -2723,7 +2723,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
     models.reserve ((size_t) rowCount + 1);
 
-    // The pinned <Create new disk...> action row (spec 017 FR-001): always
+    // The pinned <Create new disk...> action row: always
     // the first row regardless of sort order, immune to the search filter.
     // Its result code sits one past the real rows so the ranges below stay
     // untouched.

@@ -13,7 +13,7 @@
 //  FileBrowseModel
 //
 //  The pure navigation / validation engine behind the create-disk dialog
-//  (spec 017 R-010, FR-006/007/018). Owns the current folder, its listing
+//  Owns the current folder, its listing
 //  (folders first, then files matching the extension filter), the unique
 //  default name, and target validation — all through the injected
 //  IFileSystem so every behavior is unit-testable without a window.
@@ -72,6 +72,14 @@ public:
 
 private:
     void  RebuildFilteredView ();
+
+    //  ASCII-range lowering: feeds case-insensitive path comparisons and
+    //  name sorts, matching NTFS-default semantics.
+    static std::wstring  ToLower (const std::wstring & s);
+
+    //  Case-lowered with separators unified, so the same file reached via
+    //  either separator style compares equal.
+    static std::wstring  NormalizeForCompare (const std::wstring & path);
 
     IFileSystem                  * m_fs = nullptr;   // non-owning
     std::wstring                   m_folder;

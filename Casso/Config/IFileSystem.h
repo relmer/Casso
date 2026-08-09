@@ -71,13 +71,14 @@ public:
     virtual HRESULT EnumerateDirectories (const std::wstring        & directory,
                                           std::vector<std::wstring> & outDirNames) = 0;
 
-    // Non-recursive listing of files AND sub-directories with metadata
-    // (spec 017). Hidden and system entries are excluded. Order is
-    // unspecified -- callers sort.
+    // Non-recursive listing of files AND sub-directories with metadata.
+    // Hidden and system entries are excluded. Order is unspecified --
+    // callers sort.
     virtual HRESULT EnumerateEntries     (const std::wstring           & directory,
                                           std::vector<FileSystemEntry> & outEntries) = 0;
 
-    // The file's read-only attribute (spec 017 write-protect toggle).
+    // The file's read-only attribute (drives the write-protect toggle for
+    // sector-image formats).
     // Get fails if the file does not exist; Set preserves every other
     // attribute bit.
     virtual HRESULT GetReadOnlyAttribute (const std::wstring & path,
