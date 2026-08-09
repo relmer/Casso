@@ -317,7 +317,7 @@ public:
 
     TEST_METHOD (Build_DskDos33_IsTheSkeletonBufferVerbatim)
     {
-        BlankDiskSpec  spec = MakeSpec (DiskFormat::Dsk, BlankDiskContents::Dos33);
+        BlankDiskSpec  spec     = MakeSpec (DiskFormat::Dsk, BlankDiskContents::Dos33);
         vector<Byte>   dsk;
         vector<Byte>   expected = MakeDos33Buffer();
 
