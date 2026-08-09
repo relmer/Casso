@@ -95,7 +95,20 @@ Error:
 //  Build
 //
 //  Skeleton buffer -> optional payload install -> format-specific output
-//  bytes. Implemented across T006 (WOZ) and T014 (full matrix).
+//  bytes. All-or-nothing: outBytes is written only after every step
+//  succeeded (FR-011 starts here). Deterministic by construction -- no
+//  clocks, no randomness -- so identical inputs yield identical bytes.
+//
+//  Formatted contents produce the buffer via the skeleton writers; the WOZ
+//  path nibblizes it (the same GCR encoding a mounted .dsk gets) and
+//  serializes WOZ v2 with the write-protect INFO byte clear (FR-012).
+//
+//  "Unformatted" WOZ carries every track sized to the full bit capacity with
+//  all-zero bits: the guest reads it as garbage (exactly like raw media) and
+//  a guest INIT lays its own sync + sectors over the rotating track.
+//
+//  ProDOS contents and the DSK/PO outputs arrive in T014; boot-payload
+//  install arrives in T018.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,9 +117,52 @@ HRESULT BlankDiskBuilder::Build (
     const BootPayload   & payload,
     vector<Byte>        & outBytes)
 {
-    UNREFERENCED_PARAMETER (spec);
-    UNREFERENCED_PARAMETER (payload);
-    UNREFERENCED_PARAMETER (outBytes);
+    HRESULT       hr    = S_OK;
+    int           track = 0;
+    vector<Byte>  buffer;
+    vector<Byte>  built;
+    DiskImage     img;
 
-    return E_NOTIMPL;
+
+
+    UNREFERENCED_PARAMETER (payload);
+
+    hr = ValidateSpec (spec);
+    CHR (hr);
+
+    // Later-task scaffolding: valid specs whose construction path isn't
+    // built yet fail cleanly rather than emitting a wrong image.
+    CBREx (!spec.bootable, E_NOTIMPL);                                   // T018
+    CBREx (spec.contents != BlankDiskContents::ProDos, E_NOTIMPL);       // T014
+    CBREx (spec.format == DiskFormat::Woz, E_NOTIMPL);                   // T014
+
+    buffer.assign ((size_t) NibblizationLayer::kImageByteSize, (Byte) 0);
+
+    if (spec.contents == BlankDiskContents::Dos33)
+    {
+        hr = Dos33Skeleton::Write (buffer, spec.volumeNumber);
+        CHR (hr);
+    }
+
+    if (spec.contents == BlankDiskContents::Unformatted)
+    {
+        // Raw media: full-capacity all-zero bit tracks, no sector structure.
+        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            img.ResizeTrack (track, NibblizationLayer::kTrackBitCapacity);
+        }
+    }
+    else
+    {
+        hr = NibblizationLayer::NibblizeDsk (buffer, img);
+        CHR (hr);
+    }
+
+    hr = WozLoader::Serialize (img, built);
+    CHR (hr);
+
+    outBytes = std::move (built);
+
+Error:
+    return hr;
 }
