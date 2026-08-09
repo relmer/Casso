@@ -6,6 +6,7 @@
 #include "../EmulatorShell.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
+#include "Devices/Disk/BlankDiskBuilder.h"
 #include "Devices/Printer/PaperRenderer.h"
 #include "Devices/Printer/PngCodec.h"
 #include "Devices/Printer/PrintDelivery.h"
@@ -20,6 +21,8 @@
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/Chrome/DriveWidget.h"
+#include "Ui/Dialogs/CreateDiskDialog.h"
+#include "Ui/FileBrowseModel.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Shell/MachineManager.h"
@@ -925,21 +928,132 @@ Error:
 //
 //  CreateBlankDiskForDrive
 //
-//  The create-a-blank-disk flow. The real orchestration -- CreateDiskDialog
-//  over a
-//  FileBrowseModel, BlankDiskBuilder, atomic temp+rename write, then the
-//  standard Mount. Until then the picker row backs out cleanly -- no mount
-//  starts, so the caller's door choreography restores the drive.
+//  The create-a-blank-disk flow: a themed save-style dialog over a
+//  FileBrowseModel picks the target; BlankDiskBuilder produces the image
+//  bytes; the file lands through the filesystem's atomic temp+rename write;
+//  and the standard Mount path takes it from there (drive widget, MRU,
+//  persistence, door choreography all behave as for any insert).
+//
+//  Every backing-out path -- cancel, refused target, replace declined --
+//  returns S_OK with no mount started, so the caller's door choreography
+//  restores the drive. A failed build or write reports the cause and leaves
+//  the prior mount and the host filesystem untouched (the atomic write can
+//  never leave a partial image).
+//
+//  The default folder is Documents\Casso Disks, created on demand; the
+//  dialog's model refuses any target currently mounted in a drive.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMountStarted)
 {
-    UNREFERENCED_PARAMETER (drive);
+    HRESULT                    hr        = S_OK;
+    PWSTR                      docsRaw   = nullptr;
+    int                        choice    = IDYES;
+    bool                       occupied  = false;
+    std::wstring               folder;
+    std::wstring               message;
+    std::vector<std::wstring>  mountedPaths;
+    std::vector<int>           mountedDrives;
+    vector<Byte>               imageBytes;
+    std::string                imageContent;
+    std::error_code            ec;
+    FileBrowseModel            model;
+    CreateDiskDialog           dialog;
+    DxuiWindow::CreateParams   params;
+
+
 
     outMountStarted = false;
 
-    return S_OK;
+    // Default folder: Documents\Casso Disks, created on demand.
+    hr = SHGetKnownFolderPath (FOLDERID_Documents, 0, nullptr, &docsRaw);
+    CHRA (hr);
+
+    folder = docsRaw;
+    CoTaskMemFree (docsRaw);
+    docsRaw = nullptr;
+
+    folder += L"\\Casso Disks";
+    std::filesystem::create_directories (folder, ec);
+
+    // The model refuses a target that is currently mounted in any drive; the
+    // store's backing paths are UTF-8 and go wide through the same u8string
+    // interpretation the MRU uses.
+    for (const DiskImageStore::MountedSource & mounted : m_shell.m_diskStore.MountedSourcePaths())
+    {
+        std::u8string  u8 (reinterpret_cast<const char8_t *> (mounted.path.data()),
+                           mounted.path.size());
+
+        mountedPaths.push_back (std::filesystem::path (u8).wstring());
+        mountedDrives.push_back (mounted.drive);
+    }
+
+    model.Bind (&m_shell.m_uiFs);
+    model.SetExtensionFilter (L".woz");
+    model.SetMountedPaths (std::move (mountedPaths), std::move (mountedDrives));
+
+    hr = model.SetFolder (folder);
+    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
+                              L"Could not open the disk folder.",
+                              L"Create New Disk", MB_OK | MB_ICONERROR));
+
+    dialog.Configure (&model, &m_shell.m_chromeTheme, GetDpiForWindow (m_shell.m_hwnd));
+
+    params.title                    = std::format (L"Create New Disk (Drive {})", drive);
+    params.hInstance                = GetModuleHandle (nullptr);
+    params.ownerHwnd                = m_shell.m_hwnd;
+    params.initialSizeDip           = { 560, 480 };
+    params.minSizeDip               = { 420, 360 };
+    params.resizable                = true;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+
+    hr = dialog.Create (params);
+    CHRA (hr);
+
+    dialog.SetTheme (&m_shell.m_chromeTheme);
+    dialog.ShowModalDialog (IDOK);
+
+    // Cancel / Escape / close box: nothing to do, and no mount started.
+    BAIL_OUT_IF (!dialog.Outcome().confirmed, S_OK);
+
+    // The target drive may already hold a disk; replacing it needs a yes.
+    occupied = m_shell.m_diskStore.IsMounted (6, drive - 1);
+
+    if (occupied)
+    {
+        message = std::format (L"Drive {} already has a disk. Replace it with the new disk?", drive);
+        choice  = DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme, message.c_str(),
+                                  L"Create New Disk", MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
+
+        BAIL_OUT_IF (choice != IDYES, S_OK);
+    }
+
+    hr = BlankDiskBuilder::Build (dialog.Outcome().spec, BootPayload{}, imageBytes);
+    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
+                              L"Could not build the new disk image.",
+                              L"Create New Disk", MB_OK | MB_ICONERROR));
+
+    // Atomic: the filesystem stages a sibling temp file and swaps it in, so
+    // a failure here leaves no partial image behind.
+    imageContent.assign (reinterpret_cast<const char *> (imageBytes.data()), imageBytes.size());
+
+    hr = m_shell.m_uiFs.WriteAllText (dialog.Outcome().targetPath, imageContent);
+    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
+                              (L"Could not write \"" + dialog.Outcome().targetPath + L"\".\n\n"
+                               + FormatSystemError (hr)).c_str(),
+                              L"Create New Disk", MB_OK | MB_ICONERROR));
+
+    hr = m_shell.Mount (6, drive - 1, dialog.Outcome().targetPath);
+    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
+                              L"The disk was created but could not be mounted.",
+                              L"Create New Disk", MB_OK | MB_ICONERROR));
+
+    outMountStarted = true;
+
+Error:
+    return hr;
 }
 
 

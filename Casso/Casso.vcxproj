@@ -243,6 +243,7 @@
     <ClCompile Include="Config\GlobalUserPrefs.cpp" />
     <ClCompile Include="Ui\Chrome\MainMenu.cpp" />
     <ClCompile Include="Ui\ThemeLoader.cpp" />
+    <ClCompile Include="Ui\CreateDiskBodyPanel.cpp" />
     <ClCompile Include="Ui\PickerBodyPanel.cpp" />
     <ClCompile Include="Ui\PickerDialog.cpp" />
     <ClCompile Include="Ui\ThemeManager.cpp" />
@@ -337,6 +338,7 @@
     <ClInclude Include="Shell\RepoCheckout.h" />
     <ClInclude Include="Ui\Chrome\MainMenu.h" />
     <ClInclude Include="Ui\ThemeLoader.h" />
+    <ClInclude Include="Ui\CreateDiskBodyPanel.h" />
     <ClInclude Include="Ui\PickerBodyPanel.h" />
     <ClInclude Include="Ui\PickerDialog.h" />
     <ClInclude Include="Ui\ThemeManager.h" />
