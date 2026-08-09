@@ -24,8 +24,8 @@ Entries before versioning was introduced use dates only.
   currently mounted in a drive, asks before overwriting an existing file
   or replacing an occupied drive's disk, and remembers the folder the
   last disk was created in.
-- **Per-drive write-protect toggle.** Disk menu gains checkable
-  "Write-protect drive 1 / 2" items (enabled while mounted): WOZ images
+- **Write-protect toggle for mounted disks.** Disk menu gains checkable
+  "Write-protect disk 1 / 2" items (enabled while mounted): WOZ images
   flip the write-protect flag that travels inside the file — pending guest
   writes are flushed first so nothing is lost — while DSK/DO/PO images set
   or clear the host file's read-only attribute. The drive widget's padlock,
