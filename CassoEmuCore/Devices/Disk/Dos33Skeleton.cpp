@@ -81,7 +81,7 @@ HRESULT Dos33Skeleton::Write (vector<Byte> & buffer, Byte volumeNumber)
 
     std::fill (buffer.begin(), buffer.end(), (Byte) 0);
 
-    // ---- VTOC (T17 S0) ----
+    // VTOC (T17 S0)
     vtoc = SectorOffset (s_kVtocTrack, 0);
 
     buffer[vtoc + s_kVtocOffCatalogTrack]   = (Byte) s_kVtocTrack;
@@ -105,7 +105,7 @@ HRESULT Dos33Skeleton::Write (vector<Byte> & buffer, Byte volumeNumber)
         buffer[entry + 1] = allocated ? 0x00 : 0xFF;
     }
 
-    // ---- catalog chain (T17 S15 -> S1) ----
+    // Catalog chain (T17 S15 -> S1)
     for (sector = s_kCatalogFirstSector; sector >= 1; sector--)
     {
         size_t  cat = SectorOffset (s_kVtocTrack, sector);
