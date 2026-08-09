@@ -70,10 +70,10 @@ via host read-only attribute; indication always truthful.
 
 **Independent test**: quickstart §6.
 
-- [ ] T022 [US4] Implement `DiskManager::ToggleImageWriteProtect (drive)` in `Casso/Shell/DiskManager.cpp` per contract §4: WOZ = flush-dirty-first → `SetImageWriteProtected` → serializer-level flush (bypasses the guest write gate); DSK/PO = `IFileSystem` read-only attribute set/clear; both re-probe (`ProbeFileWritability`) + `ApplyExternalWriteProtect`; failure reports + re-reads truth (FR-016)
-- [ ] T023 [P] [US4] Core coverage: WOZ WP flag round-trips through `WozLoader::Serialize`/`Load` after toggle; flush-ordering test proves no sector loss when toggling ON with dirty content; DSK/PO attribute path tested through mock `IFileSystem` — in `UnitTest/EmuTests/` beside `DiskWritePathTests`
-- [ ] T024 [US4] Menu surface: `IDM_DISK_WP1/2` checkable items in `Casso/Ui/MainMenu.cpp` (enabled iff mounted; check = `imageFlag ‖ readOnlyFile`), routed in `WindowCommandManager::OnDiskCommand`; update `MainMenuDropdownTests` row expectations
-- [ ] T025 [US4] Guest-visible gate: real-CPU test — toggle ON → `SAVE` yields `WRITE PROTECTED`; toggle OFF → `SAVE` succeeds (SC-005); plus quickstart §6 hand pass (padlock, tooltip causes, Explorer attribute visible)
+- [X] T022 [US4] Implement `DiskManager::ToggleImageWriteProtect (drive)` in `Casso/Shell/DiskManager.cpp` per contract §4: WOZ = flush-dirty-first → `SetImageWriteProtected` → serializer-level flush (bypasses the guest write gate); DSK/PO = `IFileSystem` read-only attribute set/clear; both re-probe (`ProbeFileWritability`) + `ApplyExternalWriteProtect`; failure reports + re-reads truth (FR-016)
+- [X] T023 [P] [US4] Core coverage: WOZ WP flag round-trips through `WozLoader::Serialize`/`Load` after toggle; flush-ordering test proves no sector loss when toggling ON with dirty content; DSK/PO attribute path tested through mock `IFileSystem` — in `UnitTest/EmuTests/` beside `DiskWritePathTests`
+- [X] T024 [US4] Menu surface: `IDM_DISK_WP1/2` checkable items in `Casso/Ui/MainMenu.cpp` (enabled iff mounted; check = `imageFlag ‖ readOnlyFile`), routed in `WindowCommandManager::OnDiskCommand`; update `MainMenuDropdownTests` row expectations
+- [X] T025 [US4] Guest-visible gate: real-CPU test — toggle ON → `SAVE` yields `WRITE PROTECTED`; toggle OFF → `SAVE` succeeds (SC-005); plus quickstart §6 hand pass (padlock, tooltip causes, Explorer attribute visible)
 
 ## Phase 6: User Story 3 — Name and locate in-dialog (P3)
 
