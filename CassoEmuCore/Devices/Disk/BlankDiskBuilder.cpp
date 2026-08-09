@@ -58,8 +58,11 @@ HRESULT BlankDiskBuilder::ValidateSpec (const BlankDiskSpec & spec)
             break;
     }
 
-    CBREx (formatOk, E_INVALIDARG);
-    CBREx (!spec.bootable || spec.contents != BlankDiskContents::Unformatted, E_INVALIDARG);
+    // Asserting variants on purpose: the dialog gates every illegal pairing
+    // before the builder is ever called (FR-010), so an invalid spec arriving
+    // here is a caller bug, not a user outcome.
+    CBRAEx (formatOk, E_INVALIDARG);
+    CBRAEx (!spec.bootable || spec.contents != BlankDiskContents::Unformatted, E_INVALIDARG);
 
     if (spec.contents == BlankDiskContents::ProDos)
     {
@@ -76,7 +79,7 @@ HRESULT BlankDiskBuilder::ValidateSpec (const BlankDiskSpec & spec)
             nameOk = isalnum (c) != 0 || c == '.';
         }
 
-        CBREx (nameOk, E_INVALIDARG);
+        CBRAEx (nameOk, E_INVALIDARG);
     }
 
 Error:

@@ -390,7 +390,7 @@ HRESULT Win32FileSystem::EnumerateEntries (
     std::vector<FileSystemEntry>  & outEntries)
 {
     // FILETIME epoch (1601-01-01) to Unix epoch (1970-01-01), in seconds.
-    static constexpr int64_t  s_kFiletimeToUnixSeconds = 11644473600LL;
+    static constexpr int64_t  s_kFiletimeToUnixSeconds  = 11644473600LL;
     static constexpr int64_t  s_kFiletimeTicksPerSecond = 10000000LL;
 
     HRESULT          hr       = S_OK;

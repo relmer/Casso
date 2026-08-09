@@ -63,34 +63,55 @@ public:
 
     TEST_METHOD (ValidateSpec_DskPairsWithDosOrRaw)
     {
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+
+
         AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Dsk, BlankDiskContents::Dos33)));
         AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Dsk, BlankDiskContents::Unformatted)));
         AssertFailed    (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Dsk, BlankDiskContents::ProDos)));
+        expect.RequireCount (1);
     }
 
     TEST_METHOD (ValidateSpec_PoPairsWithProDosOrRaw)
     {
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+
+
         AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Po, BlankDiskContents::ProDos)));
         AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Po, BlankDiskContents::Unformatted)));
         AssertFailed    (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Po, BlankDiskContents::Dos33)));
+        expect.RequireCount (1);
     }
 
     TEST_METHOD (ValidateSpec_DoIsNeverCreatable)
     {
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+
+
         AssertFailed (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Do, BlankDiskContents::Dos33)));
         AssertFailed (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Do, BlankDiskContents::Unformatted)));
+        expect.RequireCount (2);
     }
 
     TEST_METHOD (ValidateSpec_BootableRequiresFormattedContents)
     {
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+
+
         AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Woz, BlankDiskContents::Dos33,  true)));
         AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Po,  BlankDiskContents::ProDos, true)));
         AssertFailed    (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Woz, BlankDiskContents::Unformatted, true)));
+        expect.RequireCount (1);
     }
 
     TEST_METHOD (ValidateSpec_ProDosVolumeNameRules)
     {
-        BlankDiskSpec  spec = MakeSpec (DiskFormat::Po, BlankDiskContents::ProDos);
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+        BlankDiskSpec                       spec   = MakeSpec (DiskFormat::Po, BlankDiskContents::ProDos);
 
 
 
@@ -111,5 +132,7 @@ public:
 
         spec.volumeName = "WAY.TOO.LONG.NAME1";   // 17 chars
         AssertFailed (BlankDiskBuilder::ValidateSpec (spec));
+
+        expect.RequireCount (4);
     }
 };
