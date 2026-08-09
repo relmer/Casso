@@ -59,11 +59,14 @@ public:
         FileBrowseModel  model = MakeModel (fs);
         const auto &     rows  = model.Entries();
 
-        Assert::AreEqual ((size_t) 3, rows.size());   // Saves, alpha, zeta -- txt filtered out
-        Assert::AreEqual (std::wstring (L"Saves"),     rows[0].name);
+        // "..", Saves, alpha, zeta -- txt filtered out.
+        Assert::AreEqual ((size_t) 4, rows.size());
+        Assert::AreEqual (std::wstring (L".."),        rows[0].name);
         Assert::IsTrue   (rows[0].isFolder);
-        Assert::AreEqual (std::wstring (L"alpha.woz"), rows[1].name);
-        Assert::AreEqual (std::wstring (L"zeta.woz"),  rows[2].name);
+        Assert::AreEqual (std::wstring (L"Saves"),     rows[1].name);
+        Assert::IsTrue   (rows[1].isFolder);
+        Assert::AreEqual (std::wstring (L"alpha.woz"), rows[2].name);
+        Assert::AreEqual (std::wstring (L"zeta.woz"),  rows[3].name);
     }
 
     TEST_METHOD (Filter_RefiltersCachedListingWithoutRefresh)
@@ -78,8 +81,103 @@ public:
 
         model.SetExtensionFilter (L".txt");
 
-        Assert::AreEqual ((size_t) 2, model.Entries().size());   // Saves + notes.txt
-        Assert::AreEqual (std::wstring (L"notes.txt"), model.Entries()[1].name);
+        Assert::AreEqual ((size_t) 3, model.Entries().size());   // .., Saves, notes.txt
+        Assert::AreEqual (std::wstring (L"notes.txt"), model.Entries()[2].name);
+    }
+
+
+    TEST_METHOD (UpRow_AbsentAtDriveRoot)
+    {
+        InMemoryFileSystem  fs;
+
+
+
+        StageTree (fs);
+
+        FileBrowseModel  model;
+
+        model.Bind (&fs);
+        AssertSucceeded (model.SetFolder (L"C:\\"));
+
+        Assert::IsTrue (model.Entries().size() > 0);
+        Assert::AreNotEqual (std::wstring (L".."), model.Entries()[0].name);
+    }
+
+
+    TEST_METHOD (NavigateInto_FolderThenBackUp_RoundTrips)
+    {
+        InMemoryFileSystem  fs;
+
+
+
+        StageTree (fs);
+
+        FileBrowseModel  model = MakeModel (fs);
+
+        // Row 1 is "Saves" (row 0 is the synthetic up row).
+        AssertSucceeded (model.NavigateInto (1));
+
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\Saves"), model.CurrentFolder());
+        Assert::AreEqual (std::wstring (L"game.woz"), model.Entries()[1].name);
+
+        AssertSucceeded (model.NavigateUp());
+
+        Assert::AreEqual (std::wstring (L"C:\\Disks"), model.CurrentFolder());
+    }
+
+
+    TEST_METHOD (NavigateInto_UpRowNavigatesUp)
+    {
+        InMemoryFileSystem  fs;
+
+
+
+        StageTree (fs);
+
+        FileBrowseModel  model = MakeModel (fs);
+
+        AssertSucceeded (model.NavigateInto (0));   // ".."
+
+        Assert::AreEqual (std::wstring (L"C:\\"), model.CurrentFolder());
+        Assert::AreEqual (std::wstring (L"Disks"), model.Entries()[0].name);
+    }
+
+
+    TEST_METHOD (NavigateUp_AtRootIsANoOp)
+    {
+        InMemoryFileSystem  fs;
+
+
+
+        StageTree (fs);
+
+        FileBrowseModel  model;
+
+        model.Bind (&fs);
+        AssertSucceeded (model.SetFolder (L"C:\\"));
+
+        Assert::AreEqual (S_FALSE, model.NavigateUp());
+        Assert::AreEqual (std::wstring (L"C:\\"), model.CurrentFolder());
+    }
+
+
+    TEST_METHOD (NavigateInto_FileRowIsACallerBug)
+    {
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+        InMemoryFileSystem  fs;
+
+
+
+        StageTree (fs);
+
+        FileBrowseModel  model = MakeModel (fs);
+
+        // Row 2 is alpha.woz -- a file; row 9 is out of range.
+        AssertFailed (model.NavigateInto (2));
+        AssertFailed (model.NavigateInto (9));
+
+        expect.RequireCount (2);
     }
 
     TEST_METHOD (UniqueDefaultName_SkipsExistingNames)

@@ -81,15 +81,15 @@ via host read-only attribute; indication always truthful.
 
 **Independent test**: quickstart §4.
 
-- [ ] T026 [P] [US3] Complete `FileBrowseModel`: `NavigateInto`/`NavigateUp`, synthetic `..`, folders-first case-insensitive ordering, cached-listing refilter on `SetExtensionFilter`; extend `FileBrowseModelTests.cpp` (nav round-trips, root behavior, hidden/system exclusion)
-- [ ] T027 [US3] Wire navigation into `CreateDiskDialog`: folder rows + `..` activate-to-navigate, up-button + current-path label, selecting a file seeds the name field, full keyboard pass (tab order, Enter-in-name creates, list `SetKeyboardColumnNav`)
-- [ ] T028 [US3] Add `GlobalUserPrefs::lastDiskCreateFolder` (4-edit recipe: member, `s_kKnownTopLevel`, `ToJson`, `FromJson`) + RoundTrip prefs test; write on successful create, read at dialog open, fall back to `Documents\Casso Disks` when empty/missing (R-012)
-- [ ] T029 [US3] Runtime validation pass: quickstart §4 by hand; fix what it finds
+- [X] T026 [P] [US3] Complete `FileBrowseModel`: `NavigateInto`/`NavigateUp`, synthetic `..`, folders-first case-insensitive ordering, cached-listing refilter on `SetExtensionFilter`; extend `FileBrowseModelTests.cpp` (nav round-trips, root behavior, hidden/system exclusion)
+- [X] T027 [US3] Wire navigation into `CreateDiskDialog`: folder rows + `..` activate-to-navigate, up-button + current-path label, selecting a file seeds the name field, full keyboard pass (tab order, Enter-in-name creates, list `SetKeyboardColumnNav`)
+- [X] T028 [US3] Add `GlobalUserPrefs::lastDiskCreateFolder` (4-edit recipe: member, `s_kKnownTopLevel`, `ToJson`, `FromJson`) + RoundTrip prefs test; write on successful create, read at dialog open, fall back to `Documents\Casso Disks` when empty/missing (R-012)
+- [X] T029 [US3] Runtime validation pass: quickstart §4 by hand; fix what it finds
 
 ## Phase 7: Polish & cross-cutting
 
-- [ ] T030 [P] Fix the `.nib` lie in `WindowCommandManager::PromptForDiskImage`'s `COMDLG_FILTERSPEC` (advertises `*.nib`; `DetectFormatByExtension` rejects it) — drop the extension (sanctioned adjacent cleanup surfaced by the research code survey; NIB support stays out of scope per spec Assumptions)
-- [ ] T031 [P] `CHANGELOG.md` under `[Unreleased]`: feature prose for create-a-disk + write-protect toggle (features get prose; keep fixes terse)
+- [X] T030 [P] Fix the `.nib` lie in `WindowCommandManager::PromptForDiskImage`'s `COMDLG_FILTERSPEC` (advertises `*.nib`; `DetectFormatByExtension` rejects it) — drop the extension (sanctioned adjacent cleanup surfaced by the research code survey; NIB support stays out of scope per spec Assumptions)
+- [X] T031 [P] `CHANGELOG.md` under `[Unreleased]`: feature prose for create-a-disk + write-protect toggle (features get prose; keep fixes terse)
 - [ ] T032 Full gates: x64 Debug + Release build clean, full `UnitTest.dll` suite green both configs, ARM64 builds, Code Analysis zero warnings (constitution Quality Gate 5), `scripts/CheckStyle.ps1 -Mode Tree` clean, quickstart end-to-end pass — then user validation before merge to master
 
 ## Dependencies

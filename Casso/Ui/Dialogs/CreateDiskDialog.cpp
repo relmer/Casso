@@ -65,6 +65,7 @@ void CreateDiskDialog::OnCreate()
     m_list.SetShowHeader    (true);
     m_list.SetColumns       (std::move (cols));
     m_list.SetPreciseAutoFit (true);
+    m_list.SetKeyboardColumnNav (true);
     m_list.SetOnSelectionChanged ([this] (int row)
     {
         const auto &  entries = m_model->Entries();
@@ -75,6 +76,7 @@ void CreateDiskDialog::OnCreate()
             Invalidate();
         }
     });
+    m_list.SetOnActivateRow ([this] (int row) { OnRowActivated (row); });
 
     m_formatLabel.SetDpi       (m_dpi);
     m_formatLabel.SetTextRole  (DxuiTextRole::Body);
@@ -473,6 +475,43 @@ void CreateDiskDialog::OnDownloadClicked()
     }
 
     UpdateBootableRow();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnRowActivated
+//
+//  Double-click / Enter on a folder row (the synthetic ".." included)
+//  navigates; activating a file row is covered by selection, which already
+//  copied its name into the field.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CreateDiskDialog::OnRowActivated (int row)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_model == nullptr || row < 0 || row >= (int) m_model->Entries().size())
+    {
+        return;
+    }
+
+    if (m_model->Entries()[(size_t) row].isFolder)
+    {
+        hr = m_model->NavigateInto ((size_t) row);
+
+        if (SUCCEEDED (hr))
+        {
+            RefreshListing();
+            Invalidate();
+        }
+    }
 }
 
 

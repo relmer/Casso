@@ -143,9 +143,32 @@ Error:
 
 HRESULT FileBrowseModel::NavigateInto (size_t entryIndex)
 {
-    UNREFERENCED_PARAMETER (entryIndex);
+    HRESULT  hr      = S_OK;
+    bool     inRange = entryIndex < m_entries.size();
 
-    return E_NOTIMPL;
+
+
+    CBRAEx (inRange, E_INVALIDARG);
+
+    // The synthetic ".." row navigates up; real folder rows navigate in.
+    // A file row here is a caller bug -- the dialog only routes folders.
+    if (m_entries[entryIndex].name == L"..")
+    {
+        hr = NavigateUp();
+        CHR (hr);
+    }
+    else
+    {
+        bool  isFolder = m_entries[entryIndex].isFolder;
+
+        CBRAEx (isFolder, E_INVALIDARG);
+
+        hr = SetFolder (m_folder + L"\\" + m_entries[entryIndex].name);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
 }
 
 
@@ -156,13 +179,39 @@ HRESULT FileBrowseModel::NavigateInto (size_t entryIndex)
 //
 //  NavigateUp
 //
-//  Folder navigation; not yet implemented.
+//  Steps to the parent folder. At a drive root there is no parent; the
+//  call is a clean no-op (S_FALSE) so callers need no special casing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT FileBrowseModel::NavigateUp()
 {
-    return E_NOTIMPL;
+    HRESULT       hr     = S_OK;
+    size_t        cut    = 0;
+    std::wstring  parent;
+
+
+
+    if (m_folder.size() <= 3)
+    {
+        return S_FALSE;
+    }
+
+    cut    = m_folder.find_last_of (L"\\/");
+    parent = (cut == std::wstring::npos) ? m_folder : m_folder.substr (0, cut);
+
+    // A cut at the drive colon ("C:") needs its separator back to stay an
+    // absolute root path.
+    if (parent.size() == 2 && parent[1] == L':')
+    {
+        parent += L"\\";
+    }
+
+    hr = SetFolder (parent);
+    CHR (hr);
+
+Error:
+    return hr;
 }
 
 
@@ -247,6 +296,18 @@ void FileBrowseModel::SetExtensionFilter (const std::wstring & ext)
 void FileBrowseModel::RebuildFilteredView()
 {
     m_entries.clear();
+
+    // Anywhere below a drive root gets a synthetic ".." first row so the
+    // listing itself is the way back up.
+    if (m_folder.size() > 3)
+    {
+        FileBrowseEntry  up;
+
+        up.name     = L"..";
+        up.isFolder = true;
+
+        m_entries.push_back (up);
+    }
 
     for (const FileBrowseEntry & entry : m_allEntries)
     {

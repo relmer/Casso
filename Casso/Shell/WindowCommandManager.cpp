@@ -876,7 +876,7 @@ HRESULT WindowCommandManager::PromptForDiskImage (int drive, bool & outMountStar
     ComPtr<IFileOpenDialog>          dialog;
     ComPtr<IShellItem>               item;
     PWSTR                            pszPath    = nullptr;
-    COMDLG_FILTERSPEC                filters[2] = { { L"Disk images", L"*.dsk;*.do;*.nib;*.woz;*.po" },
+    COMDLG_FILTERSPEC                filters[2] = { { L"Disk images", L"*.dsk;*.do;*.woz;*.po" },
                                                     { L"All files",   L"*.*" } };
 
 
@@ -967,16 +967,33 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
 
     outMountStarted = false;
 
-    // Default folder: Documents\Casso Disks, created on demand.
-    hr = SHGetKnownFolderPath (FOLDERID_Documents, 0, nullptr, &docsRaw);
-    CHRA (hr);
+    // The last create's folder wins while it still exists; otherwise the
+    // default Documents\Casso Disks, created on demand.
+    if (!m_shell.m_globalPrefs.lastDiskCreateFolder.empty())
+    {
+        const std::string &  stored = m_shell.m_globalPrefs.lastDiskCreateFolder;
+        std::u8string        u8     (reinterpret_cast<const char8_t *> (stored.data()),
+                                     stored.size());
+        std::wstring         last   = std::filesystem::path (u8).wstring();
 
-    folder = docsRaw;
-    CoTaskMemFree (docsRaw);
-    docsRaw = nullptr;
+        if (std::filesystem::exists (last, ec))
+        {
+            folder = last;
+        }
+    }
 
-    folder += L"\\Casso Disks";
-    std::filesystem::create_directories (folder, ec);
+    if (folder.empty())
+    {
+        hr = SHGetKnownFolderPath (FOLDERID_Documents, 0, nullptr, &docsRaw);
+        CHRA (hr);
+
+        folder = docsRaw;
+        CoTaskMemFree (docsRaw);
+        docsRaw = nullptr;
+
+        folder += L"\\Casso Disks";
+        std::filesystem::create_directories (folder, ec);
+    }
 
     // The model refuses a target that is currently mounted in any drive; the
     // store's backing paths are UTF-8 and go wide through the same u8string
@@ -1091,6 +1108,16 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
                               (L"Could not write \"" + dialog.Outcome().targetPath + L"\".\n\n"
                                + FormatSystemError (hr)).c_str(),
                               L"Create New Disk", MB_OK | MB_ICONERROR));
+
+    // Remember where this disk landed (the user may have navigated away
+    // from the starting folder); the next create opens there.
+    {
+        std::u8string  u8folder = std::filesystem::path (dialog.Outcome().targetPath)
+                                      .parent_path().u8string();
+
+        m_shell.m_globalPrefs.lastDiskCreateFolder.assign (u8folder.begin(), u8folder.end());
+        m_shell.SaveGlobalPrefs();
+    }
 
     hr = m_shell.Mount (6, drive - 1, dialog.Outcome().targetPath);
     CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,

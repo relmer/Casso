@@ -75,6 +75,7 @@ private:
     void  OnFormatChanged    (int index);
     void  OnContentsChanged  (int index);
     void  OnDownloadClicked  ();
+    void  OnRowActivated     (int row);
     void  RebuildContentsChoices ();
     void  UpdateBootableRow  ();
 

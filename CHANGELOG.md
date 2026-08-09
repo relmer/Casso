@@ -6,6 +6,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Added
+- **Create blank disks in-app.** The insert-disk picker gains a pinned
+  `<Create new disk...>` first row that opens a themed save-style dialog:
+  browse folders (with a `..` row) right in the dialog, pick the image
+  format (WOZ, DSK, or PO) and contents (DOS 3.3, ProDOS 1.1.1, or
+  unformatted — only legal pairings are ever offered), and name the file.
+  The new disk mounts straight into the drive that opened the picker. A
+  freshly created DOS 3.3 or ProDOS disk is immediately usable — the guest
+  can `SAVE` / `CAT` with no `INIT` step — and an optional Bootable toggle
+  installs the real OS from the stock master disks (downloaded on demand
+  with an explicit click when not cached): DOS 3.3 disks boot to a clean
+  Applesoft prompt via a `HELLO` greeting, ProDOS disks boot through
+  `PRODOS` into BASIC.SYSTEM. The dialog refuses a target that is
+  currently mounted in a drive, asks before overwriting an existing file
+  or replacing an occupied drive's disk, and remembers the folder the
+  last disk was created in.
+- **Per-drive write-protect toggle.** Disk menu gains checkable
+  "Write-protect drive 1 / 2" items (enabled while mounted): WOZ images
+  flip the write-protect flag that travels inside the file — pending guest
+  writes are flushed first so nothing is lost — while DSK/DO/PO images set
+  or clear the host file's read-only attribute. The drive widget's padlock,
+  the tooltip, and the menu check all re-read reality after each toggle,
+  and a protected disk fails a guest `SAVE` with `WRITE PROTECTED` exactly
+  like the notch tab on real media.
+
 ## [1.15.2] — settings live-preview fixes
 
 ### Fixed
