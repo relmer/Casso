@@ -115,18 +115,31 @@ public:
         // stock master in the GUI's asset-download cache instead, filed
         // under its catalog display name. Read-only fallback, still
         // skip-if-missing on machines with neither.
-        if (bytes.empty() && relPath == "Disks/Apple/dos33-master.dsk")
+        if (bytes.empty())
         {
-            wchar_t * localAppData = nullptr;
-            size_t    len          = 0;
+            const wchar_t *  cacheName = nullptr;
 
-            if (_wdupenv_s (&localAppData, &len, L"LOCALAPPDATA") == 0 &&
-                localAppData != nullptr)
+            if (relPath == "Disks/Apple/dos33-master.dsk")
             {
-                bytes = ReadFileOrEmpty (std::filesystem::path (localAppData) /
-                                         L"Casso" / L"Disks" /
-                                         L"DOS 3.3 System Master.dsk");
-                free (localAppData);
+                cacheName = L"DOS 3.3 System Master.dsk";
+            }
+            else if (relPath == "Disks/Apple/prodos-users.dsk")
+            {
+                cacheName = L"ProDOS Users Disk.dsk";
+            }
+
+            if (cacheName != nullptr)
+            {
+                wchar_t * localAppData = nullptr;
+                size_t    len          = 0;
+
+                if (_wdupenv_s (&localAppData, &len, L"LOCALAPPDATA") == 0 &&
+                    localAppData != nullptr)
+                {
+                    bytes = ReadFileOrEmpty (std::filesystem::path (localAppData) /
+                                             L"Casso" / L"Disks" / cacheName);
+                    free (localAppData);
+                }
             }
         }
 
@@ -455,6 +468,143 @@ public:
 
         Assert::IsTrue (afterRemount.find ("BLANK DISK TEST") != std::string::npos,
             L"The saved program must survive serialize + fresh remount.");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  BootableDos33Woz_BootsToCleanPrompt
+    //
+    //  SC-006 gate: a bootable DOS 3.3 WOZ built from the real System
+    //  Master must cold-boot to the Applesoft prompt with the HELLO
+    //  greeting found and run -- no FILE NOT FOUND, no I/O ERROR.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (BootableDos33Woz_BootsToCleanPrompt)
+    {
+        HeadlessHost   host;
+        EmulatorCore   core;
+        HRESULT        hr  = S_OK;
+        DiskImage    * img = nullptr;
+        BlankDiskSpec  spec;
+        BootPayload    payload;
+        vector<Byte>   woz;
+        std::string    screen;
+
+
+
+        payload.dosMasterSectors = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
+        if (payload.dosMasterSectors.empty())
+        {
+            Logger::WriteMessage ("SKIPPED: DOS 3.3 master not available.\n");
+            return;
+        }
+
+        spec.bootable = true;
+
+        hr = BlankDiskBuilder::Build (spec, payload, woz);
+        AssertSucceeded (hr, L"bootable DOS 3.3 WOZ must build");
+
+        hr = host.BuildApple2eWithDisk2 (core);
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
+
+        core.PowerCycle();
+
+        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+            "bootable-blank.woz", DiskFormat::Woz, woz);
+        AssertSucceeded (hr, L"MountFromBytes must succeed");
+
+        img = core.diskStore->GetImage (kSlot6, kDrive1);
+        Assert::IsNotNull (img, L"Mounted DiskImage must be present");
+        core.diskController->SetExternalDisk (kDrive1, img);
+
+        core.bus->WriteByte (kIntCxRomOff, 0);
+        core.cpu->SetPC (kBootRomEntry);
+
+        core.RunCycles (kDos33ColdBootCycles);
+
+        {
+            std::vector<std::string>  rows = TextScreenScraper::Scrape40 (
+                *core.bus, TextScreenScraper::kTextPage1);
+
+            for (const auto & r : rows) { screen += r; screen += "\n"; }
+        }
+
+        Assert::IsTrue (screen.find (']') != std::string::npos,
+            L"the built disk must boot DOS to the Applesoft prompt");
+        Assert::IsTrue (screen.find ("FILE NOT FOUND") == std::string::npos,
+            L"the HELLO greeting must be found and run");
+        Assert::IsTrue (screen.find ("I/O ERROR") == std::string::npos,
+            L"the boot must be error-free");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  BootableProDosWoz_BootsToBasicPrompt
+    //
+    //  SC-006 gate: a bootable ProDOS WOZ built from the real Users Disk
+    //  must cold-boot through PRODOS into BASIC.SYSTEM's prompt.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (BootableProDosWoz_BootsToBasicPrompt)
+    {
+        HeadlessHost   host;
+        EmulatorCore   core;
+        HRESULT        hr  = S_OK;
+        DiskImage    * img = nullptr;
+        BlankDiskSpec  spec;
+        BootPayload    payload;
+        vector<Byte>   woz;
+        std::string    screen;
+
+
+
+        payload.proDosUsersDisk = ReadDskOrEmpty ("Disks/Apple/prodos-users.dsk");
+        if (payload.proDosUsersDisk.empty())
+        {
+            Logger::WriteMessage ("SKIPPED: ProDOS Users Disk not available.\n");
+            return;
+        }
+
+        spec.contents = BlankDiskContents::ProDos;
+        spec.bootable = true;
+
+        hr = BlankDiskBuilder::Build (spec, payload, woz);
+        AssertSucceeded (hr, L"bootable ProDOS WOZ must build");
+
+        hr = host.BuildApple2eWithDisk2 (core);
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
+
+        core.PowerCycle();
+
+        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+            "bootable-prodos.woz", DiskFormat::Woz, woz);
+        AssertSucceeded (hr, L"MountFromBytes must succeed");
+
+        img = core.diskStore->GetImage (kSlot6, kDrive1);
+        Assert::IsNotNull (img, L"Mounted DiskImage must be present");
+        core.diskController->SetExternalDisk (kDrive1, img);
+
+        core.bus->WriteByte (kIntCxRomOff, 0);
+        core.cpu->SetPC (kBootRomEntry);
+
+        core.RunCycles (kDos33ColdBootCycles);
+
+        {
+            std::vector<std::string>  rows = TextScreenScraper::Scrape40 (
+                *core.bus, TextScreenScraper::kTextPage1);
+
+            for (const auto & r : rows) { screen += r; screen += "\n"; }
+        }
+
+        Assert::IsTrue (screen.find (']') != std::string::npos,
+            L"the built disk must boot ProDOS into BASIC.SYSTEM's prompt");
+        Assert::IsTrue (screen.find ("UNABLE") == std::string::npos &&
+                        screen.find ("ERROR") == std::string::npos,
+            L"the ProDOS boot must be error-free");
     }
 };
 

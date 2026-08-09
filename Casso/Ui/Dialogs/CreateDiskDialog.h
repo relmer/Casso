@@ -6,6 +6,8 @@
 #include "../FileBrowseModel.h"
 #include "../CreateDiskBodyPanel.h"
 #include "Devices/Disk/BlankDiskBuilder.h"
+#include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiListView.h"
@@ -49,10 +51,17 @@ public:
         bool           confirmed = false;
     };
 
+    using AvailableFn = std::function<bool (BlankDiskContents)>;
+    using DownloadFn  = std::function<HRESULT (BlankDiskContents)>;
+
     //  Wire the pre-configured model (caller-owned; folder set, extension
-    //  filter + mounted paths applied) and the theme used for the dialog's
-    //  own message popups. Call before Create.
-    void  Configure (FileBrowseModel * model, const IDxuiTheme * theme, UINT dpi);
+    //  filter + mounted paths applied), the theme used for the dialog's own
+    //  message popups, and the boot-payload callbacks: `payloadAvailable`
+    //  answers whether the OS master for a contents choice is cached, and
+    //  `downloadPayload` fetches it on the user's explicit click (FR-017).
+    //  Call before Create.
+    void  Configure (FileBrowseModel * model, const IDxuiTheme * theme, UINT dpi,
+                     AvailableFn payloadAvailable, DownloadFn downloadPayload);
 
     const Result &  Outcome () const { return m_result; }
 
@@ -65,7 +74,9 @@ private:
     void  OnCreateClicked    ();
     void  OnFormatChanged    (int index);
     void  OnContentsChanged  (int index);
+    void  OnDownloadClicked  ();
     void  RebuildContentsChoices ();
+    void  UpdateBootableRow  ();
 
     static std::wstring    FormatSize       (const FileBrowseEntry & entry);
     static std::wstring    FormatModified   (int64_t modifiedUnix);
@@ -81,6 +92,8 @@ private:
     DiskFormat                      m_format   = DiskFormat::Woz;
     BlankDiskContents               m_contents = BlankDiskContents::Dos33;
     std::vector<BlankDiskContents>  m_contentsChoices;
+    AvailableFn                     m_payloadAvailable;
+    DownloadFn                      m_downloadPayload;
 
     CreateDiskBodyPanel * m_body      = nullptr;   // owned by the child tree
     DxuiLabel             m_pathLabel;
@@ -89,6 +102,9 @@ private:
     DxuiDropdown          m_formatDropdown;
     DxuiLabel             m_contentsLabel;
     DxuiDropdown          m_contentsDropdown;
+    DxuiCheckbox          m_bootableCheck;
+    DxuiButton            m_downloadButton;
+    DxuiLabel             m_bootHint;
     DxuiLabel             m_nameLabel;
     DxuiTextInput         m_nameInput;
 };

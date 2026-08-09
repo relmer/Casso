@@ -194,4 +194,19 @@ public:
                                            struct GlobalUserPrefs & prefs,
                                            bool                   & outUserExited,
                                            string                 & outError);
+
+    // The stock OS masters the create-disk flow installs from. Availability
+    // is the download cache under GetDiskDirectory(); Ensure downloads on
+    // demand (blocking, no UI -- the caller owns consent and reporting).
+    enum class StockBootDisk
+    {
+        Dos33Master,
+        ProDosUsersDisk,
+    };
+
+    static fs::path  StockBootDiskPath     (StockBootDisk disk);
+    static bool      IsStockBootDiskCached (StockBootDisk disk);
+    static HRESULT   EnsureStockBootDisk   (StockBootDisk disk,
+                                            wstring     & outDiskPath,
+                                            string      & outError);
 };

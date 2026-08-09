@@ -16,11 +16,18 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CreateDiskDialog::Configure (FileBrowseModel * model, const IDxuiTheme * theme, UINT dpi)
+void CreateDiskDialog::Configure (
+    FileBrowseModel  * model,
+    const IDxuiTheme * theme,
+    UINT               dpi,
+    AvailableFn        payloadAvailable,
+    DownloadFn         downloadPayload)
 {
-    m_model = model;
-    m_theme = theme;
-    m_dpi   = dpi;
+    m_model            = model;
+    m_theme            = theme;
+    m_dpi              = dpi;
+    m_payloadAvailable = std::move (payloadAvailable);
+    m_downloadPayload  = std::move (downloadPayload);
 }
 
 
@@ -91,6 +98,19 @@ void CreateDiskDialog::OnCreate()
 
     RebuildContentsChoices();
 
+    m_bootableCheck.SetDpi   (m_dpi);
+    m_bootableCheck.SetLabel (L"Bootable");
+    m_bootableCheck.SetSingleLineLabel (true);
+
+    m_downloadButton.SetDpi     (m_dpi);
+    m_downloadButton.SetOnClick ([this] () { OnDownloadClicked(); });
+
+    m_bootHint.SetDpi       (m_dpi);
+    m_bootHint.SetTextRole  (DxuiTextRole::Body);
+    m_bootHint.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+
+    UpdateBootableRow();
+
     m_nameLabel.SetDpi       (m_dpi);
     m_nameLabel.SetTextRole  (DxuiTextRole::Body);
     m_nameLabel.SetText      (L"Name:");
@@ -101,11 +121,24 @@ void CreateDiskDialog::OnCreate()
     m_nameInput.SetHwnd  (Hwnd());
     m_nameInput.SetMaxLength (128);
 
-    m_body = CreateDialogContent<CreateDiskBodyPanel>();
-    m_body->Init (&m_pathLabel, &m_list,
-                  &m_formatLabel, &m_formatDropdown,
-                  &m_contentsLabel, &m_contentsDropdown,
-                  &m_nameLabel, &m_nameInput);
+    {
+        CreateDiskBodyPanel::Children  kids;
+
+        kids.pathLabel     = &m_pathLabel;
+        kids.list          = &m_list;
+        kids.formatLabel   = &m_formatLabel;
+        kids.format        = &m_formatDropdown;
+        kids.contentsLabel = &m_contentsLabel;
+        kids.contents      = &m_contentsDropdown;
+        kids.bootable      = &m_bootableCheck;
+        kids.download      = &m_downloadButton;
+        kids.bootHint      = &m_bootHint;
+        kids.nameLabel     = &m_nameLabel;
+        kids.nameInput     = &m_nameInput;
+
+        m_body = CreateDialogContent<CreateDiskBodyPanel>();
+        m_body->Init (kids);
+    }
 
     createButton = AddDialogButton (L"Create", IDOK);
     AddDialogButton (L"Cancel", IDCANCEL);
@@ -317,6 +350,7 @@ void CreateDiskDialog::OnFormatChanged (int index)
     }
 
     RebuildContentsChoices();
+    UpdateBootableRow();
 
     m_nameInput.SetText (ReplaceExtension (m_nameInput.Text(), FormatExtension (m_format)));
 
@@ -345,6 +379,100 @@ void CreateDiskDialog::OnContentsChanged (int index)
     {
         m_contents = m_contentsChoices[(size_t) index];
     }
+
+    UpdateBootableRow();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateBootableRow
+//
+//  Three states: raw media cannot boot (toggle disabled, no affordance);
+//  the OS master is cached (toggle live); or the master is missing (toggle
+//  disabled, an explicit Download button plus the reason -- FR-017).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CreateDiskDialog::UpdateBootableRow()
+{
+    bool          formatted = (m_contents != BlankDiskContents::Unformatted);
+    bool          available = false;
+    std::wstring  os        = ContentsCaption (m_contents);
+
+
+
+    if (formatted && m_payloadAvailable)
+    {
+        available = m_payloadAvailable (m_contents);
+    }
+
+    if (!formatted)
+    {
+        m_bootableCheck.SetChecked (false);
+        m_bootableCheck.SetEnabled (false);
+        m_downloadButton.SetVisible (false);
+        m_bootHint.SetText (L"Raw media cannot carry an operating system.");
+    }
+    else if (available)
+    {
+        m_bootableCheck.SetEnabled (true);
+        m_downloadButton.SetVisible (false);
+        m_bootHint.SetText (L"Installs " + os + L" from the downloaded master disk.");
+    }
+    else
+    {
+        m_bootableCheck.SetChecked (false);
+        m_bootableCheck.SetEnabled (false);
+        m_downloadButton.SetVisible (true);
+        m_downloadButton.SetEnabled (true);
+        m_downloadButton.SetLabel (L"Download " + os + L"...");
+        m_bootHint.SetText (L"The " + os + L" master disk is not downloaded yet.");
+    }
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDownloadClicked
+//
+//  The explicit click is the user's download consent. Blocking fetch;
+//  success re-evaluates the row so the toggle goes live.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CreateDiskDialog::OnDownloadClicked()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (!m_downloadPayload)
+    {
+        return;
+    }
+
+    m_downloadButton.SetEnabled (false);
+    Invalidate();
+
+    hr = m_downloadPayload (m_contents);
+
+    if (FAILED (hr))
+    {
+        DxuiMessageBox (Hwnd(), m_theme,
+                        L"The download failed. Check your connection and try again.",
+                        L"Create New Disk", MB_OK | MB_ICONWARNING);
+    }
+
+    UpdateBootableRow();
 }
 
 
@@ -430,6 +558,7 @@ void CreateDiskDialog::OnCreateClicked()
         case TargetVerdict::Ok:
             m_result.spec.format   = m_format;
             m_result.spec.contents = m_contents;
+            m_result.spec.bootable = m_bootableCheck.Enabled() && m_bootableCheck.Checked();
             m_result.targetPath    = m_model->ComposeTargetPath (name);
             m_result.confirmed     = true;
             EndDialog (IDOK);

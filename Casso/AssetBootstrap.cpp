@@ -1820,6 +1820,74 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StockBootDiskPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+fs::path AssetBootstrap::StockBootDiskPath (StockBootDisk disk)
+{
+    const BootDiskSpec &  spec = (disk == StockBootDisk::Dos33Master)
+                               ? s_kDos33Disk
+                               : s_kProDOSDisk;
+
+
+
+    return GetDiskDirectory() / spec.cassoName;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsStockBootDiskCached
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssetBootstrap::IsStockBootDiskCached (StockBootDisk disk)
+{
+    error_code  ec;
+
+
+
+    return fs::exists (StockBootDiskPath (disk), ec);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureStockBootDisk
+//
+//  Downloads the stock master into the cache when absent (already-cached
+//  returns immediately with the path). Blocking, no UI of its own -- the
+//  caller owns the consenting click and any progress or error reporting.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::EnsureStockBootDisk (
+    StockBootDisk   disk,
+    wstring       & outDiskPath,
+    string        & outError)
+{
+    const BootDiskSpec &  spec = (disk == StockBootDisk::Dos33Master)
+                               ? s_kDos33Disk
+                               : s_kProDOSDisk;
+
+
+
+    return DownloadStockBootDisk (spec, GetDiskDirectory(), outDiskPath, outError);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FilesHaveSameContent
 //
 //  Cheap byte-equality check for disk-image dedup heuristics in the

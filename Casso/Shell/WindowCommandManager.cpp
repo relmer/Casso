@@ -958,6 +958,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     vector<Byte>               imageBytes;
     std::string                imageContent;
     std::error_code            ec;
+    BootPayload                payload;
     FileBrowseModel            model;
     CreateDiskDialog           dialog;
     DxuiWindow::CreateParams   params;
@@ -998,7 +999,27 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
                               L"Could not open the disk folder.",
                               L"Create New Disk", MB_OK | MB_ICONERROR));
 
-    dialog.Configure (&model, &m_shell.m_chromeTheme, GetDpiForWindow (m_shell.m_hwnd));
+    // Boot-payload plumbing: availability answers from the download cache;
+    // the download callback runs on the dialog's explicit button click.
+    dialog.Configure (&model, &m_shell.m_chromeTheme, GetDpiForWindow (m_shell.m_hwnd),
+        [] (BlankDiskContents contents)
+        {
+            return AssetBootstrap::IsStockBootDiskCached (
+                (contents == BlankDiskContents::ProDos)
+                    ? AssetBootstrap::StockBootDisk::ProDosUsersDisk
+                    : AssetBootstrap::StockBootDisk::Dos33Master);
+        },
+        [] (BlankDiskContents contents)
+        {
+            std::wstring  path;
+            std::string   error;
+
+            return AssetBootstrap::EnsureStockBootDisk (
+                (contents == BlankDiskContents::ProDos)
+                    ? AssetBootstrap::StockBootDisk::ProDosUsersDisk
+                    : AssetBootstrap::StockBootDisk::Dos33Master,
+                path, error);
+        });
 
     params.title                    = std::format (L"Create New Disk (Drive {})", drive);
     params.hInstance                = GetModuleHandle (nullptr);
@@ -1030,7 +1051,33 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
         BAIL_OUT_IF (choice != IDYES, S_OK);
     }
 
-    hr = BlankDiskBuilder::Build (dialog.Outcome().spec, BootPayload{}, imageBytes);
+    // A bootable spec needs the OS master's bytes. The dialog only enables
+    // the toggle when the cache has them, but the file is re-read here so a
+    // master that vanished in between reports instead of failing silently.
+    if (dialog.Outcome().spec.bootable)
+    {
+        bool  isProDos = (dialog.Outcome().spec.contents == BlankDiskContents::ProDos);
+
+        std::filesystem::path  masterPath = AssetBootstrap::StockBootDiskPath (
+            isProDos ? AssetBootstrap::StockBootDisk::ProDosUsersDisk
+                     : AssetBootstrap::StockBootDisk::Dos33Master);
+
+        std::ifstream  master (masterPath, std::ios::binary);
+
+        bool  opened = master.good();
+
+        CBRF (opened, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
+                                      L"The OS master disk is missing from the download cache.",
+                                      L"Create New Disk", MB_OK | MB_ICONERROR));
+
+        vector<Byte> &  dest = isProDos ? payload.proDosUsersDisk
+                                        : payload.dosMasterSectors;
+
+        dest.assign (std::istreambuf_iterator<char> (master),
+                     std::istreambuf_iterator<char> ());
+    }
+
+    hr = BlankDiskBuilder::Build (dialog.Outcome().spec, payload, imageBytes);
     CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
                               L"Could not build the new disk image.",
                               L"Create New Disk", MB_OK | MB_ICONERROR));
