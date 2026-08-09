@@ -976,16 +976,27 @@ function Test-CommitMessages
     # span the branch. A message is effectively immutable once pushed -- fixing
     # one means rewriting history -- so branch-wide scoping would leave the gate
     # permanently red on anything already out there, which is exactly the
-    # baseline problem that gets a check switched off. The remote tracking ref
-    # is the honest base, falling back to $Base on a never-pushed branch.
-    $upstream = git -C $repoRoot rev-parse --abbrev-ref '@{upstream}' 2>$null
+    # baseline problem that gets a check switched off.
+    #
+    # "Unpushed" means reachable from the tip but from NO origin ref -- not
+    # merely absent from the upstream tracking ref. The distinction bit for
+    # real: merging master into a feature branch imports every historical
+    # master commit into upstream..HEAD, and the gate re-judged years of
+    # published (immutable) messages and blocked the push. --not --remotes
+    # excludes anything origin already has, whichever ref carries it.
+    $originRefs = git -C $repoRoot for-each-ref 'refs/remotes/origin' --format '%(refname)' 2>$null
 
-    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($upstream))
+    if (@($originRefs).Count -gt 0)
     {
-        $Base = $upstream.Trim()
+        $shas = git -C $repoRoot rev-list $Tip --not --remotes=origin 2>$null
     }
-
-    $shas = git -C $repoRoot rev-list "$Base..$Tip" 2>$null
+    else
+    {
+        # No remote-tracking refs (fresh clone with no fetch, offline mirror):
+        # fall back to the diff base so the gate still judges something rather
+        # than the whole history.
+        $shas = git -C $repoRoot rev-list "$Base..$Tip" 2>$null
+    }
 
     # There is no opt-out. A message is prose we write, so unlike source -- which
     # may be stuck with a name like ERROR_CANCELLED -- it can always be phrased
