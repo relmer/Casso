@@ -369,3 +369,166 @@ Error:
 
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnumerateEntries
+//
+//  Non-recursive listing of files AND sub-directories with metadata (spec
+//  017). Hidden and system entries are excluded here, at the Win32 layer, so
+//  every consumer sees the same filtered view. modifiedUnix converts the
+//  FILETIME last-write stamp (100ns ticks since 1601) to Unix seconds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32FileSystem::EnumerateEntries (
+    const std::wstring            & directory,
+    std::vector<FileSystemEntry>  & outEntries)
+{
+    // FILETIME epoch (1601-01-01) to Unix epoch (1970-01-01), in seconds.
+    static constexpr int64_t  s_kFiletimeToUnixSeconds = 11644473600LL;
+    static constexpr int64_t  s_kFiletimeTicksPerSecond = 10000000LL;
+
+    HRESULT          hr       = S_OK;
+    HANDLE           hFind    = INVALID_HANDLE_VALUE;
+    WIN32_FIND_DATAW findData = {};
+    std::wstring     pattern;
+    DWORD            err      = 0;
+
+
+
+    outEntries.clear();
+
+    pattern = directory + L"\\*";
+
+    hFind = FindFirstFileW (pattern.c_str(), &findData);
+
+    if (hFind == INVALID_HANDLE_VALUE)
+    {
+        err = GetLastError();
+
+        // No matches at all means an empty directory, which is a valid answer
+        // (outEntries is already cleared). Anything else is a real failure.
+        CBRF (err == ERROR_FILE_NOT_FOUND,
+              hr = HRESULT_FROM_WIN32 (err));
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    do
+    {
+        FileSystemEntry  entry;
+        ULARGE_INTEGER   size  = {};
+        ULARGE_INTEGER   ticks = {};
+
+        if ((findData.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM)) != 0)
+        {
+            continue;
+        }
+
+        // Skip "." and ".."
+        if (findData.cFileName[0] == L'.' &&
+            (findData.cFileName[1] == L'\0' ||
+             (findData.cFileName[1] == L'.' && findData.cFileName[2] == L'\0')))
+        {
+            continue;
+        }
+
+        size.LowPart   = findData.nFileSizeLow;
+        size.HighPart  = findData.nFileSizeHigh;
+        ticks.LowPart  = findData.ftLastWriteTime.dwLowDateTime;
+        ticks.HighPart = findData.ftLastWriteTime.dwHighDateTime;
+
+        entry.name         = findData.cFileName;
+        entry.isFolder     = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+        entry.sizeBytes    = entry.isFolder ? 0 : size.QuadPart;
+        entry.modifiedUnix = (int64_t) (ticks.QuadPart / s_kFiletimeTicksPerSecond)
+                           - s_kFiletimeToUnixSeconds;
+
+        outEntries.push_back (std::move (entry));
+    }
+    while (FindNextFileW (hFind, &findData));
+
+
+Error:
+    if (hFind != INVALID_HANDLE_VALUE)
+    {
+        FindClose (hFind);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetReadOnlyAttribute
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32FileSystem::GetReadOnlyAttribute (
+    const std::wstring  & path,
+    bool                & outReadOnly)
+{
+    HRESULT  hr    = S_OK;
+    DWORD    attrs = 0;
+
+
+
+    outReadOnly = false;
+
+    attrs = GetFileAttributesW (path.c_str());
+    CWR (attrs != INVALID_FILE_ATTRIBUTES);
+
+    outReadOnly = (attrs & FILE_ATTRIBUTE_READONLY) != 0;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetReadOnlyAttribute
+//
+//  Preserves every attribute bit other than READONLY. Idempotent -- setting
+//  the bit to its current value succeeds without a write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32FileSystem::SetReadOnlyAttribute (
+    const std::wstring  & path,
+    bool                  readOnly)
+{
+    HRESULT  hr       = S_OK;
+    DWORD    attrs    = 0;
+    DWORD    newAttrs = 0;
+    BOOL     fSet     = FALSE;
+
+
+
+    attrs = GetFileAttributesW (path.c_str());
+    CWR (attrs != INVALID_FILE_ATTRIBUTES);
+
+    newAttrs = readOnly ? (attrs | FILE_ATTRIBUTE_READONLY)
+                        : (attrs & ~(DWORD) FILE_ATTRIBUTE_READONLY);
+
+    if (newAttrs != attrs)
+    {
+        fSet = SetFileAttributesW (path.c_str(), newAttrs);
+        CWR (fSet);
+    }
+
+Error:
+    return hr;
+}

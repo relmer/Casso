@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -267,6 +267,8 @@
     <ClCompile Include="EmuTests\Disk2NibbleEngineTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageTests.cpp" />
     <ClCompile Include="EmuTests\NibblizationTests.cpp" />
+    <ClCompile Include="EmuTests\BlankDiskBuilderTests.cpp" />
+    <ClCompile Include="EmuTests\ProDosVolumeTests.cpp" />
     <ClCompile Include="EmuTests\WozLoaderTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageStoreTests.cpp" />
     <ClCompile Include="EmuTests\EmuCpuTests.cpp" />
@@ -454,6 +456,8 @@
     <ClCompile Include="Casso\MenuPredicatesTests.cpp" />
     <ClCompile Include="Casso\RichEditSquiggleTests.cpp" />
     <ClCompile Include="UiTests\UserConfigStoreTests.cpp" />
+    <ClCompile Include="UiTests\FileBrowseModelTests.cpp" />
+    <ClCompile Include="..\Casso\Ui\FileBrowseModel.cpp" />
     <ClCompile Include="UiTests\GlobalUserPrefsTests.cpp" />
     <ClCompile Include="UiTests\WindowPlacementProfileTests.cpp" />
     <ClCompile Include="UiTests\DxuiCheckboxTests.cpp" />

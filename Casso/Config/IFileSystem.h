@@ -29,6 +29,21 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+//
+//  One entry from EnumerateEntries: a file or sub-directory of the listed
+//  folder, with the metadata the file-browse UI sorts and displays.
+//  modifiedUnix is seconds since the Unix epoch (UTC).
+//
+struct FileSystemEntry
+{
+    std::wstring  name;
+    bool          isFolder     = false;
+    uint64_t      sizeBytes    = 0;
+    int64_t       modifiedUnix = 0;
+};
+
+
+
 class IFileSystem
 {
 public:
@@ -55,4 +70,18 @@ public:
     // Non-recursive listing of bare sub-directory names.
     virtual HRESULT EnumerateDirectories (const std::wstring        & directory,
                                           std::vector<std::wstring> & outDirNames) = 0;
+
+    // Non-recursive listing of files AND sub-directories with metadata
+    // (spec 017). Hidden and system entries are excluded. Order is
+    // unspecified -- callers sort.
+    virtual HRESULT EnumerateEntries     (const std::wstring           & directory,
+                                          std::vector<FileSystemEntry> & outEntries) = 0;
+
+    // The file's read-only attribute (spec 017 write-protect toggle).
+    // Get fails if the file does not exist; Set preserves every other
+    // attribute bit.
+    virtual HRESULT GetReadOnlyAttribute (const std::wstring & path,
+                                          bool               & outReadOnly) = 0;
+    virtual HRESULT SetReadOnlyAttribute (const std::wstring & path,
+                                          bool                 readOnly) = 0;
 };

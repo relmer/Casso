@@ -1,0 +1,62 @@
+#include "Pch.h"
+
+#include "Dos33Skeleton.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Skeleton::Write
+//
+//  Implemented in T005.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dos33Skeleton::Write (vector<Byte> & buffer, Byte volumeNumber)
+{
+    UNREFERENCED_PARAMETER (buffer);
+    UNREFERENCED_PARAMETER (volumeNumber);
+
+    return E_NOTIMPL;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Skeleton::InstallDos
+//
+//  Implemented in T018.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dos33Skeleton::InstallDos (vector<Byte> & buffer, const vector<Byte> & masterSectors)
+{
+    UNREFERENCED_PARAMETER (buffer);
+    UNREFERENCED_PARAMETER (masterSectors);
+
+    return E_NOTIMPL;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33FileWriter::WriteHello
+//
+//  Implemented in T018.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dos33FileWriter::WriteHello (vector<Byte> & buffer)
+{
+    UNREFERENCED_PARAMETER (buffer);
+
+    return E_NOTIMPL;
+}

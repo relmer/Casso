@@ -35,4 +35,10 @@ public:
                                   std::vector<std::wstring> & outFilenames) override;
     HRESULT EnumerateDirectories (const std::wstring        & directory,
                                   std::vector<std::wstring> & outDirNames) override;
+    HRESULT EnumerateEntries     (const std::wstring           & directory,
+                                  std::vector<FileSystemEntry> & outEntries) override;
+    HRESULT GetReadOnlyAttribute (const std::wstring & path,
+                                  bool               & outReadOnly) override;
+    HRESULT SetReadOnlyAttribute (const std::wstring & path,
+                                  bool                 readOnly) override;
 };

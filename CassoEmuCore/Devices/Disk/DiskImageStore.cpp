@@ -511,3 +511,41 @@ const string & DiskImageStore::GetSourcePath (int slot, int drive) const
     // than a temporary.
     return IsValidBay (slot, drive) ? At (slot, drive).path : m_emptyPath;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountedSourcePaths
+//
+//  Every mounted entry's backing path with its bay. Entries mounted from
+//  bytes with an empty virtual path are skipped -- there is no host file to
+//  collide with (spec 017 FR-018).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DiskImageStore::MountedSource> DiskImageStore::MountedSourcePaths() const
+{
+    std::vector<MountedSource>  result;
+    int                         slot   = 0;
+    int                         drive  = 0;
+
+
+
+    for (slot = 0; slot < kSlotCount; slot++)
+    {
+        for (drive = 0; drive < kDriveCount; drive++)
+        {
+            const Entry &  entry = At (slot, drive);
+
+            if (entry.mounted && !entry.path.empty())
+            {
+                result.push_back (MountedSource{ entry.path, slot, drive });
+            }
+        }
+    }
+
+    return result;
+}

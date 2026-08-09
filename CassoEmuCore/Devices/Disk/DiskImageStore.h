@@ -65,6 +65,18 @@ public:
     bool          IsMounted         (int slot, int drive) const;
     const string &GetSourcePath     (int slot, int drive) const;
 
+    //  One mounted image's backing path with its bay, for consumers that need
+    //  the full mounted set (the create dialog's mounted-target refusal,
+    //  spec 017 FR-018).
+    struct MountedSource
+    {
+        string  path;
+        int     slot  = 0;
+        int     drive = 0;
+    };
+
+    std::vector<MountedSource>  MountedSourcePaths () const;
+
     void          SetFlushSink      (FlushSink sink) { m_flushSink = std::move (sink); }
 
     static HRESULT  DetectFormatByExtension (const string & path, DiskFormat & outFmt);

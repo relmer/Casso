@@ -16,13 +16,13 @@ push after each completed phase.
 
 ## Phase 1: Setup
 
-- [ ] T001 Add new-file skeletons to the projects: `CassoEmuCore/Devices/Disk/BlankDiskBuilder.h/.cpp`, `Dos33Skeleton.h/.cpp`, `ProDosSkeleton.h/.cpp`, `CassoEmuCore/Ui/FileBrowseModel.h/.cpp`, `Casso/Ui/Dialogs/CreateDiskDialog.h/.cpp`, `UnitTest/EmuTests/BlankDiskBuilderTests.cpp`, `ProDosVolumeTests.cpp`, `FileBrowseModelTests.cpp` — EHM-conformant stubs wired into `CassoEmuCore.vcxproj(.filters)`, `Casso.vcxproj(.filters)`, `UnitTest.vcxproj(.filters)`; x64 Debug compiles clean
+- [X] T001 Add new-file skeletons to the projects: `CassoEmuCore/Devices/Disk/BlankDiskBuilder.h/.cpp`, `Dos33Skeleton.h/.cpp`, `ProDosSkeleton.h/.cpp`, `CassoEmuCore/Ui/FileBrowseModel.h/.cpp`, `Casso/Ui/Dialogs/CreateDiskDialog.h/.cpp`, `UnitTest/EmuTests/BlankDiskBuilderTests.cpp`, `ProDosVolumeTests.cpp`, `FileBrowseModelTests.cpp` — EHM-conformant stubs wired into `CassoEmuCore.vcxproj(.filters)`, `Casso.vcxproj(.filters)`, `UnitTest.vcxproj(.filters)`; x64 Debug compiles clean
 
 ## Phase 2: Foundational (blocking prerequisites)
 
-- [ ] T002 [P] Extend `IFileSystem` (+ the real and mock implementations) with folder enumeration (name/isFolder/size/modifiedUnix) and read-only-attribute get/set — needed by FileBrowseModel (US1/US3) and the DSK/PO write-protect toggle (US4)
-- [ ] T003 [P] Add `DiskImageStore::MountedSourcePaths()` (path + slot/drive pairs for every mounted entry) in `CassoEmuCore/Devices/Disk/DiskImageStore.h/.cpp` + unit coverage in existing `DiskImageStoreTests` — feeds FR-018 refusal
-- [ ] T004 [P] Define `BlankDiskContents` + `BlankDiskSpec` (+ `ValidateSpec` combination matrix per FR-010) in `BlankDiskBuilder.h/.cpp` with `BlankDiskBuilderTests` cases for every legal/illegal pairing
+- [X] T002 [P] Extend `IFileSystem` (+ the real and mock implementations) with folder enumeration (name/isFolder/size/modifiedUnix) and read-only-attribute get/set — needed by FileBrowseModel (US1/US3) and the DSK/PO write-protect toggle (US4)
+- [X] T003 [P] Add `DiskImageStore::MountedSourcePaths()` (path + slot/drive pairs for every mounted entry) in `CassoEmuCore/Devices/Disk/DiskImageStore.h/.cpp` + unit coverage in existing `DiskImageStoreTests` — feeds FR-018 refusal
+- [X] T004 [P] Define `BlankDiskContents` + `BlankDiskSpec` (+ `ValidateSpec` combination matrix per FR-010) in `BlankDiskBuilder.h/.cpp` with `BlankDiskBuilderTests` cases for every legal/illegal pairing
 
 ## Phase 3: User Story 1 — Create a ready-to-use disk and save to it (P1) — MVP
 
