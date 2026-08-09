@@ -65,7 +65,7 @@ jobs:
       # them. Only on master pushes (the only place the release job runs).
       - name: Upload Release x64 binaries
         if: matrix.configuration == 'Release' && github.ref == 'refs/heads/master'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: release-x64
           path: |
@@ -94,7 +94,7 @@ jobs:
       # them. Only on master pushes (the only place the release job runs).
       - name: Upload Release ARM64 binaries
         if: matrix.configuration == 'Release' && github.ref == 'refs/heads/master'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: release-arm64
           path: |
@@ -183,14 +183,14 @@ jobs:
       # produced instead of rebuilding them here (saved ~7 min per release).
       - name: Download Release x64 binaries
         if: steps.check.outputs.exists != 'true'
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: release-x64
           path: x64/Release
 
       - name: Download Release ARM64 binaries
         if: steps.check.outputs.exists != 'true'
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: release-arm64
           path: ARM64/Release
