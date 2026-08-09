@@ -237,6 +237,8 @@ std::wstring CreateDiskDialog::ReplaceExtension (const std::wstring & name, cons
 {
     size_t  dot = name.find_last_of (L'.');
 
+
+
     return ((dot == std::wstring::npos) ? name : name.substr (0, dot)) + ext;
 }
 
