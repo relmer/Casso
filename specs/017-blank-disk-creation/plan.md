@@ -65,10 +65,14 @@ two drives; one new dialog, one new picker row, two menu items.
 - **I. Code Quality (NON-NEGOTIABLE)** — PASS (design-time): new code follows
   EHM single-exit, banners, decl-at-top, no anonymous namespaces; gated by
   CheckStyle CS0001–CS0019 pre-push + CI.
-- **II. Testing Discipline (NON-NEGOTIABLE)** — PASS: every pure component
-  (skeleton writers, payload installers, `FileBrowseModel`, WP state logic)
-  ships its unit suite in the same phase; end-to-end gates reuse the
-  DOS-boot/`SAVE` harness. No system state in tests — `IFileSystem` injected.
+- **II. Testing Discipline (NON-NEGOTIABLE)** — PASS with one documented
+  exception: every pure component (skeleton writers, payload installers,
+  `FileBrowseModel`, WP state logic) is tested against mock `IFileSystem` /
+  synthetic bytes with no system state. The END-TO-END gates (T007/T020/T025)
+  reuse the established real-CPU DOS-boot harness, which reads cached disk
+  assets from the host (`Disks/Apple/dos33-master.dsk` idiom) — a sanctioned
+  exception carried over from the existing suite, kept deterministic by the
+  mandatory graceful SKIP-if-missing behavior on machines without the asset.
 - **VI. Thin Executable, Testable Core (NON-NEGOTIABLE)** — PASS: FR-013
   restates it. Core owns: `BlankDiskBuilder`, `Dos33Skeleton`,
   `ProDosSkeleton`, `Dos33FileWriter` (HELLO), `ProDosFileWriter`,

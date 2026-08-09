@@ -298,10 +298,10 @@ and confirm the same behavior.
 
 ### Key Entities *(include if feature involves data)*
 
-- **Blank Disk Template**: The in-memory description of a disk to create —
-  format, contents (OS + version or unformatted), bootable flag, size (140K
-  5.25"), volume name/number. Produced by pure logic; serialized to the chosen
-  on-disk format.
+- **Blank Disk Template** *(implemented as `BlankDiskSpec`)*: The in-memory
+  description of a disk to create — format, contents (OS + version or
+  unformatted), bootable flag, size (140K 5.25"), volume name/number. Produced
+  by pure logic; serialized to the chosen on-disk format.
 - **Boot Payload**: The OS content a bootable disk carries (DOS 3.3 system
   tracks; ProDOS system files for the selected version). Obtained via the
   consent-based asset bootstrap, cached like other downloaded assets, never
