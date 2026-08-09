@@ -58,6 +58,8 @@ private:
 
     //  Byte offset of (track, logical sector) in the DOS 3.3-ordered buffer.
     static size_t  SectorOffset (int track, int sector);
+
+    friend class Dos33FileWriter;
 };
 
 

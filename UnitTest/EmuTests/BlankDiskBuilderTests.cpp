@@ -439,6 +439,121 @@ public:
     }
 
 
+    static vector<Byte> MakeSyntheticMaster()
+    {
+        // A fabricated System Master: recognizable pattern in tracks 0-2,
+        // distinct junk elsewhere so a copy that over-reaches is caught.
+        vector<Byte>  master (NibblizationLayer::kImageByteSize, 0x5A);
+        size_t        i = 0;
+
+        for (i = 0; i < (size_t) (3 * 16 * 256); i++)
+        {
+            master[i] = (Byte) ((i * 11 + 5) & 0xFF);
+        }
+
+        return master;
+    }
+
+
+    TEST_METHOD (InstallDos_CopiesTracks0Through2Verbatim)
+    {
+        vector<Byte>  buffer = MakeDos33Buffer();
+        vector<Byte>  master = MakeSyntheticMaster();
+        size_t        i      = 0;
+
+
+
+        AssertSucceeded (Dos33Skeleton::InstallDos (buffer, master));
+
+        for (i = 0; i < (size_t) (3 * 16 * 256); i++)
+        {
+            if (buffer[i] != master[i])
+            {
+                Assert::Fail (L"DOS image bytes must copy verbatim");
+            }
+        }
+
+        // The VTOC is untouched: catalog pointer still T17 S15.
+        Assert::AreEqual ((Byte) 17, buffer[Sector (17, 0) + 0x01]);
+        Assert::AreEqual ((Byte) 15, buffer[Sector (17, 0) + 0x02]);
+    }
+
+
+    TEST_METHOD (WriteHello_CatalogTsListDataAndBitmapAreHonest)
+    {
+        vector<Byte>  buffer = MakeDos33Buffer();
+        size_t        entry  = Sector (17, 15) + 0x0B;
+        size_t        i      = 0;
+
+
+
+        AssertSucceeded (Dos33FileWriter::WriteHello (buffer));
+
+        // Catalog entry: TS list at T18 S15, Applesoft, name HELLO padded
+        // with high-ASCII spaces, two sectors long.
+        Assert::AreEqual ((Byte) 18,   buffer[entry + 0x00]);
+        Assert::AreEqual ((Byte) 15,   buffer[entry + 0x01]);
+        Assert::AreEqual ((Byte) 0x02, buffer[entry + 0x02]);
+        Assert::AreEqual ((Byte) 0xC8, buffer[entry + 0x03]);   // H
+        Assert::AreEqual ((Byte) 0xCF, buffer[entry + 0x07]);   // O
+        Assert::AreEqual ((Byte) 0xA0, buffer[entry + 0x08]);   // padding
+        Assert::AreEqual ((Byte) 2,    buffer[entry + 0x21]);
+
+        // TS list points at the one data sector.
+        Assert::AreEqual ((Byte) 18, buffer[Sector (18, 15) + 0x0C]);
+        Assert::AreEqual ((Byte) 14, buffer[Sector (18, 15) + 0x0D]);
+
+        // Data sector: length 8, then the tokenized 10 REM.
+        Assert::AreEqual ((Byte) 0x08, buffer[Sector (18, 14) + 0]);
+        Assert::AreEqual ((Byte) 0xB2, buffer[Sector (18, 14) + 6]);
+
+        // Bitmap: T18 loses sectors 15 and 14, keeps the rest.
+        Assert::AreEqual ((Byte) 0x3F, buffer[Sector (17, 0) + 0x38 + 18 * 4]);
+        Assert::AreEqual ((Byte) 0xFF, buffer[Sector (17, 0) + 0x38 + 18 * 4 + 1]);
+
+        // Other tracks' bitmap entries are untouched.
+        Assert::AreEqual ((Byte) 0xFF, buffer[Sector (17, 0) + 0x38 + 19 * 4]);
+
+        // Nothing else on the file's track was touched.
+        for (i = 0x0E; i < 256; i++)
+        {
+            Assert::AreEqual ((Byte) 0, buffer[Sector (18, 15) + i]);
+        }
+    }
+
+
+    TEST_METHOD (Build_BootableDos33_InstallsDosAndHello)
+    {
+        BlankDiskSpec  spec = MakeSpec (DiskFormat::Woz, BlankDiskContents::Dos33, true);
+        BootPayload    payload;
+        vector<Byte>   woz;
+        vector<Byte>   readBack;
+        DiskImage      img;
+        size_t         entry = Sector (17, 15) + 0x0B;
+        size_t         i     = 0;
+
+
+
+        payload.dosMasterSectors = MakeSyntheticMaster();
+
+        AssertSucceeded (BlankDiskBuilder::Build (spec, payload, woz));
+        AssertSucceeded (WozLoader::Load (woz, img));
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, readBack));
+
+        // The DOS image landed in tracks 0-2...
+        for (i = 0; i < (size_t) (3 * 16 * 256); i++)
+        {
+            if (readBack[i] != payload.dosMasterSectors[i])
+            {
+                Assert::Fail (L"bootable disk must carry the master's DOS tracks");
+            }
+        }
+
+        // ...and the HELLO greeting is cataloged.
+        Assert::AreEqual ((Byte) 0xC8, readBack[entry + 0x03]);
+    }
+
+
     TEST_METHOD (Dos33Skeleton_RejectsWrongBufferSize)
     {
         UnitTestHelpers::ExpectedEhmAssert  expect;

@@ -142,16 +142,52 @@ Error:
 //
 //  ProDosSkeleton::InstallBoot
 //
-//  Boot-payload install; not yet implemented.
+//  Makes the volume boot the way a real ProDOS disk does: boot blocks 0-1
+//  copied verbatim from the Users Disk, then PRODOS and BASIC.SYSTEM
+//  extracted from it and written as real files (the boot code loads PRODOS
+//  by name, which hands off to BASIC.SYSTEM). Blocks 0-1 are already
+//  marked used by the skeleton, so the bitmap stays honest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ProDosSkeleton::InstallBoot (vector<Byte> & buffer, const vector<Byte> & usersDisk)
 {
-    UNREFERENCED_PARAMETER (buffer);
-    UNREFERENCED_PARAMETER (usersDisk);
+    HRESULT       hr          = S_OK;
+    size_t        bufferBytes = buffer.size();
+    size_t        usersBytes  = usersDisk.size();
+    int           block       = 0;
+    size_t        i           = 0;
+    Byte          fileType    = 0;
+    Word          auxType     = 0;
+    vector<Byte>  fileBytes;
 
-    return E_NOTIMPL;
+
+
+    CBRA (bufferBytes == (size_t) NibblizationLayer::kImageByteSize);
+    CBRAEx (usersBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+
+    for (block = 0; block < 2; block++)
+    {
+        for (i = 0; i < (size_t) kBlockByteSize; i++)
+        {
+            buffer[BlockByteOffset (block, i)] = usersDisk[BlockByteOffset (block, i)];
+        }
+    }
+
+    hr = ProDosReader::ExtractFile (usersDisk, "PRODOS", fileBytes, fileType, auxType);
+    CHR (hr);
+
+    hr = ProDosFileWriter::WriteFile (buffer, "PRODOS", fileType, auxType, fileBytes);
+    CHR (hr);
+
+    hr = ProDosReader::ExtractFile (usersDisk, "BASIC.SYSTEM", fileBytes, fileType, auxType);
+    CHR (hr);
+
+    hr = ProDosFileWriter::WriteFile (buffer, "BASIC.SYSTEM", fileType, auxType, fileBytes);
+    CHR (hr);
+
+Error:
+    return hr;
 }
 
 

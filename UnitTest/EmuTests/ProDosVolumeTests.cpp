@@ -319,6 +319,73 @@ public:
     }
 
 
+    static vector<Byte> MakeSyntheticUsersDisk (vector<Byte> & outProdos, vector<Byte> & outBasic)
+    {
+        // A fabricated Users Disk: a real skeleton volume carrying a boot
+        // pattern in blocks 0-1 and synthetic PRODOS / BASIC.SYSTEM files.
+        vector<Byte>  users = MakeVolume ("USERS.DISK");
+        size_t        i     = 0;
+
+        for (i = 0; i < 1024; i++)
+        {
+            users[ProDosSkeleton::BlockByteOffset ((int) (i / 512), i % 512)] =
+                (Byte) ((i * 13 + 1) & 0xFF);
+        }
+
+        outProdos = MakePattern (15'000);
+        outBasic  = MakePattern (10'000);
+
+        for (i = 0; i < outBasic.size(); i++)
+        {
+            outBasic[i] = (Byte) ~outBasic[i];
+        }
+
+        AssertSucceeded (ProDosFileWriter::WriteFile (users, "PRODOS", 0xFF, 0x2000, outProdos));
+        AssertSucceeded (ProDosFileWriter::WriteFile (users, "BASIC.SYSTEM", 0xFF, 0x2000, outBasic));
+
+        return users;
+    }
+
+
+    TEST_METHOD (InstallBoot_CopiesBootBlocksAndBothSystemFiles)
+    {
+        vector<Byte>  prodosBytes;
+        vector<Byte>  basicBytes;
+        vector<Byte>  users    = MakeSyntheticUsersDisk (prodosBytes, basicBytes);
+        vector<Byte>  vol      = MakeVolume();
+        vector<Byte>  readBack;
+        Byte          fileType = 0;
+        Word          auxType  = 0;
+        size_t        i        = 0;
+
+
+
+        AssertSucceeded (ProDosSkeleton::InstallBoot (vol, users));
+
+        // Boot blocks 0-1 copied verbatim.
+        for (i = 0; i < 1024; i++)
+        {
+            size_t  at = ProDosSkeleton::BlockByteOffset ((int) (i / 512), i % 512);
+
+            if (vol[at] != users[at])
+            {
+                Assert::Fail (L"boot blocks must copy verbatim");
+            }
+        }
+
+        // Both system files landed as real, readable files.
+        AssertSucceeded (ProDosReader::ExtractFile (vol, "PRODOS", readBack, fileType, auxType));
+        Assert::IsTrue (prodosBytes == readBack, L"PRODOS must round-trip through the install");
+        Assert::AreEqual ((Word) 0x2000, auxType);
+
+        AssertSucceeded (ProDosReader::ExtractFile (vol, "BASIC.SYSTEM", readBack, fileType, auxType));
+        Assert::IsTrue (basicBytes == readBack, L"BASIC.SYSTEM must round-trip through the install");
+
+        // The volume name stayed the skeleton's own.
+        Assert::AreEqual ((Byte) 0xF7, At (vol, 2, kKeyBlockEntry + 0x00));
+    }
+
+
     TEST_METHOD (EverythingOutsideDirAndBitmapIsZero)
     {
         vector<Byte>  vol    = MakeVolume();

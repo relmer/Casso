@@ -160,8 +160,11 @@ void BlankDiskBuilder::ReorderDosToPo (const vector<Byte> & dosOrdered, vector<B
 //  unformatted sector image is all zeros -- no filesystem until the guest
 //  INITs it.
 //
-//  Boot-payload install is not yet implemented; a bootable spec fails
-//  cleanly as E_NOTIMPL rather than emitting a wrong image.
+//  A bootable spec additionally installs the OS from the payload: DOS 3.3
+//  gets the master's tracks 0-2 plus a HELLO greeting; ProDOS gets the
+//  Users Disk's boot blocks plus PRODOS and BASIC.SYSTEM as real files. An
+//  empty payload fails the build cleanly -- availability is the shell's
+//  problem, checked before Build is called.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -178,12 +181,8 @@ HRESULT BlankDiskBuilder::Build (
 
 
 
-    UNREFERENCED_PARAMETER (payload);
-
     hr = ValidateSpec (spec);
     CHR (hr);
-
-    CBREx (!spec.bootable, E_NOTIMPL);
 
     buffer.assign ((size_t) NibblizationLayer::kImageByteSize, (Byte) 0);
 
@@ -191,11 +190,34 @@ HRESULT BlankDiskBuilder::Build (
     {
         hr = Dos33Skeleton::Write (buffer, spec.volumeNumber);
         CHR (hr);
+
+        if (spec.bootable)
+        {
+            bool  havePayload = !payload.dosMasterSectors.empty();
+
+            CBREx (havePayload, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+            hr = Dos33Skeleton::InstallDos (buffer, payload.dosMasterSectors);
+            CHR (hr);
+
+            hr = Dos33FileWriter::WriteHello (buffer);
+            CHR (hr);
+        }
     }
     else if (spec.contents == BlankDiskContents::ProDos)
     {
         hr = ProDosSkeleton::Write (buffer, spec.volumeName);
         CHR (hr);
+
+        if (spec.bootable)
+        {
+            bool  havePayload = !payload.proDosUsersDisk.empty();
+
+            CBREx (havePayload, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+            hr = ProDosSkeleton::InstallBoot (buffer, payload.proDosUsersDisk);
+            CHR (hr);
+        }
     }
 
     switch (spec.format)

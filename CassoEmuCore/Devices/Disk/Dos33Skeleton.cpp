@@ -103,16 +103,28 @@ Error:
 //
 //  Dos33Skeleton::InstallDos
 //
-//  Boot-payload install; not yet implemented.
+//  Copies tracks 0-2 verbatim from the System Master sector image -- the
+//  same bytes DOS's own INIT lays down. The skeleton's free bitmap already
+//  reserves those tracks, so the VTOC stays honest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Dos33Skeleton::InstallDos (vector<Byte> & buffer, const vector<Byte> & masterSectors)
 {
-    UNREFERENCED_PARAMETER (buffer);
-    UNREFERENCED_PARAMETER (masterSectors);
+    HRESULT  hr          = S_OK;
+    size_t   bufferBytes = buffer.size();
+    size_t   masterBytes = masterSectors.size();
+    size_t   dosBytes    = SectorOffset (kDosImageTracks, 0);
 
-    return E_NOTIMPL;
+
+
+    CBRA (bufferBytes == (size_t) NibblizationLayer::kImageByteSize);
+    CBRAEx (masterBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+
+    std::copy (masterSectors.begin(), masterSectors.begin() + dosBytes, buffer.begin());
+
+Error:
+    return hr;
 }
 
 
@@ -123,13 +135,80 @@ HRESULT Dos33Skeleton::InstallDos (vector<Byte> & buffer, const vector<Byte> & m
 //
 //  Dos33FileWriter::WriteHello
 //
-//  HELLO greeting writer; not yet implemented.
+//  The minimal greeting a bootable disk needs: an Applesoft HELLO holding
+//  one REM line, so the master's boot-time RUN HELLO lands at a clean
+//  prompt instead of FILE NOT FOUND. One catalog entry (first slot of
+//  T17 S15), one track/sector list, one data sector; both sectors come off
+//  track 18 (the VTOC allocation hint) and leave the free bitmap honest.
+//
+//  On-disk Applesoft format: two length bytes, then the tokenized program.
+//  "10 REM" tokenizes to next-line pointer $0807, line number 10, the REM
+//  token, an end-of-line zero, and the end-of-program zeros.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Dos33FileWriter::WriteHello (vector<Byte> & buffer)
 {
-    UNREFERENCED_PARAMETER (buffer);
+    constexpr int   kFileTrack      = 18;
+    constexpr int   kTsListSector   = 15;
+    constexpr int   kDataSector     = 14;
+    constexpr Byte  kTypeApplesoft  = 0x02;
+    constexpr int   kCatalogEntry   = 0x0B;   // first entry in a catalog sector
+    constexpr int   kNameBytes      = 30;
 
-    return E_NOTIMPL;
+    HRESULT  hr          = S_OK;
+    size_t   bufferBytes = buffer.size();
+    size_t   catalog     = 0;
+    size_t   tsList      = 0;
+    size_t   data        = 0;
+    size_t   bitmap      = 0;
+    size_t   i           = 0;
+
+    //  "HELLO" in high ASCII, padded with high-ASCII spaces below.
+    const Byte  kName[5] = { 0xC8, 0xC5, 0xCC, 0xCC, 0xCF };
+
+    //  10 REM, tokenized, behind the two on-disk length bytes.
+    const Byte  kProgram[10] = { 0x08, 0x00, 0x07, 0x08, 0x0A, 0x00, 0xB2, 0x00, 0x00, 0x00 };
+
+
+
+    CBRA (bufferBytes == (size_t) NibblizationLayer::kImageByteSize);
+
+    catalog = Dos33Skeleton::SectorOffset (Dos33Skeleton::kVtocTrack,
+                                           Dos33Skeleton::kCatalogFirstSector);
+    tsList  = Dos33Skeleton::SectorOffset (kFileTrack, kTsListSector);
+    data    = Dos33Skeleton::SectorOffset (kFileTrack, kDataSector);
+    bitmap  = Dos33Skeleton::SectorOffset (Dos33Skeleton::kVtocTrack, 0)
+            + (size_t) Dos33Skeleton::kVtocOffFreeBitmap + (size_t) kFileTrack * 4;
+
+    // Catalog entry: TS-list location, type, padded name, sector count 2.
+    buffer[catalog + kCatalogEntry + 0x00] = (Byte) kFileTrack;
+    buffer[catalog + kCatalogEntry + 0x01] = (Byte) kTsListSector;
+    buffer[catalog + kCatalogEntry + 0x02] = kTypeApplesoft;
+
+    for (i = 0; i < kNameBytes; i++)
+    {
+        buffer[catalog + kCatalogEntry + 0x03 + i] =
+            (i < sizeof (kName)) ? kName[i] : (Byte) 0xA0;
+    }
+
+    buffer[catalog + kCatalogEntry + 0x21] = 2;
+    buffer[catalog + kCatalogEntry + 0x22] = 0;
+
+    // Track/sector list: no continuation, first data pair at 0x0C.
+    buffer[tsList + 0x0C] = (Byte) kFileTrack;
+    buffer[tsList + 0x0D] = (Byte) kDataSector;
+
+    // Data sector: the tokenized program.
+    for (i = 0; i < sizeof (kProgram); i++)
+    {
+        buffer[data + i] = kProgram[i];
+    }
+
+    // Free bitmap: sectors 15 and 14 of the file's track leave the pool
+    // (byte 0 holds sectors 15..8 in bits 7..0).
+    buffer[bitmap] = (Byte) (buffer[bitmap] & 0x3F);
+
+Error:
+    return hr;
 }
