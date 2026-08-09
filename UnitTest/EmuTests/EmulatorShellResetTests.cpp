@@ -45,18 +45,22 @@ public:
         sw.Write (0xC055, 0);   // page2 on
         sw.Write (0xC00D, 0);   // 80COL on
 
-        sw.SoftReset ();
+        sw.SoftReset();
 
-        Assert::IsFalse (sw.IsGraphicsMode (),
+        Assert::IsFalse (sw.IsGraphicsMode(),
             L"IDM_MACHINE_RESET must clear graphics mode");
-        Assert::IsFalse (sw.IsPage2 (),
+        Assert::IsFalse (sw.IsPage2(),
             L"IDM_MACHINE_RESET must clear PAGE2");
-        Assert::IsFalse (sw.Is80ColMode (),
+        Assert::IsFalse (sw.Is80ColMode(),
             L"IDM_MACHINE_RESET must clear 80COL (audit §10 [CRITICAL])");
     }
 
     TEST_METHOD (PowerCycleMenuItemDispatchesPowerCycle)
     {
+        size_t       nonZero = 0;
+
+
+
         // Contract: IDM_MACHINE_POWERCYCLE drives MemoryBus::PowerCycleAll
         // (Prng-seeded fan-out) and the same SoftReset effect. Verify by
         // observing that the RAM is non-zero after the call (the
@@ -64,9 +68,8 @@ public:
         // one that re-seeds DRAM).
         RamDevice    ram (0x0000, 0xBFFF);
         Prng         prng (0xCA550001ULL);
-        size_t       nonZero = 0;
 
-        ram.Reset ();   // start zeroed
+        ram.Reset();   // start zeroed
         ram.PowerCycle (prng);
 
         for (size_t i = 0; i < 0xC000; i++)
@@ -95,14 +98,14 @@ public:
         sw.Write (0xC00D, 0);   // 80COL on (the regression vector)
         sw.Write (0xC00F, 0);   // ALTCHARSET on
 
-        Assert::IsTrue (sw.Is80ColMode (),
+        Assert::IsTrue (sw.Is80ColMode(),
             L"Pre-condition: 80COL was successfully enabled");
 
-        sw.SoftReset ();
+        sw.SoftReset();
 
-        Assert::IsFalse (sw.Is80ColMode (),
+        Assert::IsFalse (sw.Is80ColMode(),
             L"Audit §10 [CRITICAL] FIXED: 80COL must not survive SoftReset");
-        Assert::IsFalse (sw.IsAltCharSet (),
+        Assert::IsFalse (sw.IsAltCharSet(),
             L"ALTCHARSET must not survive SoftReset");
     }
 };

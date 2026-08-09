@@ -2,107 +2,12 @@
 
 #include "SettingsApplyController.h"
 
+#include "SettingsApplyAdapter.h"
+
 #include "SettingsMachineCatalog.h"
 #include "SettingsPreviewController.h"
 
 #include "../../EmulatorShell.h"
-#include "../../Config/UserConfigStore.h"
-#include "../../Config/IFileSystem.h"
-
-#include "resource.h"
-
-
-namespace
-{
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  SettingsApplyAdapter
-    //
-    //  Bridges the pure-logic ISettingsApplySink contract into the
-    //  EmulatorShell command queue. Live-effect fields post commands so
-    //  the audio mixer / CRT pipeline picks them up on the next CPU
-    //  tick; QueueMachineReset is recorded and consumed by the modal
-    //  confirm path in SettingsPanel.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    class SettingsApplyAdapter : public ISettingsApplySink
-    {
-    public:
-        explicit SettingsApplyAdapter (EmulatorShell & shell)
-            : m_shell (shell)
-        {
-        }
-
-        void ApplySpeedMode (SettingsSpeedMode mode) override
-        {
-            WORD  id = IDM_MACHINE_SPEED_1X;
-
-            switch (mode)
-            {
-                case SettingsSpeedMode::Authentic: id = IDM_MACHINE_SPEED_1X;  break;
-                case SettingsSpeedMode::Double:    id = IDM_MACHINE_SPEED_2X;  break;
-                case SettingsSpeedMode::Maximum:   id = IDM_MACHINE_SPEED_MAX; break;
-            }
-            PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
-        }
-
-        void ApplyColorMode (SettingsColorMode mode) override
-        {
-            WORD  id = IDM_VIEW_COLOR;
-
-            switch (mode)
-            {
-                case SettingsColorMode::Color: id = IDM_VIEW_COLOR; break;
-                case SettingsColorMode::Green: id = IDM_VIEW_GREEN; break;
-                case SettingsColorMode::Amber: id = IDM_VIEW_AMBER; break;
-                case SettingsColorMode::White: id = IDM_VIEW_WHITE; break;
-            }
-            PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
-        }
-
-        void ApplyFloppySound  (bool enabled) override
-        {
-            m_shell.PostCommand (enabled ? IDM_AUDIO_DRIVE_ENABLE
-                                         : IDM_AUDIO_DRIVE_DISABLE);
-        }
-
-        void ApplyMechanism    (const std::string & mechanism) override
-        {
-            m_shell.PostCommand (IDM_AUDIO_DRIVE_MECHANISM, mechanism);
-        }
-
-        void ApplyDriveVolumes (float motor, float head, float door) override
-        {
-            char  payload[32] = {};
-
-            sprintf_s (payload, "%d,%d,%d",
-                       (int) std::lround (motor * 100.0f),
-                       (int) std::lround (head  * 100.0f),
-                       (int) std::lround (door  * 100.0f));
-            m_shell.PostCommand (IDM_AUDIO_DRIVE_VOLUMES, payload);
-        }
-
-        void ApplyDrivePan     (float driveOnePan, float driveTwoPan) override
-        {
-            char  payload[32] = {};
-
-            sprintf_s (payload, "%d,%d",
-                       (int) std::lround (driveOnePan * 100.0f),
-                       (int) std::lround (driveTwoPan * 100.0f));
-            m_shell.PostCommand (IDM_AUDIO_DRIVE_PAN, payload);
-        }
-
-        void ApplyWriteProtect (int drive, bool wp)            override { UNREFERENCED_PARAMETER (drive); UNREFERENCED_PARAMETER (wp); }
-        void QueueMachineReset ()                              override { m_resetQueued = true; }
-
-        bool  ResetQueued () const { return m_resetQueued; }
-
-    private:
-        EmulatorShell & m_shell;
-        bool            m_resetQueued = false;
-    };
-}
 
 
 
@@ -147,7 +52,7 @@ void SettingsApplyController::Bind (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsApplyController::SnapshotBaselines ()
+void SettingsApplyController::SnapshotBaselines()
 {
     if (m_prefs != nullptr)
     {
@@ -156,6 +61,7 @@ void SettingsApplyController::SnapshotBaselines ()
             m_baselineCrt[i] = m_prefs->crtByMode[i];
         }
     }
+
     if (m_state != nullptr)
     {
         m_baselineColorMode = (int) m_state->Prefs().colorMode;
@@ -170,6 +76,17 @@ void SettingsApplyController::SnapshotBaselines ()
     // applied yet at Show time.
     m_baselineTheme    = (m_prefs != nullptr) ? m_prefs->activeTheme : std::string();
     m_themeAppliedLive = false;
+
+    // Printing prefs baseline (global host-service prefs) for Cancel / save.
+    if (m_prefs != nullptr)
+    {
+        m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
+        m_baselinePrintDotStyle    = m_prefs->printDotStyle;
+        m_baselinePrinterAudioEnabled     = m_prefs->printerAudioEnabled;
+        m_baselinePrinterAudioVolume      = m_prefs->printerAudioVolume;
+        m_baselinePrinterAudioPanOverride = m_prefs->printerAudioPanOverride;
+        m_baselinePrinterAudioPan         = m_prefs->printerAudioPan;
+    }
 }
 
 
@@ -182,7 +99,7 @@ void SettingsApplyController::SnapshotBaselines ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsApplyController::ClearPending ()
+void SettingsApplyController::ClearPending()
 {
     m_pendingMachine.clear();
     m_pendingTheme.clear();
@@ -235,18 +152,23 @@ void SettingsApplyController::StagePendingTheme (const std::string & name)
 
 void SettingsApplyController::ApplyThemeLive (const std::string & name)
 {
+    HRESULT  hr = S_OK;
+
+
+
     if (m_emuShell == nullptr || name.empty())
     {
         return;
     }
 
-    HRESULT  hr = m_emuShell->ApplyThemeLive (name);
+    hr = m_emuShell->ApplyThemeLive (name);
 
     IGNORE_RETURN_VALUE (hr, S_OK);
     if (m_onChromeThemeChanged)
     {
         m_onChromeThemeChanged();
     }
+
     m_pendingTheme     = name;   // OK still persists the chosen theme
     m_themeAppliedLive = true;
 }
@@ -266,25 +188,30 @@ void SettingsApplyController::ApplyThemeLive (const std::string & name)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SettingsApplyController::WillMachineChange () const
+bool SettingsApplyController::WillMachineChange() const
 {
     std::wstring  current;
     std::string   currentNarrow;
+    bool          changes = false;
 
 
-    if (m_pendingMachine.empty() || m_emuShell == nullptr)
+
+    // Nothing staged means nothing to change. Machine ids are ASCII, so the
+    // narrowing is a straight byte copy rather than a codepage conversion.
+    if (!m_pendingMachine.empty() && m_emuShell != nullptr)
     {
-        return false;
+        current = m_emuShell->CurrentMachineName();
+        currentNarrow.reserve (current.size());
+
+        for (wchar_t c : current)
+        {
+            currentNarrow.push_back ((char) (unsigned char) c);
+        }
+
+        changes = (m_pendingMachine != currentNarrow);
     }
 
-    current = m_emuShell->CurrentMachineName();
-    currentNarrow.reserve (current.size());
-    for (wchar_t c : current)
-    {
-        currentNarrow.push_back ((char) (unsigned char) c);
-    }
-
-    return m_pendingMachine != currentNarrow;
+    return changes;
 }
 
 
@@ -297,7 +224,7 @@ bool SettingsApplyController::WillMachineChange () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SettingsApplyController::IsResetRequired () const
+bool SettingsApplyController::IsResetRequired() const
 {
     return (m_state != nullptr) && m_state->RequiresReset();
 }
@@ -321,14 +248,17 @@ bool SettingsApplyController::IsResetRequired () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsApplyController::CommitApply ()
+void SettingsApplyController::CommitApply()
 {
-    SettingsApplyAdapter  adapter (*m_emuShell);
     JsonValue             currentJson;
     HRESULT               hr             = S_OK;
     std::string           pendingMachine;
     std::wstring          currentMachine;
     std::string           currentMachineNarrow;
+
+
+
+    SettingsApplyAdapter  adapter (*m_emuShell);
 
 
 
@@ -361,8 +291,17 @@ void SettingsApplyController::CommitApply ()
     // whole file atomically.
     if (m_prefs != nullptr)
     {
-        bool    anyCrtChanged = false;
-        size_t  i             = 0;
+        bool    anyCrtChanged   = false;
+        bool    anyPrintChanged = false;
+        size_t  i               = 0;
+
+        anyPrintChanged =
+            m_prefs->printOutputDpi          != m_baselinePrintOutputDpi          ||
+            m_prefs->printDotStyle           != m_baselinePrintDotStyle           ||
+            m_prefs->printerAudioEnabled     != m_baselinePrinterAudioEnabled     ||
+            m_prefs->printerAudioVolume      != m_baselinePrinterAudioVolume      ||
+            m_prefs->printerAudioPanOverride != m_baselinePrinterAudioPanOverride ||
+            m_prefs->printerAudioPan         != m_baselinePrinterAudioPan;
 
         for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
         {
@@ -386,7 +325,7 @@ void SettingsApplyController::CommitApply ()
             }
         }
 
-        if (anyCrtChanged)
+        if (anyCrtChanged || anyPrintChanged)
         {
             HRESULT  hrSave = S_OK;
 
@@ -398,6 +337,7 @@ void SettingsApplyController::CommitApply ()
             {
                 hrSave = m_prefs->Save (m_emuShell->AssetBaseDir(), *m_fs);
             }
+
             IGNORE_RETURN_VALUE (hrSave, S_OK);
         }
 
@@ -408,7 +348,15 @@ void SettingsApplyController::CommitApply ()
         {
             m_baselineCrt[i] = m_prefs->crtByMode[i];
         }
+
+        m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
+        m_baselinePrintDotStyle    = m_prefs->printDotStyle;
+        m_baselinePrinterAudioEnabled     = m_prefs->printerAudioEnabled;
+        m_baselinePrinterAudioVolume      = m_prefs->printerAudioVolume;
+        m_baselinePrinterAudioPanOverride = m_prefs->printerAudioPanOverride;
+        m_baselinePrinterAudioPan         = m_prefs->printerAudioPan;
     }
+
     m_baselineColorMode = (int) m_state->Prefs().colorMode;
 
     // Apply the staged theme BEFORE any machine switch so the chrome
@@ -425,6 +373,7 @@ void SettingsApplyController::CommitApply ()
         {
             m_onChromeThemeChanged();
         }
+
         m_pendingTheme.clear();
     }
 
@@ -450,11 +399,11 @@ void SettingsApplyController::CommitApply ()
     {
         if (!pendingMachine.empty() && pendingMachine != currentMachineNarrow)
         {
-            (void) m_catalog->DoMachineSelect (pendingMachine);
+            m_catalog->DoMachineSelect (pendingMachine);
         }
         else if (adapter.ResetQueued() && !currentMachineNarrow.empty())
         {
-            (void) m_catalog->DoMachineSelect (currentMachineNarrow);
+            m_catalog->DoMachineSelect (currentMachineNarrow);
         }
     }
 }
@@ -488,7 +437,17 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
         {
             m_prefs->crtByMode[i] = m_baselineCrt[i];
         }
+
+        // Revert Printing edits (no live effect; they only bind at the next
+        // delivery / printer sound, so this simply un-does the staged writes).
+        m_prefs->printOutputDpi   = m_baselinePrintOutputDpi;
+        m_prefs->printDotStyle    = m_baselinePrintDotStyle;
+        m_prefs->printerAudioEnabled     = m_baselinePrinterAudioEnabled;
+        m_prefs->printerAudioVolume      = m_baselinePrinterAudioVolume;
+        m_prefs->printerAudioPanOverride = m_baselinePrinterAudioPanOverride;
+        m_prefs->printerAudioPan         = m_baselinePrinterAudioPan;
     }
+
     if (m_emuShell != nullptr && m_baselineColorMode >= 0)
     {
         m_emuShell->SetColorModeLive (m_baselineColorMode);
@@ -507,6 +466,7 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
             m_onChromeThemeChanged();
         }
     }
+
     m_themeAppliedLive = false;
 
     preview.Reset();

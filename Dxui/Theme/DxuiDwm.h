@@ -1,5 +1,9 @@
 #pragma once
 
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiDwm
@@ -26,4 +30,35 @@ public:
     static void ApplyMicaBackdrop         (HWND hwnd, bool mica);
     static void ApplyImmersiveDarkMode    (HWND hwnd, bool dark);
     static void ExtendFrameIntoClientArea (HWND hwnd, int inset);
+
+private:
+    // RTL_OSVERSIONINFOW by another name -- declared here so we do not
+    // depend on which SDK's ntddk headers happen to be reachable.
+    // Nested rather than file-scope so the type has internal linkage.
+    struct OsVersion
+    {
+        DWORD    dwOSVersionInfoSize;
+        DWORD    dwMajorVersion;
+        DWORD    dwMinorVersion;
+        DWORD    dwBuildNumber;
+        DWORD    dwPlatformId;
+        WCHAR    szCSDVersion[128];
+    };
+
+    typedef LONG (WINAPI * PFN_RtlGetVersion) (OsVersion *);
+
+    static bool TryGetOsBuild (DWORD & outMajor, DWORD & outBuild);
+
+    // DWMWA_* values that are not always declared in older SDK headers.
+    static constexpr DWORD kDwmwaUseImmersiveDarkMode       = 20;
+    static constexpr DWORD kDwmwaWindowCornerPreference     = 33;
+    static constexpr DWORD kDwmwaSystemBackdropType         = 38;
+
+    static constexpr DWORD kDwmwcpDefault                   = 0;
+    static constexpr DWORD kDwmwcpDoNotRound                = 1;
+    static constexpr DWORD kDwmwcpRound                     = 2;
+
+    static constexpr DWORD kDwmsbtAuto                      = 0;
+    static constexpr DWORD kDwmsbtNone                      = 1;
+    static constexpr DWORD kDwmsbtMainWindow                = 2;   // Mica.
 };

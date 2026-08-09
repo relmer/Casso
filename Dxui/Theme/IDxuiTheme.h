@@ -4,6 +4,8 @@
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  IDxuiTheme
@@ -18,7 +20,7 @@
 //  All accessors are `const`, allocation-free, and state-free. Theme
 //  objects are effectively immutable; a "theme change" swaps the
 //  pointer / reference and broadcasts to listeners (Phase 6 wires the
-//  broadcast). Colours are packed ARGB (UINT32) for Direct2D friendliness;
+//  broadcast). Colors are packed ARGB (UINT32) for Direct2D friendliness;
 //  fonts are returned as opaque `DxuiFontHandle` values that consumers
 //  hand to the text renderer without unwrapping.
 //
@@ -41,8 +43,8 @@ enum class DxuiFontWeight : int
 
 
 //
-//  Packed 32-bit ARGB colour (FR-127). A thin, implicitly-convertible
-//  wrapper over the uint32_t the render facades speak: colour-typed APIs
+//  Packed 32-bit ARGB color (FR-127). A thin, implicitly-convertible
+//  wrapper over the uint32_t the render facades speak: color-typed APIs
 //  read as `DxuiArgb`, yet the value still flows into Direct2D-friendly
 //  packed uint32_t with no per-call-site churn.
 //
@@ -117,7 +119,7 @@ public:
     virtual uint32_t  PressedBackground   () const = 0;  // pressed-state fill
     virtual uint32_t  SelectionBackground () const = 0;  // selected text / row highlight
 
-    // Foreground / text colours.
+    // Foreground / text colors.
     virtual uint32_t  Foreground          () const = 0;  // primary body text
     virtual uint32_t  ForegroundMuted     () const = 0;  // secondary / accelerator text
     virtual uint32_t  ForegroundDisabled  () const = 0;  // disabled-state text
@@ -177,6 +179,30 @@ public:
     virtual uint32_t  TooltipBackground   () const = 0;
     virtual uint32_t  TooltipBorder       () const = 0;
     virtual uint32_t  TooltipForeground   () const = 0;
+
+    //
+    //  Info-banner surface (a bounded, bordered notice strip -- NOT a button or
+    //  tooltip). The defaults derive from the theme's OWN accent + foreground so
+    //  the banner is themed and aligned in every theme automatically: a subtle
+    //  accent tint over the panel (unobtrusive but distinct), a full-strength
+    //  accent border that stands out, and body-strength text that stays readable.
+    //  A theme may override any of these for a bespoke look.
+    //
+    virtual uint32_t  InfoBannerBackground () const
+    {
+        constexpr uint32_t  kTintAlpha = 0x16u << 24;   // ~9% accent tint: a subtle callout, not a button fill
+
+        return (Accent() & 0x00FFFFFFu) | kTintAlpha;
+    }
+
+    virtual uint32_t  InfoBannerBorder     () const
+    {
+        constexpr uint32_t  kBorderAlpha = 0x99u << 24;   // muted accent edge, not a bright button border
+
+        return (Accent() & 0x00FFFFFFu) | kBorderAlpha;
+    }
+
+    virtual uint32_t  InfoBannerForeground () const { return Foreground(); }
 
     // Typography. Returned handles are opaque to widgets.
     virtual DxuiFontHandle  BodyFont      () const = 0;

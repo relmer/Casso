@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Cpu.h"
-#include "Ehm.h"
 
 
 // Maximum RAM entries per test vector (SingleStepTests typically has < 20)
@@ -88,11 +87,11 @@ struct HarteTestFile
 //  LoadHarteTestFile
 //
 //  Loads a binary test file produced by GenerateHarteTests.py.
-//  Returns true on success, false on file-not-found or parse error.
+//  Fails on file-not-found or parse error.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool LoadHarteTestFile (const std::string & path, HarteTestFile & outFile);
+HRESULT LoadHarteTestFile (const std::string & path, HarteTestFile & outFile);
 
 
 

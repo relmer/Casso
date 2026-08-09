@@ -18,7 +18,7 @@
 //  this with its own derived theme (e.g. CassoTheme adds drive / LED
 //  tokens) and supplies presets; widgets depend only on IDxuiTheme.
 //
-//  Tokens are public so a host widget can read a specific named colour
+//  Tokens are public so a host widget can read a specific named color
 //  (link, navHover, …) directly while generic Dxui widgets stay on
 //  the interface accessors. Dark() / Light() give a neutral starting set
 //  any host can tweak.
@@ -55,7 +55,7 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  tooltipBg                = 0;
     uint32_t  tooltipBorder            = 0;
     uint32_t  tooltipText              = 0;
-    uint32_t  errorText                    = 0;
+    uint32_t  errorText                = 0;
 
     // IDxuiTheme overrides map the named tokens onto the generic contract
     // so any Dxui widget paints against this theme through the interface.
@@ -73,6 +73,7 @@ struct DxuiTheme : public IDxuiTheme
         // keeps visual parity with the prior in-widget disable mask.
         return (bodyText & 0x00FFFFFFu) | 0x80000000u;
     }
+
     uint32_t  HeadingForeground   () const override { return titleText;          }
     uint32_t  ErrorForeground     () const override { return errorText;          }
 

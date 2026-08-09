@@ -12,6 +12,27 @@
 //
 //  D3DRenderer
 //
+//  Uploads the Apple ][ framebuffer, runs it through the CRT chain, and
+//  composites the result into a render target the HOST owns.
+//
+//  It ADOPTS an externally-owned device, context, and swap chain rather than
+//  creating its own, and holds no back-buffer RTV. That is what lets Dxui
+//  chrome paint over the emulator image in a single pass: the host clears,
+//  this composites into its RTV, the chrome paints on top, and the host
+//  presents once. A renderer that owned its own swap chain would have to
+//  present separately and could only ever be underneath or on top of
+//  everything.
+//
+//  So there is no Present here at all -- the host's paint pump owns it, and
+//  this class is a compositing step rather than a renderer in the usual sense.
+//
+//  The target rect is passed in and updated as the viewport moves, so the
+//  emulator image lands wherever the desk scene puts the monitor rather than
+//  filling the window.
+//
+//  The full back buffer is deliberately not cleared: the host already did, and
+//  the CRT chain's final pass overwrites what it covers.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class D3DRenderer
@@ -191,9 +212,18 @@ private:
     bool    m_fullscreen       = false;
     bool    m_deviceRemoved    = false;
 
-    RECT    m_windowedRect                = {};
+    // Windowed state captured on fullscreen entry. Full WINDOWPLACEMENT (not
+    // just a rect) so a maximized window round-trips back to maximized with
+    // its underlying normal size intact. m_fsTransition guards against nested
+    // toggles: an assert/message-box modal loop pumping messages mid-
+    // transition can dispatch a queued Alt+Enter, and a nested enter would
+    // capture the borderless fullscreen state as the "windowed" state --
+    // leaving an unescapable full-monitor popup on exit.
+    WINDOWPLACEMENT  m_windowedPlacement  = {};
+    LONG             m_windowedStyle      = 0;
+    bool             m_fsTransition       = false;
+
     RECT    m_emulatorContentScreenRect   = {};
-    LONG    m_windowedStyle               = 0;
 };
 
 

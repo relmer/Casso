@@ -7,7 +7,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiTabStrip
@@ -79,5 +78,5 @@ private:
     int               m_pressed  = -1;
     bool              m_enabled  = true;
     bool              m_focused  = false;
-    DxuiDpiScaler         m_scaler;
+    DxuiDpiScaler     m_scaler;
 };

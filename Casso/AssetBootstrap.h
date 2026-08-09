@@ -38,6 +38,14 @@ public:
     // to `ThemeBootstrapPlanner::Plan`.
     static HRESULT  EnsureThemes          (HINSTANCE hInstance);
 
+    // Extract the embedded ImageWriter II sound set into
+    // `<assetBase>/ImageWriter II Sounds/` on first launch. Each grain is
+    // written only if missing (the files are read-only assets, never
+    // user-edited), so subsequent launches are a cheap existence check.
+    // Best-effort: a failed write leaves that grain absent and the printer
+    // audio simply plays it as silence. CC BY 4.0 (Scott Lawrence / BleuLlama).
+    static HRESULT  EnsureImageWriterSounds (HINSTANCE hInstance);
+
     // Returns the install root that contains (or should contain) the
     // per-machine `Machines/` and per-device `Devices/` subtrees. The
     // downloader places freshly fetched ROMs at
@@ -53,12 +61,23 @@ public:
     // de-duplicated against existing entries. No-op in an installed layout.
     static void     AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable);
 
-    // True if `p` is a disk under a git worktree checkout OTHER than the one
-    // this build runs from. Used to keep the shared %LOCALAPPDATA% recent-disks
-    // MRU from listing the same disk once per sibling worktree copy of the repo
-    // -- an MRU entry under a worktree is shown only when the running exe lives
-    // in that same worktree; entries outside any worktree always pass.
-    static bool     IsForeignWorktreeDisk (const fs::path & p);
+    // Append every supported disk image found in the folders that already
+    // contain a `mountable` entry (i.e. the recent-disk folders), so a disk
+    // sitting next to a recent one is offered in the picker without having
+    // to be mounted first. Each MRU folder is scanned fresh; results are
+    // sorted and de-duplicated against existing entries by filesystem
+    // identity, and foreign-worktree disks are excluded. Call this BEFORE
+    // AppendBundledDemoDisks so the scan set is exactly the MRU folders.
+    static void     AppendSiblingDisksFromMruFolders (std::vector<DiskMru::Entry> & mountable);
+
+    // True if `p` is a disk belonging to a checkout of this repo OTHER than
+    // the one this build runs from (a sibling .claude/worktrees/<name> copy,
+    // or the main tree when the running exe lives in a worktree). Used to keep
+    // the shared %LOCALAPPDATA% recent-disks MRU from listing disks that live
+    // in a different checkout; disks outside the repo entirely (the user's own
+    // folders, %LOCALAPPDATA%) always pass. See RepoCheckout.h for the pure,
+    // unit-tested classification.
+    static bool     IsForeignCheckoutDisk (const fs::path & p);
 
     static HRESULT  GetRequiredRoms       (HINSTANCE                hInstance,
                                            const wstring          & machineName,
@@ -128,7 +147,7 @@ public:
     // leaves the slot untouched.
     //
     // On return:
-    //   outDiskPath  = path to mount, or empty if the user cancelled
+    //   outDiskPath  = path to mount, or empty if the user canceled
     //                  or chose Browse (caller then runs IFileOpenDialog)
     //   outBrowse    = true if the user clicked Browse... (caller
     //                  should fall through to its file-picker path)
@@ -150,11 +169,13 @@ public:
     // live per-asset progress; the user can Exit at any point and
     // partial files are removed before this returns.
     //
-    // Returns:
-    //   S_OK       -> everything required is present (some optional
-    //                 items may have failed or been skipped)
-    //   S_FALSE    -> user chose Exit
-    //   <0 HRESULT -> hard failure
+    // Returns S_OK once everything required is present (some optional
+    // items may have failed or been skipped), or a failure HRESULT.
+    //
+    // `outUserExited` is set when the user chose Exit in the dialog.
+    // That is not a failure -- the caller is expected to shut down
+    // quietly rather than report an error -- so it travels as an
+    // out-param instead of riding on the result code.
     //
     // `prefs.audioDownloadConsent` is read AND updated to reflect the
     // user's choice (allow / decline). The caller is responsible for
@@ -167,5 +188,6 @@ public:
                                            const fs::path         & assetBaseDir,
                                            bool                     considerDiskAudio,
                                            struct GlobalUserPrefs & prefs,
+                                           bool                   & outUserExited,
                                            string                 & outError);
 };

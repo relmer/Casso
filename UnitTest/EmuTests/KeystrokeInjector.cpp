@@ -2,12 +2,6 @@
 #include "KeystrokeInjector.h"
 
 
-namespace
-{
-    static constexpr int    kPumpBatchSize    = 64;
-}
-
-
 
 
 
@@ -20,31 +14,42 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+HRESULT KeystrokeInjector::WaitForStrobeClear (EmulatorCore & core, uint64_t cycleBudget)
 {
-    bool WaitForStrobeClear (EmulatorCore & core, uint64_t cycleBudget)
+    constexpr int  kPumpBatchSize = 64;
+
+
+
+    HRESULT    hr      = S_OK;
+    uint64_t   target  = 0;
+    int        i       = 0;
+    bool       cleared = false;
+
+
+
+    target = core.cpu->GetTotalCycles() + cycleBudget;
+
+    while (!cleared && core.cpu->GetTotalCycles() < target)
     {
-        uint64_t   target;
-        int        i;
+        cleared = core.keyboard->IsStrobeClear();
 
-        target = core.cpu->GetTotalCycles () + cycleBudget;
-
-        while (core.cpu->GetTotalCycles () < target)
+        if (!cleared)
         {
-            if (core.keyboard->IsStrobeClear ())
-            {
-                return true;
-            }
-
             for (i = 0; i < kPumpBatchSize; i++)
             {
-                core.cpu->StepOne ();
-                core.cpu->AddCycles (core.cpu->GetLastInstructionCycles ());
+                core.cpu->StepOne();
+                core.cpu->AddCycles (core.cpu->GetLastInstructionCycles());
             }
         }
-
-        return core.keyboard->IsStrobeClear ();
     }
+
+    // Re-checking after the loop covers the budget-exhausted exit, where the
+    // last batch may have cleared the strobe on its final instruction.
+    cleared = cleared || core.keyboard->IsStrobeClear();
+    CBR (cleared);
+
+Error:
+    return hr;
 }
 
 
@@ -57,24 +62,30 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool KeystrokeInjector::InjectKey (
+HRESULT KeystrokeInjector::InjectKey (
     EmulatorCore  &  core,
     Byte             ch,
     uint64_t         cycleBudget)
 {
-    if (!core.HasApple2e ())
-    {
-        return false;
-    }
+    HRESULT  hr    = S_OK;
+    bool     has2e = core.HasApple2e();
 
-    if (!WaitForStrobeClear (core, cycleBudget))
-    {
-        return false;
-    }
+
+
+    CBR (has2e);
+
+    // Two waits, not one: the first makes sure the PREVIOUS key was consumed
+    // before overwriting the latch, the second that this one was.
+    hr = WaitForStrobeClear (core, cycleBudget);
+    CHR (hr);
 
     core.keyboard->KeyPressRaw (ch);
 
-    return WaitForStrobeClear (core, cycleBudget);
+    hr = WaitForStrobeClear (core, cycleBudget);
+    CHR (hr);
+
+Error:
+    return hr;
 }
 
 
@@ -92,17 +103,24 @@ size_t KeystrokeInjector::InjectString (
     const std::string  &  text,
     uint64_t              keyCycles)
 {
+    HRESULT  hrKey    = S_OK;
     size_t   consumed = 0;
-    size_t   i;
+    bool     ok       = true;
 
-    for (i = 0; i < text.size (); i++)
+    // Stops at the first key the machine would not take, and reports how many
+    // did land -- callers compare against text.size() to detect a short write.
+    for (char ch : text)
     {
-        if (!InjectKey (core, static_cast<Byte> (text[i]), keyCycles))
+        if (ok)
         {
-            return consumed;
+            hrKey = InjectKey (core, static_cast<Byte> (ch), keyCycles);
+            ok    = SUCCEEDED (hrKey);
         }
 
-        consumed++;
+        if (ok)
+        {
+            consumed++;
+        }
     }
 
     return consumed;
@@ -123,22 +141,21 @@ size_t KeystrokeInjector::InjectLine (
     const std::string  &  text,
     uint64_t              settleCycles)
 {
-    size_t   consumed;
+    HRESULT  hrReturn = S_OK;
+    size_t   consumed = InjectString (core, text, kPerKeyCycleBudget);
 
-    consumed = InjectString (core, text, kPerKeyCycleBudget);
-
-    if (consumed != text.size ())
+    // The RETURN only goes in if the whole line did; a short line leaves the
+    // count short and never settles, so the caller sees the failure.
+    if (consumed == text.size())
     {
-        return consumed;
-    }
+        hrReturn = InjectKey (core, kAppleReturn, kPerKeyCycleBudget);
 
-    if (!InjectKey (core, kAppleReturn, kPerKeyCycleBudget))
-    {
-        return consumed;
+        if (SUCCEEDED (hrReturn))
+        {
+            consumed++;
+            core.RunCycles (settleCycles);
+        }
     }
-
-    consumed++;
-    core.RunCycles (settleCycles);
 
     return consumed;
 }

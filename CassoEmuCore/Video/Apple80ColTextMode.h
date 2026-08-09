@@ -57,12 +57,36 @@ public:
     // color monitor). Mono color modes re-tint afterward, so green stays there.
     void SetOnColor    (uint32_t bgra)       { m_onColor     = bgra; }
 
+    // Drop the dirty-row cache so the next Render() re-rasterizes every row.
+    // See AppleTextMode::InvalidateCache -- the shell calls this on a video-
+    // mode transition or in a monochrome color mode; the mode also self-
+    // invalidates when its aux pointer / charset / on-color changes.
+    void InvalidateCache () { m_cacheValid = false; }
+
 private:
+    // True if the 40+40 interleaved bytes hold a glyph that flashes with the
+    // flash clock ($40-$7F, only when ALTCHARSET is off). Such rows re-raster
+    // on a flash-phase flip even if no byte changed.
+    bool RowHasFlashChar (const Byte * rowBytes) const;
+
+    static constexpr int     kGridCols = 80;
+    static constexpr int     kGridRows = 24;
+
     MemoryBus              & m_bus;
     const CharacterRomData & m_charRom;
     const Byte             * m_auxMem      = nullptr;
     bool                     m_flashOn     = true;
     bool                     m_altCharSet  = false;
     uint32_t                 m_onColor     = 0xFF00FF00;   // BGRA green (default)
-    uint32_t                 m_frameCount  = 0;
+
+    // Dirty-row cache (see AppleTextMode for the model). 80-col reads even
+    // columns from aux and odd from main, so a row's signature is its 80
+    // effective char codes; the aux pointer is part of the cached state.
+    Byte                     m_prevBytes[kGridCols * kGridRows] = {};
+    const uint32_t         * m_prevFramebuffer                  = nullptr;
+    const Byte             * m_prevAuxMem                       = nullptr;
+    bool                     m_cacheValid                       = false;
+    bool                     m_prevAltChar                      = false;
+    bool                     m_prevFlashOn                      = true;
+    uint32_t                 m_prevOnColor                      = 0;
 };

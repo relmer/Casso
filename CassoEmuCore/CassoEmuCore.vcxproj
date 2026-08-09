@@ -200,6 +200,9 @@
     <ClCompile Include="Core\MemoryBusCpu.cpp" />
     <ClCompile Include="Core\InterruptController.cpp" />
     <ClCompile Include="Core\ComponentRegistry.cpp" />
+    <ClCompile Include="Core\CpuFactory.cpp" />
+    <ClCompile Include="Core\Cpu65C02.cpp" />
+    <ClCompile Include="Core\Cpu65C02Table.cpp" />
     <ClCompile Include="Core\Prng.cpp" />
     <ClCompile Include="Devices\RamDevice.cpp" />
     <ClCompile Include="Devices\RomDevice.cpp" />
@@ -210,6 +213,11 @@
     <ClCompile Include="Devices\LanguageCard.cpp" />
     <ClCompile Include="Devices\Acia6551.cpp" />
     <ClCompile Include="Devices\AciaEndpoints.cpp" />
+    <ClCompile Include="Devices\AppleMouse.cpp" />
+    <ClCompile Include="Devices\Mockingboard\Via6522.cpp" />
+    <ClCompile Include="Devices\Mockingboard\Ay8910.cpp" />
+    <ClCompile Include="Devices\Mockingboard\MockingboardAudioSource.cpp" />
+    <ClCompile Include="Devices\Mockingboard\MockingboardCard.cpp" />
     <ClCompile Include="Devices\Disk2Controller.cpp" />
     <ClCompile Include="Devices\Disk2EventRing.cpp" />
     <ClCompile Include="Devices\InputEventRing.cpp" />
@@ -222,6 +230,7 @@
     <ClCompile Include="Devices\Apple2eKeyboard.cpp" />
     <ClCompile Include="Devices\Apple2eMmu.cpp" />
     <ClCompile Include="Devices\CxxxRomRouter.cpp" />
+    <ClCompile Include="Devices\Apple2cRomBank.cpp" />
     <ClCompile Include="Devices\Apple2eSoftSwitchBank.cpp" />
     <ClCompile Include="Video\AppleTextMode.cpp" />
     <ClCompile Include="Video\CharacterRomData.cpp" />
@@ -233,6 +242,25 @@
     <ClCompile Include="Audio\AudioGenerator.cpp" />
     <ClCompile Include="Audio\DriveAudioMixer.cpp" />
     <ClCompile Include="Audio\Disk2AudioSource.cpp" />
+    <ClCompile Include="Audio\PrinterAudioSource.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterByteRing.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterCard.cpp" />
+    <ClCompile Include="Devices\Printer\PrintRaster.cpp" />
+    <ClCompile Include="Devices\Printer\PaperRenderer.cpp" />
+    <ClCompile Include="Devices\Printer\PrintJobSerializer.cpp" />
+    <ClCompile Include="Devices\Printer\ImageWriterInterpreter.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterJob.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterHead.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterEngine.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterPreviewModel.cpp" />
+    <ClCompile Include="Devices\Printer\PngCodec.cpp" />
+    <ClCompile Include="Devices\Printer\PrintJobPersistence.cpp" />
+    <ClCompile Include="Devices\Printer\PrintFileNaming.cpp" />
+    <ClCompile Include="Devices\Printer\PrintDelivery.cpp" />
+    <ClCompile Include="Devices\Printer\PrintPagination.cpp" />
+    <ClCompile Include="Devices\Printer\ObjMeshParser.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterStatusModel.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterViewport.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -243,11 +271,15 @@
     <ClInclude Include="Pch.h" />
     <ClInclude Include="Core\MemoryDevice.h" />
     <ClInclude Include="Core\ComponentRegistry.h" />
+    <ClInclude Include="Core\CpuFactory.h" />
+    <ClInclude Include="Core\Cpu65C02.h" />
+    <ClInclude Include="Core\Cpu65C02Table.h" />
     <ClInclude Include="Core\JsonParser.h" />
     <ClInclude Include="Core\JsonValue.h" />
     <ClInclude Include="Core\JsonWriter.h" />
     <ClInclude Include="Core\MemoryBus.h" />
     <ClInclude Include="Core\EmuCpu.h" />
+    <ClInclude Include="Core\ICycleSink.h" />
     <ClInclude Include="Core\MemoryBusCpu.h" />
     <ClInclude Include="Core\MachineConfig.h" />
     <ClInclude Include="Core\MachineConfigUpgrade.h" />
@@ -278,6 +310,11 @@
     <ClInclude Include="Devices\LanguageCard.h" />
     <ClInclude Include="Devices\Acia6551.h" />
     <ClInclude Include="Devices\AciaEndpoints.h" />
+    <ClInclude Include="Devices\AppleMouse.h" />
+    <ClInclude Include="Devices\Mockingboard\Via6522.h" />
+    <ClInclude Include="Devices\Mockingboard\Ay8910.h" />
+    <ClInclude Include="Devices\Mockingboard\MockingboardAudioSource.h" />
+    <ClInclude Include="Devices\Mockingboard\MockingboardCard.h" />
     <ClInclude Include="Devices\IAciaEndpoint.h" />
     <ClInclude Include="Devices\Disk2Controller.h" />
     <ClInclude Include="Devices\IDisk2EventSink.h" />
@@ -290,6 +327,8 @@
     <ClInclude Include="Devices\Apple2eKeyboard.h" />
     <ClInclude Include="Devices\Apple2eMmu.h" />
     <ClInclude Include="Devices\CxxxRomRouter.h" />
+    <ClInclude Include="Devices\Apple2cRomBank.h" />
+    <ClInclude Include="Devices\IRomBankSwitch.h" />
     <ClInclude Include="Devices\Apple2eSoftSwitchBank.h" />
     <ClInclude Include="Video\VideoOutput.h" />
     <ClInclude Include="Video\AppleTextMode.h" />
@@ -308,8 +347,34 @@
     <ClInclude Include="Audio\IDriveAudioSource.h" />
     <ClInclude Include="Audio\DriveAudioMixer.h" />
     <ClInclude Include="Audio\Disk2AudioSource.h" />
+    <ClInclude Include="Audio\PrinterAudioSource.h" />
+    <ClInclude Include="Devices\Printer\PrinterTypes.h" />
+    <ClInclude Include="Devices\Printer\PrinterByteRing.h" />
+    <ClInclude Include="Devices\Printer\PrinterCard.h" />
+    <ClInclude Include="Devices\Printer\ParallelFirmware.h" />
+    <ClInclude Include="Devices\Printer\PrintRaster.h" />
+    <ClInclude Include="Devices\Printer\PaperRenderer.h" />
+    <ClInclude Include="Devices\Printer\RgbaImage.h" />
+    <ClInclude Include="Devices\Printer\PrintJobSerializer.h" />
+    <ClInclude Include="Devices\Printer\DraftFont.h" />
+    <ClInclude Include="Devices\Printer\ImageWriterInterpreter.h" />
+    <ClInclude Include="Devices\Printer\PrinterJob.h" />
+    <ClInclude Include="Devices\Printer\PrinterHead.h" />
+    <ClInclude Include="Devices\Printer\PrinterEngine.h" />
+    <ClInclude Include="Devices\Printer\PrinterPreviewModel.h" />
+    <ClInclude Include="Devices\Printer\PngCodec.h" />
+    <ClInclude Include="Devices\Printer\PrintJobPersistence.h" />
+    <ClInclude Include="Devices\Printer\PrintFileNaming.h" />
+    <ClInclude Include="Devices\Printer\PrintDelivery.h" />
+    <ClInclude Include="Devices\Printer\PrintPagination.h" />
+    <ClInclude Include="Devices\Printer\ObjMeshParser.h" />
+    <ClInclude Include="Devices\Printer\PrinterStatusModel.h" />
+    <ClInclude Include="Devices\Printer\PrinterViewport.h" />
     <ClInclude Include="External\StbVorbisWrapper.h" />
     <ClInclude Include="External\stb_vorbis.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Devices\Printer\ParallelFirmware.a65" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CassoCore\CassoCore.vcxproj">

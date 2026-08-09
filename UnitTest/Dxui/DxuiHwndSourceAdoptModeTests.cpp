@@ -4,14 +4,37 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSourceAdoptModeTests
+//
+//  ADOPT mode: the host attaching to a client's existing window rather than
+//  owning the paint pump itself.
+//
+//  Two modes exist because the emulator shell needs one and standalone panels
+//  need the other. In adopt mode the client owns Present and the message loop,
+//  and the host supplies only chrome and input routing -- so these assert what
+//  the host must NOT do: no swap chain of its own, no paint pump, no
+//  PostQuitMessage.
+//
+//  The distinction is easy to erode. A change made for the full-ownership path
+//  that happens to work there will silently take over the client's window here,
+//  which is why the two modes are tested apart.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DxuiHwndSourceAdoptModeTests)
 {
-    constexpr UINT  s_kSyntheticDpi    = 192;     // 200% scale
-    constexpr UINT  s_kDefaultDpi      = 96;
-    constexpr LONG  s_kFakeHwndValue   = 0x12345678;
+public:
+
+    static constexpr UINT  s_kSyntheticDpi    = 192;     // 200% scale
+    static constexpr UINT  s_kDefaultDpi      = 96;
+    static constexpr LONG  s_kFakeHwndValue   = 0x12345678;
 
 
-    DxuiHwndSource::CreateParams  MakeAdoptParams ()
+    DxuiHwndSource::CreateParams  MakeAdoptParams()
     {
         DxuiHwndSource::CreateParams  cp;
 
@@ -27,15 +50,6 @@ namespace
         cp.initialSizeDip  = { 1024, 768 };
         return cp;
     }
-}
-
-
-
-
-
-TEST_CLASS (DxuiHwndSourceAdoptModeTests)
-{
-public:
 
     TEST_METHOD_INITIALIZE (Setup)
     {
@@ -262,3 +276,4 @@ public:
         Assert::AreEqual ((unsigned int) s_kDefaultDpi, (unsigned int) host->Scaler().Dpi());
     }
 };
+

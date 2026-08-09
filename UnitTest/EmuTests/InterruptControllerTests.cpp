@@ -44,7 +44,7 @@ namespace Apple2eFidelityIc
 
         bool        IrqAsserted    () const { return m_irqAsserted; }
         bool        NmiAsserted    () const { return m_nmiAsserted; }
-        int         IrqUpdateCount () const { return m_irqUpdateCount; }
+        int         IrqUpdateCount() const { return m_irqUpdateCount; }
 
     private:
         bool    m_irqAsserted    = false;
@@ -60,6 +60,23 @@ namespace Apple2eFidelityIc
     //
     //  InterruptControllerTests
     //
+    //  The shared IRQ line: several sources asserting and releasing it
+    //  independently.
+    //
+    //  IRQ is WIRED-OR, and that is the whole subject. The line stays asserted
+    //  while ANY source holds it, so a source releasing must not clear the line
+    //  for the others -- the classic bug being an interrupt handler that
+    //  services one device and inadvertently dismisses another's pending
+    //  request.
+    //
+    //  Source tokens are covered because they are reclaimed on a machine
+    //  switch: a stale token asserting after its device is gone would leave the
+    //  CPU permanently interrupted.
+    //
+    //  Assert and release are tested in several orders, since the count is what
+    //  makes the wired-OR work and an order-dependent implementation passes the
+    //  simple sequence.
+    //
     ////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (InterruptControllerTests)
@@ -67,34 +84,38 @@ namespace Apple2eFidelityIc
     public:
         TEST_METHOD (SingleAssertReachesCpu)
         {
-            RecordingCpu            cpu;
+            RecordingCpu  cpu;
+            HRESULT       hr  = S_OK;
+            IrqSourceId   id  = {};
             InterruptController     ic (&cpu);
-            IrqSourceId             id = 0;
-            HRESULT                 hr = S_OK;
+            id = 0;
 
 
 
             hr = ic.RegisterSource (id);
             Assert::AreEqual (S_OK, hr);
 
-            Assert::IsFalse (cpu.IrqAsserted (), L"Pre-assert: line clear");
+            Assert::IsFalse (cpu.IrqAsserted(), L"Pre-assert: line clear");
 
             ic.Assert (id);
-            Assert::IsTrue  (cpu.IrqAsserted (), L"Assert should drive line");
+            Assert::IsTrue  (cpu.IrqAsserted(), L"Assert should drive line");
 
             ic.Clear (id);
-            Assert::IsFalse (cpu.IrqAsserted (), L"Clear should drop line");
+            Assert::IsFalse (cpu.IrqAsserted(), L"Clear should drop line");
         }
 
 
         TEST_METHOD (MultipleAssertersOredTogether)
         {
-            RecordingCpu            cpu;
+            RecordingCpu  cpu;
+            HRESULT       hr  = S_OK;
+            IrqSourceId   a   = {};
+            IrqSourceId   b   = {};
+            IrqSourceId   c   = {};
             InterruptController     ic (&cpu);
-            IrqSourceId             a  = 0;
-            IrqSourceId             b  = 0;
-            IrqSourceId             c  = 0;
-            HRESULT                 hr = S_OK;
+            a = 0;
+            b = 0;
+            c = 0;
 
 
 
@@ -106,18 +127,20 @@ namespace Apple2eFidelityIc
             ic.Assert (b);
             ic.Assert (c);
 
-            Assert::IsTrue (cpu.IrqAsserted ());
-            Assert::IsTrue (ic.IsAnyAsserted ());
+            Assert::IsTrue (cpu.IrqAsserted());
+            Assert::IsTrue (ic.IsAnyAsserted());
         }
 
 
         TEST_METHOD (ClearOnlyDeassertsWhenAllSourcesClear)
         {
-            RecordingCpu            cpu;
+            RecordingCpu  cpu;
+            HRESULT       hr  = S_OK;
+            IrqSourceId   a   = {};
+            IrqSourceId   b   = {};
             InterruptController     ic (&cpu);
-            IrqSourceId             a  = 0;
-            IrqSourceId             b  = 0;
-            HRESULT                 hr = S_OK;
+            a = 0;
+            b = 0;
 
 
 
@@ -126,26 +149,28 @@ namespace Apple2eFidelityIc
 
             ic.Assert (a);
             ic.Assert (b);
-            Assert::IsTrue (cpu.IrqAsserted ());
+            Assert::IsTrue (cpu.IrqAsserted());
 
             ic.Clear (a);
-            Assert::IsTrue (cpu.IrqAsserted (),
+            Assert::IsTrue (cpu.IrqAsserted(),
                             L"Line must remain asserted while another source is asserting");
 
             ic.Clear (b);
-            Assert::IsFalse (cpu.IrqAsserted (),
+            Assert::IsFalse (cpu.IrqAsserted(),
                              L"Line drops only when all sources are clear");
         }
 
 
         TEST_METHOD (UnregisteredSourceRejected)
         {
-            RecordingCpu            cpu;
+            RecordingCpu  cpu;
+            HRESULT       hr        = S_OK;
+            int           i         = 0;
+            IrqSourceId   id        = {};
+            IrqSourceId   allocated = {};
             InterruptController     ic (&cpu);
-            IrqSourceId             id          = 0;
-            IrqSourceId             allocated   = 0;
-            HRESULT                 hr          = S_OK;
-            int                     i           = 0;
+            id = 0;
+            allocated = 0;
 
 
 
@@ -158,12 +183,12 @@ namespace Apple2eFidelityIc
 
             // 33rd registration must fail.
             hr = ic.RegisterSource (id);
-            Assert::IsTrue (FAILED (hr),
+            AssertFailed (hr,
                             L"Registration past kMaxSources must fail");
 
             // Asserting an out-of-range / never-registered token is a no-op.
             ic.Assert (200);
-            Assert::IsFalse (cpu.IrqAsserted (),
+            Assert::IsFalse (cpu.IrqAsserted(),
                              L"Unregistered source must not drive the line");
         }
 
@@ -171,22 +196,22 @@ namespace Apple2eFidelityIc
         TEST_METHOD (WorksWithMockIrqAsserter)
         {
             RecordingCpu            cpu;
+            HRESULT                 hr = S_OK;
             InterruptController     ic (&cpu);
             MockIrqAsserter         asserter (&ic);
-            HRESULT                 hr = S_OK;
 
 
 
-            hr = asserter.Bind ();
+            hr = asserter.Bind();
             Assert::AreEqual (S_OK, hr);
-            Assert::IsTrue (asserter.IsBound ());
+            Assert::IsTrue (asserter.IsBound());
 
-            asserter.Assert ();
-            Assert::IsTrue (cpu.IrqAsserted (),
+            asserter.Assert();
+            Assert::IsTrue (cpu.IrqAsserted(),
                             L"MockIrqAsserter::Assert must drive the line");
 
-            asserter.Clear ();
-            Assert::IsFalse (cpu.IrqAsserted (),
+            asserter.Clear();
+            Assert::IsFalse (cpu.IrqAsserted(),
                              L"MockIrqAsserter::Clear must drop the line");
         }
     };

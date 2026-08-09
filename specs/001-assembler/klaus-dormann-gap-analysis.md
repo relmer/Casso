@@ -16,7 +16,7 @@ evidence drawn from the suite source, and acceptance criteria.
 
 1. Reviewed currently implemented features in `My6502Core/Assembler.cpp`,
    `My6502Core/Parser.cpp`, and the feature spec at `specs/001-assembler/spec.md`.
-2. Read `6502_functional_test.a65` from the upstream repository and catalogued every
+2. Read `6502_functional_test.a65` from the upstream repository and cataloged every
    distinct syntactic construct that Casso does not currently accept.
 3. Cross-checked the "Out of Scope" section of the existing feature spec — items
    listed there (macros, conditional assembly, includes) are deliberately deferred
@@ -361,7 +361,7 @@ range_adr   = *+1
   mnemonic, directive, or `=`/`equ` on the same line is treated as a label
   declaration that resolves to the current PC, exactly as `name:` does today.
 - An identifier at column 0 followed by an instruction on the same line still
-  works (existing behaviour preserved): e.g. `loop dex` is equivalent to
+  works (existing behavior preserved): e.g. `loop dex` is equivalent to
   `loop: dex`.
 - The colon form continues to assemble identically.
 - Label-vs-mnemonic disambiguation: identifiers that match a mnemonic/register

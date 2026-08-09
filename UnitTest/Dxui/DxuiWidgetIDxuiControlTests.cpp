@@ -9,6 +9,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiWidgetIDxuiControlTests
@@ -25,8 +26,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+
+
+
+
+
+TEST_CLASS (DxuiWidgetIDxuiControlTests)
 {
+public:
+
     RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
     {
         RECT  out = {};
@@ -57,7 +65,7 @@ namespace
 
 
     template <class TWidget>
-    void  VerifyLayoutSetsBounds ()
+    void  VerifyLayoutSetsBounds()
     {
         TWidget        widget;
         DxuiDpiScaler  scaler;
@@ -75,7 +83,7 @@ namespace
 
 
     template <class TWidget>
-    void  VerifyPaintIsCallable ()
+    void  VerifyPaintIsCallable()
     {
         TWidget              widget;
         DxuiDpiScaler        scaler;
@@ -95,7 +103,7 @@ namespace
 
 
     template <class TWidget>
-    void  VerifyAddsIntoPanel ()
+    void  VerifyAddsIntoPanel()
     {
         DxuiPanel   panel;
         TWidget &   child = panel.Add<TWidget>();
@@ -105,15 +113,6 @@ namespace
         Assert::AreEqual (static_cast<void *> (&child), static_cast<void *> (panel.Child (0)));
         Assert::AreEqual (static_cast<void *> (&panel), static_cast<void *> (child.Parent()));
     }
-}
-
-
-
-
-
-TEST_CLASS (DxuiWidgetIDxuiControlTests)
-{
-public:
 
     TEST_METHOD (DxuiButton_DerivesFromIDxuiControl)
     {
@@ -235,11 +234,12 @@ public:
 
     TEST_METHOD (Panel_OnMouseDispatchesToWidgetChild)
     {
-        DxuiPanel       panel;
-        DxuiButton &    btn = panel.Add<DxuiButton>();
-        DxuiDpiScaler   scaler;
-        DxuiMouseEvent  down = {};
-        bool            clicked = false;
+        DxuiPanel         panel;
+        DxuiButton      & btn     = panel.Add<DxuiButton>();
+        DxuiDpiScaler     scaler;
+        DxuiMouseEvent    down    = {};
+        bool              clicked = false;
+        DxuiMouseEvent    up      = {};
 
 
         scaler.SetDpi (96);
@@ -253,7 +253,6 @@ public:
         down.button      = DxuiMouseButton::Left;
         down.positionDip = POINT { 10, 10 };
 
-        DxuiMouseEvent  up = {};
         up.kind        = DxuiMouseEventKind::Up;
         up.button      = DxuiMouseButton::Left;
         up.positionDip = POINT { 10, 10 };
@@ -267,11 +266,11 @@ public:
 
     TEST_METHOD (ListView_MoveWithoutButtonEndsStaleScrollbarDrag)
     {
-        DxuiListView    list;
-        DxuiDpiScaler   scaler;
-        DxuiMouseEvent  down = {};
-        DxuiMouseEvent  move = {};
-        DxuiListView::ScrollbarMetrics  bar = {};
+        DxuiListView                    list;
+        DxuiDpiScaler                   scaler;
+        DxuiMouseEvent                  down   = {};
+        DxuiMouseEvent                  move   = {};
+        DxuiListView::ScrollbarMetrics  bar    = {};
 
 
 
@@ -299,3 +298,4 @@ public:
         Assert::IsFalse (list.IsInteracting());
     }
 };
+

@@ -4,6 +4,8 @@
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PerfStats::Instance
@@ -31,21 +33,20 @@ PerfStats & PerfStats::Instance()
 
 void PerfStats::Record (const char * label, double ms)
 {
-    constexpr double         kAlpha = 0.1;
+    constexpr double             kAlpha = 0.1;
     std::lock_guard<std::mutex>  lock (m_mutex);
 
-    if (label == nullptr)
+    if (label != nullptr)
     {
-        return;
-    }
+        Stat &  s = m_stats[label];
 
-    Stat &  s = m_stats[label];
+        s.lastMs = ms;
+        s.avgMs  = (s.avgMs == 0.0) ? ms : (s.avgMs * (1.0 - kAlpha) + ms * kAlpha);
 
-    s.lastMs = ms;
-    s.avgMs  = (s.avgMs == 0.0) ? ms : (s.avgMs * (1.0 - kAlpha) + ms * kAlpha);
-    if (ms > s.maxMs)
-    {
-        s.maxMs = ms;
+        if (ms > s.maxMs)
+        {
+            s.maxMs = ms;
+        }
     }
 }
 
@@ -64,19 +65,25 @@ void PerfStats::Record (const char * label, double ms)
 
 PerfStats::Stat PerfStats::Get (const char * label) const
 {
+    Stat  stat = {};
+
+
+
     std::lock_guard<std::mutex>  lock (m_mutex);
 
-    if (label == nullptr)
+    // A null label and an unrecorded one both yield the zero Stat -- callers
+    // display it as "no samples yet" either way.
+    if (label != nullptr)
     {
-        return Stat {};
+        auto  it = m_stats.find (label);
+
+        if (it != m_stats.end())
+        {
+            stat = it->second;
+        }
     }
 
-    auto  it = m_stats.find (label);
-    if (it == m_stats.end())
-    {
-        return Stat {};
-    }
-    return it->second;
+    return stat;
 }
 
 
@@ -91,7 +98,7 @@ PerfStats::Stat PerfStats::Get (const char * label) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unordered_map<std::string, PerfStats::Stat> PerfStats::GetAll () const
+std::unordered_map<std::string, PerfStats::Stat> PerfStats::GetAll() const
 {
     std::lock_guard<std::mutex>  lock (m_mutex);
     return m_stats;

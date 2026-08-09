@@ -139,14 +139,17 @@ public:
         Assert::IsFalse (st.motorOn.load (std::memory_order_relaxed));
     }
 
-    TEST_METHOD (IsSupportedDiskImageExtension_AcceptsAllFourCanonical)
+    TEST_METHOD (IsSupportedDiskImageExtension_AcceptsAllFiveCanonical)
     {
         Assert::IsTrue (IsSupportedDiskImageExtension (L"a.dsk"));
+        Assert::IsTrue (IsSupportedDiskImageExtension (L"a.do"));
         Assert::IsTrue (IsSupportedDiskImageExtension (L"a.nib"));
         Assert::IsTrue (IsSupportedDiskImageExtension (L"a.woz"));
         Assert::IsTrue (IsSupportedDiskImageExtension (L"a.po"));
         Assert::IsTrue (IsSupportedDiskImageExtension (L"C:\\path\\to\\BOOT.DSK"),
                         L"extension check must be case-insensitive");
+        Assert::IsTrue (IsSupportedDiskImageExtension (L"C:\\Demos\\MousePaint.DO"),
+                        L".do (DOS-ordered) must be accepted, case-insensitively");
     }
 
     TEST_METHOD (IsSupportedDiskImageExtension_RejectsUnknownAndBare)
@@ -160,15 +163,66 @@ public:
 
     TEST_METHOD (DoubleInsert_SamePathLeavesDoorClosedWithoutGlitching)
     {
-        DriveWidgetState  st;
+        DriveWidgetState        st;
+        DriveWidgetState::Door  before = {};
 
         st.BeginInsert (L"same.dsk", 0);
-        DriveWidgetState::Door  before = st.doorState;
+        before = st.doorState;
 
         st.BeginInsert (L"same.dsk", 100);
 
         Assert::IsTrue (st.doorState == before,
                         L"re-inserting the same path while closed must not retrigger animation");
         Assert::AreEqual (std::wstring (L"same.dsk"), st.mountedImagePath);
+    }
+
+    TEST_METHOD (WriteProtectTooltip_EmptyWhenNotProtected)
+    {
+        WriteProtectInfo  wp;
+
+        Assert::IsTrue (ComposeWriteProtectTooltip (wp).empty(),
+                        L"An unprotected disk yields no tooltip text");
+    }
+
+    TEST_METHOD (WriteProtectTooltip_NamesTheSingleSource)
+    {
+        WriteProtectInfo  wpSetting;
+        WriteProtectInfo  wpImage;
+        WriteProtectInfo  wpReadOnly;
+        WriteProtectInfo  wpNoPerm;
+
+        wpSetting.userSetting   = true;
+        wpImage.imageFlag       = true;
+        wpReadOnly.readOnlyFile = true;
+        wpNoPerm.noPermission   = true;
+
+        Assert::AreEqual (std::wstring (L"Disk is write-protected by the write-protect setting."),
+                          ComposeWriteProtectTooltip (wpSetting));
+        Assert::AreEqual (std::wstring (L"Disk is write-protected by the image's write-protect flag."),
+                          ComposeWriteProtectTooltip (wpImage));
+        Assert::AreEqual (std::wstring (L"Disk is write-protected by a read-only file."),
+                          ComposeWriteProtectTooltip (wpReadOnly));
+        Assert::AreEqual (std::wstring (L"Disk is write-protected by no write permission for the file."),
+                          ComposeWriteProtectTooltip (wpNoPerm));
+    }
+
+    TEST_METHOD (WriteProtectTooltip_JoinsMultipleSources)
+    {
+        WriteProtectInfo  wp;
+
+        wp.userSetting = true;
+        wp.imageFlag   = true;
+
+        Assert::AreEqual (
+            std::wstring (L"Disk is write-protected by the write-protect setting and the image's write-protect flag."),
+            ComposeWriteProtectTooltip (wp),
+            L"Two sources join with \" and \"");
+
+        wp.readOnlyFile = true;
+
+        Assert::AreEqual (
+            std::wstring (L"Disk is write-protected by the write-protect setting, the image's write-protect flag, and a read-only file."),
+            ComposeWriteProtectTooltip (wp),
+            L"Three sources use an Oxford-comma list");
     }
 };

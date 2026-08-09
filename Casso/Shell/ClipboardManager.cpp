@@ -14,26 +14,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    constexpr int   s_kTextRows         = 24;
-    constexpr int   s_kTextCols         = 40;
-    constexpr Word  s_kTextBase         = 0x0400;
-    constexpr Word  s_kRowGroupStride   = 0x28;
-    constexpr Word  s_kRowSubgroupStride = 0x80;
-    constexpr int   s_kRowsPerGroup     = 8;
-    constexpr Byte  s_kHighBitMask      = 0x80;
-    constexpr Byte  s_kInverseHighStart = 0xA0;
-    constexpr Byte  s_kPrintableLow     = 0x20;
-    constexpr Byte  s_kPrintableHigh    = 0x7E;
-    constexpr Byte  s_kCarriageReturn   = 0x0D;
-    constexpr wchar_t  s_kNewline       = L'\n';
-    constexpr wchar_t  s_kReturn        = L'\r';
-    constexpr int   s_kBitsPerByte      = 8;
-    constexpr int   s_kBytesPerPixel    = 4;
-    constexpr WORD  s_kDibBitCount      = 32;
-}
-
 
 
 
@@ -48,19 +28,19 @@ ClipboardManager::ClipboardManager (
     MemoryBus                & memoryBus,
     std::mutex               & cmdMutex,
     std::string              & pasteBuffer,
-    std::mutex               & fbMutex,
+    std::mutex               & framebufferMutex,
     std::vector<uint32_t>    & uiFramebuffer,
     int                        framebufferWidth,
     int                        framebufferHeight,
     AppleKeyboard          * * pKeyboardSlot)
-    : m_memoryBus         (memoryBus),
-      m_cmdMutex          (cmdMutex),
-      m_pasteBuffer       (pasteBuffer),
-      m_fbMutex           (fbMutex),
-      m_uiFramebuffer     (uiFramebuffer),
-      m_pKeyboardSlot     (pKeyboardSlot),
-      m_framebufferWidth  (framebufferWidth),
-      m_framebufferHeight (framebufferHeight)
+    : m_memoryBus          (memoryBus),
+      m_cmdMutex           (cmdMutex),
+      m_pasteBuffer        (pasteBuffer),
+      m_framebufferMutex   (framebufferMutex),
+      m_uiFramebuffer      (uiFramebuffer),
+      m_pKeyboardSlot      (pKeyboardSlot),
+      m_framebufferWidth   (framebufferWidth),
+      m_framebufferHeight  (framebufferHeight)
 {
 }
 
@@ -70,51 +50,102 @@ ClipboardManager::ClipboardManager (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CopyScreenText
+//  ClipboardManager::DecodeScreenByte
 //
-//  Read the 40x24 text screen via the memory bus rather than the
-//  CPU's internal memory[] buffer. On the //e the MMU owns its own
-//  RAM device(s), so writes from firmware land in the bus-side buffer
-//  while the CPU's mirror stays uninitialized. Trim trailing spaces
-//  per row and CRLF-terminate to match Windows clipboard conventions.
+//  Map one raw text-screen byte to a printable wchar. Normal, inverse, and
+//  flashing glyphs all live in the $80-$FF span, so strip the high bit and
+//  blank anything outside printable ASCII.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ClipboardManager::CopyScreenText (HWND hwnd) const
+wchar_t ClipboardManager::DecodeScreenByte (Byte ch)
 {
-    HGLOBAL    hMem  = nullptr;
-    wchar_t  * pDest = nullptr;
-    std::wstring text;
-    int        row   = 0;
-    int        col   = 0;
+    constexpr Byte  kInverseHighStart = 0xA0;
 
 
 
-    for (row = 0; row < s_kTextRows; row++)
+    if (ch >= kInverseHighStart)
     {
-        Word  base = static_cast<Word> (s_kTextBase
-                                        + (row / s_kRowsPerGroup) * s_kRowGroupStride
-                                        + (row % s_kRowsPerGroup) * s_kRowSubgroupStride);
+        ch -= kHighBitMask;
+    }
+    else if (ch >= kHighBitMask)
+    {
+        ch -= kHighBitMask;
+    }
 
-        for (col = 0; col < s_kTextCols; col++)
+    if (ch < kPrintableLow || ch > kPrintableHigh)
+    {
+        ch = ' ';
+    }
+
+    return static_cast<wchar_t> (ch);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildScreenText
+//
+//  Read the 24-row text screen as Unicode, 40 or 80 columns wide. Trailing
+//  spaces are trimmed per row and rows are CRLF-terminated to match Windows
+//  clipboard conventions. Pure (no clipboard/HWND) so it is unit testable.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
+{
+    constexpr int   kTextRows          = 24;
+    constexpr int   kTextCols          = 40;
+    constexpr Word  kTextBase          = 0x0400;
+    constexpr Word  kRowGroupStride    = 0x28;
+    constexpr Word  kRowSubgroupStride = 0x80;
+    constexpr int   kRowsPerGroup      = 8;
+    constexpr int   kTextCols80        = 80;
+    int             cols               = 0;
+
+
+
+    std::wstring  text;
+
+    // 80-column text interleaves auxiliary memory (even display columns) with
+    // main memory (odd columns). That layout is live only on a machine that
+    // has an aux bank AND currently has the 80-column display switched on
+    // (RD80VID, $C01F bit 7); otherwise the plain 40-column main page is read.
+    bool  eighty = (auxRam != nullptr)
+                && ((m_memoryBus.ReadByte (kRd80Vid) & kHighBitMask) != 0);
+    cols = eighty ? kTextCols80 : kTextCols;
+
+
+
+    for (int row = 0; row < kTextRows; row++)
+    {
+        Word  base = static_cast<Word> (kTextBase
+                                        + (row / kRowsPerGroup) * kRowGroupStride
+                                        + (row % kRowsPerGroup) * kRowSubgroupStride);
+
+        for (int col = 0; col < cols; col++)
         {
-            Byte  ch = m_memoryBus.ReadByte (static_cast<Word> (base + col));
+            Byte  ch = 0;
 
-            if (ch >= s_kInverseHighStart)
+            if (eighty)
             {
-                ch -= s_kHighBitMask;
+                Word  addr = static_cast<Word> (base + col / 2);
+
+                // Even columns come from aux memory, odd from main. The bus
+                // returns main at $0400-$07FF the same way the 40-column path
+                // relies on, so the aux read is the only new access.
+                ch = ((col & 1) == 0) ? auxRam[addr]
+                                      : m_memoryBus.ReadByte (addr);
             }
-            else if (ch >= s_kHighBitMask)
+            else
             {
-                ch -= s_kHighBitMask;
+                ch = m_memoryBus.ReadByte (static_cast<Word> (base + col));
             }
 
-            if (ch < s_kPrintableLow || ch > s_kPrintableHigh)
-            {
-                ch = ' ';
-            }
-
-            text += static_cast<wchar_t> (ch);
+            text += DecodeScreenByte (ch);
         }
 
         while (!text.empty() && text.back() == L' ')
@@ -125,28 +156,55 @@ void ClipboardManager::CopyScreenText (HWND hwnd) const
         text += L"\r\n";
     }
 
-    if (!OpenClipboard (hwnd))
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CopyScreenText
+//
+//  Scrape the emulated text screen (BuildScreenText) and hand it to the host
+//  clipboard as Unicode. Reads via the memory bus rather than the CPU's
+//  internal memory[] buffer: on the //e the MMU owns its own RAM device(s), so
+//  firmware writes land in the bus-side buffer while the CPU mirror stays
+//  uninitialized.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ClipboardManager::CopyScreenText (HWND hwnd, const Byte * auxRam) const
+{
+    HGLOBAL       hMem  = nullptr;
+    wchar_t     * pDest = nullptr;
+    std::wstring  text  = BuildScreenText (auxRam);
+
+
+
+    // Another process can hold the clipboard; a failed open is not an error
+    // worth surfacing, the copy just does not happen.
+    if (OpenClipboard (hwnd))
     {
-        return;
-    }
+        EmptyClipboard();
 
-    EmptyClipboard();
+        hMem = GlobalAlloc (GMEM_MOVEABLE, (text.size() + 1) * sizeof (wchar_t));
 
-    hMem = GlobalAlloc (GMEM_MOVEABLE, (text.size() + 1) * sizeof (wchar_t));
-
-    if (hMem != nullptr)
-    {
-        pDest = static_cast<wchar_t *> (GlobalLock (hMem));
-
-        if (pDest != nullptr)
+        if (hMem != nullptr)
         {
-            memcpy (pDest, text.c_str(), (text.size() + 1) * sizeof (wchar_t));
-            GlobalUnlock (hMem);
-            SetClipboardData (CF_UNICODETEXT, hMem);
-        }
-    }
+            pDest = static_cast<wchar_t *> (GlobalLock (hMem));
 
-    CloseClipboard();
+            if (pDest != nullptr)
+            {
+                memcpy (pDest, text.c_str(), (text.size() + 1) * sizeof (wchar_t));
+                GlobalUnlock (hMem);
+                SetClipboardData (CF_UNICODETEXT, hMem);
+            }
+        }
+
+        CloseClipboard();
+    }
 }
 
 
@@ -157,10 +215,32 @@ void ClipboardManager::CopyScreenText (HWND hwnd) const
 //
 //  CopyScreenshot
 //
+//  Copies the current emulator framebuffer to the clipboard as a CF_DIB.
+//
+//  CF_DIB is chosen over CF_BITMAP because it is device-independent: the
+//  bytes are self-describing and every paste target understands them, with no
+//  GDI object to create or leak.
+//
+//  Rows go out in REVERSE. A DIB with positive height is bottom-up by
+//  definition, while the framebuffer is stored top-down, so copying it
+//  straight through pastes the screen upside down.
+//
+//  The whole operation is done under the framebuffer lock, so the copy is one
+//  coherent frame rather than a tear across two.
+//
+//  Once the clipboard is open it MUST be closed on every path, which is why
+//  the two allocation failures fall through to the close rather than returning
+//  -- leaving the clipboard open locks it for the entire desktop.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ClipboardManager::CopyScreenshot (HWND hwnd)
 {
+    constexpr int   kBytesPerPixel    = 4;
+    constexpr WORD  kDibBitCount      = 32;
+
+
+
     HGLOBAL          hMem      = nullptr;
     BITMAPINFOHEADER bih       = {};
     size_t           dataSize  = 0;
@@ -173,58 +253,53 @@ void ClipboardManager::CopyScreenshot (HWND hwnd)
 
 
     {
-        std::lock_guard<std::mutex>  lock (m_fbMutex);
+        std::lock_guard<std::mutex>  lock (m_framebufferMutex);
 
-        dataSize  = static_cast<size_t> (w) * h * s_kBytesPerPixel;
+        dataSize  = static_cast<size_t> (w) * h * kBytesPerPixel;
         totalSize = sizeof (BITMAPINFOHEADER) + dataSize;
 
-        if (!OpenClipboard (hwnd))
+        // Once the clipboard is open it MUST be closed on every path, so the
+        // two allocation failures below cannot simply return.
+        if (OpenClipboard (hwnd))
         {
-            return;
-        }
+            EmptyClipboard();
 
-        EmptyClipboard();
+            hMem = GlobalAlloc (GMEM_MOVEABLE, totalSize);
 
-        hMem = GlobalAlloc (GMEM_MOVEABLE, totalSize);
+            if (hMem != nullptr)
+            {
+                pDest = static_cast<Byte *> (GlobalLock (hMem));
+            }
 
-        if (hMem == nullptr)
-        {
+            if (pDest != nullptr)
+            {
+                bih.biSize        = sizeof (bih);
+                bih.biWidth       = w;
+                bih.biHeight      = h;
+                bih.biPlanes      = 1;
+                bih.biBitCount    = kDibBitCount;
+                bih.biCompression = BI_RGB;
+                bih.biSizeImage   = static_cast<DWORD> (dataSize);
+
+                memcpy (pDest, &bih, sizeof (bih));
+                pDest += sizeof (bih);
+
+                // A DIB is bottom-up, so the framebuffer's rows go out in reverse.
+                for (y = h - 1; y >= 0; y--)
+                {
+                    memcpy (pDest,
+                            &m_uiFramebuffer[static_cast<size_t> (y) * w],
+                            static_cast<size_t> (w) * kBytesPerPixel);
+                    pDest += static_cast<size_t> (w) * kBytesPerPixel;
+                }
+
+                GlobalUnlock (hMem);
+                SetClipboardData (CF_DIB, hMem);
+            }
+
             CloseClipboard();
-            return;
         }
-
-        pDest = static_cast<Byte *> (GlobalLock (hMem));
-
-        if (pDest == nullptr)
-        {
-            CloseClipboard();
-            return;
-        }
-
-        bih.biSize        = sizeof (bih);
-        bih.biWidth       = w;
-        bih.biHeight      = h;
-        bih.biPlanes      = 1;
-        bih.biBitCount    = s_kDibBitCount;
-        bih.biCompression = BI_RGB;
-        bih.biSizeImage   = static_cast<DWORD> (dataSize);
-
-        memcpy (pDest, &bih, sizeof (bih));
-        pDest += sizeof (bih);
-
-        for (y = h - 1; y >= 0; y--)
-        {
-            memcpy (pDest,
-                    &m_uiFramebuffer[static_cast<size_t> (y) * w],
-                    static_cast<size_t> (w) * s_kBytesPerPixel);
-            pDest += static_cast<size_t> (w) * s_kBytesPerPixel;
-        }
-
-        GlobalUnlock (hMem);
-        SetClipboardData (CF_DIB, hMem);
     }
-
-    CloseClipboard();
 }
 
 
@@ -235,10 +310,35 @@ void ClipboardManager::CopyScreenshot (HWND hwnd)
 //
 //  PasteFromClipboard
 //
+//  Queues clipboard text for delivery to the guest keyboard, translating it
+//  to what an Apple II can actually receive.
+//
+//  Three translations happen, all of them necessary:
+//
+//    LF dropped     the Apple II line terminator is CR alone, so a Windows
+//                   CRLF would deliver a spurious extra keystroke
+//    CR mapped      to $0D, the code the keyboard latch expects
+//    non-ASCII      dropped entirely -- there is no key for a character the
+//                   machine has no encoding for, and passing one through
+//                   would land as an arbitrary control code
+//
+//  Text is queued rather than typed. The guest reads the keyboard latch at its
+//  own pace, so delivery is paced by DrainPasteBuffer against the strobe; this
+//  function only fills the buffer.
+//
+//  The buffer is filled under the command mutex because it is drained on the
+//  CPU thread.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ClipboardManager::PasteFromClipboard (HWND hwnd)
 {
+    constexpr Byte     kCarriageReturn = 0x0D;
+    constexpr wchar_t  kNewline        = L'\n';
+    constexpr wchar_t  kReturn         = L'\r';
+
+
+
     HANDLE     hData = nullptr;
     wchar_t  * pText = nullptr;
     size_t     i     = 0;
@@ -264,16 +364,16 @@ void ClipboardManager::PasteFromClipboard (HWND hwnd)
             {
                 wchar_t  ch = pText[i];
 
-                if (ch == s_kNewline)
+                if (ch == kNewline)
                 {
                     continue;
                 }
 
-                if (ch == s_kReturn)
+                if (ch == kReturn)
                 {
-                    m_pasteBuffer += static_cast<char> (s_kCarriageReturn);
+                    m_pasteBuffer += static_cast<char> (kCarriageReturn);
                 }
-                else if (ch >= s_kPrintableLow && ch < (wchar_t) (s_kPrintableHigh + 1))
+                else if (ch >= kPrintableLow && ch < (wchar_t) (kPrintableHigh + 1))
                 {
                     m_pasteBuffer += static_cast<char> (ch);
                 }
@@ -294,42 +394,55 @@ void ClipboardManager::PasteFromClipboard (HWND hwnd)
 //
 //  DrainPasteBuffer
 //
+//  Feeds ONE queued character to the guest keyboard, and only once the guest
+//  has consumed the previous one.
+//
+//  The strobe is the handshake, and it is what makes paste work at all. The
+//  Apple II keyboard latch holds a single character; writing a second before
+//  the guest has read the first simply overwrites it, so a paste that ignored
+//  the strobe would deliver a few random characters out of a whole paragraph.
+//  Gating on IsStrobeClear paces the entire paste at exactly the speed the
+//  running program reads.
+//
+//  Called from the per-instruction path, so it is deliberately cheap: a null
+//  check, a strobe read, and a lock taken only when there is something to
+//  send.
+//
+//  A zero character doubles as "nothing to send" -- the paste path never
+//  queues a NUL, so it needs no separate empty flag.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void ClipboardManager::DrainPasteBuffer ()
+void ClipboardManager::DrainPasteBuffer()
 {
     AppleKeyboard  * keyboard = nullptr;
     Byte             ch       = 0;
 
 
 
-    if (m_pKeyboardSlot == nullptr)
-    {
-        return;
-    }
+    keyboard = (m_pKeyboardSlot != nullptr) ? *m_pKeyboardSlot : nullptr;
 
-    keyboard = *m_pKeyboardSlot;
-    if (keyboard == nullptr)
+    // One character per call, and only once the guest has consumed the last
+    // one -- the strobe is the handshake that paces the whole paste.
+    if (keyboard != nullptr && keyboard->IsStrobeClear())
     {
-        return;
-    }
-
-    if (!keyboard->IsStrobeClear())
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_cmdMutex);
-
-        if (m_pasteBuffer.empty())
         {
-            return;
+            std::lock_guard<std::mutex>  lock (m_cmdMutex);
+
+            if (!m_pasteBuffer.empty())
+            {
+                ch = static_cast<Byte> (m_pasteBuffer[0]);
+                m_pasteBuffer.erase (m_pasteBuffer.begin());
+            }
         }
 
-        ch = static_cast<Byte> (m_pasteBuffer[0]);
-        m_pasteBuffer.erase (m_pasteBuffer.begin());
+        // ch stays 0 for an empty buffer; 0 is not a key the paste path ever
+        // queues, so it doubles as "nothing to send".
+        if (ch != 0)
+        {
+            keyboard->KeyPress (ch);
+        }
     }
-
-    keyboard->KeyPress (ch);
 }
+
+

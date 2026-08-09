@@ -1,5 +1,9 @@
 #pragma once
 
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiInput
@@ -45,13 +49,13 @@ struct DxuiModifierState
 
 struct DxuiEvent
 {
-    DxuiEventType      type     = DxuiEventType::None;
-    DxuiMouseButton    button   = DxuiMouseButton::None;
-    int              x        = 0;
-    int              y        = 0;
-    int              wheel    = 0;
-    UINT             keyCode  = 0;
-    wchar_t          ch       = 0;
+    DxuiEventType      type    = DxuiEventType::None;
+    DxuiMouseButton    button  = DxuiMouseButton::None;
+    int                x       = 0;
+    int                y       = 0;
+    int                wheel   = 0;
+    UINT               keyCode = 0;
+    wchar_t            ch      = 0;
     DxuiModifierState  mods;
 };
 
@@ -76,6 +80,6 @@ private:
 
     std::deque<DxuiEvent>  m_queue;
     DxuiModifierState      m_mods;
-    int                  m_mouseX = 0;
-    int                  m_mouseY = 0;
+    int                    m_mouseX = 0;
+    int                    m_mouseY = 0;
 };

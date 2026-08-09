@@ -6,14 +6,13 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DriveWidgetController
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DriveWidgetController::DriveWidgetController ()
+DriveWidgetController::DriveWidgetController()
 {
 }
 
@@ -27,7 +26,7 @@ DriveWidgetController::DriveWidgetController ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DriveWidgetController::~DriveWidgetController ()
+DriveWidgetController::~DriveWidgetController()
 {
     UnloadDocument();
 }
@@ -44,7 +43,7 @@ DriveWidgetController::~DriveWidgetController ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DriveWidgetController::RegisterInstancer ()
+void DriveWidgetController::RegisterInstancer()
 {
 }
 
@@ -77,7 +76,7 @@ HRESULT DriveWidgetController::LoadDocument (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DriveWidgetController::UnloadDocument ()
+void DriveWidgetController::UnloadDocument()
 {
 }
 
@@ -151,9 +150,11 @@ uint64_t DriveWidgetController::PublishSyncEvent (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DriveWidgetController::DriveSyncEvent> DriveWidgetController::ConsumeSyncEvents ()
+std::vector<DriveWidgetController::DriveSyncEvent> DriveWidgetController::ConsumeSyncEvents()
 {
     std::vector<DriveSyncEvent>  out;
+
+
 
     out.swap (m_syncEvents);
 

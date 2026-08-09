@@ -17,7 +17,7 @@ EmuCpu::EmuCpu (MemoryBus & memoryBus)
     : m_memoryBus (memoryBus),
       m_cpu       (std::make_unique<MemoryBusCpu> (memoryBus))
 {
-    m_cpu6502 = static_cast<Cpu6502 *> (static_cast<MemoryBusCpu *> (m_cpu.get ()));
+    m_cpu6502 = static_cast<Cpu6502 *> (static_cast<MemoryBusCpu *> (m_cpu.get()));
 }
 
 
@@ -39,7 +39,7 @@ EmuCpu::EmuCpu (MemoryBus & memoryBus, std::unique_ptr<ICpu> cpu)
     // accessors are unavailable; downstream callers must use GetCpu()
     // instead. dynamic_cast is used so a future non-6502 ICpu surfaces
     // m_cpu6502 == nullptr rather than an unsafe reinterpretation.
-    m_cpu6502 = dynamic_cast<Cpu6502 *> (m_cpu.get ());
+    m_cpu6502 = dynamic_cast<Cpu6502 *> (m_cpu.get());
 }
 
 
@@ -66,6 +66,11 @@ void EmuCpu::AddCycles (Byte n)
     if (m_videoTiming != nullptr)
     {
         m_videoTiming->Tick (n);
+    }
+
+    if (m_cycleSink != nullptr)
+    {
+        m_cycleSink->Tick (n);
     }
 }
 
@@ -114,7 +119,9 @@ void EmuCpu::WriteWord (Word address, Word value)
 
 void EmuCpu::InitForEmulation (Prng & prng)
 {
-    MemoryBusCpu * pBusCpu = dynamic_cast<MemoryBusCpu *> (m_cpu.get ());
+    MemoryBusCpu * pBusCpu = dynamic_cast<MemoryBusCpu *> (m_cpu.get());
+
+
 
     if (pBusCpu)
     {
@@ -137,13 +144,15 @@ void EmuCpu::InitForEmulation (Prng & prng)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmuCpu::SoftReset ()
+void EmuCpu::SoftReset()
 {
-    MemoryBusCpu * pBusCpu = dynamic_cast<MemoryBusCpu *> (m_cpu.get ());
+    MemoryBusCpu * pBusCpu = dynamic_cast<MemoryBusCpu *> (m_cpu.get());
+
+
 
     if (pBusCpu)
     {
-        pBusCpu->SoftReset ();
+        pBusCpu->SoftReset();
     }
 }
 
@@ -162,7 +171,9 @@ void EmuCpu::SoftReset ()
 
 void EmuCpu::PowerCycle (Prng & prng)
 {
-    MemoryBusCpu * pBusCpu = dynamic_cast<MemoryBusCpu *> (m_cpu.get ());
+    MemoryBusCpu * pBusCpu = dynamic_cast<MemoryBusCpu *> (m_cpu.get());
+
+
 
     if (pBusCpu)
     {

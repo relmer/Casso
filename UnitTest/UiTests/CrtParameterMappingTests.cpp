@@ -12,6 +12,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CrtParameterMappingTests
@@ -29,6 +31,14 @@ public:
 
     TEST_METHOD (Load_ClampsOutOfRangeValuesToDocumentedBounds)
     {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        JsonValue           parsed;
+        JsonParseError      err;
+        HRESULT             hr;
+
+
+
         // Hand-built JSON with values outside every documented range. The
         // FromJson clamp logic should pull each one back to its bound so
         // a manually-edited prefs file can't drive the shaders into
@@ -47,17 +57,12 @@ public:
             "  }\n"
             "}\n";
 
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     prefs;
-        JsonValue           parsed;
-        JsonParseError      err;
-        HRESULT             hr;
 
         hr = JsonParser::Parse (json, parsed, err);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = prefs.FromJson (parsed);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::AreEqual (2.0f,  prefs.crtByMode[0].brightness);
         Assert::AreEqual (1.0f,  prefs.crtByMode[0].scanlinesIntensity);
@@ -95,6 +100,10 @@ public:
 
     TEST_METHOD (MakeCrtParams_DisabledEffectsZeroOutMagnitudes)
     {
+        CrtParams  params = {};
+
+
+
         // Even with the effect *sliders* set to non-defaults, an effect
         // whose `enabled` toggle is false must contribute zero to the
         // shader uniforms; that's how `CrtPostProcess::Process` keeps a
@@ -110,7 +119,7 @@ public:
         prefs.crtByMode[0].colorBleedEnabled   = false;
         prefs.crtByMode[0].colorBleedWidth     = 2.5f;
 
-        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 800.0f, 600.0f);
+        params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 800.0f, 600.0f);
 
         Assert::AreEqual (1.5f, params.brightness);
         Assert::AreEqual (0.0f, params.scanlineIntensity);
@@ -123,6 +132,7 @@ public:
     TEST_METHOD (MakeCrtParams_EnabledEffectsPropagateSliderValues)
     {
         GlobalUserPrefs  prefs;
+        CrtParams        params = {};
         prefs.crtByMode[0].userOverride        = true;
         prefs.crtByMode[0].brightness          = 1.2f;
         prefs.crtByMode[0].contrast            = 1.6f;
@@ -134,7 +144,7 @@ public:
         prefs.crtByMode[0].colorBleedEnabled   = true;
         prefs.crtByMode[0].colorBleedWidth     = 1.5f;
 
-        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 1024.0f, 768.0f);
+        params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 1024.0f, 768.0f);
 
         Assert::AreEqual (1.2f, params.brightness);
         Assert::AreEqual (1.6f, params.contrast);
@@ -168,8 +178,8 @@ public:
 
         // Case 1 -- no user override; theme wins.
         {
-            GlobalUserPrefs  prefs;          // userOverride == false
-            CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, &theme, 640.0f, 480.0f);
+            GlobalUserPrefs  prefs;   // userOverride == false
+            CrtParams        params = MakeCrtParams (prefs.crtByMode[0], 0, &theme, 640.0f, 480.0f);
 
             Assert::AreEqual (0.85f, params.brightness);
             Assert::AreEqual (1.15f, params.contrast);
@@ -183,6 +193,7 @@ public:
         // values for the same fields.
         {
             GlobalUserPrefs  prefs;
+            CrtParams        params = {};
             prefs.crtByMode[0].userOverride       = true;
             prefs.crtByMode[0].brightness         = 1.4f;
             prefs.crtByMode[0].contrast           = 0.7f;
@@ -194,7 +205,7 @@ public:
             prefs.crtByMode[0].colorBleedEnabled  = false;
             prefs.crtByMode[0].colorBleedWidth    = 0.5f;
 
-            CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, &theme, 640.0f, 480.0f);
+            params = MakeCrtParams (prefs.crtByMode[0], 0, &theme, 640.0f, 480.0f);
 
             Assert::AreEqual (1.4f, params.brightness);
             Assert::AreEqual (0.7f, params.contrast);
@@ -208,6 +219,13 @@ public:
 
     TEST_METHOD (FromJson_WithoutCrtSection_LeavesUserOverrideFalseAndDefaults)
     {
+        GlobalUserPrefs     prefs;
+        JsonValue           parsed;
+        JsonParseError      err;
+        HRESULT             hr;
+
+
+
         // Document containing every top-level field EXCEPT `crt`. The
         // user-override flag must stay false so the theme defaults path
         // can win on first run, and every CRT field must equal its
@@ -219,16 +237,12 @@ public:
             "  \"window\": { \"fullscreen\": false }\n"
             "}\n";
 
-        GlobalUserPrefs     prefs;
-        JsonValue           parsed;
-        JsonParseError      err;
-        HRESULT             hr;
 
         hr = JsonParser::Parse (json, parsed, err);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = prefs.FromJson (parsed);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::IsFalse  (prefs.crtByMode[0].userOverride);
         Assert::AreEqual (1.0f,  prefs.crtByMode[0].brightness);
@@ -244,6 +258,11 @@ public:
 
     TEST_METHOD (ComputeLetterboxRect_HandlesPillarboxAndLetterbox)
     {
+        RECT  lb = {};
+        RECT  ex = {};
+
+
+
         // Wide window -> pillarbox (vertical black bars on left + right).
         RECT  pb = ComputeLetterboxRect (1600, 900);
         Assert::AreEqual (1200L, (long) (pb.right - pb.left));
@@ -252,14 +271,14 @@ public:
         Assert::AreEqual (0L,    (long) pb.top);
 
         // Tall window -> letterbox (horizontal bars on top + bottom).
-        RECT  lb = ComputeLetterboxRect (800, 800);
+        lb = ComputeLetterboxRect (800, 800);
         Assert::AreEqual (800L, (long) (lb.right - lb.left));
         Assert::AreEqual (600L, (long) (lb.bottom - lb.top));
         Assert::AreEqual (0L,   (long) lb.left);
         Assert::AreEqual (100L, (long) lb.top);
 
         // Exact 4:3 -> full window, no bars.
-        RECT  ex = ComputeLetterboxRect (1024, 768);
+        ex = ComputeLetterboxRect (1024, 768);
         Assert::AreEqual (0L,    (long) ex.left);
         Assert::AreEqual (0L,    (long) ex.top);
         Assert::AreEqual (1024L, (long) ex.right);

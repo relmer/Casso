@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -215,6 +215,7 @@
     </ClCompile>
     <ClCompile Include="CpuInitializationTests.cpp" />
     <ClCompile Include="CpuOperationTests.cpp" />
+    <ClCompile Include="UndocumentedOpcodeTests.cpp" />
     <ClCompile Include="Cpu6502InterfaceTests.cpp" />
     <ClCompile Include="CpuIrqTests.cpp" />
     <ClCompile Include="AddressingModeTests.cpp" />
@@ -227,6 +228,7 @@
     <ClCompile Include="MacroTests.cpp" />
     <ClCompile Include="ConstantTests.cpp" />
     <ClCompile Include="DirectiveTests.cpp" />
+    <ClCompile Include="DirectiveTokenTests.cpp" />
     <ClCompile Include="IncludeTests.cpp" />
     <ClCompile Include="StructTests.cpp" />
     <ClCompile Include="CmapTests.cpp" />
@@ -235,6 +237,7 @@
     <ClCompile Include="DormannIntegrationTests.cpp" />
     <ClCompile Include="EhmTestHelper.cpp" />
     <ClCompile Include="HarteTestRunner.cpp" />
+    <ClCompile Include="TestCpu65C02Tests.cpp" />
     <ClCompile Include="ModuleSetup.cpp" />
     <ClCompile Include="RegressionTests.cpp" />
     <ClCompile Include="EmuTests\MemoryBusTests.cpp" />
@@ -254,6 +257,9 @@
     <ClCompile Include="EmuTests\RegistryTests.cpp" />
     <ClCompile Include="EmuTests\PathResolverTests.cpp" />
     <ClCompile Include="EmuTests\MachineConfigTests.cpp" />
+    <ClCompile Include="EmuTests\Apple2cRomBankTests.cpp" />
+    <ClCompile Include="EmuTests\Apple2cBootTests.cpp" />
+    <ClCompile Include="EmuTests\AppleMouseTests.cpp" />
     <ClCompile Include="EmuTests\MachineConfigUpgradeTests.cpp" />
     <ClCompile Include="EmuTests\MachineScannerTests.cpp" />
     <ClCompile Include="EmuTests\VideoModeTests.cpp" />
@@ -275,6 +281,10 @@
     <ClCompile Include="EmuTests\HeadlessHost.cpp" />
     <ClCompile Include="EmuTests\HeadlessHostTests.cpp" />
     <ClCompile Include="EmuTests\Acia6551Tests.cpp" />
+    <ClCompile Include="EmuTests\Cpu65C02Tests.cpp" />
+    <ClCompile Include="EmuTests\Via6522Tests.cpp" />
+    <ClCompile Include="EmuTests\Ay8910Tests.cpp" />
+    <ClCompile Include="EmuTests\MockingboardCardTests.cpp" />
     <ClCompile Include="EmuTests\InterruptControllerTests.cpp" />
     <ClCompile Include="EmuTests\MmuTests.cpp" />
     <ClCompile Include="EmuTests\ResetSemanticsTests.cpp" />
@@ -290,6 +300,7 @@
     <ClCompile Include="EmuTests\BootDiskTests.cpp" />
     <ClCompile Include="EmuTests\GameBootTests.cpp" />
     <ClCompile Include="EmuTests\CatalogReproductionTest.cpp" />
+    <ClCompile Include="EmuTests\DiskWritePathTests.cpp" />
     <ClCompile Include="EmuTests\Pr3AuxClearTest.cpp" />
     <ClCompile Include="EmuTests\DiskReadbackTests.cpp" />
     <ClCompile Include="EmuTests\EmuValidationSuiteTests.cpp" />
@@ -298,6 +309,7 @@
     <ClCompile Include="EmuTests\DiskAudioFetchTests.cpp" />
     <ClCompile Include="EmuTests\PerformanceTests.cpp" />
     <ClCompile Include="Audio\Disk2AudioSourceStateTests.cpp" />
+    <ClCompile Include="Audio\PrinterAudioSourceTests.cpp" />
     <ClCompile Include="Audio\Disk2AudioSourcePlaybackTests.cpp" />
     <ClCompile Include="Audio\Disk2AudioSourceSeekTests.cpp" />
     <ClCompile Include="Audio\DriveAudioMixerTests.cpp" />
@@ -307,6 +319,27 @@
     <ClCompile Include="Devices\Disk2EventRingTests.cpp" />
     <ClCompile Include="Devices\Disk2AddressMarkWatcherTests.cpp" />
     <ClCompile Include="Devices\Disk2ControllerEventTests.cpp" />
+    <ClCompile Include="PrinterTests\PrinterByteRingTests.cpp" />
+    <ClCompile Include="PrinterTests\PrinterCardTests.cpp" />
+    <ClCompile Include="PrinterTests\FirmwareParityTests.cpp" />
+    <ClCompile Include="PrinterTests\PrintRasterTests.cpp" />
+    <ClCompile Include="PrinterTests\PaperRendererTests.cpp" />
+    <ClCompile Include="PrinterTests\PrintJobSerializerTests.cpp" />
+    <ClCompile Include="PrinterTests\ImageWriterInterpreterTests.cpp" />
+    <ClCompile Include="PrinterTests\PrinterHeadTests.cpp" />
+    <ClCompile Include="PrinterTests\PrinterEngineTests.cpp" />
+    <ClCompile Include="PrinterTests\PrinterPreviewModelTests.cpp" />
+    <ClCompile Include="PrinterTests\PrinterPipelineTests.cpp" />
+    <ClCompile Include="PrinterTests\PrinterJobTests.cpp" />
+    <ClCompile Include="PrinterTests\PngCodecTests.cpp" />
+    <ClCompile Include="PrinterTests\PrintJobPersistenceTests.cpp" />
+    <ClCompile Include="PrinterTests\PrintFileNamingTests.cpp" />
+    <ClCompile Include="PrinterTests\PrintDeliveryTests.cpp" />
+    <ClCompile Include="PrinterTests\ImageWriterCalibrationTests.cpp" />
+    <ClCompile Include="PrinterTests\PrintPaginationTests.cpp" />
+    <ClCompile Include="PrinterTests\ObjMeshParserTests.cpp" />
+    <ClCompile Include="PrinterTests\PrinterStatusModelTests.cpp" />
+    <ClCompile Include="PrinterTests\PrinterViewportTests.cpp" />
     <ClCompile Include="..\Casso\CassoPch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
@@ -361,6 +394,10 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Chrome\CassoBranding.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="..\Casso\Ui\Chrome\DriveWidget.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
@@ -393,10 +430,23 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Chrome\InputDeviceSelector.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Chrome\Apple2cSwitchBar.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Shell\ClipboardManager.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="..\Casso\CrtPostProcess.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="Casso\ClipboardTextTests.cpp" />
     <ClCompile Include="Casso\TrackSectorPredicateTests.cpp" />
     <ClCompile Include="Casso\DebugDialogProjectionTests.cpp" />
     <ClCompile Include="Casso\InputDebugFilterTests.cpp" />
@@ -414,7 +464,6 @@
     <ClCompile Include="UiTests\DxuiModalScrimTests.cpp" />
     <ClCompile Include="UiTests\DxuiTooltipTests.cpp" />
     <ClCompile Include="UiTests\DxuiTabStripTests.cpp" />
-    <ClCompile Include="UiTests\TitleBarHitTestTests.cpp" />
     <ClCompile Include="UiTests\ChromeCommandRoutingTests.cpp" />
     <ClCompile Include="UiTests\ThemeLoaderTests.cpp" />
     <ClCompile Include="UiTests\ThemeManagerTests.cpp" />
@@ -430,16 +479,18 @@
     <ClCompile Include="UiTests\ColorUtilTests.cpp" />
     <ClCompile Include="UiTests\HardwareTreeTests.cpp" />
     <ClCompile Include="UiTests\HardwarePageTests.cpp" />
+    <ClCompile Include="UiTests\InputDeviceSelectorTests.cpp" />
+    <ClCompile Include="UiTests\Apple2cSwitchBarTests.cpp" />
     <ClCompile Include="UiTests\CrtParameterMappingTests.cpp" />
     <ClCompile Include="UiTests\CrtLetterboxLayoutTests.cpp" />
     <ClCompile Include="UiTests\DpiScalerTests.cpp" />
     <ClCompile Include="UiTests\Win11DwmHelpersTests.cpp" />
     <ClCompile Include="UiTests\HitTesterTests.cpp" />
-    <ClCompile Include="UiTests\NcHitTestTests.cpp" />
     <ClCompile Include="UiTests\AnimationSyncTests.cpp" />
     <ClCompile Include="UiTests\DxuiPainterTests.cpp" />
     <ClCompile Include="Dxui\DxuiFocusManagerTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceAdoptModeTests.cpp" />
+    <ClCompile Include="Dxui\DxuiHwndSourcePlacementTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceClientTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceTests.cpp" />
     <ClCompile Include="Dxui\DxuiPropertyPageTests.cpp" />
@@ -448,7 +499,10 @@
     <ClCompile Include="Dxui\DxuiLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiPanelTests.cpp" />
+    <ClCompile Include="Dxui\DxuiPanZoomTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupHostTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
+    <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarTests.cpp" />
     <ClCompile Include="Dxui\DxuiStackLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiViewportTests.cpp" />
@@ -459,6 +513,7 @@
     <ClCompile Include="Dxui\MockDxuiThemeTests.cpp" />
     <ClCompile Include="Devices\Disk2DebugDialogTests.cpp" />
     <ClCompile Include="DiskMruTests.cpp" />
+    <ClCompile Include="RepoCheckoutTests.cpp" />
     <ClCompile Include="DriveLabelTruncationTests.cpp" />
     <ClCompile Include="StartupDownloadSetTests.cpp" />
     <ClCompile Include="Disk2DebugPanelLayoutTests.cpp" />
@@ -474,6 +529,7 @@
   <ItemGroup>
     <ClInclude Include="Pch.h" />
     <ClInclude Include="TestHelpers.h" />
+    <ClInclude Include="TestCpu65C02.h" />
     <ClInclude Include="EhmTestHelper.h" />
     <ClInclude Include="HarteTestRunner.h" />
     <ClInclude Include="EmuTests\IFixtureProvider.h" />

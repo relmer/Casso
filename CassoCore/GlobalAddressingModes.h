@@ -28,6 +28,12 @@ public:
         JumpIndirect,        // Jump indirect
         Relative,            // Relative offset (2 bytes)
         SingleByteNoOperand, // Single byte instruction (no operand)
+
+        // 65C02 (CMOS) additions.
+        ZeroPageIndirect,    // (Zero Page)        -> ($00LL)
+        AbsoluteXIndirect,   // (Absolute, X)      -> JMP only
+        ZeroPageRelative,    // Zero Page, Relative -> BBRx/BBSx (3 bytes)
+        JumpIndirectCmos,    // Jump (Indirect)    -> 65C02 page-boundary fix
         __Count
     };
 
@@ -47,5 +53,9 @@ public:
         "Jump (Indirect)",
         "Relative",
         "[No Operand]",
+        "(Zero Page)",
+        "(Absolute, X)",
+        "Zero Page, Relative",
+        "Jump (Indirect)",
     };
 };

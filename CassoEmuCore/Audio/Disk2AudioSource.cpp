@@ -209,11 +209,7 @@ HRESULT Disk2AudioSource::LoadSamples (
     fs::path        fullPath;
     vector<float>   slots[s_kcSampleFiles];
 
-    if (devicesDir == nullptr || mechanism == nullptr || targetSampleRate == 0)
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
+    CBRAEx (devicesDir != nullptr && mechanism != nullptr && targetSampleRate != 0, E_INVALIDARG);
 
     baseDir = fs::path (devicesDir);
     mechDir = baseDir / mechanism;
@@ -438,6 +434,15 @@ void Disk2AudioSource::OnMotorEngaged()
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMotorDisengaged
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Disk2AudioSource::OnMotorDisengaged()
 {
     m_motorRunning = false;
@@ -469,13 +474,17 @@ void Disk2AudioSource::OnMotorDisengaged()
 
 void Disk2AudioSource::OnHeadStep (int newQt)
 {
-    (void) newQt;
-
     bool      withinSeekWindow     = false;
     bool      previousStillPlaying = false;
-    bool      wasInSeekMode        = m_seekMode;
+    bool      wasInSeekMode        = false;
     uint64_t  gap                  = 0;
     uint32_t  headLen              = 0;
+
+
+
+    (void) newQt;
+
+    wasInSeekMode = m_seekMode;
 
     if (m_lastStepCycle != 0 && m_currentCycle >= m_lastStepCycle)
     {
@@ -567,6 +576,8 @@ void Disk2AudioSource::OnHeadBump()
     uint32_t  slot                 = 0;
     uint32_t  headLen              = 0;
 
+
+
     if (m_headBuf != nullptr)
     {
         headLen              = static_cast<uint32_t> (m_headBuf->size());
@@ -611,6 +622,7 @@ void Disk2AudioSource::OnHeadBump()
         TriggerHeadShot (SoundKind::HeadStep, &m_stepBuf, previousStillPlaying);
     }
 }
+
 
 
 
@@ -675,6 +687,8 @@ void Disk2AudioSource::OnDiskInserted()
 {
     bool  wasPresent = m_diskPresent;
 
+
+
     m_diskPresent = true;
     m_doorBuf     = &m_doorCloseBuf;
     m_doorPos     = 0;
@@ -699,9 +713,40 @@ void Disk2AudioSource::OnDiskInserted()
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDiskEjected
+//
+//  Starts the door-open sound and stops the motor loop, because an empty drive
+//  makes no media noise.
+//
+//  The motor sound is a property of the DISK, not the motor: a spindle turning
+//  with nothing on it is nearly silent, so the loop stops even though the
+//  motor may still be running.
+//
+//  Playback positions are reset so the door sound starts from its beginning
+//  rather than wherever a previous door sound was interrupted -- eject and
+//  insert can follow each other quickly.
+//
+//  The previous presence is captured BEFORE the flag is cleared, so the
+//  loop-stopped event is emitted only when a disk really was there; ejecting
+//  an already-empty drive should report nothing.
+//
+//  A missing sample buffer is reported as an explicit SILENT event rather than
+//  passing quietly. These events drive the debug panel, and "no sound because
+//  the buffer is missing" is a diagnosis, whereas silence with no event is a
+//  mystery.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Disk2AudioSource::OnDiskEjected()
 {
     bool  wasPresent = m_diskPresent;
+
+
 
     m_diskPresent = false;
     m_doorBuf     = &m_doorOpenBuf;
@@ -776,6 +821,8 @@ void Disk2AudioSource::MixMotor (float * out, uint32_t n)
     uint32_t  len = static_cast<uint32_t> (m_motorBuf.size());
     uint32_t  i   = 0;
 
+
+
     if (!m_motorRunning || !m_diskPresent || len == 0)
     {
         return;
@@ -808,28 +855,16 @@ void Disk2AudioSource::MixMotor (float * out, uint32_t n)
 
 void Disk2AudioSource::MixHead (float * out, uint32_t n)
 {
-    uint32_t  len = 0;
+    uint32_t  len = (m_headBuf != nullptr) ? static_cast<uint32_t> (m_headBuf->size()) : 0;
     uint32_t  i   = 0;
 
-    if (m_headBuf == nullptr)
+
+
+    // No buffer and an empty buffer are the same thing here: silence. The
+    // loop then mixes until either the output frame or the sample runs out --
+    // this is a one-shot, so a short sample simply stops contributing.
+    for (i = 0; i < n && m_headPos < len; i++)
     {
-        return;
-    }
-
-    len = static_cast<uint32_t> (m_headBuf->size());
-
-    if (len == 0)
-    {
-        return;
-    }
-
-    for (i = 0; i < n; i++)
-    {
-        if (m_headPos >= len)
-        {
-            break;
-        }
-
         out[i] += (*m_headBuf)[m_headPos] * m_headVolume;
         m_headPos++;
     }
@@ -849,32 +884,19 @@ void Disk2AudioSource::MixHead (float * out, uint32_t n)
 
 void Disk2AudioSource::MixDoor (float * out, uint32_t n)
 {
-    uint32_t  len = 0;
+    uint32_t  len = (m_doorBuf != nullptr) ? static_cast<uint32_t> (m_doorBuf->size()) : 0;
     uint32_t  i   = 0;
 
-    if (m_doorBuf == nullptr)
+
+
+    // Same one-shot shape as MixHead.
+    for (i = 0; i < n && m_doorPos < len; i++)
     {
-        return;
-    }
-
-    len = static_cast<uint32_t> (m_doorBuf->size());
-
-    if (len == 0)
-    {
-        return;
-    }
-
-    for (i = 0; i < n; i++)
-    {
-        if (m_doorPos >= len)
-        {
-            break;
-        }
-
         out[i] += (*m_doorBuf)[m_doorPos] * m_doorVolume;
         m_doorPos++;
     }
 }
+
 
 
 
@@ -904,6 +926,7 @@ void Disk2AudioSource::MixTest (float * out, uint32_t n)
     {
         m_testBuf = nullptr;
     }
+
     BAIL_OUT_IF (len == 0, S_OK);
 
     for (i = 0; i < n; i++)

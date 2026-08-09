@@ -5,17 +5,6 @@
 
 
 
-namespace
-{
-    constexpr float    s_kGlyphFontDip  = 12.0f;
-    constexpr float    s_kFocusRingPx   = 1.5f;
-    constexpr float    s_kFocusInsetPx  = -2.0f;
-    constexpr float    s_kDoubleInset   = 2.0f;
-    constexpr wchar_t  s_kMdl2Family[]  = L"Segoe MDL2 Assets";
-}
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -27,6 +16,7 @@ DxuiIconButton::DxuiIconButton()
 {
     m_focusable = true;
 }
+
 
 
 
@@ -43,6 +33,7 @@ bool DxuiIconButton::HitTest (int x, int y) const
            x >= m_boundsDip.left && x < m_boundsDip.right &&
            y >= m_boundsDip.top  && y < m_boundsDip.bottom;
 }
+
 
 
 
@@ -70,19 +61,21 @@ void DxuiIconButton::SetMouse (int x, int y, bool down)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Click
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiIconButton::Click ()
+void DxuiIconButton::Click()
 {
     if (m_visible && m_enabled && m_click)
     {
         m_click();
     }
 }
+
 
 
 
@@ -102,9 +95,19 @@ void DxuiIconButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnMouse  (IDxuiControl override)
+//  OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move only updates hover and is reported unhandled, so the pointer
+//  crossing the button does not consume moves other widgets want.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,6 +133,7 @@ bool DxuiIconButton::OnMouse (const DxuiMouseEvent & ev)
             SetMouse (ev.positionDip.x, ev.positionDip.y, true);
             handled = m_pressed;
         }
+
         break;
 
     case DxuiMouseEventKind::Up:
@@ -142,6 +146,7 @@ bool DxuiIconButton::OnMouse (const DxuiMouseEvent & ev)
                 Click();
             }
         }
+
         break;
 
     default:
@@ -154,6 +159,7 @@ bool DxuiIconButton::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnKey  (IDxuiControl override)
@@ -162,45 +168,72 @@ bool DxuiIconButton::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiIconButton::OnKey (const DxuiKeyEvent & ev)
 {
-    if (!m_visible || !m_enabled || !m_focused)
-    {
-        return false;
-    }
+    // Key-down only: key-up would fire the click a second time.
+    bool  clicks = m_visible && m_enabled && m_focused
+                   && ev.kind == DxuiKeyEventKind::Down
+                   && (ev.vk == VK_SPACE || ev.vk == VK_RETURN);
 
-    if (ev.kind != DxuiKeyEventKind::Down)
-    {
-        return false;
-    }
-
-    if (ev.vk == VK_SPACE || ev.vk == VK_RETURN)
+    if (clicks)
     {
         Click();
-        return true;
     }
 
-    return false;
+    return clicks;
 }
 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Paint  (IDxuiControl override)
+//  Paint
+//
+//  Draws a glyph-only button: no border, no fill, until it is interacted with.
+//
+//  The glyph comes from Segoe MDL2 Assets, so these buttons use the same icon
+//  set as the rest of Windows and need no bitmap assets shipped or scaled.
+//
+//  An idle icon button paints ONLY its glyph. That is what makes a row of them
+//  read as a strip of icons rather than a row of boxes; the hover fill appears
+//  only when the pointer is actually over one.
+//
+//  Hover changes the glyph to the accent color as well as filling the
+//  background, so the affordance is legible even where the fill is subtle.
+//
+//  The focus ring insets NEGATIVELY -- drawn just outside the bounds -- so it
+//  never crowds the glyph in what is already a small target.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    HRESULT   hr         = S_OK;
-    float     x          = (float) m_boundsDip.left;
-    float     y          = (float) m_boundsDip.top;
-    float     w          = (float) (m_boundsDip.right  - m_boundsDip.left);
-    float     h          = (float) (m_boundsDip.bottom - m_boundsDip.top);
-    float     glyphDip   = m_scaler.Pxf (s_kGlyphFontDip);
-    float     focusInset = m_scaler.Pxf (s_kFocusInsetPx);
-    float     focusThick = m_scaler.Pxf (s_kFocusRingPx);
-    uint32_t  glyphArgb  = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
+    constexpr float  kGlyphFontDip = 12.0f;
+    constexpr float  kFocusRingPx  = 1.5f;
+    constexpr float  kFocusInsetPx = -2.0f;
+    constexpr float  kDoubleInset  = 2.0f;
+    HRESULT          hr            = S_OK;
+    float            x             = 0.0f;
+    float            y             = 0.0f;
+    float            w             = 0.0f;
+    float            h             = 0.0f;
+    float            glyphDip      = 0.0f;
+    float            focusInset    = 0.0f;
+    float            focusThick    = 0.0f;
+    uint32_t         glyphArgb     = 0;
+
+
+
+    constexpr wchar_t  kMdl2Family[]  = L"Segoe MDL2 Assets";
+
+    x = (float) m_boundsDip.left;
+    y = (float) m_boundsDip.top;
+    w = (float) (m_boundsDip.right  - m_boundsDip.left);
+    h = (float) (m_boundsDip.bottom - m_boundsDip.top);
+    glyphDip = m_scaler.Pxf (kGlyphFontDip);
+    focusInset = m_scaler.Pxf (kFocusInsetPx);
+    focusThick = m_scaler.Pxf (kFocusRingPx);
+    glyphArgb = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
 
 
 
@@ -219,7 +252,7 @@ void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                           h,
                           glyphArgb,
                           glyphDip,
-                          s_kMdl2Family,
+                          kMdl2Family,
                           DxuiTextHAlign::Center,
                           DxuiTextVAlign::Center);
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -228,8 +261,8 @@ void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     {
         painter.OutlineRect (x + focusInset,
                              y + focusInset,
-                             w - focusInset * s_kDoubleInset,
-                             h - focusInset * s_kDoubleInset,
+                             w - focusInset * kDoubleInset,
+                             h - focusInset * kDoubleInset,
                              focusThick,
                              theme.FocusRing());
     }
@@ -237,3 +270,4 @@ void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 Error:
     return;
 }
+

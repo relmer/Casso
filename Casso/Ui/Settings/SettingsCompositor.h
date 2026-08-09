@@ -5,6 +5,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SettingsCompositor
@@ -58,6 +59,17 @@ public:
                       int                        heightPx);
 
 private:
+    static constexpr UINT   kMaxBoundPsSrvSlots   = 2;
+    static constexpr UINT   kFullscreenIndexCount = 6;
+    static constexpr UINT   kTexCoordOffsetBytes  = sizeof (float) * 2;
+    static constexpr float  kGaussianRadiusPx     = 8.0f;
+    static constexpr float  kDimFactor            = 0.25f;
+
+    // Feather the focused-control sharp pop-out by this many pixels beyond the
+    // control's row rect so the boundary against the blurred backdrop reads as a
+    // soft halo, not a harsh edge.
+    static constexpr float  kFocusFeatherPx       = 24.0f;
+
     struct SettingsBlurParams
     {
         float  radiusPx = 0.0f;
@@ -65,6 +77,25 @@ private:
         float  outputH  = 0.0f;
         float  _pad     = 0.0f;
     };
+
+    // Nested rather than file-scope: a bare struct in a .cpp has external
+    // linkage, so two translation units defining different types under one
+    // name is an ODR violation the linker will not report.
+    struct ShaderSource
+    {
+        const void * pData  = nullptr;
+        size_t       cbData = 0;
+    };
+
+    struct SettingsVertex
+    {
+        float x;
+        float y;
+        float u;
+        float v;
+    };
+
+    static HRESULT LoadShaderSource (int resourceId, ShaderSource * outSource);
 
 
     struct SettingsComposeParams

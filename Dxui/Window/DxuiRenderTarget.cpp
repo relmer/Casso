@@ -7,22 +7,24 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiRenderTarget::DxuiRenderTarget / ~DxuiRenderTarget
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiRenderTarget::DxuiRenderTarget () = default;
+DxuiRenderTarget::DxuiRenderTarget() = default;
 
 
-DxuiRenderTarget::~DxuiRenderTarget ()
+DxuiRenderTarget::~DxuiRenderTarget()
 {
     // m_painter / m_textRenderer / m_device / m_context are torn down by the
     // subclass (it created them and knows the ordering vs. its swap chain);
     // the ComPtr / unique_ptr members simply release anything still live here.
     ReleaseComposeTarget();
 }
+
 
 
 
@@ -38,6 +40,7 @@ void DxuiRenderTarget::SetComposeHook (ComposeHook hook)
     bool  wasComposing = static_cast<bool> (m_composeHook);
 
 
+
     m_composeHook = std::move (hook);
 
     // Leaving the compose path: restore the text renderer's D2D target to the
@@ -50,6 +53,7 @@ void DxuiRenderTarget::SetComposeHook (ComposeHook hook)
         ReleaseComposeTarget();
     }
 }
+
 
 
 
@@ -73,10 +77,8 @@ HRESULT DxuiRenderTarget::BindTextTarget (bool offscreen)
     ComPtr<IDXGISurface>  surface;
 
 
-    if (m_textRenderer == nullptr)
-    {
-        return S_OK;
-    }
+
+    BAIL_OUT_IF (m_textRenderer == nullptr, S_OK);
 
     dpi = TargetDpi();
 
@@ -99,10 +101,7 @@ HRESULT DxuiRenderTarget::BindTextTarget (bool offscreen)
     else
     {
         surface = BackBufferSurface();
-        if (surface == nullptr)
-        {
-            return S_OK;
-        }
+        BAIL_OUT_IF (surface == nullptr, S_OK);
 
         hr = m_textRenderer->BindBackBuffer (surface.Get(), dpi, dpi);
         CHRA (hr);
@@ -117,13 +116,14 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiRenderTarget::ReleaseComposeTarget
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiRenderTarget::ReleaseComposeTarget ()
+void DxuiRenderTarget::ReleaseComposeTarget()
 {
     m_contentSrv.Reset();
     m_contentRtv.Reset();
@@ -131,6 +131,7 @@ void DxuiRenderTarget::ReleaseComposeTarget ()
     m_contentWidthPx  = 0;
     m_contentHeightPx = 0;
 }
+
 
 
 
@@ -152,18 +153,13 @@ HRESULT DxuiRenderTarget::EnsureComposeTarget (int widthPx, int heightPx, bool &
     D3D11_TEXTURE2D_DESC  td   = {};
 
 
+
     recreated = false;
 
-    if (m_device == nullptr || widthPx <= 0 || heightPx <= 0)
-    {
-        return E_FAIL;
-    }
+    CBR (m_device != nullptr && widthPx > 0 && heightPx > 0);
 
-    if (m_contentTex != nullptr &&
-        m_contentWidthPx == widthPx && m_contentHeightPx == heightPx)
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF (m_contentTex != nullptr &&
+                 m_contentWidthPx == widthPx && m_contentHeightPx == heightPx, S_OK);
 
     ReleaseComposeTarget();
     recreated = true;
@@ -190,12 +186,18 @@ HRESULT DxuiRenderTarget::EnsureComposeTarget (int widthPx, int heightPx, bool &
     m_contentHeightPx = heightPx;
 
 Error:
-    if (FAILED (hr))
+    // `recreated` is also the tell for "we are past the guards": it is set
+    // alongside the teardown above, so a half-built target is the only thing
+    // this can be cleaning up. A precondition bail leaves the cached target
+    // alone, which is what the early `return E_FAIL` used to do.
+    if (recreated && FAILED (hr))
     {
         ReleaseComposeTarget();
     }
+
     return hr;
 }
+
 
 
 
@@ -214,102 +216,107 @@ Error:
 
 void DxuiRenderTarget::RenderFrame (const IDxuiTheme * theme)
 {
-    ID3D11RenderTargetView *  backRtv = BackBufferRtv();
-    SIZE                      sz      = {};
+    ID3D11RenderTargetView  * backRtv       = BackBufferRtv();
+    SIZE                      sz            = {};
     float                     clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-    uint32_t                  bgArgb  = 0xFF000000u;
+    uint32_t                  bgArgb        = 0xFF000000u;
+    bool                      composed      = false;
 
-
-    if (backRtv == nullptr || m_context == nullptr ||
-        m_painter == nullptr || m_textRenderer == nullptr)
-    {
-        return;
-    }
-
+    // No render surface yet, or a zero-sized one (minimized / mid-resize):
+    // there is nothing to draw into, and Present would fail anyway.
     sz = BackBufferSizePx();
-    if (sz.cx <= 0 || sz.cy <= 0)
-    {
-        return;
-    }
 
-    // Theme background clear. Without a theme, still clear to opaque black so a
-    // partially-themed startup frame doesn't present back-buffer garbage.
-    if (theme != nullptr)
+    if (backRtv != nullptr && m_context != nullptr &&
+        m_painter != nullptr && m_textRenderer != nullptr &&
+        sz.cx > 0 && sz.cy > 0)
     {
-        bgArgb = theme->Background();
-    }
-    clearColor[0] = (float) ((bgArgb >> 16) & 0xFFu) / 255.0f;
-    clearColor[1] = (float) ((bgArgb >>  8) & 0xFFu) / 255.0f;
-    clearColor[2] = (float) ((bgArgb      ) & 0xFFu) / 255.0f;
-    clearColor[3] = (float) ((bgArgb >> 24) & 0xFFu) / 255.0f;
-
-    // Opt-in offscreen compose path: paint the content tree into the offscreen
-    // texture, then hand the compose hook that texture's SRV + the back-buffer
-    // RTV so it produces the final frame (blur / see-through reveal). The hook
-    // owns the back buffer (binds + fills it), so there is no back-buffer clear
-    // or before/after-paint hook here -- those belong to the direct path.
-    if (m_composeHook)
-    {
-        bool     recreated = false;
-        HRESULT  hrEnsure  = EnsureComposeTarget ((int) sz.cx, (int) sz.cy, recreated);
-
-        if (SUCCEEDED (hrEnsure) && m_contentRtv != nullptr && m_contentSrv != nullptr)
+        // Theme background clear. Without a theme, still clear to opaque black so a
+        // partially-themed startup frame doesn't present back-buffer garbage.
+        if (theme != nullptr)
         {
-            // Point the text renderer's D2D target at the offscreen texture so
-            // glyphs land there too (only when it actually changed).
-            if (recreated || !m_textBoundToOffscreen)
+            bgArgb = theme->Background();
+        }
+
+        clearColor[0] = (float) ((bgArgb >> 16) & 0xFFu) / 255.0f;
+        clearColor[1] = (float) ((bgArgb >>  8) & 0xFFu) / 255.0f;
+        clearColor[2] = (float) ((bgArgb      ) & 0xFFu) / 255.0f;
+        clearColor[3] = (float) ((bgArgb >> 24) & 0xFFu) / 255.0f;
+
+        // Opt-in offscreen compose path: paint the content tree into the offscreen
+        // texture, then hand the compose hook that texture's SRV + the back-buffer
+        // RTV so it produces the final frame (blur / see-through reveal). The hook
+        // owns the back buffer (binds + fills it), so there is no back-buffer clear
+        // or before/after-paint hook here -- those belong to the direct path.
+        if (m_composeHook)
+        {
+            bool     recreated = false;
+            HRESULT  hrEnsure  = EnsureComposeTarget ((int) sz.cx, (int) sz.cy, recreated);
+
+            if (SUCCEEDED (hrEnsure) && m_contentRtv != nullptr && m_contentSrv != nullptr)
             {
-                (void) BindTextTarget (true);
+                // Point the text renderer's D2D target at the offscreen texture so
+                // glyphs land there too (only when it actually changed).
+                if (recreated || !m_textBoundToOffscreen)
+                {
+                    (void) BindTextTarget (true);
+                }
+
+                m_context->OMSetRenderTargets    (1, m_contentRtv.GetAddressOf(), nullptr);
+                m_context->ClearRenderTargetView (m_contentRtv.Get(), clearColor);
+
+                if (theme != nullptr)
+                {
+                    PaintContent (m_contentRtv.Get(), (int) sz.cx, (int) sz.cy, *theme);
+                }
+
+                m_composeHook (m_contentSrv.Get(), backRtv, (int) sz.cx, (int) sz.cy);
+
+                PresentFrame();
+                composed = true;
             }
 
-            m_context->OMSetRenderTargets    (1, m_contentRtv.GetAddressOf(), nullptr);
-            m_context->ClearRenderTargetView (m_contentRtv.Get(), clearColor);
+            // EnsureComposeTarget failed -> fall through to the direct path.
+        }
 
+        // The compose hook owns the back buffer when it runs, so the direct
+        // path is skipped entirely rather than merged with it.
+        if (!composed)
+        {
+            m_context->OMSetRenderTargets    (1, &backRtv, nullptr);
+            m_context->ClearRenderTargetView (backRtv, clearColor);
+
+            // Composite the consumer's content (e.g. the Apple ][ framebuffer) into the
+            // back buffer FIRST; the panel-tree passes below are additive.
+            {
+                const std::function<void()> &  beforeHook = BeforePresentHook();
+
+                if (beforeHook)
+                {
+                    beforeHook();
+                }
+            }
+
+            // Paint the content tree + host caption + modal overlay onto the back
+            // buffer (subclass owns what "content" is; the text renderer's D2D target
+            // is already bound to this back buffer by the subclass's CreateBackBufferRtv).
             if (theme != nullptr)
             {
-                PaintContent (m_contentRtv.Get(), (int) sz.cx, (int) sz.cy, *theme);
+                PaintContent (backRtv, (int) sz.cx, (int) sz.cy, *theme);
             }
 
-            m_composeHook (m_contentSrv.Get(), backRtv, (int) sz.cx, (int) sz.cy);
+            // After-paint compositor hook: full-screen shader passes on the back buffer
+            // before Present (e.g. a settings live-preview blur/compose pass).
+            {
+                const std::function<void(ID3D11RenderTargetView *, int, int)> &  afterHook = AfterPaintHook();
+
+                if (afterHook)
+                {
+                    afterHook (backRtv, (int) sz.cx, (int) sz.cy);
+                }
+            }
 
             PresentFrame();
-            return;
-        }
-        // EnsureComposeTarget failed -> fall through to the direct path.
-    }
-
-    m_context->OMSetRenderTargets    (1, &backRtv, nullptr);
-    m_context->ClearRenderTargetView (backRtv, clearColor);
-
-    // Composite the consumer's content (e.g. the Apple ][ framebuffer) into the
-    // back buffer FIRST; the panel-tree passes below are additive.
-    {
-        const std::function<void()> &  beforeHook = BeforePresentHook();
-
-        if (beforeHook)
-        {
-            beforeHook();
         }
     }
-
-    // Paint the content tree + host caption + modal overlay onto the back
-    // buffer (subclass owns what "content" is; the text renderer's D2D target
-    // is already bound to this back buffer by the subclass's CreateBackBufferRtv).
-    if (theme != nullptr)
-    {
-        PaintContent (backRtv, (int) sz.cx, (int) sz.cy, *theme);
-    }
-
-    // After-paint compositor hook: full-screen shader passes on the back buffer
-    // before Present (e.g. a settings live-preview blur/compose pass).
-    {
-        const std::function<void(ID3D11RenderTargetView *, int, int)> &  afterHook = AfterPaintHook();
-
-        if (afterHook)
-        {
-            afterHook (backRtv, (int) sz.cx, (int) sz.cy);
-        }
-    }
-
-    PresentFrame();
 }
+

@@ -28,40 +28,41 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+
+TEST_CLASS (DebugDialogProjectionTests)
 {
+public:
+
     static bool LooksLikeWallClock (const wchar_t * s)
     {
-        // Shape: HH:MM:SS.mmm  (12 chars + null)
-        if (s == nullptr)
-        {
-            return false;
-        }
+        // Shape: HH:MM:SS.mmm  (12 chars + null). The length check has to pass
+        // before the loop indexes s[0..11], so it cannot fold into the scan.
+        bool    looks = (s != nullptr) && (wcslen (s) == 12);
+        size_t  i     = 0;
 
-        if (wcslen (s) != 12)
-        {
-            return false;
-        }
-
-        for (size_t i = 0; i < 12; i++)
+        for (i = 0; looks && i < 12; i++)
         {
             wchar_t  c = s[i];
 
             if (i == 2 || i == 5)
             {
-                if (c != L':') { return false; }
+                looks = (c == L':');
             }
             else if (i == 8)
             {
-                if (c != L'.') { return false; }
+                looks = (c == L'.');
             }
             else
             {
-                if (c < L'0' || c > L'9') { return false; }
+                looks = (c >= L'0' && c <= L'9');
             }
         }
 
-        return true;
+        return looks;
     }
 
 
@@ -77,21 +78,12 @@ namespace
 
         return e;
     }
-}
-
-
-
-
-
-TEST_CLASS (DebugDialogProjectionTests)
-{
-public:
 
     TEST_METHOD (FormatEvent_HeadStep_detailMatchesQtArrow)
     {
-        Disk2Event           src = MakeStep (12, 16, 1234567);
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = MakeStep (12, 16, 1234567);
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         DebugDialogProjection::FormatEvent (src, anchor, out);
 
@@ -103,9 +95,9 @@ public:
 
     TEST_METHOD (FormatEvent_AddrMark_detailHasTrackSectorVolume)
     {
-        Disk2Event           src = {};
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = {};
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         src.category              = EventCategory::Controller;
         src.type                  = Disk2EventType::AddrMark;
@@ -121,9 +113,9 @@ public:
 
     TEST_METHOD (FormatEvent_DataRead_detailHasSectorAndByteCount)
     {
-        Disk2Event           src = {};
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = {};
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         src.type                   = Disk2EventType::DataRead;
         src.payload.dataMark       = { 17, 5, 254, 256 };
@@ -137,9 +129,9 @@ public:
 
     TEST_METHOD (FormatEvent_DataRead_detailUsesQuestionMarkWhenCachedAddrMarkAbsent)
     {
-        Disk2Event           src = {};
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = {};
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         src.type                   = Disk2EventType::DataRead;
         src.payload.dataMark       = { -1, -1, -1, 256 };
@@ -151,9 +143,9 @@ public:
 
     TEST_METHOD (FormatEvent_DriveSelect_detailHasDriveAndDriveField)
     {
-        Disk2Event           src = {};
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = {};
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         src.type                = Disk2EventType::DriveSelect;
         src.payload.drive.drive = 1;
@@ -166,9 +158,9 @@ public:
 
     TEST_METHOD (FormatEvent_MotorEngaged_detailIsEmpty)
     {
-        Disk2Event           src = {};
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = {};
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         src.type = Disk2EventType::MotorEngaged;
 
@@ -179,9 +171,9 @@ public:
 
     TEST_METHOD (FormatEvent_AudioStarted_detailHasKindAndDrive)
     {
-        Disk2Event           src = {};
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = {};
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         src.category             = EventCategory::Audio;
         src.type                 = Disk2EventType::AudioStarted;
@@ -195,9 +187,9 @@ public:
 
     TEST_METHOD (FormatEvent_AudioSilent_detailHasKindDriveReason)
     {
-        Disk2Event           src = {};
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = {};
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         src.category              = EventCategory::Audio;
         src.type                  = Disk2EventType::AudioSilent;
@@ -213,9 +205,9 @@ public:
 
     TEST_METHOD (FormatEvent_EventsLost_detailHasCount)
     {
-        Disk2Event           src = {};
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = {};
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         src.type                  = Disk2EventType::EventsLost;
         src.payload.lost.count    = 42;
@@ -227,9 +219,9 @@ public:
 
     TEST_METHOD (FormatEvent_Uptime_freshAnchor_startsAtZeroZero)
     {
-        Disk2Event           src = MakeStep (0, 1, 0);
-        Disk2EventDisplay    out;
-        auto                 anchor = std::chrono::steady_clock::now();
+        Disk2Event         src    = MakeStep (0, 1, 0);
+        Disk2EventDisplay  out;
+        auto               anchor = std::chrono::steady_clock::now();
 
         DebugDialogProjection::FormatEvent (src, anchor, out);
 
@@ -295,9 +287,10 @@ public:
 
     TEST_METHOD (DrainAndProject_rollingCapEnforced_oldestDroppedFromFront)
     {
-        Disk2EventRing                   ring;
-        std::deque<Disk2EventDisplay>    deque;
-        auto                             anchor = std::chrono::steady_clock::now();
+        Disk2EventRing                 ring;
+        std::deque<Disk2EventDisplay>  deque;
+        auto                           anchor           = std::chrono::steady_clock::now();
+        std::wstring                   firstBeforeDrain;
 
         // Pre-fill the deque to the cap so a single drained entry
         // is enough to force a pop_front.
@@ -310,7 +303,7 @@ public:
             deque.push_back (std::move (sentinel));
         }
 
-        std::wstring  firstBeforeDrain = deque.front().detail;
+        firstBeforeDrain = deque.front().detail;
 
         Assert::IsTrue (ring.TryPush (MakeStep (7, 8, 9999)));
 
@@ -332,6 +325,220 @@ public:
         Assert::AreEqual (std::wstring (L"Events lost"),
             std::wstring (DebugDialogProjection::EventLabel (EventCategory::Controller,
                                                               Disk2EventType::EventsLost)));
+    }
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  GH #88 -- stable-seq stamping in DrainAndProject.
+    //
+    //  The optional seqCounter arm assigns each appended event a monotonic
+    //  Disk2EventDisplay::seq (identity for selection/focus tracking) and
+    //  advances the counter, so an unchanged counter is a reliable "nothing
+    //  was added" signal -- the premise of the panel's per-frame change-gate.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (DrainAndProject_seqCounter_stampsMonotonicallyAndAdvances)
+    {
+        Disk2EventRing                   ring;
+        std::deque<Disk2EventDisplay>    deque;
+        auto                             anchor  = std::chrono::steady_clock::now();
+        uint64_t                         counter = 1;
+
+        for (int i = 0; i < 3; i++)
+        {
+            Assert::IsTrue (ring.TryPush (MakeStep (i, i + 1, 100 + static_cast<uint64_t> (i))));
+        }
+
+        DebugDialogProjection::DrainAndProject (ring, deque, 0, anchor, &counter);
+
+        Assert::AreEqual (size_t (3),  deque.size());
+        Assert::AreEqual (uint64_t (1), deque[0].seq);
+        Assert::AreEqual (uint64_t (2), deque[1].seq);
+        Assert::AreEqual (uint64_t (3), deque[2].seq);
+        Assert::AreEqual (uint64_t (4), counter);
+    }
+
+
+    TEST_METHOD (DrainAndProject_seqCounter_stampsSyntheticEventsLost)
+    {
+        Disk2EventRing                   ring;
+        std::deque<Disk2EventDisplay>    deque;
+        auto                             anchor  = std::chrono::steady_clock::now();
+        uint64_t                         counter = 1;
+
+        Assert::IsTrue (ring.TryPush (MakeStep (1, 2, 100)));
+
+        DebugDialogProjection::DrainAndProject (ring, deque, 5, anchor, &counter);
+
+        // The leading EventsLost record is stamped first, then the drained event.
+        Assert::AreEqual (size_t (2),   deque.size());
+        Assert::IsTrue   (deque[0].type == Disk2EventType::EventsLost);
+        Assert::AreEqual (uint64_t (1), deque[0].seq);
+        Assert::AreEqual (uint64_t (2), deque[1].seq);
+        Assert::AreEqual (uint64_t (3), counter);
+    }
+
+
+    TEST_METHOD (DrainAndProject_seqCounter_emptyRingZeroDropped_counterUnchanged)
+    {
+        Disk2EventRing                   ring;
+        std::deque<Disk2EventDisplay>    deque;
+        auto                             anchor  = std::chrono::steady_clock::now();
+        uint64_t                         counter = 7;
+
+        DebugDialogProjection::DrainAndProject (ring, deque, 0, anchor, &counter);
+
+        // The change-gate leans on this: nothing added -> counter frozen.
+        Assert::AreEqual (size_t (0),   deque.size());
+        Assert::AreEqual (uint64_t (7), counter);
+    }
+
+
+    TEST_METHOD (DrainAndProject_nullSeqCounter_leavesSeqUnassigned)
+    {
+        Disk2EventRing                   ring;
+        std::deque<Disk2EventDisplay>    deque;
+        auto                             anchor = std::chrono::steady_clock::now();
+
+        Assert::IsTrue (ring.TryPush (MakeStep (1, 2, 100)));
+        Assert::IsTrue (ring.TryPush (MakeStep (2, 3, 200)));
+
+        // Back-compat 4-arg form: seq stays at its 0 default.
+        DebugDialogProjection::DrainAndProject (ring, deque, 0, anchor);
+
+        Assert::AreEqual (size_t (2),   deque.size());
+        Assert::AreEqual (uint64_t (0), deque[0].seq);
+        Assert::AreEqual (uint64_t (0), deque[1].seq);
+    }
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  GH #88 -- ResolveSelection (seq-identity selection resolution).
+    //
+    //  filteredIndices are indices into the event deque IN DISPLAY ORDER
+    //  (already filtered and sort-reordered). Selection is matched by seq,
+    //  so a sort reorder keeps the same event selected; a filtered-out or
+    //  evicted selection snaps to the nearest survivor at-or-before it.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static Disk2EventDisplay MakeSeq (uint64_t seq)
+    {
+        Disk2EventDisplay  d = MakeDisplay (Disk2EventType::HeadStep, EventCategory::Controller);
+
+        d.seq = seq;
+        return d;
+    }
+
+
+    TEST_METHOD (ResolveSelection_zeroSeq_clears)
+    {
+        std::deque<Disk2EventDisplay>  events   = { MakeSeq (10), MakeSeq (20) };
+        std::vector<size_t>            filtered = { 0, 1 };
+
+        DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (0, events, filtered);
+
+        Assert::AreEqual (-1,            r.row);
+        Assert::AreEqual (uint64_t (0), r.seq);
+    }
+
+
+    TEST_METHOD (ResolveSelection_emptyFiltered_clears)
+    {
+        std::deque<Disk2EventDisplay>  events = { MakeSeq (10), MakeSeq (20) };
+        std::vector<size_t>            filtered;   // everything filtered out
+
+        DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (20, events, filtered);
+
+        Assert::AreEqual (-1,            r.row);
+        Assert::AreEqual (uint64_t (0), r.seq);
+    }
+
+
+    TEST_METHOD (ResolveSelection_exactMatch_returnsRowKeepsSeq)
+    {
+        std::deque<Disk2EventDisplay>  events   = { MakeSeq (10), MakeSeq (20), MakeSeq (30) };
+        std::vector<size_t>            filtered = { 0, 1, 2 };
+
+        DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (20, events, filtered);
+
+        Assert::AreEqual (1,             r.row);
+        Assert::AreEqual (uint64_t (20), r.seq);
+    }
+
+
+    TEST_METHOD (ResolveSelection_afterSortReorder_sameEventStaysSelected)
+    {
+        std::deque<Disk2EventDisplay>  events = { MakeSeq (10), MakeSeq (20), MakeSeq (30) };
+
+        // A column sort reorders the display order to {idx2, idx0, idx1}
+        // == seqs {30, 10, 20}. The selected event (seq 20) is now at row 2.
+        std::vector<size_t>            filtered = { 2, 0, 1 };
+
+        DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (20, events, filtered);
+
+        Assert::AreEqual (2,             r.row);
+        Assert::AreEqual (uint64_t (20), r.seq);
+    }
+
+
+    TEST_METHOD (ResolveSelection_filteredOut_snapsToNearestBefore)
+    {
+        std::vector<size_t>   filtered;
+        DebugSelectionResult  r        = {};
+
+
+
+        // seq 30 (deque idx 2) is filtered out; survivors ascending.
+        std::deque<Disk2EventDisplay>  events =
+            { MakeSeq (10), MakeSeq (20), MakeSeq (30), MakeSeq (40), MakeSeq (50) };
+        filtered = { 0, 1, 3, 4 };
+
+        r = DebugDialogProjection::ResolveSelection (30, events, filtered);
+
+        // Largest surviving seq <= 30 is 20 (deque idx 1, row 1).
+        Assert::AreEqual (1,             r.row);
+        Assert::AreEqual (uint64_t (20), r.seq);
+    }
+
+
+    TEST_METHOD (ResolveSelection_nearestBefore_honorsReorderedFilteredSet)
+    {
+        std::vector<size_t>   filtered;
+        DebugSelectionResult  r        = {};
+
+
+
+        std::deque<Disk2EventDisplay>  events =
+            { MakeSeq (10), MakeSeq (20), MakeSeq (40), MakeSeq (50) };
+
+        // Descending display order: {50, 40, 20, 10}. Selection seq 30 was
+        // never present; nearest at-or-before is seq 20, now at row 2.
+        filtered = { 3, 2, 1, 0 };
+
+        r = DebugDialogProjection::ResolveSelection (30, events, filtered);
+
+        Assert::AreEqual (2,             r.row);
+        Assert::AreEqual (uint64_t (20), r.seq);
+    }
+
+
+    TEST_METHOD (ResolveSelection_evictedBelowAll_snapsToEarliestSurvivor)
+    {
+        // The older events were evicted; selection seq 5 precedes every
+        // survivor, so there is no at-or-before match -> earliest survivor.
+        std::deque<Disk2EventDisplay>  events   = { MakeSeq (30), MakeSeq (40), MakeSeq (50) };
+        std::vector<size_t>            filtered = { 0, 1, 2 };
+
+        DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (5, events, filtered);
+
+        Assert::AreEqual (0,             r.row);
+        Assert::AreEqual (uint64_t (30), r.seq);
     }
 
 
@@ -586,16 +793,29 @@ public:
     //
     //  Spec-006 T082 -- Pause / Clear behavior at the projection layer.
     //
+    //  Overflow while PAUSED must produce ONE lost-events marker carrying a
+    //  coalesced count, not one marker per dropped event.
+    //
+    //  Pausing stops the drain but not the guest, so a paused panel over a busy
+    //  disk overflows the ring continuously. A marker per drop would fill the
+    //  log with thousands of identical rows and bury the events the user paused
+    //  to read -- which is the opposite of what pausing is for.
+    //
+    //  The COUNT is asserted as well as the single marker, since coalescing that
+    //  loses the number reports a gap without saying how large, and the size is
+    //  what tells the reader whether anything important was missed.
+    //
     ////////////////////////////////////////////////////////////////////////////
 
     TEST_METHOD (PauseInducedOverflow_singleLostMarkerWithCoalescedCount)
     {
-        Disk2EventRing                   ring;
-        std::deque<Disk2EventDisplay>    deque;
-        uint32_t                         dropped       = 0;
-        uint64_t                         totalPushed   = 8192;
-        uint64_t                         pushAttempted = 0;
-        auto                             anchor        = std::chrono::steady_clock::now();
+        Disk2EventRing                 ring;
+        std::deque<Disk2EventDisplay>  deque;
+        uint32_t                       dropped       = 0;
+        uint64_t                       totalPushed   = 8192;
+        uint64_t                       pushAttempted = 0;
+        auto                           anchor        = std::chrono::steady_clock::now();
+        size_t                         lostCount     = 0;
 
         // Producer never gets drained -> ring fills, every push past
         // capacity returns false.
@@ -616,11 +836,10 @@ public:
 
         // Exactly one EventsLost marker; the rest are the surviving
         // DrainBatch entries.
-        size_t  lostCount = 0;
 
-        for (size_t i = 0; i < deque.size(); i++)
+        for (const Disk2EventDisplay & event : deque)
         {
-            if (deque[i].type == Disk2EventType::EventsLost)
+            if (event.type == Disk2EventType::EventsLost)
             {
                 lostCount++;
             }
@@ -665,9 +884,9 @@ public:
 
         Assert::AreEqual (size_t (100), deque.size());
 
-        for (size_t k = 0; k < deque.size(); k++)
+        for (const Disk2EventDisplay & event : deque)
         {
-            Assert::IsFalse (deque[k].type == Disk2EventType::EventsLost);
+            Assert::IsFalse (event.type == Disk2EventType::EventsLost);
         }
     }
 
@@ -704,7 +923,9 @@ public:
 
     TEST_METHOD (BuildClipboardText_singleRow_allColumns_tabSeparatedCrlfTerminated)
     {
-        std::array<LogicalColumn, kColumnCount>  columns = {};
+        std::array<LogicalColumn, kColumnCount>  columns  = {};
+        std::vector<const Disk2EventDisplay *>   selected;
+        std::wstring                             out;
         Disk2EventDisplay            row     = MakeFormattedDisplay (
                                                     Disk2EventType::HeadStep,
                                                     EventCategory::Controller,
@@ -712,12 +933,11 @@ public:
                                                     L"00:01.234",
                                                     L"1,000",
                                                     L"quarter-track 4 -> 5");
-        std::vector<const Disk2EventDisplay *>  selected;
 
         SeedDefaultColumns (columns);
         selected.push_back (&row);
 
-        std::wstring  out = BuildClipboardText (selected, columns);
+        out = BuildClipboardText (selected, columns);
 
         Assert::AreEqual (
             std::wstring (L"12:34:56.789\t00:01.234\t1,000\t\tHead step\tquarter-track 4 -> 5\r\n"),
@@ -728,7 +948,9 @@ public:
 
     TEST_METHOD (BuildClipboardText_hiddenColumns_areOmittedIncludingLeadingTab)
     {
-        std::array<LogicalColumn, kColumnCount>  columns = {};
+        std::array<LogicalColumn, kColumnCount>  columns  = {};
+        std::vector<const Disk2EventDisplay *>   selected;
+        std::wstring                             out;
         Disk2EventDisplay            row     = MakeFormattedDisplay (
                                                     Disk2EventType::AddrMark,
                                                     EventCategory::Controller,
@@ -736,7 +958,6 @@ public:
                                                     L"UPTIME",
                                                     L"42",
                                                     L"T0 S0 V254");
-        std::vector<const Disk2EventDisplay *>  selected;
 
         SeedDefaultColumns (columns);
 
@@ -747,7 +968,7 @@ public:
 
         selected.push_back (&row);
 
-        std::wstring  out = BuildClipboardText (selected, columns);
+        out = BuildClipboardText (selected, columns);
 
         Assert::AreEqual (std::wstring (L"UPTIME\tAddress mark\tT0 S0 V254\r\n"), out);
     }
@@ -756,7 +977,9 @@ public:
 
     TEST_METHOD (BuildClipboardText_multipleRows_eachOnItsOwnCrlfTerminatedLine)
     {
-        std::array<LogicalColumn, kColumnCount>  columns = {};
+        std::array<LogicalColumn, kColumnCount>  columns  = {};
+        std::vector<const Disk2EventDisplay *>   selected;
+        std::wstring                             out;
         Disk2EventDisplay            r0      = MakeFormattedDisplay (
                                                     Disk2EventType::MotorEngaged,
                                                     EventCategory::Controller,
@@ -771,13 +994,12 @@ public:
                                                     L"00:00.500",
                                                     L"1,000",
                                                     L"at quarter-track 0");
-        std::vector<const Disk2EventDisplay *>  selected;
 
         SeedDefaultColumns (columns);
         selected.push_back (&r0);
         selected.push_back (&r1);
 
-        std::wstring  out = BuildClipboardText (selected, columns);
+        out = BuildClipboardText (selected, columns);
 
         Assert::AreEqual (
             std::wstring (L"00:00:00.000\t00:00.000\t0\t\tMotor engaged\t\r\n"
@@ -822,3 +1044,4 @@ public:
         Assert::AreEqual (L'.', uptimeText[5]);
     }
 };
+

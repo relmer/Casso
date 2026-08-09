@@ -2,9 +2,6 @@
 
 #include "JsonWriter.h"
 
-#include "../../CassoCore/Ehm.h"
-
-
 
 
 
@@ -27,7 +24,8 @@ string JsonWriter::Write (const JsonValue & value)
 
     opts.fPretty = false;
 
-    IGNORE_RETURN_VALUE (hr, Write (value, opts, text));
+    hr = Write (value, opts, text);
+    IGNORE_RETURN_VALUE (hr, S_OK);
     return text;
 }
 
@@ -69,6 +67,23 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  JsonWriter::WriteValue
+//
+//  Serializes one value, recursing through arrays and objects.
+//
+//  Empty containers are special-cased to `[]` and `{}` on one line even in
+//  pretty mode, because the general path would produce a bracket, a newline,
+//  an indent, and a closing bracket -- three lines to say nothing.
+//
+//  Depth is passed by VALUE and incremented on the way down, so indentation is
+//  a property of the recursion rather than writer state that has to be pushed
+//  and popped correctly at every exit.
+//
+//  Object key ORDER is preserved rather than sorted, because these documents
+//  are hand-maintained: the version key sits first for readability, related
+//  settings are grouped, and sorting would scatter both on the first save.
+//
+//  Pretty mode changes only whitespace. Both modes emit the same tokens in the
+//  same order, so a compact document and its pretty form parse identically.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -218,15 +233,14 @@ Error:
 void JsonWriter::WriteString (const string & s, string & out)
 {
     char    buf[8];
-    size_t  i = 0;
 
 
 
     out += '"';
 
-    for (i = 0; i < s.size(); ++i)
+    for (char ch : s)
     {
-        unsigned char c = (unsigned char) s[i];
+        unsigned char c = (unsigned char) ch;
 
         switch (c)
         {
@@ -248,6 +262,7 @@ void JsonWriter::WriteString (const string & s, string & out)
                     // Pass through. Bytes >= 0x80 are assumed UTF-8.
                     out += (char) c;
                 }
+
                 break;
         }
     }
@@ -262,6 +277,22 @@ void JsonWriter::WriteString (const string & s, string & out)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  JsonWriter::WriteNumber
+//
+//  Writes a double in the shortest form that reads back identically.
+//
+//  An INTEGER-valued double inside int64 range is emitted without a decimal
+//  point, which is what keeps a config round-trip from turning every `4` into
+//  `4.0`. JSON has one numeric type, so a version stamp, a slot number, and a
+//  clock speed all arrive here as doubles; printing them as floats would churn
+//  every hand-maintained file the first time it was rewritten.
+//
+//  Everything else goes out as %.17g, the precision at which a double is
+//  guaranteed to round-trip. Shorter is prettier but can lose the low bits of
+//  a value the user set deliberately.
+//
+//  A non-finite value is an ERROR rather than being written. JSON has no
+//  spelling for NaN or infinity, so emitting one would produce a document this
+//  parser -- and every other -- would reject on read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

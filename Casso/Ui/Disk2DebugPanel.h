@@ -128,13 +128,24 @@ protected:
     void    OnCreate ()                                             override;
 
 private:
+    static void          ArgbToFloat4      (uint32_t argb, float (& outRgba)[4]) noexcept;
+    static std::wstring  BuildInvalidLabel (LPCWSTR prefix, const std::wstring & expr, const std::vector<TrackSectorPredicate::RejectedSpan> & spans);
+
     void    RecomputeLayout      ();
     void    LayoutWidgets        ();
     void    UpdateDynamicLabels  ();
     void    ConfigureWidgets     ();
     void    DrainAndProject      ();
     void    RebuildFilteredIndices ();
-    void    PushListViewRows     ();
+
+    // GH #88 virtualization. The list pulls only its visible window through
+    // this provider (installed once in ConfigureWidgets); FillRow maps a
+    // visible-row index -> m_filteredIndices -> m_events and materializes
+    // that single row's cells on demand. SyncListRowCount republishes the
+    // virtual row count after the filtered set changes. No per-frame
+    // materialization of the whole list.
+    void    FillRow              (int row, std::vector<DxuiListView::Cell> & out) const;
+    void    SyncListRowCount     ();
     void    PublishToRing        (const Disk2Event & e);
     Disk2Event  MakeStampedEvent (EventCategory cat, Disk2EventType type) const noexcept;
     void    OnFilterChanged      ();
@@ -148,6 +159,17 @@ private:
     bool    ForwardMouseToList   (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta);
     void    SortByColumn         (int absCol);
     int64_t NowMs                () const;
+
+    // One per mouse event kind, so OnMouse itself is just the dispatch.
+    bool    OnMouseMove          (const DxuiMouseEvent & ev);
+    bool    OnMouseDownLeft      (const DxuiMouseEvent & ev);
+    bool    OnMouseDownRight     (int x, int y);
+    bool    OnMouseUpLeft        (const DxuiMouseEvent & ev);
+
+    // Offers a press to one control, and on acceptance moves keyboard focus
+    // to it. `handled` short-circuits, so a chain of these calls stops at
+    // the first taker without each site restating the test.
+    void    OfferPressTo         (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
     PanelLayoutSlots                     m_layout = {};
 
@@ -179,22 +201,29 @@ private:
     DxuiPopupMenu                                    m_columnMenu;
     DxuiFocusManager                                 m_focusMgr;
 
-    FilterState                           m_filter;
-    Disk2EventRing                       m_ring;
-    std::deque<Disk2EventDisplay>        m_events;
-    std::vector<size_t>                   m_filteredIndices;
-    std::atomic<uint32_t>                 m_droppedSinceLastDrain = 0;
-    std::atomic<bool>                     m_resetAnchorPending    = false;
-    std::atomic<int64_t>                  m_pendingAnchorTicks    = 0;
-    const uint64_t                      * m_cycleCounter = nullptr;
-    std::chrono::steady_clock::time_point  m_uptimeAnchor;
-    bool                                  m_paused          = false;
-    bool                                  m_multiController = false;
-    int                                   m_currentDrive    = 0;
-    int                                   m_sortColumn      = -1;
-    bool                                  m_sortDescending  = false;
-    bool                                  m_trackEditValid  = true;
-    bool                                  m_sectorEditValid = true;
+    FilterState                              m_filter;
+    Disk2EventRing                           m_ring;
+    std::deque<Disk2EventDisplay>            m_events;
+    std::vector<size_t>                      m_filteredIndices;
+    std::atomic<uint32_t>                    m_droppedSinceLastDrain = 0;
+    std::atomic<bool>                        m_resetAnchorPending    = false;
+    std::atomic<int64_t>                     m_pendingAnchorTicks    = 0;
+    const uint64_t                         * m_cycleCounter          = nullptr;
+    std::chrono::steady_clock::time_point    m_uptimeAnchor;
+    bool                                     m_paused                = false;
+    bool                                     m_multiController       = false;
+    int                                      m_currentDrive          = 0;
+    int                                      m_sortColumn            = -1;
+    bool                                     m_sortDescending        = false;
+    bool                                     m_trackEditValid        = true;
+    bool                                     m_sectorEditValid       = true;
 
-    int                                   m_listSelectedEventIndex = -1;
+    // Selection/focus is tracked by the selected event's stable seq (see
+    // Disk2EventDisplay::seq), not by a row or deque index, so a sort
+    // reorder or deque front-eviction can't silently move or lose it.
+    // 0 == nothing selected. m_nextSeq is the monotonic id source handed
+    // to DebugDialogProjection::DrainAndProject; starting at 1 keeps 0
+    // reserved for "unassigned".
+    uint64_t                              m_selectedSeq = 0;
+    uint64_t                              m_nextSeq     = 1;
 };

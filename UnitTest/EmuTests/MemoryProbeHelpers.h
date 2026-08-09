@@ -63,4 +63,11 @@ public:
     static void  WriteLcMainBank2 (EmulatorCore & core, Word address, Byte value);
     static void  WriteLcAuxBank1  (EmulatorCore & core, Word address, Byte value);
     static void  WriteLcAuxBank2  (EmulatorCore & core, Word address, Byte value);
+
+private:
+    // LC soft-switch addresses chosen to land in {ReadRam, WriteRam}
+    // for each bank. Two odd-address reads enable WriteRam via the
+    // pre-write state machine (audit M6 / Sather UTAIIe §5-23).
+    static constexpr Word   kLcBank2OddRead = 0xC083;
+    static constexpr Word   kLcBank1OddRead = 0xC08B;
 };

@@ -17,6 +17,24 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  GlobalUserPrefsTests
 //
+//  Global preferences: the save-load ROUND TRIP, the defaults, and the
+//  migrations from older key shapes.
+//
+//  Round-tripping is the core assertion -- write, read back, and every field
+//  must match. That is what catches a field added to the struct and to ToJson
+//  but forgotten in FromJson, which is silent and loses one setting per launch.
+//
+//  Partial and corrupt documents are covered because a prefs file is
+//  user-writable and version-skewed by nature: a missing key must cost one
+//  setting rather than the whole file, and a malformed one must not take the
+//  rest down with it.
+//
+//  The input-mode migration gets its own coverage since it is a live upgrade
+//  path -- the legacy bool and the single mode field both have to resolve into
+//  the split keys, with the new key winning where both exist.
+//
+//  Driven against an in-memory filesystem, so nothing touches disk.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (GlobalUserPrefsTests)
@@ -30,6 +48,7 @@ public:
         Assert::AreEqual (1, prefs.version);
         Assert::AreEqual (string ("Skeuomorphic"), prefs.activeTheme);
         Assert::AreEqual (true,  prefs.activeTheme.size() > 0);
+        Assert::AreEqual (false, prefs.skeuoMonitorFrame);   // desk scene is opt-IN
         Assert::AreEqual (false, prefs.crtByMode[0].scanlinesEnabled);
         Assert::AreEqual (size_t (0), prefs.window.placements.size());
     }
@@ -42,7 +61,8 @@ public:
         HRESULT             hr;
 
         hr = prefs.Load (L"C:\\Casso", fs);
-        Assert::IsTrue (hr == S_FALSE);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), hr,
+            L"First run must name the reason -- there is no prefs file yet");
         Assert::AreEqual (string ("Skeuomorphic"), prefs.activeTheme);
     }
 
@@ -55,7 +75,10 @@ public:
         HRESULT             hr;
 
         orig.activeTheme            = "Retro Terminal";
+        orig.skeuoMonitorFrame      = true;
         orig.lastSelectedMachine    = "Apple2e";
+        orig.arrowsToJoystick       = true;
+        orig.pointerMapping         = InputMappingMode::Mouse;
         orig.crtByMode[0].brightness         = 1.25f;
         orig.crtByMode[0].contrast           = 1.35f;
         orig.crtByMode[0].scanlinesEnabled   = true;
@@ -68,15 +91,27 @@ public:
         orig.window.placements["topology-A"] = { 100, 50, 1280, 720 };
         orig.window.placements["topology-B"] = { 200, 75, 1920, 1080 };
         orig.window.fullscreen      = true;
+        orig.printOutputDpi         = 288;
+        orig.printDotStyle          = "plain";
+        orig.printerAudioEnabled          = false;
+        orig.printerAudioVolume           = 0.35f;
+        orig.printerAudioPanOverride      = true;
+        orig.printerAudioPan              = -0.5f;
+        orig.masterVolume                 = 0.65f;
+        orig.masterMuted                  = true;
 
         hr = orig.Save (L"C:\\Casso", fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = loaded.Load (L"C:\\Casso", fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::AreEqual (orig.activeTheme,         loaded.activeTheme);
+        Assert::AreEqual (orig.skeuoMonitorFrame,   loaded.skeuoMonitorFrame);
         Assert::AreEqual (orig.lastSelectedMachine, loaded.lastSelectedMachine);
+        Assert::AreEqual (orig.arrowsToJoystick, loaded.arrowsToJoystick);
+        Assert::IsTrue   (orig.pointerMapping == loaded.pointerMapping,
+                          L"split pointer mapping round-trips");
         Assert::AreEqual (orig.crtByMode[0].brightness,      loaded.crtByMode[0].brightness);
         Assert::AreEqual (orig.crtByMode[0].contrast,        loaded.crtByMode[0].contrast);
         Assert::AreEqual (orig.crtByMode[0].scanlinesEnabled,    loaded.crtByMode[0].scanlinesEnabled);
@@ -91,15 +126,23 @@ public:
         Assert::AreEqual (720, loaded.window.placements["topology-A"].h);
         Assert::AreEqual (1920, loaded.window.placements["topology-B"].w);
         Assert::AreEqual (orig.window.fullscreen,       loaded.window.fullscreen);
+        Assert::AreEqual (orig.printOutputDpi,   loaded.printOutputDpi);
+        Assert::AreEqual (orig.printDotStyle,    loaded.printDotStyle);
+        Assert::AreEqual (orig.printerAudioEnabled,     loaded.printerAudioEnabled);
+        Assert::AreEqual (orig.printerAudioVolume,      loaded.printerAudioVolume);
+        Assert::AreEqual (orig.printerAudioPanOverride, loaded.printerAudioPanOverride);
+        Assert::AreEqual (orig.printerAudioPan,         loaded.printerAudioPan);
+        Assert::AreEqual (orig.masterVolume,            loaded.masterVolume);
+        Assert::AreEqual (orig.masterMuted,             loaded.masterMuted);
     }
 
 
     TEST_METHOD (ResetColorMonitorText_RevertsModeToWhite_KeepsCustomArgb)
     {
         // Regression (013 #8): "Restore defaults" left a previously-picked
-        // custom text colour active -- the control read White but the
-        // emulator kept the old colour. The reset must revert the mode to
-        // White (so the resolved colour is white) while remembering the
+        // custom text color active -- the control read White but the
+        // emulator kept the old color. The reset must revert the mode to
+        // White (so the resolved color is white) while remembering the
         // custom ARGB for the next time the user re-selects "Custom".
         GlobalUserPrefs  prefs;
         prefs.colorMonitorTextMode       = ColorMonitorTextMode::Custom;
@@ -117,28 +160,31 @@ public:
 
     TEST_METHOD (ColorMonitorText_PersistsAcrossSaveLoad_AndRestoreClearsIt)
     {
-        // The reported bug booted magenta because a custom text colour
+        GlobalUserPrefs  loaded;
+        GlobalUserPrefs  reloaded;
+
+
+
+        // The reported bug booted magenta because a custom text color
         // round-tripped through UserPrefs.json and survived a Restore. Pin
-        // both halves: (1) a custom colour persists, and (2) after a reset +
-        // save the next load is White (not the stale custom colour).
+        // both halves: (1) a custom color persists, and (2) after a reset +
+        // save the next load is White (not the stale custom color).
         InMemoryFileSystem  fs;
         GlobalUserPrefs     orig;
 
         orig.colorMonitorTextMode       = ColorMonitorTextMode::Custom;
         orig.colorMonitorTextCustomArgb = 0xFF3399CCu;   // alpha forced FF on save
 
-        Assert::IsTrue (SUCCEEDED (orig.Save (L"C:\\Casso", fs)));
+        AssertSucceeded (orig.Save (L"C:\\Casso", fs));
 
-        GlobalUserPrefs  loaded;
-        Assert::IsTrue (SUCCEEDED (loaded.Load (L"C:\\Casso", fs)));
+        AssertSucceeded (loaded.Load (L"C:\\Casso", fs));
         Assert::IsTrue   (ColorMonitorTextMode::Custom == loaded.colorMonitorTextMode);
         Assert::AreEqual (0xFF3399CCu, loaded.colorMonitorTextCustomArgb);
 
         loaded.ResetColorMonitorTextToDefault();
-        Assert::IsTrue (SUCCEEDED (loaded.Save (L"C:\\Casso", fs)));
+        AssertSucceeded (loaded.Save (L"C:\\Casso", fs));
 
-        GlobalUserPrefs  reloaded;
-        Assert::IsTrue (SUCCEEDED (reloaded.Load (L"C:\\Casso", fs)));
+        AssertSucceeded (reloaded.Load (L"C:\\Casso", fs));
         Assert::IsTrue (ColorMonitorTextMode::White == reloaded.colorMonitorTextMode);
     }
 
@@ -151,14 +197,47 @@ public:
 
         hr = fs.WriteAllText (GlobalUserPrefs::FilePath (L"C:\\Casso"),
                               "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"DarkModern\"}");
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = prefs.Load (L"C:\\Casso", fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (string ("DarkModern"), prefs.activeTheme);
         // crt sub-object missing → struct defaults preserved.
         Assert::AreEqual (1.0f, prefs.crtByMode[0].brightness);
         Assert::AreEqual (1.0f, prefs.crtByMode[0].contrast);
+    }
+
+
+    // Migration: configs with only the legacy single mode split
+    // correctly -- joystick -> Keys on; paddle/mouse -> Pointer; new keys win.
+    TEST_METHOD (SplitInputMappings_MigrateFromLegacySingleMode)
+    {
+        auto load = [] (const std::string & body)
+        {
+            InMemoryFileSystem  fs;
+            GlobalUserPrefs     p;
+            std::string  json = std::string ("{\"$cassoGlobalPrefsVersion\":1,") + body + "}";
+            AssertSucceeded (fs.WriteAllText (
+                GlobalUserPrefs::FilePath (L"C:\\Casso"), json));
+            AssertSucceeded (p.Load (L"C:\\Casso", fs));
+            return p;
+        };
+
+        GlobalUserPrefs  joy = load ("\"inputMappingMode\":\"joystick\"");
+        Assert::IsTrue  (joy.arrowsToJoystick,                          L"legacy joystick -> Keys on");
+        Assert::IsTrue  (joy.pointerMapping == InputMappingMode::Off,   L"legacy joystick -> Pointer off");
+
+        GlobalUserPrefs  pad = load ("\"inputMappingMode\":\"paddle\"");
+        Assert::IsFalse (pad.arrowsToJoystick);
+        Assert::IsTrue  (pad.pointerMapping == InputMappingMode::Paddle, L"legacy paddle -> Pointer paddle");
+
+        GlobalUserPrefs  ms = load ("\"inputMappingMode\":\"mouse\"");
+        Assert::IsTrue  (ms.pointerMapping == InputMappingMode::Mouse,   L"legacy mouse -> Pointer mouse");
+
+        GlobalUserPrefs  split = load (
+            "\"inputMappingMode\":\"paddle\",\"arrowsToJoystick\":true,\"pointerMapping\":\"mouse\"");
+        Assert::IsTrue  (split.arrowsToJoystick,                         L"new keys win over legacy");
+        Assert::IsTrue  (split.pointerMapping == InputMappingMode::Mouse);
     }
 
 
@@ -171,13 +250,13 @@ public:
 
         hr = fs.WriteAllText (GlobalUserPrefs::FilePath (L"C:\\Casso"),
                               "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"X\",\"futureKey\":\"keep me\"}");
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = prefs.Load (L"C:\\Casso", fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = prefs.Save (L"C:\\Casso", fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         text = fs.PeekContent (GlobalUserPrefs::FilePath (L"C:\\Casso"));
         Assert::IsTrue (text.find ("futureKey")  != std::string::npos);
@@ -212,16 +291,16 @@ public:
             "}";
 
         hr = fs.WriteAllText (GlobalUserPrefs::FilePath (L"C:\\Casso"), seed);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = prefs.Load (L"C:\\Casso", fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         // The global-prefs Load path doesn't surface the machines
         // section into the in-memory struct, so a subsequent Save must
         // not lose it.
         hr = prefs.Save (L"C:\\Casso", fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         text = fs.PeekContent (GlobalUserPrefs::FilePath (L"C:\\Casso"));
         Assert::IsTrue (text.find ("Apple2e")      != std::string::npos, L"Apple2e machine entry was wiped by Save");
@@ -233,11 +312,11 @@ public:
     TEST_METHOD (FromJson_OnNonObject_Fails)
     {
         GlobalUserPrefs  prefs;
-        JsonValue        v (42.0);
         HRESULT          hr;
+        JsonValue        v (42.0);
 
         hr = prefs.FromJson (v);
-        Assert::IsTrue (FAILED (hr));
+        AssertFailed (hr);
     }
 
 
@@ -254,7 +333,7 @@ public:
         v  = orig.ToJson();
         hr = loaded.FromJson (v);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual ((size_t) 2, loaded.recentDisks.size());
         Assert::AreEqual (std::string ("C:\\Disks\\A.dsk"), loaded.recentDisks[0]);
         Assert::AreEqual (std::string ("C:\\Disks\\B.dsk"), loaded.recentDisks[1]);
@@ -278,7 +357,7 @@ public:
         v = JsonValue (std::move (root));
 
         hr = prefs.FromJson (v);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual ((size_t) 2, prefs.recentDisks.size());
         Assert::AreEqual (std::string ("C:\\good.dsk"),  prefs.recentDisks[0]);
         Assert::AreEqual (std::string ("C:\\good2.dsk"), prefs.recentDisks[1]);
@@ -300,7 +379,7 @@ public:
         v  = orig.ToJson();
         hr = loaded.FromJson (v);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual ((size_t) 2, loaded.recentDiskLoadedAt.size());
         Assert::AreEqual ((std::int64_t) 1700000001, loaded.recentDiskLoadedAt[0]);
         Assert::AreEqual ((std::int64_t) 1700000002, loaded.recentDiskLoadedAt[1]);
@@ -323,7 +402,7 @@ public:
         v = JsonValue (std::move (root));
 
         hr = prefs.FromJson (v);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual ((size_t) 1, prefs.recentDisks.size());
         Assert::AreEqual ((size_t) 0, prefs.recentDiskLoadedAt.size());
     }

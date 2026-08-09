@@ -105,6 +105,7 @@ HRESULT Win32FileSystem::WriteAllText (
     std::wstring     tempPath;
     std::wstring     parentDir;
     size_t           lastSep        = 0;
+    size_t           contentSize    = 0;
     std::error_code  ec;
 
 
@@ -141,7 +142,9 @@ HRESULT Win32FileSystem::WriteAllText (
                             nullptr);
 
         CWR (fWrote);
-        CBR (bytesWritten == content.size());
+
+        contentSize = content.size();
+        CBR (bytesWritten == contentSize);
     }
 
     CloseHandle (hTemp);
@@ -185,12 +188,10 @@ bool Win32FileSystem::Exists (const std::wstring & path)
 
 
 
-    if (attrs == INVALID_FILE_ATTRIBUTES)
-    {
-        return false;
-    }
-
-    return (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0;
+    // A directory at this path is NOT an existing file -- callers are asking
+    // whether they can open it for reading.
+    return attrs != INVALID_FILE_ATTRIBUTES
+        && (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0;
 }
 
 
@@ -268,8 +269,9 @@ HRESULT Win32FileSystem::EnumerateFiles (
         CBRF (err == ERROR_FILE_NOT_FOUND,
               hr = HRESULT_FROM_WIN32 (err));
 
-        // Empty directory — fall through with empty outFilenames.
-        goto Error;
+        // Empty directory -- fall through with empty outFilenames.
+
+        BAIL_OUT_IF (true, S_OK);
     }
 
     do
@@ -331,10 +333,12 @@ HRESULT Win32FileSystem::EnumerateDirectories (
     {
         err = GetLastError();
 
+        // No matches at all means an empty directory, which is a valid answer
+        // (outDirNames is already cleared). Anything else is a real failure.
         CBRF (err == ERROR_FILE_NOT_FOUND,
               hr = HRESULT_FROM_WIN32 (err));
 
-        goto Error;
+        BAIL_OUT_IF (true, S_OK);
     }
 
     do

@@ -53,6 +53,7 @@ static constexpr wchar_t  s_kpszMdl2Family[]      = L"Segoe MDL2 Assets";
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorPickerOverlay::MakeRect
@@ -258,6 +259,23 @@ Error:
 //
 //  ColorPickerOverlay::SyncFromHex
 //
+//  Pushes an edited hex value out to the HSV sliders and the live color.
+//
+//  m_syncing breaks a feedback loop that would otherwise be infinite: moving a
+//  slider rewrites the hex field, and rewriting the hex field fires the change
+//  that lands here. The flag makes the inner updates silent so exactly one
+//  direction of propagation runs per user action.
+//
+//  An UNPARSEABLE value is ignored rather than reset or rejected. The user is
+//  typing, so the field passes through incomplete states like "#FF" on the way
+//  to a valid one -- clearing or correcting it mid-keystroke would fight them.
+//
+//  HSV is derived from the parsed ARGB rather than being tracked separately,
+//  so the sliders always describe the color that is actually selected.
+//
+//  The change callback fires OUTSIDE the syncing guard, so the owner does see
+//  the committed value.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ColorPickerOverlay::SyncFromHex()
@@ -270,7 +288,7 @@ void ColorPickerOverlay::SyncFromHex()
 
     BAIL_OUT_IF (m_syncing, S_OK);
 
-    ok = ColorUtil::ParseHexColor (m_hex.Text(), parsed);
+    ok = ColorUtil::TryParseHexColor (m_hex.Text(), parsed);
     BAIL_OUT_IF (!ok, S_OK);
 
     m_syncing = true;
@@ -386,6 +404,22 @@ void ColorPickerOverlay::ApplyFocus()
 //
 //  ColorPickerOverlay::CopyTextToClipboard
 //
+//  Copies the hex string to the clipboard, so a color chosen here can be
+//  pasted into whatever the user is matching against.
+//
+//  Ownership of the global block is tracked by NULLING the handle on success.
+//  The clipboard takes ownership only when SetClipboardData succeeds: freeing
+//  afterwards corrupts the clipboard, and not freeing on failure leaks. Since
+//  the cleanup frees whatever handle it still holds, clearing it on the one
+//  successful path expresses the transfer directly.
+//
+//  The clipboard is closed on every exit, including the failure paths --
+//  leaving it open locks it for the entire desktop.
+//
+//  Failures are silent. Another application holding the clipboard is routine,
+//  and an error dialog over a color picker would be far more disruptive than
+//  the missed copy; the caller's flash simply does not appear.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ColorPickerOverlay::CopyTextToClipboard (const std::wstring & text)
@@ -451,6 +485,25 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorPickerOverlay::OnLButtonDown
+//
+//  Routes a press to the first control that claims it, and moves keyboard
+//  focus there.
+//
+//  Press is an exclusive chain -- the first claimant ends the walk -- unlike
+//  the release, which is broadcast so every control can clear its own press
+//  visual whether or not the pointer is still over it.
+//
+//  Clicking a control also FOCUSES it, so the keyboard follows the mouse and a
+//  user who clicks a slider can immediately arrow it.
+//
+//  The hex field additionally records itself as the previous focus and clears
+//  the replace-on-first-char flag. That flag makes a TAB into the field select
+//  its contents so typing replaces them; a deliberate CLICK is a cursor
+//  placement, and replacing the text there would destroy what the user was
+//  aiming at.
+//
+//  The copy affordance is last and is not a focusable control -- it is a
+//  one-shot action that stamps a flash timestamp for its own feedback.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -638,6 +691,7 @@ bool ColorPickerOverlay::OnChar (wchar_t ch)
             m_hex.SetText (L"");
             m_hexReplaceOnChar = false;
         }
+
         (void) m_hex.OnChar (ch);
     }
 
@@ -724,10 +778,12 @@ void ColorPickerOverlay::PaintCopyIcon (
     float            cw        = (float) (m_copyRect.right  - m_copyRect.left);
     float            ch        = (float) (m_copyRect.bottom - m_copyRect.top);
     float            glyphDip  = m_scaler.Pxf (s_kCopyGlyphDip);
+    const wchar_t  * glyph     = nullptr;
+    uint32_t         glyphArgb = 0;
     bool             flashing  = (m_copyFlashMs != 0) &&
                                  ((int64_t) GetTickCount64() - m_copyFlashMs < s_kCopyFlashMs);
-    const wchar_t  * glyph     = flashing ? s_kpszMdl2Accept : s_kpszMdl2Copy;
-    uint32_t         glyphArgb = theme.Foreground();
+    glyph = flashing ? s_kpszMdl2Accept : s_kpszMdl2Copy;
+    glyphArgb = theme.Foreground();
 
 
 
@@ -741,18 +797,19 @@ void ColorPickerOverlay::PaintCopyIcon (
         painter.FillRect (cl, ct, cw, ch, theme.HoverBackground());
     }
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (glyph,
-                                              cl,
-                                              ct,
-                                              cw,
-                                              ch,
-                                              glyphArgb,
-                                              glyphDip,
-                                              s_kpszMdl2Family,
-                                              DxuiTextHAlign::Center,
-                                              DxuiTextVAlign::Center,
-                                              DxuiFontWeight::Normal,
-                                              false));
+    hr = text.DrawString (glyph,
+                          cl,
+                          ct,
+                          cw,
+                          ch,
+                          glyphArgb,
+                          glyphDip,
+                          s_kpszMdl2Family,
+                          DxuiTextHAlign::Center,
+                          DxuiTextVAlign::Center,
+                          DxuiFontWeight::Normal,
+                          false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

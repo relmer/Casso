@@ -76,6 +76,8 @@ Byte LanguageCard::Read (Word address)
 {
     Byte  switchAddr = static_cast<Byte> (address & 0x0F);
 
+
+
     ApplySwitch (switchAddr, false);
 
     return 0;
@@ -97,9 +99,13 @@ Byte LanguageCard::Read (Word address)
 
 void LanguageCard::Write (Word address, Byte value)
 {
+    Byte  switchAddr = 0;
+
+
+
     UNREFERENCED_PARAMETER (value);
 
-    Byte  switchAddr = static_cast<Byte> (address & 0x0F);
+    switchAddr = static_cast<Byte> (address & 0x0F);
 
     ApplySwitch (switchAddr, true);
 }
@@ -137,6 +143,8 @@ void LanguageCard::ApplySwitch (Byte switchAddr, bool isWrite)
 
 
 
+    Word  readFlagsBefore = static_cast<Word> (m_flags & (kLcFlagBank2 | kLcFlagReadRam));
+
     m_flags &= static_cast<Word> (~(kLcFlagBank2 | kLcFlagReadRam));
 
     if (bank2)
@@ -149,27 +157,38 @@ void LanguageCard::ApplySwitch (Byte switchAddr, bool isWrite)
         m_flags |= kLcFlagReadRam;
     }
 
+    // A change to the bank or read-source selection re-points the $D000-$FFFF
+    // read pages. WRITERAM (decided below) only affects the device write path,
+    // so it needs no re-point.
+    if (static_cast<Word> (m_flags & (kLcFlagBank2 | kLcFlagReadRam)) != readFlagsBefore)
+    {
+        RebindWindow();
+    }
+
     if (!isOdd)
     {
+        // Any even-addressed access disarms and un-latches WRITERAM.
         m_preWriteCount = 0;
         m_flags &= static_cast<Word> (~kLcFlagWriteRam);
-        return;
     }
-
-    if (isWrite)
+    else if (isWrite)
     {
+        // An odd-addressed WRITE cancels a pending arm sequence but leaves an
+        // already-latched WRITERAM alone (audit M7 / Sather UTAIIe §5-23).
         m_preWriteCount = 0;
-        return;
     }
-
-    if (m_preWriteCount < kPreWriteArmTarget)
+    else
     {
-        m_preWriteCount++;
-    }
+        // An odd-addressed READ arms; the target-th consecutive one latches.
+        if (m_preWriteCount < kPreWriteArmTarget)
+        {
+            m_preWriteCount++;
+        }
 
-    if (m_preWriteCount >= kPreWriteArmTarget)
-    {
-        m_flags |= kLcFlagWriteRam;
+        if (m_preWriteCount >= kPreWriteArmTarget)
+        {
+            m_flags |= kLcFlagWriteRam;
+        }
     }
 }
 
@@ -188,19 +207,15 @@ void LanguageCard::ApplySwitch (Byte switchAddr, bool isWrite)
 
 Byte * LanguageCard::SelectBank4K (Word address)
 {
-    bool  altZp = m_mmu != nullptr && m_mmu->GetAltZp ();
+    bool  altZp = m_mmu != nullptr && m_mmu->GetAltZp();
     bool  bank2 = (m_flags & kLcFlagBank2) != 0;
 
 
 
     UNREFERENCED_PARAMETER (address);
 
-    if (altZp)
-    {
-        return bank2 ? m_ramBank2Aux.data () : m_ramBank1Aux.data ();
-    }
-
-    return bank2 ? m_ramBank2Main.data () : m_ramBank1Main.data ();
+    return altZp ? (bank2 ? m_ramBank2Aux.data()  : m_ramBank1Aux.data())
+                 : (bank2 ? m_ramBank2Main.data() : m_ramBank1Main.data());
 }
 
 
@@ -218,13 +233,13 @@ Byte * LanguageCard::SelectBank4K (Word address)
 
 Byte * LanguageCard::SelectMainHigh (Word address)
 {
-    bool  altZp = m_mmu != nullptr && m_mmu->GetAltZp ();
+    bool  altZp = m_mmu != nullptr && m_mmu->GetAltZp();
 
 
 
     UNREFERENCED_PARAMETER (address);
 
-    return altZp ? m_ramAuxHigh.data () : m_ramMainHigh.data ();
+    return altZp ? m_ramAuxHigh.data() : m_ramMainHigh.data();
 }
 
 
@@ -239,19 +254,25 @@ Byte * LanguageCard::SelectMainHigh (Word address)
 
 Byte LanguageCard::ReadRam (Word address)
 {
+    Byte *  bank  = nullptr;
+    Byte    value = 0xFF;
+
+
+
+    // $D000-$DFFF is the banked 4K window, $E000-$FFFF the unbanked high 8K.
+    // Anything outside the card's window reads as floating-bus 0xFF.
     if (address >= kLcWindowStart && address <= kLcBank2Last)
     {
-        Byte *  bank = SelectBank4K (address);
-        return bank[address - kLcWindowStart];
+        bank  = SelectBank4K (address);
+        value = bank[address - kLcWindowStart];
     }
-
-    if (address >= kLcHighStart && address <= kLcWindowLast)
+    else if (address >= kLcHighStart && address <= kLcWindowLast)
     {
-        Byte *  high = SelectMainHigh (address);
-        return high[address - kLcHighStart];
+        bank  = SelectMainHigh (address);
+        value = bank[address - kLcHighStart];
     }
 
-    return 0xFF;
+    return value;
 }
 
 
@@ -266,22 +287,22 @@ Byte LanguageCard::ReadRam (Word address)
 
 void LanguageCard::WriteRam (Word address, Byte value)
 {
-    if ((m_flags & kLcFlagWriteRam) == 0)
-    {
-        return;
-    }
+    bool    canWrite = (m_flags & kLcFlagWriteRam) != 0;
+    Byte *  bank     = nullptr;
 
-    if (address >= kLcWindowStart && address <= kLcBank2Last)
+
+
+    // Mirrors ReadRam's window split. WRITERAM un-latched means the card is
+    // write-protected and the store is simply dropped.
+    if (canWrite && address >= kLcWindowStart && address <= kLcBank2Last)
     {
-        Byte *  bank = SelectBank4K (address);
+        bank = SelectBank4K (address);
         bank[address - kLcWindowStart] = value;
-        return;
     }
-
-    if (address >= kLcHighStart && address <= kLcWindowLast)
+    else if (canWrite && address >= kLcHighStart && address <= kLcWindowLast)
     {
-        Byte *  high = SelectMainHigh (address);
-        high[address - kLcHighStart] = value;
+        bank = SelectMainHigh (address);
+        bank[address - kLcHighStart] = value;
     }
 }
 
@@ -298,17 +319,19 @@ void LanguageCard::WriteRam (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LanguageCard::Reset ()
+void LanguageCard::Reset()
 {
-    SoftReset ();
+    SoftReset();
 }
 
 
 
-void LanguageCard::SoftReset ()
+void LanguageCard::SoftReset()
 {
     m_flags         = kLcFlagsPowerOn;
     m_preWriteCount = 0;
+
+    RebindWindow();
 }
 
 
@@ -327,10 +350,10 @@ void LanguageCard::SoftReset ()
 
 void LanguageCard::PowerCycle (Prng & prng)
 {
-    SoftReset ();
+    SoftReset();
 
-    prng.Fill (m_ramBank1Main.data (), m_ramBank1Main.size ());
-    prng.Fill (m_ramBank2Main.data (), m_ramBank2Main.size ());
+    prng.Fill (m_ramBank1Main.data(), m_ramBank1Main.size());
+    prng.Fill (m_ramBank2Main.data(), m_ramBank2Main.size());
     prng.Fill (m_ramMainHigh.data  (), m_ramMainHigh.size  ());
     prng.Fill (m_ramBank1Aux.data  (), m_ramBank1Aux.size  ());
     prng.Fill (m_ramBank2Aux.data  (), m_ramBank2Aux.size  ());
@@ -349,19 +372,66 @@ void LanguageCard::PowerCycle (Prng & prng)
 
 Byte LanguageCard::ReadRom (Word address) const
 {
-    if (m_romData.empty () || address < kLcWindowStart)
+    bool    inWindow = !m_romData.empty() && address >= kLcWindowStart;
+    size_t  offset   = inWindow ? static_cast<size_t> (address - kLcWindowStart) : 0;
+    Byte    value    = 0xFF;
+
+
+
+    // No ROM image, below the window, or past the end of a short image: all
+    // read as floating-bus 0xFF. The range test guards the subtraction.
+    if (inWindow && offset < m_romData.size())
     {
-        return 0xFF;
+        value = m_romData[offset];
     }
 
-    size_t  offset = static_cast<size_t> (address - kLcWindowStart);
+    return value;
+}
 
-    if (offset < m_romData.size ())
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RebindWindow
+//
+//  Maps the bus read-page table for $D000-$FFFF to the current byte source.
+//  See the header for the re-call contract. Only read pages are mapped; the
+//  LanguageCardBank device still owns writes (WRITERAM gating / write-protect).
+//  A null pointer (ROM not yet loaded during early construction) leaves the
+//  page device-routed, which is corrected by the explicit rebind at wire-up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LanguageCard::RebindWindow()
+{
+    static constexpr int  kPageSize = 0x100;
+
+
+
+    bool    readRam = IsReadRam();
+    Byte *  romBase = m_romData.empty() ? nullptr : m_romData.data();
+    Byte *  bank4k  = SelectBank4K   (kLcWindowStart);   // $D000-$DFFF RAM (4 KiB)
+    Byte *  high8k  = SelectMainHigh (kLcHighStart);     // $E000-$FFFF RAM (8 KiB)
+
+    for (int page = 0xD0; page <= 0xFF; page++)
     {
-        return m_romData[offset];
-    }
+        Byte *  readPtr = nullptr;
 
-    return 0xFF;
+        if (readRam)
+        {
+            readPtr = (page <= 0xDF)
+                    ? bank4k + ((page - 0xD0) * kPageSize)
+                    : high8k + ((page - 0xE0) * kPageSize);
+        }
+        else if (romBase != nullptr)
+        {
+            readPtr = romBase + ((page - 0xD0) * kPageSize);
+        }
+
+        m_bus.SetReadPage (page, readPtr);
+    }
 }
 
 
@@ -408,12 +478,8 @@ LanguageCardBank::LanguageCardBank (LanguageCard & lc)
 
 Byte LanguageCardBank::Read (Word address)
 {
-    if (m_lc.IsReadRam ())
-    {
-        return m_lc.ReadRam (address);
-    }
-
-    return m_lc.ReadRom (address);
+    // READRAM decides which byte source backs $D000-$FFFF this instant.
+    return m_lc.IsReadRam() ? m_lc.ReadRam (address) : m_lc.ReadRom (address);
 }
 
 
@@ -441,6 +507,6 @@ void LanguageCardBank::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LanguageCardBank::Reset ()
+void LanguageCardBank::Reset()
 {
 }

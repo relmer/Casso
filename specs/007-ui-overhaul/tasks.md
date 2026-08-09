@@ -240,7 +240,7 @@ minima.
 - [X] T104 [P] [US5] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\TitleBarLayoutTests.cpp` against the native title bar layout (DPI-scaled bands, min/max/close positions)
 - [X] T105 [P] [US3] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\DriveWidgetStateTests.cpp` against the rewritten drive widget (door state machine + sync events FR-050)
 - [X] T106 [P] [US3] Rewrite `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\CrtLetterboxLayoutTests.cpp` against the native chrome viewport calculation (4:3 letterbox/pillarbox FR-043)
-- [x] T106a [P] [US5] Create or extend `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\Win11DwmHelpersTests.cpp` to verify every DWM call site is gated by `IsWindows11OrGreater()` (FR-042) — added behavioural nullptr-safety tests + structural gate-presence tests for ApplyRoundedCorners / ApplyMicaBackdrop / ApplyImmersiveDarkMode / ExtendFrameIntoClientArea
+- [x] T106a [P] [US5] Create or extend `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\Win11DwmHelpersTests.cpp` to verify every DWM call site is gated by `IsWindows11OrGreater()` (FR-042) — added behavioral nullptr-safety tests + structural gate-presence tests for ApplyRoundedCorners / ApplyMicaBackdrop / ApplyImmersiveDarkMode / ExtendFrameIntoClientArea
 - [X] T106b [P] [US3] Verify `C:\Users\relmer\repos\relmer\Casso\UnitTest\UiTests\AutoMountTests.cpp` still compiles after `Chrome\DriveWidget` moves; rewrite includes/namespaces if not
 - [X] T107 [US5] Update `C:\Users\relmer\repos\relmer\Casso\UnitTest\UnitTest.vcxproj` to reflect renamed/relocated test files and add new chrome-bound tests
 - [X] T108 [US5] Update `C:\Users\relmer\repos\relmer\Casso\Casso\Casso.vcxproj` to add every new widget + chrome `.cpp`/`.h` from T074–T100 under the appropriate `<ClCompile>` / `<ClInclude>` `<ItemGroup>`
@@ -471,7 +471,7 @@ analysis sweep, full screenshot matrix capture, residue audit, documentation.
 ### P5c — Final code analysis + residue audit
 
 - [ ] T142 Run `scripts\Build.ps1 -RunCodeAnalysis` on the fully integrated branch and confirm zero findings — RUN AT MERGE TIME
-- [x] T143 Re-run `rg -n "Rml|RMLUI"` across all source trees — confirmed zero hits in Casso/CassoCore/CassoEmuCore/CassoCli/UnitTest (External/ retains licence text only)
+- [x] T143 Re-run `rg -n "Rml|RMLUI"` across all source trees — confirmed zero hits in Casso/CassoCore/CassoEmuCore/CassoCli/UnitTest (External/ retains license text only)
 - [ ] T144 Run `scripts\RunTests.ps1` on the merged branch HEAD and confirm a green run with deterministic, side-effect-free results (SC-013) — RUN AT MERGE TIME (1572 tests currently green on 007 HEAD)
 
 ### P5d — Full screenshot matrix

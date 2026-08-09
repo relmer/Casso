@@ -21,11 +21,11 @@ namespace ConstantTests
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    static Assembler BuildAssembler ()
+    static Assembler BuildAssembler()
     {
         TestCpu cpu;
-        cpu.InitForTest ();
-        return Assembler (cpu.GetInstructionSet ());
+        cpu.InitForTest();
+        return Assembler (cpu.GetInstructionSet());
     }
 
 
@@ -45,7 +45,7 @@ namespace ConstantTests
 
         TEST_METHOD (EquChain_ForwardReference_Resolves)
         {
-            Assembler asm6502 = BuildAssembler ();
+            Assembler asm6502 = BuildAssembler();
             auto result = asm6502.Assemble (
                 "a equ b\n"
                 "b equ 42\n"
@@ -53,7 +53,7 @@ namespace ConstantTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 2, result.bytes.size ());
+            Assert::AreEqual ((size_t) 2, result.bytes.size());
             Assert::AreEqual ((Byte) 0xA9, result.bytes[0]);
             Assert::AreEqual ((Byte) 42,   result.bytes[1]);
         }
@@ -70,7 +70,7 @@ namespace ConstantTests
 
         TEST_METHOD (EquChain_ThreeLevel)
         {
-            Assembler asm6502 = BuildAssembler ();
+            Assembler asm6502 = BuildAssembler();
             auto result = asm6502.Assemble (
                 "a equ b\n"
                 "b equ c\n"
@@ -79,7 +79,7 @@ namespace ConstantTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 2, result.bytes.size ());
+            Assert::AreEqual ((size_t) 2, result.bytes.size());
             Assert::AreEqual ((Byte) 0xA9, result.bytes[0]);
             Assert::AreEqual ((Byte) 7,    result.bytes[1]);
         }
@@ -96,7 +96,7 @@ namespace ConstantTests
 
         TEST_METHOD (EquChain_Circular_ReportsError)
         {
-            Assembler asm6502 = BuildAssembler ();
+            Assembler asm6502 = BuildAssembler();
             auto result = asm6502.Assemble (
                 "a equ b\n"
                 "b equ a\n"
@@ -104,7 +104,7 @@ namespace ConstantTests
             );
 
             Assert::IsFalse (result.success, L"Assembly should fail on circular equ");
-            Assert::IsTrue (result.errors.size () > 0, L"Should have errors");
+            Assert::IsTrue (result.errors.size() > 0, L"Should have errors");
         }
     };
 }

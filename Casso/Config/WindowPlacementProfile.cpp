@@ -12,95 +12,113 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+uint64_t  WindowPlacementProfile::HashFNV1a64 (const std::wstring & text)
 {
-    constexpr uint64_t  s_kFnvOffset    = 1469598103934665603ull;
-    constexpr uint64_t  s_kFnvPrime     = 1099511628211ull;
-    constexpr int       s_kHashHexChars = 16;
+    uint64_t  hash = kFnvOffset;
 
 
-    struct MonitorSnapshot
+
+    for (wchar_t ch : text)
     {
-        std::wstring  device;
-        RECT          rcMonitor = {};
-        RECT          rcWork    = {};
-        DWORD         flags     = 0;
-    };
+        uint64_t  code = static_cast<uint64_t> (ch);
 
-
-    uint64_t  HashFNV1a64 (const std::wstring & text)
-    {
-        uint64_t  hash = s_kFnvOffset;
-        size_t    i    = 0;
-
-
-
-        for (i = 0; i < text.size(); ++i)
-        {
-            uint64_t  code = static_cast<uint64_t> (text[i]);
-
-            hash ^= (code & 0xFFu);
-            hash *= s_kFnvPrime;
-            hash ^= ((code >> 8) & 0xFFu);
-            hash *= s_kFnvPrime;
-        }
-
-        return hash;
+        hash ^= (code & 0xFFu);
+        hash *= kFnvPrime;
+        hash ^= ((code >> 8) & 0xFFu);
+        hash *= kFnvPrime;
     }
 
+    return hash;
+}
 
-    bool  TryParseLong (const std::wstring & text, LONG & outValue)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WindowPlacementProfile::TryParseLong
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool  WindowPlacementProfile::TryParseLong (const std::wstring & text, LONG & outValue)
+{
+    wchar_t * end    = nullptr;
+    long      parsed = 0;
+    bool      ok     = !text.empty();
+
+
+
+    // wcstol must have consumed the WHOLE string: "12x" is a malformed
+    // placement value, not 12.
+    if (ok)
     {
-        wchar_t * end    = nullptr;
-        long      parsed = 0;
-
-
-
-        if (text.empty())
-        {
-            return false;
-        }
-
         parsed = wcstol (text.c_str(), &end, 10);
-        if (end == nullptr || *end != L'\0')
-        {
-            return false;
-        }
-
-        outValue = static_cast<LONG> (parsed);
-        return true;
+        ok     = (end != nullptr && *end == L'\0');
     }
 
-
-    BOOL CALLBACK CollectMonitorsProc (HMONITOR hMon, HDC hdc, LPRECT prc, LPARAM lParam)
+    if (ok)
     {
-        std::vector<MonitorSnapshot> *  list = reinterpret_cast<std::vector<MonitorSnapshot> *> (lParam);
-        MONITORINFOEXW                  mi   = { sizeof (mi) };
-        MonitorSnapshot                 snap;
+        outValue = static_cast<LONG> (parsed);
+    }
+
+    return ok;
+}
 
 
 
-        UNREFERENCED_PARAMETER (hdc);
-        UNREFERENCED_PARAMETER (prc);
 
-        if (list == nullptr)
-        {
-            return FALSE;
-        }
 
-        if (!GetMonitorInfoW (hMon, &mi))
-        {
-            return TRUE;
-        }
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WindowPlacementProfile::CollectMonitorsProc
+//
+//  EnumDisplayMonitors callback: snapshots each monitor's identity and rects
+//  into the caller's list, which becomes the topology key.
+//
+//  The return value carries the API's own meaning and the two false-ish exits
+//  mean OPPOSITE things: FALSE aborts the entire enumeration, TRUE continues
+//  it. So a null list stops the walk -- there is nowhere to put results -- but
+//  a monitor whose info could not be read returns TRUE and lets the next one
+//  be tried, since a partial topology beats none.
+//
+//  The device NAME is captured alongside the rects because two monitors can
+//  share identical geometry; the name is what distinguishes them, and the
+//  topology key must change when the arrangement does.
+//
+//  The work rect is snapshotted as well as the monitor rect, since a taskbar
+//  moving between edges changes where a window may legitimately sit without
+//  changing the display arrangement.
+//
+////////////////////////////////////////////////////////////////////////////////
 
+BOOL CALLBACK WindowPlacementProfile::CollectMonitorsProc (HMONITOR hMon, HDC hdc, LPRECT prc, LPARAM lParam)
+{
+    std::vector<MonitorSnapshot> *  list = reinterpret_cast<std::vector<MonitorSnapshot> *> (lParam);
+    MONITORINFOEXW                  mi   = { sizeof (mi) };
+    MonitorSnapshot                 snap;
+
+
+
+    // The two false-ish exits mean opposite things to EnumDisplayMonitors:
+    // FALSE aborts the whole enumeration (no list to fill, so stop), while
+    // TRUE continues it (this one monitor failed, try the next).
+    BOOL  keepEnumerating = (list != nullptr);
+
+    UNREFERENCED_PARAMETER (hdc);
+    UNREFERENCED_PARAMETER (prc);
+
+    if (keepEnumerating && GetMonitorInfoW (hMon, &mi))
+    {
         snap.device    = mi.szDevice;
         snap.rcMonitor = mi.rcMonitor;
         snap.rcWork    = mi.rcWork;
         snap.flags     = mi.dwFlags;
 
         list->push_back (snap);
-        return TRUE;
     }
+
+    return keepEnumerating;
 }
 
 
@@ -136,11 +154,11 @@ std::string WindowPlacementProfile::BuildTopologyKey (HMONITOR activeMonitor)
 {
     std::vector<MonitorSnapshot>  monitors;
     std::wstring                  activeDevice;
-    MONITORINFOEXW                activeInfo  = { sizeof (activeInfo) };
+    MONITORINFOEXW                activeInfo                 = { sizeof (activeInfo) };
     std::wstring                  canonical;
-    uint64_t                      hash        = 0;
-    char                          hashHex[s_kHashHexChars + 1] = {};
-    size_t                        i           = 0;
+    uint64_t                      hash                       = 0;
+    char                          hashHex[kHashHexChars + 1] = {};
+    size_t                        i                          = 0;
 
 
 
@@ -161,9 +179,9 @@ std::string WindowPlacementProfile::BuildTopologyKey (HMONITOR activeMonitor)
         activeDevice = activeInfo.szDevice;
     }
 
-    for (i = 0; i < monitors.size(); ++i)
+    for (auto & monitor : monitors)
     {
-        const MonitorSnapshot & m = monitors[i];
+        const MonitorSnapshot & m = monitor;
 
         canonical += m.device;
         canonical += L"|";
@@ -214,23 +232,22 @@ bool WindowPlacementProfile::TryLoad (
     const std::string & topologyKey,
     Bounds            & outBounds) const
 {
-    if (m_prefs == nullptr)
+    bool  found = false;
+
+    // A zero-sized stored placement counts as absent -- restoring it would
+    // hand the user an invisible window.
+    if (m_prefs != nullptr)
     {
-        return false;
+        auto  it = m_prefs->window.placements.find (topologyKey);
+
+        if (it != m_prefs->window.placements.end() && it->second.w > 0 && it->second.h > 0)
+        {
+            outBounds = it->second;
+            found     = true;
+        }
     }
 
-    auto  it = m_prefs->window.placements.find (topologyKey);
-    if (it == m_prefs->window.placements.end())
-    {
-        return false;
-    }
-    if (it->second.w <= 0 || it->second.h <= 0)
-    {
-        return false;
-    }
-
-    outBounds = it->second;
-    return true;
+    return found;
 }
 
 
@@ -255,5 +272,6 @@ void WindowPlacementProfile::Save (
     {
         return;
     }
+
     m_prefs->window.placements[topologyKey] = bounds;
 }

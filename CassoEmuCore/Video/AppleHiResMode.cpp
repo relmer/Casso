@@ -34,9 +34,9 @@ AppleHiResMode::AppleHiResMode (MemoryBus & bus)
 
 Word AppleHiResMode::ScanlineAddress (int scanline, Word pageBase)
 {
-    int group   = scanline / 64;   // 0-2 (which group of 64 scanlines)
-    int subRow  = scanline % 8;    // 0-7 (which of 8 interleave rows)
-    int lineInGroup = (scanline % 64) / 8;  // 0-7 (which line within group)
+    int  group       = scanline / 64;   // 0-2 (which group of 64 scanlines)
+    int  subRow      = scanline % 8;   // 0-7 (which of 8 interleave rows)
+    int  lineInGroup = (scanline % 64) / 8;   // 0-7 (which line within group)
 
     return static_cast<Word> (
         pageBase + subRow * 1024 + group * 40 + lineInGroup * 128);
@@ -65,6 +65,29 @@ Word AppleHiResMode::GetActivePageAddress (bool page2) const
 //
 //  Render
 //
+//  Rasterizes the hi-res screen, decoding NTSC artifact color.
+//
+//  TWO PASSES per scanline, and the split is what makes artifact color
+//  possible. A hi-res pixel's color depends on its NEIGHBORS -- the Apple II
+//  produced color by exploiting NTSC chroma aliasing, so an isolated dot is
+//  colored while adjacent dots read as white. A single pass cannot know what
+//  is to the right yet, so pass 1 decodes the whole line's pixels and palette
+//  bits and pass 2 colors them with both neighbors in hand.
+//
+//  Bit 7 of each byte is a PALETTE selector, not pixel data -- it shifts that
+//  byte's seven pixels by half a dot and swaps the color pair. Which is why
+//  the palette bit is captured per pixel rather than per byte: a run can cross
+//  a byte boundary into a different palette.
+//
+//  Seven pixels per byte, forty bytes per line: the hardware packs 280 pixels
+//  across, and the leftover eighth bit is the palette selector.
+//
+//  Scanlines are doubled vertically, so 192 emulated lines fill the 384-line
+//  framebuffer and hi-res matches the other modes' geometry.
+//
+//  A null videoRam reads through the bus, honoring //e MMU banking; an
+//  explicit pointer is the standalone path.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void AppleHiResMode::Render (
@@ -73,16 +96,16 @@ void AppleHiResMode::Render (
     int          fbWidth,
     int          fbHeight)
 {
-    Word     pageBase = GetActivePageAddress (m_page2);
-    bool     pixels[280]   = {};
-    bool     palettes[280] = {};
-    Byte     data     = 0;
-    bool     palBit   = false;
-    uint32_t color    = 0;
-    int      fbX      = 0;
-    int      fbY      = 0;
-    bool     leftOn   = false;
-    bool     rightOn  = false;
+    Word      pageBase      = GetActivePageAddress (m_page2);
+    bool      pixels[280]   = {};
+    bool      palettes[280] = {};
+    Byte      data          = 0;
+    bool      palBit        = false;
+    uint32_t  color         = 0;
+    int       fbX           = 0;
+    int       fbY           = 0;
+    bool      leftOn        = false;
+    bool      rightOn       = false;
 
 
 

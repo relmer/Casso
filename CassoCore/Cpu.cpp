@@ -2,7 +2,6 @@
 
 #include "Cpu.h"
 #include "CpuOperations.h"
-#include "Ehm.h"
 #include "Group00.h"
 #include "Group01.h"
 #include "Group10.h"
@@ -58,6 +57,7 @@ void Cpu::Reset()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EnableTrace
@@ -69,8 +69,9 @@ void Cpu::Reset()
 
 void Cpu::EnableTrace (size_t capacity)
 {
-    m_traceHead  = 0;
-    m_traceCount = 0;
+    m_traceHead        = 0;
+    m_traceCount       = 0;
+    m_pendingTraceIntr = kTraceIntrNone;
 
     if (capacity == 0)
     {
@@ -85,6 +86,7 @@ void Cpu::EnableTrace (size_t capacity)
     m_trace.assign (capacity, TraceEntry {});
     m_traceEnabled  = true;
 }
+
 
 
 
@@ -113,6 +115,8 @@ void Cpu::TracePush (Byte opcode)
 {
     TraceEntry &  e = m_trace[m_traceHead];
 
+
+
     e.pc     = PC;
     e.opcode = opcode;
     e.op1    = memory[(Word) (PC + 1)];
@@ -123,9 +127,15 @@ void Cpu::TracePush (Byte opcode)
     e.sp     = SP;
     e.p      = status.status;
 
+    // Move any pending interrupt-dispatch tag onto this entry: TracePush runs
+    // for the handler's first instruction right after the vector was taken.
+    e.intr             = m_pendingTraceIntr;
+    m_pendingTraceIntr = kTraceIntrNone;
+
     m_traceHead = (m_traceHead + 1) % m_traceCapacity;
     m_traceCount++;
 }
+
 
 
 
@@ -145,6 +155,10 @@ void Cpu::TracePush (Byte opcode)
 
 void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
 {
+    size_t  i = 0;
+
+
+
     // Short newest-first look-back to stderr -- enough to see the
     // JMP/JSR/RTS chain that landed PC on the bad byte. The full ring
     // (which may be millions of entries under --trace) is written
@@ -153,8 +167,6 @@ void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
 
     size_t  total   = (m_traceCount < (uint64_t) m_traceCapacity) ? (size_t) m_traceCount
                                                                   : m_traceCapacity;
-    size_t  i       = 0;
-    size_t  index   = 0;
 
     if (total > kMaxLookback)
     {
@@ -171,9 +183,7 @@ void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
     {
         // head currently points one PAST the most recent push, so the
         // newest entry is (head - 1) mod size. Step backward from there.
-        index = (m_traceHead + m_traceCapacity - 1 - i) % m_traceCapacity;
-
-        const TraceEntry &  e        = m_trace[index];
+        const TraceEntry &  e        = m_trace[(m_traceHead + m_traceCapacity - 1 - i) % m_traceCapacity];
         const char *        opName   = instructionSet[e.opcode].instructionName != nullptr
                                        ? instructionSet[e.opcode].instructionName
                                        : "???";
@@ -191,6 +201,7 @@ void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DumpTraceToFile
@@ -201,69 +212,126 @@ void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
 //    00000001  PC=$XXXX  op=$XX OPS=$XX $XX (NAME)  A=$XX X=$XX Y=$XX SP=$XX P=$XX
 //
 //  `onProgress` (if set) is called every kProgressStride entries and once
-//  at completion with (entriesWritten, totalEntries). Returns true on
-//  success. CassoCore owns no UI; the caller drives any progress dialog.
+//  at completion with (entriesWritten, totalEntries). CassoCore owns no UI;
+//  the caller drives any progress dialog.
+//
+//  The user asks for this dump explicitly, so a failure has to say which one
+//  it was: E_INVALIDARG for an unopenable path, E_UNEXPECTED for a trace ring
+//  that was never allocated (--trace not on), E_FAIL for a write that started
+//  and then failed. A bool collapsed all three into "nothing happened".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Cpu::DumpTraceToFile (const std::wstring & path,
-                           const std::function<void (uint64_t, uint64_t)> & onProgress) const
+HRESULT Cpu::DumpTraceToFile (const std::wstring & path,
+                              const std::function<void (uint64_t, uint64_t)> & onProgress) const
 {
     static constexpr uint64_t  kProgressStride = 100000;
+    size_t                     start           = 0;
+    bool                       isOpen          = false;
+    bool                       wrote           = false;
+    char                       line[160];
 
+    HRESULT        hr    = S_OK;
     std::ofstream  out (path, std::ios::binary | std::ios::trunc);
     uint64_t       total = (m_traceCount < (uint64_t) m_traceCapacity) ? m_traceCount
                                                                        : (uint64_t) m_traceCapacity;
-    size_t         start = 0;
-    char           line[160];
 
-    if (!out.is_open() || m_traceCapacity == 0)
+    isOpen = out.is_open();
+
+    CBREx (isOpen,               E_INVALIDARG);
+    CBREx (m_traceCapacity != 0, E_UNEXPECTED);
+
     {
-        return false;
-    }
+        uint64_t  irqCount = 0;
+        uint64_t  nmiCount = 0;
 
-    // When the ring has wrapped, the oldest surviving entry sits at the
-    // current head; otherwise it starts at index 0.
-    start = (m_traceCount > (uint64_t) m_traceCapacity) ? m_traceHead : 0;
+        // When the ring has wrapped, the oldest surviving entry sits at the
+        // current head; otherwise it starts at index 0.
+        start = (m_traceCount > (uint64_t) m_traceCapacity) ? m_traceHead : 0;
 
-    out << "Casso CPU execution trace -- " << total << " instructions (oldest first)\n";
+        out << "Casso CPU execution trace -- " << total << " instructions (oldest first)\n";
 
-    for (uint64_t i = 0; i < total; i++)
-    {
-        size_t              index = (start + (size_t) i) % m_traceCapacity;
-        const TraceEntry &  e     = m_trace[index];
-        const char *        name  = instructionSet[e.opcode].instructionName != nullptr
-                                    ? instructionSet[e.opcode].instructionName
-                                    : "???";
+        // Pre-scan for the interrupt-rate summary. An interrupt storm (stuck
+        // IRQ line, unacknowledged source, an ISR that never returns) is
+        // otherwise invisible in a flat instruction trace, so surface the rate
+        // up top. Cheap -- one pass reading a single byte per entry, dwarfed by
+        // the write below.
 
-        int  n = std::snprintf (line, sizeof (line),
-                                "%08llu  PC=$%04X  op=$%02X OPS=$%02X $%02X (%s)  "
-                                "A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X\n",
-                                (unsigned long long) i,
-                                (unsigned) e.pc, (unsigned) e.opcode,
-                                (unsigned) e.op1, (unsigned) e.op2, name,
-                                (unsigned) e.a, (unsigned) e.x, (unsigned) e.y,
-                                (unsigned) e.sp, (unsigned) e.p);
-        if (n > 0)
+        for (uint64_t i = 0; i < total; i++)
         {
-            out.write (line, n);
+            Byte  kind = m_trace[(start + (size_t) i) % m_traceCapacity].intr;
+
+            if      (kind == kTraceIntrIrq) { ++irqCount; }
+            else if (kind == kTraceIntrNmi) { ++nmiCount; }
         }
 
-        if (onProgress && (i % kProgressStride) == 0)
         {
-            onProgress (i, total);
+            char  hdr[128];
+            int   hn = (irqCount > 0)
+                     ? std::snprintf (hdr, sizeof (hdr),
+                           "interrupts: %llu IRQ, %llu NMI  (1 IRQ per %llu instrs, ~%.1f/frame)\n",
+                           (unsigned long long) irqCount, (unsigned long long) nmiCount,
+                           (unsigned long long) (total / irqCount),
+                           (double) irqCount * 17030.0 / ((double) total * 3.0))
+                     : std::snprintf (hdr, sizeof (hdr),
+                           "interrupts: %llu IRQ, %llu NMI\n",
+                           (unsigned long long) irqCount, (unsigned long long) nmiCount);
+
+            if (hn > 0)
+            {
+                out.write (hdr, hn);
+            }
         }
+
+        for (uint64_t i = 0; i < total; i++)
+        {
+            size_t              index = (start + (size_t) i) % m_traceCapacity;
+            const TraceEntry &  e     = m_trace[index];
+            const char *        name  = instructionSet[e.opcode].instructionName != nullptr
+                                        ? instructionSet[e.opcode].instructionName
+                                        : "???";
+            const char *        mark  = (e.intr == kTraceIntrIrq) ? "  [IRQ]"
+                                      : (e.intr == kTraceIntrNmi) ? "  [NMI]"
+                                      :                             "";
+
+            int  n = std::snprintf (line, sizeof (line),
+                                    "%08llu  PC=$%04X  op=$%02X OPS=$%02X $%02X (%s)  "
+                                    "A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X%s\n",
+                                    (unsigned long long) i,
+                                    (unsigned) e.pc, (unsigned) e.opcode,
+                                    (unsigned) e.op1, (unsigned) e.op2, name,
+                                    (unsigned) e.a, (unsigned) e.x, (unsigned) e.y,
+                                    (unsigned) e.sp, (unsigned) e.p, mark);
+            if (n > 0)
+            {
+                out.write (line, n);
+            }
+
+            if (onProgress && (i % kProgressStride) == 0)
+            {
+                onProgress (i, total);
+            }
+        }
+
+        out.flush();
+
+        if (onProgress)
+        {
+            onProgress (total, total);
+        }
+
+        // Distinct from the open failure above: the file opened and we wrote
+        // into it, then the stream went bad -- a full disk or a vanished share,
+        // not a bad path. E_FAIL is the CBR default, so no -Ex here.
+        wrote = out.good();
+
+        CBR (wrote);
     }
 
-    out.flush();
-
-    if (onProgress)
-    {
-        onProgress (total, total);
-    }
-
-    return out.good();
+Error:
+    return hr;
 }
+
 
 
 
@@ -272,13 +340,37 @@ bool Cpu::DumpTraceToFile (const std::wstring & path,
 //
 //  StepOne
 //
+//  Executes one instruction and leaves its exact cycle cost in m_lastCycles,
+//  which the host loop reads to keep emulated time honest. Timing is why this
+//  is more than fetch-decode-execute: two penalties are not in the table.
+//
+//  Page-crossing (+1) applies to indexed READS only. Stores and read-modify-
+//  write instructions always take the extra cycle -- the hardware cannot know
+//  whether the page crossed until it has read, and it must write regardless --
+//  so their cost is already baked into baseCycles and adding it here would
+//  double-count. That is what the long isReadOp exclusion list is for.
+//
+//  ZeroPageIndirectY needs its base recovered as effectiveAddress - Y, because
+//  unlike AbsoluteX/Y the base was never a literal in the instruction; it came
+//  from the zero-page pointer.
+//
+//  Branches (+1 taken, +1 more crossing a page) are detected by comparing PC
+//  against its value after operand fetch, which is simply whether the branch
+//  moved it -- no separate "was it taken" flag to keep in step. BRA counts as
+//  always taken.
+//
+//  An illegal opcode is a 2-cycle NOP that keeps running rather than an
+//  assert: real software executes undocumented NMOS ops this table does not
+//  carry yet (GH #52), and trapping would break titles that work on hardware.
+//
 ////////////////////////////////////////////////////////////////////////////////
 void Cpu::StepOne()
 {
 
-    Byte        opcode      = ReadByte (PC);
-    Microcode   microcode   = instructionSet[opcode];
-    OperandInfo operandInfo = { 0 };
+    Byte               opcode       = ReadByte (PC);
+    const Microcode  & microcode    = instructionSet[opcode];
+    OperandInfo        operandInfo  = { 0 };
+    Word               pcAfterFetch = 0;
 
 
 
@@ -296,11 +388,17 @@ void Cpu::StepOne()
             DumpInstructionTrace (opcode, PC);
         }
 
-        ASSERT (false);
+        // Do NOT break into the debugger on an illegal / not-yet-implemented
+        // opcode: real software (e.g. Space Quarks) legitimately executes NMOS
+        // undocumented ops we have not added yet (GH #52), and the DEBUGMSG above
+        // already records the opcode + PC. Treat it as a 2-cycle single-byte NOP
+        // and keep running. Uncomment the assert to break in while tracking down
+        // a specific illegal-opcode fault.
+        // ASSERT (false);
 
         m_lastCycles = 2;
         ++PC;
-        
+
         return;
     }
 
@@ -319,7 +417,18 @@ void Cpu::StepOne()
         microcode.operation != Microcode::RotateRight        &&
         microcode.operation != Microcode::Decrement          &&
         microcode.operation != Microcode::DecrementAndCompare &&
-        microcode.operation != Microcode::Increment;
+        microcode.operation != Microcode::Increment          &&
+        microcode.operation != Microcode::StoreAccumulatorAndX &&
+        microcode.operation != Microcode::ShiftLeftAndOr     &&
+        microcode.operation != Microcode::RotateLeftAndAnd   &&
+        microcode.operation != Microcode::ShiftRightAndXor   &&
+        microcode.operation != Microcode::RotateRightAndAdd  &&
+        microcode.operation != Microcode::IncrementAndSubtract &&
+        microcode.operation != Microcode::StoreZero          &&
+        microcode.operation != Microcode::TestAndSetBits     &&
+        microcode.operation != Microcode::TestAndResetBits   &&
+        microcode.operation != Microcode::ResetMemoryBit     &&
+        microcode.operation != Microcode::SetMemoryBit;
 
     if (isReadOp)
     {
@@ -341,12 +450,14 @@ void Cpu::StepOne()
         }
     }
 
-    Word pcAfterFetch = PC;
+    pcAfterFetch = PC;
 
     ExecuteInstruction (microcode, operandInfo);
 
-    // Branch penalty: +1 when taken, +1 more when crossing a page
-    if (microcode.operation == Microcode::Branch && PC != pcAfterFetch)
+    // Branch penalty: +1 when taken, +1 more when crossing a page. BRA is
+    // unconditional so it always pays the taken penalty.
+    if ((microcode.operation == Microcode::Branch ||
+         microcode.operation == Microcode::BranchAlways) && PC != pcAfterFetch)
     {
         m_lastCycles++;
 
@@ -364,6 +475,15 @@ void Cpu::StepOne()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintSingleStepInfo
+//
+//  One trace line per instruction: registers, flags, address, opcode bytes and
+//  disassembly, in fixed columns so a run diffs cleanly against a reference
+//  trace -- which is how this gets used.
+//
+//  The flags[][] pair is a lookup rather than seven conditionals: index 0 is
+//  all dots, index 1 the letters, so a bool selects the row and the flag's
+//  position selects the column. A clear flag shows '.' in the same column its
+//  letter would occupy, keeping the field a constant width.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -405,6 +525,18 @@ void Cpu::PrintSingleStepInfo (Word initialPC, Byte opcode, const OperandInfo & 
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintOperandBytes
+//
+//  The raw operand bytes of an instruction, blank-padded to a fixed width so
+//  the disassembly after them stays in column no matter how many bytes the
+//  addressing mode has.
+//
+//  Grouped by SIZE rather than listed per mode: every mode taking one operand
+//  byte prints the same way, so the cases fall through to three bodies --
+//  none, one byte, two bytes.
+//
+//  Reads go through ReadByte at PC+1 / PC+2 rather than through operandInfo,
+//  so this shows what is actually in memory, including for an instruction
+//  whose operand was never decoded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -448,6 +580,17 @@ void Cpu::PrintOperandBytes (Word initialPC, Byte opcode)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintOperandAndComment
+//
+//  Disassembly half of the single-step debug trace: renders the operand in the
+//  syntax its addressing mode would be written in, plus the value actually
+//  fetched.
+//
+//  The resolved value is the point -- `$1234,X ; $07` shows both what the
+//  source said and what it came to at run time, which is the thing a stepping
+//  session needs and static disassembly cannot give.
+//
+//  Illegal opcodes print nothing: their operand bytes were never decoded, so
+//  any rendering would be invented.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -522,47 +665,63 @@ void Cpu::PrintOperandAndComment (Byte opcode, const OperandInfo & operandInfo)
 //
 //  FetchOperand
 //
+//  Resolves the addressing mode into operandInfo -- the effective address, and
+//  the operand value where the mode implies one -- leaving PC on the LAST byte
+//  of the instruction. StepOne's trailing ++PC is what finally advances past
+//  it, so the two must be read together: the fetch helpers deliberately stop
+//  one short.
+//
+//  A mode with no operand bytes skips the whole block, PC never moves here,
+//  and that same trailing increment lands on the next instruction.
+//
+//  The default arm asserts rather than falling through quietly: an addressing
+//  mode with no fetch would leave operandInfo zeroed, so the instruction would
+//  execute against address $0000 instead of failing visibly.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
+void Cpu::FetchOperand (const Microcode & microcode, OperandInfo & operandInfo)
 {
+    // An illegal opcode has no operand to fetch, and the two implied modes
+    // encode their operand in the opcode itself. Both leave PC on the opcode
+    // byte -- only a real operand advances it.
+    bool  hasOperand = microcode.isLegal
+                       && microcode.globalAddressingMode != GlobalAddressingMode::SingleByteNoOperand
+                       && microcode.globalAddressingMode != GlobalAddressingMode::Accumulator;
+
     operandInfo.location         = 0;
     operandInfo.effectiveAddress = 0;
     operandInfo.operand          = 0;
 
-    if (!microcode.isLegal)
+    if (hasOperand)
     {
-        return;
-    }
+        // Advance the program counter to the operand byte
+        ++PC;
 
-    if (microcode.globalAddressingMode == GlobalAddressingMode::SingleByteNoOperand ||
-        microcode.globalAddressingMode == GlobalAddressingMode::Accumulator)
-    {
-        return;
-    }
+        switch (microcode.globalAddressingMode)
+        {
+        case GlobalAddressingMode::Absolute:          FetchOperandAbsolute          (operandInfo, microcode);    break;
+        case GlobalAddressingMode::AbsoluteX:         FetchOperandAbsoluteX         (operandInfo);               break;
+        case GlobalAddressingMode::AbsoluteY:         FetchOperandAbsoluteY         (operandInfo);               break;
+        case GlobalAddressingMode::Immediate:         FetchOperandImmediate         (operandInfo);               break;
+        case GlobalAddressingMode::JumpAbsolute:      FetchOperandJumpAbsolute      (operandInfo);               break;
+        case GlobalAddressingMode::JumpIndirect:      FetchOperandJumpIndirect      (operandInfo);               break;
+        case GlobalAddressingMode::Relative:          FetchOperandRelative          (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPage:          FetchOperandZeroPage          (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageX:         FetchOperandZeroPageX         (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageY:         FetchOperandZeroPageY         (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageXIndirect: FetchOperandZeroPageXIndirect (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageIndirectY: FetchOperandZeroPageIndirectY (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageIndirect:  FetchOperandZeroPageIndirect  (operandInfo);               break;
+        case GlobalAddressingMode::AbsoluteXIndirect: FetchOperandAbsoluteXIndirect (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageRelative:  FetchOperandZeroPageRelative  (operandInfo);               break;
+        case GlobalAddressingMode::JumpIndirectCmos:  FetchOperandJumpIndirectCmos  (operandInfo);               break;
 
-    // Advance the program counter to the operand byte
-    ++PC;
-
-    switch (microcode.globalAddressingMode)
-    {
-    case GlobalAddressingMode::Absolute:          FetchOperandAbsolute          (operandInfo, microcode);    break;
-    case GlobalAddressingMode::AbsoluteX:         FetchOperandAbsoluteX         (operandInfo);               break;
-    case GlobalAddressingMode::AbsoluteY:         FetchOperandAbsoluteY         (operandInfo);               break;
-    case GlobalAddressingMode::Immediate:         FetchOperandImmediate         (operandInfo);               break;
-    case GlobalAddressingMode::JumpAbsolute:      FetchOperandJumpAbsolute      (operandInfo);               break;
-    case GlobalAddressingMode::JumpIndirect:      FetchOperandJumpIndirect      (operandInfo);               break;
-    case GlobalAddressingMode::Relative:          FetchOperandRelative          (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPage:          FetchOperandZeroPage          (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPageX:         FetchOperandZeroPageX         (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPageY:         FetchOperandZeroPageY         (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPageXIndirect: FetchOperandZeroPageXIndirect (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPageIndirectY: FetchOperandZeroPageIndirectY (operandInfo);               break;
-
-    default:
-        std::printf ("Unhandled addressing mode %d\n", microcode.instruction.asBits.addressingMode);
-        ASSERT (false);
-        break;
+        default:
+            std::printf ("Unhandled addressing mode %d\n", microcode.instruction.asBits.addressingMode);
+            ASSERT (false);
+            break;
+        }
     }
 }
 
@@ -580,6 +739,8 @@ void Cpu::FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo)
 {
     Byte zpBase = ReadByte (PC);
     Byte zpAddr = (zpBase + X) & 0xFF;
+
+
 
     // Zero page word read wraps within zero page
     operandInfo.location         = zpBase;
@@ -649,15 +810,126 @@ void Cpu::FetchOperandJumpAbsolute (Cpu::OperandInfo & operandInfo)
 
 void Cpu::FetchOperandJumpIndirect (Cpu::OperandInfo & operandInfo)
 {
+    Word  lo = 0;
+    Word  hi = 0;
+
+
+
     operandInfo.location = ReadWord (PC++);
 
     // NMOS 6502 bug: JMP indirect wraps within the page.
     // If the pointer is at $xxFF, the high byte is read from $xx00.
-    Word lo = ReadByte (operandInfo.location);
-    Word hi = ReadByte ((operandInfo.location & 0xFF00) | ((operandInfo.location + 1) & 0x00FF));
+    lo = ReadByte (operandInfo.location);
+    hi = ReadByte ((operandInfo.location & 0xFF00) | ((operandInfo.location + 1) & 0x00FF));
 
     operandInfo.effectiveAddress = lo | (hi << 8);
     operandInfo.operand          = operandInfo.effectiveAddress;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FetchOperandJumpIndirectCmos
+//
+//  65C02 JMP (indirect). Reads the high byte from the next address, fixing the
+//  NMOS $xxFF page-boundary bug.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu::FetchOperandJumpIndirectCmos (Cpu::OperandInfo & operandInfo)
+{
+    Word  lo = 0;
+    Word  hi = 0;
+
+
+
+    operandInfo.location = ReadWord (PC++);
+
+    lo = ReadByte (operandInfo.location);
+    hi = ReadByte (static_cast<Word> (operandInfo.location + 1));
+
+    operandInfo.effectiveAddress = lo | (hi << 8);
+    operandInfo.operand          = operandInfo.effectiveAddress;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FetchOperandZeroPageIndirect
+//
+//  65C02 (zp) mode: the effective address is the 16-bit pointer stored at the
+//  zero-page location, wrapping within zero page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu::FetchOperandZeroPageIndirect (Cpu::OperandInfo & operandInfo)
+{
+    Byte zpAddr = ReadByte (PC);
+
+
+
+    operandInfo.location         = zpAddr;
+    operandInfo.effectiveAddress = ReadByte (zpAddr) | (ReadByte ((zpAddr + 1) & 0xFF) << 8);
+    operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FetchOperandAbsoluteXIndirect
+//
+//  65C02 JMP (abs,X): read the 16-bit vector at (absolute base + X).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu::FetchOperandAbsoluteXIndirect (Cpu::OperandInfo & operandInfo)
+{
+    Word  ptr = 0;
+
+
+
+    Word base = ReadWord (PC++);
+    ptr = static_cast<Word> (base + X);
+
+    operandInfo.location         = base;
+    operandInfo.effectiveAddress = ReadByte (ptr) | (ReadByte (static_cast<Word> (ptr + 1)) << 8);
+    operandInfo.operand          = operandInfo.effectiveAddress;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FetchOperandZeroPageRelative
+//
+//  65C02 BBRx/BBSx: a zero-page byte to test followed by a signed branch
+//  displacement. operand carries the tested byte; effectiveAddress the target.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu::FetchOperandZeroPageRelative (Cpu::OperandInfo & operandInfo)
+{
+    Byte  rel = 0;
+
+
+
+    Byte zpAddr = ReadByte (PC++);
+    rel = ReadByte (PC);
+
+    operandInfo.location         = zpAddr;
+    operandInfo.operand          = ReadByte (zpAddr);
+    operandInfo.effectiveAddress = static_cast<Word> ((PC + 1) + (SByte) rel);
 }
 
 
@@ -687,11 +959,22 @@ void Cpu::FetchOperandRelative (Cpu::OperandInfo & operandInfo)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::FetchOperandAbsolute (Cpu::OperandInfo & operandInfo, Microcode & microcode)
+void Cpu::FetchOperandAbsolute (Cpu::OperandInfo & operandInfo, const Microcode & microcode)
 {
     operandInfo.location         = ReadWord (PC++);
     operandInfo.effectiveAddress = operandInfo.location;
-    operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
+
+    // A store (STA/STX/STY/STZ abs) never reads its target on real hardware --
+    // it only writes. Pre-reading here would fire a spurious side effect on any
+    // $C0xx soft switch. That is fatal for the Apple //c ROM-bank flip-flop at
+    // $C028, which flips on ANY access: a dummy read plus the store's own write
+    // would toggle it twice (net no bank switch) and derail the //c firmware.
+    // Stores don't use operandInfo.operand, so leaving it 0 is correct.
+    if (microcode.operation != Microcode::Store &&
+        microcode.operation != Microcode::StoreZero)
+    {
+        operandInfo.operand = ReadByte (operandInfo.effectiveAddress);
+    }
 }
 
 
@@ -707,6 +990,8 @@ void Cpu::FetchOperandAbsolute (Cpu::OperandInfo & operandInfo, Microcode & micr
 void Cpu::FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo)
 {
     Byte zpAddr = ReadByte (PC);
+
+
 
     // Zero page word read wraps within zero page
     operandInfo.location          = zpAddr;
@@ -793,11 +1078,27 @@ void Cpu::FetchOperandAbsoluteX (Cpu::OperandInfo & operandInfo)
 //
 //  ExecuteInstruction
 //
+//  Dispatches an already-decoded instruction to its CpuOperations handler.
+//  Pure routing: addressing has been resolved into operandInfo and the cycle
+//  count settled by the caller, so nothing here reads memory or touches PC
+//  except through the operations themselves.
+//
+//  Accumulator mode is turned into a POINTER rather than a flag, which is what
+//  lets the shift and rotate operations take one code path for `ASL A` and
+//  `ASL $1234` alike -- null means "operate on the effective address". Handing
+//  them a mode to branch on would put the same test in six places.
+//
+//  Switching on operation rather than opcode is what collapses 256 opcodes to
+//  this list: the addressing mode is already spent, so every LDA variant
+//  arrives here as one Load.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandInfo)
+void Cpu::ExecuteInstruction (const Microcode & microcode, const OperandInfo & operandInfo)
 {
     Byte * pAccumulator = nullptr;
+
+
 
     if (microcode.globalAddressingMode == GlobalAddressingMode::Accumulator)
     {
@@ -834,7 +1135,29 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
     case Microcode::Transfer:             CpuOperations::Transfer             (*this, microcode.pSourceRegister, microcode.pDestinationRegister);    break;
     case Microcode::Xor:                  CpuOperations::Xor                  (*this, (Byte) operandInfo.operand);                                   break;
 
-    default:                          
+    case Microcode::StoreAccumulatorAndX: CpuOperations::StoreAccumulatorAndX (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::LoadAccumulatorAndX:  CpuOperations::LoadAccumulatorAndX  (*this, (Byte) operandInfo.operand);                                   break;
+    case Microcode::ShiftLeftAndOr:       CpuOperations::ShiftLeftAndOr       (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::RotateLeftAndAnd:     CpuOperations::RotateLeftAndAnd     (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::ShiftRightAndXor:     CpuOperations::ShiftRightAndXor     (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::RotateRightAndAdd:    CpuOperations::RotateRightAndAdd    (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::IncrementAndSubtract: CpuOperations::IncrementAndSubtract (*this, operandInfo.effectiveAddress);                                 break;
+
+    // 65C02 (CMOS) operations.
+    case Microcode::StoreZero:            CpuOperations::StoreZero            (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::TestAndSetBits:       CpuOperations::TestAndSetBits       (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::TestAndResetBits:     CpuOperations::TestAndResetBits     (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::ResetMemoryBit:       CpuOperations::ResetMemoryBit       (*this, microcode.instruction, operandInfo.effectiveAddress);          break;
+    case Microcode::SetMemoryBit:         CpuOperations::SetMemoryBit         (*this, microcode.instruction, operandInfo.effectiveAddress);          break;
+    case Microcode::BitBranchReset:       CpuOperations::BitBranchReset       (*this, microcode.instruction, (Byte) operandInfo.operand, operandInfo.effectiveAddress);  break;
+    case Microcode::BitBranchSet:         CpuOperations::BitBranchSet         (*this, microcode.instruction, (Byte) operandInfo.operand, operandInfo.effectiveAddress);  break;
+    case Microcode::BranchAlways:         CpuOperations::BranchAlways         (*this, operandInfo.operand);                                          break;
+    case Microcode::BitTestImmediate:     CpuOperations::BitTestImmediate     (*this, (Byte) operandInfo.operand);                                   break;
+    case Microcode::AddWithCarryCmos:     CpuOperations::AddWithCarryCmos     (*this, (Byte) operandInfo.operand);                                   break;
+    case Microcode::SubtractWithCarryCmos: CpuOperations::SubtractWithCarryCmos (*this, (Byte) operandInfo.operand);                                break;
+    case Microcode::BreakCmos:            CpuOperations::BreakCmos            (*this);                                                               break;
+
+    default:
         std::printf ("Unimplemented instruction:  %s\n", microcode.instructionName);                                
         ASSERT (false);
         break;
@@ -941,11 +1264,16 @@ void Cpu::WriteWord (Word address, Word value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ReadByte
+//  ReadByteSlow
+//
+//  Base (standalone) slow path: the built-in 64 KB memory[] array. A derived
+//  strategy (MemoryBusCpu) overrides this to route I/O and unmapped accesses
+//  through the emulator bus; RAM/ROM reads are served by the non-virtual
+//  ReadByte fast path in the header and never reach here on that CPU.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte Cpu::ReadByte (Word address)
+Byte Cpu::ReadByteSlow (Word address)
 {
     return memory[address];
 }
@@ -994,6 +1322,19 @@ void Cpu::InitializeInstructionSet()
 //
 //  InitializeGroup00
 //
+//  Builds the group-00 opcodes -- the 6502's cc=00 column: branches, flag
+//  ops, the index-register loads and compares, JMP, BIT.
+//
+//  Each row is a mnemonic plus a BITMASK of the addressing modes it supports,
+//  and CreateInstruction expands that into one table entry per mode. The mask
+//  is the encoding: the 6502 derives an opcode from (mnemonic, mode) bit
+//  fields, so a row saying which modes are legal produces exactly the opcodes
+//  the hardware has, and the gaps are the illegal ones.
+//
+//  Source and destination register pointers are what let one Microcode
+//  operation serve several mnemonics -- Load with &Y is LDY, with &X is LDX --
+//  instead of an operation per register.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Cpu::InitializeGroup00()
@@ -1033,6 +1374,13 @@ void Cpu::InitializeGroup00()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InitializeGroup01
+//
+//  The cc=01 column: the eight accumulator ALU operations, which are the only
+//  group where nearly every mnemonic supports the full addressing-mode set --
+//  hence __AMF_AllModes on almost every row.
+//
+//  STA is the exception, masking OFF immediate: storing to a literal has no
+//  meaning, and the hardware leaves that encoding to something else.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1075,6 +1423,18 @@ void Cpu::InitializeGroup01()
 //
 //  InitializeGroup10
 //
+//  The cc=10 column: the read-modify-write shifts and rotates, plus the X
+//  register's load/store and the memory increment/decrement.
+//
+//  Nearly every row masks OFF immediate, because these write their result
+//  back -- there is nowhere to write to a literal. LDX is the exception (it
+//  only reads) and instead masks off accumulator mode, since ASL A has meaning
+//  but LDX A does not.
+//
+//  ASL / ROL / LSR / ROR carry &A as their source register, which is how
+//  accumulator mode reaches the operation; CreateInstruction pairs that with
+//  the mode flag to produce both the `ASL A` and `ASL addr` encodings.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Cpu::InitializeGroup10()
@@ -1115,6 +1475,16 @@ void Cpu::InitializeGroup10()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InitializeMisc
+//
+//  Everything the cc-column encoding does not reach: branches, flag sets and
+//  clears, stack pushes and pulls, the register transfers, BRK / RTI / RTS /
+//  JSR / NOP.
+//
+//  These carry an EXPLICIT addressing mode and cycle count per row rather than
+//  a mode bitmask, because each is a single fixed opcode with no family of
+//  variants -- there is nothing for CreateInstruction to expand. Their cycle
+//  counts are irregular for the same reason (JSR 6, RTI 6, PHA 3), so they are
+//  stated rather than derived.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1185,37 +1555,151 @@ void Cpu::InitializeMisc()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InitializeUndocumented
 //
-//  NMOS 6502 undocumented opcodes used by real Apple II software.
-//  Only those encountered in the wild are listed here.
-//
-//  $04  DOP zp  — Double-NOP: reads a zero-page byte and discards it.
-//                 2 bytes, 3 cycles.
-//  $CF  DCP abs — Decrement memory at absolute address then CMP A with
-//                 the decremented value.  3 bytes, 6 cycles.
+//  Registers the stable NMOS 6502 undocumented opcodes that real Apple II
+//  software relies on. Each combined opcode fuses a memory step with an ALU
+//  step and is dispatched to the matching CpuOperations method; the NOP
+//  family just consumes its operand bytes. The unstable "magic constant"
+//  opcodes (ANE, LXA, SHA, SHX, SHY, TAS) are deliberately left illegal.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Cpu::InitializeUndocumented()
 {
-    static constexpr Byte  s_kDopBaseCycles = 3;
-    static constexpr Byte  s_kDcpBaseCycles = 6;
+    struct UndocumentedOpcode
+    {
+        Byte                                 opcode;
+        const char                         * name;
+        Microcode::Operation                 operation;
+        GlobalAddressingMode::AddressingMode mode;
+        Byte                                 cycles;
+    };
 
-    instructionSet[0x04] = Microcode (Instruction (0x04), "NOP",
-                                      Microcode::NoOperation,
-                                      GlobalAddressingMode::ZeroPage,
-                                      nullptr, nullptr);
-    instructionSet[0x04].baseCycles = s_kDopBaseCycles;
+    // Read-modify-write combos (SLO/RLA/SRE/RRA/DCP/ISC): standard 6502 RMW
+    // timing. The +1 page-cross penalty is never applied (see isReadOp).
+    static constexpr Byte s_kRmwZeroPage        = 5;
+    static constexpr Byte s_kRmwZeroPageX       = 6;
+    static constexpr Byte s_kRmwAbsolute        = 6;
+    static constexpr Byte s_kRmwAbsoluteIndexed = 7;   // abs,X and abs,Y
+    static constexpr Byte s_kRmwIndirect        = 8;   // (zp,X) and (zp),Y
 
-    instructionSet[0xCF] = Microcode (Instruction (0xCF), "DCP",
-                                      Microcode::DecrementAndCompare,
-                                      GlobalAddressingMode::Absolute,
-                                      nullptr, nullptr);
-    instructionSet[0xCF].baseCycles = s_kDcpBaseCycles;
+    // SAX store timing.
+    static constexpr Byte s_kSaxZeroPage  = 3;
+    static constexpr Byte s_kSaxZeroPageY = 4;
+    static constexpr Byte s_kSaxAbsolute  = 4;
+    static constexpr Byte s_kSaxIndirectX = 6;
+
+    // LAX load timing. abs,Y and (zp),Y add 1 on page cross at run time.
+    static constexpr Byte s_kLaxZeroPage  = 3;
+    static constexpr Byte s_kLaxZeroPageY = 4;
+    static constexpr Byte s_kLaxAbsolute  = 4;
+    static constexpr Byte s_kLaxAbsoluteY = 4;
+    static constexpr Byte s_kLaxIndirectX = 6;
+    static constexpr Byte s_kLaxIndirectY = 5;
+
+    // NOP family timing. abs,X adds 1 on page cross at run time.
+    static constexpr Byte s_kNopImplied   = 2;
+    static constexpr Byte s_kNopImmediate = 2;
+    static constexpr Byte s_kNopZeroPage  = 3;
+    static constexpr Byte s_kNopZeroPageX = 4;
+    static constexpr Byte s_kNopAbsolute  = 4;
+    static constexpr Byte s_kNopAbsoluteX = 4;
+
+    static constexpr UndocumentedOpcode s_kUndocumentedOpcodes[] =
+    {
+        { 0x03, "SLO", Microcode::ShiftLeftAndOr,       GlobalAddressingMode::ZeroPageXIndirect,   s_kRmwIndirect },
+        { 0x07, "SLO", Microcode::ShiftLeftAndOr,       GlobalAddressingMode::ZeroPage,            s_kRmwZeroPage },
+        { 0x0F, "SLO", Microcode::ShiftLeftAndOr,       GlobalAddressingMode::Absolute,            s_kRmwAbsolute },
+        { 0x13, "SLO", Microcode::ShiftLeftAndOr,       GlobalAddressingMode::ZeroPageIndirectY,   s_kRmwIndirect },
+        { 0x17, "SLO", Microcode::ShiftLeftAndOr,       GlobalAddressingMode::ZeroPageX,           s_kRmwZeroPageX },
+        { 0x1B, "SLO", Microcode::ShiftLeftAndOr,       GlobalAddressingMode::AbsoluteY,           s_kRmwAbsoluteIndexed },
+        { 0x1F, "SLO", Microcode::ShiftLeftAndOr,       GlobalAddressingMode::AbsoluteX,           s_kRmwAbsoluteIndexed },
+        { 0x23, "RLA", Microcode::RotateLeftAndAnd,     GlobalAddressingMode::ZeroPageXIndirect,   s_kRmwIndirect },
+        { 0x27, "RLA", Microcode::RotateLeftAndAnd,     GlobalAddressingMode::ZeroPage,            s_kRmwZeroPage },
+        { 0x2F, "RLA", Microcode::RotateLeftAndAnd,     GlobalAddressingMode::Absolute,            s_kRmwAbsolute },
+        { 0x33, "RLA", Microcode::RotateLeftAndAnd,     GlobalAddressingMode::ZeroPageIndirectY,   s_kRmwIndirect },
+        { 0x37, "RLA", Microcode::RotateLeftAndAnd,     GlobalAddressingMode::ZeroPageX,           s_kRmwZeroPageX },
+        { 0x3B, "RLA", Microcode::RotateLeftAndAnd,     GlobalAddressingMode::AbsoluteY,           s_kRmwAbsoluteIndexed },
+        { 0x3F, "RLA", Microcode::RotateLeftAndAnd,     GlobalAddressingMode::AbsoluteX,           s_kRmwAbsoluteIndexed },
+        { 0x43, "SRE", Microcode::ShiftRightAndXor,     GlobalAddressingMode::ZeroPageXIndirect,   s_kRmwIndirect },
+        { 0x47, "SRE", Microcode::ShiftRightAndXor,     GlobalAddressingMode::ZeroPage,            s_kRmwZeroPage },
+        { 0x4F, "SRE", Microcode::ShiftRightAndXor,     GlobalAddressingMode::Absolute,            s_kRmwAbsolute },
+        { 0x53, "SRE", Microcode::ShiftRightAndXor,     GlobalAddressingMode::ZeroPageIndirectY,   s_kRmwIndirect },
+        { 0x57, "SRE", Microcode::ShiftRightAndXor,     GlobalAddressingMode::ZeroPageX,           s_kRmwZeroPageX },
+        { 0x5B, "SRE", Microcode::ShiftRightAndXor,     GlobalAddressingMode::AbsoluteY,           s_kRmwAbsoluteIndexed },
+        { 0x5F, "SRE", Microcode::ShiftRightAndXor,     GlobalAddressingMode::AbsoluteX,           s_kRmwAbsoluteIndexed },
+        { 0x63, "RRA", Microcode::RotateRightAndAdd,    GlobalAddressingMode::ZeroPageXIndirect,   s_kRmwIndirect },
+        { 0x67, "RRA", Microcode::RotateRightAndAdd,    GlobalAddressingMode::ZeroPage,            s_kRmwZeroPage },
+        { 0x6F, "RRA", Microcode::RotateRightAndAdd,    GlobalAddressingMode::Absolute,            s_kRmwAbsolute },
+        { 0x73, "RRA", Microcode::RotateRightAndAdd,    GlobalAddressingMode::ZeroPageIndirectY,   s_kRmwIndirect },
+        { 0x77, "RRA", Microcode::RotateRightAndAdd,    GlobalAddressingMode::ZeroPageX,           s_kRmwZeroPageX },
+        { 0x7B, "RRA", Microcode::RotateRightAndAdd,    GlobalAddressingMode::AbsoluteY,           s_kRmwAbsoluteIndexed },
+        { 0x7F, "RRA", Microcode::RotateRightAndAdd,    GlobalAddressingMode::AbsoluteX,           s_kRmwAbsoluteIndexed },
+        { 0x83, "SAX", Microcode::StoreAccumulatorAndX, GlobalAddressingMode::ZeroPageXIndirect,   s_kSaxIndirectX },
+        { 0x87, "SAX", Microcode::StoreAccumulatorAndX, GlobalAddressingMode::ZeroPage,            s_kSaxZeroPage },
+        { 0x8F, "SAX", Microcode::StoreAccumulatorAndX, GlobalAddressingMode::Absolute,            s_kSaxAbsolute },
+        { 0x97, "SAX", Microcode::StoreAccumulatorAndX, GlobalAddressingMode::ZeroPageY,           s_kSaxZeroPageY },
+        { 0xA3, "LAX", Microcode::LoadAccumulatorAndX,  GlobalAddressingMode::ZeroPageXIndirect,   s_kLaxIndirectX },
+        { 0xA7, "LAX", Microcode::LoadAccumulatorAndX,  GlobalAddressingMode::ZeroPage,            s_kLaxZeroPage },
+        { 0xAF, "LAX", Microcode::LoadAccumulatorAndX,  GlobalAddressingMode::Absolute,            s_kLaxAbsolute },
+        { 0xB3, "LAX", Microcode::LoadAccumulatorAndX,  GlobalAddressingMode::ZeroPageIndirectY,   s_kLaxIndirectY },
+        { 0xB7, "LAX", Microcode::LoadAccumulatorAndX,  GlobalAddressingMode::ZeroPageY,           s_kLaxZeroPageY },
+        { 0xBF, "LAX", Microcode::LoadAccumulatorAndX,  GlobalAddressingMode::AbsoluteY,           s_kLaxAbsoluteY },
+        { 0xC3, "DCP", Microcode::DecrementAndCompare,  GlobalAddressingMode::ZeroPageXIndirect,   s_kRmwIndirect },
+        { 0xC7, "DCP", Microcode::DecrementAndCompare,  GlobalAddressingMode::ZeroPage,            s_kRmwZeroPage },
+        { 0xCF, "DCP", Microcode::DecrementAndCompare,  GlobalAddressingMode::Absolute,            s_kRmwAbsolute },
+        { 0xD3, "DCP", Microcode::DecrementAndCompare,  GlobalAddressingMode::ZeroPageIndirectY,   s_kRmwIndirect },
+        { 0xD7, "DCP", Microcode::DecrementAndCompare,  GlobalAddressingMode::ZeroPageX,           s_kRmwZeroPageX },
+        { 0xDB, "DCP", Microcode::DecrementAndCompare,  GlobalAddressingMode::AbsoluteY,           s_kRmwAbsoluteIndexed },
+        { 0xDF, "DCP", Microcode::DecrementAndCompare,  GlobalAddressingMode::AbsoluteX,           s_kRmwAbsoluteIndexed },
+        { 0xE3, "ISC", Microcode::IncrementAndSubtract, GlobalAddressingMode::ZeroPageXIndirect,   s_kRmwIndirect },
+        { 0xE7, "ISC", Microcode::IncrementAndSubtract, GlobalAddressingMode::ZeroPage,            s_kRmwZeroPage },
+        { 0xEF, "ISC", Microcode::IncrementAndSubtract, GlobalAddressingMode::Absolute,            s_kRmwAbsolute },
+        { 0xF3, "ISC", Microcode::IncrementAndSubtract, GlobalAddressingMode::ZeroPageIndirectY,   s_kRmwIndirect },
+        { 0xF7, "ISC", Microcode::IncrementAndSubtract, GlobalAddressingMode::ZeroPageX,           s_kRmwZeroPageX },
+        { 0xFB, "ISC", Microcode::IncrementAndSubtract, GlobalAddressingMode::AbsoluteY,           s_kRmwAbsoluteIndexed },
+        { 0xFF, "ISC", Microcode::IncrementAndSubtract, GlobalAddressingMode::AbsoluteX,           s_kRmwAbsoluteIndexed },
+        { 0x1A, "NOP", Microcode::NoOperation,          GlobalAddressingMode::SingleByteNoOperand, s_kNopImplied },
+        { 0x3A, "NOP", Microcode::NoOperation,          GlobalAddressingMode::SingleByteNoOperand, s_kNopImplied },
+        { 0x5A, "NOP", Microcode::NoOperation,          GlobalAddressingMode::SingleByteNoOperand, s_kNopImplied },
+        { 0x7A, "NOP", Microcode::NoOperation,          GlobalAddressingMode::SingleByteNoOperand, s_kNopImplied },
+        { 0xDA, "NOP", Microcode::NoOperation,          GlobalAddressingMode::SingleByteNoOperand, s_kNopImplied },
+        { 0xFA, "NOP", Microcode::NoOperation,          GlobalAddressingMode::SingleByteNoOperand, s_kNopImplied },
+        { 0x04, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPage,            s_kNopZeroPage },
+        { 0x44, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPage,            s_kNopZeroPage },
+        { 0x64, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPage,            s_kNopZeroPage },
+        { 0x14, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPageX,           s_kNopZeroPageX },
+        { 0x34, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPageX,           s_kNopZeroPageX },
+        { 0x54, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPageX,           s_kNopZeroPageX },
+        { 0x74, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPageX,           s_kNopZeroPageX },
+        { 0xD4, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPageX,           s_kNopZeroPageX },
+        { 0xF4, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPageX,           s_kNopZeroPageX },
+        { 0x80, "NOP", Microcode::NoOperation,          GlobalAddressingMode::Immediate,           s_kNopImmediate },
+        { 0x82, "NOP", Microcode::NoOperation,          GlobalAddressingMode::Immediate,           s_kNopImmediate },
+        { 0x89, "NOP", Microcode::NoOperation,          GlobalAddressingMode::Immediate,           s_kNopImmediate },
+        { 0xC2, "NOP", Microcode::NoOperation,          GlobalAddressingMode::Immediate,           s_kNopImmediate },
+        { 0xE2, "NOP", Microcode::NoOperation,          GlobalAddressingMode::Immediate,           s_kNopImmediate },
+        { 0x0C, "NOP", Microcode::NoOperation,          GlobalAddressingMode::Absolute,            s_kNopAbsolute },
+        { 0x1C, "NOP", Microcode::NoOperation,          GlobalAddressingMode::AbsoluteX,           s_kNopAbsoluteX },
+        { 0x3C, "NOP", Microcode::NoOperation,          GlobalAddressingMode::AbsoluteX,           s_kNopAbsoluteX },
+        { 0x5C, "NOP", Microcode::NoOperation,          GlobalAddressingMode::AbsoluteX,           s_kNopAbsoluteX },
+        { 0x7C, "NOP", Microcode::NoOperation,          GlobalAddressingMode::AbsoluteX,           s_kNopAbsoluteX },
+        { 0xDC, "NOP", Microcode::NoOperation,          GlobalAddressingMode::AbsoluteX,           s_kNopAbsoluteX },
+        { 0xFC, "NOP", Microcode::NoOperation,          GlobalAddressingMode::AbsoluteX,           s_kNopAbsoluteX },
+    };
+
+    for (const UndocumentedOpcode & op : s_kUndocumentedOpcodes)
+    {
+        instructionSet[op.opcode]                 = Microcode (Instruction (op.opcode), op.name, op.operation, op.mode, nullptr, nullptr);
+        instructionSet[op.opcode].baseCycles      = op.cycles;
+        instructionSet[op.opcode].assemblerHidden = true;
+    }
 }
+
 
 
 
@@ -1223,6 +1707,25 @@ void Cpu::InitializeUndocumented()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreateInstruction
+//
+//  Expands one table row into every opcode it covers, walking the addressing-
+//  mode flags and emitting an instructionSet entry per set bit. This is what
+//  lets the group tables list eight mnemonics instead of 256 opcodes.
+//
+//  It also assigns baseCycles, and that is the subtle part. The count comes
+//  from the addressing mode, adjusted by what the operation DOES with memory:
+//
+//    isMemoryRmw  a read-modify-write to memory pays for the read, the
+//                 modify and the write ($1234 ASL is 6 cycles where LDA is 4)
+//                 -- but only in memory. Accumulator mode is 2, which is why
+//                 isRmw is further qualified by the mode.
+//
+//    isStore      an indexed store always pays the page-crossing cycle: the
+//                 hardware cannot know whether the page crossed until it has
+//                 read, and it must write regardless. Baking it in here is
+//                 what lets StepOne skip stores when applying that penalty --
+//                 the two must agree, or indexed stores are mistimed by one
+//                 cycle in every instruction.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1235,24 +1738,27 @@ void Cpu::CreateInstruction (uint32_t                      addressingModeMax,
                              Byte                 *        pSourceRegister,
                              Byte                 *        pDestinationRegister)
 {
-    Byte addressingMode = 0;
-    Byte currentAddressingModeFlag = 1;
+    Byte  addressingMode            = 0;
+    Byte  currentAddressingModeFlag = 1;
 
     while (addressingMode < addressingModeMax)
     {
         if (addressingModeFlags & currentAddressingModeFlag)
         {
-            Instruction instruction            = Instruction (opcode, addressingMode, group);
+            Instruction  instruction = Instruction (opcode, addressingMode, group);
+            bool         isStore     = false;
+            bool         isMemoryRmw = false;
+            Byte         cycles      = 0;
             instructionSet[instruction.asByte] = Microcode   (instruction, instructionName[opcode], operation, pSourceRegister, pDestinationRegister);
 
             // Compute base cycle count from addressing mode and operation type
-            bool isStore     = (operation == Microcode::Store);
+            isStore = (operation == Microcode::Store);
             bool isRmw       = (operation == Microcode::ShiftLeft  || operation == Microcode::ShiftRight  ||
                                 operation == Microcode::RotateLeft || operation == Microcode::RotateRight ||
                                 operation == Microcode::Decrement  || operation == Microcode::Increment);
-            bool isMemoryRmw = isRmw && (instructionSet[instruction.asByte].globalAddressingMode != GlobalAddressingMode::Accumulator);
+            isMemoryRmw = isRmw && (instructionSet[instruction.asByte].globalAddressingMode != GlobalAddressingMode::Accumulator);
 
-            Byte cycles = 2;
+            cycles = 2;
 
             switch (instructionSet[instruction.asByte].globalAddressingMode)
             {
@@ -1291,19 +1797,20 @@ void Cpu::CreateInstruction (uint32_t                      addressingModeMax,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Cpu::LoadBinary (const std::string & filename, Word address)
+HRESULT Cpu::LoadBinary (const std::string & filename, Word address)
 {
-    HRESULT       hr      = S_OK;
-    std::ifstream file      (filename, std::ios::binary);
-    bool          fLoaded = false;
+    HRESULT       hr     = S_OK;
+    bool          isOpen = false;
+    std::ifstream file     (filename, std::ios::binary);
 
-    CBRA (file.is_open());
+    isOpen = file.is_open();
+    CBRAEx (isOpen, E_INVALIDARG);
 
-    fLoaded = LoadBinary (file, address);
-    CBR  (fLoaded);
+    hr = LoadBinary (file, address);
+    CHR (hr);
 
 Error:
-    return SUCCEEDED (hr);
+    return hr;
 }
 
 
@@ -1312,27 +1819,54 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LoadBinary
+//  LoadBinary  (stream)
+//
+//  Loads a raw image from a stream directly into CPU memory at an address.
+//
+//  Read straight into the memory array with no intermediate buffer, since the
+//  destination is a plain byte array of known size and copying through a
+//  vector would double the work for a 64 KB image.
+//
+//  The two failure kinds are reported DIFFERENTLY on purpose. A stream fault
+//  is the environment's problem and asserts; a negative size (tellg failed) or
+//  an image that would run off the top of memory is the CALLER's problem and
+//  returns E_INVALIDARG. Collapsing them would make a caller's bad address
+//  look like a broken file.
+//
+//  The bounds test is written as size <= memSize - address rather than
+//  address + size <= memSize, so it cannot overflow on a large address.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Cpu::LoadBinary (std::istream & stream, Word address)
+HRESULT Cpu::LoadBinary (std::istream & stream, Word address)
 {
-    HRESULT hr = S_OK;
+    HRESULT         hr       = S_OK;
+    bool            readWell = false;
+    bool            fits     = false;
+    std::streampos  size     = 0;
+
+
 
     // Determine stream size
     stream.seekg (0, std::ios::end);
-    auto size = stream.tellg();
+    size = stream.tellg();
     stream.seekg (0, std::ios::beg);
 
-    CBRA (!stream.bad());
-    CBR  (size >= 0 && (size_t) size <= memSize - address);
+    readWell = !stream.bad();
+    CBRA (readWell);
+
+    // A negative size means tellg failed; too large means the image would run
+    // off the top of memory. Both are the caller's problem, not a stream fault,
+    // so they read as E_INVALIDARG rather than E_FAIL.
+    fits = (size >= 0 && (size_t) size <= memSize - address);
+    CBREx (fits, E_INVALIDARG);
 
     // Read directly into CPU memory — no intermediate buffer
     stream.read (reinterpret_cast<char *>(memory.data() + address), size);
 
-    CBRA (!stream.bad());
+    readWell = !stream.bad();
+    CBRA (readWell);
 
 Error:
-    return SUCCEEDED (hr);
+    return hr;
 }

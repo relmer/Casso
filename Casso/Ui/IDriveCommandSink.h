@@ -33,3 +33,28 @@ public:
     // Eject the disk currently in (slot, drive).
     virtual void    Eject (int slot, int drive) = 0;
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NullDriveCommandSink
+//
+//  Does nothing, successfully. Lets DriveWidgets be laid out and painted
+//  without wiring them to a running machine -- the settings theme preview
+//  paints live widgets purely for appearance, and never mounts anything.
+//
+//  A null implementation belongs with the interface rather than with any
+//  one consumer: it is a property of the contract, and header-only because
+//  there is no behavior to define out of line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class NullDriveCommandSink : public IDriveCommandSink
+{
+public:
+    HRESULT Mount (int /*slot*/, int /*drive*/, const std::wstring & /*path*/) override { return S_OK; }
+    void    Eject (int /*slot*/, int /*drive*/)                                override { }
+};

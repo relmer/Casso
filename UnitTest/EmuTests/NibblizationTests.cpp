@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/NibblizationLayer.h"
 
@@ -21,8 +22,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+TEST_CLASS (NibblizationTests)
 {
+public:
+
     static constexpr int      kImageSize = NibblizationLayer::kImageByteSize;
     static constexpr int      kPattern1  = 0x55;
     static constexpr int      kPattern2  = 0xAA;
@@ -34,10 +40,13 @@ namespace
 
     vector<Byte> MakeAlternatingImage (Byte a, Byte b)
     {
-        vector<Byte>   img (kImageSize, 0);
         size_t         i   = 0;
 
-        for (i = 0; i < img.size (); i++)
+
+
+        vector<Byte>   img (kImageSize, 0);
+
+        for (i = 0; i < img.size(); i++)
         {
             img[i] = ((i & 1) == 0) ? a : b;
         }
@@ -47,25 +56,22 @@ namespace
 
     vector<Byte> MakePinnedRandomImage (uint32_t seed)
     {
-        vector<Byte>   img (kImageSize, 0);
-        uint32_t       state = seed;
-        size_t         i     = 0;
+        uint32_t  state = 0;
+        size_t    i     = 0;
 
-        for (i = 0; i < img.size (); i++)
+
+
+        vector<Byte>   img (kImageSize, 0);
+        state = seed;
+
+        for (Byte & byte : img)
         {
             state = state * 1664525u + 1013904223u;
-            img[i] = static_cast<Byte> ((state >> 24) & 0xFF);
+            byte  = static_cast<Byte> ((state >> 24) & 0xFF);
         }
 
         return img;
     }
-}
-
-
-
-TEST_CLASS (NibblizationTests)
-{
-public:
 
     TEST_METHOD (NibblizeDsk_AcceptsCorrectSizedImage)
     {
@@ -74,8 +80,8 @@ public:
 
         HRESULT   hr = NibblizationLayer::NibblizeDsk (raw, img);
 
-        Assert::IsTrue (SUCCEEDED (hr), L"DSK nibblization must accept 143360-byte image");
-        Assert::AreEqual (DiskImage::kDefaultTrackCount, img.GetTrackCount ());
+        AssertSucceeded (hr, L"DSK nibblization must accept 143360-byte image");
+        Assert::AreEqual (DiskImage::kDefaultTrackCount, img.GetTrackCount());
         Assert::IsTrue (img.GetTrackBitCount (0) > 0,
             L"Track 0 must have bit data after nibblization");
     }
@@ -83,11 +89,17 @@ public:
     TEST_METHOD (NibblizeDsk_RejectsShortImage)
     {
         DiskImage      img;
+        HRESULT        hr  = S_OK;
         vector<Byte>   raw (1024, 0);
 
-        HRESULT   hr = NibblizationLayer::NibblizeDsk (raw, img);
+        {
+            // A wrong-sized image is a caller bug, so the guard asserts.
+            UnitTestHelpers::ExpectedEhmAssert   expect;
 
-        Assert::IsTrue (FAILED (hr));
+            hr = NibblizationLayer::NibblizeDsk (raw, img);
+        }
+
+        AssertFailed (hr);
     }
 
     TEST_METHOD (DskRoundTripIdentity_AllZeros)
@@ -98,12 +110,12 @@ public:
         HRESULT        hrLoad    = NibblizationLayer::NibblizeDsk (raw, img);
         HRESULT        hrSave    = S_OK;
 
-        Assert::IsTrue (SUCCEEDED (hrLoad));
+        AssertSucceeded (hrLoad);
 
         hrSave = NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered);
 
-        Assert::IsTrue (SUCCEEDED (hrSave));
-        Assert::AreEqual (raw.size (), recovered.size ());
+        AssertSucceeded (hrSave);
+        Assert::AreEqual (raw.size(), recovered.size());
         Assert::IsTrue   (raw == recovered, L"DSK round-trip identity (zeros)");
     }
 
@@ -113,8 +125,8 @@ public:
         vector<Byte>   raw       = MakeAllValueImage (0xA5);
         vector<Byte>   recovered;
 
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDsk (raw, img)));
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::Denibblize  (img, DiskFormat::Dsk, recovered)));
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+        AssertSucceeded (NibblizationLayer::Denibblize  (img, DiskFormat::Dsk, recovered));
 
         Assert::IsTrue (raw == recovered, L"DSK round-trip identity (0xA5)");
     }
@@ -125,8 +137,8 @@ public:
         vector<Byte>   raw       = MakeAlternatingImage (kPattern1, kPattern2);
         vector<Byte>   recovered;
 
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDsk (raw, img)));
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::Denibblize  (img, DiskFormat::Dsk, recovered)));
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+        AssertSucceeded (NibblizationLayer::Denibblize  (img, DiskFormat::Dsk, recovered));
 
         Assert::IsTrue (raw == recovered, L"DSK round-trip identity (alternating)");
     }
@@ -137,8 +149,8 @@ public:
         vector<Byte>   raw       = MakePinnedRandomImage (0xCA550001u);
         vector<Byte>   recovered;
 
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDsk (raw, img)));
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::Denibblize  (img, DiskFormat::Dsk, recovered)));
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+        AssertSucceeded (NibblizationLayer::Denibblize  (img, DiskFormat::Dsk, recovered));
 
         Assert::IsTrue (raw == recovered, L"DSK round-trip identity (pinned PRNG)");
     }
@@ -149,9 +161,9 @@ public:
         vector<Byte>   raw       = MakePinnedRandomImage (0xCA550002u);
         vector<Byte>   recovered;
 
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDo (raw, img)));
-        Assert::IsTrue (img.GetSourceFormat () == DiskFormat::Do);
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::Denibblize (img, DiskFormat::Do, recovered)));
+        AssertSucceeded (NibblizationLayer::NibblizeDo (raw, img));
+        Assert::IsTrue (img.GetSourceFormat() == DiskFormat::Do);
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Do, recovered));
 
         Assert::IsTrue (raw == recovered, L".DO round-trip identity");
     }
@@ -162,15 +174,19 @@ public:
         vector<Byte>   raw       = MakePinnedRandomImage (0xCA550003u);
         vector<Byte>   recovered;
 
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizePo (raw, img)));
-        Assert::IsTrue (img.GetSourceFormat () == DiskFormat::Po);
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::Denibblize (img, DiskFormat::Po, recovered)));
+        AssertSucceeded (NibblizationLayer::NibblizePo (raw, img));
+        Assert::IsTrue (img.GetSourceFormat() == DiskFormat::Po);
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Po, recovered));
 
         Assert::IsTrue (raw == recovered, L".PO round-trip identity");
     }
 
     TEST_METHOD (PoAndDskInterleavesDifferOnSameSourceBytes)
     {
+        size_t  bits = 0;
+
+
+
         // Same flat 143360-byte source produces different nibble streams
         // when interpreted as DSK vs PO because the sector mapping differs.
         DiskImage      dskImg;
@@ -178,12 +194,12 @@ public:
         vector<Byte>   raw    = MakePinnedRandomImage (0xCA550004u);
         bool           differ = false;
 
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDsk (raw, dskImg)));
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizePo  (raw, poImg)));
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, dskImg));
+        AssertSucceeded (NibblizationLayer::NibblizePo  (raw, poImg));
 
         // Compare track 1 bit streams (track 0 sectors all colocated for this
         // input but other tracks reorder differently).
-        size_t   bits = dskImg.GetTrackBitCount (1);
+        bits = dskImg.GetTrackBitCount (1);
 
         Assert::AreEqual (bits, poImg.GetTrackBitCount (1));
 
@@ -208,7 +224,7 @@ public:
         Byte           b1  = 0;
         Byte           b2  = 0;
 
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDsk (raw, img)));
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
 
         // After 20 sync nibbles (10 bits each = 200 bits including the
         // mandatory 2-bit zero gap that real Disk II hardware writes
@@ -237,8 +253,8 @@ public:
         vector<Byte>   raw       = MakePinnedRandomImage (0xDEADBEEFu);
         vector<Byte>   recovered;
 
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDsk (raw, img)));
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::Denibblize  (img, DiskFormat::Dsk, recovered)));
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+        AssertSucceeded (NibblizationLayer::Denibblize  (img, DiskFormat::Dsk, recovered));
         Assert::IsTrue (raw == recovered);
     }
 
@@ -250,11 +266,92 @@ public:
         vector<Byte>   viaSer;
         vector<Byte>   viaDirect;
 
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDsk (raw, img)));
-        Assert::IsTrue (SUCCEEDED (img.Serialize (viaSer)));
-        Assert::IsTrue (SUCCEEDED (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, viaDirect)));
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+        AssertSucceeded (img.Serialize (viaSer));
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, viaDirect));
 
         Assert::IsTrue (viaSer == viaDirect);
         Assert::IsTrue (viaSer == raw);
     }
+
+    TEST_METHOD (DskReformatRewrite_serializesToNewContentNotStale)
+    {
+        // A Print Shop "initialize data disk" (or any reformat) rewrites the
+        // mounted image's tracks. The .dsk write-back (Serialize/Denibblize)
+        // must reflect the NEW content, never the stale original -- the
+        // scenario behind the reported "initialized data disk still shows the
+        // old files" symptom. Because Denibblize scans for GCR address/data
+        // markers (byte-sync), a re-nibblized (reformatted) track round-trips
+        // regardless of the exact gap/sync layout the format produced, so a
+        // standard DOS 3.3 format survives the flush; the earlier loss was
+        // flush *timing*, addressed by motor-idle auto-flush.
+        DiskImage      img;
+        vector<Byte>   original  = MakePinnedRandomImage (0x11111111u);
+        vector<Byte>   rewritten = MakePinnedRandomImage (0x22222222u);
+        vector<Byte>   baseline;
+        vector<Byte>   afterReformat;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (original, img));
+        AssertSucceeded (img.Serialize (baseline));
+        Assert::IsTrue (original == baseline, L"baseline round-trip");
+
+        // Reformat: overwrite every track with different content.
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (rewritten, img));
+        AssertSucceeded (img.Serialize (afterReformat));
+
+        Assert::IsTrue  (rewritten == afterReformat,
+            L"a reformatted .dsk must serialize to the new content");
+        Assert::IsFalse (original == afterReformat,
+            L"the stale original must not survive the reformat");
+    }
+
+    TEST_METHOD (Denibblize_UnformattedTrack_ZeroFillsThatTrackAndKeepsOthers)
+    {
+        bool  neighborOk = false;
+
+
+
+        // A .dsk is a plain sector image, so a track with no decodable
+        // address fields (blank / unformatted bit stream) correctly
+        // denibblizes to zeros for THAT track and leaves neighbors intact --
+        // Denibblize returns S_OK rather than failing. This documents the
+        // "missing sectors read back as zeros" behavior: it is intentional
+        // for sector images (a blank disk is all zeros), not silent
+        // corruption of a valid track.
+        DiskImage      img;
+        vector<Byte>   raw       = MakePinnedRandomImage (0x5A5A5A5Au);
+        vector<Byte>   recovered;
+        const size_t   trkBytes  = 16 * 256;
+        const int      wiped     = 5;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+
+        // Blank track 5's bit stream (no address fields left to decode).
+        img.ResizeTrack (wiped, DiskImage::kDefaultTrackByteSize * 8);
+        {
+            vector<Byte> & b = img.GetTrackBitsForWrite (wiped);
+            std::fill (b.begin(), b.end(), static_cast<Byte> (0));
+        }
+
+        img.SetTrackBitCount (wiped, DiskImage::kDefaultTrackByteSize * 8);
+
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered));
+
+        // Wiped track -> all zeros.
+        for (size_t i = 0; i < trkBytes; i++)
+        {
+            Assert::AreEqual (Byte (0), recovered[static_cast<size_t> (wiped) * trkBytes + i]);
+        }
+
+        // Adjacent track 4 -> unaffected, still matches the original.
+        neighborOk = true;
+        for (size_t i = 0; i < trkBytes; i++)
+        {
+            size_t  off = static_cast<size_t> (4) * trkBytes + i;
+            if (recovered[off] != raw[off]) { neighborOk = false; break; }
+        }
+
+        Assert::IsTrue (neighborOk, L"a formatted neighbor track must be unaffected");
+    }
 };
+

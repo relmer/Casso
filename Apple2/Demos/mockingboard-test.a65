@@ -1,0 +1,92 @@
+; ============================================================================
+;  mockingboard-test.a65 -- minimal Mockingboard tone smoke test
+;
+;  A single boot-sector program that UNCONDITIONALLY programs the slot-4
+;  Mockingboard's first AY-3-8910 (via VIA #1 at $C400) for a sustained
+;  square-wave tone on channel A, then spins forever. There is no card
+;  detection and no game logic: if you hear a steady tone, the host
+;  Mockingboard audio path (VIA -> AY -> audio source -> mixer -> WASAPI)
+;  works end-to-end. Silence means the fault is on the host side; a
+;  real game (e.g. Rescue Raiders) going silent while this tone plays
+;  isolates the problem to that title's own card detection.
+;
+;  Boot: the slot-6 Disk2.rom firmware reads track 0 sector 0 into
+;  $0800-$08FF and JMPs $0801 -- same contract casso-rocks.a65 relies on.
+;
+;  AY write protocol (mirrors MockingboardCard SyncPsg control lines):
+;    PB0 = BC1, PB1 = BDIR, PB2 = /RESET (high = released).
+;      latch address : BDIR|BC1|/RESET = $07
+;      write data    : BDIR|/RESET      = $06
+;      idle          : /RESET            = $04
+;    Register number / data byte are driven on port A (DDRA = $FF).
+; ============================================================================
+
+    .org $0801
+
+; -- Slot 4 Mockingboard VIA #1 registers -----------------------------------
+ORB     = $C400            ; port B: AY control lines (BC1/BDIR//RESET)
+ORA     = $C401            ; port A: AY register number / data byte
+DDRB    = $C402
+DDRA    = $C403
+
+; -- AY control-line states on port B ---------------------------------------
+LATCH   = $07              ; BDIR=1 BC1=1 /RESET=1 -> latch register address
+WRITE   = $06              ; BDIR=1 BC1=0 /RESET=1 -> write data byte
+IDLE    = $04              ; BDIR=0 BC1=0 /RESET=1 -> bus idle, chip live
+
+; -- AY-3-8910 register numbers ---------------------------------------------
+R_TONEA_LO = $00           ; channel A tone period, fine
+R_TONEA_HI = $01           ; channel A tone period, coarse (low 4 bits)
+R_MIXER    = $07           ; 0 = enabled; bit0 tone A, bit3 noise A ...
+R_AMP_A    = $08           ; bits 0-3 = level; bit4 = follow envelope
+
+
+start
+    ; Both VIA ports to outputs, control lines idle with /RESET released
+    ; (releases the AY from power-on reset so it will accept writes).
+    lda #$FF
+    sta DDRB
+    sta DDRA
+    lda #IDLE
+    sta ORB
+
+    ; Mixer: enable tone A only (bit0=0), everything else disabled ($3E).
+    lda #R_MIXER
+    ldx #$3E
+    jsr writeay
+
+    ; Tone A period = $0100 -> a clear low-mid square wave.
+    lda #R_TONEA_LO
+    ldx #$00
+    jsr writeay
+    lda #R_TONEA_HI
+    ldx #$01
+    jsr writeay
+
+    ; Channel A amplitude = full fixed volume (envelope bit clear).
+    lda #R_AMP_A
+    ldx #$0F
+    jsr writeay
+
+spin
+    jmp spin                ; hold forever; the AY keeps sounding on its own
+
+
+; ----------------------------------------------------------------------------
+; writeay -- latch AY register (A) then write data (X) through the VIA bus.
+;            A = AY register number on entry, X = value to write. Clobbers A.
+; ----------------------------------------------------------------------------
+writeay
+    sta ORA                 ; register number onto port A
+    lda #LATCH
+    sta ORB                 ; BDIR|BC1 -> AY latches the address
+    lda #IDLE
+    sta ORB                 ; back to idle
+    stx ORA                 ; data byte onto port A
+    lda #WRITE
+    sta ORB                 ; BDIR -> AY writes the latched register
+    lda #IDLE
+    sta ORB                 ; back to idle
+    rts
+
+; --- end ---

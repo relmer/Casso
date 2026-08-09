@@ -165,6 +165,8 @@ HRESULT D3DRenderer::CreateRenderResources (int texWidth, int texHeight)
     D3D11_BUFFER_DESC        bd        = {};
     D3D11_SUBRESOURCE_DATA   initData  = {};
 
+
+
     Vertex vertices[] =
     {
         { -1.0f,  1.0f, 0.0f, 0.0f },  // Top-left
@@ -238,6 +240,25 @@ Error:
 //
 //  InitializeShaders
 //
+//  Compiles the pass-through shader pair that blits the emulator framebuffer,
+//  plus the quad geometry and sampler it needs.
+//
+//  These shaders do NOTHING but sample -- no transform, no tint. Positions
+//  arrive already in clip space and the pixel shader returns the texel
+//  unchanged. Every visual effect lives in the CRT post-process chain instead,
+//  which keeps the effects editable in one place and this path trivially
+//  correct.
+//
+//  The source is inline here, not embedded as a resource like the CRT shaders,
+//  precisely because it is this short and is never edited for tuning.
+//
+//  The input layout is validated against the compiled vertex-shader blob, so a
+//  mismatch between the vertex struct and the shader signature fails at
+//  startup rather than as garbage geometry.
+//
+//  Everything asserts: a shader that will not compile is a broken build, not
+//  something the user did.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT D3DRenderer::InitializeShaders()
@@ -246,6 +267,8 @@ HRESULT D3DRenderer::InitializeShaders()
     ComPtr<ID3DBlob>   vsBlob;
     ComPtr<ID3DBlob>   psBlob;
     ComPtr<ID3DBlob>   errors;
+
+
 
     static const char kVertexShaderSrc[] =
         "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
@@ -341,27 +364,18 @@ Error:
 
 bool D3DRenderer::NeedsPresent (bool framebufferDirty) const
 {
-    if (framebufferDirty || m_redrawForced)
-    {
-        return true;
-    }
-
-    // Persistence shader animates a fading trail every frame even
-    // when the emulator framebuffer hasn't changed. Keep re-rendering
-    // until the trail is fully decayed -- ~1.5s at the highest decay
-    // (amber's 0.8) with the UNORM bias is more than enough.
-    if (m_crtParams.persistence > 0.0f && m_idleFramesSinceFbChange < s_kPersistenceSettleFrames)
-    {
-        return true;
-    }
-
-    // Any other slider / toggle change touches CrtParams.
-    if (memcmp (&m_crtParams, &m_lastPresentedParams, sizeof (CrtParams)) != 0)
-    {
-        return true;
-    }
-
-    return false;
+    // Three independent reasons to present, in cheapest-test-first order:
+    //
+    //   1. New emulator content, or a forced redraw.
+    //   2. The persistence shader animates a fading trail every frame even
+    //      when the framebuffer has not changed. Keep re-rendering until the
+    //      trail is fully decayed -- ~1.5s at the highest decay (amber's 0.8)
+    //      with the UNORM bias is more than enough.
+    //   3. Any other slider / toggle change, which touches CrtParams.
+    return framebufferDirty
+        || m_redrawForced
+        || (m_crtParams.persistence > 0.0f && m_idleFramesSinceFbChange < s_kPersistenceSettleFrames)
+        || memcmp (&m_crtParams, &m_lastPresentedParams, sizeof (CrtParams)) != 0;
 }
 
 
@@ -505,6 +519,18 @@ Error:
 //
 //  CacheEmulatorContentScreenRect
 //
+//  Records where the emulator image lands in SCREEN coordinates, for consumers
+//  that work outside the window's client space.
+//
+//  The HWND is queried from the swap chain's OutputWindow on demand rather
+//  than cached alongside it. The host-owned swap chain is HWND-based, so the
+//  authoritative answer already lives there, and a cached copy could go stale
+//  across a device or window rebuild.
+//
+//  The rect is CLEARED before anything else, so every early exit leaves an
+//  empty rect that callers read as "not available" rather than a stale one
+//  describing a previous size or position.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void D3DRenderer::CacheEmulatorContentScreenRect (const RECT & fittedRect)
@@ -549,30 +575,102 @@ Error:
 //
 //  ToggleFullscreen
 //
+//  Borderless-fullscreen toggle. Every guard below exists because a specific
+//  way of getting it wrong strands the user behind an unescapable full-monitor
+//  popup covering the taskbar and every other window.
+//
+//  RE-ENTRANCY. A modal loop opening mid-transition -- an assert dialog, a
+//  message box -- pumps messages and can dispatch a queued Alt+Enter into a
+//  NESTED toggle. That nested enter would capture the already-borderless state
+//  as the "windowed" state to restore, so there is nothing left to go back to.
+//  Toggles are ignored while one is in flight, and `armed` gates the cleanup so
+//  a bailed nested call cannot disarm the outer toggle's guard.
+//
+//  DIRECTION is decided from the flag AND the actual window style, not from
+//  the flag alone. A caption-less window IS fullscreen whatever the flag says,
+//  and acting on a stale flag is the other route into the trap. A desync means
+//  a previous transition failed half-way or something else restyled the
+//  window, so it asserts for a debug build and then recovers toward a windowed
+//  state -- recovery beats consistency here.
+//
+//  FLAG ORDERING. m_fullscreen is set true BEFORE the window is touched, and
+//  stays true through the restore. SetWindowPos delivers WM_SIZE
+//  synchronously, and the resize path consults IsFullscreen to decide whether
+//  to persist placement. With the flag still false on entry, the full-monitor
+//  rect was saved as the user's windowed placement -- permanently stomping
+//  their real window size in prefs. On exit it drops only once the window is
+//  back, so no mid-transition rect is persisted either.
+//
+//  The full window PLACEMENT is saved rather than just the current rect, so a
+//  maximized window round-trips back to maximized with its underlying normal
+//  size intact.
+//
+//  If the desync recovery runs before any successful entry ever captured a
+//  placement, the restore falls back to a stock overlapped style and normal
+//  show -- the user always gets a movable, closable window back.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
 {
-    HRESULT     hr        = S_OK;
-    HMONITOR    hMon;
-    MONITORINFO mi        = { sizeof (mi) };
-    BOOL        fSuccess  = FALSE;
+    HRESULT     hr         = S_OK;
+    HMONITOR    hMon       = nullptr;
+    MONITORINFO mi         = { sizeof (mi) };
+    LONG        style      = 0;
+    LONG        priorStyle = 0;
+    bool        styleIsFs  = false;
+    bool        armed      = false;
+    BOOL        fSuccess   = FALSE;
 
 
 
-    if (!m_fullscreen)
+    // A modal loop opening mid-transition (assert dialog, message box) pumps
+    // messages and can dispatch a queued Alt+Enter into a NESTED toggle. A
+    // nested enter would capture the borderless fullscreen state as the
+    // "windowed" state to restore, stranding the user in an unescapable
+    // full-monitor popup that covers the taskbar and every other window.
+    // Ignore toggles while one is in flight. `armed` gates the Error-path
+    // clear so a bailed nested call does not disarm the OUTER toggle's guard.
+    BAIL_OUT_IF (m_fsTransition, S_OK);
+    m_fsTransition = true;
+    armed          = true;
+
+    // Decide direction from the flag AND the actual window state. A caption-
+    // less style IS fullscreen whatever the flag says; acting on a stale flag
+    // here is how a user ends up trapped behind a borderless full-monitor
+    // popup. Desync means a transition previously failed half-way (or someone
+    // else restyled the window) -- assert so a debug build surfaces it, then
+    // recover by restoring a windowed state.
+    style     = GetWindowLong (hwnd, GWL_STYLE);
+    styleIsFs = ((style & WS_CAPTION) != WS_CAPTION);
+    ASSERT (styleIsFs == m_fullscreen);
+
+    if (!m_fullscreen && !styleIsFs)
     {
-        // Save windowed state
-        m_windowedStyle = GetWindowLong (hwnd, GWL_STYLE);
-        fSuccess = GetWindowRect (hwnd, &m_windowedRect);
+        // Save the full windowed placement (not just the current rect) so a
+        // maximized window round-trips back to maximized with its underlying
+        // normal size intact -- and a normal window gets its exact size back.
+        m_windowedStyle             = style;
+        m_windowedPlacement.length  = sizeof (m_windowedPlacement);
+        fSuccess = GetWindowPlacement (hwnd, &m_windowedPlacement);
         CWRA (fSuccess);
 
-        // Go borderless fullscreen
-        hMon      = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+        hMon     = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
         fSuccess = GetMonitorInfo (hMon, &mi);
         CWRA (fSuccess);
 
-        SetWindowLong (hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+        // Flip the flag BEFORE touching the window: SetWindowPos delivers
+        // WM_SIZE synchronously, and the resize path consults IsFullscreen()
+        // to decide whether to persist window placement / auto-resize chrome.
+        // With the flag still false, entering fullscreen used to save the
+        // full-monitor rect as the user's windowed placement -- permanently
+        // stomping their real window size in prefs.
+        m_fullscreen = true;
+
+        SetLastError (0);
+        priorStyle = SetWindowLong (hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+        CWRA (priorStyle != 0);
+
         fSuccess = SetWindowPos (hwnd,
                                   HWND_TOP,
                                   mi.rcMonitor.left, mi.rcMonitor.top,
@@ -580,25 +678,54 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
                                   mi.rcMonitor.bottom - mi.rcMonitor.top,
                                   SWP_FRAMECHANGED);
         CWRA (fSuccess);
-
-        m_fullscreen = true;
     }
     else
     {
-        // Restore windowed
-        SetWindowLong (hwnd, GWL_STYLE, m_windowedStyle);
-        fSuccess = SetWindowPos (hwnd,
-                                  HWND_NOTOPMOST,
-                                  m_windowedRect.left, m_windowedRect.top,
-                                  m_windowedRect.right - m_windowedRect.left,
-                                  m_windowedRect.bottom - m_windowedRect.top,
-                                  SWP_FRAMECHANGED);
+        // Restore the windowed style + placement. m_fullscreen stays true
+        // through the restore so the synchronous WM_SIZE does not persist a
+        // mid-transition rect; it drops only after the window is back. If the
+        // desync recovery is running before any successful entry captured a
+        // placement, fall back to a stock overlapped style + normal show so
+        // the user always gets a movable, closable window back.
+        LONG  restoreStyle = m_windowedStyle;
+
+        m_fullscreen = true;
+
+        if ((restoreStyle & WS_CAPTION) != WS_CAPTION)
+        {
+            restoreStyle = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_VISIBLE;
+        }
+
+        SetLastError (0);
+        priorStyle = SetWindowLong (hwnd, GWL_STYLE, restoreStyle);
+        CWRA (priorStyle != 0);
+
+        fSuccess = SetWindowPos (hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
+                                 SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED);
         CWRA (fSuccess);
+
+        if (m_windowedPlacement.length == sizeof (m_windowedPlacement))
+        {
+            fSuccess = SetWindowPlacement (hwnd, &m_windowedPlacement);
+            CWRA (fSuccess);
+        }
+        else
+        {
+            // No captured placement (desync recovery): un-fullscreen to a
+            // normal window without moving it; the user can take it from
+            // there now that the caption is back.
+            ShowWindow (hwnd, SW_SHOWNORMAL);
+        }
 
         m_fullscreen = false;
     }
 
 Error:
+    if (armed)
+    {
+        m_fsTransition = false;
+    }
+
     return hr;
 }
 

@@ -16,6 +16,7 @@ class DxuiHwndSource;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage
@@ -83,16 +84,25 @@ public:
     // (e.g. "Apple ][") for the FR-131 restart notice. Empty if none.
     std::wstring SelectedMachineDisplayName () const
     {
-        int  idx = m_machineDropdown.SelectedIndex();
-        const std::vector<std::wstring> & items = m_machineDropdown.Items();
+        int                                idx   = m_machineDropdown.SelectedIndex();
+        const std::vector<std::wstring>  & items = m_machineDropdown.Items();
         return (idx >= 0 && idx < (int) items.size()) ? items[(size_t) idx] : std::wstring();
     }
 
     // Pure helper: convert one hardware-entry list into the DxuiTreeNode
     // tree the underlying DxuiTreeView consumes. Exposed for unit tests.
-    static std::vector<DxuiTreeNode>  BuildNodes (const std::vector<HardwareEntry> & entries);
+    // When supportsExternalDrive is set (the //c), a synthetic checkable
+    // "External drive" node is appended, reflecting externalDriveConnected.
+    static std::vector<DxuiTreeNode>  BuildNodes (const std::vector<HardwareEntry> & entries,
+                                                  bool supportsExternalDrive  = false,
+                                                  bool externalDriveConnected = false,
+                                                  bool mouseConnected         = true);
 
 private:
+    static RECT                    MakeRect (int l, int t, int w, int h);
+    static DxuiTreeCapabilityFlag  MapFlag  (CapabilityFlag flag);
+    static std::wstring            Widen    (const std::string & narrow);
+
     // The spec block is CPU / Clock / Memory-header (3 fixed rows) + N dynamic
     // memory-region rows (one per region). The machine identity is shown by the
     // dropdown above, so no read-only "Machine:" spec row. Cap the memory rows
@@ -111,14 +121,14 @@ private:
     DxuiDropdown                         m_machineDropdown;
     DxuiDropdown                         m_speed;
 
-    std::array<DxuiLabel, kInfoRowCount>     m_infoLabels;
-    std::array<DxuiLabel, kInfoRowCount>     m_infoValues;
-    std::array<DxuiLabel, kInfoRowCount>     m_infoExtras;
-    size_t                               m_memoryRowsInUse = 0;
-    int                                  m_infoTop         = 0;
-    int                                  m_rowHeight       = 0;
-    int                                  m_sectionGap      = 0;
-    RECT                                 m_baseRect        = {};
-    DxuiDpiScaler                            m_scaler;
-    DxuiTreeView                             m_tree;
+    std::array<DxuiLabel, kInfoRowCount>  m_infoLabels;
+    std::array<DxuiLabel, kInfoRowCount>  m_infoValues;
+    std::array<DxuiLabel, kInfoRowCount>  m_infoExtras;
+    size_t                                m_memoryRowsInUse = 0;
+    int                                   m_infoTop         = 0;
+    int                                   m_rowHeight       = 0;
+    int                                   m_sectionGap      = 0;
+    RECT                                  m_baseRect        = {};
+    DxuiDpiScaler                         m_scaler;
+    DxuiTreeView                          m_tree;
 };

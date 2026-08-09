@@ -1,0 +1,149 @@
+; ============================================================================
+;  mockingboard-irq-test.a65 -- IRQ-driven Mockingboard smoke test
+;
+;  Reproduces the mechanism real Mockingboard music players (e.g. Rescue
+;  Raiders) actually use: a 6522 Timer1 continuous interrupt whose handler
+;  writes the AY registers. This exercises the full chain that the plain
+;  tone test does NOT -- CPU interrupt dispatch + IRQ-handler AY writes +
+;  audio -- so a clean glide here means the only thing left that could
+;  keep a real game silent is that game's own card detection.
+;
+;  What you should hear: a steady tone whose pitch glides downward ~once a
+;  second (the handler bumps tone-A's period each interrupt), with NO disk
+;  motor hum (we switch the drive off first).
+;
+;  Boot: slot-6 Disk2.rom loads track 0 sector 0 to $0800 and JMPs $0801.
+;
+;  Interrupt path: hardware IRQ -> ROM handler saves A at $45, sees the B
+;  flag clear, and JMP ($03FE) -- the Apple II user IRQ vector we install
+;  below. Our handler acknowledges Timer1, rewrites the AY, restores A and
+;  RTIs.
+; ============================================================================
+
+    .org $0801
+
+; -- Slot 4 Mockingboard VIA #1 (direct registers) --------------------------
+ORB      = $C400            ; port B: AY control lines
+ORA      = $C401            ; port A: AY register number / data
+DDRB     = $C402
+DDRA     = $C403
+T1CL     = $C404            ; Timer1 counter low  (read clears the T1 flag)
+T1CH     = $C405            ; Timer1 counter high (write loads + arms)
+ACR      = $C40B            ; auxiliary control (Timer1 mode)
+IER      = $C40E            ; interrupt enable
+
+; -- AY control-line states on port B ---------------------------------------
+LATCH    = $07              ; BDIR|BC1|/RESET -> latch register address
+WRITE    = $06              ; BDIR|/RESET     -> write data byte
+IDLE     = $04              ; /RESET only     -> bus idle, chip live
+
+; -- AY-3-8910 register numbers ---------------------------------------------
+R_TONEA_LO = $00
+R_TONEA_HI = $01
+R_MIXER    = $07
+R_AMP_A    = $08
+
+; -- VIA control values -----------------------------------------------------
+T1_CONT  = $40              ; ACR bit 6: Timer1 continuous (periodic IRQ)
+IER_T1   = $C0              ; IER: set-bit ($80) | Timer1 enable ($40)
+
+; -- Apple II system locations ----------------------------------------------
+IRQV     = $03FE            ; user IRQ vector the ROM JMPs through
+MOTOROFF = $C0E8            ; slot 6 drive motor OFF
+ACCSAVE  = $45              ; ROM IRQ handler stashes A here
+
+; -- Zero-page scratch ------------------------------------------------------
+savex    = $06
+savey    = $07
+sweep    = $08
+
+
+start
+    sei                     ; hold off interrupts while we wire things up
+
+    lda MOTOROFF            ; drop the drive motor so only the AY is audible
+
+    ; VIA ports to outputs, AY control idle with /RESET released.
+    lda #$FF
+    sta DDRB
+    sta DDRA
+    lda #IDLE
+    sta ORB
+
+    ; Initial voice: tone A enabled, period $0100, full fixed volume.
+    lda #R_MIXER
+    ldx #$3E
+    jsr writeay
+    lda #R_TONEA_HI
+    ldx #$01
+    jsr writeay
+    lda #R_TONEA_LO
+    ldx #$00
+    jsr writeay
+    lda #R_AMP_A
+    ldx #$0F
+    jsr writeay
+
+    lda #$00
+    sta sweep
+
+    ; Install the interrupt handler at the Apple II user IRQ vector.
+    lda #irqhandler & $FF
+    sta IRQV
+    lda #irqhandler >> 8
+    sta IRQV+1
+
+    ; Arm Timer1: continuous mode, T1 interrupt enabled, period $1000
+    ; (~4 KHz phi2 / period -> roughly 250 interrupts per second).
+    lda #T1_CONT
+    sta ACR
+    lda #IER_T1
+    sta IER
+    lda #$00
+    sta T1CL                ; latch low
+    lda #$10
+    sta T1CH                ; load counter = $1000, arm, start counting
+
+    cli                     ; interrupts on -- Timer1 now drives the handler
+
+spin
+    jmp spin                ; foreground idles; the ISR does all the work
+
+
+; ----------------------------------------------------------------------------
+; writeay -- latch AY register (A) then write data (X) through the VIA bus.
+;            A = register number, X = value. Clobbers A; preserves X and Y.
+; ----------------------------------------------------------------------------
+writeay
+    sta ORA
+    lda #LATCH
+    sta ORB
+    lda #IDLE
+    sta ORB
+    stx ORA
+    lda #WRITE
+    sta ORB
+    lda #IDLE
+    sta ORB
+    rts
+
+
+; ----------------------------------------------------------------------------
+; irqhandler -- Timer1 continuous IRQ. The ROM handler already saved A at $45
+;               and vectored here. Acknowledge the timer, glide the pitch by
+;               rewriting tone-A fine, then restore and RTI.
+; ----------------------------------------------------------------------------
+irqhandler
+    stx savex
+    sty savey
+    lda T1CL                ; read T1C-L clears the Timer1 flag, de-asserts IRQ
+    inc sweep
+    lda #R_TONEA_LO
+    ldx sweep
+    jsr writeay
+    ldy savey
+    ldx savex
+    lda ACCSAVE             ; restore A saved by the ROM IRQ handler
+    rti
+
+; --- end ---

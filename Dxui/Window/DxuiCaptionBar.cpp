@@ -7,18 +7,6 @@
 
 
 
-namespace
-{
-    constexpr int      s_kBaseDpi          = 96;
-    constexpr int      s_kButtonWidthDip   = 46;
-    constexpr float    s_kTitleFontDip     = 14.0f;
-    constexpr float    s_kTitlePadDip      = 14.0f;
-    constexpr float    s_kIconPadFraction  = 0.18f;
-    constexpr wchar_t  s_kTitleFamily[]    = L"Segoe UI";
-}
-
-
-
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -175,7 +163,7 @@ int DxuiCaptionBar::PreferredHeightPx (const DxuiDpiScaler & scaler) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiCaptionBar::PreferredHeightDip () const
+int DxuiCaptionBar::PreferredHeightDip() const
 {
     return kCaptionHeightDip;
 }
@@ -192,7 +180,11 @@ int DxuiCaptionBar::PreferredHeightDip () const
 
 int DxuiCaptionBar::HeightPxForDpi (UINT dpi)
 {
-    return MulDiv (kCaptionHeightDip, (int) dpi, s_kBaseDpi);
+    constexpr int      kBaseDpi          = 96;
+
+
+
+    return MulDiv (kCaptionHeightDip, (int) dpi, kBaseDpi);
 }
 
 
@@ -230,21 +222,23 @@ void DxuiCaptionBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
     if (m_closeBtn)
     {
-        rc = { right - s_kButtonWidthDip, top, right, bottom };
+        rc = { right - kButtonWidthDip, top, right, bottom };
         m_closeBtn->Layout (rc, scaler);
-        right -= s_kButtonWidthDip;
+        right -= kButtonWidthDip;
     }
+
     if (m_maxBtn)
     {
-        rc = { right - s_kButtonWidthDip, top, right, bottom };
+        rc = { right - kButtonWidthDip, top, right, bottom };
         m_maxBtn->Layout (rc, scaler);
-        right -= s_kButtonWidthDip;
+        right -= kButtonWidthDip;
     }
+
     if (m_minBtn)
     {
-        rc = { right - s_kButtonWidthDip, top, right, bottom };
+        rc = { right - kButtonWidthDip, top, right, bottom };
         m_minBtn->Layout (rc, scaler);
-        right -= s_kButtonWidthDip;
+        right -= kButtonWidthDip;
     }
 }
 
@@ -265,19 +259,25 @@ void DxuiCaptionBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    RECT     b            = {};
-    float    xPx          = 0.0f;
-    float    yPx          = 0.0f;
-    float    wPx          = 0.0f;
-    float    hPx          = 0.0f;
-    float    iconPadPx    = 0.0f;
-    float    iconSizePx   = 0.0f;
-    float    textLeftPx   = 0.0f;
-    float    textOffsetPx = 0.0f;
-    float    titleWidthPx = 0.0f;
-    float    fontPx       = 0.0f;
-    float    buttonStripPx = 0.0f;
-    int      buttonCount   = 0;
+    constexpr float    kTitleFontDip     = 14.0f;
+    constexpr float    kTitlePadDip      = 14.0f;
+    constexpr float    kIconPadFraction  = 0.18f;
+
+
+
+    RECT   b             = {};
+    float  xPx           = 0.0f;
+    float  yPx           = 0.0f;
+    float  wPx           = 0.0f;
+    float  hPx           = 0.0f;
+    float  iconPadPx     = 0.0f;
+    float  iconSizePx    = 0.0f;
+    float  textLeftPx    = 0.0f;
+    float  textOffsetPx  = 0.0f;
+    float  titleWidthPx  = 0.0f;
+    float  fontPx        = 0.0f;
+    float  buttonStripPx = 0.0f;
+    int    buttonCount   = 0;
 
 
 
@@ -297,9 +297,9 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     painter.FillGradientRect (xPx, yPx, wPx, hPx, theme.TitleBarTop(), theme.TitleBarBottom());
 
-    iconPadPx    = hPx * s_kIconPadFraction;
+    iconPadPx    = hPx * kIconPadFraction;
     iconSizePx   = hPx - iconPadPx * 2.0f;
-    textOffsetPx = m_scaler.Pxf (s_kTitlePadDip);
+    textOffsetPx = m_scaler.Pxf (kTitlePadDip);
 
     if (iconSizePx > 0.0f && !m_iconPixels.empty() && m_iconW > 0 && m_iconH > 0)
     {
@@ -309,20 +309,20 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                                yPx + iconPadPx,
                                                iconSizePx, iconSizePx);
         IGNORE_RETURN_VALUE (hrIcon, S_OK);
-        textOffsetPx = m_scaler.Pxf (s_kTitlePadDip) + iconSizePx + iconPadPx;
+        textOffsetPx = m_scaler.Pxf (kTitlePadDip) + iconSizePx + iconPadPx;
     }
 
     buttonCount   = (m_buttons == Buttons::MinMaxClose) ? 3 : (m_buttons == Buttons::CloseOnly ? 1 : 0);
-    buttonStripPx = (float) buttonCount * m_scaler.Pxf ((float) s_kButtonWidthDip);
+    buttonStripPx = (float) buttonCount * m_scaler.Pxf ((float) kButtonWidthDip);
 
     textLeftPx   = xPx + textOffsetPx;
-    titleWidthPx = wPx - textOffsetPx - buttonStripPx - m_scaler.Pxf (s_kTitlePadDip);
+    titleWidthPx = wPx - textOffsetPx - buttonStripPx - m_scaler.Pxf (kTitlePadDip);
     if (titleWidthPx < 0.0f)
     {
         titleWidthPx = 0.0f;
     }
 
-    fontPx = m_scaler.Pxf (s_kTitleFontDip);
+    fontPx = m_scaler.Pxf (kTitleFontDip);
 
     {
         HRESULT  hrText = text.DrawString (m_title.c_str(),
@@ -332,7 +332,7 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                            hPx,
                                            theme.CaptionForeground(),
                                            fontPx,
-                                           s_kTitleFamily,
+                                           kTitleFamily,
                                            DxuiTextHAlign::Left,
                                            DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hrText, S_OK);
@@ -357,38 +357,47 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 DxuiHitTestKind DxuiCaptionBar::ClassifyHit (POINT clientDip) const
 {
-    IDxuiControl *   child = nullptr;
-    DxuiHitTestKind  kind  = DxuiHitTestKind::Caption;
-    RECT             rc    = {};
-    size_t           n     = 0;
-    size_t           i     = 0;
+    IDxuiControl *   child      = nullptr;
+    DxuiHitTestKind  kind       = DxuiHitTestKind::Caption;
+    DxuiHitTestKind  childKind  = DxuiHitTestKind::None;
+    RECT             rc         = {};
+    size_t           n          = 0;
+    size_t           i          = 0;
+    bool             classified = false;
 
 
 
     n = ChildCount();
 
-    // Reverse order so visually-topmost children win.
-    for (i = n; i > 0; --i)
+    // Reverse order so visually-topmost children win. A child that reports
+    // None declines the point and the walk continues past it, which is how a
+    // transparent region inside a child's bounds still reads as Caption.
+    //
+    // `classified` rather than testing `kind`: a child may legitimately
+    // answer Caption, and that has to STOP the walk like any other answer.
+    for (i = n; !classified && i > 0; --i)
     {
         child = Child (i - 1);
-        if (child == nullptr || !child->Visible())
-        {
-            continue;
-        }
 
-        rc = child->Bounds();
-        if (clientDip.x < rc.left || clientDip.x >= rc.right ||
-            clientDip.y < rc.top  || clientDip.y >= rc.bottom)
+        if (child != nullptr && child->Visible())
         {
-            continue;
-        }
+            rc = child->Bounds();
 
-        kind = child->ClassifyHit (clientDip);
-        if (kind != DxuiHitTestKind::None)
-        {
-            return kind;
+            if (clientDip.x >= rc.left && clientDip.x < rc.right &&
+                clientDip.y >= rc.top  && clientDip.y < rc.bottom)
+            {
+                childKind  = child->ClassifyHit (clientDip);
+                classified = (childKind != DxuiHitTestKind::None);
+
+                if (classified)
+                {
+                    kind = childKind;
+                }
+            }
         }
     }
 
-    return DxuiHitTestKind::Caption;
+    return kind;
 }
+
+

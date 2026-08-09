@@ -11,32 +11,53 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RecordingSink
+//  SettingsPanelStateTests
+//
+//  The Settings sheet's model: baseline versus staged state, dirty tracking,
+//  and the reset-required question.
+//
+//  Cancel is the behavior under test, and it is a RESTORE rather than a
+//  discard. Settings edits apply live to the running emulator, so reverting
+//  means putting the baseline back -- the tests edit, cancel, and assert the
+//  original values returned, which a discard-pending-changes model would fail.
+//
+//  Dirty and RequiresReset are asserted independently, since they answer
+//  different questions: dirty decides whether to save, while only a hardware
+//  ENABLE change needs a machine rebuild and the OK-button warning.
+//
+//  The //c's banked-ROM path through HasDiskIIController is covered, since its
+//  built-in IWM never appears in the hardware list and the machine would
+//  otherwise lose its Disk tab.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+TEST_CLASS (SettingsPanelStateTests)
 {
-    constexpr uint32_t  s_kFixtureClockSpeedHz    = 1023000;
-    constexpr size_t    s_kFixtureDevices         = 4;
+public:
+
+    static constexpr uint32_t  s_kFixtureClockSpeedHz    = 1023000;
+    static constexpr size_t    s_kFixtureDevices         = 4;
 
     class RecordingSink : public ISettingsApplySink
     {
     public:
-        SettingsSpeedMode  lastSpeed             = SettingsSpeedMode::Authentic;
-        SettingsColorMode  lastColor             = SettingsColorMode::Color;
-        bool               lastFloppySound       = true;
+        SettingsSpeedMode  lastSpeed                  = SettingsSpeedMode::Authentic;
+        SettingsColorMode  lastColor                  = SettingsColorMode::Color;
+        bool               lastFloppySound            = true;
         std::string        lastMechanism;
-        bool               lastWriteProtect[2]   = { false, false };
-        float              lastDriveMotor        = -1.0f;
-        float              lastDriveHead         = -1.0f;
-        float              lastDriveDoor         = -1.0f;
-        float              lastDriveOnePan       = 0.0f;
-        float              lastDriveTwoPan       = 0.0f;
-        int                queuedResetCount      = 0;
-        int                applyCount            = 0;
+        bool               lastWriteProtect[2]        = { false, false };
+        float              lastDriveMotor             = -1.0f;
+        float              lastDriveHead              = -1.0f;
+        float              lastDriveDoor              = -1.0f;
+        float              lastDriveOnePan            = 0.0f;
+        float              lastDriveTwoPan            = 0.0f;
+        bool               lastExternalDriveConnected = false;
+        bool               lastMouseConnected         = true;
+        int                queuedResetCount           = 0;
+        int                applyCount                 = 0;
 
         void ApplySpeedMode    (SettingsSpeedMode mode) override   { lastSpeed = mode; ++applyCount; }
         void ApplyColorMode    (SettingsColorMode mode) override   { lastColor = mode; ++applyCount; }
@@ -49,18 +70,33 @@ namespace
             lastDriveDoor  = door;
             ++applyCount;
         }
+
         void ApplyDrivePan     (float driveOnePan, float driveTwoPan) override
         {
             lastDriveOnePan = driveOnePan;
             lastDriveTwoPan = driveTwoPan;
             ++applyCount;
         }
+
         void ApplyWriteProtect (int drive, bool wp) override
         {
             if (drive >= 0 && drive < 2) lastWriteProtect[drive] = wp;
             ++applyCount;
         }
-        void QueueMachineReset () override { ++queuedResetCount; }
+
+        void ApplyExternalDriveConnected (bool connected) override
+        {
+            lastExternalDriveConnected = connected;
+            ++applyCount;
+        }
+
+        void ApplyMouseConnected (bool connected) override
+        {
+            lastMouseConnected = connected;
+            ++applyCount;
+        }
+
+        void QueueMachineReset() override { ++queuedResetCount; }
     };
 
 
@@ -69,7 +105,7 @@ namespace
         JsonValue        v;
         JsonParseError   e;
         HRESULT          hr = JsonParser::Parse (text, v, e);
-        Assert::IsTrue (SUCCEEDED (hr), L"test fixture JSON must parse");
+        AssertSucceeded (hr, L"test fixture JSON must parse");
         return v;
     }
 
@@ -112,21 +148,6 @@ namespace
             "writeProtect": [ true, false ]
         }
     })JSON";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SettingsPanelStateTests
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (SettingsPanelStateTests)
-{
-public:
 
     TEST_METHOD (Load_Defaults_NotDirty_NoResetRequired)
     {
@@ -134,7 +155,7 @@ public:
         JsonValue           v  = ParseOrFail (kFixtureJson);
         HRESULT             hr = st.LoadFromMachine ("TestMachine", v, v);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsFalse (st.IsDirty(),       L"fresh load -> not dirty");
         Assert::IsFalse (st.RequiresReset(), L"fresh load -> no reset needed");
         Assert::AreEqual (std::string ("TestMachine"), st.MachineName());
@@ -149,18 +170,149 @@ public:
     }
 
 
+    // System ROM display. A banked ROM (//c) shares one $C000-$FFFF window
+    // between two `romBankSize` banks toggled by $C028, so it must report the
+    // true installed size (2x a bank = 32K) with a name that explains the
+    // size/window mismatch. Flat ROMs (][ / ][+ / //e) keep their single
+    // fill-to-$FFFF span. Regression for the Settings memory map reading the
+    // //c ROM as 16K when it is really 32K in two banks.
+    TEST_METHOD (SystemRom_BankedReports32KTwoBanks_FlatUnchanged)
+    {
+        SettingsPanelState    cSt;
+        SettingsPanelState    eSt;
+        SettingsPanelState    twoSt;
+        JsonValue             cv;
+        SettingsMemoryRegion  cRom   = {};
+        JsonValue             ev;
+        SettingsMemoryRegion  eRom   = {};
+        JsonValue             tv;
+        SettingsMemoryRegion  twoRom = {};
+
+
+
+        auto romRegion = [] (const SettingsMachineInfo & info)
+        {
+            for (const auto & r : info.memoryRegions)
+            {
+                if (r.name.rfind ("System ROM", 0) == 0)
+                {
+                    return r;
+                }
+            }
+
+            return SettingsMemoryRegion {};
+        };
+
+        // Banked //c: romBankSize present, no explicit size.
+        const char * cJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //c",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xC000", "romBankSize": "0x4000", "romBankSelect": "0xC028" }
+        })JSON";
+
+        cv = ParseOrFail (cJson);
+        AssertSucceeded (cSt.LoadFromMachine ("Apple //c", cv, cv));
+        cRom = romRegion (cSt.MachineInfo());
+        Assert::AreEqual (std::string ("System ROM (2 banks)"), cRom.name,         L"//c ROM name");
+        Assert::AreEqual (std::string ("32K"),                  cRom.size,         L"//c ROM = 2x16K = 32K");
+        Assert::AreEqual (std::string ("$C000-$FFFF"),          cRom.addressRange, L"//c banks share one window");
+
+        // Flat //e: 16K fill-to-$FFFF from $C000.
+        const char * eJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //e",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xC000" }
+        })JSON";
+
+        ev = ParseOrFail (eJson);
+        AssertSucceeded (eSt.LoadFromMachine ("Apple //e", ev, ev));
+        eRom = romRegion (eSt.MachineInfo());
+        Assert::AreEqual (std::string ("System ROM"),  eRom.name,         L"//e ROM name unchanged");
+        Assert::AreEqual (std::string ("16K"),         eRom.size,         L"//e ROM = 16K");
+        Assert::AreEqual (std::string ("$C000-$FFFF"), eRom.addressRange, L"//e ROM range");
+
+        // Flat ][ / ][+: 12K fill-to-$FFFF from $D000.
+        const char * twoJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple ][",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xD000" }
+        })JSON";
+
+        tv = ParseOrFail (twoJson);
+        AssertSucceeded (twoSt.LoadFromMachine ("Apple ][", tv, tv));
+        twoRom = romRegion (twoSt.MachineInfo());
+        Assert::AreEqual (std::string ("System ROM"),  twoRom.name,         L"][ ROM name unchanged");
+        Assert::AreEqual (std::string ("12K"),         twoRom.size,         L"][ ROM = 12K");
+        Assert::AreEqual (std::string ("$D000-$FFFF"), twoRom.addressRange, L"][ ROM range");
+    }
+
+
+    // RAM total headline. Sums every RAM region -- main + aux ($0000-$BFFF) and
+    // both language-card banks ($D000-$FFFF) -- while EXCLUDING system ROM, so a
+    // 128K //c reads "128K RAM" (not 160K with the 32K ROM folded in). A 48K ][
+    // with no aux/LC reads "48K RAM".
+    TEST_METHOD (MemoryTotal_SumsRamAcrossBanks_ExcludesRom)
+    {
+        SettingsPanelState  cSt;
+        SettingsPanelState  twoSt;
+        JsonValue           cv;
+        JsonValue           tv;
+
+
+
+        // 128K //c: 48K main + 48K aux + 16K + 16K language-card banks.
+        const char * cJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //c",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [
+                { "address": "0x0000", "size": "0xC000" },
+                { "address": "0x0000", "size": "0xC000", "bank": "aux" }
+            ],
+            "systemRom": { "address": "0xC000", "romBankSize": "0x4000" },
+            "internalDevices": [ { "type": "language-card" } ]
+        })JSON";
+
+        cv = ParseOrFail (cJson);
+        AssertSucceeded (cSt.LoadFromMachine ("Apple //c", cv, cv));
+        Assert::AreEqual (std::string ("128K RAM"), cSt.MachineInfo().ramSummary,
+            L"48+48+16+16 = 128K; the 32K ROM must not be counted");
+
+        // 48K ][: single main bank, no aux, no language card.
+        const char * twoJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple ][",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xD000" }
+        })JSON";
+
+        tv = ParseOrFail (twoJson);
+        AssertSucceeded (twoSt.LoadFromMachine ("Apple ][", tv, tv));
+        Assert::AreEqual (std::string ("48K RAM"), twoSt.MachineInfo().ramSummary,
+            L"single 48K main bank");
+    }
+
+
     TEST_METHOD (Load_RejectsNonObjectJson)
     {
         SettingsPanelState  st;
-        JsonValue           arr = ParseOrFail ("[1,2,3]");
-        JsonValue           obj = ParseOrFail (kFixtureJson);
         HRESULT             hr;
+        JsonValue           obj;
+        JsonValue           arr = ParseOrFail ("[1,2,3]");
+        obj = ParseOrFail (kFixtureJson);
 
         hr = st.LoadFromMachine ("X", arr, obj);
-        Assert::IsTrue (FAILED (hr), L"non-object default should fail");
+        AssertFailed (hr, L"non-object default should fail");
 
         hr = st.LoadFromMachine ("X", obj, arr);
-        Assert::IsTrue (FAILED (hr), L"non-object merged should fail");
+        AssertFailed (hr, L"non-object merged should fail");
     }
 
 
@@ -221,11 +373,12 @@ public:
     TEST_METHOD (SetHardwareEnabled_RequiredEntryRejected)
     {
         SettingsPanelState  st;
-        JsonValue           v = ParseOrFail (kFixtureJsonWithFlags);
+        JsonValue           v      = ParseOrFail (kFixtureJsonWithFlags);
+        size_t              kbdIdx = 0;
+        HRESULT             hr     = S_OK;
         st.LoadFromMachine ("X", v, v);
 
         // Find the keyboard entry (required) and try to disable it.
-        size_t  kbdIdx = 0;
         for (size_t i = 0; i < st.Hardware().size(); ++i)
         {
             if (st.Hardware()[i].type == "keyboard")
@@ -235,9 +388,9 @@ public:
             }
         }
 
-        HRESULT  hr = st.SetHardwareEnabled (kbdIdx, false);
+        hr = st.SetHardwareEnabled (kbdIdx, false);
 
-        Assert::IsTrue  (FAILED (hr),  L"required entry cannot be disabled");
+        AssertFailed (hr,  L"required entry cannot be disabled");
         Assert::IsTrue  (st.Hardware()[kbdIdx].enabled);
         Assert::IsFalse (st.IsDirty());
     }
@@ -246,10 +399,11 @@ public:
     TEST_METHOD (SetHardwareEnabled_PlatformLockedRejected)
     {
         SettingsPanelState  st;
-        JsonValue           v = ParseOrFail (kFixtureJsonWithFlags);
+        JsonValue           v         = ParseOrFail (kFixtureJsonWithFlags);
+        size_t              lockedIdx = 0;
+        HRESULT             hr        = S_OK;
         st.LoadFromMachine ("X", v, v);
 
-        size_t  lockedIdx = 0;
         for (size_t i = 0; i < st.Hardware().size(); ++i)
         {
             if (st.Hardware()[i].type == "80col-card")
@@ -259,9 +413,9 @@ public:
             }
         }
 
-        HRESULT  hr = st.SetHardwareEnabled (lockedIdx, false);
+        hr = st.SetHardwareEnabled (lockedIdx, false);
 
-        Assert::IsTrue  (FAILED (hr), L"platform-locked entry cannot be disabled");
+        AssertFailed (hr, L"platform-locked entry cannot be disabled");
         Assert::IsTrue  (st.Hardware()[lockedIdx].enabled);
     }
 
@@ -269,10 +423,11 @@ public:
     TEST_METHOD (SetHardwareEnabled_OptionalSlotToggles_DirtyAndResetRequired)
     {
         SettingsPanelState  st;
-        JsonValue           v = ParseOrFail (kFixtureJsonWithFlags);
+        JsonValue           v     = ParseOrFail (kFixtureJsonWithFlags);
+        size_t              mbIdx = 0;
+        HRESULT             hr    = S_OK;
         st.LoadFromMachine ("X", v, v);
 
-        size_t  mbIdx = 0;
         for (size_t i = 0; i < st.Hardware().size(); ++i)
         {
             if (st.Hardware()[i].type == "mockingboard")
@@ -282,9 +437,9 @@ public:
             }
         }
 
-        HRESULT  hr = st.SetHardwareEnabled (mbIdx, false);
+        hr = st.SetHardwareEnabled (mbIdx, false);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (st.IsDirty());
         Assert::IsTrue (st.RequiresReset(), L"hardware enable change forces reset");
     }
@@ -293,7 +448,10 @@ public:
     TEST_METHOD (Apply_PushesLiveFieldsThroughSink)
     {
         SettingsPanelState  st;
-        JsonValue           v = ParseOrFail (kFixtureJson);
+        JsonValue           v       = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        HRESULT             hr      = S_OK;
         st.LoadFromMachine ("X", v, v);
 
         st.SetSpeedMode    (SettingsSpeedMode::Maximum);
@@ -302,11 +460,9 @@ public:
         st.SetMechanism    ("alps");
         st.SetWriteProtect (0, true);
 
-        RecordingSink  sink;
-        JsonValue      outJson;
-        HRESULT        hr = st.Apply (sink, outJson);
+        hr = st.Apply (sink, outJson);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue  (sink.lastSpeed         == SettingsSpeedMode::Maximum);
         Assert::IsTrue  (sink.lastColor         == SettingsColorMode::Amber);
         Assert::IsFalse (sink.lastFloppySound);
@@ -319,19 +475,19 @@ public:
     TEST_METHOD (Apply_LiveEditsRemainNonBlockingAcrossRepeatedApplies)
     {
         SettingsPanelState  st;
-        JsonValue           v = ParseOrFail (kFixtureJson);
+        JsonValue           v       = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
         st.LoadFromMachine ("X", v, v);
 
-        RecordingSink  sink;
-        JsonValue      outJson;
 
         st.SetSpeedMode (SettingsSpeedMode::Double);
-        Assert::IsTrue (SUCCEEDED (st.Apply (sink, outJson)));
+        AssertSucceeded (st.Apply (sink, outJson));
         Assert::AreEqual (0, sink.queuedResetCount,
                           L"Live edits must not require reset/pause semantics.");
 
         st.SetSpeedMode (SettingsSpeedMode::Maximum);
-        Assert::IsTrue (SUCCEEDED (st.Apply (sink, outJson)));
+        AssertSucceeded (st.Apply (sink, outJson));
         Assert::AreEqual (0, sink.queuedResetCount,
                           L"Repeated applies while panel remains open must stay non-blocking.");
     }
@@ -340,7 +496,10 @@ public:
     TEST_METHOD (Apply_HardwareChangeQueuesReset)
     {
         SettingsPanelState  st;
-        JsonValue           v = ParseOrFail (kFixtureJsonWithFlags);
+        JsonValue           v       = ParseOrFail (kFixtureJsonWithFlags);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        HRESULT             hr      = S_OK;
         st.LoadFromMachine ("X", v, v);
 
         for (size_t i = 0; i < st.Hardware().size(); ++i)
@@ -352,38 +511,156 @@ public:
             }
         }
 
-        RecordingSink  sink;
-        JsonValue      outJson;
-        HRESULT        hr = st.Apply (sink, outJson);
+        hr = st.Apply (sink, outJson);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (1, sink.queuedResetCount, L"hw change -> reset queued");
     }
 
 
     TEST_METHOD (Apply_EmitsJsonWithUpdatedUiPrefsBlock)
     {
-        SettingsPanelState  st;
-        JsonValue           v = ParseOrFail (kFixtureJson);
+        SettingsPanelState   st;
+        JsonValue            v       = ParseOrFail (kFixtureJson);
+        RecordingSink        sink;
+        JsonValue            outJson;
+        std::string          text;
+        JsonWriter::Options  opts;
         st.LoadFromMachine ("X", v, v);
 
         st.SetSpeedMode (SettingsSpeedMode::Double);
         st.SetWriteMode (SettingsWriteMode::CopyOnWrite);
 
-        RecordingSink  sink;
-        JsonValue      outJson;
         st.Apply (sink, outJson);
 
         // Round-trip through writer to assert structural shape.
-        std::string         text;
-        JsonWriter::Options opts;
         opts.fPretty = false;
-        Assert::IsTrue (SUCCEEDED (JsonWriter::Write (outJson, opts, text)));
+        AssertSucceeded (JsonWriter::Write (outJson, opts, text));
         Assert::IsTrue (text.find ("\"$cassoUiPrefs\"") != std::string::npos);
         Assert::IsTrue (text.find ("\"speedMode\":\"double\"") != std::string::npos);
         Assert::IsTrue (text.find ("\"writeMode\":\"copy-on-write\"") != std::string::npos);
         Assert::IsTrue (text.find ("\"$cassoMachineVersion\"") != std::string::npos,
                         L"version key must round-trip");
+    }
+
+
+    // //c external-drive connect toggle. A live UI pref: it must
+    // round-trip through $cassoUiPrefs, push through the sink on Apply, make
+    // the panel dirty, and -- unlike a hardware enable -- never queue a reset.
+    TEST_METHOD (ExternalDriveConnected_RoundTripsAndPushesLiveNoReset)
+    {
+        SettingsPanelState  st;
+        JsonValue           v        = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        SettingsUiPrefs     reloaded;
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsFalse (st.Prefs().externalDriveConnected, L"defaults to not-connected");
+        Assert::IsFalse (st.IsDirty());
+
+        st.SetExternalDriveConnected (true);
+        Assert::IsTrue  (st.Prefs().externalDriveConnected);
+        Assert::IsTrue  (st.IsDirty(), L"toggling connect makes the panel dirty");
+        Assert::IsFalse (st.RequiresReset(), L"live UI pref -> no reset required");
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        Assert::IsTrue (sink.lastExternalDriveConnected, L"pushed live through sink");
+        Assert::AreEqual (0, sink.queuedResetCount, L"connect toggle never queues a reset");
+
+        // The connected state persists into the emitted $cassoUiPrefs, and
+        // re-loading that JSON restores it.
+        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
+        Assert::IsTrue (reloaded.externalDriveConnected, L"externalDriveConnected round-trips");
+    }
+
+
+    // supportsExternalDrive is derived from a banked system ROM (romBankSize),
+    // the //c's defining trait -- it is the only machine whose second drive is
+    // an optional add-on. Flat-ROM machines (//e / ][) report false.
+    TEST_METHOD (SupportsExternalDrive_TrueForBankedRomOnly)
+    {
+        SettingsPanelState  cSt;
+        SettingsPanelState  eSt;
+        JsonValue           cv;
+        JsonValue           ev;
+
+
+
+        const char * cJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //c",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xC000", "romBankSize": "0x4000", "romBankSelect": "0xC028" }
+        })JSON";
+
+        const char * eJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //e",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xC000" }
+        })JSON";
+
+        cv = ParseOrFail (cJson);
+        AssertSucceeded (cSt.LoadFromMachine ("Apple //c", cv, cv));
+        Assert::IsTrue (cSt.MachineInfo().supportsExternalDrive, L"//c has optional external drive");
+
+        ev = ParseOrFail (eJson);
+        AssertSucceeded (eSt.LoadFromMachine ("Apple //e", ev, ev));
+        Assert::IsFalse (eSt.MachineInfo().supportsExternalDrive, L"//e second drive is fixed hardware");
+    }
+
+
+    // The //c's drive is a built-in IWM, not a "disk-ii" slot, so the
+    // hardware-list scan alone would hide the Settings Disk tab on the //c
+    // (the dynamic-tab gate). A banked system ROM must count as a
+    // controller. Regression: Settings > Disk disappeared on the //c.
+    TEST_METHOD (HasDiskIIController_TrueForBuiltInIwmMachine)
+    {
+        SettingsPanelState  st;
+        JsonValue           v;
+
+
+
+        const char * cJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //c",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xC000", "romBankSize": "0x4000", "romBankSelect": "0xC028" }
+        })JSON";
+
+        v = ParseOrFail (cJson);
+        AssertSucceeded (st.LoadFromMachine ("Apple //c", v, v));
+        Assert::IsTrue (st.HasDiskIIController(),
+            L"//c built-in IWM (no disk-ii slot) must still yield a Disk tab");
+    }
+
+
+    // //c mouse peripheral toggle: defaults CONNECTED,
+    // round-trips $cassoUiPrefs, pushes live through the sink, no reset.
+    TEST_METHOD (MouseConnected_DefaultsOnRoundTripsNoReset)
+    {
+        SettingsPanelState  st;
+        JsonValue           v        = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        SettingsUiPrefs     reloaded;
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsTrue  (st.Prefs().mouseConnected, L"defaults to connected");
+        st.SetMouseConnected (false);
+        Assert::IsTrue  (st.IsDirty());
+        Assert::IsFalse (st.RequiresReset(), L"live UI pref -> no reset");
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        Assert::IsFalse (sink.lastMouseConnected, L"pushed live");
+        Assert::AreEqual (0, sink.queuedResetCount);
+
+        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
+        Assert::IsFalse (reloaded.mouseConnected, L"mouseConnected round-trips");
     }
 
 
@@ -418,7 +695,7 @@ public:
 
         st.LoadFromMachine ("machineA", machineA, machineA);
         st.SetSpeedMode (SettingsSpeedMode::Maximum);
-        Assert::IsTrue (SUCCEEDED (st.Apply (sink, outA)));
+        AssertSucceeded (st.Apply (sink, outA));
 
         // Rebind to machineB merged data that still carries "double".
         st.LoadFromMachine ("machineB", machineB, machineB);
@@ -433,16 +710,16 @@ public:
 
     TEST_METHOD (MachineTab_List_Selection_Rebuilds_Downstream_State)
     {
-        SettingsPanelState       st;
-        HardwarePage             page;
-        JsonValue                machineA = ParseOrFail (kFixtureJson);
-        JsonValue                machineB = ParseOrFail (kFixtureJsonWithFlags);
-        RECT                     rect     = { 0, 0, 640, 480 };
+        SettingsPanelState  st;
+        HardwarePage        page;
+        JsonValue           machineA = ParseOrFail (kFixtureJson);
+        JsonValue           machineB = ParseOrFail (kFixtureJsonWithFlags);
+        RECT                rect     = { 0, 0, 640, 480 };
+        DxuiDpiScaler       scaler;
         std::vector<std::string> machines = { "machineA", "machineB" };
 
 
 
-        DxuiDpiScaler                scaler;
 
         st.LoadFromMachine ("machineA", machineA, machineA);
         page.SetState (&st);
@@ -477,7 +754,9 @@ public:
     TEST_METHOD (HasDiskIIController_TracksSlot6EnabledState)
     {
         SettingsPanelState  st;
-        JsonValue           v = ParseOrFail (kFixtureJson);
+        JsonValue           v       = ParseOrFail (kFixtureJson);
+        size_t              diskIdx = 0;
+        HRESULT             hr      = S_OK;
 
 
         st.LoadFromMachine ("X", v, v);
@@ -488,22 +767,23 @@ public:
 
         // Locate the disk-ii entry and disable it; the controller must vanish
         // (this is exactly what hides the settings sheet's Disk tab, #84 B).
-        const std::vector<HardwareEntry> & hw = st.Hardware();
-        size_t  diskIdx = hw.size();
+        const std::vector<HardwareEntry>  & hw      = st.Hardware();
+        diskIdx = hw.size();
         for (size_t i = 0; i < hw.size(); ++i)
         {
             if (hw[i].type == "disk-ii") { diskIdx = i; break; }
         }
+
         Assert::IsTrue (diskIdx < hw.size(), L"Fixture must expose a disk-ii entry.");
 
-        HRESULT  hr = st.SetHardwareEnabled (diskIdx, false);
-        Assert::IsTrue  (SUCCEEDED (hr));
+        hr = st.SetHardwareEnabled (diskIdx, false);
+        AssertSucceeded (hr);
         Assert::IsFalse (st.HasDiskIIController(),
             L"Disabling the disk-ii slot must clear the controller.");
 
         // Re-enabling restores it.
         hr = st.SetHardwareEnabled (diskIdx, true);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (st.HasDiskIIController(),
             L"Re-enabling the disk-ii slot must restore the controller.");
     }
@@ -511,6 +791,15 @@ public:
 
     TEST_METHOD (BuildJson_PreservesUnrelatedKeys)
     {
+        SettingsPanelState   st;
+        RecordingSink        sink;
+        JsonValue            outJson;
+        std::string          text;
+        JsonWriter::Options  opts;
+        JsonValue            v;
+
+
+
         // Build a JSON with a custom unknown field; ensure it survives.
         const char * j = R"JSON({
             "$cassoMachineVersion": 1,
@@ -520,18 +809,13 @@ public:
             "slots": [ { "slot": 6, "device": "disk-ii" } ]
         })JSON";
 
-        SettingsPanelState  st;
-        JsonValue           v = ParseOrFail (j);
+        v = ParseOrFail (j);
         st.LoadFromMachine ("X", v, v);
 
         st.SetSpeedMode (SettingsSpeedMode::Double);
 
-        RecordingSink  sink;
-        JsonValue      outJson;
         st.Apply (sink, outJson);
 
-        std::string  text;
-        JsonWriter::Options opts;
         opts.fPretty = false;
         JsonWriter::Write (outJson, opts, text);
 
@@ -554,7 +838,7 @@ public:
         JsonValue           v   = ParseOrFail (kFixtureJson);
         HRESULT             hr  = st.LoadFromMachine ("TestMachine", v, v);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         // No mutations applied: the sink should remain untouched
         // because nothing has called Apply().
@@ -571,4 +855,5 @@ public:
         Assert::AreEqual (0, sink.queuedResetCount);
     }
 };
+
 

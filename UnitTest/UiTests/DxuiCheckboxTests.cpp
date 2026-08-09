@@ -12,21 +12,33 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  CheckboxTests
 //
+//  Checkbox interaction: press, release, the cancel gesture, and keyboard
+//  activation.
+//
+//  The CANCEL gesture is the one worth pinning -- pressing the box, dragging
+//  off, and releasing must leave the state unchanged and nothing stuck down.
+//  It is the behavior an implementation that toggles on press gets wrong, and
+//  the one users rely on without noticing.
+//
+//  Space activation is covered alongside the mouse, since both must route
+//  through the same toggle so a disabled box refuses both.
+//
+//  The change callback is asserted to fire ONCE per toggle: a widget that
+//  notified on press and again on release would make every click count twice.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    RECT MakeRect (int l, int t, int r, int b)
-    {
-        RECT  rc = { l, t, r, b };
-        return rc;
-    }
-}
 
 
 TEST_CLASS (CheckboxTests)
 {
 public:
+
+    RECT MakeRect (int l, int t, int r, int b)
+    {
+        RECT  rc = { l, t, r, b };
+        return rc;
+    }
 
     TEST_METHOD (HitTest_InsideRect_True)
     {
@@ -54,7 +66,7 @@ public:
     TEST_METHOD (MouseDownThenUp_Toggles)
     {
         DxuiCheckbox  cb;
-        bool      observed = false;
+        bool          observed = false;
         cb.SetRect (MakeRect (0, 0, 100, 20));
         cb.SetOnChange ([&] (bool v) { observed = v; });
 
@@ -134,3 +146,4 @@ public:
         Assert::IsFalse (cb.Hover());
     }
 };
+

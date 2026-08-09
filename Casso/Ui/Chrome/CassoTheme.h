@@ -15,6 +15,9 @@ struct ChromeVisualState
 };
 
 
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CassoTheme
@@ -22,7 +25,7 @@ struct ChromeVisualState
 //  Casso's theme: the generic Dxui-rendered tokens come from DxuiTheme;
 //  CassoTheme adds the app-specific bits Dxui has no concept of -- the
 //  skeuomorphic Disk II drive widgets and their LEDs -- plus the preset
-//  palettes (Skeuomorphic / DarkModern / RetroTerminal). WCAG colour math
+//  palettes (Skeuomorphic / DarkModern / RetroTerminal). WCAG color math
 //  lives in Dxui/Theme/DxuiColor.h; widgets derive accessible tints there.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -208,10 +211,12 @@ struct CassoTheme : public DxuiTheme
         {
             return DarkModern();
         }
+
         if (name == "RetroTerminal")
         {
             return RetroTerminal();
         }
+
         return Skeuomorphic();
     }
 };

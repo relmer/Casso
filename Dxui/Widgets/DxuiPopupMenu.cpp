@@ -8,18 +8,6 @@
 #include "Core/UnicodeSymbols.h"
 
 
-namespace
-{
-    constexpr int    s_kItemHeightDip    = 26;
-    constexpr int    s_kItemPadLeftDip   = 28;
-    constexpr int    s_kItemPadRightDip  = 16;
-    constexpr int    s_kCheckGlyphOffDip = 10;
-    constexpr int    s_kBorderDip        =  1;
-    constexpr int    s_kMinWidthDip      = 140;
-    constexpr float  s_kFontDip          = 13.0f;
-}
-
-
 
 
 
@@ -40,6 +28,8 @@ void DxuiPopupMenu::Show (
     IDxuiTextRenderer & text,
     const RECT          & hostClient)
 {
+    constexpr int    kMinWidthDip      = 140;
+
     HRESULT  hr        = S_OK;
     float    fontDip   = 0.0f;
     int      itemH     = 0;
@@ -66,23 +56,25 @@ void DxuiPopupMenu::Show (
         m_scaler.SetDpi (m_popupHost->Scaler().Dpi());
     }
 
-    fontDip = (float) m_scaler.Pxf (s_kFontDip);
-    itemH   = m_scaler.Px (s_kItemHeightDip);
-    padL    = m_scaler.Px (s_kItemPadLeftDip);
-    padR    = m_scaler.Px (s_kItemPadRightDip);
-    border  = m_scaler.Px (s_kBorderDip);
-    minW    = m_scaler.Px (s_kMinWidthDip);
+    fontDip = (float) m_scaler.Pxf (kFontDip);
+    itemH   = m_scaler.Px (kItemHeightDip);
+    padL    = m_scaler.Px (kItemPadLeftDip);
+    padR    = m_scaler.Px (kItemPadRightDip);
+    border  = m_scaler.Px (kBorderDip);
+    minW    = m_scaler.Px (kMinWidthDip);
 
     for (const auto & it : m_items)
     {
-        float  w = 0.0f;
-        float  h = 0.0f;
+        float  w   = 0.0f;
+        float  h   = 0.0f;
+        int    wpx = 0;
         hr = text.MeasureString (it.label.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
         if (FAILED (hr))
         {
             w = (float) (it.label.size() * 8);
         }
-        int wpx = (int) std::ceil (w);
+
+        wpx = (int) std::ceil (w);
         if (wpx > widestPx) { widestPx = wpx; }
     }
 
@@ -163,6 +155,7 @@ void DxuiPopupMenu::Hide()
     DxuiPopupHost *  popup  = m_activePopup;
 
 
+
     // Clear m_activePopup BEFORE releasing so the popup's onClosed
     // callback (which routes back here) is a no-op — no double release.
     m_visible     = false;
@@ -205,16 +198,26 @@ bool DxuiPopupMenu::HitTest (int x, int y) const
 
 int DxuiPopupMenu::HitTestIndex (int x, int y) const
 {
-    int  border = m_scaler.Px (s_kBorderDip);
-    int  itemH  = m_scaler.Px (s_kItemHeightDip);
-    int  relY   = y - (m_boundsDip.top + border);
+    int   border    = m_scaler.Px (kBorderDip);
+    int   itemH     = m_scaler.Px (kItemHeightDip);
+    int   relY      = y - (m_boundsDip.top + border);
+    int   idx       = -1;
+    bool  isInItems = false;
 
-    if (!HitTest (x, y))   { return -1; }
-    if (itemH <= 0)        { return -1; }
-    if (relY < 0)          { return -1; }
 
-    int  idx = relY / itemH;
-    if (idx < 0 || idx >= (int) m_items.size()) { return -1; }
+
+    isInItems = HitTest (x, y) && itemH > 0 && relY >= 0;
+
+    if (isInItems)
+    {
+        idx = relY / itemH;
+
+        if (idx >= (int) m_items.size())
+        {
+            idx = -1;
+        }
+    }
+
     return idx;
 }
 
@@ -230,12 +233,8 @@ int DxuiPopupMenu::HitTestIndex (int x, int y) const
 
 void DxuiPopupMenu::OnMouseMove (int x, int y)
 {
-    if (m_activePopup != nullptr)
-    {
-        return;
-    }
-
-    if (m_visible)
+    // A live popup owns its own input via the host WndProc.
+    if (m_activePopup == nullptr && m_visible)
     {
         m_hover = HitTestIndex (x, y);
     }
@@ -253,19 +252,27 @@ void DxuiPopupMenu::OnMouseMove (int x, int y)
 
 bool DxuiPopupMenu::OnLButtonDown (int x, int y)
 {
-    if (!m_visible) { return false; }
+    // Captured before Hide() can clear it: a visible menu consumes the click
+    // either way, so the result is about the state on ENTRY, not on exit.
+    bool  wasVisible = m_visible;
+    bool  isOwnInput = false;
 
-    // A live popup owns its own input via the host WndProc.
-    if (m_activePopup != nullptr) { return true; }
 
-    if (!HitTest (x, y))
+
+    // A live popup owns its own input via the host WndProc, so the menu
+    // consumes the click but does nothing with it.
+    isOwnInput = wasVisible && m_activePopup == nullptr;
+
+    if (isOwnInput && !HitTest (x, y))
     {
         Hide();
-        return true;
+    }
+    else if (isOwnInput)
+    {
+        m_pressed = HitTestIndex (x, y);
     }
 
-    m_pressed = HitTestIndex (x, y);
-    return true;
+    return wasVisible;
 }
 
 
@@ -276,38 +283,63 @@ bool DxuiPopupMenu::OnLButtonDown (int x, int y)
 //
 //  OnLButtonUp
 //
+//  Commits a row on a completed click, or dismisses on a click-away.
+//
+//  Two captures happen before anything can run, and both are lifetime
+//  problems. m_visible is read up front because Hide clears it, and the return
+//  value must report whether the menu was visible when the click ARRIVED --
+//  otherwise the owner cannot tell a consumed click from one to pass along.
+//  The callback is likewise copied before Hide, since Hide can tear down state
+//  the callback lives in.
+//
+//  A live HOSTED popup owns its own input through the host WndProc, so this
+//  path applies only to the in-window fallback. Handling both would
+//  double-commit.
+//
+//  A commit requires the release to land on the SAME row the press did, so a
+//  press-then-drag-off cancels rather than selecting whatever it ended over.
+//
+//  Hide runs BEFORE the callback fires, so a handler that opens a dialog or
+//  another menu does not do it underneath a menu still on screen.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiPopupMenu::OnLButtonUp (int x, int y)
 {
-    int       idx     = HitTestIndex (x, y);
-    SelectFn  cb      = m_onSelect;
-    int       commit  = -1;
+    int       idx        = HitTestIndex (x, y);
+    SelectFn  cb         = m_onSelect;
+    int       commit     = -1;
+    // Captured before Hide() can clear it -- see OnLButtonDown.
+    bool      wasVisible = m_visible;
+    bool      isOwnInput = false;
 
 
-    if (!m_visible) { return false; }
 
     // A live popup owns its own input via the host WndProc.
-    if (m_activePopup != nullptr) { return true; }
+    isOwnInput = wasVisible && m_activePopup == nullptr;
 
-    if (idx >= 0 && idx == m_pressed)
+    if (isOwnInput)
     {
-        commit = idx;
-    }
-    m_pressed = -1;
+        if (idx >= 0 && idx == m_pressed)
+        {
+            commit = idx;
+        }
 
-    if (commit >= 0)
-    {
-        Hide();
-        if (cb) { cb (commit); }
-        return true;
+        m_pressed = -1;
+
+        if (commit >= 0)
+        {
+            Hide();
+
+            if (cb) { cb (commit); }
+        }
+        else if (!HitTest (x, y))
+        {
+            Hide();
+        }
     }
 
-    if (!HitTest (x, y))
-    {
-        Hide();
-    }
-    return true;
+    return wasVisible;
 }
 
 
@@ -318,47 +350,67 @@ bool DxuiPopupMenu::OnLButtonUp (int x, int y)
 //
 //  OnKey
 //
+//  Keyboard handling for an open menu: navigate, commit, or dismiss.
+//
+//  A visible menu SWALLOWS EVERY KEY, including ones it does nothing with --
+//  that is what the return value reports. A menu is modal in practice, so
+//  letting an unhandled key through would type into whatever is behind it. The
+//  arrow arms consequently fall through silently on an empty item list rather
+//  than reporting unhandled.
+//
+//  m_visible is captured before anything can Hide, so the answer describes the
+//  state when the key arrived.
+//
+//  Up and Down WRAP, matching the dropdown and every platform menu.
+//
+//  A hosted popup is explicitly marked dirty on each move: it renders in its
+//  own window, outside the owner's paint pass, and would otherwise show a
+//  stale highlight while the keyboard walks through it.
+//
+//  Commit hides before invoking the callback, so a handler that opens another
+//  window does not do it beneath a menu still on screen.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiPopupMenu::OnKey (WPARAM vk)
 {
-    if (!m_visible) { return false; }
+    // Captured before Hide() can clear it -- see OnLButtonDown. A visible menu
+    // swallows every key, including ones it does nothing with, so the arrow
+    // arms below fall through silently on an empty item list.
+    bool      wasVisible = m_visible;
+    bool      hasItems   = !m_items.empty();
+    SelectFn  cb         = nullptr;
+    int       commit     = -1;
 
-    if (vk == VK_ESCAPE)
+
+
+    if (wasVisible && vk == VK_ESCAPE)
     {
         Hide();
-        return true;
     }
-
-    if (vk == VK_DOWN)
+    else if (wasVisible && vk == VK_DOWN && hasItems)
     {
-        if (m_items.empty()) { return true; }
         m_hover = (m_hover + 1) % (int) m_items.size();
-        if (m_activePopup != nullptr) { m_activePopup->MarkDirty(); }
-        return true;
-    }
 
-    if (vk == VK_UP)
+        if (m_activePopup != nullptr) { m_activePopup->MarkDirty(); }
+    }
+    else if (wasVisible && vk == VK_UP && hasItems)
     {
-        if (m_items.empty()) { return true; }
         m_hover = (m_hover <= 0) ? (int) m_items.size() - 1 : m_hover - 1;
+
         if (m_activePopup != nullptr) { m_activePopup->MarkDirty(); }
-        return true;
     }
-
-    if (vk == VK_RETURN || vk == VK_SPACE)
+    else if (wasVisible && (vk == VK_RETURN || vk == VK_SPACE) &&
+             m_hover >= 0 && m_hover < (int) m_items.size())
     {
-        if (m_hover >= 0 && m_hover < (int) m_items.size())
-        {
-            SelectFn cb     = m_onSelect;
-            int      commit = m_hover;
-            Hide();
-            if (cb) { cb (commit); }
-        }
-        return true;
+        cb     = m_onSelect;
+        commit = m_hover;
+        Hide();
+
+        if (cb) { cb (commit); }
     }
 
-    return true;
+    return wasVisible;
 }
 
 
@@ -401,13 +453,17 @@ void DxuiPopupMenu::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
 void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text, int originLeft, int originTop) const
 {
+    constexpr int    kCheckGlyphOffDip = 10;
+
+
+
     HRESULT   hr       = S_OK;
-    int       border   = m_scaler.Px (s_kBorderDip);
-    int       itemH    = m_scaler.Px (s_kItemHeightDip);
-    int       padL     = m_scaler.Px (s_kItemPadLeftDip);
-    int       padR     = m_scaler.Px (s_kItemPadRightDip);
-    int       glyphX   = m_scaler.Px (s_kCheckGlyphOffDip);
-    float     fontDip  = (float) m_scaler.Pxf (s_kFontDip);
+    int       border   = m_scaler.Px (kBorderDip);
+    int       itemH    = m_scaler.Px (kItemHeightDip);
+    int       padL     = m_scaler.Px (kItemPadLeftDip);
+    int       padR     = m_scaler.Px (kItemPadRightDip);
+    int       glyphX   = m_scaler.Px (kCheckGlyphOffDip);
+    float     fontDip  = (float) m_scaler.Pxf (kFontDip);
     uint32_t  bgArgb   = 0;
     uint32_t  bgHover  = 0;
     uint32_t  fgArgb   = 0;
@@ -449,24 +505,26 @@ void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
         if (m_items[i].checked)
         {
-            IGNORE_RETURN_VALUE (hr, text.DrawString (s_kpszCheckMark,
-                                                      left + (float) glyphX,
-                                                      iy,
-                                                      (float) (padL - glyphX),
-                                                      (float) itemH,
-                                                      fgArgb, fontDip, DxuiTheme::kBodyFace,
-                                                      DxuiTextHAlign::Left,
-                                                      DxuiTextVAlign::Center));
+            hr = text.DrawString (s_kpszCheckMark,
+                                  left + (float) glyphX,
+                                  iy,
+                                  (float) (padL - glyphX),
+                                  (float) itemH,
+                                  fgArgb, fontDip, DxuiTheme::kBodyFace,
+                                  DxuiTextHAlign::Left,
+                                  DxuiTextVAlign::Center);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (m_items[i].label.c_str(),
-                                                  left + (float) padL,
-                                                  iy,
-                                                  width - (float) padL - (float) padR,
-                                                  (float) itemH,
-                                                  fgArgb, fontDip, DxuiTheme::kBodyFace,
-                                                  DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center));
+        hr = text.DrawString (m_items[i].label.c_str(),
+                              left + (float) padL,
+                              iy,
+                              width - (float) padL - (float) padR,
+                              (float) itemH,
+                              fgArgb, fontDip, DxuiTheme::kBodyFace,
+                              DxuiTextHAlign::Left,
+                              DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 
@@ -504,26 +562,26 @@ void DxuiPopupMenu::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer &
 
 void DxuiPopupMenu::OnPopupMove (POINT localPx)
 {
-    int  border = m_scaler.Px (s_kBorderDip);
-    int  itemH  = m_scaler.Px (s_kItemHeightDip);
-    int  relY   = localPx.y - border;
-    int  row    = -1;
+    int   border  = m_scaler.Px (kBorderDip);
+    int   itemH   = m_scaler.Px (kItemHeightDip);
+    int   relY    = localPx.y - border;
+    int   row     = -1;
+    bool  isInRow = false;
 
 
-    if (itemH <= 0 || m_items.empty() || relY < 0)
+
+    isInRow = itemH > 0 && !m_items.empty() && relY >= 0;
+
+    if (isInRow)
     {
-        return;
+        row     = relY / itemH;
+        isInRow = row < (int) m_items.size();
     }
 
-    row = relY / itemH;
-    if (row < 0 || row >= (int) m_items.size())
-    {
-        return;
-    }
-
-    if (row != m_hover)
+    if (isInRow && row != m_hover)
     {
         m_hover = row;
+
         if (m_activePopup != nullptr)
         {
             m_activePopup->MarkDirty();
@@ -546,30 +604,34 @@ void DxuiPopupMenu::OnPopupMove (POINT localPx)
 
 void DxuiPopupMenu::OnPopupClick (POINT localPx)
 {
-    int       border = m_scaler.Px (s_kBorderDip);
-    int       itemH  = m_scaler.Px (s_kItemHeightDip);
-    int       relY   = localPx.y - border;
-    int       row    = -1;
-    SelectFn  cb     = m_onSelect;
+    int       border  = m_scaler.Px (kBorderDip);
+    int       itemH   = m_scaler.Px (kItemHeightDip);
+    int       relY    = localPx.y - border;
+    int       row     = -1;
+    SelectFn  cb      = m_onSelect;
+    bool      isInRow = false;
 
 
-    if (itemH <= 0 || m_items.empty() || relY < 0)
+
+    isInRow = itemH > 0 && !m_items.empty() && relY >= 0;
+
+    if (isInRow)
     {
-        return;
+        row     = relY / itemH;
+        isInRow = row < (int) m_items.size();
     }
 
-    row = relY / itemH;
-    if (row < 0 || row >= (int) m_items.size())
+    if (isInRow)
     {
-        return;
-    }
+        Hide();
 
-    Hide();
-    if (cb)
-    {
-        cb (row);
+        if (cb)
+        {
+            cb (row);
+        }
     }
 }
+
 
 
 
@@ -606,6 +668,7 @@ void DxuiPopupMenu::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     {
         m_theme = &theme;
     }
+
     static_cast<const DxuiPopupMenu *> (this)->Paint (painter, text);
 }
 
@@ -615,32 +678,50 @@ void DxuiPopupMenu::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiPopupMenu::OnMouse  (IDxuiControl override)
+//  DxuiPopupMenu::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A HOSTED popup never reaches this path -- it lives in its own HWND and
+//  delivers input through the callbacks installed when it was shown. This
+//  serves the in-window fallback menu only.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiPopupMenu::OnMouse (const DxuiMouseEvent & ev)
 {
+    bool  handled = false;
+
+
+
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
         OnMouseMove (ev.positionDip.x, ev.positionDip.y);
-        return false;
+        break;
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+            handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }
-        return false;
+
+        break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+            handled = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
         }
-        return false;
+
+        break;
     default:
-        return false;
+        break;
     }
+
+    return handled;
 }
 
 
@@ -655,10 +736,16 @@ bool DxuiPopupMenu::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiPopupMenu::OnKey (const DxuiKeyEvent & ev)
 {
-    if (ev.kind != DxuiKeyEventKind::Down)
+    bool  handled = false;
+
+
+
+    if (ev.kind == DxuiKeyEventKind::Down)
     {
-        return false;
+        handled = OnKey (ev.vk);
     }
 
-    return OnKey (ev.vk);
+    return handled;
 }
+
+

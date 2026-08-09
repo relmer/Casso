@@ -22,50 +22,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class RecordingSink : public IDriveAudioSink
-{
-public:
-    enum class Event
-    {
-        MotorEngaged,
-        MotorDisengaged,
-        HeadStep,
-        HeadBump,
-        DiskInserted,
-        DiskEjected,
-    };
-
-    struct LogEntry
-    {
-        Event  event;
-        int    arg;
-    };
-
-    vector<LogEntry>  log;
-
-    void OnMotorEngaged() override                  { log.push_back ({ Event::MotorEngaged,    0 }); }
-    void OnMotorDisengaged() override                { log.push_back ({ Event::MotorDisengaged, 0 }); }
-    void OnHeadStep (int newQt) override             { log.push_back ({ Event::HeadStep,     newQt }); }
-    void OnHeadBump() override                       { log.push_back ({ Event::HeadBump,     0 }); }
-    void OnDiskInserted() override                   { log.push_back ({ Event::DiskInserted, 0 }); }
-    void OnDiskEjected() override                    { log.push_back ({ Event::DiskEjected,  0 }); }
-
-    int CountOf (Event ev) const
-    {
-        int  n = 0;
-
-        for (auto & e : log)
-        {
-            if (e.event == ev)
-            {
-                n++;
-            }
-        }
-
-        return n;
-    }
-};
-
 
 
 
@@ -82,10 +38,57 @@ TEST_CLASS (Disk2ControllerAudioTests)
 {
 public:
 
+    class RecordingSink : public IDriveAudioSink
+    {
+    public:
+        enum class Event
+        {
+            MotorEngaged,
+            MotorDisengaged,
+            HeadStep,
+            HeadBump,
+            DiskInserted,
+            DiskEjected,
+        };
+
+        struct LogEntry
+        {
+            Event  event;
+            int    arg;
+        };
+
+        vector<LogEntry>  log;
+
+        void OnMotorEngaged() override                  { log.push_back ({ Event::MotorEngaged,    0 }); }
+        void OnMotorDisengaged() override                { log.push_back ({ Event::MotorDisengaged, 0 }); }
+        void OnHeadStep (int newQt) override             { log.push_back ({ Event::HeadStep,     newQt }); }
+        void OnHeadBump() override                       { log.push_back ({ Event::HeadBump,     0 }); }
+        void OnDiskInserted() override                   { log.push_back ({ Event::DiskInserted, 0 }); }
+        void OnDiskEjected() override                    { log.push_back ({ Event::DiskEjected,  0 }); }
+
+        int CountOf (Event ev) const
+        {
+            int  n = 0;
+
+            for (auto & e : log)
+            {
+                if (e.event == ev)
+                {
+                    n++;
+                }
+            }
+
+            return n;
+        }
+    };
+
     TEST_METHOD (MotorOnSoftSwitch_firesOnMotorEngaged_exactlyOnce)
     {
-        Disk2Controller   ctrl (6);
         RecordingSink     sink;
+
+
+
+        Disk2Controller   ctrl (6);
 
         ctrl.SetAudioSink (&sink);
 
@@ -97,8 +100,11 @@ public:
 
     TEST_METHOD (MotorOffThenSpindownTick_firesOnMotorDisengaged)
     {
-        Disk2Controller   ctrl (6);
         RecordingSink     sink;
+
+
+
+        Disk2Controller   ctrl (6);
 
         ctrl.SetAudioSink (&sink);
 
@@ -113,8 +119,11 @@ public:
 
     TEST_METHOD (MotorOffThenMotorOnWithinSpindown_doesNotFireOnMotorDisengaged)
     {
-        Disk2Controller   ctrl (6);
         RecordingSink     sink;
+
+
+
+        Disk2Controller   ctrl (6);
 
         ctrl.SetAudioSink (&sink);
 
@@ -132,8 +141,11 @@ public:
 
     TEST_METHOD (PhaseChange_noMovement_firesNothing)
     {
-        Disk2Controller   ctrl (6);
         RecordingSink     sink;
+
+
+
+        Disk2Controller   ctrl (6);
 
         ctrl.SetAudioSink (&sink);
 
@@ -147,8 +159,11 @@ public:
 
     TEST_METHOD (PhaseChange_pastTrack0_firesOnHeadBump_notOnHeadStep)
     {
-        Disk2Controller   ctrl (6);
         RecordingSink     sink;
+
+
+
+        Disk2Controller   ctrl (6);
 
         ctrl.SetAudioSink (&sink);
 
@@ -163,8 +178,11 @@ public:
 
     TEST_METHOD (PhaseChange_oneQuarterStep_firesOnHeadStep_withCorrectQt)
     {
-        Disk2Controller   ctrl (6);
         RecordingSink     sink;
+
+
+
+        Disk2Controller   ctrl (6);
 
         ctrl.SetAudioSink (&sink);
 

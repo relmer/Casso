@@ -17,73 +17,43 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+bool DxuiDwm::TryGetOsBuild (DWORD & outMajor, DWORD & outBuild)
 {
-    struct DxuiDwmOsVersion
+    HMODULE              hNtDll  = nullptr;
+    PFN_RtlGetVersion    pfn     = nullptr;
+    OsVersion            ovi     = {};
+    LONG                 status  = 0;
+    bool                 ok      = false;
+
+
+
+    outMajor = 0;
+    outBuild = 0;
+
+    // A ladder, not three independent guards: each step needs the one before
+    // it. Any failure leaves the outputs zeroed, which every caller reads as
+    // "older than the build I asked about".
+    hNtDll = GetModuleHandleW (L"ntdll.dll");
+
+    if (hNtDll != nullptr)
     {
-        DWORD    dwOSVersionInfoSize;
-        DWORD    dwMajorVersion;
-        DWORD    dwMinorVersion;
-        DWORD    dwBuildNumber;
-        DWORD    dwPlatformId;
-        WCHAR    szCSDVersion[128];
-    };
-
-
-    typedef LONG (WINAPI * PFN_RtlGetVersion) (DxuiDwmOsVersion *);
-
-
-    bool GetOsBuild (DWORD & outMajor, DWORD & outBuild)
-    {
-        HMODULE              hNtDll  = nullptr;
-        PFN_RtlGetVersion    pfn     = nullptr;
-        DxuiDwmOsVersion      ovi     = {};
-        LONG                 status  = 0;
-
-
-        outMajor = 0;
-        outBuild = 0;
-
-        hNtDll = GetModuleHandleW (L"ntdll.dll");
-
-        if (hNtDll == nullptr)
-        {
-            return false;
-        }
-
         pfn = (PFN_RtlGetVersion) GetProcAddress (hNtDll, "RtlGetVersion");
-
-        if (pfn == nullptr)
-        {
-            return false;
-        }
-
-        ovi.dwOSVersionInfoSize = sizeof (ovi);
-        status = pfn (&ovi);
-
-        if (status != 0)
-        {
-            return false;
-        }
-
-        outMajor = ovi.dwMajorVersion;
-        outBuild = ovi.dwBuildNumber;
-        return true;
     }
 
+    if (pfn != nullptr)
+    {
+        ovi.dwOSVersionInfoSize = sizeof (ovi);
+        status = pfn (&ovi);
+        ok     = (status == 0);
+    }
 
-    // DWMWA_* values that are not always declared in older SDK headers.
-    constexpr DWORD kDwmwaUseImmersiveDarkMode       = 20;
-    constexpr DWORD kDwmwaWindowCornerPreference     = 33;
-    constexpr DWORD kDwmwaSystemBackdropType         = 38;
+    if (ok)
+    {
+        outMajor = ovi.dwMajorVersion;
+        outBuild = ovi.dwBuildNumber;
+    }
 
-    constexpr DWORD kDwmwcpDefault                   = 0;
-    constexpr DWORD kDwmwcpDoNotRound                = 1;
-    constexpr DWORD kDwmwcpRound                     = 2;
-
-    constexpr DWORD kDwmsbtAuto                      = 0;
-    constexpr DWORD kDwmsbtNone                      = 1;
-    constexpr DWORD kDwmsbtMainWindow                = 2;   // Mica.
+    return ok;
 }
 
 
@@ -105,12 +75,10 @@ bool DxuiDwm::IsWindows11OrGreater()
 
 
 
-    if (!GetOsBuild (major, build))
-    {
-        return false;
-    }
+    // Win11 reports major == 10, build >= 22000. A failed lookup leaves both
+    // zero, which fails the comparison -- no separate guard needed.
+    (void) TryGetOsBuild (major, build);
 
-    // Win11 reports major == 10, build >= 22000.
     return major >= 10 && build >= 22000;
 }
 
@@ -134,10 +102,9 @@ bool DxuiDwm::IsWindows10_1809OrGreater()
 
 
 
-    if (!GetOsBuild (major, build))
-    {
-        return false;
-    }
+    // Same shape as IsWindows11OrGreater: a failed lookup zeroes both outputs
+    // and therefore reports "older".
+    (void) TryGetOsBuild (major, build);
 
     return major >= 10 && build >= 17763;
 }
@@ -156,22 +123,28 @@ bool DxuiDwm::IsWindows10_1809OrGreater()
 
 void DxuiDwm::ApplyRoundedCorners (HWND hwnd, bool round)
 {
-    DWORD  pref = round ? kDwmwcpRound : kDwmwcpDoNotRound;
+    HRESULT  hr        = S_OK;
+    HRESULT  hrAttrib  = S_OK;
+    DWORD    pref      = round ? kDwmwcpRound : kDwmwcpDoNotRound;
+    bool     supported = false;
 
 
 
-    if (hwnd == nullptr || !IsWindows11OrGreater())
-    {
-        return;
-    }
+    supported = IsWindows11OrGreater();
+    BAIL_OUT_IF (hwnd == nullptr || !supported, S_OK);
 
-    // Best-effort: ignore HRESULT — failure means the OS doesn't
-    // recognize the attribute, which is exactly the case the version
-    // gate above already filters for. Logging would be noise.
-    (void) DwmSetWindowAttribute (hwnd,
-                                  kDwmwaWindowCornerPreference,
-                                  &pref,
-                                  sizeof (pref));
+    // Best-effort: failure means the OS does not recognize the attribute,
+    // which is exactly the case the version gate above already filters for.
+    // Logging would be noise. IGNORE_RETURN_VALUE rather than a (void) cast
+    // so the decision is greppable instead of only being readable in prose.
+    hrAttrib = DwmSetWindowAttribute (hwnd,
+                                      kDwmwaWindowCornerPreference,
+                                      &pref,
+                                      sizeof (pref));
+    IGNORE_RETURN_VALUE (hrAttrib, S_OK);
+
+Error:
+    return;
 }
 
 
@@ -191,19 +164,25 @@ void DxuiDwm::ApplyRoundedCorners (HWND hwnd, bool round)
 
 void DxuiDwm::ApplyMicaBackdrop (HWND hwnd, bool mica)
 {
-    DWORD  type = mica ? kDwmsbtMainWindow : kDwmsbtNone;
+    HRESULT  hr        = S_OK;
+    HRESULT  hrAttrib  = S_OK;
+    DWORD    type      = mica ? kDwmsbtMainWindow : kDwmsbtNone;
+    bool     supported = false;
 
 
 
-    if (hwnd == nullptr || !IsWindows11OrGreater())
-    {
-        return;
-    }
+    supported = IsWindows11OrGreater();
+    BAIL_OUT_IF (hwnd == nullptr || !supported, S_OK);
 
-    (void) DwmSetWindowAttribute (hwnd,
-                                  kDwmwaSystemBackdropType,
-                                  &type,
-                                  sizeof (type));
+    // Best-effort, same as ApplyRoundedCorners.
+    hrAttrib = DwmSetWindowAttribute (hwnd,
+                                      kDwmwaSystemBackdropType,
+                                      &type,
+                                      sizeof (type));
+    IGNORE_RETURN_VALUE (hrAttrib, S_OK);
+
+Error:
+    return;
 }
 
 
@@ -221,19 +200,25 @@ void DxuiDwm::ApplyMicaBackdrop (HWND hwnd, bool mica)
 
 void DxuiDwm::ApplyImmersiveDarkMode (HWND hwnd, bool dark)
 {
-    BOOL  flag = dark ? TRUE : FALSE;
+    HRESULT  hr        = S_OK;
+    HRESULT  hrAttrib  = S_OK;
+    BOOL     flag      = dark ? TRUE : FALSE;
+    bool     supported = false;
 
 
 
-    if (hwnd == nullptr || !IsWindows10_1809OrGreater())
-    {
-        return;
-    }
+    supported = IsWindows10_1809OrGreater();
+    BAIL_OUT_IF (hwnd == nullptr || !supported, S_OK);
 
-    (void) DwmSetWindowAttribute (hwnd,
-                                  kDwmwaUseImmersiveDarkMode,
-                                  &flag,
-                                  sizeof (flag));
+    // Best-effort, same as ApplyRoundedCorners.
+    hrAttrib = DwmSetWindowAttribute (hwnd,
+                                      kDwmwaUseImmersiveDarkMode,
+                                      &flag,
+                                      sizeof (flag));
+    IGNORE_RETURN_VALUE (hrAttrib, S_OK);
+
+Error:
+    return;
 }
 
 
@@ -252,14 +237,19 @@ void DxuiDwm::ApplyImmersiveDarkMode (HWND hwnd, bool dark)
 
 void DxuiDwm::ExtendFrameIntoClientArea (HWND hwnd, int inset)
 {
-    MARGINS  m = { inset, inset, inset, inset };
+    HRESULT  hr       = S_OK;
+    HRESULT  hrExtend = S_OK;
+    MARGINS  m        = { inset, inset, inset, inset };
 
 
 
-    if (hwnd == nullptr)
-    {
-        return;
-    }
+    BAIL_OUT_IF (hwnd == nullptr, S_OK);
 
-    (void) DwmExtendFrameIntoClientArea (hwnd, &m);
+    // Best-effort: a compositor that refuses the extension costs a drop
+    // shadow, not correctness, and there is no fallback worth taking.
+    hrExtend = DwmExtendFrameIntoClientArea (hwnd, &m);
+    IGNORE_RETURN_VALUE (hrExtend, S_OK);
+
+Error:
+    return;
 }

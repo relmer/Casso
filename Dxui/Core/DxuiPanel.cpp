@@ -81,6 +81,7 @@ void DxuiPanel::Adopt (IDxuiControl & nonOwnedChild)
     ChildSlot  slot;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     for (const auto & existing : m_children)
@@ -106,29 +107,46 @@ void DxuiPanel::Adopt (IDxuiControl & nonOwnedChild)
 //
 //  RemoveAdopted
 //
-//  Drops a previously adopted child by pointer match. Returns false
-//  for children not present or for owned children (use Remove for
+//  Drops a previously adopted child by pointer match. Fails for
+//  children not present or for owned children (use Remove for
 //  those). The pointer's lifetime is unaffected; only the panel's
 //  participation reference is removed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiPanel::RemoveAdopted (IDxuiControl & child)
+HRESULT DxuiPanel::RemoveAdopted (IDxuiControl & child)
 {
+    HRESULT  hr      = S_OK;
+    auto     found   = m_children.end();
+    auto     it      = m_children.begin();
+    bool     located = false;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    for (auto it = m_children.begin(); it != m_children.end(); ++it)
+    // Locate first, erase after: erase() invalidates the iterator, so it must
+    // not happen while the loop still owns one.
+    //
+    // `owned == nullptr` is what makes a slot adopted rather than owned, so an
+    // owned match is passed over and reported as not found.
+    for ( ; found == m_children.end() && it != m_children.end(); ++it)
     {
         if (it->raw == &child && it->owned == nullptr)
         {
-            it->raw->SetParent (nullptr);
-            m_children.erase (it);
-            MarkDirty();
-            return true;
+            found = it;
         }
     }
 
-    return false;
+    located = found != m_children.end();
+    CBR (located);
+
+    found->raw->SetParent (nullptr);
+    m_children.erase (found);
+    MarkDirty();
+
+Error:
+    return hr;
 }
 
 
@@ -144,7 +162,7 @@ bool DxuiPanel::RemoveAdopted (IDxuiControl & child)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPanel::ClearAdopted ()
+void DxuiPanel::ClearAdopted()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -172,32 +190,43 @@ void DxuiPanel::ClearAdopted ()
 //
 //  Remove
 //
-//  Drops the matching child. Returns false for null inputs or for
-//  controls that aren't owned by this panel.
+//  Drops the matching child. Fails for null inputs or for controls
+//  that aren't owned by this panel.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiPanel::Remove (IDxuiControl * child)
+HRESULT DxuiPanel::Remove (IDxuiControl * child)
 {
+    HRESULT  hr      = S_OK;
+    auto     found   = m_children.end();
+    auto     it      = m_children.begin();
+    bool     located = false;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    if (child == nullptr)
-    {
-        return false;
-    }
+    CBREx (child != nullptr, E_INVALIDARG);
 
-    for (auto it = m_children.begin(); it != m_children.end(); ++it)
+    // Mirror of RemoveAdopted, with the ownership test inverted: this one
+    // takes only OWNED children.
+    for ( ; found == m_children.end() && it != m_children.end(); ++it)
     {
         if (it->raw == child && it->owned != nullptr)
         {
-            it->owned->SetParent (nullptr);
-            m_children.erase (it);
-            MarkDirty();
-            return true;
+            found = it;
         }
     }
 
-    return false;
+    located = found != m_children.end();
+    CBR (located);
+
+    found->owned->SetParent (nullptr);
+    m_children.erase (found);
+    MarkDirty();
+
+Error:
+    return hr;
 }
 
 
@@ -218,6 +247,7 @@ void DxuiPanel::Clear()
     {
         slot.raw->SetParent (nullptr);
     }
+
     m_children.clear();
     MarkDirty();
 }
@@ -310,6 +340,7 @@ void DxuiPanel::PropagateTheme()
 void DxuiPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     std::vector<IDxuiControl *>  visibleRaw;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -414,22 +445,27 @@ void DxuiPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
 
 bool DxuiPanel::OnMouse (const DxuiMouseEvent & ev)
 {
+    auto  it       = m_children.rbegin();
+    bool  consumed = false;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+    // Reverse order is front-to-back: the last-added child paints on top, so
+    // it gets first refusal. The consumed test in the condition is what makes
+    // "first taker wins" true.
+    for ( ; !consumed && it != m_children.rend(); ++it)
     {
         IDxuiControl *  child = it->raw;
 
         if (child->Visible() && child->Enabled())
         {
-            if (child->OnMouse (ev))
-            {
-                return true;
-            }
+            consumed = child->OnMouse (ev);
         }
     }
 
-    return false;
+    return consumed;
 }
 
 
@@ -449,6 +485,7 @@ bool DxuiPanel::OnMouse (const DxuiMouseEvent & ev)
 LPCWSTR DxuiPanel::CursorForPoint (POINT clientPx) const
 {
     LPCWSTR  cursor = nullptr;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -483,22 +520,25 @@ LPCWSTR DxuiPanel::CursorForPoint (POINT clientPx) const
 
 bool DxuiPanel::OnKey (const DxuiKeyEvent & ev)
 {
+    auto  it       = m_children.rbegin();
+    bool  consumed = false;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+    // Same front-to-back fanout as OnMouse.
+    for ( ; !consumed && it != m_children.rend(); ++it)
     {
         IDxuiControl *  child = it->raw;
 
         if (child->Visible() && child->Enabled())
         {
-            if (child->OnKey (ev))
-            {
-                return true;
-            }
+            consumed = child->OnKey (ev);
         }
     }
 
-    return false;
+    return consumed;
 }
 
 
@@ -557,6 +597,7 @@ void DxuiPanel::Tick (int64_t nowMs)
 void DxuiPanel::OnVisibilityChanged()
 {
     DxuiPanel *  parentPanel = dynamic_cast<DxuiPanel *> (Parent());
+
 
 
     MarkDirty();

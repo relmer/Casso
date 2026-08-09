@@ -30,6 +30,7 @@ void DxuiAssertUiThread()
     DWORD    current  = 0;
 
 
+
     current  = GetCurrentThreadId();
     captured = s_uiThreadId.load (std::memory_order_acquire);
 

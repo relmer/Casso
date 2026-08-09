@@ -13,6 +13,7 @@ static constexpr int    s_kHexDigitCount = 6;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorUtil::HexValue
@@ -159,7 +160,7 @@ void ColorUtil::ArgbToHsv (uint32_t argb, float & outH, float & outS, float & ou
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ColorUtil::ParseHexColor
+//  ColorUtil::TryParseHexColor
 //
 //  Parses "#RRGGBB" or "RRGGBB" (case-insensitive, surrounding spaces
 //  tolerated) into an opaque 0xAARRGGBB color. Returns false for any
@@ -167,15 +168,16 @@ void ColorUtil::ArgbToHsv (uint32_t argb, float & outH, float & outS, float & ou
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ColorUtil::ParseHexColor (const std::wstring & text, uint32_t & outArgb)
+bool ColorUtil::TryParseHexColor (const std::wstring & text, uint32_t & outArgb)
 {
-    HRESULT       hr    = S_OK;
-    bool          ok    = false;
+    HRESULT       hr      = S_OK;
+    bool          ok      = false;
+    std::wstring  body;
+    uint32_t      rgb     = 0;
+    int           i       = 0;
+    size_t        bodyLen = 0;
     size_t        first = text.find_first_not_of (L" \t");
     size_t        last  = text.find_last_not_of (L" \t");
-    std::wstring  body;
-    uint32_t      rgb   = 0;
-    int           i     = 0;
 
 
 
@@ -188,7 +190,8 @@ bool ColorUtil::ParseHexColor (const std::wstring & text, uint32_t & outArgb)
         body.erase (0, 1);
     }
 
-    CBR (body.size() == (size_t) s_kHexDigitCount);
+    bodyLen = body.size();
+    CBR (bodyLen == (size_t) s_kHexDigitCount);
 
     for (i = 0; i < s_kHexDigitCount; i++)
     {

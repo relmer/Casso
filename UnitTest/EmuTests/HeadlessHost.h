@@ -11,7 +11,12 @@
 #include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/LanguageCard.h"
+#include "Devices/Apple2cRomBank.h"
 #include "Devices/Disk2Controller.h"
+#include "Devices/Acia6551.h"
+#include "Devices/AciaEndpoints.h"
+#include "Devices/AppleMouse.h"
+#include "Core/InterruptController.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Video/VideoTiming.h"
 #include "FixtureProvider.h"
@@ -33,6 +38,8 @@ enum class HeadlessMachineKind
     AppleII,
     AppleIIPlus,
     Apple2e,
+    Apple2eEnhanced,
+    Apple2c,
 };
 
 
@@ -54,25 +61,29 @@ enum class HeadlessMachineKind
 
 struct EmulatorCore
 {
-    HeadlessMachineKind      machineKind = HeadlessMachineKind::Apple2e;
-    std::unique_ptr<Prng>    prng;
-    std::unique_ptr<MockHostShell>     host;
-    std::unique_ptr<FixtureProvider>   fixtures;
-    IAudioSink *             audioSink = nullptr;
+    HeadlessMachineKind                 machineKind = HeadlessMachineKind::Apple2e;
+    std::unique_ptr<Prng>               prng;
+    std::unique_ptr<MockHostShell>      host;
+    std::unique_ptr<FixtureProvider>    fixtures;
+    IAudioSink                        * audioSink   = nullptr;
 
     // Phase 7 (T067/T069): full //e machine wiring is populated by
     // HeadlessHost::BuildApple2e so integration tests can drive a real
     // cold boot through `Apple2e.rom`. ][/][+ kinds leave these unset.
-    std::unique_ptr<MemoryBus>                 bus;
-    std::unique_ptr<RamDevice>                 mainRam;
-    std::unique_ptr<VideoTiming>               videoTiming;
-    std::unique_ptr<Apple2eMmu>               mmu;
-    std::unique_ptr<Apple2eKeyboard>          keyboard;
-    std::unique_ptr<Apple2eSoftSwitchBank>    softSwitches;
-    std::unique_ptr<AppleSpeaker>              speaker;
-    std::unique_ptr<LanguageCard>              languageCard;
-    std::unique_ptr<LanguageCardBank>          lcBank;
-    std::unique_ptr<EmuCpu>                    cpu;
+    std::unique_ptr<MemoryBus>              bus;
+    std::unique_ptr<RamDevice>              mainRam;
+    std::unique_ptr<VideoTiming>            videoTiming;
+    std::unique_ptr<Apple2eMmu>             mmu;
+    std::unique_ptr<Apple2eKeyboard>        keyboard;
+    std::unique_ptr<Apple2eSoftSwitchBank>  softSwitches;
+    std::unique_ptr<AppleSpeaker>           speaker;
+    std::unique_ptr<LanguageCard>           languageCard;
+    std::unique_ptr<LanguageCardBank>       lcBank;
+    std::unique_ptr<EmuCpu>                 cpu;
+
+    // Apple //c (65C02 + 32K two-bank firmware ROM). Set by
+    // HeadlessHost::BuildApple2c; null for every other machine kind.
+    std::unique_ptr<Apple2cRomBank>            romBank;
 
     // Phase 11 (T097/T099-T104). Optional Disk II wiring. Set by
     // HeadlessHost::BuildApple2eWithDisk2 so US2 integration tests can
@@ -80,6 +91,24 @@ struct EmulatorCore
     // nibble engine in lock-step with the CPU.
     std::unique_ptr<Disk2Controller>           diskController;
     std::unique_ptr<DiskImageStore>            diskStore;
+
+    // Apple //c dual 6551 ACIA serial ports (phantom slots 1 & 2). Set by
+    // HeadlessHost::BuildApple2c; null for every other machine kind. v1
+    // endpoints are loopback (comms self-test) so a guest write to the data
+    // register echoes back into the receiver.
+    std::unique_ptr<Acia6551>                  serial1;
+    std::unique_ptr<Acia6551>                  serial2;
+    std::unique_ptr<AciaLoopbackEndpoint>      serial1Loopback;
+    std::unique_ptr<AciaLoopbackEndpoint>      serial2Loopback;
+
+    // Apple //c IOU mouse + the shared interrupt controller its VBL /
+    // movement IRQ lines aggregate through. Set by HeadlessHost::BuildApple2c;
+    // null for every other machine kind.
+    std::unique_ptr<InterruptController>       interruptController;
+    std::unique_ptr<AppleMouse>                mouse;
+
+    // Instructions RunCycles steps between budget checks.
+    static constexpr int  kCpuStepBatch = 64;
 
     // Cycle-pumped helpers used by Phase 7 integration tests.
     void   PowerCycle    ();
@@ -112,8 +141,25 @@ public:
     HRESULT             BuildAppleII             (EmulatorCore & outCore);
     HRESULT             BuildAppleIIPlus         (EmulatorCore & outCore);
     HRESULT             BuildApple2e             (EmulatorCore & outCore);
+    HRESULT             BuildApple2eEnhanced     (EmulatorCore & outCore);
     HRESULT             BuildApple2eWithDisk2    (EmulatorCore & outCore);
+    HRESULT             BuildApple2c             (EmulatorCore & outCore);
 
 private:
+    // Apple2e.rom's internal layout, and the RAM geometry the builders
+    // page in against it. Read only by the Build* methods below.
+    static constexpr Word    kSystemRomStart   = 0xC000;
+    static constexpr Word    kCxxxRomStart     = 0xC100;
+    static constexpr Word    kCxxxRomEnd       = 0xCFFF;
+    static constexpr Word    kLcRomStart       = 0xD000;
+    static constexpr Word    kRamEnd           = 0xBFFF;
+    static constexpr size_t  kSystemRomSize    = 0x4000;     // 16 KiB Apple2e.rom
+    static constexpr size_t  kCxxxRomSize      = 0x0F00;     // $C100-$CFFF (3840 bytes)
+    static constexpr size_t  kLcRomSize        = 0x3000;     // $D000-$FFFF (12 KiB)
+    static constexpr size_t  kCxxxRomOffset    = kCxxxRomStart - kSystemRomStart;
+    static constexpr size_t  kLcRomOffset      = kLcRomStart   - kSystemRomStart;
+    static constexpr int     kRamPageCount     = 0xC0;       // pages $00-$BF
+    static constexpr int     kPageSize         = 0x100;
+
     HRESULT             BuildCommon (HeadlessMachineKind kind, EmulatorCore & outCore);
 };

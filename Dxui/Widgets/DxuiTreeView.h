@@ -7,7 +7,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiTreeView
@@ -21,10 +20,10 @@
 //  CapabilityFlag rendering rules (FR-004 .. FR-008):
 //
 //      capabilityFlag      checkbox visible?  interactive?     visual
-//      --------------      -----------------  --------------   ------------------
+// -----------------  --------------
 //      Optional            yes                yes              normal
-//      Required            yes                no  (checked)    grey checkbox
-//      PlatformLocked      yes                no  (checked)    grey + tooltip on
+//      Required            yes                no  (checked)    gray checkbox
+//      PlatformLocked      yes                no  (checked)    gray + tooltip on
 //                                                              hover with
 //                                                              lockReason text
 //
@@ -46,12 +45,12 @@ enum class DxuiTreeCapabilityFlag
 
 struct DxuiTreeNode
 {
-    std::wstring                  label;
-    std::wstring                  lockReason;
-    DxuiTreeCapabilityFlag            capabilityFlag = DxuiTreeCapabilityFlag::Optional;
-    bool                          checked        = false;
-    bool                          expanded       = true;
-    std::vector<DxuiTreeNode>         children;
+    std::wstring               label;
+    std::wstring               lockReason;
+    DxuiTreeCapabilityFlag     capabilityFlag = DxuiTreeCapabilityFlag::Optional;
+    bool                       checked        = false;
+    bool                       expanded       = true;
+    std::vector<DxuiTreeNode>  children;
 };
 
 
@@ -128,17 +127,17 @@ private:
 
     void  FlattenRecursive (const DxuiTreeNode & node, std::vector<int> & path, int depth);
     void  ToggleRow        (int flatRow);
-    int                   m_rowHeightPx = 22;
-    int                   m_indentPx    = 18;
-    int                   m_checkboxPx  = 16;
-    int                   m_twistyPx    = 16;
-    int                   m_highlight   = -1;
-    int                   m_hoverRow    = -1;
-    int                   m_pressedRow  = -1;
-    bool                  m_enabled     = true;
-    bool                  m_focused     = false;
-    std::vector<DxuiTreeNode> m_nodes;
-    std::vector<FlatRow>  m_flatRows;
-    ToggleFn              m_toggle;
-    DxuiDpiScaler             m_scaler;
+    int                        m_rowHeightPx = 22;
+    int                        m_indentPx    = 18;
+    int                        m_checkboxPx  = 16;
+    int                        m_twistyPx    = 16;
+    int                        m_highlight   = -1;
+    int                        m_hoverRow    = -1;
+    int                        m_pressedRow  = -1;
+    bool                       m_enabled     = true;
+    bool                       m_focused     = false;
+    std::vector<DxuiTreeNode>  m_nodes;
+    std::vector<FlatRow>       m_flatRows;
+    ToggleFn                   m_toggle;
+    DxuiDpiScaler              m_scaler;
 };

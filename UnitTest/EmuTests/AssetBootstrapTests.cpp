@@ -3,6 +3,7 @@
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
 #include "../Casso/resource.h"
+#include "../Casso/EmbeddedMachineConfigs.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -81,6 +82,42 @@ public:
             L"Apple2e slot 6 ROM must be Disk2.rom");
     }
 
+    TEST_METHOD (Embedded_Apple2eEnhanced_RequiresSystemCharacterAndDisk2Rom)
+    {
+        std::vector<std::string> files;
+
+        AssertRomList (IDR_MACHINE_APPLE2E_ENHANCED, files);
+
+        Assert::AreEqual (size_t (3), files.size(),
+            L"Apple2eEnhanced must reference exactly 3 ROMs "
+            L"(system + character + Disk II slot)");
+        Assert::AreEqual (std::string ("Apple2eEnhanced.rom"), files[0],
+            L"Apple2eEnhanced system ROM must be the enhanced //e ROM");
+        Assert::AreEqual (std::string ("Apple2e_Video.rom"),   files[1],
+            L"Apple2eEnhanced shares the //e MouseText character ROM");
+        Assert::AreEqual (std::string ("Disk2.rom"),           files[2],
+            L"Apple2eEnhanced slot 6 ROM must be Disk2.rom");
+    }
+
+    // The Enhanced //e is defined by its 65C02: the enhanced ROM runs CMOS
+    // opcodes the NMOS //e cannot, which is the whole reason the profile
+    // exists. Lock the CPU string so the embed can never
+    // silently ship a 6502 that would crash on the enhanced firmware.
+    TEST_METHOD (Embedded_Apple2eEnhanced_UsesCmos65C02)
+    {
+        std::string      jsonText = LoadEmbeddedJson (IDR_MACHINE_APPLE2E_ENHANCED);
+        JsonValue        root;
+        JsonParseError   parseError;
+        std::string      cpu;
+
+        AssertSucceeded (JsonParser::Parse (jsonText, root, parseError) ,
+            L"Embedded Apple2eEnhanced JSON must parse cleanly");
+        AssertSucceeded (root.GetString ("cpu", cpu) ,
+            L"Apple2eEnhanced config must declare a cpu");
+        Assert::AreEqual (std::string ("65C02"), cpu,
+            L"Apple2eEnhanced must select the 65C02 core");
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     //
     //  Embedded_*_DiskController
@@ -113,6 +150,54 @@ public:
             L"first-run boot-disk prompt actually fires");
     }
 
+    TEST_METHOD (Embedded_Apple2eEnhanced_HasDiskController)
+    {
+        Assert::IsTrue (EmbeddedHasDiskController (IDR_MACHINE_APPLE2E_ENHANCED),
+            L"Apple //e Enhanced must declare a slot 6 disk-ii device so the "
+            L"first-run boot-disk prompt actually fires");
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Embedded_StampMatchesEachJsonCassoMachineVersion
+    //
+    //  The invariant EnsureMachineConfigs' _DEBUG self-check guards at
+    //  startup, lifted into CI: every s_kEmbeddedConfigs stamp must equal the
+    //  $cassoMachineVersion baked into that machine's embedded JSON. A stamp
+    //  that drifts below its JSON silently skips a real config upgrade -- the
+    //  game-port commit once bumped Apple2.json 6 -> 7 but left the stamp at
+    //  6, hiding the ][ game port from existing users. Reads the real stamps
+    //  from the shared header so a copy can't rot out of sync.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Embedded_StampMatchesEachJsonCassoMachineVersion)
+    {
+        for (const EmbeddedConfig & cfg : s_kEmbeddedConfigs)
+        {
+            std::string     jsonText = LoadEmbeddedJson (cfg.resourceId);
+            JsonValue       root;
+            JsonParseError  parseError;
+            int             version  = 0;
+            HRESULT         hrParse  = S_OK;
+            HRESULT         hrVer    = S_OK;
+            std::wstring    machine  (cfg.machineName.begin(), cfg.machineName.end());
+
+
+            hrParse = JsonParser::Parse (jsonText, root, parseError);
+            AssertSucceeded (hrParse,
+                std::format (L"{} embedded JSON must parse", machine).c_str());
+
+            hrVer = root.GetInt ("$cassoMachineVersion", version);
+            AssertSucceeded (hrVer,
+                std::format (L"{} embedded JSON must carry $cassoMachineVersion", machine).c_str());
+
+            Assert::AreEqual (cfg.currentVersion, version,
+                std::format (L"{} s_kEmbeddedConfigs stamp ({}) must equal its embedded "
+                             L"$cassoMachineVersion ({})", machine, cfg.currentVersion, version).c_str());
+        }
+    }
+
 private:
 
     ////////////////////////////////////////////////////////////////////////////
@@ -136,7 +221,7 @@ private:
 
         hr = MachineConfigLoader::CollectRomFiles (jsonText, outFiles, error);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr,
             std::format (L"CollectRomFiles failed on embedded JSON: {}",
                          std::wstring (error.begin(), error.end())).c_str());
     }
@@ -165,25 +250,21 @@ private:
 
 
         hrParse = JsonParser::Parse (jsonText, root, parseError);
-        Assert::IsTrue (SUCCEEDED (hrParse),
+        AssertSucceeded (hrParse,
             L"Embedded JSON must parse cleanly");
 
         hrSlots = root.GetArray ("slots", pSlots);
 
-        if (FAILED (hrSlots))
+        // A config with no "slots" array simply has no cards in it -- that is
+        // a valid machine (the //c has its drives on-board), not a parse error.
+        if (SUCCEEDED (hrSlots))
         {
-            return false;
-        }
-
-        for (size_t idx = 0; idx < pSlots->ArraySize(); idx++)
-        {
-            const JsonValue &  entry = pSlots->ArrayAt (idx);
-            HRESULT            hrDev = entry.GetString ("device", device);
-
-            if (SUCCEEDED (hrDev) && device == "disk-ii")
+            for (size_t idx = 0; !found && idx < pSlots->ArraySize(); idx++)
             {
-                found = true;
-                break;
+                const JsonValue &  entry = pSlots->ArrayAt (idx);
+                HRESULT            hrDev = entry.GetString ("device", device);
+
+                found = (SUCCEEDED (hrDev) && device == "disk-ii");
             }
         }
 
@@ -211,10 +292,14 @@ private:
         fs::path         exePath    = LocateCassoExe();
 
 
+        // Every guard below ends in Assert::Fail, which THROWS -- so nothing
+        // after it runs and no early return is needed (the `return jsonText;`
+        // that used to follow each one was dead code). The FreeLibrary calls
+        // must still come BEFORE the Fail: the throw unwinds straight past
+        // this frame, so anything after it would leak the module.
         if (exePath.empty())
         {
             Assert::Fail (L"Casso.exe not found next to the test DLL");
-            return jsonText;
         }
 
         hExe = LoadLibraryExW (exePath.wstring().c_str(),
@@ -225,7 +310,6 @@ private:
         {
             Assert::Fail (std::format (L"LoadLibraryExW failed for {}",
                                        exePath.wstring()).c_str());
-            return jsonText;
         }
 
         hRes = FindResourceW (hExe, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
@@ -234,7 +318,6 @@ private:
         {
             FreeLibrary (hExe);
             Assert::Fail (L"Embedded RCDATA resource not found in Casso.exe");
-            return jsonText;
         }
 
         size = SizeofResource (hExe, hRes);
@@ -243,7 +326,6 @@ private:
         {
             FreeLibrary (hExe);
             Assert::Fail (L"Embedded resource is empty");
-            return jsonText;
         }
 
         hMem = LoadResource (hExe, hRes);
@@ -252,7 +334,6 @@ private:
         {
             FreeLibrary (hExe);
             Assert::Fail (L"LoadResource failed");
-            return jsonText;
         }
 
         data = LockResource (hMem);
@@ -261,7 +342,6 @@ private:
         {
             FreeLibrary (hExe);
             Assert::Fail (L"LockResource failed");
-            return jsonText;
         }
 
         jsonText.assign (static_cast<const char *> (data), size);
@@ -287,6 +367,7 @@ private:
         HMODULE   hSelf         = nullptr;
         BOOL      ok            = FALSE;
         fs::path  candidate;
+        fs::path  found;
 
 
         ok = GetModuleHandleExW (
@@ -295,23 +376,19 @@ private:
             reinterpret_cast<LPCWSTR> (&LocateCassoExe),
             &hSelf);
 
-        if (!ok || hSelf == nullptr)
+        // Locate this DLL by an address inside it, then look for Casso.exe as
+        // a sibling -- vstest drops both binaries in the same output folder.
+        // Any step failing means "not found", which the caller reports.
+        if (ok && hSelf != nullptr && GetModuleFileNameW (hSelf, buf, MAX_PATH) != 0)
         {
-            return {};
+            candidate = fs::path (buf).parent_path() / L"Casso.exe";
+
+            if (fs::exists (candidate))
+            {
+                found = candidate;
+            }
         }
 
-        if (GetModuleFileNameW (hSelf, buf, MAX_PATH) == 0)
-        {
-            return {};
-        }
-
-        candidate = fs::path (buf).parent_path() / L"Casso.exe";
-
-        if (!fs::exists (candidate))
-        {
-            return {};
-        }
-
-        return candidate;
+        return found;
     }
 };

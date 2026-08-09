@@ -4,6 +4,7 @@
 
 #include "Core/MemoryBus.h"
 #include "Devices/Disk2Controller.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Audio/DriveAudioMixer.h"
 #include "Audio/Disk2AudioSource.h"
@@ -36,7 +37,8 @@ DiskManager::DiskManager (
     CpuManager                                      & cpuManager,
     const std::wstring                              & currentMachineName,
     UserConfigStore                                 & userConfigStore,
-    IFileSystem                                     & fileSystem)
+    IFileSystem                                     & fileSystem,
+    std::array<bool, 2>                             & userWriteProtect)
     : m_ownedDevices       (ownedDevices),
       m_diskStore          (diskStore),
       m_diskAudioSources   (diskAudioSources),
@@ -47,7 +49,8 @@ DiskManager::DiskManager (
       m_cpuManager         (cpuManager),
       m_currentMachineName (currentMachineName),
       m_userConfigStore    (userConfigStore),
-      m_fileSystem         (fileSystem)
+      m_fileSystem         (fileSystem),
+      m_userWriteProtect   (userWriteProtect)
 {
 }
 
@@ -69,7 +72,101 @@ int64_t DiskManager::NowMs()
 {
     auto  duration = std::chrono::steady_clock::now().time_since_epoch();
 
+
+
     return std::chrono::duration_cast<std::chrono::milliseconds> (duration).count();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProbeFileWritability
+//
+//  Determines whether the backing host file can be written back to.
+//  Prefers the read-only attribute (surfaced via the owner_write perms
+//  bit on Windows) so a plain read-only file reports its true cause;
+//  otherwise probes with a non-truncating read+write open to catch ACL
+//  denials / exclusive locks. A missing / empty path is writable --
+//  there is nothing to protect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::ProbeFileWritability (
+    const std::string & path,
+    bool              & outReadOnly,
+    bool              & outNoPermission)
+{
+    std::error_code  ec;
+    fs::file_status  st;
+    fs::path         p (path);
+
+
+    outReadOnly     = false;
+    outNoPermission = false;
+
+    // A missing / empty path is writable -- there is nothing to protect.
+    if (!path.empty() && fs::exists (p, ec))
+    {
+        st = fs::status (p, ec);
+
+        // The read-only ATTRIBUTE is preferred over the open probe so a plain
+        // read-only file reports its true cause; only when the attribute says
+        // writable do we probe for an ACL denial or exclusive lock.
+        if (!ec && (st.permissions() & fs::perms::owner_write) == fs::perms::none)
+        {
+            outReadOnly = true;
+        }
+        else
+        {
+            std::fstream  probe (p, std::ios::in | std::ios::out | std::ios::binary);
+
+            outNoPermission = !probe.good();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyExternalWriteProtect
+//
+//  Re-asserts the user's per-drive write-protect preference and the
+//  backing file's writability onto a freshly mounted image. The image's
+//  own embedded flag (WOZ INFO chunk) is set by its loader and left
+//  alone here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::ApplyExternalWriteProtect (
+    int                 drive,
+    DiskImage         * image,
+    const std::string & path)
+{
+    bool  readOnly     = false;
+    bool  noPermission = false;
+    bool  userWp       = false;
+
+
+    if (image == nullptr)
+    {
+        return;
+    }
+
+    if (drive >= 0 && drive < static_cast<int> (m_userWriteProtect.size()))
+    {
+        userWp = m_userWriteProtect[drive];
+    }
+
+    ProbeFileWritability (path, readOnly, noPermission);
+
+    image->SetUserWriteProtected (userWp);
+    image->SetFileWriteProtect   (readOnly, noPermission);
 }
 
 
@@ -89,6 +186,7 @@ int64_t DiskManager::NowMs()
 Disk2Controller * DiskManager::FindSlot6Controller()
 {
     Disk2Controller *  result = nullptr;
+
 
 
     for (auto & dev : m_ownedDevices)
@@ -214,6 +312,7 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
     DiskImage         *  external   = nullptr;
 
 
+
     CBR (controller != nullptr);
 
     hr = m_diskStore.Mount (6, drive, path);
@@ -221,6 +320,13 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
 
     external = m_diskStore.GetImage (6, drive);
     controller->SetExternalDisk (drive, external);
+
+    // Re-assert the user's per-drive write-protect preference and probe
+    // the backing file's writability onto the freshly loaded image (the
+    // image's own embedded flag is already set by its loader). Without
+    // this, a new mount would silently drop a standing user WP setting
+    // and let the guest write to a read-only host file.
+    ApplyExternalWriteProtect (drive, external, path);
 
     // The store-based mount path bypasses the controller's own
     // MountDisk method, so fire the IDisk2EventSink hook explicitly
@@ -281,6 +387,7 @@ Error:
 void DiskManager::EjectDiskInSlot6 (int drive)
 {
     Disk2Controller *  controller = FindSlot6Controller();
+
 
 
     m_diskStore.Eject (6, drive);
@@ -358,6 +465,7 @@ void DiskManager::RemountSlot6Disks()
             IGNORE_RETURN_VALUE (hrMount, S_OK);
         }
     }
+
     m_programmaticRemount = false;
 }
 
@@ -382,25 +490,12 @@ HRESULT DiskManager::Mount (int slot, int drive, const std::wstring & path)
     WORD     command = 0;
 
 
-    if (slot != 6)
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
 
-    if (drive == 0)
-    {
-        command = IDM_DISK_INSERT1;
-    }
-    else if (drive == 1)
-    {
-        command = IDM_DISK_INSERT2;
-    }
-    else
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
+    CBRAEx (slot == 6, E_INVALIDARG);
+
+    CBRAEx (drive == 0 || drive == 1, E_INVALIDARG);
+
+    command = (drive == 0) ? IDM_DISK_INSERT1 : IDM_DISK_INSERT2;
 
     m_cpuManager.PostCommand (command, fs::path (path).string());
 
@@ -414,7 +509,23 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Eject  (IDriveCommandSink-style)
+//  Eject
+//
+//  Ejects a drive: posts the command to the CPU thread and starts the door
+//  animation.
+//
+//  The command is POSTED rather than performed, because ejecting detaches a
+//  disk the drive engine may be actively reading -- it has to land between
+//  instructions.
+//
+//  The door animation is started HERE rather than being left to the
+//  path-change watcher, and that is the point of this function. The watcher in
+//  UpdateDriveWidgets only calls BeginEject when the mounted path actually
+//  transitions to empty, so clicking eject on an already-empty drive would be
+//  a visual no-op -- the user would press the button and see nothing happen.
+//
+//  Only slot 6 drives 1 and 2 have an eject affordance; anything else leaves
+//  the command at 0, which is the nothing-to-do signal for both halves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -423,32 +534,30 @@ void DiskManager::Eject (int slot, int drive)
     WORD  command = 0;
 
 
-    if (slot != 6)
+
+    // Only slot 6 drives 1 and 2 have an eject affordance; command stays 0
+    // for anything else, which is the "nothing to do" signal below.
+    if (slot == 6)
     {
-        return;
+        if      (drive == 0) { command = IDM_DISK_EJECT1; }
+        else if (drive == 1) { command = IDM_DISK_EJECT2; }
     }
 
-    if (drive == 0)
+    if (command != 0)
     {
-        command = IDM_DISK_EJECT1;
-    }
-    else if (drive == 1)
-    {
-        command = IDM_DISK_EJECT2;
-    }
-    else
-    {
-        return;
-    }
+        m_cpuManager.PostCommand (command);
 
-    m_cpuManager.PostCommand (command);
-
-    // Animate the door open even if no disk is currently mounted.
-    // The path-change watcher in UpdateDriveWidgets only triggers
-    // BeginEject when the mounted path actually transitions to empty,
-    // so an eject click on an already-empty drive would otherwise be
-    // a visual no-op.
-    m_driveWidgetState[drive].BeginEject (NowMs());
+        // Open the door as immediate visual feedback, but leave the mount
+        // bookkeeping alone: the path-change watcher in UpdateDriveWidgets
+        // runs the real BeginEject once the store actually empties. The
+        // old immediate BeginEject cleared mountedImagePath here, so the
+        // watcher's very next tick read the still-mounted store as a fresh
+        // INSERT (door flaps closed), then as an eject once the CPU thread
+        // caught up (door reopens) -- one click, two open animations. The
+        // flap predates the modal keep-alive; it just never PRESENTED
+        // before, because the old pre-picker pump stalled.
+        m_driveWidgetState[drive].StartDoorTransition (DriveWidgetState::Door::Opening, NowMs());
+    }
 }
 
 
@@ -469,15 +578,22 @@ void DiskManager::Eject (int slot, int drive)
 
 void DiskManager::UpdateDriveWidgets()
 {
-    Disk2Controller *  controller = FindSlot6Controller();
-    int64_t             nowMs      = NowMs();
-    std::vector<DriveWidgetController::DriveSyncEvent>  syncEvents = m_driveWidgets.ConsumeSyncEvents();
-    int                 drive      = 0;
+    Disk2Controller                                     * controller = FindSlot6Controller();
+    int64_t                                               nowMs      = NowMs();
+    std::vector<DriveWidgetController::DriveSyncEvent>    syncEvents = m_driveWidgets.ConsumeSyncEvents();
+    int                                                   drive      = 0;
+
 
 
     for (drive = 0; drive < static_cast<int> (m_driveWidgetState.size()); drive++)
     {
-        DriveWidgetState &  st = m_driveWidgetState[drive];
+        DriveWidgetState    & st      = m_driveWidgetState[drive];
+        const std::string   & src     = m_diskStore.GetSourcePath (6, drive);
+        std::wstring          wPath;
+        bool                  motorOn = false;
+        bool                  active  = false;
+        uint64_t              reads   = 0;
+        uint64_t              writes  = 0;
 
         for (const auto & evt : syncEvents)
         {
@@ -495,8 +611,7 @@ void DiskManager::UpdateDriveWidgets()
         // mount path used). A manual wstring(begin,end) widen would
         // sign-extend a high byte like 0xF8 ('o' with stroke) into U+FFF8
         // and render as a tofu box in the drive label.
-        const std::string &  src   = m_diskStore.GetSourcePath (6, drive);
-        std::wstring         wPath = fs::path (src).wstring();
+        wPath = fs::path (src).wstring();
 
         if (wPath != st.mountedImagePath)
         {
@@ -516,10 +631,6 @@ void DiskManager::UpdateDriveWidgets()
         // owned by the device, which the CPU thread mutates; we read
         // the bool + monotonic counters with relaxed atomics
         // semantics (existing audio-system pattern).
-        bool      motorOn  = false;
-        bool      active   = false;
-        uint64_t  reads    = 0;
-        uint64_t  writes   = 0;
 
         if (controller != nullptr)
         {
@@ -540,6 +651,15 @@ void DiskManager::UpdateDriveWidgets()
 
         st.motorOn.store    (motorOn, std::memory_order_relaxed);
         st.diskActive.store (active,  std::memory_order_relaxed);
+
+        // Sample the mounted image's write-protect breakdown for the
+        // padlock cue + hover tooltip. Empty drive -> no protection.
+        {
+            DiskImage *  image = m_diskStore.GetImage (6, drive);
+
+            st.writeProtect = (image != nullptr) ? image->GetWriteProtectInfo()
+                                                 : WriteProtectInfo();
+        }
     }
 
     m_driveWidgets.SyncFromStates (m_driveWidgetState);

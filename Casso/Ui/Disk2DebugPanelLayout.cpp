@@ -3,44 +3,57 @@
 #include "Disk2DebugPanelLayout.h"
 
 
-namespace
+static constexpr int  kMargin96             = 8;
+static constexpr int  kRowHeight96          = 22;
+static constexpr int  kRowGap96             = 4;
+static constexpr int  kRowVGap96            = 14;
+static constexpr int  kCheckWidth96         = 104;
+static constexpr int  kRadioWidth96         = 78;
+static constexpr int  kEditWidth96          = 140;
+static constexpr int  kFilterLabelWidth96   = 110;
+static constexpr int  kRawQtCheckWidth96    = 170;
+static constexpr int  kIgnoredLabelHeight96 = 18;
+// Matches kRowLabelWidth96 so the first drive radio aligns under the
+// first checkbox column on the two rows above (both start at
+// margin + label width + gap).
+static constexpr int  kDriveLabelWidth96    = 92;
+static constexpr int  kRowLabelWidth96      = 92;
+static constexpr int  kButtonWidth96        = 90;
+static constexpr int  kButtonHeight96       = 26;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Scale
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static int Scale (int dipValue, UINT dpi) noexcept
 {
-    constexpr int  kMargin96             = 8;
-    constexpr int  kRowHeight96          = 22;
-    constexpr int  kRowGap96             = 4;
-    constexpr int  kRowVGap96            = 14;
-    constexpr int  kCheckWidth96         = 104;
-    constexpr int  kRadioWidth96         = 78;
-    constexpr int  kEditWidth96          = 140;
-    constexpr int  kFilterLabelWidth96   = 110;
-    constexpr int  kRawQtCheckWidth96    = 170;
-    constexpr int  kIgnoredLabelHeight96 = 18;
-    // Matches kRowLabelWidth96 so the first drive radio aligns under the
-    // first checkbox column on the two rows above (both start at
-    // margin + label width + gap).
-    constexpr int  kDriveLabelWidth96    = 92;
-    constexpr int  kRowLabelWidth96      = 92;
-    constexpr int  kButtonWidth96        = 90;
-    constexpr int  kButtonHeight96       = 26;
+    return MulDiv (dipValue, (int) dpi, 96);
+}
 
 
 
-    int Scale (int dipValue, UINT dpi) noexcept
-    {
-        return MulDiv (dipValue, (int) dpi, 96);
-    }
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeRect
+//
+////////////////////////////////////////////////////////////////////////////////
 
-    RECT MakeRect (int x, int y, int w, int h) noexcept
-    {
-        RECT r;
-        r.left   = x;
-        r.top    = y;
-        r.right  = x + w;
-        r.bottom = y + h;
-        return r;
-    }
+static RECT MakeRect (int x, int y, int w, int h) noexcept
+{
+    RECT r;
+    r.left   = x;
+    r.top    = y;
+    r.right  = x + w;
+    r.bottom = y + h;
+    return r;
 }
 
 
@@ -64,25 +77,29 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
     int   topOffsetPx,
     UINT  dpi) noexcept
 {
-    PanelLayoutSlots slots         = {};
-    int              margin        = Scale (kMargin96,             dpi);
-    int              rowHeight     = Scale (kRowHeight96,          dpi);
-    int              rowGap        = Scale (kRowGap96,             dpi);
-    int              rowVGap       = Scale (kRowVGap96,            dpi);
-    int              checkWidth    = Scale (kCheckWidth96,         dpi);
-    int              radioWidth    = Scale (kRadioWidth96,         dpi);
-    int              editWidth     = Scale (kEditWidth96,          dpi);
-    int              labelWidth    = Scale (kFilterLabelWidth96,   dpi);
-    int              driveLblWidth = Scale (kDriveLabelWidth96,    dpi);
-    int              rowLblWidth   = Scale (kRowLabelWidth96,      dpi);
-    int              rawQtWidth    = Scale (kRawQtCheckWidth96,    dpi);
-    int              ignoredHeight = Scale (kIgnoredLabelHeight96, dpi);
-    int              buttonWidth   = Scale (kButtonWidth96,        dpi);
-    int              buttonHeight  = Scale (kButtonHeight96,       dpi);
-    int              x             = 0;
-    int              y             = topOffsetPx + margin;
-    int              trackEditX    = 0;
-    int              sectorEditX   = 0;
+    PanelLayoutSlots  slots             = {};
+    int               margin            = Scale (kMargin96,             dpi);
+    int               rowHeight         = Scale (kRowHeight96,          dpi);
+    int               rowGap            = Scale (kRowGap96,             dpi);
+    int               rowVGap           = Scale (kRowVGap96,            dpi);
+    int               checkWidth        = Scale (kCheckWidth96,         dpi);
+    int               radioWidth        = Scale (kRadioWidth96,         dpi);
+    int               editWidth         = Scale (kEditWidth96,          dpi);
+    int               labelWidth        = Scale (kFilterLabelWidth96,   dpi);
+    int               driveLblWidth     = Scale (kDriveLabelWidth96,    dpi);
+    int               rowLblWidth       = Scale (kRowLabelWidth96,      dpi);
+    int               rawQtWidth        = Scale (kRawQtCheckWidth96,    dpi);
+    int               ignoredHeight     = Scale (kIgnoredLabelHeight96, dpi);
+    int               buttonWidth       = Scale (kButtonWidth96,        dpi);
+    int               buttonHeight      = Scale (kButtonHeight96,       dpi);
+    int               x                 = 0;
+    int               y                 = topOffsetPx + margin;
+    int               trackEditX        = 0;
+    int               sectorEditX       = 0;
+    int               radioBaseX        = 0;
+    int               trackInvalidWidth = 0;
+    int               lvWidth           = 0;
+    int               lvHeight          = 0;
 
 
 
@@ -95,6 +112,7 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
         slots.eventTypeChecks[i] = MakeRect (x, y, checkWidth, rowHeight);
         x += checkWidth;
     }
+
     y += rowHeight + rowVGap;
 
     // Row 2: "Audio events:" label + audio master + 4 sub checks.
@@ -111,6 +129,7 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
         slots.audioSubChecks[i] = MakeRect (x, y, checkWidth, rowHeight);
         x += checkWidth;
     }
+
     y += rowHeight + rowVGap;
 
     // Row 3: drive radios + filter label/edit pairs. The radios are laid
@@ -120,11 +139,12 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
     x = margin;
     slots.driveFilterLabel = MakeRect (x, y, driveLblWidth, rowHeight);
     x += driveLblWidth + rowGap;
-    int radioBaseX = x;
+    radioBaseX = x;
     for (int i = 0; i < kDriveRadioCount; i++)
     {
         slots.driveRadios[i] = MakeRect (radioBaseX + i * checkWidth, y, radioWidth, rowHeight);
     }
+
     x = radioBaseX + (kDriveRadioCount - 1) * checkWidth + radioWidth + rowGap;
     slots.trackFilterLabel = MakeRect (x, y, labelWidth, rowHeight);
     x += labelWidth + rowGap;
@@ -142,7 +162,7 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
     y += rowHeight + rowVGap;
 
     // Row 5: invalid feedback labels beneath the two edits.
-    int trackInvalidWidth = (sectorEditX - trackEditX) - rowGap;
+    trackInvalidWidth = (sectorEditX - trackEditX) - rowGap;
     if (trackInvalidWidth < 1) { trackInvalidWidth = 1; }
     slots.trackInvalidLabel  = MakeRect (trackEditX,  y, trackInvalidWidth, ignoredHeight);
     slots.sectorInvalidLabel = MakeRect (sectorEditX, y, editWidth,         ignoredHeight);
@@ -154,11 +174,12 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
     y += buttonHeight + rowVGap;
 
     // Row 7: ListView fills remainder.
-    int lvWidth  = clientWidthPx  - 2 * margin;
-    int lvHeight = clientHeightPx - y - margin;
+    lvWidth = clientWidthPx  - 2 * margin;
+    lvHeight = clientHeightPx - y - margin;
     if (lvWidth  < 1) { lvWidth  = 1; }
     if (lvHeight < 1) { lvHeight = 1; }
     slots.listView = MakeRect (margin, y, lvWidth, lvHeight);
 
     return slots;
 }
+

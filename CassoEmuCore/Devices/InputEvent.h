@@ -5,6 +5,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InputEventCategory
@@ -31,6 +32,7 @@ enum class InputEventCategory : uint8_t
     Guest  = 1,
     System = 2,
 };
+
 
 
 
@@ -89,6 +91,7 @@ enum class InputEventType : uint8_t
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InputEvent
@@ -119,8 +122,8 @@ enum class InputEventType : uint8_t
 
 struct InputEvent
 {
-    static constexpr uint8_t    kFlagStrobe    = 0x01;
-    static constexpr uint8_t    kFlagAnyKeyDown = 0x02;
+    static constexpr uint8_t  kFlagStrobe     = 0x01;
+    static constexpr uint8_t  kFlagAnyKeyDown = 0x02;
 
     struct KeyPayload
     {

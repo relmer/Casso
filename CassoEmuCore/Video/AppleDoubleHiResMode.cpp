@@ -29,12 +29,12 @@ static const uint32_t kDhrColors[16] =
     0xFF000099,   //  2: Dark Blue
     0xFFDD0044,   //  3: Purple
     0xFF002200,   //  4: Dark Green
-    0xFF555555,   //  5: Grey 1
+    0xFF555555,   //  5: Gray 1
     0xFF0022CC,   //  6: Medium Blue
     0xFF66AAFF,   //  7: Light Blue
     0xFF885500,   //  8: Brown
     0xFFFF4400,   //  9: Orange
-    0xFFAAAAAA,   // 10: Grey 2
+    0xFFAAAAAA,   // 10: Gray 2
     0xFFFF8888,   // 11: Pink
     0xFF00DD00,   // 12: Light Green
     0xFFFFFF00,   // 13: Yellow
@@ -92,17 +92,16 @@ static Byte ReadDhrByte (
     MemoryBus  & bus,
     Word         addr)
 {
-    if (useAux && auxMem != nullptr)
-    {
-        return auxMem[addr];
-    }
+    // Preference order: aux (when this byte belongs there and aux is bound),
+    // then a direct main-RAM pointer, then the bus. The bus path is the slow
+    // fallback for a renderer with no direct pointers wired.
+    Byte  value = 0;
 
-    if (videoRam != nullptr)
-    {
-        return videoRam[addr];
-    }
+    if      (useAux && auxMem != nullptr) { value = auxMem[addr];       }
+    else if (videoRam != nullptr)         { value = videoRam[addr];     }
+    else                                  { value = bus.ReadByte (addr); }
 
-    return bus.ReadByte (addr);
+    return value;
 }
 
 

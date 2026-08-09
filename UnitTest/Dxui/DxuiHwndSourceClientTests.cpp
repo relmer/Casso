@@ -4,6 +4,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiHwndSourceClientTests
@@ -19,8 +21,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 ////////////////////////////////////////////////////////////////////////////////
 
 
-namespace
+
+
+
+
+
+TEST_CLASS (DxuiHwndSourceClientTests)
 {
+public:
+
     DxuiHwndSource::CreateParams  MakeAdoptParams()
     {
         DxuiHwndSource::CreateParams  cp;
@@ -152,15 +161,6 @@ namespace
             DxuiPanel::Layout (boundsDip, scaler);
         }
     };
-}
-
-
-
-
-
-TEST_CLASS (DxuiHwndSourceClientTests)
-{
-public:
 
     TEST_METHOD_INITIALIZE (Setup)
     {
@@ -258,11 +258,12 @@ public:
     //
     TEST_METHOD (HostRelayout_OnlyWhenOwningPaintPump)
     {
-        RECT                            bounds  = { 0, 0, 800, 600 };
-        std::unique_ptr<LayoutSpyPanel> spyOwned = std::make_unique<LayoutSpyPanel>();
-        LayoutSpyPanel                * spy      = spyOwned.get();
+        RECT                               bounds   = { 0, 0, 800, 600 };
+        std::unique_ptr<LayoutSpyPanel>    spyOwned = std::make_unique<LayoutSpyPanel>();
+        LayoutSpyPanel                   * spy      = spyOwned.get();
+        RECT                               clientPx = {};
         DxuiHwndSource                  host (bounds, 6.0f, std::move (spyOwned));
-        RECT                            clientPx = { 0, 0, 800, 600 };
+        clientPx = { 0, 0, 800, 600 };
 
         // Dormant pump (the production Casso case): host must NOT lay
         // out the root -- the consumer owns it.
@@ -553,10 +554,10 @@ public:
     //
     TEST_METHOD (Client_WmCtlColorStatic_ForwardsHdcAndHwnd)
     {
-        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host     = BuildSyntheticHost();
         RecordingClient                  client;
-        LRESULT                          result  = 0;
-        HDC                              fakeHdc = (HDC) 0x1234;
+        LRESULT                          result   = 0;
+        HDC                              fakeHdc  = (HDC) 0x1234;
         HWND                             fakeHwnd = (HWND) 0x5678;
 
         host->SetClient (&client);
@@ -594,3 +595,4 @@ public:
         Assert::AreEqual ((LRESULT) TRUE,       result);
     }
 };
+

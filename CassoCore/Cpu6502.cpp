@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "Cpu6502.h"
-#include "Ehm.h"
 
 
 
@@ -13,8 +12,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Cpu6502::Cpu6502 ()
-    : Cpu ()
+Cpu6502::Cpu6502()
+    : Cpu()
 {
 }
 
@@ -32,13 +31,13 @@ Cpu6502::Cpu6502 ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Cpu6502::Reset ()
+HRESULT Cpu6502::Reset()
 {
     HRESULT     hr = S_OK;
 
 
 
-    Cpu::Reset ();
+    Cpu::Reset();
 
     m_irqLine     = false;
     m_nmiLine     = false;
@@ -76,7 +75,7 @@ HRESULT Cpu6502::Step (uint32_t & outCycles)
 
     if (!dispatched)
     {
-        StepOne ();
+        StepOne();
 
         outCycles      = static_cast<uint32_t> (m_lastCycles);
         m_totalCycles += outCycles;
@@ -106,7 +105,7 @@ HRESULT Cpu6502::Step (uint32_t & outCycles)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu6502::UpdateBusCycle ()
+void Cpu6502::UpdateBusCycle()
 {
     uint64_t  offset = (m_lastCycles > 0) ? static_cast<uint64_t> (m_lastCycles - 1) : 0;
 
@@ -135,15 +134,16 @@ void Cpu6502::SetInterruptLine (CpuInterruptKind kind, bool asserted)
     if (kind == CpuInterruptKind::kMaskable)
     {
         m_irqLine = asserted;
-        return;
     }
-
-    if (asserted && !m_nmiLine)
+    else
     {
-        m_nmiPending = true;
-    }
+        if (asserted && !m_nmiLine)
+        {
+            m_nmiPending = true;
+        }
 
-    m_nmiLine = asserted;
+        m_nmiLine = asserted;
+    }
 }
 
 
@@ -156,7 +156,7 @@ void Cpu6502::SetInterruptLine (CpuInterruptKind kind, bool asserted)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Cpu6502Registers Cpu6502::GetRegisters () const
+Cpu6502Registers Cpu6502::GetRegisters() const
 {
     Cpu6502Registers    regs = {};
 
@@ -208,31 +208,25 @@ void Cpu6502::SetRegisters (const Cpu6502Registers & regs)
 
 bool Cpu6502::TryDispatchInterrupt (uint32_t & outCycles)
 {
-    bool        dispatched = false;
+    // TryStepInterrupt performs the dispatch; this only publishes the cycle
+    // cost, so `outCycles` is left alone when no interrupt was pending.
+    bool  dispatched = TryStepInterrupt();
 
-
-
-    if (m_nmiPending)
+    if (dispatched)
     {
-        m_nmiPending = false;
-
-        DispatchVector (nmiVector, false);
-
-        outCycles      = 7;
+        outCycles      = static_cast<uint32_t> (m_lastCycles);
         m_totalCycles += outCycles;
-        dispatched     = true;
-    }
-    else if (m_irqLine && status.flags.interruptDisable == 0)
-    {
-        DispatchVector (irqVector, false);
-
-        outCycles      = 7;
-        m_totalCycles += outCycles;
-        dispatched     = true;
     }
 
     return dispatched;
 }
+
+
+
+
+// TryStepInterrupt is defined inline in Cpu6502.h -- it runs once per
+// instruction in the host slice loop, so its common (no-interrupt) path folds
+// into the caller. TryDispatchInterrupt above is the Step()-path companion.
 
 
 

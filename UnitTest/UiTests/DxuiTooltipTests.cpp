@@ -12,21 +12,35 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  TooltipTests
 //
+//  Tooltip dwell timing and placement: when a balloon appears, when it hides,
+//  and where it lands.
+//
+//  Time is passed IN rather than read, which is what makes dwell behavior
+//  testable at all -- the tests advance a synthetic clock instead of sleeping,
+//  so the whole open-and-close cycle runs instantly and deterministically.
+//
+//  Show and hide are REQUESTS, and that is the behavior being pinned: sweeping
+//  the pointer across several widgets must request several tooltips and produce
+//  none, because the dwell never elapses. A widget that showed on hover would
+//  flash a tooltip per widget crossed.
+//
+//  Placement is clamped to the viewport, so the cases near each edge are
+//  covered -- that clamping is the in-window path's whole limitation, and the
+//  reason the popup-hosted version exists.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    RECT MakeRect (int l, int t, int r, int b)
-    {
-        RECT  rc = { l, t, r, b };
-        return rc;
-    }
-}
 
 
 TEST_CLASS (TooltipTests)
 {
 public:
+
+    RECT MakeRect (int l, int t, int r, int b)
+    {
+        RECT  rc = { l, t, r, b };
+        return rc;
+    }
 
     TEST_METHOD (Request_HiddenUntilDwellElapses)
     {
@@ -90,3 +104,4 @@ public:
         Assert::AreEqual ((LONG) 60, t.Anchor().left);
     }
 };
+

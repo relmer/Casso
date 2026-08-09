@@ -7,56 +7,99 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Anonymous helpers
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+static constexpr int     s_kPagePadDp        = 16;        // matches Disk / Display / Theme pages
+static constexpr int     s_kInfoLabelWidthDp = 140;
+static constexpr int     s_kInfoRowHeightDp  = 28;
+static constexpr int     s_kInfoValueGapDp   = 8;
+static constexpr int     s_kBigSectionGapDp  = 14;
+static constexpr int     s_kDropdownWidthDp  = 200;
+static constexpr size_t  s_kCpuRow           = 0;
+static constexpr size_t  s_kClockRow         = 1;
+static constexpr size_t  s_kMemoryRow        = 2;
+
+// Label of the synthetic Hardware-tree node for the //c optional external
+// drive. Not backed by a HardwareEntry (the //c drive is built-in, not a
+// config slot), so the tree's toggle handler matches this label to route
+// it to SetExternalDriveConnected instead of SetHardwareEnabled.
+static constexpr wchar_t s_kExternalDriveLabel[] = L"External drive";
+
+// Synthetic node for the //c mouse peripheral -- same pattern.
+static constexpr wchar_t s_kMouseLabel[]         = L"Mouse";
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::MakeRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT HardwarePage::MakeRect (int l, int t, int w, int h)
 {
-    constexpr int     s_kPagePadDp        = 16;        // matches Disk / Display / Theme pages
-    constexpr int     s_kInfoLabelWidthDp = 140;
-    constexpr int     s_kInfoRowHeightDp  = 28;
-    constexpr int     s_kInfoValueGapDp   = 8;
-    constexpr int     s_kBigSectionGapDp  = 14;
-    constexpr int     s_kDropdownWidthDp  = 200;
-    constexpr size_t  s_kCpuRow           = 0;
-    constexpr size_t  s_kClockRow         = 1;
-    constexpr size_t  s_kMemoryRow        = 2;
-
-
-    RECT MakeRect (int l, int t, int w, int h)
-    {
-        RECT  rc = { l, t, l + w, t + h };
-        return rc;
-    }
-
-
-    DxuiTreeCapabilityFlag MapFlag (CapabilityFlag flag)
-    {
-        switch (flag)
-        {
-            case CapabilityFlag::Optional:        return DxuiTreeCapabilityFlag::Optional;
-            case CapabilityFlag::Required:        return DxuiTreeCapabilityFlag::Required;
-            case CapabilityFlag::PlatformLocked:  return DxuiTreeCapabilityFlag::PlatformLocked;
-        }
-        return DxuiTreeCapabilityFlag::Required;
-    }
-
-
-    std::wstring Widen (const std::string & narrow)
-    {
-        std::wstring  w;
-
-        w.reserve (narrow.size());
-        for (char c : narrow)
-        {
-            w.push_back ((wchar_t) (unsigned char) c);
-        }
-        return w;
-    }
+    RECT  rc = { l, t, l + w, t + h };
+    return rc;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::MapFlag
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTreeCapabilityFlag HardwarePage::MapFlag (CapabilityFlag flag)
+{
+    // Required is the safe default for an unmapped flag: it shows the row
+    // without offering a toggle the machine may not support.
+    DxuiTreeCapabilityFlag  mapped = DxuiTreeCapabilityFlag::Required;
+
+    switch (flag)
+    {
+        case CapabilityFlag::Optional:        mapped = DxuiTreeCapabilityFlag::Optional;       break;
+        case CapabilityFlag::Required:        mapped = DxuiTreeCapabilityFlag::Required;       break;
+        case CapabilityFlag::PlatformLocked:  mapped = DxuiTreeCapabilityFlag::PlatformLocked; break;
+    }
+
+    return mapped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::Widen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HardwarePage::Widen (const std::string & narrow)
+{
+    std::wstring  w;
+
+
+
+    w.reserve (narrow.size());
+    for (char c : narrow)
+    {
+        w.push_back ((wchar_t) (unsigned char) c);
+    }
+
+    return w;
+}
+
 
 
 
@@ -91,8 +134,10 @@ HardwarePage::HardwarePage(std::wstring title)
         Adopt (m_infoValues[i]);
         Adopt (m_infoExtras[i]);
     }
+
     Adopt (m_tree);
 }
+
 
 
 
@@ -127,6 +172,7 @@ void HardwarePage::SetMachineList (std::vector<std::string>  machineIds,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::Layout
@@ -141,27 +187,49 @@ void HardwarePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::SetRect
+//
+//  Lays out the page: the machine and speed selectors, the read-only spec
+//  block, and the hardware tree below them.
+//
+//  The spec block has TWO row shapes, and that is what most of this function
+//  is about. Fixed rows -- CPU, clock, memory -- are label plus value across
+//  the page width. Memory sub-rows are a three-column breakdown (name, size,
+//  address range) indented under the Memory header, whose own value column
+//  carries the total.
+//
+//  Sub-rows are positioned from the memory header's index plus one rather than
+//  from the running y, so the breakdown stays anchored to its header no matter
+//  how many regions there are.
+//
+//  The name column is sized for the longest region label ("RAM (main,
+//  bank-switched)") so it never wraps; the size and address columns are placed
+//  relative to it, so widening the name shifts them rather than overlapping.
+//
+//  Layout state -- base rect, row height, gap, scaler -- is cached because the
+//  page relayouts itself when the tree grows or shrinks and must reproduce
+//  exactly this geometry without being called again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT dpi         = scaler.Dpi();
-    int  pad         = scaler.Px (s_kPagePadDp);
-    int  labelWidth  = scaler.Px (s_kInfoLabelWidthDp);
-    int  rowHeight   = scaler.Px (s_kInfoRowHeightDp);
-    int  valueGap    = scaler.Px (s_kInfoValueGapDp);
-    int  sectionGap  = scaler.Px (s_kBigSectionGapDp);
-    int  dropWidth   = scaler.Px (s_kDropdownWidthDp);
-    int  x           = rect.left + pad;
-    int  controlsX   = x + labelWidth;
-    int  valueX      = x + labelWidth + valueGap;
-    int  y           = rect.top + pad;
-    size_t i         = 0;
-    RECT treeRect    = rect;
+    UINT    dpi        = scaler.Dpi();
+    int     pad        = scaler.Px (s_kPagePadDp);
+    int     labelWidth = scaler.Px (s_kInfoLabelWidthDp);
+    int     rowHeight  = scaler.Px (s_kInfoRowHeightDp);
+    int     valueGap   = scaler.Px (s_kInfoValueGapDp);
+    int     sectionGap = scaler.Px (s_kBigSectionGapDp);
+    int     dropWidth  = scaler.Px (s_kDropdownWidthDp);
+    int     x          = rect.left + pad;
+    int     controlsX  = x + labelWidth;
+    int     valueX     = x + labelWidth + valueGap;
+    int     y          = rect.top + pad;
+    size_t  i          = 0;
+    RECT    treeRect   = rect;
 
 
 
@@ -195,14 +263,18 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
     {
         if (i >= kFixedInfoRowCount)
         {
-            // Memory sub-row N sits at the same y as the "Memory:" header for
-            // N=0, and stacks below for N>=1. Row 0 thus shares a line with
-            // the Memory: header label; the header itself adds no extra row.
-            int  nameW    = scaler.Px (110);
+            // Memory sub-rows stack UNDER the "Memory:" header, which now
+            // carries the RAM total ("128K RAM") in its value column. So the
+            // per-region breakdown starts one row below the header (+1). The
+            // name column is wide enough for the longest region label
+            // ("RAM (main, bank-switched)") to stay on one line -- there is
+            // ample dialog margin to the right, and the size/addr columns are
+            // positioned relative to it.
+            int  nameW    = scaler.Px (200);
             int  sizeW    = scaler.Px (55);
             int  addrW    = scaler.Px (130);
             int  subIndex = (int) (i - kFixedInfoRowCount);
-            int  rowY     = m_infoTop + ((int) s_kMemoryRow + subIndex) * rowHeight;
+            int  rowY     = m_infoTop + ((int) s_kMemoryRow + 1 + subIndex) * rowHeight;
 
             m_infoLabels[i].SetRect (MakeRect (valueX,                 rowY, nameW, rowHeight));
             m_infoValues[i].SetRect (MakeRect (valueX + nameW,         rowY, sizeW, rowHeight));
@@ -215,16 +287,18 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
             m_infoExtras[i].SetRect (MakeRect (rect.right, y, 0, rowHeight));
             y += rowHeight;
         }
+
         m_infoLabels[i].SetDpi (dpi);
         m_infoValues[i].SetDpi (dpi);
         m_infoExtras[i].SetDpi (dpi);
     }
 
-    // y now sits one row PAST the Memory header. Bump down by the remaining
-    // memory rows (rowsInUse - 1, since row 0 shares a line with the header).
-    if (m_memoryRowsInUse > 1)
+    // y now sits one row PAST the Memory header (which holds the RAM total).
+    // Every region row stacks below that header now, so bump down by the full
+    // region count to clear them before the device tree.
+    if (m_memoryRowsInUse > 0)
     {
-        y += (int) (m_memoryRowsInUse - 1) * rowHeight;
+        y += (int) m_memoryRowsInUse * rowHeight;
     }
 
     treeRect.left = x;
@@ -245,6 +319,7 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::SetState
@@ -256,6 +331,7 @@ void HardwarePage::SetState (SettingsPanelState * state)
     m_state = state;
     Rebuild();
 }
+
 
 
 
@@ -275,6 +351,7 @@ void HardwarePage::SetPopupHost (DxuiHwndSource * host)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::Rebuild
@@ -286,17 +363,21 @@ void HardwarePage::SetPopupHost (DxuiHwndSource * host)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HardwarePage::Rebuild ()
+void HardwarePage::Rebuild()
 {
-    std::vector<HardwareEntry>   entries;
-    std::vector<DxuiTreeNode>        nodes;
-    SettingsPanelState         * state = m_state;
-    const SettingsMachineInfo  * info  = nullptr;
+    std::vector<HardwareEntry>    entries;
+    std::vector<DxuiTreeNode>     nodes;
+    SettingsPanelState          * state   = m_state;
+    const SettingsMachineInfo   * info    = nullptr;
 
 
 
     if (state != nullptr)
     {
+        std::wstring  cpuDisplay;
+        size_t        rowsInUse  = 0;
+        size_t        i          = 0;
+
         // Machine + CPU-speed selectors.
         m_speed.SetSelected           ((int) state->Prefs().speedMode);
         m_machineDropdown.SetSelected (m_activeMachineIndex);
@@ -329,10 +410,11 @@ void HardwarePage::Rebuild ()
                 s.insert ((size_t) i, L",");
                 i -= 3;
             }
+
             return s;
         };
 
-        std::wstring  cpuDisplay = Widen (info->cpu);
+        cpuDisplay = Widen (info->cpu);
         if (! info->cpuManufacturer.empty())
         {
             cpuDisplay = Widen (info->cpuManufacturer) + L" " + cpuDisplay;
@@ -340,10 +422,9 @@ void HardwarePage::Rebuild ()
 
         m_infoValues[s_kCpuRow].SetText    (cpuDisplay);
         m_infoValues[s_kClockRow].SetText  (FormatGrouped (info->clockSpeed) + L" Hz");
-        m_infoValues[s_kMemoryRow].SetText (L"");        // header row, value column blank
+        m_infoValues[s_kMemoryRow].SetText (Widen (info->ramSummary));   // RAM total on the header line
 
-        size_t  rowsInUse = std::min<size_t> (info->memoryRegions.size(), kMaxMemoryRows);
-        size_t  i         = 0;
+        rowsInUse = std::min<size_t> (info->memoryRegions.size(), kMaxMemoryRows);
         for (i = 0; i < kMaxMemoryRows; ++i)
         {
             size_t  slotIdx = kFixedInfoRowCount + i;
@@ -371,7 +452,14 @@ void HardwarePage::Rebuild ()
         }
     }
 
-    nodes = BuildNodes (entries);
+    {
+        bool  supportsExternal  = (info != nullptr) && info->supportsExternalDrive;
+        bool  externalConnected = (state != nullptr) && state->Prefs().externalDriveConnected;
+        bool  mouseConnected    = (state == nullptr) || state->Prefs().mouseConnected;
+
+        nodes = BuildNodes (entries, supportsExternal, externalConnected, mouseConnected);
+    }
+
     m_tree.SetNodes (std::move (nodes));
 
     m_tree.SetOnToggle ([state] (const std::wstring & label, bool checked)
@@ -380,6 +468,21 @@ void HardwarePage::Rebuild ()
 
         if (state == nullptr)
         {
+            return;
+        }
+
+        // The synthetic external-drive node is not a HardwareEntry -- it is a
+        // live UI pref, so route it to SetExternalDriveConnected (no reset)
+        // rather than the hardware-enable path.
+        if (label == s_kExternalDriveLabel)
+        {
+            state->SetExternalDriveConnected (checked);
+            return;
+        }
+
+        if (label == s_kMouseLabel)
+        {
+            state->SetMouseConnected (checked);
             return;
         }
 
@@ -400,20 +503,45 @@ void HardwarePage::Rebuild ()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::BuildNodes
 //
+//  Projects the machine's hardware entries into the tree the page displays:
+//  internal devices and slots, each under its own group.
+//
+//  An EMPTY group is omitted entirely rather than shown with no children. A
+//  //c has no slots at all, and a "Slots" heading with nothing under it reads
+//  as a bug rather than as an accurate description of the machine.
+//
+//  The group rows themselves are marked Required so they cannot be unchecked.
+//  They are organizational headings, not devices; letting one be toggled would
+//  imply the machine could have its internal devices removed as a set.
+//
+//  Groups start EXPANDED, since the whole point of the page is seeing what the
+//  machine has -- a collapsed tree would hide it behind two clicks.
+//
+//  Each row carries its lock reason through to the tree, so the UI can explain
+//  why a platform-locked device cannot be removed instead of merely showing it
+//  grayed.
+//
+//  Written as a static function over plain entries so the projection is
+//  unit-testable without a page, a window, or a machine.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEntry> & entries)
+std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEntry> & entries,
+                                                    bool supportsExternalDrive,
+                                                    bool externalDriveConnected,
+                                                    bool mouseConnected)
 {
     std::vector<DxuiTreeNode>  out;
     DxuiTreeNode               internalGroup;
     DxuiTreeNode               slotsGroup;
-    size_t                 i        = 0;
-    bool                   anyInternal = false;
-    bool                   anySlot     = false;
+    size_t                     i             = 0;
+    bool                       anyInternal   = false;
+    bool                       anySlot       = false;
 
 
 
@@ -427,10 +555,10 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
     slotsGroup.checked           = true;
     slotsGroup.expanded          = true;
 
-    for (i = 0; i < entries.size(); ++i)
+    for (auto & entry : entries)
     {
-        const HardwareEntry & e = entries[i];
-        DxuiTreeNode              row;
+        const HardwareEntry  & e   = entry;
+        DxuiTreeNode           row;
 
         row.label          = Widen (e.displayName);
         row.lockReason     = Widen (e.lockReason);
@@ -454,10 +582,36 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
     {
         out.push_back (std::move (internalGroup));
     }
+
     if (anySlot)
     {
         out.push_back (std::move (slotsGroup));
     }
 
+    // //c external drive: a top-level checkable node modeling the optional
+    // 5.25" drive on the disk port. Optional (interactive), so the user can
+    // connect/disconnect it; checked mirrors the persisted connected state.
+    // Unlike the hardware rows this is not a config device -- toggling it is
+    // a live UI pref, so the tree's OnToggle routes this label specially.
+    if (supportsExternalDrive)
+    {
+        DxuiTreeNode  external;
+        DxuiTreeNode  mouse;
+
+        external.label          = s_kExternalDriveLabel;
+        external.capabilityFlag = DxuiTreeCapabilityFlag::Optional;
+        external.checked        = externalDriveConnected;
+        external.expanded       = false;   // leaf: no children, no twisty
+        out.push_back (std::move (external));
+
+        // //c mouse peripheral: connectable, default connected.
+        mouse.label          = s_kMouseLabel;
+        mouse.capabilityFlag = DxuiTreeCapabilityFlag::Optional;
+        mouse.checked        = mouseConnected;
+        mouse.expanded       = false;
+        out.push_back (std::move (mouse));
+    }
+
     return out;
 }
+

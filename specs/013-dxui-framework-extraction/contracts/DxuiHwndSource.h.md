@@ -201,7 +201,7 @@ public:
 
 ## Messages handled (FR-050, FR-052)
 
-| Message | Behaviour |
+| Message | Behavior |
 |---------|-----------|
 | `WM_NCCALCSIZE` | When `borderless`, claim NC as client (zero NC margins) to draw custom chrome. |
 | `WM_NCHITTEST` | Eight resize edges first; in adopt mode consult the optional hit-test delegate; then front-to-back tree walk calling `IDxuiControl::ClassifyHit`; translate `DxuiHitTestKind` to `HT*`. `MaxButton` → `HTMAXBUTTON` (Win11 snap-layouts popover). |

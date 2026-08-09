@@ -504,7 +504,7 @@ finishes playing (i.e., `step_sample_position > 0`), switch to a seek sample
 threshold. Elegant but requires knowing the current playback position.
 
 **OpenEmulator approach (real-time clock timer):** Schedule a timer every
-time a phase change arrives, cancelling the previous one. The timer fires
+time a phase change arrives, canceling the previous one. The timer fires
 0.5ms after the last phase change in a burst. Check how long ago the
 previous step fired: if < 16ms → "Align" (seek-buzz) sound, if >= 16ms →
 "Head" (single click). A separate 50ms idle timer stops the head sound.

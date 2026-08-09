@@ -1,5 +1,4 @@
 #include "Pch.h"
-#include <filesystem>
 
 #include "HeadlessHost.h"
 #include "KeystrokeInjector.h"
@@ -9,46 +8,8 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace fs = std::filesystem;
 
-namespace
-{
-    static constexpr uint64_t  kColdBootCycles = 5'000'000ULL;
-    static constexpr uint64_t  kAfterCommand   = 2'000'000ULL;
-    static constexpr int       kMaxAncestorWalk = 10;
 
 
-    // Find the directory containing `Machines/` by walking up from CWD.
-    // Mirrors the resolver pattern in BackwardsCompatTests so these
-    // tests stay filesystem-independent across CI vs local builds.
-    fs::path FindRepoRoot ()
-    {
-        std::error_code ec;
-        fs::path        cursor = fs::current_path (ec);
-        if (ec) return fs::path ();
-
-        for (int i = 0; i < kMaxAncestorWalk; i++)
-        {
-            if (fs::exists (cursor / "Machines", ec) &&
-                fs::is_directory (cursor / "Machines", ec))
-            {
-                return cursor;
-            }
-            if (!cursor.has_parent_path () || cursor == cursor.parent_path ())
-            {
-                break;
-            }
-            cursor = cursor.parent_path ();
-        }
-        return fs::path ();
-    }
-
-
-    fs::path FindRomPath (const std::string & relPath)
-    {
-        fs::path root = FindRepoRoot ();
-        if (root.empty ()) return fs::path ();
-        return root / relPath;
-    }
-}
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,10 +46,67 @@ TEST_CLASS (Pr3AuxClearTest)
 {
 public:
 
+    static constexpr uint64_t  kColdBootCycles  = 5'000'000ULL;
+    static constexpr uint64_t  kAfterCommand    = 2'000'000ULL;
+    static constexpr int       kMaxAncestorWalk = 10;
+
+
+    // Find the directory containing `Machines/` by walking up from CWD.
+    // Mirrors the resolver pattern in BackwardsCompatTests so these
+    // tests stay filesystem-independent across CI vs local builds.
+    fs::path FindRepoRoot()
+    {
+        std::error_code ec;
+        fs::path        cursor  = fs::current_path (ec);
+        fs::path        root;
+        bool            walking = !ec;
+
+        for (int i = 0; walking && root.empty() && i < kMaxAncestorWalk; i++)
+        {
+            if (fs::exists (cursor / "Machines", ec) &&
+                fs::is_directory (cursor / "Machines", ec))
+            {
+                root = cursor;
+            }
+            else if (!cursor.has_parent_path() || cursor == cursor.parent_path())
+            {
+                // Reached the drive root without finding Machines/.
+                walking = false;
+            }
+            else
+            {
+                cursor = cursor.parent_path();
+            }
+        }
+
+        return root;
+    }
+
+
+    fs::path FindRomPath (const std::string & relPath)
+    {
+        fs::path  root = FindRepoRoot();
+        fs::path  full;
+
+        // Empty root means no repo, and joining relPath onto an empty path
+        // would silently resolve against the CWD instead.
+        if (!root.empty())
+        {
+            full = root / relPath;
+        }
+
+        return full;
+    }
+
     TEST_METHOD (RealCharRom_Decodes_SpaceAsBlank_AltSet)
     {
+        CharacterRomData  rom;
+        HRESULT           hr  = S_OK;
+
+
+
         fs::path romPath = FindRomPath ("ROMs/Apple2e_Video.rom");
-        if (romPath.empty () || !fs::exists (romPath))
+        if (romPath.empty() || !fs::exists (romPath))
         {
             Logger::WriteMessage ("SKIPPED: ROMs/Apple2e_Video.rom "
                                   "not present (CI runners do not provision "
@@ -96,9 +114,8 @@ public:
             return;
         }
 
-        CharacterRomData rom;
-        HRESULT hr = rom.LoadFromFile (romPath.string ());
-        Assert::IsTrue (SUCCEEDED (hr), L"Must load Apple2e_Video.rom");
+        hr = rom.LoadFromFile (romPath.string());
+        AssertSucceeded (hr, L"Must load Apple2e_Video.rom");
 
         for (int y = 0; y < 8; y++)
         {
@@ -124,23 +141,24 @@ public:
     // companion Pr3_StaticCursor_Lands_At_Main0480 test).
     TEST_METHOD (Pr3_Clears_AuxTextPage1_AllRows)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        HeadlessHost    host;
+        EmulatorCore    core;
+        Byte          * auxBuf    = nullptr;
+        int             totalBad  = 0;
+        wchar_t         msg[1024] = {};
 
         HRESULT  hr = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
-        core.PowerCycle ();
+        core.PowerCycle();
         core.RunCycles (kColdBootCycles);
 
         size_t  consumed = KeystrokeInjector::InjectLine (core, "PR#3", kAfterCommand);
         Assert::AreEqual (size_t (5), consumed);
 
-        Byte * auxBuf = core.mmu->GetAuxBuffer ();
+        auxBuf = core.mmu->GetAuxBuffer();
         Assert::IsNotNull (auxBuf);
 
-        wchar_t  msg[1024] = {};
-        int totalBad = 0;
         for (int row = 0; row < 24; row++)
         {
             Word rowBase = static_cast<Word> (0x0400 + 128 * (row % 8) + 40 * (row / 8));
@@ -151,6 +169,7 @@ public:
                 if (a == 0x0480) continue;     // BASIC prompt ']' lands here
                 if (auxBuf[a] != 0xA0) rowBad++;
             }
+
             if (rowBad > 0)
             {
                 wchar_t  line[64] = {};
@@ -186,11 +205,16 @@ public:
     // can't silently regress.
     TEST_METHOD (Pr3_StaticCursor_Lands_At_Main0480)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        HeadlessHost    host;
+        EmulatorCore    core;
+        Byte          * auxBuf = nullptr;
+        Byte            prompt = 0;
+        Byte            cursor = 0;
+        Byte            ourch  = 0;
+        Byte            cv     = 0;
 
         HRESULT  hr = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         core.PowerCycle();
         core.RunCycles (kColdBootCycles);
@@ -198,13 +222,13 @@ public:
         size_t  consumed = KeystrokeInjector::InjectLine (core, "PR#3", kAfterCommand);
         Assert::AreEqual (size_t (5), consumed);
 
-        Byte * auxBuf = core.mmu->GetAuxBuffer();
+        auxBuf = core.mmu->GetAuxBuffer();
         Assert::IsNotNull (auxBuf);
 
-        Byte   prompt   = auxBuf[0x0480];
-        Byte   cursor   = core.bus->ReadByte (0x0480);
-        Byte   ourch    = core.bus->ReadByte (0x057B);
-        Byte   cv       = core.bus->ReadByte (0x0025);
+        prompt = auxBuf[0x0480];
+        cursor = core.bus->ReadByte (0x0480);
+        ourch = core.bus->ReadByte (0x057B);
+        cv = core.bus->ReadByte (0x0025);
 
         Assert::AreEqual (Byte (0xDD), prompt, L"aux $0480 must be the ']' prompt ($DD)");
         Assert::AreEqual (Byte (0x20), cursor, L"main $0480 must be inverse-space ($20) cursor");
@@ -212,3 +236,4 @@ public:
         Assert::AreEqual (Byte (0x01), cv,     L"$25 (CV) must be row 1");
     }
 };
+

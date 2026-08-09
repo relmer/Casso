@@ -13,6 +13,14 @@ class DxuiPopupHost;
 class IDxuiHostClient;
 class DxuiCaptionBar;
 
+// Opaque declaration rather than including IDxuiHostClient.h: this header keeps
+// the client interface to a forward declaration (it only ever holds a pointer),
+// and the dispatch helpers below need the enum in their signatures. `enum class`
+// without an explicit base is `: int`, which is what the definition uses too.
+enum class DxuiMessageResult;
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,6 +133,13 @@ public:
         HICON                    appIconBig               = nullptr;
         HICON                    appIconSmall             = nullptr;
 
+        // DXGI present sync interval (default 1 = wait for vblank).
+        // An animating window sharing the UI thread with another
+        // vsynced present should use 0 so the thread doesn't stack
+        // two vblank waits per frame; windowed flip-model presents
+        // are composed by DWM at vsync either way, so 0 doesn't tear.
+        UINT                     presentSyncInterval      = 1;
+
         // When true (the default), Create() stands up a D3D11 device
         // + DXGI flip-discard swap chain on the host HWND so the
         // internal panel tree paints through GetSwapChain() /
@@ -164,6 +179,17 @@ public:
         // createSwapChain == true. Default false = the opaque
         // flip-discard CreateSwapChainForHwnd path.
         bool                     composited               = false;
+
+        // When true, the window is created WITHOUT stealing activation:
+        // CreateWindowEx activates a new top-level captioned window even
+        // when it is created hidden, which yanks keyboard focus off the
+        // creator mid-keystroke (the auto-opened print preview ate the
+        // guest's Enter key-UP, leaving the emulated key latched and
+        // auto-repeating forever). The window is created with
+        // WS_EX_NOACTIVATE and the bit is stripped right after creation,
+        // so it behaves like any normal window from then on; a caller
+        // that wants it focused shows it with an activating Show().
+        bool                     createNoActivate         = false;
     };
 
 
@@ -172,6 +198,18 @@ public:
 
     HRESULT  Create            (const CreateParams & params);
     void     Destroy           ();
+
+    //
+    //  Pure placement geometry (no Win32 calls, so it is unit-tested
+    //  directly). Given a window's current screen rect and its monitor's
+    //  work area, returns the top-left after shifting the window the
+    //  minimum needed to sit fully inside `work` — pinning to work's top /
+    //  left when the window is larger than the work area on an axis. A
+    //  window that already fits keeps its position (no re-centering).
+    //  Create() applies this to CW_USEDEFAULT dialogs so a cascade never
+    //  leaves the bottom button row under the taskbar.
+    //
+    static POINT  ClampToWorkArea  (const RECT & windowRect, const RECT & work);
 
     //
     //  Adopt mode — wrap an existing HWND that the caller continues
@@ -282,8 +320,18 @@ public:
     //  Tests should drive `OnTimer` directly rather than relying
     //  on the OS timer queue.
     //
-    bool          SetTimer       (UINT_PTR timerId, UINT intervalMs);
-    bool          KillTimer      (UINT_PTR timerId);
+    HRESULT       SetTimer       (UINT_PTR timerId, UINT intervalMs);
+    HRESULT       KillTimer      (UINT_PTR timerId);
+
+    //
+    //  Arm / disarm the modal keep-alive tick (the WM_ENTERSIZEMOVE
+    //  mechanism, made public) around a modal dialog loop run on this
+    //  thread, so `IDxuiHostClient::OnModalLoopTick` keeps chrome
+    //  animation and the printer preview running while the dialog's
+    //  GetMessage loop owns the thread. Begin ticks once immediately.
+    //
+    void          BeginModalKeepAlive ();
+    void          EndModalKeepAlive   ();
 
     //
     //  Install an optional client object that receives the Win32
@@ -294,6 +342,18 @@ public:
     //  nullptr clears any previously-installed client.
     //
     void          SetClient     (IDxuiHostClient * client);
+
+    //
+    //  Externally-driven windows (repainted every frame by an owning
+    //  render loop, e.g. the printer preview) can suppress the
+    //  auto-InvalidateRect the wheel handlers issue on a handled scroll.
+    //  A precision-touchpad scroll floods the queue with wheel messages;
+    //  invalidating per message spawns a WM_PAINT per message and lets the
+    //  paint work starve the loop's own frame pump. With this set the owner
+    //  is responsible for repainting (it already does, every frame).
+    //
+    void          SetSuppressInputInvalidate (bool suppress) { m_suppressInputInvalidate = suppress; }
+
     void          SetDefaultProcForTest      (std::function<LRESULT (HWND, UINT, WPARAM, LPARAM)> defaultProc);
     void          SetTrackMouseEventForTest  (std::function<BOOL (TRACKMOUSEEVENT *)> trackMouseEvent);
 
@@ -460,6 +520,27 @@ public:
 private:
     static LRESULT CALLBACK  s_WndProcThunk   (HWND, UINT, WPARAM, LPARAM);
 
+    // What EnumResourceNamesW hands back for the exe's first RT_GROUP_ICON.
+    // Nested rather than file-scope so the type itself has internal linkage
+    // -- a bare struct in a .cpp does not.
+    struct FirstIconGroup
+    {
+        bool      found        = false;
+        wchar_t   nameBuf[256] = {};
+        LPCWSTR   id           = nullptr;
+    };
+
+    static BOOL CALLBACK  FirstIconGroupProc  (HMODULE, LPCWSTR, LPWSTR name, LONG_PTR param);
+    static HICON          DefaultAppIcon      (bool big);
+
+    // Nudge a freshly-created, still-hidden CW_USEDEFAULT window the
+    // minimum needed so its whole frame sits within its monitor's work
+    // area -- fixing a cascade that would open the bottom edge (and its
+    // command-button row) beneath the taskbar -- without otherwise moving
+    // it (position only, no re-centering over the owner). rcWork already
+    // excludes the taskbar.
+    static void           NudgeWindowOnScreen (HWND hwnd);
+
     HRESULT  CreateDeviceAndSwapChain  ();
     HRESULT  CreateRenderResources     ();
     void     ReleaseRenderResources    ();
@@ -477,6 +558,19 @@ private:
     UINT                      TargetDpi         () const override { return m_scaler.Dpi(); }
     void  PaintContent  (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme) override;
     void  PresentFrame  () override;
+
+    // What to do with the frame after the client claims a message. Most
+    // handlers want nothing; input handlers repaint. `IfNotSuppressed` is the
+    // wheel's variant -- a precision touchpad's message flood would otherwise
+    // spawn a synchronous repaint per message (see SetSuppressInputInvalidate).
+    enum class RepaintOnClaim { No, Yes, IfNotSuppressed };
+
+    // The message pump, split by who owns the message rather than by message
+    // number. WndProc itself is then three lines: ask the host, ask the client,
+    // else DefaultProc.
+    bool     DispatchHostMessage       (UINT msg, WPARAM wp, LPARAM lp, LRESULT & result);
+    bool     DispatchClientMessage     (UINT msg, WPARAM wp, LPARAM lp, LRESULT & result);
+    bool     Claimed                   (DxuiMessageResult clientResult, RepaintOnClaim repaint);
 
     LRESULT  HandleNcCalcSize          (WPARAM wp, LPARAM lp);
     LRESULT  HandleNcHitTest           (LPARAM lp);
@@ -508,6 +602,10 @@ private:
 
 
     static constexpr int     s_kMinResizeBorderPx    = 4;
+    // Corners get a bigger grab square than the straight edges so the diagonal
+    // resize is reliably hittable -- notably the top-right corner, whose thin
+    // edge sliver is otherwise swallowed by the close button sitting on it.
+    static constexpr int     s_kResizeCornerMult     = 2;
     static constexpr UINT    s_kDefaultDpi           = 96;
     static constexpr LONG    s_kExtendFrameInsetPx   = 1;
     static constexpr size_t  s_kPopupPoolInitialSize = 3;
@@ -546,11 +644,12 @@ private:
     DxuiFocusManager                  m_focusManager;
     const IDxuiTheme *                m_theme              = nullptr;
 
-    bool                              m_ownsHwnd           = false;
-    bool                              m_ownsPaintPump      = false;
-    bool                              m_synthetic          = false;
-    bool                              m_adoptMode          = false;
-    bool                              m_classRegistered    = false;
+    bool  m_ownsHwnd                = false;
+    bool  m_ownsPaintPump           = false;
+    bool  m_suppressInputInvalidate = false;
+    bool  m_synthetic               = false;
+    bool  m_adoptMode               = false;
+    bool  m_classRegistered         = false;
 
     IDxuiHostClient *                 m_client             = nullptr;
 
@@ -561,8 +660,8 @@ private:
     std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> m_overlayPaintHook;
     std::function<LRESULT (HWND, UINT, WPARAM, LPARAM)>    m_defaultProcForTest;
     std::function<BOOL (TRACKMOUSEEVENT *)>                m_trackMouseEventForTest;
-    IDxuiControl *                                         m_lastHoveredNcControl = nullptr;
-    bool                                                   m_clientMouseLeaveTracking = false;
+    IDxuiControl  * m_lastHoveredNcControl     = nullptr;
+    bool            m_clientMouseLeaveTracking = false;
 
     // Popup pool (FR-055). Initial size 3; grows on demand. m_popupPool
     // holds LIFO-available instances; m_popupActive holds currently

@@ -7,7 +7,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Radio  +  DxuiRadioGroup
@@ -75,11 +74,11 @@ private:
 
 
     std::vector<DxuiRadioOption>  m_options;
-    ChangeFn                  m_change;
-    int                       m_selected   = -1;
-    int                       m_hover      = -1;
-    int                       m_pressedIdx = -1;
-    bool                      m_enabled    = true;
-    bool                      m_focused    = false;
+    ChangeFn                      m_change;
+    int                           m_selected   = -1;
+    int                           m_hover      = -1;
+    int                           m_pressedIdx = -1;
+    bool                          m_enabled    = true;
+    bool                          m_focused    = false;
     DxuiDpiScaler                 m_scaler;
 };

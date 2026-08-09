@@ -10,6 +10,31 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace UiTests
 {
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DpiScalerTests
+//
+//  DIP-to-pixel conversion at the DPIs Windows actually uses.
+//
+//  Tested at the real scale factors -- 100, 125, 150, 200 percent -- rather
+//  than at convenient round numbers, because 125% is the one that produces
+//  fractional results and where a truncation-versus-rounding choice becomes
+//  visible as controls a pixel out of alignment.
+//
+//  A ZERO DPI is covered because callers legitimately have one: chrome is
+//  positioned before the window's DPI is known, and the scaler must fall back
+//  to 96 rather than collapse everything to nothing.
+//
+//  The float and integer conversions are both asserted, since layouts use
+//  whichever suits and a disagreement between them puts a control's rect and
+//  its painted content half a pixel apart.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_CLASS (DpiScalerTests)
 {
 public:

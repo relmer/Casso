@@ -18,6 +18,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DeviceTests
 //
+//  The bus device contract: address ranges, dispatch, and the read side effects
+//  a page-table lookup would skip.
+//
+//  SIDE EFFECTS are the reason these matter. RAM and ROM can be served from the
+//  page table, but a soft switch must be reached through device dispatch --
+//  reading it is what toggles it, and a table lookup would return a value while
+//  changing nothing.
+//
+//  Range boundaries are tested at both ends, since a device claiming one
+//  address too many silently shadows its neighbor's first register.
+//
+//  Overlapping registrations are covered because they are permitted and the
+//  first-match-wins order is a contract several tests deliberately rely on.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (DeviceTests)
@@ -26,10 +40,14 @@ public:
 
     TEST_METHOD (RamDevice_ReadWriteRoundtrip)
     {
+        Byte  val = 0;
+
+
+
         RamDevice ram (0x0000, 0x00FF);
 
         ram.Write (0x0042, 0xAB);
-        Byte val = ram.Read (0x0042);
+        val = ram.Read (0x0042);
 
         Assert::AreEqual (static_cast<Byte> (0xAB), val);
     }
@@ -48,15 +66,15 @@ public:
     {
         RamDevice ram (0x0000, 0x00FF);
         ram.Write (0x0050, 0xFF);
-        ram.Reset ();
+        ram.Reset();
 
         Assert::AreEqual (static_cast<Byte> (0), ram.Read (0x0050));
     }
 
     TEST_METHOD (RomDevice_ReadsReturnData)
     {
-        Byte data[] = { 0xEA, 0x60, 0x00 };
-        auto rom = RomDevice::CreateFromData (0xFFFC, 0xFFFE, data, 3);
+        Byte  data[] = { 0xEA, 0x60, 0x00 };
+        auto  rom    = RomDevice::CreateFromData (0xFFFC, 0xFFFE, data, 3);
 
         Assert::AreEqual (static_cast<Byte> (0xEA), rom->Read (0xFFFC));
         Assert::AreEqual (static_cast<Byte> (0x60), rom->Read (0xFFFD));
@@ -64,8 +82,8 @@ public:
 
     TEST_METHOD (RomDevice_WritesAreIgnored)
     {
-        Byte data[] = { 0xAA };
-        auto rom = RomDevice::CreateFromData (0xD000, 0xD000, data, 1);
+        Byte  data[] = { 0xAA };
+        auto  rom    = RomDevice::CreateFromData (0xD000, 0xD000, data, 1);
 
         rom->Write (0xD000, 0x55);
 
@@ -76,8 +94,8 @@ public:
     {
         RamDevice ram (0x2000, 0x3FFF);
 
-        Assert::AreEqual (static_cast<Word> (0x2000), ram.GetStart ());
-        Assert::AreEqual (static_cast<Word> (0x3FFF), ram.GetEnd ());
+        Assert::AreEqual (static_cast<Word> (0x2000), ram.GetStart());
+        Assert::AreEqual (static_cast<Word> (0x3FFF), ram.GetEnd());
     }
 
     TEST_METHOD (RomDevice_CreateFromFile_MissingFile_ReturnsNull)
@@ -85,21 +103,25 @@ public:
         std::string error;
         auto rom = RomDevice::CreateFromFile (0xD000, 0xFFFF, "nonexistent_rom.bin", error);
 
-        Assert::IsNull (rom.get ());
-        Assert::IsFalse (error.empty ());
+        Assert::IsNull (rom.get());
+        Assert::IsFalse (error.empty());
     }
 
     TEST_METHOD (Disk2Controller_Slot6_RespondsAtC0E0)
     {
+        MemoryBus  bus;
+        Byte       val = 0;
+
+
+
         Disk2Controller disk (6);
-        MemoryBus bus;
         bus.AddDevice (&disk);
 
-        Assert::AreEqual (static_cast<Word> (0xC0E0), disk.GetStart ());
-        Assert::AreEqual (static_cast<Word> (0xC0EF), disk.GetEnd ());
+        Assert::AreEqual (static_cast<Word> (0xC0E0), disk.GetStart());
+        Assert::AreEqual (static_cast<Word> (0xC0EF), disk.GetEnd());
 
         // Reading $C0EC (Q6=false) should not crash
-        Byte val = bus.ReadByte (0xC0EC);
+        val = bus.ReadByte (0xC0EC);
         UNREFERENCED_PARAMETER (val);
     }
 

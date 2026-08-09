@@ -6,8 +6,6 @@
 #include "Widgets/DxuiButton.h"
 #include "Window/DxuiButtonRow.h"
 
-#include <algorithm>
-#include <vector>
 
 
 
@@ -21,6 +19,7 @@
 void DxuiDialogWindow::SetDialogContentOwned (std::unique_ptr<DxuiPanel> content)
 {
     HRESULT  hr = S_OK;
+
 
 
     CBRA (content != nullptr);
@@ -80,6 +79,8 @@ void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
     bool  hasRow  = !m_dialogButtons.empty();
     RECT  content = boundsPx;
 
+
+
     std::vector<ButtonEntry *>  right;
     std::vector<ButtonEntry *>  left;
     size_t                      i = 0;
@@ -104,6 +105,7 @@ void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
     {
         (e.anchor == DxuiButtonRow::Anchor::Left ? left : right).push_back (&e);
     }
+
     std::stable_sort (right.begin(), right.end(),
                       [] (const ButtonEntry * a, const ButtonEntry * b)
                       {
@@ -125,6 +127,7 @@ void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
             right[i]->button->Layout (rRects[i]);
             right[i]->button->SetDpi  (scaler.Dpi());
         }
+
         for (i = 0; i < left.size(); ++i)
         {
             left[i]->button->Layout (lRects[i]);

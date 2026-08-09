@@ -30,7 +30,6 @@
 
 #ifdef _WINDOWS_
     // Windows path — full Win32 support
-    #include <strsafe.h>
 #else
     // Portable C++ path — define HRESULT and friends if not already present
 
@@ -53,6 +52,9 @@
     #endif
     #ifndef E_INVALIDARG
         #define E_INVALIDARG      ((HRESULT) 0x80070057L)
+    #endif
+    #ifndef E_UNEXPECTED
+        #define E_UNEXPECTED      ((HRESULT) 0x8000FFFFL)
     #endif
 
     #ifndef SUCCEEDED
@@ -93,38 +95,54 @@
 
 
 
-typedef void (*EHM_BREAKPOINT_FUNC)(void);
+//
+// Breakpoint hook -- called when an EHM assertion (the *A macro
+// variants, or a bare ASSERT) fails in a debug build. The handler is
+// handed the fully-formatted "file(line) - func - Assertion failed:
+// expr" text so a GUI host can surface it (e.g. a MessageBox) instead
+// of the raw int 3 that otherwise becomes a silent WER crash when no
+// debugger is attached. With no handler installed, EhmBreakpoint falls
+// back to __debugbreak().
+//
+
+#ifdef UNICODE
+    typedef void (*EHM_BREAKPOINT_FUNC)(const wchar_t * message);
+#else
+    typedef void (*EHM_BREAKPOINT_FUNC)(const char * message);
+#endif
 
 extern EHM_BREAKPOINT_FUNC g_pfnBreakpoint;
 
 void SetBreakpointFunction (EHM_BREAKPOINT_FUNC func);
-void EhmBreakpoint         (void);
+
+#ifdef UNICODE
+    void EhmBreakpoint (const wchar_t * file, int line, const wchar_t * func, const wchar_t * expr);
+#else
+    void EhmBreakpoint (const char * file, int line, const char * func, const char * expr);
+#endif
 
 
 
 #if defined(DBG) || defined(DEBUG) || defined(_DEBUG)
-    #define EHM_BREAKPOINT EhmBreakpoint()
+    #define EHM_BREAKPOINT(__file, __line, __func, __expr) \
+        EhmBreakpoint ((__file), (__line), (__func), (__expr))
 #else
-    #define EHM_BREAKPOINT
+    #define EHM_BREAKPOINT(__file, __line, __func, __expr)  ((void) 0)
 #endif
 
 
 
 #ifdef UNICODE
-    #define ASSERT(__condition)                                             \
-        if (!(__condition))                                                 \
-        {                                                                   \
-            DEBUGMSG ((L"%s(%d) - %s - Assertion failed:  %s\n"),           \
-                        __WFILE__, __LINE__, __WFUNCTION__, L#__condition); \
-            EHM_BREAKPOINT;                                                 \
+    #define ASSERT(__condition)                                                 \
+        if (!(__condition))                                                     \
+        {                                                                       \
+            EHM_BREAKPOINT (__WFILE__, __LINE__, __WFUNCTION__, L#__condition);  \
         }
 #else
-    #define ASSERT(__condition)                                             \
-        if (!(__condition))                                                 \
-        {                                                                   \
-            DEBUGMSG ("%s(%d) - %s - Assertion failed:  %s\n",              \
-                       __FILE__, __LINE__, __FUNCTION__, #__condition);     \
-            EHM_BREAKPOINT;                                                 \
+    #define ASSERT(__condition)                                                 \
+        if (!(__condition))                                                     \
+        {                                                                       \
+            EHM_BREAKPOINT (__FILE__, __LINE__, __FUNCTION__, #__condition);     \
         }
 #endif
 
@@ -203,10 +221,22 @@ void EhmBreakpoint         (void);
 //
 // IGNORE_RETURN_VALUE
 //
+// Overwrites an already-captured result with a neutral reset value, making
+// the discard explicit. The reset value must be a COMPILE-TIME CONSTANT --
+// S_OK, false, 0, an enumerator, a constexpr named constant. The constexpr
+// local below is what enforces that: a runtime expression as the second
+// argument -- above all a function call, which would make this an
+// assignment dressed up as an ignore -- fails to compile at the use site
+// (C2131). Capture first, then neutralize:
+//
+//     hr = Foo (...);
+//     IGNORE_RETURN_VALUE (hr, S_OK);
+//
 
 #define IGNORE_RETURN_VALUE(__result, __new_value)                                          \
 {                                                                                           \
-    __result = __new_value;                                                                 \
+    constexpr auto __ehmResetValue = (__new_value);                                         \
+    __result = __ehmResetValue;                                                             \
 }
 
 
@@ -274,14 +304,21 @@ void EhmBreakpoint         (void);
 // CPR variants — check pointer for null
 //
 
+// There are deliberately NO -Ex variants here. CPR tests an allocation
+// result, and an allocation failure is always E_OUTOFMEMORY -- there is no
+// other honest code to substitute. Wanting a different HRESULT means the
+// check is not an allocation check at all, so it belongs on another family:
+//
+//   parameter validation ............ CBRAEx (ptr, E_INVALIDARG)
+//   member-state precondition ....... CBRA   (m_foo)
+//   Win32 API returning a pointer ... CWRA   (ptr)   -- keeps GetLastError
+//
+// Leaving CPREx defined only invited that mistake: both of its uses guarded
+// GlobalLock, a Win32 call, and flattened its real error to E_FAIL.
 #define CPR(__prTest)                               __CPR (__prTest, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
 #define CPRA(__prTest)                              __CPR (__prTest, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
-#define CPREx(__prTest, __hrReplace)                __CPR (__prTest, __EHM_NO_ASSERT, true,  __hrReplace, __EHM_NO_ACTION)
-#define CPRAEx(__prTest, __hrReplace)               __CPR (__prTest, __EHM_ASSERT,    true,  __hrReplace, __EHM_NO_ACTION)
 #define CPRF(__prTest, __onFailure)                 __CPR (__prTest, __EHM_NO_ASSERT, false, 0, __onFailure)
 #define CPRAF(__prTest, __onFailure)                __CPR (__prTest, __EHM_ASSERT,    false, 0, __onFailure)
-#define CPRFEx(__prTest, __hrReplace, __onFailure)  __CPR (__prTest, __EHM_NO_ASSERT, true, __hrReplace, __onFailure)
-#define CPRAFEx(__prTest, __hrReplace, __onFailure) __CPR (__prTest, __EHM_ASSERT,    true, __hrReplace, __onFailure)
 
 
 

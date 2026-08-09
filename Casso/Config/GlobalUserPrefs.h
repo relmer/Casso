@@ -33,6 +33,13 @@ struct GlobalUserPrefs
     std::string  activeTheme         = "Skeuomorphic"; // FR-030 default
     std::string  lastSelectedMachine;                  // empty == none
 
+    // Skeuomorphic desk scene: frame the display in a period CRT monitor
+    // (with the drives scaled to sit under it). Opt-in from the Settings
+    // theme page because the scene trades a lot of screen real estate for
+    // the look; off renders the classic bare display. Skeuo themes only --
+    // compact themes never draw the monitor regardless.
+    bool         skeuoMonitorFrame   = false;
+
     // Disk II audio asset download consent. Tri-state string:
     //   "ask"     -- user has never been prompted (default)
     //   "allow"   -- silently re-fetch missing audio assets
@@ -47,7 +54,12 @@ struct GlobalUserPrefs
     // held dial. Cycled via the Machine menu's "Cycle Input Mode" item,
     // Ctrl+Shift+J, and the drive-bar widget; only meaningful on machines with a
     // game port. Migrated from the legacy bool "mapArrowsToJoystick".
-    InputMappingMode  inputMappingMode = InputMappingMode::Off;
+    InputMappingMode  inputMappingMode = InputMappingMode::Off;   // legacy combined (kept in sync for downgrade compat)
+
+    // Split input model: Keys (arrows->joystick) x Pointer
+    // (Off/Paddle/Mouse). Migrated from the legacy single mode on load.
+    bool              arrowsToJoystick = false;
+    InputMappingMode  pointerMapping   = InputMappingMode::Off;
 
     // Text color used when the Color monitor is active (the monochrome
     // monitors derive their text from the phosphor tint instead). White is
@@ -82,8 +94,8 @@ struct GlobalUserPrefs
     // The matching ColorMode enum lives in UiCommandTypes.h; we don't
     // pull that include in here so the GlobalUserPrefs header stays
     // free of UI-layer dependencies.
-    static constexpr size_t  kCrtModeCount = 4;
-    Crt          crtByMode[kCrtModeCount];
+    static constexpr size_t  kCrtModeCount            = 4;
+    Crt                      crtByMode[kCrtModeCount];
 
     struct WindowBounds
     {
@@ -116,6 +128,32 @@ struct GlobalUserPrefs
     // so every recent disk starts with an unknown (0) load time.
     std::vector<std::int64_t>  recentDiskLoadedAt;
 
+    // Host print-service preferences (Settings > Printing, FR-011). Global --
+    // host print services are shared by every machine. The delivery
+    // destination is no longer a stored preference: Print always targets a
+    // Windows printer and Save always writes a PNG through the file dialog
+    // (default folder <Pictures>\Casso Prints). Dot style is stored as the
+    // contract's string token (like audioDownloadConsent).
+    int          printOutputDpi   = 576;          // 288 | 576 (FR-028)
+    std::string  printDotStyle    = "ink";        // "ink" | "plain" (FR-027)
+
+    // ImageWriter II mechanical-sound preferences (Settings > Printing audio,
+    // FR-034). `enabled` is the printer-sound master toggle (on by default);
+    // when off the printer bus is silent (the shared "Drive Audio" master
+    // enable still gates it above this). Volume 0..1 (default matches
+    // PrinterAudioSource::kDefaultVolume). By default the sound auto-pans to
+    // follow the preview window; panOverride pins a fixed pan (-1 left .. +1).
+    bool         printerAudioEnabled      = true;
+    float        printerAudioVolume       = 0.80f;
+    bool         printerAudioPanOverride  = false;
+    float        printerAudioPan          = 0.0f;   // -1 .. +1, used when override is on
+
+    // Master output volume (the chrome toolbar's slider + mute): one gain over
+    // the completed audio mix, so speaker, drives, printer, and Mockingboard
+    // scale together. Mute keeps the slider value; the mix just gets gain 0.
+    float        masterVolume             = 1.0f;   // 0 .. 1
+    bool         masterMuted              = false;
+
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;
 
@@ -128,10 +166,10 @@ struct GlobalUserPrefs
     JsonValue   ToJson   () const;
     HRESULT     FromJson (const JsonValue & v);
 
-    // Revert the Color-monitor text colour to its default (White). The
+    // Revert the Color-monitor text color to its default (White). The
     // custom ARGB is intentionally left intact so re-selecting "Custom"
-    // restores the user's last-picked colour. Used by the Display page's
-    // Restore-defaults action; keeping it here makes the durable behaviour
+    // restores the user's last-picked color. Used by the Display page's
+    // Restore-defaults action; keeping it here makes the durable behavior
     // unit-testable without the (D3D-bound) Settings UI.
     void        ResetColorMonitorTextToDefault ();
 
@@ -139,7 +177,7 @@ struct GlobalUserPrefs
 
 
 private:
-    static bool         GetBoolOpt   (const JsonValue   & obj,
+    static bool         TryGetBoolOpt   (const JsonValue   & obj,
                                       const std::string & key,
                                       bool                fallback);
     static double       GetNumberOpt (const JsonValue   & obj,

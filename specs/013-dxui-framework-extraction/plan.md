@@ -5,7 +5,7 @@
 
 ## Summary
 
-Extract Casso's in-house Direct3D 11 / Direct2D / DirectWrite UI layer (today wholly contained in `Casso/Ui/`) into a new sibling static-library project, **`Dxui`**, with the canonical `Dxui*` / `IDxui*` prefix discipline and a single umbrella header (`Dxui.h`) that owns the project's system-header surface. Migrate Casso's UI (`UiShell`, chrome, settings, debug panels, dialogs) to compose against the new framework so that user-visible behaviour is visually equivalent to the pre-migration build by manual sign-off. Three load-bearing capabilities ride along: a `DxuiHostWindow` that subsumes the four existing copies of `WM_NCCALCSIZE`/`WM_NCHITTEST` plumbing, a `DxuiPopupHost` that fixes the long-standing dropdown-clipping bug, and `IDxuiPainter` / `IDxuiTextRenderer` interfaces that let `UnitTest.dll` exercise widgets without a real D3D11 device.
+Extract Casso's in-house Direct3D 11 / Direct2D / DirectWrite UI layer (today wholly contained in `Casso/Ui/`) into a new sibling static-library project, **`Dxui`**, with the canonical `Dxui*` / `IDxui*` prefix discipline and a single umbrella header (`Dxui.h`) that owns the project's system-header surface. Migrate Casso's UI (`UiShell`, chrome, settings, debug panels, dialogs) to compose against the new framework so that user-visible behavior is visually equivalent to the pre-migration build by manual sign-off. Three load-bearing capabilities ride along: a `DxuiHostWindow` that subsumes the four existing copies of `WM_NCCALCSIZE`/`WM_NCHITTEST` plumbing, a `DxuiPopupHost` that fixes the long-standing dropdown-clipping bug, and `IDxuiPainter` / `IDxuiTextRenderer` interfaces that let `UnitTest.dll` exercise widgets without a real D3D11 device.
 
 The work is structured as a **14-phase** mechanical migration; each phase ends with a green build and a passing test suite, and each phase is independently mergeable. Phases 1–6 are complete; Phase 7 is in progress (scope reduced to framework primitives only — see Phase 7 below). Three additional phases were inserted during Phase 7 execution to absorb scope that surfaced when the chrome / `EmulatorShell` reality met the original plan: Phase 8 (main-window NC delegation via an adopt-HWND shim), Phase 10 (`DxuiMenuBar` + `MainMenu` conversion), and Phase 11 (chrome reshape + `EmulatorShell` restructure). Old Phases 8/9/10/11 shift to 9/12/13/14 respectively. See the "Migration Phases" section for the full enumeration and the spec for FR-098..FR-108 / SC-014..SC-020.
 
@@ -186,7 +186,7 @@ Casso.sln
     └── Dxui/                               # ⭐ NEW — landed incrementally across phases
         ├── MockDxuiPainter.{h,cpp}         # recording IDxuiPainter (Phase 6)
         ├── MockDxuiTextRenderer.{h,cpp}    # recording IDxuiTextRenderer (Phase 6)
-        ├── MockDxuiTheme.{h,cpp}           # canned colour/font accessors (Phase 5)
+        ├── MockDxuiTheme.{h,cpp}           # canned color/font accessors (Phase 5)
         ├── DxuiPanelTests.cpp              # fan-out, Add/Remove/Clear, visibility (Phase 6)
         ├── DxuiFocusManagerTests.cpp       # tab order, spatial arrows, scopes (Phase 6)
         ├── DxuiStackLayoutTests.cpp
@@ -217,7 +217,7 @@ Dxui now models its top-level surface directly on WPF:
 | `ContentControl` (a control that *is* a content host) | `DxuiPanel` | Owns children, layout, paint/input fan-out. |
 | `Window : ContentControl` | **`DxuiWindow : DxuiPanel`** | Top-level element that IS its own content root **and** owns one OS window. |
 | `HwndSource` | **`DxuiHwndSource`** (was `DxuiHostWindow`) | The HWND + swap-chain + caption + message-pump backend. |
-| `DynamicResource` / semantic brushes | **`DxuiTextRole` + `IDxuiTheme::TextColor(role)`** | Widgets hold a *role*, not a resolved colour; the theme resolves at paint. |
+| `DynamicResource` / semantic brushes | **`DxuiTextRole` + `IDxuiTheme::TextColor(role)`** | Widgets hold a *role*, not a resolved color; the theme resolves at paint. |
 | `Window.ShowDialog()` | **`DxuiWindow::ShowModalDialog()` / `ShowModelessDialog()`** (IMPLEMENTED) | A dialog is just a `DxuiWindow` run in a modal (or modeless live-preview) loop. |
 
 ### `DxuiWindow : DxuiPanel` — the consumer-facing top-level element
@@ -245,20 +245,20 @@ Alongside `Add<T>` (returns `T&`), `DxuiPanel` gained `CreateChild<T>(args…)` 
 
 Child **geometry is not passed at creation** — bounds come from the layout pass (`Layout(rect, scaler)` / an `IDxuiLayout`), which reflows on resize / DPI; DPI rides the scaler, so there is no per-widget `SetDpi` in the common path. Callers keep the returned pointer only for controls they mutate later; pure-display children (static labels) discard it. This lets a `DxuiWindow::OnCreate()` read like a sequence of `CreateWindow` calls.
 
-### Role-based theming — widgets hold a semantic role, not a resolved colour
+### Role-based theming — widgets hold a semantic role, not a resolved color
 
-Text-bearing widgets now store a **semantic colour role** (`DxuiTextRole { Body, Heading, Muted, Disabled, Error, Link }`) rather than a resolved ARGB. `IDxuiTheme::TextColor(DxuiTextRole)` maps the role to a packed ARGB (with a sensible default mapping onto the existing foreground accessors) **at paint time**, from the theme handed to `Paint` each frame. Consequences:
+Text-bearing widgets now store a **semantic color role** (`DxuiTextRole { Body, Heading, Muted, Disabled, Error, Link }`) rather than a resolved ARGB. `IDxuiTheme::TextColor(DxuiTextRole)` maps the role to a packed ARGB (with a sensible default mapping onto the existing foreground accessors) **at paint time**, from the theme handed to `Paint` each frame. Consequences:
 
-- Nothing caches a colour or a theme pointer, so a theme change / theme preview is *just a repaint* — every widget re-resolves.
+- Nothing caches a color or a theme pointer, so a theme change / theme preview is *just a repaint* — every widget re-resolves.
 - `kDxuiDefaultFontSizeDip` is a sentinel meaning "resolve the theme's body font size at paint", so default typography lives only in the theme.
 - `DxuiTextInput` / `DxuiListView` / `DxuiDropdown` adopt the passed theme every paint (this eliminated the old `ApplyTheme` push path — commit `0fe6f94`).
 - Naming cleanups rode along: `DxuiButton` / `DxuiIconButton` `SetClick` → **`SetOnClick`**; `DxuiLabel` `SetHAlign` / `SetVAlign` → a single **`SetTextAlign(h, v)`**.
-- `DxuiLabel` is fully converted; `SetColorArgb` is retained **only** as a legacy opt-out (it pins an explicit colour and opts the label out of role resolution) for not-yet-migrated consumers.
+- `DxuiLabel` is fully converted; `SetColorArgb` is retained **only** as a legacy opt-out (it pins an explicit color and opts the label out of role resolution) for not-yet-migrated consumers.
 
 ### What this replaced / superseded
 
 - **`Casso/Ui/Chrome/ChromedPanelWindow.{h,cpp}` and `IChromedPanelContent.h` are DELETED** (commit `8782f05`) — the Casso-specific own-HWND + adopt-mode chrome shell with its per-`WM_` content contract is fully superseded by `DxuiWindow` + `IDxuiHostClient`. This *completes the original T144* (the plan's "reduce `ChromedPanelWindow` to a thin shell" is realised as outright deletion).
-- **Both debug panels migrated onto `DxuiWindow`** (commits `5dd58cf`, `2d834c4`): `Disk2DebugPanel` and `InputDebugPanel` now derive from `DxuiWindow` (were `DxuiPanel` + `IChromedPanelContent` + a `DxuiHwndSource`/`DxuiHostWindow` member). Content / layout / theme concerns are cleanly separated — static text in the `CreateChild` ctor, dynamic text in state-change handlers, geometry-only `Layout()`, colour via role resolution at paint. Their bespoke input fan-out overrides and integer focus model are gone, which is what actually satisfies SC-022 / SC-023 / SC-024 (see spec §Window element for the reconciliation).
+- **Both debug panels migrated onto `DxuiWindow`** (commits `5dd58cf`, `2d834c4`): `Disk2DebugPanel` and `InputDebugPanel` now derive from `DxuiWindow` (were `DxuiPanel` + `IChromedPanelContent` + a `DxuiHwndSource`/`DxuiHostWindow` member). Content / layout / theme concerns are cleanly separated — static text in the `CreateChild` ctor, dynamic text in state-change handlers, geometry-only `Layout()`, color via role resolution at paint. Their bespoke input fan-out overrides and integer focus model are gone, which is what actually satisfies SC-022 / SC-023 / SC-024 (see spec §Window element for the reconciliation).
 - **Dialog model reshaped — no `DxuiDialog`** (commits `8f24ad2`→`4cc444c`, `2d6f5be`, `f91c794`): `DxuiDialog` + `DxuiDialogManager` DELETED; a dialog is a `DxuiWindow` shown via **`ShowModalDialog(defaultId)` / `ShowModelessDialog(defaultId)`** (the modeless path drives live-preview sheets). `DxuiDialogWindow` factors the shared content + button-row shape. Supersedes FR-070/071/072. (spec FR-126.)
 - **`DxuiPropertySheet` / `DxuiPropertyPage`** (commit `d7f1032`): a generic paged dialog — tab strip + OK/Cancel/Apply row + per-page dirty flag + `OnApply` / `ApplyAllDirtyPages`, shown modeless for live preview. The framework generalization of Casso's hand-rolled `SettingsPanel`; not yet adopted by Casso. (spec FR-129.)
 - **Composited-transparent window mode + after-paint hook** (commit `a7ac0ac`): `DxuiHwndSource::CreateParams::composited` + `SetAfterPaintHook` let the emulator viewport composite through the host-owned swap chain — the realisation of the deferred T129 swap-chain flip (`CassoRenderSurface` deleted). (spec FR-130.)
@@ -266,7 +266,7 @@ Text-bearing widgets now store a **semantic colour role** (`DxuiTextRole { Body,
 
 ### Still PENDING (planned, not yet implemented)
 
-1. **Full themed-propagation for the remaining consumers** (settings pages, dialogs, colour picker): convert their `SetColorArgb` / `SetTheme` usage to role-based paint-time resolution; introduce a `DxuiArgb` colour type and make theme colour accessors return it (rename `SetColorArgb` → `SetColor(DxuiArgb)`). (spec FR-127 / T155.)
+1. **Full themed-propagation for the remaining consumers** (settings pages, dialogs, color picker): convert their `SetColorArgb` / `SetTheme` usage to role-based paint-time resolution; introduce a `DxuiArgb` color type and make theme color accessors return it (rename `SetColorArgb` → `SetColor(DxuiArgb)`). (spec FR-127 / T155.)
 2. **Settings-dialog UX (Phase 18)**: a staged machine/ROM change notice on the Machine + ROM/Hardware pages stating the change takes effect after OK and that OK restarts the machine (spec FR-131 / T160); a Theme "Apply now" button that live-applies the theme without closing, revertible by Cancel (spec FR-132 / T161). Natural end-state: migrate `SettingsPanel` onto `DxuiPropertySheet` (T162).
 
 
@@ -386,7 +386,7 @@ Each widget's `Paint` signature still takes the concrete `DxuiPainter &` / `Dxui
 
 ### Migration Phase 5 — Introduce `IDxuiTheme` ✅
 
-**Create**: `Dxui/Theme/IDxuiTheme.h` — pure-virtual interface with accessors widgets need (background, foreground, accent, focus ring, disabled foreground, caption colours, body / caption font handles, etc.). See `contracts/IDxuiTheme.h.md` for the candidate accessor list.
+**Create**: `Dxui/Theme/IDxuiTheme.h` — pure-virtual interface with accessors widgets need (background, foreground, accent, focus ring, disabled foreground, caption colors, body / caption font handles, etc.). See `contracts/IDxuiTheme.h.md` for the candidate accessor list.
 
 **Modify**:
 
@@ -426,9 +426,9 @@ Each widget's `Paint` signature still takes the concrete `DxuiPainter &` / `Dxui
 
 **Create** in `UnitTest/Dxui/`:
 
-- `MockDxuiPainter.{h,cpp}` — recorder that captures call sequences (op kind, rect, colour, etc.) into a `std::vector<RecordedCall>` for assertions. **No D3D device created.**
+- `MockDxuiPainter.{h,cpp}` — recorder that captures call sequences (op kind, rect, color, etc.) into a `std::vector<RecordedCall>` for assertions. **No D3D device created.**
 - `MockDxuiTextRenderer.{h,cpp}` — recorder + canned text metrics.
-- `DxuiPanelTests.cpp` — exercises `Add<T>` / `Remove` / `Clear`, paint fan-out order, input fan-out front-to-back, visibility collapse behaviour.
+- `DxuiPanelTests.cpp` — exercises `Add<T>` / `Remove` / `Clear`, paint fan-out order, input fan-out front-to-back, visibility collapse behavior.
 - `DxuiFocusManagerTests.cpp` — reading-order tab, row-epsilon, spatial arrows, focus-scope push/pop with restore, `tabIndex` overrides.
 - `DxuiStackLayoutTests.cpp`, `DxuiGridLayoutTests.cpp`, `DxuiFormLayoutTests.cpp`, `DxuiAbsoluteLayoutTests.cpp`.
 
@@ -472,7 +472,7 @@ Each widget's `Paint` signature still takes the concrete `DxuiPainter &` / `Dxui
 1. `Casso\Window.cpp` (dispatch at `:277`) + `Casso\EmulatorShell.cpp` (`OnNcCalcSize` at `:4035` and adjacent NC handlers) — construct a `DxuiHostWindow` via `CreateInAdoptMode` over the existing HWND. Delete the bespoke `OnNcCalcSize` / `OnNcHitTest` / `OnNcMouseMove` / `OnNcLButton*` / `OnNcMouseLeave` / `OnDpiChanged` / `OnSettingChange` / `OnThemeChanged` / `OnDwmColorizationColorChanged` implementations and forward those `WM_*` messages to `DxuiHostWindow::HandleMessage` from `EmulatorShell`'s window-procedure dispatcher. Move the existing bespoke chrome hit-test classification into a single `std::function<LRESULT(POINT)>` and install via `SetHitTestDelegate`.
 2. `EmulatorShell` retains ownership of HWND, D3D11 device, swap chain, viewport, and all chrome (FR-100). `EmulatorShell` is still a `Window` subclass after this phase — that restructure waits for Phase 11.
 
-**Create in UnitTest**: `UnitTest/Dxui/DxuiHostWindowAdoptModeTests.cpp` — adopt-mode behaviours: (a) `CreateInAdoptMode` does not allocate a swap chain, does not call `CreateWindowEx` (assertion via test seam), (b) `HandleMessage` returns `false` for messages it does not handle and `true` with a populated `LRESULT` for messages it does, (c) `SetHitTestDelegate` is consulted first on `WM_NCHITTEST` and short-circuits the tree walk when it returns non-`HTNOWHERE`, (d) tree-walk fallback runs when the delegate returns `HTNOWHERE`.
+**Create in UnitTest**: `UnitTest/Dxui/DxuiHostWindowAdoptModeTests.cpp` — adopt-mode behaviors: (a) `CreateInAdoptMode` does not allocate a swap chain, does not call `CreateWindowEx` (assertion via test seam), (b) `HandleMessage` returns `false` for messages it does not handle and `true` with a populated `LRESULT` for messages it does, (c) `SetHitTestDelegate` is consulted first on `WM_NCHITTEST` and short-circuits the tree walk when it returns non-`HTNOWHERE`, (d) tree-walk fallback runs when the delegate returns `HTNOWHERE`.
 
 **Entry**: Phase 7 green; `DxuiHostWindow` framework primitives shipped.
 **Exit**:
@@ -481,7 +481,7 @@ Each widget's `Paint` signature still takes the concrete `DxuiPainter &` / `Dxui
 - Main window drag, resize (all eight edges), minimise, maximise, restore, close, DPI change (drag between 100 % and 200 % monitors), Win11 snap-layouts flyout still all behave identically to the pre-phase build.
 - `rg -n 'WM_NCCALCSIZE|WM_NCHITTEST' Casso\Window.cpp Casso\EmulatorShell.cpp` returns zero hits (forwarding to `DxuiHostWindow::HandleMessage` only).
 - Adopt-mode unit tests pass.
-- `EmulatorShell` still owns HWND / D3D / swap chain (verified by inspection — no behaviour change to viewport rendering).
+- `EmulatorShell` still owns HWND / D3D / swap chain (verified by inspection — no behavior change to viewport rendering).
 
 **Commit**: `feat(dxui): adopt-HWND shim on DxuiHostWindow; main window delegates NC handling`
 
@@ -516,9 +516,9 @@ Each widget's `Paint` signature still takes the concrete `DxuiPainter &` / `Dxui
 
 - Rename `NavLayer.{h,cpp}` → `MainMenu.{h,cpp}`; rename class `NavLayer` → `MainMenu`; remove any `NavMenu` typedef/alias (FR-103).
 - `MainMenu` is either a thin wrapper over `DxuiMenuBar` or a populated `DxuiMenuBar` instance owned by `EmulatorShell`, configured with Casso's command set (File / Edit / Machine / Disk / View / Debug / Help). Commands wire dispatch / check-query / enabled-query callbacks straight into `EmulatorShell`'s existing command handlers.
-- Update the ~15 `m_navLayer.X()` call sites in `EmulatorShell` (and any stragglers in `Window.cpp` / chrome) to use `m_mainMenu`. No call-site behavioural change beyond the rename + the menu-bar widget driving submenu open / dismiss through `DxuiPopupHost` instead of the legacy in-window popup.
+- Update the ~15 `m_navLayer.X()` call sites in `EmulatorShell` (and any stragglers in `Window.cpp` / chrome) to use `m_mainMenu`. No call-site behavioral change beyond the rename + the menu-bar widget driving submenu open / dismiss through `DxuiPopupHost` instead of the legacy in-window popup.
 
-**Create in UnitTest**: `UnitTest/Dxui/DxuiMenuBarTests.cpp` — alt-letter accelerator dispatch (synthetic `Alt+F` opens the File menu, `Alt+E` opens Edit, unmapped key does nothing); hover-after-click switches the open submenu without a second click; Left / Right arrow keys traverse between open submenus; Escape dismisses an open submenu and restores focus to the bar; check-query callback drives the rendered check-mark each frame; enabled-query disables dispatch and visually greys the item. Tests run headless against `MockDxuiPainter` / `MockDxuiTextRenderer` and a stub `DxuiPopupHost` seam.
+**Create in UnitTest**: `UnitTest/Dxui/DxuiMenuBarTests.cpp` — alt-letter accelerator dispatch (synthetic `Alt+F` opens the File menu, `Alt+E` opens Edit, unmapped key does nothing); hover-after-click switches the open submenu without a second click; Left / Right arrow keys traverse between open submenus; Escape dismisses an open submenu and restores focus to the bar; check-query callback drives the rendered check-mark each frame; enabled-query disables dispatch and visually grays the item. Tests run headless against `MockDxuiPainter` / `MockDxuiTextRenderer` and a stub `DxuiPopupHost` seam.
 
 **Entry**: Phase 9 green (`DxuiPopupHost` available for submenu hosting).
 **Exit**:
@@ -641,7 +641,7 @@ Each widget's `Paint` signature still takes the concrete `DxuiPainter &` / `Dxui
 - `rg -n 'DialogPrimitive|DialogDefinition|DialogLayout' Casso/` → zero hits.
 - `SettingsWindow` retired (migrated to `DxuiHostWindow` in this phase — replaces the original Phase 7 plan that deferred this migration).
 - Klaus Dormann (`scripts/RunDormannTest.ps1`) and Tom Harte (`scripts/RunHarteTests.ps1 -SkipGenerate`) suites both pass (SC-012 — belt-and-suspenders even though this is UI-only).
-- All user-visible behaviours (theme, settings persistence, drag-drop disk mount, emulator viewport resize, snap-layouts on all three top-level windows) match the pre-migration build under manual side-by-side comparison at 100 % / 150 % / 200 % DPI on Win10 + Win11 (SC-011, SC-015).
+- All user-visible behaviors (theme, settings persistence, drag-drop disk mount, emulator viewport resize, snap-layouts on all three top-level windows) match the pre-migration build under manual side-by-side comparison at 100 % / 150 % / 200 % DPI on Win10 + Win11 (SC-011, SC-015).
 - All SC-001..SC-020 satisfied.
 
 **Modify** (in addition to the original Phase 11 scope):
@@ -719,7 +719,7 @@ Phase-to-requirement mapping for the requirements added during the 2026-Q-Phase7
 | R1 | DX device sharing across HWNDs (`DxuiPopupHost` shares parent `ID3D11Device`, owns its own composition swap chain) | Med | High (crashes / invisible popups) | 9 | Create the device with `D3D11_CREATE_DEVICE_BGRA_SUPPORT`; use `CreateSwapChainForComposition` + DirectComposition visual for popups; explicit owner-chain tracking; popup pool owned by `DxuiHostWindow`; dedicated `DxuiPopupHostTests` for lifecycle. |
 | R2 | Custom-NC subtleties Win10 vs Win11 (rounded corners, Mica, snap-layouts) | Med | Med (visual gap) | 7, 8, 11 | `DxuiDwm` encapsulates version detection; eyeball-validate on both OSes at Phase 8 close (adopt-mode main window), Phase 11 close (chrome reshape), and Phase 14 close. |
 | R3 | Reading-order tab differs subtly from hand-numbered `focusId` | High | Low (focus order shifts) | 13, 14 | Per-control `tabIndex` override; per-page focus-order review at conversion. |
-| R4 | Manual chrome parity drifts during theme-interface port | Med | Med (visual regression) | 8, 11, 13 | Side-by-side screenshots at 100/150/200 % DPI; `ChromeTheme` is amended-in-place rather than replaced, so colour values stay in one location. |
+| R4 | Manual chrome parity drifts during theme-interface port | Med | Med (visual regression) | 8, 11, 13 | Side-by-side screenshots at 100/150/200 % DPI; `ChromeTheme` is amended-in-place rather than replaced, so color values stay in one location. |
 | R5 | `SettingsPanel.cpp` 40 % reduction is a target, not guaranteed | Med | Low (spec miss) | 13 | Measure LOC after Phase 13 (`ThemePage`); extrapolate; flag explicitly before Phase 14 bulk conversion if overrun likely. |
 | R6 | A regression in Phase 7 / 8 (host window + adopt shim) blocks every later phase | Low | High | 7, 8 | Each phase ends green and is independently mergeable; phases land as separate PRs, not one mega-PR. |
 | R7 | `DxuiViewport::OnBoundsChanged` fires after the next emulator frame, producing one mis-sized frame | Low | Low (one-frame artefact) | 12 | Layout pass completes before paint pass; renderer subscribes and resizes lazily on first paint after bounds change. |
@@ -727,8 +727,8 @@ Phase-to-requirement mapping for the requirements added during the 2026-Q-Phase7
 | R9 | `std::future<int>` returned by popup/dialog `Show` is awaited on a worker thread that then touches Dxui | Low | High (crash from UI-thread-only assumption — FR-083) | 9, 14 | Document FR-083 prominently in `Dxui.h` header doc comment; debug-build assertion in `DxuiHostWindow` message-pump entry that records the UI thread ID and re-asserts on every public Dxui API entry. |
 | R10 | Mock painter call-set diverges from real painter API, hiding regressions | Med | Med | 6 → ongoing | `IDxuiPainter` interface methods are the **only** painter API widgets call; mock and concrete derive from the same interface so divergence is a compile error. |
 | R11 | Phase 11 `EmulatorShell` restructure scope-creeps beyond the ≤ 2,502-line target | Med | Med (phase slips or partial migration ships) | 11 | Track LOC delta continuously; carve unrelated `EmulatorShell` cleanup out into follow-up commits; if 40 % proves unreachable, escalate to spec amendment rather than silently missing SC-018. The hit-test delegate seam from Phase 8 also means Phase 11 has a working fallback (keep delegate, defer full chrome reshape) if a sub-area refuses to fit. |
-| R12 | Apple ][ viewport reroute through `DxuiHostWindow`'s swap chain regresses rendering fidelity (colour, scanlines, ratios, vsync) | Med | High (visible emulator artefacts) | 11, 12 | Per-mode (text40/text80/lores/hires/dhires) screenshot comparison against the pre-phase build at the same machine config; verify on both Win10 and Win11 and at 100 % / 150 % / 200 % DPI; ensure `D3DRenderer` resize path subscribed only to `DxuiViewport::OnBoundsChanged` (Phase 12) so no double-resize on DPI changes. |
-| R13 | Chrome reshape (Phase 11) drifts pixel-parity for `TitleBar` / `DriveWidget` / `LedIndicator` / `JoystickToggleButton` | Med | Med (visible chrome regression) | 11 | Per-control screenshot comparison before/after the reshape; reshape one control at a time with a green-test gate between each; `ChromeTheme` colour values stay in one place to keep diff surface to layout / paint code rather than palette. |
+| R12 | Apple ][ viewport reroute through `DxuiHostWindow`'s swap chain regresses rendering fidelity (color, scanlines, ratios, vsync) | Med | High (visible emulator artefacts) | 11, 12 | Per-mode (text40/text80/lores/hires/dhires) screenshot comparison against the pre-phase build at the same machine config; verify on both Win10 and Win11 and at 100 % / 150 % / 200 % DPI; ensure `D3DRenderer` resize path subscribed only to `DxuiViewport::OnBoundsChanged` (Phase 12) so no double-resize on DPI changes. |
+| R13 | Chrome reshape (Phase 11) drifts pixel-parity for `TitleBar` / `DriveWidget` / `LedIndicator` / `JoystickToggleButton` | Med | Med (visible chrome regression) | 11 | Per-control screenshot comparison before/after the reshape; reshape one control at a time with a green-test gate between each; `ChromeTheme` color values stay in one place to keep diff surface to layout / paint code rather than palette. |
 
 ## Complexity Tracking
 

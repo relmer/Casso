@@ -37,16 +37,14 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    static constexpr uint64_t   kPinnedSeed = 0xCA550001ULL;
-}
 
 
 
 TEST_CLASS (ResetSemanticsTests)
 {
 public:
+
+    static constexpr uint64_t   kPinnedSeed = 0xCA550001ULL;
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -61,7 +59,7 @@ public:
         ram.Write (0x1234, 0xAB);
         ram.Write (0x5678, 0xCD);
 
-        ram.SoftReset ();
+        ram.SoftReset();
 
         Assert::AreEqual (static_cast<Byte> (0xAB), ram.Read (0x1234),
             L"Audit §10: SoftReset must preserve main RAM");
@@ -72,14 +70,14 @@ public:
     {
         Apple2eMmu      mmu;
 
-        mmu.GetAuxBuffer ()[0x1111] = 0xEE;
-        mmu.GetAuxBuffer ()[0x2222] = 0xDD;
+        mmu.GetAuxBuffer()[0x1111] = 0xEE;
+        mmu.GetAuxBuffer()[0x2222] = 0xDD;
 
-        mmu.OnSoftReset ();
+        mmu.OnSoftReset();
 
-        Assert::AreEqual (static_cast<Byte> (0xEE), mmu.GetAuxBuffer ()[0x1111],
+        Assert::AreEqual (static_cast<Byte> (0xEE), mmu.GetAuxBuffer()[0x1111],
             L"Audit §10: SoftReset must preserve aux RAM");
-        Assert::AreEqual (static_cast<Byte> (0xDD), mmu.GetAuxBuffer ()[0x2222]);
+        Assert::AreEqual (static_cast<Byte> (0xDD), mmu.GetAuxBuffer()[0x2222]);
     }
 
     TEST_METHOD (SoftResetPreservesLcRamBothBanksMainAndAux)
@@ -100,7 +98,7 @@ public:
         lc.Read (0xC089);
         lc.WriteRam (0xD000, 0xBB);
 
-        lc.SoftReset ();
+        lc.SoftReset();
 
         // After SoftReset, BANK2 + WRITERAM pre-armed. Read RAM via $C080.
         lc.Read (0xC080);
@@ -119,15 +117,31 @@ public:
     //
     //  CPU register state after SoftReset
     //
+    //  A soft reset sets the I flag and ADJUSTS the stack pointer -- it does not
+    //  reset it.
+    //
+    //  Both halves are hardware behavior that a plausible implementation gets
+    //  wrong. The 6502's reset sequence performs three dummy stack pushes, so SP
+    //  ends three lower than it started rather than at $FF -- code that inspects
+    //  the stack after a Ctrl-Reset depends on exactly that.
+    //
+    //  The I flag is SET, masking interrupts until the handler chooses to
+    //  enable them; a reset that cleared it would take an interrupt before the
+    //  vectors were ready.
+    //
+    //  A, X, and Y are asserted UNCHANGED, which is what separates a soft reset
+    //  from a power cycle -- the registers survive, and software has used that
+    //  to detect which kind of reset it just took.
+    //
     ////////////////////////////////////////////////////////////////////////////
 
     TEST_METHOD (SoftResetSetsCpuIFlagAndAdjustsSP)
     {
         MemoryBus            bus;
+        Cpu6502Registers     regs = {};
         RamDevice            ramLo (0x0000, 0xBFFF);
         RamDevice            ramHi (0xC000, 0xFFFF);
         MemoryBusCpu         cpu (bus);
-        Cpu6502Registers     regs = {};
 
         bus.AddDevice (&ramLo);
         bus.AddDevice (&ramHi);
@@ -137,9 +151,9 @@ public:
         bus.WriteByte (0xFFFC, 0x34);
         bus.WriteByte (0xFFFD, 0x12);
 
-        cpu.SoftReset ();
+        cpu.SoftReset();
 
-        regs = cpu.GetRegisters ();
+        regs = cpu.GetRegisters();
 
         Assert::AreEqual (static_cast<uint8_t>  (0xFD), regs.sp,
             L"SoftReset must set SP to $FD per 6502 reset sequence");
@@ -166,9 +180,9 @@ public:
         sw.Write (0xC055, 0);   // page2
         sw.Write (0xC057, 0);   // hires
 
-        sw.SoftReset ();
+        sw.SoftReset();
 
-        Assert::IsFalse (sw.IsGraphicsMode (), L"SoftReset must clear GR");
+        Assert::IsFalse (sw.IsGraphicsMode(), L"SoftReset must clear GR");
         Assert::IsFalse (sw.IsMixedMode    (), L"SoftReset must clear MIXED");
         Assert::IsFalse (sw.IsPage2        (), L"SoftReset must clear PAGE2");
         Assert::IsFalse (sw.IsHiresMode    (), L"SoftReset must clear HIRES");
@@ -186,13 +200,13 @@ public:
         sw.Write (0xC00F, 0);   // ALTCHARSET on
         sw.Write (0xC05F, 0);   // DHIRES on (alias)
 
-        sw.SoftReset ();
+        sw.SoftReset();
 
         Assert::IsFalse (sw.Is80ColMode   (),
             L"Audit §10 [CRITICAL]: SoftReset must clear 80COL");
         Assert::IsFalse (sw.IsAltCharSet  (),
             L"SoftReset must clear ALTCHARSET");
-        Assert::IsFalse (sw.IsDoubleHiRes (),
+        Assert::IsFalse (sw.IsDoubleHiRes(),
             L"SoftReset must clear DHIRES");
     }
 
@@ -209,11 +223,11 @@ public:
 
         vt.Tick (1234);
 
-        Assert::AreEqual (static_cast<uint32_t> (1234), vt.GetCycleInFrame ());
+        Assert::AreEqual (static_cast<uint32_t> (1234), vt.GetCycleInFrame());
 
-        vt.SoftReset ();
+        vt.SoftReset();
 
-        Assert::AreEqual (static_cast<uint32_t> (0), vt.GetCycleInFrame (),
+        Assert::AreEqual (static_cast<uint32_t> (0), vt.GetCycleInFrame(),
             L"data-model.md: SoftReset clears VideoTiming cycle counter");
     }
 
@@ -231,11 +245,11 @@ public:
         ctrl->GetDisk (0)->SetLoadedForTest (true, true);
         ctrl->GetDisk (1)->SetLoadedForTest (true, false);
 
-        ctrl->SoftReset ();
+        ctrl->SoftReset();
 
-        Assert::IsTrue (ctrl->GetDisk (0)->IsLoaded (),
+        Assert::IsTrue (ctrl->GetDisk (0)->IsLoaded(),
             L"FR-034: SoftReset must preserve drive 0 mount");
-        Assert::IsTrue (ctrl->GetDisk (1)->IsLoaded (),
+        Assert::IsTrue (ctrl->GetDisk (1)->IsLoaded(),
             L"FR-034: SoftReset must preserve drive 1 mount");
     }
 
@@ -248,13 +262,16 @@ public:
 
     TEST_METHOD (PowerCycleSeedsAllRamFromPrng)
     {
+        size_t       nonZero = 0;
+
+
+
         RamDevice    ram (0x0000, 0xBFFF);
         Prng         prng (kPinnedSeed);
-        size_t       nonZero = 0;
 
         // Pre-zero so any post-PowerCycle non-zero byte must come from
         // the Prng.
-        ram.Reset ();
+        ram.Reset();
 
         ram.PowerCycle (prng);
 
@@ -274,15 +291,18 @@ public:
 
     TEST_METHOD (PowerCycleZeroesNothingButSeedsEverything)
     {
-        // No region should remain entirely zero after PowerCycle —
-        // every page gets touched by the Prng fill (FR-035, audit §10).
-        RamDevice    ram (0x0000, 0xBFFF);
-        Prng         prng (kPinnedSeed);
         bool         pageHasNonZero = false;
         Word         page           = 0;
         Word         offset         = 0;
 
-        ram.Reset ();
+
+
+        // No region should remain entirely zero after PowerCycle —
+        // every page gets touched by the Prng fill (FR-035, audit §10).
+        RamDevice    ram (0x0000, 0xBFFF);
+        Prng         prng (kPinnedSeed);
+
+        ram.Reset();
         ram.PowerCycle (prng);
 
         for (page = 0; page < 0xC0; page++)
@@ -318,13 +338,13 @@ public:
 
         lc.PowerCycle (prng);
 
-        Assert::IsTrue  (lc.IsBank2 (),
+        Assert::IsTrue  (lc.IsBank2(),
             L"PowerCycle must restore BANK2");
-        Assert::IsTrue  (lc.IsWriteRam (),
+        Assert::IsTrue  (lc.IsWriteRam(),
             L"PowerCycle must pre-arm WRITERAM (audit M8)");
-        Assert::IsFalse (lc.IsReadRam (),
+        Assert::IsFalse (lc.IsReadRam(),
             L"PowerCycle must select ROM read");
-        Assert::AreEqual (0, lc.GetPreWriteCount (),
+        Assert::AreEqual (0, lc.GetPreWriteCount(),
             L"PowerCycle must clear pre-write counter");
     }
 
@@ -361,7 +381,7 @@ public:
 
         vt.PowerCycle (prng);
 
-        Assert::AreEqual (static_cast<uint32_t> (0), vt.GetCycleInFrame (),
+        Assert::AreEqual (static_cast<uint32_t> (0), vt.GetCycleInFrame(),
             L"data-model.md: PowerCycle zeroes VideoTiming cycle counter");
     }
 
@@ -375,9 +395,10 @@ public:
 
         ctrl->PowerCycle (prng);
 
-        Assert::IsFalse (ctrl->GetDisk (0)->IsLoaded (),
+        Assert::IsFalse (ctrl->GetDisk (0)->IsLoaded(),
             L"FR-035: PowerCycle must eject drive 0");
-        Assert::IsFalse (ctrl->GetDisk (1)->IsLoaded (),
+        Assert::IsFalse (ctrl->GetDisk (1)->IsLoaded(),
             L"FR-035: PowerCycle must eject drive 1");
     }
 };
+

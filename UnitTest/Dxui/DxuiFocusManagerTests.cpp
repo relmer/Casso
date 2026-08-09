@@ -8,23 +8,36 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiFocusManagerTests
+//
+//  Focus traversal: Tab order, spatial arrow movement, and scope push and pop.
+//
+//  Tab walks the TREE while arrows walk GEOMETRY, and both are tested because
+//  they legitimately disagree -- a tree that reads sensibly can still be laid
+//  out in a grid, and each rule is right for its own key.
+//
+//  Invisible and disabled controls must be SKIPPED rather than focused and
+//  passed over, since a focus ring on something the user cannot see or use
+//  reads as the UI having hung.
+//
+//  Scopes get their own coverage because they are what makes a dialog modal to
+//  the keyboard: while one is pushed, traversal must not escape it, and Escape
+//  pops rather than reaching the window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DxuiFocusManagerTests)
 {
+public:
+
     RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
     {
         RECT  out = {};
         out.left = l; out.top = t; out.right = r; out.bottom = b;
         return out;
     }
-}
-
-
-
-
-
-TEST_CLASS (DxuiFocusManagerTests)
-{
-public:
 
     TEST_METHOD (TabAcrossRowsAndCols_FollowsReadingOrder)
     {
@@ -138,11 +151,11 @@ public:
 
     TEST_METHOD (ArrowDown_PicksNearestBelow)
     {
-        DxuiPanel          panel;
-        MockDxuiControl &  top   = panel.Add<MockDxuiControl>();
-        MockDxuiControl &  belowFar  = panel.Add<MockDxuiControl>();
-        MockDxuiControl &  belowNear = panel.Add<MockDxuiControl>();
-        DxuiFocusManager   focus;
+        DxuiPanel           panel;
+        MockDxuiControl   & top       = panel.Add<MockDxuiControl>();
+        MockDxuiControl   & belowFar  = panel.Add<MockDxuiControl>();
+        MockDxuiControl   & belowNear = panel.Add<MockDxuiControl>();
+        DxuiFocusManager    focus;
 
 
         top.SetBounds       (MakeRect (0, 0,  50, 20));
@@ -180,3 +193,4 @@ public:
         Assert::AreEqual (static_cast<void *> (&outer), static_cast<void *> (focus.Focused()));
     }
 };
+

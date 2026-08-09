@@ -14,6 +14,8 @@
 #include "../Devices/Apple2eMmu.h"
 #include "../Devices/Apple2eSoftSwitchBank.h"
 #include "../Devices/Acia6551.h"
+#include "../Devices/Printer/PrinterCard.h"
+#include "../Devices/Mockingboard/MockingboardCard.h"
 
 
 
@@ -57,14 +59,12 @@ unique_ptr<MemoryDevice> ComponentRegistry::Create (
     const DeviceConfig & config,
     MemoryBus & bus) const
 {
-    auto it = s_factories.find (typeName);
+    auto  it = s_factories.find (typeName);
 
-    if (it == s_factories.end())
-    {
-        return nullptr;
-    }
-
-    return it->second (config, bus);
+    // Null for an unregistered type name; the caller reports it against the
+    // machine config that named it.
+    return (it != s_factories.end()) ? it->second (config, bus)
+                                     : nullptr;
 }
 
 
@@ -95,6 +95,8 @@ bool ComponentRegistry::IsRegistered (const string & typeName) const
 vector<string> ComponentRegistry::GetRegisteredTypes() const
 {
     vector<string> types;
+
+
 
     for (const auto & pair : s_factories)
     {
@@ -127,4 +129,6 @@ void ComponentRegistry::RegisterBuiltinDevices (ComponentRegistry & registry)
     registry.Register ("language-card",        LanguageCard::Create);
     registry.Register ("disk-ii",              Disk2Controller::Create);
     registry.Register ("acia-6551",            Acia6551::Create);
+    registry.Register ("parallel-printer",     PrinterCard::Create);
+    registry.Register ("mockingboard",         MockingboardCard::Create);
 }

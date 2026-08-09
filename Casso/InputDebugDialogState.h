@@ -18,14 +18,16 @@
 
 struct InputLogicalColumn
 {
-    int        id;
-    LPCWSTR   headerText;
-    int        defaultWidth;
-    int        savedWidth;
-    bool       visible;
-    bool       autoSizedYet;
-    bool       userResized;
+    int      id;
+    LPCWSTR  headerText;
+    int      defaultWidth;
+    int      savedWidth;
+    bool     visible;
+    bool     autoSizedYet;
+    bool     userResized;
 };
+
+
 
 
 

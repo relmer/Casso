@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskImageStore::DiskImageStore ()
+DiskImageStore::DiskImageStore()
 {
 }
 
@@ -54,24 +54,23 @@ const DiskImageStore::Entry & DiskImageStore::At (int slot, int drive) const
 
 HRESULT DiskImageStore::DetectFormatByExtension (const string & path, DiskFormat & outFmt)
 {
-    HRESULT   hr   = S_OK;
-    size_t    pos  = 0;
+    HRESULT   hr       = S_OK;
+    size_t    pos      = 0;
     string    ext;
-    size_t    i    = 0;
+    size_t    pathLen  = 0;
 
-    pos = path.find_last_of ('.');
 
-    if (pos == string::npos || pos + 1 >= path.size ())
-    {
-        hr = E_FAIL;
-        goto Error;
-    }
+
+    pos     = path.find_last_of ('.');
+    pathLen = path.size();
+
+    CBR (pos != string::npos && pos + 1 < pathLen);
 
     ext = path.substr (pos + 1);
 
-    for (i = 0; i < ext.size (); i++)
+    for (char & ch : ext)
     {
-        ext[i] = static_cast<char> (tolower (static_cast<unsigned char> (ext[i])));
+        ch = static_cast<char> (tolower (static_cast<unsigned char> (ch)));
     }
 
     if (ext == "dsk")
@@ -122,11 +121,7 @@ HRESULT DiskImageStore::MountFromBytes (
 {
     HRESULT   hr = S_OK;
 
-    if (slot < 0 || slot >= kSlotCount || drive < 0 || drive >= kDriveCount)
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
+    CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
     {
         Entry &   entry = At (slot, drive);
@@ -144,13 +139,14 @@ HRESULT DiskImageStore::MountFromBytes (
 
         entry.image->LoadFromBytes (fmt, bytes, virtualPath);
 
-        if (!entry.image->IsLoaded ())
+        // A format the loader rejects leaves the slot empty rather than
+        // half-mounted.
+        if (!entry.image->IsLoaded())
         {
-            entry.image.reset ();
-            entry.path.clear ();
+            entry.image.reset();
+            entry.path.clear();
             entry.mounted = false;
             hr = E_FAIL;
-            goto Error;
         }
     }
 
@@ -178,24 +174,27 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path)
     vector<Byte>  bytes;
     bool          fileOk    = false;
 
+
+
     hr = DetectFormatByExtension (path, fmt);
     CHR (hr);
 
     {
-        ifstream  file (path, ios::binary | ios::ate);
         streamsize  size = 0;
 
-        fileOk = file.good ();
-        CBREx (fileOk, E_FAIL);
+        ifstream  file (path, ios::binary | ios::ate);
 
-        size = file.tellg ();
+        fileOk = file.good();
+        CBR (fileOk);
+
+        size = file.tellg();
         file.seekg (0, ios::beg);
 
         bytes.resize (static_cast<size_t> (size));
 
         if (size > 0)
         {
-            file.read (reinterpret_cast<char *> (bytes.data ()),
+            file.read (reinterpret_cast<char *> (bytes.data()),
                        static_cast<streamsize> (size));
         }
     }
@@ -212,11 +211,44 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormatFlushLossMessage
+//
+//  User-facing message for a flush that failed to persist a dirty image,
+//  built from the mount path (widened) the store already holds. Handed to
+//  the CHRN/CBRN notifications in FlushEntry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring DiskImageStore::FormatFlushLossMessage (const string & path)
+{
+    wstring  widePath = fs::path (path).wstring();
+
+
+
+    if (widePath.empty())
+    {
+        widePath = L"(unknown path)";
+    }
+
+    return L"Casso could not save changes to the disk image:\n\n" + widePath +
+           L"\n\nYour recent writes were NOT persisted. The file on disk is "
+           L"unchanged. If this is a .dsk, try a .woz image -- WOZ round-trips "
+           L"writes reliably.";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FlushEntry
 //
-//  Centralized flush helper. Dispatches through SetFlushSink when the
-//  test hook is installed; otherwise writes to the host filesystem.
-//  Does nothing if the image is clean or no source path is recorded.
+//  Centralized flush helper. Dispatches through SetFlushSink when the test
+//  hook is installed; otherwise writes to the host filesystem. Does nothing
+//  if the image is clean or no source path is recorded. A genuine failure
+//  to persist a dirty image is surfaced to the user via the shared EHM
+//  notifier (CHRN/CBRN), because every caller drops the return value.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,46 +258,44 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
     vector<Byte>  bytes;
     bool          fileOk = false;
 
-    if (!entry.mounted || entry.image == nullptr)
+
+
+    // No-op cases -- nothing dirty to persist -- succeed silently.
+    BAIL_OUT_IF (!entry.mounted || entry.image == nullptr, S_OK);
+    BAIL_OUT_IF (!entry.image->IsDirty(), S_OK);
+
+    if (entry.image->IsWriteProtected())
     {
-        goto Error;
+        entry.image->ClearDirty();
+        BAIL_OUT_IF (true, S_OK);
     }
 
-    if (!entry.image->IsDirty ())
-    {
-        goto Error;
-    }
-
-    if (entry.image->IsWriteProtected ())
-    {
-        entry.image->ClearDirty ();
-        goto Error;
-    }
-
+    // A genuine failure to persist a DIRTY image must not vanish: every
+    // caller drops FlushEntry's HRESULT (Eject / PowerCycle are void; the
+    // shell / SoftReset IGNORE_RETURN_VALUE it), so the loss is surfaced
+    // here through the shared EHM notifier rather than a return nobody
+    // checks. The image keeps its dirty bit on failure so a later flush
+    // can retry.
     hr = entry.image->Serialize (bytes);
-
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
 
     if (m_flushSink)
     {
         hr = m_flushSink (entry.path, bytes);
-        CHR (hr);
+        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
     }
-    else if (!entry.path.empty ())
+    else if (!entry.path.empty())
     {
         ofstream  file (entry.path, ios::binary);
 
-        fileOk = file.good ();
-        CBREx (fileOk, E_FAIL);
+        fileOk = file.good();
+        CBRN (fileOk, FormatFlushLossMessage (entry.path).c_str());
 
-        file.write (reinterpret_cast<const char *> (bytes.data ()),
-                    static_cast<streamsize> (bytes.size ()));
+        file.write (reinterpret_cast<const char *> (bytes.data()),
+                    static_cast<streamsize> (bytes.size()));
     }
 
-    entry.image->ClearDirty ();
+    entry.image->ClearDirty();
 
 Error:
     return hr;
@@ -285,11 +315,9 @@ HRESULT DiskImageStore::Flush (int slot, int drive)
 {
     HRESULT   hr = S_OK;
 
-    if (slot < 0 || slot >= kSlotCount || drive < 0 || drive >= kDriveCount)
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
+
+
+    CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
     hr = FlushEntry (At (slot, drive));
 
@@ -298,12 +326,23 @@ Error:
 }
 
 
-HRESULT DiskImageStore::FlushAll ()
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FlushAll
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::FlushAll()
 {
     HRESULT   hr      = S_OK;
     HRESULT   hrFirst = S_OK;
     int       slot    = 0;
     int       drive   = 0;
+
+
 
     for (slot = 0; slot < kSlotCount; slot++)
     {
@@ -337,24 +376,21 @@ void DiskImageStore::Eject (int slot, int drive)
 {
     HRESULT   hr = S_OK;
 
-    if (slot < 0 || slot >= kSlotCount || drive < 0 || drive >= kDriveCount)
-    {
-        return;
-    }
 
+
+    // An out-of-range bay and an empty one are both nothing to eject.
+    if (IsValidBay (slot, drive) && At (slot, drive).mounted)
     {
         Entry &   entry = At (slot, drive);
 
-        if (!entry.mounted)
-        {
-            return;
-        }
-
+        // Flush failures are reported to the user by FlushEntry itself; the
+        // eject proceeds either way, because refusing to unmount would leave
+        // the user with no way to get the disk out.
         hr = FlushEntry (entry);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        entry.image.reset ();
-        entry.path.clear ();
+        entry.image.reset();
+        entry.path.clear();
         entry.mounted = false;
     }
 }
@@ -372,9 +408,11 @@ void DiskImageStore::Eject (int slot, int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::SoftReset ()
+void DiskImageStore::SoftReset()
 {
-    HRESULT   hr = FlushAll ();
+    HRESULT   hr = FlushAll();
+
+
 
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
@@ -391,10 +429,12 @@ void DiskImageStore::SoftReset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::PowerCycle ()
+void DiskImageStore::PowerCycle()
 {
     int   slot  = 0;
     int   drive = 0;
+
+
 
     for (slot = 0; slot < kSlotCount; slot++)
     {
@@ -411,38 +451,63 @@ void DiskImageStore::PowerCycle ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsValidBay
+//
+//  Whether (slot, drive) names a real bay. The one place the fixed array's
+//  bounds are stated, so an accessor cannot get the check subtly wrong.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::IsValidBay (int slot, int drive)
+{
+    return slot  >= 0 && slot  < kSlotCount
+        && drive >= 0 && drive < kDriveCount;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetImage / IsMounted / GetSourcePath
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DiskImage * DiskImageStore::GetImage (int slot, int drive)
 {
-    if (slot < 0 || slot >= kSlotCount || drive < 0 || drive >= kDriveCount)
-    {
-        return nullptr;
-    }
-
-    return At (slot, drive).image.get ();
+    // Null for a bad bay is the same answer as for an empty one: no image.
+    return IsValidBay (slot, drive) ? At (slot, drive).image.get() : nullptr;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsMounted
+//
+////////////////////////////////////////////////////////////////////////////////
 
 bool DiskImageStore::IsMounted (int slot, int drive) const
 {
-    if (slot < 0 || slot >= kSlotCount || drive < 0 || drive >= kDriveCount)
-    {
-        return false;
-    }
-
-    return At (slot, drive).mounted;
+    return IsValidBay (slot, drive) && At (slot, drive).mounted;
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSourcePath
+//
+////////////////////////////////////////////////////////////////////////////////
+
 const string & DiskImageStore::GetSourcePath (int slot, int drive) const
 {
-    if (slot < 0 || slot >= kSlotCount || drive < 0 || drive >= kDriveCount)
-    {
-        return m_emptyPath;
-    }
-
-    return At (slot, drive).path;
+    // Returns a reference, so a bad bay yields the member empty string rather
+    // than a temporary.
+    return IsValidBay (slot, drive) ? At (slot, drive).path : m_emptyPath;
 }

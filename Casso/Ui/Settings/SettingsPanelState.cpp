@@ -10,209 +10,298 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Anonymous helpers
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+int  SettingsPanelState::FindKey (
+    const std::vector<std::pair<std::string, JsonValue>> & entries,
+    const std::string                                    & key)
 {
-    constexpr const char *  s_kpszUiPrefsKey      = "$cassoUiPrefs";
-    constexpr const char *  s_kpszVersionKey      = "$cassoMachineVersion";
+    int  i     = 0;
+    int  found = -1;
 
 
-    int  FindKey (
-        const std::vector<std::pair<std::string, JsonValue>> & entries,
-        const std::string                                    & key)
+    for (i = 0; i < (int) entries.size() && found < 0; ++i)
     {
-        int  i = 0;
-        for (i = 0; i < (int) entries.size(); ++i)
+        if (entries[(size_t) i].first == key)
         {
-            if (entries[(size_t) i].first == key)
-            {
-                return i;
-            }
+            found = i;
         }
-        return -1;
     }
 
+    return found;
+}
 
-    bool  GetBoolOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        bool                fallback)
+
+// The four Get*Opt helpers share one contract: a failed read restores the
+// fallback, because the getter may have written to `out` before failing.
+bool  SettingsPanelState::TryGetBoolOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    bool                fallback)
+{
+    bool      out = fallback;
+    HRESULT   hr  = obj.GetBool (key, out);
+
+
+    if (FAILED (hr))
     {
-        bool      out = fallback;
-        HRESULT   hr  = obj.GetBool (key, out);
-        if (FAILED (hr))
-        {
-            return fallback;
-        }
-        return out;
+        out = fallback;
     }
 
+    return out;
+}
 
-    std::string  GetStringOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        const std::string & fallback)
+
+std::string  SettingsPanelState::GetStringOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    const std::string & fallback)
+{
+    std::string  out = fallback;
+    HRESULT      hr  = obj.GetString (key, out);
+
+
+    if (FAILED (hr))
     {
-        std::string  out = fallback;
-        HRESULT      hr  = obj.GetString (key, out);
-        if (FAILED (hr))
-        {
-            return fallback;
-        }
-        return out;
+        out = fallback;
     }
 
+    return out;
+}
 
-    int  GetIntOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        int                 fallback)
+
+int  SettingsPanelState::GetIntOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    int                 fallback)
+{
+    int      out = fallback;
+    HRESULT  hr  = obj.GetInt (key, out);
+
+
+    if (FAILED (hr))
     {
-        int      out = fallback;
-        HRESULT  hr  = obj.GetInt (key, out);
-        if (FAILED (hr))
-        {
-            return fallback;
-        }
-        return out;
+        out = fallback;
     }
 
+    return out;
+}
 
-    double  GetNumberOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        double              fallback)
+
+double  SettingsPanelState::GetNumberOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    double              fallback)
+{
+    double   out = fallback;
+    HRESULT  hr  = obj.GetNumber (key, out);
+
+
+    if (FAILED (hr))
     {
-        double   out = fallback;
-        HRESULT  hr  = obj.GetNumber (key, out);
-        if (FAILED (hr))
-        {
-            return fallback;
-        }
-        return out;
+        out = fallback;
     }
 
+    return out;
+}
 
-    CapabilityFlag  ParseCapability (
-        const std::string & str,
-        CapabilityFlag      fallback)
+
+CapabilityFlag  SettingsPanelState::ParseCapability (
+    const std::string & str,
+    CapabilityFlag      fallback)
+{
+    CapabilityFlag  flag = fallback;
+
+
+    if      (str == "optional")        { flag = CapabilityFlag::Optional;       }
+    else if (str == "required")        { flag = CapabilityFlag::Required;       }
+    else if (str == "platform-locked") { flag = CapabilityFlag::PlatformLocked; }
+
+    return flag;
+}
+
+
+[[maybe_unused]] const char *  CapabilityToString (CapabilityFlag c)
+{
+    // Also the answer for a value outside the enum.
+    const char *  text = "optional";
+
+
+    switch (c)
     {
-        if (str == "optional")        return CapabilityFlag::Optional;
-        if (str == "required")        return CapabilityFlag::Required;
-        if (str == "platform-locked") return CapabilityFlag::PlatformLocked;
-        return fallback;
+        case CapabilityFlag::Optional:       text = "optional";        break;
+        case CapabilityFlag::Required:       text = "required";        break;
+        case CapabilityFlag::PlatformLocked: text = "platform-locked"; break;
     }
 
+    return text;
+}
 
-    [[maybe_unused]] const char *  CapabilityToString (CapabilityFlag c)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SpeedToString
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char *  SettingsPanelState::SpeedToString (SettingsSpeedMode s)
+{
+    // Also the answer for a value outside the enum.
+    const char *  text = "authentic";
+
+
+    switch (s)
     {
-        switch (c)
-        {
-            case CapabilityFlag::Optional:       return "optional";
-            case CapabilityFlag::Required:       return "required";
-            case CapabilityFlag::PlatformLocked: return "platform-locked";
-        }
-        return "optional";
+        case SettingsSpeedMode::Authentic: text = "authentic"; break;
+        case SettingsSpeedMode::Double:    text = "double";    break;
+        case SettingsSpeedMode::Maximum:   text = "maximum";   break;
     }
 
+    return text;
+}
 
-    const char *  SpeedToString (SettingsSpeedMode s)
+
+SettingsSpeedMode  SettingsPanelState::SpeedFromString (
+    const std::string & s,
+    SettingsSpeedMode   fallback)
+{
+    SettingsSpeedMode  mode = fallback;
+
+
+    if      (s == "authentic") { mode = SettingsSpeedMode::Authentic; }
+    else if (s == "double")    { mode = SettingsSpeedMode::Double;    }
+    else if (s == "maximum")   { mode = SettingsSpeedMode::Maximum;   }
+
+    return mode;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorToString
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char *  SettingsPanelState::ColorToString (SettingsColorMode c)
+{
+    // Also the answer for a value outside the enum.
+    const char *  text = "color";
+
+
+    switch (c)
     {
-        switch (s)
-        {
-            case SettingsSpeedMode::Authentic: return "authentic";
-            case SettingsSpeedMode::Double:    return "double";
-            case SettingsSpeedMode::Maximum:   return "maximum";
-        }
-        return "authentic";
+        case SettingsColorMode::Color: text = "color"; break;
+        case SettingsColorMode::Green: text = "green"; break;
+        case SettingsColorMode::Amber: text = "amber"; break;
+        case SettingsColorMode::White: text = "white"; break;
     }
 
+    return text;
+}
 
-    SettingsSpeedMode  SpeedFromString (
-        const std::string & s,
-        SettingsSpeedMode   fallback)
+
+SettingsColorMode  SettingsPanelState::ColorFromString (
+    const std::string & s,
+    SettingsColorMode   fallback)
+{
+    SettingsColorMode  mode = fallback;
+
+
+    if      (s == "color") { mode = SettingsColorMode::Color; }
+    else if (s == "green") { mode = SettingsColorMode::Green; }
+    else if (s == "amber") { mode = SettingsColorMode::Amber; }
+    else if (s == "white") { mode = SettingsColorMode::White; }
+
+    return mode;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteModeToString
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char *  SettingsPanelState::WriteModeToString (SettingsWriteMode mode)
+{
+    // Also the answer for a value outside the enum.
+    const char *  text = "buffer-and-flush";
+
+
+    switch (mode)
     {
-        if (s == "authentic") return SettingsSpeedMode::Authentic;
-        if (s == "double")    return SettingsSpeedMode::Double;
-        if (s == "maximum")   return SettingsSpeedMode::Maximum;
-        return fallback;
+        case SettingsWriteMode::BufferAndFlush: text = "buffer-and-flush"; break;
+        case SettingsWriteMode::CopyOnWrite:    text = "copy-on-write";    break;
     }
 
+    return text;
+}
 
-    const char *  ColorToString (SettingsColorMode c)
+
+SettingsWriteMode  SettingsPanelState::WriteModeFromString (
+    const std::string & s,
+    SettingsWriteMode  fallback)
+{
+    SettingsWriteMode  mode = fallback;
+
+
+    if      (s == "buffer-and-flush") { mode = SettingsWriteMode::BufferAndFlush; }
+    else if (s == "copy-on-write")    { mode = SettingsWriteMode::CopyOnWrite;    }
+
+    return mode;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CloneJson
+//
+//  Deep-copy a JsonValue by writing+re-parsing. Cheap enough for the
+//  settings panel snapshot (one-time at Show()) and avoids needing
+//  a public clone API on JsonValue.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue  SettingsPanelState::CloneJson (const JsonValue & v)
+{
+    std::string          text;
+    JsonWriter::Options  opts;
+    JsonParseError       err;
+    JsonValue            out;
+    HRESULT              hrWrite = S_OK;
+    HRESULT              hrParse = S_OK;
+
+
+
+    opts.fPretty = false;
+
+    hrWrite = JsonWriter::Write (v, opts, text);
+    hrParse = SUCCEEDED (hrWrite) ? JsonParser::Parse (text, out, err) : hrWrite;
+
+    // A round trip that fails anywhere yields an empty value, never a
+    // half-populated one.
+    if (FAILED (hrParse))
     {
-        switch (c)
-        {
-            case SettingsColorMode::Color: return "color";
-            case SettingsColorMode::Green: return "green";
-            case SettingsColorMode::Amber: return "amber";
-            case SettingsColorMode::White: return "white";
-        }
-        return "color";
+        out = JsonValue();
     }
 
-
-    SettingsColorMode  ColorFromString (
-        const std::string & s,
-        SettingsColorMode   fallback)
-    {
-        if (s == "color") return SettingsColorMode::Color;
-        if (s == "green") return SettingsColorMode::Green;
-        if (s == "amber") return SettingsColorMode::Amber;
-        if (s == "white") return SettingsColorMode::White;
-        return fallback;
-    }
-
-
-    const char *  WriteModeToString (SettingsWriteMode mode)
-    {
-        switch (mode)
-        {
-            case SettingsWriteMode::BufferAndFlush: return "buffer-and-flush";
-            case SettingsWriteMode::CopyOnWrite:    return "copy-on-write";
-        }
-        return "buffer-and-flush";
-    }
-
-
-    SettingsWriteMode  WriteModeFromString (
-        const std::string & s,
-        SettingsWriteMode  fallback)
-    {
-        if (s == "buffer-and-flush") return SettingsWriteMode::BufferAndFlush;
-        if (s == "copy-on-write")    return SettingsWriteMode::CopyOnWrite;
-        return fallback;
-    }
-
-
-    // Deep-copy a JsonValue by writing+re-parsing. Cheap enough for the
-    // settings panel snapshot (one-time at Show()) and avoids needing
-    // a public clone API on JsonValue.
-    JsonValue  CloneJson (const JsonValue & v)
-    {
-        std::string          text;
-        JsonWriter::Options  opts;
-        JsonParseError       err;
-        JsonValue            out;
-
-        opts.fPretty = false;
-
-        if (FAILED (JsonWriter::Write (v, opts, text)))
-        {
-            return JsonValue();
-        }
-        if (FAILED (JsonParser::Parse (text, out, err)))
-        {
-            return JsonValue();
-        }
-        return out;
-    }
+    return out;
 }
 
 
@@ -251,11 +340,16 @@ HRESULT SettingsPanelState::LoadFromMachine (
     const JsonValue    & defaultJson,
     const JsonValue    & mergedJson)
 {
-    HRESULT  hr = S_OK;
+    HRESULT   hr              = S_OK;
+    JsonType  defaultRootType = JsonType::Null;
+    JsonType  mergedRootType  = JsonType::Null;
 
 
-    CBR (defaultJson.GetType() == JsonType::Object);
-    CBR (mergedJson .GetType() == JsonType::Object);
+    defaultRootType = defaultJson.GetType();
+    mergedRootType  = mergedJson.GetType();
+
+    CBR (defaultRootType == JsonType::Object);
+    CBR (mergedRootType  == JsonType::Object);
 
     m_machineName = machineName;
     m_defaultJson = CloneJson (defaultJson);
@@ -308,15 +402,8 @@ void SettingsPanelState::Cancel()
 
 bool SettingsPanelState::IsDirty() const
 {
-    if (! PrefsEqual (m_original.prefs, m_current.prefs))
-    {
-        return true;
-    }
-    if (! HardwareEqual (m_original.hardware, m_current.hardware))
-    {
-        return true;
-    }
-    return false;
+    return !PrefsEqual    (m_original.prefs,    m_current.prefs)
+        || !HardwareEqual (m_original.hardware, m_current.hardware);
 }
 
 
@@ -335,22 +422,17 @@ bool SettingsPanelState::IsDirty() const
 
 bool SettingsPanelState::RequiresReset() const
 {
-    size_t  i = 0;
+    size_t  i       = 0;
+    bool    changed = m_original.hardware.size() != m_current.hardware.size();
 
 
 
-    if (m_original.hardware.size() != m_current.hardware.size())
+    for (i = 0; !changed && i < m_current.hardware.size(); ++i)
     {
-        return true;
+        changed = m_original.hardware[i].enabled != m_current.hardware[i].enabled;
     }
-    for (i = 0; i < m_current.hardware.size(); ++i)
-    {
-        if (m_original.hardware[i].enabled != m_current.hardware[i].enabled)
-        {
-            return true;
-        }
-    }
-    return false;
+
+    return changed;
 }
 
 
@@ -456,6 +538,12 @@ void SettingsPanelState::SetDriveHeadVolume (float gain)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDriveDoorVolume
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void SettingsPanelState::SetDriveDoorVolume (float gain)
 {
     m_current.prefs.driveDoorVolume = gain;
@@ -501,7 +589,44 @@ void SettingsPanelState::SetWriteProtect (int drive, bool wp)
     {
         return;
     }
+
     m_current.prefs.writeProtect[drive] = wp;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetExternalDriveConnected
+//
+//  //c external-drive port toggle. A live-effect UI pref -- it only
+//  reveals/hides the second drive-mount widget, so unlike a hardware
+//  enable it never sets RequiresReset.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetExternalDriveConnected (bool connected)
+{
+    m_current.prefs.externalDriveConnected = connected;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMouseConnected
+//
+//  //c mouse-port toggle. Live UI pref: never sets RequiresReset.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetMouseConnected (bool connected)
+{
+    m_current.prefs.mouseConnected = connected;
 }
 
 
@@ -516,11 +641,13 @@ void SettingsPanelState::SetWriteProtect (int drive, bool wp)
 
 HRESULT SettingsPanelState::SetHardwareEnabled (size_t index, bool enabled)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr            = S_OK;
+    size_t   hardwareCount = 0;
 
 
 
-    CBR (index < m_current.hardware.size());
+    hardwareCount = m_current.hardware.size();
+    CBR (index < hardwareCount);
 
     if (! enabled)
     {
@@ -573,6 +700,9 @@ HRESULT SettingsPanelState::Apply (
         sink.ApplyWriteProtect (i, m_current.prefs.writeProtect[i]);
     }
 
+    sink.ApplyExternalDriveConnected (m_current.prefs.externalDriveConnected);
+    sink.ApplyMouseConnected (m_current.prefs.mouseConnected);
+
     // FR-010: any hardware enable diff requires the caller to confirm
     // and the machine to be reset. Queue the reset request; the
     // production sink (EmulatorShell) gates it behind a modal confirm.
@@ -594,28 +724,47 @@ HRESULT SettingsPanelState::Apply (
 //
 //  ExtractUiPrefs
 //
+//  Reads the $cassoUiPrefs block into the settings panel's own state struct.
+//
+//  The struct is RESET to defaults before anything is read, so a file that
+//  omits a key -- or omits the block entirely -- yields the defaults rather
+//  than whatever the previous machine's settings left behind. That matters
+//  because this runs again on every machine switch.
+//
+//  Every field is read optionally with its default supplied inline, which
+//  keeps the default and the key adjacent instead of split between here and a
+//  constructor where they could drift apart.
+//
+//  Enum-valued fields go through their FromString helpers with a fallback, so
+//  an unrecognized value -- from a newer build or a hand edit -- lands on a
+//  valid setting instead of an out-of-range enumerator.
+//
+//  Kept as a static function over a JsonValue so the projection is testable
+//  without a settings sheet or a window.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT SettingsPanelState::ExtractUiPrefs (
     const JsonValue   & mergedJson,
     SettingsUiPrefs   & outPrefs)
 {
-    HRESULT             hr     = S_OK;
-    const JsonValue *   uiObj  = nullptr;
-    const JsonValue *   wpArr  = nullptr;
-    size_t              i      = 0;
+    HRESULT             hr             = S_OK;
+    const JsonValue *   uiObj          = nullptr;
+    const JsonValue *   wpArr          = nullptr;
+    size_t              i              = 0;
+    JsonType            mergedRootType = JsonType::Null;
+    bool                hasUiPrefs     = false;
 
 
-    CBR (mergedJson.GetType() == JsonType::Object);
+    mergedRootType = mergedJson.GetType();
+    CBR (mergedRootType == JsonType::Object);
 
-    outPrefs = SettingsUiPrefs {};
+    outPrefs   = SettingsUiPrefs {};
+    hasUiPrefs = mergedJson.HasObject (kpszUiPrefsKey, uiObj);
 
-    hr = mergedJson.GetObject (s_kpszUiPrefsKey, uiObj);
-    if (FAILED (hr) || uiObj == nullptr)
-    {
-        // No $cassoUiPrefs in the file -- struct defaults stand.
-        return S_OK;
-    }
+    // No $cassoUiPrefs in the file -- struct defaults stand.
+    BAIL_OUT_IF (!hasUiPrefs, S_OK);
+
     _Analysis_assume_ (uiObj != nullptr);
 
     outPrefs.speedMode = SpeedFromString (
@@ -630,8 +779,11 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
         GetStringOpt (*uiObj, "writeMode", "buffer-and-flush"),
         SettingsWriteMode::BufferAndFlush);
 
-    outPrefs.floppySoundEnabled = GetBoolOpt   (*uiObj, "floppySoundEnabled", true);
-    outPrefs.floppyMechanism    = GetStringOpt (*uiObj, "floppyMechanism",    "shugart");
+    outPrefs.floppySoundEnabled = TryGetBoolOpt   (*uiObj, "floppySoundEnabled",  true);
+    outPrefs.floppyMechanism    = GetStringOpt (*uiObj, "floppyMechanism",     "shugart");
+
+    outPrefs.externalDriveConnected = TryGetBoolOpt (*uiObj, "externalDriveConnected", false);
+    outPrefs.mouseConnected         = TryGetBoolOpt (*uiObj, "mouseConnected", true);
 
     outPrefs.driveMotorVolume = (float) GetNumberOpt (*uiObj, "driveMotorVolume", SettingsUiPrefs::kDefaultDriveMotorVolume);
     outPrefs.driveHeadVolume  = (float) GetNumberOpt (*uiObj, "driveHeadVolume",  SettingsUiPrefs::kDefaultDriveHeadVolume);
@@ -642,7 +794,7 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
     outPrefs.diskPath[0] = GetStringOpt (*uiObj, "disk1Path", "");
     outPrefs.diskPath[1] = GetStringOpt (*uiObj, "disk2Path", "");
 
-    if (SUCCEEDED (uiObj->GetArray ("writeProtect", wpArr)) && wpArr != nullptr)
+    if (uiObj->HasArray ("writeProtect", wpArr))
     {
         for (i = 0; i < wpArr->ArraySize() && i < 2; ++i)
         {
@@ -666,6 +818,28 @@ Error:
 //
 //  ExtractMachineInfo
 //
+//  Builds the read-only hardware summary the Hardware page displays: CPU,
+//  clock, memory regions, ROM, and the device inventory.
+//
+//  It reads the MERGED JSON rather than the built MachineConfig, so the page
+//  can describe a machine that is not currently running -- which is what lets
+//  the machine dropdown preview a different machine's specs before switching
+//  to it.
+//
+//  That is also why the parsing is local rather than reusing
+//  MachineConfigLoader: this needs a tolerant projection for DISPLAY, where a
+//  malformed field should render as a blank line, while the loader needs a
+//  strict validation that refuses to build a broken machine. Same input, two
+//  legitimately different failure policies.
+//
+//  Hence the local ParseHex returning 0 on failure and FormatSize collapsing
+//  to a readable "128K" only when the value divides evenly -- both chosen so
+//  odd data degrades into a harmless row instead of an error.
+//
+//  Regions are summarized rather than listed verbatim: the total is
+//  accumulated for the header, and aux memory is detected so the breakdown can
+//  say which bank a region belongs to.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT SettingsPanelState::ExtractMachineInfo (
@@ -679,6 +853,9 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     const JsonValue  * romObj          = nullptr;
     const JsonValue  * internalDevices = nullptr;
     const JsonValue  * slots           = nullptr;
+    bool               hasAux          = false;
+    uint32_t           totalRamBytes   = 0;
+    JsonType           mergedRootType  = JsonType::Null;
 
     auto ParseHex = [] (const std::string & str) -> uint32_t
     {
@@ -690,6 +867,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
         {
             i = 2;
         }
+
         for (; i < str.size(); ++i)
         {
             char c = str[i];
@@ -700,6 +878,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
             else                            { return 0; }
             out = (out << 4) | (uint32_t) d;
         }
+
         return out;
     };
 
@@ -709,10 +888,12 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
         {
             return "0";
         }
+
         if (bytes >= 1024 && (bytes % 1024) == 0)
         {
             return std::format ("{}K", bytes / 1024);
         }
+
         return std::format ("{}B", bytes);
     };
 
@@ -720,14 +901,16 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
                               const std::string & addrStr,
                               const std::string & sizeStr)
     {
-        uint32_t  addr = ParseHex (addrStr);
-        uint32_t  size = ParseHex (sizeStr);
+        uint32_t              addr   = ParseHex (addrStr);
+        uint32_t              size   = ParseHex (sizeStr);
+        uint32_t              end    = 0;
+        SettingsMemoryRegion  region;
         if (size == 0)
         {
             return;
         }
-        uint32_t              end    = addr + size - 1;
-        SettingsMemoryRegion  region;
+
+        end = addr + size - 1;
         region.name         = label;
         region.size         = FormatSize (size);
         region.addressRange = std::format ("${:04X}-${:04X}", addr, end);
@@ -736,7 +919,8 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
 
 
 
-    CBR (mergedJson.GetType() == JsonType::Object);
+    mergedRootType = mergedJson.GetType();
+    CBR (mergedRootType == JsonType::Object);
 
     outInfo = SettingsMachineInfo {};
 
@@ -784,9 +968,13 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
             {
                 continue;
             }
-            IGNORE_RETURN_VALUE (hrRead, entry.GetString ("address", addr));
-            IGNORE_RETURN_VALUE (hrRead, entry.GetString ("size",    size));
-            IGNORE_RETURN_VALUE (hrRead, entry.GetString ("bank",    bank));
+
+            hrRead = entry.GetString ("address", addr);
+            IGNORE_RETURN_VALUE (hrRead, S_OK);
+            hrRead = entry.GetString ("size", size);
+            IGNORE_RETURN_VALUE (hrRead, S_OK);
+            hrRead = entry.GetString ("bank", bank);
+            IGNORE_RETURN_VALUE (hrRead, S_OK);
 
             if (bank.empty() || bank == "main")
             {
@@ -794,9 +982,12 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
             }
             else
             {
-                label = std::format ("RAM ({})", bank);
+                label   = std::format ("RAM ({})", bank);
+                hasAux  = true;
             }
+
             FormatRegion (label, addr, size);
+            totalRamBytes += ParseHex (size);
         }
     }
 
@@ -805,32 +996,115 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     {
         std::string  addr;
         std::string  size;
+        std::string  bankSizeStr;
+        uint32_t     bankSize    = 0;
 
-        IGNORE_RETURN_VALUE (hrRead, romObj->GetString ("address", addr));
-        IGNORE_RETURN_VALUE (hrRead, romObj->GetString ("size",    size));
-        // System ROM size defaults to fill-to-$FFFF when omitted in the
-        // schema. Compute end from address if no size provided.
-        if (size.empty() && ! addr.empty())
+        hrRead = romObj->GetString ("address", addr);
+        IGNORE_RETURN_VALUE (hrRead, S_OK);
+        hrRead = romObj->GetString ("size", size);
+        IGNORE_RETURN_VALUE (hrRead, S_OK);
+        hrRead = romObj->GetString ("romBankSize", bankSizeStr);
+        IGNORE_RETURN_VALUE (hrRead, S_OK);
+
+        bankSize = ParseHex (bankSizeStr);
+
+        if (bankSize != 0 && ! addr.empty())
         {
-            uint32_t  startAddr = ParseHex (addr);
-            if (startAddr < 0x10000u)
-            {
-                size = std::format ("0x{:X}", 0x10000u - startAddr);
-            }
+            // Banked system ROM (//c): two `romBankSize` banks share one
+            // address window, toggled by $C028 -- only one is visible at a
+            // time. So the *mapped range* is a single bank span while the
+            // *installed* ROM is twice that (32K in a 16K window on the //c).
+            // Report the true installed size + the window, and name the row
+            // so the size/range mismatch reads as intentional banking.
+            uint32_t              startAddr = ParseHex (addr);
+            uint32_t              windowEnd = startAddr + bankSize - 1;
+            SettingsMemoryRegion  region;
+            region.name         = "System ROM (2 banks)";
+            region.size         = FormatSize (bankSize * 2);
+            region.addressRange = std::format ("${:04X}-${:04X}", startAddr, windowEnd);
+            outInfo.memoryRegions.push_back (std::move (region));
+
+            // A banked system ROM is the //c's defining trait; it is also the
+            // one machine with an optional external drive (its second drive is
+            // an add-on, not fixed hardware). Surface that so the Hardware tab
+            // can offer the External-drive Connected/Not-connected toggle.
+            outInfo.supportsExternalDrive = true;
         }
-        FormatRegion ("System ROM", addr, size);
+        else
+        {
+            // Flat system ROM (][ / ][+ / //e). Size defaults to fill-to-
+            // $FFFF when omitted in the schema; compute end from address.
+            if (size.empty() && ! addr.empty())
+            {
+                uint32_t  startAddr = ParseHex (addr);
+                if (startAddr < 0x10000u)
+                {
+                    size = std::format ("0x{:X}", 0x10000u - startAddr);
+                }
+            }
+
+            FormatRegion ("System ROM", addr, size);
+        }
     }
 
     hrRead = mergedJson.GetArray ("internalDevices", internalDevices);
     if (SUCCEEDED (hrRead) && internalDevices != nullptr)
     {
+        bool  hasLanguageCard = false;
+
         outInfo.devices += internalDevices->ArraySize();
+
+        // A language card adds 16K of bank-switched RAM at $D000-$FFFF per 64K
+        // bank ($D000-$DFFF is double-banked, so 16K in a 12K window). The base
+        // "ram" entries above only cover $0000-$BFFF, so surface the LC RAM here
+        // -- otherwise a 128K //e/​//c reads as only 96K. One region per bank
+        // (main, plus aux when the machine has an aux bank).
+        for (size_t d = 0; d < internalDevices->ArraySize(); ++d)
+        {
+            const JsonValue &  dev = internalDevices->ArrayAt (d);
+            std::string        type;
+
+            if (dev.GetType() == JsonType::Object &&
+                dev.HasString ("type", type) &&
+                type == "language-card")
+            {
+                hasLanguageCard = true;
+                break;
+            }
+        }
+
+        if (hasLanguageCard)
+        {
+            auto addLcRam = [&] (const std::string & label)
+            {
+                SettingsMemoryRegion  region;
+                region.name         = label;
+                region.size         = FormatSize (0x4000);   // 16K ($D000 double-banked)
+                region.addressRange = "$D000-$FFFF";
+                outInfo.memoryRegions.push_back (std::move (region));
+                totalRamBytes += 0x4000;
+            };
+
+            addLcRam ("RAM (main, bank-switched)");
+            if (hasAux)
+            {
+                addLcRam ("RAM (aux, bank-switched)");
+            }
+        }
     }
 
     hrRead = mergedJson.GetArray ("slots", slots);
     if (SUCCEEDED (hrRead) && slots != nullptr)
     {
         outInfo.devices += slots->ArraySize();
+    }
+
+    // Headline total: sum every RAM region (main + aux + language-card banks;
+    // ROM is excluded) so a 128K //e/​//c reads its full 128K at a glance above
+    // the per-region breakdown.
+    if (totalRamBytes != 0)
+    {
+        outInfo.ramSummary = FormatSize (totalRamBytes) + " RAM";
     }
 
 Error:
@@ -857,6 +1131,15 @@ HRESULT SettingsPanelState::ExtractHardware (
     const JsonValue              & mergedJson,
     std::vector<HardwareEntry>   & outEntries)
 {
+    HRESULT            hr             = S_OK;
+    const JsonValue  * devArr         = nullptr;
+    const JsonValue  * slotArr        = nullptr;
+    size_t             i              = 0;
+    size_t             j              = 0;
+    JsonType           mergedRootType = {};
+
+
+
     static const struct { const char * id; const char * display; }  s_kDeviceDisplayNames[] =
     {
         { "disk-ii",                 "Disk ][" },
@@ -880,35 +1163,36 @@ HRESULT SettingsPanelState::ExtractHardware (
         { "apple2-keyboard",         "Keyboard" },
         { "apple2-speaker",          "Speaker" },
         { "apple2-softswitches",     "Soft Switches" },
-        { "apple2e-keyboard",        "Keyboard (Apple //e)" },
-        { "apple2e-softswitches",    "Soft Switches (Apple //e)" },
+        // The //e-generation keyboard/soft-switch controllers are shared by the
+        // //e and the //c, so the label stays machine-neutral (the machine name
+        // is already shown at the top of the panel) rather than hardcoding //e.
+        { "apple2e-keyboard",        "Keyboard" },
+        { "apple2e-softswitches",    "Soft Switches" },
         { "apple2e-mmu",             "Memory Management Unit" },
     };
 
-    HRESULT             hr       = S_OK;
-    const JsonValue *   devArr   = nullptr;
-    const JsonValue *   slotArr  = nullptr;
-    size_t              i        = 0;
-    size_t              j        = 0;
+    mergedRootType = JsonType::Null;
 
 
-    CBR (mergedJson.GetType() == JsonType::Object);
+    mergedRootType = mergedJson.GetType();
+    CBR (mergedRootType == JsonType::Object);
 
     outEntries.clear();
 
-    if (SUCCEEDED (mergedJson.GetArray ("internalDevices", devArr)) && devArr != nullptr)
+    if (mergedJson.HasArray ("internalDevices", devArr))
     {
         for (i = 0; i < devArr->ArraySize(); ++i)
         {
-            const JsonValue & entry = devArr->ArrayAt (i);
+            const JsonValue  & entry    = devArr->ArrayAt (i);
+            HardwareEntry      hw;
+            std::string        friendly;
             if (entry.GetType() != JsonType::Object)
             {
                 continue;
             }
 
-            HardwareEntry  hw;
             std::string    devType = GetStringOpt (entry, "type", "");
-            std::string    friendly = devType;
+            friendly = devType;
 
             for (j = 0; j < sizeof (s_kDeviceDisplayNames) / sizeof (s_kDeviceDisplayNames[0]); ++j)
             {
@@ -928,26 +1212,27 @@ HRESULT SettingsPanelState::ExtractHardware (
                 GetStringOpt (entry, "capabilityFlag", ""),
                 CapabilityFlag::Required);   // FR-015 default for internal
             hw.lockReason  = GetStringOpt (entry, "lockReason", "");
-            hw.enabled     = GetBoolOpt   (entry, "enabled",    true);
+            hw.enabled     = TryGetBoolOpt   (entry, "enabled",    true);
 
             outEntries.push_back (std::move (hw));
         }
     }
 
-    if (SUCCEEDED (mergedJson.GetArray ("slots", slotArr)) && slotArr != nullptr)
+    if (mergedJson.HasArray ("slots", slotArr))
     {
         for (i = 0; i < slotArr->ArraySize(); ++i)
         {
-            const JsonValue & entry = slotArr->ArrayAt (i);
+            const JsonValue  & entry   = slotArr->ArrayAt (i);
+            HardwareEntry      hw;
+            std::string        devNice;
             if (entry.GetType() != JsonType::Object)
             {
                 continue;
             }
 
-            HardwareEntry  hw;
             int            slotNum  = GetIntOpt (entry, "slot", 0);
             std::string    dev      = GetStringOpt (entry, "device", "");
-            std::string    devNice  = dev;
+            devNice = dev;
 
             for (j = 0; j < sizeof (s_kDeviceDisplayNames) / sizeof (s_kDeviceDisplayNames[0]); ++j)
             {
@@ -968,7 +1253,7 @@ HRESULT SettingsPanelState::ExtractHardware (
                 GetStringOpt (entry, "capabilityFlag", ""),
                 CapabilityFlag::Optional);   // FR-015 default for slots
             hw.lockReason  = GetStringOpt (entry, "lockReason", "");
-            hw.enabled     = GetBoolOpt   (entry, "enabled",    true);
+            hw.enabled     = TryGetBoolOpt   (entry, "enabled",    true);
 
             outEntries.push_back (std::move (hw));
         }
@@ -1001,19 +1286,24 @@ JsonValue SettingsPanelState::BuildJson (
     const std::vector<HardwareEntry>      & hw,
     const SettingsUiPrefs                 & prefs)
 {
-    std::vector<std::pair<std::string, JsonValue>>  root;
-    std::vector<std::pair<std::string, JsonValue>>  uiObj;
-    std::vector<JsonValue>                          wpArr;
-    std::vector<JsonValue>                          devArr;
-    std::vector<JsonValue>                          slotArr;
-    const std::vector<std::pair<std::string, JsonValue>> *  entries = nullptr;
-    size_t                                          i = 0;
+    std::vector<std::pair<std::string, JsonValue>>          root;
+    std::vector<std::pair<std::string, JsonValue>>          uiObj;
+    std::vector<JsonValue>                                  wpArr;
+    std::vector<JsonValue>                                  devArr;
+    std::vector<JsonValue>                                  slotArr;
+    const std::vector<std::pair<std::string, JsonValue>>  * entries = nullptr;
+    HRESULT                                                 hr      = S_OK;
+    size_t                                                  i       = 0;
+    // Default-constructed, so a non-object input yields a NULL value -- not an
+    // empty object, which is what returning JsonValue (std::move (root)) early
+    // would have produced.
+    JsonValue                                       result;
+    JsonType                                        rootType = JsonType::Null;
 
 
-    if (mergedJson.GetType() != JsonType::Object)
-    {
-        return JsonValue();
-    }
+    rootType = mergedJson.GetType();
+
+    BAIL_OUT_IF (rootType != JsonType::Object, S_OK);
 
     entries = &mergedJson.GetObjectEntries();
 
@@ -1022,10 +1312,11 @@ JsonValue SettingsPanelState::BuildJson (
         const std::string & key = (*entries)[i].first;
         const JsonValue   & val = (*entries)[i].second;
 
-        if (key == "internalDevices" || key == "slots" || key == s_kpszUiPrefsKey)
+        if (key == "internalDevices" || key == "slots" || key == kpszUiPrefsKey)
         {
             continue;
         }
+
         root.emplace_back (key, CloneJson (val));
     }
 
@@ -1036,11 +1327,18 @@ JsonValue SettingsPanelState::BuildJson (
         const JsonValue *  devSrc  = nullptr;
         const JsonValue *  slotSrc = nullptr;
 
-        if (SUCCEEDED (mergedJson.GetArray ("internalDevices", devSrc)) && devSrc != nullptr)
+        if (mergedJson.HasArray ("internalDevices", devSrc))
         {
             for (i = 0; i < devSrc->ArraySize(); ++i)
             {
-                const JsonValue & src = devSrc->ArrayAt (i);
+                // GetObjectEntries is a plain accessor (empty for
+                // non-objects), so the binding is safe before the type test.
+                const JsonValue                                 & src         = devSrc->ArrayAt (i);
+                const auto                                      & srcEntries  = src.GetObjectEntries();
+                bool                                              found       = false;
+                bool                                              enabledFlag = false;
+                std::vector<std::pair<std::string, JsonValue>>    rebuilt;
+                size_t                                            j           = 0;
                 if (src.GetType() != JsonType::Object)
                 {
                     devArr.push_back (CloneJson (src));
@@ -1048,71 +1346,75 @@ JsonValue SettingsPanelState::BuildJson (
                 }
 
                 // Find matching hw entry by (kind, jsonIndex).
-                bool   found        = false;
-                bool   enabledFlag  = true;
-                size_t h            = 0;
-                for (h = 0; h < hw.size(); ++h)
+                enabledFlag = true;
+
+                for (const HardwareEntry & hwEntry : hw)
                 {
-                    if (hw[h].kind == HardwareEntryKind::InternalDevice &&
-                        hw[h].jsonIndex == (int) i)
+                    if (hwEntry.kind == HardwareEntryKind::InternalDevice &&
+                        hwEntry.jsonIndex == (int) i)
                     {
-                        enabledFlag = hw[h].enabled;
+                        enabledFlag = hwEntry.enabled;
                         found       = true;
                         break;
                     }
                 }
+
                 (void) found;
 
-                std::vector<std::pair<std::string, JsonValue>>  rebuilt;
-                const auto &  srcEntries = src.GetObjectEntries();
-                size_t        j          = 0;
-                for (j = 0; j < srcEntries.size(); ++j)
+                for (auto & srcEntry : srcEntries)
                 {
-                    if (srcEntries[j].first == "enabled")
+                    if (srcEntry.first == "enabled")
                     {
                         continue;
                     }
-                    rebuilt.emplace_back (srcEntries[j].first, CloneJson (srcEntries[j].second));
+
+                    rebuilt.emplace_back (srcEntry.first, CloneJson (srcEntry.second));
                 }
+
                 rebuilt.emplace_back ("enabled", JsonValue (enabledFlag));
                 devArr.emplace_back (JsonValue (std::move (rebuilt)));
             }
         }
 
-        if (SUCCEEDED (mergedJson.GetArray ("slots", slotSrc)) && slotSrc != nullptr)
+        if (mergedJson.HasArray ("slots", slotSrc))
         {
             for (i = 0; i < slotSrc->ArraySize(); ++i)
             {
-                const JsonValue & src = slotSrc->ArrayAt (i);
+                // Same accessor-before-type-test shape as the
+                // internalDevices loop above.
+                const JsonValue                                 & src         = slotSrc->ArrayAt (i);
+                const auto                                      & srcEntries  = src.GetObjectEntries();
+                bool                                              enabledFlag = false;
+                std::vector<std::pair<std::string, JsonValue>>    rebuilt;
+                size_t                                            j           = 0;
                 if (src.GetType() != JsonType::Object)
                 {
                     slotArr.push_back (CloneJson (src));
                     continue;
                 }
 
-                bool   enabledFlag = true;
-                size_t h           = 0;
-                for (h = 0; h < hw.size(); ++h)
+                enabledFlag = true;
+
+                for (const HardwareEntry & hwEntry : hw)
                 {
-                    if (hw[h].kind == HardwareEntryKind::Slot &&
-                        hw[h].jsonIndex == (int) i)
+                    if (hwEntry.kind == HardwareEntryKind::Slot &&
+                        hwEntry.jsonIndex == (int) i)
                     {
-                        enabledFlag = hw[h].enabled;
+                        enabledFlag = hwEntry.enabled;
                         break;
                     }
                 }
 
-                std::vector<std::pair<std::string, JsonValue>>  rebuilt;
-                const auto &  srcEntries = src.GetObjectEntries();
-                size_t        j          = 0;
-                for (j = 0; j < srcEntries.size(); ++j)
+                for (auto & srcEntry : srcEntries)
                 {
-                    if (srcEntries[j].first == "enabled")
+                    if (srcEntry.first == "enabled")
                     {
                         continue;
                     }
-                    rebuilt.emplace_back (srcEntries[j].first, CloneJson (srcEntries[j].second));
+
+                    rebuilt.emplace_back (srcEntry.first, CloneJson (srcEntry.second));
                 }
+
                 rebuilt.emplace_back ("enabled", JsonValue (enabledFlag));
                 slotArr.emplace_back (JsonValue (std::move (rebuilt)));
             }
@@ -1123,6 +1425,7 @@ JsonValue SettingsPanelState::BuildJson (
     {
         root.emplace_back ("internalDevices", JsonValue (std::move (devArr)));
     }
+
     if (! slotArr.empty())
     {
         root.emplace_back ("slots", JsonValue (std::move (slotArr)));
@@ -1134,6 +1437,8 @@ JsonValue SettingsPanelState::BuildJson (
     uiObj.emplace_back ("writeMode",          JsonValue (std::string (WriteModeToString (prefs.writeMode))));
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (prefs.floppySoundEnabled));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (prefs.floppyMechanism));
+    uiObj.emplace_back ("externalDriveConnected", JsonValue (prefs.externalDriveConnected));
+    uiObj.emplace_back ("mouseConnected",         JsonValue (prefs.mouseConnected));
     uiObj.emplace_back ("driveMotorVolume",   JsonValue ((double) prefs.driveMotorVolume));
     uiObj.emplace_back ("driveHeadVolume",    JsonValue ((double) prefs.driveHeadVolume));
     uiObj.emplace_back ("driveDoorVolume",    JsonValue ((double) prefs.driveDoorVolume));
@@ -1146,9 +1451,12 @@ JsonValue SettingsPanelState::BuildJson (
     wpArr.emplace_back (JsonValue (prefs.writeProtect[1]));
     uiObj.emplace_back ("writeProtect", JsonValue (std::move (wpArr)));
 
-    root.emplace_back (s_kpszUiPrefsKey, JsonValue (std::move (uiObj)));
+    root.emplace_back (kpszUiPrefsKey, JsonValue (std::move (uiObj)));
 
-    return JsonValue (std::move (root));
+    result = JsonValue (std::move (root));
+
+Error:
+    return result;
 }
 
 
@@ -1165,21 +1473,22 @@ bool SettingsPanelState::PrefsEqual (
     const SettingsUiPrefs & a,
     const SettingsUiPrefs & b)
 {
-    if (a.speedMode             != b.speedMode)             return false;
-    if (a.colorMode             != b.colorMode)             return false;
-    if (a.writeMode             != b.writeMode)             return false;
-    if (a.floppySoundEnabled    != b.floppySoundEnabled)    return false;
-    if (a.floppyMechanism       != b.floppyMechanism)       return false;
-    if (a.driveMotorVolume      != b.driveMotorVolume)       return false;
-    if (a.driveHeadVolume       != b.driveHeadVolume)        return false;
-    if (a.driveDoorVolume       != b.driveDoorVolume)        return false;
-    if (a.driveOnePan           != b.driveOnePan)            return false;
-    if (a.driveTwoPan           != b.driveTwoPan)            return false;
-    if (a.diskPath[0]           != b.diskPath[0])           return false;
-    if (a.diskPath[1]           != b.diskPath[1])           return false;
-    if (a.writeProtect[0]       != b.writeProtect[0])       return false;
-    if (a.writeProtect[1]       != b.writeProtect[1])       return false;
-    return true;
+    return a.speedMode              == b.speedMode
+        && a.colorMode              == b.colorMode
+        && a.writeMode              == b.writeMode
+        && a.floppySoundEnabled     == b.floppySoundEnabled
+        && a.floppyMechanism        == b.floppyMechanism
+        && a.externalDriveConnected == b.externalDriveConnected
+        && a.mouseConnected         == b.mouseConnected
+        && a.driveMotorVolume       == b.driveMotorVolume
+        && a.driveHeadVolume        == b.driveHeadVolume
+        && a.driveDoorVolume        == b.driveDoorVolume
+        && a.driveOnePan            == b.driveOnePan
+        && a.driveTwoPan            == b.driveTwoPan
+        && a.diskPath[0]            == b.diskPath[0]
+        && a.diskPath[1]            == b.diskPath[1]
+        && a.writeProtect[0]        == b.writeProtect[0]
+        && a.writeProtect[1]        == b.writeProtect[1];
 }
 
 
@@ -1196,22 +1505,20 @@ bool SettingsPanelState::HardwareEqual (
     const std::vector<HardwareEntry> & a,
     const std::vector<HardwareEntry> & b)
 {
-    size_t  i = 0;
+    size_t  i     = 0;
+    bool    equal = a.size() == b.size();
 
 
 
-    if (a.size() != b.size())
+    for (i = 0; equal && i < a.size(); ++i)
     {
-        return false;
+        equal = a[i].kind       == b[i].kind
+             && a[i].jsonIndex  == b[i].jsonIndex
+             && a[i].slot       == b[i].slot
+             && a[i].type       == b[i].type
+             && a[i].capability == b[i].capability
+             && a[i].enabled    == b[i].enabled;
     }
-    for (i = 0; i < a.size(); ++i)
-    {
-        if (a[i].kind       != b[i].kind)       return false;
-        if (a[i].jsonIndex  != b[i].jsonIndex)  return false;
-        if (a[i].slot       != b[i].slot)       return false;
-        if (a[i].type       != b[i].type)       return false;
-        if (a[i].capability != b[i].capability) return false;
-        if (a[i].enabled    != b[i].enabled)    return false;
-    }
-    return true;
+
+    return equal;
 }

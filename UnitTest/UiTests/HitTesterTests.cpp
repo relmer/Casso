@@ -10,20 +10,46 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace UiTests
 {
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HitTesterTests
+//
+//  The chrome hit-test registry: which registered rect a point falls in, and
+//  which slot it reports.
+//
+//  This is what routes non-client hits and drag-drop targets, so the tests are
+//  about REGISTRATION as much as geometry -- registering, clearing, and
+//  re-registering between layouts, which is what happens on every resize.
+//
+//  Overlapping rects are covered because they are reachable, and the resolution
+//  order is a contract: chrome bands and drive widgets can overlap at small
+//  window sizes, and the topmost must win consistently rather than by
+//  registration accident.
+//
+//  Points on an edge are tested explicitly, since half-open rect conventions
+//  are easy to apply inconsistently between the register and the test.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_CLASS (HitTesterTests)
 {
 public:
 
     TEST_METHOD (Pick_ReturnsLatestRegisteredOnOverlap)
     {
-        DxuiHitTester  tester;
-        DxuiHitRect    a = { { 0, 0, 100, 100 }, DxuiHitSlot::Client, 1 };
-        DxuiHitRect    b = { { 10, 10, 50, 50 }, DxuiHitSlot::Custom, 2 };
+        DxuiHitTester        tester;
+        DxuiHitRect          a      = { { 0, 0, 100, 100 }, DxuiHitSlot::Client, 1 };
+        DxuiHitRect          b      = { { 10, 10, 50, 50 }, DxuiHitSlot::Custom, 2 };
+        const DxuiHitRect  * hit    = nullptr;
 
         tester.Register (a);
         tester.Register (b);
 
-        const DxuiHitRect *  hit = tester.Pick (20, 20);
+        hit = tester.Pick (20, 20);
 
         Assert::IsNotNull (hit);
         Assert::AreEqual (2, hit->tag);

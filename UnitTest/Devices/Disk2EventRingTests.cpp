@@ -1,5 +1,4 @@
 #include "Pch.h"
-#include <thread>
 
 #include "Devices/Disk2EventRing.h"
 
@@ -10,32 +9,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 // (single instance) which trips C6262. The ring is the system under
 // test; suppress for this file only.
 #pragma warning (disable: 6262)
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Helpers
-//
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    Disk2Event MakeEvent (uint64_t cycle)
-    {
-        Disk2Event  e {};
-
-        e.category               = EventCategory::Controller;
-        e.type                   = Disk2EventType::HeadStep;
-        e.cycle                  = cycle;
-        e.payload.step.prevQt    = 0;
-        e.payload.step.newQt     = (int) (cycle & 0xFF);
-
-        return e;
-    }
-}
 
 
 
@@ -56,6 +29,19 @@ namespace Disk2EventRingTests
     TEST_CLASS (Disk2EventRingTests)
     {
     public:
+
+        Disk2Event MakeEvent (uint64_t cycle)
+        {
+            Disk2Event  e {};
+
+            e.category               = EventCategory::Controller;
+            e.type                   = Disk2EventType::HeadStep;
+            e.cycle                  = cycle;
+            e.payload.step.prevQt    = 0;
+            e.payload.step.newQt     = (int) (cycle & 0xFF);
+
+            return e;
+        }
 
         TEST_METHOD (EmptyPopReturnsFalse)
         {
@@ -88,8 +74,8 @@ namespace Disk2EventRingTests
         TEST_METHOD (FifoOrderingOnFullCycle)
         {
             Disk2EventRing   ring;
-            Disk2Event       out  {};
             uint32_t         i    = 0;
+            Disk2Event       out  {};
 
             for (i = 0; i < Disk2EventRing::kEventRingCapacity; i++)
             {
@@ -154,12 +140,15 @@ namespace Disk2EventRingTests
 
         TEST_METHOD (WrapAroundPreservesFifo)
         {
+            uint32_t         i    = 0;
+
+
+
             // Fill, partially drain, refill, fully drain -- exercises
             // the index-wrap behavior. The 32-bit counters increment
             // monotonically; the mask isolates the slot index.
             Disk2EventRing   ring;
             Disk2Event       out  {};
-            uint32_t         i    = 0;
 
             for (i = 0; i < Disk2EventRing::kEventRingCapacity; i++)
             {
@@ -191,6 +180,13 @@ namespace Disk2EventRingTests
 
         TEST_METHOD (TwoThreadStressNoTornReadsNoReorder)
         {
+            constexpr uint64_t  kTotal   = 100000;
+            uint64_t            seen     = 0;
+            uint64_t            lastVal  = 0;
+            bool                haveLast = false;
+
+
+
             // One producer thread pushes 100,000 monotonically-
             // increasing payloads; one consumer thread drains. The
             // consumer asserts pops arrive in strictly ascending
@@ -201,7 +197,6 @@ namespace Disk2EventRingTests
             Disk2EventRing                  ring;
             std::atomic<bool>               consumerDone { false };
             std::atomic<uint32_t>           failedPushes { 0 };
-            constexpr uint64_t              kTotal       = 100000;
 
             std::thread  producer ([&]()
             {
@@ -217,9 +212,6 @@ namespace Disk2EventRingTests
                 }
             });
 
-            uint64_t      seen    = 0;
-            uint64_t      lastVal = 0;
-            bool          haveLast = false;
             Disk2Event    out     {};
 
             while (seen < kTotal)
@@ -252,3 +244,4 @@ namespace Disk2EventRingTests
         }
     };
 }
+

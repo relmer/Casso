@@ -10,6 +10,8 @@ class DxuiPopupHost;
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar
@@ -21,7 +23,7 @@ class DxuiPopupHost;
 //  query callbacks, enabled flags, checkable flags, and separator
 //  rows.
 //
-//  Behaviour mirrors the Windows desktop convention plus modern Win11
+//  Behavior mirrors the Windows desktop convention plus modern Win11
 //  hover semantics:
 //      * Click a top-level title to toggle its submenu open / closed.
 //      * Once any submenu is open, hovering an adjacent title swaps
@@ -34,10 +36,10 @@ class DxuiPopupHost;
 //        same title that opened it dismisses it.
 //
 //  The widget paints via `IDxuiPainter` + `IDxuiTextRenderer` and
-//  theme-colours through `IDxuiTheme`. The host application can
+//  theme-colors through `IDxuiTheme`. The host application can
 //  override the strip / dropdown palette via `SetStripColors` /
 //  `SetDropdownColors` when the default `IDxuiTheme` mapping is too
-//  generic (Casso's chrome supplies legacy nav-specific colours so
+//  generic (Casso's chrome supplies legacy nav-specific colors so
 //  the menu surface keeps visual parity with the rest of the shell).
 //
 //  Derives from `IDxuiControl` so it slots into `DxuiPanel` trees.
@@ -166,8 +168,11 @@ public:
                                  wchar_t            & outLower);
 
 private:
+    static bool  RectContains (const RECT & rect, int x, int y);
+    static int   ScaleDpi     (int dipValue, UINT dpi);
+
     //
-    //  Resolved dropdown colours. The in-window paint resolves these
+    //  Resolved dropdown colors. The in-window paint resolves these
     //  from the theme (or the SetDropdownColors overrides) every frame;
     //  the popup render path reuses the cached copy because its render
     //  hook gets no theme.
@@ -182,6 +187,15 @@ private:
         uint32_t  divider  = 0xFF3A4453;
         uint32_t  disabled = 0xFF6A7585;
     };
+
+    // Index-range predicates. The two vectors are filled at different times --
+    // m_items when the menu is built, m_titleRects when it is laid out -- so a
+    // valid item index is not automatically a valid rect index, and the callers
+    // that read one must not bounds-check against the other.
+    bool  HasMenu           (int menuIndex) const { return menuIndex >= 0 && menuIndex < (int) m_items.size(); }
+    bool  HasTitleRect      (int menuIndex) const { return menuIndex >= 0 && menuIndex < (int) m_titleRects.size(); }
+
+    bool  ActivateMnemonicRow (wchar_t ch);
 
     int   HitTitleIndex     (int x, int y) const;
     int   HitEntryIndex     (int x, int y) const;

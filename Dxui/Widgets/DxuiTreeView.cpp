@@ -16,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTreeView::RebuildFlatRows ()
+void DxuiTreeView::RebuildFlatRows()
 {
     std::vector<int>  path;
     size_t            i = 0;
@@ -88,12 +88,13 @@ std::vector<int> DxuiTreeView::PathFor (int flatIndex) const
 
 
 
-    if (flatIndex < 0 || flatIndex >= (int) m_flatRows.size())
+    // An out-of-range index yields an empty path, which NodeAtMutable reads as
+    // "no such node".
+    if (flatIndex >= 0 && flatIndex < (int) m_flatRows.size())
     {
-        return out;
+        out = m_flatRows[(size_t) flatIndex].pathStack;
     }
 
-    out = m_flatRows[(size_t) flatIndex].pathStack;
     return out;
 }
 
@@ -120,32 +121,45 @@ const DxuiTreeNode * DxuiTreeView::NodeAt (int flatIndex) const
 //
 //  NodeAtMutable
 //
+//  Resolves a flat row index to the node it names, for modification.
+//
+//  The tree is stored as nested vectors while the view addresses rows by a
+//  single flat index, so every lookup has to walk a child PATH down from the
+//  roots. That path is what PathFor computes; this function is the descent.
+//
+//  It cannot be written in terms of the const NodeAt without casting away
+//  constness, and duplicating the descent is the lesser evil -- the walk is
+//  short and the cast would be a lie about the object's constness.
+//
+//  Every index is bounds-checked at each level, so a stale flat index left
+//  over from a collapsed or reloaded tree yields null rather than reading past
+//  a child vector.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiTreeNode * DxuiTreeView::NodeAtMutable (int flatIndex)
 {
-    std::vector<int>  path;
-    DxuiTreeNode        * cursor = nullptr;
-    size_t            i      = 0;
-    int               idx    = 0;
+    std::vector<int>    path;
+    DxuiTreeNode      * cursor = nullptr;
+    size_t              i      = 0;
+    int                 idx    = 0;
 
 
 
     path = PathFor (flatIndex);
-    if (path.empty())
-    {
-        return nullptr;
-    }
 
-    idx    = path[0];
-    cursor = (idx >= 0 && idx < (int) m_nodes.size()) ? &m_nodes[(size_t) idx] : nullptr;
-
-    for (i = 1; i < path.size() && cursor != nullptr; ++i)
+    if (!path.empty())
     {
-        idx    = path[i];
-        cursor = (idx >= 0 && idx < (int) cursor->children.size())
-                    ? &cursor->children[(size_t) idx]
-                    : nullptr;
+        idx    = path[0];
+        cursor = (idx >= 0 && idx < (int) m_nodes.size()) ? &m_nodes[(size_t) idx] : nullptr;
+
+        for (i = 1; i < path.size() && cursor != nullptr; ++i)
+        {
+            idx    = path[i];
+            cursor = (idx >= 0 && idx < (int) cursor->children.size())
+                        ? &cursor->children[(size_t) idx]
+                        : nullptr;
+        }
     }
 
     return cursor;
@@ -165,12 +179,11 @@ bool DxuiTreeView::IsInteractive (int flatIndex) const
 {
     const DxuiTreeNode * n = NodeAt (flatIndex);
 
-    if (n == nullptr || !m_enabled)
-    {
-        return false;
-    }
 
-    return n->capabilityFlag == DxuiTreeCapabilityFlag::Optional;
+
+    return n != nullptr
+        && m_enabled
+        && n->capabilityFlag == DxuiTreeCapabilityFlag::Optional;
 }
 
 
@@ -181,36 +194,44 @@ bool DxuiTreeView::IsInteractive (int flatIndex) const
 //
 //  HitTestRow
 //
+//  Which visible row a point falls on, or -1.
+//
+//  A single divide suffices here -- unlike the menu bar's varying entry
+//  heights -- because every tree row is the same height.
+//
+//  A point BELOW the last populated row is a miss, not the last row. Without
+//  that clamp, clicking the empty space under a short tree would select its
+//  final item, which reads as the control selecting something the user did not
+//  click on.
+//
+//  A disabled tree reports a miss for every point, so the enabled test lives
+//  here rather than at each call site.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiTreeView::HitTestRow (int x, int y) const
 {
-    int  relY = 0;
-    int  row  = 0;
+    int   relY    = 0;
+    int   row     = -1;
+    bool  inRange = false;
 
 
 
-    if (!m_enabled)
+    inRange = m_enabled
+              && x >= m_boundsDip.left && x < m_boundsDip.right
+              && y >= m_boundsDip.top  && y < m_boundsDip.bottom
+              && m_rowHeightPx > 0;
+
+    if (inRange)
     {
-        return -1;
-    }
+        relY = y - m_boundsDip.top;
+        row  = relY / m_rowHeightPx;
 
-    if (x < m_boundsDip.left || x >= m_boundsDip.right || y < m_boundsDip.top || y >= m_boundsDip.bottom)
-    {
-        return -1;
-    }
-
-    if (m_rowHeightPx <= 0)
-    {
-        return -1;
-    }
-
-    relY = y - m_boundsDip.top;
-    row  = relY / m_rowHeightPx;
-
-    if (row < 0 || row >= (int) m_flatRows.size())
-    {
-        return -1;
+        // Past the last populated row is a miss, not the last row.
+        if (row >= (int) m_flatRows.size())
+        {
+            row = -1;
+        }
     }
 
     return row;
@@ -231,23 +252,23 @@ bool DxuiTreeView::HitTestTwisty (int x, int y, int flatRow) const
     int    rowTop   = 0;
     int    rowDepth = 0;
     int    twistyX  = 0;
+    bool   isHit    = false;
 
 
 
     UNREFERENCED_PARAMETER (y);
 
-    if (flatRow < 0 || flatRow >= (int) m_flatRows.size())
+    if (flatRow >= 0 && flatRow < (int) m_flatRows.size())
     {
-        return false;
+        rowDepth = m_flatRows[(size_t) flatRow].depth;
+        rowTop   = m_boundsDip.top + flatRow * m_rowHeightPx;
+        twistyX  = m_boundsDip.left + rowDepth * m_indentPx;
+        isHit    = x >= twistyX && x < twistyX + m_twistyPx;
+
+        UNREFERENCED_PARAMETER (rowTop);
     }
 
-    rowDepth = m_flatRows[(size_t) flatRow].depth;
-    rowTop   = m_boundsDip.top + flatRow * m_rowHeightPx;
-    twistyX  = m_boundsDip.left + rowDepth * m_indentPx;
-
-    UNREFERENCED_PARAMETER (rowTop);
-
-    return x >= twistyX && x < twistyX + m_twistyPx;
+    return isHit;
 }
 
 
@@ -262,22 +283,22 @@ bool DxuiTreeView::HitTestTwisty (int x, int y, int flatRow) const
 
 bool DxuiTreeView::HitTestCheckbox (int x, int y, int flatRow) const
 {
-    int  rowDepth   = 0;
-    int  checkboxX  = 0;
+    int   rowDepth  = 0;
+    int   checkboxX = 0;
+    bool  isHit     = false;
 
 
 
     UNREFERENCED_PARAMETER (y);
 
-    if (flatRow < 0 || flatRow >= (int) m_flatRows.size())
+    if (flatRow >= 0 && flatRow < (int) m_flatRows.size())
     {
-        return false;
+        rowDepth  = m_flatRows[(size_t) flatRow].depth;
+        checkboxX = m_boundsDip.left + rowDepth * m_indentPx + m_twistyPx;
+        isHit     = x >= checkboxX && x < checkboxX + m_checkboxPx;
     }
 
-    rowDepth  = m_flatRows[(size_t) flatRow].depth;
-    checkboxX = m_boundsDip.left + rowDepth * m_indentPx + m_twistyPx;
-
-    return x >= checkboxX && x < checkboxX + m_checkboxPx;
+    return isHit;
 }
 
 
@@ -307,18 +328,18 @@ void DxuiTreeView::SetMouseHover (int x, int y)
 
 bool DxuiTreeView::OnLButtonDown (int x, int y)
 {
-    int  row = HitTestRow (x, y);
+    int   row   = HitTestRow (x, y);
+    bool  isHit = (row >= 0);
 
 
 
-    if (row < 0)
+    if (isHit)
     {
-        return false;
+        m_pressedRow = row;
+        m_highlight  = row;
     }
 
-    m_pressedRow = row;
-    m_highlight  = row;
-    return true;
+    return isHit;
 }
 
 
@@ -328,6 +349,24 @@ bool DxuiTreeView::OnLButtonDown (int x, int y)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnLButtonUp
+//
+//  Acts on the release: expand / collapse the twisty, toggle the checkbox, or
+//  select the row.
+//
+//  A release only counts on the row the PRESS started on. Pressing one row,
+//  dragging to another, and releasing there does nothing -- the standard
+//  cancel gesture, and the reason the pressed row is remembered at all.
+//
+//  The pressed row is cleared FIRST, before any of the branches, so it cannot
+//  be left set by an early exit and leak into the next click.
+//
+//  Which of the three actions fires is decided by sub-region: twisty, then
+//  checkbox, then anything else is a selection. Ordering matters because the
+//  twisty and checkbox both sit inside the row's own rect.
+//
+//  A twisty click on a childless node is consumed but does nothing, rather
+//  than falling through to selection -- clicking where an expander would be is
+//  not a request to select.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -341,30 +380,29 @@ bool DxuiTreeView::OnLButtonUp (int x, int y)
 
     m_pressedRow = -1;
 
-    if (row < 0 || row != pressed)
+    // A release only counts on the row the press started on.
+    if (row >= 0 && row == pressed)
     {
-        return false;
-    }
-
-    if (HitTestTwisty (x, y, row))
-    {
-        DxuiTreeNode * n = NodeAtMutable (row);
-
-        if (n != nullptr && !n->children.empty())
+        if (HitTestTwisty (x, y, row))
         {
-            n->expanded = !n->expanded;
-            RebuildFlatRows();
+            DxuiTreeNode * n = NodeAtMutable (row);
+
+            if (n != nullptr && !n->children.empty())
+            {
+                n->expanded = !n->expanded;
+                RebuildFlatRows();
+                consumed = true;
+            }
+        }
+        else if (HitTestCheckbox (x, y, row))
+        {
+            ToggleRow (row);
             consumed = true;
         }
-    }
-    else if (HitTestCheckbox (x, y, row))
-    {
-        ToggleRow (row);
-        consumed = true;
-    }
-    else
-    {
-        consumed = true;   // row selection
+        else
+        {
+            consumed = true;   // row selection
+        }
     }
 
     return consumed;
@@ -386,22 +424,19 @@ void DxuiTreeView::ToggleRow (int flatRow)
 
 
 
-    if (!IsInteractive (flatRow))
+    if (IsInteractive (flatRow))
     {
-        return;
+        n = NodeAtMutable (flatRow);
     }
 
-    n = NodeAtMutable (flatRow);
-    if (n == nullptr)
+    if (n != nullptr)
     {
-        return;
-    }
+        n->checked = !n->checked;
 
-    n->checked = !n->checked;
-
-    if (m_toggle)
-    {
-        m_toggle (n->label, n->checked);
+        if (m_toggle)
+        {
+            m_toggle (n->label, n->checked);
+        }
     }
 }
 
@@ -413,60 +448,88 @@ void DxuiTreeView::ToggleRow (int flatRow)
 //
 //  OnKey
 //
+//  Keyboard navigation: the standard tree bindings.
+//
+//  Left and Right COLLAPSE and EXPAND rather than moving the highlight, which
+//  is what every tree control does and what makes a keyboard user able to
+//  reach a nested node at all. Up and Down move through the flat row list, so
+//  they naturally traverse into and out of expanded subtrees without knowing
+//  anything about depth.
+//
+//  The highlight is seeded to row 0 on the first key while focused, so a tree
+//  that has never been clicked still responds to an arrow press instead of
+//  requiring a mouse first.
+//
+//  Space and Enter toggle through the same ToggleRow the mouse uses, so the
+//  interactivity rule -- only Optional nodes may be changed -- is enforced in
+//  one place for both input paths.
+//
+//  Expanding or collapsing rebuilds the flat rows immediately, since every
+//  index in play refers to that list.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTreeView::OnKey (WPARAM vk)
 {
-    DxuiTreeNode * n = nullptr;
+    DxuiTreeNode *  n        = nullptr;
+    bool            isActive = false;
+    bool            handled  = false;
 
 
 
-    if (!m_enabled || !m_focused || m_flatRows.empty())
-    {
-        return false;
-    }
+    isActive = m_enabled && m_focused && !m_flatRows.empty();
 
-    if (m_highlight < 0)
+    if (isActive && m_highlight < 0)
     {
         m_highlight = 0;
     }
 
-    switch (vk)
+    if (isActive)
     {
-        case VK_UP:
-            if (m_highlight > 0) { m_highlight--; }
-            return true;
+        handled = true;   // cleared by the default arm below
 
-        case VK_DOWN:
-            if (m_highlight < (int) m_flatRows.size() - 1) { m_highlight++; }
-            return true;
+        switch (vk)
+        {
+            case VK_UP:
+                if (m_highlight > 0) { m_highlight--; }
+                break;
 
-        case VK_RIGHT:
-            n = NodeAtMutable (m_highlight);
-            if (n != nullptr && !n->children.empty() && !n->expanded)
-            {
-                n->expanded = true;
-                RebuildFlatRows();
-            }
-            return true;
+            case VK_DOWN:
+                if (m_highlight < (int) m_flatRows.size() - 1) { m_highlight++; }
+                break;
 
-        case VK_LEFT:
-            n = NodeAtMutable (m_highlight);
-            if (n != nullptr && !n->children.empty() && n->expanded)
-            {
-                n->expanded = false;
-                RebuildFlatRows();
-            }
-            return true;
+            case VK_RIGHT:
+                n = NodeAtMutable (m_highlight);
+                if (n != nullptr && !n->children.empty() && !n->expanded)
+                {
+                    n->expanded = true;
+                    RebuildFlatRows();
+                }
 
-        case VK_SPACE:
-        case VK_RETURN:
-            ToggleRow (m_highlight);
-            return true;
+                break;
 
-        default:
-            return false;
+            case VK_LEFT:
+                n = NodeAtMutable (m_highlight);
+                if (n != nullptr && !n->children.empty() && n->expanded)
+                {
+                    n->expanded = false;
+                    RebuildFlatRows();
+                }
+
+                break;
+
+            case VK_SPACE:
+            case VK_RETURN:
+                ToggleRow (m_highlight);
+                break;
+
+            default:
+                handled = false;
+                break;
+        }
     }
+
+    return handled;
 }
 
 
@@ -477,27 +540,55 @@ bool DxuiTreeView::OnKey (WPARAM vk)
 //
 //  Paint
 //
+//  Draws every visible row: background, twisty, checkbox, and label.
+//
+//  Indentation comes from the flat row's own recorded DEPTH, so painting never
+//  walks the tree -- the flat list already carries everything a row needs to
+//  place itself.
+//
+//  Row x-positions are derived left to right (twisty, then checkbox, then
+//  label) so the three regions cannot disagree with the hit tests, which
+//  compute the same offsets the same way.
+//
+//  The twisty is drawn GEOMETRICALLY, as a triangle filled with one-pixel
+//  scanlines, rather than with Segoe UI Symbol's chevron glyph. That glyph's
+//  visual center sits below its line-box center -- deliberately, for
+//  play-button contexts -- and no font metric corrects it, so a glyph chevron
+//  always paints slightly low against the row. The proportions here (a base
+//  spanning the full size, a shorter apex depth) make it read as a stubby
+//  Fluent chevron rather than a tall play button.
+//
+//  The check mark IS a glyph, matching the standalone checkbox widget so the
+//  two controls agree. An earlier version drew a filled inner square, which
+//  read as a focus ring rather than a tick.
+//
+//  Interactivity -- Optional capability plus an enabled tree -- selects the
+//  box, glyph, and text colors together, so a locked node reads as locked in
+//  every part of the row instead of only in its label.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    uint32_t  s_kRowIdle        = 0x00000000;
-    uint32_t  s_kRowHover       = (theme.HoverBackground()    & 0x00FFFFFFu) | 0x33000000u;
-    uint32_t  s_kRowHighlight   = (theme.SelectionBackground() & 0x00FFFFFFu) | 0x44000000u;
-    uint32_t  s_kBoxIdle        = theme.ButtonIdle();
-    uint32_t  s_kBoxLocked      = DxuiColor::TintForContrast (theme.Background(), 1.6f);
-    uint32_t  s_kCheckGlyph     = theme.ButtonText();
-    uint32_t  s_kCheckLocked    = theme.ForegroundDisabled();
-    uint32_t  s_kTwistyArgb     = theme.ForegroundMuted();
-    uint32_t  s_kTextIdle       = theme.Foreground();
-    uint32_t  s_kTextDisabled   = theme.ForegroundDisabled();
-    constexpr float     s_kCheckInset     = 3.0f;
-    constexpr float     s_kFontDip        = 13.0f;
-    constexpr float     s_kTwistyHeight   = 8.0f;
+    uint32_t         s_kRowIdle      = 0x00000000;
+    uint32_t         s_kRowHover     = (theme.HoverBackground()    & 0x00FFFFFFu) | 0x33000000u;
+    uint32_t         s_kRowHighlight = (theme.SelectionBackground() & 0x00FFFFFFu) | 0x44000000u;
+    uint32_t         s_kBoxIdle      = theme.ButtonIdle();
+    uint32_t         s_kBoxLocked    = DxuiColor::TintForContrast (theme.Background(), 1.6f);
+    uint32_t         s_kCheckGlyph   = theme.ButtonText();
+    uint32_t         s_kCheckLocked  = theme.ForegroundDisabled();
+    uint32_t         s_kTwistyArgb   = theme.ForegroundMuted();
+    uint32_t         s_kTextIdle     = theme.Foreground();
+    uint32_t         s_kTextDisabled = theme.ForegroundDisabled();
+    constexpr float  s_kCheckInset   = 3.0f;
+    constexpr float  s_kFontDip      = 13.0f;
+    constexpr float  s_kTwistyHeight = 8.0f;
 
-    HRESULT  hr        = S_OK;
-    int      i         = 0;
-    size_t   n         = m_flatRows.size();
+
+
+    HRESULT  hr         = S_OK;
+    int      i          = 0;
+    size_t   n          = m_flatRows.size();
     float    checkInset = m_scaler.Pxf (s_kCheckInset);
     float    fontDip    = m_scaler.Pxf (s_kFontDip);
     float    twistyHt   = m_scaler.Pxf (s_kTwistyHeight);
@@ -508,22 +599,26 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     for (i = 0; i < (int) n; ++i)
     {
-        const FlatRow   & fr        = m_flatRows[(size_t) i];
-        const DxuiTreeNode  * node      = NodeAt (i);
-        float             rowY      = (float) (m_boundsDip.top + i * m_rowHeightPx);
-        float             rowHeight = (float) m_rowHeightPx;
-        float             twistyX   = (float) (m_boundsDip.left + fr.depth * m_indentPx);
-        float             checkboxX = twistyX + (float) m_twistyPx;
-        float             textX     = checkboxX + (float) m_checkboxPx + textGap;
+        const FlatRow       & fr          = m_flatRows[(size_t) i];
+        const DxuiTreeNode  * node        = NodeAt (i);
+        float                 rowY        = (float) (m_boundsDip.top + i * m_rowHeightPx);
+        float                 rowHeight   = (float) m_rowHeightPx;
+        float                 twistyX     = (float) (m_boundsDip.left + fr.depth * m_indentPx);
+        float                 checkboxX   = twistyX + (float) m_twistyPx;
+        float                 textX       = checkboxX + (float) m_checkboxPx + textGap;
+        bool                  hasChildren = false;
+        uint32_t              boxColor    = 0;
+        uint32_t              glyphCol    = 0;
+        uint32_t              textCol     = 0;
         uint32_t          rowFill   = (i == m_highlight) ? s_kRowHighlight
                                        : (i == m_hoverRow ? s_kRowHover : s_kRowIdle);
-        bool              hasChildren = (node != nullptr) && !node->children.empty();
+        hasChildren = (node != nullptr) && !node->children.empty();
         bool              interactive = (node != nullptr)
                                           && node->capabilityFlag == DxuiTreeCapabilityFlag::Optional
                                           && m_enabled;
-        uint32_t          boxColor  = interactive ? s_kBoxIdle : s_kBoxLocked;
-        uint32_t          glyphCol  = interactive ? s_kCheckGlyph : s_kCheckLocked;
-        uint32_t          textCol   = interactive ? s_kTextIdle : s_kTextDisabled;
+        boxColor = interactive ? s_kBoxIdle : s_kBoxLocked;
+        glyphCol = interactive ? s_kCheckGlyph : s_kCheckLocked;
+        textCol = interactive ? s_kTextIdle : s_kTextDisabled;
 
         if (rowFill != 0)
         {
@@ -589,33 +684,36 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             // widget. Earlier impl drew a filled inner square which
             // read more like a focus ring than a tick.
             float  boxYPx = rowY + (rowHeight - (float) m_checkboxPx) * 0.5f;
-            IGNORE_RETURN_VALUE (hr, text.DrawString (s_kpszCheckMark,
-                                                      checkboxX,
-                                                      boxYPx,
-                                                      (float) m_checkboxPx,
-                                                      (float) m_checkboxPx,
-                                                      glyphCol,
-                                                      (float) m_checkboxPx * 0.95f,
-                                                      L"Segoe UI Symbol",
-                                                      DxuiTextHAlign::Center,
-                                                      DxuiTextVAlign::Center));
+            hr = text.DrawString (s_kpszCheckMark,
+                                  checkboxX,
+                                  boxYPx,
+                                  (float) m_checkboxPx,
+                                  (float) m_checkboxPx,
+                                  glyphCol,
+                                  (float) m_checkboxPx * 0.95f,
+                                  L"Segoe UI Symbol",
+                                  DxuiTextHAlign::Center,
+                                  DxuiTextVAlign::Center);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
         if (node != nullptr)
         {
-            IGNORE_RETURN_VALUE (hr, text.DrawString (node->label.c_str(),
-                                                      textX,
-                                                      rowY,
-                                                      (float) m_boundsDip.right - textX,
-                                                      rowHeight,
-                                                      textCol,
-                                                      fontDip,
-                                                      DxuiTheme::kBodyFace,
-                                                      DxuiTextHAlign::Left,
-                                                      DxuiTextVAlign::CenterOnCapHeight));
+            hr = text.DrawString (node->label.c_str(),
+                                  textX,
+                                  rowY,
+                                  (float) m_boundsDip.right - textX,
+                                  rowHeight,
+                                  textCol,
+                                  fontDip,
+                                  DxuiTheme::kBodyFace,
+                                  DxuiTextHAlign::Left,
+                                  DxuiTextVAlign::CenterOnCapHeight);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }
 }
+
 
 
 
@@ -638,32 +736,50 @@ void DxuiTreeView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTreeView::OnMouse  (IDxuiControl override)
+//  DxuiTreeView::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move only updates hover and is reported UNHANDLED, so passing the pointer
+//  across the tree does not consume moves other widgets may want. The tree
+//  takes no drag, so there is no drag state to route around.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTreeView::OnMouse (const DxuiMouseEvent & ev)
 {
+    bool  handled = false;
+
+
+
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
         SetMouseHover (ev.positionDip.x, ev.positionDip.y);
-        return false;
+        break;
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+            handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }
-        return false;
+
+        break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+            handled = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
         }
-        return false;
+
+        break;
     default:
-        return false;
+        break;
     }
+
+    return handled;
 }
 
 
@@ -678,10 +794,14 @@ bool DxuiTreeView::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiTreeView::OnKey (const DxuiKeyEvent & ev)
 {
-    if (ev.kind != DxuiKeyEventKind::Down)
+    bool  handled = false;
+
+
+
+    if (ev.kind == DxuiKeyEventKind::Down)
     {
-        return false;
+        handled = OnKey (ev.vk);
     }
 
-    return OnKey (ev.vk);
+    return handled;
 }

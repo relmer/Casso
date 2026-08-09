@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -154,11 +154,12 @@
     <ClCompile Include="Core\DxuiHitTester.cpp" />
     <ClCompile Include="Core\DxuiInput.cpp" />
     <ClCompile Include="Core\DxuiPanel.cpp" />
+    <ClCompile Include="Core\DxuiPanZoom.cpp" />
     <ClCompile Include="Core\DxuiStackLayout.cpp" />
     <ClCompile Include="Core\DxuiThread.cpp" />
     <ClCompile Include="Core\DxuiViewport.cpp" />
-    <ClCompile Include="Core\DxuiTitleBarHitTest.cpp" />
     <ClCompile Include="Core\IDxuiControl.cpp" />
+    <ClCompile Include="Render\Dxui3DRenderer.cpp" />
     <ClCompile Include="Render\DxuiPainter.cpp" />
     <ClCompile Include="Render\DxuiTextRenderer.cpp" />
     <ClCompile Include="Theme\DxuiDwm.cpp" />
@@ -167,6 +168,7 @@
     <ClCompile Include="Widgets\DxuiCheckbox.cpp" />
     <ClCompile Include="Widgets\DxuiDropdown.cpp" />
     <ClCompile Include="Widgets\DxuiIconButton.cpp" />
+    <ClCompile Include="Widgets\DxuiInfoBanner.cpp" />
     <ClCompile Include="Widgets\DxuiListView.cpp" />
     <ClCompile Include="Widgets\DxuiMenuBar.cpp" />
     <ClCompile Include="Widgets\DxuiModalScrim.cpp" />
@@ -187,6 +189,7 @@
     <ClCompile Include="Window\DxuiRenderTarget.cpp" />
     <ClCompile Include="Window\DxuiHwndSource.cpp" />
     <ClCompile Include="Window\DxuiDialogWindow.cpp" />
+    <ClCompile Include="Window\DxuiMessageBox.cpp" />
     <ClCompile Include="Window\DxuiPropertyPage.cpp" />
     <ClCompile Include="Window\DxuiPropertySheet.cpp" />
     <ClCompile Include="Window\DxuiWindow.cpp" />
@@ -206,14 +209,15 @@
     <ClInclude Include="Core\DxuiHitTester.h" />
     <ClInclude Include="Core\DxuiInput.h" />
     <ClInclude Include="Core\DxuiPanel.h" />
+    <ClInclude Include="Core\DxuiPanZoom.h" />
     <ClInclude Include="Core\DxuiStackLayout.h" />
     <ClInclude Include="Core\DxuiThread.h" />
     <ClInclude Include="Core\UnicodeSymbols.h" />
     <ClInclude Include="Core\DxuiViewport.h" />
-    <ClInclude Include="Core\DxuiTitleBarHitTest.h" />
     <ClInclude Include="Core\IDxuiControl.h" />
     <ClInclude Include="Core\IDxuiLayout.h" />
     <ClInclude Include="Core\IDxuiViewportInputSink.h" />
+    <ClInclude Include="Render\Dxui3DRenderer.h" />
     <ClInclude Include="Render\DxuiPainter.h" />
     <ClInclude Include="Render\DxuiTextRenderer.h" />
     <ClInclude Include="Render\IDxuiPainter.h" />
@@ -228,6 +232,7 @@
     <ClInclude Include="Widgets\DxuiDropdown.h" />
     <ClInclude Include="Widgets\DxuiLabel.h" />
     <ClInclude Include="Widgets\DxuiIconButton.h" />
+    <ClInclude Include="Widgets\DxuiInfoBanner.h" />
     <ClInclude Include="Widgets\DxuiListView.h" />
     <ClInclude Include="Widgets\DxuiMenuBar.h" />
     <ClInclude Include="Widgets\DxuiModalScrim.h" />
@@ -249,6 +254,7 @@
     <ClInclude Include="Window\DxuiRenderTarget.h" />
     <ClInclude Include="Window\DxuiHwndSource.h" />
     <ClInclude Include="Window\DxuiDialogWindow.h" />
+    <ClInclude Include="Window\DxuiMessageBox.h" />
     <ClInclude Include="Window\DxuiPropertyPage.h" />
     <ClInclude Include="Window\DxuiButtonRow.h" />
     <ClInclude Include="Window\DxuiPropertySheet.h" />

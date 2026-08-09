@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "AssetBootstrap.h"
+#include "Shell/RepoCheckout.h"
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
 #include "Config/Win32FileSystem.h"
@@ -9,6 +10,7 @@
 #include "Core/MachineConfig.h"
 #include "Core/MachineConfigUpgrade.h"
 #include "Core/PathResolver.h"
+#include "EmbeddedMachineConfigs.h"
 #include "External/StbVorbisWrapper.h"
 #include "resource.h"
 #include "Ui/ThemeManager.h"
@@ -16,6 +18,8 @@
 #include "Ui/DriveWidgetState.h"
 #include "Ui/Dialogs/StartupDownloadDialog.h"
 #include "Ui/Dialogs/DialogDefinition.h"
+#include "Ui/PickerBodyPanel.h"
+#include "Ui/PickerDialog.h"
 #include "Core/DxuiEvents.h"
 #include "Core/DxuiPanel.h"
 #include "Window/DxuiDialogWindow.h"
@@ -68,8 +72,16 @@ struct RomSpec
     string_view  localRelDir;        // e.g. "Machines/Apple2e" or "Devices/DiskII"
     size_t       expectedSize;
     string_view  description;
-};
 
+    // Optional alternate source. Most ROMs come from the AppleWin GitHub
+    // resource dir (host below empty -> s_kpszAppleWinHost + s_kpszUrlPrefix +
+    // appleWinName). ROMs AppleWin does not carry (e.g. the Apple //c, which
+    // AppleWin does not emulate) set an explicit host + fully-formed,
+    // percent-encoded urlPath and leave appleWinName empty.
+    string_view  altHost     = {};
+    string_view  altUrlPath  = {};
+    string_view  sourceLabel = {};   // shown in the download dialog (defaults to AppleWin)
+};
 
 
 
@@ -84,6 +96,15 @@ static constexpr RomSpec s_kRomCatalog[] =
     { "Apple2e",          "Apple2e_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2e",           4096, "Apple //e Character Generator + MouseText" },
     { "Apple2eEnhanced",  "Apple2eEnhanced.rom",   "Apple2e_Enhanced.rom",       "Machines/Apple2eEnhanced",  16384, "Apple //e Enhanced ROM"                    },
     { "Apple2eEnhanced",  "Apple2e_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2eEnhanced",   4096, "Apple //e Character Generator + MouseText" },
+    // AppleWin does not emulate the //c, so its 32K ROM 4 (memory-expansion
+    // //c, chip 341-0445-B) comes from the apple2.org.za preservation mirror.
+    { "Apple2c",          "Apple2c.rom",           "",                           "Machines/Apple2c",          32768, "Apple //c ROM 4 (341-0445-B, memory expansion)",
+      "mirrors.apple2.org.za",
+      "/Apple%20II%20Documentation%20Project/Computers/Apple%20II/Apple%20IIc/ROM%20Images/Apple%20IIc%20ROM%2004%20-%20341-0445-B.bin",
+      "apple2.org.za" },
+    // The //c character generator is the enhanced (MouseText) 341-0265, the
+    // same part AppleWin ships as Apple2e_Enhanced_Video.rom -- reuse it.
+    { "Apple2c",          "Apple2c_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2c",           4096, "Apple //c Character Generator + MouseText" },
     { "",                 "Disk2.rom",             "DISK2.rom",                  "Devices/DiskII",              256, "Disk ][ Boot ROM (slot 6)"                 },
     { "",                 "Disk2_13Sector.rom",    "DISK2-13sector.rom",         "Devices/DiskII",              256, "Disk ][ Boot ROM (13-sector)"              },
 };
@@ -142,13 +163,36 @@ static constexpr BootDiskSpec s_kProDOSDisk =
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDisplayName
+//
+//  Maps a machine id to the name a user would recognize.
+//
+//  The two are separate because the id is a filesystem-safe identifier used in
+//  paths and prefs, while the display name carries the punctuation the real
+//  machines were sold under -- "Apple ][+" and "Apple //e" cannot be directory
+//  names.
+//
+//  An unrecognized id WIDENS AS-IS rather than falling back to a placeholder,
+//  so a machine added to the catalog before it is listed here still shows
+//  something recognizable instead of "(unknown)".
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static std::wstring MachineDisplayName (std::string_view machineId)
 {
-    if (machineId == "Apple2")          return L"Apple ][";
-    if (machineId == "Apple2Plus")      return L"Apple ][+";
-    if (machineId == "Apple2e")         return L"Apple //e";
-    if (machineId == "Apple2eEnhanced") return L"Apple //e Enhanced";
-    return std::wstring (machineId.begin (), machineId.end ());
+    // An id with no pretty name widens as-is, so a machine added to the
+    // catalog still shows something recognizable before it is listed here.
+    std::wstring  name (machineId.begin(), machineId.end());
+
+    if      (machineId == "Apple2")          { name = L"Apple ]["; }
+    else if (machineId == "Apple2Plus")      { name = L"Apple ][+"; }
+    else if (machineId == "Apple2e")         { name = L"Apple //e"; }
+    else if (machineId == "Apple2eEnhanced") { name = L"Apple //e Enhanced"; }
+    else if (machineId == "Apple2c")         { name = L"Apple //c"; }
+
+    return name;
 }
 
 
@@ -157,28 +201,13 @@ static std::wstring MachineDisplayName (std::string_view machineId)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmbeddedConfig
+//  EmbeddedConfig / s_kEmbeddedConfigs
+//
+//  Moved to EmbeddedMachineConfigs.h (included above) so AssetBootstrapTests
+//  reads the same stamp table and can assert in CI that each stamp matches
+//  its embedded JSON's $cassoMachineVersion.
 //
 ////////////////////////////////////////////////////////////////////////////////
-
-struct EmbeddedConfig
-{
-    int          resourceId;
-    string_view  machineName;        // "Apple2", "Apple2Plus", "Apple2e"
-    string_view  fileName;           // "<machineName>.json"
-    int          currentVersion;     // must match "$cassoMachineVersion" in the embedded JSON
-};
-
-
-
-
-
-static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
-{
-    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     6 },
-    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 6 },
-    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    6 },
-};
 
 
 
@@ -246,6 +275,20 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
 
     // v6 Apple2Plus.json (before adding apple2-gameport device).
     { "Apple2Plus", "a8796968d56185daf6a03bdebebdecc776dfc004003447a78f0bcc5dafaac3e1" },
+
+    // v6 Apple2e.json (before the slot-4 Mockingboard / slot-1 printer).
+    { "Apple2e",    "8593a47d87db9090ce001e439fea318854bdc6b255fa328f8ac2dabee1eb9f63" },
+
+    // v7 Apple2Plus.json (master, before the slot-4 Mockingboard).
+    { "Apple2Plus", "99824c2f34e40c9411d46d17c5a34d78b1bbd2a29e4487fc0326457b18986236" },
+
+    // v7 Apple2e.json (master Mockingboard slot 4; superseded by v8, which
+    // carries both the Mockingboard and the slot-1 parallel printer).
+    { "Apple2e",    "294312b9acc832c022b14c9d2e38946b13f7baab9d149760f79a8ee75ec3178a" },
+
+    // v8 Apple2Plus.json (master Mockingboard slot 4; superseded by v9, which
+    // carries both the Mockingboard and the slot-1 parallel printer).
+    { "Apple2Plus", "c3b3222ddfd2c08b65afb80ece15fa5fee87fa487e5e3f4ed661931ba323a9c4" },
 };
 
 
@@ -282,7 +325,6 @@ struct DiskAudioSpec
 
 
 
-
 static constexpr LPCWSTR  s_kpszOpenEmulatorHost      = L"raw.githubusercontent.com";
 static constexpr LPCWSTR  s_kpszOpenEmulatorPathFmt   = L"/openemulator/libemulation/master/res/sounds/";
 
@@ -297,7 +339,6 @@ static constexpr DiskAudioSpec s_kDiskAudioCatalog[] =
     { "Alps",    "Alps 2124A Head.ogg",     "HeadStep.wav"  },
     { "Alps",    "Alps 2124A Stop.ogg",     "HeadStop.wav"  },
 };
-
 
 
 
@@ -375,6 +416,10 @@ Error:
 //  Kept locally only for the BCrypt wrapper below; ComputeSha256 expects
 //  already-normalized input from the caller.
 
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ComputeSha256
@@ -440,16 +485,21 @@ Error:
 
 static HRESULT WriteFileBytes (const fs::path & path, span<const Byte> bytes)
 {
-    HRESULT     hr  = S_OK;
+    HRESULT     hr        = S_OK;
     ofstream    out;
+    bool        wroteWell = false;
 
 
 
     out.open (path, ios::binary | ios::trunc);
-    CBRA (out.good());
+
+    wroteWell = out.good();
+    CBRA (wroteWell);
 
     out.write (reinterpret_cast<const char *> (bytes.data()), static_cast<streamsize> (bytes.size()));
-    CBRA (out.good());
+
+    wroteWell = out.good();
+    CBRA (wroteWell);
 
 Error:
     return hr;
@@ -521,6 +571,36 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
 
 
 
+#if defined(_DEBUG)
+    // Self-check: each embedded config's currentVersion stamp must match the
+    // $cassoMachineVersion baked into its JSON. If they drift, Plan() below
+    // treats an unchanged on-disk extract as already current and silently
+    // skips a real change -- the failure that once hid the slot-4 Mockingboard.
+    for (const EmbeddedConfig & selfCheck : s_kEmbeddedConfigs)
+    {
+        span<const Byte>  scBytes   = ExtractResource (hInstance, selfCheck.resourceId);
+        string            scJson    = string (reinterpret_cast<const char *> (scBytes.data()), scBytes.size());
+        JsonValue         scRoot;
+        JsonParseError    scErr;
+        int               scVersion = 0;
+        HRESULT           scParseHr = S_OK;
+        HRESULT           scVerHr   = S_OK;
+
+
+
+        scParseHr = JsonParser::Parse (scJson, scRoot, scErr);
+
+        if (SUCCEEDED (scParseHr))
+        {
+            scVerHr = scRoot.GetInt ("$cassoMachineVersion", scVersion);
+
+            _ASSERTE (SUCCEEDED (scVerHr)
+                      && scVersion == selfCheck.currentVersion
+                      && "s_kEmbeddedConfigs currentVersion out of sync with embedded $cassoMachineVersion");
+        }
+    }
+#endif
+
     // Embedded machine JSONs always extract under %LOCALAPPDATA%\Casso\,
     // not into whichever exe-adjacent Machines/ a dev happens to have
     // lying around.
@@ -541,6 +621,7 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
         bool                          diskExists      = false;
         string                        diskContent;
         string                        diskHashHex;
+        string                        embeddedHashHex;
         MachineConfigUpgradeAction    action          = MachineConfigUpgradeAction::Skip;
 
 
@@ -551,9 +632,11 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
 
         if (diskExists)
         {
-            ifstream            diskFile (target);
             stringstream        ss;
-            array<uint8_t, 32>  diskHash = {};
+            array<uint8_t, 32>  diskHash;
+
+            ifstream            diskFile (target);
+            diskHash = {};
 
             if (!diskFile.good())
             {
@@ -566,9 +649,29 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
             diskHashHex = MachineConfigUpgrade::BytesToHex (diskHash);
         }
 
+        // Digest of THIS build's embedded default: version stamps can
+        // collide across feature branches, so Plan treats content
+        // equality (not the stamp) as the up-to-date test.
+        bytes = ExtractResource (hInstance, cfg.resourceId);
+
+        if (bytes.empty())
+        {
+            hr = E_FAIL;
+            continue;
+        }
+
+        {
+            string              embeddedContent (reinterpret_cast<const char *> (bytes.data()), bytes.size());
+            array<uint8_t, 32>  embeddedHash =
+                ComputeSha256 (MachineConfigUpgrade::NormalizeBytes (embeddedContent));
+
+            embeddedHashHex = MachineConfigUpgrade::BytesToHex (embeddedHash);
+        }
+
         action = MachineConfigUpgrade::Plan (
             cfg.machineName,
             cfg.currentVersion,
+            embeddedHashHex,
             diskExists ? &diskContent : nullptr,
             diskHashHex,
             span<const MachineConfigPriorHash> (s_kPriorDefaultHashes));
@@ -590,14 +693,6 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
                 hr = hrBak;
                 continue;
             }
-        }
-
-        bytes = ExtractResource (hInstance, cfg.resourceId);
-
-        if (bytes.empty())
-        {
-            hr = E_FAIL;
-            continue;
         }
 
         hrItem = WriteFileBytes (target, bytes);
@@ -642,14 +737,12 @@ struct EmbeddedThemeFile
 
 
 
-
 struct EmbeddedTheme
 {
     const char *                       dirName;        // matches "name" in theme.json
     int                                currentVersion; // mirrors theme.json $cassoThemeVersion
     span<const EmbeddedThemeFile>      files;
 };
-
 
 
 
@@ -665,7 +758,6 @@ static constexpr EmbeddedThemeFile s_kSkeuomorphicFiles[] =
 
 
 
-
 static constexpr EmbeddedThemeFile s_kDarkModernFiles[] =
 {
     { IDR_THEME_DARK_THEME_JSON,         "theme.json"          },
@@ -677,7 +769,6 @@ static constexpr EmbeddedThemeFile s_kDarkModernFiles[] =
 
 
 
-
 static constexpr EmbeddedThemeFile s_kRetroTerminalFiles[] =
 {
     { IDR_THEME_RETRO_THEME_JSON,         "theme.json"          },
@@ -685,7 +776,6 @@ static constexpr EmbeddedThemeFile s_kRetroTerminalFiles[] =
     { IDR_THEME_RETRO_FONT_OFL,           "fonts/OFL.txt"       },
     { IDR_THEME_RETRO_FONT_TODO,          "fonts/TODO_FONTS.md" },
 };
-
 
 
 
@@ -732,13 +822,14 @@ HRESULT AssetBootstrap::EnsureThemes (
 
     for (const EmbeddedTheme & theme : s_kEmbeddedThemes)
     {
-        fs::path              themeSubdir       = themesDir / theme.dirName;
-        fs::path              themeJsonPath     = themeSubdir / "theme.json";
-        bool                  diskExists        = false;
+        fs::path              themeSubdir      = themesDir / theme.dirName;
+        bool                  diskExists       = false;
         string                diskJsonText;
         string                embeddedJsonText;
-        ThemeBootstrapAction  action            = ThemeBootstrapAction::Skip;
-        int                   themeJsonResId    = 0;
+        int                   themeJsonResId   = 0;
+        ThemeBootstrapAction  action           = {};
+        fs::path              themeJsonPath     = themeSubdir / "theme.json";
+        action = ThemeBootstrapAction::Skip;
 
 
 
@@ -746,8 +837,9 @@ HRESULT AssetBootstrap::EnsureThemes (
 
         if (diskExists)
         {
-            ifstream      file (themeJsonPath);
             stringstream  ss;
+
+            ifstream      file (themeJsonPath);
 
             if (file.good())
             {
@@ -821,6 +913,82 @@ HRESULT AssetBootstrap::EnsureThemes (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EnsureImageWriterSounds
+//
+//  Extract the embedded ImageWriter II mechanical sound grains to
+//  %LOCALAPPDATA%\Casso\ImageWriter II Sounds\ so PrinterAudioSource can decode
+//  them by path (Media Foundation needs a file). Unlike machine configs /
+//  themes there is no user-edit or versioning story: the grains are read-only
+//  assets, so a missing file is (re)written and an existing one is left alone.
+//  Best-effort throughout -- a failed write leaves that grain silent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::EnsureImageWriterSounds (HINSTANCE hInstance)
+{
+    struct SoundAsset { int resourceId; const wchar_t * fileName; };
+
+    static const SoundAsset  s_kSounds[] =
+    {
+        { IDR_SOUND_PRINT_DRAFT,       L"print_draft_loop.mp3"  },
+        { IDR_SOUND_PRINT_MEDIUM,      L"print_medium_loop.mp3" },
+        { IDR_SOUND_PRINT_NLQ,         L"print_nlq_loop.mp3"    },
+        { IDR_SOUND_LINE_FEED_1,       L"line_feed_01.mp3"      },
+        { IDR_SOUND_LINE_FEED_2,       L"line_feed_02.mp3"      },
+        { IDR_SOUND_LINE_FEED_3,       L"line_feed_03.mp3"      },
+        { IDR_SOUND_PAGE_FEED_SHORT,   L"page_feed_short.mp3"   },
+        { IDR_SOUND_PAGE_FEED_MEDIUM,  L"page_feed_medium.mp3"  },
+        { IDR_SOUND_PAGE_FEED_LONG,    L"page_feed_long.mp3"    },
+        { IDR_SOUND_PAPER_TEAR_1,      L"paper_tear_01.mp3"     },
+        { IDR_SOUND_PAPER_TEAR_2,      L"paper_tear_02.mp3"     },
+        { IDR_SOUND_PAPER_TEAR_3,      L"paper_tear_03.mp3"     },
+        { IDR_SOUND_PAPER_TEAR_4,      L"paper_tear_04.mp3"     },
+        { IDR_SOUND_PAPER_TEAR_5,      L"paper_tear_05.mp3"     },
+    };
+
+    HRESULT     hr        = S_OK;
+    fs::path    soundsDir;
+    error_code  ec;
+
+    soundsDir = GetAssetBaseDirectory() / L"ImageWriter II Sounds";
+    fs::create_directories (soundsDir, ec);
+
+    for (const SoundAsset & asset : s_kSounds)
+    {
+        fs::path          target = soundsDir / asset.fileName;
+        span<const Byte>  bytes;
+        HRESULT           hrItem;
+
+        if (fs::exists (target, ec))
+        {
+            continue;   // already extracted; grains are immutable
+        }
+
+        bytes = ExtractResource (hInstance, asset.resourceId);
+
+        if (bytes.empty())
+        {
+            hr = E_FAIL;   // resource missing from this build
+            continue;
+        }
+
+        hrItem = WriteFileBytes (target, bytes);
+
+        if (FAILED (hrItem))
+        {
+            hr = hrItem;
+        }
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetAssetBaseDirectory
 //
 //  Returns %LOCALAPPDATA%\Casso\ -- the single, user-writable root for
@@ -846,6 +1014,7 @@ fs::path AssetBootstrap::GetAssetBaseDirectory()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetDiskDirectory
@@ -859,8 +1028,10 @@ fs::path AssetBootstrap::GetAssetBaseDirectory()
 fs::path AssetBootstrap::GetDiskDirectory()
 {
     fs::path     base   = GetAssetBaseDirectory();
-    fs::path     disks  = base / L"Disks";
     error_code   ec;
+    fs::path     disks  = base / L"Disks";
+
+
 
     fs::create_directories (disks, ec);
     return disks;
@@ -869,61 +1040,30 @@ fs::path AssetBootstrap::GetDiskDirectory()
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WorktreeKeyOf  (file-local)
-//
-//  A Claude worktree checkout lives at <repo>/.claude/worktrees/<name>/...
-//  Returns the ".../.claude/worktrees/<name>" prefix identifying that
-//  worktree, or an empty string if `p` is not inside one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static std::wstring WorktreeKeyOf (const fs::path & p)
-{
-    std::vector<fs::path>  comps (p.begin(), p.end());
-
-    for (size_t i = 0; i + 2 < comps.size(); ++i)
-    {
-        if (_wcsicmp (comps[i].c_str(),     L".claude")   == 0 &&
-            _wcsicmp (comps[i + 1].c_str(), L"worktrees") == 0)
-        {
-            fs::path  key;
-
-            for (size_t j = 0; j <= i + 2; ++j)
-                key /= comps[j];
-
-            return key.wstring();
-        }
-    }
-
-    return std::wstring();
-}
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IsForeignWorktreeDisk
+//  IsForeignCheckoutDisk
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AssetBootstrap::IsForeignWorktreeDisk (const fs::path & p)
+bool AssetBootstrap::IsForeignCheckoutDisk (const fs::path & p)
 {
     // The %LOCALAPPDATA% recent-disks MRU is shared across every checkout of
     // the repo (the main tree plus each .claude/worktrees/<name> copy), so it
-    // accumulates absolute paths from all of them -- the same demo then shows
-    // once per checkout. Hide any MRU disk that lives under a worktree OTHER
-    // than the one this build runs from; disks outside any worktree (the main
-    // tree, or the user's own folders) always pass.
-    static const std::wstring  runningKey = WorktreeKeyOf (PathResolver::GetExecutableDirectory());
-    const std::wstring         entryKey   = WorktreeKeyOf (p);
+    // accumulates absolute paths from all of them -- the same disk then shows
+    // once per checkout. Hide any MRU disk that belongs to a checkout OTHER
+    // than the one this build runs from (a sibling worktree, or the main tree
+    // when we run from a worktree); disks outside the repo entirely (the
+    // user's own folders, %LOCALAPPDATA%) always pass. The classification is
+    // pure/lexical and unit-tested in RepoCheckout.h.
+    static const std::wstring  runningKey =
+        RepoCheckout::WorktreeKeyOf (PathResolver::GetExecutableDirectory());
 
-    if (entryKey.empty())
-        return false;                                        // not under a worktree
-
-    return _wcsicmp (entryKey.c_str(), runningKey.c_str()) != 0;
+    return RepoCheckout::IsForeignCheckoutDisk (p, runningKey);
 }
+
+
 
 
 
@@ -931,12 +1071,39 @@ bool AssetBootstrap::IsForeignWorktreeDisk (const fs::path & p)
 //
 //  AppendBundledDemoDisks
 //
+//  Offers the repo's Apple2/Demos images in the disk picker, so a developer
+//  build always has something to boot.
+//
+//  Two different cache lifetimes are at work here, and the split is the point.
+//
+//  The DIRECTORY is located once per process and remembered, including its
+//  absence. Demos ships in the source tree rather than an installed layout, so
+//  its location is purely a function of the exe path and the repo shape, and
+//  neither changes while the process runs. A miss means this is not a repo
+//  build -- which also cannot change at runtime -- so the walk-up is never
+//  re-attempted. std::nullopt records that absence distinctly from "not yet
+//  looked".
+//
+//  The CONTENTS are enumerated fresh on every open, because a user can drop a
+//  new image into that directory while Casso is running and the picker should
+//  pick it up. The directory is small, so the listing is cheap.
+//
+//  The walk-up tries a few levels because the exe lives at
+//  <repo>/<platform>/<config>/Casso.exe, and also tries the working directory
+//  for a run launched from the repo root.
+//
+//  De-duplication uses fs::equivalent rather than string comparison, so the
+//  same file reached through a different spelling -- a symlink, a mapped
+//  drive, differing case -- is not listed twice.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable)
 {
     std::vector<fs::path>  demos;
     error_code             ec;
+
+
 
     // Locate Apple2/Demos ONCE per process. It ships in the source tree, not
     // an installed layout, so its location is purely a function of the exe
@@ -959,6 +1126,7 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
             {
                 return candidate;
             }
+
             cursor = cursor.parent_path();
         }
 
@@ -1020,6 +1188,91 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppendSiblingDisksFromMruFolders
+//
+//  Surfaces disk images sitting NEXT TO recently-mounted ones, so a personal
+//  disk stash appears in the picker without every image having been mounted
+//  once first.
+//
+//  The folder set comes from the MRU rather than from a configured search
+//  path: where the user keeps disks is revealed by where they have opened
+//  them, and no setting has to be maintained.
+//
+//  Each folder is enumerated fresh on every open, since a user can drop a new
+//  image beside a recent one -- or a tool can hand one back -- while Casso is
+//  running. These are small directories (a disk stash or the Demos folder), so
+//  the walk is cheap.
+//
+//  Foreign checkout disks are filtered out, which keeps a developer's picker
+//  from filling with test images that happen to live under a build tree.
+//
+//  De-duplication matches AppendBundledDemoDisks: fs::equivalent against both
+//  the existing entries and anything appended earlier in this same pass, so
+//  two MRU folders that resolve to the same directory cannot double-list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssetBootstrap::AppendSiblingDisksFromMruFolders (std::vector<DiskMru::Entry> & mountable)
+{
+    std::vector<fs::path>  folders = DiskMru::DistinctFolders (mountable);
+    std::vector<fs::path>  discovered;
+
+
+
+    // Enumerate each recent-disk folder fresh on every open: the user can
+    // drop a new image next to a recent one (or hand one back from a tool)
+    // while Casso runs, and the picker should surface it without a mount.
+    // These folders are small (a personal disk stash or the Demos dir), so
+    // the walk is cheap.
+    for (const fs::path & dir : folders)
+    {
+        error_code  ecDir;
+
+        for (const fs::directory_entry & entry : fs::directory_iterator (dir, ecDir))
+        {
+            error_code  ecFile;
+
+            if (entry.is_regular_file (ecFile) &&
+                IsSupportedDiskImageExtension (entry.path().wstring()) &&
+                !IsForeignCheckoutDisk (entry.path()))
+            {
+                discovered.push_back (entry.path().lexically_normal());
+            }
+        }
+    }
+
+    std::sort (discovered.begin(), discovered.end());
+
+    // Append the disks we don't already list, de-duplicating by filesystem
+    // identity against the existing entries (and anything appended earlier
+    // in this same pass), matching AppendBundledDemoDisks.
+    for (const fs::path & disk : discovered)
+    {
+        bool        already = false;
+        error_code  ecDup;
+
+        for (const DiskMru::Entry & existing : mountable)
+        {
+            if (fs::equivalent (existing.path, disk, ecDup))
+            {
+                already = true;
+                break;
+            }
+        }
+
+        if (!already)
+        {
+            mountable.push_back (DiskMru::Entry { disk, 0 });
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FindRomSpec
 //
 //  Look up a (machineName, cassoName) pair against the catalog. Falls
@@ -1048,7 +1301,7 @@ static const RomSpec * FindRomSpec (string_view machineName, string_view cassoNa
     {
         for (const RomSpec & spec : s_kRomCatalog)
         {
-            if (spec.cassoName == cassoName && spec.machineName.empty ())
+            if (spec.cassoName == cassoName && spec.machineName.empty())
             {
                 result = &spec;
                 break;
@@ -1092,6 +1345,9 @@ static HRESULT DownloadHttp (
     DWORD        statusSize   = sizeof (statusCode);
     DWORD        bytesAvail   = 0;
     DWORD        bytesRead    = 0;
+    bool         fCanceled    = false;
+    size_t       receivedSize = 0;
+    bool         hasBytes     = false;
     string       narrowHost;
 
 
@@ -1150,12 +1406,9 @@ static HRESULT DownloadHttp (
     {
         vector<Byte>  chunk;
 
-        if (cancelRequested != nullptr && cancelRequested->load (std::memory_order_relaxed))
-        {
-            outError = format ("{} cancelled", displayName);
-            hr = E_ABORT;
-            goto Error;
-        }
+        fCanceled = (cancelRequested != nullptr) &&
+                    cancelRequested->load (std::memory_order_relaxed);
+        CBRFEx (!fCanceled, E_ABORT, outError = format ("{} canceled", displayName));
 
         bytesAvail = 0;
         fOk = WinHttpQueryDataAvailable (hRequest, &bytesAvail);
@@ -1191,15 +1444,18 @@ static HRESULT DownloadHttp (
     // ahead of time). Pass 0 to skip the size check -- used for the
     // OpenEmulator OGG fetch where the upstream file size is not
     // pinned (T134).
+    receivedSize = outBytes.size();
+    hasBytes     = !outBytes.empty();
+
     if (expectedSize > 0)
     {
-        CBRF (outBytes.size() == expectedSize,
+        CBRF (receivedSize == expectedSize,
               outError = format ("Downloaded {} has wrong size: got {}, expected {}",
-                                 displayName, outBytes.size(), expectedSize));
+                                 displayName, receivedSize, expectedSize));
     }
     else
     {
-        CBRF (!outBytes.empty (),
+        CBRF (hasBytes,
               outError = format ("Downloaded {} was empty", displayName));
     }
 
@@ -1274,8 +1530,9 @@ static HRESULT LoadEmbeddedJson (
     string          & outNarrowName,
     string          & outError)
 {
-    HRESULT                 hr    = S_OK;
-    const EmbeddedConfig  * cfg   = nullptr;
+    HRESULT                 hr       = S_OK;
+    const EmbeddedConfig  * cfg      = nullptr;
+    bool                    hasBytes = false;
     span<const Byte>        bytes;
 
 
@@ -1293,8 +1550,10 @@ static HRESULT LoadEmbeddedJson (
     CBRF (cfg != nullptr,
           outError = format ("No embedded config for machine '{}'", outNarrowName));
 
-    bytes = ExtractResource (hInstance, cfg->resourceId);
-    CBRF (!bytes.empty(),
+    bytes    = ExtractResource (hInstance, cfg->resourceId);
+    hasBytes = !bytes.empty();
+
+    CBRF (hasBytes,
           outError = format ("Embedded config resource for '{}' is empty",
                              string (cfg->machineName)));
 
@@ -1420,9 +1679,10 @@ HRESULT AssetBootstrap::HasDiskController (
 
     for (idx = 0; idx < pSlots->ArraySize(); idx++)
     {
-        const JsonValue &  entry   = pSlots->ArrayAt (idx);
+        const JsonValue  & entry   = pSlots->ArrayAt (idx);
+        bool               enabled = false;
         HRESULT            hrDev   = entry.GetString ("device", device);
-        bool               enabled = true;   // optional key; defaults enabled
+        enabled = true; // optional key; defaults enabled
 
         if (SUCCEEDED (hrDev) && device == "disk-ii")
         {
@@ -1475,7 +1735,7 @@ static wstring GetEmbeddedDisplayName (HINSTANCE hInstance, const wstring & mach
         hr = JsonParser::Parse (jsonText, root, parseError);
     }
 
-    if (SUCCEEDED (hr) && SUCCEEDED (root.GetString ("name", name)) && !name.empty())
+    if (SUCCEEDED (hr) && root.HasString ("name", name) && !name.empty())
     {
         result.assign (name.begin(), name.end());
     }
@@ -1579,54 +1839,55 @@ Error:
 static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
 {
     constexpr std::streamsize  kChunk = 64 * 1024;
+    bool                       same   = false;
 
-    std::error_code  ec;
-    uintmax_t        sizeA   = fs::file_size (a, ec);
-    uintmax_t        sizeB   = 0;
-    std::ifstream    fa;
-    std::ifstream    fb;
+
+
+    std::error_code   ec;
+    uintmax_t         sizeA     = fs::file_size (a, ec);
+    uintmax_t         sizeB     = 0;
+    uintmax_t         remaining = 0;
+    std::streamsize   want      = 0;
+    std::ifstream     fa;
+    std::ifstream     fb;
     std::vector<char> bufA ((size_t) kChunk);
     std::vector<char> bufB ((size_t) kChunk);
+    same = !ec;
 
 
-    if (ec)
+    // Size first: a stat per side rules out the common "not the same file"
+    // case before either is opened. A zero-length file is never a match --
+    // two empty files are not the same disk image in any useful sense.
+    if (same)
     {
-        return false;
+        sizeB = fs::file_size (b, ec);
+        same  = !ec && sizeA == sizeB && sizeA != 0;
     }
 
-    sizeB = fs::file_size (b, ec);
-    if (ec || sizeA != sizeB || sizeA == 0)
+    if (same)
     {
-        return false;
+        fa.open (a, std::ios::binary);
+        fb.open (b, std::ios::binary);
+        same = fa.is_open() && fb.is_open();
     }
 
-    fa.open (a, std::ios::binary);
-    fb.open (b, std::ios::binary);
-    if (!fa.is_open() || !fb.is_open())
+    // Chunked compare, bailing on the first differing block. A short read on
+    // either side counts as a mismatch (the file changed under us).
+    for (remaining = same ? sizeA : 0; same && remaining > 0; )
     {
-        return false;
-    }
-
-    for (uintmax_t remaining = sizeA; remaining > 0; )
-    {
-        std::streamsize  want = (remaining < (uintmax_t) kChunk) ? (std::streamsize) remaining : kChunk;
+        want = (remaining < (uintmax_t) kChunk) ? (std::streamsize) remaining : kChunk;
 
         fa.read (bufA.data(), want);
         fb.read (bufB.data(), want);
-        if (fa.gcount() != want || fb.gcount() != want)
-        {
-            return false;       // short read on either side -> treat as mismatch
-        }
 
-        if (std::memcmp (bufA.data(), bufB.data(), (size_t) want) != 0)
-        {
-            return false;       // first differing block -> done, no full read
-        }
+        same = fa.gcount() == want
+               && fb.gcount() == want
+               && std::memcmp (bufA.data(), bufB.data(), (size_t) want) == 0;
 
         remaining -= (uintmax_t) want;
     }
 
-    return true;
+    return same;
 }
 
 
@@ -1679,27 +1940,27 @@ private:
     int                 ChosenResultAt     (int visibleRow) const;
     static std::wstring FormatLastLoaded   (std::int64_t loadedUnix);
 
-    static constexpr int    s_kColLastLoaded        = 0;
-    static constexpr int    s_kColDiskImage         = 1;
-    static constexpr int    s_kColLocation          = 2;
-    static constexpr int    s_kColumnCount          = 3;
-    static constexpr int    s_kListStop             = 0;
-    static constexpr int    s_kSearchStop           = 1;
-    static constexpr int    s_kFocusStopCount       = 2;
-    static constexpr int    s_kSearchHeightDip      = 30;
-    static constexpr int    s_kSearchListGapDip     = 8;
-    static constexpr int    s_kChromeReserveDip     = 240;
-    static constexpr int    s_kMinBodyHeightDip     = 160;
-    static constexpr int    s_kResizeGrabDip        = 4;
+    static constexpr int    s_kColLastLoaded         = 0;
+    static constexpr int    s_kColDiskImage          = 1;
+    static constexpr int    s_kColLocation           = 2;
+    static constexpr int    s_kColumnCount           = 3;
+    static constexpr int    s_kListStop              = 0;
+    static constexpr int    s_kSearchStop            = 1;
+    static constexpr int    s_kFocusStopCount        = 2;
+    static constexpr int    s_kSearchHeightDip       = 30;
+    static constexpr int    s_kSearchListGapDip      = 8;
+    static constexpr int    s_kChromeReserveDip      = 240;
+    static constexpr int    s_kMinBodyHeightDip      = 160;
+    static constexpr int    s_kResizeGrabDip         = 4;
     static constexpr int    s_kResizableMinWidthDip  = 480;
     static constexpr int    s_kResizableMinHeightDip = 320;
     static constexpr int    s_kResizableDefWidthDip  = 720;
     static constexpr int    s_kResizableDefHeightDip = 520;
     static constexpr int    s_kUnclampedBodyHeightPx = 100000;
-    static constexpr int    s_kDateTimeBufChars     = 64;
-    static constexpr int    s_kBaseDpi              = 96;
-    static constexpr UINT   s_kTickIntervalMs       = 30;
-    static constexpr float  s_kIconSizeDip          = 64.0f;
+    static constexpr int    s_kDateTimeBufChars      = 64;
+    static constexpr int    s_kBaseDpi               = 96;
+    static constexpr UINT   s_kTickIntervalMs        = 30;
+    static constexpr float  s_kIconSizeDip           = 64.0f;
 
     static constexpr std::uint64_t  s_kFiletimeTicksPerSec = 10000000ULL;
     static constexpr std::uint64_t  s_kUnixEpochFiletime   = 116444736000000000ULL;
@@ -1777,15 +2038,15 @@ Error:
 
 std::wstring DiskMruPickerSession::FormatLastLoaded (std::int64_t loadedUnix)
 {
-    HRESULT         hr      = S_OK;
+    HRESULT         hr                           = S_OK;
     std::wstring    result;
-    ULARGE_INTEGER  uli     = {};
-    FILETIME        ftUtc   = {};
-    FILETIME        ftLocal = {};
-    SYSTEMTIME      st      = {};
-    BOOL            ok      = FALSE;
-    int             dateLen = 0;
-    int             timeLen = 0;
+    ULARGE_INTEGER  uli                          = {};
+    FILETIME        ftUtc                        = {};
+    FILETIME        ftLocal                      = {};
+    SYSTEMTIME      st                           = {};
+    BOOL            ok                           = FALSE;
+    int             dateLen                      = 0;
+    int             timeLen                      = 0;
     wchar_t         dateBuf[s_kDateTimeBufChars] = {};
     wchar_t         timeBuf[s_kDateTimeBufChars] = {};
 
@@ -1875,6 +2136,8 @@ void DiskMruPickerSession::RebuildView()
     std::vector<std::vector<DxuiListView::Cell>>  rows;
     int                                           selected = -1;
 
+
+
     // Tokenize the filter: whitespace-separated, lowercased. A row passes
     // when EVERY token appears in some field (name / location / last-loaded);
     // each occurrence is highlighted in its field.
@@ -1907,10 +2170,12 @@ void DiskMruPickerSession::RebuildView()
     auto  matchesIn = [&tokens, &lower] (const std::wstring & text) -> std::vector<std::pair<int, int>>
     {
         std::vector<std::pair<int, int>>  out;
+        std::wstring                      hay;
+        std::vector<std::pair<int, int>>  merged;
 
         if (tokens.empty() || text.empty()) { return out; }
 
-        std::wstring  hay = lower (text);
+        hay = lower (text);
 
         for (const std::wstring & tok : tokens)
         {
@@ -1922,7 +2187,6 @@ void DiskMruPickerSession::RebuildView()
 
         std::sort (out.begin(), out.end());
 
-        std::vector<std::pair<int, int>>  merged;
         for (const std::pair<int, int> & r : out)
         {
             if (!merged.empty() && r.first <= merged.back().second)
@@ -1940,9 +2204,11 @@ void DiskMruPickerSession::RebuildView()
 
     auto  rowPasses = [&tokens, &lower] (const ModelRow & row) -> bool
     {
+        std::wstring  hay;
+
         if (tokens.empty()) { return true; }
 
-        std::wstring  hay = lower (row.name);
+        hay = lower (row.name);
         hay += L'\n';
         hay += lower (row.location);
         hay += L'\n';
@@ -2085,221 +2351,6 @@ int DiskMruPickerSession::ChosenResultAt (int visibleRow) const
 
 
 
-namespace
-{
-    ////////////////////////////////////////////////////////////////////////////////
-    //
-    //  PickerBodyPanel
-    //
-    //  Dxui content panel for the boot-disk picker: a search box docked at
-    //  the top, a list filling the rest. Lays out in physical pixels (the
-    //  hosted dialog passes a px content rect) so the fixed search-strip
-    //  height scales with DPI.
-    //
-    ////////////////////////////////////////////////////////////////////////////////
-
-    class PickerBodyPanel : public DxuiPanel
-    {
-    public:
-        void  Init (DxuiSearchBox * search, DxuiListView * list, int searchHeightDip, int gapDip)
-        {
-            m_search          = search;
-            m_list            = list;
-            m_searchHeightDip = searchHeightDip;
-            m_gapDip          = gapDip;
-
-            Adopt (*search);
-            Adopt (*list);
-        }
-
-        void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override
-        {
-            int  sh  = scaler.Px (m_searchHeightDip);
-            int  gap = scaler.Px (m_gapDip);
-
-
-            SetBounds (boundsPx);
-
-            if (m_search != nullptr)
-            {
-                RECT  r = { boundsPx.left, boundsPx.top, boundsPx.right, boundsPx.top + sh };
-
-                m_search->Layout (r, scaler);
-            }
-
-            if (m_list != nullptr)
-            {
-                RECT  r = { boundsPx.left, boundsPx.top + sh + gap, boundsPx.right, boundsPx.bottom };
-
-                m_list->Layout (r, scaler);
-            }
-        }
-
-        //
-        //  DxuiListView::OnMouse expects widget-LOCAL (0-based) coordinates,
-        //  but the panel fan-out delivers absolute client-px, so a plain
-        //  DxuiPanel::OnMouse would hand the list mis-offset points (wrong
-        //  row selected, column-resize divider never hit). Translate to
-        //  list-local and dispatch to the list first (it owns scroll / drag
-        //  / resize / select + consumes any press inside itself); anything
-        //  the list declines falls through to the search box, which hit-
-        //  tests against its own absolute bounds.
-        //
-        bool  OnMouse (const DxuiMouseEvent & ev) override
-        {
-            DxuiMouseEvent  listEv  = ev;
-            bool            handled = false;
-
-
-            if (m_list != nullptr)
-            {
-                RECT  lb = m_list->Bounds();
-
-                listEv.positionDip = { ev.positionDip.x - lb.left, ev.positionDip.y - lb.top };
-                handled            = m_list->OnMouse (listEv);
-            }
-
-            if (!handled && m_search != nullptr)
-            {
-                handled = m_search->OnMouse (ev);
-            }
-
-            return handled;
-        }
-
-        LPCWSTR  CursorForPoint (POINT clientPx) const override
-        {
-            LPCWSTR  cursor = nullptr;
-
-
-            if (m_list != nullptr)
-            {
-                RECT   lb    = m_list->Bounds();
-                POINT  local = { clientPx.x - lb.left, clientPx.y - lb.top };
-
-                cursor = m_list->CursorForPoint (local);
-            }
-
-            return cursor;
-        }
-
-
-    private:
-        DxuiSearchBox *  m_search          = nullptr;
-        DxuiListView  *  m_list            = nullptr;
-        int              m_searchHeightDip = 0;
-        int              m_gapDip          = 0;
-    };
-
-
-
-
-    ////////////////////////////////////////////////////////////////////////////////
-    //
-    //  PickerDialog
-    //
-    //  DxuiDialogWindow hosting a pre-built picker body (search + list) and
-    //  its action buttons. Non-cancel buttons carry their real (negative)
-    //  result codes as command ids (so a click ends the modal with that
-    //  code directly); the cancel button maps to IDCANCEL so Escape / the
-    //  close-box fire it. Row activation ends the modal with the row result
-    //  offset past s_kRowResultBase; MapResult un-offsets it and translates
-    //  IDCANCEL back to the cancel button's real code (or the close-box
-    //  result when no cancel button exists).
-    //
-    ////////////////////////////////////////////////////////////////////////////////
-
-    class PickerDialog : public DxuiDialogWindow
-    {
-    public:
-        static constexpr int  s_kRowResultBase = 100000;   // row results offset past button / IDCANCEL codes
-
-
-        void  ConfigurePicker (std::unique_ptr<DxuiPanel>          content,
-                               IDxuiControl *                     initialFocus,
-                               const std::vector<DialogButton> &  buttons,
-                               int                                closeBoxResult)
-        {
-            m_pendingContent = std::move (content);
-            m_pendingFocus   = initialFocus;
-            m_buttons        = buttons;
-            m_closeBoxResult = closeBoxResult;
-        }
-
-        int  DefaultCommandId () const { return m_defaultCommandId; }
-
-        int  MapResult (int dialogResult) const
-        {
-            int     result = m_closeBoxResult;
-            size_t  idx    = 0;
-
-
-            if (dialogResult >= s_kRowResultBase)
-            {
-                result = dialogResult - s_kRowResultBase;
-            }
-            else if (dialogResult == IDCANCEL)
-            {
-                for (idx = 0; idx < m_buttons.size(); ++idx)
-                {
-                    if (m_buttons[idx].isCancel)
-                    {
-                        result = m_buttons[idx].resultCode;
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                result = dialogResult;
-            }
-
-            return result;
-        }
-
-
-    protected:
-        void  OnCreate () override
-        {
-            size_t  i = 0;
-
-
-            if (m_pendingContent != nullptr)
-            {
-                SetDialogContentOwned (std::move (m_pendingContent));
-            }
-
-            for (i = 0; i < m_buttons.size(); ++i)
-            {
-                int                    commandId = m_buttons[i].isCancel ? IDCANCEL : m_buttons[i].resultCode;
-                DxuiButtonRow::Anchor  anchor    = m_buttons[i].anchorLeft ? DxuiButtonRow::Anchor::Left
-                                                                           : DxuiButtonRow::Anchor::Right;
-
-                AddDialogButton (m_buttons[i].label, commandId, anchor);
-
-                if (m_buttons[i].isDefault)
-                {
-                    m_defaultCommandId = commandId;
-                }
-            }
-
-            SetInitialFocus (m_pendingFocus);
-        }
-
-
-    private:
-        std::unique_ptr<DxuiPanel>  m_pendingContent;
-        IDxuiControl *              m_pendingFocus     = nullptr;
-        std::vector<DialogButton>   m_buttons;
-        int                         m_closeBoxResult   = -1;
-        int                         m_defaultCommandId = 0;
-    };
-}
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::Run
@@ -2322,6 +2373,7 @@ int DiskMruPickerSession::Run()
     int                               raw     = 0;
 
 
+
     m_dpi = (m_hwndParent != nullptr) ? GetDpiForWindow (m_hwndParent) : GetDpiForSystem();
 
     ConfigureWidgets();
@@ -2338,7 +2390,7 @@ int DiskMruPickerSession::Run()
 
         if (code >= 0)
         {
-            dlg.EndDialog (PickerDialog::s_kRowResultBase + code);
+            dlg.EndDialog (PickerDialog::kRowResultBase + code);
         }
     });
 
@@ -2489,8 +2541,8 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 
     for (int i = 0; i < mruCount; ++i)
     {
-        const DiskMru::Entry &       entry = mruEntries[(size_t) i];
-        DiskMruPickerSession::ModelRow  row;
+        const DiskMru::Entry            & entry = mruEntries[(size_t) i];
+        DiskMruPickerSession::ModelRow    row;
 
         row.name        = (mruLabels[(size_t) i] != nullptr) ? std::wstring (mruLabels[(size_t) i]->label)
                                                              : entry.path.filename().wstring();
@@ -2504,10 +2556,10 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 
     for (int j = 0; j < downloadCount; ++j)
     {
-        const DownloadRow *          dr       = shownDownloads[(size_t) j];
-        fs::path                     wantPath = diskDir / string (dr->spec->cassoName);
-        bool                         present  = fs::exists (wantPath, ec);
-        DiskMruPickerSession::ModelRow  row;
+        const DownloadRow               * dr       = shownDownloads[(size_t) j];
+        fs::path                          wantPath = diskDir / string (dr->spec->cassoName);
+        bool                              present  = fs::exists (wantPath, ec);
+        DiskMruPickerSession::ModelRow    row;
 
         row.name        = dr->label;
         row.location    = present ? L"Installed" : L"Asimov archive (Download)";
@@ -2657,8 +2709,8 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
     for (int i = 0; i < mruCount; ++i)
     {
-        const DiskMru::Entry &       entry = mruEntries[(size_t) i];
-        DiskMruPickerSession::ModelRow  row;
+        const DiskMru::Entry            & entry = mruEntries[(size_t) i];
+        DiskMruPickerSession::ModelRow    row;
 
         row.name        = (mruLabels[(size_t) i] != nullptr) ? std::wstring (mruLabels[(size_t) i]->label)
                                                              : entry.path.filename().wstring();
@@ -2672,10 +2724,10 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
     for (int j = 0; j < downloadCount; ++j)
     {
-        const DownloadRow *          dr       = shownDownloads[(size_t) j];
-        fs::path                     wantPath = diskDir / string (dr->spec->cassoName);
-        bool                         present  = fs::exists (wantPath, ec);
-        DiskMruPickerSession::ModelRow  row;
+        const DownloadRow               * dr       = shownDownloads[(size_t) j];
+        fs::path                          wantPath = diskDir / string (dr->spec->cassoName);
+        bool                              present  = fs::exists (wantPath, ec);
+        DiskMruPickerSession::ModelRow    row;
 
         row.name        = dr->label;
         row.location    = present ? L"Installed" : L"Asimov archive (Download)";
@@ -2699,7 +2751,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     }
     else if (chosen == s_kCloseBoxResult || chosen == s_kCancelResult)
     {
-        // user cancelled; outDiskPath stays empty
+        // user canceled; outDiskPath stays empty
     }
     else if (chosen >= 0 && chosen < mruCount)
     {
@@ -2754,7 +2806,7 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
 
 
 
-    outPcm.clear ();
+    outPcm.clear();
 
     CBRF (urlPath != nullptr,
           outError = "FetchAndDecodeOgg: null URL path");
@@ -2765,11 +2817,14 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
     // Build a printable short name from the URL's last path component
     // so download errors are searchable in logs.
     {
-        wstring  wUrl (urlPath);
-        size_t   slash = wUrl.find_last_of (L'/');
-        wstring  tail  = (slash == wstring::npos) ? wUrl : wUrl.substr (slash + 1);
+        size_t   slash = 0;
+        wstring  tail;
 
-        narrowName.reserve (tail.size ());
+        wstring  wUrl (urlPath);
+        slash = wUrl.find_last_of (L'/');
+        tail = (slash == wstring::npos) ? wUrl : wUrl.substr (slash + 1);
+
+        narrowName.reserve (tail.size());
 
         for (wchar_t wch : tail)
         {
@@ -2789,8 +2844,8 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
     CHR (hr);
 
     hr = StbVorbisWrapper::DecodeOggToInterleavedShort (
-        oggBytes.data (),
-        oggBytes.size (),
+        oggBytes.data(),
+        oggBytes.size(),
         shortPcm,
         srcRate,
         channels,
@@ -2800,14 +2855,14 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
     // The raw OGG bytes are not needed past this point; release them
     // before allocating the float buffer (NFR-006 -- no `.ogg` files
     // on disk, no in-memory hold past decode).
-    oggBytes.clear ();
-    oggBytes.shrink_to_fit ();
+    oggBytes.clear();
+    oggBytes.shrink_to_fit();
 
     CBRF (channels >= 1 && channels <= 2,
           outError = format ("Unsupported channel count {} (only mono and stereo handled)",
                              channels));
 
-    srcFrames = shortPcm.size () / channels;
+    srcFrames = shortPcm.size() / channels;
 
     CBRF (srcFrames > 0,
           outError = "OGG decoded to zero frames");
@@ -2833,8 +2888,8 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
             monoSrc[i] = (float) sum / (32768.0f * (float) channels);
         }
 
-        shortPcm.clear ();
-        shortPcm.shrink_to_fit ();
+        shortPcm.clear();
+        shortPcm.shrink_to_fit();
 
         // Linear-interp resample (A-001: drive noise is broadband,
         // not pitch-critical, so we accept the cheap algorithm).
@@ -2866,7 +2921,7 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
 Error:
     if (FAILED (hr))
     {
-        outPcm.clear ();
+        outPcm.clear();
     }
 
     return hr;
@@ -2895,7 +2950,7 @@ HRESULT AssetBootstrap::WritePcmAsWav (
     HRESULT     hr            = S_OK;
     ofstream    out;
     error_code  ec;
-    size_t      sampleCount   = pcm.size ();
+    size_t      sampleCount   = pcm.size();
     uint32_t    dataBytes     = static_cast<uint32_t> (sampleCount * sizeof (int16_t));
     uint32_t    fileSize      = 36 + dataBytes;     // RIFF chunk-content size: 4 + (8 + 16) + (8 + dataBytes)
     uint16_t    numChannels   = 1;
@@ -2908,17 +2963,20 @@ HRESULT AssetBootstrap::WritePcmAsWav (
     size_t      i             = 0;
     int16_t     sampleI16     = 0;
     float       sampleF       = 0.0f;
+    bool        wroteWell     = false;
 
 
 
     CBRF (sampleRate > 0,
           outError = "WritePcmAsWav: sample rate must be > 0");
 
-    fs::create_directories (outPath.parent_path (), ec);
+    fs::create_directories (outPath.parent_path(), ec);
 
     out.open (outPath, ios::binary | ios::trunc);
-    CBRF (out.good (),
-          outError = format ("Cannot open {} for writing", outPath.string ()));
+
+    wroteWell = out.good();
+    CBRF (wroteWell,
+          outError = format ("Cannot open {} for writing", outPath.string()));
 
     out.write ("RIFF", 4);
     out.write (reinterpret_cast<const char *> (&fileSize), sizeof (fileSize));
@@ -2947,10 +3005,11 @@ HRESULT AssetBootstrap::WritePcmAsWav (
         out.write (reinterpret_cast<const char *> (&sampleI16), sizeof (sampleI16));
     }
 
-    CBRF (out.good (),
-          outError = format ("Write error on {}", outPath.string ()));
+    wroteWell = out.good();
+    CBRF (wroteWell,
+          outError = format ("Write error on {}", outPath.string()));
 
-    out.close ();
+    out.close();
 
     // `fmtSizeWord` is unused on Windows builds; silence the analyzer
     // by referencing it.
@@ -2984,6 +3043,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
     const fs::path         & assetBaseDir,
     bool                     considerDiskAudio,
     GlobalUserPrefs        & prefs,
+    bool                   & outUserExited,
     string                 & outError)
 {
     HRESULT                hr             = S_OK;
@@ -2991,13 +3051,15 @@ HRESULT AssetBootstrap::RunStartupDownloader (
     StartupDownloadResult  result         = StartupDownloadResult::NothingToDo;
     vector<string>         romFiles;
     string                 narrowMachine;
-    fs::path               devicesDir     = assetBaseDir / "Devices" / "DiskII";
     bool                   audioIncluded  = false;
     error_code             ec;
+    fs::path               devicesDir     = assetBaseDir / "Devices" / "DiskII";
 
     UNREFERENCED_PARAMETER (hInstance);
 
-    narrowMachine.reserve (machineName.size ());
+    outUserExited = false;
+
+    narrowMachine.reserve (machineName.size());
 
     for (wchar_t wch : machineName)
     {
@@ -3017,12 +3079,12 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         CBRF (spec != nullptr,
               outError = format ("ROM '{}' is missing and Casso has no download "
                                  "URL for it. Place the file under {} and try again.",
-                                 romFile, assetBaseDir.string ()));
+                                 romFile, assetBaseDir.string()));
 
         relPath = fs::path (string (spec->localRelDir)) / spec->cassoName;
         found   = PathResolver::FindFile (searchPaths, relPath);
 
-        if (!found.empty ())
+        if (!found.empty())
         {
             continue;
         }
@@ -3031,7 +3093,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         entry.groupLabel    = MachineDisplayName (narrowMachine) + L" ROMs";
         entry.displayName   = AsciiToWide (spec->description);
         entry.kindLabel     = L"ROM";
-        entry.source        = L"AppleWin (GitHub)";
+        entry.source        = spec->sourceLabel.empty()
+                              ? L"AppleWin (GitHub)"
+                              : AsciiToWide (spec->sourceLabel);
         entry.selectable    = false;
         entry.selected      = true;
         entry.destPaths.push_back (assetBaseDir / string (spec->localRelDir) / spec->cassoName);
@@ -3041,11 +3105,18 @@ HRESULT AssetBootstrap::RunStartupDownloader (
             std::atomic<bool>          & cancel,
             std::string                & err) -> HRESULT
         {
-            HRESULT       hr = S_OK;
+            HRESULT       hr      = S_OK;
             HINTERNET     hSes    = nullptr;
             vector<Byte>  payload;
             error_code    ecLocal;
-            wstring       wPath   = wstring (s_kpszUrlPrefix) + AsciiToWide (spec->appleWinName);
+
+            // Default AppleWin source, or the ROM's explicit alternate host
+            // (e.g. the //c ROM on the apple2.org.za mirror).
+            bool          useAlt  = !spec->altHost.empty();
+            wstring       wHost   = useAlt ? AsciiToWide (spec->altHost) : wstring (s_kpszAppleWinHost);
+            wstring       wPath   = useAlt
+                                    ? AsciiToWide (spec->altUrlPath)
+                                    : (wstring (s_kpszUrlPrefix) + AsciiToWide (spec->appleWinName));
 
             hSes = WinHttpOpen (s_kpszUserAgent,
                                 WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
@@ -3055,8 +3126,8 @@ HRESULT AssetBootstrap::RunStartupDownloader (
             CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
 
             hr = DownloadHttp (hSes,
-                                    s_kpszAppleWinHost,
-                                    wPath.c_str (),
+                                    wHost.c_str(),
+                                    wPath.c_str(),
                                     spec->expectedSize,
                                     spec->cassoName,
                                     payload,
@@ -3065,15 +3136,16 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                                     &cancel);
             CHR (hr);
 
-            fs::create_directories (destPath.parent_path (), ecLocal);
+            fs::create_directories (destPath.parent_path(), ecLocal);
             hr = WriteFileBytes (destPath, payload);
-            CHRF (hr, err = format ("Cannot write {}", destPath.string ()));
+            CHRF (hr, err = format ("Cannot write {}", destPath.string()));
 
         Error:
             if (hSes != nullptr)
             {
                 WinHttpCloseHandle (hSes);
             }
+
             return hr;
         };
 
@@ -3085,9 +3157,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         for (string_view mechanism : s_kDiskAudioMechanisms)
         {
             StartupAssetEntry  entry;
-            string             mechStr   (mechanism);
-            wstring            mechW     (mechanism.begin (), mechanism.end ());
             size_t             missingCount = 0;
+            string             mechStr   (mechanism);
+            wstring            mechW     (mechanism.begin(), mechanism.end());
 
             for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
             {
@@ -3140,10 +3212,11 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
                 for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
                 {
-                    fs::path                     mechDir = devicesDir / string (spec.mechanism);
-                    fs::path                     wavPath = mechDir / string (spec.wavBasename);
-                    vector<float>                pcm;
-                    wstring                      urlPath;
+                    fs::path       mechDir  = devicesDir / string (spec.mechanism);
+                    fs::path       wavPath  = mechDir / string (spec.wavBasename);
+                    vector<float>  pcm;
+                    wstring        urlPath;
+                    bool           fAborted = false;
                     std::atomic<std::uint64_t>   perFileBytes{0};
 
                     if (spec.mechanism != mechStr)
@@ -3156,14 +3229,10 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                         continue;
                     }
 
-                    if (cancel.load (std::memory_order_relaxed))
-                    {
-                        hr = E_ABORT;
-                        goto Error;
-                    }
+                    BAIL_OUT_IF (cancel.load (std::memory_order_relaxed), E_ABORT);
 
                     urlPath  = s_kpszOpenEmulatorPathFmt;
-                    urlPath += wstring (spec.mechanism.begin (), spec.mechanism.end ());
+                    urlPath += wstring (spec.mechanism.begin(), spec.mechanism.end());
                     urlPath += L"/";
 
                     for (char ch : spec.oggBasename)
@@ -3179,25 +3248,25 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                     }
 
                     hr = AssetBootstrap::FetchAndDecodeOgg (hSes,
-                                                            urlPath.c_str (),
+                                                            urlPath.c_str(),
                                                             44100,
                                                             pcm,
                                                             err,
                                                             &perFileBytes,
                                                             &cancel);
 
-                    if (hr == E_ABORT || cancel.load (std::memory_order_relaxed))
-                    {
-                        hr = E_ABORT;
-                        goto Error;
-                    }
+                    // Either the fetch reported an abort or the dialog's
+                    // cancel flag went up mid-download; both end this entry.
+                    fAborted = (hr == E_ABORT) ||
+                               cancel.load (std::memory_order_relaxed);
+                    BAIL_OUT_IF (fAborted, E_ABORT);
 
                     if (FAILED (hr))
                     {
                         DEBUGMSG (L"Drive audio: skipping %S (%s)\n",
-                                  spec.oggBasename.data (),
-                                  wstring (err.begin (), err.end ()).c_str ());
-                        err.clear ();
+                                  spec.oggBasename.data(),
+                                  wstring (err.begin(), err.end()).c_str());
+                        err.clear();
                         hr = S_OK;
                         continue;
                     }
@@ -3209,9 +3278,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                     if (FAILED (hr))
                     {
                         DEBUGMSG (L"Drive audio: write failed for %S (%s)\n",
-                                  spec.wavBasename.data (),
-                                  wstring (err.begin (), err.end ()).c_str ());
-                        err.clear ();
+                                  spec.wavBasename.data(),
+                                  wstring (err.begin(), err.end()).c_str());
+                        err.clear();
                         hr = S_OK;
                         continue;
                     }
@@ -3225,6 +3294,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                 {
                     WinHttpCloseHandle (hSes);
                 }
+
                 return hr;
             };
 
@@ -3233,7 +3303,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         }
     }
 
-    BAIL_OUT_IF (set.entries.empty (), S_OK);
+    BAIL_OUT_IF (set.entries.empty(), S_OK);
 
     result = StartupDownloadDialog::Show (hInstance, hwndParent, prefs.activeTheme,
                                           MachineDisplayName (narrowMachine), set);
@@ -3247,6 +3317,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         {
             prefs.audioDownloadConsent = "allow";
         }
+
         hr = S_OK;
         break;
 
@@ -3255,11 +3326,15 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         {
             prefs.audioDownloadConsent = "decline";
         }
+
         hr = S_OK;
         break;
 
     case StartupDownloadResult::Exit:
-        hr = S_FALSE;
+        // The user asked to quit rather than download. Nothing failed,
+        // so the caller shuts down without an error box.
+        outUserExited = true;
+        hr            = S_OK;
         break;
     }
 

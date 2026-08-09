@@ -36,30 +36,54 @@ using namespace Casso::Video;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+// Shared by all three TEST_CLASSes below, so it lives at file scope rather
+// than on any one of them. `static` supplies the internal linkage the
+// anonymous namespace was there for.
+static void AssertPixelRGB (uint32_t pixel, uint8_t r, uint8_t g, uint8_t b,
+                            const wchar_t * name)
 {
-    void AssertPixelRGB (uint32_t pixel, uint8_t r, uint8_t g, uint8_t b,
-                         const wchar_t * name)
-    {
-        wchar_t msg[256];
-        swprintf_s (msg, 256,
-                    L"%ls: expected R=%u G=%u B=%u, got R=%u G=%u B=%u "
-                    L"(pixel = 0x%08X)",
-                    name, r, g, b,
-                    ExtractR (pixel), ExtractG (pixel), ExtractB (pixel),
-                    pixel);
+    wchar_t msg[256];
+    swprintf_s (msg, 256,
+                L"%ls: expected R=%u G=%u B=%u, got R=%u G=%u B=%u "
+                L"(pixel = 0x%08X)",
+                name, r, g, b,
+                ExtractR (pixel), ExtractG (pixel), ExtractB (pixel),
+                pixel);
 
-        Assert::AreEqual (r, ExtractR (pixel), msg);
-        Assert::AreEqual (g, ExtractG (pixel), msg);
-        Assert::AreEqual (b, ExtractB (pixel), msg);
-        Assert::AreEqual (uint8_t (0xFF), ExtractA (pixel),
-                          L"Alpha channel must be fully opaque");
-    }
+    Assert::AreEqual (r, ExtractR (pixel), msg);
+    Assert::AreEqual (g, ExtractG (pixel), msg);
+    Assert::AreEqual (b, ExtractB (pixel), msg);
+    Assert::AreEqual (uint8_t (0xFF), ExtractA (pixel),
+                      L"Alpha channel must be fully opaque");
 }
 
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PixelFormatTests
+//
+//  BGRA channel order through every palette and tint helper.
+//
+//  Byte order is the bug nobody catches by reading. A red-blue swap produces a
+//  picture that is complete, correctly shaped, and the wrong colors -- and the
+//  Apple II palettes are unfamiliar enough that a reviewer cannot tell by
+//  looking.
+//
+//  So the tests use colors whose channels are DISTINCT, where a swap is
+//  arithmetically visible; a gray or a pure white would round-trip through any
+//  ordering.
+//
+//  Alpha is asserted opaque, since a helper that dropped it produces a
+//  transparent framebuffer that composites to black -- read as a rendering
+//  failure rather than a channel one.
+//
+//  The monochrome tints are covered here too, because they rebuild a pixel
+//  from its luminance and are the other place the ordering can invert.
+//
+////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (PixelFormatTests)
 {
@@ -236,7 +260,7 @@ public:
             L"Amber mono must zero B");
     }
 
-    TEST_METHOD (TintWhiteMono_OnRed_GivesGreyWithR_EqualsLuma)
+    TEST_METHOD (TintWhiteMono_OnRed_GivesGrayWithR_EqualsLuma)
     {
         // Pure red (luma 76) tinted white-mono should be rgb(76,76,76).
         uint32_t  out = Casso::Video::TintWhiteMono (

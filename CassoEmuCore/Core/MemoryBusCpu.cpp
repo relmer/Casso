@@ -14,10 +14,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 MemoryBusCpu::MemoryBusCpu (MemoryBus & memoryBus)
-    : Cpu6502 (),
+    : Cpu6502(),
       m_memoryBus (memoryBus)
 {
-    Byte * pBase = memory.data ();
+    Byte * pBase = memory.data();
     int    page  = 0;
 
     // Register this CPU's 64 KB memory[] as the default page-table backing
@@ -31,6 +31,13 @@ MemoryBusCpu::MemoryBusCpu (MemoryBus & memoryBus)
         m_memoryBus.SetReadPage  (page, pBase + (page * 0x100));
         m_memoryBus.SetWritePage (page, pBase + (page * 0x100));
     }
+
+    // Serve RAM/ROM reads through the base Cpu's inline fast path instead of
+    // the virtual read dispatch: point it at the bus's read-page table (whose
+    // entries the MMU re-points on banking changes, so the pointer stays
+    // valid). I/O ($C000+) and unmapped low pages still fall through the
+    // virtual ReadByteSlow into the bus.
+    m_readPages = m_memoryBus.GetReadPageTable();
 }
 
 
@@ -39,13 +46,18 @@ MemoryBusCpu::MemoryBusCpu (MemoryBus & memoryBus)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ReadByte
+//  ReadByteSlow
+//
+//  Slow path for I/O ($C000+) and unmapped low pages. RAM/ROM reads never
+//  reach here -- the base Cpu's non-virtual ReadByte serves them inline from
+//  the read-page table wired up in the constructor. UpdateBusCycle refreshes
+//  the sub-instruction cycle estimate the disk controller samples at $C0Ex.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte MemoryBusCpu::ReadByte (Word address)
+Byte MemoryBusCpu::ReadByteSlow (Word address)
 {
-    UpdateBusCycle ();
+    UpdateBusCycle();
 
     return m_memoryBus.ReadByte (address);
 }
@@ -62,7 +74,7 @@ Byte MemoryBusCpu::ReadByte (Word address)
 
 void MemoryBusCpu::WriteByte (Word address, Byte value)
 {
-    UpdateBusCycle ();
+    UpdateBusCycle();
 
     m_memoryBus.WriteByte (address, value);
 }
@@ -116,7 +128,7 @@ void MemoryBusCpu::InitForEmulation (Prng & prng)
     // simulate real DRAM power-on state -- the same source PowerCycle draws
     // from, so a pinned seed reproduces cold boot byte-for-byte and the
     // per-boot seed log describes what actually landed in RAM.
-    prng.Fill (memory.data (), 0xC000);
+    prng.Fill (memory.data(), 0xC000);
 
     SP = 0xFD;
 
@@ -147,7 +159,7 @@ void MemoryBusCpu::InitForEmulation (Prng & prng)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryBusCpu::SoftReset ()
+void MemoryBusCpu::SoftReset()
 {
     SP = 0xFD;
 
@@ -176,7 +188,7 @@ void MemoryBusCpu::SoftReset ()
 
 void MemoryBusCpu::PowerCycle (Prng & prng)
 {
-    prng.Fill (memory.data (), 0xC000);
+    prng.Fill (memory.data(), 0xC000);
 
     A             = 0;
     X             = 0;
@@ -187,5 +199,5 @@ void MemoryBusCpu::PowerCycle (Prng & prng)
     status.flags.alwaysOne        = 1;
     status.flags.interruptDisable = 1;
 
-    SoftReset ();
+    SoftReset();
 }

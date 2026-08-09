@@ -35,21 +35,21 @@ static size_t ParseTraceSize (const wstring & text)
 
 
 
-    if (text.empty())
+    // An unrecognized suffix leaves the bare number rather than rejecting it,
+    // so "--trace 20X" is 20 entries, not an error at startup.
+    if (!text.empty())
     {
-        return 0;
-    }
+        value = wcstoull (text.c_str(), &end, 10);
 
-    value = wcstoull (text.c_str(), &end, 10);
-
-    if (end != nullptr && *end != L'\0')
-    {
-        switch (towupper (*end))
+        if (end != nullptr && *end != L'\0')
         {
-            case L'K':  value *= 1000ull;        break;
-            case L'M':  value *= 1000000ull;     break;
-            case L'G':  value *= 1000000000ull;  break;
-            default:                             break;
+            switch (towupper (*end))
+            {
+                case L'K':  value *= 1000ull;        break;
+                case L'M':  value *= 1000000ull;     break;
+                case L'G':  value *= 1000000000ull;  break;
+                default:                             break;
+            }
         }
     }
 
@@ -59,9 +59,28 @@ static size_t ParseTraceSize (const wstring & text)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ParseCommandLine
+//
+//  Reads the GUI shell's few command-line options: which machine to boot,
+//  disks to mount, and the CPU trace ring size.
+//
+//  Unrecognized arguments are IGNORED rather than rejected. This is a GUI
+//  application that Windows may launch with a shell-supplied argument, and
+//  refusing to start over one nobody asked about is worse than silently
+//  skipping it.
+//
+//  --trace accepts three spellings -- bare, space-separated size, and
+//  `=size` -- with both `--` and `/` prefixes, because it is a diagnostic flag
+//  people type from memory under time pressure.
+//
+//  The default ring is deliberately large: roughly a minute of emulated 6502
+//  time at about 340K instructions per second, which at around ten bytes per
+//  entry is a couple hundred megabytes. A trace that is too short to contain
+//  the fault is worth nothing, and anyone passing --trace has already accepted
+//  the cost.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,13 +152,46 @@ Error:
 //
 //  LoadMachineConfig
 //
+//  Everything that has to happen before a machine can be built: find its
+//  config, download any missing assets, resolve a boot disk, and load.
+//
+//  This runs BEFORE the shell exists, which is why it owns the startup
+//  dialogs. Both of them are UI-thread work that must complete before the
+//  emulator window appears, and neither can be deferred into the running app.
+//
+//  Missing assets are gathered into a SINGLE themed dialog rather than being
+//  prompted for one at a time -- ROMs and, with prior consent, the optional
+//  Disk ][ drive audio -- downloading them together on a worker thread with
+//  live progress. Prompting per file turns a first run into a sequence of
+//  modal dialogs.
+//
+//  ROM search paths put the install root that actually contained the resolved
+//  machine folder FIRST, ahead of the generic search paths, so a machine
+//  found in a development tree loads its ROMs from that same tree rather than
+//  from an installed copy elsewhere.
+//
+//  Asset decisions are made strictly from the EMBEDDED default for this
+//  machine plus the user's stored audio consent, not from the on-disk config,
+//  so a user-edited config cannot change what gets downloaded.
+//
+//  A user dismissing a startup dialog -- declining the download, or closing
+//  the boot-disk picker -- is a clean shutdown REQUEST, not a failure, so it
+//  travels back through outUserExited rather than as a result code. Folding it
+//  into the HRESULT would make a deliberate choice look like an error and
+//  produce a dialog complaining about it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
+// `outUserExited` reports that the user dismissed one of the startup
+// dialogs (declined the ROM download, or closed the boot-disk picker).
+// That is a clean shutdown request rather than a failure, so it travels
+// separately from the result code.
 static HRESULT LoadMachineConfig (
     HINSTANCE           hInstance,
     const wstring     & machineName,
     wstring           & inoutDisk1Path,
     HWND                hwndParent,
+    bool              & outUserExited,
     MachineConfig     & outConfig)
 {
     HRESULT             hr             = S_OK;
@@ -155,8 +207,11 @@ static HRESULT LoadMachineConfig (
     fs::path            diskDir;
     wstring             savedDisk;
     HRESULT             hrSaved        = S_OK;
+    bool                foundConfig    = false;
     string              error;
 
+
+    outUserExited = false;
 
     // Build search paths and find machine config
     searchPaths    = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
@@ -165,7 +220,8 @@ static HRESULT LoadMachineConfig (
                                            / (fs::path (machineName).string() + ".json");
     configPath     = PathResolver::FindFile (searchPaths, configRelPath);
 
-    CBRN (!configPath.empty(),
+    foundConfig = !configPath.empty();
+    CBRN (foundConfig,
           format (L"Unknown machine '{}'. Config file not found.\n"
                   L"Searched for '{}' in exe directory, current directory, and parent directories.",
                   machineName,
@@ -193,15 +249,16 @@ static HRESULT LoadMachineConfig (
     romDir = AssetBootstrap::GetAssetBaseDirectory();
 
     {
-        bool             hasDisk         = false;
+        bool             hasDisk    = false;
         string           hasDiskErr;
-        HRESULT          hrHasDisk       = AssetBootstrap::HasDiskController (hInstance, machineName,
-                                                                              hasDisk, hasDiskErr);
         GlobalUserPrefs  prefs;
         Win32FileSystem  fs_io;
-        std::wstring     assetBase       = AssetBootstrap::GetAssetBaseDirectory().wstring();
+        std::wstring     assetBase;
         HRESULT          hrLoad;
         HRESULT          hrSave;
+        HRESULT          hrHasDisk       = AssetBootstrap::HasDiskController (hInstance, machineName,
+                                                                              hasDisk, hasDiskErr);
+        assetBase = AssetBootstrap::GetAssetBaseDirectory().wstring();
 
         IGNORE_RETURN_VALUE (hrHasDisk, S_OK);
 
@@ -213,14 +270,17 @@ static HRESULT LoadMachineConfig (
         // is owned solely by the boot-disk picker below.
         hr = AssetBootstrap::RunStartupDownloader (hInstance, machineName, hwndParent,
                                                    romSearchPaths, romDir, hasDisk,
-                                                   prefs, error);
+                                                   prefs, outUserExited, error);
 
         hrSave = prefs.Save (assetBase, fs_io);
         IGNORE_RETURN_VALUE (hrSave, S_OK);
 
-        BAIL_OUT_IF (hr == S_FALSE, S_FALSE);
         CHRN (hr, format (L"Asset download failed:\n{}",
                           wstring (error.begin(), error.end())).c_str());
+
+        // User chose Exit rather than downloading. Stop here with no
+        // config; wWinMain shuts down quietly.
+        BAIL_OUT_IF (outUserExited, S_OK);
     }
 
     // Boot-disk pre-flight: if the user didn't pass --disk1 and there's
@@ -267,9 +327,10 @@ static HRESULT LoadMachineConfig (
             mruPruned = mru.Prune ([] (const fs::path & p)
                                    {
                                        return fs::exists (p)
-                                              && !AssetBootstrap::IsForeignWorktreeDisk (p);
+                                              && !AssetBootstrap::IsForeignCheckoutDisk (p);
                                    });
 
+            AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned);
             AssetBootstrap::AppendBundledDemoDisks (mruPruned);
 
             hr = AssetBootstrap::PromptBootDiskMru (
@@ -278,11 +339,10 @@ static HRESULT LoadMachineConfig (
             CHRN (hr, format (L"Boot disk download failed:\n{}",
                               wstring (error.begin(), error.end())).c_str());
 
-            if (userClosed)
-            {
-                hr = S_FALSE;
-                goto Error;
-            }
+            // Closing the boot-disk picker is the same clean-shutdown
+            // request as choosing Exit above.
+            outUserExited = userClosed;
+            BAIL_OUT_IF (userClosed, S_OK);
 
             if (!downloaded.empty())
             {
@@ -309,21 +369,31 @@ static HRESULT LoadMachineConfig (
     // in-session reboot. Falls back to the base text on any merge failure.
     {
         Win32FileSystem  fsMerge;
-        UserConfigStore  storeMerge (AssetBootstrap::GetAssetBaseDirectory().wstring());
         JsonValue        defaultJson;
         JsonValue        mergedJson;
         JsonParseError   parseErr;
+        HRESULT          hrParse     = S_OK;
+        HRESULT          hrMerge     = S_OK;
+        UserConfigStore  storeMerge (AssetBootstrap::GetAssetBaseDirectory().wstring());
+        hrMerge = E_FAIL;
 
-        if (SUCCEEDED (JsonParser::Parse (jsonText, defaultJson, parseErr)) &&
-            SUCCEEDED (storeMerge.Load (fs::path (machineName).string (), defaultJson, fsMerge, mergedJson)) &&
-            mergedJson.GetType () == JsonType::Object)
+        // The merge only runs when the parse produced something to merge, so
+        // hrMerge starts failed rather than being tested unconditionally.
+        hrParse = JsonParser::Parse (jsonText, defaultJson, parseErr);
+
+        if (SUCCEEDED (hrParse))
+        {
+            hrMerge = storeMerge.Load (fs::path (machineName).string(), defaultJson, fsMerge, mergedJson);
+        }
+
+        if (SUCCEEDED (hrMerge) && mergedJson.GetType() == JsonType::Object)
         {
             jsonText = JsonWriter::Write (mergedJson);
         }
     }
 
     hr = MachineConfigLoader::Load (jsonText,
-                                    fs::path (machineName).string (),
+                                    fs::path (machineName).string(),
                                     romSearchPaths,
                                     outConfig,
                                     error);
@@ -384,9 +454,45 @@ static LONG WINAPI TraceCrashFilter (EXCEPTION_POINTERS * info)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  wWinMain
+//
+//  Process entry point. Everything here is startup ORDERING -- each step is
+//  placed before something that depends on it.
+//
+//  DPI awareness is set FIRST, and programmatically rather than through a
+//  manifest entry. Without per-monitor v2, Windows bitmap-scales the whole
+//  window on a high-DPI display and every pixel the renderer draws comes out
+//  blurry. Doing it in code keeps the manifest minimal; v2 has existed since
+//  Windows 10 1703, below Casso's supported floor, so its failure path is
+//  unreachable in practice.
+//
+//  The EHM notify and breakpoint hooks are installed before anything can fail,
+//  so an error during startup is still reported through the UI.
+//
+//  The breakpoint hook exists because a failed assertion in a debug build
+//  otherwise raises a raw int 3 -- fine under a debugger, but with none
+//  attached it becomes a bare "Casso.exe has stopped working" with no detail
+//  at all. Showing the assertion text and offering Abort / Retry / Ignore lets
+//  the user quit, attach a debugger and break, or continue on EHM's normal
+//  error path the way a release build would. With a debugger already attached
+//  it breaks directly: the dialog would only obscure the stack you came for.
+//
+//  --trace is applied before the CPU thread starts, because both halves must
+//  be in place first -- the ring has to be sized, and the crash-time filter
+//  installed so an illegal opcode or any unhandled exception still flushes the
+//  trace to a file on the way out.
+//
+//  Asset bootstrap runs before the machine loads, so a loose casso.exe with no
+//  Machines/ or Themes/ folder extracts its embedded copies and has both a
+//  machine to boot and chrome to render on a first launch. User-authored theme
+//  directories are preserved -- only built-in ones are touched.
+//
+//  The shell is heap-allocated so the crash filter can reach it through a file
+//  scope pointer, and so its destructor runs before the process exits rather
+//  than during static teardown.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -396,14 +502,15 @@ int WINAPI wWinMain (
     _In_     LPWSTR    lpCmdLine,
     _In_     int       nCmdShow)
 {
-    HRESULT                          hr = S_OK;
-    wstring                          machineName;
-    wstring                          disk1Path;
-    wstring                          disk2Path;
-    size_t                           traceCapacity = 0;
-    int                              exitCode      = 0;
-    MachineConfig                    config;
-    std::unique_ptr<EmulatorShell>   shell = std::make_unique<EmulatorShell>();
+    HRESULT                         hr            = S_OK;
+    wstring                         machineName;
+    wstring                         disk1Path;
+    wstring                         disk2Path;
+    size_t                          traceCapacity = 0;
+    int                             exitCode      = 0;
+    bool                            userExited    = false;
+    MachineConfig                   config;
+    std::unique_ptr<EmulatorShell>  shell         = std::make_unique<EmulatorShell>();
 
 
 
@@ -429,6 +536,46 @@ int WINAPI wWinMain (
         MessageBoxW (NULL, message, L"Casso emulator", MB_OK | MB_ICONERROR);
     });
 
+    // Register a GUI assertion breakpoint. In debug builds a failed EHM
+    // assertion (the *A macro variants, or a bare ASSERT) otherwise breaks
+    // via a raw int 3 -- fine under a debugger, but with none attached it
+    // becomes a silent "Casso.exe has stopped working" WER crash with no
+    // detail. Instead surface the assertion text and let the user choose
+    // Abort (quit) / Retry (break, e.g. after attaching a debugger) /
+    // Ignore (continue on EHM's normal error path, as a release build would).
+    SetBreakpointFunction ([] (const wchar_t * message)
+    {
+        // With a debugger attached, break at the assertion site as before --
+        // the dialog would only get in the way of the stack you came for.
+        if (IsDebuggerPresent())
+        {
+            __debugbreak();
+        }
+        else
+        {
+            std::wstring text = L"An internal assertion failed:\n\n";
+            text += (message != nullptr && message[0] != L'\0') ? message : L"(no detail)";
+            text += L"\n\n"
+                    L"Abort  = quit now\n"
+                    L"Retry  = break (attach a debugger first to inspect)\n"
+                    L"Ignore = try to continue";
+
+            int choice = MessageBoxW (NULL, text.c_str(), L"Casso \x2014 assertion failed",
+                                      MB_ABORTRETRYIGNORE | MB_ICONERROR | MB_DEFBUTTON1 | MB_TASKMODAL);
+
+            if (choice == IDABORT)
+            {
+                TerminateProcess (GetCurrentProcess(), 3);
+            }
+            else if (choice == IDRETRY)
+            {
+                __debugbreak();   // no-op crash if still no debugger; lets you attach one
+            }
+
+            // IDIGNORE: fall through -- EHM continues on its normal error path.
+        }
+    });
+
     // Parse command line
     hr = ParseCommandLine (lpCmdLine, machineName, disk1Path, disk2Path, traceCapacity);
     CHR (hr);
@@ -447,8 +594,9 @@ int WINAPI wWinMain (
     // JSON configs (extracts embedded resources on first run if the
     // user is running a loose casso.exe with no Machines/ folder).
     {
-        HRESULT hrBoot   = AssetBootstrap::EnsureMachineConfigs (hInstance);
-        HRESULT hrThemes = S_OK;
+        HRESULT  hrBoot   = AssetBootstrap::EnsureMachineConfigs (hInstance);
+        HRESULT  hrThemes = S_OK;
+        HRESULT  hrSounds = S_OK;
 
 
 
@@ -460,6 +608,11 @@ int WINAPI wWinMain (
         // preserved — the planner only ever touches built-in dirs.
         hrThemes = AssetBootstrap::EnsureThemes (hInstance);
         IGNORE_RETURN_VALUE (hrThemes, S_OK);
+
+        // Extract the ImageWriter II mechanical sound set next to the machine
+        // configs and themes so the printer preview has audio on first launch.
+        hrSounds = AssetBootstrap::EnsureImageWriterSounds (hInstance);
+        IGNORE_RETURN_VALUE (hrSounds, S_OK);
     }
 
     // Resolve machine name: command line > UserPrefs.json lastSelectedMachine > first discovered.
@@ -476,24 +629,16 @@ int WINAPI wWinMain (
                             earlyPrefs.lastSelectedMachine.end());
     }
 
-    if (machineName.empty() ||
-        PathResolver::FindFile (
-            PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
-                                            PathResolver::GetWorkingDirectory()),
-            fs::path ("Machines") / fs::path (machineName).string()
-                                  / (fs::path (machineName).string() + ".json")).empty())
+    // Resolve the requested machine (from --machine or last-selected prefs)
+    // to a canonical on-disk name. The filesystem is case-insensitive, so a
+    // mis-cased --machine value like "apple2e" still loads its config -- but
+    // FindRomSpec and MachineDisplayName match names exactly, so a lowercase
+    // name would report every per-machine ROM missing. Canonicalize against
+    // the scan so downstream lookups agree. An unmatched / empty request
+    // falls back to Apple //e (else the first discovered machine, else the
+    // Apple2e literal) so the LoadMachineConfig flow can still offer the ROM
+    // / sample-disk downloads instead of bailing with a dead-end MessageBox.
     {
-        // Legacy Win32 `MachinePickerDialog` is retired (FR-027). At
-        // startup we deterministically pick a sensible default machine
-        // from `MachineScanner::Scan`; the user can switch later via
-        // the Settings panel. Apple //e is the modern Apple II family
-        // member most users will want, so prefer it if discovered.
-        // Otherwise fall back to the first scan result. If nothing
-        // was discovered at all (Machines/ missing, asset bootstrap
-        // wiped between runs) we still default to Apple2e so the
-        // downstream LoadMachineConfig flow gets to offer the ROM /
-        // sample-disk downloads instead of bailing with a dead-end
-        // error MessageBox.
         constexpr std::wstring_view  s_kPreferredDefaultMachine = L"Apple2e";
 
         vector<fs::path> scanPaths = PathResolver::BuildSearchPaths (
@@ -505,31 +650,16 @@ int WINAPI wWinMain (
             &MachineScanner::ListDirectory,
             &MachineScanner::ReadFile);
 
-        machineName.clear();
-        for (const MachineInfo & info : discovered)
-        {
-            if (info.fileName == s_kPreferredDefaultMachine)
-            {
-                machineName = info.fileName;
-                break;
-            }
-        }
-        if (machineName.empty() && !discovered.empty())
-        {
-            machineName = discovered.front().fileName;
-        }
-        if (machineName.empty())
-        {
-            machineName = std::wstring (s_kPreferredDefaultMachine);
-        }
+        machineName = MachineScanner::SelectCanonical (
+            discovered, machineName, s_kPreferredDefaultMachine);
     }
 
-    // Load machine configuration. S_FALSE here means the user
-    // declined the missing-ROM download prompt — exit cleanly
-    // without a follow-up error MessageBox.
-    hr = LoadMachineConfig (hInstance, machineName, disk1Path, nullptr, config);
+    // Load machine configuration. A user who dismissed one of the
+    // startup dialogs wants out, so exit cleanly without a follow-up
+    // error MessageBox.
+    hr = LoadMachineConfig (hInstance, machineName, disk1Path, nullptr, userExited, config);
     CHR (hr);
-    BAIL_OUT_IF (hr == S_FALSE, S_OK);
+    BAIL_OUT_IF (userExited, S_OK);
 
     // Initialize emulator. EmulatorShell::Initialize records the
     // chosen machine into GlobalUserPrefs.lastSelectedMachine and
@@ -550,12 +680,20 @@ int WINAPI wWinMain (
         shell->DumpTrace (L"exit");
     }
 
-    s_pTraceShell = nullptr;
-    return exitCode;
-
+    // Success falls into the same tail the bails jump to: clearing the trace
+    // back-pointer must happen exactly once, on every path, before the shell
+    // it points at is destroyed.
 Error:
     s_pTraceShell = nullptr;
-    return FAILED (hr) ? 1 : 0;
+
+    // exitCode is still 0 for any bail, including BAIL_OUT_IF (userExited) --
+    // dismissing a startup dialog is a clean exit, not a failure.
+    if (FAILED (hr))
+    {
+        exitCode = 1;
+    }
+
+    return exitCode;
 }
 
 

@@ -10,8 +10,33 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-namespace
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmuValidationSuiteTests
+//
+//  Phase 13 / User Story 4. The consolidated FR-045 acceptance suite.
+//  Every scenario runs deterministically through HeadlessHost +
+//  IFixtureProvider only — constitution §II compliant, no Win32, no
+//  audio device, no host filesystem outside UnitTest/Fixtures/.
+//
+//  Scope mapping:
+//    T114 — `GR`  reaches lo-res mixed-mode state (FR-045 acceptance).
+//    T115 — `HGR` reaches hi-res page 1 (FR-045 acceptance).
+//    T116 — `HGR2` reaches hi-res page 2 (FR-045 acceptance).
+//    T117 — Mixed-mode + 80COL golden framebuffer hash (FR-017a / Q1).
+//    T118 — DOS 3.3, ProDOS, WOZ, copy-protected disk boot end-to-end.
+//    T113/orchestrator — `RunsAllScenarios` invokes the full FR-045 set
+//                        and asserts every sub-scenario reports green.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (EmuValidationSuiteTests)
 {
+public:
+
     static constexpr uint64_t   kColdBootCycles      = 5000000ULL;
     static constexpr uint64_t   kAfterCommandCycles  = 1000000ULL;
     static constexpr uint64_t   kBootDiskCycles      = 2000000ULL;
@@ -99,10 +124,10 @@ namespace
         HRESULT   hr;
 
         hr = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
-        Assert::IsTrue (core.HasApple2e (), L"//e wiring must be complete");
+        AssertSucceeded (hr, L"BuildApple2e must succeed");
+        Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
 
-        core.PowerCycle ();
+        core.PowerCycle();
         core.RunCycles  (kColdBootCycles);
     }
 
@@ -116,7 +141,7 @@ namespace
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    vector<Byte> BuildSyntheticDsk ()
+    vector<Byte> BuildSyntheticDsk()
     {
         vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
 
@@ -134,7 +159,7 @@ namespace
     }
 
 
-    vector<Byte> BuildSyntheticPo ()
+    vector<Byte> BuildSyntheticPo()
     {
         vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
 
@@ -174,12 +199,12 @@ namespace
         DiskImage *  external  = nullptr;
 
         hr = host.BuildApple2eWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1, virtualPath, fmt, bytes);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed");
+        AssertSucceeded (hr, L"MountFromBytes must succeed");
 
         external = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
@@ -201,47 +226,19 @@ namespace
 
     int RowContaining (const std::vector<std::string> & rows, const std::string & needle)
     {
-        size_t   i;
+        size_t   i     = 0;
+        int      found = -1;   // -1 is "no such row", distinct from row 0
 
-        for (i = 0; i < rows.size (); i++)
+        for (i = 0; found < 0 && i < rows.size(); i++)
         {
             if (rows[i].find (needle) != std::string::npos)
             {
-                return static_cast<int> (i);
+                found = static_cast<int> (i);
             }
         }
 
-        return -1;
+        return found;
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmuValidationSuiteTests
-//
-//  Phase 13 / User Story 4. The consolidated FR-045 acceptance suite.
-//  Every scenario runs deterministically through HeadlessHost +
-//  IFixtureProvider only — constitution §II compliant, no Win32, no
-//  audio device, no host filesystem outside UnitTest/Fixtures/.
-//
-//  Scope mapping:
-//    T114 — `GR`  reaches lo-res mixed-mode state (FR-045 acceptance).
-//    T115 — `HGR` reaches hi-res page 1 (FR-045 acceptance).
-//    T116 — `HGR2` reaches hi-res page 2 (FR-045 acceptance).
-//    T117 — Mixed-mode + 80COL golden framebuffer hash (FR-017a / Q1).
-//    T118 — DOS 3.3, ProDOS, WOZ, copy-protected disk boot end-to-end.
-//    T113/orchestrator — `RunsAllScenarios` invokes the full FR-045 set
-//                        and asserts every sub-scenario reports green.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (EmuValidationSuiteTests)
-{
-public:
 
     ////////////////////////////////////////////////////////////////////////
     //
@@ -270,19 +267,19 @@ public:
 
         core.RunCycles (kAfterCommandCycles);
 
-        Assert::IsTrue  (core.softSwitches->IsGraphicsMode (),
+        Assert::IsTrue  (core.softSwitches->IsGraphicsMode(),
             L"GR must engage graphics mode (TEXT off)");
-        Assert::IsTrue  (core.softSwitches->IsMixedMode (),
+        Assert::IsTrue  (core.softSwitches->IsMixedMode(),
             L"GR must engage mixed mode (4 lines text bottom)");
-        Assert::IsFalse (core.softSwitches->IsHiresMode (),
+        Assert::IsFalse (core.softSwitches->IsHiresMode(),
             L"GR must keep HIRES off");
-        Assert::IsFalse (core.softSwitches->IsPage2 (),
+        Assert::IsFalse (core.softSwitches->IsPage2(),
             L"GR must select PAGE1");
 
         std::vector<std::string>   rows = TextScreenScraper::Scrape40 (
             *core.bus, TextScreenScraper::kTextPage1);
 
-        Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size (),
+        Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size(),
             L"Scraper must produce 24 rows");
 
         promptRow = RowContaining (rows, "]");
@@ -316,13 +313,13 @@ public:
 
         core.RunCycles (kAfterCommandCycles);
 
-        Assert::IsTrue  (core.softSwitches->IsGraphicsMode (),
+        Assert::IsTrue  (core.softSwitches->IsGraphicsMode(),
             L"HGR must engage graphics mode (TEXT off)");
-        Assert::IsTrue  (core.softSwitches->IsHiresMode (),
+        Assert::IsTrue  (core.softSwitches->IsHiresMode(),
             L"HGR must engage HIRES");
-        Assert::IsFalse (core.softSwitches->IsPage2 (),
+        Assert::IsFalse (core.softSwitches->IsPage2(),
             L"HGR must select PAGE1");
-        Assert::IsTrue  (core.softSwitches->IsMixedMode (),
+        Assert::IsTrue  (core.softSwitches->IsMixedMode(),
             L"HGR must engage MIXED (preserves bottom text)");
 
         consumed = KeystrokeInjector::InjectLine (core, "HPLOT 0,0 TO 279,159");
@@ -361,13 +358,13 @@ public:
 
         core.RunCycles (kAfterCommandCycles);
 
-        Assert::IsTrue  (core.softSwitches->IsGraphicsMode (),
+        Assert::IsTrue  (core.softSwitches->IsGraphicsMode(),
             L"HGR2 must engage graphics mode (TEXT off)");
-        Assert::IsTrue  (core.softSwitches->IsHiresMode (),
+        Assert::IsTrue  (core.softSwitches->IsHiresMode(),
             L"HGR2 must engage HIRES");
-        Assert::IsTrue  (core.softSwitches->IsPage2 (),
+        Assert::IsTrue  (core.softSwitches->IsPage2(),
             L"HGR2 must select PAGE2");
-        Assert::IsFalse (core.softSwitches->IsMixedMode (),
+        Assert::IsFalse (core.softSwitches->IsMixedMode(),
             L"HGR2 must clear MIXED (full-screen graphics)");
     }
 
@@ -389,22 +386,24 @@ public:
 
     TEST_METHOD (US4_MixedMode_80Col_GoldenOutput)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        uint32_t       seed = 0xCA550001u;
-        int            row;
-        int            col;
-        Word           rowBase;
-        Word           hiresAddr;
-        Byte           a;
-        Byte           m;
-        Byte           h;
-        uint64_t       hash;
+        HeadlessHost          host;
+        EmulatorCore          core;
+        uint32_t              seed      = 0xCA550001u;
+        int                   row;
+        int                   col;
+        Word                  rowBase;
+        Word                  hiresAddr;
+        Byte                  a;
+        Byte                  m;
+        Byte                  h;
+        uint64_t              hash;
+        Byte                * auxBuf    = nullptr;
+        constexpr uint64_t    kExpected = 0x2ABA2BA47C35CE05ULL;
 
         HRESULT   hr = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
+        AssertSucceeded (hr, L"BuildApple2e must succeed");
 
-        core.PowerCycle ();
+        core.PowerCycle();
         core.RunCycles  (kColdBootCycles);
 
         // Engage HIRES + MIXED + 80COL via the documented soft-switch
@@ -417,7 +416,7 @@ public:
         core.bus->WriteByte (kSwitch80StoreOn, 0);
         core.bus->WriteByte (kSwitch80ColOn,   0);
 
-        Byte * auxBuf = core.mmu->GetAuxBuffer ();
+        auxBuf = core.mmu->GetAuxBuffer();
 
         // Stamp a deterministic 80-col text pattern into the bottom 4
         // rows (20..23). Aux supplies even columns, main supplies odd.
@@ -453,7 +452,7 @@ public:
 
         AppleHiResMode   hires (*core.bus);
         hires.SetPage2 (false);
-        hires.Render (nullptr, fb.data (), kFbW, kFbH);
+        hires.Render (nullptr, fb.data(), kFbW, kFbH);
 
         Apple80ColTextMode   text80 (*core.bus);
         text80.SetAuxMemory  (auxBuf);
@@ -463,11 +462,11 @@ public:
             kMixedTextStartRow,
             TextScreenScraper::kRows,
             nullptr,
-            fb.data (),
+            fb.data(),
             kFbW,
             kFbH);
 
-        hash = Fnv1a64 (fb.data (), fb.size ());
+        hash = Fnv1a64 (fb.data(), fb.size());
 
         // Golden hash captured from the first deterministic render with
         // PRNG seed 0xCA550001 + HeadlessHost::kPinnedSeed cold boot.
@@ -477,10 +476,9 @@ public:
         // Video/PixelFormat.h) — pixel bytes are now in BGRA order so
         // the FNV hash over the framebuffer changes for any frame with
         // non-grayscale content.
-        constexpr uint64_t   kExpected = 0x2ABA2BA47C35CE05ULL;
 
         Assert::AreEqual (kExpected, hash,
-            std::format (L"Mixed-mode 80COL golden hash mismatch: got 0x{:016X}", hash).c_str ());
+            std::format (L"Mixed-mode 80COL golden hash mismatch: got 0x{:016X}", hash).c_str());
     }
 
 
@@ -502,7 +500,7 @@ public:
     {
         HeadlessHost   host;
         EmulatorCore   core;
-        vector<Byte>   raw       = BuildSyntheticDsk ();
+        vector<Byte>   raw       = BuildSyntheticDsk();
         DiskImage   *  external  = nullptr;
         size_t         bitsAfter = 0;
 
@@ -514,9 +512,9 @@ public:
 
         core.RunCycles (kBootDiskCycles);
 
-        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
 
-        Assert::IsTrue (core.diskController->IsMotorOn (),
+        Assert::IsTrue (core.diskController->IsMotorOn(),
             L"Boot ROM must turn the motor on (FR-021)");
         Assert::IsTrue (bitsAfter > 0,
             L"DOS 3.3 boot ROM must read at least one nibble from track 0");
@@ -524,7 +522,7 @@ public:
         std::vector<std::string>   rows = TextScreenScraper::Scrape40 (
             *core.bus, TextScreenScraper::kTextPage1);
 
-        Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size (),
+        Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size(),
             L"Text screen must remain scrape-able through the DOS 3.3 boot attempt");
     }
 
@@ -533,27 +531,43 @@ public:
     //
     //  US4 / T118 — ProDOS .po disk boot end-to-end.
     //
+    //  Boots a real ProDOS disk image and runs until the PREFIX prompt appears
+    //  on screen.
+    //
+    //  The strongest end-to-end statement the emulator makes: the CPU, the
+    //  memory map, the Disk ][ controller, the nibble engine, and the video
+    //  renderer all have to be right simultaneously, and any one of them being
+    //  wrong stops the boot.
+    //
+    //  The assertion reads the SCREEN rather than memory or a flag, because
+    //  that is what a user sees -- a boot that completes internally while
+    //  rendering nothing is not a working emulator.
+    //
+    //  The .po ordering is covered separately from .dsk since the two interleave
+    //  sectors differently, and a reader that confuses them boots one and
+    //  garbles the other.
+    //
     ////////////////////////////////////////////////////////////////////////
 
     TEST_METHOD (US4_ProDOS_Boots_To_PREFIX)
     {
         HeadlessHost   host;
         EmulatorCore   core;
-        vector<Byte>   raw       = BuildSyntheticPo ();
+        vector<Byte>   raw       = BuildSyntheticPo();
         DiskImage   *  external  = nullptr;
         size_t         bitsAfter = 0;
 
         external = MountAndJumpToSlot6Boot (host, core,
             "synthetic.po", DiskFormat::Po, raw);
 
-        Assert::IsTrue (external->GetSourceFormat () == DiskFormat::Po,
+        Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Po,
             L"ProDOS .po mount must record source format");
 
         core.RunCycles (kBootDiskCycles);
 
-        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
 
-        Assert::IsTrue (core.diskController->IsMotorOn (),
+        Assert::IsTrue (core.diskController->IsMotorOn(),
             L"Boot ROM must spin up the drive on a .po mount");
         Assert::IsTrue (bitsAfter > 0,
             L"ProDOS boot ROM must read at least one nibble from a .po image");
@@ -561,7 +575,7 @@ public:
         std::vector<std::string>   rows = TextScreenScraper::Scrape40 (
             *core.bus, TextScreenScraper::kTextPage1);
 
-        Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size (),
+        Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size(),
             L"Text screen must remain scrape-able through the ProDOS boot attempt");
     }
 
@@ -569,6 +583,23 @@ public:
     ////////////////////////////////////////////////////////////////////////
     //
     //  US4 / T118 — WOZ disk boots the first track.
+    //
+    //  Boots a WOZ image, whose bitstream is stored as FLUX rather than as
+    //  decoded sectors.
+    //
+    //  A different path from .dsk and .po entirely. Those formats hold sector
+    //  data that the emulator nibblizes on the fly; a WOZ holds the raw
+    //  bitstream captured from real media, so the nibble engine reads it
+    //  directly with no encoding step.
+    //
+    //  That is the format copy-protected disks require -- the protection lives
+    //  in timing and in non-standard track layouts that a sector-level format
+    //  cannot represent -- so this path working is what makes those disks
+    //  runnable at all.
+    //
+    //  Booting the first track is the assertion because it proves the bitstream
+    //  is being clocked at the right rate: a wrong bit cell length yields a
+    //  track that never accumulates enough sync bytes to find a sector header.
     //
     ////////////////////////////////////////////////////////////////////////
 
@@ -582,23 +613,23 @@ public:
         HRESULT        hr        = S_OK;
 
         hr = BuildSyntheticWoz (kWozTrackBitCount, kWozTrackByteCount, woz);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildSyntheticV2 must succeed");
+        AssertSucceeded (hr, L"BuildSyntheticV2 must succeed");
 
         external = MountAndJumpToSlot6Boot (host, core,
             "sample.woz", DiskFormat::Woz, woz);
 
-        Assert::IsTrue (external->GetSourceFormat () == DiskFormat::Woz,
+        Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Woz,
             L"WOZ mount must record native bit-stream format");
         Assert::AreEqual (kWozTrackBitCount, external->GetTrackBitCount (0),
             L"WOZ track 0 must preserve the synthetic 51200-bit length");
 
         core.RunCycles (kBootDiskCycles);
 
-        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
 
         Assert::IsTrue (bitsAfter > 0,
             L"WOZ nibble engine must advance through the bit stream (FR-022)");
-        Assert::IsTrue (core.diskController->IsMotorOn (),
+        Assert::IsTrue (core.diskController->IsMotorOn(),
             L"Boot ROM must spin up the drive on a WOZ mount");
     }
 
@@ -623,7 +654,7 @@ public:
         HRESULT        hr        = S_OK;
 
         hr = BuildSyntheticWoz (kCpTrackBitCount, kCpTrackByteCount, woz);
-        Assert::IsTrue (SUCCEEDED (hr), L"CP-style synthetic WOZ build must succeed");
+        AssertSucceeded (hr, L"CP-style synthetic WOZ build must succeed");
 
         external = MountAndJumpToSlot6Boot (host, core,
             "copyprotected.woz", DiskFormat::Woz, woz);
@@ -633,7 +664,7 @@ public:
 
         core.RunCycles (kBootDiskCycles);
 
-        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
 
         Assert::IsTrue (bitsAfter > 0,
             L"Engine must advance through the variable-length CP track (FR-024)");
@@ -641,7 +672,8 @@ public:
         std::vector<std::string>   rows = TextScreenScraper::Scrape40 (
             *core.bus, TextScreenScraper::kTextPage1);
 
-        Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size (),
+        Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size(),
             L"Text screen must remain scrape-able through the CP boot attempt");
     }
 };
+

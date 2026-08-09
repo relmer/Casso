@@ -28,66 +28,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    class RecordingEventSink : public IDisk2EventSink
-    {
-    public:
-        enum class Event
-        {
-            MotorCommandOn,
-            MotorEngaged,
-            MotorCommandOff,
-            MotorDisengaged,
-            HeadStep,
-            HeadBump,
-            AddressMark,
-            DataMarkRead,
-            DataMarkWrite,
-            DriveSelect,
-            DiskInserted,
-            DiskEjected,
-        };
-
-        struct LogEntry
-        {
-            Event  event;
-            int    arg;
-        };
-
-        std::vector<LogEntry>  log;
-
-        void OnMotorCommandOn() override                    { log.push_back ({ Event::MotorCommandOn,  0 }); }
-        void OnMotorEngaged() override                      { log.push_back ({ Event::MotorEngaged,    0 }); }
-        void OnMotorCommandOff() override                   { log.push_back ({ Event::MotorCommandOff, 0 }); }
-        void OnMotorDisengaged() override                   { log.push_back ({ Event::MotorDisengaged, 0 }); }
-        void OnHeadStep (int, int newQt) override           { log.push_back ({ Event::HeadStep,        newQt }); }
-        void OnHeadBump (int atQt) override                 { log.push_back ({ Event::HeadBump,        atQt }); }
-        void OnAddressMark (int, int sector, int) override  { log.push_back ({ Event::AddressMark,  sector }); }
-        void OnDataMarkRead (int, int sector, int, int) override   { log.push_back ({ Event::DataMarkRead,    sector }); }
-        void OnDataMarkWrite (int, int sector, int, int) override  { log.push_back ({ Event::DataMarkWrite,   sector }); }
-        void OnDriveSelect (int drive) override             { log.push_back ({ Event::DriveSelect,     drive }); }
-        void OnDiskInserted (int drive) override            { log.push_back ({ Event::DiskInserted,    drive }); }
-        void OnDiskEjected (int drive) override             { log.push_back ({ Event::DiskEjected,     drive }); }
-
-        int CountOf (Event ev) const
-        {
-            int     n = 0;
-            size_t  i = 0;
-
-            for (i = 0; i < log.size(); i++)
-            {
-                if (log[i].event == ev)
-                {
-                    n++;
-                }
-            }
-
-            return n;
-        }
-    };
-}
-
 
 
 
@@ -108,10 +48,68 @@ namespace Disk2ControllerEventTests
     {
     public:
 
+        class RecordingEventSink : public IDisk2EventSink
+        {
+        public:
+            enum class Event
+            {
+                MotorCommandOn,
+                MotorEngaged,
+                MotorCommandOff,
+                MotorDisengaged,
+                HeadStep,
+                HeadBump,
+                AddressMark,
+                DataMarkRead,
+                DataMarkWrite,
+                DriveSelect,
+                DiskInserted,
+                DiskEjected,
+            };
+
+            struct LogEntry
+            {
+                Event  event;
+                int    arg;
+            };
+
+            std::vector<LogEntry>  log;
+
+            void OnMotorCommandOn() override                    { log.push_back ({ Event::MotorCommandOn,  0 }); }
+            void OnMotorEngaged() override                      { log.push_back ({ Event::MotorEngaged,    0 }); }
+            void OnMotorCommandOff() override                   { log.push_back ({ Event::MotorCommandOff, 0 }); }
+            void OnMotorDisengaged() override                   { log.push_back ({ Event::MotorDisengaged, 0 }); }
+            void OnHeadStep (int, int newQt) override           { log.push_back ({ Event::HeadStep,        newQt }); }
+            void OnHeadBump (int atQt) override                 { log.push_back ({ Event::HeadBump,        atQt }); }
+            void OnAddressMark (int, int sector, int) override  { log.push_back ({ Event::AddressMark,  sector }); }
+            void OnDataMarkRead (int, int sector, int, int) override   { log.push_back ({ Event::DataMarkRead,    sector }); }
+            void OnDataMarkWrite (int, int sector, int, int) override  { log.push_back ({ Event::DataMarkWrite,   sector }); }
+            void OnDriveSelect (int drive) override             { log.push_back ({ Event::DriveSelect,     drive }); }
+            void OnDiskInserted (int drive) override            { log.push_back ({ Event::DiskInserted,    drive }); }
+            void OnDiskEjected (int drive) override             { log.push_back ({ Event::DiskEjected,     drive }); }
+
+            int CountOf (Event ev) const
+            {
+                int     n = 0;
+                for (const auto & logEntry : log)
+                {
+                    if (logEntry.event == ev)
+                    {
+                        n++;
+                    }
+                }
+
+                return n;
+            }
+        };
+
         TEST_METHOD (MotorOnFirstStrobe_firesBothCommandOnAndEngaged)
         {
-            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
+
+
+
+            Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
             ctrl.Write (0xC0E9, 0x00);
@@ -123,8 +121,11 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (MotorReStrobe_firesCommandOnButNotEngagedAgain)
         {
-            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
+
+
+
+            Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
             ctrl.Write (0xC0E9, 0x00);
@@ -138,8 +139,11 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (MotorOffStrobe_firesCommandOff_butDisengagedOnlyAfterSpindown)
         {
-            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
+
+
+
+            Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
             ctrl.Write (0xC0E9, 0x00);    // motor on
@@ -157,10 +161,81 @@ namespace Disk2ControllerEventTests
         }
 
 
+        TEST_METHOD (MotorOffFlushCallback_firesOnceOnSpindownCompletion)
+        {
+            int               flushes = 0;
+
+
+
+            Disk2Controller   ctrl (6);
+
+            ctrl.SetMotorOffFlushCallback ([&] () { flushes++; });
+
+            ctrl.Write (0xC0E9, 0x00);    // motor on
+            ctrl.Write (0xC0E8, 0x00);    // motor off (arms spindown)
+
+            // Mid-spindown: the disk op isn't done yet, so no flush.
+            ctrl.Tick (500000);
+            Assert::AreEqual (0, flushes, L"flush must wait for the spindown to complete");
+
+            // Past the 1,000,000-cycle spindown timer -> motor disengages.
+            ctrl.Tick (600000);
+            Assert::AreEqual (1, flushes, L"motor-off flush fires on spindown completion");
+
+            // Motor already off: further ticks must not re-fire.
+            ctrl.Tick (2000000);
+            Assert::AreEqual (1, flushes, L"no re-fire while the motor stays off");
+        }
+
+
+        TEST_METHOD (MotorOffFlushCallback_notFiredWhileMotorRuns)
+        {
+            int               flushes = 0;
+
+
+
+            Disk2Controller   ctrl (6);
+
+            ctrl.SetMotorOffFlushCallback ([&] () { flushes++; });
+
+            ctrl.Write (0xC0E9, 0x00);    // motor on, never commanded off
+            ctrl.Tick  (5000000);
+
+            Assert::AreEqual (0, flushes, L"a running motor must not trigger a flush");
+        }
+
+
+        TEST_METHOD (MotorOffFlushCallback_firesAgainOnEachOperationCycle)
+        {
+            int               flushes = 0;
+
+
+
+            Disk2Controller   ctrl (6);
+
+            ctrl.SetMotorOffFlushCallback ([&] () { flushes++; });
+
+            // First operation: on -> off -> spin down.
+            ctrl.Write (0xC0E9, 0x00);
+            ctrl.Write (0xC0E8, 0x00);
+            ctrl.Tick  (1100000);
+            Assert::AreEqual (1, flushes);
+
+            // Second operation must flush again on its own spindown.
+            ctrl.Write (0xC0E9, 0x00);
+            ctrl.Write (0xC0E8, 0x00);
+            ctrl.Tick  (1100000);
+            Assert::AreEqual (2, flushes, L"each disk operation's spindown flushes");
+        }
+
+
         TEST_METHOD (MotorOffRestrobe_alwaysFiresCommandOff_evenWhenMotorAlreadyOff)
         {
-            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
+
+
+
+            Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
             ctrl.Write (0xC0E8, 0x00);
@@ -175,8 +250,11 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (PhaseChange_noMovement_firesNoHeadEvents)
         {
-            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
+
+
+
+            Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
 
@@ -190,8 +268,11 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (PhaseChange_pastTrack0_firesHeadBumpNotHeadStep)
         {
-            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
+
+
+
+            Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
 
@@ -206,9 +287,12 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (PhaseChange_oneQuarterStep_firesHeadStepWithPrevAndNewQt)
         {
-            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
             size_t               i = 0;
+
+
+
+            Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
 
@@ -220,13 +304,13 @@ namespace Disk2ControllerEventTests
             Assert::AreEqual (0, sink.CountOf (RecordingEventSink::Event::HeadBump));
             Assert::AreEqual (2, ctrl.GetQuarterTrack());
 
-            for (i = 0; i < sink.log.size(); i++)
+            for (const auto & logEntry : sink.log)
             {
-                if (sink.log[i].event == RecordingEventSink::Event::HeadStep)
+                if (logEntry.event == RecordingEventSink::Event::HeadStep)
                 {
                     // RecordingEventSink stashes newQt; verify it
                     // matches the post-step position.
-                    Assert::AreEqual (2, sink.log[i].arg);
+                    Assert::AreEqual (2, logEntry.arg);
                 }
             }
         }
@@ -234,8 +318,11 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (DriveSelect_firesOnceWithNewDriveIndex)
         {
-            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
+
+
+
+            Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
             ctrl.Write (0xC0EB, 0x00);    // drive 2 (index 1)
@@ -249,8 +336,11 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (EjectDisk_firesOnceWithDriveIndex)
         {
-            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
+
+
+
+            Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
             ctrl.EjectDisk (0);
@@ -271,8 +361,11 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (NotifyDiskInserted_firesOnceWithDriveIndex)
         {
-            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
+
+
+
+            Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
             ctrl.NotifyDiskInserted (1);
@@ -284,8 +377,11 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (NotifyDiskEjected_firesOnceWithDriveIndex)
         {
-            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
+
+
+
+            Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
             ctrl.NotifyDiskEjected (0);
@@ -297,8 +393,11 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (NotifyDisk_invalidDrive_isNoop)
         {
-            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
+
+
+
+            Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
             ctrl.NotifyDiskInserted (-1);
@@ -322,8 +421,11 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (DetachedSink_firesNothing)
         {
-            Disk2Controller      ctrl (6);
             RecordingEventSink   sink;
+
+
+
+            Disk2Controller      ctrl (6);
 
             // Attach then immediately revoke -- subsequent activity
             // MUST NOT touch the sink (the controller's per-fire-site
@@ -344,6 +446,11 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (NoSink_quarterTrackPositionMatchesAttachedSinkBaseline)
         {
+            RecordingEventSink   sink;
+            size_t               i        = 0;
+
+
+
             // T034 regression assertion: with a sink attached the
             // controller's observable head state must move
             // identically to the no-sink baseline. We run the same
@@ -355,9 +462,7 @@ namespace Disk2ControllerEventTests
             // event firing would diverge them immediately.
             Disk2Controller      baseline (6);
             Disk2Controller      observed (6);
-            RecordingEventSink   sink;
             const Word           phases[] = { 0xC0E3, 0xC0E5, 0xC0E7, 0xC0E1, 0xC0E3, 0xC0E5 };
-            size_t               i        = 0;
 
             observed.SetEventSink (&sink);
 
@@ -384,6 +489,11 @@ namespace Disk2ControllerEventTests
 
         TEST_METHOD (NibbleReadByte_returnedValueUnchangedByWatcherObservation)
         {
+            RecordingEventSink   sink;
+            int                  i = 0;
+
+
+
             // T034 byte-identity (reduced scope, see commit note):
             // the simplest verifiable invariant is that the read
             // path's return value with vs without a sink is
@@ -391,8 +501,6 @@ namespace Disk2ControllerEventTests
             // the latch byte.
             Disk2Controller      baseline (6);
             Disk2Controller      observed (6);
-            RecordingEventSink   sink;
-            int                  i = 0;
 
             observed.SetEventSink (&sink);
 
@@ -410,3 +518,4 @@ namespace Disk2ControllerEventTests
         }
     };
 }
+

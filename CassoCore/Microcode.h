@@ -14,6 +14,26 @@
 //
 //  Microcode
 //
+//  One instruction's decoded description: what OPERATION it performs, how it
+//  ADDRESSES its operand, its size, and its cycle cost.
+//
+//  Separating the operation from the addressing mode is the whole design. The
+//  6502's 256 opcodes are largely a cross product of a few dozen operations
+//  and a dozen addressing modes, so describing them as a table of pairs
+//  collapses what would otherwise be 256 hand-written cases into one operand
+//  fetch and one operation dispatch. Adding an addressing mode to an existing
+//  operation costs a table row.
+//
+//  The undocumented NMOS opcodes fit that model rather than breaking it: each
+//  fuses a memory or register step with a following ALU primitive, and the ALU
+//  step owns the final flags. Naming them that way (ShiftLeftAndOr for SLO) is
+//  what lets them reuse the existing primitives instead of needing bespoke
+//  implementations.
+//
+//  65C02 operations sit in the same enum but are never referenced by the NMOS
+//  instruction table, so NMOS dispatch is unaffected by their presence -- one
+//  enum serves both cores with no runtime cost to either.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class Microcode
@@ -48,6 +68,36 @@ public:
         SubtractWithCarry,
         Transfer,
         Xor,
+
+        // NMOS undocumented combined opcodes. Each fuses a memory (or
+        // register) step with a following ALU primitive; the ALU step owns
+        // the final flags. DCP reuses DecrementAndCompare above.
+        StoreAccumulatorAndX,      // SAX = store (A & X); no flags
+        LoadAccumulatorAndX,       // LAX = LDA + LDX (same fetched value)
+        ShiftLeftAndOr,            // SLO = ASL mem + ORA
+        RotateLeftAndAnd,          // RLA = ROL mem + AND
+        ShiftRightAndXor,          // SRE = LSR mem + EOR
+        RotateRightAndAdd,         // RRA = ROR mem + ADC
+        IncrementAndSubtract,      // ISC = INC mem + SBC
+
+        // 65C02 (CMOS) additions. Never referenced by the NMOS instruction
+        // table, so NMOS dispatch is unaffected.
+        StoreZero,          // STZ
+        TestAndSetBits,     // TSB
+        TestAndResetBits,   // TRB
+        ResetMemoryBit,     // RMB0-7
+        SetMemoryBit,       // SMB0-7
+        BitBranchReset,     // BBR0-7
+        BitBranchSet,       // BBS0-7
+        BranchAlways,       // BRA
+        BitTestImmediate,   // BIT #imm (affects Z only)
+
+        // CMOS variants of NMOS operations that differ only in decimal mode /
+        // interrupt entry. The 65C02 table points the affected opcodes here;
+        // the NMOS ops (AddWithCarry / SubtractWithCarry / Break) are untouched.
+        AddWithCarryCmos,       // ADC (decimal N/Z/V correct, +1 cycle)
+        SubtractWithCarryCmos,  // SBC (decimal N/Z/V correct, +1 cycle)
+        BreakCmos,              // BRK (clears decimal flag on entry)
     };
 
     enum Group
@@ -87,4 +137,11 @@ public:
     Operation                              operation;
     GlobalAddressingMode::AddressingMode   globalAddressingMode;
     Byte                                   baseCycles;
+
+    // Legal to execute and disassemble, but hidden from the assembler's opcode
+    // table. Used for the 65C02 reserved/undefined-opcode NOP fill: those slots
+    // really do execute as NOPs on the CMOS part (and must, for conformance), but
+    // the only NOP the assembler should ever emit is the canonical $EA -- so these
+    // filler entries must not shadow it. Defaults false; set only by the fill.
+    bool                                   assemblerHidden = false;
 };

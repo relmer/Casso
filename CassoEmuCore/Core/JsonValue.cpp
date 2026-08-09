@@ -14,13 +14,19 @@
 
 const JsonValue * JsonValue::Find (const string & key) const
 {
+    const JsonValue *  found = nullptr;
+
+
+
+    // Insertion-ordered scan: a duplicate key resolves to the FIRST one, which
+    // is what a merge layered on top of a base expects.
     for (const auto & entry : m_object)
     {
-        if (entry.first == key)
+        if (found == nullptr && entry.first == key)
         {
-            return &entry.second;
+            found = &entry.second;
         }
     }
 
-    return nullptr;
+    return found;
 }

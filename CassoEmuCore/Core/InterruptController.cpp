@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "Ehm.h"
 #include "InterruptController.h"
 
 
@@ -40,11 +39,7 @@ HRESULT InterruptController::RegisterSource (IrqSourceId & outId)
 
     outId = 0;
 
-    if (m_nextSource >= kMaxSources)
-    {
-        hr = E_OUTOFMEMORY;
-        goto Error;
-    }
+    CBREx (m_nextSource < kMaxSources, E_OUTOFMEMORY);
 
     outId = m_nextSource;
     ++m_nextSource;
@@ -83,7 +78,7 @@ void InterruptController::Assert (IrqSourceId source)
 
     m_aggregate |= mask;
 
-    UpdateLine ();
+    UpdateLine();
 }
 
 
@@ -111,7 +106,7 @@ void InterruptController::Clear (IrqSourceId source)
 
     m_aggregate &= ~mask;
 
-    UpdateLine ();
+    UpdateLine();
 }
 
 
@@ -128,7 +123,7 @@ void InterruptController::Clear (IrqSourceId source)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InterruptController::UpdateLine ()
+void InterruptController::UpdateLine()
 {
     if (m_cpu == nullptr)
     {
@@ -152,11 +147,11 @@ void InterruptController::UpdateLine ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InterruptController::SoftReset ()
+void InterruptController::SoftReset()
 {
     m_aggregate = 0;
 
-    UpdateLine ();
+    UpdateLine();
 }
 
 
@@ -173,7 +168,29 @@ void InterruptController::SoftReset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InterruptController::PowerCycle ()
+void InterruptController::PowerCycle()
 {
-    SoftReset ();
+    SoftReset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResetSources
+//
+//  Machine-teardown path: reclaim every source token and clear the
+//  aggregate so a rebuilt machine re-registers its IRQ sources from a
+//  fresh pool.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InterruptController::ResetSources()
+{
+    m_aggregate  = 0;
+    m_nextSource = 0;
+
+    UpdateLine();
 }

@@ -9,8 +9,8 @@
 #include "Window/DxuiButtonRow.h"
 #include "resource.h"
 
-#include <cmath>
-#include <cstdio>
+
+
 
 
 // Width is sized to the Display page, the widest page: its right-hand
@@ -19,6 +19,8 @@
 // are narrower and fit inside this.
 static constexpr int    s_kSheetWidthDip     = 600;
 static constexpr int    s_kSheetHeightDip    = 760;
+
+
 
 
 
@@ -34,14 +36,16 @@ static constexpr int    s_kSheetHeightDip    = 760;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SettingsSheet::~SettingsSheet ()
+SettingsSheet::~SettingsSheet()
 {
     if (PopupHost() != nullptr)
     {
         PopupHost()->SetComposeHook (nullptr);
     }
+
     m_compositor.Shutdown();
 }
+
 
 
 
@@ -56,12 +60,13 @@ SettingsSheet::~SettingsSheet ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::OnBuildPages ()
+void SettingsSheet::OnBuildPages()
 {
     m_hardwarePage = CreatePage<HardwarePage> (L"Machine");   // machine + CPU + hardware
     m_diskPage     = CreatePage<DiskPage>     (L"Disk");
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
+    m_printingPage = CreatePage<PrintingPage> (L"Printing");
 
     // Amber "press OK to reboot" notice that fills the bottom-bar space left of
     // the OK / Cancel buttons whenever committing would power-cycle the machine
@@ -75,9 +80,37 @@ void SettingsSheet::OnBuildPages ()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OpenModeless
+//
+//  Creates and shows the Settings sheet as a MODELESS window, wiring in every
+//  service its pages need.
+//
+//  Modeless is the whole design. Settings edits apply live -- brightness,
+//  scanlines, text color all reflect in the emulator as they change -- and a
+//  modal dialog would block the message loop that presents those frames, so
+//  the user would be adjusting a picture they could not see.
+//
+//  Dependencies arrive as REFERENCES stored for the sheet's lifetime rather
+//  than being reached through a global, so the pages are testable against
+//  substitutes and the sheet cannot outlive what it borrows.
+//
+//  There is no Apply button, and its visibility is set BEFORE Create so
+//  OnCreate lays out without it. Live application makes Apply meaningless:
+//  changes are already in effect, and OK versus Cancel is commit versus
+//  revert.
+//
+//  OK keeps the standard command-button width matching Cancel until a pending
+//  reboot relabels it, at which point RefreshOkLabel widens it and narrows it
+//  back on revert (FR-131) -- so it is never wider than Cancel while it just
+//  reads "OK".
+//
+//  Minimum size equals the initial size: the pages have no smaller valid form.
+//
+//  The app icon is loaded LR_SHARED, which hands back a process-cached handle
+//  needing no DestroyIcon, so the sheet is not generic in alt-tab.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,6 +149,14 @@ HRESULT SettingsSheet::OpenModeless (
     params.resizable                = true;
     params.insetContentBelowCaption = true;   // tab strip sits below the caption
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+
+    // Present without waiting for vblank: the sheet shares the UI thread with
+    // the emulator window's vsynced present, and a live-preview drag repaints
+    // the sheet on every mouse move -- with the default interval of 1 each of
+    // those repaints stacks a second vblank wait onto the thread and starves
+    // the emulator's own present cadence. Windowed flip-model presents are
+    // composed by DWM at vsync either way, so 0 does not tear.
+    params.presentSyncInterval      = 0;
 
     // Casso app icon so the dialog isn't generic in alt-tab / the taskbar.
     // LR_SHARED hands back a process-cached handle -- no DestroyIcon needed.
@@ -198,6 +239,15 @@ HRESULT SettingsSheet::OpenModeless (
         m_apply.ApplyThemeLive (m_themePage->SelectedThemeId());
     });
 
+    // Skeuo desk-scene opt-in: applies + persists immediately (the monitor
+    // framing appears/disappears on the live chrome behind the sheet), so
+    // there is no staged state to revert on Cancel.
+    m_themePage->SetMonitorFrameChecked (prefs.skeuoMonitorFrame);
+    m_themePage->SetOnMonitorFrameToggled ([this] (bool enabled)
+    {
+        m_emuShell->SetSkeuoMonitorFrame (enabled);
+    });
+
     // Live preview (#8): dragging / keyboard-editing a Display control blurs +
     // dims the sheet and reveals the running emulator through the overlap
     // region so the CRT edit is visible. Mouse gives a clean start/end; a
@@ -211,6 +261,7 @@ HRESULT SettingsSheet::OpenModeless (
             m_previewFocusId = controlId;
             m_preview.StartPreview (SettingsPreviewController::Focus::BrightnessSlider, keyboardMode);
             m_previewActive  = true;
+            RaiseOwnerBehindSheet();   // the reveal must find the emulator, not a stranger
         }
         else
         {
@@ -218,6 +269,7 @@ HRESULT SettingsSheet::OpenModeless (
             m_previewActive  = false;
             m_previewFocusId = -1;
         }
+
         UpdatePreviewCompose();   // reflect the new state on the next composed frame
     });
 
@@ -230,7 +282,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_crt.WireDisplayPageCallbacks();
 
     // "Restore defaults" reverts the CRT block AND the Color-monitor text
-    // colour; both live in the bridge's own restore handler (installed by
+    // color; both live in the bridge's own restore handler (installed by
     // WireDisplayPageCallbacks above) so the single handler stays authoritative
     // -- an earlier attempt to re-wire it here was silently superseded.
 
@@ -284,6 +336,7 @@ HRESULT SettingsSheet::OpenModeless (
                 m_emuShell->SetColorMonitorTextArgbLive (argb);
             }
         }
+
         Invalidate();
     });
 
@@ -300,6 +353,10 @@ HRESULT SettingsSheet::OpenModeless (
     {
         return m_emuShell->MountedImagePath (driveIndex);
     });
+    m_themePage->SetWriteProtectSource ([this] (int driveIndex) -> WriteProtectInfo
+    {
+        return m_emuShell->DriveWriteProtect (driveIndex);
+    });
     // Drive the preview's disk presence off the STAGED config so toggling the
     // Disk ][ controller on the Machine tab updates the preview immediately --
     // dropping the drive widgets + collapsing the drive bar (#84 Phase C/D),
@@ -315,6 +372,13 @@ HRESULT SettingsSheet::OpenModeless (
     m_diskPage->SetPopupHost     (PopupHost());
     m_themePage->SetPopupHost    (PopupHost());
     m_displayPage->SetPopupHost  (PopupHost());
+    m_printingPage->SetPopupHost (PopupHost());
+
+    // Printing page: bind global prefs (resolution + dot style). Edits persist
+    // / revert through the apply controller (SnapshotBaselines captures the
+    // printing prefs too).
+    m_printingPage->SetPrefs (&prefs);
+    m_printingPage->SetPrinterInfo (m_emuShell->PrinterBannerMessage());
 
     // Pull the running machine + discovered themes into the pages.
     m_catalog.LoadCurrentMachineIntoState();
@@ -354,6 +418,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnOk / OnCancel
@@ -365,18 +430,19 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT SettingsSheet::OnOk ()
+HRESULT SettingsSheet::OnOk()
 {
     m_apply.CommitApply();
     return S_OK;
 }
 
 
-void SettingsSheet::OnCancel ()
+void SettingsSheet::OnCancel()
 {
     m_apply.Cancel (m_preview);
     RevertDriveAuditionIfDirty();
 }
+
 
 
 
@@ -392,7 +458,7 @@ void SettingsSheet::OnCancel ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::OnDialogTick ()
+void SettingsSheet::OnDialogTick()
 {
     RefreshOkLabel();
     UpdateRestartNotice();
@@ -409,8 +475,10 @@ void SettingsSheet::OnDialogTick ()
         m_previewActive  = false;
         m_previewFocusId = -1;
     }
+
     UpdatePreviewCompose();
 }
+
 
 
 
@@ -427,16 +495,20 @@ void SettingsSheet::OnDialogTick ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::UpdatePreviewCompose ()
+void SettingsSheet::UpdatePreviewCompose()
 {
+    RECT  emuOverlapClient = {};
+    RECT  focusClient      = {};
+    HWND  hwnd             = nullptr;
+
+
+
     if (!m_compositor.IsInitialized())
     {
         return;
     }
 
-    RECT  emuOverlapClient = {};
-    RECT  focusClient      = {};
-    HWND  hwnd             = Hwnd();
+    hwnd = Hwnd();
 
     if (m_previewActive && hwnd != nullptr)
     {
@@ -468,10 +540,56 @@ void SettingsSheet::UpdatePreviewCompose ()
 }
 
 
-void SettingsSheet::RefreshOkLabel ()
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RaiseOwnerBehindSheet
+//
+//  Pin the owner (the emulator main window) DIRECTLY below this sheet in the
+//  z-order when a live preview begins. The see-through reveal is an OS-level
+//  transparency hole: it shows whatever window sits next below the sheet, and
+//  nothing in the owned-window contract keeps that slot for the owner -- an
+//  unrelated window the user activated between edits (a terminal, an editor)
+//  can occupy it, and the reveal then dutifully shows THAT window, which reads
+//  as an opaque gray block where the emulator should be.
+//
+//  NOACTIVATE so focus stays on the sheet mid-drag; the owner only changes
+//  z-position.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::RaiseOwnerBehindSheet()
+{
+    HWND  sheet = Hwnd();
+    HWND  owner = (sheet != nullptr) ? GetWindow (sheet, GW_OWNER) : nullptr;
+
+
+
+    if (owner != nullptr)
+    {
+        SetWindowPos (owner, sheet, 0, 0, 0, 0,
+                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RefreshOkLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::RefreshOkLabel()
 {
     bool          reboot = m_apply.WillMachineChange() || m_apply.IsResetRequired();
     std::wstring  want   = reboot ? L"OK (reboot)" : L"OK";
+
+
 
     if (OkText() != want)   // only reflow on an actual change, not every tick
     {
@@ -483,11 +601,12 @@ void SettingsSheet::RefreshOkLabel ()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Layout / modal-overlay overrides (custom text-color picker, list #8)
 //
-//  The picker is centred in the same sheet bounds the pages use, painted last
+//  The picker is centered in the same sheet bounds the pages use, painted last
 //  of all, and -- while open -- grabs every mouse / key / char event so the
 //  page beneath stays inert. Each routed event invalidates so the picker's
 //  sliders / hex field / copy flash animate.
@@ -505,9 +624,9 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     {
         int   rowH    = scaler.Px (DxuiButtonRow::kRowHeightDip);
         int   edge    = scaler.Px (DxuiButtonRow::kEdgePadDip);
+        RECT  r;
         int   reserve = scaler.Px (DxuiButtonRow::kEdgePadDip + DxuiButtonRow::kButtonWidthDip
                                    + DxuiButtonRow::kGapDip + 132);   // cancel + gap + OK(reboot)
-        RECT  r;
 
         r.left   = boundsPx.left   + edge;
         r.top    = boundsPx.bottom - rowH;
@@ -521,6 +640,9 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 }
 
 
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UpdateRestartNotice
@@ -531,9 +653,10 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::UpdateRestartNotice ()
+void SettingsSheet::UpdateRestartNotice()
 {
     std::wstring  notice;
+
 
 
     if (m_apply.WillMachineChange())
@@ -560,6 +683,7 @@ void SettingsSheet::UpdateRestartNotice ()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UpdateDiskTabVisibility
@@ -572,9 +696,10 @@ void SettingsSheet::UpdateRestartNotice ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::UpdateDiskTabVisibility ()
+void SettingsSheet::UpdateDiskTabVisibility()
 {
     bool  want = m_state.HasDiskIIController();
+
 
 
     if (m_diskPageIndex < 0 || want == m_diskTabVisible)
@@ -587,11 +712,29 @@ void SettingsSheet::UpdateDiskTabVisibility ()
 }
 
 
-bool SettingsSheet::HasModalOverlay () const
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasModalOverlay
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsSheet::HasModalOverlay() const
 {
     return m_colorPicker.IsOpen();
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintModalOverlay
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void SettingsSheet::PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
@@ -602,49 +745,87 @@ void SettingsSheet::PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnOverlayMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool SettingsSheet::OnOverlayMouse (const DxuiMouseEvent & ev)
 {
-    if (!m_colorPicker.IsOpen())
+    // An open color picker is modal over the sheet, so it takes EVERY mouse
+    // event -- including the kinds it ignores, which must not reach the
+    // controls behind it.
+    bool  isOpen = m_colorPicker.IsOpen();
+
+    if (isOpen)
     {
-        return false;
+        switch (ev.kind)
+        {
+        case DxuiMouseEventKind::Down:  m_colorPicker.OnLButtonDown (ev.positionDip.x, ev.positionDip.y); break;
+        case DxuiMouseEventKind::Up:    m_colorPicker.OnLButtonUp   (ev.positionDip.x, ev.positionDip.y); break;
+        case DxuiMouseEventKind::Move:  m_colorPicker.OnMouseHover  (ev.positionDip.x, ev.positionDip.y);
+                                        m_colorPicker.OnMouseMove   (ev.positionDip.x, ev.positionDip.y); break;
+        default:                        break;
+        }
+
+        Invalidate();
     }
 
-    switch (ev.kind)
-    {
-    case DxuiMouseEventKind::Down:  m_colorPicker.OnLButtonDown (ev.positionDip.x, ev.positionDip.y); break;
-    case DxuiMouseEventKind::Up:    m_colorPicker.OnLButtonUp   (ev.positionDip.x, ev.positionDip.y); break;
-    case DxuiMouseEventKind::Move:  m_colorPicker.OnMouseHover  (ev.positionDip.x, ev.positionDip.y);
-                                    m_colorPicker.OnMouseMove   (ev.positionDip.x, ev.positionDip.y); break;
-    default:                        break;
-    }
-
-    Invalidate();
-    return true;
+    return isOpen;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnOverlayChar
+//
+////////////////////////////////////////////////////////////////////////////////
 
 bool SettingsSheet::OnOverlayChar (wchar_t ch)
 {
     bool  handled = m_colorPicker.IsOpen() && m_colorPicker.OnChar (ch);
 
+
+
     if (m_colorPicker.IsOpen())
     {
         Invalidate();
     }
+
     return handled;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnOverlayKey
+//
+////////////////////////////////////////////////////////////////////////////////
 
 bool SettingsSheet::OnOverlayKey (WPARAM vk)
 {
     bool  handled = m_colorPicker.IsOpen() && m_colorPicker.OnKey (vk);
 
+
+
     if (m_colorPicker.IsOpen())
     {
         Invalidate();
     }
+
     return handled;
 }
+
 
 
 
@@ -662,17 +843,16 @@ bool SettingsSheet::OnOverlayKey (WPARAM vk)
 
 void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
 {
-    char   test[16] = {};
-    float  pan0     = 0.0f;
-    float  pan1     = 0.0f;
+    char                     test[16] = {};
+    float                    pan0     = 0.0f;
+    float                    pan1     = 0.0f;
+    const SettingsUiPrefs  & prefs    = m_state.Prefs();
 
 
     if (m_emuShell == nullptr)
     {
         return;
     }
-
-    const SettingsUiPrefs &  prefs = m_state.Prefs();
 
     pan0 = prefs.driveOnePan;
     pan1 = prefs.driveTwoPan;
@@ -690,12 +870,13 @@ void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
                             prefs.floppyMechanism);
 
     // The push above changed the live engine mixer; remember to undo it if the
-    // dialog is cancelled without persisting.
+    // dialog is canceled without persisting.
     m_driveAuditionDirty = true;
 
     sprintf_s (test, "%d,%d", drive, kind);
     m_emuShell->PostCommand (IDM_AUDIO_DRIVE_TEST, test);
 }
+
 
 
 
@@ -712,9 +893,11 @@ void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::SnapshotDriveAudioBaseline ()
+void SettingsSheet::SnapshotDriveAudioBaseline()
 {
     const SettingsUiPrefs &  prefs = m_state.Prefs();
+
+
 
     m_baselineDriveMotorVol = prefs.driveMotorVolume;
     m_baselineDriveHeadVol  = prefs.driveHeadVolume;
@@ -726,7 +909,16 @@ void SettingsSheet::SnapshotDriveAudioBaseline ()
 }
 
 
-void SettingsSheet::RevertDriveAuditionIfDirty ()
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RevertDriveAuditionIfDirty
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::RevertDriveAuditionIfDirty()
 {
     if (!m_driveAuditionDirty)
     {
@@ -741,6 +933,7 @@ void SettingsSheet::RevertDriveAuditionIfDirty ()
                             m_baselineMechanism);
     m_driveAuditionDirty = false;
 }
+
 
 
 

@@ -1,10 +1,5 @@
 #pragma once
 
-#include <array>
-#include <functional>
-#include <string>
-#include <vector>
-
 #include "CpuStatus.h"
 #include "Microcode.h"
 
@@ -15,6 +10,28 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Cpu
+//
+//  The 6502 core: registers, a private 64 KB memory array, and the microcode
+//  table that drives execution.
+//
+//  This class owns its OWN memory rather than reading through a bus, which is
+//  what makes it usable standalone -- the CLI runs programs against it with no
+//  machine, no devices, and no configuration, and the conformance suites drive
+//  it directly. The emulator layers a bus-backed CPU over it rather than the
+//  other way around.
+//
+//  Execution is TABLE-DRIVEN through Microcode: an opcode indexes a row
+//  carrying its operation, addressing mode, size, and cycle count, so
+//  StepOne is one operand fetch plus one operation dispatch instead of a
+//  256-case switch.
+//
+//  CpuOperations is a friend so the ALU primitives can act on registers and
+//  flags directly. They are the CPU's own internals split out for readability,
+//  not an external collaborator.
+//
+//  Peek and Poke are deliberately side-effect free and are what the
+//  disassembler and debugger read through; nothing here dispatches to a
+//  device, so inspecting memory can never disturb the machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,19 +57,19 @@ public:
     Byte GetLastInstructionCycles () const                   { return m_lastCycles; }
     Byte PeekByte                 (Word address) const       { return memory[address]; }
     void PokeByte                 (Word address, Byte value) { memory[address] = value; }
-    Word PeekWord                 (Word address) const       { return memory[address] | (memory[(Word)(address + 1)] << 8); }
+    Word PeekWord                 (Word address) const       { return memory[address] | (memory[(Word) (address + 1)] << 8); }
     const Byte * GetMemory        () const                   { return memory.data (); }
 
     // Load a raw binary file into memory at the specified address.
-    // Returns true on success; false if the file cannot be opened or does not
-    // fit within the 64 KB address space starting at `address`.
-    // On failure, memory contents are left unchanged.
-    bool LoadBinary (const std::string & filename, Word address);
+    // E_INVALIDARG if the file cannot be opened, or if the image does not fit
+    // within the 64 KB address space starting at `address`; E_FAIL if the read
+    // itself goes bad. On failure, memory contents are left unchanged.
+    HRESULT LoadBinary (const std::string & filename, Word address);
 
     // Stream-based overload. Reads all remaining bytes from `stream` into
     // memory starting at `address`. Used directly by unit tests to avoid
     // touching the filesystem; the filename overload is a thin wrapper.
-    bool LoadBinary (std::istream & stream, Word address);
+    HRESULT LoadBinary (std::istream & stream, Word address);
 
 protected:
     struct OperandInfo
@@ -65,21 +82,29 @@ protected:
     void PrintSingleStepInfo           (Word initialPC, Byte opcode, const OperandInfo & operandInfo);
     void PrintOperandAndComment        (Byte opcode, const OperandInfo & operandInfo);
     void PrintOperandBytes             (Word initialPC, Byte opcode);
-    void FetchOperand                  (Microcode microcode, OperandInfo & operandInfo);
+    void FetchOperand                  (const Microcode & microcode, OperandInfo & operandInfo);
     void FetchOperandAbsoluteX         (Cpu::OperandInfo & operandInfo);
     void FetchOperandAbsoluteY         (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageX         (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageY         (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo);
-    void FetchOperandAbsolute          (Cpu::OperandInfo & operandInfo, Microcode & microcode);
+    void FetchOperandAbsolute          (Cpu::OperandInfo & operandInfo, const Microcode & microcode);
     void FetchOperandImmediate         (Cpu::OperandInfo & operandInfo);
     void FetchOperandJumpAbsolute      (Cpu::OperandInfo & operandInfo);
     void FetchOperandJumpIndirect      (Cpu::OperandInfo & operandInfo);
     void FetchOperandRelative          (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPage          (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo);
-    
-    void ExecuteInstruction            (Microcode microcode, const OperandInfo & operandInfo);
+
+    // 65C02 addressing-mode fetches. Selected purely by the CMOS instruction
+    // table; the NMOS table never references them, so NMOS decode is unchanged.
+    // FetchOperandJumpIndirectCmos is the page-boundary-correct JMP ($xxFF).
+    void FetchOperandZeroPageIndirect  (Cpu::OperandInfo & operandInfo);
+    void FetchOperandAbsoluteXIndirect (Cpu::OperandInfo & operandInfo);
+    void FetchOperandZeroPageRelative  (Cpu::OperandInfo & operandInfo);
+    void FetchOperandJumpIndirectCmos  (Cpu::OperandInfo & operandInfo);
+
+    void ExecuteInstruction            (const Microcode & microcode, const OperandInfo & operandInfo);
 
     // Stack operations
     void PushByte (Byte value);
@@ -87,11 +112,34 @@ protected:
     Byte PopByte  ();
     Word PopWord  ();
 
-    // Memory operations
-    virtual void WriteByte (Word address, Byte value);
-    virtual void WriteWord (Word address, Word value);
-    virtual Byte ReadByte  (Word address);
-    virtual Word ReadWord  (Word address);
+    // Memory operations. ReadByte is a non-virtual inline fast path: any page
+    // with a non-null page-table entry (RAM $0000-$BFFF and, once the language
+    // card wires them, ROM/LC RAM $D000-$FFFF) hits the table directly with no
+    // indirect call -- the overwhelming majority of reads (instruction fetches
+    // and most operands). Null pages -- I/O ($C000-$CFFF) and any unmapped
+    // region -- fall through the virtual ReadByteSlow hook, which a derived
+    // strategy (MemoryBusCpu) overrides to route through the emulator bus.
+    // m_readPages is null on the standalone base CPU, so it always takes the
+    // slow path into memory[].
+    virtual void WriteByte     (Word address, Byte value);
+    virtual void WriteWord     (Word address, Word value);
+    Byte         ReadByte      (Word address)
+    {
+        if (m_readPages != nullptr)
+        {
+            Byte * page = m_readPages[address >> 8];
+
+            if (page != nullptr)
+            {
+                return page[address & 0xFF];
+            }
+        }
+
+        return ReadByteSlow (address);
+    }
+
+    virtual Byte ReadByteSlow  (Word address);
+    virtual Word ReadWord      (Word address);
 
     void InitializeInstructionSet ();
 
@@ -124,6 +172,12 @@ protected:
     // 16 KB frame-size threshold during code analysis).
     std::vector<Byte>       memory {std::vector<Byte> (memSize, 0)};
 
+    // Optional read fast-path page table (null on the standalone base CPU). A
+    // derived strategy points this at its own 256-entry read-page map so RAM/
+    // ROM reads bypass the virtual ReadByteSlow dispatch. Entries update in
+    // place on banking changes; the pointer itself is set once at wire-up.
+    Byte * const *          m_readPages = nullptr;
+
     Byte                    SP = 0;
     Word                    PC = 0;
     Byte                    A  = 0;
@@ -155,15 +209,31 @@ protected:
         Byte    y;
         Byte    sp;
         Byte    p;
+        Byte    intr;   // kTraceIntr*: this instruction is a handler entry
     };
 
     static constexpr size_t  kTraceDefaultLookback = 256;
 
-    std::vector<TraceEntry>  m_trace;                  // sized by EnableTrace
-    size_t                   m_traceCapacity = 0;
-    size_t                   m_traceHead     = 0;      // next slot to write
-    uint64_t                 m_traceCount    = 0;      // total entries pushed
-    bool                     m_traceEnabled  = false;
+    // Interrupt-dispatch tags for the trace. The dispatch path stamps the
+    // pending kind before the vector is taken; the next TracePush moves it
+    // onto that entry (the handler's first instruction). This lets the dump
+    // flag interrupt entries and summarize the rate -- an interrupt storm
+    // (stuck IRQ line, unacknowledged source, ISR that never returns) is
+    // otherwise invisible in a flat instruction trace.
+    static constexpr Byte    kTraceIntrNone = 0;
+    static constexpr Byte    kTraceIntrIrq  = 1;
+    static constexpr Byte    kTraceIntrNmi  = 2;
+
+    std::vector<TraceEntry>  m_trace;   // sized by EnableTrace
+    size_t                   m_traceCapacity    = 0;
+    size_t                   m_traceHead        = 0;   // next slot to write
+    uint64_t                 m_traceCount       = 0;   // total entries pushed
+    bool                     m_traceEnabled     = false;
+    Byte                     m_pendingTraceIntr = kTraceIntrNone;
+
+    // Called from the interrupt-dispatch path just before the vector is taken.
+    // Cheap no-op while tracing is off (the common case).
+    void MarkTraceInterrupt (Byte kind) { if (m_traceEnabled) m_pendingTraceIntr = kind; }
 
 public:
     // Enable execution tracing with the given ring capacity (in entries).
@@ -177,7 +247,7 @@ public:
     // (may be empty) is invoked periodically with (entriesWritten,
     // totalEntries) so a UI can show progress. Returns true on success.
     // CassoCore stays UI-free; the caller owns any progress dialog.
-    bool     DumpTraceToFile (const std::wstring & path,
+    HRESULT  DumpTraceToFile (const std::wstring & path,
                               const std::function<void (uint64_t, uint64_t)> & onProgress) const;
 
 protected:

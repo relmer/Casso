@@ -28,26 +28,18 @@ MockIrqAsserter::MockIrqAsserter (IInterruptController * ic)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT MockIrqAsserter::Bind ()
+HRESULT MockIrqAsserter::Bind()
 {
     HRESULT     hr = S_OK;
 
-    if (m_ic == nullptr)
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
 
-    if (m_bound)
-    {
-        goto Error;
-    }
+
+    CBRAEx (m_ic != nullptr, E_INVALIDARG);
+
+    BAIL_OUT_IF (m_bound, S_OK);
 
     hr = m_ic->RegisterSource (m_sourceId);
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    BAIL_OUT_IF (FAILED (hr), S_OK);
 
     m_bound = true;
 
@@ -65,7 +57,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MockIrqAsserter::Assert ()
+void MockIrqAsserter::Assert()
 {
     if (m_bound && m_ic != nullptr)
     {
@@ -83,7 +75,7 @@ void MockIrqAsserter::Assert ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MockIrqAsserter::Clear ()
+void MockIrqAsserter::Clear()
 {
     if (m_bound && m_ic != nullptr)
     {

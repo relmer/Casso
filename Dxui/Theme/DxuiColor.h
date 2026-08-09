@@ -5,14 +5,15 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiColor
 //
-//  Stateless packed-ARGB colour math shared by Dxui widgets: WCAG
+//  Stateless packed-ARGB color math shared by Dxui widgets: WCAG
 //  relative-luminance / contrast-ratio helpers plus accent darkening and
 //  lighten / darken / scale tints. Exposed as static methods (no free
-//  functions) so any widget can derive theme-accurate, accessible colours
+//  functions) so any widget can derive theme-accurate, accessible colors
 //  from a single IDxuiTheme accent without re-deriving the math locally.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,7 +22,7 @@ class DxuiColor
 {
 public:
     //
-    //  WCAG relative luminance of a packed ARGB colour (alpha ignored).
+    //  WCAG relative luminance of a packed ARGB color (alpha ignored).
     //
     static float RelativeLuminance (uint32_t argb)
     {
@@ -34,7 +35,7 @@ public:
 
 
     //
-    //  WCAG contrast ratio between two packed ARGB colours (1.0 .. 21.0).
+    //  WCAG contrast ratio between two packed ARGB colors (1.0 .. 21.0).
     //
     static float ContrastRatio (uint32_t a, uint32_t b)
     {
@@ -96,7 +97,7 @@ public:
 
 
     //
-    //  Lightens a colour toward white by fraction `f` (0 = unchanged, 1 = white).
+    //  Lightens a color toward white by fraction `f` (0 = unchanged, 1 = white).
     //
     static uint32_t Lighten (uint32_t argb, float f)
     {
@@ -109,7 +110,7 @@ public:
 
 
     //
-    //  Darkens a colour toward black by multiplying each channel by `f`
+    //  Darkens a color toward black by multiplying each channel by `f`
     //  (0 = black, 1 = unchanged).
     //
     static uint32_t Darken (uint32_t argb, float f)
@@ -120,7 +121,7 @@ public:
 
     //
     //  Multiplies each RGB channel by `f` (clamped to 255) preserving alpha;
-    //  `f` may exceed 1.0 to brighten a colour toward white.
+    //  `f` may exceed 1.0 to brighten a color toward white.
     //
     static uint32_t Scale (uint32_t argb, float f)
     {
@@ -134,7 +135,7 @@ public:
 
     //
     //  Multiplies the alpha channel by `f` (clamped to 255) preserving RGB,
-    //  e.g. to fade a colour in or out without disturbing its hue.
+    //  e.g. to fade a color in or out without disturbing its hue.
     //
     static uint32_t ScaleAlpha (uint32_t argb, float f)
     {

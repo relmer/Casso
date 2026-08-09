@@ -14,12 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    constexpr uint32_t  s_kDefaultAccentArgb = 0xFF2D7CDB;   // "on" pill
-    constexpr uint32_t  s_kDefaultFocusArgb  = 0xFFAACCFF;   // focus ring
-    constexpr float     s_kHoverLighten      = 1.15f;        // "on" pill hover brighten
-}
+// The palette constants are private members of DxuiToggle.
 
 
 
@@ -33,11 +28,11 @@ namespace
 
 bool DxuiToggle::HitTest (int x, int y) const
 {
-    if (!m_enabled)
-    {
-        return false;
-    }
-    return x >= m_boundsDip.left && x < m_boundsDip.right && y >= m_boundsDip.top && y < m_boundsDip.bottom;
+    // A disabled toggle is transparent to the mouse, so whatever is behind
+    // it gets the click.
+    return m_enabled
+           && x >= m_boundsDip.left && x < m_boundsDip.right
+           && y >= m_boundsDip.top  && y < m_boundsDip.bottom;
 }
 
 
@@ -71,13 +66,16 @@ void DxuiToggle::SetMouseHover (int x, int y)
 
 bool DxuiToggle::OnLButtonDown (int x, int y)
 {
-    if (!HitTest (x, y))
+    bool  hit = HitTest (x, y);
+
+
+
+    if (hit)
     {
-        return false;
+        m_pressed = true;
     }
 
-    m_pressed = true;
-    return true;
+    return hit;
 }
 
 
@@ -118,18 +116,16 @@ bool DxuiToggle::OnLButtonUp (int x, int y)
 
 bool DxuiToggle::OnKey (WPARAM vk)
 {
-    if (!m_enabled || !m_focused)
-    {
-        return false;
-    }
+    bool  flips = m_enabled
+                  && m_focused
+                  && (vk == VK_SPACE || vk == VK_RETURN);
 
-    if (vk == VK_SPACE || vk == VK_RETURN)
+    if (flips)
     {
         Flip();
-        return true;
     }
 
-    return false;
+    return flips;
 }
 
 
@@ -142,7 +138,7 @@ bool DxuiToggle::OnKey (WPARAM vk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiToggle::Flip ()
+void DxuiToggle::Flip()
 {
     m_checked = !m_checked;
 
@@ -168,21 +164,21 @@ void DxuiToggle::Flip ()
 
 void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t accentArgb, uint32_t focusArgb) const
 {
-    constexpr uint32_t  s_kPillOff      = 0xFF4A5260;
-    constexpr uint32_t  s_kPillOffHover = 0xFF5A6271;
-    constexpr uint32_t  s_kPillDisabled = 0xFF2A2F38;
-    constexpr uint32_t  s_kThumb        = 0xFFFFFFFF;
-    constexpr uint32_t  s_kThumbDisabled= 0xFF707070;
-    constexpr uint32_t  s_kTextIdle     = 0xFFE8EEF4;
-    constexpr uint32_t  s_kTextDisabled = 0xFF707070;
+    constexpr uint32_t  s_kPillOff       = 0xFF4A5260;
+    constexpr uint32_t  s_kPillOffHover  = 0xFF5A6271;
+    constexpr uint32_t  s_kPillDisabled  = 0xFF2A2F38;
+    constexpr uint32_t  s_kThumb         = 0xFFFFFFFF;
+    constexpr uint32_t  s_kThumbDisabled = 0xFF707070;
+    constexpr uint32_t  s_kTextIdle      = 0xFFE8EEF4;
+    constexpr uint32_t  s_kTextDisabled  = 0xFF707070;
     constexpr float     s_kPillWidthDip  = 36.0f;
     constexpr float     s_kPillHeightDip = 18.0f;
     constexpr float     s_kThumbInsetDip = 3.0f;
     constexpr float     s_kFocusInsetDip = -2.0f;
     constexpr float     s_kFocusThickDip = 1.0f;
     constexpr float     s_kLabelGapDip   = 8.0f;
-    constexpr float     s_kFontDip      = 13.0f;
-    constexpr float     s_kPillRatio    = 3.0f;    // WCAG 1.4.11 min contrast of pill vs white thumb
+    constexpr float     s_kFontDip       = 13.0f;
+    constexpr float     s_kPillRatio     = 3.0f;    // WCAG 1.4.11 min contrast of pill vs white thumb
 
     HRESULT  hr         = S_OK;
     float    pillW      = m_scaler.Pxf (s_kPillWidthDip);
@@ -205,65 +201,62 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     uint32_t thumbColor = m_enabled ? s_kThumb : s_kThumbDisabled;
     uint32_t textColor  = m_enabled ? s_kTextIdle : s_kTextDisabled;
 
+    // Same rule as DxuiCheckbox: no area means the control has not been laid
+    // out yet (a WM_PAINT can land between OnCreate and the first Layout), and
+    // the label box below is the width MINUS the pill and gap -- on a
+    // {0,0,0,0} rect that is negative, which DWrite rejects outright.
+    bool     hasArea    = (m_boundsDip.right > m_boundsDip.left)
+                          && (m_boundsDip.bottom > m_boundsDip.top);
 
 
-    if (!m_enabled)
-    {
-        pillColor = s_kPillDisabled;
-    }
-    else if (m_checked)
-    {
-        pillColor = m_hover ? DxuiColor::Scale (accentBase, s_kHoverLighten) : accentBase;
-    }
-    else
-    {
-        pillColor = m_hover ? s_kPillOffHover : s_kPillOff;
-    }
 
-    painter.FillRect         (leftCx,  pillTop, pillW - pillH, pillH, pillColor);
-    painter.FillCircleApprox (leftCx,  cy,      capR,          pillColor);
-    painter.FillCircleApprox (rightCx, cy,      capR,          pillColor);
-    painter.FillCircleApprox (thumbCx, cy,      thumbR,        thumbColor);
-
-    if (m_focused)
+    if (hasArea)
     {
-        painter.OutlineRect (pillLeft + focusInset,
-                             pillTop  + focusInset,
-                             pillW    - focusInset * 2.0f,
-                             pillH    - focusInset * 2.0f,
-                             focusThick,
-                             focusArgb);
-    }
+        if (!m_enabled)
+        {
+            pillColor = s_kPillDisabled;
+        }
+        else if (m_checked)
+        {
+            pillColor = m_hover ? DxuiColor::Scale (accentBase, kHoverLighten) : accentBase;
+        }
+        else
+        {
+            pillColor = m_hover ? s_kPillOffHover : s_kPillOff;
+        }
 
-    if (!m_label.empty())
-    {
-        IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),
-                                                  pillLeft + pillW + labelGap,
-                                                  (float) m_boundsDip.top,
-                                                  (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
-                                                  (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                                  textColor,
-                                                  fontDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center));
-    }
-    else
-    {
-        const wchar_t * stateText = m_checked ? L"On" : L"Off";
+        painter.FillRect         (leftCx,  pillTop, pillW - pillH, pillH, pillColor);
+        painter.FillCircleApprox (leftCx,  cy,      capR,          pillColor);
+        painter.FillCircleApprox (rightCx, cy,      capR,          pillColor);
+        painter.FillCircleApprox (thumbCx, cy,      thumbR,        thumbColor);
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (stateText,
-                                                  pillLeft + pillW + labelGap,
-                                                  (float) m_boundsDip.top,
-                                                  (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
-                                                  (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                                  textColor,
-                                                  fontDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center));
+        if (m_focused)
+        {
+            painter.OutlineRect (pillLeft + focusInset,
+                                 pillTop  + focusInset,
+                                 pillW    - focusInset * 2.0f,
+                                 pillH    - focusInset * 2.0f,
+                                 focusThick,
+                                 focusArgb);
+        }
+
+        // An unlabeled toggle narrates its own state instead, so the pill is
+        // never left with nothing beside it.
+        hr = text.DrawString (m_label.empty() ? (m_checked ? L"On" : L"Off")
+                                              : m_label.c_str(),
+                              pillLeft + pillW + labelGap,
+                              (float) m_boundsDip.top,
+                              (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
+                              (float) (m_boundsDip.bottom - m_boundsDip.top),
+                              textColor,
+                              fontDip,
+                              DxuiTheme::kBodyFace,
+                              DxuiTextHAlign::Left,
+                              DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
+
 
 
 
@@ -296,7 +289,7 @@ void DxuiToggle::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
-    PaintInternal (painter, text, s_kDefaultAccentArgb, s_kDefaultFocusArgb);
+    PaintInternal (painter, text, kDefaultAccentArgb, kDefaultFocusArgb);
 }
 
 
@@ -313,32 +306,47 @@ void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiToggle::OnMouse  (IDxuiControl override)
+//  DxuiToggle::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move only updates hover and is reported unhandled, so the pointer
+//  crossing the toggle does not consume moves other widgets want.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiToggle::OnMouse (const DxuiMouseEvent & ev)
 {
+    bool  isLeft   = (ev.button == DxuiMouseButton::Left);
+    bool  consumed = false;
+
+
+
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
+        // Hover tracking never claims the event -- a toggle does not stop a
+        // move from reaching whatever else wants to see it.
         SetMouseHover (ev.positionDip.x, ev.positionDip.y);
-        return false;
+        break;
+
     case DxuiMouseEventKind::Down:
-        if (ev.button == DxuiMouseButton::Left)
-        {
-            return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
-        }
-        return false;
+        consumed = isLeft && OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+        break;
+
     case DxuiMouseEventKind::Up:
-        if (ev.button == DxuiMouseButton::Left)
-        {
-            return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
-        }
-        return false;
+        consumed = isLeft && OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+        break;
+
     default:
-        return false;
+        break;
     }
+
+    return consumed;
 }
 
 
@@ -353,10 +361,7 @@ bool DxuiToggle::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiToggle::OnKey (const DxuiKeyEvent & ev)
 {
-    if (ev.kind != DxuiKeyEventKind::Down)
-    {
-        return false;
-    }
-
-    return OnKey (ev.vk);
+    // Key-up would flip a second time for the same press.
+    return (ev.kind == DxuiKeyEventKind::Down) && OnKey (ev.vk);
 }
+

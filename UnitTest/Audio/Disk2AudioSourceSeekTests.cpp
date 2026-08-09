@@ -23,10 +23,11 @@ public:
 
     TEST_METHOD (FourStepsWithin16ms_doNotResetHeadPosFourTimes)
     {
-        Disk2AudioSource   src;
+        Disk2AudioSource  src;
+        uint64_t          cycle  = 0;
+        float             out[4] = {};
         vector<float>      step (8);
-        float              out[4] = {};
-        uint64_t           cycle  = 100000;
+        cycle = 100000;
 
         // Ramp so we can identify which sample position we're at.
         for (int i = 0; i < 8; i++)

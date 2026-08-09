@@ -25,14 +25,21 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+
+TEST_CLASS (ChromeCommandRoutingTests)
 {
+public:
+
     // The authoritative menu-command id set. Mirrors the IDM_*
     // identifiers in Casso/resource.h that the nav layer wires up.
     // When you add a new menu item, add it here AND to MainMenu's
     // kEntries table — this test will fail until both are in sync,
     // which is exactly the point.
-    constexpr WORD kKnownMenuCommandIds[] =
+    static constexpr WORD kKnownMenuCommandIds[] =
     {
         IDM_FILE_EXIT,
 
@@ -58,15 +65,6 @@ namespace
         IDM_HELP_KEYMAP,
         IDM_HELP_ABOUT,
     };
-}
-
-
-
-
-
-TEST_CLASS (ChromeCommandRoutingTests)
-{
-public:
 
     TEST_METHOD (Every_Known_IDM_Has_MainMenu_Entry)
     {
@@ -109,6 +107,8 @@ public:
     {
         for (const MainMenuCommandEntry & e : MainMenu::GetCommandEntries())
         {
+            const wchar_t * name = nullptr;
+
             if (MainMenu::IsSeparator (e))
             {
                 continue;
@@ -121,7 +121,7 @@ public:
 
             // GetMenuName returns "?" for unknown enumerators — bare
             // pointer compare against the known menus is enough.
-            const wchar_t * name = MainMenu::GetMenuName (e.menu);
+            name = MainMenu::GetMenuName (e.menu);
             Assert::IsTrue (name[0] != L'?',
                             L"MainMenu entry uses an unknown MainMenuId enumerator");
         }
@@ -143,7 +143,8 @@ public:
 
         for (const MainMenuCommandEntry & e : MainMenu::GetCommandEntries())
         {
-            char  needle[32] = {};
+            char     needle[32] = {};
+            wchar_t  msg[160]   = {};
 
             if (MainMenu::IsSeparator (e))
             {
@@ -152,10 +153,10 @@ public:
 
             snprintf (needle, sizeof (needle), "| %u |", (unsigned) e.commandId);
 
-            wchar_t  msg[160] = {};
             swprintf_s (msg, L"Markdown missing decimal command id for 0x%04X", e.commandId);
             Assert::IsTrue (md.find (needle) != std::string::npos, msg);
         }
     }
 };
+
 

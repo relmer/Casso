@@ -30,6 +30,16 @@
 //  in-memory capture buffer instead of the host filesystem so the
 //  IFixtureProvider isolation contract is preserved.
 //
+//  Flush-error reporting: a flush that was supposed to persist a dirty
+//  image but couldn't (serialize failure, or the file/sink write failed)
+//  used to vanish -- every caller drops FlushEntry's HRESULT (Eject and
+//  PowerCycle are void; the shell/SoftReset IGNORE_RETURN_VALUE it), so a
+//  user's writes could be silently lost. FlushEntry now surfaces the loss
+//  itself through the shared EHM notifier (CHRN/CBRN -> EhmNotifyUser),
+//  which routes to whatever handler the host registered (a MessageBox in
+//  the GUI, stderr headless), so the report reaches the user regardless of
+//  what the caller does with the return.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class DiskImageStore
@@ -64,15 +74,23 @@ private:
     {
         unique_ptr<DiskImage>  image;
         string                 path;
-        DiskFormat             format = DiskFormat::Dsk;
+        DiskFormat             format  = DiskFormat::Dsk;
         bool                   mounted = false;
     };
+
+    // Every public accessor takes a caller-supplied slot/drive pair, so each
+    // one range-checks before At() indexes the fixed array.
+    static bool   IsValidBay        (int slot, int drive);
 
     Entry &       At                (int slot, int drive);
     const Entry & At                (int slot, int drive) const;
     HRESULT       FlushEntry        (Entry & entry);
 
-    Entry         m_entries[kSlotCount][kDriveCount];
-    FlushSink     m_flushSink;
-    string        m_emptyPath;
+    // Builds the user-facing "could not save" message from the mount path;
+    // handed to CHRN/CBRN in FlushEntry on a genuine persist failure.
+    static wstring FormatFlushLossMessage (const string & path);
+
+    Entry      m_entries[kSlotCount][kDriveCount];
+    FlushSink  m_flushSink;
+    string     m_emptyPath;
 };

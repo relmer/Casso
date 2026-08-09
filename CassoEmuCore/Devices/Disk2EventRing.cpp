@@ -27,16 +27,17 @@ bool Disk2EventRing::TryPush (const Disk2Event & e) noexcept
     uint32_t  tail     = m_tail.load (std::memory_order_relaxed);
     uint32_t  head     = m_head.load (std::memory_order_acquire);
     uint32_t  inFlight = tail - head;
+    bool      hasRoom  = (inFlight < kEventRingCapacity);
 
-    if (inFlight >= kEventRingCapacity)
+
+
+    if (hasRoom)
     {
-        return false;
+        m_slots[tail & kRingMask] = e;
+        m_tail.store (tail + 1, std::memory_order_release);
     }
 
-    m_slots[tail & kRingMask] = e;
-    m_tail.store (tail + 1, std::memory_order_release);
-
-    return true;
+    return hasRoom;
 }
 
 
@@ -56,18 +57,19 @@ bool Disk2EventRing::TryPush (const Disk2Event & e) noexcept
 
 bool Disk2EventRing::TryPop (Disk2Event & out) noexcept
 {
-    uint32_t  head = m_head.load (std::memory_order_relaxed);
-    uint32_t  tail = m_tail.load (std::memory_order_acquire);
+    uint32_t  head    = m_head.load (std::memory_order_relaxed);
+    uint32_t  tail    = m_tail.load (std::memory_order_acquire);
+    bool      hasItem = (head != tail);
 
-    if (head == tail)
+
+
+    if (hasItem)
     {
-        return false;
+        out = m_slots[head & kRingMask];
+        m_head.store (head + 1, std::memory_order_release);
     }
 
-    out = m_slots[head & kRingMask];
-    m_head.store (head + 1, std::memory_order_release);
-
-    return true;
+    return hasItem;
 }
 
 
@@ -92,6 +94,8 @@ uint32_t Disk2EventRing::Drain (Disk2Event * out, uint32_t maxCount) noexcept
     uint32_t  inFlight = tail - head;
     uint32_t  toCopy   = (inFlight < maxCount) ? inFlight : maxCount;
     uint32_t  i        = 0;
+
+
 
     for (i = 0; i < toCopy; i++)
     {
@@ -124,6 +128,8 @@ uint32_t Disk2EventRing::ApproxSize() const noexcept
 {
     uint32_t  tail = m_tail.load (std::memory_order_relaxed);
     uint32_t  head = m_head.load (std::memory_order_relaxed);
+
+
 
     return tail - head;
 }

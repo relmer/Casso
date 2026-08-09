@@ -6,13 +6,14 @@
 #include "Widgets/DxuiButton.h"
 
 
-static constexpr int      s_kLineHeightDip = 20;
-static constexpr int      s_kItemGapDip    = 6;
+static constexpr int      s_kLineHeightDip = 18;   // == DxuiTheme::BodyLineHeightDip, so a run's block matches real text line flow
+static constexpr int      s_kItemGapDip    = 0;    // runs flow like continuous text lines; use an empty run for a one-line gap
 static constexpr int      s_kIconGapDip    = 12;
 static constexpr int      s_kGlyphGapDip   = 12;
 static constexpr size_t   s_kWrapColumns   = 52;
 static constexpr int      s_kShellExecOk   = 0;     // ignored ShellExecute result reset value
 static constexpr wchar_t  s_kMdl2Family[]  = L"Segoe MDL2 Assets";
+
 
 
 
@@ -111,6 +112,7 @@ void DialogBodyContent::SetIcon (std::vector<uint32_t> bgraPremul, int srcW, int
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DialogBodyContent::SetGlyphIcon
@@ -134,10 +136,11 @@ void DialogBodyContent::SetGlyphIcon (wchar_t glyph, uint32_t argb, int sizeDip)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DialogBodyContent::PreferredHeightDip () const
+int DialogBodyContent::PreferredHeightDip() const
 {
     int  iconTop = 0;
     int  runs    = 0;
+
 
 
     if (!m_iconPixels.empty() && m_iconSizeDip > 0)
@@ -177,6 +180,7 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
     int  gapPx    = scaler.Px (s_kItemGapDip);
     int  y        = boundsPx.top;
     int  runsLeft = boundsPx.left;
+
 
 
     SetBounds (boundsPx);

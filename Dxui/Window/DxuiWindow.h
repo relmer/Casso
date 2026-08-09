@@ -50,18 +50,32 @@ class DxuiWindow : public DxuiPanel, private IDxuiHostClient
 public:
     struct CreateParams
     {
-        std::wstring        title;
-        HINSTANCE           hInstance         = nullptr;
-        HWND                ownerHwnd         = nullptr;
-        SIZE                initialSizeDip    = { 1024, 768 };
-        SIZE                minSizeDip        = { 0, 0 };
-        bool                resizable         = true;
-        bool                insetContentBelowCaption = false;
-        DxuiCaptionStyle    captionStyle      = DxuiCaptionStyle::Standard;
-        bool                composited        = false;   // composited-transparent window (enables SetComposedOpacity)
-        LPCWSTR             classNameOverride = nullptr;
-        HICON               appIconBig        = nullptr;
-        HICON               appIconSmall      = nullptr;
+        std::wstring      title;
+        HINSTANCE         hInstance                = nullptr;
+        HWND              ownerHwnd                = nullptr;
+        SIZE              initialSizeDip           = { 1024, 768 };
+        SIZE              minSizeDip               = { 0, 0 };
+        bool              resizable                = true;
+        bool              insetContentBelowCaption = false;
+        DxuiCaptionStyle  captionStyle             = DxuiCaptionStyle::Standard;
+        bool              composited               = false;   // composited-transparent window (enables SetComposedOpacity)
+        LPCWSTR           classNameOverride        = nullptr;
+        HICON             appIconBig               = nullptr;
+        HICON             appIconSmall             = nullptr;
+
+        // DXGI present sync interval. The default (1) waits for vblank; an
+        // animating window that shares the UI thread with another vsynced
+        // present should use 0 so the two don't stack to two vblank waits
+        // per frame (DWM still composes at vsync, so windowed flip-model
+        // presents do not tear).
+        UINT                presentSyncInterval = 1;
+
+        // Create the window without stealing activation (CreateWindowEx
+        // activates a new top-level window even while it is hidden, yanking
+        // focus off the creator mid-keystroke). For windows that pop up on
+        // their own (the auto-opened print preview); an activating Show()
+        // still focuses them on demand.
+        bool                createNoActivate  = false;
     };
 
 
@@ -74,7 +88,9 @@ public:
     //  the subclass can populate its children. Call Show() to display.
     //
     HRESULT  Create      (const CreateParams & params);
-    void     Show        ();
+    // activate=false shows the window without pulling foreground/focus (for
+    // windows that pop up on their own and must not steal keystrokes).
+    void     Show        (bool activate = true);
     void     Hide        ();
     void     Close        ();
 
@@ -135,6 +151,15 @@ public:
     //  ShowModalDialog instead, so this fires only in the modeless case.
     //
     void     SetOnDialogEnd (std::function<void (int)> fn) { m_onDialogEnd = std::move (fn); }
+
+    //
+    //  Keep-alive callback fired on every OS modal move / size loop tick
+    //  (WM_ENTERSIZEMOVE..WM_EXITSIZEMOVE). While the user drags this
+    //  window's caption or border the OS owns the thread and a normal frame
+    //  never runs, so a live panel wires this to pump a frame (its own and
+    //  the host's) rather than freeze mid-animation. Left unset it is inert.
+    //
+    void     SetOnModalLoopTick (std::function<void ()> fn) { m_onModalLoopTick = std::move (fn); }
 
     //
     //  Control to focus when the dialog is first shown (e.g. a picker's
@@ -242,6 +267,7 @@ private:
     DxuiMessageResult  OnSetCursor   (WORD hitTest) override;
     DxuiMessageResult  OnGetMinMax   (MINMAXINFO * info) override;
     DxuiMessageResult  OnTimer       (UINT_PTR timerId) override;
+    void               OnModalLoopTick () override;
     DxuiMessageResult  OnClose       () override;
     void               OnDestroy     () override;
 
@@ -269,17 +295,18 @@ private:
     static void          ForEachButton    (IDxuiControl * node, const std::function<void (DxuiButton *)> & fn);
 
 
-    std::unique_ptr<DxuiHwndSource>  m_source;
-    SIZE                             m_minSizeDip = { 0, 0 };
-    HWND                             m_ownerHwnd  = nullptr;
-    const IDxuiTheme *               m_theme      = nullptr;
-    IDxuiControl *                   m_initialFocus = nullptr;
-    DxuiFocusManager                 m_focus;
-    bool                             m_dialogActive   = false;   // dialog behaviors on (modal or modeless)
-    bool                             m_modal          = false;   // blocking-modal (owner disabled + private loop)
-    bool                             m_modalDone      = false;
-    int                              m_modalResult    = 0;
-    int                              m_defaultButtonId = 0;
-    UINT                             m_dialogTickMs   = 250;   // dialog repaint / tick cadence (caret-blink default)
+    std::unique_ptr<DxuiHwndSource>    m_source;
+    SIZE                               m_minSizeDip      = { 0, 0 };
+    HWND                               m_ownerHwnd       = nullptr;
+    const IDxuiTheme                 * m_theme           = nullptr;
+    IDxuiControl                     * m_initialFocus    = nullptr;
+    DxuiFocusManager                   m_focus;
+    bool                               m_dialogActive    = false;   // dialog behaviors on (modal or modeless)
+    bool                               m_modal           = false;   // blocking-modal (owner disabled + private loop)
+    bool                               m_modalDone       = false;
+    int                                m_modalResult     = 0;
+    int                                m_defaultButtonId = 0;
+    UINT                               m_dialogTickMs    = 250;   // dialog repaint / tick cadence (caret-blink default)
     std::function<void (int)>        m_onDialogEnd;            // modeless close callback
+    std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick
 };

@@ -12,6 +12,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BuildSearchPaths
@@ -27,8 +31,11 @@ vector<fs::path> PathResolver::BuildSearchPaths (
     const fs::path & /*exeDir*/,
     const fs::path & /*cwd*/)
 {
-    fs::path          localAppData = GetLocalAppDataDir (L"Casso");
     vector<fs::path>  searchBases;
+
+
+
+    fs::path          localAppData = GetLocalAppDataDir (L"Casso");
 
 
 
@@ -54,17 +61,26 @@ fs::path PathResolver::FindFile (
     const vector<fs::path> & searchPaths,
     const fs::path & relativePath)
 {
-    for (const auto & base : searchPaths)
+    fs::path  found;
+    fs::path  candidate;
+    size_t    i = 0;
+
+
+
+    // First hit wins -- searchPaths is in priority order. The loop condition
+    // carries the found test so a hit stops the scan; every extra iteration
+    // would be another filesystem round trip.
+    for (i = 0; found.empty() && i < searchPaths.size(); i++)
     {
-        fs::path candidate = base / relativePath;
+        candidate = searchPaths[i] / relativePath;
 
         if (fs::exists (candidate))
         {
-            return candidate;
+            found = candidate;
         }
     }
 
-    return {};
+    return found;
 }
 
 
@@ -88,22 +104,30 @@ fs::path PathResolver::FindOrCreateAssetDir (
     const fs::path         & fallbackBase)
 {
     fs::path           target;
+    fs::path           candidate;
     error_code         ec;
+    size_t             i = 0;
 
-    
 
-    for (const auto & base : searchPaths)
+
+    for (i = 0; target.empty() && i < searchPaths.size(); i++)
     {
-        fs::path candidate = base / relativeDir;
+        candidate = searchPaths[i] / relativeDir;
 
         if (fs::is_directory (candidate, ec))
         {
-            return candidate;
+            target = candidate;
         }
     }
 
-    target = fallbackBase / relativeDir;
-    fs::create_directories (target, ec);
+    // Nothing on disk matched the existing repo layout, so bootstrap one
+    // under the fallback base. create_directories is a no-op if it races.
+    if (target.empty())
+    {
+        target = fallbackBase / relativeDir;
+        fs::create_directories (target, ec);
+    }
+
     return target;
 }
 
@@ -117,14 +141,14 @@ fs::path PathResolver::FindOrCreateAssetDir (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-fs::path PathResolver::GetExecutableDirectory ()
+fs::path PathResolver::GetExecutableDirectory()
 {
     wchar_t buf[MAX_PATH] = {};
 
 
 
     GetModuleFileNameW (nullptr, buf, MAX_PATH);
-    return fs::path (buf).parent_path ();
+    return fs::path (buf).parent_path();
 }
 
 
@@ -137,10 +161,11 @@ fs::path PathResolver::GetExecutableDirectory ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-fs::path PathResolver::GetWorkingDirectory ()
+fs::path PathResolver::GetWorkingDirectory()
 {
-    return fs::current_path ();
+    return fs::current_path();
 }
+
 
 
 
@@ -164,12 +189,12 @@ fs::path PathResolver::GetWorkingDirectory ()
 
 fs::path PathResolver::GetLocalAppDataDir (const std::wstring & appName)
 {
-    HRESULT      hr      = S_OK;
-    PWSTR        pszPath = nullptr;
-    fs::path     result;
-    error_code   ec;
-    wchar_t      env[MAX_PATH] = {};
-    DWORD        envLen  = 0;
+    HRESULT     hr            = S_OK;
+    PWSTR       pszPath       = nullptr;
+    fs::path    result;
+    error_code  ec;
+    wchar_t     env[MAX_PATH] = {};
+    DWORD       envLen        = 0;
 
 
 
@@ -198,13 +223,15 @@ fs::path PathResolver::GetLocalAppDataDir (const std::wstring & appName)
         }
     }
 
-    if (result.empty())
+    // All three fallbacks failed, which should not happen on a normal user
+    // profile. Yield the empty path rather than creating "\<appName>" at the
+    // drive root.
+    if (!result.empty())
     {
-        return result;
+        result /= appName;
+        fs::create_directories (result, ec);
     }
 
-    result /= appName;
-    fs::create_directories (result, ec);
     return result;
 }
 
@@ -216,6 +243,22 @@ fs::path PathResolver::GetLocalAppDataDir (const std::wstring & appName)
 //
 //  MakeExeRelativePath
 //
+//  Rewrites a path as relative to the executable when it lives under the exe
+//  directory, so a persisted path survives the folder being moved.
+//
+//  A path that ESCAPES via ".." stays absolute. Baking a climb-out into a
+//  prefs file is worse than an absolute path: it breaks the moment the install
+//  moves, and it breaks silently, resolving to some unrelated location rather
+//  than failing.
+//
+//  Every failure yields the input unchanged, which is why result starts there
+//  and only a clean relativization overwrites it. An absolute path always
+//  works; a wrong relative one does not.
+//
+//  fs::relative is used with an error_code rather than the throwing overload,
+//  since a path on a different volume has no relative form at all and that is
+//  an ordinary case here, not an exception.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring PathResolver::MakeExeRelativePath (const std::wstring & absolutePath)
@@ -225,31 +268,32 @@ std::wstring PathResolver::MakeExeRelativePath (const std::wstring & absolutePat
     fs::path     rel;
     error_code   ec;
     std::wstring first;
+    std::wstring result = absolutePath;
 
 
-    if (input.empty() || input.is_relative())
+
+    // Every failure yields the absolute path unchanged, so `result` starts
+    // there and only a clean relativization overwrites it.
+    if (!input.empty() && input.is_absolute())
     {
-        return absolutePath;
+        exeDir = GetExecutableDirectory();
+        rel    = fs::relative (input, exeDir, ec);
+
+        if (!ec && !rel.empty())
+        {
+            // A path that escapes the exe directory (starts with "..") stays
+            // absolute -- baking a brittle climb-out into the prefs file
+            // breaks the moment the install moves.
+            first = (rel.begin() == rel.end()) ? std::wstring() : rel.begin()->wstring();
+
+            if (first != L"..")
+            {
+                result = rel.wstring();
+            }
+        }
     }
 
-    exeDir = GetExecutableDirectory();
-    rel    = fs::relative (input, exeDir, ec);
-
-    if (ec || rel.empty())
-    {
-        return absolutePath;
-    }
-
-    // If `relative` produced a path that escapes the exe directory
-    // (starts with `..`), fall back to the absolute path so we don't
-    // bake a brittle climb-out into the prefs file.
-    first = rel.begin() == rel.end() ? std::wstring() : rel.begin()->wstring();
-    if (first == L"..")
-    {
-        return absolutePath;
-    }
-
-    return rel.wstring();
+    return result;
 }
 
 
@@ -264,13 +308,14 @@ std::wstring PathResolver::MakeExeRelativePath (const std::wstring & absolutePat
 
 std::wstring PathResolver::ResolveExeRelativePath (const std::wstring & storedPath)
 {
-    fs::path  stored = fs::path (storedPath);
+    fs::path  stored     = fs::path (storedPath);
+    bool      isRelative = !storedPath.empty() && !stored.is_absolute();
 
 
-    if (storedPath.empty() || stored.is_absolute())
-    {
-        return storedPath;
-    }
 
-    return (GetExecutableDirectory() / stored).lexically_normal().wstring();
+    // The inverse of MakeExeRelativePath: only a stored relative path needs
+    // the exe directory put back in front of it.
+    return isRelative
+               ? (GetExecutableDirectory() / stored).lexically_normal().wstring()
+               : storedPath;
 }

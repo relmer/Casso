@@ -7,6 +7,8 @@
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiPopupHost
@@ -39,7 +41,7 @@
 //  Test mode (InitializeForTest):
 //      No HWND, no device, no swap chain. All placement, dismiss-
 //      policy classification, chain bookkeeping, and pool acquire /
-//      release behaviour is exercised through pure state mutation
+//      release behavior is exercised through pure state mutation
 //      and the static ComputePlacementForTest / ShouldDismissForTest
 //      seams.
 //
@@ -283,6 +285,9 @@ public:
                                           DxuiPopupDismissReason  reason);
 
 private:
+    static RECT  WorkAreaForRect (const RECT & rectScreenPx);
+    static RECT  PlaceOnEdge     (const RECT & anchor, DxuiPopupPlacement edge, SIZE popupSizePx);
+
     static LRESULT CALLBACK  s_WndProcThunk  (HWND, UINT, WPARAM, LPARAM);
     LRESULT                  WndProc         (UINT msg, WPARAM wp, LPARAM lp);
 
@@ -326,10 +331,10 @@ private:
     bool                                    m_renderReady       = false;
     SIZE                                    m_backBufferSizePx  = {};
 
-    ShowParams                              m_params;
-    bool                                    m_open              = false;
-    int                                     m_resultCode        = 0;
-    RECT                                    m_placedRectScreenPx = {};
+    ShowParams  m_params;
+    bool        m_open               = false;
+    int         m_resultCode         = 0;
+    RECT        m_placedRectScreenPx = {};
 
     DxuiPopupHost                         * m_parent            = nullptr;
     DxuiPopupHost                         * m_activeChild       = nullptr;

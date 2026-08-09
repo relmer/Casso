@@ -1,5 +1,9 @@
 #pragma once
 
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Dxui — public umbrella header.
@@ -36,6 +40,8 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+
 
 
 
@@ -90,6 +96,7 @@ struct IDCompositionVisual;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Public Dxui headers (umbrella re-exports).
@@ -106,7 +113,6 @@ struct IDCompositionVisual;
 #include "Core/DxuiHitTester.h"
 #include "Core/DxuiInput.h"
 #include "Core/DxuiThread.h"
-#include "Core/DxuiTitleBarHitTest.h"
 #include "Core/IDxuiControl.h"
 #include "Core/IDxuiLayout.h"
 #include "Core/IDxuiViewportInputSink.h"
@@ -116,6 +122,7 @@ struct IDCompositionVisual;
 #include "Core/DxuiGridLayout.h"
 #include "Core/DxuiStackLayout.h"
 #include "Core/DxuiPanel.h"
+#include "Core/DxuiPanZoom.h"
 #include "Core/DxuiViewport.h"
 #include "Core/DxuiFocusManager.h"
 

@@ -1,5 +1,4 @@
 #include "Pch.h"
-#include <random>
 
 #include "Devices/Disk2AddressMarkWatcher.h"
 #include "Devices/Disk/Disk2NibbleEngine.h"
@@ -27,154 +26,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    class RecordingSink : public IDisk2EventSink
-    {
-    public:
-        struct AddrEntry
-        {
-            int    track;
-            int    sector;
-            int    volume;
-        };
-
-        struct DataEntry
-        {
-            int    track;
-            int    sector;
-            int    volume;
-            int    byteCount;
-        };
-
-        std::vector<AddrEntry>  addrLog;
-        std::vector<DataEntry>  dataLog;
-
-        void OnMotorCommandOn() override                                  {}
-        void OnMotorEngaged() override                                    {}
-        void OnMotorCommandOff() override                                 {}
-        void OnMotorDisengaged() override                                 {}
-        void OnHeadStep (int, int) override                               {}
-        void OnHeadBump (int) override                                    {}
-        void OnAddressMark (int track, int sector, int volume) override   { addrLog.push_back ({ track, sector, volume }); }
-        void OnDataMarkRead (int track, int sector, int volume, int byteCount) override { dataLog.push_back ({ track, sector, volume, byteCount }); }
-        void OnDataMarkWrite (int, int, int, int) override                {}
-        void OnDriveSelect (int) override                                 {}
-        void OnDiskInserted (int) override                                {}
-        void OnDiskEjected (int) override                                 {}
-    };
-
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  Encode4and4
-    //
-    //  Encodes one source byte into a (hi, lo) pair so that
-    //  ((hi << 1) | 1) & lo == value. Standard Apple II RWTS encoder.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    void Encode4and4 (uint8_t value, uint8_t & hi, uint8_t & lo)
-    {
-        hi = (uint8_t) (((value >> 1) & 0x55) | 0xAA);
-        lo = (uint8_t) ((value         & 0x55) | 0xAA);
-    }
-
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  AppendAddressMark
-    //
-    //  Appends a stock DOS 3.3 address mark (prologue + 4-and-4 fields +
-    //  epilogue) to `out`. `chkOverride` lets a caller corrupt the
-    //  checksum without disturbing the rest of the frame.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    void AppendAddressMark (std::vector<uint8_t> & out,
-                            uint8_t                vol,
-                            uint8_t                trk,
-                            uint8_t                sec,
-                            uint8_t                chkOverride,
-                            bool                   useOverride)
-    {
-        uint8_t  chk   = useOverride ? chkOverride : (uint8_t) (vol ^ trk ^ sec);
-        uint8_t  volHi = 0;
-        uint8_t  volLo = 0;
-        uint8_t  trkHi = 0;
-        uint8_t  trkLo = 0;
-        uint8_t  secHi = 0;
-        uint8_t  secLo = 0;
-        uint8_t  chkHi = 0;
-        uint8_t  chkLo = 0;
-
-        Encode4and4 (vol, volHi, volLo);
-        Encode4and4 (trk, trkHi, trkLo);
-        Encode4and4 (sec, secHi, secLo);
-        Encode4and4 (chk, chkHi, chkLo);
-
-        out.push_back (Disk2AddressMarkWatcher::kAddrMarkPrologue0);
-        out.push_back (Disk2AddressMarkWatcher::kAddrMarkPrologue1);
-        out.push_back (Disk2AddressMarkWatcher::kAddrMarkPrologue2);
-        out.push_back (volHi);
-        out.push_back (volLo);
-        out.push_back (trkHi);
-        out.push_back (trkLo);
-        out.push_back (secHi);
-        out.push_back (secLo);
-        out.push_back (chkHi);
-        out.push_back (chkLo);
-        out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue0);
-        out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue1);
-        out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue2);
-    }
-
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  AppendDataMark
-    //
-    //  Appends a 6-and-2 data mark: prologue + 342 body nibbles + 1
-    //  checksum nibble + epilogue. Body nibbles can be anything that
-    //  doesn't accidentally spell DE AA EB; the watcher counts but does
-    //  not decode them.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    void AppendDataMark (std::vector<uint8_t> & out)
-    {
-        uint32_t  i = 0;
-
-        out.push_back (Disk2AddressMarkWatcher::kAddrMarkPrologue0);
-        out.push_back (Disk2AddressMarkWatcher::kAddrMarkPrologue1);
-        out.push_back (Disk2AddressMarkWatcher::kDataMarkPrologue2);
-
-        for (i = 0; i < Disk2AddressMarkWatcher::kDataNibbleCount + 1; i++)
-        {
-            out.push_back (0x96);
-        }
-
-        out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue0);
-        out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue1);
-        out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue2);
-    }
-
-
-
-    void FeedAll (Disk2AddressMarkWatcher & w, const std::vector<uint8_t> & nibbles)
-    {
-        size_t   i = 0;
-
-        for (i = 0; i < nibbles.size(); i++)
-        {
-            w.ObserveNibble (nibbles[i]);
-        }
-    }
-}
-
 
 
 
@@ -183,6 +34,23 @@ namespace
 //
 //  Disk2AddressMarkWatcherTests
 //
+//  The address-mark watcher: recognizing sector headers in the nibble stream
+//  as the guest reads them.
+//
+//  It watches the READS the guest performs rather than decoding the track
+//  itself, which is what lets the debug panel report which sector the boot ROM
+//  is looking at without interpreting the disk format. So the tests feed nibble
+//  sequences the way a read would deliver them, one at a time.
+//
+//  Partial and interrupted marks are the substance: a prologue that starts and
+//  is cut short by a seek must reset the watcher rather than leaving it
+//  half-matched, or the next stream's bytes complete a mark that never
+//  occurred.
+//
+//  Marks are matched against the actual $D5 $AA $96 and $D5 $AA $AD prologues,
+//  since the difference between an address field and a data field is what makes
+//  the report useful.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace Disk2AddressMarkWatcherTests
@@ -190,6 +58,151 @@ namespace Disk2AddressMarkWatcherTests
     TEST_CLASS (Disk2AddressMarkWatcherTests)
     {
     public:
+
+        class RecordingSink : public IDisk2EventSink
+        {
+        public:
+            struct AddrEntry
+            {
+                int    track;
+                int    sector;
+                int    volume;
+            };
+
+            struct DataEntry
+            {
+                int    track;
+                int    sector;
+                int    volume;
+                int    byteCount;
+            };
+
+            std::vector<AddrEntry>  addrLog;
+            std::vector<DataEntry>  dataLog;
+
+            void OnMotorCommandOn() override                                  {}
+            void OnMotorEngaged() override                                    {}
+            void OnMotorCommandOff() override                                 {}
+            void OnMotorDisengaged() override                                 {}
+            void OnHeadStep (int, int) override                               {}
+            void OnHeadBump (int) override                                    {}
+            void OnAddressMark (int track, int sector, int volume) override   { addrLog.push_back ({ track, sector, volume }); }
+            void OnDataMarkRead (int track, int sector, int volume, int byteCount) override { dataLog.push_back ({ track, sector, volume, byteCount }); }
+            void OnDataMarkWrite (int, int, int, int) override                {}
+            void OnDriveSelect (int) override                                 {}
+            void OnDiskInserted (int) override                                {}
+            void OnDiskEjected (int) override                                 {}
+        };
+
+
+
+        ////////////////////////////////////////////////////////////////////////////
+        //
+        //  Encode4and4
+        //
+        //  Encodes one source byte into a (hi, lo) pair so that
+        //  ((hi << 1) | 1) & lo == value. Standard Apple II RWTS encoder.
+        //
+        ////////////////////////////////////////////////////////////////////////////
+
+        void Encode4and4 (uint8_t value, uint8_t & hi, uint8_t & lo)
+        {
+            hi = (uint8_t) (((value >> 1) & 0x55) | 0xAA);
+            lo = (uint8_t) ((value         & 0x55) | 0xAA);
+        }
+
+
+
+        ////////////////////////////////////////////////////////////////////////////
+        //
+        //  AppendAddressMark
+        //
+        //  Appends a stock DOS 3.3 address mark (prologue + 4-and-4 fields +
+        //  epilogue) to `out`. `chkOverride` lets a caller corrupt the
+        //  checksum without disturbing the rest of the frame.
+        //
+        ////////////////////////////////////////////////////////////////////////////
+
+        void AppendAddressMark (std::vector<uint8_t> & out,
+                                uint8_t                vol,
+                                uint8_t                trk,
+                                uint8_t                sec,
+                                uint8_t                chkOverride,
+                                bool                   useOverride)
+        {
+            uint8_t  chk   = useOverride ? chkOverride : (uint8_t) (vol ^ trk ^ sec);
+            uint8_t  volHi = 0;
+            uint8_t  volLo = 0;
+            uint8_t  trkHi = 0;
+            uint8_t  trkLo = 0;
+            uint8_t  secHi = 0;
+            uint8_t  secLo = 0;
+            uint8_t  chkHi = 0;
+            uint8_t  chkLo = 0;
+
+            Encode4and4 (vol, volHi, volLo);
+            Encode4and4 (trk, trkHi, trkLo);
+            Encode4and4 (sec, secHi, secLo);
+            Encode4and4 (chk, chkHi, chkLo);
+
+            out.push_back (Disk2AddressMarkWatcher::kAddrMarkPrologue0);
+            out.push_back (Disk2AddressMarkWatcher::kAddrMarkPrologue1);
+            out.push_back (Disk2AddressMarkWatcher::kAddrMarkPrologue2);
+            out.push_back (volHi);
+            out.push_back (volLo);
+            out.push_back (trkHi);
+            out.push_back (trkLo);
+            out.push_back (secHi);
+            out.push_back (secLo);
+            out.push_back (chkHi);
+            out.push_back (chkLo);
+            out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue0);
+            out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue1);
+            out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue2);
+        }
+
+
+
+        ////////////////////////////////////////////////////////////////////////////
+        //
+        //  AppendDataMark
+        //
+        //  Appends a 6-and-2 data mark: prologue + 342 body nibbles + 1
+        //  checksum nibble + epilogue. Body nibbles can be anything that
+        //  doesn't accidentally spell DE AA EB; the watcher counts but does
+        //  not decode them.
+        //
+        ////////////////////////////////////////////////////////////////////////////
+
+        void AppendDataMark (std::vector<uint8_t> & out)
+        {
+            uint32_t  i = 0;
+
+            out.push_back (Disk2AddressMarkWatcher::kAddrMarkPrologue0);
+            out.push_back (Disk2AddressMarkWatcher::kAddrMarkPrologue1);
+            out.push_back (Disk2AddressMarkWatcher::kDataMarkPrologue2);
+
+            for (i = 0; i < Disk2AddressMarkWatcher::kDataNibbleCount + 1; i++)
+            {
+                out.push_back (0x96);
+            }
+
+            out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue0);
+            out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue1);
+            out.push_back (Disk2AddressMarkWatcher::kSectorEpilogue2);
+        }
+
+
+
+        void FeedAll (Disk2AddressMarkWatcher & w, const std::vector<uint8_t> & nibbles)
+        {
+            size_t   i = 0;
+
+            for (auto & nibble : nibbles)
+            {
+                w.ObserveNibble (nibble);
+            }
+        }
 
         TEST_METHOD (GoodAddressMark_firesOnceWithDecodedFields)
         {
@@ -229,11 +242,11 @@ namespace Disk2AddressMarkWatcherTests
         TEST_METHOD (RandomNibbleStream_firesZeroAddressMarks)
         {
             Disk2AddressMarkWatcher  watcher;
-            RecordingSink             sink;
+            RecordingSink            sink;
+            uint32_t                 i            = 0;
+            constexpr uint32_t       kStreamBytes = 1u << 20;   // 1 MiB
             std::mt19937              rng (0xC0FFEEu);
             std::uniform_int_distribution<int>  dist (0, 255);
-            uint32_t                  i = 0;
-            constexpr uint32_t        kStreamBytes = 1u << 20;   // 1 MiB
 
             watcher.SetEventSink (&sink);
 
@@ -380,11 +393,13 @@ namespace Disk2AddressMarkWatcherTests
             {
                 stream.push_back (0xFF);
             }
+
             AppendAddressMark (stream, 254, 17, 5, 0, false);
             for (i = 0; i < 8; i++)
             {
                 stream.push_back (0xFF);
             }
+
             AppendDataMark (stream);
             for (i = 0; i < 8; i++)
             {
@@ -393,15 +408,16 @@ namespace Disk2AddressMarkWatcherTests
 
             img.ResizeTrack (0, stream.size() * 8 + 64);
 
-            for (i = 0; i < stream.size(); i++)
+            for (Byte nibble : stream)
             {
                 int   b = 0;
 
                 for (b = 0; b < 8; b++)
                 {
                     img.WriteBit (0, bitOffset + (size_t) b,
-                                  (uint8_t) ((stream[i] >> (7 - b)) & 1));
+                                  (uint8_t) ((nibble >> (7 - b)) & 1));
                 }
+
                 bitOffset += 8;
             }
 
@@ -441,3 +457,4 @@ namespace Disk2AddressMarkWatcherTests
         }
     };
 }
+

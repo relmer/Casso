@@ -39,7 +39,7 @@ namespace Acia6551TestNs
     public:
         HRESULT     Reset         () override                     { return S_OK; }
         HRESULT     Step          (uint32_t & outCycles) override { outCycles = 0; return S_OK; }
-        uint64_t    GetCycleCount () const override               { return 0; }
+        uint64_t    GetCycleCount() const override               { return 0; }
 
         void        SetInterruptLine (CpuInterruptKind kind, bool asserted) override
         {
@@ -49,7 +49,7 @@ namespace Acia6551TestNs
             }
         }
 
-        bool        IrqAsserted () const { return m_irqAsserted; }
+        bool        IrqAsserted() const { return m_irqAsserted; }
 
     private:
         bool    m_irqAsserted = false;
@@ -71,7 +71,7 @@ namespace Acia6551TestNs
     public:
         void    OnByteTransmitted (Byte value) override { m_bytes.push_back (value); }
 
-        const vector<Byte> &    Bytes () const { return m_bytes; }
+        const vector<Byte> &    Bytes() const { return m_bytes; }
 
     private:
         vector<Byte>    m_bytes;
@@ -84,6 +84,23 @@ namespace Acia6551TestNs
     //
     //  Acia6551Tests
     //
+    //  The 6551 ACIA: the four registers, the status bits, and interrupt
+    //  generation.
+    //
+    //  The register map is the first thing to pin because two of the four
+    //  addresses do DIFFERENT things on read and write -- the transmit and
+    //  receive data registers share an address, as do the command and status
+    //  registers. An implementation treating any of them as a plain storage
+    //  cell reads back what it wrote instead of what the device holds.
+    //
+    //  STATUS bits are asserted individually, since a handler polls them
+    //  rather than reading the byte, and the transmit-empty and receive-full
+    //  bits drive opposite branches.
+    //
+    //  Written from the datasheet. The //c has two of these, so serial
+    //  printing depends on this part behaving as documented rather than as
+    //  convenient.
+    //
     ////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (Acia6551Tests)
@@ -95,14 +112,14 @@ namespace Acia6551TestNs
 
 
 
-            Assert::IsTrue ((acia.GetStatus () & Acia6551::kStatusTxEmpty) != 0,
+            Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusTxEmpty) != 0,
                             L"TDRE must be set after reset");
-            Assert::IsTrue ((acia.GetStatus () & Acia6551::kStatusRxFull) == 0,
+            Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusRxFull) == 0,
                             L"RDRF must be clear after reset");
-            Assert::IsTrue ((acia.GetStatus () & Acia6551::kStatusIrq) == 0,
+            Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusIrq) == 0,
                             L"IRQ latch must be clear after reset");
-            Assert::AreEqual<Byte> (0, acia.GetCommand ());
-            Assert::AreEqual<Byte> (0, acia.GetControl ());
+            Assert::AreEqual<Byte> (0, acia.GetCommand());
+            Assert::AreEqual<Byte> (0, acia.GetControl());
         }
 
 
@@ -112,55 +129,61 @@ namespace Acia6551TestNs
 
 
 
-            Assert::AreEqual<Word> (kBase, acia.GetStart ());
-            Assert::AreEqual<Word> (kAddrCtrl, acia.GetEnd ());
+            Assert::AreEqual<Word> (kBase, acia.GetStart());
+            Assert::AreEqual<Word> (kAddrCtrl, acia.GetEnd());
         }
 
 
         TEST_METHOD (TransmitByteReachesEndpoint)
         {
-            Acia6551            acia (kBase);
             RecordingEndpoint   endpoint;
+
+
+
+            Acia6551            acia (kBase);
 
 
 
             acia.SetEndpoint (&endpoint);
             acia.Write (kAddrData, 0x41);
 
-            Assert::AreEqual<size_t> (1, endpoint.Bytes ().size ());
-            Assert::AreEqual<Byte> (0x41, endpoint.Bytes ().front ());
+            Assert::AreEqual<size_t> (1, endpoint.Bytes().size());
+            Assert::AreEqual<Byte> (0x41, endpoint.Bytes().front());
         }
 
 
         TEST_METHOD (LoopbackDeliversByteToReceiver)
         {
+            Byte                    received = 0;
+
+
+
             Acia6551                acia (kBase);
             AciaLoopbackEndpoint    loopback (&acia);
-            Byte                    received = 0;
 
 
 
             acia.SetEndpoint (&loopback);
             acia.Write (kAddrData, 0x37);
 
-            Assert::IsTrue ((acia.GetStatus () & Acia6551::kStatusRxFull) != 0,
+            Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusRxFull) != 0,
                             L"Loopback must fill the receiver");
 
             received = acia.Read (kAddrData);
             Assert::AreEqual<Byte> (0x37, received);
-            Assert::IsTrue ((acia.GetStatus () & Acia6551::kStatusRxFull) == 0,
+            Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusRxFull) == 0,
                             L"Reading data must clear RDRF");
         }
 
 
         TEST_METHOD (ReceiverIrqAssertsAndStatusReadClearsIt)
         {
-            AciaTestCpu             cpu;
+            AciaTestCpu  cpu;
+            HRESULT      hr     = S_OK;
+            Byte         status = 0;
             InterruptController     ic (&cpu);
             Acia6551                acia (kBase);
             AciaLoopbackEndpoint    loopback (&acia);
-            HRESULT                 hr = S_OK;
-            Byte                    status = 0;
 
 
 
@@ -173,16 +196,16 @@ namespace Acia6551TestNs
             acia.Write (kAddrCmd, Acia6551::kCommandDtr);
             acia.Write (kAddrData, 0x5A);
 
-            Assert::IsTrue ((acia.GetStatus () & Acia6551::kStatusIrq) != 0,
+            Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusIrq) != 0,
                             L"Receiver-full must latch the IRQ bit");
-            Assert::IsTrue (cpu.IrqAsserted (), L"IRQ line must be asserted");
+            Assert::IsTrue (cpu.IrqAsserted(), L"IRQ line must be asserted");
 
             status = acia.Read (kAddrStatus);
             Assert::IsTrue ((status & Acia6551::kStatusIrq) != 0,
                             L"Status snapshot still shows the IRQ that fired");
-            Assert::IsFalse (cpu.IrqAsserted (),
+            Assert::IsFalse (cpu.IrqAsserted(),
                              L"Reading status must de-assert the IRQ line");
-            Assert::IsTrue ((acia.GetStatus () & Acia6551::kStatusIrq) == 0,
+            Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusIrq) == 0,
                             L"IRQ latch cleared after status read");
         }
 
@@ -190,10 +213,10 @@ namespace Acia6551TestNs
         TEST_METHOD (ReceiverIrqSuppressedWhenDisabled)
         {
             AciaTestCpu             cpu;
+            HRESULT                 hr = S_OK;
             InterruptController     ic (&cpu);
             Acia6551                acia (kBase);
             AciaLoopbackEndpoint    loopback (&acia);
-            HRESULT                 hr = S_OK;
 
 
 
@@ -206,7 +229,7 @@ namespace Acia6551TestNs
             acia.Write (kAddrCmd, Acia6551::kCommandDtr | Acia6551::kCommandRxIrqDisable);
             acia.Write (kAddrData, 0x5A);
 
-            Assert::IsFalse (cpu.IrqAsserted (),
+            Assert::IsFalse (cpu.IrqAsserted(),
                              L"Disabled receiver IRQ must not drive the line");
         }
 
@@ -214,10 +237,10 @@ namespace Acia6551TestNs
         TEST_METHOD (TransmitIrqAssertsWhenEnabled)
         {
             AciaTestCpu             cpu;
-            InterruptController     ic (&cpu);
-            Acia6551                acia (kBase);
             RecordingEndpoint       endpoint;
             HRESULT                 hr = S_OK;
+            InterruptController     ic (&cpu);
+            Acia6551                acia (kBase);
 
 
 
@@ -230,7 +253,7 @@ namespace Acia6551TestNs
             acia.Write (kAddrCmd, Acia6551::kCommandDtr | Acia6551::kCommandTicTxIrqOn);
             acia.Write (kAddrData, 0x21);
 
-            Assert::IsTrue (cpu.IrqAsserted (),
+            Assert::IsTrue (cpu.IrqAsserted(),
                             L"Transmitter-empty must assert the IRQ when enabled");
         }
 
@@ -246,15 +269,19 @@ namespace Acia6551TestNs
             acia.Write (kAddrData, 0x11);
             acia.Write (kAddrData, 0x22);
 
-            Assert::IsTrue ((acia.GetStatus () & Acia6551::kStatusOverrun) != 0,
+            Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusOverrun) != 0,
                             L"Second unread byte must set overrun");
         }
 
 
         TEST_METHOD (ProgrammedResetClearsCommandButKeepsParityAndControl)
         {
+            Byte  parityBits = 0;
+
+
+
             Acia6551    acia (kBase);
-            Byte        parityBits = Acia6551::kCommandParityMask;
+            parityBits = Acia6551::kCommandParityMask;
 
 
 
@@ -264,9 +291,9 @@ namespace Acia6551TestNs
             // A write to the status address is a programmed reset.
             acia.Write (kAddrStatus, 0x00);
 
-            Assert::AreEqual<Byte> (parityBits, acia.GetCommand (),
+            Assert::AreEqual<Byte> (parityBits, acia.GetCommand(),
                                     L"Programmed reset keeps parity bits, clears the rest");
-            Assert::AreEqual<Byte> (0x1E, acia.GetControl (),
+            Assert::AreEqual<Byte> (0x1E, acia.GetControl(),
                                     L"Programmed reset leaves control untouched");
         }
 
@@ -279,15 +306,15 @@ namespace Acia6551TestNs
 
             // Bits 6-5 = 00 -> 8-bit words.
             acia.Write (kAddrCtrl, 0x00);
-            Assert::AreEqual (8, acia.GetWordLengthBits ());
+            Assert::AreEqual (8, acia.GetWordLengthBits());
 
             // Bits 6-5 = 01 -> 7-bit words.
             acia.Write (kAddrCtrl, 0x20);
-            Assert::AreEqual (7, acia.GetWordLengthBits ());
+            Assert::AreEqual (7, acia.GetWordLengthBits());
 
             // Bits 6-5 = 11 -> 5-bit words.
             acia.Write (kAddrCtrl, 0x60);
-            Assert::AreEqual (5, acia.GetWordLengthBits ());
+            Assert::AreEqual (5, acia.GetWordLengthBits());
         }
 
 
@@ -309,9 +336,9 @@ namespace Acia6551TestNs
             config.hasSlot = true;
 
             device = registry.Create ("acia-6551", config, bus);
-            Assert::IsNotNull (device.get ());
-            Assert::AreEqual<Word> (0xC098, device->GetStart ());
-            Assert::AreEqual<Word> (0xC09B, device->GetEnd ());
+            Assert::IsNotNull (device.get());
+            Assert::AreEqual<Word> (0xC098, device->GetStart());
+            Assert::AreEqual<Word> (0xC09B, device->GetEnd());
         }
     };
 }

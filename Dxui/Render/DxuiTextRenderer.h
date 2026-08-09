@@ -73,6 +73,9 @@ public:
     HRESULT  PushClipRect     (float xDip, float yDip, float widthDip, float heightDip) override;
     HRESULT  PopClipRect      () override;
 
+    void     PushTextSkew     (float tanX, float yPivotDip) override;
+    void     PopTextSkew      () override;
+
     HRESULT  FillRect         (float    xDip,
                                float    yDip,
                                float    widthDip,
@@ -125,6 +128,8 @@ public:
     float    GlobalAlpha      () const      override { return m_globalAlpha; }
 
 private:
+    static D2D1_COLOR_F  ColorFromArgb (uint32_t argbColor);
+
     struct TextFormatKey
     {
         std::wstring        family;
@@ -136,6 +141,37 @@ private:
             if (family != other.family) { return family < other.family; }
             if (sizeDip != other.sizeDip) { return sizeDip < other.sizeDip; }
             return weight < other.weight;
+        }
+    };
+
+
+    // Key for the shaped-text-layout cache. A DirectWrite text layout owns the
+    // font-fallback + shaping work, which is expensive and allocation-heavy;
+    // caching one per distinct (text, format, alignment, box) lets repeated
+    // frames re-draw unchanged chrome via DrawTextLayout with no re-shaping.
+    struct LayoutCacheKey
+    {
+        std::wstring        text;
+        std::wstring        family;
+        float               sizeDip = 0.0f;
+        DxuiFontWeight      weight  = DxuiFontWeight::Normal;
+        int                 hAlign  = 0;
+        int                 vAlign  = 0;
+        bool                wrap    = false;
+        float               maxW    = 0.0f;
+        float               maxH    = 0.0f;
+
+        bool operator < (const LayoutCacheKey & o) const
+        {
+            if (text    != o.text)    { return text    < o.text;    }
+            if (family  != o.family)  { return family  < o.family;  }
+            if (sizeDip != o.sizeDip) { return sizeDip < o.sizeDip; }
+            if (weight  != o.weight)  { return weight  < o.weight;  }
+            if (hAlign  != o.hAlign)  { return hAlign  < o.hAlign;  }
+            if (vAlign  != o.vAlign)  { return vAlign  < o.vAlign;  }
+            if (wrap    != o.wrap)    { return wrap    < o.wrap;    }
+            if (maxW    != o.maxW)    { return maxW    < o.maxW;    }
+            return maxH < o.maxH;
         }
     };
 
@@ -153,19 +189,39 @@ private:
                                float                        & outCapMidY);
 
 
-    ComPtr<ID2D1Factory1>             m_d2dFactory;
-    ComPtr<ID2D1Device>               m_d2dDevice;
-    ComPtr<ID2D1DeviceContext>        m_d2dContext;
-    ComPtr<ID2D1Bitmap1>              m_target;
-    ComPtr<ID2D1Bitmap1>              m_offscreen;
-    UINT                              m_offscreenW = 0;
-    UINT                              m_offscreenH = 0;
-    ComPtr<ID2D1Bitmap>               m_framebufferBitmap;
-    int                               m_framebufferBitmapW = 0;
-    int                               m_framebufferBitmapH = 0;
-    ComPtr<ID2D1Bitmap>               m_iconBitmap;
-    int                               m_iconBitmapW = 0;
-    int                               m_iconBitmapH = 0;
+    // Cached solid-color brush keyed by ARGB (opacity re-applied per use).
+    HRESULT  EnsureBrush      (uint32_t                       argb,
+                               ID2D1SolidColorBrush        ** outBrush);
+
+
+    // Cached shaped text layout (see LayoutCacheKey). Alignment / wrapping are
+    // set on the layout itself so the shared format is never mutated.
+    HRESULT  EnsureLayout     (const wchar_t                * text,
+                               const wchar_t                * family,
+                               float                          fontSizeDip,
+                               DxuiFontWeight                 weight,
+                               DxuiTextHAlign                 hAlign,
+                               DxuiTextVAlign                 vAlign,
+                               bool                           wrap,
+                               float                          maxWidthDip,
+                               float                          maxHeightDip,
+                               IDWriteTextLayout           ** outLayout);
+
+
+    ComPtr<ID2D1Factory1>       m_d2dFactory;
+    ComPtr<ID2D1Device>         m_d2dDevice;
+    ComPtr<ID2D1DeviceContext>  m_d2dContext;
+    D2D1_MATRIX_3X2_F           m_savedTransform     = D2D1::Matrix3x2F::Identity();
+    ComPtr<ID2D1Bitmap1>        m_target;
+    ComPtr<ID2D1Bitmap1>        m_offscreen;
+    UINT                        m_offscreenW         = 0;
+    UINT                        m_offscreenH         = 0;
+    ComPtr<ID2D1Bitmap>         m_framebufferBitmap;
+    int                         m_framebufferBitmapW = 0;
+    int                         m_framebufferBitmapH = 0;
+    ComPtr<ID2D1Bitmap>         m_iconBitmap;
+    int                         m_iconBitmapW        = 0;
+    int                         m_iconBitmapH        = 0;
 
     ComPtr<IDWriteFactory>            m_dwriteFactory;
 
@@ -173,6 +229,12 @@ private:
              ComPtr<IDWriteTextFormat>>  m_formatCache;
 
     std::map<TextFormatKey, float>       m_capMidCache;
+
+    std::map<uint32_t,
+             ComPtr<ID2D1SolidColorBrush>>  m_brushCache;
+
+    std::map<LayoutCacheKey,
+             ComPtr<IDWriteTextLayout>>     m_layoutCache;
 
     bool                              m_targetBound = false;
     bool                              m_drawing     = false;

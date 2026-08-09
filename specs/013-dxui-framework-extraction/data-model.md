@@ -129,7 +129,7 @@ Focus *scopes* layer on top: opening a popup pushes the current focused control 
 ## Dialog model (reshaped 2026-07 — FR-126 / FR-129)
 
 > `DxuiDialog` / `DxuiDialogManager` and the modal-dialog **stack** sketched above are **removed**.
-> Nesting / owner-chain behaviour now lives inside the `DxuiWindow` modal message loop.
+> Nesting / owner-chain behavior now lives inside the `DxuiWindow` modal message loop.
 
 ```text
 DxuiWindow (as a dialog)                         (a dialog IS a window)

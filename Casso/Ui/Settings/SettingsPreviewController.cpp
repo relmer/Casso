@@ -29,7 +29,7 @@ void SettingsPreviewController::StartPreview (Focus focus, bool keyboardMode)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsPreviewController::EndPreview ()
+void SettingsPreviewController::EndPreview()
 {
     m_focus     = Focus::None;
     m_keyboard  = false;
@@ -44,12 +44,12 @@ void SettingsPreviewController::EndPreview ()
 //  Reset
 //
 //  Wipes alphas + timers along with focus. Called when the panel is
-//  shown or cancelled so a previous session's mid-drag interaction
+//  shown or canceled so a previous session's mid-drag interaction
 //  state can't bleed into the next one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsPreviewController::Reset ()
+void SettingsPreviewController::Reset()
 {
     m_focus            = Focus::None;
     m_keyboard         = false;
@@ -89,6 +89,7 @@ void SettingsPreviewController::Tick (int64_t nowMs)
     {
         m_lastFrameMs = nowMs;
     }
+
     dtMs = nowMs - m_lastFrameMs;
     m_lastFrameMs = nowMs;
 

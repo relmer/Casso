@@ -22,7 +22,7 @@ public:
 
     TEST_METHOD (Load_ValidJson_ParsesAllFields)
     {
-        std::string   json = MinimalJson ();
+        std::string   json = MinimalJson();
         MachineConfig config;
         std::string   error;
 
@@ -30,16 +30,16 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr,
             std::format (L"Load should succeed: {}",
-                std::wstring (error.begin (), error.end ())).c_str ());
+                std::wstring (error.begin(), error.end())).c_str());
         Assert::AreEqual (std::string ("TestMachine"), config.name,
             L"Name must be 'TestMachine'");
         Assert::AreEqual (std::string ("6502"), config.cpu,
             L"CPU must be '6502'");
         Assert::AreEqual (1023000u, config.clockSpeed,
             L"Clock speed must be 1023000");
-        Assert::AreEqual (size_t (1), config.ram.size (),
+        Assert::AreEqual (size_t (1), config.ram.size(),
             L"Should have 1 RAM region");
         Assert::AreEqual (Word (0x0000), config.ram[0].address,
             L"First RAM address must be 0x0000");
@@ -49,7 +49,7 @@ public:
 
     TEST_METHOD (Load_SystemRomResolved)
     {
-        std::string   json = MinimalJson ();
+        std::string   json = MinimalJson();
         MachineConfig config;
         std::string   error;
 
@@ -57,10 +57,10 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr,
             L"Load should succeed with valid ROM");
 
-        Assert::IsFalse (config.systemRom.resolvedPath.empty (),
+        Assert::IsFalse (config.systemRom.resolvedPath.empty(),
             L"systemRom resolvedPath must be populated");
         Assert::AreEqual (Word (0xD000), config.systemRom.address,
             L"systemRom address must be 0xD000");
@@ -68,7 +68,7 @@ public:
 
     TEST_METHOD (Load_MissingRom_ReturnsClearError)
     {
-        std::string   json = MinimalJson ();
+        std::string   json = MinimalJson();
         MachineConfig config;
         std::string   error;
 
@@ -76,7 +76,7 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveNone,
                                                 config, error);
 
-        Assert::IsTrue (FAILED (hr),
+        AssertFailed (hr,
             L"Load should fail when ROM not found");
         Assert::IsTrue (error.find ("ROM file not found") != std::string::npos,
             L"Error message must mention 'ROM file not found'");
@@ -84,14 +84,17 @@ public:
 
     TEST_METHOD (Load_MissingName_ReturnsError)
     {
-        std::string json = R"({ "cpu": "6502" })";
-        MachineConfig config;
-        std::string   error;
+        MachineConfig          config;
+        std::string            error;
+        std::vector<fs::path>  paths;
 
-        std::vector<fs::path> paths;
+
+
+        std::string json = R"({ "cpu": "6502" })";
+
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, config, error);
 
-        Assert::IsTrue (FAILED (hr),
+        AssertFailed (hr,
             L"Missing 'name' field should cause failure");
         Assert::IsTrue (error.find ("name") != std::string::npos,
             L"Error should mention 'name'");
@@ -99,6 +102,12 @@ public:
 
     TEST_METHOD (Load_InvalidCpu_ReturnsError)
     {
+        MachineConfig          config;
+        std::string            error;
+        std::vector<fs::path>  paths;
+
+
+
         std::string json = R"({
             "name": "Test",
             "cpu": "z80",
@@ -114,21 +123,123 @@ public:
             "keyboard": { "type": "test" }
         })";
 
-        MachineConfig config;
-        std::string   error;
 
-        std::vector<fs::path> paths;
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, config, error);
 
-        Assert::IsTrue (FAILED (hr),
+        AssertFailed (hr,
             L"Invalid CPU 'z80' should cause failure");
         Assert::IsTrue (error.find ("z80") != std::string::npos,
             L"Error should mention the invalid CPU type");
     }
 
+    TEST_METHOD (Load_Cpu65C02_Accepted)
+    {
+        MachineConfig config;
+        std::string   error;
+
+
+
+        std::string json = R"({
+            "name": "Test",
+            "cpu": "65C02",
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
+            "ram": [],
+            "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
+            "internalDevices": [],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
+                                                config, error);
+
+        AssertSucceeded (hr,
+            std::format (L"65C02 profile should load: {}",
+                std::wstring (error.begin(), error.end())).c_str());
+        Assert::AreEqual (std::string ("65C02"), config.cpu,
+            L"CPU must be preserved as '65C02'");
+    }
+
+    TEST_METHOD (Load_BankedSystemRom_Parsed)
+    {
+        MachineConfig config;
+        std::string   error;
+
+
+
+        // Apple //c: a 32K ROM mapped as two 16K banks at $C000, toggled by
+        // $C028. Each bank (not the whole file) must fit in 64K.
+        std::string json = R"({
+            "name": "Test //c",
+            "cpu": "65C02",
+            "timing": { "videoStandard": "ntsc", "clockSpeed": 1023000, "cyclesPerScanline": 65 },
+            "ram": [],
+            "systemRom": {
+                "address": "0xC000",
+                "file": "Apple2c.rom",
+                "romBankSize": "0x4000",
+                "romBankSelect": "0xC028"
+            },
+            "internalDevices": [],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
+                                                config, error);
+
+        AssertSucceeded (hr,
+            std::format (L"Banked //c ROM should load: {}",
+                std::wstring (error.begin(), error.end())).c_str());
+        Assert::AreEqual (Word (0x4000), config.systemRom.romBankSize,
+            L"romBankSize must parse to 0x4000");
+        Assert::AreEqual (Word (0xC028), config.systemRom.romBankSelect,
+            L"romBankSelect must parse to 0xC028");
+        Assert::AreEqual (size_t (32768), config.systemRom.fileSize,
+            L"32K file spans two 16K banks");
+    }
+
+    TEST_METHOD (Load_BankedSystemRom_RequiresSelect)
+    {
+        MachineConfig config;
+        std::string   error;
+
+
+
+        // romBankSize without romBankSelect is a config error.
+        std::string json = R"({
+            "name": "Test //c",
+            "cpu": "65C02",
+            "timing": { "videoStandard": "ntsc", "clockSpeed": 1023000, "cyclesPerScanline": 65 },
+            "ram": [],
+            "systemRom": { "address": "0xC000", "file": "Apple2c.rom", "romBankSize": "0x4000" },
+            "internalDevices": [],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
+                                                config, error);
+
+        AssertFailed (hr,
+            L"romBankSize without romBankSelect must fail");
+        Assert::IsTrue (error.find ("romBankSelect") != std::string::npos,
+            L"Error must name the missing romBankSelect field");
+    }
+
     TEST_METHOD (Load_AuxRamRegion_Preserved)
     {
-        std::string   json = JsonWithAuxRam ();
+        std::string   json = JsonWithAuxRam();
         MachineConfig config;
         std::string   error;
 
@@ -136,11 +247,11 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr,
             std::format (L"aux ram config should load: {}",
-                std::wstring (error.begin (), error.end ())).c_str ());
+                std::wstring (error.begin(), error.end())).c_str());
 
-        Assert::AreEqual (size_t (2), config.ram.size (),
+        Assert::AreEqual (size_t (2), config.ram.size(),
             L"Should have 2 RAM regions");
         Assert::AreEqual (std::string ("aux"), config.ram[1].bank,
             L"Second RAM bank must be 'aux'");
@@ -148,7 +259,7 @@ public:
 
     TEST_METHOD (Load_InternalDevices_Parsed)
     {
-        std::string   json = MinimalJson ();
+        std::string   json = MinimalJson();
         MachineConfig config;
         std::string   error;
 
@@ -156,8 +267,8 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
-        Assert::AreEqual (size_t (3), config.internalDevices.size (),
+        AssertSucceeded (hr);
+        Assert::AreEqual (size_t (3), config.internalDevices.size(),
             L"Should have 3 internal devices");
         Assert::AreEqual (std::string ("apple2-keyboard"), config.internalDevices[0].type,
             L"First internal device should be apple2-keyboard");
@@ -165,6 +276,11 @@ public:
 
     TEST_METHOD (Load_Slot_RangeValidation)
     {
+        MachineConfig config;
+        std::string   error;
+
+
+
         std::string json = R"({
             "name": "Test",
             "cpu": "6502",
@@ -183,14 +299,12 @@ public:
             "keyboard": { "type": "test" }
         })";
 
-        MachineConfig config;
-        std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        Assert::IsTrue (FAILED (hr),
+        AssertFailed (hr,
             L"Slot 8 should fail validation (must be 1-7)");
         Assert::IsTrue (error.find ("slot must be") != std::string::npos,
             L"Error should mention slot range constraint");
@@ -198,6 +312,11 @@ public:
 
     TEST_METHOD (Load_Slot_MissingDeviceAndRom_Fails)
     {
+        MachineConfig config;
+        std::string   error;
+
+
+
         std::string json = R"({
             "name": "Test",
             "cpu": "6502",
@@ -216,20 +335,18 @@ public:
             "keyboard": { "type": "test" }
         })";
 
-        MachineConfig config;
-        std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        Assert::IsTrue (FAILED (hr),
+        AssertFailed (hr,
             L"Slot with neither device nor rom should fail");
     }
 
     TEST_METHOD (Load_KeyboardType_Parsed)
     {
-        std::string   json = MinimalJson ();
+        std::string   json = MinimalJson();
         MachineConfig config;
         std::string   error;
 
@@ -237,14 +354,14 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (std::string ("apple2-uppercase"), config.keyboardType,
             L"Keyboard type should be 'apple2-uppercase'");
     }
 
     TEST_METHOD (Load_VideoConfig_Parsed)
     {
-        std::string   json = MinimalJson ();
+        std::string   json = MinimalJson();
         MachineConfig config;
         std::string   error;
 
@@ -252,8 +369,8 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
-        Assert::AreEqual (size_t (3), config.videoConfig.modes.size (),
+        AssertSucceeded (hr);
+        Assert::AreEqual (size_t (3), config.videoConfig.modes.size(),
             L"Should have 3 video modes");
     }
 
@@ -270,16 +387,16 @@ public:
 
     TEST_METHOD (CollectRomFiles_SystemRomOnly_ReturnsOneFile)
     {
-        std::string              json = MinimalJson ();
+        std::string              json = MinimalJson();
         std::vector<std::string> files;
         std::string              error;
 
         HRESULT hr = MachineConfigLoader::CollectRomFiles (json, files, error);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr,
             std::format (L"CollectRomFiles should succeed: {}",
-                std::wstring (error.begin (), error.end ())).c_str ());
-        Assert::AreEqual (size_t (1), files.size (),
+                std::wstring (error.begin(), error.end())).c_str());
+        Assert::AreEqual (size_t (1), files.size(),
             L"Minimal config has only systemRom");
         Assert::AreEqual (std::string ("Apple2Plus.rom"), files[0],
             L"systemRom.file must be returned");
@@ -287,14 +404,14 @@ public:
 
     TEST_METHOD (CollectRomFiles_WithCharacterRom_ReturnsBoth)
     {
-        std::string              json  = JsonWithCharRom ();
+        std::string              json  = JsonWithCharRom();
         std::vector<std::string> files;
         std::string              error;
 
         HRESULT hr = MachineConfigLoader::CollectRomFiles (json, files, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
-        Assert::AreEqual (size_t (2), files.size (),
+        AssertSucceeded (hr);
+        Assert::AreEqual (size_t (2), files.size(),
             L"systemRom + characterRom = 2 files");
         Assert::AreEqual (std::string ("Apple2.rom"),       files[0]);
         Assert::AreEqual (std::string ("Apple2_Video.rom"), files[1]);
@@ -302,14 +419,14 @@ public:
 
     TEST_METHOD (CollectRomFiles_WithSlotRoms_IncludesAll)
     {
-        std::string              json  = JsonWithSlotRom ();
+        std::string              json  = JsonWithSlotRom();
         std::vector<std::string> files;
         std::string              error;
 
         HRESULT hr = MachineConfigLoader::CollectRomFiles (json, files, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
-        Assert::AreEqual (size_t (3), files.size (),
+        AssertSucceeded (hr);
+        Assert::AreEqual (size_t (3), files.size(),
             L"system + character + 1 slot ROM = 3 files");
         Assert::AreEqual (std::string ("Apple2e.rom"),       files[0]);
         Assert::AreEqual (std::string ("Apple2e_Video.rom"), files[1]);
@@ -318,15 +435,19 @@ public:
 
     TEST_METHOD (CollectRomFiles_MalformedJson_ReturnsError)
     {
+        std::vector<std::string>  files;
+        std::string               error;
+        HRESULT                   hr    = S_OK;
+
+
+
         std::string              json  = "{ not valid json";
-        std::vector<std::string> files;
-        std::string              error;
 
-        HRESULT hr = MachineConfigLoader::CollectRomFiles (json, files, error);
+        hr = MachineConfigLoader::CollectRomFiles (json, files, error);
 
-        Assert::IsTrue (FAILED (hr),
+        AssertFailed (hr,
             L"Malformed JSON must surface as an error");
-        Assert::IsTrue (files.empty (),
+        Assert::IsTrue (files.empty(),
             L"On parse failure no files should be reported");
     }
 
@@ -344,6 +465,11 @@ public:
 
     TEST_METHOD (Load_CapabilityFlag_DefaultInversion)
     {
+        MachineConfig config;
+        std::string   error;
+
+
+
         std::string json = R"({
             "name": "Test",
             "cpu": "6502",
@@ -364,28 +490,31 @@ public:
             "keyboard": { "type": "test" }
         })";
 
-        MachineConfig config;
-        std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr,
             std::format (L"Load should succeed: {}",
-                std::wstring (error.begin (), error.end ())).c_str ());
+                std::wstring (error.begin(), error.end())).c_str());
 
-        Assert::AreEqual (size_t (1), config.internalDevices.size ());
+        Assert::AreEqual (size_t (1), config.internalDevices.size());
         Assert::IsTrue (config.internalDevices[0].capabilityFlag == CapabilityFlag::Required,
             L"Internal device without explicit capabilityFlag must default to Required.");
 
-        Assert::AreEqual (size_t (1), config.slots.size ());
+        Assert::AreEqual (size_t (1), config.slots.size());
         Assert::IsTrue (config.slots[0].capabilityFlag == CapabilityFlag::Optional,
             L"Slot entry without explicit capabilityFlag must default to Optional.");
     }
 
     TEST_METHOD (Load_CapabilityFlag_ExplicitPlatformLocked_Preserved)
     {
+        MachineConfig config;
+        std::string   error;
+
+
+
         std::string json = R"({
             "name": "Test",
             "cpu": "6502",
@@ -405,14 +534,12 @@ public:
             "keyboard": { "type": "test" }
         })";
 
-        MachineConfig config;
-        std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (config.internalDevices[0].capabilityFlag == CapabilityFlag::PlatformLocked,
             L"Explicit capabilityFlag must round-trip.");
         Assert::AreEqual (std::string ("Integrated on motherboard"),
@@ -421,6 +548,11 @@ public:
 
     TEST_METHOD (Load_CapabilityFlag_InvalidValue_Rejected)
     {
+        MachineConfig config;
+        std::string   error;
+
+
+
         std::string json = R"({
             "name": "Test",
             "cpu": "6502",
@@ -439,17 +571,60 @@ public:
             "keyboard": { "type": "test" }
         })";
 
-        MachineConfig config;
-        std::string   error;
 
         std::vector<fs::path> paths = { "/mock" };
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        Assert::IsTrue (FAILED (hr),
+        AssertFailed (hr,
             L"Unknown capabilityFlag value must surface as an error.");
         Assert::IsTrue (error.find ("capabilityFlag") != std::string::npos,
             L"Error message must mention the bad field.");
+    }
+
+
+    static SlotConfig MakeSlot (int slot, const std::string & device, bool enabled)
+    {
+        SlotConfig  s;
+
+        s.slot    = slot;
+        s.device  = device;
+        s.enabled = enabled;
+        return s;
+    }
+
+
+    TEST_METHOD (HasEnabledSlotDevice_MatchesEnabledOnly)
+    {
+        MachineConfig  config;
+
+        config.slots.push_back (MakeSlot (1, "parallel-printer", true));
+        config.slots.push_back (MakeSlot (6, "disk-ii",          true));
+
+        Assert::IsTrue  (config.HasEnabledSlotDevice ("parallel-printer"), L"an enabled slot matches");
+        Assert::IsTrue  (config.HasEnabledSlotDevice ("disk-ii"),          L"other enabled slots match too");
+        Assert::IsFalse (config.HasEnabledSlotDevice ("mockingboard"),     L"an absent device does not match");
+    }
+
+
+    TEST_METHOD (HasEnabledSlotDevice_IgnoresDisabledSlot)
+    {
+        MachineConfig  config;
+
+        // A slot the user disabled in Settings > Hardware must not count.
+        config.slots.push_back (MakeSlot (1, "parallel-printer", false));
+
+        Assert::IsFalse (config.HasEnabledSlotDevice ("parallel-printer"),
+                         L"a disabled slot does not count as connected");
+    }
+
+
+    TEST_METHOD (HasEnabledSlotDevice_EmptyConfigHasNone)
+    {
+        MachineConfig  config;   // slotless (like the //c)
+
+        Assert::IsFalse (config.HasEnabledSlotDevice ("parallel-printer"),
+                         L"a slotless machine has no printer");
     }
 
 private:
@@ -460,11 +635,16 @@ private:
         const std::vector<fs::path> & searchPaths,
         const fs::path              & relativePath)
     {
+        std::string  filename;
+        size_t       expectedSize = 0;
+        bool         needCreate   = false;
+
+
+
         UNREFERENCED_PARAMETER (searchPaths);
 
         // Determine expected size from filename
-        std::string filename = relativePath.filename ().string ();
-        size_t      expectedSize = 0;
+        filename = relativePath.filename().string();
 
         if (filename == "Apple2Plus.rom" || filename == "Apple2.rom")
         {
@@ -482,9 +662,13 @@ private:
         {
             expectedSize = 2048;
         }
-        else if (filename == "Apple2e_Video.rom")
+        else if (filename == "Apple2e_Video.rom" || filename == "Apple2c_Video.rom")
         {
             expectedSize = 4096;
+        }
+        else if (filename == "Apple2c.rom")
+        {
+            expectedSize = 32768;   // //c ROM 4: two 16K banks
         }
         else
         {
@@ -492,9 +676,9 @@ private:
         }
 
         // Create temp file with the expected size if not already present
-        fs::path tempPath = fs::temp_directory_path () / ("casso_test_" + filename);
+        fs::path tempPath = fs::temp_directory_path() / ("casso_test_" + filename);
 
-        bool needCreate = !fs::exists (tempPath);
+        needCreate = !fs::exists (tempPath);
 
         if (!needCreate)
         {
@@ -512,9 +696,9 @@ private:
         {
             std::vector<Byte> buffer (expectedSize, 0);
             std::ofstream     out (tempPath, std::ios::binary | std::ios::trunc);
-            out.write (reinterpret_cast<const char *> (buffer.data ()), expectedSize);
-            out.flush ();
-            out.close ();
+            out.write (reinterpret_cast<const char *> (buffer.data()), expectedSize);
+            out.flush();
+            out.close();
         }
 
         return tempPath;
@@ -527,7 +711,7 @@ private:
         return {};
     }
 
-    static std::string MinimalJson ()
+    static std::string MinimalJson()
     {
         return R"({
             "name": "TestMachine",
@@ -551,7 +735,7 @@ private:
         })";
     }
 
-    static std::string JsonWithAuxRam ()
+    static std::string JsonWithAuxRam()
     {
         return R"({
             "name": "TestIIe",
@@ -572,7 +756,7 @@ private:
         })";
     }
 
-    static std::string JsonWithCharRom ()
+    static std::string JsonWithCharRom()
     {
         return R"({
             "name": "TestII",
@@ -591,7 +775,7 @@ private:
         })";
     }
 
-    static std::string JsonWithSlotRom ()
+    static std::string JsonWithSlotRom()
     {
         return R"({
             "name": "TestIIeWithDisk",

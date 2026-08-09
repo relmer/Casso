@@ -10,28 +10,34 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Anonymous helpers
+//  File-local helpers
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+// Match MachinePage's row spacing exactly so the two pages feel
+// consistent when the user tabs between them.
+static constexpr int    s_kRowHeightDp     = 28;
+static constexpr int    s_kLabelWidthDp    = 140;
+static constexpr int    s_kDropdownWidthDp = 220;
+static constexpr int    s_kSliderWidthDp   = 280;
+static constexpr int    s_kSectionGapDp    = 14;       // gap between adjacent rows
+static constexpr int    s_kBigSectionGapDp = 22;       // gap between distinct "sections"
+static constexpr int    s_kPagePadDp       = 16;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisplayPage::MakeRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DisplayPage::MakeRect (int l, int t, int w, int h)
 {
-    // Match MachinePage's row spacing exactly so the two pages feel
-    // consistent when the user tabs between them.
-    constexpr int    s_kRowHeightDp     = 28;
-    constexpr int    s_kLabelWidthDp    = 140;
-    constexpr int    s_kDropdownWidthDp = 220;
-    constexpr int    s_kSliderWidthDp   = 280;
-    constexpr int    s_kSectionGapDp    = 14;       // gap between adjacent rows
-    constexpr int    s_kBigSectionGapDp = 22;       // gap between distinct "sections"
-    constexpr int    s_kPagePadDp       = 16;
-
-
-    RECT MakeRect (int l, int t, int w, int h)
-    {
-        RECT  rc = { l, t, l + w, t + h };
-        return rc;
-    }
+    RECT  rc = { l, t, l + w, t + h };
+    return rc;
 }
 
 
@@ -174,6 +180,33 @@ void DisplayPage::SetDefaultsHint (const DisplayDefaultsHint & hint)
 //
 //  DisplayPage::Layout
 //
+//  Places every control on the Display page and records each row's rect for
+//  hit-testing and focus.
+//
+//  This is a linear top-to-bottom walk with a single running y, deliberately
+//  rather than a form policy. The page mixes labeled rows, indented child
+//  rows under their parent toggles, and controls that share a row, and
+//  expressing that in a policy would be harder to follow than the walk itself.
+//
+//  Every control starts at the same x. That single column is what makes the
+//  sliders read as one aligned group, and it is why the Restore button SHARES
+//  the monitor row instead of getting its own -- a full-width button on its
+//  own line would break the alignment the eye is following.
+//
+//  Row rects are stored as they are assigned, so hit-testing and the focus
+//  ring both work from exactly the geometry that was painted rather than
+//  recomputing it and risking drift.
+//
+//  Child rows indent by the same amount as DxuiTreeView, so a nested toggle
+//  reads as nested against the rest of the UI.
+//
+//  Slider ranges, steps, and suffixes are set here beside the geometry, since
+//  a slider's usable width and its step count are the same design decision --
+//  a range with too many steps for its width is not adjustable.
+//
+//  The drag step is finer than the click step throughout, so keyboard and
+//  click-stepping move in readable increments while a drag stays continuous.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
@@ -211,6 +244,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_restore.SetLabel (L"Restore defaults");
         m_restoreRowRect = MakeRect (btnX, y, btnWidth, rowHeight);
     }
+
     y += rowHeight + sectionGap;
 
     // Text color (Color monitor only): a dropdown plus a swatch showing
@@ -229,6 +263,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
         m_textColorSwatchRect = MakeRect (swatchX, swatchY, swatchSize, swatchSize);
     }
+
     y += rowHeight + sectionGap;
 
     // Brightness / Contrast / Gamma -- consistent column alignment.
@@ -401,9 +436,10 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisplayPage::Rebuild ()
+void DisplayPage::Rebuild()
 {
     SettingsPanelState * state = m_state;
+
 
 
     if (state == nullptr)
@@ -419,10 +455,11 @@ void DisplayPage::Rebuild ()
         {
             m_onMonitor (idx);
         }
+
         RefreshTextColorEnabled();
     });
     // Highlight changes (mouse hover + keyboard arrows while open) feed
-    // the same live channel so the user sees the colour treatment as
+    // the same live channel so the user sees the color treatment as
     // they browse the list, not just on commit.
     m_monitor.SetOnHighlightChange ([this] (int idx)
     {
@@ -440,6 +477,7 @@ void DisplayPage::Rebuild ()
         {
             m_onTextColor (idx);
         }
+
         if (m_onTextColorCommit)
         {
             m_onTextColorCommit (idx);
@@ -489,7 +527,7 @@ void DisplayPage::Rebuild ()
 
     m_restore.SetOnClick ([this] { if (m_onRestore) { m_onRestore(); } });
 
-    // --- Effect toggles ---------------------------------------------------
+    // Effect toggles
     m_scanlinesEn.SetOnChange ([this] (bool on)
     {
         m_scanlinesInt.SetEnabled (on);
@@ -507,7 +545,7 @@ void DisplayPage::Rebuild ()
         if (m_onColorBleedEn) { m_onColorBleedEn (on); }
     });
 
-    // --- Effect parameter sliders ----------------------------------------
+    // Effect parameter sliders
     m_scanlinesInt.SetOnChange  ([this] (float v) { if (m_onScanlinesInt)  { m_onScanlinesInt  (v); } });
     m_bloomRadius.SetOnChange   ([this] (float v) { if (m_onBloomRadius)   { m_onBloomRadius   (v); } });
     m_bloomStrength.SetOnChange ([this] (float v) { if (m_onBloomStrength) { m_onBloomStrength (v); } });
@@ -552,6 +590,20 @@ void DisplayPage::Rebuild ()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DisplayPage::FocusedControlRect
+//
+//  The screen rect a focused control occupies, used by the live-preview pass
+//  to keep it sharp while the rest of the page is blurred.
+//
+//  Rects come from the stored row geometry rather than being recomputed, so
+//  the sharp region lines up exactly with what Layout placed.
+//
+//  An OPEN monitor dropdown extends the rect to include its menu. Without
+//  that, the menu -- which is what the user is actually reading while choosing
+//  -- would fall outside the sharp region and be blurred at the moment it
+//  matters most.
+//
+//  An unrecognized control id yields an empty rect, which the caller treats as
+//  "nothing focused" rather than as an error.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -621,7 +673,7 @@ void DisplayPage::SetTextColor (ColorMonitorTextMode mode, uint32_t customArgb)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DisplayPage::TextColorActive () const
+bool DisplayPage::TextColorActive() const
 {
     return m_state != nullptr && m_state->Prefs().colorMode == SettingsColorMode::Color;
 }
@@ -636,7 +688,7 @@ bool DisplayPage::TextColorActive () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisplayPage::RefreshTextColorEnabled ()
+void DisplayPage::RefreshTextColorEnabled()
 {
     m_textColor.SetEnabled (TextColorActive());
 }
@@ -673,6 +725,7 @@ bool DisplayPage::OnMouse (const DxuiMouseEvent & ev)
         {
             m_onTextColorCommit ((int) ColorMonitorTextMode::Custom);
         }
+
         handled = true;
     }
 
@@ -711,16 +764,38 @@ void DisplayPage::SetFadeState (int   focusedControlId,
 //
 //  DisplayPage::Paint
 //
+//  Draws every row, with per-row alpha for the focus fade and a "matches
+//  default" indicator beside each control.
+//
+//  Focus emphasis is done with per-row GLOBAL ALPHA rather than by changing
+//  colors. Both painter and text renderer are set together before each row and
+//  the whole row fades as one, so no widget needs to know about the effect and
+//  a newly added control participates automatically.
+//
+//  The alphas come from the fade animator, not from the live focus state, so
+//  moving focus eases between rows instead of snapping.
+//
+//  PaintBackingIfFocused is an intentional empty stub, kept for grep-ability.
+//  It used to paint a dark backing behind the focused row for the in-window
+//  overlay preview; the owned-popup design replaced that with the compose
+//  pass's blur-dim-sharpen pipeline, against which a hard-edged dark rectangle
+//  is both redundant and visually wrong. It stays as a hook in case the effect
+//  is ever wanted back as an accessibility opt-in.
+//
+//  The default indicator distinguishes a THEME default from a MONITOR default,
+//  because a value can match one and not the other, and knowing which one is
+//  what tells the user whether changing themes will move it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
                          const IDxuiTheme & theme)
 {
-    constexpr uint32_t  s_kFocusedBackingArgb = 0xFF202830;   // dark grey, near-opaque
-    constexpr int       s_kIndicatorFontDp    = 12;
-    constexpr int       s_kIndicatorWidthDp   = 140;
-    constexpr const wchar_t * s_kFont             = DxuiTheme::kBodyFace;
-    constexpr float     s_kFloatEpsilon       = 0.001f;
+    constexpr uint32_t         s_kFocusedBackingArgb = 0xFF202830;   // dark gray, near-opaque
+    constexpr int              s_kIndicatorFontDp    = 12;
+    constexpr int              s_kIndicatorWidthDp   = 140;
+    constexpr const wchar_t  * s_kFont               = DxuiTheme::kBodyFace;
+    constexpr float            s_kFloatEpsilon       = 0.001f;
 
     int    focusedControlId = m_fadeFocusedId;
     float  focusedAlpha     = m_fadeFocusedAlpha;
@@ -762,17 +837,18 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
         {
             return;
         }
-        IGNORE_RETURN_VALUE (hrLocal,
-                             text.DrawString (label,
-                                              (float) m_indicatorX,
-                                              (float) rowRect.top,
-                                              indicatorWidthPx,
-                                              (float) (rowRect.bottom - rowRect.top),
-                                              theme.ForegroundMuted(),
-                                              indicatorFontPx,
-                                              s_kFont,
-                                              DxuiTextRenderer::HAlign::Left,
-                                              DxuiTextRenderer::VAlign::Center));
+
+        hrLocal = text.DrawString (label,
+                                   (float) m_indicatorX,
+                                   (float) rowRect.top,
+                                   indicatorWidthPx,
+                                   (float) (rowRect.bottom - rowRect.top),
+                                   theme.ForegroundMuted(),
+                                   indicatorFontPx,
+                                   s_kFont,
+                                   DxuiTextRenderer::HAlign::Left,
+                                   DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hrLocal, S_OK);
     };
 
     auto  FloatMatches = [&] (float a, float b)
@@ -900,3 +976,4 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     text.SetGlobalAlpha    (1.0f);
     m_textColor.PaintMenu   (painter, text);
 }
+

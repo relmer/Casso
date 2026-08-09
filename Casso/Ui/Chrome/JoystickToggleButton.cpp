@@ -6,13 +6,14 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  JoystickToggleButton
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-JoystickToggleButton::JoystickToggleButton ()
+JoystickToggleButton::JoystickToggleButton()
 {
     m_focusable = false;
 }
@@ -30,6 +31,7 @@ static constexpr float    s_kFallbackCharPx = 7.5f;
 static constexpr const wchar_t * s_kFontFamily = DxuiTheme::kBodyFace;
 static constexpr wchar_t  s_kLabel[]      = L"Joystick Mode";
 static constexpr wchar_t  s_kPaddleLabel[] = L"Paddle Mode \u2014 Esc to exit";
+static constexpr wchar_t  s_kMouseLabel[]  = L"Mouse Mode";
 
 // The LED glows a fixed realistic blue regardless of the active theme's
 // drive LED hue (which is red on skeuomorphic, green on phosphor); a dark
@@ -43,16 +45,37 @@ static constexpr wchar_t  s_kTooltip[] =
     L"Click again for paddle mode, or disable to restore normal keys.";
 
 static constexpr wchar_t  s_kPaddleTooltip[] =
-    L"The mouse drives paddles 0 and 1; left / right buttons fire.\n"
+    L"The mouse drives paddles 0 and 1; left / right click = buttons 0 and 1.\n"
     L"Press Esc to release the mouse and exit paddle mode.";
 
+static constexpr wchar_t  s_kMouseTooltip[] =
+    L"The host pointer drives the built-in mouse while over the screen\n"
+    L"(non-capturing). Click again to disable input mapping.";
 
 
 
-const wchar_t * JoystickToggleButton::Label () const
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Label
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * JoystickToggleButton::Label() const
 {
-    return (m_mode == InputMappingMode::Paddle) ? s_kPaddleLabel : s_kLabel;
+    const wchar_t *  label = s_kLabel;      // the disabled / off state
+
+    switch (m_mode)
+    {
+        case InputMappingMode::Paddle:  label = s_kPaddleLabel; break;
+        case InputMappingMode::Mouse:   label = s_kMouseLabel;  break;
+        default:                                                break;
+    }
+
+    return label;
 }
+
 
 
 
@@ -145,6 +168,7 @@ void JoystickToggleButton::Layout (const RECT & boundsDip, const DxuiDpiScaler &
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HitTest
@@ -156,6 +180,7 @@ bool JoystickToggleButton::HitTest (int x, int y) const
     return x >= m_bounds.left && x < m_bounds.right &&
            y >= m_bounds.top  && y < m_bounds.bottom;
 }
+
 
 
 
@@ -172,21 +197,35 @@ bool JoystickToggleButton::HitTest (int x, int y) const
 
 void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & dxuiTheme)
 {
-    _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
-    const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
-
     HRESULT             hr       = S_OK;
-    bool                active   = m_hovered || m_focused || m_pressed;
-    float               fontDip  = s_kFontDip * (float) m_dpi / (float) s_kBaseDpi;
-    float               bl       = (float) m_bounds.left;
-    float               bt       = (float) m_bounds.top;
-    float               bw       = (float) (m_bounds.right  - m_bounds.left);
-    float               bh       = (float) (m_bounds.bottom - m_bounds.top);
-    uint32_t            coreArgb = m_on ? s_kLedOnCoreArgb : s_kLedOffCoreArgb;
-    uint32_t            haloArgb = m_on ? s_kLedOnHaloArgb : 0;
-    LedIndicatorLayout  ledRect  = m_led.GetLayout();
-    int                 ledGap   = MulDiv (s_kLedGapDp, (int) m_dpi, s_kBaseDpi);
-    float               textX    = (float) (ledRect.coreRect.right + ledGap);
+    bool                active   = false;
+    float               fontDip  = 0.0f;
+    float               bl       = 0.0f;
+    float               bt       = 0.0f;
+    float               bw       = 0.0f;
+    float               bh       = 0.0f;
+    const CassoTheme &  theme    = static_cast<const CassoTheme &> (dxuiTheme);
+    uint32_t            coreArgb = 0;
+    uint32_t            haloArgb = 0;
+    int                 ledGap   = 0;
+    float               textX    = 0.0f;
+    LedIndicatorLayout  ledRect  = {};
+
+
+
+    _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
+
+    active = m_hovered || m_focused || m_pressed;
+    fontDip = s_kFontDip * (float) m_dpi / (float) s_kBaseDpi;
+    bl = (float) m_bounds.left;
+    bt = (float) m_bounds.top;
+    bw = (float) (m_bounds.right  - m_bounds.left);
+    bh = (float) (m_bounds.bottom - m_bounds.top);
+    coreArgb = m_on ? s_kLedOnCoreArgb : s_kLedOffCoreArgb;
+    haloArgb = m_on ? s_kLedOnHaloArgb : 0;
+    ledRect = m_led.GetLayout();
+    ledGap = MulDiv (s_kLedGapDp, (int) m_dpi, s_kBaseDpi);
+    textX = (float) (ledRect.coreRect.right + ledGap);
 
 
 
@@ -218,17 +257,19 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 
     m_led.Paint (painter, coreArgb, haloArgb);
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (Label(),
-                                              textX,
-                                              bt,
-                                              (float) m_bounds.right - textX,
-                                              bh,
-                                              theme.navItemText,
-                                              fontDip,
-                                              s_kFontFamily,
-                                              DxuiTextRenderer::HAlign::Left,
-                                              DxuiTextRenderer::VAlign::CenterOnCapHeight));
+    hr = text.DrawString (Label(),
+                          textX,
+                          bt,
+                          (float) m_bounds.right - textX,
+                          bh,
+                          theme.navItemText,
+                          fontDip,
+                          s_kFontFamily,
+                          DxuiTextRenderer::HAlign::Left,
+                          DxuiTextRenderer::VAlign::CenterOnCapHeight);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
+
 
 
 
@@ -239,7 +280,16 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * JoystickToggleButton::TooltipText () const
+const wchar_t * JoystickToggleButton::TooltipText() const
 {
-    return (m_mode == InputMappingMode::Paddle) ? s_kPaddleTooltip : s_kTooltip;
+    const wchar_t *  tip = s_kTooltip;      // matches Label()'s default arm
+
+    switch (m_mode)
+    {
+        case InputMappingMode::Paddle:  tip = s_kPaddleTooltip; break;
+        case InputMappingMode::Mouse:   tip = s_kMouseTooltip;  break;
+        default:                                                break;
+    }
+
+    return tip;
 }

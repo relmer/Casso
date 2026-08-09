@@ -50,6 +50,7 @@ void DiskMru::RecordMount (const std::filesystem::path & path, std::int64_t last
         {
             m_entries.erase (it);
         }
+
         m_entries.insert (m_entries.begin(), Entry { path, lastLoadedUnix });
         EnforceCap();
     }
@@ -126,6 +127,69 @@ void DiskMru::ReplaceAll (std::vector<Entry> entries)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DistinctFolders
+//
+//  Returns the distinct parent directories of `entries`, preserving
+//  first-seen order. Comparison is lexical and case-insensitive (ASCII
+//  fold) over the normalized path so that recents living in the same
+//  folder — however each was spelled when mounted — collapse to a single
+//  directory. No filesystem access: DiskMru stays IO-free.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::filesystem::path>
+DiskMru::DistinctFolders (const std::vector<Entry> & entries)
+{
+    std::vector<std::filesystem::path>  folders;
+    std::vector<std::wstring>           seenKeys;   // ASCII-folded dir strings
+
+
+
+    for (const Entry & e : entries)
+    {
+        std::filesystem::path  dir  = e.path.parent_path().lexically_normal();
+        std::wstring           key;
+        bool                   seen = false;
+
+        if (dir.empty())
+        {
+            continue;                               // bare filename, no folder
+        }
+
+        key = dir.wstring();
+        for (wchar_t & c : key)
+        {
+            if (c >= L'A' && c <= L'Z')
+            {
+                c = static_cast<wchar_t> (c + (L'a' - L'A'));
+            }
+        }
+
+        for (const std::wstring & existing : seenKeys)
+        {
+            if (existing == key)
+            {
+                seen = true;
+                break;
+            }
+        }
+
+        if (!seen)
+        {
+            seenKeys.push_back (key);
+            folders.push_back (dir);
+        }
+    }
+
+    return folders;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FromUtf8
 //
 //  Constructs a DiskMru from the GlobalUserPrefs `recentDisks` /
@@ -149,16 +213,19 @@ DiskMru DiskMru::FromUtf8 (const std::vector<std::string> & utf8Entries,
     {
         if (!utf8Entries[i].empty())
         {
+            std::int64_t  when = 0;
+
             // Interpret the stored bytes as UTF-8 so non-ASCII filenames
             // (e.g. the o-slash in "Broderbund") round-trip intact rather
             // than being mangled by the platform-narrow path constructor.
             std::u8string  u8 (reinterpret_cast<const char8_t *> (utf8Entries[i].data()),
                                utf8Entries[i].size());
-            std::int64_t   when = (i < loadedAtUnix.size()) ? loadedAtUnix[i] : 0;
+            when = (i < loadedAtUnix.size()) ? loadedAtUnix[i] : 0;
 
             entries.push_back (Entry { std::filesystem::path (u8), when });
         }
     }
+
     mru.ReplaceAll (std::move (entries));
     return mru;
 }
@@ -187,13 +254,13 @@ void DiskMru::ToUtf8 (std::vector<std::string>  & outUtf8Entries,
     outLoadedAtUnix.clear();
     outUtf8Entries.reserve (m_entries.size());
     outLoadedAtUnix.reserve (m_entries.size());
-    for (i = 0; i < m_entries.size(); i++)
+    for (auto & entry : m_entries)
     {
         // Serialise as UTF-8 (not the platform-narrow encoding) so the
         // recentDisks JSON stays valid UTF-8 for non-ASCII filenames.
-        std::u8string  u8 = m_entries[i].path.u8string();
+        std::u8string  u8 = entry.path.u8string();
 
         outUtf8Entries.emplace_back (reinterpret_cast<const char *> (u8.data()), u8.size());
-        outLoadedAtUnix.push_back (m_entries[i].lastLoadedUnix);
+        outLoadedAtUnix.push_back (entry.lastLoadedUnix);
     }
 }

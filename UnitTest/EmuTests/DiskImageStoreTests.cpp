@@ -1,8 +1,10 @@
 #include "Pch.h"
+#include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/NibblizationLayer.h"
 #include "Devices/Disk/WozLoader.h"
+#include "Devices/Disk2Controller.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -23,16 +25,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    static constexpr int   kSlot  = 6;
-    static constexpr int   kDrive = 0;
-
-    vector<Byte> MakeDsk (Byte fill)
-    {
-        return vector<Byte> (NibblizationLayer::kImageByteSize, fill);
-    }
-}
 
 
 
@@ -40,20 +32,89 @@ TEST_CLASS (DiskImageStoreTests)
 {
 public:
 
+    static constexpr int   kSlot  = 6;
+    static constexpr int   kDrive = 0;
+
+    vector<Byte> MakeDsk (Byte fill)
+    {
+        return vector<Byte> (NibblizationLayer::kImageByteSize, fill);
+    }
+
+    // A full-size sector image with a distinct per-byte pattern so a
+    // round-trip actually exercises every sector (not a uniform fill).
+    vector<Byte> MakeSectorImage (uint32_t seed)
+    {
+        vector<Byte>  raw (NibblizationLayer::kImageByteSize);
+
+        for (size_t i = 0; i < raw.size(); i++)
+        {
+            raw[i] = static_cast<Byte> ((i * 31u + seed) & 0xFF);
+        }
+
+        return raw;
+    }
+
+    // A minimal single-track WOZ v2 image with a recognizable bit pattern
+    // (mostly 0xFF sync + a D5 AA 96 address prolog marker).
+    vector<Byte> MakeWoz (bool writeProtected = false)
+    {
+        vector<Byte>   bits (6400, 0xFF);
+        vector<Byte>   woz;
+
+        bits[20] = 0xD5;
+        bits[21] = 0xAA;
+        bits[22] = 0x96;
+
+        WozLoader::BuildSyntheticV2 (1, writeProtected, bits, 51200, woz);
+        return woz;
+    }
+
+    // Captures EhmNotifyUser output for the flush-error tests. FlushEntry
+    // surfaces losses through the shared EHM notifier (CHRN/CBRN), so these
+    // route the global notifier to file-local counters for the span of one
+    // test. The notifier is a raw function pointer, hence a free function +
+    // static state rather than a capturing lambda.
+    static inline int      s_flushNotifyCount = 0;
+    static inline wstring  s_flushNotifyLast;
+
+    static void CaptureFlushNotify (const wchar_t * message)
+    {
+        s_flushNotifyCount++;
+        s_flushNotifyLast = (message != nullptr) ? message : L"";
+    }
+
+    // RAII: routes EhmNotifyUser to the capture (resetting the counters)
+    // for the test's lifetime, then clears the global hook so the next test
+    // starts clean even if an assertion throws out of the body.
+    struct ScopedFlushNotifyCapture
+    {
+        ScopedFlushNotifyCapture()
+        {
+            s_flushNotifyCount = 0;
+            s_flushNotifyLast.clear();
+            SetNotifyFunction (CaptureFlushNotify);
+        }
+
+        ~ScopedFlushNotifyCapture()
+        {
+            SetNotifyFunction (nullptr);
+        }
+    };
+
     TEST_METHOD (DetectFormatByExtension_KnownTypes)
     {
         DiskFormat   fmt = DiskFormat::Dsk;
 
-        Assert::IsTrue (SUCCEEDED (DiskImageStore::DetectFormatByExtension ("foo.dsk", fmt)));
+        AssertSucceeded (DiskImageStore::DetectFormatByExtension ("foo.dsk", fmt));
         Assert::IsTrue (fmt == DiskFormat::Dsk);
 
-        Assert::IsTrue (SUCCEEDED (DiskImageStore::DetectFormatByExtension ("foo.DO", fmt)));
+        AssertSucceeded (DiskImageStore::DetectFormatByExtension ("foo.DO", fmt));
         Assert::IsTrue (fmt == DiskFormat::Do);
 
-        Assert::IsTrue (SUCCEEDED (DiskImageStore::DetectFormatByExtension ("foo.po", fmt)));
+        AssertSucceeded (DiskImageStore::DetectFormatByExtension ("foo.po", fmt));
         Assert::IsTrue (fmt == DiskFormat::Po);
 
-        Assert::IsTrue (SUCCEEDED (DiskImageStore::DetectFormatByExtension ("foo.WOZ", fmt)));
+        AssertSucceeded (DiskImageStore::DetectFormatByExtension ("foo.WOZ", fmt));
         Assert::IsTrue (fmt == DiskFormat::Woz);
     }
 
@@ -61,21 +122,22 @@ public:
     {
         DiskFormat   fmt = DiskFormat::Dsk;
 
-        Assert::IsTrue (FAILED (DiskImageStore::DetectFormatByExtension ("foo.bin", fmt)));
-        Assert::IsTrue (FAILED (DiskImageStore::DetectFormatByExtension ("noext",  fmt)));
+        AssertFailed (DiskImageStore::DetectFormatByExtension ("foo.bin", fmt));
+        AssertFailed (DiskImageStore::DetectFormatByExtension ("noext",  fmt));
     }
 
     TEST_METHOD (MountFromBytes_DskRunsNibblization)
     {
-        DiskImageStore   store;
-        vector<Byte>     raw = MakeDsk (0xA5);
+        DiskImageStore    store;
+        vector<Byte>      raw   = MakeDsk (0xA5);
+        DiskImage       * img   = nullptr;
 
         HRESULT   hr = store.MountFromBytes (kSlot, kDrive, "synthetic.dsk", DiskFormat::Dsk, raw);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (store.IsMounted (kSlot, kDrive));
 
-        DiskImage *  img = store.GetImage (kSlot, kDrive);
+        img = store.GetImage (kSlot, kDrive);
 
         Assert::IsNotNull (img);
         Assert::IsTrue   (img->GetTrackBitCount (0) > 0,
@@ -84,20 +146,21 @@ public:
 
     TEST_METHOD (MountFromBytes_WozNativeNoNibblization)
     {
-        DiskImageStore   store;
+        DiskImageStore    store;
+        vector<Byte>      woz;
+        DiskImage       * img   = nullptr;
         vector<Byte>     bits ((6400), 0xFF);
-        vector<Byte>     woz;
 
-        Assert::IsTrue (SUCCEEDED (WozLoader::BuildSyntheticV2 (1, false, bits, 51200, woz)));
+        AssertSucceeded (WozLoader::BuildSyntheticV2 (1, false, bits, 51200, woz));
 
         HRESULT   hr = store.MountFromBytes (kSlot, kDrive, "synthetic.woz", DiskFormat::Woz, woz);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
-        DiskImage *  img = store.GetImage (kSlot, kDrive);
+        img = store.GetImage (kSlot, kDrive);
 
         Assert::IsNotNull (img);
-        Assert::IsTrue   (img->GetSourceFormat () == DiskFormat::Woz);
+        Assert::IsTrue   (img->GetSourceFormat() == DiskFormat::Woz);
         Assert::AreEqual (size_t (51200), img->GetTrackBitCount (0));
     }
 
@@ -117,11 +180,11 @@ public:
             return S_OK;
         });
 
-        Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "x.dsk", DiskFormat::Dsk, raw)));
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "x.dsk", DiskFormat::Dsk, raw));
 
         // Mark dirty by writing a bit through the public API.
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
-        Assert::IsTrue (store.GetImage (kSlot, kDrive)->IsDirty ());
+        Assert::IsTrue (store.GetImage (kSlot, kDrive)->IsDirty());
 
         store.Eject (kSlot, kDrive);
 
@@ -142,7 +205,7 @@ public:
             return S_OK;
         });
 
-        Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "x.dsk", DiskFormat::Dsk, raw)));
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "x.dsk", DiskFormat::Dsk, raw));
         store.Eject (kSlot, kDrive);
 
         Assert::IsFalse (invoked, L"FR-025: clean image must NOT be flushed");
@@ -160,21 +223,88 @@ public:
             return S_OK;
         });
 
-        Assert::IsTrue (SUCCEEDED (store.MountFromBytes (6, 0, "a.dsk", DiskFormat::Dsk, raw)));
-        Assert::IsTrue (SUCCEEDED (store.MountFromBytes (6, 1, "b.dsk", DiskFormat::Dsk, raw)));
-        Assert::IsTrue (SUCCEEDED (store.MountFromBytes (5, 0, "c.dsk", DiskFormat::Dsk, raw)));
+        AssertSucceeded (store.MountFromBytes (6, 0, "a.dsk", DiskFormat::Dsk, raw));
+        AssertSucceeded (store.MountFromBytes (6, 1, "b.dsk", DiskFormat::Dsk, raw));
+        AssertSucceeded (store.MountFromBytes (5, 0, "c.dsk", DiskFormat::Dsk, raw));
 
         store.GetImage (6, 0)->WriteBit (0, 0, 1);
         store.GetImage (5, 0)->WriteBit (0, 0, 1);
         // (6,1) intentionally clean.
 
-        Assert::IsTrue (SUCCEEDED (store.FlushAll ()));
+        AssertSucceeded (store.FlushAll());
         Assert::AreEqual (2, flushCount, L"FlushAll must flush exactly the dirty mounts");
 
         // Mounts persist after FlushAll.
         Assert::IsTrue (store.IsMounted (6, 0));
         Assert::IsTrue (store.IsMounted (6, 1));
         Assert::IsTrue (store.IsMounted (5, 0));
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  Flush-error reporting. A dirty image that fails to persist used to
+    //  vanish (every flush caller drops the HRESULT). The store now surfaces
+    //  the loss through the EHM notifier; a clean or successful flush must
+    //  stay silent.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (FlushError_notifiesOnFailure_namingThePath)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<Byte>              raw     = MakeDsk (0);
+        HRESULT                   hr      = S_OK;
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return E_FAIL; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "boom.dsk", DiskFormat::Dsk, raw));
+        store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);   // dirty
+
+        hr = store.Flush (kSlot, kDrive);
+
+        AssertFailed (hr);
+        Assert::AreEqual (1, s_flushNotifyCount, L"a failed flush must be surfaced, not swallowed");
+        Assert::IsTrue   (s_flushNotifyLast.find (L"boom.dsk") != wstring::npos,
+            L"the notification must name the image that failed to save");
+    }
+
+    TEST_METHOD (FlushError_noReportOnCleanOrSuccessfulFlush)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<Byte>              raw = MakeDsk (0);
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return S_OK; });
+
+        // Clean image ejected -> no flush -> no notification.
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "clean.dsk", DiskFormat::Dsk, raw));
+        store.Eject (kSlot, kDrive);
+        Assert::AreEqual (0, s_flushNotifyCount, L"clean image must not notify");
+
+        // Dirty image that flushes successfully -> no notification.
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "ok.dsk", DiskFormat::Dsk, raw));
+        store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
+        AssertSucceeded (store.Flush (kSlot, kDrive));
+        Assert::AreEqual (0, s_flushNotifyCount, L"a successful flush must not notify");
+    }
+
+    TEST_METHOD (FlushError_surfacesThroughVoidEjectPath)
+    {
+        // Eject is void and drops FlushEntry's HRESULT; the notification
+        // must still fire so an eject that loses writes isn't silent.
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<Byte>              raw = MakeDsk (0);
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return E_FAIL; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "e.dsk", DiskFormat::Dsk, raw));
+        store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
+        store.Eject (kSlot, kDrive);
+
+        Assert::AreEqual (1, s_flushNotifyCount, L"Eject flush failure must surface via the notifier");
     }
 
     TEST_METHOD (FlushAll_ClearsDirtyFlags)
@@ -184,13 +314,13 @@ public:
 
         store.SetFlushSink ([](const string &, const vector<Byte> &) { return S_OK; });
 
-        Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "x.dsk", DiskFormat::Dsk, raw)));
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "x.dsk", DiskFormat::Dsk, raw));
 
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
-        Assert::IsTrue (store.GetImage (kSlot, kDrive)->IsDirty ());
+        Assert::IsTrue (store.GetImage (kSlot, kDrive)->IsDirty());
 
-        Assert::IsTrue (SUCCEEDED (store.FlushAll ()));
-        Assert::IsFalse (store.GetImage (kSlot, kDrive)->IsDirty (),
+        AssertSucceeded (store.FlushAll());
+        Assert::IsFalse (store.GetImage (kSlot, kDrive)->IsDirty(),
             L"FlushAll must clear dirty bits after successful sink write");
     }
 
@@ -206,10 +336,10 @@ public:
             return S_OK;
         });
 
-        Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "x.dsk", DiskFormat::Dsk, raw)));
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "x.dsk", DiskFormat::Dsk, raw));
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
 
-        store.SoftReset ();
+        store.SoftReset();
 
         Assert::IsTrue (invoked,            L"FR-034: SoftReset must flush dirty images");
         Assert::IsTrue (store.IsMounted (kSlot, kDrive),
@@ -228,12 +358,12 @@ public:
             return S_OK;
         });
 
-        Assert::IsTrue (SUCCEEDED (store.MountFromBytes (6, 0, "a.dsk", DiskFormat::Dsk, raw)));
-        Assert::IsTrue (SUCCEEDED (store.MountFromBytes (6, 1, "b.dsk", DiskFormat::Dsk, raw)));
+        AssertSucceeded (store.MountFromBytes (6, 0, "a.dsk", DiskFormat::Dsk, raw));
+        AssertSucceeded (store.MountFromBytes (6, 1, "b.dsk", DiskFormat::Dsk, raw));
 
         store.GetImage (6, 0)->WriteBit (0, 0, 1);
 
-        store.PowerCycle ();
+        store.PowerCycle();
 
         Assert::AreEqual (1, flushed, L"FR-035: PowerCycle must flush only dirty mounts");
         Assert::IsFalse (store.IsMounted (6, 0));
@@ -254,35 +384,188 @@ public:
             return S_OK;
         });
 
-        Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "x.dsk", DiskFormat::Dsk, raw)));
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "x.dsk", DiskFormat::Dsk, raw));
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
 
-        Assert::IsTrue (SUCCEEDED (store.Flush (kSlot, kDrive)));
-        Assert::AreEqual (size_t (NibblizationLayer::kImageByteSize), captured.size (),
+        AssertSucceeded (store.Flush (kSlot, kDrive));
+        Assert::AreEqual (size_t (NibblizationLayer::kImageByteSize), captured.size(),
             L"Flushed payload must be 143360 bytes for DSK");
     }
 
     TEST_METHOD (RemountReplacesPreviousImage)
     {
-        DiskImageStore   store;
-        vector<Byte>     raw1 = MakeDsk (0x11);
-        vector<Byte>     raw2 = MakeDsk (0x22);
+        DiskImageStore    store;
+        vector<Byte>      raw1  = MakeDsk (0x11);
+        vector<Byte>      raw2  = MakeDsk (0x22);
+        DiskImage       * first = nullptr;
 
-        Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "a.dsk", DiskFormat::Dsk, raw1)));
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "a.dsk", DiskFormat::Dsk, raw1));
 
-        DiskImage *  first = store.GetImage (kSlot, kDrive);
+        first = store.GetImage (kSlot, kDrive);
         Assert::IsNotNull (first);
 
-        Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "b.dsk", DiskFormat::Dsk, raw2)));
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "b.dsk", DiskFormat::Dsk, raw2));
         Assert::IsTrue (store.GetSourcePath (kSlot, kDrive) == "b.dsk");
     }
 
     TEST_METHOD (MountFromBytes_RejectsBadSlotOrDrive)
     {
         DiskImageStore   store;
-        vector<Byte>     raw = MakeDsk (0);
+        vector<Byte>     raw     = MakeDsk (0);
+        HRESULT          hrSlot  = S_OK;
+        HRESULT          hrDrive = S_OK;
 
-        Assert::IsTrue (FAILED (store.MountFromBytes (-1, 0, "x.dsk", DiskFormat::Dsk, raw)));
-        Assert::IsTrue (FAILED (store.MountFromBytes ( 0, 5, "x.dsk", DiskFormat::Dsk, raw)));
+        {
+            // Out-of-range slot / drive are caller bugs, so both assert.
+            UnitTestHelpers::ExpectedEhmAssert   expect;
+
+            hrSlot  = store.MountFromBytes (-1, 0, "x.dsk", DiskFormat::Dsk, raw);
+            hrDrive = store.MountFromBytes ( 0, 5, "x.dsk", DiskFormat::Dsk, raw);
+        }
+
+        AssertFailed (hrSlot);
+        AssertFailed (hrDrive);
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  Cross-format flush round-trip through the real store path
+    //  (MountFromBytes -> mark dirty -> Flush -> Serialize -> sink). Prior
+    //  coverage was DSK-only and size-checked; these assert *content* for
+    //  every sector format and a guest-write survives for WOZ.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    // mount raw -> dirty (no bit corruption) -> flush -> captured == raw.
+    void VerifyFaithfulSectorFlush (DiskFormat fmt, const char * path)
+    {
+        DiskImageStore   store;
+        vector<Byte>     raw = MakeSectorImage (0xABCD1234u);
+        vector<Byte>     captured;
+
+        store.SetFlushSink ([&] (const string &, const vector<Byte> & b) { captured = b; return S_OK; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, path, fmt, raw));
+
+        // Mark dirty without touching the bit stream so the flush must
+        // reproduce the original image exactly.
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+        AssertSucceeded (store.Flush (kSlot, kDrive));
+        Assert::IsTrue   (raw == captured,
+            L"flushed bytes must faithfully round-trip the sector image");
+    }
+
+    TEST_METHOD (Flush_FaithfulRoundTrip_Dsk)  { VerifyFaithfulSectorFlush (DiskFormat::Dsk, "rt.dsk"); }
+    TEST_METHOD (Flush_FaithfulRoundTrip_Do)   { VerifyFaithfulSectorFlush (DiskFormat::Do,  "rt.do");  }
+    TEST_METHOD (Flush_FaithfulRoundTrip_Po)   { VerifyFaithfulSectorFlush (DiskFormat::Po,  "rt.po");  }
+
+    TEST_METHOD (Flush_WozGuestWriteSurvivesReloadThroughStore)
+    {
+        DiskImageStore   store;
+        vector<Byte>     woz        = MakeWoz();
+        vector<Byte>     captured;
+        const size_t     flippedBit = 200;
+        DiskImageStore   store2;
+
+        store.SetFlushSink ([&] (const string &, const vector<Byte> & b) { captured = b; return S_OK; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "g.woz", DiskFormat::Woz, woz));
+        Assert::AreEqual (Byte (1), store.GetImage (kSlot, kDrive)->ReadBit (0, flippedBit));
+
+        store.GetImage (kSlot, kDrive)->WriteBit (0, flippedBit, 0);   // real guest write -> dirty
+        AssertSucceeded (store.Flush (kSlot, kDrive));
+
+        // Reload the flushed bytes: the write must survive the full WOZ
+        // serialize -> file -> reload cycle (DiskImage::Serialize dispatch).
+        AssertSucceeded (store2.MountFromBytes (kSlot, kDrive, "g.woz", DiskFormat::Woz, captured));
+        Assert::AreEqual (Byte (0), store2.GetImage (kSlot, kDrive)->ReadBit (0, flippedBit),
+            L"a guest write to a .woz must survive flush + reload through the store");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  Flush-error notification reaches through the bulk flush paths that
+    //  also drop the HRESULT (FlushAll / PowerCycle), once per failed dirty
+    //  mount.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (FlushError_notifiesPerDirtyMount_viaFlushAll)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<Byte>              raw = MakeDsk (0);
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return E_FAIL; });
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "a.dsk", DiskFormat::Dsk, raw));
+        AssertSucceeded (store.MountFromBytes (6, 1, "b.dsk", DiskFormat::Dsk, raw));
+        store.GetImage (6, 0)->WriteBit (0, 0, 1);
+        store.GetImage (6, 1)->WriteBit (0, 0, 1);
+
+        store.FlushAll();
+        Assert::AreEqual (2, s_flushNotifyCount, L"FlushAll must notify for each dirty mount that fails");
+    }
+
+    TEST_METHOD (FlushError_notifies_viaPowerCycle)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<Byte>              raw = MakeDsk (0);
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return E_FAIL; });
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "a.dsk", DiskFormat::Dsk, raw));
+        store.GetImage (6, 0)->WriteBit (0, 0, 1);   // (6,1) clean
+
+        store.PowerCycle();
+        Assert::AreEqual (1, s_flushNotifyCount, L"PowerCycle must notify for the dirty mount that fails");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  Integration: motor spin-down (Disk2Controller, CPU thread) wired to a
+    //  real DiskImageStore persists a dirty WOZ through the flush sink -- the
+    //  end-to-end path behind motor-idle auto-flush + WOZ write-back.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (MotorOffFlush_persistsDirtyWozThroughStore)
+    {
+        DiskImageStore   store;
+        vector<Byte>     woz        = MakeWoz();
+        vector<Byte>     captured;
+        bool             flushed    = false;
+        const size_t     flippedBit = 200;
+        DiskImageStore   store2;
+
+        store.SetFlushSink ([&] (const string &, const vector<Byte> & b)
+        {
+            captured = b;
+            flushed  = true;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "m.woz", DiskFormat::Woz, woz));
+        store.GetImage (6, 0)->WriteBit (0, flippedBit, 0);   // dirty guest write
+
+        Disk2Controller  ctrl (6);
+        ctrl.SetMotorOffFlushCallback ([&] () { store.FlushAll(); });
+
+        ctrl.Write (0xC0E9, 0x00);    // motor on
+        ctrl.Write (0xC0E8, 0x00);    // motor off (arm spindown)
+        ctrl.Tick  (1100000);         // past the spindown -> callback -> FlushAll
+
+        Assert::IsTrue (flushed, L"motor spin-down must persist dirty images via the store");
+
+        // The write must have made it into the persisted bytes.
+        AssertSucceeded (store2.MountFromBytes (6, 0, "m.woz", DiskFormat::Woz, captured));
+        Assert::AreEqual (Byte (0), store2.GetImage (6, 0)->ReadBit (0, flippedBit),
+            L"the write persisted at motor-off must survive reload");
     }
 };
+

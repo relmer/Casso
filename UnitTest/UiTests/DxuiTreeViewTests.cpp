@@ -13,14 +13,18 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  TreeViewTests
 //
 //  Pure-logic coverage for hit-testing, keyboard navigation, and the
-//  capability-flag driven checkbox behaviour. Rendering is not
+//  capability-flag driven checkbox behavior. Rendering is not
 //  exercised (Paint would require a GPU). The hardware-tree-shape
 //  tests in HardwareTreeTests build on top of these primitives.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+TEST_CLASS (TreeViewTests)
 {
+public:
+
     DxuiTreeNode MakeNode (const wchar_t * label,
                        DxuiTreeCapabilityFlag flag,
                        bool checked,
@@ -35,11 +39,11 @@ namespace
     }
 
 
-    DxuiTreeView  MakeFlatTree ()
+    DxuiTreeView  MakeFlatTree()
     {
-        DxuiTreeView                  tv;
-        std::vector<DxuiTreeNode>     nodes;
-        RECT                      rect = { 0, 0, 200, 220 };
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  nodes;
+        RECT                       rect  = { 0, 0, 200, 220 };
 
         nodes.push_back (MakeNode (L"speaker",  DxuiTreeCapabilityFlag::Required,       true));
         nodes.push_back (MakeNode (L"joystick", DxuiTreeCapabilityFlag::Optional,       false));
@@ -50,12 +54,6 @@ namespace
         tv.SetNodes (std::move (nodes));
         return tv;
     }
-}
-
-
-TEST_CLASS (TreeViewTests)
-{
-public:
 
     TEST_METHOD (Flatten_VisibleCountMatchesNodeCount)
     {
@@ -84,10 +82,10 @@ public:
 
     TEST_METHOD (Click_OnOptionalCheckbox_Toggles)
     {
-        DxuiTreeView  tv     = MakeFlatTree();
-        int       x      = 20;   // depth=0, twisty 0..16, checkbox 16..32
-        int       y      = 25;
-        bool      checkedAfter = false;
+        DxuiTreeView  tv           = MakeFlatTree();
+        int           x            = 20;   // depth=0, twisty 0..16, checkbox 16..32
+        int           y            = 25;
+        bool          checkedAfter = false;
 
         Assert::IsTrue (tv.OnLButtonDown (x, y));
         Assert::IsTrue (tv.OnLButtonUp   (x, y));
@@ -99,10 +97,10 @@ public:
 
     TEST_METHOD (Click_OnRequiredCheckbox_NoToggle)
     {
-        DxuiTreeView  tv = MakeFlatTree();
-        int       x  = 20;
-        int       y  = 5;
-        bool      beforeChecked = tv.NodeAt (0)->checked;
+        DxuiTreeView  tv            = MakeFlatTree();
+        int           x             = 20;
+        int           y             = 5;
+        bool          beforeChecked = tv.NodeAt (0)->checked;
 
         Assert::IsTrue (tv.OnLButtonDown (x, y));
         Assert::IsTrue (tv.OnLButtonUp   (x, y));
@@ -114,8 +112,8 @@ public:
     TEST_METHOD (Click_OnPlatformLockedCheckbox_NoToggle)
     {
         DxuiTreeView  tv = MakeFlatTree();
-        int       x  = 20;
-        int       y  = 45;
+        int           x  = 20;
+        int           y  = 45;
 
         Assert::IsTrue (tv.OnLButtonDown (x, y));
         Assert::IsTrue (tv.OnLButtonUp   (x, y));
@@ -160,11 +158,11 @@ public:
 
     TEST_METHOD (ParentChild_ExpandCollapsedNotShowChildren)
     {
-        DxuiTreeView                  tv;
-        std::vector<DxuiTreeNode>     nodes;
-        DxuiTreeNode                  parent;
-        DxuiTreeNode                  child;
-        RECT                      rect = { 0, 0, 200, 200 };
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  nodes;
+        DxuiTreeNode               parent;
+        DxuiTreeNode               child;
+        RECT                       rect   = { 0, 0, 200, 200 };
 
         child.label  = L"sub";
         child.checked = true;
@@ -190,3 +188,4 @@ public:
             L"Left-arrow on an expanded parent must collapse it.");
     }
 };
+

@@ -7,7 +7,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiSlider
@@ -97,6 +96,9 @@ public:
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Slider; }
 
 private:
+    static float  Clamp          (float v, float lo, float hi);
+    static float  QuantizeToStep (float value, float minValue, float step);
+
     void   PaintInternal  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void   ApplyValue         (float v);
     void   ApplyValueWithStep (float v, float step);
@@ -108,20 +110,20 @@ private:
     InteractionFn  m_onKeyboard;
     FormatFn       m_formatter;
     std::wstring   m_suffix;
-    DxuiDpiScaler      m_scaler;
-    float          m_min      = 0.0f;
-    float          m_max      = 1.0f;
-    float          m_step     = 0.01f;
-    float          m_dragStep = 0.0f;    // 0 => drag snaps to m_step
-    float          m_value    = 0.0f;
-    bool           m_enabled  = true;
-    bool           m_focused  = false;
-    bool           m_hover    = false;
-    bool           m_dragging = false;
-    bool           m_showTicks = true;
-    float          m_tickInterval = 0.0f;   // 0 => one tick per step
-    bool           m_showValue = false;
+    DxuiDpiScaler  m_scaler;
+    float          m_min               = 0.0f;
+    float          m_max               = 1.0f;
+    float          m_step              = 0.01f;
+    float          m_dragStep          = 0.0f;   // 0 => drag snaps to m_step
+    float          m_value             = 0.0f;
+    bool           m_enabled           = true;
+    bool           m_focused           = false;
+    bool           m_hover             = false;
+    bool           m_dragging          = false;
+    bool           m_showTicks         = true;
+    float          m_tickInterval      = 0.0f;   // 0 => one tick per step
+    bool           m_showValue         = false;
     bool           m_explicitShowValue = false;
-    bool           m_centerOriginFill = false;
-    int            m_decimalPlaces = 0;
+    bool           m_centerOriginFill  = false;
+    int            m_decimalPlaces     = 0;
 };

@@ -60,22 +60,23 @@ public:
     //
     void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool                OnMouse        (const DxuiMouseEvent & ev) override;
+    LPCWSTR             CursorForPoint (POINT clientPx) const override;
     bool                OnKey          (const DxuiKeyEvent   & ev) override;
     void                OnFocusChanged (bool focused) override { SetFocused (focused); }
     std::wstring        AccessibleName () const override { return m_label; }
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Button; }
 
 private:
-    std::wstring  m_label;
-    wchar_t       m_accelerator     = 0;
-    ClickFn       m_click;
-    bool          m_hover           = false;
-    bool          m_pressed         = false;
-    bool          m_focused         = false;
-    bool          m_enabled         = true;
-    bool          m_visible         = true;
-    DxuiDpiScaler     m_scaler;
-    Variant       m_variant         = Variant::Default;
-    bool          m_emphasis        = false;
-    int           m_commandId       = 0;
+    std::wstring   m_label;
+    wchar_t        m_accelerator = 0;
+    ClickFn        m_click;
+    bool           m_hover       = false;
+    bool           m_pressed     = false;
+    bool           m_focused     = false;
+    bool           m_enabled     = true;
+    bool           m_visible     = true;
+    DxuiDpiScaler  m_scaler;
+    Variant        m_variant     = Variant::Default;
+    bool           m_emphasis    = false;
+    int            m_commandId   = 0;
 };

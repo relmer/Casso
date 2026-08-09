@@ -49,6 +49,32 @@
 #define IDM_AUDIO_DRIVE_PAN         40054
 #define IDM_AUDIO_DRIVE_TEST        40055
 
+// //c optional external drive: show / hide the second drive-mount widget.
+// A per-machine UI pref ($cassoUiPrefs.externalDriveConnected), not a
+// hardware-enable, so toggling it never forces a machine reset.
+#define IDM_DRIVE_EXTERNAL_CONNECT    40056
+#define IDM_DRIVE_EXTERNAL_DISCONNECT 40057
+
+// //c mouse peripheral: connect / disconnect the mouse from the DB-9 port
+// A per-machine UI pref like the external drive; the IOU stays
+// (built-in silicon) but a disconnected mouse gets no host input and the
+// Pointer mapping hides Mouse. Default connected.
+#define IDM_MOUSE_CONNECT             40058
+#define IDM_MOUSE_DISCONNECT          40059
+
+// 40060 was IDM_PRINTER_EJECT (removed: delivery destination is now chosen
+// per action via the preview's Print / Save buttons, not a File-menu Eject).
+#define IDM_PRINTER_DISCARD         40061
+#define IDM_PRINTER_COPY            40062
+#define IDM_PRINTER_PREVIEW         40063
+#define IDM_PRINTER_PRINT           40064
+#define IDM_PRINTER_SAVEAS          40065
+
+// Posted back by the modern (async) print session's completion callback so
+// result dialogs run on the UI thread (DCR-1). Not menu items.
+#define IDM_PRINTER_MODERN_SENT     40066
+#define IDM_PRINTER_MODERN_FAILED   40067
+
 #define IDM_HELP_KEYMAP             40040
 #define IDM_HELP_ABOUT              40042
 
@@ -72,6 +98,8 @@
 #define IDR_MACHINE_APPLE2          200
 #define IDR_MACHINE_APPLE2PLUS      201
 #define IDR_MACHINE_APPLE2E         202
+#define IDR_MACHINE_APPLE2C         203
+#define IDR_MACHINE_APPLE2E_ENHANCED 204
 
 // Embedded built-in theme files (RCDATA). Per spec 007-ui-overhaul
 // The three built-in themes are extracted to
@@ -96,3 +124,28 @@
 #define IDR_THEME_RETRO_FONT_TTF            350
 #define IDR_THEME_RETRO_FONT_OFL            351
 #define IDR_THEME_RETRO_FONT_TODO           352
+
+// Embedded 3D reference model for the printer panel's skeuomorphic scene
+// (Printer3DScene) -- the user's own Tinkercad CAD model of the ImageWriter
+// II, exported as OBJ+MTL. See Resources/Models/ImageWriterII/.
+#define IDR_MODEL_IMAGEWRITER_OBJ           400
+#define IDR_MODEL_IMAGEWRITER_MTL           401
+
+// Embedded ImageWriter II mechanical sound set (extracted to
+// %LOCALAPPDATA%\Casso\ImageWriter II Sounds\ by EnsureImageWriterSounds).
+// Recorded from a real machine by Scott Lawrence; CC BY 4.0 (BleuLlama
+// ImageWriterIISimulator). See Assets/ImageWriter II Sounds/ATTRIBUTION.txt.
+#define IDR_SOUND_PRINT_DRAFT               500
+#define IDR_SOUND_PRINT_MEDIUM              501
+#define IDR_SOUND_PRINT_NLQ                 502
+#define IDR_SOUND_LINE_FEED_1               503
+#define IDR_SOUND_LINE_FEED_2               504
+#define IDR_SOUND_LINE_FEED_3               505
+#define IDR_SOUND_PAGE_FEED_SHORT           506
+#define IDR_SOUND_PAGE_FEED_MEDIUM          507
+#define IDR_SOUND_PAGE_FEED_LONG            508
+#define IDR_SOUND_PAPER_TEAR_1              509
+#define IDR_SOUND_PAPER_TEAR_2              510
+#define IDR_SOUND_PAPER_TEAR_3              511
+#define IDR_SOUND_PAPER_TEAR_4              512
+#define IDR_SOUND_PAPER_TEAR_5              513

@@ -58,6 +58,19 @@ public:
         const FileReader       & reader);
 
 
+    // Resolve `requested` to a discovered machine's canonical fileName,
+    // matching case-insensitively. The filesystem is case-insensitive so a
+    // mis-cased --machine value (e.g. "apple2e") still loads its config, but
+    // the ROM catalog and display-name lookups match names exactly -- so the
+    // caller needs the on-disk casing ("Apple2e"). Falls back to `preferred`
+    // when `requested` is empty / unmatched and `preferred` was discovered,
+    // else the first discovered machine, else `preferred` verbatim. Pure.
+    static wstring SelectCanonical (
+        const vector<MachineInfo> & discovered,
+        std::wstring_view           requested,
+        std::wstring_view           preferred);
+
+
     // Production lister: returns immediate subdirectories of `dir`, or
     // an empty vector when `dir` isn't a directory.
     static vector<fs::path> ListDirectory (const fs::path & dir);

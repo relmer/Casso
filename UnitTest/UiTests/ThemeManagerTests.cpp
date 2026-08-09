@@ -26,11 +26,18 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    constexpr const wchar_t * kThemesBase = L"C:\\Casso\\Themes";
 
-    constexpr const char * kSkeuoJson = R"({
+
+
+
+
+TEST_CLASS (ThemeManagerTests)
+{
+public:
+
+    static constexpr const wchar_t * kThemesBase = L"C:\\Casso\\Themes";
+
+    static constexpr const char * kSkeuoJson = R"({
         "$cassoThemeVersion": 1,
         "$cassoBuiltIn":      true,
         "name":               "Skeuomorphic",
@@ -42,7 +49,7 @@ namespace
         "useMicaBackdrop":    false
     })";
 
-    constexpr const char * kDarkJson = R"({
+    static constexpr const char * kDarkJson = R"({
         "$cassoThemeVersion": 1,
         "$cassoBuiltIn":      true,
         "name":               "DarkModern",
@@ -54,7 +61,7 @@ namespace
         "useMicaBackdrop":    true
     })";
 
-    constexpr const char * kBadJson  = R"({ "name": "no version", "familyId":"apple2", "variantId":"ii", "uiTokens":{}, "driveVisualProfile":{"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"} })";
+    static constexpr const char * kBadJson  = R"({ "name": "no version", "familyId":"apple2", "variantId":"ii", "uiTokens":{}, "driveVisualProfile":{"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"} })";
 
 
     // Write a complete minimal theme that ThemeLoader will accept
@@ -66,21 +73,12 @@ namespace
     {
         fs.WriteAllText (dir + L"\\theme.json", themeJson);
     }
-}
-
-
-
-
-
-TEST_CLASS (ThemeManagerTests)
-{
-public:
 
     TEST_METHOD (Discover_IncludesValidExcludesInvalid)
     {
         InMemoryFileSystem  fs;
-        ThemeManager        mgr (fs, kThemesBase);
         HRESULT             hr;
+        ThemeManager        mgr (fs, kThemesBase);
 
         WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\Skeuomorphic", kSkeuoJson);
         WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\DarkModern",   kDarkJson);
@@ -93,7 +91,7 @@ public:
 
         hr = mgr.Discover();
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (size_t (2), mgr.GetAvailableThemes().size());
     }
 
@@ -101,15 +99,15 @@ public:
     TEST_METHOD (Discover_MissingBaseDir_EmptyList)
     {
         InMemoryFileSystem  fs;
-        ThemeManager        mgr (fs, L"C:\\Does\\Not\\Exist");
         HRESULT             hr;
+        ThemeManager        mgr (fs, L"C:\\Does\\Not\\Exist");
 
         hr = mgr.Discover();
 
         // EnumerateDirectories returns S_FALSE through Discover().
         // Either S_OK or S_FALSE is acceptable; what matters is that
         // the list is empty and we did not crash.
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (size_t (0), mgr.GetAvailableThemes().size());
     }
 
@@ -124,7 +122,8 @@ public:
 
         HRESULT hr = mgr.Activate ("NoSuchTheme");
 
-        Assert::IsTrue (hr == S_FALSE);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_FOUND), hr,
+            L"An unknown theme name must fail, and the code must say why");
         Assert::IsTrue (mgr.GetActiveThemeName().empty());
     }
 
@@ -132,9 +131,9 @@ public:
     TEST_METHOD (Activate_KnownTheme_FiresObserverAndUpdatesActive)
     {
         InMemoryFileSystem  fs;
-        ThemeManager        mgr (fs, kThemesBase);
         std::string         observed;
         int                 hits = 0;
+        ThemeManager        mgr (fs, kThemesBase);
 
         WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\Skeuomorphic", kSkeuoJson);
         WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\DarkModern",   kDarkJson);
@@ -148,7 +147,7 @@ public:
 
         HRESULT hr = mgr.Activate ("DarkModern");
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (string ("DarkModern"), mgr.GetActiveThemeName());
         Assert::AreEqual (string ("DarkModern"), observed);
         Assert::AreEqual (1, hits);
@@ -168,7 +167,7 @@ public:
 
         HRESULT hr = mgr.ActivateByFamilyVariant ("apple2", "ii");
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (string ("Skeuomorphic"), mgr.GetActiveThemeName());
     }
 
@@ -244,3 +243,4 @@ public:
                         == ThemeBootstrapAction::InstallBuiltIn);
     }
 };
+

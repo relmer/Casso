@@ -4,8 +4,28 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-namespace
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PerformanceTests
+//
+//  Phase 15 (User Story 6, FR-042 / SC-007). These tests are meaningful
+//  only against the optimized build: in Debug builds the EmuCpu / bus /
+//  device dispatch is unoptimized and the measurements have no relation
+//  to shipping performance. The whole class is conditionally compiled
+//  on NDEBUG (set by Release configurations of UnitTest.vcxproj). In
+//  Debug builds the class still exists with a single sentinel method so
+//  CppUnitTestFramework discovery doesn't complain — it reports
+//  Inconclusive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (PerformanceTests)
 {
+public:
+
     ////////////////////////////////////////////////////////////////////////////
     //
     //  Performance budget constants
@@ -28,8 +48,6 @@ namespace
     static constexpr uint64_t   kPerfWarmupCycles           =   100'000ULL;
     static constexpr uint64_t   kColdBootCycles             = 5'000'000ULL;
     static constexpr double     kPerformanceCeilingMs       = 97.75;
-    static constexpr int        kStabilityRunCount          = 5;
-    static constexpr double     kStabilityToleranceFraction = 0.60;  // 60% — tight enough to catch real regressions, loose enough to ride out shared-runner CPU stalls. Bumped from 30% after a 42% spike on a hosted GH Actions runner failed an otherwise-clean build (median 13.28 ms, one outlier at 18.83 ms).
 
 
     ////////////////////////////////////////////////////////////////////////////
@@ -39,7 +57,7 @@ namespace
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    int64_t QpcFrequencyHz ()
+    int64_t QpcFrequencyHz()
     {
         LARGE_INTEGER   freq = {};
 
@@ -91,17 +109,17 @@ namespace
         hr = host.BuildApple2e (core);
         CHRA (hr);
 
-        if (!core.HasApple2e ())
+        if (!core.HasApple2e())
         {
             hr = E_UNEXPECTED;
             CHRA (hr);
         }
 
-        core.PowerCycle ();
+        core.PowerCycle();
         core.RunCycles  (kColdBootCycles);
         core.RunCycles  (kPerfWarmupCycles);
 
-        freqHz = QpcFrequencyHz ();
+        freqHz = QpcFrequencyHz();
         if (freqHz <= 0)
         {
             hr = E_UNEXPECTED;
@@ -118,58 +136,6 @@ namespace
         return hr;
     }
 
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  MedianOf — returns the median value of a non-empty sample buffer.
-    //  Sorts a working copy in place; safe for the small N (5) used here.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    double MedianOf (const std::vector<double> & samples)
-    {
-        std::vector<double>   sorted = samples;
-        size_t                n      = 0;
-
-        std::sort (sorted.begin (), sorted.end ());
-        n = sorted.size ();
-        return sorted[n / 2];
-    }
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  WorstOf — returns the maximum (slowest) sample.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    double WorstOf (const std::vector<double> & samples)
-    {
-        return *std::max_element (samples.begin (), samples.end ());
-    }
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PerformanceTests
-//
-//  Phase 15 (User Story 6, FR-042 / SC-007). These tests are meaningful
-//  only against the optimized build: in Debug builds the EmuCpu / bus /
-//  device dispatch is unoptimized and the measurements have no relation
-//  to shipping performance. The whole class is conditionally compiled
-//  on NDEBUG (set by Release configurations of UnitTest.vcxproj). In
-//  Debug builds the class still exists with a single sentinel method so
-//  CppUnitTestFramework discovery doesn't complain — it reports
-//  Inconclusive.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (PerformanceTests)
-{
-public:
 
 #ifdef NDEBUG
 
@@ -188,7 +154,7 @@ public:
         wchar_t     msg[256]  = {};
 
         hr = MeasureMillionCycles (elapsedMs);
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr,
             L"MeasureMillionCycles must succeed");
 
         swprintf_s (msg, L"1M cycles took %.2f ms (ceiling %.2f ms)",
@@ -199,55 +165,21 @@ public:
     }
 
 
-    ////////////////////////////////////////////////////////////////////////
     //
-    //  CycleEmulation_StableRunToRun — T125. Stability gate: 5 runs;
-    //  every run must meet the budget AND the worst-case wall-clock
-    //  cost must lie within kStabilityToleranceFraction (60%) of the
-    //  median. Hedges against transient host jitter without masking a
-    //  real perf regression.
+    //  T125's CycleEmulation_StableRunToRun used to sit here. It took five
+    //  samples and asserted worst <= median * 1.6 -- a pure VARIANCE gate on
+    //  wall-clock time, which measures the host's scheduler rather than this
+    //  code. It carried no signal CycleEmulation_MeetsBudget lacks (a genuine
+    //  slowdown moves the median, which the budget catches) and failed about
+    //  one full-suite run in three on a developer machine doing anything else.
     //
-    ////////////////////////////////////////////////////////////////////////
-
-    TEST_METHOD (CycleEmulation_StableRunToRun)
-    {
-        HRESULT                hr          = S_OK;
-        std::vector<double>    samples;
-        double                 sample      = 0.0;
-        double                 median      = 0.0;
-        double                 worst       = 0.0;
-        double                 tolerance   = 0.0;
-        wchar_t                msg[256]    = {};
-        int                    i           = 0;
-
-        samples.reserve (kStabilityRunCount);
-
-        for (i = 0; i < kStabilityRunCount; i++)
-        {
-            hr = MeasureMillionCycles (sample);
-            Assert::IsTrue (SUCCEEDED (hr),
-                L"MeasureMillionCycles must succeed for every stability sample");
-
-            swprintf_s (msg, L"  run %d: %.2f ms", i + 1, sample);
-            Logger::WriteMessage (msg);
-
-            Assert::IsTrue (sample <= kPerformanceCeilingMs,
-                L"Every individual run must meet the perf budget");
-
-            samples.push_back (sample);
-        }
-
-        median    = MedianOf (samples);
-        worst     = WorstOf  (samples);
-        tolerance = median * (1.0 + kStabilityToleranceFraction);
-
-        swprintf_s (msg,
-            L"5-run stability: median=%.2f ms worst=%.2f ms tolerance=%.2f ms",
-            median, worst, tolerance);
-        Logger::WriteMessage (msg);
-
-        Assert::IsTrue (worst <= tolerance, msg);
-    }
+    //  Its tolerance had already been widened 30% -> 60% chasing a hosted-CI
+    //  outlier, which is the tell: the number was tracking the noise floor of
+    //  whatever machine ran it, not a property of the emulator.
+    //
+    //  Throughput still has a gate. Stability of an elapsed-time measurement on
+    //  a shared machine is not something a unit test can assert.
+    //
 
 #else // !NDEBUG
 
@@ -266,3 +198,4 @@ public:
 
 #endif // NDEBUG
 };
+

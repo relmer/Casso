@@ -4,6 +4,7 @@
 
 
 class EmulatorShell;
+class JsonValue;
 struct MachineConfig;
 
 
@@ -37,6 +38,8 @@ public:
 
     HRESULT  CreateMemoryDevices  (const MachineConfig & config);
     void     WireLanguageCard     ();
+    void     WireApple2cRomBank   ();
+    static HRESULT ReadRomFileBytes (const std::string & path, std::vector<Byte> & out);
     void     WirePageTable        ();
     void     RebuildBankingPages  ();
     void     CreateVideoModes     ();
@@ -53,5 +56,7 @@ public:
     void     SelectVideoMode      ();
 
 private:
+    static WORD  ResolveMachineSpeedCommand (const JsonValue & mergedJson);
+
     EmulatorShell &  m_shell;
 };

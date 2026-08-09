@@ -1,13 +1,10 @@
 #include "Pch.h"
+#include "../EhmTestHelper.h"
 
 #include "CppUnitTest.h"
 
 #include "../Casso/Ui/DriveWidgetState.h"
 
-#include <atomic>
-#include <cstring>
-#include <string>
-#include <vector>
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -21,8 +18,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  DragDropTargetFormatTests
 //
 //  Verifies the testable subset of T141: that DxuiDragDropTarget::
-//  ExtractFirstHDropPath round-trips each of the four supported disk
-//  image extensions (.dsk, .nib, .woz, .po) through a CF_HDROP /
+//  ExtractFirstHDropPath round-trips each of the five supported disk
+//  image extensions (.dsk, .do, .nib, .woz, .po) through a CF_HDROP /
 //  HGLOBAL pipe identical to what Explorer hands us.
 //
 //  Format acceptance / rejection by the mount path itself lives in
@@ -36,11 +33,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+namespace UiTests
 {
+
     // Minimal IDataObject that serves one CF_HDROP global containing a
     // single wide path. Everything else returns DV_E_FORMATETC, which is
     // exactly how the real Explorer object behaves for unknown formats.
+    //
+    // Shared by both TEST_CLASSes below. UiTests already gives it a unique
+    // qualified name, so it needs no anonymous namespace on top.
     class MockHDropDataObject : public IDataObject
     {
     public:
@@ -49,33 +50,40 @@ namespace
         {
         }
 
-        // -------- IUnknown --------
+        // IUnknown
         STDMETHODIMP QueryInterface (REFIID riid, void ** ppv) override
         {
-            if (ppv == nullptr) { return E_POINTER; }
-            if (riid == IID_IUnknown || riid == IID_IDataObject)
-            {
-                *ppv = static_cast<IDataObject *> (this);
-                AddRef();
-                return S_OK;
-            }
-            *ppv = nullptr;
-            return E_NOINTERFACE;
+            HRESULT  hr          = S_OK;
+            bool     isSupported = false;
+
+
+            CBREx (ppv != nullptr, E_POINTER);
+
+            isSupported = (riid == IID_IUnknown || riid == IID_IDataObject);
+            *ppv        = isSupported ? static_cast<IDataObject *> (this) : nullptr;
+
+            CBREx (isSupported, E_NOINTERFACE);
+
+            AddRef();
+
+Error:
+            return hr;
         }
 
-        STDMETHODIMP_(ULONG) AddRef () override
+        STDMETHODIMP_(ULONG) AddRef() override
         {
             return m_ref.fetch_add (1, std::memory_order_acq_rel) + 1;
         }
 
-        STDMETHODIMP_(ULONG) Release () override
+        STDMETHODIMP_(ULONG) Release() override
         {
             return m_ref.fetch_sub (1, std::memory_order_acq_rel) - 1;
         }
 
-        // -------- IDataObject --------
+        // IDataObject
         STDMETHODIMP GetData (FORMATETC * pFormat, STGMEDIUM * pMedium) override
         {
+            HRESULT     hr       = S_OK;
             size_t      cbStruct = 0;
             size_t      cbPath   = 0;
             size_t      cbTotal  = 0;
@@ -83,23 +91,20 @@ namespace
             DROPFILES * pDrop    = nullptr;
             wchar_t   * pDst     = nullptr;
 
-            if (pFormat == nullptr || pMedium == nullptr) { return E_POINTER; }
-            if (pFormat->cfFormat != CF_HDROP)            { return DV_E_FORMATETC; }
-            if ((pFormat->tymed & TYMED_HGLOBAL) == 0)    { return DV_E_TYMED;     }
+
+            CBREx (pFormat != nullptr && pMedium != nullptr, E_POINTER);
+            CBREx (pFormat->cfFormat == CF_HDROP,            DV_E_FORMATETC);
+            CBREx ((pFormat->tymed & TYMED_HGLOBAL) != 0,    DV_E_TYMED);
 
             cbStruct = sizeof (DROPFILES);
             cbPath   = (m_path.size() + 2) * sizeof (wchar_t);   // +1 NUL +1 list-terminator
             cbTotal  = cbStruct + cbPath;
 
             hMem = GlobalAlloc (GHND, cbTotal);
-            if (hMem == nullptr) { return E_OUTOFMEMORY; }
+            CPR (hMem);
 
             pDrop = static_cast<DROPFILES *> (GlobalLock (hMem));
-            if (pDrop == nullptr)
-            {
-                GlobalFree (hMem);
-                return E_FAIL;
-            }
+            CBR (pDrop != nullptr);
 
             pDrop->pFiles = static_cast<DWORD> (cbStruct);
             pDrop->fWide  = TRUE;
@@ -114,7 +119,16 @@ namespace
             pMedium->tymed          = TYMED_HGLOBAL;
             pMedium->hGlobal        = hMem;
             pMedium->pUnkForRelease = nullptr;
-            return S_OK;
+
+Error:
+            // Only the GlobalLock failure leaves an allocation to release: an
+            // earlier bail has no hMem yet, and success hands it to pMedium.
+            if (FAILED (hr) && hMem != nullptr && pDrop == nullptr)
+            {
+                GlobalFree (hMem);
+            }
+
+            return hr;
         }
 
         // The remaining methods are required by the vtable but the
@@ -134,25 +148,51 @@ namespace
     };
 
 
-    void ExpectRoundTrip (const std::wstring & input)
-    {
-        MockHDropDataObject  obj (input);
-        std::wstring         got;
-        HRESULT              hr = DxuiDragDropTarget::ExtractFirstHDropPath (&obj, got);
-
-        Assert::AreEqual (S_OK, hr, L"ExtractFirstHDropPath should return S_OK");
-        Assert::AreEqual (input.c_str(), got.c_str(),
-            L"Path round-trip must preserve the original wide string verbatim");
-    }
-}
 
 
-namespace UiTests
-{
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DragDropTargetFormatTests
+//
+//  Which dropped payloads are ACCEPTED: the clipboard formats, and the file
+//  extensions inside them.
+//
+//  Extension filtering is what these mostly pin. Dropping an arbitrary file
+//  onto the emulator must be refused rather than mounted as a disk image, so
+//  the supported extensions are asserted along with representative rejects.
+//
+//  Matching is case-insensitive, since Explorer reports whatever case the
+//  filesystem holds and a user's .DSK is the same file as a .dsk.
+//
+//  A multi-file drop is covered because Explorer permits one and the target
+//  must behave predictably -- taking the first supported file rather than
+//  refusing outright or mounting several.
+//
+//  Format checks run without any OLE plumbing, so the policy is testable
+//  without a window or a real drag.
+//
+////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (DragDropTargetFormatTests)
 {
 public:
+
+    // Only this TEST_CLASS round-trips, so the helper belongs to it.
+    static void ExpectRoundTrip (const std::wstring & input)
+    {
+        std::wstring  got;
+        HRESULT       hr  = S_OK;
+
+
+
+        MockHDropDataObject  obj (input);
+        hr = DxuiDragDropTarget::ExtractFirstHDropPath (&obj, got);
+
+        AssertSucceeded (hr, L"ExtractFirstHDropPath must succeed on a CF_HDROP object");
+        Assert::AreEqual (input.c_str(), got.c_str(),
+            L"Path round-trip must preserve the original wide string verbatim");
+    }
 
     TEST_METHOD (ExtractFirstHDropPath_RoundTrips_Dsk)
     {
@@ -177,19 +217,32 @@ public:
     TEST_METHOD (ExtractFirstHDropPath_RoundTrips_UnicodePath)
     {
         // Wide-string fidelity matters; force a non-ASCII codepoint
-        // through the pipe to prove fWide=TRUE is being honoured.
+        // through the pipe to prove fWide=TRUE is being honored.
         ExpectRoundTrip (L"C:\\Disks\\\u00C5pple\\caf\u00E9.dsk");
     }
 
-    TEST_METHOD (ExtractFirstHDropPath_NullDataObject_ReturnsFalse)
+    TEST_METHOD (ExtractFirstHDropPath_NullDataObject_ReturnsInvalidArg)
     {
-        std::wstring  got = L"sentinel";
-        HRESULT       hr  = DxuiDragDropTarget::ExtractFirstHDropPath (nullptr, got);
+        HRESULT       hr  = S_OK;
 
-        Assert::AreEqual (S_FALSE, hr);
-        Assert::IsTrue   (got.empty(), L"outPath must be cleared on failure");
+
+
+        std::wstring  got = L"sentinel";
+
+        {
+            // A null data object is a caller bug, so the guard asserts.
+            UnitTestHelpers::ExpectedEhmAssert   expect;
+
+            hr = DxuiDragDropTarget::ExtractFirstHDropPath (nullptr, got);
+        }
+
+        Assert::AreEqual (E_INVALIDARG, hr,
+            L"A null data object is an argument error, not an empty drag");
+        Assert::IsTrue (got.empty(), L"outPath must be cleared on failure");
     }
 };
+
+
 
 
 
@@ -221,11 +274,13 @@ public:
 
     TEST_METHOD (DragEnter_SupportedFile_SetsInProgressAndAccepted)
     {
-        DxuiDragDropTarget       t;
+        DxuiDragDropTarget  t;
+        POINTL              pt     = {};
+        DWORD               effect = 0;
+        HRESULT             hr     = S_OK;
         MockHDropDataObject  obj (L"C:\\Disks\\demo.dsk");
-        POINTL               pt     = { 100, 100 };
-        DWORD                effect = DROPEFFECT_COPY;
-        HRESULT              hr     = S_OK;
+        pt = { 100, 100 };
+        effect = DROPEFFECT_COPY;
 
         t.SetFilter (IsSupportedDiskImageExtension);
         hr = t.DragEnter (&obj, 0, pt, &effect);
@@ -242,11 +297,13 @@ public:
 
     TEST_METHOD (DragEnter_UnsupportedFile_InProgressButNotAccepted)
     {
-        DxuiDragDropTarget       t;
+        DxuiDragDropTarget  t;
+        POINTL              pt     = {};
+        DWORD               effect = 0;
+        HRESULT             hr     = S_OK;
         MockHDropDataObject  obj (L"C:\\Disks\\readme.txt");
-        POINTL               pt     = { 100, 100 };
-        DWORD                effect = DROPEFFECT_COPY;
-        HRESULT              hr     = S_OK;
+        pt = { 100, 100 };
+        effect = DROPEFFECT_COPY;
 
         t.SetFilter (IsSupportedDiskImageExtension);
         hr = t.DragEnter (&obj, 0, pt, &effect);
@@ -261,10 +318,12 @@ public:
 
     TEST_METHOD (DragLeave_ResetsAllState)
     {
-        DxuiDragDropTarget       t;
+        DxuiDragDropTarget  t;
+        POINTL              pt     = {};
+        DWORD               effect = 0;
         MockHDropDataObject  obj (L"C:\\Disks\\demo.woz");
-        POINTL               pt     = { 100, 100 };
-        DWORD                effect = DROPEFFECT_COPY;
+        pt = { 100, 100 };
+        effect = DROPEFFECT_COPY;
 
         (void) t.DragEnter (&obj, 0, pt, &effect);
         Assert::IsTrue (t.IsDragInProgress());
@@ -277,10 +336,12 @@ public:
 
     TEST_METHOD (Drop_ResetsState)
     {
-        DxuiDragDropTarget       t;
+        DxuiDragDropTarget  t;
+        POINTL              pt     = {};
+        DWORD               effect = 0;
         MockHDropDataObject  obj (L"C:\\Disks\\demo.nib");
-        POINTL               pt     = { 100, 100 };
-        DWORD                effect = DROPEFFECT_COPY;
+        pt = { 100, 100 };
+        effect = DROPEFFECT_COPY;
 
         (void) t.DragEnter (&obj, 0, pt, &effect);
 
@@ -295,9 +356,17 @@ public:
     TEST_METHOD (DragEnter_NullDataObject_InProgressButNotAccepted)
     {
         DxuiDragDropTarget  t;
-        POINTL          pt     = { 100, 100 };
-        DWORD           effect = DROPEFFECT_COPY;
-        HRESULT         hr     = t.DragEnter (nullptr, 0, pt, &effect);
+        POINTL              pt     = { 100, 100 };
+        DWORD               effect = DROPEFFECT_COPY;
+        HRESULT             hr     = S_OK;
+
+        {
+            // OLE never hands DragEnter a null data object, so the extract
+            // asserts. The drag state still has to stay coherent.
+            UnitTestHelpers::ExpectedEhmAssert   expect;
+
+            hr = t.DragEnter (nullptr, 0, pt, &effect);
+        }
 
         Assert::AreEqual (S_OK, hr);
         Assert::IsTrue   (t.IsDragInProgress(),
@@ -309,27 +378,29 @@ public:
     TEST_METHOD (DragOver_NullPdwEffect_ReturnsPointerError)
     {
         DxuiDragDropTarget  t;
-        POINTL          pt = { 0, 0 };
+        POINTL              pt = { 0, 0 };
 
         Assert::AreEqual (E_POINTER, t.DragOver (0, pt, nullptr));
     }
 
-    TEST_METHOD (Extensions_AllFourFormats_AreAccepted)
+    TEST_METHOD (Extensions_AllFiveFormats_AreAccepted)
     {
         const wchar_t *  exts[] = {
-            L"C:\\a.dsk", L"C:\\a.NIB", L"C:\\a.Woz", L"C:\\a.po"
+            L"C:\\a.dsk", L"C:\\a.DO", L"C:\\a.NIB", L"C:\\a.Woz", L"C:\\a.po"
         };
 
         for (size_t i = 0; i < sizeof (exts) / sizeof (exts[0]); i++)
         {
-            DxuiDragDropTarget       t;
+            DxuiDragDropTarget  t;
+            POINTL              pt     = {};
+            DWORD               effect = 0;
             MockHDropDataObject  obj (exts[i]);
-            POINTL               pt     = { 0, 0 };
-            DWORD                effect = DROPEFFECT_COPY;
+            pt = { 0, 0 };
+            effect = DROPEFFECT_COPY;
 
             (void) t.DragEnter (&obj, 0, pt, &effect);
             Assert::IsTrue (t.IsDragAcceptedType(),
-                L"All four supported extensions must accept regardless of case");
+                L"All five supported extensions must accept regardless of case");
         }
     }
 };

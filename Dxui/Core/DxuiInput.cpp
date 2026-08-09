@@ -36,7 +36,8 @@ void DxuiInput::RefreshModifiers()
 
 bool DxuiInput::Translate (UINT msg, WPARAM wParam, LPARAM lParam, DxuiEvent & outEvent)
 {
-    DxuiEvent  ev = {};
+    DxuiEvent  ev         = {};
+    bool       translated = true;   // the default arm below takes it back
 
 
 
@@ -132,12 +133,19 @@ bool DxuiInput::Translate (UINT msg, WPARAM wParam, LPARAM lParam, DxuiEvent & o
         break;
 
     default:
-        return false;
+        // A message this translator does not model. The caller falls through
+        // to its own Win32 handling.
+        translated = false;
+        break;
     }
 
-    outEvent = ev;
-    m_queue.push_back (ev);
-    return true;
+    if (translated)
+    {
+        outEvent = ev;
+        m_queue.push_back (ev);
+    }
+
+    return translated;
 }
 
 
@@ -167,14 +175,18 @@ void DxuiInput::PushEvent (const DxuiEvent & ev)
 
 bool DxuiInput::PopEvent (DxuiEvent & outEvent)
 {
-    if (m_queue.empty())
+    bool  popped = !m_queue.empty();
+
+
+
+    // `outEvent` is left untouched on an empty queue.
+    if (popped)
     {
-        return false;
+        outEvent = m_queue.front();
+        m_queue.pop_front();
     }
 
-    outEvent = m_queue.front();
-    m_queue.pop_front();
-    return true;
+    return popped;
 }
 
 

@@ -7,9 +7,23 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SearchBoxTests
+//
+//  Search box: text entry, the clear affordance, and the change notification.
+//
+//  The clear button's HIT REGION is tested apart from the field's, since they
+//  overlap -- the button sits inside the box's bounds, so a press must be
+//  classified before the field claims it as a cursor placement.
+//
+//  Clearing must fire the change callback like any other edit, so a consumer
+//  filtering on the text sees an empty query rather than keeping the last
+//  result set on screen.
+//
+//  The affordance is asserted absent when the box is empty, since a clear
+//  button offering to clear nothing is noise.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +35,7 @@ public:
     static constexpr int  s_kBoxH = 28;
 
 
-    static DxuiSearchBox MakeSearchBox ()
+    static DxuiSearchBox MakeSearchBox()
     {
         DxuiSearchBox  s;
         RECT           rc = { 0, 0, s_kBoxW, s_kBoxH };
@@ -35,7 +49,7 @@ public:
     // Mirrors the search box's own pad / glyph-slot geometry so the test
     // can click the trailing clear glyph. Kept in sync with the constants
     // in DxuiSearchBox.cpp (pad 6, slot 20 at 96 DPI).
-    static POINT ClearGlyphCenter ()
+    static POINT ClearGlyphCenter()
     {
         constexpr int  kPad  = 6;
         constexpr int  kSlot = 20;
@@ -62,7 +76,7 @@ public:
 
     TEST_METHOD (SetText_DoesNotFireChange)
     {
-        DxuiSearchBox  s = MakeSearchBox();
+        DxuiSearchBox  s     = MakeSearchBox();
         bool           fired = false;
 
         s.SetOnChange ([&] (const std::wstring &) { fired = true; });
@@ -91,10 +105,10 @@ public:
 
     TEST_METHOD (ClearGlyphClick_WhenFocusedWithText_Clears)
     {
-        DxuiSearchBox  s    = MakeSearchBox();
-        POINT          pt   = ClearGlyphCenter();
-        std::wstring   last = L"sentinel";
+        DxuiSearchBox  s        = MakeSearchBox();
+        POINT          pt       = ClearGlyphCenter();
         bool           consumed = false;
+        std::wstring   last = L"sentinel";
 
         s.SetFocused (true);
         s.SetText (L"abc");
@@ -128,7 +142,7 @@ public:
 
     TEST_METHOD (ClearGlyphClick_WhenUnfocused_DoesNotClear)
     {
-        DxuiSearchBox  s = MakeSearchBox();
+        DxuiSearchBox  s  = MakeSearchBox();
         POINT          pt = ClearGlyphCenter();
 
         s.SetText (L"abc");   // text present but field unfocused

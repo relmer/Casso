@@ -6,6 +6,472 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.15.2] — settings live-preview fixes
+
+### Fixed
+- fix(settings): the Display live-preview reveal shows the emulator instead of an opaque gray block (DWM frame fill behind the composited sheet; reveal now hugs the CRT image and pins the emulator window behind the sheet)
+- fix(settings): the emulator responds to Display slider drags immediately instead of in bursts when the drag pauses (message-drain deadline + the sheet no longer stacks a second vblank wait)
+
+## [1.15.1] — drive-door polish + small fixes
+
+### Fixed
+- fix(chrome): drive door animates in parallel with the disk picker instead of stalling until it closes
+- fix(chrome): canceling the picker closes a mounted drive's door again (the restore was dead code)
+- fix(chrome): eject-click door flap (open-close-reopen race with the CPU-thread eject)
+- fix(chrome): Disk > Insert gets the same door choreography as a drive-widget click
+- fix(printer): 3D preview scales instead of clipping; preview minimum size raised to a renderable size
+- fix(asm): diagnostics report in source order; an unclosed `.if` is reported at the `.if`, not end-of-file
+- fix(config): a corrupt or unreadable prefs file notifies (with the path) instead of asserting
+- fix(theme): an unknown theme name reports failure instead of silently falling back
+- fix(dxui): checkboxes / toggles no longer paint with zero area (WM_PAINT before first layout)
+
+### Changed
+- shell: window caption drops `[Running]` and the Debug tag
+- trace: interrupt-handler entries tagged; IRQ/NMI rates summarized
+- internal: repo-wide style sweep, now gated by CheckStyle in the pre-push hook and CI
+
+## [1.15.0] — Apple //c mouse fixes
+
+### Fixed
+- **fix(2c): acknowledge the //c VBL interrupt across the whole $C070-$C07F
+  PTRIG page** — the paddle-timer strobe is only partially decoded, so any
+  access in $C070-$C07F fires PTRIG and clears the VBL interrupt latch; Casso
+  honored only the literal $C070. Apps that run the mouse in VBL-interrupt mode
+  acknowledge the VBL as a side effect of a $C07x access (MousePaint does
+  `STA $C079` each interrupt), so the latch was never cleared and the interrupt
+  re-fired every time interrupts were enabled — pinning the CPU in its handler.
+  MousePaint's main app was effectively unusable: menus and tools ignored
+  clicks and the cursor lagged badly. Both are fixed. (Karateka's sticky
+  `$C019` VBL poll is unaffected — it never touches $C07x during its wait.)
+
+### Changed
+- **perf(mouse): batch `AppleMouse::Tick` bookkeeping off the per-instruction
+  path** — keep only the movement latch per-instruction (so the cursor tracks
+  without lag) and run the retarget countdown, VBL onset sample, and host-motion
+  drain at a coarse cadence (`kSampleQuantum`). ~31% cheaper per tick
+  (4.07 → 2.81 ns, microbenchmarked); //c-only, feel-neutral.
+
+## [1.14.0] — Emulated ImageWriter II printer (spec 015)
+
+### Added
+- **feat(printer): parallel printer card + original slot firmware** — a dumb,
+  output-only parallel interface card (default slot 1, optional per machine)
+  with firmware assembled from in-repo source (parity- and CPU-execution-
+  tested): honors the COUT contract (A/X/Y preserved), injects LF after CR
+  like Apple's real card, and deliberately claims no Pascal 1.1 signature.
+- **feat(printer): ImageWriter II interpreter** — the command subset locked
+  from real Print Shop byte captures: `ESC G` (native 160 dpi, LSB = top pin)
+  and `ESC L` (120 dpi, MSB = top pin) bit image, `ESC T`/`A`/`B` line
+  spacing, `ESC K` seven-color select with overprint composites, the
+  documented pitch family, and reset. Card status byte `$83` satisfies both
+  the Apple II Parallel and Grappler+ driver probes.
+- **feat(printer): draft text printing** — an original 95-glyph dot-matrix
+  font (5×7 body + descender row, designed in-repo): `PR#1` + `LIST` /
+  `CATALOG` print readable text at every documented pitch with 80-column
+  wrap and high-bit ASCII handling.
+- **feat(printer): live skeuomorphic preview** — a real-3D ImageWriter II
+  (the project's own CAD model via an OBJ import pipeline) with fanfold
+  paper, tractor strips and perforations, a one-page live viewport with
+  scrollback, and paper that reads through the smoked cover like the real
+  machine.
+- **feat(printer): one print-head clock** — carriage animation, ink reveal,
+  and audio share a single pacing model: bidirectional passes at real draft
+  speed, logic seeking (a pass spans only the printed region), blank feeds
+  slewing with the head parked, and jump-cut coalescing for huge backlogs.
+- **feat(printer): mechanical audio** — Scott Lawrence's CC BY 4.0
+  ImageWriter II recordings (bundled, attributed): quality-keyed carriage
+  loops gated by an edge-triggered ink detector, per-line feed clacks, page
+  feeds, and tear-offs; window-relative stereo auto-pan with a manual
+  override; printer volume + mute on Settings > Printing.
+- **feat(printer): delivery** — non-destructive Print / Save PNG / Copy (the
+  paper stays until Discard tears it off); the modern Windows print dialog
+  with a live preview of the real paginated pages (PrintManager interop +
+  Direct2D print control, classic dialog fallback); pending printouts
+  persist per machine across sessions.
+- **feat(chrome): command toolbar** — Settings, Printer (with an event-only
+  status LED: green printing, amber page waiting, red delivery error),
+  master volume + mute, Screenshot, Reset, and Power below the menu bar;
+  responsive three-tier presentation (icon+label → ribbon → icon-only with
+  tooltips); replaces the standalone printer indicator.
+- **feat(audio): master output volume** — one gain over the completed mix
+  (speaker, drives, printer, Mockingboard), persisted with mute.
+- **feat(printer): Settings > Printing info banner** — a themed banner at the
+  top of the Printing tab states what printer the current machine emulates and
+  how it connects ("Apple ImageWriter II ... parallel interface"), or that a
+  slotless machine (//c) has none; built on a new reusable `DxuiInfoBanner`
+  control with theme-derived colors.
+
+### Fixed
+- **fix(shell):** the OS modal move/size loop (title-bar hold, resize) no
+  longer freezes the preview and sound; a host keep-alive timer pumps the
+  UI frame.
+- **fix(shell):** machine switches no longer touch chrome from the CPU
+  thread (the //c → //e assert); thread-affinity guards added at the chrome
+  entry points.
+- **fix(dxui):** showing an already-visible window without activation keeps
+  it maximized (`SW_SHOWNA`).
+- **fix(printer):** honest Windows spool failure mapping — SP_* return codes
+  and mid-job Save-As cancels handled; failure dialogs name the failing
+  stage in plain language with the OS detail attached.
+- **fix(cpu):** unimplemented undocumented opcodes log instead of breaking
+  into the debugger (Space Quarks, GH #95).
+
+### Changed
+- Print delivery destination is chosen per action (Print / Save / Copy), not
+  a stored preference; Settings > Printing keeps output resolution + dot
+  style and gains a Restore-defaults button.
+- The window caption reads a clean "Casso - &lt;machine&gt;" in retail (Release)
+  builds; the run-state tag and build-identity stamp are kept in Debug only,
+  and a paused / stopped emulator is still flagged in every build.
+
+## [1.13.0] — Emulation and render performance
+
+### Changed
+- **perf(emulation): per-instruction hot path** — a sweep of the work that runs
+  on every emulated instruction. RAM/ROM reads now serve inline from a page
+  table instead of a virtual dispatch; I/O ($C000–$FFFF) resolves through a
+  direct device map instead of scanning the device list; the language-card
+  ($D000–$FFFF) and the //c internal ($C100–$CFFF) ROM windows are page-mapped
+  so they read inline; and the interrupt poll, the video-timing tick, and the
+  //c mouse tick shed redundant per-instruction work (the mouse's vertical-blank
+  edge is now sampled on a coarse cadence rather than checked every
+  instruction). Net: lower steady-state emulation CPU, most visibly on the //c.
+- **perf(video): dirty-row text rendering** — the 40- and 80-column text
+  screens re-rasterize only the rows whose characters changed since the last
+  frame (plus, on the flash blink, the rows holding a flashing glyph) instead
+  of redrawing all 24 rows every frame — so a scrolling catalog or a blinking
+  cursor no longer repaints the whole screen.
+- **perf(render): cached text shaping and geometry** — the UI chrome caches its
+  shaped text layouts and solid brushes instead of re-shaping every label each
+  frame, and appends quad geometry in bulk.
+- **perf(audio): idle Mockingboard** — AY-3-8910 tone/noise synthesis is skipped
+  while the chip is fully muted.
+
+### Fixed
+- **fix(shell): machine switch** — switching machine model (e.g. //c → //e) from
+  the menu no longer trips a UI-thread assertion; the pointer and joystick
+  controls are re-synced on the UI thread once the switch completes.
+
+## [1.12.0] — Skeuomorphic CRT monitor
+
+### Added
+- **feat(chrome): skeuomorphic CRT monitor desk scene** — an opt-in
+  "CRT monitor desk scene" checkbox on **Settings → Theme** (skeuo themes
+  only, default off) frames the emulator display in a procedurally-drawn
+  period **Apple Monitor //c** — snow-white/platinum shell with an even
+  chunky bezel, straight sides with rounded corners and a slightly bowed
+  glass, a recessed screen, the rainbow cassowary brand and a lit power lamp
+  on the chin. The display sits inside the glass at true 100% zoom by default
+  (the window sizes the whole scene around it), and the drive widgets scale
+  down to sit in proportion under the monitor. The whole scene zooms together
+  as the window resizes; toggling the checkbox applies live, and turning it
+  off restores the classic bare display at full drive sizes. Off by default
+  because the scene trades screen real estate for the look.
+
+### Changed
+- **perf(shell): idle CPU and GPU** — the emulator no longer re-rasterizes the
+  screen and re-runs the full CRT post-process + Present every 60 Hz when
+  nothing on screen has changed. The memory bus now tracks writes into the
+  display pages (dirty-tracking), so the video frame is regenerated only when
+  the picture's actual inputs move — a write that changes displayed memory, a
+  video mode / soft-switch change, the text flash phase, or the monitor color —
+  and a static screen (a menu, a BASIC prompt) drops render + present work
+  toward zero instead of pinning the GPU at a constant load. The UI thread now
+  blocks until the next frame or input arrives rather than spin-polling, and at
+  Maximum speed the CPU runs flat-out while the picture is still only shown ~60
+  times a second — no more burning cores on frames no one ever sees.
+  Drive-activity lights keep animating through a disk load even behind an
+  otherwise static screen.
+
+### Fixed
+- **fix(shell): saved CPU speed now applies at startup** — a saved emulation
+  speed of Double or Maximum is applied when Casso launches, instead of only
+  showing in Settings while the CPU quietly ran at Authentic speed until the
+  setting was re-selected. The cold-boot path applied the saved color mode but
+  overlooked the speed mode.
+- **fix(window): Alt+Enter fullscreen** — several fullscreen defects are
+  resolved. DXGI's built-in Alt+Enter handler (installed on the HWND swap
+  chain) was double-handling the keystroke and racing the app's own
+  borderless toggle; it is now disabled via `DXGI_MWA_NO_ALT_ENTER` so the
+  app owns the transition. Entering fullscreen no longer stomps the user's
+  saved windowed placement (a synchronous resize used to persist the
+  full-monitor rect as the window size), a maximized window round-trips back
+  to maximized with its underlying size intact, and a mid-transition assert
+  dialog can no longer strand the window as an unescapable, taskbar-covering
+  borderless popup — the toggle self-heals from a state desync and always
+  hands back a movable, closable window.
+
+## [1.11.0] — Undocumented NMOS opcodes
+
+### Added
+- **feat(cpu): stable undocumented NMOS 6502 opcodes** (#95) — the CPU now
+  executes the stable undocumented opcodes real Apple II software relies on —
+  SAX, LAX, DCP, ISC, SLO, RLA, SRE, RRA across their addressing modes, plus
+  the implied / 2-byte (DOP) / 3-byte (TOP) NOP family — instead of tripping
+  the illegal-opcode assert. Each is validated against the Tom Harte
+  SingleStepTests (10,000 vectors per opcode) and composes the existing ALU
+  primitives so flag and decimal-mode behavior is inherited. The unstable
+  "magic constant" opcodes (ANE, LXA, SHA, SHX, SHY, TAS) remain unimplemented
+  by design, and the undocumented opcodes are hidden from the assembler so
+  `NOP` still assembles to `$EA`.
+
+### Fixed
+- **fix(chrome): resize the top-right window corner** (#98) — the diagonal
+  resize grab is now a larger corner square than the straight edges, so the
+  top-right corner is draggable even though the close button sits on it. Every
+  Dxui-chromed window (main window + dialogs) is fixed at once.
+
+## [1.10.0] — Apple //c case-switch strip
+
+### Added
+- **feat(machine): //c case-switch strip** — the two latching switches on
+  the top of the //c case are now modeled and exposed. The **80/40 switch**
+  drives `$C060` (RD80SW) bit 7 — pressed in (down) selects 80-column
+  startup, out selects 40; it is a software-read switch (a booting disk's
+  `PR#3` acts on it), so the bare ROM screen is unaffected, matching real
+  hardware. The **keyboard switch** remaps the typed character stream to the
+  Dvorak layout while engaged (QWERTY when out); the remap is skipped when the
+  host OS layout is itself Dvorak (a Dvorak-host user types normally, so the
+  received character is already correct), and paste is never remapped. A
+  new skeuomorphic control strip — painted in the //c's platinum case
+  color, between the emulator viewport and the joystick/paddle/mouse
+  bar, //c-only — reproduces the case top: a **reset** button (inert unless
+  Ctrl is held, mirroring the real Control-Reset key; Open/Closed-Apple ride
+  it for cold boot), the two latching switches, and lit **disk-use** /
+  **power** indicator LEDs. The reset button and switches are drawn as the
+  real hardware's right-slanted parallelogram caps, sitting proud of the case
+  and depressing below its surface when clicked — an unmistakable pressed cue.
+  Both latching switch positions are remembered per machine across runs.
+
+### Changed
+- **refactor(shell): harden emulator startup** — `EmulatorShell::Initialize`
+  (previously ~600 lines at 9+ levels of nesting) is decomposed into focused,
+  single-purpose steps with consistent EHM error handling. Genuine
+  infrastructure failures (window, renderer, CPU, and UI-shell bring-up) abort
+  startup and assert in debug builds; a corrupt or unreadable settings file
+  now recovers to defaults — asserting in debug so a developer can dig in —
+  instead of being silently swallowed; and `DiskImageStore` surfaces a failed
+  disk-flush through the shared error notifier itself rather than through a
+  reporter callback the shell had to wire up.
+
+### Fixed
+- **fix(ui): Copy Text on 80-column screens** — Edit ▸ Copy Text now reads the
+  interleaved auxiliary + main text banks when the 80-column display is active,
+  instead of capturing only every other character.
+
+## [1.9.0] — Write-protect indicator
+
+### Added
+- **feat(disk): write-protect indicator** — a write-protected drive now
+  shows a small brass padlock on its face (both the skeuomorphic and
+  compact drive widgets), and hovering the drive raises a tooltip that
+  states the disk is write-protected and names the source(s): the
+  write-protect setting, the image's own flag (WOZ), a read-only backing
+  file, or missing write permission for the file.
+
+### Fixed
+- **fix(disk): honor the write-protect setting** — the Settings ▸ Disk
+  "Write protect" checkboxes previously did nothing. They now actually
+  protect the mounted disk (the guest sees the write-protect sense bit and
+  writes are rejected), the preference is re-applied across ejects/remounts
+  and restored on next launch, and a read-only or unwritable backing file
+  is likewise treated as write-protected so in-emulator writes can't be
+  silently lost.
+
+## [1.8.0] — Apple //c and Apple //e Enhanced machines (spec 016 + #86)
+
+### Added
+- **feat(machine): Apple //c** — a new machine profile on the //e substrate,
+  scoped to the 5.25"/128K //c with the **Memory Expansion ROM (ROM 4)**
+  (managed asset, download-on-demand). Boots real DOS 3.3 / ProDOS media;
+  with no disk it reaches the authentic "Check Disk Drive." state.
+- **feat(cpu): Rockwell R65C02 core** — full 65C02 instruction set including
+  the Rockwell bit ops (`RMB`/`SMB`/`BBR`/`BBS`, used by the //c firmware),
+  new addressing modes, and CMOS behavioral fixes (indirect-`JMP` page bug,
+  decimal-mode flags/cycles). Validated against Klaus Dormann's 65C02
+  functional test and Tom Harte's SingleStepTests.
+- **feat(asm): 65C02 assembly (`--cpu 65c02`)** — the built-in as65 assembler
+  can now target the 65C02. `--cpu 65c02` unlocks the CMOS opcodes (`STZ`,
+  `BRA`, `TSB`/`TRB`, `RMB`/`SMB`/`BBR`/`BBS`, the `(zp)` and `(abs,X)` modes);
+  the default stays a strict 6502, so 65C02-only opcodes are rejected unless
+  requested. The Rockwell bit ops accept both as65's `<bit>,<zp>[,<target>]`
+  operand form and the suffixed spelling (`RMB0 $zp`, `BBR3 $zp,target`), and
+  the `.a65c` extension is recognized. `NOP` assembles to the canonical `$EA`.
+- **feat(machine): slotless phantom-slot firmware map** — the //c's built-in
+  peripherals answer at their fixed firmware pages (serial 1/2, 80-column,
+  disk at $C600, mouse at $C700 on ROM 4) through the internal 32K
+  bank-switched ROM ($C028 bank flip-flop); no user-insertable slots.
+- **feat(disk): IWM mode** — the built-in slot-6 drive is an Integrated Woz
+  Machine over the shared WOZ nibble engine (MODE/STATUS registers; reads,
+  writes, and boot verified end-to-end), plus an optional **external drive**
+  with a Connected / Not connected toggle on the Machine tab.
+- **feat(serial): dual 6551 ACIA serial ports** (port 1 printer, port 2
+  modem) with loopback/file endpoints; one shared ACIA implementation also
+  consumed by the printer feature. (Serial *printing* lands via issue #87.)
+- **feat(mouse): //c IOU mouse** — full hardware model (X0/Y0 movement
+  interrupts with $C048 acknowledge, $C015/$C017 status, VBL latch at
+  $C019 cleared by $C070, IOUDIS-gated $C058-$C05F programming) driven by
+  the REAL ROM 4 mouse firmware; the host pointer maps absolutely onto the
+  guest mouse (non-capturing) while over the emulator viewport. The mouse
+  is a connectable peripheral (Machine-tab toggle, default connected).
+- **feat(input): split input model + device selector** — input mapping is
+  now two orthogonal selections (Keys: arrows→joystick; Pointer: paddle or
+  mouse), replacing the single cycle mode, with a new segmented drive-bar
+  selector drawing skeuomorphic glyphs of the real Apple peripherals
+  (perspective on the skeuomorphic theme, top-down on DarkModern/retro).
+- **feat(cpu): live hardware IRQ dispatch** — the CPU loop now services
+  maskable interrupts from the shared interrupt controller (the //c mouse
+  and VBL are the first sources); the 65C02 vector prologue is accounted
+  like an instruction, leaving existing machines byte-identical.
+- **feat(machine): Apple //e Enhanced** (issue #86) — the //e with a 65C02
+  and the enhanced firmware + MouseText video ROM, so it runs the CMOS
+  titles that misbehave on the NMOS //e. Reuses the //e substrate (128K,
+  slot-4 Mockingboard, slot-6 Disk ][); the enhanced ROM is a managed
+  download-on-demand asset. Auto-discovered by the machine picker; cold-boots
+  its firmware on the 65C02 (headless boot test).
+
+## [1.7.0] — Mockingboard sound card (GH #66)
+
+### Added
+- **feat(emu): Mockingboard A/C sound card emulation.** Adds the de-facto
+  Apple II audio standard: two clean-room chip cores written from the
+  datasheets — a generic **6522 VIA** (full register file, Timer 1
+  one-shot/continuous, Timer 2, IFR/IER and a level-sensitive IRQ line,
+  ports A/B with data-direction registers) and an **AY-3-8910 PSG** (three
+  square-wave tone channels, a 17-bit-LFSR noise generator, a 16-level
+  envelope generator, and a logarithmic DAC rendered to float32 PCM
+  resampled to the host rate). A **MockingboardCard** aggregates two of
+  each in a slot's `$Cn00` I/O page, decoding address bit 7 to the two VIAs
+  and translating each VIA's port A/B into the AY data bus and BC1/BDIR/RESET
+  control lines. Timer 1 IRQs — the tempo source Mockingboard music players
+  rely on — feed the existing interrupt controller, and the two PSGs mix
+  into the stereo bus (PSG #1 hard-left, PSG #2 hard-right) through a
+  dedicated audio mixer so they sum cleanly with the speaker and Disk II
+  audio. The card is installed in slot 4 of the Apple ][+ and //e profiles
+  and is enabled or removed from its slot in the **Hardware** tab's device
+  list (the card's slot entry is the single Mockingboard control).
+  On the //e the `CxxxRomRouter` now delegates a slot's `$Cn00` page to an
+  active I/O card when `INTCXROM=0`, so the card is reachable behind the
+  MMU. Clean-room throughout: no GPL emulator code was copied.
+
+### Fixed
+- **fix(cpu): the emulator run loop now services maskable interrupts.**
+  The shell drove the CPU exclusively through the interrupt-blind
+  `StepOne`, so no device IRQ was ever dispatched — latent until the
+  Mockingboard became the first device in Casso to assert one. Music
+  players (e.g. *Zaxxon*) arm a Timer 1 IRQ and depend on its handler
+  firing; without dispatch they stayed silent. Each step site now
+  dispatches a pending NMI/IRQ before executing the next instruction.
+
+## [1.6.4] — Disk ][ Debug panel virtualization (GH #88)
+
+### Fixed
+- **fix(ui): the Disk ][ Debug panel no longer wedges under disk-heavy
+  activity (GH #88).** Every render frame rebuilt and re-materialized the
+  entire event list into the `DxuiListView` — up to 100,000 rows, each six
+  freshly-heap-allocated `std::wstring` cells — even when only a handful of
+  events were visible and nothing had changed. Under a `SAVE` or a Print
+  Shop print (thousands of head-step / address-mark events per second) the
+  per-frame allocation storm starved the UI thread and the app appeared to
+  hang. The list now uses a **virtual (provider) row model**: it holds no
+  materialized rows, tracks only a count, and pulls cells for just the
+  visible window (`O(visible)` per frame instead of `O(total)`). A
+  per-frame **change-gate** skips the filter/sort rebuild entirely on idle
+  frames (no new events), and columns auto-fit from the visible window as
+  rows scroll in.
+
+### Changed
+- **Selection and keyboard focus in the Disk ][ Debug panel now track the
+  selected event by a stable monotonic identity (`seq`) rather than by row
+  or deque index.** A column re-sort keeps the same event selected *and*
+  scrolls it back into view, and a selection that is filtered out or
+  evicted from the rolling history snaps to the nearest surviving event
+  instead of silently jumping. The resolution logic is a pure, headlessly
+  unit-tested helper (`DebugDialogProjection::ResolveSelection`).
+
+## [1.6.3] — Disk write persistence: WOZ write-back, flush safety
+
+Follows GH #89 (which fixed the emulated write *bit*) by fixing the
+*persistence* layer that #89 never touched — the path from the in-memory
+track bit streams back to the host file.
+
+### Fixed
+- **fix(disk): WOZ writes now persist (write-back was never implemented).**
+  `DiskImage::Serialize`'s WOZ arm returned the untouched *source* bytes and
+  ignored every guest write, so edits to a writable `.woz` were silently
+  discarded on flush. A new `WozLoader::Serialize` emits a valid WOZ v2 image
+  (INFO + TMAP + TRKS + block-aligned bit streams, correct header CRC32) from
+  the live per-track buffers, preserving the write-protect flag. Guest writes
+  now round-trip; WOZ becomes the reliable writable format (raw bit stream, no
+  lossy sector re-encode). This is also the serializer 017 (blank-disk
+  creation) needs.
+- **fix(disk): disk-flush failures are no longer silently swallowed.** Every
+  flush caller dropped `FlushEntry`'s `HRESULT` (`Eject`/`PowerCycle` are
+  void; the exit path and `SoftReset` `IGNORE_RETURN_VALUE` it), so a failed
+  write-back vanished with no error and the user lost writes. `DiskImageStore`
+  now invokes an injected flush-error reporter on a genuine failure to persist
+  a dirty image; the shell logs it and warns the user via the shared EHM
+  notifier.
+
+### Added
+- **feat(disk): motor-idle auto-flush.** Dirty disk images are now persisted
+  when the drive motor spins down (a naturally debounced, ~1s-after-last-access
+  "operation complete" boundary), so writes survive a crash/kill before the
+  next eject or exit. The flush fires on the CPU thread inside
+  `Disk2Controller::Tick` — the thread that owns the disk writes — so it races
+  nothing, and skips clean images.
+- **feat(disk): the disk picker now lists sibling images from recent-disk
+  folders.** Both the boot-time and runtime insert pickers previously showed
+  only disks that were already in the recent-disks MRU (plus bundled demos), so
+  a freshly created or copied image sitting right next to a recent disk was
+  invisible until it had been mounted once via Browse. The pickers now also
+  enumerate every folder that contains a recent disk and offer all supported
+  images found there (`.dsk`/`.do`/`.po`/`.nib`/`.woz`), de-duplicated against
+  the MRU and excluding disks from other repo checkouts.
+  `DiskMru::DistinctFolders` computes the folder set (pure/unit-tested);
+  `AssetBootstrap::AppendSiblingDisksFromMruFolders` does the scan.
+
+### Changed
+- **The recent-disks prune is now scoped to the running *checkout*, not just
+  foreign worktrees (dev builds only).** `IsForeignWorktreeDisk` →
+  `IsForeignCheckoutDisk`: the shared `%LOCALAPPDATA%` MRU is populated by
+  every checkout of the repo on the machine (the main tree plus each
+  `.claude/worktrees/<name>` copy), so the picker now hides recent disks that
+  live in *any* checkout other than the one the running exe belongs to —
+  including the **main tree** when running from a worktree, which the old rule
+  let through. Disks outside the repo entirely (the user's own folders,
+  `%LOCALAPPDATA%`) always show, so this is invisible to installed users (no
+  worktrees). The classification moved to a pure, unit-tested `RepoCheckout.h`.
+
+### Notes
+- Confirmed the `.dsk` write-back round-trips a full reformat: `Denibblize`
+  scans for GCR address/data markers (byte-sync), so a standard DOS 3.3 format
+  survives regardless of gap/sync layout. The earlier "initialized data disk
+  still shows the old files" symptom was flush *timing*, now addressed by the
+  motor-idle auto-flush above.
+
+## [1.6.2] — Disk ][ write round-trip fix (GH #89)
+
+### Fixed
+- **fix(disk): writes to `.dsk` images now round-trip (GH #89).** DOS 3.3
+  `SAVE` returned `I/O ERROR` and Print Shop ground forever because the
+  Logic State Sequencer sampled the *sequencer state* bit (`state & 0x8`)
+  as the outgoing write-data line. On real hardware that bit tracks the
+  write shift-register MSB only because the P6 sequencer and the register
+  are clocked in lockstep by the 2 MHz Q3; a cycle-stepped emulator that
+  catches the LSS up in bursts at each soft-switch access cannot hold that
+  sub-clock lockstep, so the sampled bit desynced and deposited ~`AA`
+  garbage where `FF` sync belongs — corrupting every data field DOS wrote.
+  The write bit is now sourced straight from the shift-register MSB
+  (`Disk2NibbleEngine::StepLss`), the physically correct write-head signal,
+  which is robust to catch-up granularity. Address fields were never
+  rewritten by DOS so they survived, which is why reads (CATALOG) worked
+  while writes silently corrupted the disk.
+- Added hermetic write→read-back regression gates: an engine-level
+  `FF`-sync round trip, a CPU-driven known-nibble round trip through the
+  raw bitstream, and an end-to-end DOS 3.3 `SAVE`/`LOAD`/`LIST` round trip
+  — closing the bit-exact write-fidelity gap deferred in #67.
+
 ## [1.6.1] — Keyboard accelerator fixes
 
 Emulator keyboard shortcuts moved off plain `Ctrl+<letter>` so they stop
@@ -104,7 +570,7 @@ Direct3D swap chain directly.
   control.** Checkboxes, radio buttons, dropdowns, tooltips, sliders, and
   toggles all paint from the active theme, so the Skeuomorphic, Dark, and
   Retro Terminal presets apply consistently throughout the chrome, the
-  Settings window, and both debug panels (no more off-theme blue-grey
+  Settings window, and both debug panels (no more off-theme blue-gray
   controls in the green Retro Terminal preset).
 - **feat(settings): pressed-state feedback on the settings tabs.** A
   settings tab now darkens while the mouse button is held on it, matching
@@ -305,13 +771,14 @@ copy-protected WOZ image ([#68](https://github.com/relmer/Casso/issues/68)).
   left/right arrow keys plays as it did on real hardware.
 - **feat(input): Map Arrows to Joystick mode.** An optional input mode
   that drives the emulated game port from the host keyboard so joystick
-  games are playable without a physical controller: the arrow keys steer
-  paddle 0/1 (last-pressed-wins on opposing keys), and the **X** and
-  **Z** keys act as fire buttons 0 and 1 (Open-Apple `$C061` /
-  Closed-Apple `$C062`), coexisting with the host Alt keys. While the
-  mode is on, the arrow and X/Z keys are withheld from the //e keyboard
-  latch so they can't also type. Toggling the mode resolves axes and
-  buttons from the live key state and recenters/releases them on exit.
+  games are playable without a physical controller: the arrow keys are
+  mapped to paddle 0/1 (last-pressed-wins on opposing keys) and the **X**
+  and **Z** keys act as buttons 0/1 (the same Open-Apple `$C061` /
+  Closed-Apple `$C062` soft-switches the host Alt keys drive, so both
+  input sources coexist). While the mode is on, the arrow and X/Z keys
+  are not sent as standard keyboard input via the //e keyboard latch so
+  they can't also type. Toggling the mode resolves axes and buttons from
+  the live key state and recenters/releases them on exit.
   Three ways to flip it: **Machine → Map Arrows to Joystick**, the
   **Ctrl+J** accelerator, or a dedicated **Joystick Mode** toggle button
   in the bottom drive bar — a frameless press-to-pin button with a blue
@@ -451,7 +918,7 @@ Themed DX-based modal dialogs now replace every Win32 `MessageBoxW` /
 notification fallback in `Main.cpp`). The bootstrap-time prompts, the
 in-app Help/About/Keymap/Machine Info dialogs, and the SettingsPanel
 ROM-error notification all paint through the new `DialogPrimitive` and
-honour the active chrome theme. The `IFileOpenDialog`-based disk picker
+honor the active chrome theme. The `IFileOpenDialog`-based disk picker
 is preserved as the lone deliberate Win32 surface.
 
 ### Added
@@ -467,7 +934,7 @@ is preserved as the lone deliberate Win32 surface.
   `CreateSwapChainForHwnd` swap chain (DXGI_ALPHA_MODE_IGNORE, no DComp
   / no blur), RTV, `DxUiPainter` (geometry), and `DwriteTextRenderer`
   (text). Paints a gradient title bar, solid dialog background with
-  theme colours, icon circle (Info / Warning / Error / App), word-wrapped
+  theme colors, icon circle (Info / Warning / Error / App), word-wrapped
   body text, hyperlink underlines, optional custom-body callback, and
   `Button` widgets. DPI-aware: recomputes layout on WM_DPICHANGED.
 - **feat(011): DialogDefinition + DialogLayout primitives.** Pure value
@@ -477,7 +944,7 @@ is preserved as the lone deliberate Win32 surface.
   that spins up a transient `D3D11CreateDevice (HARDWARE)` + one-shot
   `DialogPrimitive` for callers that fire before `EmulatorShell` exists
   (e.g. `AssetBootstrap`'s missing-asset prompts). The caller passes
-  `GlobalUserPrefs::activeTheme` so startup dialogs honour the user's
+  `GlobalUserPrefs::activeTheme` so startup dialogs honor the user's
   persisted `ChromeTheme` choice (`Skeuomorphic` / `DarkModern` /
   `RetroTerminal`) instead of always painting Skeuomorphic.
 - **feat(011): themed startup prompts.** `AssetBootstrap::PromptUser`
@@ -574,7 +1041,7 @@ is preserved as the lone deliberate Win32 surface.
   copies the current selection to the clipboard as `CF_UNICODETEXT`
   (CR/LF between lines), or is a no-op when the selection is empty.
   Selection highlight paints under the text using the active theme's
-  nav-hover colour and tracks the viewport while dragging past the
+  nav-hover color and tracks the viewport while dragging past the
   body edges.
 - **feat(011): Disk2DebugPanel per-column sortable header (T055).**
   Clicking any ListView header now sorts by that column; clicking the
@@ -607,7 +1074,7 @@ is preserved as the lone deliberate Win32 surface.
 - **fix(011): SettingsPanel + dialog body share one themed background.**
   The settings popup hardcoded a dark-navy panel fill while the
   themed dialog body used `dropdownBgArgb`, so the two surfaces drew
-  visibly different colours when stacked. New `panelBgArgb` /
+  visibly different colors when stacked. New `panelBgArgb` /
   `panelEdgeArgb` entries on `ChromeTheme` are now consumed by both
   the settings popup and `DialogPrimitiveRenderer`, and pick up the
   active theme (Skeuomorphic / Dark / RetroTerminal) instead of the
@@ -641,7 +1108,7 @@ is preserved as the lone deliberate Win32 surface.
     the parent HWND so the user can park them behind Casso.
   - General-purpose `Button` widgets now use a dedicated themed
     palette (`buttonIdle/Hover/Pressed/BorderArgb`) instead of
-    inheriting the transparent chrome min/max/close colours, and
+    inheriting the transparent chrome min/max/close colors, and
     paint a default 1dip border so a button actually looks like a
     button. Chrome titlebar buttons are unaffected (they paint
     themselves).
@@ -659,7 +1126,7 @@ is preserved as the lone deliberate Win32 surface.
     truncating to whatever fits in the slot, and paints a vertical
     scrollbar at the right edge whenever the row count exceeds the
     visible capacity. Mouse-wheel / trackpad scrolling is wired
-    through `IChromedPanelContent::OnMouseWheel`. Sticky-tail behaviour
+    through `IChromedPanelContent::OnMouseWheel`. Sticky-tail behavior
     keeps the latest events in view when parked at the bottom; once the
     user scrolls back, new events accumulate without yanking the view.
   - **Disk II debug panel: keyboard focus + Tab navigation.** Tab /
@@ -715,7 +1182,7 @@ is preserved as the lone deliberate Win32 surface.
   - Disk II debug panel: the event-type and audio-event checkbox
     rows now have leading `Disk events:` / `Audio events:` labels
     (same width on both rows, so the checkbox columns line up
-    vertically). The audio master checkbox is relabelled `All`
+    vertically). The audio master checkbox is relabeled `All`
     (the row label carries the "audio" word now), and the four
     sub-checkboxes are now disabled when `All` is unchecked.
 
@@ -953,7 +1420,7 @@ software, and bumps Casso to **1.5**.
   - Three built-in themes — **Skeuomorphic**, **Dark Modern**, and
     **Retro Terminal** — hot-swappable from `Settings → Theme` with
     no restart and no machine reset. Each theme drives its own chrome
-    colour palette and CRT shader defaults; Dark Modern + Retro
+    color palette and CRT shader defaults; Dark Modern + Retro
     Terminal additionally request compact drive widgets so the bottom
     chrome strip shrinks dramatically, and the window auto-resizes by
     the inset delta on theme swap so the emulator pixel grid is
@@ -1137,7 +1604,7 @@ default. PNG masters and multi-resolution ICOs live in
   show / hide individual columns. Auto-tail scrolling while at the
   bottom; pause / resume / clear; Ctrl+C copies selected rows
   tab-separated in visible-column order. Machine reset clears the
-  view and re-zeroes Uptime. The menu item is greyed out on
+  view and re-zeroes Uptime. The menu item is grayed out on
   machines without a Disk II controller (FR-001a); when more than
   one Disk II controller is wired, the title becomes
   "Disk II Debug (controller #0 only)" (FR-017). The dialog
@@ -1151,7 +1618,7 @@ default. PNG masters and multi-resolution ICOs live in
   interfaces (controller side + audio side) the debug dialog
   implements simultaneously; the shell attaches and revokes both
   in the same lifecycle window. Sinks are nullptr-default and
-  controller behaviour with no sink attached is byte-identical to
+  controller behavior with no sink attached is byte-identical to
   pre-feature (SC-007, SC-010).
 - **`DiskIIEventRing`**: lock-free SPSC ring (4096 capacity)
   buffering producer-side events between the CPU thread and the
@@ -1169,10 +1636,10 @@ default. PNG masters and multi-resolution ICOs live in
 ### Changed
 - **Drive LED** now paints the red activity dot only when the
   drive bay actually holds a loaded disk. The controller's motor
-  stays commanded on across an eject (real-hardware behaviour),
+  stays commanded on across an eject (real-hardware behavior),
   but with no media to read the user expects the LED to go dark.
 - **`DiskIIAudioSource`** motor loop is gated on
-  `m_motorRunning && m_diskPresent`. Modelled after real Disk II
+  `m_motorRunning && m_diskPresent`. Modeled after real Disk II
   hardware: the motor spins regardless of media presence, but
   with no disk loaded there is no media noise to hear. Eject-
   while-motor-on emits `OnAudioLoopStopped` +
@@ -1420,7 +1887,7 @@ Users with an existing install:
   `HgrPreprocess.crop_and_fit` (HGR's 280×192 letterbox + title
   pipeline) before resizing to DHGR's 140×192 color resolution
   for quantization. On screen the two modes show the bird at
-  identical framing — only the colour treatment differs (HGR's
+  identical framing — only the color treatment differs (HGR's
   6-color per-byte classification vs DHGR's 16-color
   Floyd-Steinberg dither).
 
@@ -1447,7 +1914,7 @@ Users with an existing install:
 - **DHGR cassowary aspect ratio fixed.** The image was previously
   squashed horizontally because the source photo (880×1600
   portrait) was force-resized to 140×192 without aspect
-  correction. Now uses `ImageOps.fit` to centre-crop to the
+  correction. Now uses `ImageOps.fit` to center-crop to the
   display's 4:3 aspect first (560:384, what the renderer
   actually shows), then resamples to 140×192.
 
@@ -1643,8 +2110,8 @@ Users with an existing install:
 
 ### Changed (docs / source)
 - **Spelling: standardized on American English** in source, comments,
-  CHANGELOG, and stage-2 demo header. Replaced `colour` →
-  `color`, `artefact` → `artifact`, `behaviour` → `behavior`,
+  CHANGELOG, and stage-2 demo header. Replaced `color` →
+  `color`, `artefact` → `artifact`, `behavior` → `behavior`,
   `synthesise` → `synthesize` in newly authored content.
 
 ## [1.3.618] — 2026-05-14 — LoRes test pattern + ESC-to-BASIC exit
@@ -1692,7 +2159,7 @@ Users with an existing install:
   vice versa (anything in the //e's blue/orange palette pair came
   out swapped); LoRes and DHGR color indices 1 (Magenta), 2 (Dark
   Blue), 7 (Light Blue), 8 (Brown) all rendered as red shades.
-  Violet/Green and the greys happened to be R/B-symmetric and
+  Violet/Green and the grays happened to be R/B-symmetric and
   rendered correctly by accident, hiding the bug from any HGR
   content that didn't lean on the blue/orange pair.
   Constants are now stored in R8G8B8A8 byte layout (so the
@@ -2093,7 +2560,7 @@ Users with an existing install:
 The bulk of this entry completes Apple //e fidelity work begun in
 `[1.3.416]`. After this release the //e cold-boots to BASIC, runs Disk II
 images (`.dsk`/`.do`/`.po`/`.woz`), renders 80-column text and Double
-Hi-Res, honours auxiliary RAM and the Language Card state machine,
+Hi-Res, honors auxiliary RAM and the Language Card state machine,
 distinguishes soft reset from power cycle, and exposes a cycle-accurate
 IRQ/NMI infrastructure.
 
@@ -2199,11 +2666,11 @@ IRQ/NMI infrastructure.
   `RDHIRES & RD80VID & RDDHIRES`.
 - **Golden-hash framebuffer tests** that re-execute canonical software
   patterns and compare exact frame hashes; covers BASIC `]` prompt,
-  GR / HGR / HGR2 mode patterns, and 80-column DOS catalogues.
+  GR / HGR / HGR2 mode patterns, and 80-column DOS catalogs.
 
 ### Added (disk boot end-to-end — Phase 13)
 - 8 disk-boot integration scenarios: synthetic DOS 3.3 boot, mixed-mode
-  scroll, 80-column ProDOS catalogue, write-protect honoured, save +
+  scroll, 80-column ProDOS catalog, write-protect honored, save +
   reload round-trip, WOZ copy-protected sample boot, multi-sided image
   fallthrough, and motor-off head-park.
 

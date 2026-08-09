@@ -3,10 +3,13 @@
 #include "Pch.h"
 
 #include "../Chrome/CassoTheme.h"
+#include "../Chrome/ChromeMetrics.h"
 #include "../Chrome/DriveWidget.h"
 #include "../Chrome/JoystickToggleButton.h"
+#include "../IDriveCommandSink.h"
 #include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiLabel.h"
 
@@ -33,10 +36,11 @@ class ThemePage : public DxuiPropertyPage
 public:
     explicit ThemePage (std::wstring title = L"Theme");
 
-    using ThemeSelectFn      = std::function<void (const std::string & themeName)>;
-    using FramebufferSourceFn = std::function<const uint32_t * (int & outWidthPx, int & outHeightPx)>;
-    using MountedPathFn      = std::function<std::wstring (int driveIndex)>;
-    using HasDiskSourceFn    = std::function<bool ()>;
+    using  ThemeSelectFn       = std::function<void (const std::string & themeName)>;
+    using  FramebufferSourceFn = std::function<const uint32_t * (int & outWidthPx, int & outHeightPx)>;
+    using  MountedPathFn       = std::function<std::wstring (int driveIndex)>;
+    using  WriteProtectFn      = std::function<WriteProtectInfo (int driveIndex)>;
+    using  HasDiskSourceFn     = std::function<bool ()>;
 
     void  SetThemes             (std::vector<std::string>  themeIds,
                                  std::vector<std::wstring> displayNames,
@@ -44,6 +48,7 @@ public:
     void  SetOnThemeSelected    (ThemeSelectFn       fn) { m_onThemeSelected   = std::move (fn); }
     void  SetFramebufferSource  (FramebufferSourceFn fn) { m_framebufferSource = std::move (fn); }
     void  SetMountedPathSource  (MountedPathFn       fn) { m_mountedPathSource = std::move (fn); }
+    void  SetWriteProtectSource (WriteProtectFn      fn) { m_writeProtectSource = std::move (fn); }
 
     // Reports whether the staged machine config has an ENABLED Disk ][
     // controller. When it returns false the preview drops the drive widgets
@@ -57,6 +62,13 @@ public:
     // currently-selected theme without closing the dialog.
     using ApplyThemeNowFn = std::function<void ()>;
     void  SetOnApplyThemeNow    (ApplyThemeNowFn     fn) { m_onApplyThemeNow   = std::move (fn); }
+
+    // Skeuo desk-scene opt-in (CRT monitor framing). The checkbox applies
+    // live through the callback and is enabled only while a skeuomorphic
+    // (non-compact) theme is selected in the dropdown.
+    using MonitorFrameFn = std::function<void (bool enabled)>;
+    void  SetOnMonitorFrameToggled (MonitorFrameFn fn) { m_onMonitorFrameToggled = std::move (fn); }
+    void  SetMonitorFrameChecked   (bool checked)      { m_monitorFrameCheckbox.SetChecked (checked); }
 
     // The theme id the dropdown currently shows (may differ from the id
     // active at open once the user has changed the selection). Empty if
@@ -85,19 +97,70 @@ public:
     int                              ActiveThemeIndex () const { return m_activeIndex; }
 
 private:
+    // Row/preview geometry and the painting helpers that consume it. Every
+    // reader is a ThemePage method, so the block belongs to the class.
+    static constexpr int  kRowHeightDp     = 28;
+    static constexpr int  kLabelWidthDp    = 140;
+    static constexpr int  kDropdownWidthDp = 220;
+    static constexpr int  kPagePadDp       = 16;
+
+    static constexpr int  kPrevFbWidthDp       = ChromeMetrics::kFramebufferWidthPx;   // 560
+    static constexpr int  kPrevFbHeightDp      = ChromeMetrics::kFramebufferHeightPx;  // 384
+    static constexpr int  kPrevTitleBarDp      = 32;
+    static constexpr int  kPrevNavStripDp      = 32;
+    static constexpr int  kPrevDriveBarFullDp  = 225;
+    static constexpr int  kPrevDriveBarCmptDp  = 105;
+    static constexpr int  kPrevJoystickBandDp  = 43;
+    static constexpr int  kPrevSysButtonWDp    = 46;
+    static constexpr int  kPrevSysButtonGapDp  = 1;
+    static constexpr int  kPrevCaptionFontDp   = 14;
+    static constexpr int  kPrevNavFontDp       = 13;
+
+    static RECT      MakeRect (int l, int t, int w, int h);
+    static uint32_t  LerpArgb (uint32_t a, uint32_t b, float t);
+
+
+    // Computes the actual preview rect inside availRect that matches
+    // the 100%-zoom window's aspect ratio (which depends on the bottom
+    // inset -- full/compact drive bar when a controller is present, or the
+    // thin joystick band alone when it isn't). Returns the scale factor used
+    // so the caller can size sub-regions consistently.
+    static void  ComputePreviewGeometry (const RECT  & availRect,
+                                         int           driveBandDp,
+                                         RECT        & outPrevRect,
+                                         float       & outScale);
+
+    static void  PaintPreviewWindow (DxuiPainter                          & painter,
+                                     DxuiTextRenderer                     & text,
+                                     const RECT                           & availRect,
+                                     const CassoTheme                     & theme,
+                                     bool                                   hasDisk,
+                                     const std::function<const uint32_t * (int &, int &)> & framebufferSource,
+                                     const std::function<std::wstring (int)>              & mountedPathSource,
+                                     const std::function<WriteProtectInfo (int)>          & writeProtectSource,
+                                     std::array<DriveWidget, 2>           & previewDrives,
+                                     JoystickToggleButton                 & previewButton);
+
     std::vector<std::string>      m_themeIds;
     int                           m_activeIndex = -1;
+    // Enables the desk-scene checkbox only while the selected theme is
+    // skeuomorphic (compact themes never draw the monitor).
+    void  UpdateMonitorCheckboxEnabled ();
+
     ThemeSelectFn                 m_onThemeSelected;
     FramebufferSourceFn           m_framebufferSource;
     MountedPathFn                 m_mountedPathSource;
+    WriteProtectFn                m_writeProtectSource;
     HasDiskSourceFn               m_hasDiskSource;
     ApplyThemeNowFn               m_onApplyThemeNow;
+    MonitorFrameFn                m_onMonitorFrameToggled;
 
-    DxuiLabel                         m_themeLabel;
-    DxuiDropdown                      m_themeDropdown;
-    DxuiButton                        m_applyNowButton;
-    RECT                          m_previewRect = {};
-    DxuiDpiScaler                     m_scaler;
+    DxuiLabel      m_themeLabel;
+    DxuiDropdown   m_themeDropdown;
+    DxuiButton     m_applyNowButton;
+    DxuiCheckbox   m_monitorFrameCheckbox;
+    RECT           m_previewRect          = {};
+    DxuiDpiScaler  m_scaler;
 
     // Preview-only DriveWidget instances rendered with the staged
     // theme inside the mock window. Mutable because Paint is const

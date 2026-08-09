@@ -11,7 +11,6 @@ class DxuiPopupHost;
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiTooltip
@@ -66,6 +65,11 @@ public:
     void  HideImmediate   ();
 
     bool                 IsVisible () const { return m_visible; }
+
+    // True while a dwell timer (deferred open or timed close) is still
+    // pending, so a host that idle-blocks knows to keep calling Tick on a
+    // timeout rather than sleeping until the next input/frame.
+    bool                 WantsTick () const { return m_pending || (m_visible && m_hideAtMs != 0); }
     const std::wstring & Text      () const { return m_text;    }
     const RECT         & Anchor    () const { return m_anchor;  }
 
@@ -103,22 +107,22 @@ private:
     void  RenderPopup        (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
     DxuiDpiScaler     m_scaler;
-    RECT          m_anchor       = {};
-    std::wstring  m_text;
-    std::wstring  m_pendingText;
-    RECT          m_pendingAnchor = {};
-    int64_t       m_showAtMs     = 0;
-    int64_t       m_hideAtMs     = 0;
-    int           m_dwellOpenMs  = 500;
-    int           m_dwellCloseMs = 100;
-    float         m_fontDip      = 12.0f;
-    uint32_t      m_bgArgb       = 0xFF2D2D2D;
-    uint32_t      m_borderArgb   = 0xFF606060;
-    uint32_t      m_textArgb     = 0xFFE8EEF4;
-    int           m_viewportWPx  = 0;
-    int           m_viewportHPx  = 0;
-    bool          m_visible      = false;
-    bool          m_pending      = false;
-    DxuiHwndSource  *  m_popupHost     = nullptr;
-    DxuiPopupHost   *  m_activePopup   = nullptr;
+    RECT              m_anchor        = {};
+    std::wstring      m_text;
+    std::wstring      m_pendingText;
+    RECT              m_pendingAnchor = {};
+    int64_t           m_showAtMs      = 0;
+    int64_t           m_hideAtMs      = 0;
+    int               m_dwellOpenMs   = 500;
+    int               m_dwellCloseMs  = 100;
+    float             m_fontDip       = 12.0f;
+    uint32_t          m_bgArgb        = 0xFF2D2D2D;
+    uint32_t          m_borderArgb    = 0xFF606060;
+    uint32_t          m_textArgb      = 0xFFE8EEF4;
+    int               m_viewportWPx   = 0;
+    int               m_viewportHPx   = 0;
+    bool              m_visible       = false;
+    bool              m_pending       = false;
+    DxuiHwndSource  * m_popupHost     = nullptr;
+    DxuiPopupHost   * m_activePopup   = nullptr;
 };

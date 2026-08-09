@@ -5,6 +5,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiDragDropTarget
@@ -14,6 +15,7 @@
 DxuiDragDropTarget::DxuiDragDropTarget()
 {
 }
+
 
 
 
@@ -28,6 +30,7 @@ DxuiDragDropTarget::~DxuiDragDropTarget()
 {
     Shutdown();
 }
+
 
 
 
@@ -60,6 +63,7 @@ HRESULT DxuiDragDropTarget::Initialize (HWND hwnd, HitTestFn hitTest)
 Error:
     return hr;
 }
+
 
 
 
@@ -98,6 +102,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AttachAdditionalWindow
@@ -132,6 +137,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RevokeAllRegistrations
@@ -145,17 +151,18 @@ void DxuiDragDropTarget::RevokeAllRegistrations()
 
 
 
-    for (i = 0; i < m_registeredHwnds.size(); i++)
+    for (auto & registeredHwnd : m_registeredHwnds)
     {
-        if (m_registeredHwnds[i] != nullptr)
+        if (registeredHwnd != nullptr)
         {
-            hr = RevokeDragDrop (m_registeredHwnds[i]);
+            hr = RevokeDragDrop (registeredHwnd);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }
 
     m_registeredHwnds.clear();
 }
+
 
 
 
@@ -184,6 +191,7 @@ void DxuiDragDropTarget::Shutdown()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  IUnknown
@@ -192,28 +200,48 @@ void DxuiDragDropTarget::Shutdown()
 
 STDMETHODIMP DxuiDragDropTarget::QueryInterface (REFIID riid, void ** ppv)
 {
-    if (ppv == nullptr)
-    {
-        return E_POINTER;
-    }
+    HRESULT  hr           = S_OK;
+    bool     isSupported  = false;
 
-    if (riid == IID_IUnknown || riid == IID_IDropTarget)
-    {
-        *ppv = static_cast<IDropTarget *> (this);
-        AddRef();
-        return S_OK;
-    }
 
-    *ppv = nullptr;
-    return E_NOINTERFACE;
+
+    CBREx (ppv != nullptr, E_POINTER);
+
+    isSupported = (riid == IID_IUnknown || riid == IID_IDropTarget);
+    *ppv        = isSupported ? static_cast<IDropTarget *> (this) : nullptr;
+
+    CBREx (isSupported, E_NOINTERFACE);
+
+    AddRef();
+
+Error:
+    return hr;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  STDMETHODIMP_
+//
+////////////////////////////////////////////////////////////////////////////////
 
 STDMETHODIMP_(ULONG) DxuiDragDropTarget::AddRef()
 {
     return m_refCount.fetch_add (1, std::memory_order_acq_rel) + 1;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  STDMETHODIMP_
+//
+////////////////////////////////////////////////////////////////////////////////
 
 STDMETHODIMP_(ULONG) DxuiDragDropTarget::Release()
 {
@@ -227,66 +255,59 @@ STDMETHODIMP_(ULONG) DxuiDragDropTarget::Release()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExtractFirstHDropPath
+//
+//  Pulls the first file path out of a CF_HDROP data object. outPath is
+//  cleared up front and only assigned on success, so a caller that ignores
+//  the HRESULT still sees an empty string on every failure path.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiDragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wstring & outPath)
 {
-    HRESULT   hr         = S_OK;
-    FORMATETC fmt        = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-    STGMEDIUM medium     = { };
-    HDROP     hDrop      = nullptr;
-    UINT      cFiles     = 0;
-    bool      fLocked    = false;
-    bool      fGotMedium = false;
-    wchar_t   buffer[MAX_PATH] = { };
+    HRESULT    hr               = S_OK;
+    FORMATETC  fmt              = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM  medium           = { };
+    HDROP      hDrop            = nullptr;
+    UINT       cFiles           = 0;
+    UINT       cchCopied        = 0;
+    bool       fLocked          = false;
+    bool       fGotMedium       = false;
+    wchar_t    buffer[MAX_PATH] = { };
 
 
 
     outPath.clear();
 
-    if (pData == nullptr)
-    {
-        hr = S_FALSE;
-        goto Cleanup;
-    }
+    // A null data object from OLE is a caller bug, not a drag without files.
+    CBRAEx (pData != nullptr, E_INVALIDARG);
 
+    // Not a CF_HDROP drag (text, a URL, anything else) -- an expected miss,
+    // so this does not assert.
     hr = pData->GetData (&fmt, &medium);
-    if (FAILED (hr))
-    {
-        hr = S_FALSE;
-        goto Cleanup;
-    }
+    CHR (hr);
 
     fGotMedium = true;
-    hDrop      = static_cast<HDROP> (GlobalLock (medium.hGlobal));
-    if (hDrop == nullptr)
-    {
-        hr = S_FALSE;
-        goto Cleanup;
-    }
+
+    // GlobalLock documents GetLastError, so CWRA keeps the real code rather
+    // than flattening it.
+    hDrop = static_cast<HDROP> (GlobalLock (medium.hGlobal));
+    CWRA (hDrop);
 
     fLocked = true;
-    cFiles  = DragQueryFileW (hDrop, 0xFFFFFFFF, nullptr, 0);
-    if (cFiles == 0)
-    {
-        hr = S_FALSE;
-        goto Cleanup;
-    }
 
-    if (DragQueryFileW (hDrop, 0, buffer, MAX_PATH) == 0)
-    {
-        hr = S_FALSE;
-        goto Cleanup;
-    }
+    cFiles = DragQueryFileW (hDrop, 0xFFFFFFFF, nullptr, 0);
+    CBR (cFiles != 0);
+
+    cchCopied = DragQueryFileW (hDrop, 0, buffer, MAX_PATH);
+    CBR (cchCopied != 0);
 
     outPath = buffer;
-    hr      = S_OK;
 
-Cleanup:
+Error:
     if (fLocked)
     {
         GlobalUnlock (medium.hGlobal);
@@ -299,6 +320,7 @@ Cleanup:
 
     return hr;
 }
+
 
 
 
@@ -316,7 +338,7 @@ STDMETHODIMP DxuiDragDropTarget::DragEnter (
     DWORD       * pdwEffect)
 {
     std::wstring  path;
-    HRESULT       hr = S_OK;
+    HRESULT       hrExtract = S_OK;
 
 
 
@@ -324,8 +346,10 @@ STDMETHODIMP DxuiDragDropTarget::DragEnter (
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
 
-    hr = ExtractFirstHDropPath (pData, path);
-    if (hr == S_OK && (!m_filter || m_filter (path)))
+    // A drag carrying something other than files is routine, so a failed
+    // extract is not propagated -- it just means there is nothing to accept.
+    hrExtract = ExtractFirstHDropPath (pData, path);
+    if (SUCCEEDED (hrExtract) && (!m_filter || m_filter (path)))
     {
         m_fDragHasSupportedFile = true;
         m_dragPath              = path;
@@ -333,6 +357,7 @@ STDMETHODIMP DxuiDragDropTarget::DragEnter (
 
     return DragOver (0, pt, pdwEffect);
 }
+
 
 
 
@@ -348,20 +373,21 @@ STDMETHODIMP DxuiDragDropTarget::DragOver (
     POINTL    pt,
     DWORD   * pdwEffect)
 {
-    int  tag = -1;
+    HRESULT  hr  = S_OK;
+    int      tag = -1;
 
 
 
-    if (pdwEffect == nullptr)
-    {
-        return E_POINTER;
-    }
+    CBREx (pdwEffect != nullptr, E_POINTER);
 
-    tag = PickAtScreen (pt);
+    tag          = PickAtScreen (pt);
     m_lastHitTag = tag;
     *pdwEffect   = (m_fDragHasSupportedFile && tag >= 0) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
-    return S_OK;
+
+Error:
+    return hr;
 }
+
 
 
 
@@ -380,6 +406,7 @@ STDMETHODIMP DxuiDragDropTarget::DragLeave()
     m_lastHitTag            = -1;
     return S_OK;
 }
+
 
 
 
@@ -422,6 +449,7 @@ STDMETHODIMP DxuiDragDropTarget::Drop (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PickAtClient
@@ -434,13 +462,11 @@ int DxuiDragDropTarget::PickAtClient (const DxuiHitTester & hitTester, int xClie
 
 
 
-    if (hit == nullptr || hit->slot != DxuiHitSlot::Custom)
-    {
-        return -1;
-    }
-
-    return hit->tag;
+    // -1 means "no drop target here". Only Custom-slot rects carry a
+    // drop-target tag; chrome rects (caption, buttons) are not drop targets.
+    return (hit != nullptr && hit->slot == DxuiHitSlot::Custom) ? hit->tag : -1;
 }
+
 
 
 
@@ -448,6 +474,20 @@ int DxuiDragDropTarget::PickAtClient (const DxuiHitTester & hitTester, int xClie
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PickAtScreen
+//
+//  Resolves a screen point to a drop-target tag, or -1 for "not a target".
+//
+//  TWO target models are supported and the hit-tester WINS when both are
+//  installed, because it answers a strictly better question: which REGION was
+//  hit -- which drive widget -- while the legacy callback only reports whether
+//  the window as a whole accepts the drop, and so can only ever return tag 0.
+//
+//  OLE delivers screen coordinates, so the hit-tester path converts to client
+//  space first; the legacy callback takes screen coordinates directly, which
+//  is why only one of the two arms converts.
+//
+//  A failed conversion falls through to -1 rather than hit-testing garbage
+//  coordinates, so a drop over a window being torn down is simply refused.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -458,21 +498,20 @@ int DxuiDragDropTarget::PickAtScreen (POINTL pt) const
 
 
 
+    // Two target models, and the hit-tester wins when both are installed: it
+    // reports WHICH region was hit, while the legacy callback only reports
+    // whether the window as a whole accepts the drop (tag 0).
     if (m_hitTester != nullptr && m_hwnd != nullptr)
     {
-        if (!ScreenToClient (m_hwnd, &client))
+        if (ScreenToClient (m_hwnd, &client))
         {
-            return -1;
+            tag = PickAtClient (*m_hitTester, client.x, client.y);
         }
-
-        tag = PickAtClient (*m_hitTester, client.x, client.y);
-        return tag;
     }
-
-    if (m_hitTest)
+    else if (m_hitTest)
     {
-        return m_hitTest (pt.x, pt.y) ? 0 : -1;
+        tag = m_hitTest (pt.x, pt.y) ? 0 : -1;
     }
 
-    return -1;
+    return tag;
 }

@@ -1,20 +1,17 @@
 #pragma once
 
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiHitTester
 //
-//  Pure-logic rect tree the native UI runtime consults for both client
-//  input (mouse / drag-drop) and `WM_NCHITTEST` classification. Widgets
-//  register a rect plus a typed slot; the tester walks the registration
-//  list in reverse-insert order so later (z-on-top) registrations win
-//  ties.
-//
-//  The NC path adds a DPI-scaled resize-edge inset around the outer
-//  client rect and maps the eight resize codes plus min/max/close/
-//  caption/client. The caller (Window.cpp) passes screen-space
-//  coordinates and the same outer client rect; the helper does the
-//  screen → client conversion before dispatch.
+//  Pure-logic rect tree the native UI runtime consults for client
+//  input (mouse / drag-drop). Widgets register a rect plus a typed slot;
+//  the tester walks the registration list in reverse-insert order so
+//  later (z-on-top) registrations win ties.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,19 +35,6 @@ struct DxuiHitRect
 };
 
 
-struct DxuiNcHitTestInput
-{
-    RECT  windowRectScreen = {};
-    int   mouseXScreen     = 0;
-    int   mouseYScreen     = 0;
-    int   resizeBorderPx   = 0;
-    RECT  captionRect      = {};
-    RECT  minButtonRect    = {};
-    RECT  maxButtonRect    = {};
-    RECT  closeButtonRect  = {};
-};
-
-
 class DxuiHitTester
 {
 public:
@@ -62,8 +46,8 @@ public:
     const DxuiHitRect               * Pick          (int xClient, int yClient) const;
     const std::vector<DxuiHitRect>  & Registrations() const { return m_rects; }
 
-    static LRESULT                    ClassifyNcHit (const DxuiNcHitTestInput & in);
-
 private:
+    static bool  RectContains (const RECT & r, int x, int y);
+
     std::vector<DxuiHitRect>  m_rects;
 };

@@ -8,7 +8,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiLabel
@@ -114,30 +113,31 @@ private:
 
         UNREFERENCED_PARAMETER (painter);
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (m_text.c_str(),
-                                                  (float) m_boundsDip.left,
-                                                  (float) m_boundsDip.top,
-                                                  (float) (m_boundsDip.right  - m_boundsDip.left),
-                                                  (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                                  argb,
-                                                  m_scaler.Pxf (fontDip),
-                                                  m_fontFace.c_str(),
-                                                  m_hAlign,
-                                                  m_vAlign,
-                                                  m_weight));
+        hr = text.DrawString (m_text.c_str(),
+                              (float) m_boundsDip.left,
+                              (float) m_boundsDip.top,
+                              (float) (m_boundsDip.right  - m_boundsDip.left),
+                              (float) (m_boundsDip.bottom - m_boundsDip.top),
+                              argb,
+                              m_scaler.Pxf (fontDip),
+                              m_fontFace.c_str(),
+                              m_hAlign,
+                              m_vAlign,
+                              m_weight);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
 
     static constexpr float  s_kFallbackFontDip = 13.0f;
 
-    std::wstring                  m_text;
-    std::wstring                  m_fontFace = DxuiTheme::kBodyFace;
-    uint32_t                      m_argb     = 0xFFFFFFFF;
-    float                         m_fontDip  = s_kFallbackFontDip;
-    DxuiTextHAlign    m_hAlign   = DxuiTextHAlign::Left;
-    DxuiTextVAlign    m_vAlign   = DxuiTextVAlign::Center;
-    DxuiFontWeight                m_weight   = DxuiFontWeight::Normal;
-    DxuiTextRole                  m_role     = DxuiTextRole::Body;
-    bool                          m_useThemeRole = false;
-    DxuiDpiScaler                     m_scaler;
+    std::wstring    m_text;
+    std::wstring    m_fontFace     = DxuiTheme::kBodyFace;
+    uint32_t        m_argb         = 0xFFFFFFFF;
+    float           m_fontDip      = s_kFallbackFontDip;
+    DxuiTextHAlign  m_hAlign       = DxuiTextHAlign::Left;
+    DxuiTextVAlign  m_vAlign       = DxuiTextVAlign::Center;
+    DxuiFontWeight  m_weight       = DxuiFontWeight::Normal;
+    DxuiTextRole    m_role         = DxuiTextRole::Body;
+    bool            m_useThemeRole = false;
+    DxuiDpiScaler   m_scaler;
 };

@@ -30,8 +30,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+
+TEST_CLASS (DiskReadbackTests)
 {
+public:
+
     static constexpr int        kSlot6               = 6;
     static constexpr int        kDrive1              = 0;
     static constexpr int        kSectorBytes         = 256;
@@ -106,12 +113,15 @@ namespace
     }
 
 
-    vector<Byte> BuildSentinelDisk ()
+    vector<Byte> BuildSentinelDisk()
     {
-        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
         int            track  = 0;
         int            sector = 0;
         int            i      = 0;
+
+
+
+        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
 
         for (track = 0; track < kTrackCount; track++)
         {
@@ -138,14 +148,14 @@ namespace
         DiskImage *  external  = nullptr;
 
         hr = host.BuildApple2eWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2");
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2");
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
                                              "readback.dsk",
                                              DiskFormat::Dsk, raw);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes");
+        AssertSucceeded (hr, L"MountFromBytes");
 
         external = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"GetImage");
@@ -184,11 +194,11 @@ namespace
     // previous" sequence.
     void SeekToTrack (EmulatorCore & core, int targetTrack)
     {
-        int currentTrack = core.diskController->GetCurrentTrack ();
+        int currentTrack = core.diskController->GetCurrentTrack();
 
         while (currentTrack != targetTrack)
         {
-            int currentQt   = core.diskController->GetQuarterTrack ();
+            int currentQt   = core.diskController->GetQuarterTrack();
             int targetQt    = targetTrack * 4;
             int direction   = (targetQt > currentQt) ? +1 : -1;
 
@@ -204,7 +214,7 @@ namespace
             // the next pulse.
             core.diskController->Tick (16);
 
-            currentTrack = core.diskController->GetCurrentTrack ();
+            currentTrack = core.diskController->GetCurrentTrack();
 
             // Safety: don't loop forever.
             if (currentTrack == targetTrack) break;
@@ -215,6 +225,7 @@ namespace
         {
             core.bus->ReadByte (static_cast<Word> (kSlotIoBase + 0x0 + p * 2));
         }
+
         core.diskController->Tick (16);
     }
 
@@ -225,9 +236,9 @@ namespace
     // a fresh nibble rather than the same captured value again.
     Byte ReadNextNibble (EmulatorCore & core, uint64_t & ticksOut)
     {
-        Byte    latch = 0;
-        const uint64_t budget = 500'000ULL;
-        uint64_t i      = 0;
+        Byte            latch  = 0;
+        const uint64_t  budget = 500'000ULL;
+        uint64_t        i      = 0;
 
         for (i = 0; i < budget; i += kTicksPerLatchPoll)
         {
@@ -258,7 +269,7 @@ namespace
     }
 
 
-    static const Byte sg_kWriteTranslate[64] =
+    static inline const Byte sg_kWriteTranslate[64] =
     {
         0x96,0x97,0x9A,0x9B,0x9D,0x9E,0x9F,0xA6,
         0xA7,0xAB,0xAC,0xAD,0xAE,0xAF,0xB2,0xB3,
@@ -271,81 +282,115 @@ namespace
     };
 
 
+    // 0xFF means "not a valid 6-and-2 nibble" -- it is outside the 0..63 range
+    // every real entry decodes to, so it cannot collide with a hit.
     Byte InverseTranslate (Byte nib)
     {
-        for (int i = 0; i < 64; i++)
+        Byte  decoded = 0xFF;
+        int   i       = 0;
+
+        for (i = 0; decoded == 0xFF && i < 64; i++)
         {
-            if (sg_kWriteTranslate[i] == nib) return static_cast<Byte> (i);
+            if (sg_kWriteTranslate[i] == nib)
+            {
+                decoded = static_cast<Byte> (i);
+            }
         }
-        return 0xFF;
+
+        return decoded;
     }
 
 
     // Spin the bus reading the latch until we find an address-field
     // matching the requested logical sector on the current track.
-    // Returns true on success; the caller can then call
-    // ReadDataFieldAtCursor to harvest the 256 decoded bytes.
-    bool FindAddressField (EmulatorCore & core, int wantTrack, int wantSector,
-                           int & outVolume)
+    // On success the caller can then call ReadDataFieldAtCursor to
+    // harvest the 256 decoded bytes.
+    HRESULT FindAddressField (EmulatorCore & core, int wantTrack, int wantSector,
+                              int & outVolume)
     {
-        Byte    n0    = 0, n1 = 0, n2 = 0;
-        uint64_t spent = 0;
+        HRESULT   hr    = S_OK;
+        Byte      n0    = 0, n1 = 0, n2 = 0;
+        uint64_t  spent = 0;
         // Bound: ~3 disk revolutions worth of cycles.
-        const uint64_t kMaxSpent = 1'500'000ULL;
+        const uint64_t  kMaxSpent = 1'500'000ULL;
+        bool            found     = false;
+        bool            spinning  = true;
 
-        while (spent < kMaxSpent)
+        while (spinning && !found && spent < kMaxSpent)
         {
             n0 = ReadNextNibble (core, spent);
-            if (n0 == 0) return false;        // hit the per-nibble timeout
-            if (n0 != kAddrProlog0) continue;
 
-            n1 = ReadNextNibble (core, spent);
-            if (n1 != kAddrProlog1) continue;
-
-            n2 = ReadNextNibble (core, spent);
-            if (n2 != kAddrProlog2) continue;
-
-            Byte vOdd  = ReadNextNibble (core, spent);
-            Byte vEven = ReadNextNibble (core, spent);
-            Byte tOdd  = ReadNextNibble (core, spent);
-            Byte tEven = ReadNextNibble (core, spent);
-            Byte sOdd  = ReadNextNibble (core, spent);
-            Byte sEven = ReadNextNibble (core, spent);
-
-            int  vol  = Decode44 (vOdd, vEven);
-            int  trk  = Decode44 (tOdd, tEven);
-            int  sec  = Decode44 (sOdd, sEven);
-
-            if (trk == wantTrack && sec == wantSector)
+            // A zero nibble is the per-nibble timeout, not data -- the head is
+            // not producing bytes, so no amount of further spinning helps.
+            if (n0 == 0)
             {
-                outVolume = vol;
-                // skip the checksum nibble pair + epilogue (3 nibbles)
-                ReadNextNibble (core, spent);
-                ReadNextNibble (core, spent);
-                ReadNextNibble (core, spent);
-                ReadNextNibble (core, spent);
-                ReadNextNibble (core, spent);
-                return true;
+                spinning = false;
+            }
+            else if (n0 == kAddrProlog0)
+            {
+                n1 = ReadNextNibble (core, spent);
+                n2 = (n1 == kAddrProlog1) ? ReadNextNibble (core, spent) : Byte (0);
+
+                // Anything but the full D5 AA 96 prologue means this was not an
+                // address field; fall back to the outer spin, which resyncs on
+                // the next nibble rather than the next field.
+                if (n1 == kAddrProlog1 && n2 == kAddrProlog2)
+                {
+                    Byte vOdd  = ReadNextNibble (core, spent);
+                    Byte vEven = ReadNextNibble (core, spent);
+                    Byte tOdd  = ReadNextNibble (core, spent);
+                    Byte tEven = ReadNextNibble (core, spent);
+                    Byte sOdd  = ReadNextNibble (core, spent);
+                    Byte sEven = ReadNextNibble (core, spent);
+
+                    int  vol  = Decode44 (vOdd, vEven);
+                    int  trk  = Decode44 (tOdd, tEven);
+                    int  sec  = Decode44 (sOdd, sEven);
+
+                    if (trk == wantTrack && sec == wantSector)
+                    {
+                        outVolume = vol;
+                        found     = true;
+
+                        // skip the checksum nibble pair + epilogue (3 nibbles)
+                        ReadNextNibble (core, spent);
+                        ReadNextNibble (core, spent);
+                        ReadNextNibble (core, spent);
+                        ReadNextNibble (core, spent);
+                        ReadNextNibble (core, spent);
+                    }
+                }
             }
         }
 
-        return false;
+        CBR (found);
+
+    Error:
+        return hr;
     }
 
 
     // After FindAddressField succeeds, spin until the data prologue
     // (D5 AA AD) appears, then decode the 343 nibbles and unpack
     // back into 256 bytes per the standard 6-and-2 inverse.
-    bool ReadDataFieldAtCursor (EmulatorCore & core, vector<Byte> & outData)
+    HRESULT ReadDataFieldAtCursor (EmulatorCore & core, vector<Byte> & outData)
     {
-        Byte n0 = 0, n1 = 0, n2 = 0;
-        uint64_t spent = 0;
-        const uint64_t kMaxSpent = 500'000ULL;
+        HRESULT         hr        = S_OK;
+        Byte            n0        = 0, n1 = 0, n2 = 0;
+        uint64_t        spent     = 0;
+        const uint64_t  kMaxSpent = 500'000ULL;
+        // 342 raw + 1 checksum
+        Byte  encoded[342] = {};
+        Byte  prev         = 0;
+        Byte  chkNib       = 0;
+        Byte  chk          = 0;
 
         while (spent < kMaxSpent)
         {
             n0 = ReadNextNibble (core, spent);
-            if (n0 == 0) return false;
+            // A zero nibble is the per-nibble timeout: the head is not
+            // producing bytes, so no amount of further spinning helps.
+            CBR (n0 != 0);
             if (n0 != kAddrProlog0) continue;
             n1 = ReadNextNibble (core, spent);
             if (n1 != kAddrProlog1) continue;
@@ -353,11 +398,7 @@ namespace
             if (n2 == kDataProlog2) break;
         }
 
-        if (spent >= kMaxSpent) return false;
-
-        // 342 raw + 1 checksum
-        Byte encoded[342] = {};
-        Byte prev = 0;
+        CBR (spent < kMaxSpent);
 
         for (int i = 0; i < 342; i++)
         {
@@ -368,9 +409,9 @@ namespace
         }
 
         // Verify checksum
-        Byte chkNib = ReadNextNibble (core, spent);
-        Byte chk    = static_cast<Byte> (InverseTranslate (chkNib) ^ prev);
-        if (chk != 0) return false;
+        chkNib = ReadNextNibble (core, spent);
+        chk    = static_cast<Byte> (InverseTranslate (chkNib) ^ prev);
+        CBR (chk == 0);
 
         // Unpack: bytes 86..341 carry high 6 bits; bytes 0..85 each
         // carry 2 low bits for three source bytes.
@@ -379,27 +420,22 @@ namespace
         for (int i = 0; i < kSectorBytes; i++)
         {
             int  idx, shift;
+            Byte  high = 0;
+            Byte  b0 = 0;
+            Byte  b1 = 0;
             if (i < 86)        { idx = i;           shift = 0; }
             else if (i < 172)  { idx = i - 86;      shift = 2; }
             else               { idx = i - 172;     shift = 4; }
 
-            Byte high = static_cast<Byte> (encoded[86 + i] << 2);
-            Byte b0   = static_cast<Byte> ((encoded[idx] >> (shift + 1)) & 1);
-            Byte b1   = static_cast<Byte> ((encoded[idx] >> (shift + 0)) & 1);
+            high = static_cast<Byte> (encoded[86 + i] << 2);
+            b0 = static_cast<Byte> ((encoded[idx] >> (shift + 1)) & 1);
+            b1 = static_cast<Byte> ((encoded[idx] >> (shift + 0)) & 1);
             outData[i] = static_cast<Byte> (high | (b0 << 0) | (b1 << 1));
         }
 
-        return true;
+    Error:
+        return hr;
     }
-}
-
-
-
-
-
-TEST_CLASS (DiskReadbackTests)
-{
-public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -417,25 +453,27 @@ public:
 
     TEST_METHOD (DumpFirstNibblesOnTrack0)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        vector<Byte>   raw = BuildSentinelDisk ();
+        HeadlessHost    host;
+        EmulatorCore    core;
+        vector<Byte>    raw            = BuildSentinelDisk();
+        DWORD           pl             = 0;
+        FILE          * fp             = nullptr;
+        uint64_t        spent          = 0;
+        int             validCount     = 0;
+        char            path[MAX_PATH] = {};
+        wchar_t         msg[128]       = {};
 
         MountAndSpinUp (host, core, raw);
 
         // Dump the first 64 nibbles to %TEMP%\readback-trace.log so we
         // can see what the engine actually presents to the bus.
-        char  path[260] = {};
-        DWORD pl = GetTempPathA (260, path);
-        FILE * fp = nullptr;
-        if (pl > 0 && pl < 260 - 32)
+        pl = GetTempPathA (MAX_PATH, path);
+        if (pl > 0 && pl < MAX_PATH - 32)
         {
             strcat_s (path, "readback-trace.log");
             (void) fopen_s (&fp, path, "w");
         }
 
-        uint64_t spent = 0;
-        int      validCount = 0;
         for (int i = 0; i < 64; i++)
         {
             Byte n = ReadNextNibble (core, spent);
@@ -444,12 +482,12 @@ public:
                 fprintf (fp, "[%2d] %02X (after %llu ticks)\n",
                          i, n, (unsigned long long) spent);
             }
+
             if (n != 0) validCount++;
         }
 
         if (fp != nullptr) fclose (fp);
 
-        wchar_t msg[128] = {};
         swprintf_s (msg, L"Got %d/64 valid nibbles (see readback-trace.log)",
                     validCount);
         Assert::IsTrue (validCount > 32, msg);
@@ -458,22 +496,25 @@ public:
 
     TEST_METHOD (ReadAllSectorsOnTrack0_FromSentinelDsk)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        vector<Byte>   raw = BuildSentinelDisk ();
+        HeadlessHost  host;
+        EmulatorCore  core;
+        vector<Byte>  raw          = BuildSentinelDisk();
+        wstring       failures;
+        int           successCount = 0;
+        int           trk          = 0;
 
         MountAndSpinUp (host, core, raw);
 
-        wstring  failures;
-        int      successCount = 0;
-        int      trk          = 0;
 
         for (int sec = 0; sec < kSectorsPerTrack; sec++)
         {
-            int           volume = 0;
+            int           volume   = 0;
             vector<Byte>  decoded;
+            HRESULT       hrField  = FindAddressField (core, trk, sec, volume);
+            HRESULT       hrData   = S_OK;
+            Byte          expected = 0;
 
-            if (!FindAddressField (core, trk, sec, volume))
+            if (FAILED (hrField))
             {
                 wchar_t msg[128] = {};
                 swprintf_s (msg, L"T%dS%d address-field not found. ", trk, sec);
@@ -481,7 +522,9 @@ public:
                 continue;
             }
 
-            if (!ReadDataFieldAtCursor (core, decoded))
+            hrData = ReadDataFieldAtCursor (core, decoded);
+
+            if (FAILED (hrData))
             {
                 wchar_t msg[128] = {};
                 swprintf_s (msg, L"T%dS%d data-field decode failed. ", trk, sec);
@@ -489,7 +532,7 @@ public:
                 continue;
             }
 
-            Byte expected = ExpectedSectorByte (trk, sec, 0);
+            expected = ExpectedSectorByte (trk, sec, 0);
             if (decoded[0] != expected)
             {
                 wchar_t msg[128] = {};
@@ -502,14 +545,15 @@ public:
             successCount++;
         }
 
-        if (!failures.empty ())
+        if (!failures.empty())
         {
             wchar_t  banner[128] = {};
+            wstring  full;
             swprintf_s (banner, L"%d/%d sector reads succeeded. Failures: ",
                         successCount, kSectorsPerTrack);
-            wstring full = banner;
+            full = banner;
             full += failures;
-            Assert::Fail (full.c_str ());
+            Assert::Fail (full.c_str());
         }
     }
 
@@ -525,8 +569,13 @@ public:
     // wrong).
     TEST_METHOD (ReadComplementPatternSector_FromCustomDsk)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        HeadlessHost  host;
+        EmulatorCore  core;
+        int           volume   = 0;
+        vector<Byte>  decoded;
+        HRESULT       hrField  = S_OK;
+        HRESULT       hrData   = S_OK;
+        wstring       failures;
         vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
 
         for (int i = 0; i < 256; i++)
@@ -536,15 +585,14 @@ public:
 
         MountAndSpinUp (host, core, raw);
 
-        int           volume = 0;
-        vector<Byte>  decoded;
+        hrField = FindAddressField (core, 0, 0, volume);
 
-        Assert::IsTrue (FindAddressField (core, 0, 0, volume),
-                        L"T0S0 address-field not found");
-        Assert::IsTrue (ReadDataFieldAtCursor (core, decoded),
-                        L"T0S0 data-field decode failed");
+        Assert::IsTrue (SUCCEEDED (hrField), L"T0S0 address-field not found");
 
-        wstring  failures;
+        hrData = ReadDataFieldAtCursor (core, decoded);
+
+        Assert::IsTrue (SUCCEEDED (hrData), L"T0S0 data-field decode failed");
+
         for (int i = 0; i < 256; i++)
         {
             Byte expected = static_cast<Byte> (~static_cast<Byte> (i));
@@ -554,13 +602,13 @@ public:
                 swprintf_s (msg, L"byte[%d] expected $%02X got $%02X. ",
                             i, expected, decoded[i]);
                 failures += msg;
-                if (failures.size () > 800) { failures += L"...truncated"; break; }
+                if (failures.size() > 800) { failures += L"...truncated"; break; }
             }
         }
 
-        if (!failures.empty ())
+        if (!failures.empty())
         {
-            Assert::Fail (failures.c_str ());
+            Assert::Fail (failures.c_str());
         }
     }
 
@@ -575,20 +623,22 @@ public:
 
     TEST_METHOD (ReadEveryTrackAndSector_FromSentinelDsk)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        vector<Byte>   raw = BuildSentinelDisk ();
+        HeadlessHost  host;
+        EmulatorCore  core;
+        vector<Byte>  raw          = BuildSentinelDisk();
+        wstring       failures;
+        int           successCount = 0;
 
         MountAndSpinUp (host, core, raw);
 
-        wstring  failures;
-        int      successCount = 0;
 
         for (int trk = 0; trk < kTrackCount; trk++)
         {
+            int  actualTrack = 0;
+
             SeekToTrack (core, trk);
 
-            int actualTrack = core.diskController->GetCurrentTrack ();
+            actualTrack = core.diskController->GetCurrentTrack();
             if (actualTrack != trk)
             {
                 wchar_t  msg[128] = {};
@@ -599,10 +649,13 @@ public:
 
             for (int sec = 0; sec < kSectorsPerTrack; sec++)
             {
-                int           volume = 0;
+                int           volume   = 0;
                 vector<Byte>  decoded;
+                HRESULT       hrField  = FindAddressField (core, trk, sec, volume);
+                HRESULT       hrData   = S_OK;
+                Byte          expected = 0;
 
-                if (!FindAddressField (core, trk, sec, volume))
+                if (FAILED (hrField))
                 {
                     wchar_t msg[128] = {};
                     swprintf_s (msg, L"T%dS%d address-field not found. ", trk, sec);
@@ -610,7 +663,9 @@ public:
                     continue;
                 }
 
-                if (!ReadDataFieldAtCursor (core, decoded))
+                hrData = ReadDataFieldAtCursor (core, decoded);
+
+                if (FAILED (hrData))
                 {
                     wchar_t msg[128] = {};
                     swprintf_s (msg, L"T%dS%d data-field decode failed. ", trk, sec);
@@ -618,7 +673,7 @@ public:
                     continue;
                 }
 
-                Byte expected = ExpectedSectorByte (trk, sec, 0);
+                expected = ExpectedSectorByte (trk, sec, 0);
                 if (decoded[0] != expected)
                 {
                     wchar_t msg[128] = {};
@@ -632,14 +687,15 @@ public:
             }
         }
 
-        if (!failures.empty ())
+        if (!failures.empty())
         {
             wchar_t  banner[128] = {};
+            wstring  full;
             swprintf_s (banner, L"%d/%d sector reads succeeded. Failures: ",
                         successCount, kTrackCount * kSectorsPerTrack);
-            wstring full = banner;
+            full = banner;
             full += failures;
-            Assert::Fail (full.c_str ());
+            Assert::Fail (full.c_str());
         }
     }
 
@@ -659,21 +715,23 @@ public:
 
     TEST_METHOD (BitCursorAdvancesAfterCycleCounterRewind)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        vector<Byte>   raw      = BuildSentinelDisk ();
-        uint64_t       cpuCycle = 0;
-        DiskImage *    external = nullptr;
-        HRESULT        hr       = S_OK;
+        HeadlessHost    host;
+        EmulatorCore    core;
+        vector<Byte>    raw       = BuildSentinelDisk();
+        uint64_t        cpuCycle  = 0;
+        DiskImage     * external  = nullptr;
+        HRESULT         hr        = S_OK;
+        size_t          bitBefore = 0;
+        size_t          bitAfter  = 0;
 
         hr = host.BuildApple2eWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2");
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2");
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1, "rewind.dsk",
                                              DiskFormat::Dsk, raw);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes");
+        AssertSucceeded (hr, L"MountFromBytes");
 
         external = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"GetImage");
@@ -699,7 +757,7 @@ public:
         // the controller's anchor still holds the large value.
         cpuCycle = 0;
 
-        size_t  bitBefore = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+        bitBefore = core.diskController->GetEngine (kDrive1).GetBitPosition();
 
         // A handful of post-rewind accesses, each a few bit-cells apart.
         for (int i = 0; i < 8; i++)
@@ -708,10 +766,11 @@ public:
             core.bus->ReadByte (kReadLatch);
         }
 
-        size_t  bitAfter = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+        bitAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
 
         Assert::IsTrue (bitAfter != bitBefore,
                         L"Bit cursor frozen after cycle-counter rewind "
                         L"(power-cycle catch-up regression)");
     }
 };
+

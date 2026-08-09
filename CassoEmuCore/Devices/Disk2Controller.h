@@ -101,6 +101,25 @@ public:
     // address-mark / data-mark events through the same sink.
     void          SetEventSink (IDisk2EventSink * sink) noexcept;
 
+    // Apple //c IWM mode. The //c's built-in drive is an Integrated Woz
+    // Machine, not a Disk II card, so it adds a write-only MODE register and a
+    // read-only STATUS register selected by Q6=1/Q7 with the motor off:
+    //   Q6H + Q7H + motor off + write -> load MODE register
+    //   Q6H + Q7L + read            -> STATUS register (low 5 bits = MODE)
+    // The //c reset firmware writes the mode register then reads it back via
+    // status to confirm the IWM is present. Off by default so a real Disk II
+    // card (the //e) is byte-for-byte unchanged.
+    void   SetIwmMode (bool v) { m_iwmMode = v; }
+
+    // Motor-idle auto-flush hook. Invoked on the CPU thread at the exact
+    // moment the motor spins down (the true->false transition in Tick) --
+    // i.e. right after a disk operation completes and ~1 second after the
+    // last access, a naturally debounced, race-free point to persist dirty
+    // images (this thread owns the writes). The shell wires it to
+    // DiskImageStore::FlushAll so guest writes survive a crash / kill before
+    // the next eject / exit. Caller-owned; null = no-op (tests, headless).
+    void          SetMotorOffFlushCallback (std::function<void ()> cb) { m_motorOffFlushCallback = std::move (cb); }
+
     // Cycle-driven advance. EmuCpu pumps cycles per Step.
     void   Tick (uint32_t cpuCycles);
 
@@ -170,6 +189,11 @@ private:
     bool                 m_q6           = false;
     bool                 m_q7           = false;
 
+    // Apple //c IWM (see SetIwmMode). m_iwmMode gates the extra register
+    // behavior; m_iwmModeReg holds the last-written MODE register value.
+    bool                 m_iwmMode      = false;
+    Byte                 m_iwmModeReg   = 0;
+
     DiskImage            m_disks[kDriveCount];
     DiskImage *          m_activeDisk[kDriveCount] = { nullptr, nullptr };
     Disk2NibbleEngine    m_engine[kDriveCount];
@@ -178,6 +202,10 @@ private:
 
     IDisk2EventSink *         m_eventSink       = nullptr;
     Disk2AddressMarkWatcher   m_addrMarkWatcher;
+
+    // Fired on the CPU thread when the motor finishes spinning down; the
+    // shell uses it to persist dirty disk images (see SetMotorOffFlushCallback).
+    std::function<void ()>    m_motorOffFlushCallback;
 
     const uint64_t *          m_cpuCycleSource = nullptr;
     uint64_t                  m_lastCpuSync    = 0;

@@ -11,8 +11,22 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InputEventCoalescingTests
+//
+//  Verifies the producer-side coalescing the keyboard devices perform
+//  before notifying an attached IInputEventSink: a tight poll loop must
+//  collapse to one event per observed transition, and detaching the sink
+//  must silence all emits (the no-sink fast path).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (InputEventCoalescingTests)
 {
+public:
+
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  RecordingInputSink
@@ -114,25 +128,6 @@ namespace
             lastDown        = down;
         }
     };
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  InputEventCoalescingTests
-//
-//  Verifies the producer-side coalescing the keyboard devices perform
-//  before notifying an attached IInputEventSink: a tight poll loop must
-//  collapse to one event per observed transition, and detaching the sink
-//  must silence all emits (the no-sink fast path).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (InputEventCoalescingTests)
-{
-public:
 
     TEST_METHOD (DataRead_CoalescesIdenticalPolls)
     {
@@ -195,12 +190,13 @@ public:
     {
         AppleKeyboard       kbd;
         RecordingInputSink  sink;
+        int                 baseline = 0;
 
         kbd.SetInputEventSink (&sink);
         kbd.KeyPress ('A');
         kbd.Read (0xC000);
 
-        int baseline = sink.kbdDataReadCount;
+        baseline = sink.kbdDataReadCount;
 
         kbd.SetInputEventSink (nullptr);
         kbd.KeyPress ('B');
@@ -255,8 +251,8 @@ public:
     TEST_METHOD (ButtonRead_CoalescesPerAddress)
     {
         MemoryBus           bus;
-        Apple2eKeyboard     kbd (&bus);
         RecordingInputSink  sink;
+        Apple2eKeyboard     kbd (&bus);
 
         kbd.SetInputEventSink (&sink);
         kbd.SetClosedApple (true);
@@ -336,13 +332,14 @@ public:
     {
         Apple2eSoftSwitchBank  bank;
         RecordingInputSink     sink;
-        uint64_t               cycles = 0;
+        uint64_t               cycles   = 0;
+        int                    baseline = 0;
 
         bank.SetCpuCycleSource (&cycles);
         bank.SetInputEventSink (&sink);
         bank.Read (0xC070);
 
-        int  baseline = sink.paddleTriggerCount;
+        baseline = sink.paddleTriggerCount;
 
         bank.SetInputEventSink (nullptr);
         bank.Read (0xC070);
@@ -376,8 +373,8 @@ public:
     TEST_METHOD (HostButton_Apple2eKeyboardSetters_Coalesce)
     {
         MemoryBus           bus;
-        Apple2eKeyboard     kbd (&bus);
         RecordingInputSink  sink;
+        Apple2eKeyboard     kbd (&bus);
 
         kbd.SetInputEventSink (&sink);
 
@@ -419,3 +416,4 @@ public:
             L"The host button event must carry the changed button index");
     }
 };
+

@@ -35,6 +35,7 @@ void DxuiGridLayout::SetCell (IDxuiControl * child, int row, int col, int rowSpa
     Cell  cell;
 
 
+
     if (child == nullptr)
     {
         return;
@@ -55,6 +56,28 @@ void DxuiGridLayout::SetCell (IDxuiControl * child, int row, int col, int rowSpa
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Arrange
+//
+//  Places children into a uniform grid, honoring row and column spans.
+//
+//  Cell size is derived by removing the GAPS first and dividing what remains,
+//  so the gap count is fixed by the grid shape rather than growing with the
+//  cell size -- the alternative leaves a wider gutter on the right than on the
+//  left.
+//
+//  A spanned cell is computed as the span's far EDGE minus one gap, not as
+//  cells times width plus gaps. That way a span absorbs the gaps it crosses
+//  and its right edge lands exactly on the boundary an unspanned neighbor
+//  would use, so a two-column item aligns with the item below it.
+//
+//  Row and column indices are CLAMPED, and spans clamped to the grid, so a
+//  cell assignment left over from a smaller grid places the child at the edge
+//  rather than off it.
+//
+//  A child with no assignment defaults to cell (0,0) rather than being skipped,
+//  which keeps it visible and obviously misplaced instead of invisible.
+//
+//  A degenerate bounds rect yields zero-size cells rather than negative ones,
+//  so a grid laid out before its container has a size collapses harmlessly.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

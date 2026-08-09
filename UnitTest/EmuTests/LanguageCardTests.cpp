@@ -28,10 +28,10 @@ public:
         MemoryBus    bus;
         LanguageCard lc (bus);
 
-        Assert::IsTrue  (lc.IsBank2 (),    L"Power-on must select bank 2");
-        Assert::IsFalse (lc.IsReadRam (),  L"Power-on must read ROM");
-        Assert::IsTrue  (lc.IsWriteRam (), L"Power-on must pre-arm WRITERAM (audit M8)");
-        Assert::AreEqual (0, lc.GetPreWriteCount (),
+        Assert::IsTrue  (lc.IsBank2(),    L"Power-on must select bank 2");
+        Assert::IsFalse (lc.IsReadRam(),  L"Power-on must read ROM");
+        Assert::IsTrue  (lc.IsWriteRam(), L"Power-on must pre-arm WRITERAM (audit M8)");
+        Assert::AreEqual (0, lc.GetPreWriteCount(),
             L"Power-on pre-write count must be 0");
     }
 
@@ -42,7 +42,7 @@ public:
 
         lc.Read (0xC080);
 
-        Assert::IsTrue (lc.IsReadRam (),
+        Assert::IsTrue (lc.IsReadRam(),
             L"$C080 must enable reading from LC RAM");
     }
 
@@ -89,15 +89,15 @@ public:
         LanguageCard lc (bus);
 
         lc.Read (0xC082);
-        Assert::IsFalse (lc.IsWriteRam (),
+        Assert::IsFalse (lc.IsWriteRam(),
             L"Even read must clear WRITERAM and the pre-write arm");
 
         lc.Read (0xC081);
-        Assert::IsFalse (lc.IsWriteRam (),
+        Assert::IsFalse (lc.IsWriteRam(),
             L"Single odd read does not enable WRITERAM");
 
         lc.Read (0xC083);
-        Assert::IsTrue (lc.IsWriteRam (),
+        Assert::IsTrue (lc.IsWriteRam(),
             L"Two odd reads at DIFFERENT addresses must enable WRITERAM");
     }
 
@@ -111,7 +111,7 @@ public:
         lc.Read (0xC081);
         lc.Read (0xC083);
 
-        Assert::IsTrue (lc.IsWriteRam (),
+        Assert::IsTrue (lc.IsWriteRam(),
             L"Audit M6: $C081 then $C083 must enable WRITERAM");
     }
 
@@ -122,11 +122,11 @@ public:
 
         lc.Read (0xC082);
         lc.Read (0xC081);
-        Assert::IsFalse (lc.IsWriteRam (),
+        Assert::IsFalse (lc.IsWriteRam(),
             L"Single odd read must NOT enable WRITERAM");
 
         lc.Read (0xC081);
-        Assert::IsTrue (lc.IsWriteRam (),
+        Assert::IsTrue (lc.IsWriteRam(),
             L"Two odd reads of the same address must enable WRITERAM");
     }
 
@@ -139,9 +139,9 @@ public:
         lc.Read (0xC081);
 
         lc.Read (0xC082);
-        Assert::AreEqual (0, lc.GetPreWriteCount (),
+        Assert::AreEqual (0, lc.GetPreWriteCount(),
             L"Even read must reset pre-write count");
-        Assert::IsFalse (lc.IsWriteRam (),
+        Assert::IsFalse (lc.IsWriteRam(),
             L"Even read must clear WRITERAM");
     }
 
@@ -155,12 +155,12 @@ public:
         lc.Read  (0xC082);
         lc.Read  (0xC081);
         lc.Read  (0xC081);
-        Assert::IsTrue (lc.IsWriteRam (), L"WRITERAM should be set");
+        Assert::IsTrue (lc.IsWriteRam(), L"WRITERAM should be set");
 
         lc.Write (0xC081, 0x00);
-        Assert::IsTrue (lc.IsWriteRam (),
+        Assert::IsTrue (lc.IsWriteRam(),
             L"Audit M7: write to odd switch must NOT clear sticky WRITERAM");
-        Assert::AreEqual (0, lc.GetPreWriteCount (),
+        Assert::AreEqual (0, lc.GetPreWriteCount(),
             L"Write to odd switch must reset pre-write count");
     }
 
@@ -171,7 +171,7 @@ public:
 
         lc.Read (0xC080);
 
-        Assert::IsTrue (lc.IsBank2 (),
+        Assert::IsTrue (lc.IsBank2(),
             L"Bank 2 should be selected by default");
     }
 
@@ -182,13 +182,15 @@ public:
 
         lc.Read (0xC088);
 
-        Assert::IsFalse (lc.IsBank2 (),
+        Assert::IsFalse (lc.IsBank2(),
             L"$C088 should select bank 1 (not bank 2)");
     }
 
     TEST_METHOD (Bank1_WritesIsolatedFromBank2)
     {
-        MemoryBus    bus;
+        MemoryBus  bus;
+        Byte       bank1Val = 0;
+        Byte       bank2Val = 0;
         LanguageCard lc (bus);
 
         lc.Read (0xC082);
@@ -201,10 +203,10 @@ public:
         lc.WriteRam (0xD000, 0xBB);
 
         lc.Read (0xC088);
-        Byte bank1Val = lc.ReadRam (0xD000);
+        bank1Val = lc.ReadRam (0xD000);
 
         lc.Read (0xC080);
-        Byte bank2Val = lc.ReadRam (0xD000);
+        bank2Val = lc.ReadRam (0xD000);
 
         Assert::AreEqual (static_cast<Byte> (0xBB), bank1Val,
             L"Bank 1 $D000 should contain $BB");
@@ -251,7 +253,7 @@ public:
         LanguageCard lc (bus);
 
         lc.Read (0xC082);
-        Assert::IsFalse (lc.IsWriteRam (),
+        Assert::IsFalse (lc.IsWriteRam(),
             L"Even read must clear WRITERAM");
 
         LanguageCardBank bank (lc);
@@ -278,13 +280,13 @@ public:
         lc.Read (0xC089);
         lc.WriteRam (0xD000, 0xCC);
 
-        lc.SoftReset ();
+        lc.SoftReset();
 
-        Assert::IsTrue  (lc.IsBank2 (),
+        Assert::IsTrue  (lc.IsBank2(),
             L"SoftReset must restore power-on flag state (BANK2)");
-        Assert::IsTrue  (lc.IsWriteRam (),
+        Assert::IsTrue  (lc.IsWriteRam(),
             L"SoftReset must restore power-on WRITERAM");
-        Assert::IsFalse (lc.IsReadRam (),
+        Assert::IsFalse (lc.IsReadRam(),
             L"SoftReset must clear READRAM");
 
         lc.Read (0xC080);
@@ -308,7 +310,7 @@ public:
         lc.Read (0xC081);
         lc.WriteRam (0xD000, 0xFF);
 
-        lc.Reset ();
+        lc.Reset();
 
         lc.Read (0xC080);
         Assert::AreEqual (static_cast<Byte> (0xFF), lc.ReadRam (0xD000),
@@ -326,15 +328,19 @@ public:
 
     TEST_METHOD (AltZpRoutesLcWindowToAuxBank)
     {
+        Apple2eMmu  mmu;
+        HRESULT     hr  = S_OK;
+
+
+
         // Aux LC routing: when MMU's ALTZP is set, LC window must back
         // to a separate aux RAM bank so writes there are isolated from
         // main-bank contents.
         MemoryBus    bus;
         RamDevice    mainRam (0x0000, 0xBFFF);
-        Apple2eMmu   mmu;
         LanguageCard lc (bus);
 
-        HRESULT hr = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, nullptr);
+        hr = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, nullptr);
 
         UNREFERENCED_PARAMETER (hr);
 
@@ -343,7 +349,7 @@ public:
         lc.Read (0xC082);
         lc.Read (0xC081);
         lc.Read (0xC081);
-        Assert::IsTrue (lc.IsWriteRam (), L"WRITERAM enabled");
+        Assert::IsTrue (lc.IsWriteRam(), L"WRITERAM enabled");
 
         mmu.SetAltZp (false);
         lc.WriteRam (0xD000, 0x11);
@@ -361,12 +367,13 @@ public:
 
     TEST_METHOD (AltZpAuxAndMain_HighRam_AlsoIsolated)
     {
-        MemoryBus    bus;
+        MemoryBus   bus;
+        Apple2eMmu  mmu;
+        HRESULT     hr  = S_OK;
         RamDevice    mainRam (0x0000, 0xBFFF);
-        Apple2eMmu   mmu;
         LanguageCard lc (bus);
 
-        HRESULT hr = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, nullptr);
+        hr = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, nullptr);
 
         UNREFERENCED_PARAMETER (hr);
 

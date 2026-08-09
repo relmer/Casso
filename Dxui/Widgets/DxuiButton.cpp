@@ -25,6 +25,7 @@ void DxuiButton::SetLabel (const std::wstring & label)
     size_t        i     = 0;
 
 
+
     out.reserve (label.size());
 
     while (i < label.size())
@@ -37,14 +38,17 @@ void DxuiButton::SetLabel (const std::wstring & label)
                 i += 2;
                 continue;
             }
+
             if (accel == 0)
             {
                 accel = (wchar_t) towlower (label[i + 1]);
             }
+
             out.push_back (label[i + 1]);
             i += 2;
             continue;
         }
+
         out.push_back (label[i]);
         ++i;
     }
@@ -55,16 +59,36 @@ void DxuiButton::SetLabel (const std::wstring & label)
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiButton::HitTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool DxuiButton::HitTest (int x, int y) const
 {
-    if (!m_visible || !m_enabled)
-    {
-        return false;
-    }
+    bool  isHit = false;
 
-    return x >= m_boundsDip.left && x < m_boundsDip.right && y >= m_boundsDip.top && y < m_boundsDip.bottom;
+
+
+    isHit = m_visible && m_enabled &&
+            x >= m_boundsDip.left && x < m_boundsDip.right &&
+            y >= m_boundsDip.top  && y < m_boundsDip.bottom;
+
+    return isHit;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiButton::SetMouse
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void DxuiButton::SetMouse (int x, int y, bool down)
 {
@@ -80,7 +104,16 @@ void DxuiButton::SetMouse (int x, int y, bool down)
 }
 
 
-void DxuiButton::Click ()
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiButton::Click
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiButton::Click()
 {
     if (!m_visible || !m_enabled)
     {
@@ -94,22 +127,63 @@ void DxuiButton::Click ()
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiButton::OnKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool DxuiButton::OnKey (WPARAM vk)
 {
-    if (!m_visible || !m_enabled || !m_focused)
-    {
-        return false;
-    }
+    bool  isActivateKey = false;
 
-    if (vk == VK_RETURN || vk == VK_SPACE)
+
+
+    isActivateKey = m_visible && m_enabled && m_focused &&
+                    (vk == VK_RETURN || vk == VK_SPACE);
+
+    if (isActivateKey)
     {
         Click();
-        return true;
     }
 
-    return false;
+    return isActivateKey;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiButton::Paint
+//
+//  Draws the button in one of three variants: standard, primary, or link.
+//
+//  Link exits early and is the whole job when it applies -- accent-colored
+//  left-aligned text with no fill and no border, i.e. a hyperlink. It shares
+//  this class rather than being its own widget because it is a button in every
+//  respect except its chrome.
+//
+//  Hover and pressed states are derived by LIGHTENING or darkening the base
+//  color rather than by reading three separate theme swatches. That is what
+//  keeps a custom or user-authored theme from having to define an interaction
+//  palette to look right; it only has to define the base.
+//
+//  The primary variant forces white text and checks it against a minimum
+//  contrast RATIO rather than assuming the accent is dark, so a light accent
+//  color does not produce an unreadable button.
+//
+//  Disabled state masks ALPHA rather than substituting a color, so it follows
+//  whatever the theme's button colors are.
+//
+//  The focus ring insets NEGATIVELY -- it is drawn just outside the bounds, so
+//  it never eats into the button's own edge or its label.
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
@@ -123,6 +197,8 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
     constexpr float     s_kPrimaryPressed   = 0.82f;
     constexpr float     s_kLinkHover        = 0.25f;
 
+
+
     HRESULT  hr           = S_OK;
     uint32_t idle         = theme.ButtonIdle();
     uint32_t hover        = theme.ButtonHover();
@@ -132,19 +208,18 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
     uint32_t color        = 0;
     float    fontDip      = m_scaler.Pxf (13.0f);
     float    autoBorderPx = m_scaler.Pxf (1.0f);
+    bool     isLink       = (m_variant == Variant::Link);
 
 
 
-    if (!m_visible)
-    {
-        return;
-    }
+    BAIL_OUT_IF (!m_visible, S_OK);
 
     //
     //  Link variant: accent-colored text, no fill / border, left-aligned
     //  (a clickable hyperlink). The consumer wires SetOnClick to open the URL.
+    //  It paints nothing else, so this is the whole job when it applies.
     //
-    if (m_variant == Variant::Link)
+    if (isLink)
     {
         uint32_t  linkColor = theme.Accent();
 
@@ -158,16 +233,17 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
             linkColor = (linkColor & s_kDisabledMask);
         }
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),
-                                                  (float) m_boundsDip.left,
-                                                  (float) m_boundsDip.top,
-                                                  (float) (m_boundsDip.right  - m_boundsDip.left),
-                                                  (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                                  linkColor,
-                                                  fontDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center));
+        hr = text.DrawString (m_label.c_str(),
+                              (float) m_boundsDip.left,
+                              (float) m_boundsDip.top,
+                              (float) (m_boundsDip.right  - m_boundsDip.left),
+                              (float) (m_boundsDip.bottom - m_boundsDip.top),
+                              linkColor,
+                              fontDip,
+                              DxuiTheme::kBodyFace,
+                              DxuiTextHAlign::Left,
+                              DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         if (m_focused)
         {
@@ -178,9 +254,9 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                                  m_scaler.Pxf (s_kFocusRingPx),
                                  theme.FocusRing());
         }
-
-        return;
     }
+
+    BAIL_OUT_IF (isLink, S_OK);
 
     if (m_variant == Variant::Primary)
     {
@@ -228,16 +304,17 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                              borderColor);
     }
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),
-                                              (float) m_boundsDip.left,
-                                              (float) m_boundsDip.top,
-                                              (float) (m_boundsDip.right  - m_boundsDip.left),
-                                              (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                              textColor,
-                                              fontDip,
-                                              DxuiTheme::kBodyFace,
-                                              DxuiTextHAlign::Center,
-                                              DxuiTextVAlign::Center));
+    hr = text.DrawString (m_label.c_str(),
+                          (float) m_boundsDip.left,
+                          (float) m_boundsDip.top,
+                          (float) (m_boundsDip.right  - m_boundsDip.left),
+                          (float) (m_boundsDip.bottom - m_boundsDip.top),
+                          textColor,
+                          fontDip,
+                          DxuiTheme::kBodyFace,
+                          DxuiTextHAlign::Center,
+                          DxuiTextVAlign::Center);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (m_focused)
     {
@@ -251,6 +328,9 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                              focusThick,
                              theme.FocusRing());
     }
+
+Error:
+    return;
 }
 
 
@@ -275,7 +355,16 @@ void DxuiButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiButton::OnMouse  (IDxuiControl override)
+//  DxuiButton::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move only updates hover and is reported unhandled, so the pointer
+//  crossing the button does not consume moves other widgets want.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -283,35 +372,71 @@ bool DxuiButton::OnMouse (const DxuiMouseEvent & ev)
 {
     bool  prevHover   = m_hover;
     bool  prevPressed = m_pressed;
+    bool  handled     = false;
+    bool  fire        = false;
+
 
 
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
         SetMouse (ev.positionDip.x, ev.positionDip.y, m_pressed);
-        return m_hover != prevHover || m_pressed != prevPressed;
+        handled = m_hover != prevHover || m_pressed != prevPressed;
+        break;
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left)
         {
             SetMouse (ev.positionDip.x, ev.positionDip.y, true);
-            return m_pressed;
+            handled = m_pressed;
         }
-        return false;
+
+        break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
-            bool  fire = m_pressed && HitTest (ev.positionDip.x, ev.positionDip.y);
+            fire = m_pressed && HitTest (ev.positionDip.x, ev.positionDip.y);
             SetMouse (ev.positionDip.x, ev.positionDip.y, false);
             if (fire)
             {
                 Click();
             }
-            return fire;
+
+            handled = fire;
         }
-        return false;
+
+        break;
     default:
-        return false;
+        break;
     }
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiButton::CursorForPoint  (IDxuiControl override)
+//
+//  A link-styled button reads as a hyperlink, so advertise the hand cursor
+//  while the pointer is over it. Other variants keep the default arrow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR DxuiButton::CursorForPoint (POINT clientPx) const
+{
+    LPCWSTR  cursor = nullptr;
+
+
+
+    if (m_variant == Variant::Link && HitTest (clientPx.x, clientPx.y))
+    {
+        cursor = IDC_HAND;
+    }
+
+    return cursor;
 }
 
 
@@ -326,10 +451,14 @@ bool DxuiButton::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiButton::OnKey (const DxuiKeyEvent & ev)
 {
-    if (ev.kind != DxuiKeyEventKind::Down)
+    bool  handled = false;
+
+
+
+    if (ev.kind == DxuiKeyEventKind::Down)
     {
-        return false;
+        handled = OnKey (ev.vk);
     }
 
-    return OnKey (ev.vk);
+    return handled;
 }

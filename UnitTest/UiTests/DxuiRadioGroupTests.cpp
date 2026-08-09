@@ -12,10 +12,29 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  RadioGroupTests
 //
+//  Radio group: exactly one selection, arrow navigation with wrap, and commit
+//  on move.
+//
+//  Committing AS IT NAVIGATES is what distinguishes a radio group from a list,
+//  and it is asserted rather than assumed -- arrowing through options is
+//  choosing them, with no separate activation step.
+//
+//  The wrap at both ends is covered, and so is the unselected group: entering
+//  at the first option going forward and the last going backward means the
+//  first key press always lands somewhere.
+//
+//  The invariant that exactly one option is selected is checked after every
+//  operation, since it is the group's entire reason for existing over a set of
+//  checkboxes.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+TEST_CLASS (RadioGroupTests)
 {
+public:
+
     DxuiRadioOption MakeOpt (int l, int t, int r, int b, const wchar_t * label)
     {
         DxuiRadioOption  o;
@@ -25,19 +44,13 @@ namespace
     }
 
 
-    std::vector<DxuiRadioOption> MakeTwoOptions ()
+    std::vector<DxuiRadioOption> MakeTwoOptions()
     {
         std::vector<DxuiRadioOption>  opts;
         opts.push_back (MakeOpt (  0, 0,  90, 20, L"A"));
         opts.push_back (MakeOpt (100, 0, 190, 20, L"B"));
         return opts;
     }
-}
-
-
-TEST_CLASS (RadioGroupTests)
-{
-public:
 
     TEST_METHOD (HitTest_ReturnsIndex)
     {
@@ -52,7 +65,7 @@ public:
     TEST_METHOD (Mouse_ClickSelects_AndFiresOnChange)
     {
         DxuiRadioGroup  g;
-        int         lastIdx = -42;
+        int             lastIdx = -42;
         g.SetOptions (MakeTwoOptions());
         g.SetOnChange ([&] (int idx) { lastIdx = idx; });
 
@@ -139,3 +152,4 @@ public:
         Assert::IsFalse (g.OnLButtonDown (10, 10));
     }
 };
+

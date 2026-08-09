@@ -9,7 +9,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SettingsPanelState
@@ -78,6 +77,15 @@ struct SettingsUiPrefs
     bool               floppySoundEnabled    = true;
     std::string        floppyMechanism       = "shugart";   // "shugart" | "alps"
     bool               writeProtect[2]       = { false, false };
+    // //c only: whether the optional external 5.25" drive is plugged into
+    // the disk port. Reveals/hides the second drive-mount widget. Defaults
+    // to not-connected -- a bare //c ships with just its internal drive.
+    bool               externalDriveConnected = false;
+    // //c only: whether the mouse peripheral is plugged into the DB-9 port
+    // Defaults to CONNECTED (confirmed 2026-07-09): a connected-
+    // but-unused mouse has no UI footprint (firmware-live gate), so
+    // MousePaint works zero-config.
+    bool               mouseConnected         = true;
     // Drive-audio component gains (0..1). Defaults mirror the
     // DriveAudioMixer / Disk2AudioSource sound-mix defaults.
     static constexpr float kDefaultDriveMotorVolume = 0.90f;
@@ -86,13 +94,13 @@ struct SettingsUiPrefs
     // Per-drive stereo pan in [-1, +1] (-1 = hard left, +1 = hard
     // right). Drive 1 sits left-of-center, Drive 2 right-of-center,
     // mirroring DriveAudioMixer::kDefaultDriveOnePan / ...TwoPan.
-    static constexpr float kDefaultDriveOnePan      = -0.5f;
-    static constexpr float kDefaultDriveTwoPan      = +0.5f;
-    float              driveMotorVolume      = kDefaultDriveMotorVolume;
-    float              driveHeadVolume       = kDefaultDriveHeadVolume;
-    float              driveDoorVolume       = kDefaultDriveDoorVolume;
-    float              driveOnePan           = kDefaultDriveOnePan;
-    float              driveTwoPan           = kDefaultDriveTwoPan;
+    static constexpr float  kDefaultDriveOnePan = -0.5f;
+    static constexpr float  kDefaultDriveTwoPan = +0.5f;
+    float                   driveMotorVolume    = kDefaultDriveMotorVolume;
+    float                   driveHeadVolume     = kDefaultDriveHeadVolume;
+    float                   driveDoorVolume     = kDefaultDriveDoorVolume;
+    float                   driveOnePan         = kDefaultDriveOnePan;
+    float                   driveTwoPan         = kDefaultDriveTwoPan;
     // Last-mounted disk paths per drive, stored as exe-relative when
     // possible (PathResolver::MakeExeRelativePath). Empty = no
     // remembered disk. Replaces the per-machine HKCU\...\Disk{1,2}
@@ -135,9 +143,18 @@ struct SettingsMachineInfo
     std::string                          cpu;
     std::string                          cpuManufacturer;
     uint32_t                             clockSpeed    = 0;
+    std::string                          ramSummary;    // "128K RAM" total, ROM excluded
     std::vector<SettingsMemoryRegion>    memoryRegions;
     size_t                               devices       = 0;
+    // True for machines whose second drive is an optional add-on rather than
+    // fixed hardware (the //c external disk port). Drives the Hardware tab's
+    // "External drive" Connected/Not-connected toggle. Detected from a banked
+    // system ROM (romBankSize != 0), the //c's defining trait.
+    bool                                 supportsExternalDrive = false;
 };
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,13 +179,42 @@ public:
     virtual void ApplyDriveVolumes   (float motor, float head, float door) = 0;
     virtual void ApplyDrivePan       (float driveOnePan, float driveTwoPan) = 0;
     virtual void ApplyWriteProtect   (int drive, bool wp)            = 0;
+    virtual void ApplyExternalDriveConnected (bool connected)        = 0;
+    virtual void ApplyMouseConnected         (bool connected)        = 0;
     virtual void QueueMachineReset   ()                              = 0;
 };
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SettingsPanelState
+//
+//  The Settings sheet's model: the machine's settings as loaded, as currently
+//  staged, and the questions the pages ask about the difference.
+//
+//  Two copies are held -- baseline and current -- which is what makes Cancel
+//  possible at all. Edits apply live to the running emulator, so reverting
+//  means restoring the baseline rather than simply discarding a pending edit;
+//  without a saved copy there would be nothing to restore.
+//
+//  IsDirty and RequiresReset are separate questions. Dirty decides whether
+//  anything needs saving; RequiresReset is narrower -- only a hardware ENABLE
+//  change needs a machine rebuild -- and it is what relabels OK to warn about
+//  the reboot.
+//
+//  HasDiskIIController drives the sheet's dynamic Disk tab (#84), and its
+//  banked-ROM special case is easy to mistake for a hack. The //c's drive is a
+//  built-in IWM rather than a config slot, so it never appears in the hardware
+//  list; a banked system ROM is the //c's defining trait and the same signal
+//  that creates that IWM, so it counts as a controller here. Without it the
+//  //c would wrongly lose its Disk tab.
+//
+//  It answers from the STAGED hardware, not the running machine, so the tab
+//  appears and disappears as the user toggles a controller rather than after a
+//  reboot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -186,7 +232,7 @@ public:
     bool IsDirty       () const;
     bool RequiresReset () const;          // true iff any hardware enable changed
 
-    // ---- Live (current) accessors / mutators ---------------------------
+    // Live (current) accessors / mutators
 
     const std::string                & MachineName () const { return m_machineName; }
     const SettingsMachineInfo        & MachineInfo() const { return m_machineInfo; }
@@ -197,12 +243,22 @@ public:
     // True when the (staged) hardware config includes an enabled Disk ][
     // controller (a slot whose device is "disk-ii"). Drives the settings
     // sheet's dynamic Disk tab (#84): no enabled controller -> no Disk tab.
+    // The //c's drive is a BUILT-IN IWM, not a config slot, so it never
+    // appears in the hardware list — a banked system ROM (the //c's
+    // defining trait, the same signal that creates the IWM) counts as a
+    // controller here, or the //c would wrongly lose its Disk tab.
     bool HasDiskIIController () const
     {
+        if (m_machineInfo.supportsExternalDrive)   // banked ROM -> built-in IWM
+        {
+            return true;
+        }
+
         for (const HardwareEntry & e : m_current.hardware)
         {
             if (e.type == "disk-ii" && e.enabled) { return true; }
         }
+
         return false;
     }
 
@@ -217,14 +273,16 @@ public:
     void    SetDriveOnePan      (float pan);
     void    SetDriveTwoPan      (float pan);
     void    SetWriteProtect    (int drive, bool wp);
+    void    SetExternalDriveConnected (bool connected);
+    void    SetMouseConnected         (bool connected);
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
 
-    // ---- Apply ---------------------------------------------------------
+    // Apply
 
     HRESULT Apply (ISettingsApplySink & sink,
                    JsonValue          & outCurrentJson) const;
 
-    // ---- Pure helpers (exposed for tests) ------------------------------
+    // Pure helpers (exposed for tests)
 
     static HRESULT ExtractHardware    (const JsonValue            & mergedJson,
                                        std::vector<HardwareEntry> & outEntries);
@@ -247,6 +305,51 @@ private:
     static bool PrefsEqual    (const SettingsUiPrefs & a, const SettingsUiPrefs & b);
     static bool HardwareEqual (const std::vector<HardwareEntry> & a,
                                const std::vector<HardwareEntry> & b);
+
+    // JSON accessors and enum<->string mapping for the settings document.
+    // Every reader is a SettingsPanelState method, so the block belongs to
+    // the class. FindKey in particular collided by name with
+    // MachineConfigUpgrade's, which is what the anonymous namespaces were
+    // hiding.
+    static constexpr const char *  kpszUiPrefsKey = "$cassoUiPrefs";
+    static constexpr const char *  kpszVersionKey = "$cassoMachineVersion";
+
+    static int  FindKey (
+        const std::vector<std::pair<std::string, JsonValue>> & entries,
+        const std::string                                    & key);
+
+    static bool  TryGetBoolOpt (
+        const JsonValue   & obj,
+        const std::string & key,
+        bool                fallback);
+
+    static std::string  GetStringOpt (
+        const JsonValue   & obj,
+        const std::string & key,
+        const std::string & fallback);
+
+    static int  GetIntOpt (
+        const JsonValue   & obj,
+        const std::string & key,
+        int                 fallback);
+
+    static double  GetNumberOpt (
+        const JsonValue   & obj,
+        const std::string & key,
+        double              fallback);
+
+    static CapabilityFlag  ParseCapability (
+        const std::string & str,
+        CapabilityFlag      fallback);
+
+    static const char *        SpeedToString     (SettingsSpeedMode s);
+    static SettingsSpeedMode   SpeedFromString   (const std::string & s, SettingsSpeedMode fallback);
+    static const char *        ColorToString     (SettingsColorMode c);
+    static SettingsColorMode   ColorFromString   (const std::string & s, SettingsColorMode fallback);
+    static const char *        WriteModeToString (SettingsWriteMode mode);
+    static SettingsWriteMode   WriteModeFromString (const std::string & s, SettingsWriteMode fallback);
+
+    static JsonValue  CloneJson (const JsonValue & v);
 
 
     std::string          m_machineName;

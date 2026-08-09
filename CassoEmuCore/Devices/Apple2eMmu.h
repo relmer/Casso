@@ -27,7 +27,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Apple2eMmu : public IMmu
+// `final`: no subclass exists, and it lets the compiler devirtualize the
+// virtual IMmu getters (GetIntCxRom / GetSlotC3Rom / ...) when they are called
+// through a concrete `Apple2eMmu &` -- e.g. CxxxRomRouter pulls them on every
+// $Cxxx access, where the indirect call was showing up in profiles.
+class Apple2eMmu final : public IMmu
 {
 public:
     Apple2eMmu ();
@@ -72,8 +76,14 @@ public:
     void               AttachSlotRom         (int slot, vector<Byte> data);
     CxxxRomRouter *    GetCxxxRouter         () { return &m_cxxxRouter; }
 
+    // The language card owns $D000-$FFFF and page-maps it for fast reads. ALTZP
+    // flips the aux/main LC RAM side, so SetAltZp re-points its window through
+    // this handle. Null on machines without an LC (no-op).
+    void               SetLanguageCard       (LanguageCard * lc) { m_lc = lc; }
+
 private:
-    void   RebindPageTable     ();
+    void   RebindPageTable       ();
+    void   RebindCxxxInternalRom ();
     void   ResolveZeroPage     ();
     void   ResolveMain02_BF    ();
     void   ResolveText04_07    ();
@@ -84,6 +94,7 @@ private:
     MemoryBus            *   m_bus         = nullptr;
     Byte                 *   m_mainRamPtr  = nullptr;
     AppleSoftSwitchBank  *   m_ssBank      = nullptr;
+    LanguageCard         *   m_lc          = nullptr;
     vector<Byte>             m_auxRam;
     CxxxRomRouter            m_cxxxRouter;
 

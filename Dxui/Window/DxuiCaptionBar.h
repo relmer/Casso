@@ -6,6 +6,8 @@
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiCaptionBar
@@ -56,7 +58,7 @@ public:
     static constexpr int  kCaptionHeightDip = 32;
     static int            HeightPxForDpi    (UINT dpi);
 
-    // --- Host-owned caption configuration (mode 2) ---------------------
+    // Host-owned caption configuration (mode 2)
 
     void  ConfigureButtons (Buttons buttons);
     void  SetSystemHwnd    (HWND hwnd);
@@ -69,7 +71,7 @@ public:
     int   PreferredHeightPx  (const DxuiDpiScaler & scaler) const;
     int   PreferredHeightDip () const;
 
-    // --- IDxuiControl / DxuiPanel overrides ----------------------------
+    // IDxuiControl / DxuiPanel overrides
 
     void  Layout (const RECT          & boundsDip,
                   const DxuiDpiScaler & scaler) override;
@@ -81,6 +83,9 @@ public:
     DxuiAccessibleRole  AccessibleRole () const          override { return DxuiAccessibleRole::CaptionBar; }
 
 private:
+    static constexpr int      kButtonWidthDip   = 46;
+    static constexpr wchar_t  kTitleFamily[]    = L"Segoe UI";
+
     bool                               m_renderCaption = false;
     Buttons                            m_buttons       = Buttons::None;
     std::wstring                       m_title;

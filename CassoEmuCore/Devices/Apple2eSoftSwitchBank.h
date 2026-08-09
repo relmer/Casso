@@ -4,10 +4,13 @@
 #include "Devices/AppleSoftSwitchBank.h"
 
 class Apple2eMmu;
+class IMmu;                 // MmuSwitch below names its setters
 class Apple2eKeyboard;
 class LanguageCard;
 class IVideoTiming;
 class IInputEventSink;
+class IRomBankSwitch;
+
 
 
 
@@ -40,6 +43,15 @@ class Apple2eSoftSwitchBank : public AppleSoftSwitchBank
 public:
     Apple2eSoftSwitchBank (MemoryBus * bus = nullptr);
 
+    // One MMU flag reachable through a $C00x address PAIR: writing the even
+    // address clears it, the odd address sets it. Public only because the
+    // table lives at file scope in the .cpp (anonymous namespaces are banned).
+    struct MmuSwitch
+    {
+        Word    offAddress;             // the clearing address; +1 sets
+        void (IMmu::* Set) (bool v);
+    };
+
     Byte Read      (Word address) override;
     void Write     (Word address, Byte value) override;
     Word GetEnd    () const override { return 0xC07F; }
@@ -55,6 +67,19 @@ public:
     void SetKeyboard     (Apple2eKeyboard * kbd)    { m_keyboard     = kbd; }
     void SetLanguageCard (LanguageCard * lc)        { m_lc           = lc; }
     void SetVideoTiming  (IVideoTiming * vt)        { m_videoTiming  = vt; }
+
+    // Apple //c only: the $C028 ROM-bank flip-flop. Null on the //e and
+    // earlier, where $C028 has no effect.
+    void SetRomBankSwitch (IRomBankSwitch * rb)     { m_romBank      = rb; }
+
+    // Apple //c only: the IOU mouse. When attached this bank serves
+    // the mouse's soft-switch surface — $C015/$C017 (X0/Y0 interrupt
+    // status), $C019 (VBL interrupt latch, replacing the //e RDVBLBAR),
+    // $C066/$C067 (MOUX1/MOUY1 direction lines, replacing PADDL2/3),
+    // $C070's VBL-latch clear side effect, $C078/$C079 (IOU access gate),
+    // and $C058-$C05F as the IOU programming bank while access is enabled.
+    // Null on the //e and earlier, where all legacy behavior stands.
+    void SetMouse (class AppleMouse * mouse)        { m_mouse        = mouse; }
 
     // Wire the CPU bus-cycle accumulator that drives the PREAD paddle timer.
     void SetCpuCycleSource (const uint64_t * src) { m_cpuCycleSource = src; }
@@ -86,18 +111,20 @@ private:
     void EmitPaddleTrigger  ();
     void EmitPaddleRead     (Word address, Byte value);
 
-    MemoryBus *          m_bus                = nullptr;
-    Apple2eMmu *         m_mmu                = nullptr;
-    Apple2eKeyboard *    m_keyboard           = nullptr;
-    LanguageCard *       m_lc                 = nullptr;
-    IVideoTiming *       m_videoTiming        = nullptr;
-    IInputEventSink *    m_inputSink          = nullptr;
-    const uint64_t *     m_cpuCycleSource     = nullptr;
-    uint64_t             m_paddleTriggerCycle = 0;
-    bool                 m_80colMode          = false;
-    bool                 m_doubleHiRes        = false;
-    bool                 m_altCharSet         = false;
-    atomic<Byte>         m_paddlePosition[s_knPaddleAxisCount];
-    int                  m_lastEmittedPaddle[s_knPaddleAxisCount]     = { -1, -1, -1, -1 };
-    int                  m_lastEmittedHostPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
+    MemoryBus         * m_bus                                        = nullptr;
+    Apple2eMmu        * m_mmu                                        = nullptr;
+    IRomBankSwitch    * m_romBank                                    = nullptr;
+    class AppleMouse  * m_mouse                                      = nullptr;
+    Apple2eKeyboard   * m_keyboard                                   = nullptr;
+    LanguageCard      * m_lc                                         = nullptr;
+    IVideoTiming      * m_videoTiming                                = nullptr;
+    IInputEventSink   * m_inputSink                                  = nullptr;
+    const uint64_t    * m_cpuCycleSource                             = nullptr;
+    uint64_t            m_paddleTriggerCycle                         = 0;
+    bool                m_80colMode                                  = false;
+    bool                m_doubleHiRes                                = false;
+    bool                m_altCharSet                                 = false;
+    atomic<Byte>        m_paddlePosition[s_knPaddleAxisCount];
+    int                 m_lastEmittedPaddle[s_knPaddleAxisCount]     = { -1, -1, -1, -1 };
+    int                 m_lastEmittedHostPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
 };

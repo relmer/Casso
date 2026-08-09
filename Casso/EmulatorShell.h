@@ -4,6 +4,7 @@
 
 #include "Audio/Disk2AudioSource.h"
 #include "Audio/DriveAudioMixer.h"
+#include "Audio/PrinterAudioSource.h"
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
 #include "Config/Win32FileSystem.h"
@@ -14,15 +15,20 @@
 #include "Core/MemoryBus.h"
 #include "D3DRenderer.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/IAciaEndpoint.h"
+#include "Print/PrinterWorker.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Shell/MachineManager.h"
 #include "Shell/WindowCommandManager.h"
 #include "Shell/WindowManager.h"
+#include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
-#include "Ui/Chrome/JoystickToggleButton.h"
+#include "Ui/Chrome/MonitorFrame.h"
+#include "Ui/Chrome/InputDeviceSelector.h"
+#include "Ui/Chrome/CommandToolbar.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
 #include "Ui/Dialogs/DialogDefinition.h"
@@ -50,6 +56,7 @@
 
 class DxuiHwndSource;
 class SettingsSheet;
+class JsonValue;
 
 
 
@@ -93,6 +100,30 @@ public:
 //
 //  EmulatorShell
 //
+//  The application: window, chrome, devices, and the CPU thread that runs the
+//  emulated machine.
+//
+//  It implements three framework interfaces rather than owning three
+//  collaborators, and each is a different conversation. IDxuiHostClient is the
+//  window's message and paint lifecycle; IDriveCommandSink is what the drive
+//  chrome calls to mount and eject; IDxuiViewportInputSink is where guest
+//  keystrokes arrive after the framework has routed them. Implementing them
+//  here is what keeps the shell the single place those three meet.
+//
+//  TWO THREADS run against this object. The CPU thread executes instructions
+//  and publishes frames; the UI thread drains messages, renders, and presents.
+//  Everything shared between them is atomic or mutex-guarded, and several
+//  methods exist purely to marshal work to the right one -- the rule is that
+//  UI state is UI-thread-only and device state belongs to the CPU thread.
+//
+//  Devices are held in an owned list with a separate struct of observer
+//  pointers into it, so a machine switch can tear the whole graph down and
+//  rebuild it while the window, the chrome, and the renderer survive.
+//
+//  Much of the class is delegated to managers -- machine, disk, window,
+//  clipboard, command -- so this header is largely the seam between them
+//  rather than the implementation of any of it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class EmulatorShell : public IDxuiHostClient, public IDriveCommandSink, public IDxuiViewportInputSink
@@ -109,6 +140,17 @@ public:
         const string    & disk2Path);
 
     int RunMessageLoop();
+
+    // Runs ONE UI-thread render cycle: latch the newest emulator framebuffer,
+    // push CRT params, advance chrome / panel animation, refresh the printer
+    // indicator + live preview (which also paces the printer audio), and -- if
+    // anything needs presenting -- drive a synchronous WM_PAINT. Returns true iff
+    // it presented (caller idle-sleeps when false). Factored out of RunMessageLoop
+    // so the host's OnModalLoopTick can pump it while the OS modal move / size
+    // loop owns the thread (otherwise the preview + sound freeze on a title-bar
+    // hold, then jump on release). The host owns the keep-alive timer; the shell
+    // only supplies this per-frame work.
+    bool TryPresentUiFrame();
 
     void HandleCommand (WORD commandId);
 
@@ -189,7 +231,7 @@ public:
         return m_uptimeAnchor;
     }
 
-    // ---- IDriveCommandSink --------------------------------------
+    // IDriveCommandSink
     // UI-thread entry points the drive widgets call into when the user
     // drops a file, clicks-to-browse, or clicks the eject affordance.
     // Both forms route through the existing IDM_DISK_* command queue so
@@ -224,14 +266,20 @@ private:
     DxuiMessageResult  OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnSetCursor     (WORD hitTest) override;
     DxuiMessageResult  OnActivateApp   (bool active) override;
     DxuiMessageResult  OnKillFocus     () override;
+
+    // Release the guest keyboard latch + auto-repeat + modifiers. Called on
+    // focus loss: the matching key-ups will never arrive once focus moves.
+    void               ReleaseGuestKeys ();
     DxuiMessageResult  OnCancelMode    () override;
     DxuiMessageResult  OnMove          (int x, int y) override;
     DxuiMessageResult  OnNotify        (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnSize          (UINT widthPx, UINT heightPx) override;
     DxuiMessageResult  OnGetMinMax     (MINMAXINFO * info) override;
     DxuiMessageResult  OnTimer         (UINT_PTR timerId) override;
+    void               OnModalLoopTick () override;
     DxuiMessageResult  OnInitMenuPopup (HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
     DxuiMessageResult  OnNcMouseMove   (LRESULT hitTest, int xScreen, int yScreen) override;
     DxuiMessageResult  OnNcMouseLeave() override;
@@ -243,9 +291,20 @@ private:
 
     // CPU thread entry point and helpers
     void RunOneFrame();
+    void RunCpuThreadFrame();
     void ExecuteCpuSlices();
     void RenderFramebuffer();
     void DispatchCpuCommand (const EmulatorCommand & cmd);
+
+    // Presentation pacing + render-skip gate (rationale in the .cpp).
+    // ShouldPublishFrame throttles rasterize/publish to ~60 Hz at Maximum
+    // speed; the Compute* signatures feed the dirty-tracked render gate that
+    // skips re-rasterizing an unchanged screen (video RAM dirty + mode +
+    // flash phase + color).
+    bool      ShouldPublishFrame  ();
+    uint32_t  ComputeVideoModeSig ();
+    bool      ComputeFlashOn      ();
+    uint64_t  ComputeColorSig     ();
 
     // Stores the live drive-audio gains and applies them to every
     // registered Disk2AudioSource. Must run on the CPU thread (the same
@@ -267,11 +326,46 @@ private:
     void OnCpuThreadStart();
     void OnCpuThreadStop();
     void PublishFramebuffer();
+    void WaitForFrameOrMessage();
+    void DestroyFrameReadyEvent();
     void UpdateWindowTitle();
 
     // Initialization helpers
     HRESULT CreateEmulatorWindow (HINSTANCE hInstance);
     void    ReconcileInitialClientSize ();
+
+    // Initialize() decomposition -- one single-purpose step each, called
+    // in order from Initialize. HRESULT-returning steps propagate genuine
+    // infrastructure failure and abort startup via CHR; the void ones have
+    // no failable work, or recover in place -- asserting in debug so a dev
+    // catches it -- (e.g. corrupt user prefs reset to defaults) rather than
+    // abort.
+    void    RegisterChromeDock            ();
+    void    InitAssetPathsAndStores       ();
+    void    AllocateFramebuffers          ();
+    void    PrimeChromeThemeEarly         ();
+    HRESULT BuildMachineDevices           (const MachineConfig & config);
+    HRESULT InitializeRenderer            ();
+    HRESULT InitializeUiShell             ();
+    HRESULT WireUiShellChromeAndThemes    ();
+    void    RestoreInputAndColorPrefs     ();
+    void    RecordActiveMachineSelection  ();
+    void    SubscribeAndActivateTheme     ();
+    HRESULT FinishUiShellLayout           ();
+    void    InstallDragDropTarget         ();
+
+    // Persisted per-machine $cassoUiPrefs. LoadMachineUiPrefs reads +
+    // merges the machine JSON, handing back the "$cassoUiPrefs" object in
+    // outUiPrefs -- or null when it is absent OR unreadable/corrupt, both
+    // recovered to defaults, never fatal. Each Apply* helper loads its own
+    // copy and seeds one subsystem (chrome vs audio).
+    void    LoadMachineUiPrefs            (JsonValue & outDoc, const JsonValue * & outUiPrefs);
+    void    ApplyPersistedChromePrefs     ();
+    void    ApplyPersistedAudioPrefs      ();
+
+    // Truncating wide->narrow of m_currentMachineName (machine config
+    // names are ASCII): the config-store key + lastSelectedMachine pref.
+    std::string CurrentMachineNameNarrow  () const;
 
     // Drives the host's root panel layout for the Apple ][ viewport
     // child. Computes the framebuffer rectangle (client minus chrome
@@ -303,6 +397,14 @@ private:
     // is unchanged, so OnSize would never re-evaluate it. See the
     // WM_APP_DXUI_UPDATE_TITLE handler (the switch-completion signal).
     void    ReflowChromeForMachineChange ();
+
+    // Whether the second (external) drive-mount widget should be visible.
+    // Always true for machines whose second drive is fixed hardware; on the
+    // //c (banked system ROM) the external drive is an optional add-on, shown
+    // only when m_externalDriveConnected. The drive-layout paths consult this
+    // to hide m_driveChrome[1] and skip its hit rect when disconnected.
+    bool    ShouldShowExternalDrive      () const;
+
     SIZE    ClientSizeForCenterPx        (int centerWidthPx, int centerHeightPx);
     SIZE    ClientSizeForFramebufferPx   (int framebufferWidthDp, int framebufferHeightDp);
 
@@ -331,11 +433,98 @@ private:
     // it, re-syncs the game port (resolving joystick axes / buttons from
     // current keys, centering on leave), and starts or stops mouse capture
     // for Paddle mode.
+    // Split input model. SetArrowsJoystick / SetPointerMapping set
+    // the two orthogonal axes independently (menu items); SetInputMappingMode
+    // applies a combined PRESET (button cycle + legacy callers): Joystick =
+    // keys-only, Paddle/Mouse = pointer-only, Off = both off. Paddle<->Mouse
+    // stay exclusive (both claim the host pointer).
     void    SetInputMappingMode (InputMappingMode mode);
+    void    SetArrowsJoystick   (bool on);
+    void    SetPointerMapping   (InputMappingMode pointer);   // Off/Paddle/Mouse
+
+    // The single mode the legacy toggle button displays: the pointer
+    // mapping when active, else Joystick when the keys mapping is on.
+    InputMappingMode  DisplayInputMode() const
+    {
+        return (m_pointerMode != InputMappingMode::Off) ? m_pointerMode
+             : (m_arrowsJoystick ? InputMappingMode::Joystick : InputMappingMode::Off);
+    }
+
+    // With a connected mouse and no pointer mapping chosen, the //c
+    // defaults Pointer to Mouse (runtime nudge, not persisted; invisible
+    // until mouse software runs thanks to the firmware-live gate).
+    void    ApplyDefaultPointerForMachine();
+
+private:
+    // Window-placement and chrome-layout helpers. Every reader is an
+    // EmulatorShell method, so they belong to the class rather than to
+    // the translation unit.
+    static void  LayoutDriveWidgetsInCommandBar (
+        std::array<DriveWidget, 2>  & driveChrome,
+        int                           bottomInsetPx,
+        int                           clientW,
+        int                           clientH,
+        UINT                          dpi,
+        float                         sceneScale);
+
+    static bool  TryGetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor);
+
+    static void  CenterInWorkArea (
+        const RECT & work,
+        int          windowW,
+        int          windowH,
+        LONG       & outX,
+        LONG       & outY);
+
+    static HRESULT  LoadIconAsPremulBgra (
+        HINSTANCE               hInstance,
+        int                     iconResourceId,
+        int                     sizePx,
+        std::vector<uint32_t> & outPixels,
+        int                   & outW,
+        int                   & outH);
+
+    void    SyncInputModeUi();
+    void    SyncSelectorState();
+
+    // Apple //c case-switch strip. IsApple2c gates its chrome band + input;
+    // LayoutSwitchBar positions the strip in its band rect; SyncSwitchBarState
+    // pushes the live switch / indicator state onto the control each layout.
+    // HandleSwitchBarClick actions a release over one of its parts.
+    bool    IsApple2c              () const { return m_apple2cRomBank != nullptr; }
+    void    LayoutSwitchBar        (UINT dpi);
+    void    SyncSwitchBarState     ();
+    void    HandleSwitchBarClick   (Apple2cSwitchBar::Part part);
+    // Persist one case-switch latch ("eightyColumnSwitch" / "keyboardDvorak")
+    // into the current machine's $cassoUiPrefs so it survives across runs.
+    void    PersistSwitchState     (const char * key, bool value);
+public:
 
     // Radio-group toggle for the Machine-menu items: selects `target`, or
     // turns mapping Off if `target` is already the active mode.
     void    ToggleInputMappingMode (InputMappingMode target);
+
+    // //c mouse mode. True while Mouse mode is selected AND the
+    // current machine has the IOU mouse — every runtime consumer guards on
+    // this, so a persisted Mouse mode on a mouse-less machine is inert.
+    bool    GuestMouseActive       () const;
+
+    // True when guest software has actually turned the mouse on: the
+    // firmware's SETMOUSE programs ENBXY through the IOU for every active
+    // mode, a hardware sequence ($C079 -> $C059 -> $C078) that garbage RAM
+    // cannot fake. Gates the cursor-hide and button capture so the host
+    // pointer never vanishes (or gets swallowed) while nothing mouse-aware
+    // is running — which in turn makes Mouse mode safe to leave on.
+    bool    GuestMouseLive         () const;
+
+    // Absolute host→guest mapping: the host position inside the emulator
+    // viewport maps proportionally into the firmware's live clamp window
+    // (read from the slot-7 screen holes along with the current position),
+    // and the delta is queued as movement units. Self-correcting — any units
+    // the firmware clamps away are re-derived from the holes on the next
+    // move. No-op until the guest app has initialized the mouse firmware
+    // (garbage holes fail the sanity checks).
+    void    UpdateGuestMouseFromHost (int xPx, int yPx);
 
     // Advance the input mapping mode Off -> Joystick -> Paddle -> Off,
     // routed from the drive-bar widget, the Machine menu, and Ctrl+Shift+J.
@@ -374,6 +563,14 @@ private:
     void    ShowMachinePicker();
     const std::wstring &  CurrentMachineName () const { return m_currentMachineName; }
 
+    // One-line printer summary for the Settings > Printing info banner: what
+    // printer this machine emulates and how it connects, or that it has none.
+    std::wstring  PrinterBannerMessage () const;
+
+    // //e/c auxiliary 64 KiB RAM bank (nullptr on ][/][+). Used by the clipboard
+    // text scrape to read the aux half of an 80-column screen.
+    const Byte *  AuxRamBuffer() const;
+
     // Accessor used by the Settings → Theme preview to copy the live
     // emulator framebuffer into the mock window. The UI framebuffer is
     // the post-CRT-effects pixel buffer the chrome composes on top of;
@@ -400,14 +597,35 @@ private:
         return m_driveWidgetState[(size_t) driveIndex].mountedImagePath;
     }
 
+    // Write-protect breakdown for a drive, read from the live per-drive
+    // widget state (refreshed each frame by DiskManager::UpdateDriveWidgets).
+    // Used by the Settings → Theme preview so its sample drive shows the
+    // padlock cue for whatever is actually mounted. Index 0 is drive 1.
+    WriteProtectInfo  DriveWriteProtect (int driveIndex) const
+    {
+        if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
+        {
+            return WriteProtectInfo();
+        }
+
+        return m_driveWidgetState[(size_t) driveIndex].writeProtect;
+    }
+
     // Base directory for user preferences. SettingsPanel.CommitApply
     // uses this as the fallback save path when the unified store is not
     // available.
     const std::wstring &  AssetBaseDir () const { return m_assetBaseDir; }
 
+    // Per-machine pending-strip directory (FR-026):
+    // <assetBase>/Machines/<current machine>/PendingPrint.
+    fs::path  PendingPrintDir () const
+    {
+        return fs::path (m_assetBaseDir) / L"Machines" / fs::path (m_currentMachineName) / L"PendingPrint";
+    }
+
     // Live channel for the Settings → Display monitor dropdown. The
     // dropdown calls this on every selection so the user sees the
-    // colour-treatment change as they hover/select; Cancel restores
+    // color-treatment change as they hover/select; Cancel restores
     // the baseline by calling this again with the entry-state value.
     // Bypasses the IDM command queue so the change is visible on the
     // next CPU frame rather than waiting for queue drain.
@@ -418,6 +636,14 @@ private:
     // SetColorModeLive, the Settings panel calls this on hover / select so
     // the change shows on the next CPU frame, and on Cancel to restore.
     void  SetColorMonitorTextArgbLive (uint32_t argb);
+
+    // Records the user's per-drive write-protect preference and applies
+    // it to the currently mounted image (if any) so the change takes
+    // effect immediately. Called on the CPU thread from the
+    // IDM_DISK_WRITEPROTECT command handler, which the Settings apply
+    // path and the write-protect menu items post. The preference also
+    // survives an eject/remount because MountDiskInSlot6 re-applies it.
+    void  SetDriveUserWriteProtect (int drive, bool wp);
 
     // Activates the named theme in ThemeManager (which notifies the
     // chrome cache listener) and persists the choice into GlobalUserPrefs.
@@ -438,6 +664,18 @@ private:
     // emulator pixel grid. Called from the ThemeManager listener.
     void    ApplyThemeToChrome   (const CassoTheme & theme);
 
+    // Settings > Theme opt-in for the skeuomorphic desk scene (CRT monitor
+    // framing + drives scaled to sit under it). Applies live -- relays out
+    // the chrome in place -- and persists to GlobalUserPrefs.
+    void    SetSkeuoMonitorFrame (bool enabled);
+
+    // The desk scene draws only when the skeuo theme is active AND the user
+    // opted in; compact themes never draw it.
+    bool    MonitorFrameEnabled  () const
+    {
+        return !m_chromeTheme.compactDrives && m_globalPrefs.skeuoMonitorFrame;
+    }
+
     // Positions the joystick-mode toggle button vertically centered in the
     // empty band above the drive widgets (the top portion of the bottom
     // drive-bar inset) and centered horizontally in the window. bandTopPx
@@ -454,6 +692,52 @@ private:
     // width) changes between resize / DPI events. No-op until the first
     // LayoutJoystickButton has cached valid geometry.
     void    RelayoutJoystickButton ();
+
+    // Position the printer status indicator in the command-bar dead space to
+    // the right of the centered drive widgets, or Hide() it when the machine
+    // has no printer card. Does not affect drive centering.
+
+    // Open (creating if needed) the printer panel / print preview window, and
+    // push it a fresh snapshot of the current strip. `activate` false shows it
+    // without stealing focus from the guest (used by the auto-open path).
+    void    ShowPrinterPanel (bool activate = true);
+
+    // Owner HWND for printer confirmation / notice message boxes: the preview
+    // panel when it is open and visible (so the box centers on the dialog the
+    // user is acting in), otherwise the main window.
+    HWND    PrinterDialogOwner () const;
+
+    // Force-refresh the printer panel from the drain worker (race-free, without
+    // stopping it): the panel snapshots and renders only its visible ~1-page
+    // viewport span. Non-destructive: the live interpreter keeps running, so
+    // refreshing mid-print can never disturb the job's state or the output.
+    void    SnapshotStripToPanel ();
+
+    // Per-frame: sample the worker's status signals, recompute the indicator
+    // state, and mark a redraw only when it changes (so a static screen still
+    // repaints the LED on a transition).
+    void    UpdatePrinterStatus ();
+
+    // Delivery outcome -> the printer status LED: failed=true lights the red
+    // error state until a success / discard clears it or the guest prints
+    // something new. Called from the delivery paths (WindowCommandManager).
+    void    NotePrinterDeliveryResult (bool failed)
+    {
+        m_printerDeliveryError = failed;
+        m_printerErrorActivity = m_printerWorker.ActivityCount ();
+    }
+
+    // Per-frame: auto-open the preview when a new print begins (activity resuming
+    // after an idle gap) and refresh the strip live as bytes flow, throttled by an
+    // interval that grows with strip height so a busy print does not re-render the
+    // whole strip every frame (nor O(rows^2) over a long banner).
+    void    UpdatePrinterPreview ();
+
+    // Attach the Casso app icon (IDI_CASSO) to a child DxuiWindow so it shows the
+    // Casso motif in Alt-Tab / the taskbar. The borderless Dxui panels do not
+    // inherit the WNDCLASS icon, and Alt-Tab reads WM_GETICON, so the big+small
+    // icons are handed over explicitly (as the main window does).
+    void    ApplyAppIconToWindow (HWND target);
 
     // Keyboard chrome-focus ring (see m_chromeFocusIndex). SetChromeFocusIndex
     // updates the index and refreshes which widget paints its focus visual;
@@ -500,10 +784,10 @@ private:
     friend class SettingsDisplayCrtBridge;
     friend class SettingsMachineCatalog;
 
-    HACCEL              m_accelTable      = nullptr;
-    HINSTANCE           m_hInstance       = nullptr;
-    HWND                m_hwnd            = nullptr;
-    bool                m_initialSizeReconciled = false;
+    HACCEL     m_accelTable            = nullptr;
+    HINSTANCE  m_hInstance             = nullptr;
+    HWND       m_hwnd                  = nullptr;
+    bool       m_initialSizeReconciled = false;
 
     // Authoritative per-window DPI scaler. Mirrors the one inside
     // DxuiHwndSource; updated from OnDpiChanged and seeded after
@@ -511,11 +795,11 @@ private:
     // thicknesses through this member.
     DxuiDpiScaler       m_scaler;
 
-    MemoryBus           m_memoryBus;
-    ComponentRegistry   m_registry;
-    InterruptController m_interruptController;
-    unique_ptr<EmuCpu> m_cpu;
-    unique_ptr<class Prng> m_prng;
+    MemoryBus               m_memoryBus;
+    ComponentRegistry       m_registry;
+    InterruptController     m_interruptController;
+    unique_ptr<EmuCpu>      m_cpu;
+    unique_ptr<class Prng>  m_prng;
     size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
     std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
    
@@ -532,9 +816,39 @@ private:
     // commands and runs alongside the existing Win32 menu bar until the
     // painter retires the latter. The caption (title + icon + min/max/
     // close) is owned and rendered by the DxuiHwndSource, not here.
-    MainMenu            m_mainMenu;
-    CassoTheme         m_chromeTheme    = CassoTheme::Skeuomorphic();
-    std::array<DriveWidget, 2> m_driveChrome;
+    MainMenu                    m_mainMenu;
+    CassoTheme                  m_chromeTheme = CassoTheme::Skeuomorphic();
+    std::array<DriveWidget, 2>  m_driveChrome;
+
+    // The command toolbar (spec 015 DCR-2): the strip below the menu bar with
+    // Settings / Printer (+status LED) / master Volume + Mute / Screenshot /
+    // Reset / Power. Its printer button carries the status light (the old
+    // standalone PrinterIndicator is deleted).
+    CommandToolbar      m_toolbar;
+
+    // The pure model deriving the printer LED state from the worker's live
+    // signals, plus the last state pushed to the toolbar so a transition
+    // repaints exactly once.
+    PrinterStatusModel  m_printerStatus;
+    PrinterStatus       m_printerStatusShown = PrinterStatus::Idle;
+
+    // Delivery-failure latch feeding the status model's error input (the
+    // toolbar LED's red). Set by the delivery paths in WindowCommandManager;
+    // cleared by a successful delivery, a discard, or fresh guest print
+    // activity (the user has moved on -- red must not mask the new print).
+    bool                m_printerDeliveryError = false;
+    uint64_t            m_printerErrorActivity = 0;
+
+    // Skeuomorphic CRT monitor housing that frames the emulator display
+    // (skeuo theme only). Insets the viewport into its screen recess; the
+    // housing paints the ring around it. Models the Apple Monitor //c.
+    MonitorFrame               m_monitorFrame;
+
+    // Desk-scene zoom: the monitor's SceneScale from the last layout. The
+    // drive widgets and the (scaled part of the) drive band follow it so the
+    // whole scene zooms together when the window resizes. 1.0 for compact
+    // themes and at the 100%-zoom default window size.
+    float                      m_chromeSceneScale = 1.0f;
 
     // DxuiHwndSource running in full-ownership mode. Owns the main
     // HWND (registers WNDCLASS "CassoWindow", calls CreateWindowExW,
@@ -572,8 +886,32 @@ private:
     // Joystick-mode toggle button (mirrors IDM_MACHINE_ARROWS_JOYSTICK),
     // centered in the drive bar above the drive widgets, with its own
     // hover tooltip.
-    JoystickToggleButton  m_joystickButton;
-    DxuiTooltip               m_joystickTooltip;
+    InputDeviceSelector  m_joystickButton;   // Segmented device selector
+    DxuiTooltip          m_joystickTooltip;
+    DxuiTooltip          m_toolbarTooltip;   // labels for the toolbar's icon-only mode
+
+    // Apple //c case-switch strip (reset button + 80/40 and keyboard latching
+    // switches + disk-use / power LEDs), painted in its own chrome band between
+    // the emulator viewport and the drive bar. Present only on the //c; its
+    // band collapses to zero height on every other machine. Manually
+    // hit-tested / actioned by the mouse handlers, like the other chrome.
+    Apple2cSwitchBar  m_switchBar;
+    DxuiTooltip       m_switchBarTooltip;
+
+    // Hover tooltip for the drive widgets, surfaced when the pointer
+    // rests over a write-protected drive. Explains that the disk is
+    // write-protected and names the source(s) -- image flag, user
+    // setting, or an unwritable backing file. Shares the host popup pool
+    // with m_joystickTooltip (the hover regions are mutually exclusive).
+    DxuiTooltip               m_driveTooltip;
+
+    // Live per-drive user write-protect preference (Settings > Disk
+    // checkbox / write-protect menu). Seeded from $cassoUiPrefs at
+    // startup and re-applied to each freshly mounted image so the guest
+    // sees the disk as protected and dirty writes never flush. Distinct
+    // from the image's own embedded flag and from the backing file's
+    // read-only state; all three are surfaced independently in the UI.
+    std::array<bool, 2>   m_userWriteProtect { { false, false } };
 
     // Solid background for the bottom drive-bar band. The CRT composite
     // writes the whole back buffer (emulator frame + black), so the chrome
@@ -596,12 +934,21 @@ private:
     // thickness the theme mutates (compact vs full).
     static constexpr int  s_kTitleBarBandDp     = 32;
     static constexpr int  s_kNavStripBandDp     = 32;
+    // (The command toolbar band's thickness comes from m_toolbar.BandDp() --
+    // it varies with the responsive mode planned for the window width.)
     static constexpr int  s_kInitialDriveBandDp = 256;
+
+    // //c switch strip band thickness (dp). Zero-height on non-//c machines
+    // (SyncChromeBands gates it on IsApple2c()); it docks below the drive band
+    // so it lands between the viewport and the joystick/paddle/mouse bar.
+    static constexpr int  s_kSwitchBandDp       = 40;
 
     DxuiDockLayout           m_chromeDock;
     ChromeBand               m_titleBand;
     ChromeBand               m_navBand;
+    ChromeBand               m_toolbarBand;
     ChromeBand               m_driveBand;
+    ChromeBand               m_switchBand;
     ChromeBand               m_centerBand;
     int                      m_driveBarThicknessDp = s_kInitialDriveBandDp;
 
@@ -610,8 +957,30 @@ private:
     // to the disk-presence it just laid out; ReflowChromeForMachineChange reads
     // this pre-switch value to grow/shrink the window by the drive-band delta
     // (so the viewport keeps its size + the top-left stays put) rather than
-    // re-centring inside a fixed window.
+    // re-centering inside a fixed window.
     bool                     m_chromeSizedForHasDisk = true;
+
+    // Companion to m_chromeSizedForHasDisk for the //c switch band: whether the
+    // current WINDOW height was sized with the switch strip present. Recorded by
+    // OnSize; ReflowChromeForMachineChange folds the switch-band delta into the
+    // window resize so switching to / from the //c keeps the viewport its size.
+    bool                     m_chromeSizedForApple2c = false;
+
+    // //c only: whether the optional external drive is "connected". Mirrors
+    // the per-machine $cassoUiPrefs.externalDriveConnected pref; seeded at
+    // machine build and flipped live by IDM_DRIVE_EXTERNAL_CONNECT/DISCONNECT.
+    // Gates the second drive-mount widget (m_driveChrome[1]) via
+    // ShouldShowExternalDrive(). No effect on machines whose second drive is
+    // fixed hardware (they have no banked ROM, so the gate is always open).
+    bool                     m_externalDriveConnected = false;
+
+    // //c only: whether the mouse peripheral is plugged into the DB-9 port
+    // Mirrors $cassoUiPrefs.mouseConnected (default CONNECTED);
+    // flipped live by IDM_MOUSE_CONNECT/DISCONNECT. Disconnected = the IOU
+    // silicon stays but GuestMouseActive() is false (no host input feeds
+    // the device) and the input-mode cycle hides Mouse -- indistinguishable
+    // from an unplugged DB-9 on real hardware.
+    bool                     m_mouseConnected = true;
 
     // Drive widget state pump. The controller channel publishes
     // per-drive door/spin sync events the chrome painter will consume
@@ -620,8 +989,8 @@ private:
     // lives in m_driveWidgetState; the CPU thread's motor + nibble
     // counters are sampled once per UI frame and pushed through the
     // controller.
-    DriveWidgetController                m_driveWidgets;
-    DxuiDragDropTarget                       m_dragDropTarget;
+    DriveWidgetController  m_driveWidgets;
+    DxuiDragDropTarget     m_dragDropTarget;
 
     // Native UI shell. Owns the painter, text renderer, hit-tester,
     // focus manager, animation broker, and input translator. Wired
@@ -656,6 +1025,18 @@ private:
     DriveAudioMixer                      m_driveAudioMixer;
     vector<unique_ptr<Disk2AudioSource>> m_diskAudioSources;
 
+    // Emulated ImageWriter II mechanical audio (Option A: driven by the paced
+    // on-screen carriage, not the raw guest stream). A single persistent source
+    // on the shared drive-audio bus (FR-016), re-registered by MachineManager on
+    // every build. Its grains load once in OnCpuThreadStart.
+    PrinterAudioSource                   m_printerAudio;
+
+    // Mockingboard audio. Its own mixer so the "Mockingboard" Options
+    // toggle is independent of the Drive Audio toggle. The PSG audio
+    // sources are owned by the MockingboardCard device; the mixer holds
+    // borrowed pointers, re-registered by MachineManager on every build.
+    DriveAudioMixer                      m_mockingboardAudioMixer;
+
     // Live per-sound drive-audio gains (0..1), seeded from $cassoUiPrefs
     // at startup and updated via SetDriveAudioVolumes. Stored on the shell
     // so they survive machine resets (MachineManager re-seeds fresh
@@ -673,6 +1054,13 @@ private:
 
     // Owned devices
     vector<unique_ptr<MemoryDevice>>     m_ownedDevices;
+
+    // Serial-port endpoints (//c 6551 ACIAs). Owned separately from
+    // m_ownedDevices because an IAciaEndpoint is not a MemoryDevice; each is
+    // bound to its ACIA via SetEndpoint. The loopback endpoints hold a raw
+    // Acia6551* but are never called during teardown, so destruction order
+    // relative to m_ownedDevices is immaterial.
+    vector<unique_ptr<IAciaEndpoint>>    m_ownedAciaEndpoints;
 
     // Video
     vector<unique_ptr<VideoOutput>>      m_videoModes;
@@ -704,12 +1092,28 @@ private:
         class AppleSpeaker *          speaker          = nullptr;
         class RamDevice *             mainRamDev       = nullptr;
         class Disk2Controller *       diskController   = nullptr;
+        class MockingboardCard *      mockingboard     = nullptr;
         class VideoOutput *           activeVideoMode  = nullptr;
+        class PrinterCard *           printerCard      = nullptr;
     };
 
     MachineRefs                   m_refs;
 
+    // Background printer drain (ring -> interpreter -> raster). Declared after
+    // m_ownedDevices so it is torn down (thread joined) before the card it
+    // drains.
+    PrinterWorker                 m_printerWorker;
+
     unique_ptr<class Apple2eMmu>  m_mmu;
+    // Apple //c firmware-bank coordinator ($C028). Null on every other
+    // machine. Owned here (not in m_ownedDevices) because it is not a bus
+    // device; reset during machine teardown before the LC/MMU it references.
+    unique_ptr<class Apple2cRomBank>  m_apple2cRomBank;
+    // Apple //c IOU mouse. Null on every other machine. Owned here
+    // (not in m_ownedDevices) because it is not a bus device: the keyboard
+    // and soft-switch bank forward its register surface, and the EmuCpu
+    // cycle fan-out ticks it (VBL-edge latch + paced movement interrupts).
+    unique_ptr<class AppleMouse>  m_mouse;
     unique_ptr<VideoTiming>       m_videoTiming;
 
     // / T097 / FR-025. The store coordinates auto-flush of dirty
@@ -744,27 +1148,57 @@ private:
     // monitor is active. Defaults to white.
     atomic<uint32_t>              m_colorMonitorTextArgb{ColorUtil::kWhiteArgb};
 
-    // Double framebuffer (CPU renders, UI presents, protected by m_fbMutex)
-    mutex                         m_fbMutex;
+    // Double framebuffer (CPU renders, UI presents, protected by m_framebufferMutex)
+    mutex                         m_framebufferMutex;
     vector<uint32_t>              m_cpuFramebuffer;
     vector<uint32_t>              m_textOverlay;
     vector<uint32_t>              m_uiFramebuffer;
-    bool                          m_fbReady = false;
+    bool                          m_framebufferReady = false;
+
+    // Auto-reset event the CPU thread signals after publishing a new frame so
+    // the idle UI loop blocks on MsgWaitForMultipleObjects instead of spin-
+    // polling with Sleep(1). Created/destroyed by RunMessageLoop.
+    HANDLE                        m_frameReadyEvent = nullptr;
+
+    // Render-skip gate: the signatures of the last rendered frame's inputs
+    // (video mode/soft-switches, flash phase, color mode + text color). Each
+    // CPU-thread frame compares the live inputs plus the bus video-dirty flag
+    // against these and skips the whole rasterize + publish when nothing that
+    // affects the picture has changed. CPU-thread-only (paused during a step).
+    uint32_t                      m_lastRenderModeSig  = 0;
+    bool                          m_lastRenderFlashOn  = false;
+    uint64_t                      m_lastRenderColorSig = 0;
+
+    // Which video mode composed the previous frame. AppleTextMode's dirty-row
+    // cache may only reuse a row when the framebuffer still holds that row's
+    // text -- so a change of active mode (the buffer last held graphics or
+    // another mode) forces a full text re-raster on the next frame.
+    class VideoOutput *           m_prevActiveVideoMode = nullptr;
+
+    // Wall-clock pacing for the presentation side at Maximum speed: the CPU
+    // runs flat-out, but frames are rasterized + published only ~60x a second
+    // so we don't burn cores rendering frames no one will ever see.
+    chrono::steady_clock::time_point  m_lastPublishSteady = {};
+
+    // Previous UI frame's "any drive live" state, so the loop can force one
+    // final present on the live->idle edge and clear the activity LED.
+    bool                          m_anyDriveLivePrev = false;
 
     uint32_t                      m_cyclesPerFrame  = 17050;
     double                        m_sampleRemainder = 0.0;
 
     // Last arrow key pressed for each emulated joystick axis pair (0 if
     // none). Lets opposing directions resolve last-pressed-wins so a
-    // rolling reversal flips the axis instead of cancelling to center.
+    // rolling reversal flips the axis instead of canceling to center.
     WPARAM          m_lastHorizontalArrowVk = 0;
     WPARAM          m_lastVerticalArrowVk   = 0;
 
     // How host arrow / pointer input is mapped onto the emulated game
     // port (Off / Joystick / Paddle). Mirrors
-    // GlobalUserPrefs::inputMappingMode and is cycled via the Machine
+    // GlobalUserPrefs (split model) and is cycled via the Machine
     // menu's "Cycle Input Mode" item, Ctrl+Shift+J, and the drive-bar widget.
-    InputMappingMode  m_inputMode = InputMappingMode::Off;
+    InputMappingMode  m_pointerMode    = InputMappingMode::Off;   // Off/Paddle/Mouse
+    bool              m_arrowsJoystick = false;                    // Keys axis
 
     // Paddle-mode mouse capture. While captured, the cursor is hidden and
     // confined, relative motion drives the paddle axes (held, no recenter),
@@ -788,6 +1222,16 @@ private:
     // re-zero it even while the panel is closed.
     std::unique_ptr<class Disk2DebugPanel>    m_disk2DebugPanel;
     std::unique_ptr<class InputDebugPanel>    m_inputDebugPanel;
+    std::unique_ptr<class PrinterPanel>       m_printerPanel;
+
+    // Live-preview bookkeeping (UpdatePrinterPreview). Auto-open fires once when a
+    // *new* print begins -- activity resuming after an idle gap -- so it opens even
+    // when a prior pending strip is still loaded, yet a mid-print manual close does
+    // not fight a re-open (activity never goes idle mid-print). Refresh pacing and
+    // change detection live in the panel's viewport (PrinterPanel::RefreshLive).
+    bool                                      m_printerAutoOpenArmed    = true;
+    uint64_t                                  m_printerAutoOpenActivity = 0;
+    int64_t                                   m_printerActiveLastMs     = 0;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 
     // Extracted shell-side managers. WindowManager owns the per-monitor

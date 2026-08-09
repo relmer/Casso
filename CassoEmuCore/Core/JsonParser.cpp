@@ -34,8 +34,9 @@ JsonParser::JsonParser (const string & input)
 
 HRESULT JsonParser::Parse (const string & input, JsonValue & outValue, JsonParseError & outError)
 {
-    HRESULT    hr     = S_OK;
-    JsonParser parser   (input);
+    HRESULT  hr          = S_OK;
+    bool     consumedAll = false;
+    JsonParser parser         (input);
 
 
 
@@ -44,7 +45,8 @@ HRESULT JsonParser::Parse (const string & input, JsonValue & outValue, JsonParse
 
     parser.SkipWhitespace();
 
-    CBRF (parser.AtEnd(), parser.SetError ("Unexpected content after JSON value"));
+    consumedAll = parser.AtEnd();
+    CBRF (consumedAll, parser.SetError ("Unexpected content after JSON value"));
 
 Error:
     if (FAILED (hr))
@@ -63,19 +65,38 @@ Error:
 //
 //  JsonParser::ParseValue
 //
+//  Dispatches on the first non-whitespace character to whichever value parser
+//  the grammar demands, and is the recursive entry point objects and arrays
+//  re-enter for each of their members.
+//
+//  A single lookahead character is enough because JSON is designed that way:
+//  every value type begins with a character no other type can begin with.
+//  There is no backtracking here and none is needed.
+//
+//  Numbers are the one case with no unique opener, so they fall to the default
+//  and are recognized by a digit or a leading minus. Anything else is an error
+//  naming the character, which is what makes a stray comma or a bare word in a
+//  hand-edited config point at itself.
+//
+//  The keyword cases re-assign outValue AFTER ParseKeyword succeeds: the
+//  keyword parser only verifies the spelling, so the typed value is built here
+//  rather than being inferred from a string.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT JsonParser::ParseValue (JsonValue & outValue)
 {
-    HRESULT hr  = S_OK;
-    char    ch  = 0;
+    HRESULT hr       = S_OK;
+    char    ch       = 0;
+    bool    hasInput = false;
     string  str;
 
 
 
     SkipWhitespace();
 
-    CBR (!AtEnd());
+    hasInput = !AtEnd();
+    CBR (hasInput);
 
     ch = Peek();
     switch (ch)
@@ -126,6 +147,7 @@ HRESULT JsonParser::ParseValue (JsonValue & outValue)
                 SetError (format ("Unexpected character '{}'", ch));
                 CBR (false);
             }
+
             break;
     }
 
@@ -141,27 +163,44 @@ Error:
 //
 //  JsonParser::ParseString
 //
+//  Parses a quoted string, decoding the JSON escape sequences.
+//
+//  \u escapes are decoded but only EMITTED below U+0080. The parser's output
+//  is a narrow std::string, and the configs it reads -- machine definitions,
+//  theme files, user prefs -- are ASCII by design, so a higher code point is
+//  consumed and dropped rather than being written as a mojibake byte or
+//  forcing a UTF-8 encoder into the core. It stays consumed so the four hex
+//  digits never leak into the string as literal text.
+//
+//  A truncated escape, a truncated \u, and a missing closing quote are all
+//  errors rather than being tolerated at end of input -- a file cut short mid
+//  string should say so, not silently parse as a shorter value.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT JsonParser::ParseString (string & outStr)
 {
-    HRESULT       hr   = S_OK;
-    char          ch   = 0;
-    char          esc  = 0;
+    HRESULT       hr        = S_OK;
+    char          ch        = 0;
+    char          esc       = 0;
     string        hex;
-    unsigned long code = 0;
-    bool          done = false;
+    unsigned long code      = 0;
+    bool          done      = false;
+    bool          hasInput  = false;
+    bool          isQuote   = false;
 
 
 
-    CBR (Peek () == '"');
-    Advance ();
+    isQuote = (Peek() == '"');
+    CBR (isQuote);
 
-    outStr.clear ();
+    Advance();
 
-    while (!AtEnd () && !done)
+    outStr.clear();
+
+    while (!AtEnd() && !done)
     {
-        ch = Advance ();
+        ch = Advance();
 
         // Closing quote — done
         if (ch == '"')
@@ -178,9 +217,10 @@ HRESULT JsonParser::ParseString (string & outStr)
         }
 
         // Escape sequence
-        CBR (!AtEnd ());
+        hasInput = !AtEnd();
+        CBR (hasInput);
 
-        esc = Advance ();
+        esc = Advance();
 
         switch (esc)
         {
@@ -194,22 +234,26 @@ HRESULT JsonParser::ParseString (string & outStr)
             case 't':  outStr += '\t'; break;
             case 'u':
             {
-                hex.clear ();
+                hex.clear();
 
                 for (int i = 0; i < 4; i++)
                 {
-                    CBR (!AtEnd ());
-                    hex += Advance ();
+                    hasInput = !AtEnd();
+                    CBR (hasInput);
+
+                    hex += Advance();
                 }
 
-                code = strtoul (hex.c_str (), nullptr, 16);
+                code = strtoul (hex.c_str(), nullptr, 16);
 
                 if (code < 0x80)
                 {
                     outStr += static_cast<char> (code);
                 }
+
                 break;
             }
+
             default:
             {
                 SetError (format ("Invalid escape sequence '\\{}'", esc));
@@ -236,19 +280,42 @@ Error:
 //
 //  JsonParser::ParseNumber
 //
+//  Parses a number, with one deliberate extension to the JSON grammar:
+//  `0x` hex literals.
+//
+//  Hex is accepted because the files this parser exists to read are full of
+//  6502 addresses, and a machine config that had to spell $C000 as 49152 would
+//  be unreadable to the people maintaining it. This is a private parser for
+//  first-party configs, not a general-purpose JSON library, so extending the
+//  grammar costs nothing externally.
+//
+//  Everything is stored as a double, matching JSON's single numeric type; the
+//  accessors narrow to int or Word at the point of use, where the expected
+//  range is actually known.
+//
+//  The standard path scans the full number -- sign, fraction, exponent -- and
+//  hands the whole span to strtod rather than accumulating digits by hand, so
+//  rounding matches the platform's own conversion.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT JsonParser::ParseNumber (JsonValue & outValue)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr    = S_OK;
+    size_t   start = m_pos;
+    bool     isHex = false;
+    double   value = 0.0;
 
-    size_t start = m_pos;
 
-    // Check for 0x hex prefix
-    if (m_pos + 2 < m_input.size() &&
-        m_input[m_pos] == '0' &&
-        (m_input[m_pos + 1] == 'x' || m_input[m_pos + 1] == 'X'))
+
+    isHex = m_pos + 2 < m_input.size() &&
+            m_input[m_pos] == '0' &&
+            (m_input[m_pos + 1] == 'x' || m_input[m_pos + 1] == 'X');
+
+    if (isHex)
     {
+        string  hexStr;
+
         Advance();  // '0'
         Advance();  // 'x'
 
@@ -257,38 +324,16 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
             Advance();
         }
 
-        string hexStr = m_input.substr (start + 2, m_pos - start - 2);
-        unsigned long value = strtoul (hexStr.c_str(), nullptr, 16);
-        outValue = JsonValue (static_cast<double> (value));
-        return S_OK;
+        hexStr = m_input.substr (start + 2, m_pos - start - 2);
+
+        value = static_cast<double> (strtoul (hexStr.c_str(), nullptr, 16));
     }
-
-    // Standard JSON number
-    if (Peek() == '-')
+    else
     {
-        Advance();
-    }
+        string  numStr;
 
-    while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
-    {
-        Advance();
-    }
-
-    if (!AtEnd() && Peek() == '.')
-    {
-        Advance();
-
-        while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
-        {
-            Advance();
-        }
-    }
-
-    if (!AtEnd() && (Peek() == 'e' || Peek() == 'E'))
-    {
-        Advance();
-
-        if (!AtEnd() && (Peek() == '+' || Peek() == '-'))
+        // Standard JSON number
+        if (Peek() == '-')
         {
             Advance();
         }
@@ -297,10 +342,37 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
         {
             Advance();
         }
+
+        if (!AtEnd() && Peek() == '.')
+        {
+            Advance();
+
+            while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
+            {
+                Advance();
+            }
+        }
+
+        if (!AtEnd() && (Peek() == 'e' || Peek() == 'E'))
+        {
+            Advance();
+
+            if (!AtEnd() && (Peek() == '+' || Peek() == '-'))
+            {
+                Advance();
+            }
+
+            while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
+            {
+                Advance();
+            }
+        }
+
+        numStr = m_input.substr (start, m_pos - start);
+
+        value = strtod (numStr.c_str(), nullptr);
     }
 
-    string numStr = m_input.substr (start, m_pos - start);
-    double value = strtod (numStr.c_str(), nullptr);
     outValue = JsonValue (value);
 
     return hr;
@@ -314,13 +386,40 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
 //
 //  JsonParser::ParseObject
 //
+//  Parses `{ "key": value, ... }`, recursing through ParseValue for each
+//  member.
+//
+//  The empty object is tested before the loop rather than handled inside it,
+//  because the loop is structured as "parse a member, then decide whether
+//  another follows" -- entering it with `}` next would demand a key that is
+//  not there.
+//
+//  A trailing comma is consequently REJECTED: after a comma the loop
+//  unconditionally requires another key. That is stricter than some parsers,
+//  and deliberately so, since a trailing comma in a hand-edited config is
+//  nearly always a half-finished edit.
+//
+//  Entries are collected in a vector of pairs, not a map, so declaration order
+//  survives parsing and duplicate keys are preserved rather than one silently
+//  overwriting the other.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT JsonParser::ParseObject (JsonValue & outValue)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr        = S_OK;
+    bool    isBrace   = false;
+    bool    hasInput  = false;
+    bool    isQuote   = false;
+    bool    hasColon  = false;
+    bool    isComma   = false;
+    bool    isEmpty   = false;
 
-    CBR (Peek() == '{');
+
+
+    isBrace = (Peek() == '{');
+    CBR (isBrace);
+
     Advance();
 
     {
@@ -328,36 +427,45 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
 
         SkipWhitespace();
 
-        if (!AtEnd() && Peek() == '}')
+        isEmpty = !AtEnd() && Peek() == '}';
+
+        if (isEmpty)
         {
             Advance();
-            outValue = JsonValue (move (entries));
-            return S_OK;
         }
 
-        while (true)
+        while (!isEmpty)
         {
+            string     key;
+            JsonValue  val;
+
             SkipWhitespace();
-            CBR (!AtEnd());
 
-            CBRF (Peek() == '"', SetError ("Expected string key in object"));
+            hasInput = !AtEnd();
+            CBR (hasInput);
 
-            string key;
+            isQuote = (Peek() == '"');
+            CBRF (isQuote, SetError ("Expected string key in object"));
+
             hr = ParseString (key);
             CHR (hr);
 
             SkipWhitespace();
-            CBR (!AtEnd() && Peek() == ':');
+
+            hasColon = !AtEnd() && Peek() == ':';
+            CBR (hasColon);
+
             Advance();
 
-            JsonValue val;
             hr = ParseValue (val);
             CHR (hr);
 
             entries.emplace_back (move (key), move (val));
 
             SkipWhitespace();
-            CBR (!AtEnd());
+
+            hasInput = !AtEnd();
+            CBR (hasInput);
 
             if (Peek() == '}')
             {
@@ -365,7 +473,8 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
                 break;
             }
 
-            CBRF (Peek() == ',', SetError ("Expected ',' or '}' in object"));
+            isComma = (Peek() == ',');
+            CBRF (isComma, SetError ("Expected ',' or '}' in object"));
 
             Advance();
         }
@@ -385,13 +494,32 @@ Error:
 //
 //  JsonParser::ParseArray
 //
+//  Parses `[ value, ... ]` -- structurally the same walk as ParseObject
+//  without the key and colon.
+//
+//  The empty array is likewise tested before the loop, since the loop starts
+//  by demanding a value.
+//
+//  Elements are parsed through ParseValue, so arrays nest arbitrarily and can
+//  hold mixed types. Nothing here validates homogeneity: that is the consuming
+//  loader's business, and it can say something far more useful than "type
+//  mismatch at element 3".
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT JsonParser::ParseArray (JsonValue & outValue)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr        = S_OK;
+    bool    isBracket = false;
+    bool    hasInput  = false;
+    bool    isComma   = false;
+    bool    isEmpty   = false;
 
-    CBR (Peek() == '[');
+
+
+    isBracket = (Peek() == '[');
+    CBR (isBracket);
+
     Advance();
 
     {
@@ -399,14 +527,14 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
 
         SkipWhitespace();
 
-        if (!AtEnd() && Peek() == ']')
+        isEmpty = !AtEnd() && Peek() == ']';
+
+        if (isEmpty)
         {
             Advance();
-            outValue = JsonValue (move (elements));
-            return S_OK;
         }
 
-        while (true)
+        while (!isEmpty)
         {
             JsonValue val;
             hr = ParseValue (val);
@@ -415,7 +543,9 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
             elements.push_back (move (val));
 
             SkipWhitespace();
-            CBR (!AtEnd());
+
+            hasInput = !AtEnd();
+            CBR (hasInput);
 
             if (Peek() == ']')
             {
@@ -423,7 +553,8 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
                 break;
             }
 
-            CBRF (Peek() == ',', SetError ("Expected ',' or ']' in array"));
+            isComma = (Peek() == ',');
+            CBRF (isComma, SetError ("Expected ',' or ']' in array"));
 
             Advance();
         }
@@ -447,15 +578,22 @@ Error:
 
 HRESULT JsonParser::ParseKeyword (const char * keyword, JsonValue & outValue)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr        = S_OK;
+    size_t  len       = 0;
+    bool    matchesCh = false;
+
+
 
     UNREFERENCED_PARAMETER (outValue);
 
-    size_t len = strlen (keyword);
+
+
+    len = strlen (keyword);
 
     for (size_t i = 0; i < len; i++)
     {
-        CBRF (!AtEnd() && Peek() == keyword[i], SetError (format ("Expected '{}'", keyword)));
+        matchesCh = !AtEnd() && Peek() == keyword[i];
+        CBRF (matchesCh, SetError (format ("Expected '{}'", keyword)));
 
         Advance();
     }
@@ -471,6 +609,23 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  JsonParser::SkipWhitespace
+//
+//  Skips whitespace and, as the parser's second deliberate extension to the
+//  grammar, `//` line comments.
+//
+//  Comments are supported because these files are hand-maintained
+//  configuration: a machine definition wants to say WHY a ROM sits at a given
+//  address, and strict JSON gives it nowhere to say it. Like the hex literals
+//  in ParseNumber, this is safe precisely because the parser reads only
+//  first-party files.
+//
+//  Comment skipping lives here, in the one function every parse step already
+//  calls between tokens, so a comment is legal anywhere whitespace is and no
+//  individual parser needs to know comments exist.
+//
+//  Block comments are NOT supported. A `//` runs to end of line and cannot be
+//  left unterminated, whereas an unclosed `/*` silently swallows the rest of
+//  the file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,35 +4,52 @@
 #include "Window/DxuiButtonRow.h"
 #include "Core/DxuiDpiScaler.h"
 
-#include <array>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
-{
-    RECT  MakeRect (int l, int t, int r, int b) { return RECT{ l, t, r, b }; }
+// Shared by both TEST_CLASSes below, so these live at file scope rather than
+// on either one. `static` supplies the internal linkage the anonymous
+// namespace was there for.
+static RECT  MakeRect (int l, int t, int r, int b) { return RECT{ l, t, r, b }; }
 
-    void  AssertRect (const RECT & expected, const RECT & actual, const wchar_t * msg)
-    {
-        Assert::AreEqual (expected.left,   actual.left,   msg);
-        Assert::AreEqual (expected.top,    actual.top,    msg);
-        Assert::AreEqual (expected.right,  actual.right,  msg);
-        Assert::AreEqual (expected.bottom, actual.bottom, msg);
-    }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssertRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void  AssertRect (const RECT & expected, const RECT & actual, const wchar_t * msg)
+{
+    Assert::AreEqual (expected.left,   actual.left,   msg);
+    Assert::AreEqual (expected.top,    actual.top,    msg);
+    Assert::AreEqual (expected.right,  actual.right,  msg);
+    Assert::AreEqual (expected.bottom, actual.bottom, msg);
 }
 
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
 //
-//  Covers the button-row customization added for the SettingsPanel ->
-//  DxuiPropertySheet migration (T162): the hideable Apply button + custom
-//  OK label / width that let the sheet express Casso's no-Apply /
-//  "OK (reboot)" model. The reflow math is exercised through the pure
-//  LayoutButtonRow helper so no window is required.
+//  TEST_CLASS
 //
+//
+//   Covers the button-row customization added for the SettingsPanel ->
+//   DxuiPropertySheet migration (T162): the hideable Apply button + custom
+//   OK label / width that let the sheet express Casso's no-Apply /
+//   "OK (reboot)" model. The reflow math is exercised through the pure
+//   LayoutButtonRow helper so no window is required.
+//
+//
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_CLASS (DxuiPropertySheetTests)
 {
 public:
@@ -137,11 +154,19 @@ public:
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
 //
-//  Covers the shared button-row ordering + left/right anchoring used by both
-//  DxuiPropertySheet and DxuiDialogWindow so every command row lands in the
-//  canonical Win32 order with secondary actions pinned bottom-left.
+//  TEST_CLASS
 //
+//
+//   Covers the shared button-row ordering + left/right anchoring used by both
+//   DxuiPropertySheet and DxuiDialogWindow so every command row lands in the
+//   canonical Win32 order with secondary actions pinned bottom-left.
+//
+//
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_CLASS (DxuiButtonRowTests)
 {
 public:

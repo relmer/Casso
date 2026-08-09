@@ -47,22 +47,19 @@ void SettingsDisplayCrtBridge::Bind (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int SettingsDisplayCrtBridge::ActiveModeIdx () const
+int SettingsDisplayCrtBridge::ActiveModeIdx() const
 {
-    int  idx = 0;
+    int  idx = (m_state != nullptr) ? (int) m_state->Prefs().colorMode : 0;
 
 
 
-    if (m_state == nullptr)
-    {
-        return 0;
-    }
-
-    idx = (int) m_state->Prefs().colorMode;
+    // 0 is a real mode AND the fallback, so an out-of-range prefs value (a
+    // config from a build with more monitor types) lands on the first one.
     if (idx < 0 || idx >= (int) GlobalUserPrefs::kCrtModeCount)
     {
-        return 0;
+        idx = 0;
     }
+
     return idx;
 }
 
@@ -85,96 +82,97 @@ int SettingsDisplayCrtBridge::ActiveModeIdx () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsDisplayCrtBridge::ReseedFromActiveMode ()
+void SettingsDisplayCrtBridge::ReseedFromActiveMode()
 {
     GlobalUserPrefsCrtSnapshot  snap;
     int                         idx = ActiveModeIdx();
 
 
 
-    if (m_displayPage == nullptr)
-    {
-        return;
-    }
-
-    if (m_prefs == nullptr)
+    // With no prefs the page still gets a snapshot -- the default-constructed
+    // one -- so its sliders are seeded rather than left at whatever they held.
+    if (m_displayPage != nullptr && m_prefs == nullptr)
     {
         m_displayPage->SetInitialCrt (snap);
-        return;
     }
-
-    const auto &              blk           = m_prefs->crtByMode[idx];
-    const auto &              preset        = CrtPresets::ForMode ((size_t) idx);
-    const ThemeCrtDefaults *  themeDefaults = nullptr;
-    if (m_themes != nullptr)
+    else if (m_displayPage != nullptr)
     {
-        const LoadedTheme *  active = m_themes->GetActiveTheme();
-        if (active != nullptr)
+        const auto &              blk           = m_prefs->crtByMode[idx];
+        const auto &              preset        = CrtPresets::ForMode ((size_t) idx);
+        const ThemeCrtDefaults *  themeDefaults = nullptr;
+        if (m_themes != nullptr)
         {
-            themeDefaults = &active->crtDefaults;
-        }
-    }
-
-    if (blk.userOverride)
-    {
-        snap.brightness         = blk.brightness;
-        snap.contrast           = blk.contrast;
-        snap.gamma              = blk.gamma;
-        snap.persistence        = blk.persistence;
-        snap.scanlinesEnabled   = blk.scanlinesEnabled;
-        snap.scanlinesIntensity = blk.scanlinesIntensity;
-        snap.bloomEnabled       = blk.bloomEnabled;
-        snap.bloomRadius        = blk.bloomRadius;
-        snap.bloomStrength      = blk.bloomStrength;
-        snap.colorBleedEnabled  = blk.colorBleedEnabled;
-        snap.colorBleedWidth    = blk.colorBleedWidth;
-    }
-    else
-    {
-        // No user override: mirror MakeCrtParams's resolution chain
-        // (preset, with theme overrides on top). Otherwise the sliders
-        // would show preset values while the renderer was actually
-        // applying theme-overridden values, and the visual would
-        // appear to jump the moment the user touched any slider.
-        snap.brightness         = preset.brightness;
-        snap.contrast           = preset.contrast;
-        snap.gamma              = preset.gamma;
-        snap.persistence        = preset.persistence;
-        snap.scanlinesEnabled   = preset.scanlinesEnabled;
-        snap.scanlinesIntensity = preset.scanlinesIntensity;
-        snap.bloomEnabled       = preset.bloomEnabled;
-        snap.bloomRadius        = preset.bloomRadius;
-        snap.bloomStrength      = preset.bloomStrength;
-        snap.colorBleedEnabled  = preset.colorBleedEnabled;
-        snap.colorBleedWidth    = preset.colorBleedWidth;
-        if (themeDefaults != nullptr)
-        {
-            if (themeDefaults->hasBrightness) { snap.brightness = themeDefaults->brightness; }
-            if (themeDefaults->hasContrast)   { snap.contrast   = themeDefaults->contrast;   }
-            if (themeDefaults->hasScanlines)
+            const LoadedTheme *  active = m_themes->GetActiveTheme();
+            if (active != nullptr)
             {
-                snap.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
-                snap.scanlinesIntensity = themeDefaults->scanlinesIntensity;
-            }
-            if (themeDefaults->hasBloom)
-            {
-                snap.bloomEnabled  = themeDefaults->bloomEnabled;
-                snap.bloomRadius   = themeDefaults->bloomRadius;
-                snap.bloomStrength = themeDefaults->bloomStrength;
-            }
-            if (themeDefaults->hasColorBleed)
-            {
-                snap.colorBleedEnabled = themeDefaults->colorBleedEnabled;
-                snap.colorBleedWidth   = themeDefaults->colorBleedWidth;
+                themeDefaults = &active->crtDefaults;
             }
         }
-    }
-    m_displayPage->SetInitialCrt (snap);
 
-    // Re-publish the per-control defaults hint so DisplayPage knows
-    // which value counts as "the default" and can render the
-    // (theme default) / (monitor default) badge in each row.
-    PublishDefaultsHint();
+        if (blk.userOverride)
+        {
+            snap.brightness         = blk.brightness;
+            snap.contrast           = blk.contrast;
+            snap.gamma              = blk.gamma;
+            snap.persistence        = blk.persistence;
+            snap.scanlinesEnabled   = blk.scanlinesEnabled;
+            snap.scanlinesIntensity = blk.scanlinesIntensity;
+            snap.bloomEnabled       = blk.bloomEnabled;
+            snap.bloomRadius        = blk.bloomRadius;
+            snap.bloomStrength      = blk.bloomStrength;
+            snap.colorBleedEnabled  = blk.colorBleedEnabled;
+            snap.colorBleedWidth    = blk.colorBleedWidth;
+        }
+        else
+        {
+            // No user override: mirror MakeCrtParams's resolution chain
+            // (preset, with theme overrides on top). Otherwise the sliders
+            // would show preset values while the renderer was actually
+            // applying theme-overridden values, and the visual would
+            // appear to jump the moment the user touched any slider.
+            snap.brightness         = preset.brightness;
+            snap.contrast           = preset.contrast;
+            snap.gamma              = preset.gamma;
+            snap.persistence        = preset.persistence;
+            snap.scanlinesEnabled   = preset.scanlinesEnabled;
+            snap.scanlinesIntensity = preset.scanlinesIntensity;
+            snap.bloomEnabled       = preset.bloomEnabled;
+            snap.bloomRadius        = preset.bloomRadius;
+            snap.bloomStrength      = preset.bloomStrength;
+            snap.colorBleedEnabled  = preset.colorBleedEnabled;
+            snap.colorBleedWidth    = preset.colorBleedWidth;
+            if (themeDefaults != nullptr)
+            {
+                if (themeDefaults->hasBrightness) { snap.brightness = themeDefaults->brightness; }
+                if (themeDefaults->hasContrast)   { snap.contrast   = themeDefaults->contrast;   }
+                if (themeDefaults->hasScanlines)
+                {
+                    snap.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
+                    snap.scanlinesIntensity = themeDefaults->scanlinesIntensity;
+                }
+
+                if (themeDefaults->hasBloom)
+                {
+                    snap.bloomEnabled  = themeDefaults->bloomEnabled;
+                    snap.bloomRadius   = themeDefaults->bloomRadius;
+                    snap.bloomStrength = themeDefaults->bloomStrength;
+                }
+
+                if (themeDefaults->hasColorBleed)
+                {
+                    snap.colorBleedEnabled = themeDefaults->colorBleedEnabled;
+                    snap.colorBleedWidth   = themeDefaults->colorBleedWidth;
+                }
+            }
+        }
+
+        m_displayPage->SetInitialCrt (snap);
+
+        // Re-publish the per-control defaults hint so DisplayPage knows
+        // which value counts as "the default" and can render the
+        // (theme default) / (monitor default) badge in each row.
+        PublishDefaultsHint();
+    }
 }
 
 
@@ -192,86 +190,88 @@ void SettingsDisplayCrtBridge::ReseedFromActiveMode ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsDisplayCrtBridge::PublishDefaultsHint ()
+void SettingsDisplayCrtBridge::PublishDefaultsHint()
 {
     DisplayDefaultsHint  hint;
 
 
 
-    if (m_displayPage == nullptr)
-    {
-        return;
-    }
-
-    if (m_prefs == nullptr)
+    // Same shape as ReseedFromActiveMode: with no prefs the page still gets a
+    // hint, just the default-constructed one.
+    if (m_displayPage != nullptr && m_prefs == nullptr)
     {
         m_displayPage->SetDefaultsHint (hint);
-        return;
     }
-
-    int                       idx           = ActiveModeIdx();
-    const auto &              preset        = CrtPresets::ForMode ((size_t) idx);
-    const ThemeCrtDefaults *  themeDefaults = nullptr;
-    if (m_themes != nullptr)
+    else if (m_displayPage != nullptr)
     {
-        const LoadedTheme *  active = m_themes->GetActiveTheme();
-        if (active != nullptr)
+        int                       idx           = ActiveModeIdx();
+        const auto &              preset        = CrtPresets::ForMode ((size_t) idx);
+        const ThemeCrtDefaults *  themeDefaults = nullptr;
+        if (m_themes != nullptr)
         {
-            themeDefaults = &active->crtDefaults;
+            const LoadedTheme *  active = m_themes->GetActiveTheme();
+            if (active != nullptr)
+            {
+                themeDefaults = &active->crtDefaults;
+            }
         }
+
+        // Start from the monitor preset for every field.
+        hint.values.brightness         = preset.brightness;
+        hint.values.contrast           = preset.contrast;
+        hint.values.gamma              = preset.gamma;
+        hint.values.persistence        = preset.persistence;
+        hint.values.scanlinesEnabled   = preset.scanlinesEnabled;
+        hint.values.scanlinesIntensity = preset.scanlinesIntensity;
+        hint.values.bloomEnabled       = preset.bloomEnabled;
+        hint.values.bloomRadius        = preset.bloomRadius;
+        hint.values.bloomStrength      = preset.bloomStrength;
+        hint.values.colorBleedEnabled  = preset.colorBleedEnabled;
+        hint.values.colorBleedWidth    = preset.colorBleedWidth;
+
+        // Layer theme overrides ONLY for the field-groups the theme
+        // actually declares -- otherwise an unset group's struct-default
+        // (scanlinesEnabled=false etc.) would silently overwrite the
+        // monitor preset's correct value.
+        if (themeDefaults != nullptr)
+        {
+            if (themeDefaults->hasBrightness)
+            {
+                hint.values.brightness    = themeDefaults->brightness;
+                hint.brightnessFromTheme  = true;
+            }
+
+            if (themeDefaults->hasContrast)
+            {
+                hint.values.contrast    = themeDefaults->contrast;
+                hint.contrastFromTheme  = true;
+            }
+
+            if (themeDefaults->hasScanlines)
+            {
+                hint.values.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
+                hint.values.scanlinesIntensity = themeDefaults->scanlinesIntensity;
+                hint.scanlinesFromTheme        = true;
+            }
+
+            if (themeDefaults->hasBloom)
+            {
+                hint.values.bloomEnabled  = themeDefaults->bloomEnabled;
+                hint.values.bloomRadius   = themeDefaults->bloomRadius;
+                hint.values.bloomStrength = themeDefaults->bloomStrength;
+                hint.bloomFromTheme       = true;
+            }
+
+            if (themeDefaults->hasColorBleed)
+            {
+                hint.values.colorBleedEnabled = themeDefaults->colorBleedEnabled;
+                hint.values.colorBleedWidth   = themeDefaults->colorBleedWidth;
+                hint.colorBleedFromTheme      = true;
+            }
+        }
+
+        m_displayPage->SetDefaultsHint (hint);
     }
-
-    // Start from the monitor preset for every field.
-    hint.values.brightness         = preset.brightness;
-    hint.values.contrast           = preset.contrast;
-    hint.values.gamma              = preset.gamma;
-    hint.values.persistence        = preset.persistence;
-    hint.values.scanlinesEnabled   = preset.scanlinesEnabled;
-    hint.values.scanlinesIntensity = preset.scanlinesIntensity;
-    hint.values.bloomEnabled       = preset.bloomEnabled;
-    hint.values.bloomRadius        = preset.bloomRadius;
-    hint.values.bloomStrength      = preset.bloomStrength;
-    hint.values.colorBleedEnabled  = preset.colorBleedEnabled;
-    hint.values.colorBleedWidth    = preset.colorBleedWidth;
-
-    // Layer theme overrides ONLY for the field-groups the theme
-    // actually declares -- otherwise an unset group's struct-default
-    // (scanlinesEnabled=false etc.) would silently overwrite the
-    // monitor preset's correct value.
-    if (themeDefaults != nullptr)
-    {
-        if (themeDefaults->hasBrightness)
-        {
-            hint.values.brightness    = themeDefaults->brightness;
-            hint.brightnessFromTheme  = true;
-        }
-        if (themeDefaults->hasContrast)
-        {
-            hint.values.contrast    = themeDefaults->contrast;
-            hint.contrastFromTheme  = true;
-        }
-        if (themeDefaults->hasScanlines)
-        {
-            hint.values.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
-            hint.values.scanlinesIntensity = themeDefaults->scanlinesIntensity;
-            hint.scanlinesFromTheme        = true;
-        }
-        if (themeDefaults->hasBloom)
-        {
-            hint.values.bloomEnabled  = themeDefaults->bloomEnabled;
-            hint.values.bloomRadius   = themeDefaults->bloomRadius;
-            hint.values.bloomStrength = themeDefaults->bloomStrength;
-            hint.bloomFromTheme       = true;
-        }
-        if (themeDefaults->hasColorBleed)
-        {
-            hint.values.colorBleedEnabled = themeDefaults->colorBleedEnabled;
-            hint.values.colorBleedWidth   = themeDefaults->colorBleedWidth;
-            hint.colorBleedFromTheme      = true;
-        }
-    }
-
-    m_displayPage->SetDefaultsHint (hint);
 }
 
 
@@ -292,17 +292,17 @@ void SettingsDisplayCrtBridge::PublishDefaultsHint ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsDisplayCrtBridge::PromoteActiveToOverride ()
+void SettingsDisplayCrtBridge::PromoteActiveToOverride()
 {
-    if (m_prefs == nullptr)
+    // Already-overridden blocks are left alone -- re-seeding them would throw
+    // away the user's edits, which is exactly what this is meant to preserve.
+    bool  promotes = m_prefs != nullptr
+                     && !m_prefs->crtByMode[ActiveModeIdx()].userOverride;
+
+    if (promotes)
     {
-        return;
+        ResetActiveToDefaults();
     }
-    if (m_prefs->crtByMode[ActiveModeIdx()].userOverride)
-    {
-        return;
-    }
-    ResetActiveToDefaults();
 }
 
 
@@ -321,16 +321,36 @@ void SettingsDisplayCrtBridge::PromoteActiveToOverride ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsDisplayCrtBridge::ResetActiveToDefaults ()
+void SettingsDisplayCrtBridge::ResetActiveToDefaults()
 {
-    if (m_prefs == nullptr)
+    if (m_prefs != nullptr)
     {
-        return;
+        ApplyActiveDefaults (*m_prefs);
     }
+}
 
-    auto &                    blk           = m_prefs->crtByMode[ActiveModeIdx()];
-    const auto &              preset        = CrtPresets::ForMode ((size_t) ActiveModeIdx());
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyActiveDefaults
+//
+//  ResetActiveToDefaults with the null-guard already behind it, factored
+//  out so the block and preset references bind at the top of a function
+//  rather than after the guard.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsDisplayCrtBridge::ApplyActiveDefaults (GlobalUserPrefs & prefs)
+{
     const ThemeCrtDefaults *  themeDefaults = nullptr;
+    auto &                    blk           = prefs.crtByMode[ActiveModeIdx()];
+    const auto &              preset        = CrtPresets::ForMode ((size_t) ActiveModeIdx());
+
+
+
     if (m_themes != nullptr)
     {
         const LoadedTheme *  active = m_themes->GetActiveTheme();
@@ -356,18 +376,21 @@ void SettingsDisplayCrtBridge::ResetActiveToDefaults ()
             blk.scanlinesEnabled   = themeDefaults->scanlinesEnabled;
             blk.scanlinesIntensity = themeDefaults->scanlinesIntensity;
         }
+
         if (themeDefaults->hasBloom)
         {
             blk.bloomEnabled  = themeDefaults->bloomEnabled;
             blk.bloomRadius   = themeDefaults->bloomRadius;
             blk.bloomStrength = themeDefaults->bloomStrength;
         }
+
         if (themeDefaults->hasColorBleed)
         {
             blk.colorBleedEnabled = themeDefaults->colorBleedEnabled;
             blk.colorBleedWidth   = themeDefaults->colorBleedWidth;
         }
     }
+
     blk.userOverride = true;
 }
 
@@ -388,7 +411,7 @@ void SettingsDisplayCrtBridge::ResetActiveToDefaults ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsDisplayCrtBridge::WireDisplayPageCallbacks ()
+void SettingsDisplayCrtBridge::WireDisplayPageCallbacks()
 {
     if (m_displayPage == nullptr)
     {
@@ -443,10 +466,12 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks ()
         {
             m_state->SetColorMode ((SettingsColorMode) idx);
         }
+
         if (m_emuShell != nullptr)
         {
             m_emuShell->SetColorModeLive (idx);
         }
+
         ReseedFromActiveMode();
     });
 
@@ -490,9 +515,9 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks ()
         ReseedFromActiveMode();
 
         // The CRT block above doesn't know about the Color-monitor text
-        // colour, so also revert it to its White default across all three
+        // color, so also revert it to its White default across all three
         // views -- staged pref, the dropdown control, and the live emulator
-        // -- otherwise a previously-picked colour survives the reset and the
+        // -- otherwise a previously-picked color survives the reset and the
         // controls and the emulator disagree (#8 follow-up).
         uint32_t  custom = (m_prefs != nullptr) ? m_prefs->colorMonitorTextCustomArgb
                                                 : 0xFFFFFFFFu;
@@ -500,10 +525,12 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks ()
         {
             m_prefs->ResetColorMonitorTextToDefault();
         }
+
         if (m_displayPage != nullptr)
         {
             m_displayPage->SetTextColor (ColorMonitorTextMode::White, custom);
         }
+
         if (m_emuShell != nullptr)
         {
             m_emuShell->SetColorMonitorTextArgbLive (

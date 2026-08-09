@@ -39,13 +39,20 @@ public:
         uint32_t                        totalCyclesThisSlice,
         float                           currentSpeakerState,
         uint32_t                        numSamplesToGenerate,
-        DriveAudioMixer *               driveMixer        = nullptr,
-        uint64_t                        currentCycleCount = 0);
+        DriveAudioMixer *               driveMixer         = nullptr,
+        uint64_t                        currentCycleCount  = 0,
+        DriveAudioMixer *               mockingboardMixer  = nullptr);
     void    RecordDriveDoorSyncEvent (int drive, int64_t timestampMs);
     int64_t GetLastDriveDoorSyncEventMs (int drive) const;
 
     bool IsInitialized() const { return m_initialized; }
     UINT32 GetSampleRate() const { return m_sampleRate; }
+
+    // Master output gain (0..1) applied to the completed mix, so every source
+    // -- speaker, drives, printer, Mockingboard -- scales together (the chrome
+    // toolbar's volume slider; mute passes 0 while the UI keeps the slider
+    // value). Set on the UI thread, read on the submitting thread: atomic.
+    void  SetMasterGain (float gain01) { m_masterGain.store (gain01, std::memory_order_relaxed); }
 
 private:
     ComPtr<IMMDeviceEnumerator>  m_enumerator;
@@ -70,6 +77,8 @@ private:
     // to avoid per-frame allocation.
     vector<float> m_speakerScratch;
     vector<float> m_driveScratch;
+
+    std::atomic<float>  m_masterGain { 1.0f };   // see SetMasterGain
     std::array<int64_t, 2> m_lastDriveDoorSyncMs { 0, 0 };
 };
 

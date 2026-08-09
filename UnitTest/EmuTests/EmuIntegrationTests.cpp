@@ -36,10 +36,10 @@ public:
     {
         MemoryBus             bus;
         RamDevice             ram {0x0000, 0xBFFF};
-        std::vector<Byte>     romData;
-        std::unique_ptr<MemoryDevice> rom;
+        std::vector<Byte>              romData;
+        std::unique_ptr<MemoryDevice>  rom;
 
-        TestEnv ()
+        TestEnv()
             : romData (0x3000, 0xEA)
         {
             bus.AddDevice (&ram);
@@ -49,16 +49,16 @@ public:
             romData[0x2FFD] = 0xD0;
         }
 
-        void BuildRom ()
+        void BuildRom()
         {
             rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-                romData.data (), romData.size ());
-            bus.AddDevice (rom.get ());
+                romData.data(), romData.size());
+            bus.AddDevice (rom.get());
         }
 
         void LoadIntoEmu (EmuCpu & cpu)
         {
-            for (size_t i = 0; i < romData.size (); i++)
+            for (size_t i = 0; i < romData.size(); i++)
             {
                 cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
             }
@@ -71,12 +71,12 @@ public:
     TEST_METHOD (ResetVector_PCEquals0xD000)
     {
         TestEnv env;
-        env.BuildRom ();
+        env.BuildRom();
 
         EmuCpu cpu (env.bus);
         env.LoadIntoEmu (cpu);
 
-        Assert::AreEqual (static_cast<Word> (0xD000), cpu.GetPC (),
+        Assert::AreEqual (static_cast<Word> (0xD000), cpu.GetPC(),
             L"After InitForEmulation, PC must be $D000 (reset vector)");
     }
 
@@ -93,14 +93,14 @@ public:
         env.romData[0x0006] = 0x4C;  // JMP $D006
         env.romData[0x0007] = 0x06;
         env.romData[0x0008] = 0xD0;
-        env.BuildRom ();
+        env.BuildRom();
 
         EmuCpu cpu (env.bus);
         env.LoadIntoEmu (cpu);
 
         for (int i = 0; i < 10; i++)
         {
-            cpu.StepOne ();
+            cpu.StepOne();
         }
 
         Assert::AreEqual (static_cast<Byte> (0x42), cpu.PeekByte (0x0400),
@@ -109,6 +109,12 @@ public:
 
     TEST_METHOD (StaVisibleToVideoRam)
     {
+        const int  fbW      = 560;
+        const int  fbH      = 384;
+        bool       hasGreen = false;
+
+
+
         // STA $0400 should be visible via GetMemory() for video rendering
         TestEnv env;
         env.romData[0x0000] = 0xA9;  // LDA #$C1
@@ -120,30 +126,27 @@ public:
         env.romData[0x0006] = 0x4C;
         env.romData[0x0007] = 0x06;
         env.romData[0x0008] = 0xD0;
-        env.BuildRom ();
+        env.BuildRom();
 
         EmuCpu cpu (env.bus);
         env.LoadIntoEmu (cpu);
 
         for (int i = 0; i < 10; i++)
         {
-            cpu.StepOne ();
+            cpu.StepOne();
         }
 
-        Assert::AreEqual (static_cast<Byte> (0xC1), cpu.GetMemory ()[0x0400],
+        Assert::AreEqual (static_cast<Byte> (0xC1), cpu.GetMemory()[0x0400],
             L"STA $0400 must be visible via GetMemory() for video");
 
         // End-to-end: render and verify green pixels
         AppleTextMode textMode (env.bus);
         textMode.SetPage2 (false);
 
-        const int fbW = 560;
-        const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0xFF000000u);
 
-        textMode.Render (cpu.GetMemory (), fb.data (), fbW, fbH);
+        textMode.Render (cpu.GetMemory(), fb.data(), fbW, fbH);
 
-        bool hasGreen = false;
 
         for (int y = 0; y < 16 && !hasGreen; y++)
         {
@@ -176,17 +179,17 @@ public:
         env.romData[0x0010] = 0xA9;  // LDA #$99
         env.romData[0x0011] = 0x99;
         env.romData[0x0012] = 0x60;  // RTS
-        env.BuildRom ();
+        env.BuildRom();
 
         EmuCpu cpu (env.bus);
         env.LoadIntoEmu (cpu);
 
         for (int i = 0; i < 20; i++)
         {
-            cpu.StepOne ();
+            cpu.StepOne();
         }
 
-        Assert::AreEqual (static_cast<Byte> (0x99), cpu.GetA (),
+        Assert::AreEqual (static_cast<Byte> (0x99), cpu.GetA(),
             L"After JSR/LDA/RTS, A should be $99");
     }
 
@@ -204,27 +207,31 @@ public:
         env.romData[0x0007] = 0x4C;  // JMP $D007
         env.romData[0x0008] = 0x07;
         env.romData[0x0009] = 0xD0;
-        env.BuildRom ();
+        env.BuildRom();
 
         EmuCpu cpu (env.bus);
         env.LoadIntoEmu (cpu);
 
         for (int i = 0; i < 20; i++)
         {
-            cpu.StepOne ();
+            cpu.StepOne();
         }
 
-        Assert::AreEqual (static_cast<Byte> (0x55), cpu.GetA (),
+        Assert::AreEqual (static_cast<Byte> (0x55), cpu.GetA(),
             L"After PHA/PLA, A must roundtrip to $55");
     }
 
     TEST_METHOD (IORead_GoesToBusDevice)
     {
+        Byte  val = 0;
+
+
+
         // Register keyboard at $C000, read via CPU -> should go through bus
-        TestEnv env;
-        AppleKeyboard kbd;
+        TestEnv        env;
+        AppleKeyboard  kbd;
         env.bus.AddDevice (&kbd);
-        env.BuildRom ();
+        env.BuildRom();
 
         EmuCpu cpu (env.bus);
         env.LoadIntoEmu (cpu);
@@ -232,7 +239,7 @@ public:
         kbd.KeyPress ('H');
 
         // EmuCpu::ReadByte for $C000-$CFFF goes through bus
-        Byte val = cpu.ReadByte (0xC000);
+        val = cpu.ReadByte (0xC000);
 
         Assert::AreEqual (static_cast<Byte> (0xC8), val,
             L"I/O read at $C000 must go through bus to keyboard");
@@ -240,11 +247,15 @@ public:
 
     TEST_METHOD (IOWrite_GoesToBusDevice)
     {
+        Byte  val = 0;
+
+
+
         // Writing to $C010 should clear keyboard strobe via bus
-        TestEnv env;
-        AppleKeyboard kbd;
+        TestEnv        env;
+        AppleKeyboard  kbd;
         env.bus.AddDevice (&kbd);
-        env.BuildRom ();
+        env.BuildRom();
 
         EmuCpu cpu (env.bus);
         env.LoadIntoEmu (cpu);
@@ -254,7 +265,7 @@ public:
         // Write to $C010 to clear strobe (via bus)
         cpu.WriteByte (0xC010, 0x00);
 
-        Byte val = cpu.ReadByte (0xC000);
+        val = cpu.ReadByte (0xC000);
         Assert::IsTrue ((val & 0x80) == 0,
             L"I/O write to $C010 must clear keyboard strobe via bus");
     }
@@ -262,7 +273,7 @@ public:
     TEST_METHOD (WriteByte_SyncsToBothBusAndInternal)
     {
         TestEnv env;
-        env.BuildRom ();
+        env.BuildRom();
 
         EmuCpu cpu (env.bus);
         env.LoadIntoEmu (cpu);
@@ -280,55 +291,62 @@ public:
 
     TEST_METHOD (NopSled_100000Steps_PCInRomRange)
     {
-        TestEnv env;
-        env.BuildRom ();
+        TestEnv  env;
+        Word     pc  = 0;
+        env.BuildRom();
 
         EmuCpu cpu (env.bus);
         env.LoadIntoEmu (cpu);
 
         for (int i = 0; i < 1000; i++)
         {
-            cpu.StepOne ();
+            cpu.StepOne();
         }
 
-        Word pc = cpu.GetPC ();
+        pc = cpu.GetPC();
 
         Assert::IsTrue (pc >= 0xD000 && pc <= 0xFFFF,
-            std::format (L"After 1000 NOPs, PC=${:04X} should be in ROM range $D000-$FFFF", pc).c_str ());
+            std::format (L"After 1000 NOPs, PC=${:04X} should be in ROM range $D000-$FFFF", pc).c_str());
     }
 
     TEST_METHOD (RealRom_ResetVector_IfAvailable)
     {
+        MemoryBus                        bus;
+        std::string                      error;
+        const Byte                     * romData = nullptr;
+        size_t                           romSize = 0;
+        std::unique_ptr<MemoryDevice>    rom;
+
+
+
         // If Apple2Plus.rom is available, load it and verify reset vector
         auto paths = PathResolver::BuildSearchPaths (
-            PathResolver::GetExecutableDirectory (),
-            PathResolver::GetWorkingDirectory ());
+            PathResolver::GetExecutableDirectory(),
+            PathResolver::GetWorkingDirectory());
 
-        std::string romPath = PathResolver::FindFile (paths, "ROMs/Apple2Plus.rom").string ();
+        std::string romPath = PathResolver::FindFile (paths, "ROMs/Apple2Plus.rom").string();
 
-        if (romPath.empty ())
+        if (romPath.empty())
         {
             // Skip if ROM not available (CI)
             return;
         }
 
-        MemoryBus bus;
         RamDevice ram (0x0000, 0xBFFF);
         bus.AddDevice (&ram);
 
-        std::string error;
-        auto rom = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
+        rom = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
 
-        Assert::IsNotNull (rom.get (),
-            std::format (L"Failed to load ROM: {}", std::wstring (error.begin (), error.end ())).c_str ());
+        Assert::IsNotNull (rom.get(),
+            std::format (L"Failed to load ROM: {}", std::wstring (error.begin(), error.end())).c_str());
 
-        bus.AddDevice (rom.get ());
+        bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
         // Copy ROM into internal memory
-        const Byte * romData = static_cast<RomDevice *> (rom.get ())->GetData ();
-        size_t romSize = 0xFFFF - 0xD000 + 1;
+        romData = static_cast<RomDevice *> (rom.get())->GetData();
+        romSize = 0xFFFF - 0xD000 + 1;
 
         for (size_t i = 0; i < romSize; i++)
         {
@@ -339,40 +357,47 @@ public:
         cpu.InitForEmulation (prng);
 
         // Apple II+ reset vector is $FA62
-        Assert::AreEqual (static_cast<Word> (0xFA62), cpu.GetPC (),
+        Assert::AreEqual (static_cast<Word> (0xFA62), cpu.GetPC(),
             L"Real Apple II+ ROM reset vector should be $FA62");
     }
 
     TEST_METHOD (RealRom_100000Cycles_PCInRomRange)
     {
+        MemoryBus                        bus;
+        AppleKeyboard                    kbd;
+        std::string                      error;
+        const Byte                     * romData = nullptr;
+        size_t                           romSize = 0;
+        Word                             pc      = 0;
+        std::unique_ptr<MemoryDevice>    rom;
+
+
+
         // If ROM available, verify CPU stays in ROM after many cycles
         auto paths = PathResolver::BuildSearchPaths (
-            PathResolver::GetExecutableDirectory (),
-            PathResolver::GetWorkingDirectory ());
+            PathResolver::GetExecutableDirectory(),
+            PathResolver::GetWorkingDirectory());
 
-        std::string romPath = PathResolver::FindFile (paths, "ROMs/Apple2Plus.rom").string ();
+        std::string romPath = PathResolver::FindFile (paths, "ROMs/Apple2Plus.rom").string();
 
-        if (romPath.empty ())
+        if (romPath.empty())
         {
             return;
         }
 
-        MemoryBus bus;
         RamDevice ram (0x0000, 0xBFFF);
         bus.AddDevice (&ram);
 
-        AppleKeyboard kbd;
         bus.AddDevice (&kbd);
 
-        std::string error;
-        auto rom = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
-        Assert::IsNotNull (rom.get ());
-        bus.AddDevice (rom.get ());
+        rom = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
+        Assert::IsNotNull (rom.get());
+        bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
-        const Byte * romData = static_cast<RomDevice *> (rom.get ())->GetData ();
-        size_t romSize = 0xFFFF - 0xD000 + 1;
+        romData = static_cast<RomDevice *> (rom.get())->GetData();
+        romSize = 0xFFFF - 0xD000 + 1;
 
         for (size_t i = 0; i < romSize; i++)
         {
@@ -384,10 +409,10 @@ public:
 
         for (int i = 0; i < 100000; i++)
         {
-            cpu.StepOne ();
+            cpu.StepOne();
         }
 
-        Word pc = cpu.GetPC ();
+        pc = cpu.GetPC();
 
         // PC should be somewhere in ROM, not stuck at 0
         Assert::IsTrue (pc != 0x0000,
@@ -395,6 +420,6 @@ public:
 
         // PC should be in a valid code region (not in I/O space)
         Assert::IsTrue (pc < 0xC000 || pc >= 0xD000,
-            std::format (L"PC=${:04X} should not be in I/O range $C000-$CFFF", pc).c_str ());
+            std::format (L"PC=${:04X} should not be in I/O range $C000-$CFFF", pc).c_str());
     }
 };

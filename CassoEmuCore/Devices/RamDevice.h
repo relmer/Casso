@@ -34,7 +34,7 @@ public:
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
-    Word                m_start;
-    Word                m_end;
-    vector<Byte>   m_data;
+    Word          m_start;
+    Word          m_end;
+    vector<Byte>  m_data;
 };

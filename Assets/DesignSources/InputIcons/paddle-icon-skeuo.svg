@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!--
+    Apple Hand Controller (A2M2001) 3/4 glyph, rev 20 (no disc-base stroke).
+    Skeuomorphic theme.
+    - HANDLE terminates in a DISC (rx 21) under the dial; one cream body,
+      top-surface side edges TANGENT to the disc ellipse ((37.7,36.1) and
+      (77.2,40.9)); side face blends strokelessly into the disc wall.
+    - DIAL: two flat knurled CYLINDERS (rx 17.5 / 7.5) joined by a
+      small-radius FILLET skirt; concentric with the disc.
+    - GRIP LINES: run fully side-to-side (NW edge to SE shoulder, no
+      inset) and are PARALLEL to the handle's bottom edge - constant
+      direction (17,10), the tip prism's transverse axis.
+    - BUTTON: arc segment of the disc at rx 24.5 vs 21 spanning
+      ~3:00-4:30; arcs bow OUTWARD (convex side away from the disc).
+    Circles squash to ry/rx = 0.35 (shared lower-right camera).
+  -->
+  <defs>
+    <linearGradient id="pBody" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E4DFD0"/><stop offset="1" stop-color="#C6C0AF"/>
+    </linearGradient>
+    <linearGradient id="pWall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#C8C2B1"/><stop offset="1" stop-color="#ABA593"/>
+    </linearGradient>
+    <linearGradient id="pDial" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#B5AF9D"/><stop offset="1" stop-color="#9A9483"/>
+    </linearGradient>
+    <linearGradient id="pDialWall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#A29C8A"/><stop offset="1" stop-color="#8B8573"/>
+    </linearGradient>
+    <linearGradient id="pCap" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#C4BEAC"/><stop offset="1" stop-color="#A8A290"/>
+    </linearGradient>
+    <linearGradient id="pBtn" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF7038"/><stop offset="1" stop-color="#E04E1E"/>
+    </linearGradient>
+  </defs>
+
+  <!-- CONSISTENT handle projection (plan axis 30 deg west of south under
+       the shared 0.35 camera): every transverse edge and grip line
+       projects along (0.866,0.175) = slope +0.20, every axial line along
+       (-0.5,0.303) = slope -0.61; slope_t * slope_a = -0.35^2 as the
+       dial's ellipses require. The shell has a CONSTANT thickness: the
+       bottom outline is the top outline extruded straight down by 11, so
+       the SE side wall keeps its full height along the whole handle
+       (previously it tapered to nothing at the disc end). Draw order:
+       side wall, tip face, disc wall (covers the junction), top face. -->
+  <!-- SE side face: constant-thickness slab, down-extruded by 10 =
+       the disc's OWN wall height (top ellipse cy38 -> base ellipse
+       cy48). Its far edge is the disc's SE tangent GENERATOR at x=74.3
+       (y 42.6 on the top rim -> 52.6 on the base), so the slab wall and
+       the disc wall coincide there and merge with no gap: a true union
+       of slab + cylinder. The bottom outline (top outline + (0,10)) is
+       automatically tangent to the disc base ellipse. -->
+  <polygon points="26.8,66.9 74.3,42.6 74.3,52.6 26.8,76.9" fill="#B3AD9C"/>
+  <line x1="26.8" y1="76.9" x2="73" y2="53.2" stroke="#8F8A7A" stroke-width="1.8"/>
+  <!-- tip end face -->
+  <path d="M 11.2,63.8 L 26.8,66.9 L 26.8,74.6 Q 26.8,76.9 24.3,76.4 L 13.6,74.3 Q 11.2,73.8 11.2,71.6 Z"
+        fill="#A9A392" stroke="#8F8A7A" stroke-width="1.6" stroke-linejoin="round"/>
+  <!-- handle-disc wall (one body with the handle), over the junction.
+       Fill only; the base rim is stroked separately below so it can be
+       capped at the union instead of running past toward the button. -->
+  <path d="M 37,38 A 21 7.3 0 0 0 79,38 L 79,48 A 21 7.3 0 0 1 37,48 Z"
+        fill="url(#pWall)"/>
+  <!-- No explicit disc-base seating stroke: the disc sits sunk in the
+       handle (base ellipse at y48, below the handle's top surface), so any
+       drawn base rim either floats as an orphaned stub or sweeps across the
+       handle as a rogue line. The disc WALL fill (pWall, darker than the
+       body) already meets the handle as a clean tonal edge, so the disc
+       reads as seated with no stray line segment. -->
+
+  <!-- unified top surface: disc top + handle top as ONE path, side edges
+       tangent to the disc ellipse at (38.4,35.4) and (74.3,42.6) -->
+  <path d="M 38.4,35.4 A 21 7.3 0 1 1 74.3,42.6 L 29.0,65.8 Q 26.8,66.9 24.4,66.4 L 13.6,64.3 Q 11.2,63.8 12.9,62.0 Z"
+        fill="url(#pBody)" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
+  <!-- grip lines: full width NW edge -> SE shoulder, all parallel to the
+       bottom/tip edges (slope +0.20), wrapping over the SE shoulder -->
+  <g stroke="#A9A392" stroke-width="1.3">
+    <line x1="16.6" y1="58.1" x2="36.3" y2="62.0"/>
+    <line x1="18.8" y1="55.8" x2="40.1" y2="60.1"/>
+    <line x1="21.0" y1="53.6" x2="43.9" y2="58.2"/>
+    <line x1="23.2" y1="51.3" x2="47.7" y2="56.2"/>
+    <line x1="25.3" y1="49.0" x2="51.5" y2="54.3"/>
+    <line x1="27.5" y1="46.8" x2="55.3" y2="52.3"/>
+    <line x1="29.7" y1="44.5" x2="59.1" y2="50.4"/>
+    <line x1="31.9" y1="42.2" x2="62.9" y2="48.4"/>
+  </g>
+  <g stroke="#98927F" stroke-width="1.1">
+    <line x1="36.3" y1="62.0" x2="36.3" y2="64.2"/>
+    <line x1="40.1" y1="60.1" x2="40.1" y2="62.3"/>
+    <line x1="43.9" y1="58.2" x2="43.9" y2="60.4"/>
+    <line x1="47.7" y1="56.2" x2="47.7" y2="58.4"/>
+    <line x1="51.5" y1="54.3" x2="51.5" y2="56.5"/>
+    <line x1="55.3" y1="52.3" x2="55.3" y2="54.5"/>
+    <line x1="59.1" y1="50.4" x2="59.1" y2="52.6"/>
+    <line x1="62.9" y1="48.4" x2="62.9" y2="50.6"/>
+  </g>
+  <!-- Apple badge chip in the smooth patch near the tip -->
+  <polygon points="20.2,63.5 23.1,64.1 25.2,61.9 22.3,61.3" fill="#A9A392" opacity="0.6"/>
+  <!-- shell parting seam: runs the length of the SE side wall at mid-
+       height (top outline dropped ~5), continuing up to the disc. -->
+  <line x1="27" y1="71.9" x2="61" y2="54.4" stroke="#8F8A7A" stroke-width="1" opacity="0.7"/>
+  <line x1="61" y1="54.4" x2="73.5" y2="48.0" stroke="#8F8A7A" stroke-width="1" opacity="0.6"/>
+
+  <!-- dark opening the dial sits in -->
+  <ellipse cx="58" cy="38" rx="19.5" ry="6.8" fill="#6B6759"/>
+
+  <!-- dial lower cylinder: flat top, 6-unit knurl band on its wall -->
+  <path d="M 40.5,32 A 17.5 6.1 0 0 0 75.5,32 L 75.5,38 A 17.5 6.1 0 0 1 40.5,38 Z"
+        fill="url(#pDialWall)"/>
+  <ellipse cx="58" cy="32" rx="17.5" ry="6.1" fill="url(#pDial)" stroke="#827D6C" stroke-width="1.4"/>
+  <g stroke="#7E7967" stroke-width="1.1" opacity="0.85">
+    <line x1="58" y1="38.1" x2="58" y2="44.1"/>
+    <line x1="60.6" y1="38.0" x2="60.6" y2="44.0"/>
+    <line x1="55.4" y1="38.0" x2="55.4" y2="44.0"/>
+    <line x1="63.2" y1="37.8" x2="63.2" y2="43.8"/>
+    <line x1="52.8" y1="37.8" x2="52.8" y2="43.8"/>
+    <line x1="65.8" y1="37.5" x2="65.8" y2="43.5"/>
+    <line x1="50.2" y1="37.5" x2="50.2" y2="43.5"/>
+    <line x1="68.4" y1="36.9" x2="68.4" y2="42.9"/>
+    <line x1="47.6" y1="36.9" x2="47.6" y2="42.9"/>
+    <line x1="71" y1="36.1" x2="71" y2="42.1"/>
+    <line x1="45" y1="36.1" x2="45" y2="42.1"/>
+    <line x1="73.6" y1="34.8" x2="73.6" y2="40.8"/>
+    <line x1="42.4" y1="34.8" x2="42.4" y2="40.8"/>
+  </g>
+
+  <!-- small-radius fillet where the cap cylinder meets the flat top -->
+  <ellipse cx="58" cy="31.3" rx="10" ry="3.5" fill="#A6A08E"/>
+
+  <!-- dial upper cylinder (knurled cap) -->
+  <path d="M 50.5,23 A 7.5 2.6 0 0 0 65.5,23 L 65.5,32 A 7.5 2.6 0 0 1 50.5,32 Z"
+        fill="url(#pDialWall)"/>
+  <g stroke="#7E7967" stroke-width="1.1" opacity="0.85">
+    <line x1="58" y1="25.6" x2="58" y2="34.6"/>
+    <line x1="60.4" y1="25.5" x2="60.4" y2="34.5"/>
+    <line x1="55.6" y1="25.5" x2="55.6" y2="34.5"/>
+    <line x1="62.8" y1="25.0" x2="62.8" y2="34.0"/>
+    <line x1="53.2" y1="25.0" x2="53.2" y2="34.0"/>
+    <line x1="65.2" y1="23.7" x2="65.2" y2="32.7"/>
+    <line x1="50.8" y1="23.7" x2="50.8" y2="32.7"/>
+  </g>
+  <ellipse cx="58" cy="23" rx="7.5" ry="2.6" fill="url(#pCap)" stroke="#827D6C" stroke-width="1.4"/>
+  <!-- cap top: circular groove + the "0" mark -->
+  <ellipse cx="58" cy="23" rx="4.4" ry="1.5" fill="none" stroke="#827D6C" stroke-width="0.9" opacity="0.8"/>
+  <ellipse cx="58" cy="23" rx="1.5" ry="0.55" fill="none" stroke="#827D6C" stroke-width="1.1"/>
+
+  <!-- fire button: arc segment of the handle disc at rx 24.5 (vs 21),
+       following the disc curvature (convex side OUT), ~3:00-4:30 -->
+  <path d="M 78.9,37.4 A 21 7.3 0 0 1 72.8,43.2 L 75.3,44.5 L 75.3,51.0 A 24.5 8.5 0 0 0 82.4,44.3 L 82.4,37.8 Z"
+        fill="url(#pBtn)" stroke="#A63C14" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M 78.9,37.4 A 21 7.3 0 0 1 72.8,43.2 L 75.3,44.5 A 24.5 8.5 0 0 0 82.4,37.8 Z"
+        fill="#FF7D46"/>
+  <path d="M 72.8,43.2 L 75.3,44.5 L 75.3,51.0 L 72.8,49.7 Z" fill="#C24418"/>
+</svg>
+

@@ -59,14 +59,51 @@ public:
     bool                          IsNmiLineAsserted () const { return m_nmiLine; }
     bool                          IsNmiPending      () const { return m_nmiPending; }
 
+    // Host-loop interrupt poll for StepOne + AddCycles hosts (EmulatorShell's
+    // slice loop, the headless RunCycles). Dispatches a pending NMI (edge,
+    // always) or unmasked IRQ, recording the 7-cycle prologue as the
+    // last-instruction cost WITHOUT advancing m_totalCycles -- the host's
+    // AddCycles rollup owns that, exactly as for a real instruction. Returns
+    // true when an interrupt was dispatched (host skips StepOne that step).
+    //
+    // Inlined: this runs once per instruction in the slice loop, and the
+    // common path (no pending interrupt) is two branch tests. Keeping it in
+    // the header lets it fold into EmuCpu::StepOne and the loop; only the rare
+    // dispatch path pays the out-of-line (virtual) DispatchVector call.
+    bool                          TryStepInterrupt()
+    {
+        if (m_nmiPending)
+        {
+            m_nmiPending = false;
+
+            MarkTraceInterrupt (kTraceIntrNmi);
+            DispatchVector (nmiVector, false);
+
+            m_lastCycles = 7;
+            return true;
+        }
+
+        if (m_irqLine && status.flags.interruptDisable == 0)
+        {
+            MarkTraceInterrupt (kTraceIntrIrq);
+            DispatchVector (irqVector, false);
+
+            m_lastCycles = 7;
+            return true;
+        }
+
+        return false;
+    }
+
 protected:
     // Returns true if a pending NMI or unmasked IRQ was dispatched. On
     // dispatch, sets outCycles = 7 and accumulates m_totalCycles.
     bool                          TryDispatchInterrupt (uint32_t & outCycles);
 
     // Pushes PC + status (with B/U bits set per `fromBrk`), sets I=1, and
-    // loads PC from the indicated vector. Used by IRQ/NMI dispatch.
-    void                          DispatchVector (Word vector, bool fromBrk);
+    // loads PC from the indicated vector. Used by IRQ/NMI dispatch. Virtual so
+    // the 65C02 core can additionally clear the decimal flag on entry.
+    virtual void                  DispatchVector (Word vector, bool fromBrk);
 
     // Issue #67: refresh m_busCycle to the cycle of the in-flight memory
     // access. Called from the MemoryBusCpu read/write override so the disk
@@ -77,9 +114,9 @@ protected:
     static constexpr Byte         kStatusBreakBit     = 0x10;
     static constexpr Byte         kStatusAlwaysOneBit = 0x20;
 
-    bool                          m_irqLine    = false;
-    bool                          m_nmiLine    = false;
-    bool                          m_nmiPending = false;
-    uint64_t                      m_totalCycles = 0;
-    uint64_t                      m_busCycle    = 0;
+    bool      m_irqLine     = false;
+    bool      m_nmiLine     = false;
+    bool      m_nmiPending  = false;
+    uint64_t  m_totalCycles = 0;
+    uint64_t  m_busCycle    = 0;
 };

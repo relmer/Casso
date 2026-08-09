@@ -33,12 +33,11 @@ Byte RomDevice::Read (Word address)
 {
     size_t offset = address - m_start;
 
-    if (offset < m_data.size())
-    {
-        return m_data[offset];
-    }
 
-    return 0xFF;
+
+    // Past the image (a short ROM file mapped to a wider range) reads as the
+    // floating-bus 0xFF an empty socket would give.
+    return (offset < m_data.size()) ? m_data[offset] : (Byte) 0xFF;
 }
 
 
@@ -79,37 +78,72 @@ void RomDevice::Reset()
 //
 //  CreateFromFile
 //
+//  Loads a ROM image and wraps it as a bus device covering an exact address
+//  range.
+//
+//  The file size must match the declared range EXACTLY -- not merely fit. A
+//  short ROM would leave a floating-bus hole in the middle of the address map
+//  rather than at a recognizable end, and a program reading it gets plausible
+//  garbage instead of an obvious failure. An oversized file is equally
+//  suspect: it is a different image than the config believes.
+//
+//  Failure returns null with a message in outError rather than throwing or
+//  asserting, because the caller is loading a user-supplied machine config and
+//  needs to report which file was wrong.
+//
+//  The message names the file, its actual size, the range, and the required
+//  size, since a ROM mismatch is nearly always a wrong-file problem and those
+//  four facts are what identify it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 unique_ptr<MemoryDevice> RomDevice::CreateFromFile (
     Word start, Word end, const string & filePath, string & outError)
 {
-    ifstream file (filePath, ios::binary | ios::ate);
-    size_t   expectedSize = static_cast<size_t> (end - start + 1);
+    size_t                    expectedSize = 0;
+    unique_ptr<MemoryDevice>  device;
+    bool                      ok           = false;
+    streampos                 fileSize     = 0;
 
-    if (!file.good())
+
+
+    ifstream                    file (filePath, ios::binary | ios::ate);
+    expectedSize = static_cast<size_t> (end - start + 1);
+    ok = file.good();
+
+    // Null out, message in outError. The size must match EXACTLY: a ROM that
+    // does not fill its declared range would leave a floating-bus hole in the
+    // middle of the address map rather than at a recognizable end.
+    if (!ok)
     {
         outError = format ("Cannot open ROM file: {}", filePath);
-        return nullptr;
     }
-
-    auto fileSize = file.tellg();
-    file.seekg (0, ios::beg);
-
-    if (static_cast<size_t> (fileSize) != expectedSize)
+    else
     {
-        outError = format ("ROM file '{}' is {} bytes but address range ${:04X}-${:04X} requires {} bytes",
-                           filePath,
-                           static_cast<size_t> (fileSize),
-                           start, end,
-                           expectedSize);
-        return nullptr;
+        fileSize = file.tellg();
+        file.seekg (0, ios::beg);
+
+        ok = (static_cast<size_t> (fileSize) == expectedSize);
+
+        if (!ok)
+        {
+            outError = format ("ROM file '{}' is {} bytes but address range ${:04X}-${:04X} requires {} bytes",
+                               filePath,
+                               static_cast<size_t> (fileSize),
+                               start, end,
+                               expectedSize);
+        }
     }
 
-    vector<Byte> data (static_cast<size_t> (fileSize));
-    file.read (reinterpret_cast<char *> (data.data()), fileSize);
+    if (ok)
+    {
+        vector<Byte> data (static_cast<size_t> (fileSize));
+        file.read (reinterpret_cast<char *> (data.data()), fileSize);
 
-    return make_unique<RomDevice> (start, end, move (data));
+        device = make_unique<RomDevice> (start, end, move (data));
+    }
+
+    return device;
 }
 
 

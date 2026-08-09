@@ -12,10 +12,29 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  SliderTests
 //
+//  Slider value mapping: position to value, clamping at the rails, and the
+//  separate step sizes.
+//
+//  Two step sizes exist and are tested separately: a coarse one for clicks and
+//  arrow keys, and a fine one for dragging. Collapsing them makes a slider
+//  either impossible to adjust precisely or impossible to move quickly.
+//
+//  Positions BEYOND both rails are covered because a drag routinely leaves the
+//  track -- the value must clamp rather than extrapolate, and the ends must be
+//  exactly reachable rather than approached asymptotically.
+//
+//  Round-tripping value to position and back is asserted, since the thumb's
+//  drawn position and the value it represents are computed separately and a
+//  disagreement shows as a thumb that will not sit under the cursor.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+TEST_CLASS (SliderTests)
 {
+public:
+
     RECT MakeRect (int l, int t, int r, int b)
     {
         RECT  rc = { l, t, r, b };
@@ -23,7 +42,7 @@ namespace
     }
 
 
-    DxuiSlider  MakeUnitSlider ()
+    DxuiSlider  MakeUnitSlider()
     {
         DxuiSlider  s;
         s.SetRect (MakeRect (0, 0, 100, 16));
@@ -38,12 +57,6 @@ namespace
     {
         return std::fabs (a - b) < 1e-4f;
     }
-}
-
-
-TEST_CLASS (SliderTests)
-{
-public:
 
     TEST_METHOD (SetValue_QuantizesAndClamps)
     {
@@ -69,8 +82,8 @@ public:
 
     TEST_METHOD (MouseDown_JumpsAndDrags)
     {
-        DxuiSlider  s = MakeUnitSlider();
-        float   last = -1.0f;
+        DxuiSlider  s    = MakeUnitSlider();
+        float       last = -1.0f;
         s.SetOnChange ([&] (float v) { last = v; });
 
         Assert::IsTrue (s.OnLButtonDown (50, 8));
@@ -132,8 +145,8 @@ public:
 
     TEST_METHOD (OnChange_NotCalledForNoOpKey)
     {
-        DxuiSlider  s = MakeUnitSlider();
-        int     callCount = 0;
+        DxuiSlider  s         = MakeUnitSlider();
+        int         callCount = 0;
         s.SetFocused (true);
         s.SetOnChange ([&] (float) { callCount++; });
 
@@ -143,3 +156,4 @@ public:
             L"Stepping below min must not fire OnChange once value is already at min.");
     }
 };
+

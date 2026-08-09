@@ -9,6 +9,24 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MockDxuiThemeTests
+//
+//  Tests of the TEST DOUBLE itself: the mock theme every widget test paints
+//  against.
+//
+//  Worth testing because everything else trusts it. Widget tests assert
+//  colors, and a mock returning the same value for two different roles would
+//  make a widget that used the wrong one look correct -- so these assert the
+//  roles are distinguishable.
+//
+//  It also pins that the mock implements the whole IDxuiTheme surface: a role
+//  added to the interface and left unimplemented here would leave every widget
+//  test painting with a default nobody chose.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_CLASS (MockDxuiThemeTests)
 {
 public:
@@ -36,7 +54,7 @@ public:
     }
 
 
-    TEST_METHOD (DxuiButton_Constructs_And_HonoursStateSetters)
+    TEST_METHOD (DxuiButton_Constructs_And_HonorsStateSetters)
     {
         MockDxuiTheme  theme;
         DxuiButton     button;

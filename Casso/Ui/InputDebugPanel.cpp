@@ -93,6 +93,23 @@ void InputDebugPanel::ArgbToFloat4 (uint32_t argb, float (& outRgba)[4]) noexcep
 //
 //  FormatCycleWithSeparators
 //
+//  Renders a cycle count with thousands separators, by hand.
+//
+//  Hand-rolled rather than delegating to a locale-aware formatter, because
+//  the separator here is a READABILITY aid on a fixed-width diagnostic column,
+//  not localized presentation. A locale that groups by four, uses spaces, or
+//  swaps comma for period would break the column alignment the panel depends
+//  on, and cycle counts are not something a user reads as a local number.
+//
+//  Digits are generated least-significant-first (the natural direction for
+//  repeated division) into a scratch buffer, then walked backwards to emit,
+//  which is what makes the every-third-digit test simple: it is a property of
+//  the position remaining, not of the position written.
+//
+//  Truncation is checked before each write and breaks cleanly, so a buffer too
+//  small yields a short but always NUL-terminated string rather than a partial
+//  digit group running off the end.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::FormatCycleWithSeparators (uint64_t value, wchar_t * out, size_t cap)
@@ -128,6 +145,7 @@ void InputDebugPanel::FormatCycleWithSeparators (uint64_t value, wchar_t * out, 
             {
                 break;
             }
+
             out[outIdx++] = L',';
         }
 
@@ -135,6 +153,7 @@ void InputDebugPanel::FormatCycleWithSeparators (uint64_t value, wchar_t * out, 
         {
             break;
         }
+
         out[outIdx++] = digits[i];
     }
 
@@ -149,6 +168,18 @@ void InputDebugPanel::FormatCycleWithSeparators (uint64_t value, wchar_t * out, 
 //
 //  FormatWallNow
 //
+//  Host wall-clock time as HH:MM:SS.mmm -- the column that lets a captured
+//  event log be lined up against something outside the emulator (a screen
+//  recording, another tool's log, or the user's own note of when it happened).
+//
+//  Milliseconds come from the epoch duration rather than from the tm struct,
+//  which has no sub-second field at all.
+//
+//  Every failure produces an EMPTY string, never a partial or misleading one:
+//  a buffer too small to hold a full timestamp, or a localtime conversion that
+//  fails, both clear the output. A truncated time reads as a plausible
+//  different time, which is worse than a blank column.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::FormatWallNow (wchar_t * out, size_t cap)
@@ -161,28 +192,32 @@ void InputDebugPanel::FormatWallNow (wchar_t * out, size_t cap)
     std::tm    local = {};
     errno_t    err   = 0;
 
+    // Too small to hold a timestamp: empty it if there is room for the NUL.
     if (out == nullptr || cap < 16)
     {
         if (out != nullptr && cap > 0)
         {
             out[0] = L'\0';
         }
-        return;
     }
-
-    err = localtime_s (&local, &wall);
-    if (err != 0)
+    else
     {
-        out[0] = L'\0';
-        return;
-    }
+        err = localtime_s (&local, &wall);
 
-    swprintf_s (out, cap,
-                L"%02d:%02d:%02d.%03lld",
-                local.tm_hour,
-                local.tm_min,
-                local.tm_sec,
-                (long long) ms.count());
+        if (err != 0)
+        {
+            out[0] = L'\0';
+        }
+        else
+        {
+            swprintf_s (out, cap,
+                        L"%02d:%02d:%02d.%03lld",
+                        local.tm_hour,
+                        local.tm_min,
+                        local.tm_sec,
+                        (long long) ms.count());
+        }
+    }
 }
 
 
@@ -192,6 +227,21 @@ void InputDebugPanel::FormatWallNow (wchar_t * out, size_t cap)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FormatUptime
+//
+//  Elapsed time since the session anchor, as MM:SS.mmm.
+//
+//  Measured on the steady clock, not the wall clock, so an NTP correction or a
+//  daylight-saving change during a long session cannot make the elapsed column
+//  jump or run backwards while the emulator kept running normally.
+//
+//  Minutes are NOT rolled into hours. A flat minute count keeps the column
+//  monotonic and directly comparable between two rows, which is what this
+//  column is read for; an hours field would introduce a second place to look
+//  when comparing a 59-minute row against a 61-minute one.
+//
+//  A now-before-anchor reading is reported as empty rather than as a negative
+//  duration. It should not happen on a steady clock, but printing "-0:01.234"
+//  in a diagnostic panel invites chasing the formatter instead of the cause.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -208,27 +258,29 @@ void InputDebugPanel::FormatUptime (
     long long  seconds = 0;
     long long  millis  = 0;
 
+    // Too small to hold an uptime: empty it if there is room for the NUL.
     if (out == nullptr || cap < 12)
     {
         if (out != nullptr && cap > 0)
         {
             out[0] = L'\0';
         }
-        return;
     }
-
-    if (now < anchor)
+    else if (now < anchor)
     {
+        // Clock ran backwards relative to the anchor; report nothing rather
+        // than a negative duration.
         out[0] = L'\0';
-        return;
     }
+    else
+    {
+        totalMs = duration_cast<milliseconds> (now - anchor).count();
+        minutes = totalMs / 60000;
+        seconds = (totalMs / 1000) % 60;
+        millis  = totalMs % 1000;
 
-    totalMs = duration_cast<milliseconds> (now - anchor).count();
-    minutes = totalMs / 60000;
-    seconds = (totalMs / 1000) % 60;
-    millis  = totalMs % 1000;
-
-    swprintf_s (out, cap, L"%02lld:%02lld.%03lld", minutes, seconds, millis);
+        swprintf_s (out, cap, L"%02lld:%02lld.%03lld", minutes, seconds, millis);
+    }
 }
 
 
@@ -243,12 +295,7 @@ void InputDebugPanel::FormatUptime (
 
 wchar_t InputDebugPanel::PrintableChar (Byte value) noexcept
 {
-    if (value >= 0x20 && value <= 0x7E)
-    {
-        return (wchar_t) value;
-    }
-
-    return L'.';
+    return (value >= 0x20 && value <= 0x7E) ? (wchar_t) value : L'.';
 }
 
 
@@ -278,14 +325,18 @@ std::wstring InputDebugPanel::FormatByteChar (Byte value)
 
 std::wstring InputDebugPanel::SourceLabel (InputEventCategory category)
 {
+    // "?" also covers a value outside the enum.
+    std::wstring  label = L"?";
+
+
     switch (category)
     {
-        case InputEventCategory::Host:   return L"Host";
-        case InputEventCategory::Guest:  return L"Guest";
-        case InputEventCategory::System: return L"System";
+        case InputEventCategory::Host:   label = L"Host";   break;
+        case InputEventCategory::Guest:  label = L"Guest";  break;
+        case InputEventCategory::System: label = L"System"; break;
     }
 
-    return L"?";
+    return label;
 }
 
 
@@ -300,13 +351,19 @@ std::wstring InputDebugPanel::SourceLabel (InputEventCategory category)
 
 LPCWSTR InputDebugPanel::ButtonAnnotation (Word address) noexcept
 {
+    // Empty for any address that is not one of the three button switches.
+    LPCWSTR  text = L"";
+
+
     switch (address)
     {
-        case s_kOpenAppleAddress:   return L"Open-Apple/Btn0";
-        case s_kClosedAppleAddress: return L"Closed-Apple/Btn1 (bow)";
-        case s_kShiftButtonAddress: return L"Shift/Btn2";
-        default:                    return L"";
+        case s_kOpenAppleAddress:   text = L"Open-Apple/Btn0";          break;
+        case s_kClosedAppleAddress: text = L"Closed-Apple/Btn1 (bow)";  break;
+        case s_kShiftButtonAddress: text = L"Shift/Btn2";               break;
+        default:                                                        break;
     }
+
+    return text;
 }
 
 
@@ -317,56 +374,91 @@ LPCWSTR InputDebugPanel::ButtonAnnotation (Word address) noexcept
 //
 //  ClassifyGamePort
 //
+//  Which game-port pair an event belongs to -- pair 0 (paddles 0/1, buttons
+//  0/1), pair 1 (paddles 2/3), both, or neither.
+//
+//  This exists so the panel can filter by controller. The Apple game port is
+//  one connector carrying two logical pairs, and the address that identifies
+//  a pair differs by event type: a HOST paddle event indexes an axis, while a
+//  GUEST read carries a soft-switch address. The same pair therefore has
+//  several unrelated numeric spellings, and a caller cannot classify by
+//  address alone.
+//
+//  Two members of the classification are worth noting. The //e Shift-key mod
+//  reads through button 2's address and so lands in pair 1, not pair 0, even
+//  though nobody thinks of it as a second controller. And PTRIG is Global --
+//  one switch arms the timing capacitors for BOTH pairs at once, so filtering
+//  it to either pair would hide it from the other.
+//
+//  Anything unrecognized is None, so the filter is fail-closed: an event type
+//  added later shows up unclassified rather than being silently attributed to
+//  a controller it has nothing to do with.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 InputGamePortClass InputDebugPanel::ClassifyGamePort (InputEventType type, Word address) noexcept
 {
+    // Anything this table does not recognize belongs to no game-port pair.
+    InputGamePortClass  cls = InputGamePortClass::None;
+
+
     switch (type)
     {
         case InputEventType::HostPaddle:
             if (address >= s_kHostPair0FirstAxis && address < s_kHostPair1FirstAxis)
             {
-                return InputGamePortClass::Pair0;
+                cls = InputGamePortClass::Pair0;
             }
-            if (address >= s_kHostPair1FirstAxis && address < s_kHostAxisCount)
+            else if (address >= s_kHostPair1FirstAxis && address < s_kHostAxisCount)
             {
-                return InputGamePortClass::Pair1;
+                cls = InputGamePortClass::Pair1;
             }
-            return InputGamePortClass::None;
+
+            break;
 
         case InputEventType::HostButton:
             switch (address)
             {
                 case s_kHostButton0Index:
-                case s_kHostButton1Index: return InputGamePortClass::Pair0;
-                default:                  return InputGamePortClass::None;
+                case s_kHostButton1Index: cls = InputGamePortClass::Pair0; break;
+                default:                                                   break;
             }
+
+            break;
 
         case InputEventType::ButtonRead:
             switch (address)
             {
                 case s_kOpenAppleAddress:
-                case s_kClosedAppleAddress: return InputGamePortClass::Pair0;
-                case s_kShiftButtonAddress: return InputGamePortClass::Pair1;
-                default:                    return InputGamePortClass::None;
+                case s_kClosedAppleAddress: cls = InputGamePortClass::Pair0; break;
+                case s_kShiftButtonAddress: cls = InputGamePortClass::Pair1; break;
+                default:                                                     break;
             }
+
+            break;
 
         case InputEventType::PaddleRead:
             switch (address)
             {
                 case s_kPaddle0Address:
-                case s_kPaddle1Address:     return InputGamePortClass::Pair0;
+                case s_kPaddle1Address:     cls = InputGamePortClass::Pair0; break;
                 case s_kPaddle2Address:
-                case s_kPaddle3Address:     return InputGamePortClass::Pair1;
-                default:                    return InputGamePortClass::None;
+                case s_kPaddle3Address:     cls = InputGamePortClass::Pair1; break;
+                default:                                                     break;
             }
 
+            break;
+
         case InputEventType::PaddleTrigger:
-            return InputGamePortClass::Global;
+            // PTRIG is a single switch that arms BOTH pairs at once.
+            cls = InputGamePortClass::Global;
+            break;
 
         default:
-            return InputGamePortClass::None;
+            break;
     }
+
+    return cls;
 }
 
 
@@ -377,6 +469,29 @@ InputGamePortClass InputDebugPanel::ClassifyGamePort (InputEventType type, Word 
 //
 //  FormatInputEvent
 //
+//  Turns one captured InputEvent into the row the panel displays: timestamps,
+//  address, value, and a plain-language meaning.
+//
+//  The meaning column is the whole point of this function. A raw log of
+//  "$C000 -> $D3" tells the reader nothing about whether the guest saw a key,
+//  and the panel exists to answer exactly that -- so every event type decodes
+//  its own flags into a sentence naming the key, the button state, the strobe,
+//  or the counting bit.
+//
+//  HOST events carry no cycle stamp. They originate on the UI thread, outside
+//  emulated time, so a cycle number would be whatever the CPU happened to be
+//  at when the message arrived -- an invented correlation. The cycle column is
+//  deliberately blank for them rather than filled with a plausible lie.
+//
+//  Paddle axes are decoded against the user's per-pair "view as" choice, so a
+//  pair viewed as a joystick reads as JOY0 X / Y while the same event viewed
+//  as paddles reads as PDL0 / PDL1. Two people debugging the same hardware
+//  disagree about what to call it, and the raw axis index answers neither.
+//
+//  All formatting is pure: the source event is untouched and everything lands
+//  in the caller's row, so this is callable from the drain path without
+//  ordering concerns.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::FormatInputEvent (
@@ -385,15 +500,15 @@ void InputDebugPanel::FormatInputEvent (
     const InputFilterState &                   filter,
     InputEventDisplay &                        out)
 {
-    Word     address = 0;
-    Byte     value   = 0;
-    Byte     key     = 0;
-    bool     strobe  = false;
-    bool     akd     = false;
-    bool     pressed = false;
+    Word     address  = 0;
+    Byte     value    = 0;
+    Byte     key      = 0;
+    bool     strobe   = false;
+    bool     akd      = false;
+    bool     pressed  = false;
     bool     counting = false;
-    int      axis    = 0;
-    LPCWSTR  button  = nullptr;
+    int      axis     = 0;
+    LPCWSTR  button   = nullptr;
 
     out.category = src.category;
     out.type     = src.type;
@@ -459,6 +574,7 @@ void InputDebugPanel::FormatInputEvent (
                     out.meaning = std::format (L"HOST PDL{} = {}", axis, value);
                 }
             }
+
             break;
 
         case InputEventType::HostButton:
@@ -513,6 +629,7 @@ void InputDebugPanel::FormatInputEvent (
                 out.meaning.append (L"  ");
                 out.meaning.append (button);
             }
+
             break;
 
         case InputEventType::PaddleTrigger:
@@ -823,19 +940,18 @@ LPCWSTR InputDebugPanel::CursorForPoint (POINT clientPx) const
 
 
 
-    if (m_eventList == nullptr)
+    if (m_eventList != nullptr)
     {
-        return nullptr;
-    }
+        bounds  = m_eventList->Bounds();
+        local.x = clientPx.x - bounds.left;
+        local.y = clientPx.y - bounds.top;
 
-    bounds  = m_eventList->Bounds();
-    local.x = clientPx.x - bounds.left;
-    local.y = clientPx.y - bounds.top;
+        cursor = m_eventList->CursorForPoint (local);
 
-    cursor = m_eventList->CursorForPoint (local);
-    if (cursor == nullptr && m_eventList->IsResizingColumn())
-    {
-        cursor = IDC_SIZEWE;
+        if (cursor == nullptr && m_eventList->IsResizingColumn())
+        {
+            cursor = IDC_SIZEWE;
+        }
     }
 
     return cursor;
@@ -849,11 +965,33 @@ LPCWSTR InputDebugPanel::CursorForPoint (POINT clientPx) const
 //
 //  ConfigureWidgets
 //
+//  Seeds initial widget state and installs the callbacks that fold each
+//  widget's outcome back into the panel model.
+//
+//  The division of labor is the thing to understand here. Widgets own their
+//  own interaction entirely -- press, hover, toggle, scroll, thumb drag,
+//  column resize, row select -- through their own OnMouse. What they do NOT
+//  own is meaning. These callbacks translate an interaction that already
+//  happened into a panel-level consequence: a selection becomes the detail
+//  pane, a header click becomes a sort, a resize-drag end becomes a persisted
+//  column width.
+//
+//  The column-resize callback converts back to DIPs before storing. The drag
+//  arrives in physical pixels, but savedWidth feeds widthDip, which
+//  ComputeColumnLayout re-scales by the current DPI -- storing the physical
+//  value would double-apply the scale and make a 1-pixel drag resize by two
+//  pixels at 200%.
+//
+//  Every category filter starts checked, so the panel opens showing
+//  everything. A diagnostic that opens pre-filtered hides the event the user
+//  came to find and gives no hint that it did.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::ConfigureWidgets()
 {
     int  p = 0;
+
 
 
     SeedDefaultColumns (m_columnsModel);
@@ -964,11 +1102,27 @@ void InputDebugPanel::RecomputeLayout()
 //
 //  LayoutWidgets
 //
+//  Applies the computed layout rects to the widgets.
+//
+//  Purely a distribution step: every rect was already decided by
+//  ComputeInputDebugPanelLayout, which is a free function precisely so the
+//  geometry can be unit-tested without a window. Nothing here recomputes a
+//  position, so a layout bug has exactly one place to live.
+//
+//  Hidden widgets are still laid out. Their rects come back empty from the
+//  layout pass, so visibility is expressed in the geometry rather than in a
+//  branch here -- which keeps this a flat, uninteresting list.
+//
+//  The column menu and tooltip are deliberately absent: both are deferred
+//  popups that take their DPI from the popup host at show time, so setting it
+//  here would be stale by the time either appears.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::LayoutWidgets()
 {
     int  p = 0;
+
 
 
     m_emuLabel->Layout          (m_layout.emuLabel,          m_scaler);
@@ -1012,6 +1166,7 @@ InputEvent InputDebugPanel::MakeStampedEvent (InputEventCategory cat, InputEvent
     InputEvent  e = {};
 
 
+
     e.category = cat;
     e.type     = type;
     e.cycle    = (m_cycleCounter != nullptr) ? *m_cycleCounter : 0;
@@ -1033,6 +1188,7 @@ void InputDebugPanel::PublishToRing (const InputEvent & e)
     bool  pushed = false;
 
 
+
     pushed = m_ring.TryPush (e);
     if (!pushed)
     {
@@ -1048,10 +1204,42 @@ void InputDebugPanel::PublishToRing (const InputEvent & e)
 //
 //  DrainAndProject
 //
+//  The render-thread half of the capture pipeline: pull everything the CPU
+//  thread published into the ring, project it into display rows, and update
+//  the list view.
+//
+//  This is the ONLY place m_events, m_filteredIndices, and the list view rows
+//  are touched, which is what keeps the design single-threaded on the display
+//  side despite events arriving from the CPU thread. A pending reset (Ctrl+R
+//  or power-cycle) is therefore staged as a flag by the requester and applied
+//  HERE rather than at the request site -- the anchor swap and the event clear
+//  both mutate that same state.
+//
+//  Pausing stops event traffic but NOT the reset. An anchor change and a clear
+//  are not events; skipping them while paused would leave the panel showing a
+//  pre-reset log against a post-reset time base.
+//
+//  Drop accounting is surfaced, not hidden. When the ring overflows, the count
+//  is drained into a synthetic EventsLost row, so a gap in the log is visible
+//  as a gap instead of silently reading as a period of no input.
+//
+//  Eviction happens in batches at a high-water mark rather than one row per
+//  frame. A per-frame pop_front renumbers every deque index and forces an O(n)
+//  rebuild of both the filtered view and the list rows on EVERY frame;
+//  batching keeps the steady-state streaming path append-only and pays the
+//  rebuild once per batch.
+//
+//  Which is why the update has two paths. A trim renumbers every surviving
+//  index and an active sort can place a new event anywhere in the order, so
+//  either forces a full rebuild. The common case -- streaming, unsorted, no
+//  trim -- appends only the new rows and leaves existing rows and indices
+//  untouched.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::DrainAndProject()
 {
+    HRESULT                                    hr        = S_OK;
     std::array<InputEvent, s_kDrainBatchSize>  batch     = {};
     uint32_t                                   lost      = 0;
     size_t                                     n         = 0;
@@ -1060,6 +1248,7 @@ void InputDebugPanel::DrainAndProject()
     bool                                       trimmed   = false;
     InputEvent                                 lostEvent = {};
     int64_t                                    ticks     = 0;
+
 
 
     if (m_resetAnchorPending.exchange (false, std::memory_order_acq_rel))
@@ -1074,10 +1263,9 @@ void InputDebugPanel::DrainAndProject()
         ClearEvents();
     }
 
-    if (m_paused)
-    {
-        return;
-    }
+    // Paused still applies the reset above -- the anchor and clear are not
+    // event traffic -- but drains nothing.
+    BAIL_OUT_IF (m_paused, S_OK);
 
     baseSize = m_events.size();
 
@@ -1087,6 +1275,7 @@ void InputDebugPanel::DrainAndProject()
         {
             ProjectOne (e, m_events, m_uptimeAnchor, m_filter);
         }
+
         m_pendingHostEvents.clear();
     }
 
@@ -1120,13 +1309,12 @@ void InputDebugPanel::DrainAndProject()
         {
             m_events.pop_front();
         }
+
         trimmed = true;
     }
 
-    if (!trimmed && appended == 0)
-    {
-        return;
-    }
+    // Nothing arrived and nothing was evicted: the view is already correct.
+    BAIL_OUT_IF (!trimmed && appended == 0, S_OK);
 
     // A trim renumbers every surviving deque index, and an active sort can
     // place new events anywhere in the order, so both demand a full rebuild.
@@ -1141,6 +1329,9 @@ void InputDebugPanel::DrainAndProject()
     {
         AppendNewEventRows (baseSize);
     }
+
+Error:
+    return;
 }
 
 
@@ -1156,6 +1347,7 @@ void InputDebugPanel::DrainAndProject()
 void InputDebugPanel::RebuildFilteredIndices()
 {
     size_t  i = 0;
+
 
 
     m_filteredIndices.clear();
@@ -1183,12 +1375,27 @@ void InputDebugPanel::RebuildFilteredIndices()
 //
 //  AppendNewEventRows
 //
+//  The fast path for the streaming case: project only the events added since
+//  startIndex and append their rows, leaving every existing row alone.
+//
+//  Correctness rests on a caller guarantee, not on a check here -- the caller
+//  must know that no eviction happened this frame. That makes deque indices in
+//  [startIndex, size) stable, so they can be pushed onto m_filteredIndices and
+//  handed to the list view without renumbering anything already there. Calling
+//  this after a trim would append indices that no longer identify the events
+//  they used to.
+//
+//  Filtered-out events are skipped entirely rather than appended and hidden,
+//  keeping m_filteredIndices exactly the set of visible rows -- the invariant
+//  selection mapping depends on.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::AppendNewEventRows (size_t startIndex)
 {
     std::vector<std::vector<DxuiListView::Cell>>  rows;
-    size_t                                    i = 0;
+    size_t                                        i    = 0;
+
 
 
     // Caller guarantees no eviction happened this frame, so deque indices in
@@ -1210,6 +1417,7 @@ void InputDebugPanel::AppendNewEventRows (size_t startIndex)
         {
             AppendColumnText (row[(size_t) col].text, m_events[i], col);
         }
+
         rows.push_back (std::move (row));
     }
 
@@ -1228,12 +1436,22 @@ void InputDebugPanel::AppendNewEventRows (size_t startIndex)
 //
 //  PushListViewRows
 //
+//  Rebuilds every list row from m_filteredIndices -- the slow path, used
+//  whenever indices moved (a trim, a sort, a filter change, a column toggle).
+//
+//  The selected ROW INDEX is preserved across the rebuild, not the selected
+//  event. That is deliberate: after a trim or a sort the row under the user's
+//  cursor is the meaningful anchor, and chasing the old event would scroll the
+//  view somewhere the user did not ask to go. It is restored only when rows
+//  remain, so clearing the list leaves nothing selected.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::PushListViewRows()
 {
     std::vector<std::vector<DxuiListView::Cell>>  rows;
-    int                                       oldSelected = m_eventList->GetSelectedRow();
+    int                                           oldSelected = m_eventList->GetSelectedRow();
+
 
 
     rows.reserve (m_filteredIndices.size());
@@ -1246,6 +1464,7 @@ void InputDebugPanel::PushListViewRows()
         {
             AppendColumnText (row[(size_t) col].text, m_events[eventIndex], col);
         }
+
         rows.push_back (std::move (row));
     }
 
@@ -1272,12 +1491,14 @@ void InputDebugPanel::ClearEvents()
     std::array<InputEvent, s_kClearDrainBatchSize>  scratch = {};
 
 
+
     m_events.clear();
     m_filteredIndices.clear();
     m_pendingHostEvents.clear();
     while (m_ring.Drain (scratch.data(), (uint32_t) scratch.size()) != 0)
     {
     }
+
     m_droppedSinceLastDrain.store (0, std::memory_order_relaxed);
     m_eventList->ResetAutoFit();
     PushListViewRows();
@@ -1379,6 +1600,7 @@ void InputDebugPanel::SyncAllCheck()
     bool  all = m_emuKeyboardCheck->Checked();
 
 
+
     if (m_joystickVisible) { all = all && m_joystickCheck->Checked(); }
     if (m_paddleVisible)   { all = all && m_paddleCheck->Checked(); }
 
@@ -1398,6 +1620,7 @@ void InputDebugPanel::SyncAllCheck()
 void InputDebugPanel::ApplyAllToggle()
 {
     bool  newState = m_allCheck->Checked();
+
 
 
     m_emuKeyboardCheck->SetChecked (newState);
@@ -1430,63 +1653,88 @@ void InputDebugPanel::UpdatePauseLabel()
 //
 //  CopyEventsToClipboard
 //
+//  Copies the VISIBLE rows -- filtered and column-selected as the user has
+//  them -- to the clipboard as tab-separated text, so a captured log can be
+//  pasted straight into a bug report.
+//
+//  Copying the filtered set rather than everything is the point: the user has
+//  already narrowed the panel to the events they care about, and a copy that
+//  ignored that would paste thousands of unrelated rows.
+//
+//  The interesting part is ownership of the global block, tracked in
+//  ownsGlobal. The clipboard takes ownership of the memory ONLY when
+//  SetClipboardData succeeds -- freeing it after a successful set corrupts the
+//  clipboard, and failing to free it after an unsuccessful one leaks. So the
+//  flag is set at allocation and cleared exactly on the success path, letting
+//  the single cleanup block do the right thing from any exit.
+//
+//  Every failure is silent. This is a convenience action on a diagnostic
+//  panel: another application holding the clipboard open is ordinary, and an
+//  error box for it would be more disruptive than the missed copy.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::CopyEventsToClipboard()
 {
-    std::vector<const InputEventDisplay *>  rows;
-    std::wstring                            text;
-    HGLOBAL                                 hGlobal = nullptr;
-    void                                  * pBuf    = nullptr;
+    HRESULT                                   hr         = S_OK;
+    std::vector<const InputEventDisplay *>    rows;
+    std::wstring                              text;
+    HGLOBAL                                   hGlobal    = nullptr;
+    void                                    * pBuf       = nullptr;
+    bool                                      hasText    = false;
+    bool                                      isOpen     = false;
+    bool                                      wasEmptied = false;
+    // True while WE still have to free hGlobal. Cleared once the clipboard
+    // takes ownership, which is the one path that must NOT free it.
+    bool                                    ownsGlobal = false;
+
 
 
     rows.reserve (m_filteredIndices.size());
+
     for (size_t eventIndex : m_filteredIndices)
     {
         rows.push_back (&m_events[eventIndex]);
     }
 
-    text = BuildClipboardText (rows, m_columnsModel);
-    if (text.empty())
-    {
-        return;
-    }
+    text    = BuildClipboardText (rows, m_columnsModel);
+    hasText = !text.empty();
 
-    if (!OpenClipboard (Hwnd()))
-    {
-        return;
-    }
+    BAIL_OUT_IF (!hasText, S_OK);
 
-    if (!EmptyClipboard())
-    {
-        CloseClipboard();
-        return;
-    }
+    isOpen = OpenClipboard (Hwnd()) != FALSE;
 
-    hGlobal = GlobalAlloc (GMEM_MOVEABLE, (text.size() + 1) * sizeof (wchar_t));
-    if (hGlobal == nullptr)
-    {
-        CloseClipboard();
-        return;
-    }
+    BAIL_OUT_IF (!isOpen, S_OK);
+
+    wasEmptied = EmptyClipboard() != FALSE;
+
+    BAIL_OUT_IF (!wasEmptied, S_OK);
+
+    hGlobal    = GlobalAlloc (GMEM_MOVEABLE, (text.size() + 1) * sizeof (wchar_t));
+    ownsGlobal = (hGlobal != nullptr);
+
+    BAIL_OUT_IF (!ownsGlobal, S_OK);
 
     pBuf = GlobalLock (hGlobal);
-    if (pBuf == nullptr)
-    {
-        GlobalFree (hGlobal);
-        CloseClipboard();
-        return;
-    }
+
+    BAIL_OUT_IF (pBuf == nullptr, S_OK);
 
     memcpy (pBuf, text.c_str(), (text.size() + 1) * sizeof (wchar_t));
     GlobalUnlock (hGlobal);
 
-    if (SetClipboardData (CF_UNICODETEXT, hGlobal) == nullptr)
+    // On success the clipboard owns the block; on failure we still do.
+    ownsGlobal = (SetClipboardData (CF_UNICODETEXT, hGlobal) == nullptr);
+
+Error:
+    if (ownsGlobal)
     {
         GlobalFree (hGlobal);
     }
 
-    CloseClipboard();
+    if (isOpen)
+    {
+        CloseClipboard();
+    }
 }
 
 
@@ -1543,6 +1791,7 @@ void InputDebugPanel::ApplySort()
         {
             return _wcsicmp (l.c_str(), r.c_str()) > 0;
         }
+
         return _wcsicmp (l.c_str(), r.c_str()) < 0;
     };
 
@@ -1569,6 +1818,7 @@ void InputDebugPanel::ApplySort()
 void InputDebugPanel::ApplyListSelection()
 {
     int  selected = m_eventList->GetSelectedRow();
+
 
 
     if (selected >= 0 && selected < (int) m_filteredIndices.size())
@@ -1613,6 +1863,7 @@ bool InputDebugPanel::ForwardMouseToList (DxuiMouseEventKind kind, DxuiMouseButt
     DxuiMouseEvent  ev;
 
 
+
     ev.kind        = kind;
     ev.button      = button;
     ev.positionDip = { x - m_layout.listView.left, y - m_layout.listView.top };
@@ -1627,14 +1878,77 @@ bool InputDebugPanel::ForwardMouseToList (DxuiMouseEventKind kind, DxuiMouseButt
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OfferPressTo
+//
+//  The client-px widgets share the panel's coordinate space (ev.positionDip ==
+//  client px), so the widget hit-tests itself and reports whether it consumed
+//  the press. On acceptance it also takes keyboard focus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InputDebugPanel::OfferPressTo (IDxuiControl * control, const DxuiMouseEvent & ev)
+{
+    bool  took = (control != nullptr) && control->OnMouse (ev);
+
+
+
+    if (took)
+    {
+        m_focusMgr.SetFocused (control);
+    }
+
+    return took;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnMouse
+//
+//  Routes a pointer event to the panel's widgets. Press and release follow
+//  deliberately DIFFERENT rules, which is the thing to get right when editing
+//  this.
+//
+//  A PRESS is exclusive and short-circuits: the first widget to claim it ends
+//  the walk, and claiming also takes focus. A RELEASE is broadcast to every
+//  widget, because each one has to clear its own press visual whether or not
+//  the cursor is still over it -- pressing a button, dragging off, and
+//  releasing must leave nothing stuck down.
+//
+//  The pair dropdowns are the one exception to the focus rule. An OPEN
+//  dropdown takes the press without taking focus, since focus belongs wherever
+//  it was while a dropdown is being used.
+//
+//  An active list drag outranks everything. While the list is interacting
+//  (scrollbar thumb, column resize), moves and the release are forwarded to it
+//  unconditionally -- the pointer has usually left the list bounds by then, and
+//  hit-testing would hand the drag to whatever is under the cursor instead.
+//  The Left button is passed explicitly on those moves because DxuiListView
+//  treats a non-Left move while interacting as a release, its safety net for a
+//  missed button-up.
+//
+//  Win32 capture is held for the whole press by OnLButtonDown and released by
+//  OnLButtonUp before this release is routed, which is what lets a drag keep
+//  receiving moves after the cursor leaves the client area.
+//
+//  The list owns all of its own in-list routing -- scrollbar, resize, header
+//  sort, row select -- and reports outcomes through the callbacks wired in
+//  ConfigureWidgets, so nothing here duplicates that logic.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    int  x = ev.positionDip.x;
-    int  y = ev.positionDip.y;
+    int   x              = ev.positionDip.x;
+    int   y              = ev.positionDip.y;
+    bool  handled        = false;
+    bool  claimed        = false;
+    bool  wasInteracting = false;
+    bool  overList       = x >= m_layout.listView.left && x < m_layout.listView.right &&
+                           y >= m_layout.listView.top  && y < m_layout.listView.bottom;
 
 
 
@@ -1648,81 +1962,45 @@ bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
             if (m_eventList->IsInteracting())
             {
                 (void) ForwardMouseToList (DxuiMouseEventKind::Move, DxuiMouseButton::Left, x, y, 0.0f);
-                return true;
+            }
+            else
+            {
+                m_pairView[0]->SetMouseHover (x, y);
+                m_pairView[1]->SetMouseHover (x, y);
+                UpdateTooltip (x, y);
             }
 
-            m_pairView[0]->SetMouseHover (x, y);
-            m_pairView[1]->SetMouseHover (x, y);
-            UpdateTooltip (x, y);
-            return true;
+            handled = true;
+            break;
 
         case DxuiMouseEventKind::Down:
             if (ev.button == DxuiMouseButton::Left)
             {
-                // The client-px widgets share the panel's coordinate space
-                // (ev.positionDip == client px), so route the event straight
-                // to each widget's OnMouse; the widget hit-tests itself and
-                // reports whether it consumed the press.
-                if (m_pairView[0]->OnMouse (ev))
+                // The two pair views are the exception to OfferPressTo: an
+                // open dropdown keeps focus where it is, so they take the
+                // press without taking focus.
+                claimed = m_pairView[0]->OnMouse (ev);
+
+                if (claimed && !m_pairView[0]->IsOpen()) { m_focusMgr.SetFocused (m_pairView[0]); }
+
+                if (!claimed)
                 {
-                    if (!m_pairView[0]->IsOpen()) { m_focusMgr.SetFocused (m_pairView[0]); }
-                    return true;
-                }
-                if (m_pairView[1]->OnMouse (ev))
-                {
-                    if (!m_pairView[1]->IsOpen()) { m_focusMgr.SetFocused (m_pairView[1]); }
-                    return true;
+                    claimed = m_pairView[1]->OnMouse (ev);
+
+                    if (claimed && !m_pairView[1]->IsOpen()) { m_focusMgr.SetFocused (m_pairView[1]); }
                 }
 
-                if (m_pauseButton->OnMouse (ev))
-                {
-                    m_focusMgr.SetFocused (m_pauseButton);
-                    return true;
-                }
+                claimed = claimed
+                          || OfferPressTo (m_pauseButton,       ev)
+                          || OfferPressTo (m_clearButton,       ev)
+                          || OfferPressTo (m_copyButton,        ev)
+                          || OfferPressTo (m_allCheck,          ev)
+                          || OfferPressTo (m_emuKeyboardCheck,  ev)
+                          || (m_joystickVisible && OfferPressTo (m_joystickCheck, ev))
+                          || (m_paddleVisible   && OfferPressTo (m_paddleCheck,   ev))
+                          || OfferPressTo (m_hostKeyboardCheck, ev);
 
-                if (m_clearButton->OnMouse (ev))
-                {
-                    m_focusMgr.SetFocused (m_clearButton);
-                    return true;
-                }
-
-                if (m_copyButton->OnMouse (ev))
-                {
-                    m_focusMgr.SetFocused (m_copyButton);
-                    return true;
-                }
-
-                if (m_allCheck->OnMouse (ev))
-                {
-                    m_focusMgr.SetFocused (m_allCheck);
-                    return true;
-                }
-
-                if (m_emuKeyboardCheck->OnMouse (ev))
-                {
-                    m_focusMgr.SetFocused (m_emuKeyboardCheck);
-                    return true;
-                }
-
-                if (m_joystickVisible && m_joystickCheck->OnMouse (ev))
-                {
-                    m_focusMgr.SetFocused (m_joystickCheck);
-                    return true;
-                }
-
-                if (m_paddleVisible && m_paddleCheck->OnMouse (ev))
-                {
-                    m_focusMgr.SetFocused (m_paddleCheck);
-                    return true;
-                }
-
-                if (m_hostKeyboardCheck->OnMouse (ev))
-                {
-                    m_focusMgr.SetFocused (m_hostKeyboardCheck);
-                    return true;
-                }
-
-                if ((x >= m_layout.listView.left && x < m_layout.listView.right && y >= m_layout.listView.top && y < m_layout.listView.bottom))
+                if (!claimed && overList)
                 {
                     // The list owns all in-list routing (scrollbar arrows /
                     // thumb / track, column resize, header-click sort, row
@@ -1735,26 +2013,24 @@ bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
                     m_focusMgr.SetFocused (m_eventList);
                 }
 
-                return true;
+                handled = true;
             }
-
-            if (ev.button == DxuiMouseButton::Right)
+            else if (ev.button == DxuiMouseButton::Right)
             {
                 if (m_eventList->HitTestHeaderColumn (x - m_layout.listView.left, y - m_layout.listView.top) >= 0)
                 {
                     ShowColumnMenu (x, y);
                 }
-                return true;
+
+                handled = true;
             }
 
-            return false;
+            break;
 
         case DxuiMouseEventKind::Up:
             if (ev.button == DxuiMouseButton::Left)
             {
-                bool  wasInteracting = m_eventList->IsInteracting();
-
-
+                wasInteracting = m_eventList->IsInteracting();
 
                 // Finish any list drag (scrollbar thumb / column resize) the
                 // list started on button-down. The pointer may have left the
@@ -1764,50 +2040,57 @@ bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
                 if (wasInteracting)
                 {
                     (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
-                    return true;
                 }
-
-                if (m_pairView[0]->OnMouse (ev)) { return true; }
-                if (m_pairView[1]->OnMouse (ev)) { return true; }
-
-                // Route the release to each button / checkbox: the widget
-                // clears its own press visual and, on a click-release over
-                // itself, fires the callback wired at setup (button click /
-                // checkbox change), which folds the outcome back into the
-                // panel model.
-                m_pauseButton->OnMouse (ev);
-                m_clearButton->OnMouse (ev);
-                m_copyButton->OnMouse (ev);
-
-                m_allCheck->OnMouse (ev);
-                m_emuKeyboardCheck->OnMouse (ev);
-                if (m_joystickVisible) { m_joystickCheck->OnMouse (ev); }
-                if (m_paddleVisible)   { m_paddleCheck->OnMouse (ev); }
-                m_hostKeyboardCheck->OnMouse (ev);
-
-                // A plain release inside the list finalizes the row activate;
-                // the list already selected on button-down (raising
-                // onSelectionChanged).
-                if ((x >= m_layout.listView.left && x < m_layout.listView.right && y >= m_layout.listView.top && y < m_layout.listView.bottom))
+                else
                 {
-                    (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
+                    claimed = m_pairView[0]->OnMouse (ev) || m_pairView[1]->OnMouse (ev);
+
+                    if (!claimed)
+                    {
+                        // Route the release to each button / checkbox: the
+                        // widget clears its own press visual and, on a
+                        // click-release over itself, fires the callback wired
+                        // at setup (button click / checkbox change), which
+                        // folds the outcome back into the panel model. Every
+                        // one gets the release, unlike the press above.
+                        m_pauseButton->OnMouse (ev);
+                        m_clearButton->OnMouse (ev);
+                        m_copyButton->OnMouse (ev);
+
+                        m_allCheck->OnMouse (ev);
+                        m_emuKeyboardCheck->OnMouse (ev);
+                        if (m_joystickVisible) { m_joystickCheck->OnMouse (ev); }
+                        if (m_paddleVisible)   { m_paddleCheck->OnMouse (ev); }
+                        m_hostKeyboardCheck->OnMouse (ev);
+
+                        // A plain release inside the list finalizes the row
+                        // activate; the list already selected on button-down
+                        // (raising onSelectionChanged).
+                        if (overList)
+                        {
+                            (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
+                        }
+                    }
                 }
 
-                return true;
+                handled = true;
             }
 
-            return false;
+            break;
 
         case DxuiMouseEventKind::Wheel:
             // Forward to the list, which scrolls only when the pointer is
             // over it (standard control behavior) and converts notches back
             // to raw WHEEL_DELTA units internally.
             (void) ForwardMouseToList (DxuiMouseEventKind::Wheel, DxuiMouseButton::None, x, y, ev.wheelDelta);
-            return true;
+            handled = true;
+            break;
 
         default:
-            return false;
+            break;
     }
+
+    return handled;
 }
 
 
@@ -1818,38 +2101,58 @@ bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
 //
 //  OnKey
 //
+//  Keyboard handling, in the order a dialog is expected to resolve it:
+//  traversal, then the focused control, then the list as the fallback.
+//
+//  Tab is intercepted first and handed to the focus manager, which walks the
+//  panel's visible focusables through the framework tree -- there is no
+//  hand-maintained tab-stop list to fall out of sync when a widget is added or
+//  conditionally hidden.
+//
+//  The focused control gets every other key BEFORE the list does, so a focused
+//  checkbox self-activates on Space, a focused button on Enter, and a focused
+//  dropdown steers its own open popup. Only unclaimed keys fall through to
+//  list navigation, which is what keeps the arrow keys steering a dropdown
+//  rather than scrolling the log behind it.
+//
+//  Char events are reported unhandled: the panel has no text-entry surface, so
+//  claiming them would swallow keystrokes the framework may still want.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool InputDebugPanel::OnKey (const DxuiKeyEvent & ev)
 {
+    HRESULT         hr       = S_OK;
     WPARAM          vk       = (WPARAM) ev.vk;
     bool            handled  = true;
     IDxuiControl *  focused  = nullptr;
+    bool            isDown   = (ev.kind == DxuiKeyEventKind::Down);
+    bool            claimed  = false;
+
 
 
     // Char events carry no panel semantics (no text entry surface); only
     // key-down drives focus traversal, activation and list navigation.
-    if (ev.kind != DxuiKeyEventKind::Down)
-    {
-        return false;
-    }
+    handled = isDown;
+
+    BAIL_OUT_IF (!isDown, S_OK);
 
     // Tab / Shift+Tab: automatic focus traversal over the panel's visible
     // focusables (the framework tree walk) -- no bespoke per-stop list.
     if (vk == VK_TAB)
     {
         m_focusMgr.HandleKey ((GetKeyState (VK_SHIFT) & 0x8000) ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
-        return true;
     }
+
+    BAIL_OUT_IF (vk == VK_TAB, S_OK);
 
     // Activation / value keys go to the focused control first: a focused
     // checkbox / button self-activates on Space / Enter (firing its wired
     // callback) and a focused dropdown steers its open popup.
     focused = m_focusMgr.Focused();
-    if (focused != nullptr && focused->OnKey (ev))
-    {
-        return true;
-    }
+    claimed = (focused != nullptr) && focused->OnKey (ev);
+
+    BAIL_OUT_IF (claimed, S_OK);
 
     switch (vk)
     {
@@ -1873,6 +2176,7 @@ bool InputDebugPanel::OnKey (const DxuiKeyEvent & ev)
             break;
     }
 
+Error:
     return handled;
 }
 
@@ -1884,12 +2188,25 @@ bool InputDebugPanel::OnKey (const DxuiKeyEvent & ev)
 //
 //  UpdateTooltip
 //
+//  Picks the tooltip for whatever is under the pointer, or requests a hide.
+//
+//  Hidden widgets are excluded from the hit tests rather than merely painting
+//  nothing, so a collapsed joystick or paddle row cannot produce a tooltip for
+//  a control the user cannot see.
+//
+//  Show and hide are both REQUESTS. The dwell timer decides when a popup
+//  actually appears or disappears, so sweeping the pointer across five
+//  checkboxes does not flash five tooltips -- and the explicit hide on empty
+//  space is what lets the timer close the current one instead of leaving it
+//  anchored to a widget the pointer has left.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::UpdateTooltip (int x, int y)
 {
     LPCWSTR  text   = nullptr;
     RECT     anchor = {};
+
 
 
     if (m_allCheck->HitTest (x, y))                               { text = s_kpszAllTip;      anchor = m_allCheck->Bounds();         }
@@ -1903,11 +2220,13 @@ void InputDebugPanel::UpdateTooltip (int x, int y)
         text   = L"Pause or resume live input logging";
         anchor = m_pauseButton->Bounds();
     }
+
     if (text == nullptr && m_clearButton->HitTest (x, y))
     {
         text   = L"Clear the input debug log";
         anchor = m_clearButton->Bounds();
     }
+
     if (text == nullptr && m_copyButton->HitTest (x, y))
     {
         text   = L"Copy the visible input debug log to the clipboard";
@@ -1932,15 +2251,33 @@ void InputDebugPanel::UpdateTooltip (int x, int y)
 //
 //  ShowColumnMenu
 //
+//  The header right-click menu: one checkable item per column, toggling
+//  visibility.
+//
+//  Items are rebuilt from the live column model on every show rather than
+//  built once and mutated, so the check marks cannot drift out of step with
+//  what the list is actually displaying.
+//
+//  The theme is pushed in at show time because the menu renders deferred, in a
+//  pooled popup host outside the widget tree -- it never sees a paint-pump
+//  pass and so cannot inherit a theme the way an in-tree widget does. The
+//  window theme is shell-owned and outlives the popup, so the pointer is safe
+//  to hold.
+//
+//  A null text renderer bails instead of being dereferenced: the shared
+//  renderer that measures and lays the menu out only exists once the backend
+//  is up, and a right-click can arrive before then.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 {
-    auto &                       columns  = m_columnsModel;
-    std::vector<DxuiPopupMenu::Item> items;
-    IDxuiTextRenderer          *  textRenderer = TextRenderer();
-    RECT                         hostRect = { 0, 0, m_widthPx, m_heightPx };
-    int                          i        = 0;
+    auto                              & columns      = m_columnsModel;
+    std::vector<DxuiPopupMenu::Item>    items;
+    IDxuiTextRenderer                 * textRenderer = TextRenderer();
+    RECT                                hostRect     = { 0, 0, m_widthPx, m_heightPx };
+    int                                 i            = 0;
+
 
 
     // Bail rather than dereference a null renderer -- the shared text
@@ -2031,6 +2368,7 @@ void InputDebugPanel::OnKbdDataRead (Word address, Byte value, bool strobeSet)
     InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::KbdDataRead);
 
 
+
     e.payload.io.address = address;
     e.payload.io.value   = value;
     e.payload.io.flags   = strobeSet ? InputEvent::kFlagStrobe : 0;
@@ -2052,6 +2390,7 @@ void InputDebugPanel::OnKbdStrobe (Word address, Byte value, bool clearedStrobe)
     InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::KbdStrobe);
 
 
+
     e.payload.io.address = address;
     e.payload.io.value   = value;
     e.payload.io.flags   = 0;
@@ -2059,10 +2398,12 @@ void InputDebugPanel::OnKbdStrobe (Word address, Byte value, bool clearedStrobe)
     {
         e.payload.io.flags |= InputEvent::kFlagStrobe;
     }
+
     if ((value & s_kAnyKeyDownBit) != 0)
     {
         e.payload.io.flags |= InputEvent::kFlagAnyKeyDown;
     }
+
     PublishToRing (e);
 }
 
@@ -2079,6 +2420,7 @@ void InputDebugPanel::OnKbdStrobe (Word address, Byte value, bool clearedStrobe)
 void InputDebugPanel::OnButtonRead (Word address, Byte value)
 {
     InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::ButtonRead);
+
 
 
     e.payload.io.address = address;
@@ -2102,6 +2444,7 @@ void InputDebugPanel::OnPaddleTrigger (Word address)
     InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::PaddleTrigger);
 
 
+
     e.payload.io.address = address;
     e.payload.io.value   = 0;
     e.payload.io.flags   = 0;
@@ -2121,6 +2464,7 @@ void InputDebugPanel::OnPaddleTrigger (Word address)
 void InputDebugPanel::OnPaddleRead (Word address, Byte value)
 {
     InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::PaddleRead);
+
 
 
     e.payload.io.address = address;
@@ -2144,6 +2488,7 @@ void InputDebugPanel::OnHostAutoRepeat (Byte asciiChar)
     InputEvent  e = MakeStampedEvent (InputEventCategory::Host, InputEventType::HostAutoRepeat);
 
 
+
     e.payload.key.ascii = asciiChar;
     PublishToRing (e);
 }
@@ -2161,6 +2506,7 @@ void InputDebugPanel::OnHostAutoRepeat (Byte asciiChar)
 void InputDebugPanel::OnHostKeyDown (Byte asciiChar)
 {
     InputEvent  e = MakeStampedEvent (InputEventCategory::Host, InputEventType::HostKeyDown);
+
 
 
     e.cycle = 0;
@@ -2181,6 +2527,7 @@ void InputDebugPanel::OnHostKeyDown (Byte asciiChar)
 void InputDebugPanel::OnHostKeyUp (Byte asciiChar)
 {
     InputEvent  e = MakeStampedEvent (InputEventCategory::Host, InputEventType::HostKeyUp);
+
 
 
     e.cycle = 0;

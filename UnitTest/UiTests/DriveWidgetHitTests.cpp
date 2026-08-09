@@ -8,6 +8,26 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveWidgetHitTests
+//
+//  Which REGION of a drive widget a point falls in: the body, the eject door,
+//  or neither.
+//
+//  The two regions do different things -- the body browses for a disk, the door
+//  ejects -- so a boundary that is one pixel out swaps a mount for an eject.
+//  That is why the region matters more than the hit.
+//
+//  Points on each boundary are tested explicitly, since the door sits inside
+//  the widget's outer rect and the two rects share an edge.
+//
+//  A HIDDEN widget must report a miss everywhere. Its rects are collapsed to
+//  nothing on a machine with no controller, and a hit test that ignored that
+//  would make an invisible drive clickable.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_CLASS (DriveWidgetHitTests)
 {
 public:

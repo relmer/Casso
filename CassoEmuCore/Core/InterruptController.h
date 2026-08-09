@@ -48,6 +48,14 @@ public:
     void                            SoftReset  ();
     void                            PowerCycle ();
 
+    // Reclaim all source-ID allocations and clear the aggregate. Unlike
+    // SoftReset / PowerCycle (which preserve tokens so peripherals keep
+    // theirs across a reset), this is the machine-teardown path: every
+    // device that held a token is being destroyed and rebuilt, so the
+    // allocation pool starts over. Without it, each machine switch would
+    // leak tokens and eventually exhaust the 32-source pool.
+    void                            ResetSources ();
+
 private:
     void                            UpdateLine ();
 

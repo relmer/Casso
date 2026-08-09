@@ -55,6 +55,17 @@ Word Apple80ColTextMode::GetActivePageAddress (bool page2) const
 //
 //  Constants
 //
+//  The 80-column text grid and its two colors.
+//
+//  The character cell stays SEVEN dots wide, the same as 40-column text --
+//  the //e produced 80 columns by clocking dots at twice the rate, not by
+//  narrowing the glyph. So the raster is twice as wide in dots while the cell
+//  geometry is unchanged, and the same glyph data serves both modes.
+//
+//  Only two colors exist here. Text is rendered green and recolored downstream
+//  by the monitor tint, so a color monitor and each monochrome phosphor share
+//  one glyph raster instead of needing a palette per monitor type.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr int kTextCols   = 80;
@@ -89,13 +100,103 @@ void Apple80ColTextMode::Render (
     int fbWidth,
     int fbHeight)
 {
-    m_frameCount++;
+    Word  pageBase  = 0;
+    bool  flashFlip = false;
 
-    // Flash toggles every ~16 frames (approximately 0.5 second at 60fps).
-    // ALTCHARSET=1 disables flash on the //e: only ALTCHARSET=0 mode flashes.
-    m_flashOn = ((m_frameCount / 16) & 1) == 0;
 
-    RenderRowRange (0, kTextRows, videoRam, framebuffer, fbWidth, fbHeight);
+
+    static_assert (kGridCols == kTextCols && kGridRows == kTextRows,
+                   "dirty-row cache grid must match the render grid");
+
+    // Flash phase is driven externally via SetFlashState (from emulated time),
+    // not advanced here. Dirty-row rendering: redraw only the rows whose 80
+    // effective char codes changed since the last render into THIS framebuffer
+    // (plus, on a flash flip, rows holding a flashing glyph). A full redraw is
+    // forced when reuse is unsafe -- first render, a different target buffer, a
+    // change of aux pointer / charset / on-color. See AppleTextMode::Render.
+    // 80-col always uses page 1.
+    pageBase = static_cast<Word> (0x0400);
+
+    bool full = !m_cacheValid
+             || framebuffer  != m_prevFramebuffer
+             || m_auxMem     != m_prevAuxMem
+             || m_altCharSet != m_prevAltChar
+             || m_onColor    != m_prevOnColor;
+
+    flashFlip = m_flashOn != m_prevFlashOn;
+
+    for (int row = 0; row < kTextRows; row++)
+    {
+        Word    rowAddr             = static_cast<Word> (pageBase + 128 * (row % 8) + 40 * (row / 8));
+        Byte  * cacheRow            = &m_prevBytes[row * kTextCols];
+        Byte    rowBytes[kTextCols];
+        bool    changed             = false;
+        bool    dirty               = false;
+
+        for (int col = 0; col < kTextCols; col++)
+        {
+            int  memCol  = col / 2;
+            bool fromAux = (col % 2) == 0;
+            Word addr    = static_cast<Word> (rowAddr + memCol);
+            Byte c       = 0;
+
+            // Mirror RenderRowRange's read order exactly so the diff matches
+            // what gets rasterized (aux even columns, main odd; bus fallback).
+            if (fromAux && m_auxMem != nullptr) { c = m_auxMem[addr];       }
+            else if (videoRam != nullptr)       { c = videoRam[addr];       }
+            else                                { c = m_bus.ReadByte (addr); }
+
+            rowBytes[col] = c;
+            changed      |= (c != cacheRow[col]);
+        }
+
+        dirty = full || changed || (flashFlip && RowHasFlashChar (rowBytes));
+
+        if (dirty)
+        {
+            RenderRowRange (row, row + 1, videoRam, framebuffer, fbWidth, fbHeight);
+        }
+
+        for (int col = 0; col < kTextCols; col++)
+        {
+            cacheRow[col] = rowBytes[col];
+        }
+    }
+
+    m_prevFramebuffer = framebuffer;
+    m_prevAuxMem      = m_auxMem;
+    m_prevAltChar     = m_altCharSet;
+    m_prevOnColor     = m_onColor;
+    m_prevFlashOn     = m_flashOn;
+    m_cacheValid      = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RowHasFlashChar
+//
+//  As AppleTextMode::RowHasFlashChar, over the 80 interleaved char codes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple80ColTextMode::RowHasFlashChar (const Byte * rowBytes) const
+{
+    int   col      = 0;
+    bool  hasFlash = false;
+
+
+
+    // Same rule as AppleTextMode, over the 80 interleaved char codes.
+    for (col = 0; !m_altCharSet && !hasFlash && col < kTextCols; col++)
+    {
+        hasFlash = (rowBytes[col] >= 0x40 && rowBytes[col] < 0x80);
+    }
+
+    return hasFlash;
 }
 
 
@@ -127,9 +228,13 @@ void Apple80ColTextMode::RenderRowRange (
 
         for (int col = 0; col < kTextCols; col++)
         {
-            int  memCol  = col / 2;
-            bool fromAux = (col % 2) == 0;
-            Word addr    = static_cast<Word> (rowAddr + memCol);
+            int   memCol      = col / 2;
+            bool  fromAux     = (col % 2) == 0;
+            Word  addr        = static_cast<Word> (rowAddr + memCol);
+            bool  isIIeRom    = false;
+            bool  inverse     = false;
+            bool  flash       = false;
+            bool  showInverse = false;
 
             Byte charCode = 0;
 
@@ -168,11 +273,11 @@ void Apple80ColTextMode::RenderRowRange (
             // Without the //e branch the cursor cell ($20 stored as a
             // pre-inverted solid block) would be XOR'd back to empty
             // -- the "missing 80-col cursor" symptom.
-            bool isIIeRom = m_charRom.HasAltCharSet();
-            bool inverse  = charCode < 0x40;
-            bool flash    = !m_altCharSet && (charCode >= 0x40) && (charCode < 0x80);
+            isIIeRom = m_charRom.HasAltCharSet();
+            inverse = charCode < 0x40;
+            flash = !m_altCharSet && (charCode >= 0x40) && (charCode < 0x80);
 
-            bool showInverse = (inverse && !isIIeRom) || (flash && m_flashOn);
+            showInverse = (inverse && !isIIeRom) || (flash && m_flashOn);
 
             for (int py = 0; py < kCharHeight; py++)
             {

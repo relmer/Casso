@@ -32,5 +32,5 @@
 ## Notes
 
 - This feature is technical in nature (emulator subsystem fidelity). The "no implementation details" criterion is interpreted as: the spec describes observable hardware behaviors (soft switches, memory routing, disk-controller behavior at the nibble level) and architectural composition principles (layering, pluggability, IRQ abstraction) — but does not prescribe specific C++ classes, file layouts, function signatures, or algorithms. Hardware-behavior specificity is a *requirement*, not implementation leakage, because the user-visible value is "real //e software runs correctly," which is only verifiable in terms of those hardware behaviors.
-- The authoritative requirements input is `docs/iie-audit.md`; functional requirements trace back to its sections (§1–§10 plus §6.5 and issue #61).
+- The authoritative requirements input is `../iie-audit.md`; functional requirements trace back to its sections (§1–§10 plus §6.5 and issue #61).
 - Items marked incomplete require spec updates before `/speckit.clarify` or `/speckit.plan`.

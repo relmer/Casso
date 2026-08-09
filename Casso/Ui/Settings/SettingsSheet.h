@@ -15,6 +15,7 @@
 #include "DiskPage.h"
 #include "ThemePage.h"
 #include "DisplayPage.h"
+#include "PrintingPage.h"
 
 
 class UserConfigStore;
@@ -23,6 +24,7 @@ class ThemeManager;
 class EmulatorShell;
 class IFileSystem;
 class DxuiLabel;
+
 
 
 
@@ -85,7 +87,7 @@ protected:
     //  Custom text-color picker (list #8). Hosted as the framework's modal
     //  in-content overlay so it floats above the page and grabs all input while
     //  open, preserving the bespoke look (no separate popup HWND). Layout keeps
-    //  it centred in the current sheet bounds.
+    //  it centered in the current sheet bounds.
     void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     bool     HasModalOverlay   () const override;
     void     PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -146,6 +148,12 @@ private:
     // Display preview is live so each drag frame recomposes.
     void  UpdatePreviewCompose ();
 
+    // Pin the owner (the emulator main window) directly below this sheet in
+    // the z-order when a live preview begins, so the see-through reveal shows
+    // the emulator rather than whatever unrelated window the user activated
+    // between edits.
+    void  RaiseOwnerBehindSheet ();
+
     // Last mechanism pushed to the engine, so PushDriveAudioToEngine skips a
     // redundant WAV reload when it hasn't changed.
     std::string               m_lastAuditionMechanism;
@@ -179,6 +187,7 @@ private:
     DiskPage     * m_diskPage     = nullptr;
     ThemePage    * m_themePage    = nullptr;
     DisplayPage  * m_displayPage  = nullptr;
+    PrintingPage * m_printingPage = nullptr;
 
     // Registration index of the Disk page, so OnDialogTick can show / hide its
     // tab as the staged Disk ][ controller is toggled (#84 Phase B). -1 until

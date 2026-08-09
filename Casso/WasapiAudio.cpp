@@ -61,6 +61,28 @@ WasapiAudio::~WasapiAudio()
 //
 //  Initialize
 //
+//  Opens the default render endpoint in shared mode, preferring 32-bit float
+//  stereo and falling back to whatever the device actually offers.
+//
+//  STEREO is requested rather than mono because the drive-audio mixer carries
+//  per-drive panning (spec 005, FR-010 / FR-012) -- two drives on one channel
+//  lose the separation that makes them distinguishable by ear.
+//
+//  The fallback to the device's own mix format is what keeps unusual endpoints
+//  working. A device that rejects float stereo still gets audio, and
+//  SubmitFrame's downmix path handles a mono result.
+//
+//  The sample rate is TAKEN from the mix format rather than requested, since
+//  shared mode resamples anything else and asking for a rate the device does
+//  not use only adds a conversion.
+//
+//  SHARED mode is deliberate: exclusive mode would give lower latency but take
+//  the endpoint away from every other application, which is not a trade an
+//  emulator should make on the user's behalf.
+//
+//  A 100 ms buffer is long enough to absorb a scheduling hiccup without an
+//  audible dropout and short enough that speaker latency stays imperceptible.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT WasapiAudio::Initialize()
@@ -201,11 +223,29 @@ void WasapiAudio::Shutdown()
 //
 //  SubmitFrame
 //
-////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////
+//  Generates one slice of audio -- speaker, drives, Mockingboard -- mixes it,
+//  and drains as much as the endpoint will currently take.
 //
-//  SubmitFrame
+//  Generation and submission are DECOUPLED through a pending buffer, because
+//  the two run at unrelated rates: the emulator produces samples per CPU
+//  slice, while the endpoint accepts them only as its buffer drains. Anything
+//  not written now is carried to the next call.
+//
+//  That buffer is capped at roughly three frames. If the endpoint stalls or
+//  the emulator runs ahead at Maximum speed, unbounded growth would turn into
+//  both a memory leak and seconds of audio latency; dropping generation
+//  instead keeps the sound current, which is what matters for an emulator.
+//
+//  Everything is mixed as interleaved STEREO regardless of the device's actual
+//  channel count, and mono devices downmix at drain time. One internal format
+//  means the mixers need no per-device variants.
+//
+//  The speaker is centered with an EQUAL-POWER factor rather than being copied
+//  to both channels at full amplitude, so it does not sound louder than the
+//  panned drive sources beside it.
+//
+//  Scratch buffers are grown and reused rather than allocated per call, since
+//  this runs on the CPU thread for every slice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -215,7 +255,8 @@ HRESULT WasapiAudio::SubmitFrame (
     float                           currentSpeakerState,
     uint32_t                        numSamplesToGenerate,
     DriveAudioMixer *               driveMixer,
-    uint64_t                        currentCycleCount)
+    uint64_t                        currentCycleCount,
+    DriveAudioMixer *               mockingboardMixer)
 {
     HRESULT    hr             = S_OK;
     size_t     prevFrames     = 0;
@@ -232,10 +273,7 @@ HRESULT WasapiAudio::SubmitFrame (
 
 
 
-    if (!m_initialized || m_renderClient == nullptr)
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF (!m_initialized || m_renderClient == nullptr, S_OK);
 
     // m_pendingSamples is interleaved stereo regardless of the
     // device's channel count -- mono devices downmix at drain time.
@@ -281,6 +319,32 @@ HRESULT WasapiAudio::SubmitFrame (
 
             DriveAudioMixer::MixDriveIntoSpeakerStereo (
                 stereoPtr, m_driveScratch.data(), numSamplesToGenerate);
+        }
+
+        // Mockingboard PSG audio shares the same additive stereo mix but
+        // runs through its own mixer so its Options toggle is independent
+        // of Drive Audio. Its sources ignore the cycle-based Tick.
+        if (mockingboardMixer != nullptr)
+        {
+            mockingboardMixer->GeneratePCM (m_driveScratch.data(), numSamplesToGenerate);
+
+            DriveAudioMixer::MixDriveIntoSpeakerStereo (
+                stereoPtr, m_driveScratch.data(), numSamplesToGenerate);
+        }
+
+        // Master volume: one gain over the completed mix so every source
+        // scales together (mute == 0). Applied at generation, not drain, so
+        // pending samples keep the gain they were produced under.
+        {
+            float  gain = m_masterGain.load (std::memory_order_relaxed);
+
+            if (gain != 1.0f)
+            {
+                for (i = 0; i < numSamplesToGenerate * 2; i++)
+                {
+                    stereoPtr[i] *= gain;
+                }
+            }
         }
     }
 
@@ -359,14 +423,24 @@ void WasapiAudio::RecordDriveDoorSyncEvent (int drive, int64_t timestampMs)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLastDriveDoorSyncEventMs
+//
+////////////////////////////////////////////////////////////////////////////////
+
 int64_t WasapiAudio::GetLastDriveDoorSyncEventMs (int drive) const
 {
-    if (drive < 0 || drive >= static_cast<int> (m_lastDriveDoorSyncMs.size()))
-    {
-        return 0;
-    }
+    bool  inRange = (drive >= 0 && drive < static_cast<int> (m_lastDriveDoorSyncMs.size()));
 
-    return m_lastDriveDoorSyncMs[drive];
+
+
+    // 0 is also the never-fired value, so an out-of-range drive reads the
+    // same as a drive whose door has not moved this session.
+    return inRange ? m_lastDriveDoorSyncMs[drive] : 0;
 }
 
 

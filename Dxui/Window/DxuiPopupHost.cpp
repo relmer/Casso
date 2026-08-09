@@ -10,86 +10,97 @@
 
 
 
-namespace
+static constexpr UINT     s_kDefaultDpi          = 96;
+static constexpr LONG     s_kShadowInsetPx       = 1;
+
+std::atomic<uint32_t>  s_classSerial { 0 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WorkAreaForRect
+//
+//
+//   Returns the monitor work-area rect (excludes the taskbar) for
+//   the monitor that contains the supplied rect. Falls back to a
+//   giant synthetic work area if the multi-monitor lookup fails so
+//   callers always get a usable rect.
+//
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT  DxuiPopupHost::WorkAreaForRect (const RECT & rectScreenPx)
 {
-    constexpr UINT     s_kDefaultDpi          = 96;
-    constexpr LONG     s_kShadowInsetPx       = 1;
+    RECT          work     = { 0, 0, 1920, 1080 };
+    HMONITOR      monitor  = nullptr;
+    MONITORINFO   info     = {};
 
-    std::atomic<uint32_t>  s_classSerial { 0 };
 
 
-    //
-    //  Returns the monitor work-area rect (excludes the taskbar) for
-    //  the monitor that contains the supplied rect. Falls back to a
-    //  giant synthetic work area if the multi-monitor lookup fails so
-    //  callers always get a usable rect.
-    //
-    RECT  WorkAreaForRect (const RECT & rectScreenPx)
+    // Either lookup failing leaves the synthetic 1920x1080 fallback, so a
+    // popup always gets a usable rect to clamp against.
+    monitor = MonitorFromRect (&rectScreenPx, MONITOR_DEFAULTTONEAREST);
+
+    if (monitor != nullptr)
     {
-        RECT          work     = { 0, 0, 1920, 1080 };
-        HMONITOR      monitor  = nullptr;
-        MONITORINFO   info     = {};
-
-
-        monitor = MonitorFromRect (&rectScreenPx, MONITOR_DEFAULTTONEAREST);
-        if (monitor == nullptr)
-        {
-            return work;
-        }
-
         info.cbSize = sizeof (info);
+
         if (GetMonitorInfoW (monitor, &info))
         {
             work = info.rcWork;
         }
-        return work;
     }
 
+    return work;
+}
 
-    //
-    //  Position a rect of the supplied size on the chosen edge of an
-    //  anchor without any work-area clamping. Helper for placement.
-    //
-    RECT  PlaceOnEdge (const RECT          & anchor,
-                       DxuiPopupPlacement    edge,
-                       SIZE                  popupSizePx)
+
+//
+//  Position a rect of the supplied size on the chosen edge of an
+//  anchor without any work-area clamping. Helper for placement.
+//
+RECT  DxuiPopupHost::PlaceOnEdge (const RECT          & anchor,
+                   DxuiPopupPlacement    edge,
+                   SIZE                  popupSizePx)
+{
+    RECT  out = {};
+
+
+    switch (edge)
     {
-        RECT  out = {};
+        case DxuiPopupPlacement::Below:
+            out.left   = anchor.left;
+            out.top    = anchor.bottom;
+            break;
 
+        case DxuiPopupPlacement::Above:
+            out.left   = anchor.left;
+            out.top    = anchor.top - popupSizePx.cy;
+            break;
 
-        switch (edge)
-        {
-            case DxuiPopupPlacement::Below:
-                out.left   = anchor.left;
-                out.top    = anchor.bottom;
-                break;
+        case DxuiPopupPlacement::Right:
+            out.left   = anchor.right;
+            out.top    = anchor.top;
+            break;
 
-            case DxuiPopupPlacement::Above:
-                out.left   = anchor.left;
-                out.top    = anchor.top - popupSizePx.cy;
-                break;
+        case DxuiPopupPlacement::Left:
+            out.left   = anchor.left - popupSizePx.cx;
+            out.top    = anchor.top;
+            break;
 
-            case DxuiPopupPlacement::Right:
-                out.left   = anchor.right;
-                out.top    = anchor.top;
-                break;
-
-            case DxuiPopupPlacement::Left:
-                out.left   = anchor.left - popupSizePx.cx;
-                out.top    = anchor.top;
-                break;
-
-            case DxuiPopupPlacement::AtCursor:
-                // Anchor's (left, top) is treated as the cursor point.
-                out.left   = anchor.left;
-                out.top    = anchor.top;
-                break;
-        }
-
-        out.right  = out.left + popupSizePx.cx;
-        out.bottom = out.top  + popupSizePx.cy;
-        return out;
+        case DxuiPopupPlacement::AtCursor:
+            // Anchor's (left, top) is treated as the cursor point.
+            out.left   = anchor.left;
+            out.top    = anchor.top;
+            break;
     }
+
+    out.right  = out.left + popupSizePx.cx;
+    out.bottom = out.top  + popupSizePx.cy;
+    return out;
 }
 
 
@@ -134,6 +145,25 @@ DxuiPopupHost::~DxuiPopupHost()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Initialize
+//
+//  Brings up the popup's own render facades on the OWNER's D3D device.
+//
+//  Sharing the device rather than creating one is the point: a popup is a
+//  separate top-level HWND with its own swap chain, but a second D3D device
+//  would mean a second driver context and no ability to share resources with
+//  the window it belongs to.
+//
+//  The two facades take different inputs for a real reason -- DxuiPainter
+//  needs the immediate CONTEXT, while DxuiTextRenderer derives its own D2D
+//  device from the D3D DEVICE and manages its own context.
+//
+//  Neither is bound to a back buffer here; that happens in
+//  CreateBackBufferRtv, once the popup HWND and its swap chain exist. So an
+//  initialized host is ready to serve popups but owns no window yet.
+//
+//  InitializeForTest exists alongside this so popup PLACEMENT and dismissal
+//  logic can be tested with no device, no window, and no GPU -- which is why
+//  the render-ready flag is tracked separately from initialized.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -183,7 +213,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::InitializeForTest ()
+void DxuiPopupHost::InitializeForTest()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -203,9 +233,24 @@ void DxuiPopupHost::InitializeForTest ()
 //
 //  Shutdown
 //
+//  Closes any open popup, destroys the window and composition, and unregisters
+//  the window class.
+//
+//  Closing FIRST matters: Close resolves the completion promise, and skipping
+//  it would leave a caller waiting on a popup whose window is already gone.
+//
+//  The window class is unregistered because each host registers its own
+//  uniquely-named class. Leaving it behind leaks a class registration per
+//  host, which matters for a type that is created and destroyed with the
+//  panels that use it rather than once per process.
+//
+//  Every pointer is cleared -- device, context, parent, active child -- since
+//  all of them are BORROWED and the lenders can outlive or predecease this
+//  object in either order.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::Shutdown ()
+void DxuiPopupHost::Shutdown()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -256,6 +301,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     UINT     dpi            = s_kDefaultDpi;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     CBRA (m_initialized);
@@ -275,6 +321,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
         dpi = GetDpiForWindow (m_params.ownerHwnd);
         if (dpi == 0) { dpi = s_kDefaultDpi; }
     }
+
     sizePx.cx = MulDiv (m_params.sizeDip.cx, (int) dpi, (int) s_kDefaultDpi);
     sizePx.cy = MulDiv (m_params.sizeDip.cy, (int) dpi, (int) s_kDefaultDpi);
 
@@ -292,13 +339,10 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     m_open               = true;
     m_resultCode         = 0;
 
-    if (m_testMode)
-    {
-        // Test mode: no HWND, no swap chain. State above is the
-        // entire deliverable; tests inspect Params(),
-        // PlacedRectScreenPx(), and Completion() directly.
-        goto Error;
-    }
+    // Test mode: no HWND, no swap chain. The state set above is the entire
+    // deliverable; tests inspect Params(), PlacedRectScreenPx(), and
+    // Completion() directly.
+    BAIL_OUT_IF (m_testMode, S_OK);
 
     hr = EnsureWindowClass();
     CHRA (hr);
@@ -340,8 +384,10 @@ Error:
             m_completionPromise.set_value (-1);
             m_completionPending = false;
         }
+
         m_open = false;
     }
+
     return hr;
 }
 
@@ -353,11 +399,34 @@ Error:
 //
 //  Close
 //
+//  Hides the popup, unlinks it from the popup chain, resolves the completion
+//  promise, and notifies the owner.
+//
+//  m_open is cleared FIRST, which makes this function re-entrant by
+//  construction: the onClosed callback routinely calls ReleasePopup, which can
+//  reach Close again, and the early exit turns that second entry into a no-op
+//  instead of a recursion.
+//
+//  For the same reason onClosed is captured into a local before the content is
+//  dropped -- the callback lives in the params being cleared, so calling it
+//  through the member would invoke a destroyed std::function.
+//
+//  Chain bookkeeping is undone in both directions. A nested popup must clear
+//  the PARENT's pointer to itself as well as its own, or the parent keeps
+//  routing to a hidden child.
+//
+//  Capture is released before hiding, since a hidden window holding mouse
+//  capture swallows input for the entire application.
+//
+//  The window is HIDDEN, not destroyed. These popups are pooled, so hiding is
+//  what returns one to the pool with its swap chain intact and makes the next
+//  Show cheap.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiPopupHost::Close (int resultCode)
 {
-    std::function<void ()>  onClosed;
+    std::function<void()>  onClosed;
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -375,6 +444,7 @@ void DxuiPopupHost::Close (int resultCode)
     {
         m_parent->m_activeChild = nullptr;
     }
+
     m_parent      = nullptr;
     m_activeChild = nullptr;
 
@@ -384,6 +454,7 @@ void DxuiPopupHost::Close (int resultCode)
         {
             ReleaseCapture();
         }
+
         ShowWindow (m_hwnd, SW_HIDE);
     }
 
@@ -416,7 +487,7 @@ void DxuiPopupHost::Close (int resultCode)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::future<int> DxuiPopupHost::Completion ()
+std::future<int> DxuiPopupHost::Completion()
 {
     DXUI_ASSERT_UI_THREAD();
     return m_completionPromise.get_future();
@@ -525,6 +596,7 @@ RECT DxuiPopupHost::ComputePlacementForTest (
                     chosen = DxuiPopupPlacement::Above;
                     placed = PlaceOnEdge (anchorScreenPx, chosen, popupSizePx);
                 }
+
                 break;
 
             case DxuiPopupPlacement::Above:
@@ -534,6 +606,7 @@ RECT DxuiPopupHost::ComputePlacementForTest (
                     chosen = DxuiPopupPlacement::Below;
                     placed = PlaceOnEdge (anchorScreenPx, chosen, popupSizePx);
                 }
+
                 break;
 
             case DxuiPopupPlacement::Right:
@@ -543,6 +616,7 @@ RECT DxuiPopupHost::ComputePlacementForTest (
                     chosen = DxuiPopupPlacement::Left;
                     placed = PlaceOnEdge (anchorScreenPx, chosen, popupSizePx);
                 }
+
                 break;
 
             case DxuiPopupPlacement::Left:
@@ -552,6 +626,7 @@ RECT DxuiPopupHost::ComputePlacementForTest (
                     chosen = DxuiPopupPlacement::Right;
                     placed = PlaceOnEdge (anchorScreenPx, chosen, popupSizePx);
                 }
+
                 break;
 
             case DxuiPopupPlacement::AtCursor:
@@ -572,6 +647,7 @@ RECT DxuiPopupHost::ComputePlacementForTest (
             placed.left  -= shift;
             placed.right -= shift;
         }
+
         if (placed.left < monitorWorkAreaPx.left)
         {
             LONG  shift = monitorWorkAreaPx.left - placed.left;
@@ -590,6 +666,7 @@ RECT DxuiPopupHost::ComputePlacementForTest (
             placed.top    -= shift;
             placed.bottom -= shift;
         }
+
         if (placed.top < monitorWorkAreaPx.top)
         {
             LONG  shift = monitorWorkAreaPx.top - placed.top;
@@ -617,34 +694,40 @@ RECT DxuiPopupHost::ComputePlacementForTest (
 bool DxuiPopupHost::ShouldDismissForTest (DxuiPopupDismiss        policy,
                                           DxuiPopupDismissReason  reason)
 {
-    if (reason == DxuiPopupDismissReason::Manual)
-    {
-        return true;
-    }
+    // An explicit Close() dismisses under every policy, including Manual --
+    // that is what makes Manual "only Close() dismisses" rather than "nothing
+    // dismisses".
+    bool  dismisses = (reason == DxuiPopupDismissReason::Manual);
 
     switch (policy)
     {
         case DxuiPopupDismiss::OnClickOutside:
-            // Clicks inside the popup or anywhere in its owner chain
-            // are NOT dismiss-events — that's the entire point of the
-            // chain (cascading submenus).
-            return reason == DxuiPopupDismissReason::ClickOutsideChain;
+            // Clicks inside the popup or anywhere in its owner chain are NOT
+            // dismiss-events -- that's the entire point of the chain
+            // (cascading submenus).
+            dismisses = dismisses
+                        || reason == DxuiPopupDismissReason::ClickOutsideChain;
+            break;
 
         case DxuiPopupDismiss::OnClickAnywhere:
             // Any click dismisses; pointer-leave does not.
-            return reason == DxuiPopupDismissReason::ClickInsidePopup        ||
-                   reason == DxuiPopupDismissReason::ClickInsideChainAncestor ||
-                   reason == DxuiPopupDismissReason::ClickOutsideChain;
+            dismisses = dismisses
+                        || reason == DxuiPopupDismissReason::ClickInsidePopup
+                        || reason == DxuiPopupDismissReason::ClickInsideChainAncestor
+                        || reason == DxuiPopupDismissReason::ClickOutsideChain;
+            break;
 
         case DxuiPopupDismiss::OnPointerLeave:
-            return reason == DxuiPopupDismissReason::PointerLeftPopup;
+            dismisses = dismisses
+                        || reason == DxuiPopupDismissReason::PointerLeftPopup;
+            break;
 
         case DxuiPopupDismiss::Manual:
-            // Only the explicit Close() call dismisses; reached above.
-            return false;
+            // Nothing to add: the Manual reason above is the only dismissal.
+            break;
     }
 
-    return false;
+    return dismisses;
 }
 
 
@@ -659,23 +742,29 @@ bool DxuiPopupHost::ShouldDismissForTest (DxuiPopupDismiss        policy,
 
 LRESULT CALLBACK DxuiPopupHost::s_WndProcThunk (HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
-    DxuiPopupHost *  self  = nullptr;
+    DxuiPopupHost  * self   = nullptr;
+    CREATESTRUCTW  * cs     = nullptr;
+    LRESULT          result = 0;
 
 
+
+    // WM_NCCREATE is where the instance pointer arrives, so it is handled
+    // before (and never by) the instance WndProc. Messages that precede it,
+    // or arrive after the pointer is cleared, also go straight to DefWindowProc.
     if (msg == WM_NCCREATE)
     {
-        CREATESTRUCTW *  cs = reinterpret_cast<CREATESTRUCTW *> (lp);
+        cs = reinterpret_cast<CREATESTRUCTW *> (lp);
         SetWindowLongPtrW (hwnd, GWLP_USERDATA, (LONG_PTR) cs->lpCreateParams);
-        return DefWindowProcW (hwnd, msg, wp, lp);
     }
-
-    self = reinterpret_cast<DxuiPopupHost *> (GetWindowLongPtrW (hwnd, GWLP_USERDATA));
-    if (self == nullptr)
+    else
     {
-        return DefWindowProcW (hwnd, msg, wp, lp);
+        self = reinterpret_cast<DxuiPopupHost *> (GetWindowLongPtrW (hwnd, GWLP_USERDATA));
     }
 
-    return self->WndProc (msg, wp, lp);
+    result = (self != nullptr) ? self->WndProc (msg, wp, lp)
+                               : DefWindowProcW (hwnd, msg, wp, lp);
+
+    return result;
 }
 
 
@@ -686,10 +775,46 @@ LRESULT CALLBACK DxuiPopupHost::s_WndProcThunk (HWND hwnd, UINT msg, WPARAM wp, 
 //
 //  WndProc
 //
+//  The popup window's message handler: dismissal policy, hover routing, and
+//  click classification.
+//
+//  Clicks are handled differently depending on whether the popup holds CAPTURE,
+//  and both paths are needed. WITH capture the popup receives clicks anywhere
+//  on screen, so it must classify inside versus outside and dismiss on the
+//  latter. WITHOUT capture the OS only delivers clicks that land on the popup
+//  itself, so they are inherently inside.
+//
+//  MA_NOACTIVATE is returned for WM_MOUSEACTIVATE so clicking the popup never
+//  steals activation from its owner -- the window keeps its active caption and
+//  its focus while the user drives the popup. The window is WS_EX_NOACTIVATE
+//  as well; both are needed, since the style governs how the popup is shown
+//  and this governs what a click does to it.
+//
+//  Dismissal is policy-driven rather than fixed, so a tooltip closing on
+//  pointer-leave, a menu closing on click-outside, and a dialog that closes
+//  only on command all share one implementation.
+//
+//  Losing capture or app activation dismisses under every non-Manual policy.
+//  A popup that outlives the app losing focus reappears floating over another
+//  application's window.
+//
+//  Hover is routed on every move without filtering. The consumer compares
+//  against its own highlight and marks dirty only on a change, so the cost
+//  stays low where the knowledge is.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 {
+    POINT    pt          = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
+    RECT     rc          = {};
+    bool     haveCapture = false;
+    bool     inside      = false;
+    bool     claimed     = false;
+    LRESULT  result      = 0;
+
+
+
     switch (msg)
     {
         case WM_CAPTURECHANGED:
@@ -698,7 +823,9 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             {
                 Close (0);
             }
-            return 0;
+
+            claimed = true;
+            break;
 
         case WM_MOUSEMOVE:
             // Hover routing (popup-local pixels). The consumer compares
@@ -706,8 +833,6 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             // so this stays cheap despite firing on every move.
             if (m_open && m_params.onMoveInside)
             {
-                POINT  pt = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
-                RECT   rc = {};
                 GetClientRect (m_hwnd, &rc);
 
                 if (PtInRect (&rc, pt))
@@ -715,6 +840,7 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
                     m_params.onMoveInside (pt);
                 }
             }
+
             break;
 
         case WM_LBUTTONDOWN:
@@ -726,48 +852,54 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             // inherently inside -- fire onClickInside directly.
             if (m_open)
             {
-                bool   haveCapture = (GetCapture() == m_hwnd);
-                POINT  pt          = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
-                RECT   rc          = {};
-                bool   inside      = false;
+                haveCapture = (GetCapture() == m_hwnd);
 
                 GetClientRect (m_hwnd, &rc);
                 inside = (PtInRect (&rc, pt) != FALSE);
 
-                if (inside)
+                if (inside && msg == WM_LBUTTONDOWN && m_params.onClickInside)
                 {
-                    if (msg == WM_LBUTTONDOWN && m_params.onClickInside)
-                    {
-                        m_params.onClickInside (pt);
-                        return 0;
-                    }
+                    m_params.onClickInside (pt);
+                    claimed = true;
                 }
-                else if (haveCapture &&
+                else if (!inside && haveCapture &&
                          (m_params.dismiss == DxuiPopupDismiss::OnClickOutside ||
                           m_params.dismiss == DxuiPopupDismiss::OnClickAnywhere))
                 {
                     Close (0);
-                    return 0;
+                    claimed = true;
                 }
             }
+
             break;
 
         case WM_MOUSEACTIVATE:
             // Never steal activation from the owner when clicked (we are
             // also WS_EX_NOACTIVATE); the owner keeps focus / caption
             // activation while the popup is interacted with.
-            return MA_NOACTIVATE;
+            result  = MA_NOACTIVATE;
+            claimed = true;
+            break;
 
         case WM_MOUSELEAVE:
             if (m_open && m_params.dismiss == DxuiPopupDismiss::OnPointerLeave)
             {
                 Close (0);
-                return 0;
+                claimed = true;
             }
+
+            break;
+
+        default:
             break;
     }
 
-    return DefWindowProcW (m_hwnd, msg, wp, lp);
+    if (!claimed)
+    {
+        result = DefWindowProcW (m_hwnd, msg, wp, lp);
+    }
+
+    return result;
 }
 
 
@@ -778,20 +910,34 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 //
 //  EnsureWindowClass
 //
+//  Registers this host's window class on first use.
+//
+//  The class name is made unique PER HOST, from an atomic serial plus the
+//  object address, rather than being a single shared class. Hosts are created
+//  and destroyed alongside the panels that use them, and a shared class would
+//  have to be reference-counted across those lifetimes -- with a use-after-
+//  unregister waiting for whoever got the counting wrong. A private class is
+//  registered and unregistered by exactly one owner.
+//
+//  A null background brush is deliberate: the popup paints every pixel through
+//  its own swap chain, and letting the class erase the background first causes
+//  a visible flash on show.
+//
+//  CS_DBLCLKS is set so double-clicks reach the popup as double-clicks rather
+//  than as two unrelated presses.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPopupHost::EnsureWindowClass ()
+HRESULT DxuiPopupHost::EnsureWindowClass()
 {
     HRESULT      hr               = S_OK;
     WNDCLASSEXW  wc               = {};
     wchar_t      classNameBuf[64] = {};
     uint32_t     serial           = 0;
+    ATOM         classAtom        = 0;
 
 
-    if (m_classRegistered)
-    {
-        goto Error;
-    }
+    BAIL_OUT_IF (m_classRegistered, S_OK);
 
     serial = s_classSerial.fetch_add (1);
     (void) swprintf_s (classNameBuf, L"DxuiPopupHost_%u_%p", serial, (void *) this);
@@ -805,7 +951,9 @@ HRESULT DxuiPopupHost::EnsureWindowClass ()
     wc.hbrBackground = nullptr;
     wc.lpszClassName = m_className.c_str();
 
-    CWRA (RegisterClassExW (&wc));
+    classAtom = RegisterClassExW (&wc);
+    CWRA (classAtom);
+
     m_classRegistered = true;
 
 Error:
@@ -841,6 +989,7 @@ HRESULT DxuiPopupHost::CreateHwndAndComposition (const RECT & placedRectScreenPx
     ComPtr<IDXGIAdapter>   dxgiAdapter;
     ComPtr<IDXGIFactory2>  dxgiFactory;
     DXGI_SWAP_CHAIN_DESC1  scd           = {};
+
 
 
     if (m_params.input == DxuiPopupInput::PassThrough)
@@ -954,7 +1103,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::DestroyHwndAndComposition ()
+void DxuiPopupHost::DestroyHwndAndComposition()
 {
     ReleaseBackBufferRtv();
     m_compVisual.Reset();
@@ -986,13 +1135,14 @@ void DxuiPopupHost::DestroyHwndAndComposition ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPopupHost::CreateBackBufferRtv ()
+HRESULT DxuiPopupHost::CreateBackBufferRtv()
 {
     HRESULT                   hr          = S_OK;
     DXGI_SWAP_CHAIN_DESC1     scd         = {};
     D3D11_VIEWPORT            vp          = {};
     ComPtr<ID3D11Texture2D>   backBuffer;
     ComPtr<IDXGISurface>      backSurface;
+
 
 
     CBRA (m_swapChain);
@@ -1045,18 +1195,20 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::ReleaseBackBufferRtv ()
+void DxuiPopupHost::ReleaseBackBufferRtv()
 {
     if (m_renderReady)
     {
         m_textRenderer.UnbindBackBuffer();
     }
+
     if (m_context && m_rtv)
     {
         ID3D11RenderTargetView *  nullRtv[1] = { nullptr };
 
         m_context->OMSetRenderTargets (1, nullRtv, nullptr);
     }
+
     m_rtv.Reset();
 }
 
@@ -1079,17 +1231,15 @@ HRESULT DxuiPopupHost::ResizeSwapChain (int widthPx, int heightPx)
     HRESULT  hr  = S_OK;
 
 
+
     CBRA (m_swapChain);
 
     if (widthPx  < 1) { widthPx  = 1; }
     if (heightPx < 1) { heightPx = 1; }
 
-    if (m_backBufferSizePx.cx == (LONG) widthPx &&
-        m_backBufferSizePx.cy == (LONG) heightPx &&
-        m_rtv != nullptr)
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF (m_backBufferSizePx.cx == (LONG) widthPx &&
+                 m_backBufferSizePx.cy == (LONG) heightPx &&
+                 m_rtv != nullptr, S_OK);
 
     ReleaseBackBufferRtv();
 
@@ -1121,7 +1271,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::RenderNow ()
+void DxuiPopupHost::RenderNow()
 {
     HRESULT   hr           = S_OK;
     uint32_t  argb         = 0u;
@@ -1132,10 +1282,9 @@ void DxuiPopupHost::RenderNow ()
 
     DXUI_ASSERT_UI_THREAD();
 
-    if (m_testMode || !m_open || !m_renderReady || !m_swapChain || m_rtv == nullptr)
-    {
-        return;
-    }
+    // Nothing to draw into, or nothing that wants drawing. Both flags below
+    // are still false here, so the Error: cleanup is a no-op.
+    BAIL_OUT_IF (m_testMode || !m_open || !m_renderReady || !m_swapChain || m_rtv == nullptr, S_OK);
 
     argb     = m_params.backgroundArgb;
     clear[0] = (float) ((argb >> 16) & 0xFFu) / 255.0f;
@@ -1178,10 +1327,12 @@ Error:
     {
         (void) m_textRenderer.EndDraw();
     }
+
     if (painterBegun)
     {
         (void) m_painter.End (m_rtv.Get());
     }
+
     return;
 }
 
@@ -1197,7 +1348,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::MarkDirty ()
+void DxuiPopupHost::MarkDirty()
 {
     DXUI_ASSERT_UI_THREAD();
     RenderNow();
@@ -1235,3 +1386,4 @@ HRESULT DxuiPopupHost::MeasureText (const wchar_t  * text,
 Error:
     return hr;
 }
+

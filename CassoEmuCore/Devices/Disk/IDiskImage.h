@@ -26,6 +26,49 @@ enum class DiskFormat
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WriteProtectInfo
+//
+//  Why a mounted disk is write-protected. The four causes are
+//  independent -- a disk can be protected by several at once (e.g. a
+//  read-only WOZ whose backing file is also read-only), so these are
+//  plain booleans rather than a single mutually-exclusive reason.
+//
+//      imageFlag     the image's own embedded write-protect flag
+//                    (WOZ INFO chunk). Round-trips through Serialize.
+//      userSetting   the user's Settings / menu write-protect toggle.
+//      readOnlyFile  the backing host file has the read-only attribute.
+//      noPermission  the backing host file cannot be opened for writing
+//                    (ACL denial, exclusive lock, etc.) though it is not
+//                    marked read-only.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct WriteProtectInfo
+{
+    bool  imageFlag    = false;
+    bool  userSetting  = false;
+    bool  readOnlyFile = false;
+    bool  noPermission = false;
+
+    bool  Any () const { return imageFlag || userSetting || readOnlyFile || noPermission; }
+
+    bool  operator== (const WriteProtectInfo & o) const
+    {
+        return imageFlag    == o.imageFlag    &&
+               userSetting  == o.userSetting  &&
+               readOnlyFile == o.readOnlyFile &&
+               noPermission == o.noPermission;
+    }
+
+    bool  operator!= (const WriteProtectInfo & o) const { return !(*this == o); }
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IDiskImage
 //
 //  Abstract in-memory bit-stream track buffer. Tracks are bit streams

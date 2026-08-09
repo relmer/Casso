@@ -50,10 +50,16 @@ public:
         const std::string &  text,
         uint64_t           settleCycles = kAfterReturnCycles);
 
-    // Single key. Returns true if the strobe was consumed within the
+    // Single key. Succeeds iff the strobe was consumed within the
     // allotted cycle budget.
-    static bool     InjectKey (
+    static HRESULT  InjectKey (
         EmulatorCore  &  core,
         Byte               ch,
         uint64_t           cycleBudget = kPerKeyCycleBudget);
+
+private:
+    // Pumps CPU cycles in small batches until the keyboard strobe is
+    // consumed by the ROM polling loop; fails if the budget is
+    // exhausted first.
+    static HRESULT  WaitForStrobeClear (EmulatorCore & core, uint64_t cycleBudget);
 };

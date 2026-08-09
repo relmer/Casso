@@ -8,7 +8,7 @@
 
 ## About
 
-Casso is a retro / classic-machine platform emulator and from-scratch AS65-compatible 6502 assembler, written in C++. Today the platform emulator targets the Apple II family (][, ][+, //e); the abstractions are generic enough to host other 6502-based machines later.
+Casso is a retro / classic-machine platform emulator and from-scratch AS65-compatible 6502 / 65C02 assembler, written in C++. Today the platform emulator targets the Apple II family (][, ][+, //e, **//c**); the abstractions are generic enough to host other 6502-based machines later.
 
 Two of the three built-in themes booting the [casso-rocks demo disk](Apple2/Demos) — same Apple //e core, different chrome:
 
@@ -19,17 +19,146 @@ Two of the three built-in themes booting the [casso-rocks demo disk](Apple2/Demo
 
 The project includes:
 
-- **Apple II platform emulator** — GUI-based Apple II, II+, and //e emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, analog game I/O (joystick/paddle via the PREAD timer), data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
-- **6502 CPU emulator** — passes [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) and all 151 legal-opcode sets from [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) (10,000 vectors each).
+- **Apple II platform emulator** — GUI-based Apple II, II+, //e, //e Enhanced, and //c emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, Mockingboard sound card (dual 6522 VIA + AY-3-8910 PSG), an emulated ImageWriter II printer (parallel card, real-3D live preview with mechanical audio, PNG / clipboard / Windows-print delivery with print preview), analog game I/O (joystick/paddle via the PREAD timer), data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
+- **6502 CPU emulator** — passes [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) for all 151 legal opcodes plus the stable undocumented NMOS opcodes (SAX, LAX, DCP, ISC, SLO, RLA, SRE, RRA and the NOP family) — 10,000 vectors each.
 - **AS65-compatible assembler** — a from-scratch reimplementation of Frank A. Kingswood's AS65, intended as a drop-in replacement. Supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, ...) including flag concatenation (`-tlfile`).
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **1900+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
+- **2700+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
+
+## Contents
+
+- [About](#about)
+- [What's New](#whats-new)
+- [Project Structure](#project-structure)
+- [Requirements](#requirements)
+- [Quick Start](#quick-start)
+- [Assembler Features](#assembler-features)
+- [CPU Emulation Status](#cpu-emulation-status)
+- [Why "Casso"?](#why-casso)
+- [Acknowledgments and Attributions](#acknowledgments-and-attributions)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## What's New
 
-See [CHANGELOG.md](CHANGELOG.md) for the granular history.
+See [CHANGELOG.md](CHANGELOG.md) for the granular history, and
+[ARCHITECTURE.md](ARCHITECTURE.md) for a technical overview of the emulator's
+internals (projects, threading, the memory model, and the optimization log).
+
+### Apple //c mouse: MousePaint works again (v1.15.0)
+
+Fixed a //c mouse-interrupt bug that made **MousePaint**'s main app unusable —
+menus and tools ignored every click and the cursor lagged. The //c only
+partially decodes its paddle-timer strobe, so *any* `$C070`–`$C07F` access
+clears the VBL interrupt; Casso recognized only the literal `$C070`. Mouse apps
+that acknowledge the VBL via a `$C07x` write (MousePaint writes `$C079` each
+interrupt) therefore never cleared it, and the resulting interrupt storm starved
+the app of CPU. Also trimmed the per-instruction //c mouse tick cost (~31%).
+
+### Emulated ImageWriter II printer (v1.14.0)
+
+<p align="center"><img src="Assets/printer-preview.png" alt="Casso printing a Print Shop sign on an emulated Apple //e Enhanced, with the live 3D ImageWriter II preview feeding fanfold paper" width="100%" /></p>
+
+Casso now emulates a full **Apple ImageWriter II** dot-matrix printer, end to
+end — a parallel printer card sits in slot 1 (default on ][, ][+, //e, and //e
+Enhanced) and the guest can print for real. `PR#1` lists a BASIC program or
+`CATALOG`s a disk in an original 95-glyph dot-matrix font; The Print Shop prints
+its banners, signs, and greeting cards in full four-color glory, its command set
+locked from real Print Shop byte captures (ESC-G / ESC-L bit image, seven-color
+ribbon with overprint composites, and the documented pitch and line-spacing
+family).
+
+Print output appears in a **live skeuomorphic preview** — a real-3D ImageWriter
+II (the project's own CAD model) with fanfold paper, tractor-feed holes, and
+perforations, feeding out of the platen as you watch. A single print-head clock
+drives the whole illusion: the carriage sweeps bidirectionally at true draft
+speed laying ink column by column, the paper feeds with the head parked, and the
+**mechanical sound** (authentic ImageWriter II recordings by [Scott Lawrence](https://github.com/BleuLlama/ImageWriterIISimulator)) is
+gated to what the head is actually doing — a carriage buzz over ink, line-feed
+clacks, page feeds, and tear-offs, stereo-panned to the window. A one-page
+viewport follows the newest rows; scroll back to review earlier pages and it
+snaps to the live row once printing idles.
+
+Any printout delivers three ways without re-printing — **Save** as a PNG, **Copy**
+to the clipboard, or **Print** to a real Windows printer (with a paginated print
+preview) — and the paper stays loaded until you tear it off, so a pending
+printout even survives across sessions. A command toolbar below the menu bar
+carries the printer status LED and a preview button, and **Settings → Printing**
+states what printer the current machine emulates and how it connects.
+
+### Emulation and render performance (v1.13.0)
+
+A performance pass across the hot paths that run on every emulated instruction
+and every drawn frame. On the CPU side, memory reads serve RAM/ROM inline from
+a page table instead of a virtual dispatch, I/O decodes through a direct device
+map instead of scanning the device list, the language-card (`$D000–$FFFF`) and
+//c internal-ROM (`$C100–$CFFF`) windows are page-mapped, and the interrupt
+poll, video-timing tick, and //c mouse tick shed redundant per-instruction
+work — so a steady machine idles at noticeably lower CPU, most visibly on the
+//c. On the render side, the 40- and 80-column text screens repaint only the
+rows that actually changed — a scrolling catalog or a blinking cursor no longer
+redraws all 24 rows — the UI chrome caches its shaped text and geometry instead of
+re-shaping every label each frame, and the Mockingboard skips synthesis while
+fully muted.
+
+### Skeuomorphic CRT monitor (v1.12.0)
+
+An opt-in **CRT monitor desk scene** — a checkbox on **Settings → Theme**
+(skeuo themes only, off by default) — frames the emulator display in a
+procedurally-drawn period **Apple Monitor //c**: snow-white/platinum shell,
+chunky even bezel with straight sides and a slightly bowed glass, a recessed
+screen, and the rainbow cassowary brand and a lit power lamp on the chin. The
+display sits inside the glass at true 100% zoom, the drives scale to sit in
+proportion beneath it, and the whole scene zooms together as the window
+resizes. Off by default because the scene trades screen real estate for the
+look; toggling it applies live, and off restores the classic bare display.
+
+<p align="center"><img src="Assets/feat-monitor-chrome.png" alt="Skeuomorphic CRT monitor desk scene — the emulator display framed in an Apple Monitor //c, with the drive widgets scaled to sit beneath it" width="460" /></p>
+
+### Apple //c case-switch strip (v1.10.0)
+
+The two latching switches on the //c case are modeled on a skeuomorphic
+control strip in the //c's platinum case color: the **80/40**
+switch drives `$C060` (in = 80-column startup, read by a booting disk's
+`PR#3`), the **keyboard** switch flips the typed stream to Dvorak, and a
+**reset** button reproduces Control-Reset (inert without Ctrl), alongside
+disk-use / power indicator LEDs. Both switch positions persist per machine.
+
+### Apple //c + //e Enhanced (v1.8.0)
+
+Casso now emulates the **Apple //c** (ROM 4, 5.25"/128K): a Rockwell
+R65C02 core validated against the Dormann and Harte conformance suites,
+the slotless phantom-slot firmware map with the 32K bank-switched ROM,
+the built-in IWM disk drive (plus a connectable external drive), dual
+6551 serial ports, and the //c mouse — a full IOU hardware model driven
+by the machine's real mouse firmware, with the host pointer mapping
+non-capturing onto the guest. Input mapping split into independent
+Keys (arrows→joystick) and Pointer (paddle/mouse) selections with a new
+segmented device selector drawing the real Apple peripherals. The same
+65C02 also powers a new **Apple //e Enhanced** profile (issue #86) — the
+//e with the enhanced firmware + MouseText video ROM, for the CMOS titles
+that misbehave on the NMOS //e.
+
+### Mockingboard sound card (v1.7.0)
+
+Casso now emulates the Sweet Micro Systems Mockingboard A/C — the de-facto
+Apple II audio standard. Two clean-room chip cores written from the datasheets
+(a reusable **6522 VIA** and the **AY-3-8910 PSG**: 3 tone voices + noise +
+envelope) render to stereo float PCM, with VIA Timer 1 driving the periodic
+IRQs music players use for tempo. The card ships in slot 4 of the ][+ and //e
+profiles; it is installed or removed from its slot in the Hardware tab's
+device list. Games like *Ultima IV*, *Skyfox*, and *Music
+Construction Set* get their real soundtracks back.
+
+### Reliable disk writes (v1.6.2–v1.6.3)
+
+Fixed several bugs that corrupted or silently dropped guest writes to `.dsk`,
+`.do`, `.po`, and `.woz` images — a Logic State Sequencer write-bit error that
+garbled DOS 3.3 `SAVE`s (GH #89), and missing WOZ write-back that discarded
+every `.woz` edit. Dirty disks now also flush automatically when the drive
+motor spins down, so changes survive a crash or force-quit.
 
 ### Disk picker, settings, and a reusable UI library (v1.6.0)
 
@@ -51,13 +180,13 @@ build on, with the window host owning the Direct3D swap chain directly.
 ### Game-input revamp (v1.5.1523)
 
 Real-time action games like *Karateka*, *Choplifter*, and *Lode Runner*
-are now playable from the host keyboard with no physical joystick.
-A new **Map Arrows to Joystick** mode steers paddle 0/1 from the arrow
-keys (last-pressed-wins on opposing keys) and binds **X** / **Z** to
-fire buttons 0 / 1 (the same Open-Apple / Closed-Apple soft-switches the
-host Alt keys drive, so both input sources coexist); while the mode is
-on, those keys are withheld from the //e keyboard latch so they don't
-also type. The //e keyboard itself now generates hardware-faithful
+are now playable from the host keyboard without a physical joystick.
+A new **Map Arrows to Joystick** mode maps the arrow keys to paddle 0/1
+(last-pressed-wins on opposing keys) and binds **X** / **Z** to buttons
+0/1 (the same Open-Apple / Closed-Apple soft-switches the host Alt keys
+drive, so both input sources coexist); in this mode, those keys are not
+sent as standard input via the //e keyboard so they don't also type. The
+//e keyboard itself now generates hardware-faithful
 auto-repeat (initial delay, then steady cadence) instead of leaning on
 host-OS key repeat, so timing-sensitive arrow input in games behaves
 the way it did on real hardware.
@@ -79,7 +208,7 @@ so navigating chrome can't drop stray letters into a //e prompt.
 
 ### Themed startup experience (v1.5.1395)
 
-The first-run asset bootstrap — ROMs, sample disks, and Disk II audio samples — now downloads through a single themed progress dialog that fetches every asset concurrently rather than serial-prompting through three separate Win32 dialogs. The boot-disk MRU picker that appears when no disk is configured also paints through the same DirectWrite pipeline as the rest of the chrome, so the entire first-launch path honours the active theme (Skeuomorphic / Dark Modern / Retro Terminal) instead of dropping back to native gray.
+The first-run asset bootstrap — ROMs, sample disks, and Disk II audio samples — now downloads through a single themed progress dialog that fetches every asset concurrently rather than serial-prompting through three separate Win32 dialogs. The boot-disk MRU picker that appears when no disk is configured also paints through the same DirectWrite pipeline as the rest of the chrome, so the entire first-launch path honors the active theme (Skeuomorphic / Dark Modern / Retro Terminal) instead of dropping back to native gray.
 
 ### Copy-protected games boot (v1.5.1289)
 
@@ -97,7 +226,7 @@ Casso's entire chrome moved from the legacy Win32 menu bar / Win32 dialogs to a 
 
 <p align="center"><img src="Assets/feat-themes.png" alt="Theme picker hot-swapping between Skeuomorphic, Dark Modern, and Retro Terminal" width="540" /></p>
 
-**Skeuomorphic drive widgets** with realistic Apple Disk II faceplates: perspective-projected case top with two indented lid panels that taper toward the back, nine vent slits down each side, beige case wrapping a black inset faceplate on all four sides, cantilever door hinged at the slot top that tilts up and back (tucking inside the case with a small flap visible when fully open) revealing a recessed finger-pull behind it, status LED, and the Cassowary rainbow logo. Click a drive to pick a disk image, or drag-and-drop a `.dsk` / `.do` / `.po` / `.nib` file onto it. Eject animates the door open even on an empty drive.
+**Skeuomorphic drive widgets** with realistic Apple Disk II faceplates: perspective-projected case top with two indented lid panels that taper toward the back, nine vent slits down each side, beige case wrapping a black inset faceplate on all four sides, cantilever door hinged at the slot top that tilts up and back (tucking inside the case with a small flap visible when fully open) revealing a recessed finger-pull behind it, status LED, and the Cassowary rainbow logo. Click a drive to pick a disk image, or drag-and-drop a `.dsk` / `.do` / `.po` / `.nib` file onto it. Eject animates the door open even on an empty drive. A write-protected disk shows a small brass padlock on the faceplate; hovering the drive explains why it is protected — the write-protect setting, the image's own flag, a read-only file, or missing write permission.
 
 <p align="center"><img src="Assets/feat-drive-widgets.png" alt="Skeuomorphic drive widgets: Drive 1 active with red IN USE LED, Drive 2 idle" width="540" /></p>
 
@@ -192,6 +321,10 @@ CassoCli input.a65 -d DEBUG=1 -o output.bin
 # Generate a listing with cycle counts
 CassoCli input.a65 -c -l listing.txt
 
+# Assemble 65C02 source (CMOS opcodes: STZ, BRA, RMB/SMB/BBR/BBS, ...)
+# The default is a strict 6502; 65C02-only opcodes are rejected without --cpu.
+CassoCli input.a65c --cpu 65c02 -o output.bin
+
 # Assemble and run an assembly source directly
 CassoCli run input.a65
 
@@ -232,6 +365,7 @@ Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
 |---------|---------------|
 | All 56 mnemonics | `LDA`, `STA`, `ADC`, `BNE`, etc. |
 | All addressing modes | `#$42`, `$30`, `$1234,X`, `($20),Y`, `A` |
+| CPU target | `--cpu 6502` (default, strict) or `--cpu 65c02` for CMOS opcodes (`STZ`, `BRA`, `TSB`/`TRB`, `RMB`/`SMB`/`BBR`/`BBS`, `(zp)`, `(abs,X)`); Rockwell bit ops take `<bit>,<zp>[,<target>]` or the suffixed `RMB0`/`BBR3` form |
 | Labels | `loop: DEX` / `BNE loop` |
 | Directives | `.org $8000`, `.byte $FF`, `.word $1234`, `.text "hello"`, `code`/`data`/`bss` |
 | Constants | `value = $42`, `carry equ %00000001` (chains and forward refs supported) |
@@ -255,38 +389,6 @@ Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
 
 All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) (full pass) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) (all 151 legal-opcode test sets, 10,000 vectors each).
 
-## Roadmap
-
-### Done
-
-- [x] Pass [Klaus Dormann's 6502 functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) ([#7](https://github.com/relmer/Casso/issues/7))
-- [x] Per-opcode validation against [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) ([#29](https://github.com/relmer/Casso/issues/29), [#38](https://github.com/relmer/Casso/issues/38))
-- [x] Apple //e fidelity — cold boot to BASIC, audit-correct Language Card, 64 KB aux RAM, 80-column text + Double Hi-Res, soft reset vs. power cycle, IRQ/NMI dispatch, RDVBLBAR
-- [x] Disk II controller — DOS 3.3 / ProDOS `.dsk` / `.do` / `.po` nibblization + WOZ v1 / v2 with auto-flush on eject
-- [x] Disk II mechanical audio — stereo motor hum, head-step clicks, track-0 bump, disk insert / eject sounds, with a runtime Settings → Machine → Drive audio toggle. Built on a generic `IDriveAudioSink` / `IDriveAudioSource` / `DriveAudioMixer` abstraction so future drive types (//c internal 5.25, DuoDisk, ProFile, …) plug in without touching the mixer
-- [x] Headless test harness for deterministic integration tests (`HeadlessHost`, framebuffer scraper, keyboard injector)
-- [x] Performance gate — emulator throughput budget enforced in CI (Release-only)
-- [x] Cycle-accurate execution and profiling ([#57](https://github.com/relmer/Casso/issues/57))
-- [x] Disk II copy-protection fidelity — motor spin-up delay, MC3470 weak-bit emulation, real 16-state LSS, quarter-track read pipeline, and bit-level write path ([#67](https://github.com/relmer/Casso/issues/67))
-- [x] Boot *Karateka* from its WOZ image (RWTS18 copy protection) ([#68](https://github.com/relmer/Casso/issues/68))
-- [x] Boot *Lode Runner* from its WOZ image (copy protection) ([#70](https://github.com/relmer/Casso/issues/70))
-- [x] Play *Space Quarks* on the Apple ][ and ][ plus — required Apple ][ and ][ plus game-port emulation (paddles, buttons, PTRIG) plus an inverse-text character-ROM fix
-
-### Medium Priority
-
-- [ ] 65C02 extended instruction support, with assembler `--cpu` flag ([#9](https://github.com/relmer/Casso/issues/9))
-- [ ] Undocumented / illegal opcode support ([#52](https://github.com/relmer/Casso/issues/52))
-- [ ] Rockwell / WDC 65C02 variants ([#49](https://github.com/relmer/Casso/issues/49), [#50](https://github.com/relmer/Casso/issues/50))
-- [ ] *Choplifter* gameplay starts after the title screen (WOZ copy protection) ([#69](https://github.com/relmer/Casso/issues/69), [#72](https://github.com/relmer/Casso/issues/72))
-
-### Low Priority
-
-- [ ] NES 6502 / Ricoh 2A03 variant ([#47](https://github.com/relmer/Casso/issues/47))
-- [ ] Example programs — ready-to-assemble demos and tutorials ([#55](https://github.com/relmer/Casso/issues/55))
-- [ ] VS Code extension — syntax highlighting, assemble-on-save, inline diagnostics ([#54](https://github.com/relmer/Casso/issues/54))
-- [ ] Interactive debugger / monitor — step, breakpoints, register watch, memory dump ([#51](https://github.com/relmer/Casso/issues/51))
-- [ ] Relocatable object output — o65 format for cc65 toolchain integration ([#58](https://github.com/relmer/Casso/issues/58))
-
 ## Why "Casso"?
 
 While [emu](https://en.wikipedia.org/wiki/Emu) is the more obvious name and mascot for an emulator, I wanted Casso to stand out; to be just a little weird; to _think different_. I picked its larger, flightless, considerably more dangerous cousin: the [cassowary](https://en.wikipedia.org/wiki/Cassowary)—Casso to his friends.
@@ -299,7 +401,7 @@ I thus present to you our regal namesake—revel in his splendor!
 
 *Cassowary photo by [Mr. Smiley / BunyipCo](https://bunyipco.blogspot.com/2015/04/cassowary-update.html), licensed under [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/).*
 
-## Acknowledgments
+## Acknowledgments and Attributions
 
 Casso's correctness is validated against two exceptional open-source test suites:
 
@@ -307,6 +409,12 @@ Casso's correctness is validated against two exceptional open-source test suites
 - **[Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests)** — [@TomHarte](https://github.com/TomHarte)'s per-opcode test vectors validate every legal 6502 opcode against cycle-accurate reference traces. Casso passes all 151 legal-opcode test sets (10,000 vectors each).
 
 Thank you to both authors for making these invaluable resources freely available. They are the gold standard for 6502 emulator validation.
+
+Casso also builds on several third-party components and assets:
+
+- **CRT display shaders** — the optional CRT effect is a set of HLSL ports from the [libretro `glsl-shaders`](https://github.com/libretro/glsl-shaders) collection: **crt-pi** by Davide Berra (MIT), the **ntsc-adaptive** chroma stage by Themaister and hunterk (MIT), and the **bloom** passes by hunterk (public domain). Per-file attribution and license terms are in [`Casso/Shaders/CRT/LICENSES.md`](Casso/Shaders/CRT/LICENSES.md).
+- **[stb_vorbis](https://github.com/nothings/stb)** — Sean Barrett's public-domain Ogg Vorbis decoder ([nothings.org/stb_vorbis](http://nothings.org/stb_vorbis/)), used to decode the Disk II and printer audio samples.
+- **ImageWriter II printer sounds** — recorded from a real ImageWriter II by [Scott Lawrence](https://github.com/BleuLlama/ImageWriterIISimulator), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
 ## Contributing
 

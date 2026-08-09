@@ -166,7 +166,7 @@ namespace CmapTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 5, result.bytes.size (), L"Should emit 5 bytes");
+            Assert::AreEqual ((size_t) 5, result.bytes.size(), L"Should emit 5 bytes");
 
             for (size_t i = 0; i < 5; i++)
             {
@@ -188,7 +188,7 @@ namespace CmapTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 1, result.bytes.size (), L"Should emit 1 byte");
+            Assert::AreEqual ((size_t) 1, result.bytes.size(), L"Should emit 1 byte");
             Assert::AreEqual ((Byte) 0xEA, result.bytes[0], L"Should be NOP");
         }
     };

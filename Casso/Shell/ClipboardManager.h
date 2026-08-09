@@ -33,23 +33,42 @@ public:
     ClipboardManager  (MemoryBus                & memoryBus,
                        std::mutex               & cmdMutex,
                        std::string              & pasteBuffer,
-                       std::mutex               & fbMutex,
+                       std::mutex               & framebufferMutex,
                        std::vector<uint32_t>    & uiFramebuffer,
                        int                        framebufferWidth,
                        int                        framebufferHeight,
                        AppleKeyboard          * * pKeyboardSlot);
     ~ClipboardManager () = default;
 
-    void  CopyScreenText     (HWND hwnd) const;
+    // auxRam is the //e/c auxiliary 64 KiB bank (nullptr on ][/][+). When
+    // present AND the 80-column display is on (RD80VID), the text screen is
+    // read as 80 interleaved columns (aux = even, main = odd); otherwise the
+    // plain 40-column main page is read.
+    void  CopyScreenText     (HWND hwnd, const Byte * auxRam) const;
     void  CopyScreenshot     (HWND hwnd);
     void  PasteFromClipboard (HWND hwnd);
     void  DrainPasteBuffer   ();
 
+    // Screen-text scrape, factored out of CopyScreenText so it can be unit
+    // tested without the Win32 clipboard. Returns CRLF-terminated rows with
+    // trailing spaces trimmed.
+    std::wstring  BuildScreenText (const Byte * auxRam) const;
+
 private:
+    static constexpr Byte  kHighBitMask      = 0x80;
+    static constexpr Byte  kPrintableLow     = 0x20;
+    static constexpr Byte  kPrintableHigh    = 0x7E;
+    static constexpr int   kBitsPerByte      = 8;
+    static constexpr Word  kRd80Vid          = 0xC01F;   // 80-column display status
+
+    // Map one raw text-screen byte to a printable wchar (high bit stripped,
+    // non-printables blanked).
+    static wchar_t  DecodeScreenByte (Byte ch);
+
     MemoryBus              & m_memoryBus;
     std::mutex             & m_cmdMutex;
     std::string            & m_pasteBuffer;
-    std::mutex             & m_fbMutex;
+    std::mutex             & m_framebufferMutex;
     std::vector<uint32_t>  & m_uiFramebuffer;
     AppleKeyboard *        * m_pKeyboardSlot     = nullptr;
     int                      m_framebufferWidth  = 0;

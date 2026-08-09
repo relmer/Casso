@@ -6,18 +6,6 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-namespace
-{
-    static constexpr uint64_t   kColdBootCycles      = 5000000ULL;
-    static constexpr uint64_t   kAfterCommandCycles  = 1000000ULL;
-    static constexpr int        kBasicPromptRow      = 23;
-    static constexpr Word       kRdVblBar            = 0xC019;
-    static constexpr Word       kRd80Vid             = 0xC01F;
-    static constexpr Word       kRd80Store           = 0xC018;
-    static constexpr Byte       kBitSeven            = 0x80;
-}
-
-
 
 
 
@@ -37,6 +25,14 @@ TEST_CLASS (EmuIntegrationTests)
 {
 public:
 
+    static constexpr uint64_t   kColdBootCycles      = 5000000ULL;
+    static constexpr uint64_t   kAfterCommandCycles  = 1000000ULL;
+    static constexpr int        kBasicPromptRow      = 23;
+    static constexpr Word       kRdVblBar            = 0xC019;
+    static constexpr Word       kRd80Vid             = 0xC01F;
+    static constexpr Word       kRd80Store           = 0xC018;
+    static constexpr Byte       kBitSeven            = 0x80;
+
     ////////////////////////////////////////////////////////////////////////
     //
     //  Helper: Boot a //e to the Applesoft prompt.
@@ -48,10 +44,10 @@ public:
         HRESULT   hr;
 
         hr = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
-        Assert::IsTrue (core.HasApple2e (), L"//e wiring must be complete");
+        AssertSucceeded (hr, L"BuildApple2e must succeed");
+        Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
 
-        core.PowerCycle ();
+        core.PowerCycle();
         core.RunCycles  (kColdBootCycles);
     }
 
@@ -65,17 +61,18 @@ public:
         const std::vector<std::string>  &  rows,
         const std::string               &  needle)
     {
-        size_t   i;
+        size_t   i     = 0;
+        int      found = -1;   // -1 is "no such row", distinct from row 0
 
-        for (i = 0; i < rows.size (); i++)
+        for (i = 0; found < 0 && i < rows.size(); i++)
         {
             if (rows[i].find (needle) != std::string::npos)
             {
-                return static_cast<int> (i);
+                found = static_cast<int> (i);
             }
         }
 
-        return -1;
+        return found;
     }
 
 
@@ -87,15 +84,16 @@ public:
 
     TEST_METHOD (Phase7_ColdBootReaches_BASIC_Prompt)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        int            promptRow;
+        HeadlessHost              host;
+        EmulatorCore              core;
+        int                       promptRow;
+        std::vector<std::string>  rows;
 
         BootToPrompt (host, core);
 
-        std::vector<std::string>   rows = TextScreenScraper::Scrape (core);
+        rows = TextScreenScraper::Scrape (core);
 
-        Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size (),
+        Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size(),
             L"Scraper must produce 24 rows");
 
         promptRow = FindRowContaining (rows, "]");
@@ -115,20 +113,22 @@ public:
 
     TEST_METHOD (Phase7_ColdBoot_IsDeterministic)
     {
-        HeadlessHost   hostA;
-        HeadlessHost   hostB;
-        EmulatorCore   coreA;
-        EmulatorCore   coreB;
+        HeadlessHost              hostA;
+        HeadlessHost              hostB;
+        EmulatorCore              coreA;
+        EmulatorCore              coreB;
+        std::vector<std::string>  rowsA;
+        std::vector<std::string>  rowsB;
 
         BootToPrompt (hostA, coreA);
         BootToPrompt (hostB, coreB);
 
-        std::vector<std::string>   rowsA = TextScreenScraper::Scrape (coreA);
-        std::vector<std::string>   rowsB = TextScreenScraper::Scrape (coreB);
+        rowsA = TextScreenScraper::Scrape (coreA);
+        rowsB = TextScreenScraper::Scrape (coreB);
 
-        Assert::AreEqual (rowsA.size (), rowsB.size ());
+        Assert::AreEqual (rowsA.size(), rowsB.size());
 
-        for (size_t i = 0; i < rowsA.size (); i++)
+        for (size_t i = 0; i < rowsA.size(); i++)
         {
             Assert::IsTrue (rowsA[i] == rowsB[i],
                 L"Two cold boots with the pinned seed must produce identical scrapes");
@@ -145,12 +145,13 @@ public:
 
     TEST_METHOD (Phase7_HOME_PRINT_HELLO_Visible)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        size_t         consumed1;
-        size_t         consumed2;
-        int            helloRow;
-        int            promptRow;
+        HeadlessHost              host;
+        EmulatorCore              core;
+        size_t                    consumed1;
+        size_t                    consumed2;
+        int                       helloRow;
+        int                       promptRow;
+        std::vector<std::string>  rows;
 
         BootToPrompt (host, core);
 
@@ -164,7 +165,7 @@ public:
 
         core.RunCycles (kAfterCommandCycles);
 
-        std::vector<std::string>   rows = TextScreenScraper::Scrape (core);
+        rows = TextScreenScraper::Scrape (core);
 
         helloRow = FindRowContaining (rows, "HELLO");
 
@@ -173,7 +174,7 @@ public:
 
         promptRow = -1;
 
-        for (size_t i = static_cast<size_t> (helloRow + 1); i < rows.size (); i++)
+        for (size_t i = static_cast<size_t> (helloRow + 1); i < rows.size(); i++)
         {
             if (rows[i].find (']') != std::string::npos)
             {
@@ -190,6 +191,19 @@ public:
     ////////////////////////////////////////////////////////////////////////
     //
     //  US1 / T071: PR#3 activates 80-column mode (RD80VID + RD80STORE).
+    //
+    //  Runs the firmware's PR#3 path and asserts both 80-column soft switches
+    //  end up set.
+    //
+    //  PR#3 is how a //e user actually turns on 80 columns, so this exercises
+    //  the FIRMWARE doing it rather than the test setting the switches -- which
+    //  means the $C300 slot ROM, the Cxxx routing, and the soft-switch bank all
+    //  have to be wired correctly for it to pass.
+    //
+    //  BOTH switches are asserted because they are separate and mean different
+    //  things: RD80VID selects the 80-column display, while RD80STORE changes
+    //  what $C054/$C055 do -- and a mode with only one set displays the wrong
+    //  half of memory.
     //
     ////////////////////////////////////////////////////////////////////////
 
@@ -209,7 +223,7 @@ public:
 
         core.RunCycles (kAfterCommandCycles);
 
-        Assert::IsTrue (core.softSwitches->Is80ColMode (),
+        Assert::IsTrue (core.softSwitches->Is80ColMode(),
             L"PR#3 must engage 80-col mode (Is80ColMode==true)");
 
         rd80Vid   = core.bus->ReadByte (kRd80Vid);
@@ -231,11 +245,12 @@ public:
 
     TEST_METHOD (Phase7_PR3_Then_PRINT_LongString_80ColScrape)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        HeadlessHost              host;
+        EmulatorCore              core;
+        size_t                    consumed;
+        int                       row;
+        std::vector<std::string>  rows;
         const char *   needle = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        size_t         consumed;
-        int            row;
 
         BootToPrompt (host, core);
 
@@ -244,7 +259,7 @@ public:
 
         core.RunCycles (kAfterCommandCycles);
 
-        Assert::IsTrue (core.softSwitches->Is80ColMode (),
+        Assert::IsTrue (core.softSwitches->Is80ColMode(),
             L"80-col must be active before the long PRINT");
 
         consumed = KeystrokeInjector::InjectLine (
@@ -256,9 +271,9 @@ public:
 
         core.RunCycles (kAfterCommandCycles);
 
-        std::vector<std::string>   rows = TextScreenScraper::Scrape (core);
+        rows = TextScreenScraper::Scrape (core);
 
-        Assert::AreEqual (size_t (TextScreenScraper::kCols80), rows[0].size (),
+        Assert::AreEqual (size_t (TextScreenScraper::kCols80), rows[0].size(),
             L"80-col scrape rows must be 80 chars wide");
 
         row = FindRowContaining (rows, needle);
@@ -318,3 +333,4 @@ public:
             static_cast<Byte> (core.bus->ReadByte (0xC063) & kBitSeven));
     }
 };
+

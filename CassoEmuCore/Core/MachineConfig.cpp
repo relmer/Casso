@@ -18,6 +18,22 @@ static constexpr size_t kRamMaxSize    = 0x10000;
 //
 //  ParseHexAddress
 //
+//  Parses a 6502 address from machine JSON, accepting both `0xNNNN` and the
+//  period `$NNNN` spelling.
+//
+//  Both forms are supported because these files are read and written by people
+//  who think in Apple II documentation, where addresses are always `$C000`,
+//  and by tooling that emits C-style hex. Rejecting either would make one
+//  audience's natural spelling an error.
+//
+//  A BARE number is deliberately not accepted. Without a prefix there is no
+//  way to tell an intended hex value from a decimal one, and silently guessing
+//  wrong relocates a device by 0x9000 addresses.
+//
+//  Every failure sets a message naming the offending text and what was
+//  expected, since the reader is editing a config file by hand and the only
+//  useful diagnostic says which value is wrong.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MachineConfigLoader::ParseHexAddress (const string & str, Word & outAddr, string & outError)
@@ -108,6 +124,24 @@ Error:
 //
 //  ParseCapabilityFlag
 //
+//  Reads a device's capability flag, which says whether the user may remove it.
+//
+//  The three values encode a real distinction in the hardware:
+//
+//    optional         a card the user can add or remove (a Disk ][ controller)
+//    required         the machine needs it to boot, but it is still a device
+//    platform-locked  soldered in -- the //c's internal drive and mouse are
+//                     not cards, and no UI may offer to unplug them
+//
+//  An ABSENT value takes the caller's default rather than a fixed one, because
+//  the sensible default differs by call site: a slot device is optional unless
+//  stated, an internal device is not.
+//
+//  An unrecognized value is an error rather than a fallback. Misspelling
+//  "platform-locked" would otherwise silently produce a //c whose internal
+//  drive can be removed, which is a broken machine that looks like a working
+//  one.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MachineConfigLoader::ParseCapabilityFlag (
@@ -120,7 +154,7 @@ HRESULT MachineConfigLoader::ParseCapabilityFlag (
 
 
 
-    if (str.empty ())
+    if (str.empty())
     {
         outFlag = defaultFlag;
     }
@@ -155,6 +189,23 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  LoadTiming
+//
+//  Reads the timing block: video standard, clock speed, and cycles per
+//  scanline.
+//
+//  Only the scanline COUNT is implied by the video standard -- NTSC and PAL
+//  differ in how many lines a frame has. Clock speed and cycles per scanline
+//  stay explicit, because they are properties of the machine rather than of
+//  the broadcast standard, and a European Apple II is not simply a 60 Hz one
+//  with more lines.
+//
+//  Cycles per frame is DERIVED here rather than read, so a config cannot
+//  declare a frame length that disagrees with its own scanline count and
+//  per-scanline cycles. That product is what the VBL model counts against, and
+//  an inconsistent value would put $C019 out of phase with the video.
+//
+//  Every field is required. A missing timing value has no defensible default:
+//  guessing a clock speed silently mis-times every program the machine runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,19 +277,21 @@ static HRESULT ResolveRomFile (
     fs::path  romRelPath = relDirPrefix / file;
     fs::path  found      = resolver (searchPaths, romRelPath);
     auto      sz         = std::uintmax_t {0};
+    bool      wasFound   = false;
 
 
 
-    CBRF (!found.empty (),
+    wasFound = !found.empty();
+    CBRF (wasFound,
           outError = format ("ROM file not found: {}. "
                              "Place the file under the appropriate per-machine or per-device folder.",
-                             romRelPath.string ()));
+                             romRelPath.string()));
 
     sz = fs::file_size (found);
     CBRF (sz > 0,
-          outError = format ("ROM file is empty: {}", romRelPath.string ()));
+          outError = format ("ROM file is empty: {}", romRelPath.string()));
 
-    outResolvedPath = found.string ();
+    outResolvedPath = found.string();
     outFileSize     = static_cast<size_t> (sz);
 
 
@@ -253,6 +306,25 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  LoadRam
+//
+//  Reads the RAM region array -- an address, a size, and an optional bank name
+//  per entry.
+//
+//  Regions are described rather than assumed because the machines differ:
+//  a ][+ has one flat span, while a //e adds an auxiliary bank that overlays
+//  the same addresses. The optional `bank` name is what distinguishes an aux
+//  region from a main one at the same address; its absence means main, so the
+//  older configs need no bank field at all.
+//
+//  A full 64 KB size is stored as 0. The size field is a Word, so 0x10000 does
+//  not fit -- and since a zero-length region is meaningless, zero is free to
+//  mean the whole address space. The bounds check runs on the 32-bit value
+//  BEFORE that narrowing, so an oversized region is rejected rather than
+//  silently wrapping into a valid-looking small one.
+//
+//  Each error names the array index, because these arrays run to several
+//  entries and "missing 'size' field" without one sends the reader hunting
+//  through the file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -269,7 +341,7 @@ HRESULT MachineConfigLoader::LoadRam (
 
 
 
-    for (idx = 0; idx < ramArray.ArraySize (); idx++)
+    for (idx = 0; idx < ramArray.ArraySize(); idx++)
     {
         const JsonValue & entry = ramArray.ArrayAt (idx);
         RamRegion         region;
@@ -313,6 +385,25 @@ Error:
 //
 //  LoadSystemRom
 //
+//  Reads the system ROM: address, file, and the optional bank-switching pair
+//  that the //c needs and earlier machines do not.
+//
+//  romBankSize and romBankSelect travel together -- one without the other is
+//  rejected -- because a bank size with no select register describes banking
+//  nobody can perform. Their ABSENCE is meaningful and is the //e and earlier
+//  case: a flat single-image ROM.
+//
+//  The two size checks are genuinely different, not a refactoring oversight.
+//  A flat ROM must fit in 64 KB as a whole. A banked ROM maps every bank at
+//  the SAME address, so it is each bank that must fit, and the file is
+//  expected to be several banks long -- checking the whole file against 64 KB
+//  would reject every valid //c ROM. The banked path adds the divisibility
+//  test, since a file that is not a whole number of banks has a partial bank
+//  at the end that would map as garbage.
+//
+//  The ROM path is resolved through the search paths under a per-machine
+//  prefix, so two machines can ship files of the same name.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MachineConfigLoader::LoadSystemRom (
@@ -347,10 +438,46 @@ HRESULT MachineConfigLoader::LoadSystemRom (
                          outError);
     CHR (hr);
 
-    // Validate ROM fits in 64K starting at address
-    CBRF (static_cast<uint32_t> (outConfig.systemRom.address) + outConfig.systemRom.fileSize <= kRamMaxSize,
-          outError = format ("systemRom: address ${:04X} + size ${:X} exceeds 64K",
-                             outConfig.systemRom.address, outConfig.systemRom.fileSize));
+    // Optional bank-switched ROM (Apple //c): romBankSize + romBankSelect.
+    // Absent -> flat single-image ROM (the //e and earlier).
+    {
+        string  bankSizeStr;
+        string  bankSelectStr;
+
+        if (sysRomObj.HasString ("romBankSize", bankSizeStr))
+        {
+            hr = ParseHexAddress (bankSizeStr, outConfig.systemRom.romBankSize, outError);
+            CHR (hr);
+
+            hr = sysRomObj.GetString ("romBankSelect", bankSelectStr);
+            CHRF (hr, outError = "systemRom.romBankSize requires 'romBankSelect'");
+
+            hr = ParseHexAddress (bankSelectStr, outConfig.systemRom.romBankSelect, outError);
+            CHR (hr);
+        }
+    }
+
+    if (outConfig.systemRom.romBankSize != 0)
+    {
+        // Banked: every bank is mapped at `address`, so each bank (not the
+        // whole file) must fit in 64K, and the file must be a whole number
+        // of banks.
+        CBRF (static_cast<uint32_t> (outConfig.systemRom.address) + outConfig.systemRom.romBankSize <= kRamMaxSize,
+              outError = format ("systemRom: address ${:04X} + bank size ${:X} exceeds 64K",
+                                 outConfig.systemRom.address, outConfig.systemRom.romBankSize));
+
+        CBRF (outConfig.systemRom.fileSize != 0 &&
+              (outConfig.systemRom.fileSize % outConfig.systemRom.romBankSize) == 0,
+              outError = format ("systemRom: file size ${:X} is not a whole number of ${:X}-byte banks",
+                                 outConfig.systemRom.fileSize, outConfig.systemRom.romBankSize));
+    }
+    else
+    {
+        // Validate flat ROM fits in 64K starting at address
+        CBRF (static_cast<uint32_t> (outConfig.systemRom.address) + outConfig.systemRom.fileSize <= kRamMaxSize,
+              outError = format ("systemRom: address ${:04X} + size ${:X} exceeds 64K",
+                                 outConfig.systemRom.address, outConfig.systemRom.fileSize));
+    }
 
 Error:
     return hr;
@@ -403,6 +530,23 @@ Error:
 //
 //  LoadInternalDevices
 //
+//  Reads the built-in (non-slot) devices: the //c's internal drive, mouse, and
+//  serial ports, which are soldered to the board rather than plugged into a
+//  slot.
+//
+//  Only `type` is required. Everything else describes how the UI may treat the
+//  device, and the defaults are chosen so an older config that predates those
+//  fields still loads and still means what it meant.
+//
+//  The capability default here is REQUIRED, the opposite of the slot default
+//  (FR-015). An internal device is part of the machine: a //c without its
+//  keyboard is not a configuration anyone asked for, whereas an empty slot is
+//  ordinary. Both defaults are supplied by their caller rather than baked into
+//  ParseCapabilityFlag for exactly this reason.
+//
+//  lockReason carries the user-facing explanation for why a locked device
+//  cannot be removed, so the UI can say something better than "disabled".
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MachineConfigLoader::LoadInternalDevices (
@@ -415,13 +559,13 @@ HRESULT MachineConfigLoader::LoadInternalDevices (
 
 
 
-    for (idx = 0; idx < devArray.ArraySize (); idx++)
+    for (idx = 0; idx < devArray.ArraySize(); idx++)
     {
-        const JsonValue & entry = devArray.ArrayAt (idx);
-        InternalDevice    dev;
-        string            flagStr;
-        HRESULT           hrFlag = S_OK;
-        HRESULT           hrLock = S_OK;
+        const JsonValue  & entry   = devArray.ArrayAt (idx);
+        InternalDevice     dev;
+        string             flagStr;
+        HRESULT            hrFlag  = S_OK;
+        HRESULT            hrLock  = S_OK;
 
 
 
@@ -459,6 +603,33 @@ Error:
 //
 //  LoadSlots
 //
+//  Reads the peripheral slot array: which slot, what device, and the optional
+//  256-byte boot ROM that lives at $Cn00.
+//
+//  A slot must declare a device, a ROM, or both, but never neither. All three
+//  combinations are real hardware: a card with firmware, a card with none, and
+//  a bare ROM in a slot with no emulated device behind it.
+//
+//  Slot ROMs are required to be exactly 256 bytes because that is the size of
+//  the $Cn00 window the hardware maps them into. A larger file is not a ROM
+//  that gets truncated -- it is a different kind of image (an expansion ROM,
+//  or a whole card dump) that would map as garbage, so it is rejected with its
+//  actual size named.
+//
+//  ROM search is routed by DEVICE FAMILY, not by machine: a `disk-ii` ROM
+//  resolves under Devices/DiskII so every machine that has one shares the same
+//  file, while an unrecognized device falls back to the per-machine folder.
+//  That is what lets future families (Mockingboard, SSC) collocate their boot
+//  ROMs with their other resources.
+//
+//  The capability default is OPTIONAL here -- a card is something the user may
+//  unplug -- which is the reverse of LoadInternalDevices.
+//
+//  `enabled` defaults to true and is written as false by Settings > Hardware;
+//  the machine builder then skips installing this slot's device and ROM
+//  entirely, which is how a slot is emptied without editing the config's
+//  contents.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MachineConfigLoader::LoadSlots (
@@ -478,7 +649,7 @@ HRESULT MachineConfigLoader::LoadSlots (
 
 
 
-    for (idx = 0; idx < slotsArray.ArraySize (); idx++)
+    for (idx = 0; idx < slotsArray.ArraySize(); idx++)
     {
         const JsonValue & entry = slotsArray.ArrayAt (idx);
         SlotConfig        slot;
@@ -496,12 +667,12 @@ HRESULT MachineConfigLoader::LoadSlots (
         // Optional: device (don't pollute hr with the lookup result)
         HRESULT hrDev = entry.GetString ("device", slot.device);
         IGNORE_RETURN_VALUE (hrDev, S_OK);
-        hasDev = !slot.device.empty ();
+        hasDev = !slot.device.empty();
 
         // Optional: rom (don't pollute hr with the lookup result)
         HRESULT hrRom = entry.GetString ("rom", slot.rom);
         IGNORE_RETURN_VALUE (hrRom, S_OK);
-        hasRom = !slot.rom.empty ();
+        hasRom = !slot.rom.empty();
 
         CBRF (hasDev || hasRom,
               outError = format ("slots[{}]: must specify 'device' and/or 'rom'", idx));
@@ -681,7 +852,37 @@ HRESULT MachineConfigLoader::Load (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Load (with resolver)
+//  Load
+//
+//  Parses a machine JSON document into a MachineConfig, resolving every ROM
+//  reference through the caller's search paths.
+//
+//  ROM resolution is injected as a FileResolver rather than performed here,
+//  which is what makes this whole loader testable: a test supplies a resolver
+//  backed by a table instead of the disk, so config parsing is covered without
+//  shipping ROM files into the test tree.
+//
+//  Required and optional fields are a deliberate split, not an accident of
+//  what happened to be written first:
+//
+//    required  name, cpu, timing, ram, systemRom, internalDevices, video,
+//              keyboard -- a machine missing any of these cannot be built,
+//              and defaulting one would fabricate a machine nobody described
+//    optional  characterRom (a ][+ has no separate character generator to
+//              load), slots (a //c has none)
+//
+//  internalDevices is required but may be EMPTY. Present-and-empty says "this
+//  machine has no built-in devices"; absent says the config was written
+//  against an older schema, and the two deserve different treatment.
+//
+//  Validation happens during the load, not after: the CPU string is checked
+//  against the two supported cores here, and each sub-loader validates its own
+//  section. So the first error the reader sees names the actual offending
+//  field rather than a downstream symptom.
+//
+//  Every failure sets outError to a message naming the field, since the reader
+//  is hand-editing JSON and a bare failure code tells them nothing about which
+//  line to fix.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -723,8 +924,8 @@ HRESULT MachineConfigLoader::Load (
     hr = root.GetString ("cpu", outConfig.cpu);
     CHRF (hr, outError = "Missing or invalid field: 'cpu'");
 
-    CBRF (outConfig.cpu == "6502",
-          outError = format ("Invalid CPU type: '{}' (expected '6502')", outConfig.cpu));
+    CBRF (outConfig.cpu == "6502" || outConfig.cpu == "65C02",
+          outError = format ("Invalid CPU type: '{}' (expected '6502' or '65C02')", outConfig.cpu));
 
     // Required: timing
     hr = root.GetObject ("timing", pTiming);
@@ -801,17 +1002,26 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetValue (template, kept for compatibility with internal use)
+//  GetValue
+//
+//  Reads one declaratively-described field out of a JSON object and stores it
+//  through a member pointer.
+//
+//  The Field descriptor carries a key plus exactly one non-null member
+//  pointer, and that pointer's TYPE selects how the value is read: a string
+//  member reads a string, a Word member reads a string and parses it as a hex
+//  address, an int member reads a number. That is what keeps the descriptor
+//  tables driving this purely declarative -- a field is a key and a
+//  destination, with no parse function to choose and no way to pair a key with
+//  the wrong reader.
+//
+//  A descriptor with every pointer null is a silent no-op rather than an
+//  error, so a table can carry a conditionally-unused entry without a guard at
+//  each call site.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetValue
-//
-////////////////////////////////////////////////////////////////////////////////
-
 HRESULT MachineConfigLoader::GetValue (
     const JsonValue  & entry,
     const Field<T>   & f,
@@ -869,11 +1079,11 @@ void MachineConfigLoader::LoadVideoConfig (const JsonValue & video, MachineConfi
     hr = video.GetArray ("modes", pModes);
     if (SUCCEEDED (hr))
     {
-        for (size_t i = 0; i < pModes->ArraySize (); i++)
+        for (size_t i = 0; i < pModes->ArraySize(); i++)
         {
-            if (pModes->ArrayAt (i).GetType () == JsonType::String)
+            if (pModes->ArrayAt (i).GetType() == JsonType::String)
             {
-                outConfig.videoConfig.modes.push_back (pModes->ArrayAt (i).GetString ());
+                outConfig.videoConfig.modes.push_back (pModes->ArrayAt (i).GetString());
             }
         }
     }

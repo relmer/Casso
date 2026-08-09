@@ -3,10 +3,13 @@
 #include "Pch.h"
 
 
+class    DxuiButton;
 class    DxuiCheckbox;
 class    DxuiLabel;
+class    DxuiDpiScaler;
 struct   DialogInputEvent;
 struct   DialogPaintContext;
+
 
 
 
@@ -20,7 +23,7 @@ struct   DialogPaintContext;
 //  unified user experience. The caller assembles a `StartupDownloadSet`
 //  describing each missing asset and a closure that knows how to fetch
 //  it; the dialog drives the downloads on a worker thread, paints live
-//  per-asset progress, and lets the user Exit cleanly (cancelling any
+//  per-asset progress, and lets the user Exit cleanly (canceling any
 //  in-flight work and removing partial files) at any point.
 //
 //  DxuiButton policy:
@@ -28,7 +31,7 @@ struct   DialogPaintContext;
 //                                                        without ROMs)
 //    * Otherwise              -> [Download] [Skip] [Exit]
 //
-//  After the user clicks Download, the Download button is relabelled
+//  After the user clicks Download, the Download button is relabeled
 //  "Downloading..." and disabled, the Skip button is hidden, and Exit
 //  remains active. Exit cancels in-flight downloads, deletes any
 //  partial files, and returns `Exit`.
@@ -53,10 +56,10 @@ struct StartupAssetEntry
     std::wstring                      displayName;        // tree leaf ("Apple //e ROM")
     std::wstring                      kindLabel;          // e.g. "ROM" / "Drive audio"
     std::wstring                      source;             // human-readable origin ("AppleWin (GitHub)")
-    std::vector<std::filesystem::path>  destPaths;        // every file produced (for cleanup)
-    std::uint64_t                     expectedBytes = 0;  // 0 = unknown
-    bool                              selectable    = true;   // user can toggle the checkbox?
-    bool                              selected      = true;   // initial / current checkbox state
+    std::vector<std::filesystem::path>  destPaths;   // every file produced (for cleanup)
+    std::uint64_t                       expectedBytes = 0;   // 0 = unknown
+    bool                                selectable    = true;   // user can toggle the checkbox?
+    bool                                selected      = true;   // initial / current checkbox state
 
     // Performs the entire fetch (HTTP + decode + write). MUST update
     // `bytesDone` as bytes are received and MUST check `cancel`
@@ -85,6 +88,7 @@ struct StartupDownloadSet
                 return true;
             }
         }
+
         return false;
     }
 };
@@ -116,6 +120,7 @@ private:
     struct      EntryRuntime;
     struct      DialogState;
     struct      RowMetrics;
+
 
     static void                WorkerThreadProc      (DialogState * state, size_t index);
     static void                StartWorkers          (DialogState & state);

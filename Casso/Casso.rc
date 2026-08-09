@@ -1,6 +1,7 @@
 #include "resource.h"
 #include "Shaders\\ShaderResourceIds.h"
 #include <windows.h>
+#include "Version.h"    // single source of truth for the app version
 
 // Application icons. The icon assigned the lowest numerical resource ID
 // (IDI_CASSO_SILHOUETTE) is what Windows Explorer displays for
@@ -20,6 +21,8 @@ IDI_CASSO_PHOTOREAL          ICON "..\\Resources\\Icons\\Casso-3-photoreal.ico"
 IDR_MACHINE_APPLE2      RCDATA "..\\Resources\\Machines\\Apple2\\Apple2.json"
 IDR_MACHINE_APPLE2PLUS  RCDATA "..\\Resources\\Machines\\Apple2Plus\\Apple2Plus.json"
 IDR_MACHINE_APPLE2E     RCDATA "..\\Resources\\Machines\\Apple2e\\Apple2e.json"
+IDR_MACHINE_APPLE2C     RCDATA "..\\Resources\\Machines\\Apple2c\\Apple2c.json"
+IDR_MACHINE_APPLE2E_ENHANCED RCDATA "..\\Resources\\Machines\\Apple2eEnhanced\\Apple2eEnhanced.json"
 
 // Embedded built-in theme files (extracted on first run by
 // AssetBootstrap::EnsureThemes — see Casso/AssetBootstrap.cpp).
@@ -39,6 +42,29 @@ IDR_THEME_RETRO_THEME_JSON         RCDATA "..\\Resources\\Themes\\RetroTerminal\
 IDR_THEME_RETRO_FONT_TTF           RCDATA "..\\Resources\\Themes\\RetroTerminal\\fonts\\VT323-Regular.ttf"
 IDR_THEME_RETRO_FONT_OFL           RCDATA "..\\Resources\\Themes\\RetroTerminal\\fonts\\OFL.txt"
 IDR_THEME_RETRO_FONT_TODO          RCDATA "..\\Resources\\Themes\\RetroTerminal\\fonts\\TODO_FONTS.md"
+
+// Embedded 3D reference model for the printer panel's skeuomorphic scene --
+// the user's Tinkercad CAD model of the ImageWriter II (OBJ+MTL).
+IDR_MODEL_IMAGEWRITER_OBJ          RCDATA "..\\Resources\\Models\\ImageWriterII\\ImageWriterII.obj"
+IDR_MODEL_IMAGEWRITER_MTL          RCDATA "..\\Resources\\Models\\ImageWriterII\\ImageWriterII.mtl"
+
+// Embedded ImageWriter II mechanical sound set (extracted to the asset base by
+// EnsureImageWriterSounds; decoded by PrinterAudioSource). CC BY 4.0 -- see
+// Assets/ImageWriter II Sounds/ATTRIBUTION.txt.
+IDR_SOUND_PRINT_DRAFT              RCDATA "..\\Assets\\ImageWriter II Sounds\\print_draft_loop.mp3"
+IDR_SOUND_PRINT_MEDIUM            RCDATA "..\\Assets\\ImageWriter II Sounds\\print_medium_loop.mp3"
+IDR_SOUND_PRINT_NLQ               RCDATA "..\\Assets\\ImageWriter II Sounds\\print_nlq_loop.mp3"
+IDR_SOUND_LINE_FEED_1             RCDATA "..\\Assets\\ImageWriter II Sounds\\line_feed_01.mp3"
+IDR_SOUND_LINE_FEED_2             RCDATA "..\\Assets\\ImageWriter II Sounds\\line_feed_02.mp3"
+IDR_SOUND_LINE_FEED_3             RCDATA "..\\Assets\\ImageWriter II Sounds\\line_feed_03.mp3"
+IDR_SOUND_PAGE_FEED_SHORT         RCDATA "..\\Assets\\ImageWriter II Sounds\\page_feed_short.mp3"
+IDR_SOUND_PAGE_FEED_MEDIUM        RCDATA "..\\Assets\\ImageWriter II Sounds\\page_feed_medium.mp3"
+IDR_SOUND_PAGE_FEED_LONG          RCDATA "..\\Assets\\ImageWriter II Sounds\\page_feed_long.mp3"
+IDR_SOUND_PAPER_TEAR_1            RCDATA "..\\Assets\\ImageWriter II Sounds\\paper_tear_01.mp3"
+IDR_SOUND_PAPER_TEAR_2            RCDATA "..\\Assets\\ImageWriter II Sounds\\paper_tear_02.mp3"
+IDR_SOUND_PAPER_TEAR_3            RCDATA "..\\Assets\\ImageWriter II Sounds\\paper_tear_03.mp3"
+IDR_SOUND_PAPER_TEAR_4            RCDATA "..\\Assets\\ImageWriter II Sounds\\paper_tear_04.mp3"
+IDR_SOUND_PAPER_TEAR_5            RCDATA "..\\Assets\\ImageWriter II Sounds\\paper_tear_05.mp3"
 
 // Embedded CRT HLSL sources (compiled at runtime by CrtPostProcess).
 IDR_HLSL_BRIGHTNESS      RCDATA "Shaders\\CRT\\brightness.hlsl"
@@ -74,8 +100,8 @@ END
 
 // Version Information
 VS_VERSION_INFO VERSIONINFO
-    FILEVERSION     0,9,0,0
-    PRODUCTVERSION  0,9,0,0
+    FILEVERSION     VERSION_MAJOR,VERSION_MINOR,VERSION_PATCH,0
+    PRODUCTVERSION  VERSION_MAJOR,VERSION_MINOR,VERSION_PATCH,0
     FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
 #ifdef _DEBUG
     FILEFLAGS       VS_FF_DEBUG
@@ -92,11 +118,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "\0"
             VALUE "FileDescription",  "Casso Apple ][ Emulator\0"
-            VALUE "FileVersion",      "0.9.0.0\0"
+            VALUE "FileVersion",      VERSION_STRING ".0\0"
             VALUE "InternalName",     "Casso\0"
             VALUE "OriginalFilename", "Casso.exe\0"
             VALUE "ProductName",      "Casso\0"
-            VALUE "ProductVersion",   "0.9.0.0\0"
+            VALUE "ProductVersion",   VERSION_STRING ".0\0"
         END
     END
     BLOCK "VarFileInfo"
