@@ -110,13 +110,14 @@ void FileBrowseModel::Bind (IFileSystem * fs)
 
 HRESULT FileBrowseModel::SetFolder (const std::wstring & absolute)
 {
-    HRESULT       hr     = S_OK;
-    std::wstring  folder = absolute;
+    HRESULT       hr        = S_OK;
+    std::wstring  folder    = absolute;
+    bool          hasFolder = !absolute.empty();
 
 
 
     CBRA (m_fs != nullptr);
-    CBREx (!folder.empty(), E_INVALIDARG);
+    CBRAEx (hasFolder, E_INVALIDARG);
 
     while (folder.size() > 3 && (folder.back() == L'\\' || folder.back() == L'/'))
     {
@@ -184,12 +185,13 @@ HRESULT FileBrowseModel::NavigateUp()
 
 HRESULT FileBrowseModel::Refresh()
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr        = S_OK;
+    bool     hasFolder = !m_folder.empty();
 
 
 
     CBRA (m_fs != nullptr);
-    CBR (!m_folder.empty());
+    CBR (hasFolder);
 
     m_allEntries.clear();
 
@@ -288,10 +290,9 @@ void FileBrowseModel::RebuildFilteredView()
 std::wstring FileBrowseModel::UniqueDefaultName (const std::wstring & baseName) const
 {
     static constexpr int  s_kMaxSuffix = 999;
-
-    std::wstring  candidate;
-    int           suffix    = 1;
-    bool          available = false;
+    std::wstring          candidate;
+    int                   suffix       = 1;
+    bool                  available    = false;
 
 
 
