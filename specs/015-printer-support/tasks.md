@@ -17,6 +17,16 @@ US1–US5 plus the Phase 11 preview redesign are implemented and unit-tested (fu
 - Long-strip memory (T042): a dpi cap (`WholeStripDpi`, ~512 MB budget), not row-banding.
 Still open: T010 (dropped), US6 T046–T049, end-to-end sign-offs T026/T032/T041/T045/T072, polish / merge-gates T056–T060, and DCR-1/DCR-2. Dropped: US7 T050–T055 (→ #78). Post-ship bug fixes BUG-1/2/3/4 all landed and user-confirmed.
 
+**CLOSED 2026-08-08 — feature shipped and user-accepted.** The whole print path has
+been shipping in the 1.15.x releases (Print Shop prints end-to-end, live 3D preview,
+DCR-2 toolbar, US6 text printing); the user declared the feature done, which closes
+the outstanding end-to-end sign-offs above. DCR-1's modern print dialog remains
+OS-blocked for unpackaged apps (opt-in via `CASSO_MODERN_PRINT=1`; revisit under
+MSIX). The retired PrinterIndicator class and its plumbing are already deleted —
+only tombstone comments remain. Follow-on work lives in GitHub issues, not this
+spec: #78 (disk-title recognition polish), #100 (off-thread compositing for the
+preview's UI-thread frame cost), #105 (//e parallel printer variants).
+
 ## Format: `[ID] [P?] [Story] Description`
 
 ## Phase 1: Setup
