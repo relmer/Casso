@@ -42,8 +42,18 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v3
 
-      - name: Setup VSTest
-        uses: darenm/Setup-VSTest@v1.3
+      # Locate vstest.console.exe with vswhere directly rather than through
+      # darenm/Setup-VSTest: that action is a thin wrapper around the same
+      # lookup, targets the deprecated Node 20 runtime, and is one more
+      # third-party dependency in the supply chain.
+      - name: Add VSTest to PATH
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vstest  = & $vswhere -latest -products * -find '**\TestPlatform\vstest.console.exe' |
+                     Select-Object -First 1
+          if (-not $vstest) { throw 'vstest.console.exe not found' }
+          Add-Content $env:GITHUB_PATH (Split-Path $vstest)
 
       - name: Build
         run: msbuild Casso.sln -p:Configuration=${{ matrix.configuration }} -p:Platform=${{ matrix.platform }} -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
@@ -55,7 +65,7 @@ jobs:
       # them. Only on master pushes (the only place the release job runs).
       - name: Upload Release x64 binaries
         if: matrix.configuration == 'Release' && github.ref == 'refs/heads/master'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: release-x64
           path: |
@@ -84,7 +94,7 @@ jobs:
       # them. Only on master pushes (the only place the release job runs).
       - name: Upload Release ARM64 binaries
         if: matrix.configuration == 'Release' && github.ref == 'refs/heads/master'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: release-arm64
           path: |
@@ -173,14 +183,14 @@ jobs:
       # produced instead of rebuilding them here (saved ~7 min per release).
       - name: Download Release x64 binaries
         if: steps.check.outputs.exists != 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: release-x64
           path: x64/Release
 
       - name: Download Release ARM64 binaries
         if: steps.check.outputs.exists != 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: release-arm64
           path: ARM64/Release

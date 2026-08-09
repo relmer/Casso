@@ -9,12 +9,12 @@
     2026-05-13 and the violation count rose from 2,711 to 3,321 lines in
     the ten weeks after. This script is the mechanical half of the fix.
 
-    It checks only rules that reduce to a regex with near-zero false-
-    positive risk. Rules needing judgment -- column alignment, the exact
-    5-blank-line / 3-blank-line spacing rules, "no magic numbers", EHM
+    It checks only rules that reduce to a mechanical test with near-zero
+    false-positive risk. Rules needing judgment -- "no magic numbers", EHM
     single-exit-point, declarations-at-top-of-function -- are out of scope
-    and remain review's job. Roughly 8 of ~30 documented rules are covered,
-    but they are the ones the measured drift is concentrated in.
+    and remain review's job. Declaration-run column alignment (CS0019) IS
+    gated: it flags only runs scripts/FixDeclAlign.ps1 can mechanically
+    repair, and skips every shape that parser does not understand.
 
     DEFAULT MODE IS `Diff`, which suits the pre-push hook: it inspects
     only lines the push ADDS, so a push is judged on its own contribution.
@@ -634,7 +634,76 @@ function Test-EhmConditionCalls
 
 ####################################################################
 #
-#  Test-Structure  (CS0014 / CS0015 / CS0016 / CS0017)
+#  ConvertTo-DeclParts
+#
+#  Parses one local-declaration line into indent / type / ptr / name /
+#  init / comment, or $null when the line is not a shape the alignment
+#  rule understands. MUST stay identical to Parse-Decl in
+#  scripts/FixDeclAlign.ps1: CS0019 skips any run this cannot parse, so
+#  the gate only ever fires on runs the fixer can repair.
+#
+####################################################################
+
+function ConvertTo-DeclParts
+{
+    param([string] $Line)
+
+    $comment = ''
+    $m = [regex]::Match($Line, '\s*(//.*)$')
+    $body = $Line
+    if ($m.Success) { $comment = $m.Groups[1].Value; $body = $Line.Substring(0, $m.Index) }
+
+    $body = $body.TrimEnd()
+    if (-not $body.EndsWith(';')) { return $null }
+    $body = $body.Substring(0, $body.Length - 1)
+
+    $indent = ($body -replace '^(\s*).*$', '$1')
+    $body   = $body.Trim()
+
+    $init  = $null
+    $lhs   = $body
+    $eqPos = $body.IndexOf(' = ')
+    if ($eqPos -ge 0)
+    {
+        $lhs  = $body.Substring(0, $eqPos).TrimEnd()
+        $init = $body.Substring($eqPos + 3).Trim()
+    }
+
+    if ($lhs -match ',(?![^<]*>)(?![^\[]*\])') { return $null }   # comma decl (or too odd)
+
+    $tokens = @($lhs -split '\s+' | Where-Object { $_ -ne '' })
+    if ($tokens.Count -lt 2) { return $null }
+
+    $decl = $tokens[-1]
+    $ptr  = ''
+    $tEnd = $tokens.Count - 2
+
+    if ($tEnd -ge 0 -and ($tokens[$tEnd] -eq '*' -or $tokens[$tEnd] -eq '&'))
+    {
+        $ptr  = $tokens[$tEnd]
+        $tEnd--
+    }
+
+    if ($decl -match '^[\*&]') { return $null }
+    if ($tEnd -lt 0)           { return $null }
+    if ($decl -notmatch '^[A-Za-z_]\w*(\[[^\]]*\])?$') { return $null }
+
+    return [pscustomobject]@{
+        Indent = $indent
+        Ptr    = $ptr
+        Decl   = $decl
+        Init   = $init
+    }
+}
+
+# Same line classifiers FixDeclAlign.ps1 uses to spot a declaration run.
+$script:DeclRegex = '^\s*(?:const\s+|constexpr\s+|static\s+)*[A-Za-z_][A-Za-z0-9_:<>,\s\*&\[\]]*\s+[\*&]?\s*[A-Za-z_]\w*(\s*\[[^\]]*\])?\s*(=[^;]*)?;\s*(//.*)?$'
+$script:DeclExcl  = '\breturn\b|\bdelete\b|\bgoto\b|\bthrow\b|\+\+|--|^\s*(else|do)\b|\boperator\b|^\s*[A-Za-z_]\w*\s*(<<|>>)'
+
+
+####################################################################
+#
+#  Test-Structure  (CS0014 / CS0015 / CS0016 / CS0017 / CS0019)
 #
 #  The formatting rules that a per-line regex cannot see:
 #
@@ -642,6 +711,7 @@ function Test-EhmConditionCalls
 #    CS0015  a top-level banner is preceded by EXACTLY 5 blank lines
 #    CS0016  a declaration block is followed by EXACTLY 3 blank lines
 #    CS0017  a bare closing brace is followed by a blank line
+#    CS0019  a declaration run aligns its name and `=` columns
 #
 #  These need whole-file context, which is why they sat un-gated: a
 #  file-scoped check fails a push for violations the diff never touched,
@@ -786,6 +856,71 @@ function Test-Structure
                     }
                 }
             }
+        }
+
+        # ---- CS0019: declaration-run column alignment -------------------
+        # A run of 2+ consecutive indented declaration lines at one indent
+        # must align its name columns and its `=` columns. Detection
+        # mirrors scripts/FixDeclAlign.ps1 exactly -- a run any line of
+        # which that parser cannot handle is skipped, so every hit this
+        # reports is one the fixer repairs mechanically.
+        $declRun = [System.Collections.Generic.List[int]]::new()
+        for ($i = 0; $i -le $lines.Length; $i++)
+        {
+            $isDecl = $false
+            if ($i -lt $lines.Length)
+            {
+                $ln = $lines[$i]
+                $isDecl = ($ln -match $script:DeclRegex -and $ln -notmatch $script:DeclExcl -and
+                           $ln -match '^\s+\S' -and $ln -notmatch '"')
+            }
+
+            if ($isDecl) { $declRun.Add($i); continue }
+
+            if ($declRun.Count -ge 2)
+            {
+                $parsed = @()
+                $ok     = $true
+                foreach ($r in $declRun)
+                {
+                    $p = ConvertTo-DeclParts $lines[$r]
+                    if ($null -eq $p) { $ok = $false; break }
+                    $parsed += $p
+                }
+
+                if ($ok)
+                {
+                    $indents = $parsed | ForEach-Object { $_.Indent } | Sort-Object -Unique
+                    if (@($indents).Count -ne 1) { $ok = $false }
+                }
+
+                if ($ok)
+                {
+                    $nameCols = @()
+                    $eqCols   = @()
+                    foreach ($r in $declRun)
+                    {
+                        $ln = $lines[$r]
+                        $mm = [regex]::Match($ln, '^\s*(?:const\s+|constexpr\s+|static\s+)*.*?([A-Za-z_]\w*(\[[^\]]*\])?)\s*(=|;)')
+                        $nameCols += $mm.Groups[1].Index
+                        $pe = $ln.IndexOf(' = ')
+                        if ($pe -ge 0) { $eqCols += $pe + 1 }
+                    }
+
+                    if ((@($nameCols | Sort-Object -Unique)).Count -gt 1 -or
+                        (@($eqCols   | Sort-Object -Unique)).Count -gt 1)
+                    {
+                        $findings += [pscustomobject]@{
+                            Id    = 'CS0019'
+                            First = $declRun[0] + 1
+                            Last  = $declRun[$declRun.Count - 1] + 1
+                            Text  = 'misaligned declaration run -- align name and = columns (scripts/FixDeclAlign.ps1 -Apply repairs it)'
+                        }
+                    }
+                }
+            }
+
+            $declRun.Clear()
         }
 
         # ---- report, scoped ---------------------------------------------

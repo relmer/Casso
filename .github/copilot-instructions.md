@@ -442,11 +442,15 @@ void Function2()
 ### Style Gate (pre-push)
 
 `scripts/CheckStyle.ps1` mechanically enforces the subset of the style rules
-above that reduce to a regex: empty-paren spacing, anonymous namespaces,
-American spelling, angle-bracket includes, `Pch.h`-first, bare `goto Error`,
-cast spacing, producing `S_FALSE`, and Claude attribution in commit messages.
-Rules that need judgment — column alignment, the blank-line counts, magic
-numbers, EHM single-exit — are **not** covered and remain review's job.
+above that reduce to a mechanical test: empty-paren spacing, anonymous
+namespaces, American spelling, angle-bracket includes, `Pch.h`-first, bare
+`goto Error`, cast spacing, producing `S_FALSE`, Claude attribution in commit
+messages, the banner/blank-line structure rules (CS0014–CS0017), and
+declaration-run column alignment (CS0019 — flags only runs that
+`scripts/FixDeclAlign.ps1 -Apply` can mechanically repair; late declarations
+have a companion fixer in `scripts/FixLateDecls.ps1`). Rules that need
+judgment — magic numbers, EHM single-exit — are **not** covered and remain
+review's job.
 
 **`bool` returns must be self-describing.** Return `bool` only when the
 function's name makes `true` / `false` obvious: `IsXxx`, `HasXxx`, `TryXxx`,
@@ -470,13 +474,12 @@ Enable the hook once per clone (shared by all worktrees):
 git config core.hooksPath .githooks
 ```
 
-- The gate is **diff-scoped**: it inspects only the lines a push *adds*. The
-  tree carries a large pre-existing backlog, so a whole-tree gate would fail
-  on the first push and be switched off the same day.
-- Audit the full backlog with `scripts/CheckStyle.ps1 -Mode Tree`.
+- The pre-push hook is **diff-scoped**: it inspects only the lines a push
+  *adds*, so a push is judged on its own contribution.
+- Every rule is swept to zero tree-wide, and CI's `style` job runs
+  `scripts/CheckStyle.ps1 -Mode Tree` as the backstop — a violation anywhere
+  fails the build, so the backlog can never regrow.
 - Check your branch by hand any time with `scripts/CheckStyle.ps1`.
-- Once a rule has been swept to zero tree-wide it can be promoted to a
-  whole-tree check in CI.
 
 ### Merge-to-Master Gates
 These gates apply to **`master`** — i.e. every commit that lands on `master`
