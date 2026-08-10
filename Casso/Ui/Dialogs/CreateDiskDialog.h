@@ -32,11 +32,12 @@
 //  verdict (or a confirmed overwrite) ends the modal with a confirmed
 //  Result. Cancel / Escape / the close box leave Result unconfirmed.
 //
-//  The Format dropdown (WOZ / DSK / PO) drives the Contents choices: only
-//  legal pairings are ever listed, so an illegal combination cannot be
-//  selected. The name field's extension follows the format, as does the
-//  listing's extension filter. The bootable toggle and in-dialog folder
-//  navigation are not built yet.
+//  The Image-type dropdown (WOZ / DSK / PO) drives the Format choices
+//  (DOS 3.3 / ProDOS / unformatted): only legal pairings are ever listed,
+//  so an illegal combination cannot be selected. The name field's
+//  extension follows the image type, as does the listing's extension
+//  filter. The Bootable toggle installs the chosen OS from the downloaded
+//  master; clicking any control moves keyboard focus there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

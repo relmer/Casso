@@ -169,6 +169,11 @@ public:
     //
     void     SetInitialFocus (IDxuiControl * ctl) { m_initialFocus = ctl; }
 
+    //  Moves the dialog's keyboard focus to `ctl` right now (both sides get
+    //  their OnFocusChanged), so a host can implement click-to-focus: the
+    //  prior control drops its caret / focus cue and the new one arms.
+    void     FocusControl    (IDxuiControl * ctl) { m_focus.SetFocused (ctl); }
+
     bool     IsCreated   () const { return m_source != nullptr; }
     HWND     Hwnd        () const { return m_source != nullptr ? m_source->Hwnd() : nullptr; }
 

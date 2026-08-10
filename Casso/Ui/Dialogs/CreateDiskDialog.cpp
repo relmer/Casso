@@ -83,7 +83,7 @@ void CreateDiskDialog::OnCreate()
 
     m_formatLabel.SetDpi       (m_dpi);
     m_formatLabel.SetTextRole  (DxuiTextRole::Body);
-    m_formatLabel.SetText      (L"Format:");
+    m_formatLabel.SetText      (L"Image type:");
     m_formatLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
     m_formatDropdown.SetDpi       (m_dpi);
@@ -94,7 +94,7 @@ void CreateDiskDialog::OnCreate()
 
     m_contentsLabel.SetDpi       (m_dpi);
     m_contentsLabel.SetTextRole  (DxuiTextRole::Body);
-    m_contentsLabel.SetText      (L"Contents:");
+    m_contentsLabel.SetText      (L"Format:");
     m_contentsLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
     m_contentsDropdown.SetDpi       (m_dpi);
@@ -144,6 +144,7 @@ void CreateDiskDialog::OnCreate()
 
         m_body = CreateDialogContent<CreateDiskBodyPanel>();
         m_body->Init (kids);
+        m_body->SetOnChildPressed ([this] (IDxuiControl * child) { FocusControl (child); });
     }
 
     createButton = AddDialogButton (L"Create", IDOK);
@@ -427,7 +428,8 @@ void CreateDiskDialog::UpdateBootableRow()
     {
         m_bootableCheck.SetEnabled (true);
         m_downloadButton.SetVisible (false);
-        m_bootHint.SetText (L"Installs " + os + L" from the downloaded master disk.");
+        m_bootHint.SetText (L"When checked, installs " + os
+                            + L" from the downloaded master disk.");
     }
     else
     {
@@ -520,6 +522,10 @@ void CreateDiskDialog::OnRowActivated (int row)
 
     if (!m_model->Entries()[(size_t) row].isFolder)
     {
+        // Activating a file row is choosing it, save-dialog style: its name
+        // is already in the field (selection copied it), so run Create --
+        // the overwrite confirm still stands between the click and the disk.
+        OnCreateClicked();
         return;
     }
 
@@ -695,17 +701,22 @@ std::wstring CreateDiskDialog::FormatSize (const FileBrowseEntry & entry)
 //
 //  FormatModified
 //
-//  Local "YYYY-MM-DD HH:MM" from a Unix-seconds stamp; empty when the
-//  entry carries no stamp.
+//  Short date + time in the user's configured locale (12-hour regions get
+//  AM/PM, date order follows regional settings); empty when the entry
+//  carries no stamp.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring CreateDiskDialog::FormatModified (int64_t modifiedUnix)
 {
-    constexpr size_t  kStampChars         = 32;
-    wchar_t           buffer[kStampChars] = {};
-    tm                local               = {};
-    time_t            when                = (time_t) modifiedUnix;
+    constexpr size_t  kStampChars           = 64;
+    wchar_t           dateText[kStampChars] = {};
+    wchar_t           timeText[kStampChars] = {};
+    tm                local                 = {};
+    SYSTEMTIME        st                    = {};
+    time_t            when                  = (time_t) modifiedUnix;
+    int               dateOk                = 0;
+    int               timeOk                = 0;
 
 
 
@@ -714,9 +725,22 @@ std::wstring CreateDiskDialog::FormatModified (int64_t modifiedUnix)
         return std::wstring();
     }
 
-    swprintf_s (buffer, L"%04d-%02d-%02d %02d:%02d",
-                local.tm_year + 1900, local.tm_mon + 1, local.tm_mday,
-                local.tm_hour, local.tm_min);
+    st.wYear   = (WORD) (local.tm_year + 1900);
+    st.wMonth  = (WORD) (local.tm_mon + 1);
+    st.wDay    = (WORD) local.tm_mday;
+    st.wHour   = (WORD) local.tm_hour;
+    st.wMinute = (WORD) local.tm_min;
+    st.wSecond = (WORD) local.tm_sec;
 
-    return buffer;
+    dateOk = GetDateFormatEx (LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, &st,
+                              nullptr, dateText, (int) kStampChars, nullptr);
+    timeOk = GetTimeFormatEx (LOCALE_NAME_USER_DEFAULT, TIME_NOSECONDS, &st,
+                              nullptr, timeText, (int) kStampChars);
+
+    if (dateOk == 0 || timeOk == 0)
+    {
+        return std::wstring();
+    }
+
+    return std::wstring (dateText) + L" " + timeText;
 }

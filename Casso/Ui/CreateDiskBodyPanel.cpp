@@ -66,6 +66,7 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     int  bootTop  = 0;
     int  optTop   = 0;
     int  x        = 0;
+    int  dropX    = 0;
 
 
 
@@ -117,6 +118,8 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
         x = r.right + optPad;
     }
 
+    dropX = x;   // the second dropdown's column; the boot hint aligns to it
+
     if (m_kids.contents != nullptr)
     {
         RECT  r = { x, optTop, x + scaler.Px (kContentsDropDip), optTop + optH };
@@ -151,7 +154,9 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 
     if (m_kids.bootHint != nullptr)
     {
-        RECT  r = { x, bootTop, boundsPx.right, bootTop + bootH };
+        // The hint lines up with the dropdown column above it; a visible
+        // download button can push it further right, never left.
+        RECT  r = { std::max (x, dropX), bootTop, boundsPx.right, bootTop + bootH };
 
         m_kids.bootHint->Layout (r, scaler);
     }
@@ -205,6 +210,7 @@ void CreateDiskBodyPanel::Relayout()
 bool CreateDiskBodyPanel::OnMouse (const DxuiMouseEvent & ev)
 {
     DxuiMouseEvent  listEv  = ev;
+    IDxuiControl *  pressed = nullptr;
     bool            handled = false;
 
 
@@ -212,11 +218,13 @@ bool CreateDiskBodyPanel::OnMouse (const DxuiMouseEvent & ev)
     if (m_kids.format != nullptr)
     {
         handled = m_kids.format->OnMouse (ev);
+        pressed = handled ? m_kids.format : nullptr;
     }
 
     if (!handled && m_kids.contents != nullptr)
     {
         handled = m_kids.contents->OnMouse (ev);
+        pressed = handled ? m_kids.contents : nullptr;
     }
 
     if (!handled && m_kids.list != nullptr)
@@ -225,21 +233,33 @@ bool CreateDiskBodyPanel::OnMouse (const DxuiMouseEvent & ev)
 
         listEv.positionDip = { ev.positionDip.x - lb.left, ev.positionDip.y - lb.top };
         handled            = m_kids.list->OnMouse (listEv);
+        pressed            = handled ? m_kids.list : nullptr;
     }
 
     if (!handled && m_kids.bootable != nullptr)
     {
         handled = m_kids.bootable->OnMouse (ev);
+        pressed = handled ? m_kids.bootable : nullptr;
     }
 
     if (!handled && m_kids.download != nullptr)
     {
         handled = m_kids.download->OnMouse (ev);
+        pressed = handled ? m_kids.download : nullptr;
     }
 
     if (!handled && m_kids.nameInput != nullptr)
     {
         handled = m_kids.nameInput->OnMouse (ev);
+        pressed = handled ? m_kids.nameInput : nullptr;
+    }
+
+    // Click-to-focus: a press that a child consumed moves keyboard focus
+    // there, so the name field drops its caret when the list (or any other
+    // control) is clicked and the list picks up arrow-key navigation.
+    if (ev.kind == DxuiMouseEventKind::Down && pressed != nullptr && m_onChildPressed)
+    {
+        m_onChildPressed (pressed);
     }
 
     return handled;

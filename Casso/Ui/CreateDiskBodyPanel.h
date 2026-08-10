@@ -61,6 +61,13 @@ public:
     //  appearing / vanishing) re-flow the bootable strip immediately.
     void  Relayout ();
 
+    //  Reports the interactive child a mouse press landed on, so the
+    //  hosting dialog can move keyboard focus there (click-to-focus).
+    void  SetOnChildPressed (std::function<void (IDxuiControl *)> fn)
+    {
+        m_onChildPressed = std::move (fn);
+    }
+
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
     LPCWSTR  CursorForPoint (POINT clientPx) const override;
@@ -71,9 +78,9 @@ private:
     static constexpr int  kOptionsRowDip     = 30;
     static constexpr int  kOptionsGapDip     = 8;
     static constexpr int  kOptionLabelPadDip = 6;
-    static constexpr int  kFormatLabelDip    = 56;
+    static constexpr int  kFormatLabelDip    = 85;    // "Image type:"
     static constexpr int  kFormatDropDip     = 110;
-    static constexpr int  kContentsLabelDip  = 72;
+    static constexpr int  kContentsLabelDip  = 60;    // "Format:"
     static constexpr int  kContentsDropDip   = 150;
     static constexpr int  kBootRowDip        = 30;
     static constexpr int  kBootCheckDip      = 110;
@@ -83,6 +90,8 @@ private:
     static constexpr int  kNameLabelDip      = 56;
     static constexpr int  kNameLabelPadDip   = 6;
 
-    Children       m_kids;
-    DxuiDpiScaler  m_lastScaler;
+    Children  m_kids;
+
+    std::function<void (IDxuiControl *)>  m_onChildPressed;
+    DxuiDpiScaler                         m_lastScaler;
 };
