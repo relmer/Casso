@@ -1018,7 +1018,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
 
     // Boot-payload plumbing: availability answers from the download cache;
     // the download callback runs on the dialog's explicit button click.
-    dialog.Configure (&model, &m_shell.m_chromeTheme, GetDpiForWindow (m_shell.m_hwnd),
+    dialog.Configure (&model, &m_shell.m_chromeTheme,
         [] (BlankDiskContents contents)
         {
             return AssetBootstrap::IsStockBootDiskCached (

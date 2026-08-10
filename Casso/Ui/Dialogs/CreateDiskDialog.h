@@ -61,8 +61,9 @@ public:
     //  message popups, and the boot-payload callbacks: `payloadAvailable`
     //  answers whether the OS master for a format choice is cached, and
     //  `downloadPayload` fetches it on the user's explicit click (FR-017).
-    //  Call before Create.
-    void  Configure (FileBrowseModel * model, const IDxuiTheme * theme, UINT dpi,
+    //  Call before Create. DPI is not taken here: it flows to every child
+    //  through the panel tree's layout pass.
+    void  Configure (FileBrowseModel * model, const IDxuiTheme * theme,
                      AvailableFn payloadAvailable, DownloadFn downloadPayload);
 
     const Result &  Outcome () const { return m_result; }
@@ -91,7 +92,6 @@ private:
 
     FileBrowseModel     * m_model = nullptr;   // non-owning
     const IDxuiTheme    * m_theme = nullptr;   // non-owning
-    UINT                  m_dpi   = 96;
     Result                m_result;
 
     DiskFormat               m_imageType = DiskFormat::Woz;

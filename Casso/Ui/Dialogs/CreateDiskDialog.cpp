@@ -19,13 +19,11 @@
 void CreateDiskDialog::Configure (
     FileBrowseModel  * model,
     const IDxuiTheme * theme,
-    UINT               dpi,
     AvailableFn        payloadAvailable,
     DownloadFn         downloadPayload)
 {
     m_model            = model;
     m_theme            = theme;
-    m_dpi              = dpi;
     m_payloadAvailable = std::move (payloadAvailable);
     m_downloadPayload  = std::move (downloadPayload);
 }
@@ -52,7 +50,8 @@ void CreateDiskDialog::OnCreate()
 
 
 
-    m_pathLabel.SetDpi       (m_dpi);
+    // No per-control SetDpi here: DPI flows through the panel tree's layout
+    // pass, so every child picks it up before first paint.
     m_pathLabel.SetTextRole  (DxuiTextRole::Body);
     m_pathLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
@@ -60,7 +59,6 @@ void CreateDiskDialog::OnCreate()
     cols.push_back ({ L"Size",     0, false, DxuiTextRenderer::HAlign::Right });
     cols.push_back ({ L"Modified", 0, false, DxuiTextRenderer::HAlign::Left });
 
-    m_list.SetDpi           (m_dpi);
     m_list.SetTheme         (m_theme);
     m_list.SetShowHeader    (true);
     m_list.SetColumns       (std::move (cols));
@@ -81,12 +79,10 @@ void CreateDiskDialog::OnCreate()
     });
     m_list.SetOnActivateRow ([this] (int row) { OnRowActivated (row); });
 
-    m_formatLabel.SetDpi       (m_dpi);
     m_formatLabel.SetTextRole  (DxuiTextRole::Body);
     m_formatLabel.SetText      (L"Format:");
     m_formatLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
-    m_formatDropdown.SetDpi       (m_dpi);
     m_formatDropdown.SetPopupHost (PopupHost());
     m_formatDropdown.SetItems     ({ FormatCaption (BlankDiskContents::Dos33),
                                      FormatCaption (BlankDiskContents::ProDos),
@@ -94,31 +90,25 @@ void CreateDiskDialog::OnCreate()
     m_formatDropdown.SetSelected  (0);
     m_formatDropdown.SetSelect    ([this] (int index) { OnFormatChanged (index); });
 
-    m_imageTypeLabel.SetDpi       (m_dpi);
     m_imageTypeLabel.SetTextRole  (DxuiTextRole::Body);
     m_imageTypeLabel.SetText      (L"Image type:");
     m_imageTypeLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
-    m_imageTypeDropdown.SetDpi       (m_dpi);
     m_imageTypeDropdown.SetPopupHost (PopupHost());
     m_imageTypeDropdown.SetSelect    ([this] (int index) { OnImageTypeChanged (index); });
 
     RebuildImageTypeChoices();
 
-    m_bootableCheck.SetDpi   (m_dpi);
     m_bootableCheck.SetSingleLineLabel (true);
 
-    m_downloadButton.SetDpi     (m_dpi);
     m_downloadButton.SetOnClick ([this] () { OnDownloadClicked(); });
 
     UpdateBootableRow();
 
-    m_nameLabel.SetDpi       (m_dpi);
     m_nameLabel.SetTextRole  (DxuiTextRole::Body);
     m_nameLabel.SetText      (L"Name:");
     m_nameLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
-    m_nameInput.SetDpi   (m_dpi);
     m_nameInput.SetTheme (m_theme);
     m_nameInput.SetHwnd  (Hwnd());
     m_nameInput.SetMaxLength (128);
