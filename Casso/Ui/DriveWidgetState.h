@@ -203,16 +203,16 @@ inline bool IsSupportedDiskImageExtension (const std::wstring & path)
 //
 //  ComposeWriteProtectTooltip
 //
-//  Builds the single-line hover-tooltip text for a write-protected
-//  drive, naming every active source so the user can tell a setting-
-//  driven lock from an image flag or an unwritable backing file. Returns
-//  an empty string when the disk is not protected (no tooltip shown).
+//  Builds the hover-tooltip text for a write-protected drive: one short
+//  sentence per active source, so a drive-level setting reads differently
+//  from the disk's own flag or an unwritable backing file. Returns an
+//  empty string when the disk is not protected (no tooltip shown).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-inline std::wstring ComposeWriteProtectTooltip (const WriteProtectInfo & wp)
+inline std::wstring ComposeWriteProtectTooltip (int driveNumber, const WriteProtectInfo & wp)
 {
-    std::vector<std::wstring>  reasons;
+    std::vector<std::wstring>  sentences;
     std::wstring               msg;
     size_t                     i = 0;
 
@@ -222,33 +222,25 @@ inline std::wstring ComposeWriteProtectTooltip (const WriteProtectInfo & wp)
         return std::wstring();
     }
 
-    if (wp.userSetting)  { reasons.push_back (L"the write-protect setting"); }
-    if (wp.imageFlag)    { reasons.push_back (L"the image's write-protect flag"); }
-    if (wp.readOnlyFile) { reasons.push_back (L"a read-only file"); }
-    if (wp.noPermission) { reasons.push_back (L"no write permission for the file"); }
+    if (wp.userSetting)
+    {
+        sentences.push_back (L"Drive " + std::to_wstring (driveNumber)
+                             + L" is write-protected in settings.");
+    }
 
-    msg = L"Disk is write-protected by ";
+    if (wp.imageFlag)    { sentences.push_back (L"Disk image is write-protected."); }
+    if (wp.readOnlyFile) { sentences.push_back (L"Disk image is read-only."); }
+    if (wp.noPermission) { sentences.push_back (L"Disk image is not writable (access denied or locked)."); }
 
-    for (i = 0; i < reasons.size(); ++i)
+    for (i = 0; i < sentences.size(); ++i)
     {
         if (i > 0)
         {
-            if (i + 1 == reasons.size())
-            {
-                // Final source: ", and " for a 3+ list (Oxford comma),
-                // a bare " and " for exactly two.
-                msg += (reasons.size() > 2) ? L", and " : L" and ";
-            }
-            else
-            {
-                msg += L", ";
-            }
+            msg += L" ";
         }
 
-        msg += reasons[i];
+        msg += sentences[i];
     }
-
-    msg += L".";
 
     return msg;
 }

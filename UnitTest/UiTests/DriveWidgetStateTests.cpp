@@ -180,7 +180,7 @@ public:
     {
         WriteProtectInfo  wp;
 
-        Assert::IsTrue (ComposeWriteProtectTooltip (wp).empty(),
+        Assert::IsTrue (ComposeWriteProtectTooltip (1, wp).empty(),
                         L"An unprotected disk yields no tooltip text");
     }
 
@@ -196,14 +196,14 @@ public:
         wpReadOnly.readOnlyFile = true;
         wpNoPerm.noPermission   = true;
 
-        Assert::AreEqual (std::wstring (L"Disk is write-protected by the write-protect setting."),
-                          ComposeWriteProtectTooltip (wpSetting));
-        Assert::AreEqual (std::wstring (L"Disk is write-protected by the image's write-protect flag."),
-                          ComposeWriteProtectTooltip (wpImage));
-        Assert::AreEqual (std::wstring (L"Disk is write-protected by a read-only file."),
-                          ComposeWriteProtectTooltip (wpReadOnly));
-        Assert::AreEqual (std::wstring (L"Disk is write-protected by no write permission for the file."),
-                          ComposeWriteProtectTooltip (wpNoPerm));
+        Assert::AreEqual (std::wstring (L"Drive 2 is write-protected in settings."),
+                          ComposeWriteProtectTooltip (2, wpSetting));
+        Assert::AreEqual (std::wstring (L"Disk image is write-protected."),
+                          ComposeWriteProtectTooltip (1, wpImage));
+        Assert::AreEqual (std::wstring (L"Disk image is read-only."),
+                          ComposeWriteProtectTooltip (1, wpReadOnly));
+        Assert::AreEqual (std::wstring (L"Disk image is not writable (access denied or locked)."),
+                          ComposeWriteProtectTooltip (1, wpNoPerm));
     }
 
     TEST_METHOD (WriteProtectTooltip_JoinsMultipleSources)
@@ -214,15 +214,16 @@ public:
         wp.imageFlag   = true;
 
         Assert::AreEqual (
-            std::wstring (L"Disk is write-protected by the write-protect setting and the image's write-protect flag."),
-            ComposeWriteProtectTooltip (wp),
-            L"Two sources join with \" and \"");
+            std::wstring (L"Drive 1 is write-protected in settings. Disk image is write-protected."),
+            ComposeWriteProtectTooltip (1, wp),
+            L"Each active source contributes its own sentence");
 
         wp.readOnlyFile = true;
 
         Assert::AreEqual (
-            std::wstring (L"Disk is write-protected by the write-protect setting, the image's write-protect flag, and a read-only file."),
-            ComposeWriteProtectTooltip (wp),
-            L"Three sources use an Oxford-comma list");
+            std::wstring (L"Drive 1 is write-protected in settings. Disk image is write-protected. "
+                          L"Disk image is read-only."),
+            ComposeWriteProtectTooltip (1, wp),
+            L"All active sources appear in order");
     }
 };

@@ -6126,7 +6126,8 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     if (wpDrive != nullptr && !overBtn)
     {
         m_driveTooltip.RequestShow (wpDrive->OuterRect(),
-                                    ComposeWriteProtectTooltip (wpDrive->WriteProtect()),
+                                    ComposeWriteProtectTooltip (wpDrive->Drive() + 1,
+                                                                wpDrive->WriteProtect()),
                                     nowMs);
     }
     else
