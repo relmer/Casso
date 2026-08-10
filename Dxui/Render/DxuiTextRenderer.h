@@ -115,6 +115,13 @@ public:
                                float         & outWidthDip,
                                float         & outHeightDip) override;
 
+    HRESULT  MeasureStringWrapped (const wchar_t * text,
+                                   float           fontSizeDip,
+                                   const wchar_t * fontFamily,
+                                   float           maxWidthDip,
+                                   float         & outWidthDip,
+                                   float         & outHeightDip) override;
+
     HRESULT  OnDeviceLost     ();
     HRESULT  OnDeviceRestored (ID3D11Device * pDevice);
 

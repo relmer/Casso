@@ -7,7 +7,7 @@ Project guidelines, code style, EHM patterns, build rules, and current feature c
 Read that file at the start of every session.
 
 <!-- SPECKIT START -->
-No spec is currently active. Recent specs live under `specs/` (015 printer
-support and 016 Apple //c are complete; 017 blank-disk creation is specced
-but not started).
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan:
+`specs/017-blank-disk-creation/plan.md` (spec: `specs/017-blank-disk-creation/spec.md`)
 <!-- SPECKIT END -->

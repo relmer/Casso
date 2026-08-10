@@ -252,7 +252,7 @@ wstring DiskImageStore::FormatFlushLossMessage (const string & path)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::FlushEntry (Entry & entry)
+HRESULT DiskImageStore::FlushEntry (Entry & entry, bool force)
 {
     HRESULT       hr     = S_OK;
     vector<Byte>  bytes;
@@ -260,11 +260,14 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
 
 
 
-    // No-op cases -- nothing dirty to persist -- succeed silently.
+    // No-op cases -- nothing dirty to persist -- succeed silently. A
+    // forced flush persists the current state regardless: the dirty bit
+    // and the write-protect gate govern guest writes, not a host-side
+    // persist of (say) a flipped write-protect flag.
     BAIL_OUT_IF (!entry.mounted || entry.image == nullptr, S_OK);
-    BAIL_OUT_IF (!entry.image->IsDirty(), S_OK);
+    BAIL_OUT_IF (!force && !entry.image->IsDirty(), S_OK);
 
-    if (entry.image->IsWriteProtected())
+    if (!force && entry.image->IsWriteProtected())
     {
         entry.image->ClearDirty();
         BAIL_OUT_IF (true, S_OK);
@@ -320,6 +323,30 @@ HRESULT DiskImageStore::Flush (int slot, int drive)
     CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
     hr = FlushEntry (At (slot, drive));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ForceFlush
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::ForceFlush (int slot, int drive)
+{
+    HRESULT   hr = S_OK;
+
+
+
+    CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
+
+    hr = FlushEntry (At (slot, drive), true);
 
 Error:
     return hr;
@@ -510,4 +537,42 @@ const string & DiskImageStore::GetSourcePath (int slot, int drive) const
     // Returns a reference, so a bad bay yields the member empty string rather
     // than a temporary.
     return IsValidBay (slot, drive) ? At (slot, drive).path : m_emptyPath;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountedSourcePaths
+//
+//  Every mounted entry's backing path with its bay. Entries mounted from
+//  bytes with an empty virtual path are skipped -- there is no host file to
+//  collide with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DiskImageStore::MountedSource> DiskImageStore::MountedSourcePaths() const
+{
+    std::vector<MountedSource>  result;
+    int                         slot   = 0;
+    int                         drive  = 0;
+
+
+
+    for (slot = 0; slot < kSlotCount; slot++)
+    {
+        for (drive = 0; drive < kDriveCount; drive++)
+        {
+            const Entry &  entry = At (slot, drive);
+
+            if (entry.mounted && !entry.path.empty())
+            {
+                result.push_back (MountedSource{ entry.path, slot, drive });
+            }
+        }
+    }
+
+    return result;
 }

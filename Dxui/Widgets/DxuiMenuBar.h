@@ -68,6 +68,21 @@ struct DxuiMenuBarSubitem
     bool                     enabled     = true;
     bool                     checkable   = false;
     bool                     isSeparator = false;
+
+    //  Dynamic overrides of `enabled` / `label`; declared last so existing
+    //  positional aggregate initializers stay valid.
+    std::function<bool()>          isEnabled;
+    std::function<std::wstring()>  labelText;
+
+    //  Live enabled state: the dynamic query when supplied, else the static
+    //  flag -- so items whose availability changes (a drive emptying) stay
+    //  truthful without rebuilding the menu.
+    bool  Enabled () const { return isEnabled ? isEnabled() : enabled; }
+
+    //  Live label: the dynamic text when supplied, else the static label --
+    //  so items can name their target ("Write-protect <image>") and flip
+    //  verbs with state without rebuilding the menu.
+    std::wstring  LabelText () const { return labelText ? labelText() : label; }
 };
 
 

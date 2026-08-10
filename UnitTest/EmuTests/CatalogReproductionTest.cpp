@@ -3,6 +3,7 @@
 #include "HeadlessHost.h"
 #include "KeystrokeInjector.h"
 #include "TextScreenScraper.h"
+#include "Devices/Disk/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk2Controller.h"
 #include "Devices/Disk/NibblizationLayer.h"
@@ -46,6 +47,7 @@ public:
     static constexpr Word        kIntCxRomOff         = 0xC006;
     static constexpr int         kSlot6               = 6;
     static constexpr int         kDrive1              = 0;
+    static constexpr int         kDrive2              = 1;
 
     // DOS 3.3 cold boot from a real .dsk: boot ROM loads sector 0,
     // bootstrap chain loads more sectors from track 0..1, DOS init
@@ -56,6 +58,26 @@ public:
     // CATALOG seeks to track 17 (VTOC), reads VTOC, walks the catalog
     // chain printing each entry. Real-disk timing in cycle units.
     static constexpr uint64_t    kCatalogCycles       = 60'000'000ULL;
+
+    static std::vector<Byte> ReadFileOrEmpty (const std::filesystem::path & full)
+    {
+        std::error_code    ec;
+        std::vector<Byte>  bytes;
+
+        if (std::filesystem::exists (full, ec))
+        {
+            std::ifstream f (full, std::ios::binary);
+
+            if (f)
+            {
+                bytes.assign ((std::istreambuf_iterator<char> (f)),
+                              std::istreambuf_iterator<char> ());
+            }
+        }
+
+        return bytes;
+    }
+
 
     static std::vector<Byte> ReadDskOrEmpty (const std::string & relPath)
     {
@@ -72,18 +94,7 @@ public:
 
         for (int i = 0; walking && bytes.empty() && i < 10; i++)
         {
-            std::filesystem::path full = cursor / relPath;
-
-            if (std::filesystem::exists (full, ec))
-            {
-                std::ifstream f (full, std::ios::binary);
-
-                if (f)
-                {
-                    bytes.assign ((std::istreambuf_iterator<char> (f)),
-                                  std::istreambuf_iterator<char> ());
-                }
-            }
+            bytes = ReadFileOrEmpty (cursor / relPath);
 
             // Nothing read yet -- including the exists-but-unreadable case,
             // which keeps climbing rather than giving up at that level.
@@ -96,6 +107,38 @@ public:
                 else
                 {
                     cursor = cursor.parent_path();
+                }
+            }
+        }
+
+        // The repo copy is optional; a developer machine usually has the
+        // stock master in the GUI's asset-download cache instead, filed
+        // under its catalog display name. Read-only fallback, still
+        // skip-if-missing on machines with neither.
+        if (bytes.empty())
+        {
+            const wchar_t *  cacheName = nullptr;
+
+            if (relPath == "Disks/Apple/dos33-master.dsk")
+            {
+                cacheName = L"DOS 3.3 System Master.dsk";
+            }
+            else if (relPath == "Disks/Apple/prodos-users.dsk")
+            {
+                cacheName = L"ProDOS Users Disk.dsk";
+            }
+
+            if (cacheName != nullptr)
+            {
+                wchar_t * localAppData = nullptr;
+                size_t    len          = 0;
+
+                if (_wdupenv_s (&localAppData, &len, L"LOCALAPPDATA") == 0 &&
+                    localAppData != nullptr)
+                {
+                    bytes = ReadFileOrEmpty (std::filesystem::path (localAppData) /
+                                             L"Casso" / L"Disks" / cacheName);
+                    free (localAppData);
                 }
             }
         }
@@ -280,6 +323,385 @@ public:
         // HOME wipe, so this text can only be the LOADed program.
         Assert::IsTrue (afterList.find ("TEST PROGRAM") != std::string::npos,
             L"LOAD+LIST must recover the saved program text (write round-trip).");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  DOS33_SAVE_ToBuiltBlankWoz_SurvivesRemount
+    //
+    //  End-to-end gate for the created-blank-disk write path: boot the
+    //  real DOS 3.3 master in drive 1, mount a default-built blank WOZ in
+    //  drive 2, and have the real CPU SAVE a program to it, then LOAD and
+    //  LIST it back -- proving a freshly created disk is immediately
+    //  usable with no INIT step. Then eject the blank (the store's
+    //  auto-flush serializes the written image through the same path the
+    //  GUI uses), remount the serialized bytes fresh, and LOAD again --
+    //  proving the write survives a full serialize/reload cycle.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (DOS33_SAVE_ToBuiltBlankWoz_SurvivesRemount)
+    {
+        HeadlessHost    host;
+        EmulatorCore    core;
+        HRESULT         hr        = S_OK;
+        DiskImage     * masterImg = nullptr;
+        DiskImage     * blankImg  = nullptr;
+        BlankDiskSpec   spec;
+        vector<Byte>    blankWoz;
+        vector<Byte>    flushedWoz;
+        std::string     afterSave;
+        std::string     afterList;
+        std::string     afterRemount;
+
+
+
+        std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
+        if (raw.empty())
+        {
+            Logger::WriteMessage ("SKIPPED: Disks/Apple/dos33-master.dsk not "
+                                  "available in this checkout.\n");
+            return;
+        }
+
+        Assert::AreEqual (size_t (143360), raw.size(),
+            L"DOS 3.3 master disk must be 143360 bytes");
+
+
+        hr = host.BuildApple2eWithDisk2 (core);
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
+
+        core.PowerCycle();
+
+        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+            "dos33-master.dsk", DiskFormat::Dsk, raw);
+        AssertSucceeded (hr, L"master MountFromBytes must succeed");
+
+        masterImg = core.diskStore->GetImage (kSlot6, kDrive1);
+        Assert::IsNotNull (masterImg, L"Mounted master DiskImage must be present");
+        core.diskController->SetExternalDisk (kDrive1, masterImg);
+
+        // The blank under test is exactly what the create dialog produces
+        // when the user accepts the defaults.
+        hr = BlankDiskBuilder::Build (spec, BootPayload{}, blankWoz);
+        AssertSucceeded (hr, L"Build must produce the default blank WOZ");
+
+        hr = core.diskStore->MountFromBytes (kSlot6, kDrive2,
+            "new-blank.woz", DiskFormat::Woz, blankWoz);
+        AssertSucceeded (hr, L"blank MountFromBytes must succeed");
+
+        blankImg = core.diskStore->GetImage (kSlot6, kDrive2);
+        Assert::IsNotNull (blankImg, L"Mounted blank DiskImage must be present");
+        core.diskController->SetExternalDisk (kDrive2, blankImg);
+
+        // Capture the eject-time auto-flush in memory instead of letting it
+        // touch the host filesystem.
+        core.diskStore->SetFlushSink (
+            [&flushedWoz] (const string & path, const vector<Byte> & bytes)
+        {
+            if (path == "new-blank.woz")
+            {
+                flushedWoz = bytes;
+            }
+
+            return S_OK;
+        });
+
+        core.bus->WriteByte (kIntCxRomOff, 0);
+        core.cpu->SetPC (kBootRomEntry);
+
+        core.RunCycles (kDos33ColdBootCycles);
+
+        auto Screen = [&] () -> std::string
+        {
+            std::string               joined;
+
+            std::vector<std::string>  scr = TextScreenScraper::Scrape40 (
+                *core.bus, TextScreenScraper::kTextPage1);
+            for (const auto & r : scr) { joined += r; joined += "\n"; }
+            return joined;
+        };
+
+        Assert::IsTrue (Screen().find (']') != std::string::npos,
+            L"DOS 3.3 must reach the ] prompt within the cold-boot budget.");
+
+        // Enter a one-line program and SAVE it to the blank in drive 2.
+        KeystrokeInjector::InjectLine (core, "10 REM BLANK DISK TEST", kCatalogCycles);
+        KeystrokeInjector::InjectLine (core, "SAVE TEST,D2", kCatalogCycles);
+        afterSave = Screen();
+
+        KeystrokeInjector::InjectLine (core, "NEW", kCatalogCycles);
+        KeystrokeInjector::InjectLine (core, "LOAD TEST,D2", kCatalogCycles);
+        KeystrokeInjector::InjectLine (core, "HOME", kCatalogCycles);
+        KeystrokeInjector::InjectLine (core, "LIST", kCatalogCycles);
+        afterList = Screen();
+
+        Assert::IsTrue (afterSave.find ("I/O ERROR") == std::string::npos &&
+                        afterList.find ("I/O ERROR") == std::string::npos,
+            L"SAVE/LOAD on a built blank WOZ must not return I/O ERROR.");
+
+        Assert::IsTrue (afterList.find ("BLANK DISK TEST") != std::string::npos,
+            L"LOAD+LIST from drive 2 must recover the program saved to the blank.");
+
+        // Eject (auto-flush serializes the dirty image into the sink), then
+        // remount the serialized bytes fresh and read the file again.
+        core.diskController->SetExternalDisk (kDrive2, nullptr);
+        core.diskStore->Eject (kSlot6, kDrive2);
+
+        Assert::IsFalse (flushedWoz.empty(),
+            L"Eject must flush the written blank through the sink.");
+
+        hr = core.diskStore->MountFromBytes (kSlot6, kDrive2,
+            "reloaded-blank.woz", DiskFormat::Woz, flushedWoz);
+        AssertSucceeded (hr, L"remount of the flushed bytes must succeed");
+
+        blankImg = core.diskStore->GetImage (kSlot6, kDrive2);
+        Assert::IsNotNull (blankImg, L"Remounted DiskImage must be present");
+        core.diskController->SetExternalDisk (kDrive2, blankImg);
+
+        KeystrokeInjector::InjectLine (core, "NEW", kCatalogCycles);
+        KeystrokeInjector::InjectLine (core, "LOAD TEST,D2", kCatalogCycles);
+        KeystrokeInjector::InjectLine (core, "HOME", kCatalogCycles);
+        KeystrokeInjector::InjectLine (core, "LIST", kCatalogCycles);
+        afterRemount = Screen();
+
+        Assert::IsTrue (afterRemount.find ("BLANK DISK TEST") != std::string::npos,
+            L"The saved program must survive serialize + fresh remount.");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  DOS33_SAVE_RespectsImageWriteProtect
+    //
+    //  SC-005 gate: with the image write-protect flag set, a guest SAVE
+    //  fails with WRITE PROTECTED; clearing the flag lets the same SAVE
+    //  succeed and round-trip.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (DOS33_SAVE_RespectsImageWriteProtect)
+    {
+        HeadlessHost    host;
+        EmulatorCore    core;
+        HRESULT         hr        = S_OK;
+        DiskImage     * masterImg = nullptr;
+        DiskImage     * blankImg  = nullptr;
+        BlankDiskSpec   spec;
+        vector<Byte>    blankWoz;
+        std::string     afterProtectedSave;
+        std::string     afterWritableSave;
+
+
+
+        std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
+        if (raw.empty())
+        {
+            Logger::WriteMessage ("SKIPPED: Disks/Apple/dos33-master.dsk not "
+                                  "available in this checkout.\n");
+            return;
+        }
+
+        hr = host.BuildApple2eWithDisk2 (core);
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
+
+        core.PowerCycle();
+
+        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+            "dos33-master.dsk", DiskFormat::Dsk, raw);
+        AssertSucceeded (hr, L"master MountFromBytes must succeed");
+
+        masterImg = core.diskStore->GetImage (kSlot6, kDrive1);
+        Assert::IsNotNull (masterImg);
+        core.diskController->SetExternalDisk (kDrive1, masterImg);
+
+        hr = BlankDiskBuilder::Build (spec, BootPayload{}, blankWoz);
+        AssertSucceeded (hr, L"blank WOZ must build");
+
+        hr = core.diskStore->MountFromBytes (kSlot6, kDrive2,
+            "wp-blank.woz", DiskFormat::Woz, blankWoz);
+        AssertSucceeded (hr, L"blank MountFromBytes must succeed");
+
+        blankImg = core.diskStore->GetImage (kSlot6, kDrive2);
+        Assert::IsNotNull (blankImg);
+        core.diskController->SetExternalDisk (kDrive2, blankImg);
+
+        // Protected first: the guest must refuse the write.
+        blankImg->SetImageWriteProtected (true);
+
+        core.bus->WriteByte (kIntCxRomOff, 0);
+        core.cpu->SetPC (kBootRomEntry);
+
+        core.RunCycles (kDos33ColdBootCycles);
+
+        auto Screen = [&] () -> std::string
+        {
+            std::string               joined;
+
+            std::vector<std::string>  scr = TextScreenScraper::Scrape40 (
+                *core.bus, TextScreenScraper::kTextPage1);
+            for (const auto & r : scr) { joined += r; joined += "\n"; }
+            return joined;
+        };
+
+        Assert::IsTrue (Screen().find (']') != std::string::npos,
+            L"DOS 3.3 must reach the ] prompt within the cold-boot budget.");
+
+        KeystrokeInjector::InjectLine (core, "10 REM WP TEST", kCatalogCycles);
+        KeystrokeInjector::InjectLine (core, "SAVE TEST,D2", kCatalogCycles);
+        afterProtectedSave = Screen();
+
+        Assert::IsTrue (afterProtectedSave.find ("WRITE PROTECTED") != std::string::npos,
+            L"a SAVE to a protected image must fail with WRITE PROTECTED (SC-005)");
+
+        // Unprotect and repeat: the same SAVE must now succeed.
+        blankImg->SetImageWriteProtected (false);
+
+        KeystrokeInjector::InjectLine (core, "HOME", kCatalogCycles);
+        KeystrokeInjector::InjectLine (core, "SAVE TEST,D2", kCatalogCycles);
+        afterWritableSave = Screen();
+
+        Assert::IsTrue (afterWritableSave.find ("WRITE PROTECTED") == std::string::npos &&
+                        afterWritableSave.find ("I/O ERROR") == std::string::npos,
+            L"clearing the flag must let the SAVE through");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  BootableDos33Woz_BootsToCleanPrompt
+    //
+    //  SC-006 gate: a bootable DOS 3.3 WOZ built from the real System
+    //  Master must cold-boot to the Applesoft prompt with the HELLO
+    //  greeting found and run -- no FILE NOT FOUND, no I/O ERROR.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (BootableDos33Woz_BootsToCleanPrompt)
+    {
+        HeadlessHost   host;
+        EmulatorCore   core;
+        HRESULT        hr  = S_OK;
+        DiskImage    * img = nullptr;
+        BlankDiskSpec  spec;
+        BootPayload    payload;
+        vector<Byte>   woz;
+        std::string    screen;
+
+
+
+        payload.dosMasterSectors = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
+        if (payload.dosMasterSectors.empty())
+        {
+            Logger::WriteMessage ("SKIPPED: DOS 3.3 master not available.\n");
+            return;
+        }
+
+        spec.bootable = true;
+
+        hr = BlankDiskBuilder::Build (spec, payload, woz);
+        AssertSucceeded (hr, L"bootable DOS 3.3 WOZ must build");
+
+        hr = host.BuildApple2eWithDisk2 (core);
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
+
+        core.PowerCycle();
+
+        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+            "bootable-blank.woz", DiskFormat::Woz, woz);
+        AssertSucceeded (hr, L"MountFromBytes must succeed");
+
+        img = core.diskStore->GetImage (kSlot6, kDrive1);
+        Assert::IsNotNull (img, L"Mounted DiskImage must be present");
+        core.diskController->SetExternalDisk (kDrive1, img);
+
+        core.bus->WriteByte (kIntCxRomOff, 0);
+        core.cpu->SetPC (kBootRomEntry);
+
+        core.RunCycles (kDos33ColdBootCycles);
+
+        {
+            std::vector<std::string>  rows = TextScreenScraper::Scrape40 (
+                *core.bus, TextScreenScraper::kTextPage1);
+
+            for (const auto & r : rows) { screen += r; screen += "\n"; }
+        }
+
+        Assert::IsTrue (screen.find (']') != std::string::npos,
+            L"the built disk must boot DOS to the Applesoft prompt");
+        Assert::IsTrue (screen.find ("FILE NOT FOUND") == std::string::npos,
+            L"the HELLO greeting must be found and run");
+        Assert::IsTrue (screen.find ("I/O ERROR") == std::string::npos,
+            L"the boot must be error-free");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  BootableProDosWoz_BootsToBasicPrompt
+    //
+    //  SC-006 gate: a bootable ProDOS WOZ built from the real Users Disk
+    //  must cold-boot through PRODOS into BASIC.SYSTEM's prompt.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (BootableProDosWoz_BootsToBasicPrompt)
+    {
+        HeadlessHost   host;
+        EmulatorCore   core;
+        HRESULT        hr  = S_OK;
+        DiskImage    * img = nullptr;
+        BlankDiskSpec  spec;
+        BootPayload    payload;
+        vector<Byte>   woz;
+        std::string    screen;
+
+
+
+        payload.proDosUsersDisk = ReadDskOrEmpty ("Disks/Apple/prodos-users.dsk");
+        if (payload.proDosUsersDisk.empty())
+        {
+            Logger::WriteMessage ("SKIPPED: ProDOS Users Disk not available.\n");
+            return;
+        }
+
+        spec.contents = BlankDiskContents::ProDos;
+        spec.bootable = true;
+
+        hr = BlankDiskBuilder::Build (spec, payload, woz);
+        AssertSucceeded (hr, L"bootable ProDOS WOZ must build");
+
+        hr = host.BuildApple2eWithDisk2 (core);
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
+
+        core.PowerCycle();
+
+        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+            "bootable-prodos.woz", DiskFormat::Woz, woz);
+        AssertSucceeded (hr, L"MountFromBytes must succeed");
+
+        img = core.diskStore->GetImage (kSlot6, kDrive1);
+        Assert::IsNotNull (img, L"Mounted DiskImage must be present");
+        core.diskController->SetExternalDisk (kDrive1, img);
+
+        core.bus->WriteByte (kIntCxRomOff, 0);
+        core.cpu->SetPC (kBootRomEntry);
+
+        core.RunCycles (kDos33ColdBootCycles);
+
+        {
+            std::vector<std::string>  rows = TextScreenScraper::Scrape40 (
+                *core.bus, TextScreenScraper::kTextPage1);
+
+            for (const auto & r : rows) { screen += r; screen += "\n"; }
+        }
+
+        Assert::IsTrue (screen.find (']') != std::string::npos,
+            L"the built disk must boot ProDOS into BASIC.SYSTEM's prompt");
+        Assert::IsTrue (screen.find ("UNABLE") == std::string::npos &&
+                        screen.find ("ERROR") == std::string::npos,
+            L"the ProDOS boot must be error-free");
     }
 };
 

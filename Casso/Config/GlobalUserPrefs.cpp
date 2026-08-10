@@ -40,6 +40,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "activeTheme",
     "skeuoMonitorFrame",
     "lastSelectedMachine",
+    "lastDiskCreateFolder",
     "audioDownloadConsent",
     "inputMappingMode",
     "arrowsToJoystick",
@@ -936,6 +937,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("activeTheme",          JsonValue (activeTheme));
     root.emplace_back ("skeuoMonitorFrame",    JsonValue (skeuoMonitorFrame));
     root.emplace_back ("lastSelectedMachine",  JsonValue (lastSelectedMachine));
+    root.emplace_back ("lastDiskCreateFolder", JsonValue (lastDiskCreateFolder));
     root.emplace_back ("audioDownloadConsent", JsonValue (audioDownloadConsent));
     root.emplace_back ("inputMappingMode",     JsonValue (std::string (InputMappingModeToString (inputMappingMode))));
     root.emplace_back ("arrowsToJoystick",     JsonValue (arrowsToJoystick));
@@ -1055,6 +1057,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     activeTheme          = GetStringOpt (v, "activeTheme",            activeTheme);
     skeuoMonitorFrame    = TryGetBoolOpt   (v, "skeuoMonitorFrame",      skeuoMonitorFrame);
     lastSelectedMachine  = GetStringOpt (v, "lastSelectedMachine",    lastSelectedMachine);
+    lastDiskCreateFolder = GetStringOpt (v, "lastDiskCreateFolder",   lastDiskCreateFolder);
     audioDownloadConsent = GetStringOpt (v, "audioDownloadConsent",   audioDownloadConsent);
 
     // inputMappingMode supersedes the legacy bool "mapArrowsToJoystick";

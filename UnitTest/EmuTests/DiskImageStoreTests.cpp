@@ -144,6 +144,39 @@ public:
             L"DSK mount must produce nibblized track bits");
     }
 
+    TEST_METHOD (MountedSourcePaths_ReportsEveryMountedBay)
+    {
+        DiskImageStore    store;
+        vector<Byte>      raw   = MakeDsk (0x11);
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "a.dsk", DiskFormat::Dsk, raw));
+        AssertSucceeded (store.MountFromBytes (6, 1, "b.dsk", DiskFormat::Dsk, raw));
+
+        auto  mounted = store.MountedSourcePaths();
+
+        Assert::AreEqual ((size_t) 2, mounted.size());
+        Assert::AreEqual (std::string ("a.dsk"), mounted[0].path);
+        Assert::AreEqual (0, mounted[0].drive);
+        Assert::AreEqual (std::string ("b.dsk"), mounted[1].path);
+        Assert::AreEqual (1, mounted[1].drive);
+
+        store.Eject (6, 0);
+        mounted = store.MountedSourcePaths();
+
+        Assert::AreEqual ((size_t) 1, mounted.size());
+        Assert::AreEqual (std::string ("b.dsk"), mounted[0].path);
+    }
+
+    TEST_METHOD (MountedSourcePaths_SkipsEmptyVirtualPath)
+    {
+        DiskImageStore    store;
+        vector<Byte>      raw   = MakeDsk (0x22);
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "", DiskFormat::Dsk, raw));
+
+        Assert::AreEqual ((size_t) 0, store.MountedSourcePaths().size());
+    }
+
     TEST_METHOD (MountFromBytes_WozNativeNoNibblization)
     {
         DiskImageStore    store;

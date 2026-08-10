@@ -111,6 +111,23 @@ public:
                                     float          & outWidthDip,
                                     float          & outHeightDip)              = 0;
 
+    // Word-wrapped measurement inside maxWidthDip: outWidthDip is the widest
+    // wrapped line, outHeightDip the stacked line height -- the box a
+    // wrapping DrawString of the same text needs. The default forwards to
+    // the single-line measure so implementations without wrapping keep
+    // their existing behavior.
+    virtual HRESULT  MeasureStringWrapped (const wchar_t  * text,
+                                           float            fontSizeDip,
+                                           const wchar_t  * fontFamily,
+                                           float            maxWidthDip,
+                                           float          & outWidthDip,
+                                           float          & outHeightDip)
+    {
+        UNREFERENCED_PARAMETER (maxWidthDip);
+
+        return MeasureString (text, fontSizeDip, fontFamily, outWidthDip, outHeightDip);
+    }
+
     // Blit a premultiplied BGRA8 bitmap (e.g. the app icon harvested
     // from an HICON) into the target. Implementations cache the source
     // pixels in a GPU bitmap; callers should keep the buffer stable

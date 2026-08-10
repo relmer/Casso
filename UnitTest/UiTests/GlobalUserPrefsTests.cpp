@@ -77,6 +77,7 @@ public:
         orig.activeTheme            = "Retro Terminal";
         orig.skeuoMonitorFrame      = true;
         orig.lastSelectedMachine    = "Apple2e";
+        orig.lastDiskCreateFolder   = "C:\\Users\\me\\Disks";
         orig.arrowsToJoystick       = true;
         orig.pointerMapping         = InputMappingMode::Mouse;
         orig.crtByMode[0].brightness         = 1.25f;
@@ -109,6 +110,7 @@ public:
         Assert::AreEqual (orig.activeTheme,         loaded.activeTheme);
         Assert::AreEqual (orig.skeuoMonitorFrame,   loaded.skeuoMonitorFrame);
         Assert::AreEqual (orig.lastSelectedMachine, loaded.lastSelectedMachine);
+        Assert::AreEqual (orig.lastDiskCreateFolder, loaded.lastDiskCreateFolder);
         Assert::AreEqual (orig.arrowsToJoystick, loaded.arrowsToJoystick);
         Assert::IsTrue   (orig.pointerMapping == loaded.pointerMapping,
                           L"split pointer mapping round-trips");

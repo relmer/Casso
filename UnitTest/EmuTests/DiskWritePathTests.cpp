@@ -2,11 +2,13 @@
 #include "Assembler.h"
 #include "AssemblerTypes.h"
 #include "HeadlessHost.h"
+#include "Devices/Disk/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk2Controller.h"
 #include "Devices/Disk/Disk2NibbleEngine.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/NibblizationLayer.h"
+#include "Devices/Disk/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -309,6 +311,145 @@ public:
 
         Assert::IsTrue (payloadAt != std::string::npos,
             L"Nibbles written through the LSS must frame back to the payload (GH #89).");
+    }
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteProtectToggleTests
+//
+//  Store-level contract behind the Disk-menu write-protect toggle: the WOZ
+//  image flag round-trips through a forced flush, the flush-before-protect
+//  ordering loses no dirty sectors, and the regular flush gate (which the
+//  ordering exists to dodge) really does drop dirty content once the image
+//  is protected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (WriteProtectToggleTests)
+{
+public:
+
+    static vector<Byte> BuildBlankWoz()
+    {
+        BlankDiskSpec  spec;
+        vector<Byte>   woz;
+
+        AssertSucceeded (BlankDiskBuilder::Build (spec, BootPayload{}, woz));
+
+        return woz;
+    }
+
+
+    TEST_METHOD (WozWpFlag_RoundTripsThroughForceFlush)
+    {
+        DiskImageStore  store;
+        DiskImage     * img = nullptr;
+        DiskImage       reloaded;
+        vector<Byte>    flushed;
+
+
+
+        store.SetFlushSink ([&flushed] (const string &, const vector<Byte> & bytes)
+        {
+            flushed = bytes;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "t.woz", DiskFormat::Woz, BuildBlankWoz()));
+
+        img = store.GetImage (6, 0);
+        Assert::IsNotNull (img);
+
+        img->SetImageWriteProtected (true);
+        AssertSucceeded (store.ForceFlush (6, 0));
+
+        AssertSucceeded (WozLoader::Load (flushed, reloaded));
+        Assert::IsTrue (reloaded.GetWriteProtectInfo().imageFlag,
+            L"the WP flag must land in the serialized INFO chunk");
+
+        img->SetImageWriteProtected (false);
+        AssertSucceeded (store.ForceFlush (6, 0));
+
+        AssertSucceeded (WozLoader::Load (flushed, reloaded));
+        Assert::IsFalse (reloaded.GetWriteProtectInfo().imageFlag,
+            L"clearing the flag must round-trip too");
+    }
+
+
+    TEST_METHOD (FlushBeforeProtect_LosesNoDirtySectors)
+    {
+        DiskImageStore  store;
+        DiskImage     * img  = nullptr;
+        DiskImage       reloaded;
+        vector<Byte>    flushed;
+        uint8_t         bit0 = 0;
+
+
+
+        store.SetFlushSink ([&flushed] (const string &, const vector<Byte> & bytes)
+        {
+            flushed = bytes;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "t.woz", DiskFormat::Woz, BuildBlankWoz()));
+
+        img = store.GetImage (6, 0);
+        Assert::IsNotNull (img);
+
+        // Guest-style write: flip the first bit of track 0.
+        bit0 = img->ReadBit (0, 0);
+        img->WriteBit (0, 0, (uint8_t) (bit0 ^ 1));
+        Assert::IsTrue (img->IsDirty());
+
+        // The toggle's ordering: flush while writable, protect, force-flush.
+        AssertSucceeded (store.Flush (6, 0));
+        img->SetImageWriteProtected (true);
+        AssertSucceeded (store.ForceFlush (6, 0));
+
+        AssertSucceeded (WozLoader::Load (flushed, reloaded));
+
+        Assert::IsTrue (reloaded.GetWriteProtectInfo().imageFlag,
+            L"the flag must be set in the final file");
+        Assert::AreEqual ((int) (bit0 ^ 1), (int) reloaded.ReadBit (0, 0),
+            L"the pre-toggle write must survive in the final file");
+    }
+
+
+    TEST_METHOD (RegularFlush_DropsDirtyOnceProtected)
+    {
+        DiskImageStore  store;
+        DiskImage     * img        = nullptr;
+        int             sinkCalls  = 0;
+        uint8_t         bit0       = 0;
+
+
+
+        store.SetFlushSink ([&sinkCalls] (const string &, const vector<Byte> &)
+        {
+            sinkCalls++;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "t.woz", DiskFormat::Woz, BuildBlankWoz()));
+
+        img = store.GetImage (6, 0);
+        Assert::IsNotNull (img);
+
+        bit0 = img->ReadBit (0, 0);
+        img->WriteBit (0, 0, (uint8_t) (bit0 ^ 1));
+        img->SetImageWriteProtected (true);
+
+        // The gate the toggle's ordering exists for: a protected image's
+        // regular flush drops the dirty content without writing.
+        AssertSucceeded (store.Flush (6, 0));
+        Assert::AreEqual (0, sinkCalls, L"no write may happen through the gate");
+        Assert::IsFalse (img->IsDirty(), L"the dirty bit is consumed");
     }
 };
 

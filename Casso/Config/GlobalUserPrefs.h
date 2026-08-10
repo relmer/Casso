@@ -128,6 +128,11 @@ struct GlobalUserPrefs
     // so every recent disk starts with an unknown (0) load time.
     std::vector<std::int64_t>  recentDiskLoadedAt;
 
+    // The folder the last created disk image landed in (UTF-8 absolute
+    // path). The create dialog opens here next time; empty or vanished
+    // falls back to Documents\Casso Disks.
+    std::string  lastDiskCreateFolder;
+
     // Host print-service preferences (Settings > Printing, FR-011). Global --
     // host print services are shared by every machine. The delivery
     // destination is no longer a stored preference: Print always targets a

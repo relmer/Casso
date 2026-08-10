@@ -592,7 +592,7 @@ bool DxuiMenuBar::HandleKey (WPARAM vk)
         // exactly as before.
         entry = EntryAt (m_openIndex, m_highlightIndex);
 
-        if (entry != nullptr && entry->enabled && entry->dispatch)
+        if (entry != nullptr && entry->Enabled() && entry->dispatch)
         {
             entry->dispatch();
             Close();
@@ -639,9 +639,9 @@ bool DxuiMenuBar::ActivateMnemonicRow (wchar_t ch)
         {
             if (hit == nullptr)
             {
-                ParseMnemonic (sub.label, stripped, mnIdx, mnCh);
+                ParseMnemonic (sub.LabelText(), stripped, mnIdx, mnCh);
 
-                if (mnCh != 0 && mnCh == lower && sub.enabled && sub.dispatch)
+                if (mnCh != 0 && mnCh == lower && sub.Enabled() && sub.dispatch)
                 {
                     hit    = &sub;
                     hitRow = row;
@@ -832,7 +832,7 @@ bool DxuiMenuBar::HandleMouseUp (int x, int y)
         entry = EntryAt (m_openIndex, hitEntry);
     }
 
-    if (entry != nullptr && entry->enabled && entry->dispatch)
+    if (entry != nullptr && entry->Enabled() && entry->dispatch)
     {
         entry->dispatch();
         Close();
@@ -1068,8 +1068,8 @@ void DxuiMenuBar::PaintDropdownRows (
         int           mnIdx       = -1;
         wchar_t       mnCh        = 0;
         int           entryHeight = EntryHeightPx (sub);
-        uint32_t      labelArgb   = sub.enabled ? pal.text  : pal.disabled;
-        uint32_t      hotkeyArgb  = sub.enabled ? pal.accel : pal.disabled;
+        uint32_t      labelArgb   = sub.Enabled() ? pal.text  : pal.disabled;
+        uint32_t      hotkeyArgb  = sub.Enabled() ? pal.accel : pal.disabled;
 
         if (sub.isSeparator)
         {
@@ -1082,7 +1082,7 @@ void DxuiMenuBar::PaintDropdownRows (
             continue;
         }
 
-        ParseMnemonic (sub.label, stripped, mnIdx, mnCh);
+        ParseMnemonic (sub.LabelText(), stripped, mnIdx, mnCh);
 
         if (row == m_highlightIndex)
         {
@@ -1093,15 +1093,23 @@ void DxuiMenuBar::PaintDropdownRows (
                               pal.hover);
         }
 
-        hr = text.DrawString (stripped.c_str(),
-                              (float) (rect.left + labelLeftPx),
-                              (float) (rect.top + y + rowPadTopPx),
-                              (float) accelOffsetPx,
-                              (float) entryHeight,
-                              labelArgb,
-                              fontDip,
-                              s_kFontFamily);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        {
+            // A row with no hotkey owns the whole width; otherwise the label
+            // stops where the accelerator column starts.
+            float  labelW = sub.hotkey.empty()
+                          ? (float) (rect.right - rect.left - labelLeftPx - rowPadLeftPx)
+                          : (float) accelOffsetPx;
+
+            hr = text.DrawString (stripped.c_str(),
+                                  (float) (rect.left + labelLeftPx),
+                                  (float) (rect.top + y + rowPadTopPx),
+                                  labelW,
+                                  (float) entryHeight,
+                                  labelArgb,
+                                  fontDip,
+                                  s_kFontFamily);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
 
         if (sub.checkable && sub.isChecked && sub.isChecked())
         {
@@ -1116,7 +1124,7 @@ void DxuiMenuBar::PaintDropdownRows (
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
-        if (showCues && mnIdx >= 0 && !stripped.empty() && sub.enabled)
+        if (showCues && mnIdx >= 0 && !stripped.empty() && sub.Enabled())
         {
             float         prefixW  = 0.0f;
             float         charW    = 0.0f;
@@ -1588,7 +1596,7 @@ int DxuiMenuBar::FirstEnabledRow (int menuIndex) const
     {
         entry = EntryAt (menuIndex, row);
 
-        if (entry != nullptr && entry->enabled)
+        if (entry != nullptr && entry->Enabled())
         {
             first = row;
         }
@@ -1635,7 +1643,7 @@ int DxuiMenuBar::NextEnabledRow (int menuIndex, int startRow, int direction) con
         next      = (next + direction + count) % count;
         candidate = EntryAt (menuIndex, next);
 
-        if (candidate != nullptr && candidate->enabled)
+        if (candidate != nullptr && candidate->Enabled())
         {
             found   = next;
             isFound = true;
@@ -2027,7 +2035,7 @@ void DxuiMenuBar::OnPopupClick (POINT localPx)
 
     DXUI_ASSERT_UI_THREAD();
 
-    if (entry != nullptr && entry->enabled && entry->dispatch)
+    if (entry != nullptr && entry->Enabled() && entry->dispatch)
     {
         dispatch = entry->dispatch;
     }

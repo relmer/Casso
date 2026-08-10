@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -243,6 +243,7 @@
     <ClCompile Include="Config\GlobalUserPrefs.cpp" />
     <ClCompile Include="Ui\Chrome\MainMenu.cpp" />
     <ClCompile Include="Ui\ThemeLoader.cpp" />
+    <ClCompile Include="Ui\CreateDiskBodyPanel.cpp" />
     <ClCompile Include="Ui\PickerBodyPanel.cpp" />
     <ClCompile Include="Ui\PickerDialog.cpp" />
     <ClCompile Include="Ui\ThemeManager.cpp" />
@@ -282,6 +283,8 @@
     <ClCompile Include="Ui\Chrome\DriveLabelTruncation.cpp" />
     <ClCompile Include="Ui\Dialogs\DialogBodyContent.cpp" />
     <ClCompile Include="Ui\Dialogs\MessageDialog.cpp" />
+    <ClCompile Include="Ui\Dialogs\CreateDiskDialog.cpp" />
+    <ClCompile Include="Ui\FileBrowseModel.cpp" />
     <ClCompile Include="Ui\Dialogs\DownloadBodyPanel.cpp" />
     <ClCompile Include="Ui\Dialogs\DownloadContentPanel.cpp" />
     <ClCompile Include="Ui\Dialogs\DownloadDialog.cpp" />
@@ -325,6 +328,8 @@
     <ClInclude Include="Ui\Dialogs\DialogDefinition.h" />
     <ClInclude Include="Ui\Dialogs\DialogBodyContent.h" />
     <ClInclude Include="Ui\Dialogs\MessageDialog.h" />
+    <ClInclude Include="Ui\Dialogs\CreateDiskDialog.h" />
+    <ClInclude Include="Ui\FileBrowseModel.h" />
     <ClInclude Include="Ui\Dialogs\DownloadBodyPanel.h" />
     <ClInclude Include="Ui\Dialogs\DownloadContentPanel.h" />
     <ClInclude Include="Ui\Dialogs\DownloadDialog.h" />
@@ -333,6 +338,7 @@
     <ClInclude Include="Shell\RepoCheckout.h" />
     <ClInclude Include="Ui\Chrome\MainMenu.h" />
     <ClInclude Include="Ui\ThemeLoader.h" />
+    <ClInclude Include="Ui\CreateDiskBodyPanel.h" />
     <ClInclude Include="Ui\PickerBodyPanel.h" />
     <ClInclude Include="Ui\PickerDialog.h" />
     <ClInclude Include="Ui\ThemeManager.h" />

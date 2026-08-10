@@ -31,6 +31,12 @@
 #define IDM_DISK_WRITEPROTECT1      40026
 #define IDM_DISK_WRITEPROTECT2      40027
 
+// Per-drive image write-protect toggle (the WOZ INFO flag / the host
+// file's read-only attribute), distinct from the per-drive USER
+// write-protect preference above.
+#define IDM_DISK_WP1                40028
+#define IDM_DISK_WP2                40029
+
 #define IDM_VIEW_COLOR              40030
 #define IDM_VIEW_GREEN              40031
 #define IDM_VIEW_AMBER              40032

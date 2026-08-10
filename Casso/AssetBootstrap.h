@@ -151,6 +151,9 @@ public:
     //                  or chose Browse (caller then runs IFileOpenDialog)
     //   outBrowse    = true if the user clicked Browse... (caller
     //                  should fall through to its file-picker path)
+    //   outCreateNew = true if the user chose the pinned
+    //                  <Create new disk...> row (caller runs
+    //                  the create-disk flow for the same drive)
     static HRESULT  PromptInsertDiskMru   (HINSTANCE                hInstance,
                                            HWND                     hwndParent,
                                            int                      drive,
@@ -159,6 +162,7 @@ public:
                                            std::string_view         themeName,
                                            wstring                & outDiskPath,
                                            bool                   & outBrowse,
+                                           bool                   & outCreateNew,
                                            string                 & outError);
 
     // Unified startup downloader. Inspects the current install for
@@ -190,4 +194,19 @@ public:
                                            struct GlobalUserPrefs & prefs,
                                            bool                   & outUserExited,
                                            string                 & outError);
+
+    // The stock OS masters the create-disk flow installs from. Availability
+    // is the download cache under GetDiskDirectory(); Ensure downloads on
+    // demand (blocking, no UI -- the caller owns consent and reporting).
+    enum class StockBootDisk
+    {
+        Dos33Master,
+        ProDosUsersDisk,
+    };
+
+    static fs::path  StockBootDiskPath     (StockBootDisk disk);
+    static bool      IsStockBootDiskCached (StockBootDisk disk);
+    static HRESULT   EnsureStockBootDisk   (StockBootDisk disk,
+                                            wstring     & outDiskPath,
+                                            string      & outError);
 };
