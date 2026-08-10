@@ -32,12 +32,13 @@
 //  verdict (or a confirmed overwrite) ends the modal with a confirmed
 //  Result. Cancel / Escape / the close box leave Result unconfirmed.
 //
-//  The Image-type dropdown (WOZ / DSK / PO) drives the Format choices
-//  (DOS 3.3 / ProDOS / unformatted): only legal pairings are ever listed,
-//  so an illegal combination cannot be selected. The name field's
-//  extension follows the image type, as does the listing's extension
-//  filter. The Bootable toggle installs the chosen OS from the downloaded
-//  master; clicking any control moves keyboard focus there.
+//  The Format dropdown (DOS 3.3 / ProDOS / Unformatted) is the primary
+//  choice; it drives which image types (WOZ / DSK / PO) are offered, so an
+//  illegal pairing cannot be selected. The name field's extension follows
+//  the image type, as does the listing's extension filter. The Make-
+//  bootable checkbox carries its own explanation in its label and installs
+//  the chosen OS from the downloaded master; clicking any control moves
+//  keyboard focus there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,7 +59,7 @@ public:
     //  Wire the pre-configured model (caller-owned; folder set, extension
     //  filter + mounted paths applied), the theme used for the dialog's own
     //  message popups, and the boot-payload callbacks: `payloadAvailable`
-    //  answers whether the OS master for a contents choice is cached, and
+    //  answers whether the OS master for a format choice is cached, and
     //  `downloadPayload` fetches it on the user's explicit click (FR-017).
     //  Call before Create.
     void  Configure (FileBrowseModel * model, const IDxuiTheme * theme, UINT dpi,
@@ -70,20 +71,22 @@ protected:
     void  OnCreate () override;
 
 private:
-    void  RefreshFromModel   ();
-    void  RefreshListing     ();
-    void  OnCreateClicked    ();
-    void  OnFormatChanged    (int index);
-    void  OnContentsChanged  (int index);
-    void  OnDownloadClicked  ();
-    void  OnRowActivated     (int row);
-    void  RebuildContentsChoices ();
-    void  UpdateBootableRow  ();
+    void  RefreshFromModel     ();
+    void  RefreshListing       ();
+    void  OnCreateClicked      ();
+    void  OnFormatChanged      (int index);
+    void  OnImageTypeChanged   (int index);
+    void  OnDownloadClicked    ();
+    void  OnRowActivated       (int row);
+    void  RebuildImageTypeChoices ();
+    void  ApplyImageTypeExtension ();
+    void  UpdateBootableRow    ();
 
     static std::wstring    FormatSize       (const FileBrowseEntry & entry);
     static std::wstring    FormatModified   (int64_t modifiedUnix);
-    static const wchar_t * FormatExtension  (DiskFormat format);
-    static std::wstring    ContentsCaption  (BlankDiskContents contents);
+    static const wchar_t * FormatExtension  (DiskFormat imageType);
+    static const wchar_t * ImageTypeCaption (DiskFormat imageType);
+    static std::wstring    FormatCaption    (BlankDiskContents contents);
     static std::wstring    ReplaceExtension (const std::wstring & name, const wchar_t * ext);
 
     FileBrowseModel     * m_model = nullptr;   // non-owning
@@ -91,22 +94,21 @@ private:
     UINT                  m_dpi   = 96;
     Result                m_result;
 
-    DiskFormat                      m_format   = DiskFormat::Woz;
-    BlankDiskContents               m_contents = BlankDiskContents::Dos33;
-    std::vector<BlankDiskContents>  m_contentsChoices;
-    AvailableFn                     m_payloadAvailable;
-    DownloadFn                      m_downloadPayload;
+    DiskFormat               m_imageType = DiskFormat::Woz;
+    BlankDiskContents        m_contents  = BlankDiskContents::Dos33;
+    std::vector<DiskFormat>  m_imageTypeChoices;
+    AvailableFn              m_payloadAvailable;
+    DownloadFn               m_downloadPayload;
 
     CreateDiskBodyPanel * m_body      = nullptr;   // owned by the child tree
     DxuiLabel             m_pathLabel;
     DxuiListView          m_list;
     DxuiLabel             m_formatLabel;
-    DxuiDropdown          m_formatDropdown;
-    DxuiLabel             m_contentsLabel;
-    DxuiDropdown          m_contentsDropdown;
+    DxuiDropdown          m_formatDropdown;      // DOS 3.3 / ProDOS / Unformatted
+    DxuiLabel             m_imageTypeLabel;
+    DxuiDropdown          m_imageTypeDropdown;   // WOZ / DSK / PO
     DxuiCheckbox          m_bootableCheck;
     DxuiButton            m_downloadButton;
-    DxuiLabel             m_bootHint;
     DxuiLabel             m_nameLabel;
     DxuiTextInput         m_nameInput;
 };

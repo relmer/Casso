@@ -28,11 +28,10 @@ void CreateDiskBodyPanel::Init (const Children & children)
     Adopt (*children.list);
     Adopt (*children.formatLabel);
     Adopt (*children.format);
-    Adopt (*children.contentsLabel);
-    Adopt (*children.contents);
+    Adopt (*children.imageTypeLabel);
+    Adopt (*children.imageType);
     Adopt (*children.bootable);
     Adopt (*children.download);
-    Adopt (*children.bootHint);
     Adopt (*children.nameLabel);
     Adopt (*children.nameInput);
 }
@@ -66,7 +65,6 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     int  bootTop  = 0;
     int  optTop   = 0;
     int  x        = 0;
-    int  dropX    = 0;
 
 
 
@@ -110,55 +108,47 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
         x = r.right + optGap * 2;
     }
 
-    if (m_kids.contentsLabel != nullptr)
+    if (m_kids.imageTypeLabel != nullptr)
     {
-        RECT  r = { x, optTop, x + scaler.Px (kContentsLabelDip), optTop + optH };
+        RECT  r = { x, optTop, x + scaler.Px (kImageTypeLabelDip), optTop + optH };
 
-        m_kids.contentsLabel->Layout (r, scaler);
+        m_kids.imageTypeLabel->Layout (r, scaler);
         x = r.right + optPad;
     }
 
-    dropX = x;   // the second dropdown's column; the boot hint aligns to it
-
-    if (m_kids.contents != nullptr)
+    if (m_kids.imageType != nullptr)
     {
-        RECT  r = { x, optTop, x + scaler.Px (kContentsDropDip), optTop + optH };
+        RECT  r = { x, optTop, x + scaler.Px (kImageTypeDropDip), optTop + optH };
 
-        m_kids.contents->Layout (r, scaler);
+        m_kids.imageType->Layout (r, scaler);
     }
 
     x = boundsPx.left;
 
     if (m_kids.bootable != nullptr)
     {
-        RECT  r = { x, bootTop, x + scaler.Px (kBootCheckDip), bootTop + bootH };
+        // With the download button hidden the checkbox owns the whole strip
+        // (its label carries the explanation); with the button visible the
+        // checkbox keeps its short-label width and the button follows.
+        bool  haveButton = (m_kids.download != nullptr && m_kids.download->Visible());
+        int   checkW     = haveButton ? scaler.Px (kBootCheckDip)
+                                      : (boundsPx.right - x);
+        RECT  r          = { x, bootTop, x + checkW, bootTop + bootH };
 
         m_kids.bootable->Layout (r, scaler);
-        x = r.right + optGap * 2;
-    }
 
-    if (m_kids.download != nullptr)
-    {
-        // A hidden download button gives its space to the hint instead of
-        // leaving a gap in the strip.
-        int   buttonW = m_kids.download->Visible() ? scaler.Px (kBootButtonDip) : 0;
-        RECT  r       = { x, bootTop, x + buttonW, bootTop + bootH };
-
-        m_kids.download->Layout (r, scaler);
-
-        if (buttonW > 0)
+        if (haveButton)
         {
             x = r.right + optGap * 2;
         }
     }
 
-    if (m_kids.bootHint != nullptr)
+    if (m_kids.download != nullptr)
     {
-        // The hint lines up with the dropdown column above it; a visible
-        // download button can push it further right, never left.
-        RECT  r = { std::max (x, dropX), bootTop, boundsPx.right, bootTop + bootH };
+        int   buttonW = m_kids.download->Visible() ? scaler.Px (kBootButtonDip) : 0;
+        RECT  r       = { x, bootTop, x + buttonW, bootTop + bootH };
 
-        m_kids.bootHint->Layout (r, scaler);
+        m_kids.download->Layout (r, scaler);
     }
 
     if (m_kids.nameLabel != nullptr)
@@ -221,10 +211,10 @@ bool CreateDiskBodyPanel::OnMouse (const DxuiMouseEvent & ev)
         pressed = handled ? m_kids.format : nullptr;
     }
 
-    if (!handled && m_kids.contents != nullptr)
+    if (!handled && m_kids.imageType != nullptr)
     {
-        handled = m_kids.contents->OnMouse (ev);
-        pressed = handled ? m_kids.contents : nullptr;
+        handled = m_kids.imageType->OnMouse (ev);
+        pressed = handled ? m_kids.imageType : nullptr;
     }
 
     if (!handled && m_kids.list != nullptr)

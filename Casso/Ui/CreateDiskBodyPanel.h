@@ -21,8 +21,8 @@ class DxuiTextInput;
 //
 //  Dxui content panel for the create-disk dialog: the current-folder path
 //  label on top, the folder listing filling the middle, then three fixed
-//  strips along the bottom -- Format / Contents options, the Bootable
-//  toggle with its download affordance and hint, and the "Name:" label +
+//  strips along the bottom -- the Format / Image-type options, the Make-
+//  bootable checkbox with its download affordance, and the "Name:" label +
 //  text input. Lays out in physical pixels (the hosting dialog passes a px
 //  content rect) so the fixed strip heights scale with DPI. Does not own
 //  any child -- Init only wires them into the panel tree.
@@ -40,17 +40,16 @@ public:
     //  Every child the dialog composes into this panel, none owned here.
     struct Children
     {
-        DxuiLabel     * pathLabel     = nullptr;
-        DxuiListView  * list          = nullptr;
-        DxuiLabel     * formatLabel   = nullptr;
-        DxuiDropdown  * format        = nullptr;
-        DxuiLabel     * contentsLabel = nullptr;
-        DxuiDropdown  * contents      = nullptr;
-        DxuiCheckbox  * bootable      = nullptr;
-        DxuiButton    * download      = nullptr;
-        DxuiLabel     * bootHint      = nullptr;
-        DxuiLabel     * nameLabel     = nullptr;
-        DxuiTextInput * nameInput     = nullptr;
+        DxuiLabel     * pathLabel      = nullptr;
+        DxuiListView  * list           = nullptr;
+        DxuiLabel     * formatLabel    = nullptr;   // DOS 3.3 / ProDOS / Unformatted
+        DxuiDropdown  * format         = nullptr;
+        DxuiLabel     * imageTypeLabel = nullptr;   // WOZ / DSK / PO
+        DxuiDropdown  * imageType      = nullptr;
+        DxuiCheckbox  * bootable       = nullptr;
+        DxuiButton    * download       = nullptr;
+        DxuiLabel     * nameLabel      = nullptr;
+        DxuiTextInput * nameInput      = nullptr;
     };
 
     void  Init (const Children & children);
@@ -78,12 +77,12 @@ private:
     static constexpr int  kOptionsRowDip     = 30;
     static constexpr int  kOptionsGapDip     = 8;
     static constexpr int  kOptionLabelPadDip = 6;
-    static constexpr int  kFormatLabelDip    = 85;    // "Image type:"
-    static constexpr int  kFormatDropDip     = 110;
-    static constexpr int  kContentsLabelDip  = 60;    // "Format:"
-    static constexpr int  kContentsDropDip   = 150;
+    static constexpr int  kFormatLabelDip    = 60;    // "Format:"
+    static constexpr int  kFormatDropDip     = 150;
+    static constexpr int  kImageTypeLabelDip = 85;    // "Image type:"
+    static constexpr int  kImageTypeDropDip  = 110;
     static constexpr int  kBootRowDip        = 30;
-    static constexpr int  kBootCheckDip      = 110;
+    static constexpr int  kBootCheckDip      = 130;   // short label beside the button
     static constexpr int  kBootButtonDip     = 170;
     static constexpr int  kNameRowDip        = 30;
     static constexpr int  kNameGapDip        = 8;

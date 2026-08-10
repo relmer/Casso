@@ -83,36 +83,33 @@ void CreateDiskDialog::OnCreate()
 
     m_formatLabel.SetDpi       (m_dpi);
     m_formatLabel.SetTextRole  (DxuiTextRole::Body);
-    m_formatLabel.SetText      (L"Image type:");
+    m_formatLabel.SetText      (L"Format:");
     m_formatLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
     m_formatDropdown.SetDpi       (m_dpi);
     m_formatDropdown.SetPopupHost (PopupHost());
-    m_formatDropdown.SetItems     ({ L"WOZ", L"DSK", L"PO" });
+    m_formatDropdown.SetItems     ({ FormatCaption (BlankDiskContents::Dos33),
+                                     FormatCaption (BlankDiskContents::ProDos),
+                                     FormatCaption (BlankDiskContents::Unformatted) });
     m_formatDropdown.SetSelected  (0);
     m_formatDropdown.SetSelect    ([this] (int index) { OnFormatChanged (index); });
 
-    m_contentsLabel.SetDpi       (m_dpi);
-    m_contentsLabel.SetTextRole  (DxuiTextRole::Body);
-    m_contentsLabel.SetText      (L"Format:");
-    m_contentsLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+    m_imageTypeLabel.SetDpi       (m_dpi);
+    m_imageTypeLabel.SetTextRole  (DxuiTextRole::Body);
+    m_imageTypeLabel.SetText      (L"Image type:");
+    m_imageTypeLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
-    m_contentsDropdown.SetDpi       (m_dpi);
-    m_contentsDropdown.SetPopupHost (PopupHost());
-    m_contentsDropdown.SetSelect    ([this] (int index) { OnContentsChanged (index); });
+    m_imageTypeDropdown.SetDpi       (m_dpi);
+    m_imageTypeDropdown.SetPopupHost (PopupHost());
+    m_imageTypeDropdown.SetSelect    ([this] (int index) { OnImageTypeChanged (index); });
 
-    RebuildContentsChoices();
+    RebuildImageTypeChoices();
 
     m_bootableCheck.SetDpi   (m_dpi);
-    m_bootableCheck.SetLabel (L"Bootable");
     m_bootableCheck.SetSingleLineLabel (true);
 
     m_downloadButton.SetDpi     (m_dpi);
     m_downloadButton.SetOnClick ([this] () { OnDownloadClicked(); });
-
-    m_bootHint.SetDpi       (m_dpi);
-    m_bootHint.SetTextRole  (DxuiTextRole::Body);
-    m_bootHint.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
     UpdateBootableRow();
 
@@ -130,17 +127,16 @@ void CreateDiskDialog::OnCreate()
     {
         CreateDiskBodyPanel::Children  kids;
 
-        kids.pathLabel     = &m_pathLabel;
-        kids.list          = &m_list;
-        kids.formatLabel   = &m_formatLabel;
-        kids.format        = &m_formatDropdown;
-        kids.contentsLabel = &m_contentsLabel;
-        kids.contents      = &m_contentsDropdown;
-        kids.bootable      = &m_bootableCheck;
-        kids.download      = &m_downloadButton;
-        kids.bootHint      = &m_bootHint;
-        kids.nameLabel     = &m_nameLabel;
-        kids.nameInput     = &m_nameInput;
+        kids.pathLabel      = &m_pathLabel;
+        kids.list           = &m_list;
+        kids.formatLabel    = &m_formatLabel;
+        kids.format         = &m_formatDropdown;
+        kids.imageTypeLabel = &m_imageTypeLabel;
+        kids.imageType      = &m_imageTypeDropdown;
+        kids.bootable       = &m_bootableCheck;
+        kids.download       = &m_downloadButton;
+        kids.nameLabel      = &m_nameLabel;
+        kids.nameInput      = &m_nameInput;
 
         m_body = CreateDialogContent<CreateDiskBodyPanel>();
         m_body->Init (kids);
@@ -249,11 +245,31 @@ const wchar_t * CreateDiskDialog::FormatExtension (DiskFormat format)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ContentsCaption
+//  ImageTypeCaption
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring CreateDiskDialog::ContentsCaption (BlankDiskContents contents)
+const wchar_t * CreateDiskDialog::ImageTypeCaption (DiskFormat imageType)
+{
+    switch (imageType)
+    {
+        case DiskFormat::Dsk: return L"DSK";
+        case DiskFormat::Po:  return L"PO";
+        default:              return L"WOZ";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatCaption
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CreateDiskDialog::FormatCaption (BlankDiskContents contents)
 {
     switch (contents)
     {
@@ -288,53 +304,83 @@ std::wstring CreateDiskDialog::ReplaceExtension (const std::wstring & name, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RebuildContentsChoices
+//  RebuildImageTypeChoices
 //
-//  The Format choice drives what Contents can pair with it (WOZ takes
-//  anything; DSK is DOS-order, PO is ProDOS-order), so an illegal pairing
-//  is never even listed. The current selection is preserved by value when
-//  it stays legal and snaps to the format's canonical filesystem when not.
+//  The Format choice (the primary pick) drives which image types can carry
+//  it: DOS 3.3 fits WOZ or DSK, ProDOS fits WOZ or PO, and unformatted
+//  media fits anything -- so an illegal pairing is never even listed. The
+//  current image type is preserved by value when it stays legal and snaps
+//  to WOZ when not; a snap re-applies the name extension and filter.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CreateDiskDialog::RebuildContentsChoices()
+void CreateDiskDialog::RebuildImageTypeChoices()
 {
     std::vector<std::wstring>  captions;
+    DiskFormat                 before   = m_imageType;
     int                        selected = 0;
     size_t                     i        = 0;
 
 
 
-    switch (m_format)
+    switch (m_contents)
     {
-        case DiskFormat::Dsk:
-            m_contentsChoices = { BlankDiskContents::Dos33, BlankDiskContents::Unformatted };
+        case BlankDiskContents::Dos33:
+            m_imageTypeChoices = { DiskFormat::Woz, DiskFormat::Dsk };
             break;
 
-        case DiskFormat::Po:
-            m_contentsChoices = { BlankDiskContents::ProDos, BlankDiskContents::Unformatted };
+        case BlankDiskContents::ProDos:
+            m_imageTypeChoices = { DiskFormat::Woz, DiskFormat::Po };
             break;
 
         default:
-            m_contentsChoices = { BlankDiskContents::Dos33, BlankDiskContents::ProDos,
-                                  BlankDiskContents::Unformatted };
+            m_imageTypeChoices = { DiskFormat::Woz, DiskFormat::Dsk, DiskFormat::Po };
             break;
     }
 
-    for (i = 0; i < m_contentsChoices.size(); i++)
+    for (i = 0; i < m_imageTypeChoices.size(); i++)
     {
-        captions.push_back (ContentsCaption (m_contentsChoices[i]));
+        captions.push_back (ImageTypeCaption (m_imageTypeChoices[i]));
 
-        if (m_contentsChoices[i] == m_contents)
+        if (m_imageTypeChoices[i] == m_imageType)
         {
             selected = (int) i;
         }
     }
 
-    m_contents = m_contentsChoices[(size_t) selected];
+    m_imageType = m_imageTypeChoices[(size_t) selected];
 
-    m_contentsDropdown.SetItems    (captions);
-    m_contentsDropdown.SetSelected (selected);
+    m_imageTypeDropdown.SetItems    (captions);
+    m_imageTypeDropdown.SetSelected (selected);
+
+    if (m_imageType != before)
+    {
+        ApplyImageTypeExtension();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyImageTypeExtension
+//
+//  The name field's extension and the listing's filter both follow the
+//  image type.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CreateDiskDialog::ApplyImageTypeExtension()
+{
+    m_nameInput.SetText (ReplaceExtension (m_nameInput.Text(), FormatExtension (m_imageType)));
+
+    if (m_model != nullptr)
+    {
+        m_model->SetExtensionFilter (FormatExtension (m_imageType));
+        RefreshListing();
+    }
 }
 
 
@@ -351,20 +397,33 @@ void CreateDiskDialog::OnFormatChanged (int index)
 {
     switch (index)
     {
-        case 1:  m_format = DiskFormat::Dsk; break;
-        case 2:  m_format = DiskFormat::Po;  break;
-        default: m_format = DiskFormat::Woz; break;
+        case 1:  m_contents = BlankDiskContents::ProDos;      break;
+        case 2:  m_contents = BlankDiskContents::Unformatted; break;
+        default: m_contents = BlankDiskContents::Dos33;       break;
     }
 
-    RebuildContentsChoices();
+    RebuildImageTypeChoices();
     UpdateBootableRow();
 
-    m_nameInput.SetText (ReplaceExtension (m_nameInput.Text(), FormatExtension (m_format)));
+    Invalidate();
+}
 
-    if (m_model != nullptr)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnImageTypeChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CreateDiskDialog::OnImageTypeChanged (int index)
+{
+    if (index >= 0 && index < (int) m_imageTypeChoices.size())
     {
-        m_model->SetExtensionFilter (FormatExtension (m_format));
-        RefreshListing();
+        m_imageType = m_imageTypeChoices[(size_t) index];
+        ApplyImageTypeExtension();
     }
 
     Invalidate();
@@ -376,31 +435,12 @@ void CreateDiskDialog::OnFormatChanged (int index)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnContentsChanged
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CreateDiskDialog::OnContentsChanged (int index)
-{
-    if (index >= 0 && index < (int) m_contentsChoices.size())
-    {
-        m_contents = m_contentsChoices[(size_t) index];
-    }
-
-    UpdateBootableRow();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  UpdateBootableRow
 //
-//  Three states: raw media cannot boot (toggle disabled, no affordance);
-//  the OS master is cached (toggle live); or the master is missing (toggle
-//  disabled, an explicit Download button plus the reason -- FR-017).
+//  The checkbox label carries its own explanation. Three states: raw media
+//  cannot boot (disabled, says why); the OS master is cached (live, says
+//  what checking installs); or the master is missing (disabled short
+//  label + an explicit Download button -- FR-017).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -408,7 +448,7 @@ void CreateDiskDialog::UpdateBootableRow()
 {
     bool          formatted = (m_contents != BlankDiskContents::Unformatted);
     bool          available = false;
-    std::wstring  os        = ContentsCaption (m_contents);
+    std::wstring  os        = FormatCaption (m_contents);
 
 
 
@@ -421,24 +461,24 @@ void CreateDiskDialog::UpdateBootableRow()
     {
         m_bootableCheck.SetChecked (false);
         m_bootableCheck.SetEnabled (false);
+        m_bootableCheck.SetLabel (L"Make bootable (unformatted media cannot carry an OS)");
         m_downloadButton.SetVisible (false);
-        m_bootHint.SetText (L"Raw media cannot carry an operating system.");
     }
     else if (available)
     {
         m_bootableCheck.SetEnabled (true);
+        m_bootableCheck.SetLabel (L"Make bootable (installs " + os
+                                  + L" from the downloaded master disk)");
         m_downloadButton.SetVisible (false);
-        m_bootHint.SetText (L"When checked, installs " + os
-                            + L" from the downloaded master disk.");
     }
     else
     {
         m_bootableCheck.SetChecked (false);
         m_bootableCheck.SetEnabled (false);
+        m_bootableCheck.SetLabel (L"Make bootable");
         m_downloadButton.SetVisible (true);
         m_downloadButton.SetEnabled (true);
         m_downloadButton.SetLabel (L"Download " + os + L"...");
-        m_bootHint.SetText (L"The " + os + L" master disk is not downloaded yet.");
     }
 
     // The strip re-flows around the download button's visibility.
@@ -601,7 +641,7 @@ void CreateDiskDialog::OnCreateClicked()
 
     // The file's extension always matches the chosen format.
     {
-        const wchar_t * ext     = FormatExtension (m_format);
+        const wchar_t * ext     = FormatExtension (m_imageType);
         size_t          extLen  = wcslen (ext);
         bool            matches = name.size() >= extLen;
         size_t          i       = 0;
@@ -650,7 +690,7 @@ void CreateDiskDialog::OnCreateClicked()
             [[fallthrough]];
 
         case TargetVerdict::Ok:
-            m_result.spec.format   = m_format;
+            m_result.spec.format   = m_imageType;
             m_result.spec.contents = m_contents;
             m_result.spec.bootable = m_bootableCheck.Enabled() && m_bootableCheck.Checked();
             m_result.targetPath    = m_model->ComposeTargetPath (name);
