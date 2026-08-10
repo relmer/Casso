@@ -6161,8 +6161,12 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // exclusive bands, but be explicit).
     if (wpDrive != nullptr && !overBtn)
     {
+        std::wstring  imageName = std::filesystem::path (
+            m_diskStore.GetSourcePath (6, wpDrive->Drive())).filename().wstring();
+
         m_driveTooltip.RequestShow (wpDrive->OuterRect(),
                                     ComposeWriteProtectTooltip (wpDrive->Drive() + 1,
+                                                                imageName,
                                                                 wpDrive->WriteProtect()),
                                     nowMs);
     }

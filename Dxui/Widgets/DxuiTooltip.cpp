@@ -14,6 +14,12 @@ static constexpr float     s_kBorderDip       = 1.0f;
 static constexpr const wchar_t * s_kFontFamily    = DxuiTheme::kBodyFace;
 
 //
+//  Text wider than this wraps onto additional lines instead of growing the
+//  balloon past the window edge.
+//
+static constexpr float     s_kMaxTextWidthDip = 340.0f;
+
+//
 //  Fallback glyph metrics used to size the balloon when precise text
 //  measurement is unavailable (e.g. test mode, where the popup has no
 //  DWrite factory). Deliberately a little generous so text never clips.
@@ -240,13 +246,20 @@ void DxuiTooltip::ShowPopup()
 
     if (shows)
     {
-        // Size the balloon to its text. MeasureText runs on the pooled
-        // popup's text renderer before Show builds the swap chain; if it is
-        // unavailable (test mode) fall back to a glyph-count estimate.
-        hr = m_activePopup->MeasureText (m_text.c_str(), m_fontDip, s_kFontFamily, textWDip, textHDip);
+        // Size the balloon to its text, wrapping long messages instead of
+        // growing past the window edge. MeasureTextWrapped runs on the
+        // pooled popup's text renderer before Show builds the swap chain;
+        // if it is unavailable (test mode) fall back to a glyph-count
+        // estimate wrapped the same way.
+        hr = m_activePopup->MeasureTextWrapped (m_text.c_str(), m_fontDip, s_kFontFamily,
+                                                s_kMaxTextWidthDip, textWDip, textHDip);
         if (FAILED (hr) || textWDip <= 0.0f)
         {
-            textWDip = (float) m_text.size() * m_fontDip * s_kEstCharWidthEm;
+            float  estWDip  = (float) m_text.size() * m_fontDip * s_kEstCharWidthEm;
+            float  estLines = std::ceil (estWDip / s_kMaxTextWidthDip);
+
+            textWDip = std::min (estWDip, s_kMaxTextWidthDip);
+            textHDip = std::max (estLines, 1.0f) * m_fontDip * s_kEstLineHeightEm;
         }
 
         if (textHDip <= 0.0f)
@@ -367,9 +380,9 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
         return;
     }
 
-    hr = const_cast<IDxuiTextRenderer &> (text).MeasureString (m_text.c_str(),
-                                                                fontPx, s_kFontFamily,
-                                                                textW, textH);
+    hr = const_cast<IDxuiTextRenderer &> (text).MeasureStringWrapped (
+             m_text.c_str(), fontPx, s_kFontFamily,
+             m_scaler.Pxf (s_kMaxTextWidthDip), textW, textH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     width   = std::ceil (textW)  + padX * 2.0f;

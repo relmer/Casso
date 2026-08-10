@@ -1399,6 +1399,62 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MeasureStringWrapped
+//
+//  Word-wrapped twin of MeasureString: the layout box is capped at
+//  maxWidthDip with wrapping on, so the metrics report the widest wrapped
+//  line and the stacked height a wrapping DrawString will need.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::MeasureStringWrapped (
+    const wchar_t  * text,
+    float            fontSizeDip,
+    const wchar_t  * fontFamily,
+    float            maxWidthDip,
+    float          & outWidthDip,
+    float          & outHeightDip)
+{
+    HRESULT                            hr        = S_OK;
+    ComPtr<IDWriteTextLayout>          layout;
+    IDWriteTextLayout                * rawLayout = nullptr;
+    DWRITE_TEXT_METRICS                metrics   = {};
+    constexpr float                    s_kUnboundedDip = 1.0e6f;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    outWidthDip  = 0.0f;
+    outHeightDip = 0.0f;
+
+    CBRAEx (text, E_INVALIDARG);
+    CBRAEx (maxWidthDip > 0.0f, E_INVALIDARG);
+    CBR (m_dwriteFactory);
+
+    hr = EnsureLayout (text, fontFamily, fontSizeDip, DxuiFontWeight::Normal,
+                       DxuiTextHAlign::Left, DxuiTextVAlign::Top, true,
+                       maxWidthDip, s_kUnboundedDip, &rawLayout);
+    CHRA (hr);
+
+    layout.Attach (rawLayout);
+
+    hr = layout->GetMetrics (&metrics);
+    CHRA (hr);
+
+    outWidthDip  = metrics.widthIncludingTrailingWhitespace;
+    outHeightDip = metrics.height;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnDeviceLost
 //
 ////////////////////////////////////////////////////////////////////////////////

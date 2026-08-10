@@ -228,6 +228,14 @@ public:
                                  float          & outWidthDip,
                                  float          & outHeightDip);
 
+    //  Word-wrapped variant: extents for the text flowed inside maxWidthDip.
+    HRESULT  MeasureTextWrapped (const wchar_t  * text,
+                                 float            fontSizeDip,
+                                 const wchar_t  * fontFamily,
+                                 float            maxWidthDip,
+                                 float          & outWidthDip,
+                                 float          & outHeightDip);
+
     //
     //  std::future that resolves when Close() is invoked (or the
     //  popup auto-dismisses). Each Show() resets the promise; only

@@ -203,16 +203,23 @@ inline bool IsSupportedDiskImageExtension (const std::wstring & path)
 //
 //  ComposeWriteProtectTooltip
 //
-//  Builds the hover-tooltip text for a write-protected drive: one short
-//  sentence per active source, so a drive-level setting reads differently
-//  from the disk's own flag or an unwritable backing file. Returns an
-//  empty string when the disk is not protected (no tooltip shown).
+//  Builds the hover-tooltip text for a write-protected drive on the
+//  pattern "<subject> is write-protected (<specific cause>)". The subject
+//  is the mounted image's quoted name when known; disk-borne causes (the
+//  WOZ in-file flag, a read-only file, no write permission) merge into one
+//  parenthetical, and the drive-level Settings preference -- which
+//  protects the drive, not the disk -- gets its own sentence pointing at
+//  where to change it. Returns an empty string when nothing is protected
+//  (no tooltip shown).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-inline std::wstring ComposeWriteProtectTooltip (int driveNumber, const WriteProtectInfo & wp)
+inline std::wstring ComposeWriteProtectTooltip (
+    int                      driveNumber,
+    const std::wstring     & imageName,
+    const WriteProtectInfo & wp)
 {
-    std::vector<std::wstring>  sentences;
+    std::vector<std::wstring>  causes;
     std::wstring               msg;
     size_t                     i = 0;
 
@@ -222,24 +229,38 @@ inline std::wstring ComposeWriteProtectTooltip (int driveNumber, const WriteProt
         return std::wstring();
     }
 
-    if (wp.userSetting)
+    if (wp.imageFlag)    { causes.push_back (L"WOZ write-protect flag"); }
+    if (wp.readOnlyFile) { causes.push_back (L"file is read-only"); }
+    if (wp.noPermission) { causes.push_back (L"no write permission"); }
+
+    if (!causes.empty())
     {
-        sentences.push_back (L"Drive " + std::to_wstring (driveNumber)
-                             + L" is write-protected in settings.");
+        msg = imageName.empty() ? L"Disk image" : (L"\"" + imageName + L"\"");
+        msg += L" is write-protected (";
+
+        for (i = 0; i < causes.size(); ++i)
+        {
+            if (i > 0)
+            {
+                msg += L"; ";
+            }
+
+            msg += causes[i];
+        }
+
+        msg += L").";
     }
 
-    if (wp.imageFlag)    { sentences.push_back (L"Disk image is write-protected."); }
-    if (wp.readOnlyFile) { sentences.push_back (L"Disk image is read-only."); }
-    if (wp.noPermission) { sentences.push_back (L"Disk image is not writable (access denied or locked)."); }
-
-    for (i = 0; i < sentences.size(); ++i)
+    if (wp.userSetting)
     {
-        if (i > 0)
+        if (!msg.empty())
         {
             msg += L" ";
         }
 
-        msg += sentences[i];
+        msg += L"Drive " + std::to_wstring (driveNumber)
+             + (causes.empty() ? L" is write-protected in Settings > Disk."
+                               : L" is also write-protected in Settings > Disk.");
     }
 
     return msg;

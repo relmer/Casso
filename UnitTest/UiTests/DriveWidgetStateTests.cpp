@@ -180,11 +180,11 @@ public:
     {
         WriteProtectInfo  wp;
 
-        Assert::IsTrue (ComposeWriteProtectTooltip (1, wp).empty(),
+        Assert::IsTrue (ComposeWriteProtectTooltip (1, L"a.woz", wp).empty(),
                         L"An unprotected disk yields no tooltip text");
     }
 
-    TEST_METHOD (WriteProtectTooltip_NamesTheSingleSource)
+    TEST_METHOD (WriteProtectTooltip_NamesTheImageAndTheSpecificCause)
     {
         WriteProtectInfo  wpSetting;
         WriteProtectInfo  wpImage;
@@ -196,34 +196,44 @@ public:
         wpReadOnly.readOnlyFile = true;
         wpNoPerm.noPermission   = true;
 
-        Assert::AreEqual (std::wstring (L"Drive 2 is write-protected in settings."),
-                          ComposeWriteProtectTooltip (2, wpSetting));
-        Assert::AreEqual (std::wstring (L"Disk image is write-protected."),
-                          ComposeWriteProtectTooltip (1, wpImage));
-        Assert::AreEqual (std::wstring (L"Disk image is read-only."),
-                          ComposeWriteProtectTooltip (1, wpReadOnly));
-        Assert::AreEqual (std::wstring (L"Disk image is not writable (access denied or locked)."),
-                          ComposeWriteProtectTooltip (1, wpNoPerm));
+        Assert::AreEqual (std::wstring (L"Drive 2 is write-protected in Settings > Disk."),
+                          ComposeWriteProtectTooltip (2, L"a.woz", wpSetting));
+        Assert::AreEqual (std::wstring (L"\"Blank Disk.woz\" is write-protected (WOZ write-protect flag)."),
+                          ComposeWriteProtectTooltip (1, L"Blank Disk.woz", wpImage));
+        Assert::AreEqual (std::wstring (L"\"foo.dsk\" is write-protected (file is read-only)."),
+                          ComposeWriteProtectTooltip (1, L"foo.dsk", wpReadOnly));
+        Assert::AreEqual (std::wstring (L"\"foo.dsk\" is write-protected (no write permission)."),
+                          ComposeWriteProtectTooltip (1, L"foo.dsk", wpNoPerm));
     }
 
-    TEST_METHOD (WriteProtectTooltip_JoinsMultipleSources)
+    TEST_METHOD (WriteProtectTooltip_FallsBackWithoutAName)
     {
         WriteProtectInfo  wp;
 
-        wp.userSetting = true;
-        wp.imageFlag   = true;
+        wp.readOnlyFile = true;
 
-        Assert::AreEqual (
-            std::wstring (L"Drive 1 is write-protected in settings. Disk image is write-protected."),
-            ComposeWriteProtectTooltip (1, wp),
-            L"Each active source contributes its own sentence");
+        Assert::AreEqual (std::wstring (L"Disk image is write-protected (file is read-only)."),
+                          ComposeWriteProtectTooltip (1, std::wstring(), wp));
+    }
 
+    TEST_METHOD (WriteProtectTooltip_MergesDiskCausesAndAppendsTheDrive)
+    {
+        WriteProtectInfo  wp;
+
+        wp.imageFlag    = true;
         wp.readOnlyFile = true;
 
         Assert::AreEqual (
-            std::wstring (L"Drive 1 is write-protected in settings. Disk image is write-protected. "
-                          L"Disk image is read-only."),
-            ComposeWriteProtectTooltip (1, wp),
-            L"All active sources appear in order");
+            std::wstring (L"\"a.woz\" is write-protected (WOZ write-protect flag; file is read-only)."),
+            ComposeWriteProtectTooltip (1, L"a.woz", wp),
+            L"Disk-borne causes merge into one parenthetical");
+
+        wp.userSetting = true;
+
+        Assert::AreEqual (
+            std::wstring (L"\"a.woz\" is write-protected (WOZ write-protect flag; file is read-only). "
+                          L"Drive 1 is also write-protected in Settings > Disk."),
+            ComposeWriteProtectTooltip (1, L"a.woz", wp),
+            L"The drive-level pref appends its own sentence with \"also\"");
     }
 };
