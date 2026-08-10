@@ -6,32 +6,51 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [Unreleased]
+## [1.16.0] — create blank disks + write-protect toggle
 
 ### Added
 - **Create blank disks in-app.** The insert-disk picker gains a pinned
   `<Create new disk...>` first row that opens a themed save-style dialog:
-  browse folders (with a `..` row) right in the dialog, pick the image
-  format (WOZ, DSK, or PO) and contents (DOS 3.3, ProDOS 1.1.1, or
-  unformatted — only legal pairings are ever offered), and name the file.
-  The new disk mounts straight into the drive that opened the picker. A
-  freshly created DOS 3.3 or ProDOS disk is immediately usable — the guest
-  can `SAVE` / `CAT` with no `INIT` step — and an optional Bootable toggle
-  installs the real OS from the stock master disks (downloaded on demand
-  with an explicit click when not cached): DOS 3.3 disks boot to a clean
-  Applesoft prompt via a `HELLO` greeting, ProDOS disks boot through
-  `PRODOS` into BASIC.SYSTEM. The dialog refuses a target that is
-  currently mounted in a drive, asks before overwriting an existing file
-  or replacing an occupied drive's disk, and remembers the folder the
-  last disk was created in.
-- **Write-protect toggle for mounted disks.** Disk menu gains checkable
-  "Write-protect disk 1 / 2" items (enabled while mounted): WOZ images
-  flip the write-protect flag that travels inside the file — pending guest
-  writes are flushed first so nothing is lost — while DSK/DO/PO images set
-  or clear the host file's read-only attribute. The drive widget's padlock,
-  the tooltip, and the menu check all re-read reality after each toggle,
-  and a protected disk fails a guest `SAVE` with `WRITE PROTECTED` exactly
-  like the notch tab on real media.
+  browse folders (with a `..` row) right in the dialog, pick the format
+  (DOS 3.3, ProDOS 1.1.1, or unformatted) and the image type (WOZ, DSK,
+  or PO — the format drives which types are offered, so only legal
+  pairings exist), and name the file. The new disk mounts straight into
+  the drive that opened the picker. A freshly created DOS 3.3 or ProDOS
+  disk is immediately usable — the guest can `SAVE` / `CAT` with no
+  `INIT` step — and an optional Make-bootable checkbox installs the real
+  OS from the stock master disks (downloaded on demand with an explicit
+  click when not cached): DOS 3.3 disks boot to a clean Applesoft prompt
+  via a `HELLO` greeting, ProDOS disks boot through `PRODOS` into
+  BASIC.SYSTEM. The dialog refuses a target that is currently mounted in
+  a drive, asks before overwriting an existing file or replacing an
+  occupied drive's disk, and remembers the folder the last disk was
+  created in. Navigation behaves like a real save dialog: double-click
+  descends, `..` re-selects and centers the folder you left, clicking any
+  control moves keyboard focus there, the name field supports
+  click-to-place-caret / drag selection / Ctrl+word-jumps, and the
+  Modified column formats in the user's locale.
+- **Write-protect toggle for mounted disks.** The Disk menu names its
+  target and states the action: "Write-protect \"Blank Disk.woz\"" flips
+  to "Allow writes to \"Blank Disk.woz\"" once protected (enabled only
+  while mounted). WOZ images flip the write-protect flag that travels
+  inside the file — pending guest writes are flushed first so nothing is
+  lost — while DSK/DO/PO images set or clear the host file's read-only
+  attribute. The drive widget's padlock and its tooltip re-read reality
+  after each toggle — the tooltip names the disk and the exact cause
+  ("WOZ write-protect flag", "file is read-only", "no write permission",
+  or the drive-level Settings preference) — and a protected disk fails a
+  guest `SAVE` with `WRITE PROTECTED` exactly like the notch tab on real
+  media.
+
+### Changed
+- dxui: menu-bar subitems support live labels and enabled state; hotkey-less
+  rows use the dropdown's full width
+- dxui: tooltips word-wrap instead of growing past the window edge
+- dxui: list views support double-click activation, always-visible selection,
+  and center-on-row scrolling
+- dxui: text inputs place the caret from clicks, drag-select, and take
+  Ctrl+Left/Right word jumps (host supplies the text renderer)
+- ui: the file-open picker no longer advertises `*.nib` (never mountable)
 
 ## [1.15.2] — settings live-preview fixes
 

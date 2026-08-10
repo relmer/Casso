@@ -19,13 +19,13 @@ Two of the three built-in themes booting the [casso-rocks demo disk](Apple2/Demo
 
 The project includes:
 
-- **Apple II platform emulator** — GUI-based Apple II, II+, //e, //e Enhanced, and //c emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, Mockingboard sound card (dual 6522 VIA + AY-3-8910 PSG), an emulated ImageWriter II printer (parallel card, real-3D live preview with mechanical audio, PNG / clipboard / Windows-print delivery with print preview), analog game I/O (joystick/paddle via the PREAD timer), data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
+- **Apple II platform emulator** — GUI-based Apple II, II+, //e, //e Enhanced, and //c emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, in-app blank-disk creation (DOS 3.3 / ProDOS / raw across WOZ / DSK / PO, optionally bootable) with per-disk write protection, Mockingboard sound card (dual 6522 VIA + AY-3-8910 PSG), an emulated ImageWriter II printer (parallel card, real-3D live preview with mechanical audio, PNG / clipboard / Windows-print delivery with print preview), analog game I/O (joystick/paddle via the PREAD timer), data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
 - **6502 CPU emulator** — passes [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) for all 151 legal opcodes plus the stable undocumented NMOS opcodes (SAX, LAX, DCP, ISC, SLO, RLA, SRE, RRA and the NOP family) — 10,000 vectors each.
 - **AS65-compatible assembler** — a from-scratch reimplementation of Frank A. Kingswood's AS65, intended as a drop-in replacement. Supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, ...) including flag concatenation (`-tlfile`).
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **2700+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
+- **2900+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
 
 ## Contents
 
@@ -46,6 +46,33 @@ The project includes:
 See [CHANGELOG.md](CHANGELOG.md) for the granular history, and
 [ARCHITECTURE.md](ARCHITECTURE.md) for a technical overview of the emulator's
 internals (projects, threading, the memory model, and the optimization log).
+
+### Create blank disks in-app + write-protect toggle (v1.16.0)
+
+<p align="center"><img src="Assets/feat-create-disk.png" alt="Create New Disk dialog — save-style folder browsing, format and image-type dropdowns, Make-bootable checkbox, and name field" width="540" /></p>
+
+The missing keystone of the write workflow: Casso can now make fresh disks.
+The insert-disk picker's pinned **`<Create new disk...>`** row opens a themed
+save-style dialog — browse folders right in the dialog, pick the format
+(**DOS 3.3**, **ProDOS 1.1.1**, or unformatted raw media) and the image type
+(**WOZ**, **DSK**, or **PO**; only legal pairings are offered), name the file,
+and the new disk mounts straight into the drive that opened the picker. A
+created disk is immediately usable — `SAVE` and `CATALOG` work with no `INIT`
+step, exactly like a disk a period formatter produced — and a **Make bootable**
+checkbox installs the real OS from the stock master disks (downloaded on
+demand): DOS 3.3 disks boot to a clean Applesoft prompt, ProDOS disks boot
+through `PRODOS` into BASIC.SYSTEM. The dialog refuses targets currently
+mounted in a drive, confirms overwrites and drive replacement, and reopens in
+the folder you last created in.
+
+Alongside it, a **write-protect toggle** for mounted disks: the Disk menu
+names its target — "Write-protect *"Blank Disk.woz"*" flips to "Allow writes
+to *"Blank Disk.woz"*" once protected. WOZ images carry the flag inside the
+file (it travels with the image); sector formats use the host file's
+read-only attribute. The drive widget's brass padlock and a cause-specific
+tooltip ("WOZ write-protect flag", "file is read-only", "no write
+permission") track every change, and a protected disk fails a guest `SAVE`
+with `WRITE PROTECTED`, just like the notch tab on real media.
 
 ### Apple //c mouse: MousePaint works again (v1.15.0)
 
@@ -262,7 +289,7 @@ Casso.sln
 ├── Dxui/          Static library — reusable Direct2D/DirectWrite UI framework (host window, panels, layouts, widgets, menu bar, popup host, dialogs)
 ├── Casso/         Win32 application — Apple II platform emulator (D3D11, WASAPI, Disk II audio)
 ├── CassoCli/      Console application — AS65-compatible assembler CLI with `run` subcommand
-└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (1900+ tests)
+└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (2900+ tests)
 ```
 
 ## Requirements
