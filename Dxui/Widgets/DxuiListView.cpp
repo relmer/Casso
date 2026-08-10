@@ -784,6 +784,33 @@ void DxuiListView::EnsureVisible (int row)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CenterOnRow
+//
+//  Scrolls so `row` lands mid-window (SetTopRow clamps at either end of
+//  the list). Selection is untouched.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::CenterOnRow (int row)
+{
+    int  cap = GetVisibleRowCapacity();
+
+
+
+    if (row < 0 || row >= RowCount() || cap <= 0)
+    {
+        return;
+    }
+
+    SetTopRow (row - cap / 2);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ColumnNaturalWidthPx
 //
 //  Natural pixel width of a single column ignoring any stretch fill:
@@ -2369,7 +2396,8 @@ void DxuiListView::PaintDataRows (
         const std::vector<Cell> &  cells = RowCells (r);
         float                      ry    = y + headerH + hdrGap + (float) (r - firstRow) * rowH;
         bool                       isHov = (r == m_hovered);
-        bool                       isSel = (m_listFocused && r == m_selectedRow);
+        bool                       isSel = ((m_listFocused || m_alwaysShowSelection) &&
+                                            r == m_selectedRow);
 
         if (isSel)
         {
@@ -2879,9 +2907,24 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
     }
     else if (row >= 0)
     {
+        bool  activate = true;
+
         SetSelectedRow (row);
 
-        if (m_onActivateRow)
+        if (m_activateOnDoubleClick)
+        {
+            int64_t  nowMs = (int64_t) GetTickCount64();
+
+            activate = (row == m_lastClickRow) &&
+                       (nowMs - m_lastClickMs) <= (int64_t) GetDoubleClickTime();
+
+            // A completed double-click consumes the pair so a third click
+            // starts a fresh count instead of chaining activations.
+            m_lastClickRow = activate ? -1 : row;
+            m_lastClickMs  = nowMs;
+        }
+
+        if (activate && m_onActivateRow)
         {
             m_onActivateRow (row);
         }

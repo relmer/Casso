@@ -193,6 +193,9 @@ public:
     // Scroll just enough to bring `row` into the visible window, without
     // changing selection (SetSelectedRow does the same but also selects).
     void  EnsureVisible         (int row);
+    // Scroll so `row` sits as close to the middle of the visible window as
+    // the ends of the list allow, without changing selection.
+    void  CenterOnRow           (int row);
     void  ScrollByWheelDelta    (int wheelDelta, int linesPerNotch = 3);
 
     // Scrollbar geometry & thumb-drag. xPx/yPx are relative to the
@@ -257,6 +260,18 @@ public:
     void  SetOnSelectionChanged (std::function<void (int)>  cb)  { m_onSelectionChanged = std::move (cb); }
     void  SetOnActivateRow      (std::function<void (int)>  cb)  { m_onActivateRow      = std::move (cb); }
     void  SetOnSortColumn       (std::function<void (int)>  cb)  { m_onSortColumn       = std::move (cb); }
+
+    // Mouse activation policy. By default a click release over a row raises
+    // onActivateRow; with double-click required, the release only activates
+    // on the second click on the same row inside the system double-click
+    // time. Selection still follows every click, and keyboard activation
+    // (Enter / Space) is unaffected.
+    void  SetActivateOnDoubleClick (bool enabled)                { m_activateOnDoubleClick = enabled; }
+
+    // By default the selected row only paints while the list itself holds
+    // keyboard focus (its focus cue). File-picker-style consumers keep the
+    // selection visible regardless, like a real list view.
+    void  SetAlwaysShowSelection   (bool enabled)                { m_alwaysShowSelection = enabled; }
 
     // Raised once when an interactive column-resize drag completes, with
     // the column index and its new effective width in physical pixels.
@@ -501,4 +516,9 @@ private:
     std::function<void (int)>         m_onActivateRow;
     std::function<void (int)>         m_onSortColumn;
     std::function<void (int, int)>    m_onColumnResized;
+
+    bool     m_activateOnDoubleClick = false;
+    bool     m_alwaysShowSelection   = false;
+    int      m_lastClickRow          = -1;
+    int64_t  m_lastClickMs           = 0;
 };

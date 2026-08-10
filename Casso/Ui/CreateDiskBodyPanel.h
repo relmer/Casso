@@ -57,6 +57,10 @@ public:
 
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
 
+    //  Re-runs the last Layout so visibility changes (the download button
+    //  appearing / vanishing) re-flow the bootable strip immediately.
+    void  Relayout ();
+
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
     LPCWSTR  CursorForPoint (POINT clientPx) const override;
@@ -79,5 +83,6 @@ private:
     static constexpr int  kNameLabelDip      = 56;
     static constexpr int  kNameLabelPadDip   = 6;
 
-    Children  m_kids;
+    Children       m_kids;
+    DxuiDpiScaler  m_lastScaler;
 };

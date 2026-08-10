@@ -66,6 +66,9 @@ void CreateDiskDialog::OnCreate()
     m_list.SetColumns       (std::move (cols));
     m_list.SetPreciseAutoFit (true);
     m_list.SetKeyboardColumnNav (true);
+    m_list.EnableStickyTail (false);
+    m_list.SetActivateOnDoubleClick (true);
+    m_list.SetAlwaysShowSelection (true);
     m_list.SetOnSelectionChanged ([this] (int row)
     {
         const auto &  entries = m_model->Entries();
@@ -122,6 +125,7 @@ void CreateDiskDialog::OnCreate()
     m_nameInput.SetTheme (m_theme);
     m_nameInput.SetHwnd  (Hwnd());
     m_nameInput.SetMaxLength (128);
+    m_nameInput.SetTextRenderer (TextRenderer());
 
     {
         CreateDiskBodyPanel::Children  kids;
@@ -435,6 +439,12 @@ void CreateDiskDialog::UpdateBootableRow()
         m_bootHint.SetText (L"The " + os + L" master disk is not downloaded yet.");
     }
 
+    // The strip re-flows around the download button's visibility.
+    if (m_body != nullptr)
+    {
+        m_body->Relayout();
+    }
+
     Invalidate();
 }
 
@@ -489,11 +499,17 @@ void CreateDiskDialog::OnDownloadClicked()
 //  navigates; activating a file row is covered by selection, which already
 //  copied its name into the field.
 //
+//  Going up selects and centers the folder just left, the way a real file
+//  dialog keeps the user oriented; going down starts the child folder's
+//  listing at the top with nothing selected.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CreateDiskDialog::OnRowActivated (int row)
 {
-    HRESULT  hr = S_OK;
+    HRESULT       hr = S_OK;
+    bool          up = false;
+    std::wstring  cameFrom;
 
 
 
@@ -502,16 +518,49 @@ void CreateDiskDialog::OnRowActivated (int row)
         return;
     }
 
-    if (m_model->Entries()[(size_t) row].isFolder)
+    if (!m_model->Entries()[(size_t) row].isFolder)
     {
-        hr = m_model->NavigateInto ((size_t) row);
+        return;
+    }
 
-        if (SUCCEEDED (hr))
+    up = (m_model->Entries()[(size_t) row].name == L"..");
+
+    if (up)
+    {
+        cameFrom = std::filesystem::path (m_model->CurrentFolder()).filename().wstring();
+    }
+
+    hr = m_model->NavigateInto ((size_t) row);
+
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    RefreshListing();
+
+    if (up)
+    {
+        const auto &  entries = m_model->Entries();
+        size_t        i       = 0;
+
+        for (i = 0; i < entries.size(); i++)
         {
-            RefreshListing();
-            Invalidate();
+            if (entries[i].isFolder && entries[i].name == cameFrom)
+            {
+                m_list.SetSelectedRow ((int) i);
+                m_list.CenterOnRow ((int) i);
+                break;
+            }
         }
     }
+    else
+    {
+        m_list.SetTopRow (0);
+        m_list.SetSelectedRow (-1);
+    }
+
+    Invalidate();
 }
 
 

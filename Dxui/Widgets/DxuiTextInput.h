@@ -21,6 +21,7 @@
 //
 //  Keyboard contract (must be focused):
 //      Left  / Right                 -> move caret 1 char (Shift extends sel).
+//      Ctrl+Left / Ctrl+Right        -> move caret 1 word (Shift extends sel).
 //      Home  / End                   -> move caret to start/end.
 //      Backspace                     -> delete selection or char before caret.
 //      Delete                        -> delete selection or char at caret.
@@ -29,6 +30,10 @@
 //      Ctrl+X                        -> cut selection.
 //      Ctrl+V                        -> paste clipboard at caret / replace.
 //      Printable chars (via OnChar)  -> insert at caret / replace.
+//
+//  Click-to-place-caret and drag selection need glyph measurement, so they
+//  work when the host supplies a text renderer (SetTextRenderer); without
+//  one, a click falls back to caret-at-end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +54,11 @@ public:
     void  SetTheme      (const IDxuiTheme * theme)    { m_theme = theme; }
     void  SetOnChange   (ChangeFn fn)                 { m_change = std::move (fn); }
     void  SetHwnd       (HWND hwnd)                   { m_hwnd = hwnd; }
+
+    // Non-owning measurement hook (DxuiWindow::TextRenderer()). With it,
+    // clicks place the caret under the cursor and dragging selects;
+    // without it, clicking parks the caret at the end.
+    void  SetTextRenderer (IDxuiTextRenderer * renderer) { m_renderer = renderer; }
 
     // Chromeless mode: skip the self-drawn background fill and border so a
     // host widget (e.g. DxuiSearchBox) can own the frame and draw the
@@ -89,6 +99,9 @@ public:
 private:
     void   ClampCaret ();
     size_t CaretFromX (IDxuiTextRenderer & text, int xPx) const;
+    size_t WordBoundary (size_t from, bool forward) const;
+
+    static bool IsWordChar (wchar_t c) { return iswalnum (c) != 0 || c == L'_'; }
     void   DeleteSelection ();
     void   InsertText      (const std::wstring & ins);
     void   CopyToClipboard () const;
@@ -110,6 +123,7 @@ private:
     bool                m_chromeless  = false;
     const IDxuiTheme  * m_theme       = nullptr;
     HWND                m_hwnd        = nullptr;
+    IDxuiTextRenderer * m_renderer    = nullptr;   // non-owning
     ChangeFn            m_change;
     DxuiDpiScaler       m_scaler;
 

@@ -69,12 +69,11 @@ bool DxuiTextInput::OnLButtonDown (int x, int y)
     {
         m_dragging = true;
 
-        // Caret placement requires the text renderer for hit-testing. We
-        // don't have one in mouse-down context; place at end as a safe
-        // fallback. A future enhancement could measure on first paint and
-        // store glyph offsets, but for filter inputs the user almost
-        // always Tabs in / Ctrl+A's anyway.
-        m_caret  = m_text.size();
+        // Caret placement needs glyph measurement; with the host-supplied
+        // renderer the caret lands under the cursor, without one the end of
+        // the text is the safe fallback.
+        m_caret  = (m_renderer != nullptr) ? CaretFromX (*m_renderer, x)
+                                           : m_text.size();
         m_anchor = m_caret;
 
         ResetBlink();
@@ -115,12 +114,20 @@ bool DxuiTextInput::OnLButtonUp (int x, int y)
 //
 //  OnMouseMove
 //
+//  Drag selection: the caret follows the cursor while the anchor stays at
+//  the press point. Needs the measurement hook; inert without it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTextInput::OnMouseMove (int x, int y)
 {
-    (void) x;
     (void) y;
+
+    if (m_dragging && m_renderer != nullptr)
+    {
+        m_caret = CaretFromX (*m_renderer, x);
+        ResetBlink();
+    }
 }
 
 
@@ -170,7 +177,11 @@ bool DxuiTextInput::OnKey (WPARAM vk)
     switch (vk)
     {
         case VK_LEFT:
-            if (m_caret > 0)
+            if (ctrl)
+            {
+                m_caret = WordBoundary (m_caret, false);
+            }
+            else if (m_caret > 0)
             {
                 m_caret--;
             }
@@ -184,7 +195,11 @@ bool DxuiTextInput::OnKey (WPARAM vk)
             break;
 
         case VK_RIGHT:
-            if (m_caret < m_text.size())
+            if (ctrl)
+            {
+                m_caret = WordBoundary (m_caret, true);
+            }
+            else if (m_caret < m_text.size())
             {
                 m_caret++;
             }
@@ -540,6 +555,41 @@ void DxuiTextInput::ClampCaret()
     {
         m_anchor = m_text.size();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WordBoundary
+//
+//  Ctrl+arrow target: the start of the previous / next word, where a word
+//  is a run of alphanumerics or underscores.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t DxuiTextInput::WordBoundary (size_t from, bool forward) const
+{
+    size_t  i = from;
+
+
+
+    if (forward)
+    {
+        // To the start of the next word: leave this word, cross the gap.
+        while (i < m_text.size() && IsWordChar (m_text[i]))  { i++; }
+        while (i < m_text.size() && !IsWordChar (m_text[i])) { i++; }
+    }
+    else
+    {
+        // To the start of this (or the previous) word.
+        while (i > 0 && !IsWordChar (m_text[i - 1])) { i--; }
+        while (i > 0 && IsWordChar (m_text[i - 1]))  { i--; }
+    }
+
+    return i;
 }
 
 

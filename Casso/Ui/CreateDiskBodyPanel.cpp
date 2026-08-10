@@ -70,6 +70,7 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 
 
     SetBounds (boundsPx);
+    m_lastScaler = scaler;
 
     nameTop = boundsPx.bottom - nameH;
     bootTop = nameTop - nameGap - bootH;
@@ -135,10 +136,17 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 
     if (m_kids.download != nullptr)
     {
-        RECT  r = { x, bootTop, x + scaler.Px (kBootButtonDip), bootTop + bootH };
+        // A hidden download button gives its space to the hint instead of
+        // leaving a gap in the strip.
+        int   buttonW = m_kids.download->Visible() ? scaler.Px (kBootButtonDip) : 0;
+        RECT  r       = { x, bootTop, x + buttonW, bootTop + bootH };
 
         m_kids.download->Layout (r, scaler);
-        x = r.right + optGap * 2;
+
+        if (buttonW > 0)
+        {
+            x = r.right + optGap * 2;
+        }
     }
 
     if (m_kids.bootHint != nullptr)
@@ -162,6 +170,21 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 
         m_kids.nameInput->Layout (r, scaler);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Relayout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CreateDiskBodyPanel::Relayout()
+{
+    Layout (Bounds(), m_lastScaler);
 }
 
 
