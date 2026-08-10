@@ -2163,25 +2163,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_MACHINE_ARROWS_JOYSTICK: return m_arrowsJoystick;
             case IDM_MACHINE_ARROWS_PADDLE:   return m_pointerMode == InputMappingMode::Paddle;
 
-            case IDM_DISK_WP1:
-            case IDM_DISK_WP2:
-            {
-                // The image's own protection only -- the flag that travels
-                // with the file or its read-only attribute; the per-drive
-                // USER write-protect pref is a different toggle.
-                int          drive = (commandId == IDM_DISK_WP1) ? 0 : 1;
-                DiskImage *  image = m_diskStore.GetImage (6, drive);
-
-                if (image == nullptr)
-                {
-                    return false;
-                }
-
-                WriteProtectInfo  info = image->GetWriteProtectInfo();
-
-                return info.imageFlag || info.readOnlyFile;
-            }
-
             default:                          return false;
         }
     });
@@ -2193,6 +2174,61 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_DISK_WP1: return m_diskStore.IsMounted (6, 0);
             case IDM_DISK_WP2: return m_diskStore.IsMounted (6, 1);
             default:           return true;
+        }
+    });
+
+    m_mainMenu.SetLabelQuery ([this] (WORD commandId) -> std::wstring
+    {
+        switch (commandId)
+        {
+            case IDM_DISK_WP1:
+            case IDM_DISK_WP2:
+            {
+                // Name the mounted image and state the ACTION the click will
+                // take, flipping the verb with the image's own protection
+                // (the file-borne flag or read-only attribute; the per-drive
+                // USER write-protect pref is a different toggle). An empty
+                // return keeps the static "Write-protect disk N" label for
+                // an empty (disabled) drive.
+                constexpr size_t  kMaxNameChars  = 20;
+                constexpr size_t  kKeepHeadChars = 10;
+                constexpr size_t  kKeepTailChars = 7;
+
+                int           drive = (commandId == IDM_DISK_WP1) ? 0 : 1;
+                DiskImage  *  image = m_diskStore.GetImage (6, drive);
+                std::wstring  name;
+
+                if (image == nullptr)
+                {
+                    return std::wstring();
+                }
+
+                name = std::filesystem::path (
+                           m_diskStore.GetSourcePath (6, drive)).filename().wstring();
+
+                if (name.empty())
+                {
+                    return std::wstring();
+                }
+
+                // Middle-truncate very long names so the row stays inside
+                // the dropdown while keeping the extension visible.
+                if (name.size() > kMaxNameChars)
+                {
+                    name = name.substr (0, kKeepHeadChars) + L"..."
+                         + name.substr (name.size() - kKeepTailChars);
+                }
+
+                WriteProtectInfo  info = image->GetWriteProtectInfo();
+
+                return ((info.imageFlag || info.readOnlyFile)
+                            ? L"Allow writes to \""
+                            : L"Write-protect \"")
+                     + name + L"\"";
+            }
+
+            default:
+                return std::wstring();
         }
     });
 

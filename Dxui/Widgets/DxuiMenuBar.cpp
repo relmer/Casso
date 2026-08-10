@@ -639,7 +639,7 @@ bool DxuiMenuBar::ActivateMnemonicRow (wchar_t ch)
         {
             if (hit == nullptr)
             {
-                ParseMnemonic (sub.label, stripped, mnIdx, mnCh);
+                ParseMnemonic (sub.LabelText(), stripped, mnIdx, mnCh);
 
                 if (mnCh != 0 && mnCh == lower && sub.Enabled() && sub.dispatch)
                 {
@@ -1082,7 +1082,7 @@ void DxuiMenuBar::PaintDropdownRows (
             continue;
         }
 
-        ParseMnemonic (sub.label, stripped, mnIdx, mnCh);
+        ParseMnemonic (sub.LabelText(), stripped, mnIdx, mnCh);
 
         if (row == m_highlightIndex)
         {
@@ -1093,15 +1093,23 @@ void DxuiMenuBar::PaintDropdownRows (
                               pal.hover);
         }
 
-        hr = text.DrawString (stripped.c_str(),
-                              (float) (rect.left + labelLeftPx),
-                              (float) (rect.top + y + rowPadTopPx),
-                              (float) accelOffsetPx,
-                              (float) entryHeight,
-                              labelArgb,
-                              fontDip,
-                              s_kFontFamily);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        {
+            // A row with no hotkey owns the whole width; otherwise the label
+            // stops where the accelerator column starts.
+            float  labelW = sub.hotkey.empty()
+                          ? (float) (rect.right - rect.left - labelLeftPx - rowPadLeftPx)
+                          : (float) accelOffsetPx;
+
+            hr = text.DrawString (stripped.c_str(),
+                                  (float) (rect.left + labelLeftPx),
+                                  (float) (rect.top + y + rowPadTopPx),
+                                  labelW,
+                                  (float) entryHeight,
+                                  labelArgb,
+                                  fontDip,
+                                  s_kFontFamily);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
 
         if (sub.checkable && sub.isChecked && sub.isChecked())
         {

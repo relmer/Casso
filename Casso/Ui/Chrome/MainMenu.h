@@ -59,9 +59,16 @@ public:
     MainMenu  ();
     ~MainMenu () override;
 
+    using LabelFn = std::function<std::wstring (WORD commandId)>;
+
     void                                   SetDispatch        (DispatchFn dispatch);
     void                                   SetCheckQuery      (CheckFn query);
     void                                   SetEnableQuery     (CheckFn query);
+
+    // Dynamic label override. Consulted live at paint / mnemonic time; an
+    // empty return falls back to the entry's static label, so a query only
+    // has to answer for the commands it customizes.
+    void                                   SetLabelQuery      (LabelFn query);
 
     static std::span<const MainMenuCommandEntry>  GetCommandEntries  ();
     static const wchar_t                       *  GetMenuName        (MainMenuId menu);
@@ -105,4 +112,5 @@ private:
     DispatchFn  m_dispatch;
     CheckFn     m_isChecked;
     CheckFn     m_isEnabled;
+    LabelFn     m_labelQuery;
 };

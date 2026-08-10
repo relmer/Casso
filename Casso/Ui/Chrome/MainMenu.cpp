@@ -30,11 +30,11 @@ static constexpr MainMenuCommandEntry  s_kEntries[] =
     { IDM_MACHINE_ARROWS_PADDLE,    MainMenuId::Machine, L"Map Mouse to &Paddle",   nullptr,          true   },
     { IDM_DISK_INSERT1,             MainMenuId::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
     { IDM_DISK_EJECT1,              MainMenuId::Disk,    L"&Eject drive 1",         L"Ctrl+Shift+1"  },
-    { IDM_DISK_WP1,                 MainMenuId::Disk,    L"&Write-protect disk 1",  nullptr,          true   },
+    { IDM_DISK_WP1,                 MainMenuId::Disk,    L"&Write-protect disk 1",  nullptr          },
     { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
     { IDM_DISK_INSERT2,             MainMenuId::Disk,    L"Insert drive &2...",     L"Ctrl+2"        },
     { IDM_DISK_EJECT2,              MainMenuId::Disk,    L"Eje&ct drive 2",         L"Ctrl+Shift+2"  },
-    { IDM_DISK_WP2,                 MainMenuId::Disk,    L"Write-&protect disk 2",  nullptr,          true   },
+    { IDM_DISK_WP2,                 MainMenuId::Disk,    L"Write-&protect disk 2",  nullptr          },
     { IDM_VIEW_FULLSCREEN,          MainMenuId::View,    L"&Fullscreen",            L"Alt+Enter"     },
     { IDM_VIEW_RESET_SIZE,          MainMenuId::View,    L"&Reset window size",     L"Ctrl+0"        },
     { 0,                            MainMenuId::View,    nullptr,                   nullptr          },
@@ -121,6 +121,22 @@ void MainMenu::SetCheckQuery (CheckFn query)
 void MainMenu::SetEnableQuery (CheckFn query)
 {
     m_isEnabled = std::move (query);
+    Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetLabelQuery
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MainMenu::SetLabelQuery (LabelFn query)
+{
+    m_labelQuery = std::move (query);
     Rebuild();
 }
 
@@ -416,6 +432,18 @@ void MainMenu::Rebuild()
             {
                 return m_isEnabled ? m_isEnabled (commandId) : true;
             };
+
+            {
+                std::wstring  staticLabel = sub.label;
+
+                sub.labelText = [this, commandId, staticLabel] () -> std::wstring
+                {
+                    std::wstring  dynamic = m_labelQuery ? m_labelQuery (commandId)
+                                                         : std::wstring();
+
+                    return dynamic.empty() ? staticLabel : dynamic;
+                };
+            }
 
             topItem.submenu.push_back (std::move (sub));
         }
