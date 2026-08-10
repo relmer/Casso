@@ -1415,10 +1415,10 @@ HRESULT DxuiTextRenderer::MeasureStringWrapped (
     float          & outWidthDip,
     float          & outHeightDip)
 {
-    HRESULT                            hr        = S_OK;
+    HRESULT                            hr              = S_OK;
     ComPtr<IDWriteTextLayout>          layout;
-    IDWriteTextLayout                * rawLayout = nullptr;
-    DWRITE_TEXT_METRICS                metrics   = {};
+    IDWriteTextLayout                * rawLayout       = nullptr;
+    DWRITE_TEXT_METRICS                metrics         = {};
     constexpr float                    s_kUnboundedDip = 1.0e6f;
 
 
