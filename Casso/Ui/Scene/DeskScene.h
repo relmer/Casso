@@ -81,6 +81,17 @@ public:
     // Lamp tint applied when a lamp is unlit (multiplies the base color).
     static constexpr float  kLampOffDim = 0.22f;
 
+    // The picture sub-mesh: its own curved grid spanning exactly the band
+    // (mesh edge == band edge, UVs a clean 0..1 span), floated a hair off
+    // the tube sheet so depth never ties.
+    static constexpr int    kPictureGridCols = 24;
+    static constexpr int    kPictureGridRows = 18;
+    static constexpr float  kPictureLiftMm   = 0.15f;
+
+    // The unlit tube's tint -- near-black with the faint green of period
+    // glass.
+    static constexpr float  kTubeTint[3]     = { 0.020f, 0.035f, 0.028f };
+
 private:
     void  RebuildGlassUvs   (const CrtUvRect & displayUv, int displayW, int displayH);
     void  RebuildLampVerts  ();
@@ -96,7 +107,8 @@ private:
     DeskSceneComposition    m_comp;
     bool                    m_modelsLoaded = false;
 
-    std::vector<Dxui3DRenderer::Vertex>   m_glassVerts;         // UVs remapped to displayUv
+    std::vector<Dxui3DRenderer::Vertex>   m_glassVerts;         // the tube: dark, untextured
+    std::vector<Dxui3DRenderer::Vertex>   m_pictureVerts;       // band-exact curved grid, textured
     CrtUvRect                             m_glassUv;
     bool                                  m_glassUvDirty    = true;
 

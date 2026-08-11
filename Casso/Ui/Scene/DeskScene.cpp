@@ -173,29 +173,68 @@ void DeskScene::TintInto (const std::vector<Dxui3DRenderer::Vertex> & base,
 
 void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int displayH)
 {
-    float   bandU0 = 0.0f;
-    float   bandV0 = 0.0f;
-    float   bandU1 = 1.0f;
-    float   bandV1 = 1.0f;
+    const CurvedDisplaySurface &  surface = m_monitor.Surface();
+    float                         bandU0  = 0.0f;
+    float                         bandV0  = 0.0f;
+    float                         bandU1  = 1.0f;
+    float                         bandV1  = 1.0f;
 
 
 
-    // The picture aspect-fits inside the glass (the tube's raster never
-    // fills the faceplate); glass outside the band linearly extends past the
-    // texture's fitted subrect into its black-cleared surround. Same band as
-    // the input math -- what a texel shows and what a click hits agree.
-    CurvedDisplayMath::ComputePictureBand (m_monitor.Surface(), displayW, displayH,
+    // The tube: the model's glass sheet, unlit near-black. The picture is a
+    // SEPARATE curved grid spanning exactly the aspect-fit band (same band as
+    // the input math), so its mesh boundary IS the picture boundary -- no
+    // interpolation ever crosses the picture's texture edge, which is what
+    // used to either clamp-smear the outermost columns into the tube margins
+    // or (with a black guard) let the CRT chain's neighbor-sampling passes
+    // dim them.
+    CurvedDisplayMath::ComputePictureBand (surface, displayW, displayH,
                                            bandU0, bandV0, bandU1, bandV1);
 
     m_glassVerts = m_monitor.GlassVerts();
 
     for (Dxui3DRenderer::Vertex & v : m_glassVerts)
     {
-        float   u = (v.u - bandU0) / (bandU1 - bandU0);
-        float   w = (v.v - bandV0) / (bandV1 - bandV0);
+        v.r = kTubeTint[0];
+        v.g = kTubeTint[1];
+        v.b = kTubeTint[2];
+    }
 
-        v.u = displayUv.u0 + u * (displayUv.u1 - displayUv.u0);
-        v.v = displayUv.v0 + w * (displayUv.v1 - displayUv.v0);
+    m_pictureVerts.clear();
+    m_pictureVerts.reserve ((size_t) kPictureGridCols * kPictureGridRows * 6);
+
+    for (int row = 0; row < kPictureGridRows; row++)
+    {
+        for (int col = 0; col < kPictureGridCols; col++)
+        {
+            Dxui3DRenderer::Vertex   corner[4] = {};
+            int                      steps[4][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
+
+            for (int i = 0; i < 4; i++)
+            {
+                float  fu    = (float) (col + steps[i][0]) / (float) kPictureGridCols;
+                float  fv    = (float) (row + steps[i][1]) / (float) kPictureGridRows;
+                float  gu    = bandU0 + fu * (bandU1 - bandU0);
+                float  gv    = bandV0 + fv * (bandV1 - bandV0);
+                float  pt[3] = {};
+
+                CurvedDisplayMath::ModelPointFromUv (surface, gu, gv, pt);
+
+                corner[i].x = pt[0];
+                corner[i].y = pt[1] - kPictureLiftMm;
+                corner[i].z = pt[2];
+                corner[i].u = displayUv.u0 + fu * (displayUv.u1 - displayUv.u0);
+                corner[i].v = displayUv.v0 + fv * (displayUv.v1 - displayUv.v0);
+                corner[i].r = corner[i].g = corner[i].b = corner[i].a = 1.0f;
+            }
+
+            m_pictureVerts.push_back (corner[0]);
+            m_pictureVerts.push_back (corner[1]);
+            m_pictureVerts.push_back (corner[2]);
+            m_pictureVerts.push_back (corner[0]);
+            m_pictureVerts.push_back (corner[2]);
+            m_pictureVerts.push_back (corner[3]);
+        }
     }
 
     m_glassUv      = displayUv;
@@ -364,14 +403,22 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
         }
     }
 
-    // The glass, sampling the CRT output through the remapped UVs.
+    // The tube (dark, untextured), then the picture band floating on it,
+    // sampling the CRT output.
     SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, mvp);
 
-    if (!m_glassVerts.empty() && displaySrv != nullptr)
+    if (!m_glassVerts.empty())
+    {
+        hr = m_renderer.DrawTriangles (m_glassVerts.data(), m_glassVerts.size(),
+                                       mvp, false, viewport, true);
+        CHRA (hr);
+    }
+
+    if (!m_pictureVerts.empty() && displaySrv != nullptr)
     {
         m_renderer.SetContentSrv (displaySrv);
 
-        hr = m_renderer.DrawTriangles (m_glassVerts.data(), m_glassVerts.size(),
+        hr = m_renderer.DrawTriangles (m_pictureVerts.data(), m_pictureVerts.size(),
                                        mvp, true, viewport, true);
 
         m_renderer.SetContentSrv (nullptr);

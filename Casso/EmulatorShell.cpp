@@ -125,10 +125,6 @@ static constexpr DWORD   s_kIdleUpkeepMs              = 50;      // ~20 Hz
 // the monitor off returns the drives to their full classic size.
 static constexpr float   s_kDeskDriveScale       = 0.8f;
 
-// Black guard border around the desk scene's offscreen picture, so the glass
-// tube margins sample guard black instead of clamp-smearing edge columns.
-static constexpr int     s_kPictureGuardPx       = 8;
-
 // The desk band height and the monitor fit depend on each other (the band
 // scales with the monitor's SceneScale, which depends on the center the band
 // leaves). The dependency is a contraction, so a few relayout passes settle it.
@@ -1098,20 +1094,22 @@ HRESULT EmulatorShell::InitializeRenderer()
             int   pictureW    = 0;
             RECT  pictureRect = {};
 
-            pictureH = std::min (pictureH, m_d3dRenderer.GetBackBufferHeight() - s_kPictureGuardPx * 2);
+            pictureH = std::min (pictureH, m_d3dRenderer.GetBackBufferHeight());
             pictureW = MulDiv (pictureH, kFramebufferWidth, kFramebufferHeight);
 
-            if (pictureW > m_d3dRenderer.GetBackBufferWidth() - s_kPictureGuardPx * 2)
+            if (pictureW > m_d3dRenderer.GetBackBufferWidth())
             {
-                pictureW = m_d3dRenderer.GetBackBufferWidth() - s_kPictureGuardPx * 2;
+                pictureW = m_d3dRenderer.GetBackBufferWidth();
                 pictureH = MulDiv (pictureW, kFramebufferHeight, kFramebufferWidth);
             }
 
-            // The guard inset keeps a clean black border around the picture
-            // in the texture, so the tube margins on the glass sample guard
-            // black instead of clamp-smearing the outermost pixel columns.
-            pictureRect = RECT{ s_kPictureGuardPx, s_kPictureGuardPx,
-                                s_kPictureGuardPx + pictureW, s_kPictureGuardPx + pictureH };
+            // Anchored at the texture origin: the picture's edges coincide
+            // with the texture's, so the CRT chain's neighbor-sampling
+            // passes clamp onto the picture itself at the borders -- the
+            // same behavior as the classic direct path. (The picture mesh's
+            // boundary is the band boundary, so nothing ever samples across
+            // the picture's texture edge.)
+            pictureRect = RECT{ 0, 0, pictureW, pictureH };
 
             hrComposite = m_d3dRenderer.UploadAndCompositeOffscreen (m_pendingFramebuffer, pictureRect);
 
