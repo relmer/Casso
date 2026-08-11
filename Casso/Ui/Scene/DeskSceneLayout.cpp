@@ -234,6 +234,39 @@ HRESULT DeskSceneLayout::Compute (const RECT             & viewportPx,
             SceneCamera::PerspectiveFovRH (kFovY, aspect, kNearMm, kFarMm, out.proj);
             SceneCamera::Mul44            (out.view, out.proj, out.viewProj);
         }
+
+        // The scene's own projected footprint, for aspect-matched sizing
+        // (Ctrl+0 shrink-wraps the window around it).
+        {
+            float   pxMin[2] = { FLT_MAX, FLT_MAX };
+            float   pxMax[2] = { -FLT_MAX, -FLT_MAX };
+            bool    all      = true;
+
+            for (int corner = 0; corner < 8; corner++)
+            {
+                float   pt[3] = { (corner & 1) ? sceneMax[0] : sceneMin[0],
+                                  (corner & 2) ? sceneMax[1] : sceneMin[1],
+                                  (corner & 4) ? sceneMax[2] : sceneMin[2] };
+                float   px[2] = {};
+
+                if (!SceneCamera::ProjectToScreen (out.viewProj, pt, viewportPx, px))
+                {
+                    all = false;
+                    break;
+                }
+
+                pxMin[0] = std::min (pxMin[0], px[0]);  pxMax[0] = std::max (pxMax[0], px[0]);
+                pxMin[1] = std::min (pxMin[1], px[1]);  pxMax[1] = std::max (pxMax[1], px[1]);
+            }
+
+            if (all)
+            {
+                out.sceneRectPx.left   = (LONG) std::floor (pxMin[0]);
+                out.sceneRectPx.top    = (LONG) std::floor (pxMin[1]);
+                out.sceneRectPx.right  = (LONG) std::ceil (pxMax[0]);
+                out.sceneRectPx.bottom = (LONG) std::ceil (pxMax[1]);
+            }
+        }
     }
 
     // Scene scale and the projected glass rect: the glass's on-screen
@@ -359,11 +392,12 @@ SIZE DeskSceneLayout::CenterSizeForDisplayPx (int                      displayWp
                                               int                      driveCount,
                                               const DeskSceneMetrics & metrics)
 {
-    SIZE   center = { displayWpx * 2, displayHpx * 3 };
+    SIZE   center  = { displayWpx * 2, displayHpx * 3 };
+    bool   wrapped = false;
 
 
 
-    for (int pass = 0; pass < 5; pass++)
+    for (int pass = 0; pass < 7; pass++)
     {
         HRESULT               hr     = S_OK;
         DeskSceneComposition  comp;
@@ -385,14 +419,33 @@ SIZE DeskSceneLayout::CenterSizeForDisplayPx (int                      displayWp
             break;
         }
 
+        // Converged: the CURRENT center produces the target picture height
+        // (never return a further-updated center the loop has not verified).
         if (std::abs (fh - displayHpx) <= 1)
         {
             break;
         }
 
-        factor    = (float) displayHpx / (float) fh;
-        center.cx = (LONG) lroundf ((float) center.cx * factor);
-        center.cy = (LONG) lroundf ((float) center.cy * factor);
+        // First correction: shrink-wrap the center around the scene's
+        // projected footprint (plus a small pad) so a viewport-aspect
+        // mismatch never letterboxes slack above and below the monitor.
+        // After that the aspect is settled and pure uniform scaling
+        // converges on the linear glassPx(center) piece -- re-wrapping every
+        // pass oscillates, because the forward drive row's projection is
+        // strongly standoff-dependent.
+        factor = (float) displayHpx / (float) fh;
+
+        if (!wrapped)
+        {
+            center.cx = (LONG) lroundf ((float) (comp.sceneRectPx.right - comp.sceneRectPx.left) * factor) + kCenterPadPx * 2;
+            center.cy = (LONG) lroundf ((float) (comp.sceneRectPx.bottom - comp.sceneRectPx.top) * factor) + kCenterPadPx * 2;
+            wrapped   = true;
+        }
+        else
+        {
+            center.cx = (LONG) lroundf ((float) center.cx * factor);
+            center.cy = (LONG) lroundf ((float) center.cy * factor);
+        }
     }
 
     return center;

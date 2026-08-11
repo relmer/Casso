@@ -64,6 +64,7 @@ struct DeskSceneComposition
     int    driveCount       = 0;
     float  sceneScale       = 0.0f;   // glass px height / (384 dp at dpi)
     RECT   glassRectPx      = {};     // projected glass bounds -- the CRT target rect
+    RECT   sceneRectPx      = {};     // projected scene bounds -- what the composition occupies
 };
 
 
@@ -112,6 +113,9 @@ public:
     static constexpr float  kDriveRowForwardMm = 170.0f;
     static constexpr float  kDriveGapMm        = 26.0f;
     static constexpr float  kContainMargin     = 1.02f;
+
+    // Breathing room the Ctrl+0 shrink-wrap adds around the scene footprint.
+    static constexpr int    kCenterPadPx       = 10;
 
     // Downward viewing angle: a person at a desk looks slightly down at the
     // hardware, which is also what reveals the top surfaces that make the

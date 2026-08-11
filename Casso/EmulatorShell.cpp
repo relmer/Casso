@@ -1080,15 +1080,22 @@ HRESULT EmulatorShell::InitializeRenderer()
         if (DeskSceneActive())
         {
             // The CRT chain renders the picture into an exact-aspect rect
-            // anchored at the texture origin -- sized from the projected
-            // glass height for 1:1-ish resolution, but NOT positioned by the
-            // projected bounding box, whose keystone slop would shear the
-            // texel alignment and shave the outermost pixel columns.
-            RECT   glassPx    = m_d3dRenderer.GetTargetBounds();
-            int    pictureH   = std::min ((LONG) m_d3dRenderer.GetBackBufferHeight(),
-                                          glassPx.bottom - glassPx.top);
-            int   pictureW    = MulDiv (pictureH, kFramebufferWidth, kFramebufferHeight);
+            // anchored at the texture origin -- sized to the picture's
+            // MEASURED on-screen height so the glass samples ~1:1 texels
+            // (over-rendering minifies, and the linear filter then averages
+            // away the outermost pixel columns where the sag compresses the
+            // edges) -- and NOT positioned by the projected bounding box,
+            // whose keystone slop would shear the texel alignment.
+            RECT  glassPx     = m_d3dRenderer.GetTargetBounds();
+            int   measuredH   = (int) lroundf (DeskSceneLayout::MeasurePictureHeightPx (
+                                    m_deskScene.Composition(), m_deskScene.MonitorModel().Surface(),
+                                    kFramebufferWidth, kFramebufferHeight));
+            int   pictureH    = (measuredH > 0) ? measuredH : (int) (glassPx.bottom - glassPx.top);
+            int   pictureW    = 0;
             RECT  pictureRect = {};
+
+            pictureH = std::min (pictureH, m_d3dRenderer.GetBackBufferHeight());
+            pictureW = MulDiv (pictureH, kFramebufferWidth, kFramebufferHeight);
 
             if (pictureW > m_d3dRenderer.GetBackBufferWidth())
             {
