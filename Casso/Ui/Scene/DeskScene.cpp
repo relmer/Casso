@@ -237,6 +237,95 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
         }
     }
 
+    // The tube mask: a dark ring from the glass edges to a rounded-rect
+    // opening kMaskPadMm outside the band -- four trapezoid strips to the
+    // square opening plus a smooth arc fan filling each corner between the
+    // opening corner and its quarter circle. Every point rides the sag
+    // surface, floated past the picture's own lift so depth never ties.
+    {
+        float  gx0    = surface.x0;
+        float  gx1    = surface.x1;
+        float  gz0    = surface.z0;
+        float  gz1    = surface.z1;
+        float  bx0    = gx0 + bandU0 * (gx1 - gx0);
+        float  bx1    = gx0 + bandU1 * (gx1 - gx0);
+        float  bz1    = gz1 - bandV0 * (gz1 - gz0);
+        float  bz0    = gz1 - bandV1 * (gz1 - gz0);
+        float  ox0    = std::max (bx0 - kMaskPadMm, gx0);
+        float  ox1    = std::min (bx1 + kMaskPadMm, gx1);
+        float  oz0    = std::max (bz0 - kMaskPadMm, gz0);
+        float  oz1    = std::min (bz1 + kMaskPadMm, gz1);
+        float  radius = std::min ({ kMaskRadiusMm, (ox1 - ox0) * 0.5f, (oz1 - oz0) * 0.5f });
+
+        auto surfacePoint = [&] (float x, float z, Dxui3DRenderer::Vertex & v)
+        {
+            float   u     = (x - surface.x0) / (surface.x1 - surface.x0);
+            float   w     = (surface.z1 - z) / (surface.z1 - surface.z0);
+            float   pt[3] = {};
+
+            CurvedDisplayMath::ModelPointFromUv (surface, u, w, pt);
+
+            v = {};
+            v.x = pt[0];
+            v.y = pt[1] - kMaskLiftMm;
+            v.z = pt[2];
+            v.r = kMaskTint[0];
+            v.g = kMaskTint[1];
+            v.b = kMaskTint[2];
+            v.a = 1.0f;
+        };
+
+        auto pushTri = [&] (float x0, float z0, float x1, float z1, float x2, float z2)
+        {
+            Dxui3DRenderer::Vertex   v = {};
+
+            surfacePoint (x0, z0, v);  m_maskVerts.push_back (v);
+            surfacePoint (x1, z1, v);  m_maskVerts.push_back (v);
+            surfacePoint (x2, z2, v);  m_maskVerts.push_back (v);
+        };
+
+        auto pushQuad = [&] (float x0, float z0, float x1, float z1,
+                             float x2, float z2, float x3, float z3)
+        {
+            pushTri (x0, z0, x1, z1, x2, z2);
+            pushTri (x0, z0, x2, z2, x3, z3);
+        };
+
+        m_maskVerts.clear();
+
+        // Four strips from the glass edges to the square opening.
+        pushQuad (gx0, gz1, gx1, gz1, ox1, oz1, ox0, oz1);   // top
+        pushQuad (ox0, oz0, ox1, oz0, gx1, gz0, gx0, gz0);   // bottom
+        pushQuad (gx0, gz1, ox0, oz1, ox0, oz0, gx0, gz0);   // left
+        pushQuad (ox1, oz1, gx1, gz1, gx1, gz0, ox1, oz0);   // right
+
+        // Four corner fans: from each opening corner out to its quarter arc.
+        {
+            float   corners[4][4] = { { ox0, oz1, 1.0f, -1.0f },     // top-left: center is right+down
+                                      { ox1, oz1, -1.0f, -1.0f },    // top-right
+                                      { ox1, oz0, -1.0f, 1.0f },     // bottom-right
+                                      { ox0, oz0, 1.0f, 1.0f } };    // bottom-left
+
+            for (int k = 0; k < 4; k++)
+            {
+                float   cx = corners[k][0] + corners[k][2] * radius;   // arc center
+                float   cz = corners[k][1] + corners[k][3] * radius;
+
+                for (int i = 0; i < kMaskArcSegments; i++)
+                {
+                    float  a0  = (float) i / (float) kMaskArcSegments * 1.5707963f;
+                    float  a1  = (float) (i + 1) / (float) kMaskArcSegments * 1.5707963f;
+                    float  p0x = cx - corners[k][2] * radius * std::cos (a0);
+                    float  p0z = cz - corners[k][3] * radius * std::sin (a0);
+                    float  p1x = cx - corners[k][2] * radius * std::cos (a1);
+                    float  p1z = cz - corners[k][3] * radius * std::sin (a1);
+
+                    pushTri (corners[k][0], corners[k][1], p0x, p0z, p1x, p1z);
+                }
+            }
+        }
+    }
+
     m_glassUv      = displayUv;
     m_glassUvDirty = false;
 }
@@ -422,6 +511,13 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
                                        mvp, true, viewport, true);
 
         m_renderer.SetContentSrv (nullptr);
+        CHRA (hr);
+    }
+
+    if (!m_maskVerts.empty())
+    {
+        hr = m_renderer.DrawTriangles (m_maskVerts.data(), m_maskVerts.size(),
+                                       mvp, false, viewport, true);
         CHRA (hr);
     }
 

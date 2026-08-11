@@ -92,6 +92,18 @@ public:
     // glass.
     static constexpr float  kTubeTint[3]     = { 0.020f, 0.035f, 0.028f };
 
+    // The tube mask: a rounded-corner opening over the glass, the way a real
+    // CRT's faceplate rounds off. The opening sits kMaskPadMm OUTSIDE the
+    // picture band so the radius never clips text or graphics (the geometry
+    // guarantees it: the band corner stays outside the corner arc whenever
+    // kMaskRadiusMm <= kMaskPadMm * sqrt(2)/(sqrt(2)-1) =~ 3.41 * pad); the
+    // rounding reads only where bright content pushes toward the edges.
+    static constexpr float  kMaskPadMm       = 3.0f;
+    static constexpr float  kMaskRadiusMm    = 9.0f;
+    static constexpr float  kMaskLiftMm      = 0.25f;
+    static constexpr int    kMaskArcSegments = 8;
+    static constexpr float  kMaskTint[3]     = { 0.012f, 0.020f, 0.016f };
+
 private:
     void  RebuildGlassUvs   (const CrtUvRect & displayUv, int displayW, int displayH);
     void  RebuildLampVerts  ();
@@ -109,6 +121,7 @@ private:
 
     std::vector<Dxui3DRenderer::Vertex>   m_glassVerts;         // the tube: dark, untextured
     std::vector<Dxui3DRenderer::Vertex>   m_pictureVerts;       // band-exact curved grid, textured
+    std::vector<Dxui3DRenderer::Vertex>   m_maskVerts;          // rounded-corner tube mask ring
     CrtUvRect                             m_glassUv;
     bool                                  m_glassUvDirty    = true;
 
