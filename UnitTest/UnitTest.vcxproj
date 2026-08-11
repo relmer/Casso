@@ -448,6 +448,22 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Scene\DeskSceneHitTester.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Scene\DeskSceneLayout.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Scene\DeskSceneModel.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Scene\FullscreenStripState.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="Casso\ClipboardTextTests.cpp" />
     <ClCompile Include="Casso\TrackSectorPredicateTests.cpp" />
     <ClCompile Include="Casso\DebugDialogProjectionTests.cpp" />
@@ -487,6 +503,12 @@
     <ClCompile Include="UiTests\Apple2cSwitchBarTests.cpp" />
     <ClCompile Include="UiTests\CrtParameterMappingTests.cpp" />
     <ClCompile Include="UiTests\CrtLetterboxLayoutTests.cpp" />
+    <ClCompile Include="UiTests\SceneCameraTests.cpp" />
+    <ClCompile Include="UiTests\CurvedDisplayMathTests.cpp" />
+    <ClCompile Include="UiTests\DeskSceneLayoutTests.cpp" />
+    <ClCompile Include="UiTests\DeskSceneModelTests.cpp" />
+    <ClCompile Include="UiTests\DeskSceneHitTesterTests.cpp" />
+    <ClCompile Include="UiTests\FullscreenStripStateTests.cpp" />
     <ClCompile Include="UiTests\DpiScalerTests.cpp" />
     <ClCompile Include="UiTests\Win11DwmHelpersTests.cpp" />
     <ClCompile Include="UiTests\HitTesterTests.cpp" />

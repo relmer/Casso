@@ -296,6 +296,11 @@
     <ClCompile Include="InputDebugDialogState.cpp" />
     <ClCompile Include="Ui\Disk2DebugPanel.cpp" />
     <ClCompile Include="Ui\Printer3DScene.cpp" />
+    <ClCompile Include="Ui\Scene\DeskScene.cpp" />
+    <ClCompile Include="Ui\Scene\DeskSceneHitTester.cpp" />
+    <ClCompile Include="Ui\Scene\DeskSceneLayout.cpp" />
+    <ClCompile Include="Ui\Scene\DeskSceneModel.cpp" />
+    <ClCompile Include="Ui\Scene\FullscreenStripState.cpp" />
     <ClCompile Include="Ui\PrinterPanel.cpp" />
     <ClCompile Include="Ui\PrinterPaperView.cpp" />
     <ClCompile Include="Ui\InputDebugPanel.cpp" />
@@ -384,6 +389,11 @@
     <ClInclude Include="InputDebugDialogState.h" />
     <ClInclude Include="Ui\Disk2DebugPanel.h" />
     <ClInclude Include="Ui\Printer3DScene.h" />
+    <ClInclude Include="Ui\Scene\DeskScene.h" />
+    <ClInclude Include="Ui\Scene\DeskSceneHitTester.h" />
+    <ClInclude Include="Ui\Scene\DeskSceneLayout.h" />
+    <ClInclude Include="Ui\Scene\DeskSceneModel.h" />
+    <ClInclude Include="Ui\Scene\FullscreenStripState.h" />
     <ClInclude Include="Ui\PrinterPanel.h" />
     <ClInclude Include="Ui\PrinterPaperView.h" />
     <ClInclude Include="Ui\InputDebugPanel.h" />

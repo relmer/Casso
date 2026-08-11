@@ -1,0 +1,19 @@
+#include "Pch.h"
+
+#include "Render/SceneCamera.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SceneCamera::Identity44
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SceneCamera::Identity44 (float out[16])
+{
+    memset (out, 0, 16 * sizeof (float));
+    out[0] = out[5] = out[10] = out[15] = 1.0f;
+}

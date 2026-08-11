@@ -248,6 +248,8 @@
     <ClCompile Include="Audio\PrinterAudioSource.cpp" />
     <ClCompile Include="Devices\Printer\PrinterByteRing.cpp" />
     <ClCompile Include="Devices\Printer\PrinterCard.cpp" />
+    <ClCompile Include="Render\SceneCamera.cpp" />
+    <ClCompile Include="Render\CurvedDisplayMath.cpp" />
     <ClCompile Include="Devices\Printer\PrintRaster.cpp" />
     <ClCompile Include="Devices\Printer\PaperRenderer.cpp" />
     <ClCompile Include="Devices\Printer\PrintJobSerializer.cpp" />
@@ -354,6 +356,8 @@
     <ClInclude Include="Audio\DriveAudioMixer.h" />
     <ClInclude Include="Audio\Disk2AudioSource.h" />
     <ClInclude Include="Audio\PrinterAudioSource.h" />
+    <ClInclude Include="Render\SceneCamera.h" />
+    <ClInclude Include="Render\CurvedDisplayMath.h" />
     <ClInclude Include="Devices\Printer\PrinterTypes.h" />
     <ClInclude Include="Devices\Printer\PrinterByteRing.h" />
     <ClInclude Include="Devices\Printer\PrinterCard.h" />

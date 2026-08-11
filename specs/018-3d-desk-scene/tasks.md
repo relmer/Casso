@@ -14,9 +14,9 @@
 
 **Purpose**: Assets and project plumbing so every later task compiles and links.
 
-- [ ] T001 Embed Monitor2c + DiskII models: add `IDR_MODEL_MONITOR2C_OBJ/_MTL`, `IDR_MODEL_DISKII_OBJ/_MTL` to `Casso/resource.h` (after the ImageWriter IDs ~:137) and RCDATA entries in `Casso/Casso.rc` (~:48) pointing at `Resources/Models/{Monitor2c,DiskII}/`
-- [ ] T002 [P] Scaffold `CassoEmuCore/Render/` (SceneCamera, CurvedDisplayMath stubs) in `CassoEmuCore.vcxproj` + `.filters`, and `Casso/Ui/Scene/` (DeskSceneLayout, DeskSceneModel, DeskSceneHitTester, FullscreenStripState, DeskScene stubs) in `Casso/Casso.vcxproj` + `.filters`
-- [ ] T003 [P] Add UnitTest plumbing: new test files `UnitTest/UiTests/{SceneCameraTests,CurvedDisplayMathTests,DeskSceneLayoutTests,DeskSceneModelTests,DeskSceneHitTesterTests,FullscreenStripStateTests}.cpp` to `UnitTest/UnitTest.vcxproj`, plus recompile-by-path entries for the `Casso/Ui/Scene/*.cpp` sources (same pattern as `DriveWidget.cpp` at `UnitTest.vcxproj:403`)
+- [X] T001 Embed Monitor2c + DiskII models: add `IDR_MODEL_MONITOR2C_OBJ/_MTL`, `IDR_MODEL_DISKII_OBJ/_MTL` to `Casso/resource.h` (after the ImageWriter IDs ~:137) and RCDATA entries in `Casso/Casso.rc` (~:48) pointing at `Resources/Models/{Monitor2c,DiskII}/`
+- [X] T002 [P] Scaffold `CassoEmuCore/Render/` (SceneCamera, CurvedDisplayMath stubs) in `CassoEmuCore.vcxproj` + `.filters`, and `Casso/Ui/Scene/` (DeskSceneLayout, DeskSceneModel, DeskSceneHitTester, FullscreenStripState, DeskScene stubs) in `Casso/Casso.vcxproj` + `.filters`
+- [X] T003 [P] Add UnitTest plumbing: new test files `UnitTest/UiTests/{SceneCameraTests,CurvedDisplayMathTests,DeskSceneLayoutTests,DeskSceneModelTests,DeskSceneHitTesterTests,FullscreenStripStateTests}.cpp` to `UnitTest/UnitTest.vcxproj`, plus recompile-by-path entries for the `Casso/Ui/Scene/*.cpp` sources (same pattern as `DriveWidget.cpp` at `UnitTest.vcxproj:403`)
 
 **Checkpoint**: Solution builds x64 Debug with empty stubs; test binary links.
 
