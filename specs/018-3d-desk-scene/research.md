@@ -126,7 +126,12 @@ requested glass px size) to keep Ctrl+0 / reset-to-100% working
 
 **Rationale**: With one camera and fixed placements, "what window size makes the glass
 exactly native scale" is a solve on the perspective fit — closed-form, testable, and
-load-bearing for an existing command that must not regress.
+load-bearing for an existing command that must not regress. The single shared camera is
+also a spec requirement in its own right (FR-016, added 2026-08-10): device perspective
+MUST derive from true position in the one scene — right of center reads from the left,
+below from above — with per-device cameras and billboarding prohibited, so dock-position
+moves in the follow-on spec change perspective automatically. The fullscreen strip is its
+own composition and applies the same rule within itself.
 
 **Alternatives considered**: Keeping the 2D band + effective-DPI machinery under the
 scene — contradicts the supersession clarification and preserves a fixed-point loop that

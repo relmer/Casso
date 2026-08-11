@@ -40,7 +40,10 @@ Compute (viewportRectPx, dpi, machineConfig) -> DeskSceneLayout
 
 **Contract tests**: determinism; drive count follows config (0/1/2); monitor centered with
 drives in the former band position; scene contained at extreme aspect ratios; sceneScale
-== glassPxHeight / (384dp at dpi).
+== glassPxHeight / (384dp at dpi); exactly ONE camera in the layout output (FR-016 — no
+per-device cameras); off-center placements produce position-correct parallax under the
+shared camera (projected silhouette of a below-center drive exposes its top face; an
+off-center drive exposes its inward flank).
 
 ## DeskSceneHitTester
 

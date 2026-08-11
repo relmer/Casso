@@ -51,12 +51,13 @@ The user sees their two disk drives as 3D Disk II units on the desk below/beside
 2. **Given** a drive has a mounted disk, **When** the user hovers over the drive, **Then** the tooltip names the mounted image and, if applicable, the write-protect explanation matches the current 2D band's wording exactly.
 3. **Given** a drive has a mounted disk, **When** the user clicks the drive's slot area, **Then** the disk is ejected and the disk browser opens; **When** the user instead clicks the drive body, **Then** the browser opens and the disk stays mounted, exactly matching today's behavior.
 4. **Given** a drive is empty versus loaded, **When** the user looks at the drive, **Then** the drive's front visibly distinguishes the two states.
+5. **Given** two drives placed below the monitor, **When** the user views the scene, **Then** each drive's visible faces correspond to its position relative to the scene center (below-center drives show a hint of their top; off-center drives show a hint of their inward flank), consistent with one shared viewpoint.
 
 ---
 
 ### User Story 3 - Theme switching stays seamless and other themes stay untouched (Priority: P3)
 
-A user can switch between the skeuomorphic theme and the compact, dark-modern, and retro themes at any time. The other themes look and behave exactly as they do today — simple 2D widgets, no 3D scene — and switching in either direction is quick and leaves the emulated machine undisturbed.
+A user can switch between the skeuomorphic theme and the two compact-drive themes (dark-modern and retro) at any time. The other themes look and behave exactly as they do today — simple 2D widgets, no 3D scene — and switching in either direction is quick and leaves the emulated machine undisturbed.
 
 **Why this priority**: Protects existing users who prefer the lightweight themes and guarantees the 3D work is additive, not a regression. It's a gate on shipping, but it has no standalone user value until US1/US2 exist.
 
@@ -64,7 +65,7 @@ A user can switch between the skeuomorphic theme and the compact, dark-modern, a
 
 **Acceptance Scenarios**:
 
-1. **Given** a machine is running in the skeuomorphic theme, **When** the user switches to compact/dark-modern/retro, **Then** those themes render their existing 2D widgets unchanged and the machine keeps running without interruption.
+1. **Given** a machine is running in the skeuomorphic theme, **When** the user switches to dark-modern or retro, **Then** those themes render their existing 2D widgets unchanged and the machine keeps running without interruption.
 2. **Given** any non-skeuomorphic theme is active, **When** the user switches to skeuomorphic, **Then** the 3D desk scene appears with the live picture already on the glass and all drive state (mounted disks, activity, write-protect) correctly reflected.
 
 ---
@@ -94,14 +95,14 @@ A user can switch between the skeuomorphic theme and the compact, dark-modern, a
 - **FR-006**: Hovering a 3D drive MUST show the same tooltip content the 2D drive band shows today, including the mounted image name and the write-protect explanations introduced in the blank-disk-creation feature, with identical wording.
 - **FR-007**: Clicking a 3D drive's slot region MUST eject the mounted disk and open the disk browser; clicking the drive body MUST open the disk browser while keeping the current disk mounted — matching the 2D band's click regions in behavior.
 - **FR-008**: The 3D monitor MUST show a power lamp reflecting the machine's power/running state and carry the product branding in the position the 2D skeuomorphic frame shows it today.
-- **FR-009**: The compact, dark-modern, and retro themes MUST be visually and behaviorally unchanged from the current release.
+- **FR-009**: The non-skeuomorphic themes (dark-modern and retro, the compact-drive themes — "compact" is a trait they share, not a third theme) MUST be visually and behaviorally unchanged from the current release.
 - **FR-010**: Switching between the skeuomorphic theme and any other theme MUST complete without pausing, resetting, or visibly glitching the running emulated machine, and the 3D scene MUST reflect current machine state (picture, mounted disks, activity, write-protect) immediately on arrival.
 - **FR-011**: The scene MUST adapt to window resizing, display-scaling (DPI) changes, and fullscreen transitions while preserving proportions, legibility, and input accuracy.
 - **FR-012**: Window captures of the emulator MUST contain the composed desk scene as displayed.
 - **FR-013**: The scene MUST render from the fixed front-facing viewpoint; user rearrangement, docking, and camera control are explicitly out of scope for this feature.
-- **FR-016**: All devices MUST render from the single shared viewpoint with their true positions in one scene, so each device's perspective corresponds to where it sits relative to the display (right of center → seen slightly from the left, below → slightly from above, and combinations). Per-device cameras or straight-on billboarding MUST NOT be used.
 - **FR-014**: Fullscreen MUST present the curved glass alone — the picture filling the screen with curvature and curvature-correct input, monitor body/drives/backdrop hidden.
-- **FR-015**: In fullscreen, the system MUST provide a drive overlay strip with full windowed-mode drive interaction parity (activity, tooltips, slot/body clicks): summoned by pointer-to-bottom-edge when the host owns the pointer, or by a dedicated hotkey when the guest has pointer capture (mouse/paddle) — the hotkey releases capture for the interaction and restores it on dismissal. The strip auto-hides on pointer-leave but never while a tooltip or the disk browser is open. Pointer-to-edge summoning MUST be disabled while the guest has capture. While hidden, drive activity MUST surface via an unobtrusive indicator. The Disk menu remains available as today.
+- **FR-015**: In fullscreen, the system MUST provide a drive overlay strip with full windowed-mode drive interaction parity (activity, tooltips, slot/body clicks): summoned by pointer-to-bottom-edge when the host owns the pointer, or by a dedicated hotkey when the guest has pointer capture (mouse/paddle) — the hotkey releases capture for the interaction and restores it on dismissal. The strip auto-hides on pointer-leave but never while a tooltip or the disk browser is open. Pointer-to-edge summoning MUST be disabled while the guest has capture. While hidden, drive activity MUST surface via an unobtrusive indicator (its exact form is a design-time decision). The Disk menu remains available as today.
+- **FR-016**: Within each composed presentation — the windowed desk scene, and the fullscreen drive strip as its own composition — all devices MUST render from that presentation's single shared viewpoint with their true positions in one scene, so each device's perspective corresponds to where it sits relative to that presentation's center (right of center → seen slightly from the left, below → slightly from above, and combinations). Per-device cameras or straight-on billboarding MUST NOT be used. (Elaborates how the FR-013 viewpoint projects each device.)
 
 ### Key Entities
 
@@ -118,7 +119,7 @@ A user can switch between the skeuomorphic theme and the compact, dark-modern, a
 - **SC-002**: The emulator maintains its current smoothness bar in the skeuomorphic theme: no user-perceivable drop in display frame rate or emulation speed compared to the current release on the same hardware.
 - **SC-003**: All drive interactions available in the 2D band (activity light, loaded/empty state, tooltips including write-protect wording, slot-click eject+browse, body-click browse) are demonstrably present in the 3D scene — 100% parity on a scripted walkthrough checklist.
 - **SC-004**: Theme switching completes in under one second in either direction with the emulated machine running throughout.
-- **SC-005**: The three non-skeuomorphic themes produce pixel-identical rendering to the current release in a side-by-side capture comparison.
+- **SC-005**: Both non-skeuomorphic themes (dark-modern, retro) produce pixel-identical rendering to the current release in a side-by-side capture comparison.
 - **SC-006**: A first-time viewer shown the skeuomorphic theme identifies the on-screen objects as a period Apple monitor and disk drives without prompting (qualitative gestalt check against reference photos).
 
 ## Assumptions

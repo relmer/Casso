@@ -25,7 +25,9 @@ Expected: all tests green, including the new
    scaling: scene contained, proportions correct, input accuracy unchanged.
 4. Ctrl+0: window sizes so the picture is native scale.
 5. Capture validation: `scripts/CaptureScreenshotMatrix.ps1` (PrintWindow →
-   CopyFromScreen fallback) — judge the gestalt against the Monitor //c reference photos.
+   CopyFromScreen fallback) — judge the gestalt against the Monitor //c reference photos,
+   AND confirm the capture contains the composed 3D scene, not a black hole (FR-012 —
+   known DComp/PrintWindow pitfall). Repeat the capture check in fullscreen.
 
 ## US2 — drive parity (P2)
 
@@ -36,6 +38,9 @@ Expected: all tests green, including the new
    disk stays mounted. Click dead space between devices: nothing.
 4. Eject/insert: door animates (~350 ms); loaded vs empty visibly distinct.
 5. Machine with one drive configured: only one drive object appears.
+6. Perspective (FR-016): with two drives below the monitor, each is seen slightly from
+   above, and each off-center drive shows a hint of its inward flank — consistent with
+   one shared viewpoint, no straight-on billboarding.
 
 ## US3 — themes (P3)
 

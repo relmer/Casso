@@ -100,7 +100,7 @@ sync path (`DiskManager::UpdateDriveWidgets` → `SyncFromState`) is unchanged.
 |---|---|---|
 | active | bool | fullscreen AND skeuo theme |
 | glassCamera | SceneCamera | FOV/eye solved so glass fills the monitor (R8) |
-| stripLayout | DeskSceneLayout | drives-only strip composition at bottom edge |
+| stripLayout | DeskSceneLayout | drives-only strip composition at bottom edge — its own composed presentation with its own single camera; FR-016 applies within it (strip drives derive perspective from their positions relative to the strip composition's center, never billboarded) |
 
 - **Transitions**: entering fullscreen swaps camera + hides chrome bands; leaving restores
   the windowed composition; both preserve emulation uninterrupted (FR-010 analog).
