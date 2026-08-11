@@ -8,6 +8,15 @@
 
 **Input**: User description: "Replace the skeuomorphic theme's 2D monitor frame and drive band with a real-time 3D desk scene rendering the checked-in parametric models (Monitor //c + two Disk II drives for now). The emulator display becomes a texture mapped onto the monitor model's spherical-sag glass mesh so the picture has period-correct curvature. Mouse/touch input over the curved display must inverse-project to the correct emulated pixel. Feature-parity with today's skeuo theme is the bar. Compact/dark-modern/retro themes keep their existing simple 2D widgets, untouched."
 
+## Clarifications
+
+### Session 2026-08-10
+
+- Q: After the 3D scene ships, is the 2D skeuomorphic path deleted, kept as an automatic fallback, or kept as a user-visible choice? → A: Fully superseded — the 3D scene is the skeuomorphic theme; the 2D frame/band code is removed once parity is validated, with no fallback path.
+- Q: What surrounds the devices in the scene? → A: Today's skeuomorphic theme backdrop, unchanged — the 3D devices compose over it where the 2D frame/band sit today; no desk surface or modeled environment in this phase.
+- Q: What does fullscreen show — today's flat display, the whole desk scene, or the curved glass alone? → A: The curved glass only — the picture fills the screen with CRT curvature and curvature-correct input mapping. Drives are reachable via a temporary overlay strip with full windowed-mode interaction parity: summoned by pushing the pointer to the bottom edge when the host owns the pointer, or by a dedicated hotkey when the guest owns it (mouse/paddle capture) — the hotkey releases capture for the interaction and restores it on dismiss. The strip auto-hides on pointer-leave (never while a tooltip or the disk browser is open). While the strip is hidden, drive activity shows an unobtrusive indicator. The Disk menu keeps working as today.
+- Q: Does undocking drives into separate windows carry into the 3D scene (today's chrome is dockable)? → A: Documented parity exception — in this phase the scene is one composed surface with drives in the default position. The follow-on docking spec implements the agreed model: the user drags a drive as a full-opacity rendering of the drive itself (not a translucent ghost) that follows the cursor and may travel outside the window, and on release it always docks to an edge of the Casso window — drives are never free-floating windows.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Curved-glass monitor with the live picture (Priority: P1)
@@ -68,7 +77,9 @@ A user can switch between the skeuomorphic theme and the compact, dark-modern, a
 - Drive activity light during sustained fast access: the light must reflect activity without flickering artifacts or lagging noticeably behind the audible drive sounds.
 - Machine type with a single drive or no drives configured: the scene shows only the devices the machine actually has.
 - Screenshots/window captures of the emulator: the captured image shows the full composed scene as the user sees it.
-- Fullscreen mode: entering and leaving fullscreen preserves the scene, its proportions, and input accuracy.
+- Fullscreen mode: fullscreen presents the curved glass alone (monitor body, drives, and backdrop hidden) with curvature and input accuracy intact; the drive overlay strip provides drive access, and entering/leaving fullscreen transitions cleanly to and from the full scene.
+- Fullscreen with guest pointer capture (mouse or paddle mode): pointer-to-edge reveal is disabled so the strip can never be summoned by gameplay motion; the dedicated hotkey is the path in, and dismissing the strip restores capture exactly as it was.
+- Overlay strip auto-hide races: the strip must never disappear while a tooltip is showing or the disk browser is open from it.
 
 ## Requirements *(mandatory)*
 
@@ -87,10 +98,12 @@ A user can switch between the skeuomorphic theme and the compact, dark-modern, a
 - **FR-011**: The scene MUST adapt to window resizing, display-scaling (DPI) changes, and fullscreen transitions while preserving proportions, legibility, and input accuracy.
 - **FR-012**: Window captures of the emulator MUST contain the composed desk scene as displayed.
 - **FR-013**: The scene MUST render from the fixed front-facing viewpoint; user rearrangement, docking, and camera control are explicitly out of scope for this feature.
+- **FR-014**: Fullscreen MUST present the curved glass alone — the picture filling the screen with curvature and curvature-correct input, monitor body/drives/backdrop hidden.
+- **FR-015**: In fullscreen, the system MUST provide a drive overlay strip with full windowed-mode drive interaction parity (activity, tooltips, slot/body clicks): summoned by pointer-to-bottom-edge when the host owns the pointer, or by a dedicated hotkey when the guest has pointer capture (mouse/paddle) — the hotkey releases capture for the interaction and restores it on dismissal. The strip auto-hides on pointer-leave but never while a tooltip or the disk browser is open. Pointer-to-edge summoning MUST be disabled while the guest has capture. While hidden, drive activity MUST surface via an unobtrusive indicator. The Disk menu remains available as today.
 
 ### Key Entities
 
-- **Desk scene**: The composed 3D presentation for the skeuomorphic theme — a fixed arrangement of device objects viewed from the front; owns which devices appear based on the emulated machine's configuration.
+- **Desk scene**: The composed 3D presentation for the skeuomorphic theme — a fixed arrangement of device objects viewed from the front, composed over the theme's existing backdrop (no modeled environment in this phase); owns which devices appear based on the emulated machine's configuration.
 - **Device object**: A 3D representation of one physical device (Monitor //c, Disk II drive) built from the checked-in parametric models; carries interactive regions (slot, body) and state indicators (lamps, door/disk state).
 - **Curved display surface**: The monitor's glass; presents the live emulated picture with spherical curvature and defines the mapping between pointer positions on the glass and emulated screen coordinates.
 - **Drive state**: Per-drive live status feeding the scene — mounted image identity, activity, loaded/empty, and write-protect status with its user-facing explanation (shared with the existing 2D band and menus).
@@ -110,7 +123,7 @@ A user can switch between the skeuomorphic theme and the compact, dark-modern, a
 
 - The checked-in parametric models (Monitor //c, Disk II) on this branch are the visual source for the scene; refinements to the models themselves are ordinary asset updates, not spec changes.
 - The scene uses a fixed front-facing composition chosen to echo today's skeuomorphic layout (monitor above/behind, drives below/beside); the exact arrangement is a design-time decision, not user-configurable in this phase.
-- User rearrangement, docking, and layout persistence are a follow-on feature; new device types (DuoDisk, //c external drive, ProFile hard disk) arrive in later features paired with their emulation work.
-- The existing skeuomorphic 2D drive band and monitor frame are superseded within the skeuomorphic theme only; their behavior contract (tooltips, click regions, indicator timing) is the parity reference and remains available in the codebase until the scene ships.
+- User rearrangement, docking, and layout persistence are a follow-on feature with its interaction model already agreed (drag the full-opacity drive rendering, cursor-following and free to leave the window during the drag, always resolving to a dock edge of the Casso window on release); undocking drives into separate windows is therefore unavailable in this phase as a documented parity exception. New device types (DuoDisk, //c external drive, ProFile hard disk) arrive in later features paired with their emulation work.
+- The existing skeuomorphic 2D drive band and monitor frame are fully superseded within the skeuomorphic theme: their behavior contract (tooltips, click regions, indicator timing) is the parity reference during development, and the 2D frame/band code is removed once parity is validated — no fallback path and no user-visible toggle. The app's existing graphics baseline is sufficient for the scene.
 - Print preview, dialogs, menus, and all non-scene chrome are unaffected.
 - Machines other than the Apple II family follow later; this phase targets the currently shipping machine set and its drive configurations.
