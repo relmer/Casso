@@ -698,6 +698,9 @@ private:
     // drive region / nothing).
     SceneHitResult  DeskSceneHit (int xPx, int yPx) const;
 
+    // Builds/refreshes the CASSO_SCENE_DEBUG=2 texel-calibration texture.
+    void  EnsureSceneCalibration (const RECT & fittedRect);
+
     // Positions the joystick-mode toggle button vertically centered in the
     // empty band above the drive widgets (the top portion of the bottom
     // drive-bar inset) and centered horizontally in the window. bandTopPx
@@ -872,7 +875,13 @@ private:
     // once its models load (m_deskSceneReady).
     DeskScene                  m_deskScene;
     bool                       m_deskSceneReady = false;
-    bool                       m_deskSceneDebug = false;   // CASSO_SCENE_DEBUG=1: layout-rect overlay
+    int                        m_deskSceneDebug = 0;       // CASSO_SCENE_DEBUG: 1=layout rects, 2=+calibration texture
+
+    // CASSO_SCENE_DEBUG=2: a synthetic stripe pattern standing in for the
+    // CRT output, to verify the glass texel mapping end to end.
+    ComPtr<ID3D11Texture2D>           m_sceneCalibTex;
+    ComPtr<ID3D11ShaderResourceView>  m_sceneCalibSrv;
+    RECT                              m_sceneCalibRect = {};
 
     // Desk-scene zoom: the monitor's SceneScale from the last layout. The
     // drive widgets and the (scaled part of the) drive band follow it so the

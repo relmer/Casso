@@ -112,10 +112,10 @@ public:
     // margin the containment solve adds around the scene.
     static constexpr float  kDriveRowForwardMm = 170.0f;
     static constexpr float  kDriveGapMm        = 26.0f;
-    static constexpr float  kContainMargin     = 1.02f;
+    static constexpr float  kContainMargin     = 1.005f;
 
     // Breathing room the Ctrl+0 shrink-wrap adds around the scene footprint.
-    static constexpr int    kCenterPadPx       = 10;
+    static constexpr int    kCenterPadPx       = 4;
 
     // Downward viewing angle: a person at a desk looks slightly down at the
     // hardware, which is also what reveals the top surfaces that make the

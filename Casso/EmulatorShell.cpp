@@ -125,6 +125,10 @@ static constexpr DWORD   s_kIdleUpkeepMs              = 50;      // ~20 Hz
 // the monitor off returns the drives to their full classic size.
 static constexpr float   s_kDeskDriveScale       = 0.8f;
 
+// Black guard border around the desk scene's offscreen picture, so the glass
+// tube margins sample guard black instead of clamp-smearing edge columns.
+static constexpr int     s_kPictureGuardPx       = 8;
+
 // The desk band height and the monitor fit depend on each other (the band
 // scales with the monitor's SceneScale, which depends on the center the band
 // leaves). The dependency is a contraction, so a few relayout passes settle it.
@@ -1094,16 +1098,20 @@ HRESULT EmulatorShell::InitializeRenderer()
             int   pictureW    = 0;
             RECT  pictureRect = {};
 
-            pictureH = std::min (pictureH, m_d3dRenderer.GetBackBufferHeight());
+            pictureH = std::min (pictureH, m_d3dRenderer.GetBackBufferHeight() - s_kPictureGuardPx * 2);
             pictureW = MulDiv (pictureH, kFramebufferWidth, kFramebufferHeight);
 
-            if (pictureW > m_d3dRenderer.GetBackBufferWidth())
+            if (pictureW > m_d3dRenderer.GetBackBufferWidth() - s_kPictureGuardPx * 2)
             {
-                pictureW = m_d3dRenderer.GetBackBufferWidth();
+                pictureW = m_d3dRenderer.GetBackBufferWidth() - s_kPictureGuardPx * 2;
                 pictureH = MulDiv (pictureW, kFramebufferHeight, kFramebufferWidth);
             }
 
-            pictureRect = RECT{ 0, 0, pictureW, pictureH };
+            // The guard inset keeps a clean black border around the picture
+            // in the texture, so the tube margins on the glass sample guard
+            // black instead of clamp-smearing the outermost pixel columns.
+            pictureRect = RECT{ s_kPictureGuardPx, s_kPictureGuardPx,
+                                s_kPictureGuardPx + pictureW, s_kPictureGuardPx + pictureH };
 
             hrComposite = m_d3dRenderer.UploadAndCompositeOffscreen (m_pendingFramebuffer, pictureRect);
 
@@ -1111,14 +1119,27 @@ HRESULT EmulatorShell::InitializeRenderer()
             {
                 // The chain aspect-fits within pictureRect; recompute the
                 // same fit so the sampled subrect matches it exactly.
-                RECT       fitted = ComputeAspectFitRectInRect (pictureRect,
-                                                                kFramebufferWidth, kFramebufferHeight);
-                CrtUvRect  uv     = ComputeUvRectForFit (fitted,
-                                                         m_d3dRenderer.GetBackBufferWidth(),
-                                                         m_d3dRenderer.GetBackBufferHeight());
+                RECT                       fitted     = ComputeAspectFitRectInRect (pictureRect,
+                                                            kFramebufferWidth, kFramebufferHeight);
+                CrtUvRect                  uv         = ComputeUvRectForFit (fitted,
+                                                            m_d3dRenderer.GetBackBufferWidth(),
+                                                            m_d3dRenderer.GetBackBufferHeight());
+                ID3D11ShaderResourceView * displaySrv = m_d3dRenderer.GetSceneContentSrv();
+
+                // Calibration mode: swap in the stripe pattern so the glass
+                // texel mapping can be verified end to end.
+                if (m_deskSceneDebug >= 2)
+                {
+                    EnsureSceneCalibration (fitted);
+
+                    if (m_sceneCalibSrv != nullptr)
+                    {
+                        displaySrv = m_sceneCalibSrv.Get();
+                    }
+                }
 
                 hrComposite = m_deskScene.Render (m_host->GetBackBufferRtv(),
-                                                  m_d3dRenderer.GetSceneContentSrv(), uv,
+                                                  displaySrv, uv,
                                                   kFramebufferWidth, kFramebufferHeight);
 
                 // Layout diagnosis overlay: scene viewport red, projected
@@ -1192,11 +1213,98 @@ HRESULT EmulatorShell::InitializeDeskScene()
     // drive activity arrives per frame from the drive state sync.
     m_deskScene.SetPowerLampOn (true);
 
-    m_deskSceneDebug = GetEnvironmentVariableW (L"CASSO_SCENE_DEBUG", nullptr, 0) > 0;
+    {
+        wchar_t   debugValue[8] = {};
+
+        if (GetEnvironmentVariableW (L"CASSO_SCENE_DEBUG", debugValue, ARRAYSIZE (debugValue)) > 0)
+        {
+            m_deskSceneDebug = _wtoi (debugValue);
+        }
+    }
+
     m_deskSceneReady = true;
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::EnsureSceneCalibration
+//
+//  Builds the CASSO_SCENE_DEBUG=2 stripe texture: back-buffer sized, with a
+//  pattern in the fitted picture region expressed in FRAMEBUFFER columns --
+//  red at emulated column 0, green at the last column, white every 8th, blue
+//  rows top and bottom. What survives to the screen tells exactly how the
+//  glass maps texels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::EnsureSceneCalibration (const RECT & fittedRect)
+{
+    HRESULT                  hr     = S_OK;
+    int                      bbW    = m_d3dRenderer.GetBackBufferWidth();
+    int                      bbH    = m_d3dRenderer.GetBackBufferHeight();
+    D3D11_TEXTURE2D_DESC     desc   = {};
+    D3D11_SUBRESOURCE_DATA   init   = {};
+    std::vector<uint32_t>    pixels;
+
+
+
+    BAIL_OUT_IF (bbW <= 0 || bbH <= 0, S_OK);
+    BAIL_OUT_IF (m_sceneCalibTex != nullptr && EqualRect (&m_sceneCalibRect, &fittedRect), S_OK);
+
+    pixels.assign ((size_t) bbW * bbH, 0xFF000000);
+
+    for (LONG y = fittedRect.top; y < fittedRect.bottom && y < bbH; y++)
+    {
+        for (LONG x = fittedRect.left; x < fittedRect.right && x < bbW; x++)
+        {
+            int        fbx   = MulDiv ((int) (x - fittedRect.left), kFramebufferWidth,
+                                       (int) (fittedRect.right - fittedRect.left));
+            int        fby   = MulDiv ((int) (y - fittedRect.top), kFramebufferHeight,
+                                       (int) (fittedRect.bottom - fittedRect.top));
+            uint32_t   color = 0xFF000000;
+
+            if (fbx == 0)                              { color = 0xFFFF0000; }
+            else if (fbx == kFramebufferWidth - 1)     { color = 0xFF00FF00; }
+            else if (fby <= 1 || fby >= kFramebufferHeight - 2) { color = 0xFF4080FF; }
+            else if ((fbx % 8) == 0)                   { color = 0xFFFFFFFF; }
+
+            pixels[(size_t) y * bbW + x] = color;
+        }
+    }
+
+    m_sceneCalibTex.Reset();
+    m_sceneCalibSrv.Reset();
+
+    desc.Width            = (UINT) bbW;
+    desc.Height           = (UINT) bbH;
+    desc.MipLevels        = 1;
+    desc.ArraySize        = 1;
+    desc.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.Usage            = D3D11_USAGE_IMMUTABLE;
+    desc.BindFlags        = D3D11_BIND_SHADER_RESOURCE;
+
+    init.pSysMem     = pixels.data();
+    init.SysMemPitch = (UINT) bbW * 4;
+
+    hr = m_host->GetDevice()->CreateTexture2D (&desc, &init, m_sceneCalibTex.GetAddressOf());
+    CHR (hr);
+
+    hr = m_host->GetDevice()->CreateShaderResourceView (m_sceneCalibTex.Get(), nullptr,
+                                                        m_sceneCalibSrv.GetAddressOf());
+    CHR (hr);
+
+    m_sceneCalibRect = fittedRect;
+
+Error:
+    return;
 }
 
 
