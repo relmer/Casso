@@ -873,6 +873,11 @@ private:
     // before-present hook on the host device, with the CRT chain's offscreen
     // output on the curved glass. Supersedes MonitorFrame in the skeuo theme
     // once its models load (m_deskSceneReady).
+    // Set when a Ctrl+letter host-meta shortcut claims a keydown whose
+    // synthesized WM_CHAR must not reach the guest keyboard latch (the ^V
+    // of a paste would land in the input line ahead of the pasted text).
+    bool                       m_swallowMetaChar = false;
+
     DeskScene                  m_deskScene;
     bool                       m_deskSceneReady = false;
     int                        m_deskSceneDebug = 0;       // CASSO_SCENE_DEBUG: 1=layout rects, 2=+calibration texture
