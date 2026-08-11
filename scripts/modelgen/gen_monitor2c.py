@@ -105,22 +105,6 @@ for r in range(ROWS):
             return (x, BASE_Y - (max_sag - sag), z)
         m.add_quad(pt(c, r), pt(c + 1, r), pt(c + 1, r + 1), pt(c, r + 1), glass_c)
 
-# Tube corner fillets: near-black patches in front of the glass corners so
-# the picture's corners round off the way a real tube's do. Two triangles
-# approximate each quarter arc.
-FILLET = 14.0
-YFIL = 4.5
-K = 1.0 - math.sqrt(0.5)         # arc midpoint pullback fraction
-
-for cx, cz, sx, sz in [(gx0, gz1, 1.0, -1.0), (gx1, gz1, -1.0, -1.0),
-                       (gx0, gz0, 1.0, 1.0),  (gx1, gz0, -1.0, 1.0)]:
-    corner = (cx, YFIL, cz)
-    edge_x = (cx + sx * FILLET, YFIL, cz)
-    edge_z = (cx, YFIL, cz + sz * FILLET)
-    mid    = (cx + sx * FILLET * K, YFIL, cz + sz * FILLET * K)
-    m.add_tri(corner, edge_x, mid, cavity_c)
-    m.add_tri(corner, mid, edge_z, cavity_c)
-
 # Power lamp: the //c-style indicator -- a narrow vertical bar leaning right,
 # like every switch and LED on the //c family (a thin proud sheet).
 LX, LZ0, LZ1, LW, LEAN = W - 42.0, Z0 + 12.0, Z0 + 25.0, 3.2, 3.0
