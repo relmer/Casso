@@ -37,6 +37,8 @@
 #include "Ui/DriveWidgetState.h"
 #include "Ui/IDriveCommandSink.h"
 #include "Ui/InputDebugPanel.h"
+#include "Ui/Scene/DeskScene.h"
+#include "Ui/Scene/DeskSceneHitTester.h"
 #include "Ui/ThemeManager.h"
 #include "Ui/UiShell.h"
 #include "Widgets/DxuiTooltip.h"
@@ -669,12 +671,32 @@ private:
     // the chrome in place -- and persists to GlobalUserPrefs.
     void    SetSkeuoMonitorFrame (bool enabled);
 
-    // The desk scene draws only when the skeuo theme is active AND the user
-    // opted in; compact themes never draw it.
+    // The 2D monitor frame draws only when the skeuo theme is active, the
+    // user opted in, AND the 3D desk scene is not available -- the scene
+    // supersedes the frame (spec 018) and the frame path retires once
+    // parity is validated.
     bool    MonitorFrameEnabled  () const
     {
-        return !m_chromeTheme.compactDrives && m_globalPrefs.skeuoMonitorFrame;
+        return !m_chromeTheme.compactDrives && m_globalPrefs.skeuoMonitorFrame && !m_deskSceneReady;
     }
+
+    // The 3D desk scene renders whenever the skeuo theme is active and the
+    // scene's models loaded (spec 018) -- no opt-in pref, no fallback
+    // toggle; compact themes never draw it.
+    bool    DeskSceneActive      () const
+    {
+        return !m_chromeTheme.compactDrives && m_deskSceneReady;
+    }
+
+    // Initializes the desk scene renderer against the host device and loads
+    // the embedded device models. Failure leaves the scene off (asserting
+    // in debug -- a broken embedded asset is a build defect) and the 2D
+    // chrome paths carry on.
+    HRESULT InitializeDeskScene  ();
+
+    // Resolves a client-px position against the composed scene (glass /
+    // drive region / nothing).
+    SceneHitResult  DeskSceneHit (int xPx, int yPx) const;
 
     // Positions the joystick-mode toggle button vertically centered in the
     // empty band above the drive widgets (the top portion of the bottom
@@ -843,6 +865,13 @@ private:
     // (skeuo theme only). Insets the viewport into its screen recess; the
     // housing paints the ring around it. Models the Apple Monitor //c.
     MonitorFrame               m_monitorFrame;
+
+    // The 3D desk scene (spec 018): Monitor //c + drives rendered from the
+    // before-present hook on the host device, with the CRT chain's offscreen
+    // output on the curved glass. Supersedes MonitorFrame in the skeuo theme
+    // once its models load (m_deskSceneReady).
+    DeskScene                  m_deskScene;
+    bool                       m_deskSceneReady = false;
 
     // Desk-scene zoom: the monitor's SceneScale from the last layout. The
     // drive widgets and the (scaled part of the) drive band follow it so the

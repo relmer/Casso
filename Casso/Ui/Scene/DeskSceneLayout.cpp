@@ -2,6 +2,7 @@
 
 #include "Ui/Scene/DeskSceneLayout.h"
 
+#include "CrtPostProcess.h"
 #include "Render/SceneCamera.h"
 
 
@@ -178,25 +179,97 @@ HRESULT DeskSceneLayout::Compute (const RECT             & viewportPx,
         SceneCamera::Mul44            (out.view, out.proj, out.viewProj);
     }
 
-    // Scene scale: the glass's on-screen height against the 2D chrome's
-    // native 384 dp. The glass top/bottom project at the monitor's front
-    // plane depth.
+    // Scene scale and the projected glass rect: the glass's on-screen
+    // bounds against the 2D chrome's native 384 dp. The glass corners
+    // project at the monitor's front plane depth (its widest silhouette --
+    // the sag only recedes from there), centered on the camera axis after
+    // the monitor's own centering translation.
     {
-        float   glassZ    = -metrics.glass.baseY;
-        float   top[3]    = { 0.0f, metrics.glass.z1, glassZ };
-        float   bottom[3] = { 0.0f, metrics.glass.z0, glassZ };
-        float   topPx[2]  = {};
-        float   botPx[2]  = {};
+        float   glassZ  = -metrics.glass.baseY;
+        float   tl[3]   = { metrics.glass.x0 - monitorCx, metrics.glass.z1, glassZ };
+        float   br[3]   = { metrics.glass.x1 - monitorCx, metrics.glass.z0, glassZ };
+        float   tlPx[2] = {};
+        float   brPx[2] = {};
 
-        if (SceneCamera::ProjectToScreen (out.viewProj, top, viewportPx, topPx) &&
-            SceneCamera::ProjectToScreen (out.viewProj, bottom, viewportPx, botPx))
+        if (SceneCamera::ProjectToScreen (out.viewProj, tl, viewportPx, tlPx) &&
+            SceneCamera::ProjectToScreen (out.viewProj, br, viewportPx, brPx))
         {
             float   nativeHPx = (float) kScreenNativeHDp * (float) dpi / 96.0f;
 
-            out.sceneScale = (botPx[1] - topPx[1]) / nativeHPx;
+            out.sceneScale = (brPx[1] - tlPx[1]) / nativeHPx;
+
+            out.glassRectPx.left   = (LONG) std::floor (tlPx[0]);
+            out.glassRectPx.top    = (LONG) std::floor (tlPx[1]);
+            out.glassRectPx.right  = (LONG) std::ceil (brPx[0]);
+            out.glassRectPx.bottom = (LONG) std::ceil (brPx[1]);
         }
     }
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::CenterSizeForDisplayPx
+//
+//  The picture aspect-fits inside the projected glass (whose own aspect the
+//  model fixes), so the solve measures the FITTED height each pass and scales
+//  the trial center uniformly by the shortfall. glassPx(center) is piecewise
+//  linear in the center size (the containment standoff scales with whichever
+//  axis binds), so a shared factor converges in a couple of passes. Seeded
+//  generously above the answer so the first Compute lands in the same linear
+//  piece.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DeskSceneLayout::CenterSizeForDisplayPx (int                      displayWpx,
+                                              int                      displayHpx,
+                                              UINT                     dpi,
+                                              int                      driveCount,
+                                              const DeskSceneMetrics & metrics)
+{
+    SIZE   center = { displayWpx * 2, displayHpx * 3 };
+
+
+
+    for (int pass = 0; pass < 5; pass++)
+    {
+        HRESULT               hr     = S_OK;
+        DeskSceneComposition  comp;
+        RECT                  vp     = { 0, 0, center.cx, center.cy };
+        RECT                  fitted = {};
+        int                   fh     = 0;
+        float                 factor = 0.0f;
+
+        hr = Compute (vp, dpi, driveCount, metrics, comp);
+
+        if (hr != S_OK)
+        {
+            break;
+        }
+
+        fitted = ComputeAspectFitRectInRect (comp.glassRectPx, displayWpx, displayHpx);
+        fh     = fitted.bottom - fitted.top;
+
+        if (fh <= 0)
+        {
+            break;
+        }
+
+        if (std::abs (fh - displayHpx) <= 1)
+        {
+            break;
+        }
+
+        factor    = (float) displayHpx / (float) fh;
+        center.cx = (LONG) lroundf ((float) center.cx * factor);
+        center.cy = (LONG) lroundf ((float) center.cy * factor);
+    }
+
+    return center;
 }

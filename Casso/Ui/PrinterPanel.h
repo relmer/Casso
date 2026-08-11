@@ -43,6 +43,11 @@ class  Printer3DScene;
 class PrinterPanel : public DxuiWindow
 {
 public:
+    // Read an embedded RCDATA resource into a string; empty on failure.
+    // Public because the desk scene loads its device models through the
+    // same path.
+    static std::string  LoadTextResource (int resourceId);
+
     using ActionFn = std::function<void ()>;
 
     PrinterPanel  ();
@@ -168,10 +173,8 @@ private:
 
     // Fanfold-paper furniture helpers (panel-only): the hole / perforation
     // phase modulus, the perforation-dash pixel darken, and the embedded
-    // CAD-model resource loader.
     static int          FloorMod         (int a, int m);
     static void         DarkenPerf       (uint32_t & px);
-    static std::string  LoadTextResource (int resourceId);
 
     const CassoTheme  * m_theme   = nullptr;
 

@@ -27,10 +27,13 @@ rainbow = [m.color(f"rb{i}", c) for i, c in enumerate([
     (0.91, 0.18, 0.14), (0.58, 0.25, 0.60), (0.17, 0.45, 0.85),
 ])]
 
-# Shell: tapers toward the back (narrower and lower at the rear).
+# Shell: tapers toward the back (narrower and lower at the rear). The body
+# starts BEHIND the screen cavity (y=8) so the front is genuinely open --
+# a solid front face would occlude every part of the glass deeper than it.
+SHELL_FRONT = 8.0
 m.hexahedron(
-    [(0, 0, Z0), (W, 0, Z0), (W - 10, D, Z0 + 6), (10, D, Z0 + 6),
-     (0, 0, Z0 + H), (W, 0, Z0 + H), (W - 14, D - 6, Z0 + H - 12), (14, D - 6, Z0 + H - 12)],
+    [(0, SHELL_FRONT, Z0), (W, SHELL_FRONT, Z0), (W - 10, D, Z0 + 6), (10, D, Z0 + 6),
+     (0, SHELL_FRONT, Z0 + H), (W, SHELL_FRONT, Z0 + H), (W - 14, D - 6, Z0 + H - 12), (14, D - 6, Z0 + H - 12)],
     plat)
 
 # Bezel: even chunky lip standing proud around the screen opening.
@@ -43,6 +46,13 @@ m.box(0,       -4.0, Z0,        W,   0, Z0 + CHIN, bezel_c)      # chin band
 m.box(0,       -4.0, OZ1,       W,   0, Z0 + H,    bezel_c)      # top band
 m.box(0,       -4.0, Z0,        BZ,  0, Z0 + H,    bezel_c)      # left band
 m.box(W - BZ,  -4.0, Z0,        W,   0, Z0 + H,    bezel_c)      # right band
+
+# Front wall between the bezel and the recessed shell front: four slabs
+# around the opening, so the case is solid everywhere EXCEPT the screen.
+m.box(0,       0.0, Z0,        W,   SHELL_FRONT, Z0 + CHIN, plat)   # below opening
+m.box(0,       0.0, OZ1,       W,   SHELL_FRONT, Z0 + H,    plat)   # above opening
+m.box(0,       0.0, Z0,        OX0, SHELL_FRONT, Z0 + H,    plat)   # left of opening
+m.box(OX1,     0.0, Z0,        W,   SHELL_FRONT, Z0 + H,    plat)   # right of opening
 
 # Screen cavity: dark recess behind the opening.
 m.box(OX0, 6.0, OZ0, OX1, 8.0, OZ1, cavity_c)

@@ -96,6 +96,11 @@ public:
     static constexpr float  kDriveLampKd[3]   = { 0.900f, 0.120f, 0.100f };
     static constexpr float  kKdEpsilon        = 0.02f;
 
+    // Toward-viewer lift applied to the glass (verts + surface together) so
+    // its corners never depth-tie with the cavity front they were generated
+    // coplanar with.
+    static constexpr float  kGlassLiftMm      = 0.6f;
+
 private:
     static bool  ColorMatches   (float r, float g, float b, const float kd[3]);
     static void  AppendLitTri   (std::vector<Dxui3DRenderer::Vertex> & out, const struct ObjTriangle & tri);

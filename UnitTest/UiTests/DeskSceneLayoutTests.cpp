@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 
+#include "CrtPostProcess.h"
 #include "Render/SceneCamera.h"
 #include "Ui/Scene/DeskSceneLayout.h"
 
@@ -178,6 +179,31 @@ public:
 
         Assert::IsTrue   (at96.sceneScale > 0.0f);
         Assert::AreEqual (at96.sceneScale, at192.sceneScale * 2.0f, 1e-4f);
+    }
+
+    TEST_METHOD (CenterSizeForDisplayPx_Round_Trips_Through_Compute)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        SIZE                  center  = DeskSceneLayout::CenterSizeForDisplayPx (1120, 768, 96, 2, metrics);
+        RECT                  vp      = { 0, 0, center.cx, center.cy };
+        RECT                  fitted  = {};
+        DeskSceneComposition  comp;
+
+
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp));
+
+        // The Ctrl+0 contract: at the solved center, the PICTURE (aspect-
+        // fitted inside the projected glass, like the image on a real tube)
+        // lands at the requested pixel size within quantization slack.
+        fitted = ComputeAspectFitRectInRect (comp.glassRectPx, 1120, 768);
+
+        Assert::IsTrue (std::abs ((fitted.bottom - fitted.top) - 768L) <= 2);
+        Assert::IsTrue (std::abs ((fitted.right - fitted.left) - 1120L) <= 4);
+
+        // And the glass rect sits inside the viewport.
+        Assert::IsTrue (comp.glassRectPx.left >= 0 && comp.glassRectPx.top >= 0);
+        Assert::IsTrue (comp.glassRectPx.right <= center.cx && comp.glassRectPx.bottom <= center.cy);
     }
 
     TEST_METHOD (Below_Center_Drive_Shows_Its_Top_Face)

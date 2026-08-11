@@ -1055,14 +1055,51 @@ HRESULT EmulatorShell::InitializeRenderer()
                                    m_viewportBoundsPx);
     CHR (hr);
 
-    // Composite the Apple ][ framebuffer into the host's back buffer
-    // before the host paints chrome on top (DxuiHwndSource::PaintPump).
-    // m_pendingFramebuffer is staged each UI frame by RunMessageLoop;
-    // nullptr means "no new emulator frame" (re-composite last upload).
+    // Desk scene (spec 018): shares the host device with the framebuffer
+    // renderer. Failure (broken embedded asset) asserts in debug and leaves
+    // the 2D chrome paths active.
+    {
+        HRESULT  hrScene = InitializeDeskScene();
+
+        IGNORE_RETURN_VALUE (hrScene, S_OK);
+    }
+
+    // Composite the Apple ][ framebuffer before the host paints chrome on
+    // top (DxuiHwndSource::PaintPump). m_pendingFramebuffer is staged each
+    // UI frame by RunMessageLoop; nullptr means "no new emulator frame"
+    // (re-composite last upload). With the desk scene active, the CRT chain
+    // renders to the offscreen scene target and the 3D scene samples it on
+    // the monitor glass -- the theme backdrop the host cleared stays visible
+    // around the devices. Otherwise the classic direct composite runs.
     m_host->SetBeforePresentHook ([this] ()
     {
-        HRESULT  hrComposite = m_d3dRenderer.UploadAndComposite (m_host->GetBackBufferRtv(),
-                                                                 m_pendingFramebuffer);
+        HRESULT  hrComposite = S_OK;
+
+
+
+        if (DeskSceneActive())
+        {
+            hrComposite = m_d3dRenderer.UploadAndCompositeOffscreen (m_pendingFramebuffer);
+
+            if (SUCCEEDED (hrComposite))
+            {
+                // The same fit RenderCrtFrame just applied, recomputed in
+                // CLIENT space (the cached "screen rect" is screen coords).
+                RECT       fitted = ComputeAspectFitRectInRect (m_d3dRenderer.GetTargetBounds(),
+                                                                kFramebufferWidth, kFramebufferHeight);
+                CrtUvRect  uv     = ComputeUvRectForFit (fitted,
+                                                         m_d3dRenderer.GetBackBufferWidth(),
+                                                         m_d3dRenderer.GetBackBufferHeight());
+
+                hrComposite = m_deskScene.Render (m_host->GetBackBufferRtv(),
+                                                  m_d3dRenderer.GetSceneContentSrv(), uv);
+            }
+        }
+        else
+        {
+            hrComposite = m_d3dRenderer.UploadAndComposite (m_host->GetBackBufferRtv(),
+                                                            m_pendingFramebuffer);
+        }
 
         // Per-frame present hook with no return channel to propagate to.
         // A transient composite failure self-corrects next frame; a
@@ -1073,6 +1110,77 @@ HRESULT EmulatorShell::InitializeRenderer()
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::InitializeDeskScene
+//
+//  Loads the embedded Monitor //c and Disk II models and stands the scene
+//  renderer up on the host device. Missing or unparseable model text is a
+//  build defect (the resources are compiled into the exe), so the guards
+//  assert; the shell then simply leaves m_deskSceneReady false and the 2D
+//  chrome carries on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::InitializeDeskScene()
+{
+    HRESULT      hr         = S_OK;
+    std::string  monitorObj = PrinterPanel::LoadTextResource (IDR_MODEL_MONITOR2C_OBJ);
+    std::string  monitorMtl = PrinterPanel::LoadTextResource (IDR_MODEL_MONITOR2C_MTL);
+    std::string  driveObj   = PrinterPanel::LoadTextResource (IDR_MODEL_DISKII_OBJ);
+    std::string  driveMtl   = PrinterPanel::LoadTextResource (IDR_MODEL_DISKII_MTL);
+    bool         haveText   = false;
+
+
+
+    haveText = !monitorObj.empty() && !monitorMtl.empty() && !driveObj.empty() && !driveMtl.empty();
+    CBRA (haveText);
+
+    hr = m_deskScene.Initialize (m_host->GetDevice(), m_host->GetContext());
+    CHRA (hr);
+
+    hr = m_deskScene.LoadModels (monitorObj, monitorMtl, driveObj, driveMtl);
+    CHRA (hr);
+
+    // A powered monitor's lamp is lit for as long as the machine exists;
+    // drive activity arrives per frame from the drive state sync.
+    m_deskScene.SetPowerLampOn (true);
+
+    m_deskSceneReady = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DeskSceneHit
+//
+//  One frame of truth: resolves against the composition the scene last
+//  rendered with, so hover, clicks, and pixels can never disagree with what
+//  is on screen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
+{
+    return DeskSceneHitTester::Classify (m_deskScene.Composition(),
+                                         m_deskScene.MonitorModel().Surface(),
+                                         m_deskScene.DriveModel().RegionBoxes(),
+                                         (float) xPx,
+                                         (float) yPx,
+                                         kFramebufferWidth,
+                                         kFramebufferHeight);
 }
 
 
@@ -2316,13 +2424,35 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 
     BAIL_OUT_IF (m_viewport == nullptr, S_OK);
 
-    // Skeuomorphic desk scene (opt-in): the MonitorFrame insets the viewport
-    // into its CRT screen recess and paints the platinum housing in the ring
-    // around it, with the drives scaled to sit under it. When the scene is
-    // off (compact theme, or the skeuo user has not opted in) the bare
-    // display fills the center at classic sizes.
-    if (!MonitorFrameEnabled())
+    // 3D desk scene (spec 018): the composition is computed for the center
+    // rect, the viewport (the CRT target) becomes the projected glass rect,
+    // and the drive band keeps zooming with the scene's scale until US2
+    // moves the drives into the scene. The same settle loop applies -- band
+    // height and scene scale are a contraction fixed point.
+    if (DeskSceneActive())
     {
+        m_monitorFrame.Hide();
+
+        for (int pass = 0; pass < s_kSceneScaleSettlePasses; pass++)
+        {
+            HRESULT               hrLayout = S_OK;
+            DeskSceneComposition  comp;
+
+            center   = ComputeViewportRect (widthPx, heightPx);
+            hrLayout = DeskSceneLayout::Compute (center, m_scaler.Dpi(), 0, m_deskScene.Metrics(), comp);
+            BAIL_OUT_IF (hrLayout != S_OK, S_OK);
+
+            m_deskScene.SetComposition (comp);
+            m_chromeSceneScale = comp.sceneScale * s_kDeskDriveScale;
+        }
+
+        viewportRect = m_deskScene.Composition().glassRectPx;
+    }
+    else if (!MonitorFrameEnabled())
+    {
+        // Skeuomorphic 2D desk scene off (compact theme, or the skeuo user
+        // has not opted in -- and the 3D scene above supersedes it when
+        // available): the bare display fills the center at classic sizes.
         m_monitorFrame.Hide();
         m_chromeSceneScale = 1.0f;
         center             = ComputeViewportRect (widthPx, heightPx);
@@ -2636,7 +2766,17 @@ SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int fram
     // where the drives sit at s_kDeskDriveScale, so the band math must run at
     // that scale regardless of the current window's. Scene off: the center is
     // the framebuffer directly at classic sizes.
-    if (MonitorFrameEnabled())
+    if (DeskSceneActive())
+    {
+        SIZE   center     = DeskSceneLayout::CenterSizeForDisplayPx (framebufferWpx, framebufferHpx,
+                                                                     m_scaler.Dpi(), 0, m_deskScene.Metrics());
+        float  savedScale = m_chromeSceneScale;
+
+        m_chromeSceneScale = s_kDeskDriveScale;
+        client             = ClientSizeForCenterPx (center.cx, center.cy);
+        m_chromeSceneScale = savedScale;
+    }
+    else if (MonitorFrameEnabled())
     {
         SIZE   center     = MonitorFrame::CenterSizeForScreenPx (framebufferWpx, framebufferHpx);
         float  savedScale = m_chromeSceneScale;
@@ -6297,7 +6437,27 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
 
 
 
-    if (isLive && !isInside)
+    if (isLive && DeskSceneActive())
+    {
+        // Curvature-correct mapping (spec 018): the pixel comes from the
+        // inverse projection through the glass, so only the picture counts
+        // -- pointer positions off the glass (including what used to be
+        // letterbox bars) release the guest mouse.
+        SceneHitResult  hit = DeskSceneHit (xPx, yPx);
+
+        if (hit.target == SceneHitResult::Target::Glass)
+        {
+            fx = static_cast<uint16_t> (MulDiv (hit.emulatedPixel.x, 65535, kFramebufferWidth - 1));
+            fy = static_cast<uint16_t> (MulDiv (hit.emulatedPixel.y, 65535, kFramebufferHeight - 1));
+
+            m_mouse->SetHostTargetFraction (fx, fy);
+        }
+        else
+        {
+            m_mouse->ClearHostTarget();
+        }
+    }
+    else if (isLive && !isInside)
     {
         // Leaving the viewport releases the guest mouse to wherever the
         // firmware last put it (non-capturing contract).
@@ -6347,9 +6507,21 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
     overGuest = hitTest == HTCLIENT
                 && GuestMouseLive()
                 && GetCursorPos (&pt)
-                && ScreenToClient (m_hwnd, &pt)
-                && pt.x >= m_viewportBoundsPx.left && pt.x < m_viewportBoundsPx.right
-                && pt.y >= m_viewportBoundsPx.top  && pt.y < m_viewportBoundsPx.bottom;
+                && ScreenToClient (m_hwnd, &pt);
+
+    if (overGuest && DeskSceneActive())
+    {
+        // With the desk scene, "over the display" means over the curved
+        // glass itself, not the bounding rect around it.
+        SceneHitResult  hit = DeskSceneHit (pt.x, pt.y);
+
+        overGuest = hit.target == SceneHitResult::Target::Glass;
+    }
+    else if (overGuest)
+    {
+        overGuest = pt.x >= m_viewportBoundsPx.left && pt.x < m_viewportBoundsPx.right
+                 && pt.y >= m_viewportBoundsPx.top  && pt.y < m_viewportBoundsPx.bottom;
+    }
 
     if (overGuest)
     {
@@ -6465,15 +6637,32 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     consumed = m_uiShell.OnLButtonDown (x, y);
     IGNORE_RETURN_VALUE (consumed, false);
 
-    // //c Mouse mode (non-capturing): a press over the emulator viewport is
+    // //c Mouse mode (non-capturing): a press over the emulator display is
     // the guest mouse button -- but only once guest software has turned the
     // mouse on, so clicks aren't silently swallowed at a BASIC prompt.
-    // Chrome outside the viewport already had its chance above.
-    if (GuestMouseLive()
-        && x >= m_viewportBoundsPx.left && x < m_viewportBoundsPx.right
-        && y >= m_viewportBoundsPx.top  && y < m_viewportBoundsPx.bottom)
+    // Chrome outside the display already had its chance above. With the
+    // desk scene, "over the display" means over the curved glass itself
+    // (release stays deliberately ungated, matching the 2D contract).
+    if (GuestMouseLive())
     {
-        m_mouse->SetButton (true);
+        bool  overDisplay = false;
+
+        if (DeskSceneActive())
+        {
+            SceneHitResult  hit = DeskSceneHit (x, y);
+
+            overDisplay = hit.target == SceneHitResult::Target::Glass;
+        }
+        else
+        {
+            overDisplay = x >= m_viewportBoundsPx.left && x < m_viewportBoundsPx.right
+                       && y >= m_viewportBoundsPx.top  && y < m_viewportBoundsPx.bottom;
+        }
+
+        if (overDisplay)
+        {
+            m_mouse->SetButton (true);
+        }
     }
 
 Error:

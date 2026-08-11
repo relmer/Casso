@@ -63,6 +63,7 @@ struct DeskSceneComposition
     float  driveWorld[2][16] = {};
     int    driveCount       = 0;
     float  sceneScale       = 0.0f;   // glass px height / (384 dp at dpi)
+    RECT   glassRectPx      = {};     // projected glass bounds -- the CRT target rect
 };
 
 
@@ -81,6 +82,18 @@ public:
     // The fixed model->world mount: X right stays, model Z (up) becomes world
     // Y, model Y (back) becomes world -Z, then translate by (tx, ty, tz).
     static void     MakeDeviceWorld (float tx, float ty, float tz, float out[16]);
+
+    // The Ctrl+0 inverse: the center (viewport) size at which the emulator
+    // picture -- aspect-fitted INSIDE the projected glass, like the image on
+    // a real tube -- lands at the requested pixel size. The glass's own
+    // aspect is fixed by the model, so the solve scales the trial center
+    // uniformly (one shared factor) on the fitted height; glassPx(center)
+    // is piecewise linear, so this converges within a pixel in a few passes.
+    static SIZE     CenterSizeForDisplayPx (int                      displayWpx,
+                                            int                      displayHpx,
+                                            UINT                     dpi,
+                                            int                      driveCount,
+                                            const DeskSceneMetrics & metrics);
 
     // The native-scale display height the 2D chrome established; sceneScale
     // is glass px height relative to this at the given DPI.

@@ -177,11 +177,14 @@ public:
         {
             const CurvedDisplaySurface &  surface = model.Surface();
 
-            Assert::AreEqual (s_kGlassX0,    surface.x0,    0.01f);
-            Assert::AreEqual (s_kGlassX1,    surface.x1,    0.01f);
-            Assert::AreEqual (s_kGlassZ0,    surface.z0,    0.01f);
-            Assert::AreEqual (s_kGlassZ1,    surface.z1,    0.01f);
-            Assert::AreEqual (s_kGlassBaseY, surface.baseY, 0.01f);
+            Assert::AreEqual (s_kGlassX0, surface.x0, 0.01f);
+            Assert::AreEqual (s_kGlassX1, surface.x1, 0.01f);
+            Assert::AreEqual (s_kGlassZ0, surface.z0, 0.01f);
+            Assert::AreEqual (s_kGlassZ1, surface.z1, 0.01f);
+
+            // The loader lifts the glass (verts + surface together) clear of
+            // the coplanar cavity front.
+            Assert::AreEqual (s_kGlassBaseY - DeskSceneModel::kGlassLiftMm, surface.baseY, 0.01f);
 
             // The radius is DERIVED from the measured sag; it must land on
             // the generator's parameter within grid-resolution error.

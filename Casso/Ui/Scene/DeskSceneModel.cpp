@@ -185,6 +185,17 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         hr = BuildGlassSurface();
         CHRA (hr);
 
+        // Lift the glass a hair toward the viewer: the generated sheet's
+        // corners share the cavity front's plane, and equal depth loses the
+        // LESS test -- the cavity would clip the corners off the picture.
+        // Shifting verts AND the surface together keeps input mapping exact.
+        for (Dxui3DRenderer::Vertex & v : m_glass)
+        {
+            v.y -= kGlassLiftMm;
+        }
+
+        m_surface.baseY -= kGlassLiftMm;
+
         AssignGlassUvs();
     }
 
