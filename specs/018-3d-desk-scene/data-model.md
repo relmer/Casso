@@ -17,7 +17,10 @@ Computes and holds the scene composition for the current frame context.
 | sceneScale | float | Glass on-screen height ÷ native 384 dp (replaces `MonitorFrame::SceneScale`) |
 
 - **Validation**: placements deterministic for a given (rect, dpi, config); scene never
-  overflows the viewport rect ("contain, not crop").
+  overflows the viewport rect ("contain, not crop"); exactly ONE camera — device
+  perspective derives from true world placement under it (FR-016), never from per-device
+  cameras or billboarding, so dock-position moves (follow-on spec) change perspective
+  automatically.
 - **Transitions**: rebuilt on resize/DPI/fullscreen/machine change; cached otherwise (R9).
 
 ## DevicePlacement
