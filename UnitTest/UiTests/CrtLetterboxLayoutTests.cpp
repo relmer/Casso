@@ -81,4 +81,43 @@ public:
         Assert::AreEqual (oldPath.right,  inRect.right);
         Assert::AreEqual (oldPath.bottom, inRect.bottom);
     }
+
+
+    TEST_METHOD (ComputeUvRectForFit_Maps_The_Fitted_Subrect)
+    {
+        RECT       fitted = { 100, 50, 900, 650 };
+        CrtUvRect  uv     = ComputeUvRectForFit (fitted, 1000, 700);
+
+        Assert::AreEqual (0.1f, uv.u0, 1e-6f);
+        Assert::AreEqual (50.0f / 700.0f, uv.v0, 1e-6f);
+        Assert::AreEqual (0.9f, uv.u1, 1e-6f);
+        Assert::AreEqual (650.0f / 700.0f, uv.v1, 1e-6f);
+    }
+
+
+    TEST_METHOD (ComputeUvRectForFit_Composes_With_AspectFit)
+    {
+        // The subrect of the offscreen texture the scene samples is exactly
+        // where the direct path would have put the picture on screen.
+        RECT       content = { 0, 0, 1120, 768 };
+        RECT       fitted  = ComputeAspectFitRectInRect (content, 560, 384);
+        CrtUvRect  uv      = ComputeUvRectForFit (fitted, 1120, 768);
+
+        Assert::AreEqual ((float) fitted.left   / 1120.0f, uv.u0, 1e-6f);
+        Assert::AreEqual ((float) fitted.top    /  768.0f, uv.v0, 1e-6f);
+        Assert::AreEqual ((float) fitted.right  / 1120.0f, uv.u1, 1e-6f);
+        Assert::AreEqual ((float) fitted.bottom /  768.0f, uv.v1, 1e-6f);
+    }
+
+
+    TEST_METHOD (ComputeUvRectForFit_Degenerate_Texture_Yields_Full_Rect)
+    {
+        RECT       fitted = { 10, 10, 20, 20 };
+        CrtUvRect  uv     = ComputeUvRectForFit (fitted, 0, 0);
+
+        Assert::AreEqual (0.0f, uv.u0);
+        Assert::AreEqual (0.0f, uv.v0);
+        Assert::AreEqual (1.0f, uv.u1);
+        Assert::AreEqual (1.0f, uv.v1);
+    }
 };

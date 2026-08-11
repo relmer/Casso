@@ -315,6 +315,37 @@ RECT ComputeAspectFitRectInRect (const RECT & contentRect, int aspectW, int aspe
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ComputeUvRectForFit
+//
+//  Degenerate texture dimensions yield the full-texture default rather than a
+//  divide-by-zero; the scene draws the whole (empty) texture and shows
+//  nothing, which is the same graceful nothing the fit functions produce.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CrtUvRect ComputeUvRectForFit (const RECT & fittedRect, int textureW, int textureH)
+{
+    CrtUvRect  uv;
+
+
+
+    if (textureW > 0 && textureH > 0)
+    {
+        uv.u0 = (float) fittedRect.left   / (float) textureW;
+        uv.v0 = (float) fittedRect.top    / (float) textureH;
+        uv.u1 = (float) fittedRect.right  / (float) textureW;
+        uv.v1 = (float) fittedRect.bottom / (float) textureH;
+    }
+
+    return uv;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CrtPostProcess
 //
 ////////////////////////////////////////////////////////////////////////////////

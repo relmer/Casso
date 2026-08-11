@@ -55,6 +55,14 @@ public:
     // `textured == true` sample it; call again only when the content changes.
     HRESULT  UpdateContentTexture (const uint32_t * bgra, int width, int height);
 
+    // Adopt an externally-owned SRV as the content texture instead of the
+    // CPU-upload path -- the desk scene hands over the CRT chain's finished
+    // output so a GPU-resident image never round-trips through system memory.
+    // While set (non-null, non-owning, caller-guaranteed lifetime across the
+    // frame), textured draws sample it in preference to the uploaded texture;
+    // pass null to fall back.
+    void     SetContentSrv        (ID3D11ShaderResourceView * srv) { m_externalSrv = srv; }
+
     // Prepare (and clear) a depth buffer matching the currently bound render
     // target, for draws submitted with `depthTest == true`. Call once at the
     // start of a scene frame, AFTER the caller's render target is bound --
@@ -101,6 +109,7 @@ private:
 
     ComPtr<ID3D11Texture2D>           m_contentTex;
     ComPtr<ID3D11ShaderResourceView>  m_contentSrv;
+    ID3D11ShaderResourceView *        m_externalSrv = nullptr;   // non-owning
     ComPtr<ID3D11Texture2D>           m_whiteTex;
     ComPtr<ID3D11ShaderResourceView>  m_whiteSrv;
 

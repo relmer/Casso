@@ -67,6 +67,18 @@ public:
     // hook (chrome paints via the host's panel-tree walk afterward).
     HRESULT UploadAndComposite (ID3D11RenderTargetView * dstRtv, const uint32_t * framebuffer);
 
+    // The desk-scene variant: identical upload + CRT chain, but the
+    // finished image lands in this renderer's own offscreen target
+    // (created/resized on demand to the back-buffer size, cleared to
+    // opaque black first -- no host clear covers it) instead of the back
+    // buffer. The scene then samples GetSceneContentSrv() on the monitor
+    // glass through the UV subrect of GetEmulatorContentScreenRect().
+    HRESULT UploadAndCompositeOffscreen (const uint32_t * framebuffer);
+
+    // The offscreen target's SRV (null until UploadAndCompositeOffscreen
+    // has run). Non-owning; valid until Shutdown or the next resize.
+    ID3D11ShaderResourceView * GetSceneContentSrv () const { return m_sceneSrv.Get(); }
+
     HRESULT ToggleFullscreen (HWND hwnd);
 
     // Live-wire path for CRT params (brightness, scanlines, bloom,
@@ -151,6 +163,10 @@ private:
     // `dstRtv`. Timed as "D3DRenderer.CrtPostProcess".
     HRESULT RenderCrtFrame (ID3D11RenderTargetView * dstRtv, const RECT & contentRect);
 
+    // Creates (or resizes) the offscreen scene-content target to the
+    // current logical back-buffer size.
+    HRESULT EnsureSceneContentTarget ();
+
     ComPtr<ID3D11Device>             m_device;
     ComPtr<ID3D11DeviceContext>      m_context;
     // IDXGISwapChain2 (rather than the base IDXGISwapChain) gives us
@@ -162,6 +178,14 @@ private:
     ComPtr<IDXGISwapChain2>          m_swapChain;
     ComPtr<ID3D11Texture2D>          m_texture;
     ComPtr<ID3D11ShaderResourceView> m_srv;
+
+    // Offscreen scene-content target: the CRT chain's finished output when
+    // the desk scene is compositing (the scene samples this on the glass).
+    ComPtr<ID3D11Texture2D>          m_sceneTex;
+    ComPtr<ID3D11RenderTargetView>   m_sceneRtv;
+    ComPtr<ID3D11ShaderResourceView> m_sceneSrv;
+    int                              m_sceneTexW = 0;
+    int                              m_sceneTexH = 0;
     ComPtr<ID3D11SamplerState>       m_sampler;
     ComPtr<ID3D11VertexShader>       m_vertexShader;
     ComPtr<ID3D11PixelShader>        m_pixelShader;

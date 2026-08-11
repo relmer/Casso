@@ -172,6 +172,7 @@ void Dxui3DRenderer::Shutdown()
     m_contentHeight        = 0;
     m_depthWidth           = 0;
     m_depthHeight          = 0;
+    m_externalSrv          = nullptr;
     m_device               = nullptr;
     m_context              = nullptr;
 }
@@ -600,7 +601,16 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
     CBREx (m_device != nullptr, E_UNEXPECTED);
     CBREx (verts != nullptr && vertexCount > 0 && (vertexCount % 3) == 0, E_INVALIDARG);
 
-    srv = (textured && m_contentSrv != nullptr) ? m_contentSrv.Get() : m_whiteSrv.Get();
+    // Externally-adopted SRV (the desk scene's CRT output) wins over the
+    // CPU-uploaded content texture; untextured draws sample opaque white.
+    if (textured && m_externalSrv != nullptr)
+    {
+        srv = m_externalSrv;
+    }
+    else
+    {
+        srv = (textured && m_contentSrv != nullptr) ? m_contentSrv.Get() : m_whiteSrv.Get();
+    }
 
     hr = EnsureVertexBuffer (vertexCount);
     CHR (hr);
