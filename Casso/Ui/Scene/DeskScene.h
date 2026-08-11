@@ -74,6 +74,10 @@ public:
                      int                        displayW,
                      int                        displayH);
 
+    // Debug aid: outlines a client-px rect in the given color (2px bars),
+    // drawn over the scene. Gated by the shell's CASSO_SCENE_DEBUG env var.
+    void  DrawDebugRect (const RECT & rectPx, int backBufferW, int backBufferH, uint32_t argb);
+
     // Lamp tint applied when a lamp is unlit (multiplies the base color).
     static constexpr float  kLampOffDim = 0.22f;
 

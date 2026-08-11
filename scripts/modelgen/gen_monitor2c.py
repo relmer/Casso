@@ -121,8 +121,11 @@ for cx, cz, sx, sz in [(gx0, gz1, 1.0, -1.0), (gx1, gz1, -1.0, -1.0),
     m.add_tri(corner, edge_x, mid, cavity_c)
     m.add_tri(corner, mid, edge_z, cavity_c)
 
-# Power lamp: the //c-style vertical pill, chin right.
-m.box(W - 42.0, YF - 0.6, Z0 + 12.0, W - 37.0, YF, Z0 + 25.0, lamp_c)
+# Power lamp: the //c-style indicator -- a narrow vertical bar leaning right,
+# like every switch and LED on the //c family (a thin proud sheet).
+LX, LZ0, LZ1, LW, LEAN = W - 42.0, Z0 + 12.0, Z0 + 25.0, 3.2, 3.0
+m.add_quad((LX, YF - 0.6, LZ0), (LX + LW, YF - 0.6, LZ0),
+           (LX + LW + LEAN, YF - 0.6, LZ1), (LX + LEAN, YF - 0.6, LZ1), lamp_c)
 
 # Lid vent grooves: darker strips across the top, rear two-thirds.
 for i in range(10):

@@ -1079,13 +1079,32 @@ HRESULT EmulatorShell::InitializeRenderer()
 
         if (DeskSceneActive())
         {
-            hrComposite = m_d3dRenderer.UploadAndCompositeOffscreen (m_pendingFramebuffer);
+            // The CRT chain renders the picture into an exact-aspect rect
+            // anchored at the texture origin -- sized from the projected
+            // glass height for 1:1-ish resolution, but NOT positioned by the
+            // projected bounding box, whose keystone slop would shear the
+            // texel alignment and shave the outermost pixel columns.
+            RECT   glassPx    = m_d3dRenderer.GetTargetBounds();
+            int    pictureH   = std::min ((LONG) m_d3dRenderer.GetBackBufferHeight(),
+                                          glassPx.bottom - glassPx.top);
+            int   pictureW    = MulDiv (pictureH, kFramebufferWidth, kFramebufferHeight);
+            RECT  pictureRect = {};
+
+            if (pictureW > m_d3dRenderer.GetBackBufferWidth())
+            {
+                pictureW = m_d3dRenderer.GetBackBufferWidth();
+                pictureH = MulDiv (pictureW, kFramebufferHeight, kFramebufferWidth);
+            }
+
+            pictureRect = RECT{ 0, 0, pictureW, pictureH };
+
+            hrComposite = m_d3dRenderer.UploadAndCompositeOffscreen (m_pendingFramebuffer, pictureRect);
 
             if (SUCCEEDED (hrComposite))
             {
-                // The same fit RenderCrtFrame just applied, recomputed in
-                // CLIENT space (the cached "screen rect" is screen coords).
-                RECT       fitted = ComputeAspectFitRectInRect (m_d3dRenderer.GetTargetBounds(),
+                // The chain aspect-fits within pictureRect; recompute the
+                // same fit so the sampled subrect matches it exactly.
+                RECT       fitted = ComputeAspectFitRectInRect (pictureRect,
                                                                 kFramebufferWidth, kFramebufferHeight);
                 CrtUvRect  uv     = ComputeUvRectForFit (fitted,
                                                          m_d3dRenderer.GetBackBufferWidth(),
@@ -1094,6 +1113,19 @@ HRESULT EmulatorShell::InitializeRenderer()
                 hrComposite = m_deskScene.Render (m_host->GetBackBufferRtv(),
                                                   m_d3dRenderer.GetSceneContentSrv(), uv,
                                                   kFramebufferWidth, kFramebufferHeight);
+
+                // Layout diagnosis overlay: scene viewport red, projected
+                // glass green, drive band yellow, switch band magenta.
+                if (m_deskSceneDebug)
+                {
+                    int   bbW = m_d3dRenderer.GetBackBufferWidth();
+                    int   bbH = m_d3dRenderer.GetBackBufferHeight();
+
+                    m_deskScene.DrawDebugRect (m_deskScene.Composition().viewportPx, bbW, bbH, 0xFFFF3030);
+                    m_deskScene.DrawDebugRect (m_deskScene.Composition().glassRectPx, bbW, bbH, 0xFF30FF30);
+                    m_deskScene.DrawDebugRect (m_driveBand.Bounds(), bbW, bbH, 0xFFFFFF30);
+                    m_deskScene.DrawDebugRect (m_switchBand.Bounds(), bbW, bbH, 0xFFFF30FF);
+                }
             }
         }
         else
@@ -1153,6 +1185,7 @@ HRESULT EmulatorShell::InitializeDeskScene()
     // drive activity arrives per frame from the drive state sync.
     m_deskScene.SetPowerLampOn (true);
 
+    m_deskSceneDebug = GetEnvironmentVariableW (L"CASSO_SCENE_DEBUG", nullptr, 0) > 0;
     m_deskSceneReady = true;
 
 Error:

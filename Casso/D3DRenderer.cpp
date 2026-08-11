@@ -486,10 +486,13 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT D3DRenderer::UploadAndCompositeOffscreen (const uint32_t * framebuffer)
+HRESULT D3DRenderer::UploadAndCompositeOffscreen (const uint32_t * framebuffer, const RECT & pictureRect)
 {
-    HRESULT   hr       = S_OK;
-    float     black[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    HRESULT                    hr       = S_OK;
+    float                      black[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    D3D11_MAPPED_SUBRESOURCE   mapped   = {};
+    const uint32_t           * src      = nullptr;
+    Byte                     * dst      = nullptr;
 
 
 
@@ -502,8 +505,38 @@ HRESULT D3DRenderer::UploadAndCompositeOffscreen (const uint32_t * framebuffer)
 
     m_context->ClearRenderTargetView (m_sceneRtv.Get(), black);
 
-    hr = UploadAndComposite (m_sceneRtv.Get(), framebuffer);
+    if (m_texture != nullptr && framebuffer != nullptr)
+    {
+        hr = m_context->Map (m_texture.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+        CHRA (hr);
+
+        src = framebuffer;
+        dst = static_cast<Byte *> (mapped.pData);
+
+        for (int y = 0; y < m_texHeight; y++)
+        {
+            memcpy (dst, src, static_cast<size_t> (m_texWidth) * 4);
+            src += m_texWidth;
+            dst += mapped.RowPitch;
+        }
+
+        m_context->Unmap (m_texture.Get(), 0);
+    }
+
+    hr = RenderCrtFrame (m_sceneRtv.Get(), pictureRect);
     CHRA (hr);
+
+    m_redrawForced        = false;
+    m_lastPresentedParams = m_crtParams;
+
+    if (framebuffer != nullptr)
+    {
+        m_idleFramesSinceFbChange = 0;
+    }
+    else
+    {
+        m_idleFramesSinceFbChange++;
+    }
 
 Error:
     return hr;

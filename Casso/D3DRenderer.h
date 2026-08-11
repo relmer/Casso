@@ -71,9 +71,11 @@ public:
     // finished image lands in this renderer's own offscreen target
     // (created/resized on demand to the back-buffer size, cleared to
     // opaque black first -- no host clear covers it) instead of the back
-    // buffer. The scene then samples GetSceneContentSrv() on the monitor
-    // glass through the UV subrect of GetEmulatorContentScreenRect().
-    HRESULT UploadAndCompositeOffscreen (const uint32_t * framebuffer);
+    // buffer, positioned by the caller-supplied `pictureRect` -- the scene
+    // passes an exact-aspect rect so its glass UV mapping aligns to the
+    // texel, free of the projected bounding box's keystone slop. The scene
+    // then samples GetSceneContentSrv() through that rect's UV subrect.
+    HRESULT UploadAndCompositeOffscreen (const uint32_t * framebuffer, const RECT & pictureRect);
 
     // The offscreen target's SRV (null until UploadAndCompositeOffscreen
     // has run). Non-owning; valid until Shutdown or the next resize.

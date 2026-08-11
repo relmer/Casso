@@ -872,6 +872,7 @@ private:
     // once its models load (m_deskSceneReady).
     DeskScene                  m_deskScene;
     bool                       m_deskSceneReady = false;
+    bool                       m_deskSceneDebug = false;   // CASSO_SCENE_DEBUG=1: layout-rect overlay
 
     // Desk-scene zoom: the monitor's SceneScale from the last layout. The
     // drive widgets and the (scaled part of the) drive band follow it so the

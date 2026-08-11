@@ -227,6 +227,68 @@ void DeskScene::RebuildLampVerts()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::DrawDebugRect
+//
+//  Four thin bars in clip space (identity MVP) over a full-backbuffer
+//  viewport -- layout diagnosis only.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::DrawDebugRect (const RECT & rectPx, int backBufferW, int backBufferH, uint32_t argb)
+{
+    HRESULT         hr           = S_OK;
+    D3D11_VIEWPORT  viewport     = {};
+    float           r            = (float) ((argb >> 16) & 0xFF) / 255.0f;
+    float           g            = (float) ((argb >> 8) & 0xFF) / 255.0f;
+    float           b            = (float) (argb & 0xFF) / 255.0f;
+    float           identity[16] = {};
+
+
+
+    if (backBufferW <= 0 || backBufferH <= 0)
+    {
+        return;
+    }
+
+    SceneCamera::Identity44 (identity);
+
+    viewport.Width    = (float) backBufferW;
+    viewport.Height   = (float) backBufferH;
+    viewport.MaxDepth = 1.0f;
+
+    {
+        RECT   bars[4] = { { rectPx.left, rectPx.top, rectPx.right, rectPx.top + 2 },
+                           { rectPx.left, rectPx.bottom - 2, rectPx.right, rectPx.bottom },
+                           { rectPx.left, rectPx.top, rectPx.left + 2, rectPx.bottom },
+                           { rectPx.right - 2, rectPx.top, rectPx.right, rectPx.bottom } };
+
+        for (const RECT & bar : bars)
+        {
+            float                   x0      = (float) bar.left / (float) backBufferW * 2.0f - 1.0f;
+            float                   x1      = (float) bar.right / (float) backBufferW * 2.0f - 1.0f;
+            float                   y0      = 1.0f - (float) bar.top / (float) backBufferH * 2.0f;
+            float                   y1      = 1.0f - (float) bar.bottom / (float) backBufferH * 2.0f;
+            Dxui3DRenderer::Vertex  quad[6] = {};
+
+            quad[0] = { x0, y0, 0.5f, 0, 0, r, g, b, 1.0f };
+            quad[1] = { x1, y0, 0.5f, 0, 0, r, g, b, 1.0f };
+            quad[2] = { x1, y1, 0.5f, 0, 0, r, g, b, 1.0f };
+            quad[3] = { x0, y0, 0.5f, 0, 0, r, g, b, 1.0f };
+            quad[4] = { x1, y1, 0.5f, 0, 0, r, g, b, 1.0f };
+            quad[5] = { x0, y1, 0.5f, 0, 0, r, g, b, 1.0f };
+
+            hr = m_renderer.DrawTriangles (quad, 6, identity, false, viewport, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::Render
 //
 //  Matrix multiplies and draw submission only -- geometry was cached at load
