@@ -1,0 +1,80 @@
+# Color definition for Casso model generator
+
+newmtl color_14605525
+Ka 0 0 0 
+Kd 0.87 0.862 0.835
+d 1
+illum 0.0
+
+newmtl color_13092286
+Ka 0 0 0 
+Kd 0.78 0.772 0.745
+d 1
+illum 0.0
+
+newmtl color_14144975
+Ka 0 0 0 
+Kd 0.845 0.837 0.81
+d 1
+illum 0.0
+
+newmtl color_1184532
+Ka 0 0 0 
+Kd 0.07 0.075 0.08
+d 1
+illum 0.0
+
+newmtl color_857874
+Ka 0 0 0 
+Kd 0.05 0.09 0.07
+d 1
+illum 0.0
+
+newmtl color_4906593
+Ka 0 0 0 
+Kd 0.29 0.87 0.38
+d 1
+illum 0.0
+
+newmtl color_5394252
+Ka 0 0 0 
+Kd 0.32 0.31 0.3
+d 1
+illum 0.0
+
+newmtl color_3384901
+Ka 0 0 0 
+Kd 0.2 0.65 0.27
+d 1
+illum 0.0
+
+newmtl color_16436244
+Ka 0 0 0 
+Kd 0.98 0.8 0.08
+d 1
+illum 0.0
+
+newmtl color_16089631
+Ka 0 0 0 
+Kd 0.96 0.51 0.12
+d 1
+illum 0.0
+
+newmtl color_15216164
+Ka 0 0 0 
+Kd 0.91 0.18 0.14
+d 1
+illum 0.0
+
+newmtl color_9715865
+Ka 0 0 0 
+Kd 0.58 0.25 0.6
+d 1
+illum 0.0
+
+newmtl color_2847705
+Ka 0 0 0 
+Kd 0.17 0.45 0.85
+d 1
+illum 0.0
+
