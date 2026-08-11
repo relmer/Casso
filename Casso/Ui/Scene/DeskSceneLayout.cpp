@@ -162,46 +162,117 @@ HRESULT DeskSceneLayout::Compute (const RECT             & viewportPx,
         }
     }
 
-    // The camera looks straight ahead at glass-center height: the glass
-    // stays front-facing for the display, and everything placed lower or
-    // off-center picks up its position's parallax automatically.
+    // The camera looks at the glass center from slightly above (a person at
+    // a desk), so top surfaces show and every device picks up its position's
+    // parallax automatically. The straight-axis closed form seeds the
+    // standoff; a few refine passes then project the actual scene corners
+    // and tighten distance AND vertical aim until the scene fills the
+    // viewport with just the contain margin -- without this the symmetric
+    // frustum wastes the whole top margin on a bottom-heavy scene.
     glassCy = (metrics.glass.z0 + metrics.glass.z1) * 0.5f;
     eyeY    = glassCy;
 
     SolveStandoff (sceneMin, sceneMax, eyeY, tanHalfY, tanHalfX, eyeZ);
 
     {
-        float   eye[3] = { 0.0f, eyeY, eyeZ };
-        float   at[3]  = { 0.0f, eyeY, 0.0f };
+        float   atY      = glassCy;
+        float   standoff = eyeZ;
+        float   target   = 1.0f / kContainMargin;
 
-        SceneCamera::LookAtRH         (eye, at, out.view);
-        SceneCamera::PerspectiveFovRH (kFovY, aspect, kNearMm, kFarMm, out.proj);
-        SceneCamera::Mul44            (out.view, out.proj, out.viewProj);
+        for (int pass = 0; pass < 4; pass++)
+        {
+            float   eye[3]     = { 0.0f, atY + std::sin (kGazeDownRad) * standoff, std::cos (kGazeDownRad) * standoff };
+            float   at[3]      = { 0.0f, atY, 0.0f };
+            float   ndcMin[2]  = { FLT_MAX, FLT_MAX };
+            float   ndcMax[2]  = { -FLT_MAX, -FLT_MAX };
+            bool    allVisible = true;
+
+            SceneCamera::LookAtRH         (eye, at, out.view);
+            SceneCamera::PerspectiveFovRH (kFovY, aspect, kNearMm, kFarMm, out.proj);
+            SceneCamera::Mul44            (out.view, out.proj, out.viewProj);
+
+            for (int corner = 0; corner < 8; corner++)
+            {
+                float   pt[3]  = { (corner & 1) ? sceneMax[0] : sceneMin[0],
+                                   (corner & 2) ? sceneMax[1] : sceneMin[1],
+                                   (corner & 4) ? sceneMax[2] : sceneMin[2] };
+                float   ndc[3] = {};
+
+                if (!SceneCamera::TransformPoint (out.viewProj, pt, ndc))
+                {
+                    allVisible = false;
+                    break;
+                }
+
+                ndcMin[0] = std::min (ndcMin[0], ndc[0]);  ndcMax[0] = std::max (ndcMax[0], ndc[0]);
+                ndcMin[1] = std::min (ndcMin[1], ndc[1]);  ndcMax[1] = std::max (ndcMax[1], ndc[1]);
+            }
+
+            if (!allVisible)
+            {
+                standoff *= 1.5f;
+                continue;
+            }
+
+            {
+                float   extent = std::max ({ std::abs (ndcMin[0]), std::abs (ndcMax[0]),
+                                             (ndcMax[1] - ndcMin[1]) * 0.5f });
+                float   center = (ndcMin[1] + ndcMax[1]) * 0.5f;
+
+                standoff *= std::max (extent / target, 0.05f);
+                atY      += center * tanHalfY * standoff;
+            }
+        }
+
+        // Rebuild the camera from the final corrected standoff/aim -- the
+        // loop's matrices are one correction behind.
+        {
+            float   eye[3] = { 0.0f, atY + std::sin (kGazeDownRad) * standoff, std::cos (kGazeDownRad) * standoff };
+            float   at[3]  = { 0.0f, atY, 0.0f };
+
+            SceneCamera::LookAtRH         (eye, at, out.view);
+            SceneCamera::PerspectiveFovRH (kFovY, aspect, kNearMm, kFarMm, out.proj);
+            SceneCamera::Mul44            (out.view, out.proj, out.viewProj);
+        }
     }
 
     // Scene scale and the projected glass rect: the glass's on-screen
-    // bounds against the 2D chrome's native 384 dp. The glass corners
-    // project at the monitor's front plane depth (its widest silhouette --
-    // the sag only recedes from there), centered on the camera axis after
-    // the monitor's own centering translation.
+    // bounds against the 2D chrome's native 384 dp. All four glass corners
+    // project (the downward gaze keystones the quad slightly), and the rect
+    // is their bounding box at the monitor's front plane depth.
     {
-        float   glassZ  = -metrics.glass.baseY;
-        float   tl[3]   = { metrics.glass.x0 - monitorCx, metrics.glass.z1, glassZ };
-        float   br[3]   = { metrics.glass.x1 - monitorCx, metrics.glass.z0, glassZ };
-        float   tlPx[2] = {};
-        float   brPx[2] = {};
+        float   glassZ    = -metrics.glass.baseY;
+        float   pxMin[2]  = { FLT_MAX, FLT_MAX };
+        float   pxMax[2]  = { -FLT_MAX, -FLT_MAX };
+        bool    projected = true;
 
-        if (SceneCamera::ProjectToScreen (out.viewProj, tl, viewportPx, tlPx) &&
-            SceneCamera::ProjectToScreen (out.viewProj, br, viewportPx, brPx))
+        for (int corner = 0; corner < 4; corner++)
+        {
+            float   pt[3] = { (corner & 1) ? metrics.glass.x1 - monitorCx : metrics.glass.x0 - monitorCx,
+                              (corner & 2) ? metrics.glass.z1 : metrics.glass.z0,
+                              glassZ };
+            float   px[2] = {};
+
+            if (!SceneCamera::ProjectToScreen (out.viewProj, pt, viewportPx, px))
+            {
+                projected = false;
+                break;
+            }
+
+            pxMin[0] = std::min (pxMin[0], px[0]);  pxMax[0] = std::max (pxMax[0], px[0]);
+            pxMin[1] = std::min (pxMin[1], px[1]);  pxMax[1] = std::max (pxMax[1], px[1]);
+        }
+
+        if (projected)
         {
             float   nativeHPx = (float) kScreenNativeHDp * (float) dpi / 96.0f;
 
-            out.sceneScale = (brPx[1] - tlPx[1]) / nativeHPx;
+            out.sceneScale = (pxMax[1] - pxMin[1]) / nativeHPx;
 
-            out.glassRectPx.left   = (LONG) std::floor (tlPx[0]);
-            out.glassRectPx.top    = (LONG) std::floor (tlPx[1]);
-            out.glassRectPx.right  = (LONG) std::ceil (brPx[0]);
-            out.glassRectPx.bottom = (LONG) std::ceil (brPx[1]);
+            out.glassRectPx.left   = (LONG) std::floor (pxMin[0]);
+            out.glassRectPx.top    = (LONG) std::floor (pxMin[1]);
+            out.glassRectPx.right  = (LONG) std::ceil (pxMax[0]);
+            out.glassRectPx.bottom = (LONG) std::ceil (pxMax[1]);
         }
     }
 

@@ -111,7 +111,12 @@ public:
     // margin the containment solve adds around the scene.
     static constexpr float  kDriveRowForwardMm = 170.0f;
     static constexpr float  kDriveGapMm        = 26.0f;
-    static constexpr float  kContainMargin     = 1.05f;
+    static constexpr float  kContainMargin     = 1.02f;
+
+    // Downward viewing angle: a person at a desk looks slightly down at the
+    // hardware, which is also what reveals the top surfaces that make the
+    // scene read as 3D instead of a flat front-on cutout.
+    static constexpr float  kGazeDownRad       = 0.12f;
 
 private:
     static void     SolveStandoff (const float             sceneMin[3],

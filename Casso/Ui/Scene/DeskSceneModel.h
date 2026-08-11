@@ -108,6 +108,7 @@ private:
 
     HRESULT  BuildGlassSurface  ();
     void     AssignGlassUvs     ();
+    void     BuildBrandStamp    ();
     void     AddRegionBoxes     ();
     void     ComputeBounds      ();
 

@@ -3,21 +3,29 @@
 #include "Ui/Scene/DeskSceneModel.h"
 
 #include "Devices/Printer/ObjMeshParser.h"
+#include "Ui/Chrome/CassoBranding.h"
 #include "Ui/Chrome/DriveWidget.h"
 
 
 
 
 
-// Baked light direction in model space: the printer scene's light
-// (0.35, -0.7, 0.61) in Y-up render space, expressed in the models' Z-up
-// space (X right, Y back, Z up), normalized on use.
-static constexpr float   s_kLightDir[3] = { 0.35f, -0.61f, -0.70f };
+// Baked light direction in model space (X right, Y back, Z up): overhead
+// front-left, like the reference photos -- raking enough that the beveled
+// front surfaces separate from each other, which is what sells the 3D read.
+static constexpr float   s_kLightDir[3] = { -0.35f, -0.55f, 0.75f };
 
-// The printer scene's two-sided Lambert ramp: fully shadowed faces keep 30%
-// of their color so nothing reads as a black hole.
-static constexpr float   s_kShadeFloor  = 0.30f;
-static constexpr float   s_kShadeSpan   = 0.70f;
+// Two-sided Lambert ramp. The floor is deliberately low: a shallow ramp
+// reads as a flat 2D cutout.
+static constexpr float   s_kShadeFloor  = 0.16f;
+static constexpr float   s_kShadeSpan   = 0.84f;
+
+// Brand stamp placement on the monitor chin (model mm): the cassowary spans
+// this box, proud of the bezel plate's front face (y = -10).
+static constexpr float   s_kBrandLeftMm   = 24.0f;
+static constexpr float   s_kBrandTopZMm   = 55.0f;
+static constexpr float   s_kBrandHeightMm = 21.0f;
+static constexpr float   s_kBrandFrontY   = -10.6f;
 
 // DiskII interactive regions, model space (mm). The eject region wraps the
 // slot + door bar + latch; the body box wraps the whole case including the
@@ -182,6 +190,8 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
 
     if (kind == DeskDeviceKind::Monitor2c)
     {
+        BuildBrandStamp();
+
         hr = BuildGlassSurface();
         CHRA (hr);
 
@@ -315,6 +325,94 @@ void DeskSceneModel::AssignGlassUvs()
         float   pt[3] = { v.x, v.y, v.z };
 
         CurvedDisplayMath::UvFromModelPoint (m_surface, pt, v.u, v.v);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneModel::BuildBrandStamp
+//
+//  Stamps the rainbow cassowary on the monitor chin as flat geometry, built
+//  from CassoBranding's own silhouette bitmask -- the same mark, same
+//  stripes, same concavities as the 2D chrome, with no image asset. One
+//  proud quad per contiguous bit run, unlit so the brand colors stay exact.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::BuildBrandStamp()
+{
+    float  rowH     = s_kBrandHeightMm / (float) CassoBranding::kGridH;
+    float  colW     = rowH;   // the silhouette grid is square-celled
+    int    firstRow = CassoBranding::kGridH;
+    int    lastRow  = -1;
+
+
+
+    for (int row = 0; row < CassoBranding::kGridH; row++)
+    {
+        if (CassoBranding::SilhouetteRow (row) != 0)
+        {
+            firstRow = std::min (firstRow, row);
+            lastRow  = std::max (lastRow, row);
+        }
+    }
+
+    if (lastRow < firstRow)
+    {
+        return;
+    }
+
+    for (int row = firstRow; row <= lastRow; row++)
+    {
+        uint64_t  bits   = CassoBranding::SilhouetteRow (row);
+        int       stripe = ((row - firstRow) * CassoBranding::kStripeCount) / (lastRow - firstRow + 1);
+        uint32_t  argb   = CassoBranding::StripeColor (stripe);
+        float     zTop   = s_kBrandTopZMm - (float) row * rowH;
+        float     r      = (float) ((argb >> 16) & 0xFF) / 255.0f;
+        float     g      = (float) ((argb >> 8) & 0xFF) / 255.0f;
+        float     b      = (float) (argb & 0xFF) / 255.0f;
+        int       col    = 0;
+
+        while (col < CassoBranding::kGridW)
+        {
+            int    runStart = 0;
+            float  x0       = 0.0f;
+            float  x1       = 0.0f;
+
+            if ((bits & (1ULL << col)) == 0)
+            {
+                col++;
+                continue;
+            }
+
+            runStart = col;
+
+            while (col < CassoBranding::kGridW && (bits & (1ULL << col)) != 0)
+            {
+                col++;
+            }
+
+            x0 = s_kBrandLeftMm + (float) runStart * colW;
+            x1 = s_kBrandLeftMm + (float) col * colW;
+
+            {
+                Dxui3DRenderer::Vertex   quad[6] = {};
+                float                    z1      = zTop - rowH;
+
+                quad[0] = { x0, s_kBrandFrontY, zTop, 0, 0, r, g, b, 1.0f };
+                quad[1] = { x1, s_kBrandFrontY, zTop, 0, 0, r, g, b, 1.0f };
+                quad[2] = { x1, s_kBrandFrontY, z1,   0, 0, r, g, b, 1.0f };
+                quad[3] = { x0, s_kBrandFrontY, zTop, 0, 0, r, g, b, 1.0f };
+                quad[4] = { x1, s_kBrandFrontY, z1,   0, 0, r, g, b, 1.0f };
+                quad[5] = { x0, s_kBrandFrontY, z1,   0, 0, r, g, b, 1.0f };
+
+                m_opaque.insert (m_opaque.end(), quad, quad + 6);
+            }
+        }
     }
 }
 

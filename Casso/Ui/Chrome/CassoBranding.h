@@ -26,4 +26,14 @@ public:
                                        float          width,
                                        float          height,
                                        uint32_t       borderArgb = 0);
+
+    // The baked silhouette and stripe palette, exposed so the 3D desk scene
+    // can stamp the SAME mark as geometry -- one source of truth for the
+    // brand across the 2D chrome and the scene.
+    static constexpr int  kGridW       = 36;
+    static constexpr int  kGridH       = 54;
+    static constexpr int  kStripeCount = 6;
+
+    static uint64_t  SilhouetteRow (int row);
+    static uint32_t  StripeColor   (int stripe);
 };
