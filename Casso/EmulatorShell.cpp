@@ -1092,7 +1092,8 @@ HRESULT EmulatorShell::InitializeRenderer()
                                                          m_d3dRenderer.GetBackBufferHeight());
 
                 hrComposite = m_deskScene.Render (m_host->GetBackBufferRtv(),
-                                                  m_d3dRenderer.GetSceneContentSrv(), uv);
+                                                  m_d3dRenderer.GetSceneContentSrv(), uv,
+                                                  kFramebufferWidth, kFramebufferHeight);
             }
         }
         else

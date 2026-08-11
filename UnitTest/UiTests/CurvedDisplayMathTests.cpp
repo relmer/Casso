@@ -219,33 +219,28 @@ public:
         }
     }
 
-    TEST_METHOD (Glass_Edge_Maps_To_The_Outermost_Pixel)
+    TEST_METHOD (Picture_Edge_Maps_To_The_Outermost_Pixel)
     {
-        CurvedDisplaySurface  surface    = MakeSurface();
-        float                 world[16]  = {};
-        float                 vp[16]     = {};
-        RECT                  viewport   = { 0, 0, 1120, 768 };
-        float                 corner[3]  = {};
-        float                 worldPt[3] = {};
-        float                 screen[2]  = {};
-        float                 center[2]  = {};
-        POINT                 pixel      = {};
+        CurvedDisplaySurface  surface   = MakeSurface();
+        float                 world[16] = {};
+        float                 vp[16]    = {};
+        RECT                  viewport  = { 0, 0, 1120, 768 };
+        float                 screen[2] = {};
+        float                 center[2] = {};
+        POINT                 pixel     = {};
 
 
 
         MakeWorld    (world);
         MakeViewProj (surface, 0.0f, vp);
 
-        // Project the exact glass corner (uv 0,0) and the glass center, then
-        // step a quarter pixel inward from the corner: that point is visually
-        // ON the glass edge and must map to pixel (0,0), never miss.
-        CurvedDisplayMath::ModelPointFromUv (surface, 0.0f, 0.0f, corner);
-        Assert::IsTrue (SceneCamera::TransformPoint (world, corner, worldPt));
-        Assert::IsTrue (SceneCamera::ProjectToScreen (vp, worldPt, viewport, screen));
-
-        CurvedDisplayMath::ModelPointFromUv (surface, 0.5f, 0.5f, corner);
-        Assert::IsTrue (SceneCamera::TransformPoint (world, corner, worldPt));
-        Assert::IsTrue (SceneCamera::ProjectToScreen (vp, worldPt, viewport, center));
+        // Project the corner PIXEL and the display center, step a quarter
+        // pixel inward from the corner: that point is visually on the
+        // picture's edge region and must map to pixel (0,0), never miss.
+        Assert::IsTrue (CurvedDisplayMath::ScreenPxFromEmulatedPixel (
+            surface, world, vp, viewport, 0, 0, s_kDisplayW, s_kDisplayH, screen));
+        Assert::IsTrue (CurvedDisplayMath::ScreenPxFromEmulatedPixel (
+            surface, world, vp, viewport, s_kDisplayW / 2, s_kDisplayH / 2, s_kDisplayW, s_kDisplayH, center));
 
         {
             float   toCenter[2] = { center[0] - screen[0], center[1] - screen[1] };
@@ -258,6 +253,33 @@ public:
             Assert::AreEqual ((LONG) 0, pixel.x);
             Assert::AreEqual ((LONG) 0, pixel.y);
         }
+    }
+
+    TEST_METHOD (Glass_Outside_The_Picture_Band_Misses)
+    {
+        CurvedDisplaySurface  surface    = MakeSurface();
+        float                 world[16]  = {};
+        float                 vp[16]     = {};
+        RECT                  viewport   = { 0, 0, 1120, 768 };
+        float                 corner[3]  = {};
+        float                 worldPt[3] = {};
+        float                 screen[2]  = {};
+        POINT                 pixel      = {};
+
+
+
+        MakeWorld    (world);
+        MakeViewProj (surface, 0.0f, vp);
+
+        // The glass corner (uv 0,0) lies in the pillarbox margin outside the
+        // aspect-fitted picture band: it is tube, not display, and must not
+        // report a pixel.
+        CurvedDisplayMath::ModelPointFromUv (surface, 0.0f, 0.0f, corner);
+        Assert::IsTrue  (SceneCamera::TransformPoint (world, corner, worldPt));
+        Assert::IsTrue  (SceneCamera::ProjectToScreen (vp, worldPt, viewport, screen));
+        Assert::IsFalse (CurvedDisplayMath::EmulatedPixelFromScreenPx (
+            surface, world, vp, viewport, screen[0] + 0.25f, screen[1] + 0.25f,
+            s_kDisplayW, s_kDisplayH, pixel));
     }
 
     TEST_METHOD (Screen_Point_Off_The_Glass_Misses)

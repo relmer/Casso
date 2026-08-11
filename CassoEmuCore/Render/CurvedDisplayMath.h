@@ -49,6 +49,19 @@ public:
 
     static float MaxSag           (const CurvedDisplaySurface & surface);
 
+    // Where the picture lands on the glass, in glass-UV space: the display
+    // grid aspect-fits inside the glass rect, centered -- like the image on
+    // a real tube, whose raster never quite fills the faceplate. Shared by
+    // the render path (glass UV remap) and both input directions, so what a
+    // texel shows and what a click hits cannot disagree.
+    static void  ComputePictureBand (const CurvedDisplaySurface & surface,
+                                     int                          displayW,
+                                     int                          displayH,
+                                     float                      & outU0,
+                                     float                      & outV0,
+                                     float                      & outU1,
+                                     float                      & outV1);
+
     // Planar XZ mapping between the glass rect and UV space: u runs x0 -> x1,
     // v runs z1 (top) -> z0 (bottom), texture convention. Exact for a
     // spherical-sag sheet, whose vertices are displaced only along Y.

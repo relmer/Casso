@@ -116,7 +116,15 @@ public:
     // Downward viewing angle: a person at a desk looks slightly down at the
     // hardware, which is also what reveals the top surfaces that make the
     // scene read as 3D instead of a flat front-on cutout.
-    static constexpr float  kGazeDownRad       = 0.12f;
+    static constexpr float  kGazeDownRad       = 0.09f;
+
+    // The picture's actual on-screen height in this composition -- measured
+    // through the full transform (band placement on the glass, sag, gaze
+    // keystone), so the Ctrl+0 solve targets what the user really sees.
+    static float    MeasurePictureHeightPx (const DeskSceneComposition & comp,
+                                            const CurvedDisplaySurface & glass,
+                                            int                          displayW,
+                                            int                          displayH);
 
 private:
     static void     SolveStandoff (const float             sceneMin[3],

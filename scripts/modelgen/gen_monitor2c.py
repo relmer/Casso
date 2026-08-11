@@ -1,5 +1,5 @@
-"""Apple Monitor //c, parametric. Shell ~248 x 200 x 280 mm on a low
-pedestal stand; platinum case tapering toward the back. The front reads like
+"""Apple Monitor //c, parametric. Shell ~248 x 200 x 280 mm sitting flush on
+the desk plane; platinum case tapering toward the back. The front reads like
 the real unit: a proud bezel plate with a sloped shoulder rolling back into
 the case (no hard box edges facing the viewer), an inner lip beveling down
 into the screen recess, rounded-corner fillets over the tube corners, curved
@@ -17,8 +17,7 @@ from meshkit import Mesh
 import math
 
 W, H, D = 248.0, 200.0, 280.0
-STAND_H = 26.0
-Z0 = STAND_H                     # shell bottom sits on the stand
+Z0 = 0.0                         # shell sits directly on the ground plane
 
 PROUD = 10.0                     # bezel plate front plane (y = -PROUD)
 RIM = 9.0                        # shoulder inset from the case outline
@@ -84,14 +83,14 @@ m.add_quad((OX1, YC, OZ0), (HX1, YF, HZ0), (HX1, YF, HZ1), (OX1, YC, OZ1), bezel
 m.box(OX0, 6.0, OZ0, OX1, 8.0, OZ1, cavity_c)
 
 # CRT glass: rectangular panel with true spherical sag, bulging toward the
-# viewer out of the recess. Sphere radius ~2x the diagonal reads as the
+# viewer out of the recess. Sphere radius ~3x the diagonal reads as the
 # period tube's gentle curvature.
 GLASS_INSET = 5.0
 gx0, gx1 = OX0 + GLASS_INSET, OX1 - GLASS_INSET
 gz0, gz1 = OZ0 + GLASS_INSET, OZ1 - GLASS_INSET
 gcx, gcz = (gx0 + gx1) / 2, (gz0 + gz1) / 2
 half_diag = math.hypot((gx1 - gx0) / 2, (gz1 - gz0) / 2)
-SPHERE_R = half_diag * 2.2
+SPHERE_R = half_diag * 3.0
 BASE_Y = 6.0
 
 COLS, ROWS = 16, 12
@@ -122,25 +121,14 @@ for cx, cz, sx, sz in [(gx0, gz1, 1.0, -1.0), (gx1, gz1, -1.0, -1.0),
     m.add_tri(corner, edge_x, mid, cavity_c)
     m.add_tri(corner, mid, edge_z, cavity_c)
 
-# Power lamp: the //c-style horizontal pill, chin right.
-m.box(W - 48.0, YF - 0.6, Z0 + 15.0, W - 32.0, YF, Z0 + 20.0, lamp_c)
+# Power lamp: the //c-style vertical pill, chin right.
+m.box(W - 42.0, YF - 0.6, Z0 + 12.0, W - 37.0, YF, Z0 + 25.0, lamp_c)
 
 # Lid vent grooves: darker strips across the top, rear two-thirds.
 for i in range(10):
     y0 = 96.0 + i * 16.0
     m.box(26.0, y0, Z0 + H - 12.0 - 0.01, W - 26.0, y0 + 5.0, Z0 + H - 12.0 + 0.5, plat_dk)
 
-# Pedestal stand: a narrower tapering base.
-m.hexahedron(
-    [(34, 30, 0), (W - 34, 30, 0), (W - 44, D - 50, 0), (44, D - 50, 0),
-     (28, 22, STAND_H + 0.5), (W - 28, 22, STAND_H + 0.5),
-     (W - 38, D - 44, STAND_H + 0.5), (38, D - 44, STAND_H + 0.5)],
-    plat_dk)
-
-# Stand feet.
-for fx in (52.0, W - 52.0):
-    for fy in (44.0, D - 66.0):
-        m.cylinder(fx, fy, -2.0, 7.0, 2.0, foot_c, axis="z", segments=12)
 
 if __name__ == "__main__":
     import os

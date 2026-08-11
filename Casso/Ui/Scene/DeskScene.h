@@ -66,16 +66,19 @@ public:
     // that runs just before leaves ITS target bound, so relying on ambient
     // state would draw the monitor into the display texture). `displaySrv`
     // is the CRT chain's offscreen output; `displayUv` the subrect of it the
-    // picture occupies (ComputeUvRectForFit).
+    // picture occupies (ComputeUvRectForFit); `displayW/H` the emulated grid,
+    // for the picture's aspect-fit band on the glass.
     HRESULT  Render (ID3D11RenderTargetView   * dstRtv,
                      ID3D11ShaderResourceView * displaySrv,
-                     const CrtUvRect          & displayUv);
+                     const CrtUvRect          & displayUv,
+                     int                        displayW,
+                     int                        displayH);
 
     // Lamp tint applied when a lamp is unlit (multiplies the base color).
     static constexpr float  kLampOffDim = 0.22f;
 
 private:
-    void  RebuildGlassUvs   (const CrtUvRect & displayUv);
+    void  RebuildGlassUvs   (const CrtUvRect & displayUv, int displayW, int displayH);
     void  RebuildLampVerts  ();
 
     static void  TintInto (const std::vector<Dxui3DRenderer::Vertex> & base,

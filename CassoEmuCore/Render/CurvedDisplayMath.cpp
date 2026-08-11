@@ -76,6 +76,54 @@ float CurvedDisplayMath::SphereCenterY (const CurvedDisplaySurface & surface)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CurvedDisplayMath::ComputePictureBand
+//
+//  Aspect-fit of the display grid into the glass rect, centered. A glass
+//  wider than the picture pillarboxes (u band inset, v full); a taller one
+//  letterboxes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CurvedDisplayMath::ComputePictureBand (const CurvedDisplaySurface & surface,
+                                            int                          displayW,
+                                            int                          displayH,
+                                            float                      & outU0,
+                                            float                      & outV0,
+                                            float                      & outU1,
+                                            float                      & outV1)
+{
+    float   glassAspect = (surface.x1 - surface.x0) / (surface.z1 - surface.z0);
+    float   picAspect   = (float) displayW / (float) displayH;
+
+
+
+    outU0 = 0.0f;
+    outV0 = 0.0f;
+    outU1 = 1.0f;
+    outV1 = 1.0f;
+
+    if (picAspect <= glassAspect)
+    {
+        float   bandW = picAspect / glassAspect;
+
+        outU0 = (1.0f - bandW) * 0.5f;
+        outU1 = outU0 + bandW;
+    }
+    else
+    {
+        float   bandH = glassAspect / picAspect;
+
+        outV0 = (1.0f - bandH) * 0.5f;
+        outV1 = outV0 + bandH;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CurvedDisplayMath::UvFromModelPoint
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -274,6 +322,28 @@ bool CurvedDisplayMath::EmulatedPixelFromScreenPx (const CurvedDisplaySurface & 
 
     UvFromModelPoint (surface, modelHit, u, v);
 
+    // Map through the picture band: only the raster area counts as display.
+    // Glass outside the band (the tube's dark margins) reports a miss, with
+    // a hair of slop so a hit on the visible picture edge lands on the
+    // outermost pixel instead of missing.
+    {
+        float   bandU0 = 0.0f;
+        float   bandV0 = 0.0f;
+        float   bandU1 = 1.0f;
+        float   bandV1 = 1.0f;
+
+        ComputePictureBand (surface, displayW, displayH, bandU0, bandV0, bandU1, bandV1);
+
+        u = (u - bandU0) / (bandU1 - bandU0);
+        v = (v - bandV0) / (bandV1 - bandV0);
+
+        if (u < -kEdgeSlopFrac || u > 1.0f + kEdgeSlopFrac ||
+            v < -kEdgeSlopFrac || v > 1.0f + kEdgeSlopFrac)
+        {
+            return false;
+        }
+    }
+
     u = std::clamp (u, 0.0f, 1.0f);
     v = std::clamp (v, 0.0f, 1.0f);
 
@@ -319,8 +389,17 @@ bool CurvedDisplayMath::ScreenPxFromEmulatedPixel (const CurvedDisplaySurface & 
         return false;
     }
 
-    u = ((float) pixelX + 0.5f) / (float) displayW;
-    v = ((float) pixelY + 0.5f) / (float) displayH;
+    {
+        float   bandU0 = 0.0f;
+        float   bandV0 = 0.0f;
+        float   bandU1 = 1.0f;
+        float   bandV1 = 1.0f;
+
+        ComputePictureBand (surface, displayW, displayH, bandU0, bandV0, bandU1, bandV1);
+
+        u = bandU0 + (((float) pixelX + 0.5f) / (float) displayW) * (bandU1 - bandU0);
+        v = bandV0 + (((float) pixelY + 0.5f) / (float) displayH) * (bandV1 - bandV0);
+    }
 
     ModelPointFromUv (surface, u, v, modelPt);
 

@@ -186,20 +186,21 @@ public:
         DeskSceneMetrics      metrics = MakeMetrics();
         SIZE                  center  = DeskSceneLayout::CenterSizeForDisplayPx (1120, 768, 96, 2, metrics);
         RECT                  vp      = { 0, 0, center.cx, center.cy };
-        RECT                  fitted  = {};
         DeskSceneComposition  comp;
 
 
 
         AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp));
 
-        // The Ctrl+0 contract: at the solved center, the PICTURE (aspect-
-        // fitted inside the projected glass, like the image on a real tube)
-        // lands at the requested pixel size within quantization slack.
-        fitted = ComputeAspectFitRectInRect (comp.glassRectPx, 1120, 768);
+        // The Ctrl+0 contract: at the solved center, the picture's ACTUAL
+        // on-screen height -- measured through the band placement, sag, and
+        // gaze keystone -- lands at the requested size within quantization
+        // slack.
+        {
+            float   measured = DeskSceneLayout::MeasurePictureHeightPx (comp, metrics.glass, 1120, 768);
 
-        Assert::IsTrue (std::abs ((fitted.bottom - fitted.top) - 768L) <= 2);
-        Assert::IsTrue (std::abs ((fitted.right - fitted.left) - 1120L) <= 4);
+            Assert::IsTrue (std::abs (measured - 768.0f) <= 3.0f);
+        }
 
         // And the glass rect sits inside the viewport.
         Assert::IsTrue (comp.glassRectPx.left >= 0 && comp.glassRectPx.top >= 0);

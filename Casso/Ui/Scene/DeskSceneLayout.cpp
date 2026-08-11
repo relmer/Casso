@@ -286,6 +286,61 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneLayout::MeasurePictureHeightPx
+//
+//  Projects the picture band's top and bottom (at horizontal center) through
+//  the glass surface and the composition's camera -- the height includes the
+//  sag's forward bulge and the gaze keystone, unlike any texture-space
+//  measure.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DeskSceneLayout::MeasurePictureHeightPx (const DeskSceneComposition & comp,
+                                               const CurvedDisplaySurface & glass,
+                                               int                          displayW,
+                                               int                          displayH)
+{
+    float  bandU0     = 0.0f;
+    float  bandV0     = 0.0f;
+    float  bandU1     = 1.0f;
+    float  bandV1     = 1.0f;
+    float  uMid       = 0.0f;
+    float  topPx[2]   = {};
+    float  botPx[2]   = {};
+    float  modelPt[3] = {};
+    float  worldPt[3] = {};
+
+
+
+    CurvedDisplayMath::ComputePictureBand (glass, displayW, displayH, bandU0, bandV0, bandU1, bandV1);
+
+    uMid = (bandU0 + bandU1) * 0.5f;
+
+    CurvedDisplayMath::ModelPointFromUv (glass, uMid, bandV0, modelPt);
+
+    if (!SceneCamera::TransformPoint (comp.monitorWorld, modelPt, worldPt) ||
+        !SceneCamera::ProjectToScreen (comp.viewProj, worldPt, comp.viewportPx, topPx))
+    {
+        return 0.0f;
+    }
+
+    CurvedDisplayMath::ModelPointFromUv (glass, uMid, bandV1, modelPt);
+
+    if (!SceneCamera::TransformPoint (comp.monitorWorld, modelPt, worldPt) ||
+        !SceneCamera::ProjectToScreen (comp.viewProj, worldPt, comp.viewportPx, botPx))
+    {
+        return 0.0f;
+    }
+
+    return botPx[1] - topPx[1];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneLayout::CenterSizeForDisplayPx
 //
 //  The picture aspect-fits inside the projected glass (whose own aspect the
@@ -313,7 +368,6 @@ SIZE DeskSceneLayout::CenterSizeForDisplayPx (int                      displayWp
         HRESULT               hr     = S_OK;
         DeskSceneComposition  comp;
         RECT                  vp     = { 0, 0, center.cx, center.cy };
-        RECT                  fitted = {};
         int                   fh     = 0;
         float                 factor = 0.0f;
 
@@ -324,8 +378,7 @@ SIZE DeskSceneLayout::CenterSizeForDisplayPx (int                      displayWp
             break;
         }
 
-        fitted = ComputeAspectFitRectInRect (comp.glassRectPx, displayWpx, displayHpx);
-        fh     = fitted.bottom - fitted.top;
+        fh = (int) lroundf (MeasurePictureHeightPx (comp, metrics.glass, displayWpx, displayHpx));
 
         if (fh <= 0)
         {

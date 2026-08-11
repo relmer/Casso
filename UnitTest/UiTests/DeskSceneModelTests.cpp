@@ -18,7 +18,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  material color, glass surface derivation, UV synthesis exactness, lamp
 //  discovery, and region box order. The glass fixture is generated with the
 //  SAME spherical-sag formula as scripts/modelgen/gen_monitor2c.py (rect,
-//  front plane, radius = 2.2 x half-diagonal), so the derivation is exercised
+//  front plane, radius = 3.0 x half-diagonal), so the derivation is exercised
 //  against the shipping geometry's shape, just at test-sized resolution --
 //  UnitTest carries no resources by design, and the real embedded model goes
 //  through this exact code path in the app.
@@ -42,7 +42,7 @@ public:
         float   halfW = (s_kGlassX1 - s_kGlassX0) * 0.5f;
         float   halfH = (s_kGlassZ1 - s_kGlassZ0) * 0.5f;
 
-        return 2.2f * std::sqrt (halfW * halfW + halfH * halfH);
+        return 3.0f * std::sqrt (halfW * halfW + halfH * halfH);
     }
 
     // Emits one axis-aligned box (8 vertices, 6 quad faces) under `mtl`.

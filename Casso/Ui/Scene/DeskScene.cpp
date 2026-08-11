@@ -171,14 +171,31 @@ void DeskScene::TintInto (const std::vector<Dxui3DRenderer::Vertex> & base,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv)
+void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int displayH)
 {
+    float   bandU0 = 0.0f;
+    float   bandV0 = 0.0f;
+    float   bandU1 = 1.0f;
+    float   bandV1 = 1.0f;
+
+
+
+    // The picture aspect-fits inside the glass (the tube's raster never
+    // fills the faceplate); glass outside the band linearly extends past the
+    // texture's fitted subrect into its black-cleared surround. Same band as
+    // the input math -- what a texel shows and what a click hits agree.
+    CurvedDisplayMath::ComputePictureBand (m_monitor.Surface(), displayW, displayH,
+                                           bandU0, bandV0, bandU1, bandV1);
+
     m_glassVerts = m_monitor.GlassVerts();
 
     for (Dxui3DRenderer::Vertex & v : m_glassVerts)
     {
-        v.u = displayUv.u0 + v.u * (displayUv.u1 - displayUv.u0);
-        v.v = displayUv.v0 + v.v * (displayUv.v1 - displayUv.v0);
+        float   u = (v.u - bandU0) / (bandU1 - bandU0);
+        float   w = (v.v - bandV0) / (bandV1 - bandV0);
+
+        v.u = displayUv.u0 + u * (displayUv.u1 - displayUv.u0);
+        v.v = displayUv.v0 + w * (displayUv.v1 - displayUv.v0);
     }
 
     m_glassUv      = displayUv;
@@ -220,7 +237,9 @@ void DeskScene::RebuildLampVerts()
 
 HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
                            ID3D11ShaderResourceView * displaySrv,
-                           const CrtUvRect          & displayUv)
+                           const CrtUvRect          & displayUv,
+                           int                        displayW,
+                           int                        displayH)
 {
     HRESULT          hr        = S_OK;
     D3D11_VIEWPORT   viewport  = {};
@@ -243,7 +262,7 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
 
     if (uvChanged)
     {
-        RebuildGlassUvs (displayUv);
+        RebuildGlassUvs (displayUv, displayW, displayH);
     }
 
     if (m_lampsDirty)
