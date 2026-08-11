@@ -140,6 +140,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
     HRESULT                    hr        = S_OK;
     std::vector<ObjTriangle>   triangles;
     const float              * lampKd    = nullptr;
+    bool                       lampFound = false;
 
 
 
@@ -189,7 +190,8 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
 
     // A device that should carry a lamp but lost it (palette drift in a
     // refined model) is a broken asset, not a runtime condition.
-    CBRA (!m_lamp.empty());
+    lampFound = !m_lamp.empty();
+    CBRA (lampFound);
 
     {
         DeskLampAnchor   anchor;
@@ -236,19 +238,21 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DeskSceneModel::BuildGlassSurface ()
+HRESULT DeskSceneModel::BuildGlassSurface()
 {
-    HRESULT   hr       = S_OK;
-    float     lo[3]    = { FLT_MAX, FLT_MAX, FLT_MAX };
-    float     hi[3]    = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
-    float     halfW    = 0.0f;
-    float     halfH    = 0.0f;
-    float     halfDiag = 0.0f;
-    float     sag      = 0.0f;
+    HRESULT   hr         = S_OK;
+    float     lo[3]      = { FLT_MAX, FLT_MAX, FLT_MAX };
+    float     hi[3]      = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    float     halfW      = 0.0f;
+    float     halfH      = 0.0f;
+    float     halfDiag   = 0.0f;
+    float     sag        = 0.0f;
+    bool      glassFound = !m_glass.empty();
+    bool      valid      = false;
 
 
 
-    CBRA (!m_glass.empty());
+    CBRA (glassFound);
 
     for (const Dxui3DRenderer::Vertex & v : m_glass)
     {
@@ -272,7 +276,8 @@ HRESULT DeskSceneModel::BuildGlassSurface ()
     m_surface.baseY  = hi[1];
     m_surface.radius = (halfDiag * halfDiag + sag * sag) / (2.0f * sag);
 
-    CBRA (CurvedDisplayMath::IsValid (m_surface));
+    valid = CurvedDisplayMath::IsValid (m_surface);
+    CBRA (valid);
 
 Error:
     return hr;
@@ -292,7 +297,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskSceneModel::AssignGlassUvs ()
+void DeskSceneModel::AssignGlassUvs()
 {
     for (Dxui3DRenderer::Vertex & v : m_glass)
     {
@@ -316,7 +321,7 @@ void DeskSceneModel::AssignGlassUvs ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskSceneModel::AddRegionBoxes ()
+void DeskSceneModel::AddRegionBoxes()
 {
     DeskRegionBox   box;
 
@@ -348,7 +353,7 @@ void DeskSceneModel::AddRegionBoxes ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskSceneModel::ComputeBounds ()
+void DeskSceneModel::ComputeBounds()
 {
     float   lo[3] = { FLT_MAX, FLT_MAX, FLT_MAX };
     float   hi[3] = { -FLT_MAX, -FLT_MAX, -FLT_MAX };

@@ -106,13 +106,13 @@ private:
     void     AddRegionBoxes     ();
     void     ComputeBounds      ();
 
-    DeskDeviceKind                        m_kind      = DeskDeviceKind::Monitor2c;
-    std::vector<Dxui3DRenderer::Vertex>   m_opaque;
-    std::vector<Dxui3DRenderer::Vertex>   m_glass;
-    std::vector<Dxui3DRenderer::Vertex>   m_lamp;
-    std::vector<DeskLampAnchor>           m_lamps;
-    std::vector<DeskRegionBox>            m_regions;
-    CurvedDisplaySurface                  m_surface;
-    float                                 m_boundsMin[3] = {};
-    float                                 m_boundsMax[3] = {};
+    DeskDeviceKind                       m_kind         = DeskDeviceKind::Monitor2c;
+    std::vector<Dxui3DRenderer::Vertex>  m_opaque;
+    std::vector<Dxui3DRenderer::Vertex>  m_glass;
+    std::vector<Dxui3DRenderer::Vertex>  m_lamp;
+    std::vector<DeskLampAnchor>          m_lamps;
+    std::vector<DeskRegionBox>           m_regions;
+    CurvedDisplaySurface                 m_surface;
+    float                                m_boundsMin[3] = {};
+    float                                m_boundsMax[3] = {};
 };

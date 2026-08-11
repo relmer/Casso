@@ -171,8 +171,8 @@ bool CurvedDisplayMath::IntersectRay (const CurvedDisplaySurface & surface,
     // sphere facing the viewer) wins.
     for (int root = 0; root < 2; root++)
     {
-        float   t  = (root == 0) ? (-b - sqrtD) / (2.0f * a) : (-b + sqrtD) / (2.0f * a);
-        float   pt[3] = {};
+        float  t     = (root == 0) ? (-b - sqrtD) / (2.0f * a) : (-b + sqrtD) / (2.0f * a);
+        float  pt[3] = {};
 
         if (t <= 0.0f)
         {

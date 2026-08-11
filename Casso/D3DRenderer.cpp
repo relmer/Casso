@@ -523,7 +523,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT D3DRenderer::EnsureSceneContentTarget ()
+HRESULT D3DRenderer::EnsureSceneContentTarget()
 {
     HRESULT               hr   = S_OK;
     D3D11_TEXTURE2D_DESC  desc = {};

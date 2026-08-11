@@ -35,7 +35,7 @@ public:
 
     // Glass rect from the generated Monitor2c model: x 29..219, z 77..197,
     // front plane y=6, radius = 2.2 * half-diagonal.
-    static CurvedDisplaySurface MakeSurface ()
+    static CurvedDisplaySurface MakeSurface()
     {
         CurvedDisplaySurface  surface;
 
@@ -64,12 +64,12 @@ public:
                               float                        eyeOffsetX,
                               float                        out[16])
     {
-        float   cx      = (surface.x0 + surface.x1) * 0.5f;
-        float   cyWorld = (surface.z0 + surface.z1) * 0.5f;   // model z -> world y
-        float   eye[3]  = { cx + eyeOffsetX, cyWorld, 700.0f };
-        float   at[3]   = { cx, cyWorld, 0.0f };
-        float   view[16] = {};
-        float   proj[16] = {};
+        float  cx       = (surface.x0 + surface.x1) * 0.5f;
+        float  cyWorld  = (surface.z0 + surface.z1) * 0.5f;   // model z -> world y
+        float  eye[3]   = { cx + eyeOffsetX, cyWorld, 700.0f };
+        float  at[3]    = { cx, cyWorld, 0.0f };
+        float  view[16] = {};
+        float  proj[16] = {};
 
         SceneCamera::LookAtRH         (eye, at, view);
         SceneCamera::PerspectiveFovRH (0.35f, 1120.0f / 768.0f, 1.0f, 2000.0f, proj);
@@ -78,7 +78,7 @@ public:
 
     TEST_METHOD (Corners_Sit_On_The_Front_Plane_And_Center_Bulges)
     {
-        CurvedDisplaySurface  surface = MakeSurface();
+        CurvedDisplaySurface  surface   = MakeSurface();
         float                 corner[3] = {};
         float                 center[3] = {};
         float                 maxSag    = CurvedDisplayMath::MaxSag (surface);

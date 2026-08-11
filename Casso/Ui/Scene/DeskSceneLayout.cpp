@@ -114,7 +114,7 @@ HRESULT DeskSceneLayout::Compute (const RECT             & viewportPx,
     CBRAEx (driveCount >= 0 && driveCount <= 2, E_INVALIDARG);
     CBRAEx (dpi > 0, E_INVALIDARG);
 
-    BAIL_OUT_IF (viewportW <= 0 || viewportH <= 0, S_FALSE);
+    BAIL_OUT_IF (viewportW <= 0 || viewportH <= 0, S_FALSE);   // EHM-ALLOW-SFALSE: minimized/zero viewport is a routine skip-this-frame state the caller tests for, not an error
 
     out.viewportPx = viewportPx;
     out.driveCount = driveCount;

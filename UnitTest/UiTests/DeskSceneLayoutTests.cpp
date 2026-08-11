@@ -29,7 +29,7 @@ public:
 
     // Metrics mirroring the real models: Monitor //c 248x280x226 with the
     // generated glass rect, Disk II 155x222x86 (model space X/Y-back/Z-up).
-    static DeskSceneMetrics MakeMetrics ()
+    static DeskSceneMetrics MakeMetrics()
     {
         DeskSceneMetrics  metrics;
 
@@ -182,8 +182,8 @@ public:
 
     TEST_METHOD (Below_Center_Drive_Shows_Its_Top_Face)
     {
-        DeskSceneMetrics      metrics = MakeMetrics();
-        RECT                  vp      = { 0, 0, 1120, 768 };
+        DeskSceneMetrics      metrics     = MakeMetrics();
+        RECT                  vp          = { 0, 0, 1120, 768 };
         DeskSceneComposition  comp;
         float                 frontTop[3] = {};
         float                 backTop[3]  = {};
@@ -214,8 +214,8 @@ public:
 
     TEST_METHOD (Off_Center_Drive_Shows_Its_Inward_Flank)
     {
-        DeskSceneMetrics      metrics = MakeMetrics();
-        RECT                  vp      = { 0, 0, 1120, 768 };
+        DeskSceneMetrics      metrics      = MakeMetrics();
+        RECT                  vp           = { 0, 0, 1120, 768 };
         DeskSceneComposition  comp;
         float                 frontEdge[3] = {};
         float                 backEdge[3]  = {};

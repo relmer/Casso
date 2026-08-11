@@ -296,8 +296,8 @@ bool SceneCamera::ProjectToScreen (const float viewProj[16],
                                    const RECT & viewportPx,
                                    float        outScreenPx[2])
 {
-    float   w = world[0] * viewProj[3] + world[1] * viewProj[7] + world[2] * viewProj[11] + viewProj[15];
-    float   ndc[3] = {};
+    float  w      = world[0] * viewProj[3] + world[1] * viewProj[7] + world[2] * viewProj[11] + viewProj[15];
+    float  ndc[3] = {};
 
 
 

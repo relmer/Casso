@@ -37,7 +37,7 @@ TEST_CLASS (DeskSceneModelTests)
 {
 public:
 
-    static float GlassRadius ()
+    static float GlassRadius()
     {
         float   halfW = (s_kGlassX1 - s_kGlassX0) * 0.5f;
         float   halfH = (s_kGlassZ1 - s_kGlassZ0) * 0.5f;
@@ -129,7 +129,7 @@ public:
         vertexBase += (rows + 1) * (cols + 1);
     }
 
-    static std::string Mtl ()
+    static std::string Mtl()
     {
         return
             "newmtl caseM\nKd 0.833 0.784 0.659\n"
@@ -154,7 +154,7 @@ public:
         return obj;
     }
 
-    static std::string DriveObj ()
+    static std::string DriveObj()
     {
         std::string   obj;
         int           base = 0;
