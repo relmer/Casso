@@ -2777,7 +2777,8 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 
             center   = ComputeViewportRect (widthPx, heightPx);
             hrLayout = DeskSceneLayout::Compute (center, m_scaler.Dpi(), DeskSceneDriveCount(),
-                                                 m_deskScene.Metrics(), comp);
+                                                 m_deskScene.Metrics(), comp,
+                                                 m_scaler.Px (s_kJoystickButtonBandDp + s_kStripEdgeZoneDp));
             BAIL_OUT_IF (hrLayout != S_OK, S_OK);
 
             m_deskScene.SetComposition (comp);
@@ -3133,7 +3134,8 @@ SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int fram
     {
         SIZE   center     = DeskSceneLayout::CenterSizeForDisplayPx (framebufferWpx, framebufferHpx,
                                                                      m_scaler.Dpi(), DeskSceneDriveCount(),
-                                                                     m_deskScene.Metrics());
+                                                                     m_deskScene.Metrics(),
+                                                                     m_scaler.Px (s_kJoystickButtonBandDp + s_kStripEdgeZoneDp));
         float  savedScale = m_chromeSceneScale;
 
         m_chromeSceneScale = s_kDeskDriveScale;

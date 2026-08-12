@@ -75,12 +75,16 @@ class DeskSceneLayout
 public:
     // Deterministic for a given (viewport, dpi, driveCount, metrics).
     // Returns S_FALSE (composition zeroed) for an empty viewport, e.g.
-    // minimized.
+    // minimized. `reservedGapPx` keeps at least that many pixels of
+    // projected clearance between the monitor's bottom and the drive row --
+    // the slot the fixed-height input-mode chrome sits in -- by deepening
+    // the drive drop as the scene scales down.
     static HRESULT  Compute (const RECT             & viewportPx,
                              UINT                     dpi,
                              int                      driveCount,
                              const DeskSceneMetrics & metrics,
-                             DeskSceneComposition   & out);
+                             DeskSceneComposition   & out,
+                             int                      reservedGapPx = 0);
 
     // The fullscreen presentation: a straight-on camera whose frustum the
     // GLASS fills (cover, not contain -- the monitor body crops offscreen),
@@ -117,7 +121,8 @@ public:
                                             int                      displayHpx,
                                             UINT                     dpi,
                                             int                      driveCount,
-                                            const DeskSceneMetrics & metrics);
+                                            const DeskSceneMetrics & metrics,
+                                            int                      reservedGapPx = 0);
 
     // The native-scale display height the 2D chrome established; sceneScale
     // is glass px height relative to this at the given DPI.
@@ -167,4 +172,13 @@ private:
                                    float                   tanHalfY,
                                    float                   tanHalfX,
                                    float                 & outEyeZ);
+
+    // One full composition solve at a specific drive drop; Compute wraps it
+    // with the gap-reserving correction.
+    static HRESULT  SolveComposition (const RECT             & viewportPx,
+                                      UINT                     dpi,
+                                      int                      driveCount,
+                                      const DeskSceneMetrics & metrics,
+                                      float                    dropMm,
+                                      DeskSceneComposition   & out);
 };

@@ -84,13 +84,73 @@ void DeskSceneLayout::SolveStandoff (const float   sceneMin[3],
 //
 //  DeskSceneLayout::Compute
 //
+//  The drop correction: the input-mode row is fixed-height chrome living in
+//  the projected gap between monitor and drives, and the gap scales with
+//  the scene while the chrome does not -- so when the solve leaves too
+//  little room, the drive drop deepens by the deficit (converted at the
+//  glass's pixel density, a slight overestimate of the correction that
+//  converges from above) and the composition re-solves.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DeskSceneLayout::Compute (const RECT             & viewportPx,
                                   UINT                     dpi,
                                   int                      driveCount,
                                   const DeskSceneMetrics & metrics,
-                                  DeskSceneComposition   & out)
+                                  DeskSceneComposition   & out,
+                                  int                      reservedGapPx)
+{
+    HRESULT   hr     = S_OK;
+    float     dropMm = kDriveDropMm;
+
+
+
+    hr = SolveComposition (viewportPx, dpi, driveCount, metrics, dropMm, out);
+
+    for (int pass = 0; hr == S_OK && reservedGapPx > 0 && driveCount > 0 && pass < 3; pass++)
+    {
+        int     driveTop = INT_MAX;
+        int     gapNow   = 0;
+        float   pxPerMm  = 0.0f;
+        int     glassHPx = out.glassRectPx.bottom - out.glassRectPx.top;
+
+        for (int i = 0; i < driveCount; i++)
+        {
+            driveTop = std::min (driveTop, (int) out.driveRectPx[i].top);
+        }
+
+        gapNow  = driveTop - out.monitorRectPx.bottom;
+        pxPerMm = (float) glassHPx / (metrics.glass.z1 - metrics.glass.z0);
+
+        if (gapNow >= reservedGapPx || pxPerMm <= 0.0f)
+        {
+            break;
+        }
+
+        dropMm += (float) (reservedGapPx - gapNow) / pxPerMm;
+
+        hr = SolveComposition (viewportPx, dpi, driveCount, metrics, dropMm, out);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::SolveComposition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
+                                           UINT                     dpi,
+                                           int                      driveCount,
+                                           const DeskSceneMetrics & metrics,
+                                           float                    dropMm,
+                                           DeskSceneComposition   & out)
 {
     HRESULT   hr           = S_OK;
     int       viewportW    = viewportPx.right - viewportPx.left;
@@ -134,7 +194,7 @@ HRESULT DeskSceneLayout::Compute (const RECT             & viewportPx,
 
     for (int i = 0; i < driveCount; i++)
     {
-        MakeDeviceWorld (driveTx[i] - driveCx * kDriveScale, -kDriveDropMm, kDriveRowForwardMm,
+        MakeDeviceWorld (driveTx[i] - driveCx * kDriveScale, -dropMm, kDriveRowForwardMm,
                          kDriveScale, out.driveWorld[i]);
     }
 
@@ -151,10 +211,10 @@ HRESULT DeskSceneLayout::Compute (const RECT             & viewportPx,
     for (int i = 0; i < driveCount; i++)
     {
         float   lo[3] = { (metrics.driveMin[0] - driveCx) * kDriveScale + driveTx[i],
-                          metrics.driveMin[2] * kDriveScale - kDriveDropMm,
+                          metrics.driveMin[2] * kDriveScale - dropMm,
                           kDriveRowForwardMm - metrics.driveMax[1] * kDriveScale };
         float   hi[3] = { (metrics.driveMax[0] - driveCx) * kDriveScale + driveTx[i],
-                          metrics.driveMax[2] * kDriveScale - kDriveDropMm,
+                          metrics.driveMax[2] * kDriveScale - dropMm,
                           kDriveRowForwardMm - metrics.driveMin[1] * kDriveScale };
 
         for (int axis = 0; axis < 3; axis++)
@@ -620,7 +680,8 @@ SIZE DeskSceneLayout::CenterSizeForDisplayPx (int                      displayWp
                                               int                      displayHpx,
                                               UINT                     dpi,
                                               int                      driveCount,
-                                              const DeskSceneMetrics & metrics)
+                                              const DeskSceneMetrics & metrics,
+                                              int                      reservedGapPx)
 {
     SIZE   center  = { displayWpx * 2, displayHpx * 3 };
     bool   wrapped = false;
@@ -635,7 +696,7 @@ SIZE DeskSceneLayout::CenterSizeForDisplayPx (int                      displayWp
         int                   fh     = 0;
         float                 factor = 0.0f;
 
-        hr = Compute (vp, dpi, driveCount, metrics, comp);
+        hr = Compute (vp, dpi, driveCount, metrics, comp, reservedGapPx);
 
         if (hr != S_OK)
         {
