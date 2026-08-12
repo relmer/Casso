@@ -2692,7 +2692,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
             m_driveBandSurface.SetBounds (RECT{ 0, bandTop, clientW, clientH });
-            LayoutJoystickButton (clientW, bandTop, bandHeight, dpi);
+            if (!DeskSceneActive())
+            {
+                LayoutJoystickButton (clientW, bandTop, bandHeight, dpi);
+            }
         }
 
         LayoutSwitchBar (dpi);
@@ -2784,6 +2787,21 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         viewportRect = m_deskScene.Composition().glassRectPx;
 
         SyncSceneDriveChrome();
+
+        // The input-mode buttons sit in the scene's gap between the monitor
+        // and the drive row, where the 2D chrome kept them.
+        {
+            const DeskSceneComposition &  comp     = m_deskScene.Composition();
+            int                           bandH    = m_scaler.Px (s_kJoystickButtonBandDp);
+            int                           driveTop = heightPx;
+
+            for (int i = 0; i < comp.driveCount; i++)
+            {
+                driveTop = std::min (driveTop, (int) comp.driveRectPx[i].top);
+            }
+
+            LayoutJoystickButton (widthPx, driveTop - bandH, bandH, m_scaler.Dpi());
+        }
     }
     else if (!MonitorFrameEnabled())
     {
@@ -2846,15 +2864,16 @@ void EmulatorShell::SyncChromeBands()
     // the emulator viewport grows into it. The widgets are already hidden and
     // un-hit-tested by the resize path when there is no controller.
     bool  hasDisk     = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
-    int   driveBandDp = s_kJoystickButtonBandDp;
+    int   driveBandDp = DeskSceneActive() ? 0 : s_kJoystickButtonBandDp;
 
     if (hasDisk && !DeskSceneActive())
     {
         // The joystick-selector portion is fixed UI; the drive-widget portion
         // zooms with the desk scene (m_chromeSceneScale) so the band hugs the
-        // scaled widgets instead of leaving dead space around them. When the
-        // 3D scene is active the drives are scene objects, so the band keeps
-        // only the joystick row.
+        // scaled widgets instead of leaving dead space around them. With the
+        // 3D scene active there is NO bottom band at all: the drives are
+        // scene objects and the input-mode buttons float in the scene's gap
+        // between monitor and drive row, like the 2D chrome's arrangement.
         int  widgetPortionDp = m_driveBarThicknessDp - s_kJoystickButtonBandDp;
 
         driveBandDp = s_kJoystickButtonBandDp
@@ -9248,7 +9267,10 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
                 m_driveBandSurface.SetBounds (RECT{ 0, bandTop, static_cast<int> (width), renderH });
-                LayoutJoystickButton (static_cast<int> (width), bandTop, bandHeight, dpi);
+                if (!DeskSceneActive())
+                {
+                    LayoutJoystickButton (static_cast<int> (width), bandTop, bandHeight, dpi);
+                }
             }
 
             LayoutSwitchBar (dpi);

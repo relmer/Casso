@@ -161,6 +161,11 @@ private:
     bool                                  m_driveActive[2]  = {};
     bool                                  m_lampsDirty      = true;
 
+    // Per-drive badge text ("DRIVE 1" / "DRIVE 2"), stamped onto the shared
+    // model's badge plaque at load -- the number differs per drive, so the
+    // text cannot live in the model itself.
+    std::vector<Dxui3DRenderer::Vertex>   m_driveLabelVerts[2];
+
     // Door assemblies, rotated copies of the model's cached door verts;
     // progress -1 forces the first build.
     std::vector<Dxui3DRenderer::Vertex>   m_driveDoorVerts[2];

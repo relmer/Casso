@@ -168,7 +168,7 @@ public:
         int           base = 0;
 
         AppendBox (obj, base, 0.0f, 0.0f, 0.0f, 155.0f, 222.0f, 86.0f, "caseM");
-        AppendBox (obj, base, 21.0f, -2.6f, 13.0f, 27.0f, -0.6f, 19.0f, "ledM");
+        AppendBox (obj, base, 65.0f, -2.6f, 13.0f, 71.0f, -0.6f, 19.0f, "ledM");
 
         if (withDoor)
         {
@@ -274,7 +274,7 @@ public:
         Assert::AreEqual ((size_t) 1, model.Lamps().size());
 
         // The lamp anchor is the LED box's center.
-        Assert::AreEqual (24.0f, model.Lamps()[0].center[0], 0.01f);
+        Assert::AreEqual (68.0f, model.Lamps()[0].center[0], 0.01f);
         Assert::AreEqual (16.0f, model.Lamps()[0].center[2], 0.01f);
 
         Assert::AreEqual ((size_t) 2, model.RegionBoxes().size());
@@ -371,14 +371,14 @@ public:
         AssertSucceeded (model.Load (DeskDeviceKind::DiskII, DriveObj(), Mtl()));
         Assert::IsFalse (model.PadlockVerts().empty());
 
-        // Proud of the faceplate, clear of the LED and the slot: every
-        // vertex sits in front of the plate (y < -1) and inside the lower
-        // faceplate area between LED and rainbow mark.
+        // Proud of the faceplate at its top-right (the 2D widget's badge
+        // position), clear of the badge plaque and the slot: every vertex
+        // sits in front of the plate (y < -1) inside that corner region.
         for (const Dxui3DRenderer::Vertex & v : model.PadlockVerts())
         {
             Assert::IsTrue (v.y < -1.0f && v.y > -3.0f);
-            Assert::IsTrue (v.x > 27.0f && v.x < 126.0f);
-            Assert::IsTrue (v.z > 5.0f  && v.z < 46.0f);
+            Assert::IsTrue (v.x > 120.0f && v.x < 142.0f);
+            Assert::IsTrue (v.z > 55.0f  && v.z < 76.0f);
         }
     }
 
@@ -393,19 +393,25 @@ public:
         AssertSucceeded (model.Load (DeskDeviceKind::DiskII, DriveObj(), Mtl()));
         Assert::IsFalse (model.OpaqueVerts().empty());
 
+        // The lit case verts carry the baked Lambert ramp (floor 0.30 to
+        // full material color); the unlit stamps (brand, labels) ride along
+        // in the batch with their exact colors, so only verts in the case
+        // color's family are ramp-checked.
         for (const Dxui3DRenderer::Vertex & v : model.OpaqueVerts())
         {
-            // Shade range: floor 0.30 to full 1.0 of the material color.
-            Assert::IsTrue (v.r >= 0.833f * 0.30f - 1e-4f && v.r <= 0.833f + 1e-4f);
             Assert::AreEqual (1.0f, v.a);
 
-            if (firstR < 0.0f)
+            if (v.r > 0.833f * 0.30f - 1e-4f && v.r <= 0.833f + 1e-4f &&
+                std::abs (v.g - v.r * (0.784f / 0.833f)) < 0.02f)
             {
-                firstR = v.r;
-            }
-            else if (std::abs (v.r - firstR) > 1e-3f)
-            {
-                sawVariation = true;
+                if (firstR < 0.0f)
+                {
+                    firstR = v.r;
+                }
+                else if (std::abs (v.r - firstR) > 1e-3f)
+                {
+                    sawVariation = true;
+                }
             }
         }
 

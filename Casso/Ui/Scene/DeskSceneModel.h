@@ -101,6 +101,20 @@ public:
                                   float                                       angleRad,
                                   std::vector<Dxui3DRenderer::Vertex>       & out);
 
+    // Stamps text in a blocky 5x7 pixel font as proud unlit quads, one
+    // merged quad per horizontal pixel run -- the same technique as the
+    // brand stamp, so labels keep the period pixel-art house style. Glyphs
+    // cover what the scene labels need (DRIVE n / IN USE and the '>'
+    // LED-pointer triangle); unknown characters stamp as spaces. `cellMm`
+    // is one font pixel; a glyph is 5 cells wide + 1 cell of tracking.
+    static void  StampText (std::vector<Dxui3DRenderer::Vertex> & out,
+                            const char                          * text,
+                            float                                 leftMm,
+                            float                                 topZMm,
+                            float                                 cellMm,
+                            float                                 frontY,
+                            const float                           rgb[3]);
+
     void  BoundsMin (float out[3]) const { memcpy (out, m_boundsMin, sizeof (m_boundsMin)); }
     void  BoundsMax (float out[3]) const { memcpy (out, m_boundsMax, sizeof (m_boundsMax)); }
 
@@ -126,7 +140,7 @@ private:
 
     HRESULT  BuildGlassSurface  ();
     void     AssignGlassUvs     ();
-    void     BuildBrandStamp    ();
+    void     BuildBrandStamp    (float leftMm, float topZMm, float heightMm, float frontY);
     void     BuildPadlockStamp  ();
     void     AddRegionBoxes     ();
     void     ComputeBounds      ();

@@ -61,6 +61,25 @@ HRESULT DeskScene::LoadModels (const std::string & monitorObj, const std::string
     hr = m_drive.Load (DeskDeviceKind::DiskII, driveObj, driveMtl);
     CHRA (hr);
 
+    // The per-drive badge text, stamped onto the model's badge plaque
+    // (plaque 13..52 x 64..74 mm): the number differs per drive, so the
+    // text lives here, not in the shared model.
+    {
+        constexpr float   kLabelCellMm = 0.85f;
+        constexpr float   kLabelLeftMm = 15.2f;
+        constexpr float   kLabelTopZMm = 72.0f;
+        constexpr float   kLabelFrontY = -1.9f;
+        constexpr float   kLabelRgb[3] = { 0.150f, 0.140f, 0.130f };
+
+        m_driveLabelVerts[0].clear();
+        m_driveLabelVerts[1].clear();
+
+        DeskSceneModel::StampText (m_driveLabelVerts[0], "DRIVE 1", kLabelLeftMm,
+                                   kLabelTopZMm, kLabelCellMm, kLabelFrontY, kLabelRgb);
+        DeskSceneModel::StampText (m_driveLabelVerts[1], "DRIVE 2", kLabelLeftMm,
+                                   kLabelTopZMm, kLabelCellMm, kLabelFrontY, kLabelRgb);
+    }
+
     m_modelsLoaded = true;
     m_glassUvDirty = true;
     m_lampsDirty   = true;
@@ -465,6 +484,13 @@ HRESULT DeskScene::DrawDrives (const DeskSceneComposition & comp, const D3D11_VI
         if (m_driveWp[drive] && !m_drive.PadlockVerts().empty())
         {
             hr = m_renderer.DrawTriangles (m_drive.PadlockVerts().data(), m_drive.PadlockVerts().size(),
+                                           mvp, false, viewport, true);
+            CHRA (hr);
+        }
+
+        if (!m_driveLabelVerts[drive].empty())
+        {
+            hr = m_renderer.DrawTriangles (m_driveLabelVerts[drive].data(), m_driveLabelVerts[drive].size(),
                                            mvp, false, viewport, true);
             CHRA (hr);
         }

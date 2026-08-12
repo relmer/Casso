@@ -53,17 +53,17 @@ m.box(14.0, -1.7, SLOT_Z0, W - 14.0, -1.0, SLOT_Z1, slot_dk)
 m.box(14.0, -2.3, SLOT_Z1, W - 14.0, -1.0, SLOT_Z1 + 9.0, door_c)
 m.box(W / 2 - 12.0, -3.1, SLOT_Z1 + 1.5, W / 2 + 12.0, -2.3, SLOT_Z1 + 7.5, latch_c)
 
-# Badge plaque, upper-left of the faceplate.
+# Badge plaque, upper-left of the faceplate. The scene stamps the DRIVE
+# number onto it (per-drive text cannot live in the shared model).
 m.box(13.0, -1.8, 64.0, 52.0, -1.0, 74.0, badge_c)
 
-# IN-USE LED, lower-left.
-m.cylinder(24.0, -2.6, 16.0, 3.2, 2.0, led_red, axis="y", segments=12)
+# IN-USE LED, lower-left -- placed after its label ("IN USE" + arrow, stamped
+# by the scene code to the LED's left, matching the 2D widget's layout).
+m.cylinder(68.0, -2.6, 16.0, 3.2, 2.0, led_red, axis="y", segments=12)
 
-# Rainbow mark, lower-right: six stacked stripes.
-RB_X0, RB_X1, RB_Z1, STRIPE = 126.0, 142.0, 31.0, 3.0
-for i, c in enumerate(rainbow):
-    z1 = RB_Z1 - i * STRIPE
-    m.box(RB_X0, -1.8, z1 - STRIPE, RB_X1, -1.0, z1, c)
+# (The rainbow mark is stamped by the scene code from CassoBranding's own
+# cassowary silhouette -- the same mark as the 2D widget -- not generated
+# here as bare stripes.)
 
 # Lid channels: two slim darker strips running front to back, reading as
 # the real lid's shallow recessed channels.

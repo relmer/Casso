@@ -28,6 +28,21 @@ static constexpr float   s_kBrandTopZMm   = 27.0f;
 static constexpr float   s_kBrandHeightMm = 16.0f;
 static constexpr float   s_kBrandFrontY   = -10.6f;
 
+// The drive's cassowary, lower-right of the faceplate like the 2D widget,
+// proud of the black plate (front y = -1).
+static constexpr float   s_kDriveBrandLeftMm   = 127.0f;
+static constexpr float   s_kDriveBrandTopZMm   = 34.0f;
+static constexpr float   s_kDriveBrandHeightMm = 26.0f;
+static constexpr float   s_kDriveBrandFrontY   = -1.8f;
+
+// The IN-USE label: "IN USE" plus the pointer triangle, sitting to the
+// LED's left at the LED's height (the 2D widget's arrangement).
+static constexpr float   s_kInUseLeftMm  = 20.0f;
+static constexpr float   s_kInUseTopZMm  = 19.5f;
+static constexpr float   s_kInUseCellMm  = 1.0f;
+static constexpr float   s_kInUseFrontY  = -1.8f;
+static constexpr float   s_kInUseRgb[3]  = { 0.750f, 0.730f, 0.700f };
+
 // DiskII interactive regions, model space (mm). The eject region wraps the
 // slot + door bar + latch; the body box wraps the whole case including the
 // proud front furniture.
@@ -37,21 +52,21 @@ static constexpr float   s_kDiskIiBodyMin[3]  = {   0.0f, -5.0f,  0.0f };
 static constexpr float   s_kDiskIiBodyMax[3]  = { 155.0f, 222.0f, 86.0f };
 
 // Write-protect padlock stamp on the drive faceplate (model mm): brass body
-// with a shackle arch and a keyhole, right of the IN-USE LED, matching the
-// 2D widget's badge in concept and restraint. Flat proud quads like the
-// brand stamp; each layer floats a hair nearer the viewer than the one it
-// sits on so depth never ties.
-static constexpr float   s_kPadlockBodyX0    = 34.0f;
-static constexpr float   s_kPadlockBodyX1    = 44.0f;
-static constexpr float   s_kPadlockBodyZ0    = 9.0f;
-static constexpr float   s_kPadlockBodyZ1    = 17.5f;
-static constexpr float   s_kPadlockArchZ1    = 23.0f;
+// with a shackle arch and a keyhole, top-right beside the badge row like
+// the 2D widget's badge. Flat proud quads like the brand stamp; each layer
+// floats a hair nearer the viewer than the one it sits on so depth never
+// ties.
+static constexpr float   s_kPadlockBodyX0    = 127.0f;
+static constexpr float   s_kPadlockBodyX1    = 137.0f;
+static constexpr float   s_kPadlockBodyZ0    = 58.0f;
+static constexpr float   s_kPadlockBodyZ1    = 66.5f;
+static constexpr float   s_kPadlockArchZ1    = 72.0f;
 static constexpr float   s_kPadlockLegW      = 1.7f;
 static constexpr float   s_kPadlockArchInset = 1.5f;
-static constexpr float   s_kPadlockHoleX0    = 38.4f;
-static constexpr float   s_kPadlockHoleX1    = 39.6f;
-static constexpr float   s_kPadlockHoleZ0    = 11.0f;
-static constexpr float   s_kPadlockHoleZ1    = 14.5f;
+static constexpr float   s_kPadlockHoleX0    = 131.4f;
+static constexpr float   s_kPadlockHoleX1    = 132.6f;
+static constexpr float   s_kPadlockHoleZ0    = 60.0f;
+static constexpr float   s_kPadlockHoleZ1    = 63.5f;
 static constexpr float   s_kPadlockShackleY  = -1.95f;
 static constexpr float   s_kPadlockBodyY     = -2.00f;
 static constexpr float   s_kPadlockHoleY     = -2.05f;
@@ -223,7 +238,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
 
     if (kind == DeskDeviceKind::Monitor2c)
     {
-        BuildBrandStamp();
+        BuildBrandStamp (s_kBrandLeftMm, s_kBrandTopZMm, s_kBrandHeightMm, s_kBrandFrontY);
 
         hr = BuildGlassSurface();
         CHRA (hr);
@@ -267,6 +282,14 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         m_doorPivotZ = hiZ;
 
         BuildPadlockStamp();
+
+        // The cassowary (lower-right, the 2D widget's mark) and the IN-USE
+        // label pointing at the LED. The DRIVE-number badge text is stamped
+        // per-drive by the scene -- it cannot live in the shared model.
+        BuildBrandStamp (s_kDriveBrandLeftMm, s_kDriveBrandTopZMm,
+                         s_kDriveBrandHeightMm, s_kDriveBrandFrontY);
+        StampText (m_opaque, "IN USE >", s_kInUseLeftMm, s_kInUseTopZMm,
+                   s_kInUseCellMm, s_kInUseFrontY, s_kInUseRgb);
     }
 
     {
@@ -391,16 +414,17 @@ void DeskSceneModel::AssignGlassUvs()
 //
 //  DeskSceneModel::BuildBrandStamp
 //
-//  Stamps the rainbow cassowary on the monitor chin as flat geometry, built
-//  from CassoBranding's own silhouette bitmask -- the same mark, same
-//  stripes, same concavities as the 2D chrome, with no image asset. One
-//  proud quad per contiguous bit run, unlit so the brand colors stay exact.
+//  Stamps the rainbow cassowary as flat geometry, built from CassoBranding's
+//  own silhouette bitmask -- the same mark, same stripes, same concavities
+//  as the 2D chrome, with no image asset. One proud quad per contiguous bit
+//  run, unlit so the brand colors stay exact. Placement is the caller's:
+//  the monitor chin and the drive faceplate both carry it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskSceneModel::BuildBrandStamp()
+void DeskSceneModel::BuildBrandStamp (float leftMm, float topZMm, float heightMm, float frontY)
 {
-    float  rowH     = s_kBrandHeightMm / (float) CassoBranding::kGridH;
+    float  rowH     = heightMm / (float) CassoBranding::kGridH;
     float  colW     = rowH;   // the silhouette grid is square-celled
     int    firstRow = CassoBranding::kGridH;
     int    lastRow  = -1;
@@ -426,7 +450,7 @@ void DeskSceneModel::BuildBrandStamp()
         uint64_t  bits   = CassoBranding::SilhouetteRow (row);
         int       stripe = ((row - firstRow) * CassoBranding::kStripeCount) / (lastRow - firstRow + 1);
         uint32_t  argb   = CassoBranding::StripeColor (stripe);
-        float     zTop   = s_kBrandTopZMm - (float) row * rowH;
+        float     zTop   = topZMm - (float) row * rowH;
         float     r      = (float) ((argb >> 16) & 0xFF) / 255.0f;
         float     g      = (float) ((argb >> 8) & 0xFF) / 255.0f;
         float     b      = (float) (argb & 0xFF) / 255.0f;
@@ -451,19 +475,19 @@ void DeskSceneModel::BuildBrandStamp()
                 col++;
             }
 
-            x0 = s_kBrandLeftMm + (float) runStart * colW;
-            x1 = s_kBrandLeftMm + (float) col * colW;
+            x0 = leftMm + (float) runStart * colW;
+            x1 = leftMm + (float) col * colW;
 
             {
                 Dxui3DRenderer::Vertex   quad[6] = {};
                 float                    z1      = zTop - rowH;
 
-                quad[0] = { x0, s_kBrandFrontY, zTop, 0, 0, r, g, b, 1.0f };
-                quad[1] = { x1, s_kBrandFrontY, zTop, 0, 0, r, g, b, 1.0f };
-                quad[2] = { x1, s_kBrandFrontY, z1,   0, 0, r, g, b, 1.0f };
-                quad[3] = { x0, s_kBrandFrontY, zTop, 0, 0, r, g, b, 1.0f };
-                quad[4] = { x1, s_kBrandFrontY, z1,   0, 0, r, g, b, 1.0f };
-                quad[5] = { x0, s_kBrandFrontY, z1,   0, 0, r, g, b, 1.0f };
+                quad[0] = { x0, frontY, zTop, 0, 0, r, g, b, 1.0f };
+                quad[1] = { x1, frontY, zTop, 0, 0, r, g, b, 1.0f };
+                quad[2] = { x1, frontY, z1,   0, 0, r, g, b, 1.0f };
+                quad[3] = { x0, frontY, zTop, 0, 0, r, g, b, 1.0f };
+                quad[4] = { x1, frontY, z1,   0, 0, r, g, b, 1.0f };
+                quad[5] = { x0, frontY, z1,   0, 0, r, g, b, 1.0f };
 
                 m_opaque.insert (m_opaque.end(), quad, quad + 6);
             }
@@ -551,6 +575,115 @@ void DeskSceneModel::RotateDoorVerts (const std::vector<Dxui3DRenderer::Vertex> 
 
         v.y = pivotY + dy * c + dz * s;
         v.z = pivotZ - dy * s + dz * c;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneModel::StampText
+//
+//  Each glyph row is 5 bits, bit 0 the LEFT column; unknown characters stamp
+//  as spaces. Runs merge within a row exactly like the brand stamp.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+// The label font: only what the scene's drive labels use. '>' is the
+// LED-pointer triangle.
+struct SceneGlyph
+{
+    char     ch;
+    uint8_t  rows[7];
+};
+
+static constexpr SceneGlyph  s_kSceneFont[] =
+{
+    { 'D', { 0x0F, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0F } },
+    { 'R', { 0x0F, 0x11, 0x11, 0x0F, 0x05, 0x09, 0x11 } },
+    { 'I', { 0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x1F } },
+    { 'V', { 0x11, 0x11, 0x11, 0x11, 0x11, 0x0A, 0x04 } },
+    { 'E', { 0x1F, 0x01, 0x01, 0x0F, 0x01, 0x01, 0x1F } },
+    { 'N', { 0x11, 0x13, 0x15, 0x19, 0x11, 0x11, 0x11 } },
+    { 'U', { 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E } },
+    { 'S', { 0x1E, 0x01, 0x01, 0x0E, 0x10, 0x10, 0x0F } },
+    { '1', { 0x04, 0x06, 0x04, 0x04, 0x04, 0x04, 0x0E } },
+    { '2', { 0x0E, 0x11, 0x10, 0x0C, 0x02, 0x01, 0x1F } },
+    { '>', { 0x01, 0x03, 0x07, 0x0F, 0x07, 0x03, 0x01 } },
+};
+
+void DeskSceneModel::StampText (std::vector<Dxui3DRenderer::Vertex> & out,
+                                const char                          * text,
+                                float                                 leftMm,
+                                float                                 topZMm,
+                                float                                 cellMm,
+                                float                                 frontY,
+                                const float                           rgb[3])
+{
+    float  penX = leftMm;
+
+
+
+    for (const char * pCh = text; *pCh != '\0'; pCh++)
+    {
+        const SceneGlyph *  glyph = nullptr;
+
+        for (const SceneGlyph & candidate : s_kSceneFont)
+        {
+            if (candidate.ch == *pCh)
+            {
+                glyph = &candidate;
+                break;
+            }
+        }
+
+        if (glyph != nullptr)
+        {
+            for (int row = 0; row < 7; row++)
+            {
+                uint8_t  bits = glyph->rows[row];
+                float    zTop = topZMm - (float) row * cellMm;
+                int      col  = 0;
+
+                while (col < 5)
+                {
+                    int  runStart = 0;
+
+                    if ((bits & (1 << col)) == 0)
+                    {
+                        col++;
+                        continue;
+                    }
+
+                    runStart = col;
+
+                    while (col < 5 && (bits & (1 << col)) != 0)
+                    {
+                        col++;
+                    }
+
+                    {
+                        Dxui3DRenderer::Vertex   quad[6] = {};
+                        float                    x0      = penX + (float) runStart * cellMm;
+                        float                    x1      = penX + (float) col * cellMm;
+                        float                    z1      = zTop - cellMm;
+
+                        quad[0] = { x0, frontY, zTop, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
+                        quad[1] = { x1, frontY, zTop, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
+                        quad[2] = { x1, frontY, z1,   0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
+                        quad[3] = { x0, frontY, zTop, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
+                        quad[4] = { x1, frontY, z1,   0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
+                        quad[5] = { x0, frontY, z1,   0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
+
+                        out.insert (out.end(), quad, quad + 6);
+                    }
+                }
+            }
+        }
+
+        penX += 6.0f * cellMm;   // 5 columns + 1 of tracking
     }
 }
 
