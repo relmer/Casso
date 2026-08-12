@@ -762,7 +762,22 @@ void WindowCommandManager::OnViewCommand (int id)
 
         case IDM_VIEW_FULLSCREEN:
         {
+            RECT  rcClient = {};
+
             m_shell.m_d3dRenderer.ToggleFullscreen (m_shell.m_hwnd);
+
+            // The transition's WM_SIZE runs while the fullscreen flag is
+            // deliberately still held (placement persistence), so the layout
+            // it triggered used the OLD presentation. Re-run it now that the
+            // flag reflects the final state -- the desk scene's fullscreen
+            // branch keys off it.
+            if (m_shell.m_hwnd != nullptr && GetClientRect (m_shell.m_hwnd, &rcClient))
+            {
+                (void) m_shell.OnSize ((UINT) (rcClient.right - rcClient.left),
+                                       (UINT) (rcClient.bottom - rcClient.top));
+                m_shell.m_d3dRenderer.MarkRedrawNeeded();
+            }
+
             break;
         }
 

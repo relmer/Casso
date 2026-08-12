@@ -707,6 +707,11 @@ private:
     // come from the composition's projected drive bounds.
     void    SyncSceneDriveChrome ();
 
+    // Fullscreen presentation (FR-014): every chrome element collapses to
+    // nothing -- host caption, menu bar, toolbar, joystick row, drive band,
+    // //c switch strip -- so the glass-fill scene owns the whole client.
+    void    SetChromeHiddenForFullscreenScene (bool hidden);
+
     // Builds/refreshes the CASSO_SCENE_DEBUG=2 texel-calibration texture.
     void  EnsureSceneCalibration (const RECT & fittedRect);
 

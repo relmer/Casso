@@ -358,6 +358,69 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneLayout::ComputeGlassFill
+//
+//  The fullscreen camera: the monitor mounts exactly as in the windowed
+//  composition (so the glass surface, hit tester, and picture band all keep
+//  working unchanged), but the camera solves to FILL the viewport with the
+//  glass rect -- the shorter-standoff axis binds and the other crops. The
+//  projected glass rect IS the viewport, which is what routes the CRT target
+//  to the whole screen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskSceneLayout::ComputeGlassFill (const RECT             & viewportPx,
+                                           UINT                     dpi,
+                                           const DeskSceneMetrics & metrics,
+                                           DeskSceneComposition   & out)
+{
+    HRESULT   hr        = S_OK;
+    int       viewportW = viewportPx.right - viewportPx.left;
+    int       viewportH = viewportPx.bottom - viewportPx.top;
+    float     monitorCx = (metrics.monitorMin[0] + metrics.monitorMax[0]) * 0.5f;
+    float     glassCx   = (metrics.glass.x0 + metrics.glass.x1) * 0.5f - monitorCx;
+    float     glassCy   = (metrics.glass.z0 + metrics.glass.z1) * 0.5f;
+    float     glassW    = metrics.glass.x1 - metrics.glass.x0;
+    float     glassH    = metrics.glass.z1 - metrics.glass.z0;
+    float     nativeHPx = 0.0f;
+
+
+
+    out = {};
+
+    CBRAEx (dpi > 0, E_INVALIDARG);
+
+    BAIL_OUT_IF (viewportW <= 0 || viewportH <= 0, S_FALSE);   // EHM-ALLOW-SFALSE: minimized/zero viewport is a routine skip-this-frame state the caller tests for, not an error
+
+    out.viewportPx = viewportPx;
+    out.driveCount = 0;
+
+    MakeDeviceWorld (-monitorCx, 0.0f, 0.0f, 1.0f, out.monitorWorld);
+
+    SceneCamera::SolveGlassFillCamera (glassCx, glassCy, glassW, glassH,
+                                       -metrics.glass.baseY,
+                                       kFovY, (float) viewportW / (float) viewportH,
+                                       kNearMm, kFarMm,
+                                       out.view, out.proj, out.viewProj);
+
+    // The glass claims the whole viewport; scene scale keys off the SCREEN
+    // height so the CRT target is sized for what is actually visible.
+    out.glassRectPx = viewportPx;
+    out.sceneRectPx = viewportPx;
+
+    nativeHPx      = (float) kScreenNativeHDp * (float) dpi / 96.0f;
+    out.sceneScale = (float) viewportH / nativeHPx;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneLayout::MeasurePictureHeightPx
 //
 //  Projects the picture band's top and bottom (at horizontal center) through

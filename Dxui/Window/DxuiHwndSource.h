@@ -267,6 +267,12 @@ public:
     void          SetCaptionIcon  (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx);
     int           CaptionHeightPx () const;
 
+    // Hides the host-owned caption strip outright (fullscreen
+    // presentations): it stops painting, reserves no height, and routes no
+    // NC mouse. No-op on a window without a host caption; the consumer's
+    // next layout pass picks up the height change.
+    void          SetCaptionVisible (bool visible) { m_captionVisible = visible; }
+
     //
     //  Adopt-mode caption hooks. A full-ownership host paints + lays out
     //  + routes the caption itself; an adopt-mode host owns no paint pump
@@ -641,6 +647,7 @@ private:
     std::unique_ptr<DxuiPanel>        m_root;
     DxuiPanel *                       m_rootRef            = nullptr;
     std::unique_ptr<DxuiCaptionBar>   m_caption;
+    bool                              m_captionVisible     = true;
     DxuiFocusManager                  m_focusManager;
     const IDxuiTheme *                m_theme              = nullptr;
 

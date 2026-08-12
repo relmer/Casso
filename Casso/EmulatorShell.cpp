@@ -1364,6 +1364,40 @@ int EmulatorShell::DeskSceneDriveCount() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::SetChromeHiddenForFullscreenScene
+//
+//  Visibility, not bounds: the adopted chrome controls paint from their own
+//  cached layouts, so an empty rect is not a reliable hidden state --
+//  SetVisible is. The host caption gets its explicit switch. Symmetric: the
+//  windowed layout path calls this with `hidden = false` every pass, so
+//  leaving fullscreen restores everything.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
+{
+    m_host->SetCaptionVisible (!hidden);
+    m_mainMenu.SetVisible (!hidden);
+    m_toolbar.SetVisible (!hidden);
+    m_joystickButton.SetVisible (!hidden);
+    m_driveBandSurface.SetVisible (!hidden);
+    m_switchBar.SetVisible (!hidden);
+    m_driveChrome[0].SetVisible (!hidden);
+    m_driveChrome[1].SetVisible (!hidden);
+
+    if (hidden)
+    {
+        m_driveChrome[0].Hide();
+        m_driveChrome[1].Hide();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::SyncSceneDriveChrome
 //
 //  The scene owns the drives: the 2D widgets hide (still syncing state for
@@ -2657,7 +2691,28 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
     // (the CRT target) becomes the projected glass rect, and the bottom band
     // collapses to the joystick row via SyncChromeBands' scene branch. The
     // settle loop is retained for the band's dock feedback.
-    if (DeskSceneActive())
+    if (DeskSceneActive() && m_d3dRenderer.IsFullscreen())
+    {
+        // Fullscreen presentation (FR-014): the glass fills the monitor with
+        // a straight-on camera, every chrome band hidden -- the whole client
+        // is the scene. The drive overlay strip presents the drives.
+        HRESULT               hrLayout = S_OK;
+        DeskSceneComposition  comp;
+        RECT                  full     = { 0, 0, widthPx, heightPx };
+
+        m_monitorFrame.Hide();
+
+        hrLayout = DeskSceneLayout::ComputeGlassFill (full, m_scaler.Dpi(),
+                                                      m_deskScene.Metrics(), comp);
+        BAIL_OUT_IF (hrLayout != S_OK, S_OK);
+
+        m_deskScene.SetComposition (comp);
+        m_chromeSceneScale = comp.sceneScale * s_kDeskDriveScale;
+        viewportRect       = full;
+
+        SyncSceneDriveChrome();
+    }
+    else if (DeskSceneActive())
     {
         m_monitorFrame.Hide();
 
@@ -8951,9 +9006,28 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         HRESULT  hrUiR           = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
                                                        m_d3dRenderer.GetBackBufferHeight(),
                                                        dpi);
-        menuBarBounds = { 0, m_host->CaptionHeightPx(), static_cast<int> (width), m_host->CaptionHeightPx() };
 
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
+
+        // Fullscreen presentation (FR-014): the scene owns the whole client
+        // and every chrome element collapses. The windowed path below is the
+        // one that restores everything -- including the host caption -- when
+        // fullscreen exits, because this OnSize runs on both transitions.
+        if (DeskSceneActive() && m_d3dRenderer.IsFullscreen())
+        {
+            SetChromeHiddenForFullscreenScene (true);
+            UpdateViewportLayout (static_cast<int> (width), renderH);
+            m_chromeSizedForHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+            m_chromeSizedForApple2c = IsApple2c();
+        }
+        else
+        {
+
+        // Chrome visibility FIRST: the caption height feeds the menu bar's
+        // anchor, and a hidden caption reports zero.
+        SetChromeHiddenForFullscreenScene (false);
+
+        menuBarBounds = { 0, m_host->CaptionHeightPx(), static_cast<int> (width), m_host->CaptionHeightPx() };
         m_mainMenu.Layout (menuBarBounds, m_scaler);
 
         // Settle the desk-scene scale (monitor fit + scaled band heights) for
@@ -9033,6 +9107,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 }
             }
         }
+
+        }   // windowed chrome path
     }
 
     // (Viewport layout already settled above, before the drive widgets.)

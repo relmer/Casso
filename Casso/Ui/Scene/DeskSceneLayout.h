@@ -81,6 +81,15 @@ public:
                              const DeskSceneMetrics & metrics,
                              DeskSceneComposition   & out);
 
+    // The fullscreen presentation: a straight-on camera whose frustum the
+    // GLASS fills (cover, not contain -- the monitor body crops offscreen),
+    // no drives in the composition (the overlay strip presents those
+    // separately). Same S_FALSE contract for an empty viewport.
+    static HRESULT  ComputeGlassFill (const RECT             & viewportPx,
+                                      UINT                     dpi,
+                                      const DeskSceneMetrics & metrics,
+                                      DeskSceneComposition   & out);
+
     // The fixed model->world mount: X right stays, model Z (up) becomes world
     // Y, model Y (back) becomes world -Z, uniformly scaled by `scale`, then
     // translated by (tx, ty, tz).

@@ -928,7 +928,7 @@ bool DxuiHwndSource::HandleMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & ou
             // host-owned caption. Owned only when the event lands on a caption
             // button; otherwise the consumer's WndProc keeps the message
             // (caption drag, menu dismiss, ...).
-            isOwned = m_caption && RouteCaptionNcMouse (msg, wp, lp);
+            isOwned = m_caption && m_captionVisible && RouteCaptionNcMouse (msg, wp, lp);
             break;
 
         // The rest do their tree-side propagation WITHOUT claiming the
@@ -1094,7 +1094,7 @@ void DxuiHwndSource::SetContentPanel (std::unique_ptr<DxuiPanel> panel)
         {
             RECT  rootBounds = bounds;
 
-            if (m_params.insetRootBelowCaption && m_caption)
+            if (m_params.insetRootBelowCaption && m_caption && m_captionVisible)
             {
                 rootBounds.top += m_caption->PreferredHeightPx (m_scaler);
             }
@@ -1148,7 +1148,7 @@ void DxuiHwndSource::SetContentRootRef (DxuiPanel * root)
     {
         RECT  rootBounds = clientRectPx;
 
-        if (m_params.insetRootBelowCaption && m_caption)
+        if (m_params.insetRootBelowCaption && m_caption && m_captionVisible)
         {
             rootBounds.top += m_caption->PreferredHeightPx (m_scaler);
         }
@@ -1789,7 +1789,7 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     // Host-owned caption paints last so it overlays the top strip (the
     // before-present hook fills the whole back buffer, the chrome bands paint
     // over it, and the caption sits on top).
-    if (m_caption)
+    if (m_caption && m_captionVisible)
     {
         m_caption->Paint (*m_painter, *m_textRenderer, theme);
     }
@@ -2975,7 +2975,7 @@ void DxuiHwndSource::MaybeRelayoutRoot (const RECT & clientPx)
     {
         RECT  rootPx = clientPx;
 
-        if (m_params.insetRootBelowCaption && m_caption)
+        if (m_params.insetRootBelowCaption && m_caption && m_captionVisible)
         {
             rootPx.top += m_caption->PreferredHeightPx (m_scaler);
         }
@@ -3136,7 +3136,7 @@ void DxuiHwndSource::SetCaptionIcon (std::vector<uint32_t> bgraPremul, int width
 
 int DxuiHwndSource::CaptionHeightPx() const
 {
-    return m_caption ? m_caption->PreferredHeightPx (m_scaler) : 0;
+    return (m_caption && m_captionVisible) ? m_caption->PreferredHeightPx (m_scaler) : 0;
 }
 
 
