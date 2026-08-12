@@ -63,11 +63,11 @@
 
 **Independent Test**: quickstart.md § US2 — boot DOS 3.3: LED flashes; tooltips match; slot/body/dead-space clicks behave; door animates; single-drive config shows one drive.
 
-- [ ] T017 [US2] Drive placements: enable deviceCount 1-2 in the shell's layout call (`Casso/EmulatorShell.cpp`), drives rendered via `DeskScene` (geometry cached per layout)
-- [ ] T018 [US2] Drive visual state binding in `Casso/Ui/Scene/DeskScene.cpp`: activity LED glow from `DriveWidgetState` atomics (`motorOn`/`diskActive`), door position from the existing door FSM progress, loaded/empty distinction, write-protect visual cue; `MarkRedrawNeeded` while animating (mirrors `TryPresentUiFrame` door forcing ~:4630)
-- [ ] T019 [US2] Drive hit regions: extend `Casso/Ui/Scene/DeskSceneHitTester.cpp` with per-device ray-vs-region-box classification mapping Slot→`DriveWidgetRegion::Eject`, Body→`Body`, glass outranks boxes, nearest device wins; extend `UnitTest/UiTests/DeskSceneHitTesterTests.cpp` (two-drive resolution, slot-inside-body precedence parity with `DriveWidget::HitTest`)
-- [ ] T020 [US2] Shell routing in `Casso/EmulatorShell.cpp`: `OnMouseMove` hover path (~:6043) uses scene hits for marquee/WP tooltips via `ComposeWriteProtectTooltip` unchanged; `OnLButtonUp` drive walk (~:6623) consumes `SceneHitResult` when scene active (Body → `BrowseForDisk`, Eject → `Eject(6,drive)` + `BrowseForDisk`); `OnMouseLeave` clears hover state
-- [ ] T021 [US2] Runtime validation per quickstart.md § US2: boot/LED/tooltip/click/door/single-drive matrix; fix what fails
+- [X] T017 [US2] Drive placements: enable deviceCount 1-2 in the shell's layout call (`Casso/EmulatorShell.cpp`), drives rendered via `DeskScene` (geometry cached per layout)
+- [X] T018 [US2] Drive visual state binding in `Casso/Ui/Scene/DeskScene.cpp`: activity LED glow from `DriveWidgetState` atomics (`motorOn`/`diskActive`), door position from the existing door FSM progress, loaded/empty distinction, write-protect visual cue; `MarkRedrawNeeded` while animating (mirrors `TryPresentUiFrame` door forcing ~:4630)
+- [X] T019 [US2] Drive hit regions: extend `Casso/Ui/Scene/DeskSceneHitTester.cpp` with per-device ray-vs-region-box classification mapping Slot→`DriveWidgetRegion::Eject`, Body→`Body`, glass outranks boxes, nearest device wins; extend `UnitTest/UiTests/DeskSceneHitTesterTests.cpp` (two-drive resolution, slot-inside-body precedence parity with `DriveWidget::HitTest`)
+- [X] T020 [US2] Shell routing in `Casso/EmulatorShell.cpp`: `OnMouseMove` hover path (~:6043) uses scene hits for marquee/WP tooltips via `ComposeWriteProtectTooltip` unchanged; `OnLButtonUp` drive walk (~:6623) consumes `SceneHitResult` when scene active (Body → `BrowseForDisk`, Eject → `Eject(6,drive)` + `BrowseForDisk`); `OnMouseLeave` clears hover state
+- [X] T021 [US2] Runtime validation per quickstart.md § US2: boot/LED/tooltip/click/door/single-drive matrix; fix what fails
 
 **Checkpoint**: US1 + US2 — full windowed parity.
 

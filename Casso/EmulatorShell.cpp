@@ -1336,6 +1336,69 @@ SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::DeskSceneDriveCount
+//
+//  The same gates the 2D widgets use: no Disk II controller means no drives
+//  at all; a //c with the external drive disconnected shows only the
+//  internal one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::DeskSceneDriveCount() const
+{
+    bool  hasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+
+
+
+    if (!hasDisk)
+    {
+        return 0;
+    }
+
+    return ShouldShowExternalDrive() ? 2 : 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SyncSceneDriveChrome
+//
+//  The scene owns the drives: the 2D widgets hide (still syncing state for
+//  the //c switch strip and the door FSM), and the drag-drop hit registry is
+//  rebuilt from the composition's projected drive bounds so dropping a disk
+//  image on a 3D drive keeps mounting into that drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncSceneDriveChrome()
+{
+    const DeskSceneComposition &  comp = m_deskScene.Composition();
+
+
+
+    m_driveChrome[0].Hide();
+    m_driveChrome[1].Hide();
+
+    m_uiShell.HitTest().Clear();
+
+    for (int i = 0; i < comp.driveCount; i++)
+    {
+        if (comp.driveRectPx[i].right > comp.driveRectPx[i].left)
+        {
+            m_uiShell.HitTest().Register (DxuiHitRect { comp.driveRectPx[i], DxuiHitSlot::Custom, i });
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LoadMachineUiPrefs
 //
 //  Reads the active machine's JSON config and merges the user overrides via
@@ -1790,7 +1853,13 @@ HRESULT EmulatorShell::FinishUiShellLayout()
     // chrome controls) on top of the Apple ][ framebuffer. The
     // per-frame drive-widget tick + door-animation redraw that
     // used to live in that hook now run in RunMessageLoop.
-    if (!fHasDisk)
+    if (DeskSceneActive())
+    {
+        // The 3D scene owns the drives: widgets hidden, drop-target rects
+        // from the composition's projected drive bounds.
+        SyncSceneDriveChrome();
+    }
+    else if (!fHasDisk)
     {
         // No Slot 6 controller (stripped Apple II config) --
         // collapse the drive widgets so they paint nothing
@@ -1808,13 +1877,16 @@ HRESULT EmulatorShell::FinishUiShellLayout()
         m_driveChrome[1].Hide();
     }
 
-    m_uiShell.HitTest().Clear();
-    if (fHasDisk)
+    if (!DeskSceneActive())
     {
-        m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
-        if (ShouldShowExternalDrive())
+        m_uiShell.HitTest().Clear();
+        if (fHasDisk)
         {
-            m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
+            m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
+            if (ShouldShowExternalDrive())
+            {
+                m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
+            }
         }
     }
 
@@ -2520,7 +2592,16 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         int   bottomInsetPx = clientH - driveRect.top;   // drive band height only
 
         (void) vr;                                        // dock side-effect: bands arranged
-        LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi, m_chromeSceneScale);
+
+        if (DeskSceneActive())
+        {
+            SyncSceneDriveChrome();
+        }
+        else
+        {
+            LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi, m_chromeSceneScale);
+        }
+
         {
             int  bandTop    = driveRect.top;
             int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
@@ -2572,10 +2653,10 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
     BAIL_OUT_IF (m_viewport == nullptr, S_OK);
 
     // 3D desk scene (spec 018): the composition is computed for the center
-    // rect, the viewport (the CRT target) becomes the projected glass rect,
-    // and the drive band keeps zooming with the scene's scale until US2
-    // moves the drives into the scene. The same settle loop applies -- band
-    // height and scene scale are a contraction fixed point.
+    // rect (drives included -- they are scene objects now), the viewport
+    // (the CRT target) becomes the projected glass rect, and the bottom band
+    // collapses to the joystick row via SyncChromeBands' scene branch. The
+    // settle loop is retained for the band's dock feedback.
     if (DeskSceneActive())
     {
         m_monitorFrame.Hide();
@@ -2586,7 +2667,8 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
             DeskSceneComposition  comp;
 
             center   = ComputeViewportRect (widthPx, heightPx);
-            hrLayout = DeskSceneLayout::Compute (center, m_scaler.Dpi(), 0, m_deskScene.Metrics(), comp);
+            hrLayout = DeskSceneLayout::Compute (center, m_scaler.Dpi(), DeskSceneDriveCount(),
+                                                 m_deskScene.Metrics(), comp);
             BAIL_OUT_IF (hrLayout != S_OK, S_OK);
 
             m_deskScene.SetComposition (comp);
@@ -2594,6 +2676,8 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         }
 
         viewportRect = m_deskScene.Composition().glassRectPx;
+
+        SyncSceneDriveChrome();
     }
     else if (!MonitorFrameEnabled())
     {
@@ -2658,11 +2742,13 @@ void EmulatorShell::SyncChromeBands()
     bool  hasDisk     = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
     int   driveBandDp = s_kJoystickButtonBandDp;
 
-    if (hasDisk)
+    if (hasDisk && !DeskSceneActive())
     {
         // The joystick-selector portion is fixed UI; the drive-widget portion
         // zooms with the desk scene (m_chromeSceneScale) so the band hugs the
-        // scaled widgets instead of leaving dead space around them.
+        // scaled widgets instead of leaving dead space around them. When the
+        // 3D scene is active the drives are scene objects, so the band keeps
+        // only the joystick row.
         int  widgetPortionDp = m_driveBarThicknessDp - s_kJoystickButtonBandDp;
 
         driveBandDp = s_kJoystickButtonBandDp
@@ -2916,7 +3002,8 @@ SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int fram
     if (DeskSceneActive())
     {
         SIZE   center     = DeskSceneLayout::CenterSizeForDisplayPx (framebufferWpx, framebufferHpx,
-                                                                     m_scaler.Dpi(), 0, m_deskScene.Metrics());
+                                                                     m_scaler.Dpi(), DeskSceneDriveCount(),
+                                                                     m_deskScene.Metrics());
         float  savedScale = m_chromeSceneScale;
 
         m_chromeSceneScale = s_kDeskDriveScale;
@@ -4935,6 +5022,35 @@ bool EmulatorShell::TryPresentUiFrame()
         }
     }
 
+    // 3D scene drive visuals: activity lamp, door swing, and the padlock,
+    // pushed from the same per-drive state the 2D widgets mirror. The scene
+    // only rebuilds geometry when a value actually moved.
+    if (DeskSceneActive())
+    {
+        int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                             std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        for (int i = 0; i < 2; i++)
+        {
+            const DriveWidgetState &  st       = m_driveWidgetState[i];
+            float                     t        = std::clamp ((float) (nowMs - st.animationStartTimeMs) /
+                                                             (float) DriveWidgetState::kDoorAnimationMs, 0.0f, 1.0f);
+            float                     progress = 0.0f;
+            bool                      lampOn   = st.motorOn.load    (memory_order_relaxed) ||
+                                                 st.diskActive.load (memory_order_relaxed);
+
+            switch (st.doorState)
+            {
+                case DriveWidgetState::Door::Open:     progress = 1.0f;     break;
+                case DriveWidgetState::Door::Opening:  progress = t;        break;
+                case DriveWidgetState::Door::Closing:  progress = 1.0f - t; break;
+                case DriveWidgetState::Door::Closed:   progress = 0.0f;     break;
+            }
+
+            m_deskScene.SetDriveVisuals (i, lampOn, progress, st.writeProtect.Any());
+        }
+    }
+
     // Keep presenting while any drive is live, plus the one frame after it goes
     // idle, so the spinning / activity LED both animates through a disk load and
     // clears afterward even when the emulator framebuffer is static (the content
@@ -6444,23 +6560,51 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         }
     }
 
-    // Write-protect tooltip: shown on a dwell over a protected drive,
-    // suppressed while the joystick button owns the hover (mutually
-    // exclusive bands, but be explicit).
-    if (wpDrive != nullptr && !overBtn)
+    // Drive hover tooltip, suppressed while the joystick button owns the
+    // hover (mutually exclusive bands, but be explicit). With the 3D scene
+    // active the hover resolves through the scene hit tester (the widgets
+    // are hidden): the mounted image's name, joined by the write-protect
+    // composition verbatim when the disk is protected -- the scene has no
+    // label strip, so the name rides the tooltip. The 2D path keeps its
+    // dwell tooltip for protected drives only (the basename lives on the
+    // widget's marquee label there).
     {
-        std::wstring  imageName = std::filesystem::path (
-            m_diskStore.GetSourcePath (6, wpDrive->Drive())).filename().wstring();
+        std::wstring  tip;
+        RECT          anchor = {};
 
-        m_driveTooltip.RequestShow (wpDrive->OuterRect(),
-                                    ComposeWriteProtectTooltip (wpDrive->Drive() + 1,
-                                                                imageName,
-                                                                wpDrive->WriteProtect()),
-                                    nowMs);
-    }
-    else
-    {
-        m_driveTooltip.RequestHide (nowMs);
+        if (DeskSceneActive())
+        {
+            SceneHitResult  sceneHit = DeskSceneHit (x, y);
+
+            if (sceneHit.target == SceneHitResult::Target::Drive && !overBtn)
+            {
+                const DriveWidgetState &  st   = m_driveWidgetState[sceneHit.driveIndex];
+                std::wstring              name = std::filesystem::path (
+                    m_diskStore.GetSourcePath (6, sceneHit.driveIndex)).filename().wstring();
+
+                anchor = m_deskScene.Composition().driveRectPx[sceneHit.driveIndex];
+                tip    = st.writeProtect.Any()
+                       ? ComposeWriteProtectTooltip (sceneHit.driveIndex + 1, name, st.writeProtect)
+                       : name;
+            }
+        }
+        else if (wpDrive != nullptr && !overBtn)
+        {
+            std::wstring  imageName = std::filesystem::path (
+                m_diskStore.GetSourcePath (6, wpDrive->Drive())).filename().wstring();
+
+            anchor = wpDrive->OuterRect();
+            tip    = ComposeWriteProtectTooltip (wpDrive->Drive() + 1, imageName, wpDrive->WriteProtect());
+        }
+
+        if (!tip.empty())
+        {
+            m_driveTooltip.RequestShow (anchor, tip, nowMs);
+        }
+        else
+        {
+            m_driveTooltip.RequestHide (nowMs);
+        }
     }
 
 Error:
@@ -6957,23 +7101,46 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     BAIL_OUT_IF (wasSuppressed, S_OK);
 
-    for (DriveWidget & drive : m_driveChrome)
+    // Drive clicks. Scene active: the 3D drives resolve through the hit
+    // tester with the same region semantics (slot = eject + browse, body =
+    // browse); otherwise the 2D widget walk. Either way the actions route
+    // through the identical handlers -- the scene only changes how hits are
+    // found, never what they do.
+    if (DeskSceneActive())
     {
-        region = drive.HitTest (x, y);
+        SceneHitResult  sceneHit = DeskSceneHit (x, y);
 
-        if (region == DriveWidgetRegion::Body)
+        if (sceneHit.target == SceneHitResult::Target::Drive)
         {
-            BrowseForDisk (drive.Drive());
+            if (sceneHit.region == DriveWidgetRegion::Eject)
+            {
+                Eject (6, sceneHit.driveIndex);
+            }
+
+            BrowseForDisk (sceneHit.driveIndex);
             driveTook = true;
-            break;
         }
-
-        if (region == DriveWidgetRegion::Eject)
+    }
+    else
+    {
+        for (DriveWidget & drive : m_driveChrome)
         {
-            Eject (6, drive.Drive());
-            BrowseForDisk (drive.Drive());
-            driveTook = true;
-            break;
+            region = drive.HitTest (x, y);
+
+            if (region == DriveWidgetRegion::Body)
+            {
+                BrowseForDisk (drive.Drive());
+                driveTook = true;
+                break;
+            }
+
+            if (region == DriveWidgetRegion::Eject)
+            {
+                Eject (6, drive.Drive());
+                BrowseForDisk (drive.Drive());
+                driveTook = true;
+                break;
+            }
         }
     }
 
@@ -8787,7 +8954,12 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
             (void) vr;                                        // dock side-effect: bands arranged
 
-            if (fHasDisk)
+            if (DeskSceneActive())
+            {
+                // The 3D scene owns the drives; nothing to lay out. The hit
+                // registry is refreshed below with the rest of the chrome.
+            }
+            else if (fHasDisk)
             {
                 LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, static_cast<int> (width), renderH, dpi, m_chromeSceneScale);
 
@@ -8829,13 +9001,20 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
             LayoutSwitchBar (dpi);
 
-            m_uiShell.HitTest().Clear();
-            if (fHasDisk)
+            if (DeskSceneActive())
             {
-                m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
-                if (ShouldShowExternalDrive())
+                SyncSceneDriveChrome();
+            }
+            else
+            {
+                m_uiShell.HitTest().Clear();
+                if (fHasDisk)
                 {
-                    m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
+                    m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
+                    if (ShouldShowExternalDrive())
+                    {
+                        m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
+                    }
                 }
             }
         }

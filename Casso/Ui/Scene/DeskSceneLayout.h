@@ -65,6 +65,7 @@ struct DeskSceneComposition
     float  sceneScale       = 0.0f;   // glass px height / (384 dp at dpi)
     RECT   glassRectPx      = {};     // projected glass bounds -- the CRT target rect
     RECT   sceneRectPx      = {};     // projected scene bounds -- what the composition occupies
+    RECT   driveRectPx[2]   = {};     // projected per-drive bounds -- tooltip anchors + drop targets
 };
 
 
@@ -81,8 +82,9 @@ public:
                              DeskSceneComposition   & out);
 
     // The fixed model->world mount: X right stays, model Z (up) becomes world
-    // Y, model Y (back) becomes world -Z, then translate by (tx, ty, tz).
-    static void     MakeDeviceWorld (float tx, float ty, float tz, float out[16]);
+    // Y, model Y (back) becomes world -Z, uniformly scaled by `scale`, then
+    // translated by (tx, ty, tz).
+    static void     MakeDeviceWorld (float tx, float ty, float tz, float scale, float out[16]);
 
     // The Ctrl+0 inverse: the center (viewport) size at which the emulator
     // picture -- aspect-fitted INSIDE the projected glass, like the image on
@@ -107,10 +109,17 @@ public:
     static constexpr float  kNearMm            = 10.0f;
     static constexpr float  kFarMm             = 30000.0f;
 
-    // Composition: how far the drive row sits toward the viewer from the
-    // monitor's front plane, the gap between two drives, and the breathing
-    // margin the containment solve adds around the scene.
-    static constexpr float  kDriveRowForwardMm = 170.0f;
+    // Composition: the drive row's placement -- toward the viewer from the
+    // monitor's front plane, dropped onto a shelf below the monitor's feet
+    // so the row never occludes the chin (the 2D band sat wholly below the
+    // monitor), at a uniform placement scale that keeps the band's
+    // proportions (full-size drives this close to the camera tower over the
+    // monitor). Still one world and one camera (FR-016): scale and drop are
+    // placement properties carried in each drive's world matrix, so the
+    // below-center row shows its top faces purely from the shared gaze.
+    static constexpr float  kDriveRowForwardMm = 120.0f;
+    static constexpr float  kDriveDropMm       = 60.0f;
+    static constexpr float  kDriveScale        = 0.55f;
     static constexpr float  kDriveGapMm        = 26.0f;
     static constexpr float  kContainMargin     = 1.005f;
 

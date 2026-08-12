@@ -76,14 +76,30 @@ public:
     // valid spherical-sag glass sheet; DiskII must carry its activity lamp.
     HRESULT  Load (DeskDeviceKind kind, const std::string & objText, const std::string & mtlText);
 
-    DeskDeviceKind                                Kind        () const { return m_kind; }
-    bool                                          HasGlass    () const { return !m_glass.empty(); }
-    const CurvedDisplaySurface &                  Surface     () const { return m_surface; }
-    const std::vector<Dxui3DRenderer::Vertex> &   OpaqueVerts () const { return m_opaque; }
-    const std::vector<Dxui3DRenderer::Vertex> &   GlassVerts  () const { return m_glass; }
-    const std::vector<Dxui3DRenderer::Vertex> &   LampVerts   () const { return m_lamp; }
-    const std::vector<DeskLampAnchor> &           Lamps       () const { return m_lamps; }
-    const std::vector<DeskRegionBox> &            RegionBoxes () const { return m_regions; }
+    DeskDeviceKind                                Kind         () const { return m_kind; }
+    bool                                          HasGlass     () const { return !m_glass.empty(); }
+    const CurvedDisplaySurface &                  Surface      () const { return m_surface; }
+    const std::vector<Dxui3DRenderer::Vertex> &   OpaqueVerts  () const { return m_opaque; }
+    const std::vector<Dxui3DRenderer::Vertex> &   GlassVerts   () const { return m_glass; }
+    const std::vector<Dxui3DRenderer::Vertex> &   LampVerts    () const { return m_lamp; }
+    const std::vector<Dxui3DRenderer::Vertex> &   DoorVerts    () const { return m_door; }
+    const std::vector<Dxui3DRenderer::Vertex> &   PadlockVerts () const { return m_padlock; }
+    const std::vector<DeskLampAnchor> &           Lamps        () const { return m_lamps; }
+    const std::vector<DeskRegionBox> &            RegionBoxes  () const { return m_regions; }
+
+    // The door's hinge line: the X-axis line through the assembly's top-back
+    // edge, where the real drive's flip-up door attaches to the faceplate.
+    void  DoorPivot (float & outY, float & outZ) const { outY = m_doorPivotY; outZ = m_doorPivotZ; }
+
+    // Rotates the cached door assembly about the hinge by `angleRad`: the
+    // bottom edge swings out toward the viewer (-Y) and up, like the real
+    // drive's door. Positions only -- the baked per-face shade rides along,
+    // which reads fine over the door's small travel.
+    static void  RotateDoorVerts (const std::vector<Dxui3DRenderer::Vertex> & base,
+                                  float                                       pivotY,
+                                  float                                       pivotZ,
+                                  float                                       angleRad,
+                                  std::vector<Dxui3DRenderer::Vertex>       & out);
 
     void  BoundsMin (float out[3]) const { memcpy (out, m_boundsMin, sizeof (m_boundsMin)); }
     void  BoundsMax (float out[3]) const { memcpy (out, m_boundsMax, sizeof (m_boundsMax)); }
@@ -94,6 +110,8 @@ public:
     static constexpr float  kGlassKd[3]       = { 0.050f, 0.090f, 0.070f };
     static constexpr float  kMonitorLampKd[3] = { 0.290f, 0.870f, 0.380f };
     static constexpr float  kDriveLampKd[3]   = { 0.900f, 0.120f, 0.100f };
+    static constexpr float  kDriveDoorKd[3]   = { 0.160f, 0.160f, 0.180f };
+    static constexpr float  kDriveLatchKd[3]  = { 0.230f, 0.230f, 0.250f };
     static constexpr float  kKdEpsilon        = 0.02f;
 
     // Toward-viewer lift applied to the glass (verts + surface together) so
@@ -109,6 +127,7 @@ private:
     HRESULT  BuildGlassSurface  ();
     void     AssignGlassUvs     ();
     void     BuildBrandStamp    ();
+    void     BuildPadlockStamp  ();
     void     AddRegionBoxes     ();
     void     ComputeBounds      ();
 
@@ -116,9 +135,13 @@ private:
     std::vector<Dxui3DRenderer::Vertex>  m_opaque;
     std::vector<Dxui3DRenderer::Vertex>  m_glass;
     std::vector<Dxui3DRenderer::Vertex>  m_lamp;
+    std::vector<Dxui3DRenderer::Vertex>  m_door;
+    std::vector<Dxui3DRenderer::Vertex>  m_padlock;
     std::vector<DeskLampAnchor>          m_lamps;
     std::vector<DeskRegionBox>           m_regions;
     CurvedDisplaySurface                 m_surface;
+    float                                m_doorPivotY   = 0.0f;
+    float                                m_doorPivotZ   = 0.0f;
     float                                m_boundsMin[3] = {};
     float                                m_boundsMax[3] = {};
 };

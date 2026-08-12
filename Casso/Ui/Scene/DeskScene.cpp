@@ -139,6 +139,39 @@ void DeskScene::SetDriveActivity (int drive, bool active)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::SetDriveVisuals
+//
+//  The per-frame state push. The door rebuild is deferred to Render (models
+//  guaranteed loaded there); this only records the target progress when it
+//  actually moved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetDriveVisuals (int drive, bool lampOn, float doorProgress, bool writeProtected)
+{
+    if (drive < 0 || drive >= 2)
+    {
+        return;
+    }
+
+    SetDriveActivity (drive, lampOn);
+
+    m_driveWp[drive] = writeProtected;
+
+    if (m_doorProgress[drive] < 0.0f ||
+        std::abs (doorProgress - m_doorProgress[drive]) > kDoorProgressEps)
+    {
+        m_doorProgress[drive] = doorProgress;
+        m_driveDoorVerts[drive].clear();   // rebuilt lazily in Render
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::TintInto
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -483,6 +516,33 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
         hr = m_renderer.DrawTriangles (m_drive.OpaqueVerts().data(), m_drive.OpaqueVerts().size(),
                                        mvp, false, viewport, true);
         CHRA (hr);
+
+        // Door assembly: a rotated copy of the model's cached verts, rebuilt
+        // only when SetDriveVisuals moved the progress.
+        if (m_driveDoorVerts[drive].empty() && !m_drive.DoorVerts().empty())
+        {
+            float   progress = std::clamp (m_doorProgress[drive], 0.0f, 1.0f);
+            float   pivotY   = 0.0f;
+            float   pivotZ   = 0.0f;
+
+            m_drive.DoorPivot (pivotY, pivotZ);
+            DeskSceneModel::RotateDoorVerts (m_drive.DoorVerts(), pivotY, pivotZ,
+                                             progress * kDoorOpenRad, m_driveDoorVerts[drive]);
+        }
+
+        if (!m_driveDoorVerts[drive].empty())
+        {
+            hr = m_renderer.DrawTriangles (m_driveDoorVerts[drive].data(), m_driveDoorVerts[drive].size(),
+                                           mvp, false, viewport, true);
+            CHRA (hr);
+        }
+
+        if (m_driveWp[drive] && !m_drive.PadlockVerts().empty())
+        {
+            hr = m_renderer.DrawTriangles (m_drive.PadlockVerts().data(), m_drive.PadlockVerts().size(),
+                                           mvp, false, viewport, true);
+            CHRA (hr);
+        }
 
         if (!m_driveLampVerts[drive].empty())
         {

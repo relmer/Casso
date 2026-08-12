@@ -35,6 +35,29 @@ static constexpr float   s_kDiskIiEjectMax[3] = { 141.0f,  3.0f, 63.0f };
 static constexpr float   s_kDiskIiBodyMin[3]  = {   0.0f, -5.0f,  0.0f };
 static constexpr float   s_kDiskIiBodyMax[3]  = { 155.0f, 222.0f, 86.0f };
 
+// Write-protect padlock stamp on the drive faceplate (model mm): brass body
+// with a shackle arch and a keyhole, right of the IN-USE LED, matching the
+// 2D widget's badge in concept and restraint. Flat proud quads like the
+// brand stamp; each layer floats a hair nearer the viewer than the one it
+// sits on so depth never ties.
+static constexpr float   s_kPadlockBodyX0    = 34.0f;
+static constexpr float   s_kPadlockBodyX1    = 44.0f;
+static constexpr float   s_kPadlockBodyZ0    = 9.0f;
+static constexpr float   s_kPadlockBodyZ1    = 17.5f;
+static constexpr float   s_kPadlockArchZ1    = 23.0f;
+static constexpr float   s_kPadlockLegW      = 1.7f;
+static constexpr float   s_kPadlockArchInset = 1.5f;
+static constexpr float   s_kPadlockHoleX0    = 38.4f;
+static constexpr float   s_kPadlockHoleX1    = 39.6f;
+static constexpr float   s_kPadlockHoleZ0    = 11.0f;
+static constexpr float   s_kPadlockHoleZ1    = 14.5f;
+static constexpr float   s_kPadlockShackleY  = -1.95f;
+static constexpr float   s_kPadlockBodyY     = -2.00f;
+static constexpr float   s_kPadlockHoleY     = -2.05f;
+static constexpr float   s_kPadlockFill[3]   = { 0.847f, 0.718f, 0.416f };   // warm brass
+static constexpr float   s_kPadlockShade[3]  = { 0.478f, 0.376f, 0.149f };   // darker brass
+static constexpr float   s_kPadlockHole[3]   = { 0.165f, 0.129f, 0.035f };   // keyhole
+
 
 
 
@@ -149,6 +172,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
     std::vector<ObjTriangle>   triangles;
     const float              * lampKd    = nullptr;
     bool                       lampFound = false;
+    bool                       doorOk    = false;
 
 
 
@@ -156,6 +180,8 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
     m_opaque.clear();
     m_glass.clear();
     m_lamp.clear();
+    m_door.clear();
+    m_padlock.clear();
     m_lamps.clear();
     m_regions.clear();
     m_surface = {};
@@ -174,6 +200,12 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         else if (ColorMatches (tri.r, tri.g, tri.b, lampKd))
         {
             AppendFlatTri (m_lamp, tri);
+        }
+        else if (kind == DeskDeviceKind::DiskII &&
+                 (ColorMatches (tri.r, tri.g, tri.b, kDriveDoorKd) ||
+                  ColorMatches (tri.r, tri.g, tri.b, kDriveLatchKd)))
+        {
+            AppendLitTri (m_door, tri);
         }
         else
         {
@@ -210,9 +242,31 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
     }
 
     // A device that should carry a lamp but lost it (palette drift in a
-    // refined model) is a broken asset, not a runtime condition.
+    // refined model) is a broken asset, not a runtime condition. Likewise a
+    // drive without its door assembly -- the mount/eject animation depends
+    // on it.
     lampFound = !m_lamp.empty();
     CBRA (lampFound);
+
+    doorOk = (kind != DeskDeviceKind::DiskII) || !m_door.empty();
+    CBRA (doorOk);
+
+    if (kind == DeskDeviceKind::DiskII)
+    {
+        float   hiY = -FLT_MAX;
+        float   hiZ = -FLT_MAX;
+
+        for (const Dxui3DRenderer::Vertex & v : m_door)
+        {
+            hiY = std::max (hiY, v.y);
+            hiZ = std::max (hiZ, v.z);
+        }
+
+        m_doorPivotY = hiY;
+        m_doorPivotZ = hiZ;
+
+        BuildPadlockStamp();
+    }
 
     {
         DeskLampAnchor   anchor;
@@ -422,6 +476,89 @@ void DeskSceneModel::BuildBrandStamp()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneModel::BuildPadlockStamp
+//
+//  The write-protect cue: a small brass padlock on the drive faceplate,
+//  right of the IN-USE LED -- the 2D widget's badge carried into the model.
+//  Flat unlit quads (brand-stamp style) so the brass reads exactly; the
+//  scene draws them only while the mounted disk is protected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::BuildPadlockStamp()
+{
+    auto pushQuad = [this] (float x0, float z0, float x1, float z1, float y, const float rgb[3])
+    {
+        Dxui3DRenderer::Vertex   quad[6] = {};
+
+        quad[0] = { x0, y, z1, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
+        quad[1] = { x1, y, z1, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
+        quad[2] = { x1, y, z0, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
+        quad[3] = { x0, y, z1, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
+        quad[4] = { x1, y, z0, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
+        quad[5] = { x0, y, z0, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
+
+        m_padlock.insert (m_padlock.end(), quad, quad + 6);
+    };
+
+    float   legX0 = s_kPadlockBodyX0 + s_kPadlockArchInset;
+    float   legX1 = s_kPadlockBodyX1 - s_kPadlockArchInset;
+
+
+
+    // Shackle: two legs rising from the body, bridged by the arch bar.
+    pushQuad (legX0, s_kPadlockBodyZ1, legX0 + s_kPadlockLegW, s_kPadlockArchZ1, s_kPadlockShackleY, s_kPadlockShade);
+    pushQuad (legX1 - s_kPadlockLegW, s_kPadlockBodyZ1, legX1, s_kPadlockArchZ1, s_kPadlockShackleY, s_kPadlockShade);
+    pushQuad (legX0, s_kPadlockArchZ1 - s_kPadlockLegW, legX1, s_kPadlockArchZ1, s_kPadlockShackleY, s_kPadlockShade);
+
+    // Body, then the keyhole floating on it.
+    pushQuad (s_kPadlockBodyX0, s_kPadlockBodyZ0, s_kPadlockBodyX1, s_kPadlockBodyZ1, s_kPadlockBodyY, s_kPadlockFill);
+    pushQuad (s_kPadlockHoleX0, s_kPadlockHoleZ0, s_kPadlockHoleX1, s_kPadlockHoleZ1, s_kPadlockHoleY, s_kPadlockHole);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneModel::RotateDoorVerts
+//
+//  Rigid rotation about the hinge -- the X-axis line at (pivotY, pivotZ).
+//  The signs put a point below the hinge out toward the viewer (-Y) as the
+//  angle grows: at 90 degrees the door lies flat, pointing at the camera.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::RotateDoorVerts (const std::vector<Dxui3DRenderer::Vertex> & base,
+                                      float                                       pivotY,
+                                      float                                       pivotZ,
+                                      float                                       angleRad,
+                                      std::vector<Dxui3DRenderer::Vertex>       & out)
+{
+    float   c = std::cos (angleRad);
+    float   s = std::sin (angleRad);
+
+
+
+    out = base;
+
+    for (Dxui3DRenderer::Vertex & v : out)
+    {
+        float   dy = v.y - pivotY;
+        float   dz = v.z - pivotZ;
+
+        v.y = pivotY + dy * c + dz * s;
+        v.z = pivotZ - dy * s + dz * c;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneModel::AddRegionBoxes
 //
 //  Declaration order is precedence: the eject region sits inside the body
@@ -469,7 +606,7 @@ void DeskSceneModel::ComputeBounds()
 
 
 
-    for (const std::vector<Dxui3DRenderer::Vertex> * batch : { &m_opaque, &m_glass, &m_lamp })
+    for (const std::vector<Dxui3DRenderer::Vertex> * batch : { &m_opaque, &m_glass, &m_lamp, &m_door })
     {
         for (const Dxui3DRenderer::Vertex & v : *batch)
         {

@@ -19,12 +19,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskSceneLayout::MakeDeviceWorld (float tx, float ty, float tz, float out[16])
+void DeskSceneLayout::MakeDeviceWorld (float tx, float ty, float tz, float scale, float out[16])
 {
     memset (out, 0, 16 * sizeof (float));
-    out[0]  = 1.0f;
-    out[6]  = -1.0f;
-    out[9]  = 1.0f;
+    out[0]  = scale;
+    out[6]  = -scale;
+    out[9]  = scale;
     out[12] = tx;
     out[13] = ty;
     out[14] = tz;
@@ -123,22 +123,24 @@ HRESULT DeskSceneLayout::Compute (const RECT             & viewportPx,
     tanHalfX       = tanHalfY * aspect;
 
     // Monitor: centered on x = 0, feet on the ground plane, front at z = 0.
-    MakeDeviceWorld (-monitorCx, 0.0f, 0.0f, out.monitorWorld);
+    MakeDeviceWorld (-monitorCx, 0.0f, 0.0f, 1.0f, out.monitorWorld);
 
     // Drives: a forward row on the ground plane -- toward the viewer, so
-    // they read below the monitor from the straight-ahead camera. One drive
-    // centers; two flank the centerline with a gap.
-    driveTx[0] = (driveCount == 2) ? -(driveW + kDriveGapMm) * 0.5f : 0.0f;
-    driveTx[1] = (driveW + kDriveGapMm) * 0.5f;
+    // they read below the monitor from the straight-ahead camera -- at the
+    // band's placement scale. One drive centers; two flank the centerline
+    // with a gap.
+    driveTx[0] = (driveCount == 2) ? -(driveW * kDriveScale + kDriveGapMm) * 0.5f : 0.0f;
+    driveTx[1] = (driveW * kDriveScale + kDriveGapMm) * 0.5f;
 
     for (int i = 0; i < driveCount; i++)
     {
-        MakeDeviceWorld (driveTx[i] - driveCx, 0.0f, kDriveRowForwardMm, out.driveWorld[i]);
+        MakeDeviceWorld (driveTx[i] - driveCx * kDriveScale, -kDriveDropMm, kDriveRowForwardMm,
+                         kDriveScale, out.driveWorld[i]);
     }
 
     // Scene bounds in world space: the monitor spans its model box remapped
-    // (y_world from model z, z_world from -model y), drives likewise shifted
-    // forward.
+    // (y_world from model z, z_world from -model y), drives likewise scaled
+    // and shifted forward.
     sceneMin[0] = metrics.monitorMin[0] - monitorCx;
     sceneMax[0] = metrics.monitorMax[0] - monitorCx;
     sceneMin[1] = metrics.monitorMin[2];
@@ -148,12 +150,12 @@ HRESULT DeskSceneLayout::Compute (const RECT             & viewportPx,
 
     for (int i = 0; i < driveCount; i++)
     {
-        float   lo[3] = { metrics.driveMin[0] - driveCx + driveTx[i],
-                          metrics.driveMin[2],
-                          kDriveRowForwardMm - metrics.driveMax[1] };
-        float   hi[3] = { metrics.driveMax[0] - driveCx + driveTx[i],
-                          metrics.driveMax[2],
-                          kDriveRowForwardMm - metrics.driveMin[1] };
+        float   lo[3] = { (metrics.driveMin[0] - driveCx) * kDriveScale + driveTx[i],
+                          metrics.driveMin[2] * kDriveScale - kDriveDropMm,
+                          kDriveRowForwardMm - metrics.driveMax[1] * kDriveScale };
+        float   hi[3] = { (metrics.driveMax[0] - driveCx) * kDriveScale + driveTx[i],
+                          metrics.driveMax[2] * kDriveScale - kDriveDropMm,
+                          kDriveRowForwardMm - metrics.driveMin[1] * kDriveScale };
 
         for (int axis = 0; axis < 3; axis++)
         {
@@ -266,6 +268,43 @@ HRESULT DeskSceneLayout::Compute (const RECT             & viewportPx,
                 out.sceneRectPx.right  = (LONG) std::ceil (pxMax[0]);
                 out.sceneRectPx.bottom = (LONG) std::ceil (pxMax[1]);
             }
+        }
+    }
+
+    // Projected per-drive bounds: each drive's model box through its own
+    // world matrix -- the tooltip anchor and drag-drop target rect for that
+    // drive, standing in for the 2D widget's OuterRect.
+    for (int i = 0; i < driveCount; i++)
+    {
+        float   pxMin[2] = { FLT_MAX, FLT_MAX };
+        float   pxMax[2] = { -FLT_MAX, -FLT_MAX };
+        bool    all      = true;
+
+        for (int corner = 0; corner < 8; corner++)
+        {
+            float   pt[3]    = { (corner & 1) ? metrics.driveMax[0] : metrics.driveMin[0],
+                                 (corner & 2) ? metrics.driveMax[1] : metrics.driveMin[1],
+                                 (corner & 4) ? metrics.driveMax[2] : metrics.driveMin[2] };
+            float   world[3] = {};
+            float   px[2]    = {};
+
+            if (!SceneCamera::TransformPoint (out.driveWorld[i], pt, world) ||
+                !SceneCamera::ProjectToScreen (out.viewProj, world, viewportPx, px))
+            {
+                all = false;
+                break;
+            }
+
+            pxMin[0] = std::min (pxMin[0], px[0]);  pxMax[0] = std::max (pxMax[0], px[0]);
+            pxMin[1] = std::min (pxMin[1], px[1]);  pxMax[1] = std::max (pxMax[1], px[1]);
+        }
+
+        if (all)
+        {
+            out.driveRectPx[i].left   = (LONG) std::floor (pxMin[0]);
+            out.driveRectPx[i].top    = (LONG) std::floor (pxMin[1]);
+            out.driveRectPx[i].right  = (LONG) std::ceil (pxMax[0]);
+            out.driveRectPx[i].bottom = (LONG) std::ceil (pxMax[1]);
         }
     }
 

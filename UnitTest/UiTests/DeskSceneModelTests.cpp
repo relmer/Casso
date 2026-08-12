@@ -135,7 +135,9 @@ public:
             "newmtl caseM\nKd 0.833 0.784 0.659\n"
             "newmtl glassM\nKd 0.05 0.09 0.07\n"
             "newmtl monLampM\nKd 0.29 0.87 0.38\n"
-            "newmtl ledM\nKd 0.90 0.12 0.10\n";
+            "newmtl ledM\nKd 0.90 0.12 0.10\n"
+            "newmtl doorM\nKd 0.16 0.16 0.18\n"
+            "newmtl latchM\nKd 0.23 0.23 0.25\n";
     }
 
     static std::string MonitorObj (bool withGlass = true)
@@ -154,13 +156,25 @@ public:
         return obj;
     }
 
-    static std::string DriveObj()
+    // The synthetic door assembly, matching the generator's layout: the door
+    // bar with the latch tab proud of it. The hinge is the bar's top-back
+    // edge: (y, z) = (s_kDoorBackY, s_kDoorTopZ).
+    static constexpr float   s_kDoorBackY = -1.0f;
+    static constexpr float   s_kDoorTopZ  = 61.0f;
+
+    static std::string DriveObj (bool withDoor = true)
     {
         std::string   obj;
         int           base = 0;
 
         AppendBox (obj, base, 0.0f, 0.0f, 0.0f, 155.0f, 222.0f, 86.0f, "caseM");
         AppendBox (obj, base, 21.0f, -2.6f, 13.0f, 27.0f, -0.6f, 19.0f, "ledM");
+
+        if (withDoor)
+        {
+            AppendBox (obj, base, 14.0f, -2.3f, 52.0f, 141.0f, s_kDoorBackY, s_kDoorTopZ, "doorM");
+            AppendBox (obj, base, 65.5f, -3.1f, 53.5f, 89.5f, -2.3f, 59.5f, "latchM");
+        }
 
         return obj;
     }
@@ -273,6 +287,98 @@ public:
         {
             Assert::IsTrue (model.RegionBoxes()[0].boxMin[axis] >= model.RegionBoxes()[1].boxMin[axis]);
             Assert::IsTrue (model.RegionBoxes()[0].boxMax[axis] <= model.RegionBoxes()[1].boxMax[axis]);
+        }
+    }
+
+    TEST_METHOD (Drive_Splits_The_Door_And_Finds_The_Hinge)
+    {
+        DeskSceneModel   model;
+        float            pivotY = 0.0f;
+        float            pivotZ = 0.0f;
+
+
+
+        AssertSucceeded (model.Load (DeskDeviceKind::DiskII, DriveObj(), Mtl()));
+        Assert::IsFalse (model.DoorVerts().empty());
+
+        // The hinge is the assembly's top-back edge.
+        model.DoorPivot (pivotY, pivotZ);
+        Assert::AreEqual (s_kDoorBackY, pivotY, 0.01f);
+        Assert::AreEqual (s_kDoorTopZ,  pivotZ, 0.01f);
+
+        // The door left the opaque batch: nothing opaque remains in the
+        // door bar's proud slab in front of the faceplate.
+        for (const Dxui3DRenderer::Vertex & v : model.OpaqueVerts())
+        {
+            bool  inDoorSlab = v.y < -0.9f && v.y > -3.2f &&
+                               v.z > 52.5f && v.z < 60.5f &&
+                               v.x > 30.0f && v.x < 130.0f;
+
+            Assert::IsFalse (inDoorSlab);
+        }
+    }
+
+    TEST_METHOD (Drive_Missing_Door_Is_A_Broken_Asset)
+    {
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+        DeskSceneModel                      model;
+
+
+
+        AssertFailed (model.Load (DeskDeviceKind::DiskII, DriveObj (false), Mtl()));
+        expect.RequireCount (1);
+    }
+
+    TEST_METHOD (Rotating_The_Door_Keeps_The_Hinge_And_Swings_The_Bottom_Out)
+    {
+        DeskSceneModel                        model;
+        std::vector<Dxui3DRenderer::Vertex>   open;
+        float                                 pivotY = 0.0f;
+        float                                 pivotZ = 0.0f;
+
+
+
+        AssertSucceeded (model.Load (DeskDeviceKind::DiskII, DriveObj(), Mtl()));
+        model.DoorPivot (pivotY, pivotZ);
+
+        DeskSceneModel::RotateDoorVerts (model.DoorVerts(), pivotY, pivotZ,
+                                         1.5707963f, open);
+        Assert::AreEqual (model.DoorVerts().size(), open.size());
+
+        for (size_t i = 0; i < open.size(); i++)
+        {
+            const Dxui3DRenderer::Vertex &  before = model.DoorVerts()[i];
+            const Dxui3DRenderer::Vertex &  after  = open[i];
+            float                           dy     = before.y - pivotY;
+            float                           dz     = before.z - pivotZ;
+
+            // Rigid about the hinge: at 90 degrees, depth below the hinge
+            // becomes travel toward the viewer (-Y), and proudness becomes
+            // height. X and the baked tint never move.
+            Assert::AreEqual (before.x,     after.x, 1e-4f);
+            Assert::AreEqual (pivotY + dz,  after.y, 1e-3f);
+            Assert::AreEqual (pivotZ - dy,  after.z, 1e-3f);
+            Assert::AreEqual (before.r,     after.r, 1e-6f);
+        }
+    }
+
+    TEST_METHOD (Drive_Carries_The_Padlock_Stamp_On_The_Faceplate)
+    {
+        DeskSceneModel   model;
+
+
+
+        AssertSucceeded (model.Load (DeskDeviceKind::DiskII, DriveObj(), Mtl()));
+        Assert::IsFalse (model.PadlockVerts().empty());
+
+        // Proud of the faceplate, clear of the LED and the slot: every
+        // vertex sits in front of the plate (y < -1) and inside the lower
+        // faceplate area between LED and rainbow mark.
+        for (const Dxui3DRenderer::Vertex & v : model.PadlockVerts())
+        {
+            Assert::IsTrue (v.y < -1.0f && v.y > -3.0f);
+            Assert::IsTrue (v.x > 27.0f && v.x < 126.0f);
+            Assert::IsTrue (v.z > 5.0f  && v.z < 46.0f);
         }
     }
 

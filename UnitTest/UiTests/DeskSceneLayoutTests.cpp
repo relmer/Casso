@@ -114,6 +114,30 @@ public:
         expect.RequireCount (1);
     }
 
+    TEST_METHOD (Drive_Rects_Project_Disjoint_And_Ordered)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1120, 900 };
+        DeskSceneComposition  comp;
+
+
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp));
+
+        // Both drives project to real rects inside the viewport, drive 0
+        // left of drive 1 with a gap between them (the tooltip anchors and
+        // drop targets the 2D widgets' OuterRects used to provide).
+        for (int i = 0; i < 2; i++)
+        {
+            Assert::IsTrue (comp.driveRectPx[i].right > comp.driveRectPx[i].left);
+            Assert::IsTrue (comp.driveRectPx[i].bottom > comp.driveRectPx[i].top);
+            Assert::IsTrue (comp.driveRectPx[i].left >= vp.left);
+            Assert::IsTrue (comp.driveRectPx[i].right <= vp.right);
+        }
+
+        Assert::IsTrue (comp.driveRectPx[0].right <= comp.driveRectPx[1].left);
+    }
+
     TEST_METHOD (Drive_Count_Maps_To_Placements)
     {
         DeskSceneMetrics      metrics = MakeMetrics();
@@ -133,13 +157,14 @@ public:
         Assert::AreEqual (2, two.driveCount);
 
         // A single drive centers on the scene axis; two flank it
-        // symmetrically (translation lives in row 3 of the world matrix).
+        // symmetrically (translation lives in row 3 of the world matrix,
+        // centered through the placement scale).
         {
-            float   driveCx = (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f;
+            float   scaledCx = (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f * DeskSceneLayout::kDriveScale;
 
-            Assert::AreEqual (-driveCx, one.driveWorld[0][12], 0.01f);
+            Assert::AreEqual (-scaledCx, one.driveWorld[0][12], 0.01f);
             Assert::IsTrue   (two.driveWorld[0][12] < two.driveWorld[1][12]);
-            Assert::AreEqual (-(two.driveWorld[0][12] + driveCx), two.driveWorld[1][12] + driveCx, 0.01f);
+            Assert::AreEqual (-(two.driveWorld[0][12] + scaledCx), two.driveWorld[1][12] + scaledCx, 0.01f);
         }
     }
 

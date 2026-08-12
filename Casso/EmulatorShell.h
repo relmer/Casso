@@ -698,6 +698,15 @@ private:
     // drive region / nothing).
     SceneHitResult  DeskSceneHit (int xPx, int yPx) const;
 
+    // How many drives the scene composes: the machine's Disk II presence and
+    // the //c external-drive connection, the same gates the 2D widgets use.
+    int     DeskSceneDriveCount  () const;
+
+    // While the scene owns the drives, the 2D widgets stay hidden (they keep
+    // mirroring state for the //c switch strip) and the drag-drop hit rects
+    // come from the composition's projected drive bounds.
+    void    SyncSceneDriveChrome ();
+
     // Builds/refreshes the CASSO_SCENE_DEBUG=2 texel-calibration texture.
     void  EnsureSceneCalibration (const RECT & fittedRect);
 

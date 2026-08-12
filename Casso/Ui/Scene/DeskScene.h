@@ -62,6 +62,11 @@ public:
     void  SetPowerLampOn   (bool on);
     void  SetDriveActivity (int drive, bool active);
 
+    // Per-drive visual state, pushed each UI frame: activity lamp, door
+    // openness (0 closed .. 1 open, from the drive's door FSM), and the
+    // write-protect padlock. Only an actual change dirties geometry.
+    void  SetDriveVisuals  (int drive, bool lampOn, float doorProgress, bool writeProtected);
+
     // Draws the scene into `dstRtv` (bound here -- the CRT offscreen pass
     // that runs just before leaves ITS target bound, so relying on ambient
     // state would draw the monitor into the display texture). `displaySrv`
@@ -108,6 +113,12 @@ public:
     static constexpr int    kMaskArcSegments = 8;
     static constexpr float  kMaskTint[3]     = { 0.012f, 0.020f, 0.016f };
 
+    // Drive door swing: fully open lifts the door bar this far off the
+    // faceplate (a touch past 60 degrees, like the real drive at rest), and
+    // progress deltas below the epsilon skip the vertex rebuild.
+    static constexpr float  kDoorOpenRad     = 1.15f;
+    static constexpr float  kDoorProgressEps = 1.0f / 256.0f;
+
 private:
     void  RebuildGlassUvs   (const CrtUvRect & displayUv, int displayW, int displayH);
     void  RebuildLampVerts  ();
@@ -134,4 +145,10 @@ private:
     bool                                  m_powerLampOn     = false;
     bool                                  m_driveActive[2]  = {};
     bool                                  m_lampsDirty      = true;
+
+    // Door assemblies, rotated copies of the model's cached door verts;
+    // progress -1 forces the first build.
+    std::vector<Dxui3DRenderer::Vertex>   m_driveDoorVerts[2];
+    float                                 m_doorProgress[2] = { -1.0f, -1.0f };
+    bool                                  m_driveWp[2]      = {};
 };
