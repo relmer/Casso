@@ -231,6 +231,49 @@ float SceneCamera::FitContainFovY (float fovY, float contentAspect, float viewpo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SceneCamera::SolveGlassFillCamera
+//
+//  Per-axis standoff demands: at distance d the frustum spans 2*d*tan(fovY/2)
+//  vertically and that times the aspect horizontally. Filling means the rect
+//  meets or exceeds both spans, so the eye takes the NEARER of the two
+//  distances -- the other axis then overfills and crops. Straight-on: the
+//  fullscreen glass reads face-on, no desk gaze.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SceneCamera::SolveGlassFillCamera (float centerX,
+                                        float centerY,
+                                        float width,
+                                        float height,
+                                        float planeZ,
+                                        float fovY,
+                                        float aspect,
+                                        float zn,
+                                        float zf,
+                                        float outView[16],
+                                        float outProj[16],
+                                        float outViewProj[16])
+{
+    float   tanY      = std::tan (fovY * 0.5f);
+    float   standoffH = (height * 0.5f) / tanY;
+    float   standoffW = (width * 0.5f) / (tanY * aspect);
+    float   standoff  = std::min (standoffH, standoffW);
+    float   eye[3]    = { centerX, centerY, planeZ + standoff };
+    float   at[3]     = { centerX, centerY, planeZ };
+
+
+
+    LookAtRH         (eye, at, outView);
+    PerspectiveFovRH (fovY, aspect, zn, zf, outProj);
+    Mul44            (outView, outProj, outViewProj);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SceneCamera::TransformPoint
 //
 ////////////////////////////////////////////////////////////////////////////////

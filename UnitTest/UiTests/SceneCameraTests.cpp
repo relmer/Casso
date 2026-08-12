@@ -195,4 +195,71 @@ public:
         Assert::IsFalse (SceneCamera::ProjectToScreen (viewProj, behind, viewport, screen));
     }
 
+    TEST_METHOD (Glass_Fill_Camera_Covers_The_Viewport_Exactly_On_The_Binding_Axis)
+    {
+        // A glass rect wider than the viewport's aspect: height binds (the
+        // vertical span fits exactly) and the width crops offscreen.
+        float  view[16]     = {};
+        float  proj[16]     = {};
+        float  viewProj[16] = {};
+        RECT   viewport     = { 0, 0, 1200, 900 };   // 4:3 viewport
+        float  glassW       = 216.0f;
+        float  glassH       = 144.0f;                // 1.5 aspect > 4:3
+
+
+
+        SceneCamera::SolveGlassFillCamera (10.0f, 120.0f, glassW, glassH, -6.0f,
+                                           0.6f, 1200.0f / 900.0f, 1.0f, 5000.0f,
+                                           view, proj, viewProj);
+
+        // The vertical edge midpoints land exactly on the viewport's top and
+        // bottom edges; the horizontal midpoints land OUTSIDE (cropped).
+        {
+            float  top[3]    = { 10.0f, 120.0f + glassH * 0.5f, -6.0f };
+            float  bottom[3] = { 10.0f, 120.0f - glassH * 0.5f, -6.0f };
+            float  left[3]   = { 10.0f - glassW * 0.5f, 120.0f, -6.0f };
+            float  px[2]     = {};
+
+            Assert::IsTrue (SceneCamera::ProjectToScreen (viewProj, top, viewport, px));
+            Assert::AreEqual (0.0f, px[1], 0.5f);
+            Assert::AreEqual (600.0f, px[0], 0.5f);   // centered horizontally
+
+            Assert::IsTrue (SceneCamera::ProjectToScreen (viewProj, bottom, viewport, px));
+            Assert::AreEqual (900.0f, px[1], 0.5f);
+
+            Assert::IsTrue (SceneCamera::ProjectToScreen (viewProj, left, viewport, px));
+            Assert::IsTrue (px[0] < -0.5f);           // cropped past the left edge
+        }
+    }
+
+    TEST_METHOD (Glass_Fill_Camera_Binds_On_Width_For_A_Wide_Viewport)
+    {
+        // A 21:9-ish viewport against the same glass: width binds, the top
+        // and bottom crop.
+        float  view[16]     = {};
+        float  proj[16]     = {};
+        float  viewProj[16] = {};
+        RECT   viewport     = { 0, 0, 2100, 900 };
+        float  glassW       = 216.0f;
+        float  glassH       = 144.0f;
+
+
+
+        SceneCamera::SolveGlassFillCamera (0.0f, 0.0f, glassW, glassH, 0.0f,
+                                           0.6f, 2100.0f / 900.0f, 1.0f, 5000.0f,
+                                           view, proj, viewProj);
+
+        {
+            float  right[3] = { glassW * 0.5f, 0.0f, 0.0f };
+            float  top[3]   = { 0.0f, glassH * 0.5f, 0.0f };
+            float  px[2]    = {};
+
+            Assert::IsTrue (SceneCamera::ProjectToScreen (viewProj, right, viewport, px));
+            Assert::AreEqual (2100.0f, px[0], 0.5f);
+
+            Assert::IsTrue (SceneCamera::ProjectToScreen (viewProj, top, viewport, px));
+            Assert::IsTrue (px[1] < -0.5f);           // cropped past the top
+        }
+    }
+
 };
