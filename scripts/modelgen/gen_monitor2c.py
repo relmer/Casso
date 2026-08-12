@@ -93,7 +93,11 @@ half_diag = math.hypot((gx1 - gx0) / 2, (gz1 - gz0) / 2)
 SPHERE_R = half_diag * 3.0
 BASE_Y = 6.0
 
-COLS, ROWS = 16, 12
+# Dense enough that the piecewise-linear sheet hugs the sphere: the desk
+# scene floats its picture grid fractions of a millimeter above this mesh,
+# and a coarse grid's chord crests poke through the overlay at grazing view
+# angles as dark bites.
+COLS, ROWS = 48, 36
 for r in range(ROWS):
     for c in range(COLS):
         def pt(ci, ri):

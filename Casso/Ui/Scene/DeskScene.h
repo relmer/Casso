@@ -94,7 +94,7 @@ public:
     // dark petals.
     static constexpr int    kPictureGridCols = 24;
     static constexpr int    kPictureGridRows = 18;
-    static constexpr float  kPictureLiftMm   = 0.30f;
+    static constexpr float  kPictureLiftMm   = 0.45f;
 
     // The unlit tube's tint -- near-black with the faint green of period
     // glass.
@@ -112,7 +112,7 @@ public:
     // to the glass edge, and the clamped tangent arc swings into the raster.
     static constexpr float  kMaskPadMm       = 4.0f;
     static constexpr float  kMaskRadiusMm    = 10.0f;
-    static constexpr float  kMaskLiftMm      = 0.45f;
+    static constexpr float  kMaskLiftMm      = 0.70f;
     static constexpr int    kMaskArcSegments = 8;
     static constexpr float  kMaskTint[3]     = { 0.012f, 0.020f, 0.016f };
 
