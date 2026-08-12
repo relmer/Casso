@@ -94,12 +94,14 @@ public:
 
     // The tube mask: a rounded-corner opening over the glass, the way a real
     // CRT's faceplate rounds off. The opening sits kMaskPadMm OUTSIDE the
-    // picture band so the radius never clips text or graphics (the geometry
-    // guarantees it: the band corner stays outside the corner arc whenever
-    // kMaskRadiusMm <= kMaskPadMm * sqrt(2)/(sqrt(2)-1) =~ 3.41 * pad); the
-    // rounding reads only where bright content pushes toward the edges.
-    static constexpr float  kMaskPadMm       = 3.0f;
-    static constexpr float  kMaskRadiusMm    = 9.0f;
+    // picture band along the edges, but a tangent corner arc pinches toward
+    // the band diagonal: its clearance from the raster corner is only
+    // radius - (radius - pad) * sqrt(2). Pad 5 / radius 12 leaves ~2.1mm at
+    // the corners -- past the raster and most of its bloom, so text and
+    // graphics never clip and the rounding reads only where bright content
+    // glows into the corners.
+    static constexpr float  kMaskPadMm       = 5.0f;
+    static constexpr float  kMaskRadiusMm    = 12.0f;
     static constexpr float  kMaskLiftMm      = 0.25f;
     static constexpr int    kMaskArcSegments = 8;
     static constexpr float  kMaskTint[3]     = { 0.012f, 0.020f, 0.016f };
