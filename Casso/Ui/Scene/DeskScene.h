@@ -87,11 +87,14 @@ public:
     static constexpr float  kLampOffDim = 0.22f;
 
     // The picture sub-mesh: its own curved grid spanning exactly the band
-    // (mesh edge == band edge, UVs a clean 0..1 span), floated a hair off
-    // the tube sheet so depth never ties.
+    // (mesh edge == band edge, UVs a clean 0..1 span), floated off the tube
+    // sheet by more than the tube's worst chord sag -- the two meshes
+    // tessellate the same sphere at different resolutions, and a lift inside
+    // the chord error lets coarse tube triangles poke through the picture as
+    // dark petals.
     static constexpr int    kPictureGridCols = 24;
     static constexpr int    kPictureGridRows = 18;
-    static constexpr float  kPictureLiftMm   = 0.15f;
+    static constexpr float  kPictureLiftMm   = 0.30f;
 
     // The unlit tube's tint -- near-black with the faint green of period
     // glass.
@@ -101,15 +104,15 @@ public:
     // CRT's faceplate rounds off. The opening sits kMaskPadMm OUTSIDE the
     // picture band along the edges, but a tangent corner arc pinches toward
     // the band diagonal: its clearance from the raster corner is only
-    // radius - (radius - pad) * sqrt(2). Pad 5 / radius 12 leaves ~2.1mm at
+    // radius - (radius - pad) * sqrt(2). Pad 4 / radius 10 leaves ~1.5mm at
     // the corners -- past the raster and most of its bloom, so text and
     // graphics never clip and the rounding reads only where bright content
     // glows into the corners. kMaskPadMm must stay below CurvedDisplayMath::
     // kBandInsetMm: a pad past the band's own glass inset clamps the opening
     // to the glass edge, and the clamped tangent arc swings into the raster.
-    static constexpr float  kMaskPadMm       = 5.0f;
-    static constexpr float  kMaskRadiusMm    = 12.0f;
-    static constexpr float  kMaskLiftMm      = 0.25f;
+    static constexpr float  kMaskPadMm       = 4.0f;
+    static constexpr float  kMaskRadiusMm    = 10.0f;
+    static constexpr float  kMaskLiftMm      = 0.45f;
     static constexpr int    kMaskArcSegments = 8;
     static constexpr float  kMaskTint[3]     = { 0.012f, 0.020f, 0.016f };
 

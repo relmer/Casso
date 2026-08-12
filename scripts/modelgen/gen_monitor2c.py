@@ -21,10 +21,10 @@ Z0 = 0.0                         # shell sits directly on the ground plane
 
 PROUD = 10.0                     # bezel plate front plane (y = -PROUD)
 RIM = 9.0                        # shoulder inset from the case outline
-CHIN = 40.0                      # chin band below the opening
-BZ = 20.0                        # bezel width left/right
-TOPB = 22.0                      # bezel width on top
-BEVEL_IN = 6.0                   # inner lip width around the opening
+CHIN = 34.0                      # chin band below the opening (real //c: slim)
+BZ = 16.0                        # bezel width left/right
+TOPB = 14.0                      # bezel width on top (real //c: slim)
+BEVEL_IN = 5.0                   # inner lip width around the opening
 SHELL_FRONT = 10.0               # case body front plane (behind the shoulder)
 
 OX0, OX1 = BZ, W - BZ            # opening rect
@@ -85,7 +85,7 @@ m.box(OX0, 6.0, OZ0, OX1, 8.0, OZ1, cavity_c)
 # CRT glass: rectangular panel with true spherical sag, bulging toward the
 # viewer out of the recess. Sphere radius ~3x the diagonal reads as the
 # period tube's gentle curvature.
-GLASS_INSET = 5.0
+GLASS_INSET = 3.0
 gx0, gx1 = OX0 + GLASS_INSET, OX1 - GLASS_INSET
 gz0, gz1 = OZ0 + GLASS_INSET, OZ1 - GLASS_INSET
 gcx, gcz = (gx0 + gx1) / 2, (gz0 + gz1) / 2

@@ -117,9 +117,9 @@ public:
     // monitor). Still one world and one camera (FR-016): scale and drop are
     // placement properties carried in each drive's world matrix, so the
     // below-center row shows its top faces purely from the shared gaze.
-    static constexpr float  kDriveRowForwardMm = 120.0f;
-    static constexpr float  kDriveDropMm       = 60.0f;
-    static constexpr float  kDriveScale        = 0.55f;
+    static constexpr float  kDriveRowForwardMm = 85.0f;
+    static constexpr float  kDriveDropMm       = 32.0f;
+    static constexpr float  kDriveScale        = 0.45f;
     static constexpr float  kDriveGapMm        = 26.0f;
     static constexpr float  kContainMargin     = 1.005f;
 

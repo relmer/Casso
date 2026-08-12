@@ -116,7 +116,7 @@ public:
     // the glass rect inset by this much per side (capped for tiny synthetic
     // surfaces by kBandInsetMaxFrac). Overlays hugging the band from outside
     // must stand off by less than this, or they reach the picture.
-    static constexpr float  kBandInsetMm      = 6.0f;
+    static constexpr float  kBandInsetMm      = 4.5f;
     static constexpr float  kBandInsetMaxFrac = 0.1f;
 
 private:

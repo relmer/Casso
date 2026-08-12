@@ -317,20 +317,59 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
             surfacePoint (x2, z2, v);  m_maskVerts.push_back (v);
         };
 
-        auto pushQuad = [&] (float x0, float z0, float x1, float z1,
-                             float x2, float z2, float x3, float z3)
+        // Strips are long (they span the glass), and the sag sphere bulges
+        // millimeters over such spans -- far past any lift -- so a flat
+        // corner-to-corner quad would slice below the tube and let it poke
+        // through as dark petals. Subdivide each strip patch and put every
+        // sample on the sphere; the leftover chord error is far under the
+        // lift.
+        auto pushPatch = [&] (float ax, float az, float bx, float bz,
+                              float cx2, float cz2, float dx, float dz)
         {
-            pushTri (x0, z0, x1, z1, x2, z2);
-            pushTri (x0, z0, x2, z2, x3, z3);
+            constexpr int   kAlong  = 24;
+            constexpr int   kAcross = 3;
+
+            for (int i = 0; i < kAlong; i++)
+            {
+                for (int j = 0; j < kAcross; j++)
+                {
+                    float   s0 = (float) i / (float) kAlong;
+                    float   s1 = (float) (i + 1) / (float) kAlong;
+                    float   t0 = (float) j / (float) kAcross;
+                    float   t1 = (float) (j + 1) / (float) kAcross;
+
+                    auto lerp2 = [&] (float s, float t, float & outX, float & outZ)
+                    {
+                        float   topX = ax + (bx - ax) * s;
+                        float   topZ = az + (bz - az) * s;
+                        float   botX = dx + (cx2 - dx) * s;
+                        float   botZ = dz + (cz2 - dz) * s;
+
+                        outX = topX + (botX - topX) * t;
+                        outZ = topZ + (botZ - topZ) * t;
+                    };
+
+                    float   p00x = 0.0f, p00z = 0.0f, p10x = 0.0f, p10z = 0.0f;
+                    float   p11x = 0.0f, p11z = 0.0f, p01x = 0.0f, p01z = 0.0f;
+
+                    lerp2 (s0, t0, p00x, p00z);
+                    lerp2 (s1, t0, p10x, p10z);
+                    lerp2 (s1, t1, p11x, p11z);
+                    lerp2 (s0, t1, p01x, p01z);
+
+                    pushTri (p00x, p00z, p10x, p10z, p11x, p11z);
+                    pushTri (p00x, p00z, p11x, p11z, p01x, p01z);
+                }
+            }
         };
 
         m_maskVerts.clear();
 
         // Four strips from the glass edges to the square opening.
-        pushQuad (gx0, gz1, gx1, gz1, ox1, oz1, ox0, oz1);   // top
-        pushQuad (ox0, oz0, ox1, oz0, gx1, gz0, gx0, gz0);   // bottom
-        pushQuad (gx0, gz1, ox0, oz1, ox0, oz0, gx0, gz0);   // left
-        pushQuad (ox1, oz1, gx1, gz1, gx1, gz0, ox1, oz0);   // right
+        pushPatch (gx0, gz1, gx1, gz1, ox1, oz1, ox0, oz1);   // top
+        pushPatch (ox0, oz0, ox1, oz0, gx1, gz0, gx0, gz0);   // bottom
+        pushPatch (gx0, gz1, ox0, oz1, ox0, oz0, gx0, gz0);   // left
+        pushPatch (ox1, oz1, gx1, gz1, gx1, gz0, ox1, oz0);   // right
 
         // Four corner fans: from each opening corner out to its quarter arc.
         {

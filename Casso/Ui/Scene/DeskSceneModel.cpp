@@ -21,10 +21,11 @@ static constexpr float   s_kShadeFloor  = 0.16f;
 static constexpr float   s_kShadeSpan   = 0.84f;
 
 // Brand stamp placement on the monitor chin (model mm): the cassowary spans
-// this box, proud of the bezel plate's front face (y = -10).
+// this box, proud of the bezel plate's front face (y = -10), inside the
+// slimmed chin band (bezel z 9 .. 29).
 static constexpr float   s_kBrandLeftMm   = 24.0f;
-static constexpr float   s_kBrandTopZMm   = 32.0f;
-static constexpr float   s_kBrandHeightMm = 21.0f;
+static constexpr float   s_kBrandTopZMm   = 27.0f;
+static constexpr float   s_kBrandHeightMm = 16.0f;
 static constexpr float   s_kBrandFrontY   = -10.6f;
 
 // DiskII interactive regions, model space (mm). The eject region wraps the
