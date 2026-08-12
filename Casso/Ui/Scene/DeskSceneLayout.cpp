@@ -421,6 +421,129 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneLayout::ComputeStrip
+//
+//  Drives only, full model scale, centered row on the ground plane. The
+//  strip band is short and the row symmetric about its center, so the
+//  closed-form standoff with the aim at the row's vertical center contains
+//  it without the desk composition's asymmetric refine passes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
+                                       UINT                     dpi,
+                                       int                      driveCount,
+                                       const DeskSceneMetrics & metrics,
+                                       DeskSceneComposition   & out)
+{
+    HRESULT   hr          = S_OK;
+    int       viewportW   = viewportPx.right - viewportPx.left;
+    int       viewportH   = viewportPx.bottom - viewportPx.top;
+    float     aspect      = 0.0f;
+    float     tanHalfY    = std::tan (kFovY * 0.5f);
+    float     driveW      = metrics.driveMax[0] - metrics.driveMin[0];
+    float     driveCx     = (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f;
+    float     rowCy       = 0.0f;
+    float     eyeZ        = 0.0f;
+    float     sceneMin[3] = { FLT_MAX, FLT_MAX, FLT_MAX };
+    float     sceneMax[3] = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    float     driveTx[2]  = {};
+
+
+
+    out = {};
+
+    CBRAEx (driveCount >= 1 && driveCount <= 2, E_INVALIDARG);
+    CBRAEx (dpi > 0, E_INVALIDARG);
+
+    BAIL_OUT_IF (viewportW <= 0 || viewportH <= 0, S_FALSE);   // EHM-ALLOW-SFALSE: minimized/zero viewport is a routine skip-this-frame state the caller tests for, not an error
+
+    out.viewportPx = viewportPx;
+    out.driveCount = driveCount;
+    aspect         = (float) viewportW / (float) viewportH;
+
+    driveTx[0] = (driveCount == 2) ? -(driveW + kDriveGapMm) * 0.5f : 0.0f;
+    driveTx[1] = (driveW + kDriveGapMm) * 0.5f;
+
+    for (int i = 0; i < driveCount; i++)
+    {
+        float   lo[3] = { metrics.driveMin[0] - driveCx + driveTx[i],
+                          metrics.driveMin[2],
+                          -metrics.driveMax[1] };
+        float   hi[3] = { metrics.driveMax[0] - driveCx + driveTx[i],
+                          metrics.driveMax[2],
+                          -metrics.driveMin[1] };
+
+        MakeDeviceWorld (driveTx[i] - driveCx, 0.0f, 0.0f, 1.0f, out.driveWorld[i]);
+
+        for (int axis = 0; axis < 3; axis++)
+        {
+            sceneMin[axis] = std::min (sceneMin[axis], lo[axis]);
+            sceneMax[axis] = std::max (sceneMax[axis], hi[axis]);
+        }
+    }
+
+    rowCy = (sceneMin[1] + sceneMax[1]) * 0.5f;
+
+    SolveStandoff (sceneMin, sceneMax, rowCy, tanHalfY, tanHalfY * aspect, eyeZ);
+
+    {
+        float   eye[3] = { 0.0f, rowCy + std::sin (kGazeDownRad) * eyeZ, std::cos (kGazeDownRad) * eyeZ };
+        float   at[3]  = { 0.0f, rowCy, 0.0f };
+
+        SceneCamera::LookAtRH         (eye, at, out.view);
+        SceneCamera::PerspectiveFovRH (kFovY, aspect, kNearMm, kFarMm, out.proj);
+        SceneCamera::Mul44            (out.view, out.proj, out.viewProj);
+    }
+
+    // Projected per-drive bounds: tooltip anchors and hit rects, exactly as
+    // the desk composition provides them.
+    for (int i = 0; i < driveCount; i++)
+    {
+        float   pxMin[2] = { FLT_MAX, FLT_MAX };
+        float   pxMax[2] = { -FLT_MAX, -FLT_MAX };
+        bool    all      = true;
+
+        for (int corner = 0; corner < 8; corner++)
+        {
+            float   pt[3]    = { (corner & 1) ? metrics.driveMax[0] : metrics.driveMin[0],
+                                 (corner & 2) ? metrics.driveMax[1] : metrics.driveMin[1],
+                                 (corner & 4) ? metrics.driveMax[2] : metrics.driveMin[2] };
+            float   world[3] = {};
+            float   px[2]    = {};
+
+            if (!SceneCamera::TransformPoint (out.driveWorld[i], pt, world) ||
+                !SceneCamera::ProjectToScreen (out.viewProj, world, viewportPx, px))
+            {
+                all = false;
+                break;
+            }
+
+            pxMin[0] = std::min (pxMin[0], px[0]);  pxMax[0] = std::max (pxMax[0], px[0]);
+            pxMin[1] = std::min (pxMin[1], px[1]);  pxMax[1] = std::max (pxMax[1], px[1]);
+        }
+
+        if (all)
+        {
+            out.driveRectPx[i].left   = (LONG) std::floor (pxMin[0]);
+            out.driveRectPx[i].top    = (LONG) std::floor (pxMin[1]);
+            out.driveRectPx[i].right  = (LONG) std::ceil (pxMax[0]);
+            out.driveRectPx[i].bottom = (LONG) std::ceil (pxMax[1]);
+        }
+    }
+
+    out.sceneRectPx = viewportPx;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneLayout::MeasurePictureHeightPx
 //
 //  Projects the picture band's top and bottom (at horizontal center) through

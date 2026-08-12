@@ -36,6 +36,7 @@ static constexpr MainMenuCommandEntry  s_kEntries[] =
     { IDM_DISK_EJECT2,              MainMenuId::Disk,    L"Eje&ct drive 2",         L"Ctrl+Shift+2"  },
     { IDM_DISK_WP2,                 MainMenuId::Disk,    L"Write-&protect disk 2",  nullptr          },
     { IDM_VIEW_FULLSCREEN,          MainMenuId::View,    L"&Fullscreen",            L"Alt+Enter"     },
+    { IDM_VIEW_DRIVE_STRIP,         MainMenuId::View,    L"Drive &strip (fullscreen)", L"Ctrl+D"       },
     { IDM_VIEW_RESET_SIZE,          MainMenuId::View,    L"&Reset window size",     L"Ctrl+0"        },
     { 0,                            MainMenuId::View,    nullptr,                   nullptr          },
     { IDM_VIEW_SETTINGS,            MainMenuId::View,    L"Se&ttings...",           L"Ctrl+,"        },

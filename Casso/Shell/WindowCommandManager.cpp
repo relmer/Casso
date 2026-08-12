@@ -416,6 +416,7 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_PADDLE)   { OnMachineCommand (id); }
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WP2)                { OnDiskCommand (id); }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { OnViewCommand (id); }
+    else if (id == IDM_VIEW_DRIVE_STRIP)                                   { OnViewCommand (id); }
     else if (id == IDM_PRINTER_DISCARD)                                    { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_COPY)                                       { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_PRINT)                                      { OnPrinterCommand (id); }
@@ -855,6 +856,20 @@ void WindowCommandManager::OnViewCommand (int id)
         case IDM_VIEW_SETTINGS:
         {
             m_shell.OpenSettings();
+            break;
+        }
+
+        case IDM_VIEW_DRIVE_STRIP:
+        {
+            // Only meaningful in the fullscreen desk scene; the FSM consumes
+            // the edge on its next tick (releasing a guest capture if one is
+            // held). Elsewhere the drives are already on screen.
+            if (m_shell.DeskSceneActive() && m_shell.m_d3dRenderer.IsFullscreen())
+            {
+                m_shell.m_stripHotkeyPending = true;
+                m_shell.m_d3dRenderer.MarkRedrawNeeded();
+            }
+
             break;
         }
     }

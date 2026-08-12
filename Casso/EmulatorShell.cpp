@@ -130,6 +130,11 @@ static constexpr float   s_kDeskDriveScale       = 0.8f;
 // leaves). The dependency is a contraction, so a few relayout passes settle it.
 static constexpr int     s_kSceneScaleSettlePasses = 3;
 
+// Fullscreen drive overlay strip: the band's height and the bottom-edge
+// dwell zone that reveals it while the host owns the pointer.
+static constexpr int     s_kStripBandDp     = 150;
+static constexpr int     s_kStripEdgeZoneDp = 8;
+
 // Minimum emulator-viewport (center) the window must always host, plus a
 // small pad past the last menu title, so the bottom drive bar can never be
 // driven up into the menu strip / title (NC) area and menu titles never
@@ -1140,6 +1145,29 @@ HRESULT EmulatorShell::InitializeRenderer()
                                                   displaySrv, uv,
                                                   kFramebufferWidth, kFramebufferHeight);
 
+                // Fullscreen drive overlay strip: the slid band composed by
+                // TryPresentUiFrame's FSM tick, plus the hidden-state
+                // activity glimmer in the corner (FR-015).
+                if (m_d3dRenderer.IsFullscreen())
+                {
+                    int   bbW = m_d3dRenderer.GetBackBufferWidth();
+                    int   bbH = m_d3dRenderer.GetBackBufferHeight();
+
+                    if (m_stripRectPx.bottom > m_stripRectPx.top)
+                    {
+                        HRESULT  hrStrip = m_deskScene.RenderStrip (m_host->GetBackBufferRtv(), m_stripComp);
+
+                        IGNORE_RETURN_VALUE (hrStrip, S_OK);
+                    }
+
+                    if (m_stripState.ActivityIndicator())
+                    {
+                        RECT  glimmer = { bbW - 34, bbH - 14, bbW - 12, bbH - 8 };
+
+                        m_deskScene.DrawDebugRect (glimmer, bbW, bbH, 0xFFB01818);
+                    }
+                }
+
                 // Layout diagnosis overlay: scene viewport red, projected
                 // glass green, drive band yellow, switch band magenta.
                 if (m_deskSceneDebug)
@@ -1151,6 +1179,7 @@ HRESULT EmulatorShell::InitializeRenderer()
                     m_deskScene.DrawDebugRect (m_deskScene.Composition().glassRectPx, bbW, bbH, 0xFF30FF30);
                     m_deskScene.DrawDebugRect (m_driveBand.Bounds(), bbW, bbH, 0xFFFFFF30);
                     m_deskScene.DrawDebugRect (m_switchBand.Bounds(), bbW, bbH, 0xFFFF30FF);
+                    m_deskScene.DrawDebugRect (m_stripRectPx, bbW, bbH, 0xFF30FFFF);
                 }
             }
         }
@@ -1328,6 +1357,28 @@ SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
                                          (float) yPx,
                                          kFramebufferWidth,
                                          kFramebufferHeight);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::StripHit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SceneHitResult EmulatorShell::StripHit (int xPx, int yPx) const
+{
+    return DeskSceneHitTester::Classify (m_stripComp,
+                                         m_deskScene.MonitorModel().Surface(),
+                                         m_deskScene.DriveModel().RegionBoxes(),
+                                         (float) xPx,
+                                         (float) yPx,
+                                         kFramebufferWidth,
+                                         kFramebufferHeight,
+                                         false);
 }
 
 
@@ -5121,6 +5172,99 @@ bool EmulatorShell::TryPresentUiFrame()
         }
     }
 
+    // Fullscreen drive overlay strip (FR-015): tick the FSM from this
+    // frame's observations, apply its capture effects, and compose the slid
+    // band the hook will render.
+    if (DeskSceneActive() && m_d3dRenderer.IsFullscreen() && DeskSceneDriveCount() > 0)
+    {
+        StripInputs   inputs;
+        StripEffects  effects;
+        POINT         cursor  = {};
+        RECT          client  = {};
+        int64_t       stripNowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                       std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        GetClientRect (m_hwnd, &client);
+
+        inputs.nowMs = stripNowMs;
+
+        if (GetCursorPos (&cursor) && ScreenToClient (m_hwnd, &cursor) && PtInRect (&client, cursor))
+        {
+            inputs.pointerAtBottomEdge = cursor.y >= client.bottom - m_scaler.Px (s_kStripEdgeZoneDp);
+            inputs.pointerOverStrip    = m_stripState.Mode() != StripMode::Hidden &&
+                                         PtInRect (&m_stripRectPx, cursor);
+        }
+
+        inputs.hotkey        = m_stripHotkeyPending;
+        m_stripHotkeyPending = false;
+
+        inputs.pinned        = m_stripBrowseOpen || m_driveTooltip.IsVisible();
+        inputs.guestPointer  = m_paddleCaptured    ? GuestPointerMode::Paddle
+                             : GuestMouseActive()  ? GuestPointerMode::Mouse
+                             :                       GuestPointerMode::None;
+        inputs.anyDriveActive = anyDriveLive;
+
+        effects = m_stripState.Tick (inputs);
+
+        if (effects.releaseCapture)
+        {
+            if (m_paddleCaptured)
+            {
+                StopPaddleCapture();
+            }
+            else
+            {
+                m_stripSuppressGuestMouse = true;
+            }
+        }
+
+        if (effects.restoreCapture == GuestPointerMode::Paddle)
+        {
+            StartPaddleCapture();
+        }
+        else if (effects.restoreCapture == GuestPointerMode::Mouse)
+        {
+            m_stripSuppressGuestMouse = false;
+        }
+
+        // The band slides up from the bottom edge: only the top
+        // `progress * height` sliver is on-screen mid-animation.
+        {
+            float  progress = m_stripState.SlideProgress (stripNowMs);
+            int    bandH    = m_scaler.Px (s_kStripBandDp);
+
+            if (progress > 0.0f)
+            {
+                HRESULT  hrStrip = S_OK;
+
+                m_stripRectPx = { 0, client.bottom - (int) (progress * (float) bandH),
+                                  client.right, client.bottom - (int) (progress * (float) bandH) + bandH };
+
+                hrStrip = DeskSceneLayout::ComputeStrip (m_stripRectPx, m_scaler.Dpi(),
+                                                         DeskSceneDriveCount(),
+                                                         m_deskScene.Metrics(), m_stripComp);
+                IGNORE_RETURN_VALUE (hrStrip, S_OK);
+            }
+            else
+            {
+                m_stripRectPx = {};
+                m_stripComp   = {};
+            }
+        }
+
+        if (m_stripState.Mode() != StripMode::Hidden || m_stripState.ActivityIndicator())
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+    }
+    else
+    {
+        // Not presenting the strip (windowed, or fullscreen left): never
+        // strand a suppressed guest mouse.
+        m_stripSuppressGuestMouse = false;
+        m_stripRectPx             = {};
+    }
+
     // Keep presenting while any drive is live, plus the one frame after it goes
     // idle, so the spinning / activity LED both animates through a disk load and
     // clears afterward even when the emulator framebuffer is static (the content
@@ -6644,15 +6788,23 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
         if (DeskSceneActive())
         {
-            SceneHitResult  sceneHit = DeskSceneHit (x, y);
+            // Fullscreen: the strip's drives-only composition takes the
+            // point when it is over the slid band; windowed, the desk
+            // composition resolves everything.
+            POINT           pt      = { x, y };
+            bool            inStrip = m_d3dRenderer.IsFullscreen() &&
+                                      m_stripRectPx.bottom > m_stripRectPx.top &&
+                                      PtInRect (&m_stripRectPx, pt);
+            SceneHitResult  sceneHit = inStrip ? StripHit (x, y) : DeskSceneHit (x, y);
 
             if (sceneHit.target == SceneHitResult::Target::Drive && !overBtn)
             {
-                const DriveWidgetState &  st   = m_driveWidgetState[sceneHit.driveIndex];
-                std::wstring              name = std::filesystem::path (
+                const DeskSceneComposition &  comp = inStrip ? m_stripComp : m_deskScene.Composition();
+                const DriveWidgetState     &  st   = m_driveWidgetState[sceneHit.driveIndex];
+                std::wstring                  name = std::filesystem::path (
                     m_diskStore.GetSourcePath (6, sceneHit.driveIndex)).filename().wstring();
 
-                anchor = m_deskScene.Composition().driveRectPx[sceneHit.driveIndex];
+                anchor = comp.driveRectPx[sceneHit.driveIndex];
                 tip    = st.writeProtect.Any()
                        ? ComposeWriteProtectTooltip (sceneHit.driveIndex + 1, name, st.writeProtect)
                        : name;
@@ -6742,8 +6894,10 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 
 bool EmulatorShell::GuestMouseActive() const
 {
+    // The fullscreen drive strip's hotkey summon "releases" the guest mouse
+    // for the interaction; the FSM restores it when the strip hides.
     return m_pointerMode == InputMappingMode::Mouse && m_mouse != nullptr
-        && m_mouseConnected;
+        && m_mouseConnected && !m_stripSuppressGuestMouse;
 }
 
 
@@ -7178,7 +7332,11 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // found, never what they do.
     if (DeskSceneActive())
     {
-        SceneHitResult  sceneHit = DeskSceneHit (x, y);
+        POINT           pt      = { x, y };
+        bool            inStrip = m_d3dRenderer.IsFullscreen() &&
+                                  m_stripRectPx.bottom > m_stripRectPx.top &&
+                                  PtInRect (&m_stripRectPx, pt);
+        SceneHitResult  sceneHit = inStrip ? StripHit (x, y) : DeskSceneHit (x, y);
 
         if (sceneHit.target == SceneHitResult::Target::Drive)
         {
@@ -7187,7 +7345,12 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                 Eject (6, sceneHit.driveIndex);
             }
 
+            // A browse opened from the strip pins it (the FSM must not
+            // auto-hide under the dialog).
+            m_stripBrowseOpen = inStrip;
             BrowseForDisk (sceneHit.driveIndex);
+            m_stripBrowseOpen = false;
+
             driveTook = true;
         }
     }

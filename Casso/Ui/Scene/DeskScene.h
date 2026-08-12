@@ -79,6 +79,12 @@ public:
                      int                        displayW,
                      int                        displayH);
 
+    // Draws only the drive devices under an alternate composition -- the
+    // fullscreen overlay strip. Shares the cached door/lamp/padlock geometry
+    // and state with the main render; its own depth pass, so it overlays
+    // whatever the frame already holds.
+    HRESULT  RenderStrip (ID3D11RenderTargetView * dstRtv, const DeskSceneComposition & strip);
+
     // Debug aid: outlines a client-px rect in the given color (2px bars),
     // drawn over the scene. Gated by the shell's CASSO_SCENE_DEBUG env var.
     void  DrawDebugRect (const RECT & rectPx, int backBufferW, int backBufferH, uint32_t argb);
@@ -128,8 +134,9 @@ public:
     static constexpr float  kDoorProgressEps = 1.0f / 256.0f;
 
 private:
-    void  RebuildGlassUvs   (const CrtUvRect & displayUv, int displayW, int displayH);
-    void  RebuildLampVerts  ();
+    void     RebuildGlassUvs  (const CrtUvRect & displayUv, int displayW, int displayH);
+    void     RebuildLampVerts ();
+    HRESULT  DrawDrives       (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
 
     static void  TintInto (const std::vector<Dxui3DRenderer::Vertex> & base,
                            float                                       factor,

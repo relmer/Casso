@@ -419,6 +419,119 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::DrawDrives
+//
+//  The drive pass both presentations share: opaque body, the door assembly
+//  (rotated lazily to the current progress), the write-protect padlock, and
+//  the activity lamp -- per placed drive of whichever composition is drawing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::DrawDrives (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport)
+{
+    HRESULT   hr      = S_OK;
+    float     mvp[16] = {};
+
+
+
+    for (int drive = 0; drive < comp.driveCount; drive++)
+    {
+        SceneCamera::Mul44 (comp.driveWorld[drive], comp.viewProj, mvp);
+
+        hr = m_renderer.DrawTriangles (m_drive.OpaqueVerts().data(), m_drive.OpaqueVerts().size(),
+                                       mvp, false, viewport, true);
+        CHRA (hr);
+
+        // Door assembly: a rotated copy of the model's cached verts, rebuilt
+        // only when SetDriveVisuals moved the progress.
+        if (m_driveDoorVerts[drive].empty() && !m_drive.DoorVerts().empty())
+        {
+            float   progress = std::clamp (m_doorProgress[drive], 0.0f, 1.0f);
+            float   pivotY   = 0.0f;
+            float   pivotZ   = 0.0f;
+
+            m_drive.DoorPivot (pivotY, pivotZ);
+            DeskSceneModel::RotateDoorVerts (m_drive.DoorVerts(), pivotY, pivotZ,
+                                             progress * kDoorOpenRad, m_driveDoorVerts[drive]);
+        }
+
+        if (!m_driveDoorVerts[drive].empty())
+        {
+            hr = m_renderer.DrawTriangles (m_driveDoorVerts[drive].data(), m_driveDoorVerts[drive].size(),
+                                           mvp, false, viewport, true);
+            CHRA (hr);
+        }
+
+        if (m_driveWp[drive] && !m_drive.PadlockVerts().empty())
+        {
+            hr = m_renderer.DrawTriangles (m_drive.PadlockVerts().data(), m_drive.PadlockVerts().size(),
+                                           mvp, false, viewport, true);
+            CHRA (hr);
+        }
+
+        if (!m_driveLampVerts[drive].empty())
+        {
+            hr = m_renderer.DrawTriangles (m_driveLampVerts[drive].data(), m_driveLampVerts[drive].size(),
+                                           mvp, false, viewport, true);
+            CHRA (hr);
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::RenderStrip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::RenderStrip (ID3D11RenderTargetView * dstRtv, const DeskSceneComposition & strip)
+{
+    HRESULT          hr       = S_OK;
+    D3D11_VIEWPORT   viewport = {};
+
+
+
+    BAIL_OUT_IF (!m_modelsLoaded || strip.driveCount <= 0, S_OK);
+    BAIL_OUT_IF (strip.viewportPx.right <= strip.viewportPx.left, S_OK);
+    BAIL_OUT_IF (dstRtv == nullptr || m_context == nullptr, S_OK);
+
+    m_context->OMSetRenderTargets (1, &dstRtv, nullptr);
+
+    if (m_lampsDirty)
+    {
+        RebuildLampVerts();
+    }
+
+    viewport.TopLeftX = (float) strip.viewportPx.left;
+    viewport.TopLeftY = (float) strip.viewportPx.top;
+    viewport.Width    = (float) (strip.viewportPx.right - strip.viewportPx.left);
+    viewport.Height   = (float) (strip.viewportPx.bottom - strip.viewportPx.top);
+    viewport.MaxDepth = 1.0f;
+
+    // Its own depth pass: the strip overlays the finished frame.
+    hr = m_renderer.BeginDepthPass();
+    CHRA (hr);
+
+    hr = DrawDrives (strip, viewport);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::RebuildLampVerts
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -559,48 +672,8 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
                                    mvp, false, viewport, true);
     CHRA (hr);
 
-    for (int drive = 0; drive < m_comp.driveCount; drive++)
-    {
-        SceneCamera::Mul44 (m_comp.driveWorld[drive], m_comp.viewProj, mvp);
-
-        hr = m_renderer.DrawTriangles (m_drive.OpaqueVerts().data(), m_drive.OpaqueVerts().size(),
-                                       mvp, false, viewport, true);
-        CHRA (hr);
-
-        // Door assembly: a rotated copy of the model's cached verts, rebuilt
-        // only when SetDriveVisuals moved the progress.
-        if (m_driveDoorVerts[drive].empty() && !m_drive.DoorVerts().empty())
-        {
-            float   progress = std::clamp (m_doorProgress[drive], 0.0f, 1.0f);
-            float   pivotY   = 0.0f;
-            float   pivotZ   = 0.0f;
-
-            m_drive.DoorPivot (pivotY, pivotZ);
-            DeskSceneModel::RotateDoorVerts (m_drive.DoorVerts(), pivotY, pivotZ,
-                                             progress * kDoorOpenRad, m_driveDoorVerts[drive]);
-        }
-
-        if (!m_driveDoorVerts[drive].empty())
-        {
-            hr = m_renderer.DrawTriangles (m_driveDoorVerts[drive].data(), m_driveDoorVerts[drive].size(),
-                                           mvp, false, viewport, true);
-            CHRA (hr);
-        }
-
-        if (m_driveWp[drive] && !m_drive.PadlockVerts().empty())
-        {
-            hr = m_renderer.DrawTriangles (m_drive.PadlockVerts().data(), m_drive.PadlockVerts().size(),
-                                           mvp, false, viewport, true);
-            CHRA (hr);
-        }
-
-        if (!m_driveLampVerts[drive].empty())
-        {
-            hr = m_renderer.DrawTriangles (m_driveLampVerts[drive].data(), m_driveLampVerts[drive].size(),
-                                           mvp, false, viewport, true);
-            CHRA (hr);
-        }
-    }
+    hr = DrawDrives (m_comp, viewport);
+    CHRA (hr);
 
     // The tube (dark, untextured), then the picture band floating on it,
     // sampling the CRT output.

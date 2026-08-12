@@ -39,6 +39,7 @@
 #include "Ui/InputDebugPanel.h"
 #include "Ui/Scene/DeskScene.h"
 #include "Ui/Scene/DeskSceneHitTester.h"
+#include "Ui/Scene/FullscreenStripState.h"
 #include "Ui/ThemeManager.h"
 #include "Ui/UiShell.h"
 #include "Widgets/DxuiTooltip.h"
@@ -698,6 +699,10 @@ private:
     // drive region / nothing).
     SceneHitResult  DeskSceneHit (int xPx, int yPx) const;
 
+    // Resolves against the fullscreen strip's drives-only composition
+    // (glass excluded -- its monitor placement is meaningless).
+    SceneHitResult  StripHit     (int xPx, int yPx) const;
+
     // How many drives the scene composes: the machine's Disk II presence and
     // the //c external-drive connection, the same gates the 2D widgets use.
     int     DeskSceneDriveCount  () const;
@@ -895,6 +900,18 @@ private:
     DeskScene                  m_deskScene;
     bool                       m_deskSceneReady = false;
     int                        m_deskSceneDebug = 0;       // CASSO_SCENE_DEBUG: 1=layout rects, 2=+calibration texture
+
+    // Fullscreen drive overlay strip (FR-015): the pure FSM plus this
+    // frame's composed band. The hotkey edge arrives via the accelerator;
+    // m_stripBrowseOpen pins the strip while a browse it opened is up, and
+    // m_stripSuppressGuestMouse is the "released capture" of a hotkey summon
+    // in mouse mode (paddle mode releases its real capture instead).
+    FullscreenStripState       m_stripState;
+    DeskSceneComposition       m_stripComp;
+    RECT                       m_stripRectPx             = {};
+    bool                       m_stripHotkeyPending      = false;
+    bool                       m_stripBrowseOpen         = false;
+    bool                       m_stripSuppressGuestMouse = false;
 
     // CASSO_SCENE_DEBUG=2: a synthetic stripe pattern standing in for the
     // CRT output, to verify the glass texel mapping end to end.

@@ -45,13 +45,17 @@ public:
     // Resolves one screen position against the composed scene. `glass` is
     // the monitor's surface (tested through comp.monitorWorld); the region
     // boxes are shared by every drive and tested through comp.driveWorld[i].
+    // `includeGlass` false skips the glass entirely -- for drives-only
+    // compositions (the fullscreen strip) whose monitor placement is
+    // meaningless.
     static SceneHitResult  Classify (const DeskSceneComposition       & comp,
                                      const CurvedDisplaySurface       & glass,
                                      const std::vector<DeskRegionBox> & driveRegions,
                                      float                              screenX,
                                      float                              screenY,
                                      int                                displayW,
-                                     int                                displayH);
+                                     int                                displayH,
+                                     bool                               includeGlass = true);
 
 private:
     // Slab test; reports the entry distance so drives can compete on

@@ -80,6 +80,7 @@
 // result dialogs run on the UI thread (DCR-1). Not menu items.
 #define IDM_PRINTER_MODERN_SENT     40066
 #define IDM_PRINTER_MODERN_FAILED   40067
+#define IDM_VIEW_DRIVE_STRIP        40068  // Fullscreen drive overlay strip toggle
 
 #define IDM_HELP_KEYMAP             40040
 #define IDM_HELP_ABOUT              40042

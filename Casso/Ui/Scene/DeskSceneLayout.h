@@ -90,6 +90,17 @@ public:
                                       const DeskSceneMetrics & metrics,
                                       DeskSceneComposition   & out);
 
+    // The fullscreen drive overlay strip: the drive row alone, full model
+    // scale, its own contained camera over the strip's viewport band --
+    // a composed presentation in its own right, so FR-016 applies within
+    // it: each drive's perspective derives from its position under the
+    // strip's single camera. Same S_FALSE contract for an empty viewport.
+    static HRESULT  ComputeStrip (const RECT             & viewportPx,
+                                  UINT                     dpi,
+                                  int                      driveCount,
+                                  const DeskSceneMetrics & metrics,
+                                  DeskSceneComposition   & out);
+
     // The fixed model->world mount: X right stays, model Z (up) becomes world
     // Y, model Y (back) becomes world -Z, uniformly scaled by `scale`, then
     // translated by (tx, ty, tz).

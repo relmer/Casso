@@ -72,7 +72,8 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
                                              float                              screenX,
                                              float                              screenY,
                                              int                                displayW,
-                                             int                                displayH)
+                                             int                                displayH,
+                                             bool                               includeGlass)
 {
     SceneHitResult   result;
     float            invViewProj[16] = {};
@@ -82,7 +83,8 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
 
 
 
-    if (CurvedDisplayMath::EmulatedPixelFromScreenPx (glass, comp.monitorWorld, comp.viewProj,
+    if (includeGlass &&
+        CurvedDisplayMath::EmulatedPixelFromScreenPx (glass, comp.monitorWorld, comp.viewProj,
                                                       comp.viewportPx, screenX, screenY,
                                                       displayW, displayH, result.emulatedPixel))
     {
