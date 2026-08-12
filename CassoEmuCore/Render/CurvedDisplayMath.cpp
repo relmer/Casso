@@ -78,9 +78,11 @@ float CurvedDisplayMath::SphereCenterY (const CurvedDisplaySurface & surface)
 //
 //  CurvedDisplayMath::ComputePictureBand
 //
-//  Aspect-fit of the display grid into the glass rect, centered. A glass
-//  wider than the picture pillarboxes (u band inset, v full); a taller one
-//  letterboxes.
+//  Aspect-fit of the display grid into the glass rect inset by kBandInsetMm,
+//  centered. The inset models the border of dark faceplate a real tube keeps
+//  around its raster, and is what guarantees the raster never reaches the
+//  glass edge -- overlays that hug the band (the tube mask's rounded corners)
+//  stay off the picture on every side.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,30 +94,31 @@ void CurvedDisplayMath::ComputePictureBand (const CurvedDisplaySurface & surface
                                             float                      & outU1,
                                             float                      & outV1)
 {
-    float   glassAspect = (surface.x1 - surface.x0) / (surface.z1 - surface.z0);
+    float   glassW      = surface.x1 - surface.x0;
+    float   glassH      = surface.z1 - surface.z0;
+    float   inset       = std::min ({ kBandInsetMm, glassW * kBandInsetMaxFrac, glassH * kBandInsetMaxFrac });
+    float   innerW      = glassW - 2.0f * inset;
+    float   innerH      = glassH - 2.0f * inset;
+    float   innerAspect = innerW / innerH;
     float   picAspect   = (float) displayW / (float) displayH;
+    float   bandW       = innerW / glassW;
+    float   bandH       = innerH / glassH;
 
 
 
-    outU0 = 0.0f;
-    outV0 = 0.0f;
-    outU1 = 1.0f;
-    outV1 = 1.0f;
-
-    if (picAspect <= glassAspect)
+    if (picAspect <= innerAspect)
     {
-        float   bandW = picAspect / glassAspect;
-
-        outU0 = (1.0f - bandW) * 0.5f;
-        outU1 = outU0 + bandW;
+        bandW *= picAspect / innerAspect;
     }
     else
     {
-        float   bandH = glassAspect / picAspect;
-
-        outV0 = (1.0f - bandH) * 0.5f;
-        outV1 = outV0 + bandH;
+        bandH *= innerAspect / picAspect;
     }
+
+    outU0 = (1.0f - bandW) * 0.5f;
+    outU1 = outU0 + bandW;
+    outV0 = (1.0f - bandH) * 0.5f;
+    outV1 = outV0 + bandH;
 }
 
 

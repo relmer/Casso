@@ -50,10 +50,11 @@ public:
     static float MaxSag           (const CurvedDisplaySurface & surface);
 
     // Where the picture lands on the glass, in glass-UV space: the display
-    // grid aspect-fits inside the glass rect, centered -- like the image on
-    // a real tube, whose raster never quite fills the faceplate. Shared by
-    // the render path (glass UV remap) and both input directions, so what a
-    // texel shows and what a click hits cannot disagree.
+    // grid aspect-fits inside the glass rect inset by kBandInsetMm, centered
+    // -- like the image on a real tube, whose raster never quite fills the
+    // faceplate. Shared by the render path (glass UV remap) and both input
+    // directions, so what a texel shows and what a click hits cannot
+    // disagree.
     static void  ComputePictureBand (const CurvedDisplaySurface & surface,
                                      int                          displayW,
                                      int                          displayH,
@@ -110,6 +111,13 @@ public:
                                             int                          displayW,
                                             int                          displayH,
                                             float                        outScreenPx[2]);
+
+    // The faceplate border kept around the raster: the band aspect-fits into
+    // the glass rect inset by this much per side (capped for tiny synthetic
+    // surfaces by kBandInsetMaxFrac). Overlays hugging the band from outside
+    // must stand off by less than this, or they reach the picture.
+    static constexpr float  kBandInsetMm      = 6.0f;
+    static constexpr float  kBandInsetMaxFrac = 0.1f;
 
 private:
     // Fraction of each rect extent accepted (then clamped) beyond the exact

@@ -99,7 +99,9 @@ public:
     // radius - (radius - pad) * sqrt(2). Pad 5 / radius 12 leaves ~2.1mm at
     // the corners -- past the raster and most of its bloom, so text and
     // graphics never clip and the rounding reads only where bright content
-    // glows into the corners.
+    // glows into the corners. kMaskPadMm must stay below CurvedDisplayMath::
+    // kBandInsetMm: a pad past the band's own glass inset clamps the opening
+    // to the glass edge, and the clamped tangent arc swings into the raster.
     static constexpr float  kMaskPadMm       = 5.0f;
     static constexpr float  kMaskRadiusMm    = 12.0f;
     static constexpr float  kMaskLiftMm      = 0.25f;
