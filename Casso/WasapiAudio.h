@@ -55,10 +55,28 @@ public:
     void  SetMasterGain (float gain01) { m_masterGain.store (gain01, std::memory_order_relaxed); }
 
 private:
+    // How long to wait after losing the endpoint before trying to open the
+    // (possibly new) default device again. Long enough that a device switch
+    // mid-teardown is not hammered, short enough that audio returns before
+    // anyone reaches for the volume control.
+    static constexpr int64_t  kReinitRetryMs = 1000;
+
+    // The endpoint died under us (AUDCLNT_E_DEVICE_INVALIDATED and friends:
+    // default-device switch, dock/undock, driver reset). Tears the client
+    // down and arms the throttled re-open in SubmitFrame. An expected
+    // runtime condition, never an assert.
+    void     NoteEndpointLoss (HRESULT hrLoss);
+    int64_t  NowMs            () const;
+
     ComPtr<IMMDeviceEnumerator>  m_enumerator;
     ComPtr<IMMDevice>            m_device;
     ComPtr<IAudioClient>         m_audioClient;
     ComPtr<IAudioRenderClient>   m_renderClient;
+
+    // Device-loss recovery state, all CPU-thread (Initialize and SubmitFrame
+    // both run there).
+    bool     m_deviceLost     = false;
+    int64_t  m_reinitAtMs     = 0;
 
     UINT32  m_bufferFrames    = 0;
     UINT32  m_sampleRate      = 44100;

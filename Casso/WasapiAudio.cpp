@@ -179,6 +179,7 @@ HRESULT WasapiAudio::Initialize()
     CHRA (hr);
 
     m_initialized = true;
+    m_deviceLost  = false;
 
 Error:
     if (FAILED (hr))
@@ -188,6 +189,42 @@ Error:
     }
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NoteEndpointLoss
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WasapiAudio::NoteEndpointLoss (HRESULT hrLoss)
+{
+    DEBUGMSG (L"WASAPI endpoint lost (hr=0x%08X). Reopening the default device shortly.\n", hrLoss);
+
+    Shutdown();
+
+    m_deviceLost = true;
+    m_reinitAtMs = NowMs() + kReinitRetryMs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NowMs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t WasapiAudio::NowMs() const
+{
+    return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+               std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
 
@@ -273,6 +310,18 @@ HRESULT WasapiAudio::SubmitFrame (
 
 
 
+    // Device-loss recovery: after the endpoint died (dock/undock, default-
+    // device switch), periodically try to open the CURRENT default device.
+    // Runs here because Initialize and SubmitFrame share the CPU thread --
+    // no cross-thread state.
+    if (m_deviceLost && NowMs() >= m_reinitAtMs)
+    {
+        m_reinitAtMs = NowMs() + kReinitRetryMs;
+
+        HRESULT  hrReopen = Initialize();
+        IGNORE_RETURN_VALUE (hrReopen, S_OK);
+    }
+
     BAIL_OUT_IF (!m_initialized || m_renderClient == nullptr, S_OK);
 
     // m_pendingSamples is interleaved stereo regardless of the
@@ -348,9 +397,19 @@ HRESULT WasapiAudio::SubmitFrame (
         }
     }
 
-    // Drain as many pending frames as WASAPI can accept.
+    // Drain as many pending frames as WASAPI can accept. Endpoint calls can
+    // fail at any time when the device disappears (AUDCLNT_E_DEVICE_
+    // INVALIDATED on a default-device switch or undock) -- an environmental
+    // condition, not a coding error: note the loss and report success, and
+    // the recovery above reopens the new default shortly.
     hr = m_audioClient->GetCurrentPadding (&padding);
-    CHRA (hr);
+
+    if (FAILED (hr))
+    {
+        NoteEndpointLoss (hr);
+    }
+
+    BAIL_OUT_IF (FAILED (hr), S_OK);
 
     available     = m_bufferFrames - padding;
     pendingFrames = static_cast<UINT32> (m_pendingSamples.size() / 2);
@@ -359,7 +418,13 @@ HRESULT WasapiAudio::SubmitFrame (
     if (toWrite > 0)
     {
         hr = m_renderClient->GetBuffer (toWrite, &buffer);
-        CHRA (hr);
+
+        if (FAILED (hr))
+        {
+            NoteEndpointLoss (hr);
+        }
+
+        BAIL_OUT_IF (FAILED (hr), S_OK);
 
         samples = reinterpret_cast<float *> (buffer);
         monoPtr = m_pendingSamples.data();
@@ -391,7 +456,13 @@ HRESULT WasapiAudio::SubmitFrame (
         }
 
         hr = m_renderClient->ReleaseBuffer (toWrite, 0);
-        CHRA (hr);
+
+        if (FAILED (hr))
+        {
+            NoteEndpointLoss (hr);
+        }
+
+        BAIL_OUT_IF (FAILED (hr), S_OK);
 
         // Remove consumed (interleaved-stereo) samples from front.
         m_pendingSamples.erase (m_pendingSamples.begin(),
