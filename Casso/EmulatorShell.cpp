@@ -3731,6 +3731,21 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
         SetWindowPos (m_hwnd, nullptr, 0, 0, newWindowW, newWindowH,
                       SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE);
     }
+
+    // Re-run the authoritative layout unconditionally. The resize above only
+    // produces a WM_SIZE when the window size actually CHANGES -- a swap
+    // whose band delta nets out (compact bar vs the scene's joystick-only
+    // bar), a maximized window, or fullscreen all skip it, and the 3D desk
+    // scene depends on this pass: its composition only computes here, so
+    // skipping it leaves a stale camera (drives off-screen) and the
+    // outgoing theme's widgets still laid out. Idempotent when WM_SIZE
+    // already ran it.
+    if (m_hwnd != nullptr && GetClientRect (m_hwnd, &rcClient))
+    {
+        (void) OnSize ((UINT) (rcClient.right - rcClient.left),
+                       (UINT) (rcClient.bottom - rcClient.top));
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
 }
 
 

@@ -79,8 +79,8 @@
 
 **Independent Test**: quickstart.md § US3 — cycle all themes with a machine running; capture comparison.
 
-- [ ] T022 [US3] Theme switch wiring in `Casso/EmulatorShell.cpp` (`ApplyThemeToChrome` ~:3281): scene activates/deactivates with `compactDrives`; arrival state correct (picture, disks, activity, WP) without emulation hitches; window-size delta rules preserved for compact themes; CRT path returns to direct-to-backbuffer when scene inactive
-- [ ] T023 [US3] Runtime validation per quickstart.md § US3: cycle themes under load (<1 s, no pause), before/after captures of DarkModern + RetroTerminal pixel-compared; fix what fails
+- [X] T022 [US3] Theme switch wiring in `Casso/EmulatorShell.cpp` (`ApplyThemeToChrome` ~:3281): scene activates/deactivates with `compactDrives`; arrival state correct (picture, disks, activity, WP) without emulation hitches; window-size delta rules preserved for compact themes; CRT path returns to direct-to-backbuffer when scene inactive
+- [X] T023 [US3] Runtime validation per quickstart.md § US3: cycle themes under load (<1 s, no pause), before/after captures of DarkModern + RetroTerminal pixel-compared; fix what fails
 
 **Checkpoint**: All three user stories independently validated.
 
