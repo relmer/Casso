@@ -104,8 +104,8 @@
 
 - [ ] T029 Parity walkthrough (SC-003): scripted checklist over every interaction in contracts/scene-interaction.md, windowed + fullscreen; record results in the PR; gestalt sign-off vs reference photos (SC-006) including position-derived perspective (FR-016: below-center drives read from slightly above, off-center flanks visible); explicit FR-012 capture check (PrintWindow of the main window contains the composed scene, not black, windowed + fullscreen)
 - [ ] T030 Retire the 2D skeuo paths (gated on T029): delete `Casso/Ui/Chrome/MonitorFrame.h/.cpp` + all references, remove `DriveWidget`'s non-compact paint path (compact retained for other themes — `UnitTest/UiTests/DriveWidgetHitTests.cpp` reduced accordingly), retire `skeuoMonitorFrame` pref + Settings > Theme toggle (`Casso/Ui/Settings/ThemePage.cpp`, `EmulatorShell::SetSkeuoMonitorFrame` ~:3378; stale JSON key ignored), remove the effective-DPI scene-scale fold + 3-pass settle loop (`EmulatorShell.cpp:240`, `:2338-2343`)
-- [ ] T031 Perf validation (SC-002): static-screen present-skip confirmed (GPU busy comparable to current release), boot/door animation smoothness; no per-frame allocations in the render path (spot-check)
-- [ ] T032 Merge gates: x64 Debug + Release full suites green, ARM64 builds, Code Analysis zero warnings, CheckStyle clean; CHANGELOG.md Unreleased entry; README screenshot refresh deferred to release
+- [X] T031 Perf validation (SC-002): static-screen present-skip confirmed (GPU busy comparable to current release), boot/door animation smoothness; no per-frame allocations in the render path (spot-check)
+- [X] T032 Merge gates: x64 Debug + Release full suites green, ARM64 builds, Code Analysis zero warnings, CheckStyle clean; CHANGELOG.md Unreleased entry; README screenshot refresh deferred to release
 
 ---
 

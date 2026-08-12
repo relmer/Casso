@@ -6,6 +6,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased] — 3D desk scene
+
+### Added
+- **A real-time 3D desk scene replaces the skeuomorphic theme's 2D chrome.**
+  A period Apple Monitor //c and two Disk II drives render as true 3D
+  models, and the emulator picture maps onto the monitor's spherical-sag
+  glass so it curves exactly like a period tube — with a rounded faceplate
+  mask, a dark tube border around the raster, and mouse/touch input
+  inverse-projected through the curvature so a click lands on the exact
+  emulated pixel. Everything the 2D band did carries over: drive activity
+  lights, the 350 ms door animation on mount/eject (a true 3D flip-up
+  door), the write-protect padlock and its tooltips, slot click =
+  eject + browse, body click = browse, drag-and-drop onto a drive, the
+  monitor power lamp, and the cassowary brand. One shared camera per
+  composition places every device, so a drive right of center is seen
+  slightly from its left and the row below slightly from above — the
+  perspective IS the placement.
+- **Fullscreen becomes glass-only.** Alt+Enter now fills the monitor with
+  the curved picture alone — every chrome band hidden — and the drives
+  live in a slide-up overlay strip at the bottom edge: revealed by a
+  pointer dwell (host pointer only), or by Ctrl+D, which releases a guest
+  mouse/paddle capture for the interaction and restores it exactly once
+  when the strip hides. Tooltips and a browse opened from the strip pin
+  it; while hidden, drive activity shows as a corner glimmer.
+- Compact themes (DarkModern, RetroTerminal) keep their existing 2D
+  widgets untouched, and theme switches land the scene — or leave it —
+  with the picture, disks, activity, and write-protect state correct on
+  arrival, emulation uninterrupted.
+
+### Fixed
+- Pasting text into the guest no longer garbles at line wraps and no
+  longer leaks the Ctrl+V character into the input line (#110).
+- Losing the audio endpoint (undocking, switching the default output
+  device) no longer trips an assertion — audio quietly reopens the new
+  default device within a second.
+
 ## [1.16.0] — create blank disks + write-protect toggle
 
 ### Added
