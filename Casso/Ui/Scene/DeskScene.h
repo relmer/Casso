@@ -110,9 +110,14 @@ public:
     // glows into the corners. kMaskPadMm must stay below CurvedDisplayMath::
     // kBandInsetMm: a pad past the band's own glass inset clamps the opening
     // to the glass edge, and the clamped tangent arc swings into the raster.
+    // The mask rides just a hair above the picture: the two never overlap in
+    // plan (the opening stays kMaskPadMm outside the band), so the lift only
+    // needs to clear the tube -- and any real gap above the picture casts
+    // the mask's silhouette inward over it along grazing corner rays,
+    // eating the picture's corners as small dark divets.
     static constexpr float  kMaskPadMm       = 4.0f;
     static constexpr float  kMaskRadiusMm    = 10.0f;
-    static constexpr float  kMaskLiftMm      = 0.70f;
+    static constexpr float  kMaskLiftMm      = 0.48f;
     static constexpr int    kMaskArcSegments = 8;
     static constexpr float  kMaskTint[3]     = { 0.012f, 0.020f, 0.016f };
 

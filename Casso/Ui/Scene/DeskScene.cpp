@@ -214,24 +214,14 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
 
 
 
-    // The tube: the model's glass sheet, unlit near-black. The picture is a
-    // SEPARATE curved grid spanning exactly the aspect-fit band (same band as
-    // the input math), so its mesh boundary IS the picture boundary -- no
-    // interpolation ever crosses the picture's texture edge, which is what
-    // used to either clamp-smear the outermost columns into the tube margins
-    // or (with a black guard) let the CRT chain's neighbor-sampling passes
-    // dim them.
+    // The picture is a curved grid spanning exactly the aspect-fit band
+    // (same band as the input math), so its mesh boundary IS the picture
+    // boundary -- no interpolation ever crosses the picture's texture edge,
+    // which is what used to either clamp-smear the outermost columns into
+    // the tube margins or (with a black guard) let the CRT chain's
+    // neighbor-sampling passes dim them.
     CurvedDisplayMath::ComputePictureBand (surface, displayW, displayH,
                                            bandU0, bandV0, bandU1, bandV1);
-
-    m_glassVerts = m_monitor.GlassVerts();
-
-    for (Dxui3DRenderer::Vertex & v : m_glassVerts)
-    {
-        v.r = kTubeTint[0];
-        v.g = kTubeTint[1];
-        v.b = kTubeTint[2];
-    }
 
     m_pictureVerts.clear();
     m_pictureVerts.reserve ((size_t) kPictureGridCols * kPictureGridRows * 6);
@@ -270,11 +260,12 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
         }
     }
 
-    // The tube mask: a dark ring from the glass edges to a rounded-rect
-    // opening kMaskPadMm outside the band -- four trapezoid strips to the
-    // square opening plus a smooth arc fan filling each corner between the
-    // opening corner and its quarter circle. Every point rides the sag
-    // surface, floated past the picture's own lift so depth never ties.
+    // The tube ring and the mask: dark rings riding the sag surface. The
+    // tube covers band -> glass edge AT the surface -- deliberately a ring,
+    // not the model's full sheet: geometry under the picture is what used to
+    // poke through it at grazing corner angles, so none exists. The mask
+    // covers (rounded opening) -> glass edge just above the picture,
+    // rounding the corners the way a real faceplate does.
     {
         float  gx0    = surface.x0;
         float  gx1    = surface.x1;
@@ -290,6 +281,10 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
         float  oz1    = std::min (bz1 + kMaskPadMm, gz1);
         float  radius = std::min ({ kMaskRadiusMm, (ox1 - ox0) * 0.5f, (oz1 - oz0) * 0.5f });
 
+        std::vector<Dxui3DRenderer::Vertex> *  target = nullptr;
+        float                                  lift   = 0.0f;
+        const float                          * tint   = kTubeTint;
+
         auto surfacePoint = [&] (float x, float z, Dxui3DRenderer::Vertex & v)
         {
             float   u     = (x - surface.x0) / (surface.x1 - surface.x0);
@@ -300,11 +295,11 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
 
             v = {};
             v.x = pt[0];
-            v.y = pt[1] - kMaskLiftMm;
+            v.y = pt[1] - lift;
             v.z = pt[2];
-            v.r = kMaskTint[0];
-            v.g = kMaskTint[1];
-            v.b = kMaskTint[2];
+            v.r = tint[0];
+            v.g = tint[1];
+            v.b = tint[2];
             v.a = 1.0f;
         };
 
@@ -312,9 +307,9 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
         {
             Dxui3DRenderer::Vertex   v = {};
 
-            surfacePoint (x0, z0, v);  m_maskVerts.push_back (v);
-            surfacePoint (x1, z1, v);  m_maskVerts.push_back (v);
-            surfacePoint (x2, z2, v);  m_maskVerts.push_back (v);
+            surfacePoint (x0, z0, v);  target->push_back (v);
+            surfacePoint (x1, z1, v);  target->push_back (v);
+            surfacePoint (x2, z2, v);  target->push_back (v);
         };
 
         // Strips are long (they span the glass), and the sag sphere bulges
@@ -363,7 +358,23 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
             }
         };
 
+        // The tube ring: band -> glass edge, ON the surface (no lift).
+        m_glassVerts.clear();
+        target = &m_glassVerts;
+        lift   = 0.0f;
+        tint   = kTubeTint;
+
+        pushPatch (gx0, gz1, gx1, gz1, bx1, bz1, bx0, bz1);   // top
+        pushPatch (bx0, bz0, bx1, bz0, gx1, gz0, gx0, gz0);   // bottom
+        pushPatch (gx0, gz1, bx0, bz1, bx0, bz0, gx0, gz0);   // left
+        pushPatch (bx1, bz1, gx1, gz1, gx1, gz0, bx1, bz0);   // right
+
+        // The mask ring: rounded opening -> glass edge, floated past the
+        // picture's lift.
         m_maskVerts.clear();
+        target = &m_maskVerts;
+        lift   = kMaskLiftMm;
+        tint   = kMaskTint;
 
         // Four strips from the glass edges to the square opening.
         pushPatch (gx0, gz1, gx1, gz1, ox1, oz1, ox0, oz1);   // top
