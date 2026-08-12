@@ -65,6 +65,7 @@ struct DeskSceneComposition
     float  sceneScale       = 0.0f;   // glass px height / (384 dp at dpi)
     RECT   glassRectPx      = {};     // projected glass bounds -- the CRT target rect
     RECT   sceneRectPx      = {};     // projected scene bounds -- what the composition occupies
+    RECT   monitorRectPx    = {};     // projected monitor bounds -- chrome lays out against its edges
     RECT   driveRectPx[2]   = {};     // projected per-drive bounds -- tooltip anchors + drop targets
 };
 
@@ -138,7 +139,7 @@ public:
     // placement properties carried in each drive's world matrix, so the
     // below-center row shows its top faces purely from the shared gaze.
     static constexpr float  kDriveRowForwardMm = 85.0f;
-    static constexpr float  kDriveDropMm       = 44.0f;
+    static constexpr float  kDriveDropMm       = 61.0f;
     static constexpr float  kDriveScale        = 0.45f;
     static constexpr float  kDriveGapMm        = 26.0f;
     static constexpr float  kContainMargin     = 1.005f;

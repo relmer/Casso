@@ -271,25 +271,30 @@ HRESULT DeskSceneLayout::Compute (const RECT             & viewportPx,
         }
     }
 
-    // Projected per-drive bounds: each drive's model box through its own
-    // world matrix -- the tooltip anchor and drag-drop target rect for that
-    // drive, standing in for the 2D widget's OuterRect.
-    for (int i = 0; i < driveCount; i++)
+    // Projected per-device bounds: each device's model box through its own
+    // world matrix. The drive rects are the tooltip anchors and drag-drop
+    // targets (the 2D widgets' OuterRects); the monitor rect is what the
+    // in-scene chrome (the input-mode button row) lays out against.
+    for (int i = -1; i < driveCount; i++)
     {
-        float   pxMin[2] = { FLT_MAX, FLT_MAX };
-        float   pxMax[2] = { -FLT_MAX, -FLT_MAX };
-        bool    all      = true;
+        const float  * world    = (i < 0) ? out.monitorWorld : out.driveWorld[i];
+        const float  * boxMin   = (i < 0) ? metrics.monitorMin : metrics.driveMin;
+        const float  * boxMax   = (i < 0) ? metrics.monitorMax : metrics.driveMax;
+        RECT         & outPx    = (i < 0) ? out.monitorRectPx : out.driveRectPx[i];
+        float          pxMin[2] = { FLT_MAX, FLT_MAX };
+        float          pxMax[2] = { -FLT_MAX, -FLT_MAX };
+        bool           all      = true;
 
         for (int corner = 0; corner < 8; corner++)
         {
-            float   pt[3]    = { (corner & 1) ? metrics.driveMax[0] : metrics.driveMin[0],
-                                 (corner & 2) ? metrics.driveMax[1] : metrics.driveMin[1],
-                                 (corner & 4) ? metrics.driveMax[2] : metrics.driveMin[2] };
-            float   world[3] = {};
-            float   px[2]    = {};
+            float   pt[3]     = { (corner & 1) ? boxMax[0] : boxMin[0],
+                                  (corner & 2) ? boxMax[1] : boxMin[1],
+                                  (corner & 4) ? boxMax[2] : boxMin[2] };
+            float   worldPt[3] = {};
+            float   px[2]      = {};
 
-            if (!SceneCamera::TransformPoint (out.driveWorld[i], pt, world) ||
-                !SceneCamera::ProjectToScreen (out.viewProj, world, viewportPx, px))
+            if (!SceneCamera::TransformPoint (world, pt, worldPt) ||
+                !SceneCamera::ProjectToScreen (out.viewProj, worldPt, viewportPx, px))
             {
                 all = false;
                 break;
@@ -301,10 +306,10 @@ HRESULT DeskSceneLayout::Compute (const RECT             & viewportPx,
 
         if (all)
         {
-            out.driveRectPx[i].left   = (LONG) std::floor (pxMin[0]);
-            out.driveRectPx[i].top    = (LONG) std::floor (pxMin[1]);
-            out.driveRectPx[i].right  = (LONG) std::ceil (pxMax[0]);
-            out.driveRectPx[i].bottom = (LONG) std::ceil (pxMax[1]);
+            outPx.left   = (LONG) std::floor (pxMin[0]);
+            outPx.top    = (LONG) std::floor (pxMin[1]);
+            outPx.right  = (LONG) std::ceil (pxMax[0]);
+            outPx.bottom = (LONG) std::ceil (pxMax[1]);
         }
     }
 

@@ -2789,18 +2789,23 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         SyncSceneDriveChrome();
 
         // The input-mode buttons sit in the scene's gap between the monitor
-        // and the drive row, where the 2D chrome kept them.
+        // and the drive row, where the 2D chrome kept them -- CENTERED in
+        // the gap, never over the monitor's shell.
         {
-            const DeskSceneComposition &  comp     = m_deskScene.Composition();
-            int                           bandH    = m_scaler.Px (s_kJoystickButtonBandDp);
-            int                           driveTop = heightPx;
+            const DeskSceneComposition &  comp       = m_deskScene.Composition();
+            int                           bandH      = m_scaler.Px (s_kJoystickButtonBandDp);
+            int                           monBottom  = comp.monitorRectPx.bottom;
+            int                           driveTop   = heightPx;
+            int                           bandTop    = 0;
 
             for (int i = 0; i < comp.driveCount; i++)
             {
                 driveTop = std::min (driveTop, (int) comp.driveRectPx[i].top);
             }
 
-            LayoutJoystickButton (widthPx, driveTop - bandH, bandH, m_scaler.Dpi());
+            bandTop = std::max (monBottom, monBottom + (driveTop - monBottom - bandH) / 2);
+
+            LayoutJoystickButton (widthPx, bandTop, bandH, m_scaler.Dpi());
         }
     }
     else if (!MonitorFrameEnabled())
