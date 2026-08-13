@@ -418,19 +418,19 @@ ThemePage::ThemePage(std::wstring title)
     Adopt (m_themeLabel);
     Adopt (m_themeDropdown);
     Adopt (m_applyNowButton);
-    Adopt (m_monitorFrameCheckbox);
+    Adopt (m_deskSceneCheckbox);
 
     m_applyNowButton.SetLabel   (L"Apply now");
     m_applyNowButton.SetOnClick ([this] { if (m_onApplyThemeNow) { m_onApplyThemeNow(); } });
 
-    // Skeuo desk-scene opt-in. Applies live (the change is visible on the
-    // real chrome behind the sheet immediately); enabled only while a
+    // The 3D desk-scene opt in/out. Applies live (the change is visible on
+    // the real chrome behind the sheet immediately); enabled only while a
     // skeuomorphic theme is selected.
-    m_monitorFrameCheckbox.SetLabel (L"CRT monitor desk scene (uses more screen space)");
-    m_monitorFrameCheckbox.SetSingleLineLabel (true);
-    m_monitorFrameCheckbox.SetOnChange ([this] (bool checked)
+    m_deskSceneCheckbox.SetLabel (L"CRT monitor desk scene (uses more screen space)");
+    m_deskSceneCheckbox.SetSingleLineLabel (true);
+    m_deskSceneCheckbox.SetOnChange ([this] (bool checked)
     {
-        if (m_onMonitorFrameToggled) { m_onMonitorFrameToggled (checked); }
+        if (m_onDeskSceneToggled) { m_onDeskSceneToggled (checked); }
     });
 }
 
@@ -440,17 +440,17 @@ ThemePage::ThemePage(std::wstring title)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ThemePage::UpdateMonitorCheckboxEnabled
+//  ThemePage::UpdateDeskSceneCheckboxEnabled
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThemePage::UpdateMonitorCheckboxEnabled()
+void ThemePage::UpdateDeskSceneCheckboxEnabled()
 {
     std::string  selected = SelectedThemeId();
     bool         isSkeuo  = !selected.empty()
                             && !CassoTheme::ForName (selected).compactDrives;
 
-    m_monitorFrameCheckbox.SetEnabled (isSkeuo);
+    m_deskSceneCheckbox.SetEnabled (isSkeuo);
 }
 
 
@@ -528,14 +528,14 @@ void ThemePage::SetThemes (std::vector<std::string>  themeIds,
         }
 
         m_activeIndex = idx;
-        UpdateMonitorCheckboxEnabled();
+        UpdateDeskSceneCheckboxEnabled();
         if (m_onThemeSelected)
         {
             m_onThemeSelected (m_themeIds[(size_t) idx]);
         }
     });
 
-    UpdateMonitorCheckboxEnabled();
+    UpdateDeskSceneCheckboxEnabled();
 }
 
 
@@ -640,8 +640,8 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
                                  labelWidth + dropWidth + applyGap + applyWidth,
                                  rowHeight);
 
-        m_monitorFrameCheckbox.Layout (cbRect, scaler);
-        m_monitorFrameCheckbox.SetDpi (dpi);
+        m_deskSceneCheckbox.Layout (cbRect, scaler);
+        m_deskSceneCheckbox.SetDpi (dpi);
     }
 
     m_previewRect.left   = x;
@@ -719,7 +719,7 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
     m_themeLabel.Paint            (painter, text);
     m_themeDropdown.PaintBase     (painter, text);
     m_applyNowButton.Paint        (painter, text, theme);
-    m_monitorFrameCheckbox.Paint  (painter, text, theme);
+    m_deskSceneCheckbox.Paint  (painter, text, theme);
 
     // Live preview tracks the dropdown's effective hovered/highlighted
     // item while open (so mouse hover and arrow-key nav both update

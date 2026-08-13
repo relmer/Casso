@@ -26,7 +26,6 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
-#include "Ui/Chrome/MonitorFrame.h"
 #include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/CommandToolbar.h"
 #include "Ui/Chrome/MainMenu.h"
@@ -667,26 +666,18 @@ private:
     // emulator pixel grid. Called from the ThemeManager listener.
     void    ApplyThemeToChrome   (const CassoTheme & theme);
 
-    // Settings > Theme opt-in for the skeuomorphic desk scene (CRT monitor
-    // framing + drives scaled to sit under it). Applies live -- relays out
-    // the chrome in place -- and persists to GlobalUserPrefs.
-    void    SetSkeuoMonitorFrame (bool enabled);
+    // Settings > Theme opt in/out for the 3D desk scene. Applies live --
+    // relays out the chrome in place -- and persists to GlobalUserPrefs.
+    void    SetDeskSceneEnabled (bool enabled);
 
-    // The 2D monitor frame draws only when the skeuo theme is active, the
-    // user opted in, AND the 3D desk scene is not available -- the scene
-    // supersedes the frame (spec 018) and the frame path retires once
-    // parity is validated.
-    bool    MonitorFrameEnabled  () const
-    {
-        return !m_chromeTheme.compactDrives && m_globalPrefs.skeuoMonitorFrame && !m_deskSceneReady;
-    }
-
-    // The 3D desk scene renders whenever the skeuo theme is active and the
-    // scene's models loaded (spec 018) -- no opt-in pref, no fallback
-    // toggle; compact themes never draw it.
+    // The 3D desk scene renders when the skeuo theme is active, the user
+    // has not opted out (the checkbox is the escape hatch while the models
+    // mature and docking lands), and the models loaded. Opted out, skeuo
+    // shows the bare display over the classic 2D drive band; compact themes
+    // never draw the scene.
     bool    DeskSceneActive      () const
     {
-        return !m_chromeTheme.compactDrives && m_deskSceneReady;
+        return !m_chromeTheme.compactDrives && m_deskSceneReady && m_globalPrefs.deskScene;
     }
 
     // Initializes the desk scene renderer against the host device and loads
@@ -883,15 +874,9 @@ private:
     bool                m_printerDeliveryError = false;
     uint64_t            m_printerErrorActivity = 0;
 
-    // Skeuomorphic CRT monitor housing that frames the emulator display
-    // (skeuo theme only). Insets the viewport into its screen recess; the
-    // housing paints the ring around it. Models the Apple Monitor //c.
-    MonitorFrame               m_monitorFrame;
-
     // The 3D desk scene (spec 018): Monitor //c + drives rendered from the
     // before-present hook on the host device, with the CRT chain's offscreen
-    // output on the curved glass. Supersedes MonitorFrame in the skeuo theme
-    // once its models load (m_deskSceneReady).
+    // output on the curved glass. Gated by the deskScene opt-out pref.
     // Set when a Ctrl+letter host-meta shortcut claims a keydown whose
     // synthesized WM_CHAR must not reach the guest keyboard latch (the ^V
     // of a paste would land in the input line ahead of the pasted text).

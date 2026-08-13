@@ -34,6 +34,9 @@ Entries before versioning was introduced use dates only.
   widgets untouched, and theme switches land the scene — or leave it —
   with the picture, disks, activity, and write-protect state correct on
   arrival, emulation uninterrupted.
+- **The scene is opt-out.** A Settings > Theme checkbox (on by default)
+  switches back to the classic bare display + 2D drive band, live and in
+  place, while the 3D models mature and drive docking is still to come.
 
 ### Fixed
 - Pasting text into the guest no longer garbles at line wraps and no

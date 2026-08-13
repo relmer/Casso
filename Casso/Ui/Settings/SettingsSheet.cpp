@@ -239,13 +239,13 @@ HRESULT SettingsSheet::OpenModeless (
         m_apply.ApplyThemeLive (m_themePage->SelectedThemeId());
     });
 
-    // Skeuo desk-scene opt-in: applies + persists immediately (the monitor
-    // framing appears/disappears on the live chrome behind the sheet), so
+    // The 3D desk-scene opt in/out: applies + persists immediately (the
+    // scene appears/disappears on the live chrome behind the sheet), so
     // there is no staged state to revert on Cancel.
-    m_themePage->SetMonitorFrameChecked (prefs.skeuoMonitorFrame);
-    m_themePage->SetOnMonitorFrameToggled ([this] (bool enabled)
+    m_themePage->SetDeskSceneChecked (prefs.deskScene);
+    m_themePage->SetOnDeskSceneToggled ([this] (bool enabled)
     {
-        m_emuShell->SetSkeuoMonitorFrame (enabled);
+        m_emuShell->SetDeskSceneEnabled (enabled);
     });
 
     // Live preview (#8): dragging / keyboard-editing a Display control blurs +

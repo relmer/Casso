@@ -2460,7 +2460,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // (createSwapChain = true) now paints these adopted controls on top
     // of the Apple ][ framebuffer each frame. The title bar is NOT here:
     // the host owns the caption strip itself.
-    m_host->Root().Adopt (m_monitorFrame);
     m_host->Root().Adopt (m_mainMenu);
     m_host->Root().Adopt (m_driveBandSurface);
     m_host->Root().Adopt (m_driveChrome[0]);
@@ -2754,8 +2753,6 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         DeskSceneComposition  comp;
         RECT                  full     = { 0, 0, widthPx, heightPx };
 
-        m_monitorFrame.Hide();
-
         hrLayout = DeskSceneLayout::ComputeGlassFill (full, m_scaler.Dpi(),
                                                       m_deskScene.Metrics(), comp);
         BAIL_OUT_IF (hrLayout != S_OK, S_OK);
@@ -2768,8 +2765,6 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
     }
     else if (DeskSceneActive())
     {
-        m_monitorFrame.Hide();
-
         for (int pass = 0; pass < s_kSceneScaleSettlePasses; pass++)
         {
             HRESULT               hrLayout = S_OK;
@@ -2809,31 +2804,14 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
             LayoutJoystickButton (widthPx, bandTop, bandH, m_scaler.Dpi());
         }
     }
-    else if (!MonitorFrameEnabled())
+    else
     {
-        // Skeuomorphic 2D desk scene off (compact theme, or the skeuo user
-        // has not opted in -- and the 3D scene above supersedes it when
-        // available): the bare display fills the center at classic sizes.
-        m_monitorFrame.Hide();
+        // Desk scene off (compact theme, or the skeuo user opted out): the
+        // bare display fills the center at classic sizes over the 2D drive
+        // band.
         m_chromeSceneScale = 1.0f;
         center             = ComputeViewportRect (widthPx, heightPx);
         viewportRect       = center;
-    }
-    else
-    {
-        // Desk-scene zoom is a fixed point: the drive band scales with the
-        // monitor's SceneScale, but the band height determines the center the
-        // monitor fits into. Iterate a few passes -- the dependency is a
-        // contraction (band delta is a small fraction of center height), so
-        // this settles to within a pixel; the final pass wins.
-        for (int pass = 0; pass < s_kSceneScaleSettlePasses; pass++)
-        {
-            center = ComputeViewportRect (widthPx, heightPx);
-            m_monitorFrame.Layout (center, m_scaler);
-            m_chromeSceneScale = m_monitorFrame.SceneScale() * s_kDeskDriveScale;
-        }
-
-        viewportRect = m_monitorFrame.ScreenRect();
     }
 
     m_viewport->Layout (viewportRect, m_scaler);
@@ -3136,15 +3114,6 @@ SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int fram
                                                                      m_scaler.Dpi(), DeskSceneDriveCount(),
                                                                      m_deskScene.Metrics(),
                                                                      m_scaler.Px (s_kJoystickButtonBandDp + s_kStripEdgeZoneDp));
-        float  savedScale = m_chromeSceneScale;
-
-        m_chromeSceneScale = s_kDeskDriveScale;
-        client             = ClientSizeForCenterPx (center.cx, center.cy);
-        m_chromeSceneScale = savedScale;
-    }
-    else if (MonitorFrameEnabled())
-    {
-        SIZE   center     = MonitorFrame::CenterSizeForScreenPx (framebufferWpx, framebufferHpx);
         float  savedScale = m_chromeSceneScale;
 
         m_chromeSceneScale = s_kDeskDriveScale;
@@ -3886,26 +3855,26 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SetSkeuoMonitorFrame
+//  EmulatorShell::SetDeskSceneEnabled
 //
-//  Settings > Theme opt-in for the skeuomorphic desk scene. Persists the
-//  choice, then re-runs the authoritative OnSize layout at the current client
-//  size so the monitor framing (and the drives' desk scale) appears or
-//  disappears in place -- the window itself does not resize; Ctrl+0 reaches
-//  the mode's 100% default.
+//  Settings > Theme opt in/out for the 3D desk scene -- the escape hatch back
+//  to the classic bare display + 2D drive band while the scene's models mature.
+//  Persists the choice, then re-runs the authoritative OnSize layout at the
+//  current client size so the scene appears or disappears in place -- the
+//  window itself does not resize; Ctrl+0 reaches the mode's 100% default.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetSkeuoMonitorFrame (bool enabled)
+void EmulatorShell::SetDeskSceneEnabled (bool enabled)
 {
     HRESULT  hr       = S_OK;
     RECT     rcClient = {};
 
 
 
-    BAIL_OUT_IF (m_globalPrefs.skeuoMonitorFrame == enabled, S_OK);
+    BAIL_OUT_IF (m_globalPrefs.deskScene == enabled, S_OK);
 
-    m_globalPrefs.skeuoMonitorFrame = enabled;
+    m_globalPrefs.deskScene = enabled;
 
     if (m_userConfigStore != nullptr)
     {
