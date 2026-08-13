@@ -1183,6 +1183,15 @@ HRESULT EmulatorShell::InitializeRenderer()
 
                     m_deskScene.DrawDebugRect (m_deskScene.Composition().viewportPx, bbW, bbH, 0xFFFF3030);
                     m_deskScene.DrawDebugRect (m_deskScene.Composition().glassRectPx, bbW, bbH, 0xFF30FF30);
+
+                    // The projected drive bounds ARE the drop-target rects the
+                    // hit registry carries, so drawing them shows whether a
+                    // refused drag is a bad rect or something upstream.
+                    for (int i = 0; i < m_deskScene.Composition().driveCount; i++)
+                    {
+                        m_deskScene.DrawDebugRect (m_deskScene.Composition().driveRectPx[i], bbW, bbH, 0xFFFFA030);
+                    }
+
                     m_deskScene.DrawDebugRect (m_driveBand.Bounds(), bbW, bbH, 0xFFFFFF30);
                     m_deskScene.DrawDebugRect (m_switchBand.Bounds(), bbW, bbH, 0xFFFF30FF);
                     m_deskScene.DrawDebugRect (m_stripRectPx, bbW, bbH, 0xFF30FFFF);
@@ -1211,7 +1220,7 @@ HRESULT EmulatorShell::InitializeRenderer()
     // composite blacks out the whole back buffer and the drive band's opaque
     // surface would otherwise paint straight over them. The drive row keeps
     // its own depth pass, so it composes onto the finished frame.
-    m_host->SetAfterPaintHook ([this] (ID3D11RenderTargetView * rtv, int, int)
+    m_host->SetAfterPaintHook ([this] (ID3D11RenderTargetView * rtv, int bbW, int bbH)
     {
         HRESULT  hrDrives = S_OK;
 
@@ -1221,7 +1230,27 @@ HRESULT EmulatorShell::InitializeRenderer()
             return;
         }
 
-        hrDrives = m_deskScene.RenderStrip (rtv, m_deskScene.Composition());
+        if (m_d3dRenderer.IsFullscreen())
+        {
+            // Fullscreen without the monitor: the picture owns the client and
+            // the drives live in the slide-up overlay strip, same as they do
+            // with the monitor on.
+            if (m_stripRectPx.bottom > m_stripRectPx.top)
+            {
+                hrDrives = m_deskScene.RenderStrip (rtv, m_stripComp);
+            }
+
+            if (m_stripState.ActivityIndicator())
+            {
+                RECT  glimmer = { bbW - 34, bbH - 14, bbW - 12, bbH - 8 };
+
+                m_deskScene.DrawDebugRect (glimmer, bbW, bbH, 0xFFB01818);
+            }
+        }
+        else
+        {
+            hrDrives = m_deskScene.RenderStrip (rtv, m_deskScene.Composition());
+        }
 
         IGNORE_RETURN_VALUE (hrDrives, S_OK);
     });
@@ -2836,6 +2865,20 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 
             LayoutJoystickButton (widthPx, bandTop, bandH, m_scaler.Dpi());
         }
+    }
+    else if (DeskSceneActive() && m_d3dRenderer.IsFullscreen())
+    {
+        // Monitor opted out, fullscreen: still the immersive presentation --
+        // every chrome band hidden and the picture filling the client (the
+        // renderer letterboxes inside the target bounds), just without the
+        // curved glass. The drives come from the overlay strip exactly as
+        // they do with the monitor on, so the main composition holds nothing.
+        m_chromeSceneScale = 1.0f;
+        viewportRect       = { 0, 0, widthPx, heightPx };
+
+        m_deskScene.SetComposition (DeskSceneComposition{});
+
+        SyncSceneDriveChrome();
     }
     else if (DeskSceneActive())
     {
@@ -5240,7 +5283,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // Fullscreen drive overlay strip (FR-015): tick the FSM from this
     // frame's observations, apply its capture effects, and compose the slid
     // band the hook will render.
-    if (CrtMonitorActive() && m_d3dRenderer.IsFullscreen() && DeskSceneDriveCount() > 0)
+    if (DeskSceneActive() && m_d3dRenderer.IsFullscreen() && DeskSceneDriveCount() > 0)
     {
         StripInputs   inputs;
         StripEffects  effects;
@@ -9241,7 +9284,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         // and every chrome element collapses. The windowed path below is the
         // one that restores everything -- including the host caption -- when
         // fullscreen exits, because this OnSize runs on both transitions.
-        if (CrtMonitorActive() && m_d3dRenderer.IsFullscreen())
+        if (DeskSceneActive() && m_d3dRenderer.IsFullscreen())
         {
             SetChromeHiddenForFullscreenScene (true);
             UpdateViewportLayout (static_cast<int> (width), renderH);
@@ -10286,6 +10329,5 @@ DxuiMessageResult EmulatorShell::OnNcLButtonUp (LRESULT hitTest, int xScreen, in
     (void) yScreen;
     return DxuiMessageResult::NotHandled;
 }
-
 
 
