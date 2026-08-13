@@ -1,5 +1,14 @@
 # //c Mouse Hardware Contract (US4)
 
+> **Reusing this for the //e / ][+ AppleMouse II slot card?** See **GH #102**,
+> which plans to wrap this same motion/latch model in the card's register
+> surface (`$C0n0-$C0nF` + `$Cn00`) — read *Naming traps* below first, and note
+> two documented card/IIc differences that the shared model has to account for:
+> the //c "responds one-half as frequently to mouse movements as does the mouse
+> card" (IIc TN #1), and the `$Cn1C` 50/60 Hz rate call is card-only, explicitly
+> not on the //c (Mouse TN #2). The `$C019` sticky-latch behavior documented
+> here is also what **GH #94** (Karateka's VBL spin) rests on.
+
 > **STATUS: IMPLEMENTED + FIRMWARE-VALIDATED.** `AppleMouse`
 > (`CassoEmuCore/Devices/AppleMouse.{h,cpp}`) implements this contract;
 > `AppleMouseTests` proves it — including the oracle test that drives the
