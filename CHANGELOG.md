@@ -46,6 +46,15 @@ Entries before versioning was introduced use dates only.
 - Losing the audio endpoint (undocking, switching the default output
   device) no longer trips an assertion — audio quietly reopens the new
   default device within a second.
+- **Ejecting or mounting a disk while the machine is paused now takes
+  effect immediately.** The drive door swung open the moment eject was
+  clicked, but the eject itself was parked until the machine resumed, so
+  the drive kept reporting the old disk — its name still under the drive,
+  its write-protect padlock still lit, its tooltip still naming it. The
+  CPU thread now services the command queue while paused (without
+  stepping the emulation), which also unsticks paused mounts, drive-audio
+  settings, and write-protect toggles.
+
 ## [1.16.1] — the //c mouse works with VBL-interrupt software
 
 ### Fixed

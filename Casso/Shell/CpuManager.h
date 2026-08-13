@@ -82,6 +82,7 @@ public:
 private:
     void ThreadProc ();
     void DrainCommandQueue ();
+    bool HasPendingCommands ();
 
 
     std::thread                   m_thread;
