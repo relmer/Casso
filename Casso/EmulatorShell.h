@@ -42,6 +42,7 @@
 #include "Ui/ThemeManager.h"
 #include "Ui/UiShell.h"
 #include "Widgets/DxuiTooltip.h"
+#include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiSurface.h"
 #include "UiCommandTypes.h"
 #include "Video/CharacterRomData.h"
@@ -711,6 +712,9 @@ private:
     // come from the composition's projected drive bounds.
     void    SyncSceneDriveChrome ();
 
+    // Re-hangs the mounted-image basename strip under each projected drive.
+    void    SyncSceneDriveLabels ();
+
     // Fullscreen presentation (FR-014): every chrome element collapses to
     // nothing -- host caption, menu bar, toolbar, joystick row, drive band,
     // //c switch strip -- so the glass-fill scene owns the whole client.
@@ -986,6 +990,17 @@ private:
     // bands need an opaque surface painted on top; the title and menu bars
     // cover their own bands, this covers the drive bar.
     DxuiSurface           m_driveBandSurface;
+
+    // The mounted image's basename under each 3D drive -- the label strip the
+    // 2D widget carried below its body, kept on screen rather than demoted to
+    // a hover tooltip. Positioned from the composition's projected drive
+    // bounds; empty (and invisible) when that drive holds no disk.
+    std::array<DxuiLabel, 2>  m_sceneDriveLabel;
+
+    // The source path each label was last built from, so mounts and ejects
+    // re-hang it without a layout pass and an unchanged frame does no
+    // filesystem parsing or text measurement.
+    std::array<std::string, 2>  m_sceneLabelPath;
 
     // Last geometry passed to LayoutJoystickButton, cached so
     // RelayoutJoystickButton can resize the button in place when the

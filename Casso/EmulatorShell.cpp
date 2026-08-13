@@ -2,6 +2,7 @@
 
 #include "EmulatorShell.h"
 #include "AssetBootstrap.h"
+#include "Ui/Chrome/DriveLabelTruncation.h"
 #include "Print/PrintJobStore.h"
 #include "Devices/Printer/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
@@ -134,6 +135,13 @@ static constexpr int     s_kSceneScaleSettlePasses = 3;
 // dwell zone that reveals it while the host owns the pointer.
 static constexpr int     s_kStripBandDp     = 150;
 static constexpr int     s_kStripEdgeZoneDp = 8;
+
+// The basename strip under each 3D drive: the 2D widget's label geometry
+// (18 dp strip, 2 dp gap, 11 dip text), kept so the mounted image's name
+// reads off the screen instead of only out of a tooltip.
+static constexpr int     s_kSceneDriveLabelStripDp  = 18;
+static constexpr int     s_kSceneDriveLabelGapDp    = 2;
+static constexpr float   s_kSceneDriveLabelFontDip  = 11.0f;
 
 // Padding around the 3D drive row when the CRT monitor is opted out and the
 // row composes into the classic bottom band -- breathing room off the window
@@ -1497,6 +1505,8 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
     m_switchBar.SetVisible (!hidden);
     m_driveChrome[0].SetVisible (!hidden);
     m_driveChrome[1].SetVisible (!hidden);
+    m_sceneDriveLabel[0].SetVisible (!hidden);
+    m_sceneDriveLabel[1].SetVisible (!hidden);
 
     if (hidden)
     {
@@ -1514,9 +1524,10 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
 //  EmulatorShell::SyncSceneDriveChrome
 //
 //  The scene owns the drives: the 2D widgets hide (still syncing state for
-//  the //c switch strip and the door FSM), and the drag-drop hit registry is
+//  the //c switch strip and the door FSM), the drag-drop hit registry is
 //  rebuilt from the composition's projected drive bounds so dropping a disk
-//  image on a 3D drive keeps mounting into that drive.
+//  image on a 3D drive keeps mounting into that drive, and each drive's
+//  basename label is re-hung under those same bounds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1525,6 +1536,8 @@ void EmulatorShell::SyncSceneDriveChrome()
     const DeskSceneComposition &  comp = m_deskScene.Composition();
 
 
+
+    SyncSceneDriveLabels();
 
     m_driveChrome[0].Hide();
     m_driveChrome[1].Hide();
@@ -1537,6 +1550,83 @@ void EmulatorShell::SyncSceneDriveChrome()
         {
             m_uiShell.HitTest().Register (DxuiHitRect { comp.driveRectPx[i], DxuiHitSlot::Custom, i });
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SyncSceneDriveLabels
+//
+//  Hangs the mounted image's basename in a strip under each 3D drive, where
+//  the 2D widget's label sat -- the name belongs on screen, not buried in a
+//  hover tooltip. The strip spans the drive's projected width, so the layout
+//  reserves its height above (both scene branches shrink the rect they
+//  compose into by exactly that much) and the drives never sit on it.
+//
+//  Ellipsized through the shared pure truncation helper against the real text
+//  measurement, so a long name ends in a single ellipsis instead of wrapping
+//  out of the strip. The tooltip still carries the full name.
+//
+//  Fullscreen shows no labels: the picture owns the client and the drives are
+//  only briefly on screen in the overlay strip, which has its own tooltip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncSceneDriveLabels()
+{
+    const DeskSceneComposition &  comp    = m_deskScene.Composition();
+    IDxuiTextRenderer *           text    = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    float                         fontPx  = s_kSceneDriveLabelFontDip * (float) m_scaler.Dpi() / (float) s_kBaseDpi;
+    bool                          visible = !m_d3dRenderer.IsFullscreen();
+
+
+    for (int i = 0; i < (int) m_sceneDriveLabel.size(); i++)
+    {
+        std::wstring  basename;
+        RECT          strip = {};
+
+        if (visible && i < comp.driveCount && comp.driveRectPx[i].right > comp.driveRectPx[i].left)
+        {
+            basename = std::filesystem::path (m_diskStore.GetSourcePath (6, i)).filename().wstring();
+        }
+
+        if (basename.empty())
+        {
+            m_sceneDriveLabel[i].SetText    (L"");
+            m_sceneDriveLabel[i].SetVisible (false);
+            continue;
+        }
+
+        strip.left   = comp.driveRectPx[i].left;
+        strip.right  = comp.driveRectPx[i].right;
+        strip.top    = comp.driveRectPx[i].bottom + m_scaler.Px (s_kSceneDriveLabelGapDp);
+        strip.bottom = strip.top + m_scaler.Px (s_kSceneDriveLabelStripDp);
+
+        if (text != nullptr)
+        {
+            basename = TruncateToWidth (basename, (float) (strip.right - strip.left),
+                                        [text, fontPx] (std::wstring_view run) -> float
+            {
+                float    w  = 0.0f;
+                float    h  = 0.0f;
+                HRESULT  hr = text->MeasureString (std::wstring (run).c_str(), fontPx,
+                                                   DxuiTheme::kBodyFace, w, h);
+
+                return SUCCEEDED (hr) ? w : 0.0f;
+            });
+        }
+
+        m_sceneDriveLabel[i].SetText        (basename);
+        m_sceneDriveLabel[i].SetColor       (m_chromeTheme.driveLabel);
+        m_sceneDriveLabel[i].SetFontSizeDip (s_kSceneDriveLabelFontDip);
+        m_sceneDriveLabel[i].SetTextAlign   (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        m_sceneDriveLabel[i].SetDpi         (m_scaler.Dpi());
+        m_sceneDriveLabel[i].SetRect        (strip);
+        m_sceneDriveLabel[i].SetVisible     (true);
     }
 }
 
@@ -2526,6 +2616,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->Root().Adopt (m_driveBandSurface);
     m_host->Root().Adopt (m_driveChrome[0]);
     m_host->Root().Adopt (m_driveChrome[1]);
+    m_host->Root().Adopt (m_sceneDriveLabel[0]);
+    m_host->Root().Adopt (m_sceneDriveLabel[1]);
     m_host->Root().Adopt (m_toolbar);
     m_host->Root().Adopt (m_joystickButton);
     m_host->Root().Adopt (m_switchBar);
@@ -2827,13 +2919,22 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
     }
     else if (CrtMonitorActive())
     {
+        // The basename strip under the drive row is chrome, not scene, so the
+        // composition is solved into a center rect short by its height and
+        // the labels hang in what is left.
+        int  labelStripPx = m_scaler.Px (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
+
         for (int pass = 0; pass < s_kSceneScaleSettlePasses; pass++)
         {
             HRESULT               hrLayout = S_OK;
             DeskSceneComposition  comp;
+            RECT                  sceneBox = {};
 
-            center   = ComputeViewportRect (widthPx, heightPx);
-            hrLayout = DeskSceneLayout::Compute (center, m_scaler.Dpi(), DeskSceneDriveCount(),
+            center            = ComputeViewportRect (widthPx, heightPx);
+            sceneBox          = center;
+            sceneBox.bottom   = std::max (center.top, center.bottom - labelStripPx);
+
+            hrLayout = DeskSceneLayout::Compute (sceneBox, m_scaler.Dpi(), DeskSceneDriveCount(),
                                                  m_deskScene.Metrics(), comp,
                                                  m_scaler.Px (s_kJoystickButtonBandDp + s_kStripEdgeZoneDp));
             BAIL_OUT_IF (hrLayout != S_OK, S_OK);
@@ -2902,7 +3003,9 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 
         band     = m_driveBand.Bounds();
         driveRow = { pad, band.top + joyH + pad / 2, widthPx - pad,
-                     std::max (band.bottom - pad, (LONG) (band.top + joyH)) };
+                     std::max (band.bottom - pad - m_scaler.Px (s_kSceneDriveLabelStripDp +
+                                                                s_kSceneDriveLabelGapDp),
+                               (LONG) (band.top + joyH)) };
 
         // A machine with no Disk ][ controller composes no row at all, and a
         // band too small to solve leaves the scene empty rather than stale.
@@ -5277,6 +5380,30 @@ bool EmulatorShell::TryPresentUiFrame()
             }
 
             m_deskScene.SetDriveVisuals (i, lampOn, progress, st.writeProtect.Any());
+        }
+
+        // A mount or eject changes the basename strip under the drive, and
+        // neither runs a layout pass -- so watch the source paths here and
+        // re-hang the labels (with their text measurement) only on a change.
+        {
+            bool  labelsMoved = false;
+
+            for (int i = 0; i < (int) m_sceneLabelPath.size(); i++)
+            {
+                std::string  source = m_diskStore.GetSourcePath (6, i);
+
+                if (source != m_sceneLabelPath[i])
+                {
+                    m_sceneLabelPath[i] = source;
+                    labelsMoved         = true;
+                }
+            }
+
+            if (labelsMoved)
+            {
+                SyncSceneDriveLabels();
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
         }
     }
 
