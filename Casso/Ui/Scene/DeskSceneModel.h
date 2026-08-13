@@ -49,14 +49,18 @@ enum class DeskDeviceKind
 //  belong to it (by range into LampVerts).
 //
 //  `frontY` is the lens face (the most proud vertex, viewer at -Y) and
-//  `radius` half its larger in-plane extent -- between them the scene can
-//  size and seat a glow disc on the lens without knowing the model.
+//  `radiusX` / `radiusZ` its in-plane half-extents -- between them the scene
+//  can seat a glow on the lens, shaped like it, without knowing the model.
+//  Per axis rather than one radius because the lamps are not all round: the
+//  //c-family power indicator is a tall narrow rhombus, and a circular glow
+//  over it reads as a light behind a hole rather than a lit lens.
 //
 struct DeskLampAnchor
 {
     float   center[3]   = {};
     float   frontY      = 0.0f;
-    float   radius      = 0.0f;
+    float   radiusX     = 0.0f;
+    float   radiusZ     = 0.0f;
     size_t  firstVertex = 0;
     size_t  vertexCount = 0;
 };

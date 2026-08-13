@@ -116,16 +116,42 @@ for r in range(ROWS):
             return (x, BASE_Y - (max_sag - sag), z)
         m.add_quad(pt(c, r), pt(c + 1, r), pt(c + 1, r + 1), pt(c, r + 1), glass_c)
 
-# Power lamp: a round lens seated in a dark bezel recess. It was a flat
-# proud sheet, which reads as a painted slash rather than a light -- an
-# indicator only looks lit when something dark surrounds it and the lit part
-# has body. The recess ring is drawn first (flush, wider), the lens stands
-# proud of it, and the scene adds the halo when the lamp is on.
-LCX, LCZ = W - 40.0, Z0 + 18.0
-LENS_R, RING_R = 3.4, 6.2
+# Power lamp: the //c-family indicator -- a tall narrow rhombus leaning
+# right, the same slanted shape (and the same ~10 degree lean, tan 0.176)
+# the //c switch bar's LEDs and switch caps carry. It is EXTRUDED rather
+# than a flat proud sheet, and seated in a slightly larger dark recess of
+# the same shape: a zero-thickness sheet in the housing color's plane reads
+# as a mark painted on the bezel, while a lens with body sitting in
+# something dark reads as an indicator. The scene adds the glow when lit.
+# Proportions are the switch bar's LED exactly (kLedWDp 8 : kLedHDp 25) at
+# the same ~10 degree lean. The recess is a HAIRLINE -- it is there to give
+# the lens an edge to sit against, not to frame it; anything wider reads as
+# a bezel around a light rather than a light set into the case.
+LCX, LCZ = W - 40.0, Z0 + 11.0
+LENS_W, LENS_H = 4.2, 13.125
+LEAN = LENS_H * 0.176
+RECESS = 0.4
 
-m.cylinder(LCX, YF - 0.40, LCZ, RING_R,  0.40, lampring, axis="y", segments=20)
-m.cylinder(LCX, YF - 1.30, LCZ, LENS_R,  1.30, lamp_c,   axis="y", segments=20)
+
+def slanted_prism(mesh, x, z0, height, width, lean, y_front, y_back, color):
+    """A parallelogram in the XZ plane (leaning +X with rising Z), extruded
+    along -Y toward the viewer. Front face plus four walls."""
+    z1 = z0 + height
+    face = [(x, z0), (x + width, z0), (x + width + lean, z1), (x + lean, z1)]
+
+    mesh.add_quad(*[(px, y_front, pz) for px, pz in face], color)
+
+    for i in range(4):
+        ax, az = face[i]
+        bx, bz = face[(i + 1) % 4]
+        mesh.add_quad((ax, y_front, az), (bx, y_front, bz),
+                      (bx, y_back, bz), (ax, y_back, az), color)
+    return mesh
+
+
+slanted_prism(m, LCX - RECESS, LCZ - RECESS, LENS_H + RECESS * 2, LENS_W + RECESS * 2,
+              LEAN, YF - 0.40, YF, lampring)
+slanted_prism(m, LCX, LCZ, LENS_H, LENS_W, LEAN, YF - 1.30, YF, lamp_c)
 
 # Lid vent grooves: darker strips across the top, rear two-thirds.
 for i in range(10):

@@ -1607,6 +1607,25 @@ void EmulatorShell::SyncSceneDriveLabels()
         strip.top    = comp.driveRectPx[i].bottom + m_scaler.Px (s_kSceneDriveLabelGapDp);
         strip.bottom = strip.top + m_scaler.Px (s_kSceneDriveLabelStripDp);
 
+        // A strip that does not fit inside the client is not a label, it is a
+        // stray string: the rect comes from PROJECTING the drive through the
+        // frame's camera, and a layout caught mid-resize can hand back a
+        // projection off the top of the window. The label would then paint its
+        // lower half along the window's top edge, above the caption text,
+        // flickering for as long as that pass was on screen.
+        {
+            RECT  client = {};
+
+            if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &client) ||
+                strip.top < client.top || strip.bottom > client.bottom ||
+                strip.right <= strip.left)
+            {
+                m_sceneDriveLabel[i].SetText    (L"");
+                m_sceneDriveLabel[i].SetVisible (false);
+                continue;
+            }
+        }
+
         if (text != nullptr)
         {
             basename = TruncateToWidth (basename, (float) (strip.right - strip.left),

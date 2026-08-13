@@ -151,19 +151,34 @@ public:
     static constexpr float  kNearMm            = 10.0f;
     static constexpr float  kFarMm             = 30000.0f;
 
-    // Composition: the drive row's placement -- toward the viewer from the
-    // monitor's front plane, dropped onto a shelf below the monitor's feet
-    // so the row never occludes the chin (the 2D band sat wholly below the
-    // monitor), at a uniform placement scale that keeps the band's
-    // proportions (full-size drives this close to the camera tower over the
-    // monitor). Still one world and one camera (FR-016): scale and drop are
-    // placement properties carried in each drive's world matrix, so the
-    // below-center row shows its top faces purely from the shared gaze.
-    static constexpr float  kDriveRowForwardMm = 85.0f;
-    static constexpr float  kDriveDropMm       = 61.0f;
-    static constexpr float  kDriveScale        = 0.45f;
-    static constexpr float  kDriveGapMm        = 26.0f;
-    static constexpr float  kContainMargin     = 1.005f;
+    // Composition: a real desk, measured.
+    //
+    // Every device sits at TRUE SIZE on one desk surface, and the camera is a
+    // seated person's eye -- kViewingDistanceMm back from the monitor's front
+    // plane with the eye kEyeAboveMonitorTopMm above the monitor's top, which
+    // is where a display gets set up. Nothing is scaled or dropped to taste:
+    // the drives are seen from a steeper angle than the monitor purely
+    // because they stand closer and lower, and the monitor reads nearly
+    // head-on because the eye is barely above it. The perspective IS the
+    // placement (FR-016), now all the way down to the numbers.
+    //
+    // The drive row's own distance is the one adjustable placement, and it is
+    // still physical: sliding the drives forward on the desk is how you open
+    // room between them and the monitor, which is what Compute's gap
+    // correction does.
+    static constexpr float  kViewingDistanceMm     = 762.0f;   // 30 in, eye to screen
+    static constexpr float  kEyeAboveMonitorTopMm  = 25.0f;
+    static constexpr float  kDriveDeskGapMm        = 45.0f;    // monitor front to drive back
+    static constexpr float  kDriveGapMm            = 32.0f;    // between the two drives
+    static constexpr float  kContainMargin         = 1.005f;
+
+    // Field of view is SOLVED rather than fixed, because the eye position is
+    // fixed. Where the camera stands sets the perspective; the fov only
+    // decides how much of that view the window shows, so fitting the scene by
+    // fov keeps the physical geometry exact at any window shape. Clamped so a
+    // pathological viewport cannot produce a fisheye or a pinhole.
+    static constexpr float  kMinFovY = 0.12f;
+    static constexpr float  kMaxFovY = 1.30f;
 
     // Breathing room the Ctrl+0 shrink-wrap adds around the scene footprint.
     static constexpr int    kCenterPadPx       = 4;

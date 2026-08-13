@@ -2643,6 +2643,27 @@ LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
     BAIL_OUT_IF (msg == WM_NCMOUSELEAVE, S_OK);
     BAIL_OUT_IF (m_hwnd == nullptr, S_OK);
 
+    // A resize press outranks the button it lands on. The corner grab zones
+    // are deliberately larger than the edge border so the diagonal stays
+    // reachable UNDER a caption button -- but the button is still what
+    // FindNcSystemControlAt returns there, and routing the press to it left
+    // the user with a resize cursor that would not drag: the close button ate
+    // WM_NCLBUTTONDOWN, so DefWindowProc never entered the resize loop. The
+    // latched hover is released on the way out, or the button stays lit while
+    // the pointer sits in the corner over it.
+    if (m_params.resizable && IsResizeHitTest (wp))
+    {
+        if (m_lastHoveredNcControl != nullptr)
+        {
+            ev.kind = DxuiMouseEventKind::Leave;
+            m_lastHoveredNcControl->OnMouse (ev);
+            m_lastHoveredNcControl = nullptr;
+            InvalidateRect (m_hwnd, nullptr, FALSE);
+        }
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     ptScreen.x = GET_X_LPARAM (lp);
     ptScreen.y = GET_Y_LPARAM (lp);
     ptClient   = ptScreen;
@@ -2700,8 +2721,6 @@ LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
     ev.positionDip = ptClient;
     control->OnMouse (ev);
     InvalidateRect (m_hwnd, nullptr, FALSE);
-
-    (void) wp;
 
     // Forward NC mouse-move to DefWindowProc after painting our own button
     // hover. Eating it (returning 0) is non-conformant for a custom frame;
@@ -3224,9 +3243,12 @@ bool DxuiHwndSource::RouteCaptionNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 
 
 
-    (void) wp;
-
     BAIL_OUT_IF (m_caption == nullptr || m_hwnd == nullptr, S_OK);
+
+    // See HandleNcMouse: a press on a resize edge or corner is the OS acting
+    // on the answer we already gave WM_NCHITTEST, and must not be claimed by
+    // the caption button the corner grab zone reaches under.
+    BAIL_OUT_IF (m_params.resizable && IsResizeHitTest (wp), S_OK);
 
     if (msg == WM_NCMOUSELEAVE && m_lastHoveredNcControl != nullptr)
     {
@@ -3544,6 +3566,23 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsResizeHitTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::IsResizeHitTest (WPARAM ht)
+{
+    return ht == HTTOPLEFT    || ht == HTTOP    || ht == HTTOPRIGHT ||
+           ht == HTLEFT       || ht == HTRIGHT  ||
+           ht == HTBOTTOMLEFT || ht == HTBOTTOM || ht == HTBOTTOMRIGHT;
 }
 
 

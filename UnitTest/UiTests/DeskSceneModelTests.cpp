@@ -277,12 +277,13 @@ public:
         Assert::AreEqual (68.0f, model.Lamps()[0].center[0], 0.01f);
         Assert::AreEqual (16.0f, model.Lamps()[0].center[2], 0.01f);
 
-        // ...and the lens face plus half its larger in-plane extent, which is
-        // what the scene seats its glow disc on. The box spans y -2.6..-0.6
-        // and 6 mm across, and the viewer is at -Y, so the face is the MOST
-        // NEGATIVE y -- a mid-Y anchor would bury the glow inside the lens.
-        Assert::AreEqual (-2.6f, model.Lamps()[0].frontY, 0.01f);
-        Assert::AreEqual ( 3.0f, model.Lamps()[0].radius, 0.01f);
+        // ...and the lens face plus its per-axis half-extents, which is what
+        // the scene shapes its glow from. The box spans y -2.6..-0.6 and 6 mm
+        // on each in-plane axis, and the viewer is at -Y, so the face is the
+        // MOST NEGATIVE y -- a mid-Y anchor would bury the glow in the lens.
+        Assert::AreEqual (-2.6f, model.Lamps()[0].frontY,  0.01f);
+        Assert::AreEqual ( 3.0f, model.Lamps()[0].radiusX, 0.01f);
+        Assert::AreEqual ( 3.0f, model.Lamps()[0].radiusZ, 0.01f);
 
         Assert::AreEqual ((size_t) 2, model.RegionBoxes().size());
         Assert::IsTrue (model.RegionBoxes()[0].region == DriveWidgetRegion::Eject);

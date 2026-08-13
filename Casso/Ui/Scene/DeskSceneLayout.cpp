@@ -152,7 +152,7 @@ HRESULT DeskSceneLayout::Compute (const RECT             & viewportPx,
                                   int                      reservedGapPx)
 {
     HRESULT   hr     = S_OK;
-    float     dropMm = kDriveDropMm;
+    float     dropMm = kDriveDeskGapMm;
 
 
 
@@ -210,11 +210,13 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     float     tanHalfY     = std::tan (kFovY * 0.5f);
     float     tanHalfX     = 0.0f;
     float     monitorCx    = (metrics.monitorMin[0] + metrics.monitorMax[0]) * 0.5f;
+    float     monitorW     = metrics.monitorMax[0] - metrics.monitorMin[0];
     float     driveW       = metrics.driveMax[0] - metrics.driveMin[0];
     float     driveCx      = (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f;
     float     glassCy      = 0.0f;
     float     eyeY         = 0.0f;
     float     eyeZ         = 0.0f;
+    float     forwardMm    = 0.0f;
     float     sceneMin[3]  = {};
     float     sceneMax[3]  = {};
     float     driveTx[2]   = {};
@@ -240,13 +242,28 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     // they read below the monitor from the straight-ahead camera -- at the
     // band's placement scale. One drive centers; two flank the centerline
     // with a gap.
-    driveTx[0] = (driveCount == 2) ? -(driveW * kDriveScale + kDriveGapMm) * 0.5f : 0.0f;
-    driveTx[1] = (driveW * kDriveScale + kDriveGapMm) * 0.5f;
+    // Drives at true size on the same desk, FLANKING the monitor at its own
+    // depth -- where they actually stood. Standing them between the viewer
+    // and the screen is the arrangement that looks wrong once the sizes are
+    // real: a Disk II a foot nearer the eye than a 9-inch monitor projects
+    // twice its apparent size, so the drives dominate the frame and the
+    // picture shrinks to a stamp. Beside it, both are the same distance
+    // away and read at their true relative size.
+    //
+    // `dropMm` is the side gap Compute widens to open room for the input
+    // row -- sliding them further out along the desk.
+    driveTx[0] = -((monitorW + driveW) * 0.5f + dropMm);
+    driveTx[1] =  ((monitorW + driveW) * 0.5f + dropMm);
+    forwardMm  = -metrics.monitorMin[1];   // fronts flush with the monitor's
+
+    if (driveCount == 1)
+    {
+        driveTx[0] = driveTx[1];
+    }
 
     for (int i = 0; i < driveCount; i++)
     {
-        MakeDeviceWorld (driveTx[i] - driveCx * kDriveScale, -dropMm, kDriveRowForwardMm,
-                         kDriveScale, out.driveWorld[i]);
+        MakeDeviceWorld (driveTx[i] - driveCx, 0.0f, forwardMm, 1.0f, out.driveWorld[i]);
     }
 
     // Scene bounds in world space: the monitor spans its model box remapped
@@ -264,14 +281,12 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
 
     for (int i = 0; i < driveCount; i++)
     {
-        float   lo[3] = { (metrics.driveMin[0] - driveCx) * kDriveScale + driveTx[i]
-                              - metrics.drivePadSideMm * kDriveScale,
-                          metrics.driveMin[2] * kDriveScale - dropMm,
-                          kDriveRowForwardMm - metrics.driveMax[1] * kDriveScale };
-        float   hi[3] = { (metrics.driveMax[0] - driveCx) * kDriveScale + driveTx[i]
-                              + metrics.drivePadSideMm * kDriveScale,
-                          metrics.driveMax[2] * kDriveScale - dropMm,
-                          kDriveRowForwardMm + (metrics.drivePadDepthMm - metrics.driveMin[1]) * kDriveScale };
+        float   lo[3] = { metrics.driveMin[0] - driveCx + driveTx[i] - metrics.drivePadSideMm,
+                          metrics.driveMin[2],
+                          forwardMm - metrics.driveMax[1] };
+        float   hi[3] = { metrics.driveMax[0] - driveCx + driveTx[i] + metrics.drivePadSideMm,
+                          metrics.driveMax[2],
+                          forwardMm - metrics.driveMin[1] + metrics.drivePadDepthMm };
 
         for (int axis = 0; axis < 3; axis++)
         {
@@ -288,70 +303,85 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     // viewport with just the contain margin -- without this the symmetric
     // frustum wastes the whole top margin on a bottom-heavy scene.
     glassCy = (metrics.glass.z0 + metrics.glass.z1) * 0.5f;
-    eyeY    = glassCy;
 
-    SolveStandoff (sceneMin, sceneMax, eyeY, tanHalfY, tanHalfX, eyeZ);
-
+    // The eye is PLACED, not solved: a seated person kViewingDistanceMm from
+    // the monitor's front plane, sitting kEyeAboveMonitorTopMm above the
+    // monitor's top, looking at the middle of the screen. Every perspective
+    // in the frame follows from that one position.
     {
-        float   atY      = glassCy;
-        float   standoff = eyeZ;
-        float   target   = 1.0f / kContainMargin;
+        float   at[3]     = { 0.0f, glassCy, 0.0f };
+        float   eyeUp     = metrics.monitorMax[2] + kEyeAboveMonitorTopMm;
+        float   backOff   = 1.0f;
+        float   fovY      = 0.0f;
 
-        for (int pass = 0; pass < 4; pass++)
+        // Two passes at most: place the eye, solve the fov that shows the
+        // whole scene from there, and if that fov would exceed what a person
+        // can take in at once, LEAN BACK instead of widening further. Moving
+        // the eye away along its own sight line is the physical answer to
+        // "it does not all fit", and it keeps a pathological viewport from
+        // turning the frame into a fisheye.
+        for (int pass = 0; pass < 2; pass++)
         {
-            float   eye[3]     = { 0.0f, atY + std::sin (kGazeDownRad) * standoff, std::cos (kGazeDownRad) * standoff };
-            float   at[3]      = { 0.0f, atY, 0.0f };
-            float   ndcMin[2]  = { FLT_MAX, FLT_MAX };
-            float   ndcMax[2]  = { -FLT_MAX, -FLT_MAX };
-            bool    allVisible = true;
+            float   eye[3]   = { 0.0f, glassCy + (eyeUp - glassCy) * backOff, kViewingDistanceMm * backOff };
+            float   needTanX = 0.0f;
+            float   needTanY = 0.0f;
 
-            SceneCamera::LookAtRH         (eye, at, out.view);
-            SceneCamera::PerspectiveFovRH (kFovY, aspect, kNearMm, kFarMm, out.proj);
-            SceneCamera::Mul44            (out.view, out.proj, out.viewProj);
+            SceneCamera::LookAtRH (eye, at, out.view);
 
+            // The only free variable is how much of that view the window
+            // shows. Widening the fov never moves the camera, so the
+            // geometry stays exact while the scene is fitted: for each scene
+            // corner in view space (right-handed, looking down -Z), the
+            // half-tangents it demands are |x| / depth and |y| / depth.
             for (int corner = 0; corner < 8; corner++)
             {
-                float   pt[3]  = { (corner & 1) ? sceneMax[0] : sceneMin[0],
-                                   (corner & 2) ? sceneMax[1] : sceneMin[1],
-                                   (corner & 4) ? sceneMax[2] : sceneMin[2] };
-                float   ndc[3] = {};
+                float   pt[3]   = { (corner & 1) ? sceneMax[0] : sceneMin[0],
+                                    (corner & 2) ? sceneMax[1] : sceneMin[1],
+                                    (corner & 4) ? sceneMax[2] : sceneMin[2] };
+                float   view[3] = {};
+                float   depth   = 0.0f;
 
-                if (!SceneCamera::TransformPoint (out.viewProj, pt, ndc))
+                if (!SceneCamera::TransformPoint (out.view, pt, view))
                 {
-                    allVisible = false;
-                    break;
+                    continue;
                 }
 
-                ndcMin[0] = std::min (ndcMin[0], ndc[0]);  ndcMax[0] = std::max (ndcMax[0], ndc[0]);
-                ndcMin[1] = std::min (ndcMin[1], ndc[1]);  ndcMax[1] = std::max (ndcMax[1], ndc[1]);
+                depth = -view[2];
+
+                // A corner at or behind the eye cannot constrain a fov; the
+                // near clip owns that case.
+                if (depth <= kNearMm)
+                {
+                    continue;
+                }
+
+                needTanX = std::max (needTanX, std::abs (view[0]) / depth);
+                needTanY = std::max (needTanY, std::abs (view[1]) / depth);
             }
 
-            if (!allVisible)
+            // Fit the tighter axis: a wide window is bounded by height, a
+            // tall one by width.
+            tanHalfY = std::max (needTanY, needTanX / aspect) * kContainMargin;
+            tanHalfX = tanHalfY * aspect;
+
+            eyeY = eye[1];
+            eyeZ = eye[2];
+
+            if (tanHalfY <= std::tan (kMaxFovY * 0.5f) || pass > 0)
             {
-                standoff *= 1.5f;
-                continue;
+                break;
             }
 
-            {
-                float   extent = std::max ({ std::abs (ndcMin[0]), std::abs (ndcMax[0]),
-                                             (ndcMax[1] - ndcMin[1]) * 0.5f });
-                float   center = (ndcMin[1] + ndcMax[1]) * 0.5f;
-
-                standoff *= std::max (extent / target, 0.05f);
-                atY      += center * tanHalfY * standoff;
-            }
+            backOff *= tanHalfY / std::tan (kMaxFovY * 0.5f);
         }
 
-        // Rebuild the camera from the final corrected standoff/aim -- the
-        // loop's matrices are one correction behind.
-        {
-            float   eye[3] = { 0.0f, atY + std::sin (kGazeDownRad) * standoff, std::cos (kGazeDownRad) * standoff };
-            float   at[3]  = { 0.0f, atY, 0.0f };
+        fovY = std::clamp (2.0f * std::atan (tanHalfY), kMinFovY, kMaxFovY);
 
-            SceneCamera::LookAtRH         (eye, at, out.view);
-            SceneCamera::PerspectiveFovRH (kFovY, aspect, kNearMm, kFarMm, out.proj);
-            SceneCamera::Mul44            (out.view, out.proj, out.viewProj);
-        }
+        SceneCamera::PerspectiveFovRH (fovY, aspect, kNearMm, kFarMm, out.proj);
+        SceneCamera::Mul44            (out.view, out.proj, out.viewProj);
+    }
+
+    {
 
         // The scene's own projected footprint, for aspect-matched sizing
         // (Ctrl+0 shrink-wraps the window around it).

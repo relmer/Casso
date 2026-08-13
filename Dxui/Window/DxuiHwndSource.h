@@ -603,6 +603,13 @@ private:
                                                 RECT  clientBoundsDip,
                                                 int   resizeBorderPx);
 
+    // True when an NC mouse message's wParam is one of the eight resize hit
+    // codes. The OS derives that wParam from the answer WM_NCHITTEST already
+    // gave, so it is the authoritative statement of "this press is a resize"
+    // -- and the point may still be over a caption button, because the corner
+    // grab zones deliberately extend under them.
+    static bool  IsResizeHitTest (WPARAM ht);
+
     static void            NotifySystemButtonsMaximizedInTree (IDxuiControl * control, bool maximized);
     static IDxuiControl *  FindNcSystemControlInTree          (IDxuiControl * control, POINT clientDip);
 

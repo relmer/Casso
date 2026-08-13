@@ -551,7 +551,8 @@ void DeskScene::BuildLampGlow (const DeskSceneModel                & model,
 
     out.clear();
 
-    if (model.Lamps().empty() || model.Lamps()[0].radius <= 0.0f)
+    if (model.Lamps().empty() ||
+        model.Lamps()[0].radiusX <= 0.0f || model.Lamps()[0].radiusZ <= 0.0f)
     {
         return;
     }
@@ -559,9 +560,12 @@ void DeskScene::BuildLampGlow (const DeskSceneModel                & model,
     const DeskLampAnchor &  lamp = model.Lamps()[0];
     float                   y    = lamp.frontY - kGlowLiftMm;
 
+    // Elliptical, following the lens's own proportions: a circular glow over
+    // the tall narrow rhombus of the //c power indicator reads as a light
+    // behind a round hole rather than as that lens lit up. A round lamp has
+    // equal half-extents and gets a circle for free.
     auto  vertexAt = [&] (const GlowBand & band, float angle) -> Dxui3DRenderer::Vertex
     {
-        float  radius   = lamp.radius * band.radiusScale;
         float  color[3] = {};
 
         for (int c = 0; c < 3; c++)
@@ -571,9 +575,9 @@ void DeskScene::BuildLampGlow (const DeskSceneModel                & model,
 
         return Dxui3DRenderer::Vertex
         {
-            lamp.center[0] + radius * std::cos (angle),
+            lamp.center[0] + lamp.radiusX * band.radiusScale * std::cos (angle),
             y,
-            lamp.center[2] + radius * std::sin (angle),
+            lamp.center[2] + lamp.radiusZ * band.radiusScale * std::sin (angle),
             0.0f, 0.0f,
             color[0], color[1], color[2], band.alpha
         };
