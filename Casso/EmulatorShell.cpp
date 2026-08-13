@@ -2847,10 +2847,10 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         // the fullscreen overlay strip uses. The band keeps its classic
         // thickness, so the window geometry matches the flat chrome it
         // replaces; the input-mode buttons keep the band's top row.
-        HRESULT               hrLayout = S_OK;
         DeskSceneComposition  comp;
         RECT                  band     = {};
         RECT                  driveRow = {};
+        bool                  composed = false;
         int                   joyH     = m_scaler.Px (s_kJoystickButtonBandDp);
         int                   pad      = m_scaler.Px (s_kSceneDriveRowPadDp);
 
@@ -2862,17 +2862,15 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         driveRow = { pad, band.top + joyH + pad / 2, widthPx - pad,
                      std::max (band.bottom - pad, (LONG) (band.top + joyH)) };
 
+        // A machine with no Disk ][ controller composes no row at all, and a
+        // band too small to solve leaves the scene empty rather than stale.
         if (DeskSceneDriveCount() > 0)
         {
-            hrLayout = DeskSceneLayout::ComputeStrip (driveRow, m_scaler.Dpi(), DeskSceneDriveCount(),
-                                                      m_deskScene.Metrics(), comp);
-        }
-        else
-        {
-            hrLayout = S_FALSE;
+            composed = DeskSceneLayout::ComputeStrip (driveRow, m_scaler.Dpi(), DeskSceneDriveCount(),
+                                                      m_deskScene.Metrics(), comp) == S_OK;
         }
 
-        m_deskScene.SetComposition ((hrLayout == S_OK) ? comp : DeskSceneComposition{});
+        m_deskScene.SetComposition (composed ? comp : DeskSceneComposition{});
 
         SyncSceneDriveChrome();
     }
