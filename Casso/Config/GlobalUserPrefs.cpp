@@ -38,7 +38,7 @@ static constexpr const char *  s_kpszCrtModeKeys[GlobalUserPrefs::kCrtModeCount]
 static const std::set<std::string>  s_kKnownTopLevel = {
     "$cassoGlobalPrefsVersion",
     "activeTheme",
-    "deskScene",
+    "crtMonitor",
     "lastSelectedMachine",
     "lastDiskCreateFolder",
     "audioDownloadConsent",
@@ -935,7 +935,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back (s_kpszVersionKey, JsonValue ((double) version));
 
     root.emplace_back ("activeTheme",          JsonValue (activeTheme));
-    root.emplace_back ("deskScene",            JsonValue (deskScene));
+    root.emplace_back ("crtMonitor",            JsonValue (crtMonitor));
     root.emplace_back ("lastSelectedMachine",  JsonValue (lastSelectedMachine));
     root.emplace_back ("lastDiskCreateFolder", JsonValue (lastDiskCreateFolder));
     root.emplace_back ("audioDownloadConsent", JsonValue (audioDownloadConsent));
@@ -1055,7 +1055,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     version              = GetIntOpt    (v, s_kpszVersionKey,        s_kCurrentVersion);
     activeTheme          = GetStringOpt (v, "activeTheme",            activeTheme);
-    deskScene            = TryGetBoolOpt   (v, "deskScene",              deskScene);
+    crtMonitor            = TryGetBoolOpt   (v, "crtMonitor",              crtMonitor);
     lastSelectedMachine  = GetStringOpt (v, "lastSelectedMachine",    lastSelectedMachine);
     lastDiskCreateFolder = GetStringOpt (v, "lastDiskCreateFolder",   lastDiskCreateFolder);
     audioDownloadConsent = GetStringOpt (v, "audioDownloadConsent",   audioDownloadConsent);

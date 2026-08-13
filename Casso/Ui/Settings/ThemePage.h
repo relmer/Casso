@@ -63,12 +63,12 @@ public:
     using ApplyThemeNowFn = std::function<void ()>;
     void  SetOnApplyThemeNow    (ApplyThemeNowFn     fn) { m_onApplyThemeNow   = std::move (fn); }
 
-    // The 3D desk-scene opt in/out. The checkbox applies live through the
-    // callback and is enabled only while a skeuomorphic (non-compact)
-    // theme is selected in the dropdown.
-    using DeskSceneFn = std::function<void (bool enabled)>;
-    void  SetOnDeskSceneToggled (DeskSceneFn fn) { m_onDeskSceneToggled = std::move (fn); }
-    void  SetDeskSceneChecked   (bool checked)   { m_deskSceneCheckbox.SetChecked (checked); }
+    // The CRT monitor opt in/out (the monitor alone -- the 3D drives always
+    // render). The checkbox applies live through the callback and is enabled
+    // only while a skeuomorphic (non-compact) theme is selected.
+    using CrtMonitorFn = std::function<void (bool enabled)>;
+    void  SetOnCrtMonitorToggled (CrtMonitorFn fn) { m_onCrtMonitorToggled = std::move (fn); }
+    void  SetCrtMonitorChecked   (bool checked)   { m_crtMonitorCheckbox.SetChecked (checked); }
 
     // The theme id the dropdown currently shows (may differ from the id
     // active at open once the user has changed the selection). Empty if
@@ -143,22 +143,22 @@ private:
 
     std::vector<std::string>      m_themeIds;
     int                           m_activeIndex = -1;
-    // Enables the desk-scene checkbox only while the selected theme is
+    // Enables the CRT-monitor checkbox only while the selected theme is
     // skeuomorphic (compact themes never draw the monitor).
-    void  UpdateDeskSceneCheckboxEnabled ();
+    void  UpdateCrtMonitorCheckboxEnabled ();
 
-    ThemeSelectFn                 m_onThemeSelected;
-    FramebufferSourceFn           m_framebufferSource;
-    MountedPathFn                 m_mountedPathSource;
-    WriteProtectFn                m_writeProtectSource;
-    HasDiskSourceFn               m_hasDiskSource;
-    ApplyThemeNowFn               m_onApplyThemeNow;
-    DeskSceneFn                   m_onDeskSceneToggled;
+    ThemeSelectFn        m_onThemeSelected;
+    FramebufferSourceFn  m_framebufferSource;
+    MountedPathFn        m_mountedPathSource;
+    WriteProtectFn       m_writeProtectSource;
+    HasDiskSourceFn      m_hasDiskSource;
+    ApplyThemeNowFn      m_onApplyThemeNow;
+    CrtMonitorFn         m_onCrtMonitorToggled;
 
     DxuiLabel      m_themeLabel;
     DxuiDropdown   m_themeDropdown;
     DxuiButton     m_applyNowButton;
-    DxuiCheckbox   m_deskSceneCheckbox;
+    DxuiCheckbox   m_crtMonitorCheckbox;
     RECT           m_previewRect          = {};
     DxuiDpiScaler  m_scaler;
 

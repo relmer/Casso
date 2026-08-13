@@ -135,6 +135,13 @@ static constexpr int     s_kSceneScaleSettlePasses = 3;
 static constexpr int     s_kStripBandDp     = 150;
 static constexpr int     s_kStripEdgeZoneDp = 8;
 
+// Padding around the 3D drive row when the CRT monitor is opted out and the
+// row composes into the classic bottom band. The row is contained for a
+// straight-on frustum, so the gaze tilt would otherwise carry the near-front
+// edges past the band; the pad also keeps the drives off the window edge the
+// way the 2D widgets' band padding did.
+static constexpr int     s_kSceneDriveRowPadDp = 16;
+
 // Minimum emulator-viewport (center) the window must always host, plus a
 // small pad past the last menu title, so the bottom drive bar can never be
 // driven up into the menu strip / title (NC) area and menu titles never
@@ -1082,7 +1089,7 @@ HRESULT EmulatorShell::InitializeRenderer()
 
 
 
-        if (DeskSceneActive())
+        if (CrtMonitorActive())
         {
             // The CRT chain renders the picture into an exact-aspect rect
             // anchored at the texture origin -- sized to the picture's
@@ -1185,6 +1192,10 @@ HRESULT EmulatorShell::InitializeRenderer()
         }
         else
         {
+            // Monitor off: the picture composites straight to the back buffer
+            // as it always did. The 3D drives still render -- from the
+            // after-paint hook below, since this composite writes the whole
+            // back buffer and the opaque drive-band surface paints after it.
             hrComposite = m_d3dRenderer.UploadAndComposite (m_host->GetBackBufferRtv(),
                                                             m_pendingFramebuffer);
         }
@@ -1194,6 +1205,26 @@ HRESULT EmulatorShell::InitializeRenderer()
         // persistent one (device lost) shows on screen and is handled by
         // the renderer's own device-reset path, not from here.
         IGNORE_RETURN_VALUE (hrComposite, S_OK);
+    });
+
+    // With the monitor opted out the drives are the only scene objects, and
+    // they render HERE -- after the chrome painted -- because the classic
+    // composite blacks out the whole back buffer and the drive band's opaque
+    // surface would otherwise paint straight over them. The drive row keeps
+    // its own depth pass, so it composes onto the finished frame.
+    m_host->SetAfterPaintHook ([this] (ID3D11RenderTargetView * rtv, int, int)
+    {
+        HRESULT  hrDrives = S_OK;
+
+
+        if (CrtMonitorActive() || !DeskSceneActive())
+        {
+            return;
+        }
+
+        hrDrives = m_deskScene.RenderStrip (rtv, m_deskScene.Composition());
+
+        IGNORE_RETURN_VALUE (hrDrives, S_OK);
     });
 
 Error:
@@ -1344,7 +1375,9 @@ Error:
 //
 //  One frame of truth: resolves against the composition the scene last
 //  rendered with, so hover, clicks, and pixels can never disagree with what
-//  is on screen.
+//  is on screen. With the monitor opted out the composition holds drives
+//  alone, so the glass is excluded -- the flat picture is hit-tested by its
+//  viewport rect on the classic paths, as it was before the scene existed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1356,7 +1389,8 @@ SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
                                          (float) xPx,
                                          (float) yPx,
                                          kFramebufferWidth,
-                                         kFramebufferHeight);
+                                         kFramebufferHeight,
+                                         CrtMonitorActive());
 }
 
 
@@ -2691,7 +2725,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
             m_driveBandSurface.SetBounds (RECT{ 0, bandTop, clientW, clientH });
-            if (!DeskSceneActive())
+            if (!CrtMonitorActive())
             {
                 LayoutJoystickButton (clientW, bandTop, bandHeight, dpi);
             }
@@ -2744,7 +2778,7 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
     // (the CRT target) becomes the projected glass rect, and the bottom band
     // collapses to the joystick row via SyncChromeBands' scene branch. The
     // settle loop is retained for the band's dock feedback.
-    if (DeskSceneActive() && m_d3dRenderer.IsFullscreen())
+    if (CrtMonitorActive() && m_d3dRenderer.IsFullscreen())
     {
         // Fullscreen presentation (FR-014): the glass fills the monitor with
         // a straight-on camera, every chrome band hidden -- the whole client
@@ -2763,7 +2797,7 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 
         SyncSceneDriveChrome();
     }
-    else if (DeskSceneActive())
+    else if (CrtMonitorActive())
     {
         for (int pass = 0; pass < s_kSceneScaleSettlePasses; pass++)
         {
@@ -2804,9 +2838,47 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
             LayoutJoystickButton (widthPx, bandTop, bandH, m_scaler.Dpi());
         }
     }
+    else if (DeskSceneActive())
+    {
+        // Monitor opted out: the picture goes back on a flat rect at classic
+        // sizes, but the drives are NOT optional -- they compose as a 3D row
+        // in the bottom band, through the same drives-only solve (its own
+        // contained camera over the band, so FR-016 still holds within it)
+        // the fullscreen overlay strip uses. The band keeps its classic
+        // thickness, so the window geometry matches the flat chrome it
+        // replaces; the input-mode buttons keep the band's top row.
+        HRESULT               hrLayout = S_OK;
+        DeskSceneComposition  comp;
+        RECT                  band     = {};
+        RECT                  driveRow = {};
+        int                   joyH     = m_scaler.Px (s_kJoystickButtonBandDp);
+        int                   pad      = m_scaler.Px (s_kSceneDriveRowPadDp);
+
+        m_chromeSceneScale = 1.0f;
+        center             = ComputeViewportRect (widthPx, heightPx);
+        viewportRect       = center;
+
+        band     = m_driveBand.Bounds();
+        driveRow = { pad, band.top + joyH + pad / 2, widthPx - pad,
+                     std::max (band.bottom - pad, (LONG) (band.top + joyH)) };
+
+        if (DeskSceneDriveCount() > 0)
+        {
+            hrLayout = DeskSceneLayout::ComputeStrip (driveRow, m_scaler.Dpi(), DeskSceneDriveCount(),
+                                                      m_deskScene.Metrics(), comp);
+        }
+        else
+        {
+            hrLayout = S_FALSE;
+        }
+
+        m_deskScene.SetComposition ((hrLayout == S_OK) ? comp : DeskSceneComposition{});
+
+        SyncSceneDriveChrome();
+    }
     else
     {
-        // Desk scene off (compact theme, or the skeuo user opted out): the
+        // No scene at all (compact theme, or the models never loaded): the
         // bare display fills the center at classic sizes over the 2D drive
         // band.
         m_chromeSceneScale = 1.0f;
@@ -2848,9 +2920,9 @@ void EmulatorShell::SyncChromeBands()
     // the emulator viewport grows into it. The widgets are already hidden and
     // un-hit-tested by the resize path when there is no controller.
     bool  hasDisk     = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
-    int   driveBandDp = DeskSceneActive() ? 0 : s_kJoystickButtonBandDp;
+    int   driveBandDp = CrtMonitorActive() ? 0 : s_kJoystickButtonBandDp;
 
-    if (hasDisk && !DeskSceneActive())
+    if (hasDisk && !CrtMonitorActive())
     {
         // The joystick-selector portion is fixed UI; the drive-widget portion
         // zooms with the desk scene (m_chromeSceneScale) so the band hugs the
@@ -3108,7 +3180,7 @@ SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int fram
     // where the drives sit at s_kDeskDriveScale, so the band math must run at
     // that scale regardless of the current window's. Scene off: the center is
     // the framebuffer directly at classic sizes.
-    if (DeskSceneActive())
+    if (CrtMonitorActive())
     {
         SIZE   center     = DeskSceneLayout::CenterSizeForDisplayPx (framebufferWpx, framebufferHpx,
                                                                      m_scaler.Dpi(), DeskSceneDriveCount(),
@@ -3855,26 +3927,26 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SetDeskSceneEnabled
+//  EmulatorShell::SetCrtMonitorEnabled
 //
-//  Settings > Theme opt in/out for the 3D desk scene -- the escape hatch back
-//  to the classic bare display + 2D drive band while the scene's models mature.
+//  Settings > Theme opt in/out for the CRT monitor -- the escape hatch back to
+//  the flat picture at classic sizes (the 3D drives stay either way).
 //  Persists the choice, then re-runs the authoritative OnSize layout at the
-//  current client size so the scene appears or disappears in place -- the
+//  current client size so the monitor appears or disappears in place -- the
 //  window itself does not resize; Ctrl+0 reaches the mode's 100% default.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDeskSceneEnabled (bool enabled)
+void EmulatorShell::SetCrtMonitorEnabled (bool enabled)
 {
     HRESULT  hr       = S_OK;
     RECT     rcClient = {};
 
 
 
-    BAIL_OUT_IF (m_globalPrefs.deskScene == enabled, S_OK);
+    BAIL_OUT_IF (m_globalPrefs.crtMonitor == enabled, S_OK);
 
-    m_globalPrefs.deskScene = enabled;
+    m_globalPrefs.crtMonitor = enabled;
 
     if (m_userConfigStore != nullptr)
     {
@@ -5170,7 +5242,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // Fullscreen drive overlay strip (FR-015): tick the FSM from this
     // frame's observations, apply its capture effects, and compose the slid
     // band the hook will render.
-    if (DeskSceneActive() && m_d3dRenderer.IsFullscreen() && DeskSceneDriveCount() > 0)
+    if (CrtMonitorActive() && m_d3dRenderer.IsFullscreen() && DeskSceneDriveCount() > 0)
     {
         StripInputs   inputs;
         StripEffects  effects;
@@ -6948,7 +7020,7 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
 
 
 
-    if (isLive && DeskSceneActive())
+    if (isLive && CrtMonitorActive())
     {
         // Curvature-correct mapping (spec 018): the pixel comes from the
         // inverse projection through the glass, so only the picture counts
@@ -7020,7 +7092,7 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
                 && GetCursorPos (&pt)
                 && ScreenToClient (m_hwnd, &pt);
 
-    if (overGuest && DeskSceneActive())
+    if (overGuest && CrtMonitorActive())
     {
         // With the desk scene, "over the display" means over the curved
         // glass itself, not the bounding rect around it.
@@ -7158,7 +7230,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     {
         bool  overDisplay = false;
 
-        if (DeskSceneActive())
+        if (CrtMonitorActive())
         {
             SceneHitResult  hit = DeskSceneHit (x, y);
 
@@ -9171,7 +9243,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         // and every chrome element collapses. The windowed path below is the
         // one that restores everything -- including the host caption -- when
         // fullscreen exits, because this OnSize runs on both transitions.
-        if (DeskSceneActive() && m_d3dRenderer.IsFullscreen())
+        if (CrtMonitorActive() && m_d3dRenderer.IsFullscreen())
         {
             SetChromeHiddenForFullscreenScene (true);
             UpdateViewportLayout (static_cast<int> (width), renderH);
@@ -9243,7 +9315,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
                 m_driveBandSurface.SetBounds (RECT{ 0, bandTop, static_cast<int> (width), renderH });
-                if (!DeskSceneActive())
+                if (!CrtMonitorActive())
                 {
                     LayoutJoystickButton (static_cast<int> (width), bandTop, bandHeight, dpi);
                 }
@@ -10216,7 +10288,6 @@ DxuiMessageResult EmulatorShell::OnNcLButtonUp (LRESULT hitTest, int xScreen, in
     (void) yScreen;
     return DxuiMessageResult::NotHandled;
 }
-
 
 
 

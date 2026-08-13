@@ -48,7 +48,7 @@ public:
         Assert::AreEqual (1, prefs.version);
         Assert::AreEqual (string ("Skeuomorphic"), prefs.activeTheme);
         Assert::AreEqual (true,  prefs.activeTheme.size() > 0);
-        Assert::AreEqual (true, prefs.deskScene);            // desk scene default ON; checkbox is the opt-out
+        Assert::AreEqual (true, prefs.crtMonitor);            // desk scene default ON; checkbox is the opt-out
         Assert::AreEqual (false, prefs.crtByMode[0].scanlinesEnabled);
         Assert::AreEqual (size_t (0), prefs.window.placements.size());
     }
@@ -75,7 +75,7 @@ public:
         HRESULT             hr;
 
         orig.activeTheme            = "Retro Terminal";
-        orig.deskScene              = false;
+        orig.crtMonitor              = false;
         orig.lastSelectedMachine    = "Apple2e";
         orig.lastDiskCreateFolder   = "C:\\Users\\me\\Disks";
         orig.arrowsToJoystick       = true;
@@ -108,7 +108,7 @@ public:
         AssertSucceeded (hr);
 
         Assert::AreEqual (orig.activeTheme,         loaded.activeTheme);
-        Assert::AreEqual (orig.deskScene,           loaded.deskScene);
+        Assert::AreEqual (orig.crtMonitor,           loaded.crtMonitor);
         Assert::AreEqual (orig.lastSelectedMachine, loaded.lastSelectedMachine);
         Assert::AreEqual (orig.lastDiskCreateFolder, loaded.lastDiskCreateFolder);
         Assert::AreEqual (orig.arrowsToJoystick, loaded.arrowsToJoystick);

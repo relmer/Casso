@@ -34,9 +34,11 @@ Entries before versioning was introduced use dates only.
   widgets untouched, and theme switches land the scene — or leave it —
   with the picture, disks, activity, and write-protect state correct on
   arrival, emulation uninterrupted.
-- **The scene is opt-out.** A Settings > Theme checkbox (on by default)
-  switches back to the classic bare display + 2D drive band, live and in
-  place, while the 3D models mature and drive docking is still to come.
+- **The CRT monitor is optional; the 3D drives are not.** A Settings >
+  Theme checkbox (on by default) drops the monitor and puts the picture
+  back on a flat rect at classic sizes, live and in place — the 3D drive
+  row still composes into the band below it, so the drives are the same
+  objects either way.
 
 ### Fixed
 - Pasting text into the guest no longer garbles at line wraps and no

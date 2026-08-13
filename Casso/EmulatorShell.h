@@ -666,18 +666,26 @@ private:
     // emulator pixel grid. Called from the ThemeManager listener.
     void    ApplyThemeToChrome   (const CassoTheme & theme);
 
-    // Settings > Theme opt in/out for the 3D desk scene. Applies live --
-    // relays out the chrome in place -- and persists to GlobalUserPrefs.
-    void    SetDeskSceneEnabled (bool enabled);
+    // Settings > Theme opt in/out for the CRT monitor. Applies live -- relays
+    // out the chrome in place -- and persists to GlobalUserPrefs.
+    void    SetCrtMonitorEnabled (bool enabled);
 
-    // The 3D desk scene renders when the skeuo theme is active, the user
-    // has not opted out (the checkbox is the escape hatch while the models
-    // mature and docking lands), and the models loaded. Opted out, skeuo
-    // shows the bare display over the classic 2D drive band; compact themes
-    // never draw the scene.
+    // The 3D scene renders whenever a skeuo theme is active and the models
+    // loaded. The DRIVES are not optional -- they are 3D objects in every
+    // skeuo presentation; compact themes keep their flat widgets.
     bool    DeskSceneActive      () const
     {
-        return !m_chromeTheme.compactDrives && m_deskSceneReady && m_globalPrefs.deskScene;
+        return !m_chromeTheme.compactDrives && m_deskSceneReady;
+    }
+
+    // ...and the monitor on top of that, which the user CAN turn off: the
+    // picture then sits on a flat rect at classic sizes with the 3D drive
+    // row still composed in the band below it. Everything keyed off the
+    // curved glass -- the glass-fill fullscreen, the inverse-projected
+    // pointer mapping, the Ctrl+0 solve -- follows this, not DeskSceneActive.
+    bool    CrtMonitorActive     () const
+    {
+        return DeskSceneActive() && m_globalPrefs.crtMonitor;
     }
 
     // Initializes the desk scene renderer against the host device and loads

@@ -242,10 +242,10 @@ HRESULT SettingsSheet::OpenModeless (
     // The 3D desk-scene opt in/out: applies + persists immediately (the
     // scene appears/disappears on the live chrome behind the sheet), so
     // there is no staged state to revert on Cancel.
-    m_themePage->SetDeskSceneChecked (prefs.deskScene);
-    m_themePage->SetOnDeskSceneToggled ([this] (bool enabled)
+    m_themePage->SetCrtMonitorChecked (prefs.crtMonitor);
+    m_themePage->SetOnCrtMonitorToggled ([this] (bool enabled)
     {
-        m_emuShell->SetDeskSceneEnabled (enabled);
+        m_emuShell->SetCrtMonitorEnabled (enabled);
     });
 
     // Live preview (#8): dragging / keyboard-editing a Display control blurs +
