@@ -252,21 +252,26 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     // Scene bounds in world space: the monitor spans its model box remapped
     // (y_world from model z, z_world from -model y), drives likewise scaled
     // and shifted forward.
-    sceneMin[0] = metrics.monitorMin[0] - monitorCx;
-    sceneMax[0] = metrics.monitorMax[0] - monitorCx;
+    // Each device contributes its own body PLUS the ground clearance its
+    // contact shadow needs (X and the toward-viewer Z only -- a shadow has no
+    // height and the far side hides behind its own device).
+    sceneMin[0] = metrics.monitorMin[0] - monitorCx - metrics.monitorPadSideMm;
+    sceneMax[0] = metrics.monitorMax[0] - monitorCx + metrics.monitorPadSideMm;
     sceneMin[1] = metrics.monitorMin[2];
     sceneMax[1] = metrics.monitorMax[2];
     sceneMin[2] = -metrics.monitorMax[1];
-    sceneMax[2] = -metrics.monitorMin[1];
+    sceneMax[2] = -metrics.monitorMin[1] + metrics.monitorPadDepthMm;
 
     for (int i = 0; i < driveCount; i++)
     {
-        float   lo[3] = { (metrics.driveMin[0] - driveCx) * kDriveScale + driveTx[i],
+        float   lo[3] = { (metrics.driveMin[0] - driveCx) * kDriveScale + driveTx[i]
+                              - metrics.drivePadSideMm * kDriveScale,
                           metrics.driveMin[2] * kDriveScale - dropMm,
                           kDriveRowForwardMm - metrics.driveMax[1] * kDriveScale };
-        float   hi[3] = { (metrics.driveMax[0] - driveCx) * kDriveScale + driveTx[i],
+        float   hi[3] = { (metrics.driveMax[0] - driveCx) * kDriveScale + driveTx[i]
+                              + metrics.drivePadSideMm * kDriveScale,
                           metrics.driveMax[2] * kDriveScale - dropMm,
-                          kDriveRowForwardMm - metrics.driveMin[1] * kDriveScale };
+                          kDriveRowForwardMm + (metrics.drivePadDepthMm - metrics.driveMin[1]) * kDriveScale };
 
         for (int axis = 0; axis < 3; axis++)
         {
@@ -274,17 +279,6 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
             sceneMax[axis] = std::max (sceneMax[axis], hi[axis]);
         }
     }
-
-    // Contact-shadow clearance, in the ground plane only (the shadow has no
-    // height). Without it the solve contains the DEVICES exactly and every
-    // shadow lands outside the viewport -- present in the scene, clipped out
-    // of the picture, so the devices read as floating no matter how the
-    // shadow itself is tuned. The depth pad is applied toward the VIEWER
-    // (+Z), where a floor shadow projects downward and is actually seen; the
-    // far side sits behind its own device.
-    sceneMin[0] -= metrics.groundPadSideMm;
-    sceneMax[0] += metrics.groundPadSideMm;
-    sceneMax[2] += metrics.groundPadDepthMm;
 
     // The camera looks at the glass center from slightly above (a person at
     // a desk), so top surfaces show and every device picks up its position's
@@ -596,12 +590,12 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
 
     for (int i = 0; i < driveCount; i++)
     {
-        float   lo[3] = { metrics.driveMin[0] - driveCx + driveTx[i],
+        float   lo[3] = { metrics.driveMin[0] - driveCx + driveTx[i] - metrics.drivePadSideMm,
                           metrics.driveMin[2],
                           -metrics.driveMax[1] };
-        float   hi[3] = { metrics.driveMax[0] - driveCx + driveTx[i],
+        float   hi[3] = { metrics.driveMax[0] - driveCx + driveTx[i] + metrics.drivePadSideMm,
                           metrics.driveMax[2],
-                          -metrics.driveMin[1] };
+                          -metrics.driveMin[1] + metrics.drivePadDepthMm };
 
         MakeDeviceWorld (driveTx[i] - driveCx, 0.0f, 0.0f, 1.0f, out.driveWorld[i]);
 
@@ -611,13 +605,6 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
             sceneMax[axis] = std::max (sceneMax[axis], hi[axis]);
         }
     }
-
-    // Ground-plane clearance for the contact shadows, same as the desk
-    // composition: contained to the drives alone, every shadow projects off
-    // the strip's bottom edge.
-    sceneMin[0] -= metrics.groundPadSideMm;
-    sceneMax[0] += metrics.groundPadSideMm;
-    sceneMax[2] += metrics.groundPadDepthMm;
 
     rowCy = (sceneMin[1] + sceneMax[1]) * 0.5f;
 

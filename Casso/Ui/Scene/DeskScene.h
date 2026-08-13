@@ -139,12 +139,21 @@ public:
     // becomes a thin smear under the front lip -- while the side margins keep
     // their full width and turn into dark vertical bands standing beside the
     // device. Sides therefore stay tight and depth runs long.
-    static constexpr float  kShadowMarginSideMm  = 9.0f;
-    static constexpr float  kShadowMarginDepthMm = 34.0f;
-    static constexpr float  kShadowAlpha         = 0.70f;
-    static constexpr float  kShadowMidStop       = 0.30f;   // fraction of the margin
-    static constexpr float  kShadowMidAlpha      = 0.30f;
-    static constexpr int    kShadowCornerSegs    = 4;
+    //
+    // The monitor's are far longer still. It is seen almost head-on (the
+    // camera gazes down ~5 degrees), so its patch of floor is nearly edge-on
+    // and its own overhanging bezel hides the near end of it: a drive-sized
+    // margin projects to about a pixel. Reaching ~90 mm forward costs the
+    // scene nothing, because the drive row already stands 85 mm ahead of the
+    // monitor and sets the composition's forward bound.
+    static constexpr float  kShadowMarginSideMm         = 9.0f;
+    static constexpr float  kShadowMarginDepthMm        = 34.0f;
+    static constexpr float  kMonitorShadowMarginSideMm  = 26.0f;
+    static constexpr float  kMonitorShadowMarginDepthMm = 90.0f;
+    static constexpr float  kShadowAlpha                = 0.70f;
+    static constexpr float  kShadowMidStop              = 0.30f;   // fraction of the margin
+    static constexpr float  kShadowMidAlpha             = 0.30f;
+    static constexpr int    kShadowCornerSegs           = 4;
 
     // The picture sub-mesh: its own curved grid spanning exactly the band
     // (mesh edge == band edge, UVs a clean 0..1 span), floated off the tube
@@ -213,6 +222,8 @@ private:
     // footprint plus a penumbra skirt fading out over kShadowMarginMm, with
     // rounded corners, all in the model's ground plane.
     static void  BuildContactShadow (const DeskSceneModel                & model,
+                                     float                                 marginSideMm,
+                                     float                                 marginDepthMm,
                                      std::vector<Dxui3DRenderer::Vertex> & out);
 
     Dxui3DRenderer          m_renderer;

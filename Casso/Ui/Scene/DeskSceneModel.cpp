@@ -779,7 +779,9 @@ void DeskSceneModel::ComputeBounds()
 
 void DeskSceneModel::ComputeGroundFootprint()
 {
-    float   ceiling = m_boundsMin[2] + kGroundBandMm;
+    float   height  = m_boundsMax[2] - m_boundsMin[2];
+    float   band    = std::max (kGroundBandMm, height * kGroundBandFraction);
+    float   ceiling = m_boundsMin[2] + band;
     float   lo[2]   = { FLT_MAX, FLT_MAX };
     float   hi[2]   = { -FLT_MAX, -FLT_MAX };
 
@@ -797,9 +799,11 @@ void DeskSceneModel::ComputeGroundFootprint()
         }
     }
 
-    // No contact geometry at all (a model floating above its own origin)
-    // collapses to the box, which is the honest fallback.
-    if (lo[0] > hi[0])
+    // No contact geometry, or a patch with no area on one axis (a case that
+    // rests on a single edge), collapses to the box -- the honest fallback,
+    // and the one that keeps a caller from having to special-case a
+    // zero-width footprint.
+    if (lo[0] >= hi[0] || lo[1] >= hi[1])
     {
         lo[0] = m_boundsMin[0];  hi[0] = m_boundsMax[0];
         lo[1] = m_boundsMin[1];  hi[1] = m_boundsMax[1];

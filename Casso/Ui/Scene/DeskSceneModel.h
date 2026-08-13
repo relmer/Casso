@@ -130,10 +130,14 @@ public:
     void  FootprintMin (float out[2]) const { memcpy (out, m_footprintMin, sizeof (m_footprintMin)); }
     void  FootprintMax (float out[2]) const { memcpy (out, m_footprintMax, sizeof (m_footprintMax)); }
 
-    // How far above the lowest vertex still counts as touching the ground.
-    // Wide enough to catch a foot pad's top face, tight enough to exclude
-    // the case wall rising off it.
-    static constexpr float  kGroundBandMm = 2.5f;
+    // How far above the lowest vertex still counts as touching the ground:
+    // the larger of an absolute floor and a fraction of the model's height.
+    // The absolute part catches a foot pad's top face on a small device; the
+    // proportional part is there because a case can TAPER -- the Monitor //c
+    // shell rises 6 mm from its front edge to its back, so a 2.5 mm band
+    // found only the front edge and reported a footprint one line deep.
+    static constexpr float  kGroundBandMm       = 2.5f;
+    static constexpr float  kGroundBandFraction = 0.045f;
 
     // Sub-mesh identity colors, shared with scripts/modelgen/. Matching is
     // by value with kKdEpsilon, exactly as Printer3DScene matches its LEDs,

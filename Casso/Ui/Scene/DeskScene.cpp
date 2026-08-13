@@ -85,8 +85,10 @@ HRESULT DeskScene::LoadModels (const std::string & monitorObj, const std::string
     BuildLampGlow (m_monitor, kMonitorGlowRgb, m_monitorGlowVerts);
     BuildLampGlow (m_drive,   kDriveGlowRgb,   m_driveGlowVerts);
 
-    BuildContactShadow (m_monitor, m_monitorShadowVerts);
-    BuildContactShadow (m_drive,   m_driveShadowVerts);
+    BuildContactShadow (m_monitor, kMonitorShadowMarginSideMm, kMonitorShadowMarginDepthMm,
+                        m_monitorShadowVerts);
+    BuildContactShadow (m_drive,   kShadowMarginSideMm,        kShadowMarginDepthMm,
+                        m_driveShadowVerts);
 
     m_modelsLoaded = true;
     m_glassUvDirty = true;
@@ -121,8 +123,10 @@ DeskSceneMetrics DeskScene::Metrics() const
 
     // The room the contact shadows need on the floor, so the containment
     // solve keeps them inside the picture instead of clipping them away.
-    metrics.groundPadSideMm  = kShadowMarginSideMm;
-    metrics.groundPadDepthMm = kShadowMarginDepthMm;
+    metrics.monitorPadSideMm  = kMonitorShadowMarginSideMm;
+    metrics.monitorPadDepthMm = kMonitorShadowMarginDepthMm;
+    metrics.drivePadSideMm    = kShadowMarginSideMm;
+    metrics.drivePadDepthMm   = kShadowMarginDepthMm;
 
     return metrics;
 }
@@ -620,6 +624,8 @@ void DeskScene::BuildLampGlow (const DeskSceneModel                & model,
 ////////////////////////////////////////////////////////////////////////////////
 
 void DeskScene::BuildContactShadow (const DeskSceneModel                & model,
+                                    float                                 marginSideMm,
+                                    float                                 marginDepthMm,
                                     std::vector<Dxui3DRenderer::Vertex> & out)
 {
     float   boundsMin[3] = {};
@@ -673,8 +679,8 @@ void DeskScene::BuildContactShadow (const DeskSceneModel                & model,
     {
         float  f0 = stops[band][0],     a0 = stops[band][1];
         float  f1 = stops[band + 1][0], a1 = stops[band + 1][1];
-        float  s0 = f0 * kShadowMarginSideMm,  s1 = f1 * kShadowMarginSideMm;
-        float  d0 = f0 * kShadowMarginDepthMm, d1 = f1 * kShadowMarginDepthMm;
+        float  s0 = f0 * marginSideMm,  s1 = f1 * marginSideMm;
+        float  d0 = f0 * marginDepthMm, d1 = f1 * marginDepthMm;
 
         quad (lo[0], lo[1] - d0, a0, hi[0], lo[1] - d0, a0,        // front (-Y)
               hi[0], lo[1] - d1, a1, lo[0], lo[1] - d1, a1);
@@ -711,10 +717,10 @@ void DeskScene::BuildContactShadow (const DeskSceneModel                & model,
             {
                 float  t0  = 1.5707963f * (float) s       / (float) kShadowCornerSegs;
                 float  t1  = 1.5707963f * (float) (s + 1) / (float) kShadowCornerSegs;
-                float  ux0 = corners[c][2] * std::cos (t0) * kShadowMarginSideMm;
-                float  uy0 = corners[c][3] * std::sin (t0) * kShadowMarginDepthMm;
-                float  ux1 = corners[c][2] * std::cos (t1) * kShadowMarginSideMm;
-                float  uy1 = corners[c][3] * std::sin (t1) * kShadowMarginDepthMm;
+                float  ux0 = corners[c][2] * std::cos (t0) * marginSideMm;
+                float  uy0 = corners[c][3] * std::sin (t0) * marginDepthMm;
+                float  ux1 = corners[c][2] * std::cos (t1) * marginSideMm;
+                float  uy1 = corners[c][3] * std::sin (t1) * marginDepthMm;
 
                 quad (cx + ux0 * f0, cy + uy0 * f0, a0,
                       cx + ux1 * f0, cy + uy1 * f0, a0,

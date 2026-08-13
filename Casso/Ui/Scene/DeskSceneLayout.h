@@ -47,13 +47,20 @@ struct DeskSceneMetrics
     float                 driveMax[3]   = {};
     CurvedDisplaySurface  glass;                 // the monitor's surface
 
-    // Ground-plane clearance the devices' contact shadows need, in model mm
-    // (side, front-to-back). The containment solve counts it as part of the
-    // scene: a shadow lies on the floor BEYOND its device and nearer the
-    // camera, so a scene contained to the devices alone projects it straight
-    // off the bottom edge. Zero simply contains the devices.
-    float                 groundPadSideMm  = 0.0f;
-    float                 groundPadDepthMm = 0.0f;
+    // Ground-plane clearance each device's contact shadow needs, in that
+    // device's model mm (side, front-to-back). The containment solve counts
+    // it as part of the scene: a shadow lies on the floor BEYOND its device
+    // and nearer the camera, so a scene contained to the devices alone
+    // projects it straight off the bottom edge. Zero simply contains the
+    // devices. Per device rather than one scene-wide pad because the monitor
+    // needs a far longer forward shadow than the drives (it is seen nearly
+    // head-on, so its floor is edge-on) and it sits BEHIND the drive row --
+    // charging the whole scene for the monitor's reach would shrink
+    // everything to buy clearance the drives already provide.
+    float                 monitorPadSideMm  = 0.0f;
+    float                 monitorPadDepthMm = 0.0f;
+    float                 drivePadSideMm    = 0.0f;
+    float                 drivePadDepthMm   = 0.0f;
 };
 
 

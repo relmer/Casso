@@ -297,6 +297,49 @@ public:
         }
     }
 
+    TEST_METHOD (Ground_Footprint_Always_Has_Area_And_Stays_Inside_The_Box)
+    {
+        // The contact shadow is sized from this rect, so a footprint with no
+        // area on one axis means no shadow at all -- silently, since a
+        // zero-area rect draws nothing. That is exactly how the monitor lost
+        // its shadow: its shell TAPERS 6 mm from front edge to back, so a
+        // narrow ground band found only the front edge and reported a
+        // footprint one line deep. The band is proportional to the model's
+        // height for that reason, and a degenerate patch falls back to the
+        // box rather than collapsing.
+        const DeskDeviceKind  kinds[] = { DeskDeviceKind::Monitor2c, DeskDeviceKind::DiskII };
+
+        for (DeskDeviceKind kind : kinds)
+        {
+            DeskSceneModel   model;
+            float            boundsMin[3] = {};
+            float            boundsMax[3] = {};
+            float            footMin[2]   = {};
+            float            footMax[2]   = {};
+
+            AssertSucceeded (model.Load (kind,
+                                         (kind == DeskDeviceKind::Monitor2c) ? MonitorObj() : DriveObj(),
+                                         Mtl()));
+
+            model.BoundsMin    (boundsMin);
+            model.BoundsMax    (boundsMax);
+            model.FootprintMin (footMin);
+            model.FootprintMax (footMax);
+
+            Assert::IsTrue (footMax[0] > footMin[0],
+                            L"footprint must have width -- a zero-area rect draws no shadow");
+            Assert::IsTrue (footMax[1] > footMin[1],
+                            L"footprint must have depth -- a zero-area rect draws no shadow");
+
+            for (int axis = 0; axis < 2; axis++)
+            {
+                Assert::IsTrue (footMin[axis] >= boundsMin[axis] &&
+                                footMax[axis] <= boundsMax[axis],
+                                L"the contact patch cannot reach outside the model's own box");
+            }
+        }
+    }
+
     TEST_METHOD (Identity_Colors_Are_Farther_Apart_Than_The_Match_Epsilon)
     {
         // Sub-meshes are identified by Kd VALUE within kKdEpsilon per channel,
