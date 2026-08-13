@@ -40,6 +40,14 @@ Entries before versioning was introduced use dates only.
   row still composes into the band below it, seen from the angle the old
   2D drive widgets were drawn at, now as real geometry.
 
+- **The lamps read as lit, and the devices sit on something.** The
+  monitor's power indicator is a round lens in a dark recess instead of a
+  flat green mark, and both it and the drive activity LED throw a glow
+  that blows out toward white at the core and spills onto the housing
+  around them. Every device also casts a contact shadow on the ground
+  plane, so the scene reads as objects standing on a desk rather than
+  artwork pasted on the backdrop.
+
 ### Fixed
 - Pasting text into the guest no longer garbles at line wraps and no
   longer leaks the Ctrl+V character into the input line (#110).
