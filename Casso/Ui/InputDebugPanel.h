@@ -63,6 +63,12 @@ public:
     HRESULT RenderFrame ();
     void    SetTheme    (const CassoTheme * theme);
     void    SetCycleCounter (const uint64_t * cycleCounter) { m_cycleCounter = cycleCounter; }
+
+    // Whether $C063 is the //c's MOUSE BUTTON rather than the //e's shift-key
+    // mod. The two read inverted -- the mouse button is ACTIVE LOW, so $00 is
+    // pressed -- and only the machine knows which one is wired up, so the
+    // shell sets this when it opens the panel.
+    void    SetMouseButtonAtC063 (bool isMouse) { m_mouseButtonAtC063 = isMouse; }
     void    SetUptimeAnchor (std::chrono::steady_clock::time_point anchor) { m_uptimeAnchor = anchor; }
     void    ClearEvents     ();
 
@@ -153,16 +159,18 @@ private:
     static wchar_t            PrintableChar             (Byte value) noexcept;
     static std::wstring       FormatByteChar            (Byte value);
     static std::wstring       SourceLabel               (InputEventCategory category);
-    static LPCWSTR            ButtonAnnotation          (Word address) noexcept;
+    static LPCWSTR            ButtonAnnotation          (Word address, bool mouseButtonAtC063) noexcept;
     static InputGamePortClass ClassifyGamePort          (InputEventType type, Word address) noexcept;
     static void               FormatInputEvent          (const InputEvent & src,
                                                          std::chrono::steady_clock::time_point uptimeAnchor,
                                                          const InputFilterState & filter,
-                                                         InputEventDisplay & out);
+                                                         InputEventDisplay & out,
+                                                         bool mouseButtonAtC063);
     static void               ProjectOne                (const InputEvent & src,
                                                          std::deque<InputEventDisplay> & deque,
                                                          std::chrono::steady_clock::time_point uptimeAnchor,
-                                                         const InputFilterState & filter);
+                                                         const InputFilterState & filter,
+                                                         bool mouseButtonAtC063);
 
     InputPanelLayoutSlots                 m_layout = {};
 
@@ -206,5 +214,6 @@ private:
 
     bool  m_joystickVisible        = true;
     bool  m_paddleVisible          = false;
+    bool  m_mouseButtonAtC063      = false;
     int   m_listSelectedEventIndex = -1;
 };

@@ -4,6 +4,7 @@
 #include "KeystrokeInjector.h"
 #include "TextScreenScraper.h"
 #include "Devices/AppleMouse.h"
+#include "Devices/Apple2eSoftSwitchBank.h"
 #include "Core/InterruptController.h"
 #include "Video/VideoTiming.h"
 
@@ -137,6 +138,73 @@ public:
     }
 
 
+    // $C015/$C017 are STATUS, not acknowledges, despite being named RSTXINT
+    // and RSTYINT (and despite MAME lowering its mouse IRQ on these reads).
+    // The real ROM 4 firmware polls them inside its service loop and acks with
+    // $C048; making the read clear the latch cost it movement units -- the
+    // firmware oracle below tracked 2 of 5. Repeated reads must therefore be
+    // idempotent, and only $C048 may drop the line.
+    TEST_METHOD (ReadingStatusRegisters_DoesNotAcknowledge_OnlyRstxyDoes)
+    {
+        InterruptController  ic;
+        AppleMouse           mouse;
+
+        AssertSucceeded (mouse.AttachInterruptController (&ic));
+        EnableXyInterrupts (mouse);
+
+        mouse.MoveBy (1, 1);
+        mouse.Tick (AppleMouse::kSampleQuantum);
+        Assert::IsTrue (ic.IsAnyAsserted(), L"movement must assert the line");
+
+        for (int i = 0; i < 3; ++i)
+        {
+            Assert::AreEqual<Byte> (0x80, mouse.ReadXInterruptStatus(), L"$C015 keeps reporting X");
+            Assert::AreEqual<Byte> (0x80, mouse.ReadYInterruptStatus(), L"$C017 keeps reporting Y");
+        }
+
+        Assert::IsTrue (ic.IsAnyAsserted(), L"polling status must not acknowledge");
+
+        mouse.AccessRstXY();
+        Assert::AreEqual<Byte> (0x00, mouse.ReadXInterruptStatus(), L"$C048 clears X");
+        Assert::AreEqual<Byte> (0x00, mouse.ReadYInterruptStatus(), L"$C048 clears Y");
+        Assert::IsFalse        (ic.IsAnyAsserted(),                 L"and drops the line");
+    }
+
+
+    // $C019 is NOT part of the read-to-acknowledge family, which is the whole
+    // reason it gets its own case: on the //c it flags "a VBL IRQ fired" and
+    // survives its own read, clearing only on a $C07X access (Apple //c
+    // Technical Note #9). An I/O reference calling it "RSTVBL ... remains set
+    // until software reads this location" prompted exactly that mistake here.
+    TEST_METHOD (ReadingVblFlag_DoesNotAcknowledgeIt_OnlyPtrigDoes)
+    {
+        InterruptController  ic;
+        AppleMouse           mouse;
+        VideoTiming          vt;
+        auto                 advance = [&] (uint32_t cyc) { vt.Tick (cyc); mouse.Tick (cyc); };
+
+        AssertSucceeded (mouse.AttachInterruptController (&ic));
+        mouse.SetVideoTiming (&vt);
+
+        mouse.WriteIouAccess  (true);
+        mouse.AccessIouSwitch (s_kEnbVbl);
+        mouse.WriteIouAccess  (false);
+
+        advance (VideoTiming::kVblankStartCycle + 1);
+        Assert::IsTrue (ic.IsAnyAsserted(), L"VBL onset must assert the line");
+
+        // Reading it twice must report the flag twice: the read has no side
+        // effect, so a firmware poll cannot accidentally acknowledge.
+        Assert::AreEqual<Byte> (0x80, mouse.ReadVblInterrupt(), L"$C019 reports the flag");
+        Assert::AreEqual<Byte> (0x80, mouse.ReadVblInterrupt(), L"and still reports it after a read");
+        Assert::IsTrue         (ic.IsAnyAsserted(),            L"the line survives the read");
+
+        mouse.AccessPtrig();
+        Assert::AreEqual<Byte> (0x00, mouse.ReadVblInterrupt(), L"$C07X is what clears it");
+        Assert::IsFalse        (ic.IsAnyAsserted(),            L"and drops the line");
+    }
+
+
     // $C066/$C067 direction-line polarity, exactly as the firmware's service
     // loop consumes them: MOUX1 bit 7 = 1 -> X increments; MOUY1 is inverted
     // by the firmware (EOR #$80), so bit 7 = 0 -> Y increments.
@@ -245,6 +313,31 @@ public:
         mouse.AccessIouSwitch (s_kEnbXy);
         mouse.WriteIouAccess (false);
         Assert::IsTrue (ic.IsAnyAsserted(), L"re-enable surfaces the pending flag");
+    }
+
+
+    // BOTH documented address pairs drive the one IOUDIS latch, through the
+    // bank that decodes them: $C078/$C079 (the pair ROM 4's firmware uses) and
+    // $C07E/$C07F (SETIOUDIS/CLRIOUDIS). Apple //c Technical Note #9 documents
+    // the second pair for VBL polling -- "turn IOUDis off by writing to $C07F,
+    // then access ENVBL at $C05B" -- so a program following it must reach the
+    // mouse switches, not the annunciators.
+    TEST_METHOD (BothIouDisAddressPairs_GateTheMouseSwitches)
+    {
+        Apple2eSoftSwitchBank  bank (nullptr);
+        AppleMouse             mouse;
+
+        bank.SetMouse (&mouse);
+
+        bank.Read (0xC079);
+        Assert::IsTrue  (mouse.IsIouAccessEnabled(), L"$C079 enables IOU access");
+        bank.Read (0xC078);
+        Assert::IsFalse (mouse.IsIouAccessEnabled(), L"$C078 disables it");
+
+        bank.Read (0xC07F);
+        Assert::IsTrue  (mouse.IsIouAccessEnabled(), L"$C07F (CLRIOUDIS) must enable it too");
+        bank.Read (0xC07E);
+        Assert::IsFalse (mouse.IsIouAccessEnabled(), L"$C07E (SETIOUDIS) must disable it");
     }
 };
 

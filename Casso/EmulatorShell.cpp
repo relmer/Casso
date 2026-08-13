@@ -6252,11 +6252,25 @@ bool EmulatorShell::GuestMouseActive() const
 //
 //  GuestMouseLive
 //
+//  "Mouse-aware software is actually running", so Mouse mode stays invisible
+//  at a BASIC prompt: hardware truth (the IOU's own interrupt enables, which
+//  only the $C079 / $C05x programming sequence can set) rather than anything
+//  garbage RAM could fake.
+//
+//  EITHER enable counts. The gate first read X/Y alone, on the assumption
+//  that SETMOUSE programs ENBXY for every active mode -- it does not.
+//  MousePaint's main app asks for mode $09 (mouse on + VBL interrupt, no
+//  movement interrupt), so the firmware issues DISXY / ENVBL and X/Y stays
+//  masked for as long as the app runs. That read as a dead mouse: the pointer
+//  froze wherever the firmware left it and clicks went nowhere, while the
+//  startup screen and tutorial -- different modes -- worked.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool EmulatorShell::GuestMouseLive() const
 {
-    return GuestMouseActive() && m_mouse->XyInterruptsEnabled();
+    return GuestMouseActive() &&
+           (m_mouse->XyInterruptsEnabled() || m_mouse->VblInterruptsEnabled());
 }
 
 
@@ -9207,6 +9221,11 @@ void EmulatorShell::OpenInputDebugDialog()
         ApplyAppIconToWindow (m_inputDebugPanel->Hwnd());
 
         m_inputDebugPanel->SetUptimeAnchor (m_uptimeAnchor);
+
+        // $C063 is the //c's active-low mouse button whenever a mouse device
+        // is wired up (matching Apple2eKeyboard's own read), and the //e's
+        // shift-key mod otherwise.
+        m_inputDebugPanel->SetMouseButtonAtC063 (m_mouse != nullptr);
 
         if (m_cpu != nullptr)
         {

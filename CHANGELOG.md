@@ -6,6 +6,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.16.1] — the //c mouse works with VBL-interrupt software
+
+### Fixed
+- **The //c mouse was dead in MousePaint** (and in anything else that runs
+  the mouse from the vertical-blank interrupt rather than from movement
+  interrupts). Mouse mode only came alive once guest software enabled the
+  IOU's X/Y movement interrupt — but `SETMOUSE` does not program that for
+  every active mode: MousePaint's main app asks for mouse-on plus VBL
+  interrupt and leaves X/Y masked, so the pointer sat frozen wherever the
+  firmware left it and clicks went nowhere. Either interrupt enable now
+  counts, and Mouse mode is still invisible at a BASIC prompt.
+- **The IOU register gate ignored half its addresses.** `$C07E`/`$C07F`
+  (SETIOUDIS / CLRIOUDIS) drive the same latch as `$C078`/`$C079`, and
+  Apple //c Technical Note #9 documents that pair for VBL polling — so
+  the published sequence was programming annunciators instead of the
+  mouse switches.
+- The Input Debug panel called a held //c mouse button released: `$C063`
+  is active low there (`$00` = pressed), unlike the //e's shift-key mod
+  at the same address.
+
 ## [1.16.0] — create blank disks + write-protect toggle
 
 ### Added
