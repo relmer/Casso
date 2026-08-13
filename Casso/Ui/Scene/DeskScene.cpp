@@ -85,6 +85,9 @@ HRESULT DeskScene::LoadModels (const std::string & monitorObj, const std::string
     BuildLampGlow (m_monitor, kMonitorGlowRgb, m_monitorGlowVerts);
     BuildLampGlow (m_drive,   kDriveGlowRgb,   m_driveGlowVerts);
 
+    BuildContactShadow (m_monitor, m_monitorShadowVerts);
+    BuildContactShadow (m_drive,   m_driveShadowVerts);
+
     m_modelsLoaded = true;
     m_glassUvDirty = true;
     m_lampsDirty   = true;
@@ -115,6 +118,11 @@ DeskSceneMetrics DeskScene::Metrics() const
     m_drive.BoundsMax   (metrics.driveMax);
 
     metrics.glass = m_monitor.Surface();
+
+    // The room the contact shadows need on the floor, so the containment
+    // solve keeps them inside the picture instead of clipping them away.
+    metrics.groundPadSideMm  = kShadowMarginSideMm;
+    metrics.groundPadDepthMm = kShadowMarginDepthMm;
 
     return metrics;
 }
@@ -598,6 +606,176 @@ void DeskScene::BuildLampGlow (const DeskSceneModel                & model,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::BuildContactShadow
+//
+//  A filled core over the ground footprint, then a penumbra skirt: four side
+//  bands and four rounded corners, each running from the silhouette at full
+//  darkness out to nothing. Two alpha stops across the margin rather than one,
+//  for the same reason the glow has bands -- a linear ramp reads as a gray
+//  gradient, while a fast-then-slow falloff reads as a shadow.
+//
+//  Model space, so the composition's world matrix places it with the device.
+//  Black premultiplied: the color channels are zero at every alpha.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::BuildContactShadow (const DeskSceneModel                & model,
+                                    std::vector<Dxui3DRenderer::Vertex> & out)
+{
+    float   boundsMin[3] = {};
+    float   lo[2]        = {};
+    float   hi[2]        = {};
+
+    out.clear();
+
+    model.BoundsMin    (boundsMin);
+    model.FootprintMin (lo);
+    model.FootprintMax (hi);
+
+    if (lo[0] >= hi[0] || lo[1] >= hi[1])
+    {
+        return;
+    }
+
+    float  z = boundsMin[2];
+
+    auto  vertexAt = [&] (float x, float y, float alpha) -> Dxui3DRenderer::Vertex
+    {
+        return Dxui3DRenderer::Vertex { x, y, z, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, alpha };
+    };
+
+    auto  quad = [&] (float x0, float y0, float a0, float x1, float y1, float a1,
+                      float x2, float y2, float a2, float x3, float y3, float a3)
+    {
+        out.push_back (vertexAt (x0, y0, a0));
+        out.push_back (vertexAt (x1, y1, a1));
+        out.push_back (vertexAt (x2, y2, a2));
+
+        out.push_back (vertexAt (x0, y0, a0));
+        out.push_back (vertexAt (x2, y2, a2));
+        out.push_back (vertexAt (x3, y3, a3));
+    };
+
+    // Core: the footprint itself, mostly hidden by the device standing on it
+    // but visible under overhangs and between the feet.
+    quad (lo[0], lo[1], kShadowAlpha, hi[0], lo[1], kShadowAlpha,
+          hi[0], hi[1], kShadowAlpha, lo[0], hi[1], kShadowAlpha);
+
+    // The penumbra's two stops, as a fraction of whichever axis's margin.
+    const float  stops[3][2] =
+    {
+        { 0.0f,           kShadowAlpha    },
+        { kShadowMidStop, kShadowMidAlpha },
+        { 1.0f,           0.0f            },
+    };
+
+    for (int band = 0; band < 2; band++)
+    {
+        float  f0 = stops[band][0],     a0 = stops[band][1];
+        float  f1 = stops[band + 1][0], a1 = stops[band + 1][1];
+        float  s0 = f0 * kShadowMarginSideMm,  s1 = f1 * kShadowMarginSideMm;
+        float  d0 = f0 * kShadowMarginDepthMm, d1 = f1 * kShadowMarginDepthMm;
+
+        quad (lo[0], lo[1] - d0, a0, hi[0], lo[1] - d0, a0,        // front (-Y)
+              hi[0], lo[1] - d1, a1, lo[0], lo[1] - d1, a1);
+        quad (lo[0], hi[1] + d1, a1, hi[0], hi[1] + d1, a1,        // back (+Y)
+              hi[0], hi[1] + d0, a0, lo[0], hi[1] + d0, a0);
+        quad (lo[0] - s1, lo[1], a1, lo[0] - s0, lo[1], a0,        // left
+              lo[0] - s0, hi[1], a0, lo[0] - s1, hi[1], a1);
+        quad (hi[0] + s0, lo[1], a0, hi[0] + s1, lo[1], a1,        // right
+              hi[0] + s1, hi[1], a1, hi[0] + s0, hi[1], a0);
+    }
+
+    // Corners: a fan per corner, swept through the same two bands so the
+    // penumbra turns the corner instead of squaring off. The sweep rides the
+    // per-axis margins, so it traces an ellipse quadrant, not a circle.
+    const float  corners[4][4] =
+    {
+        { lo[0], lo[1], -1.0f, -1.0f },
+        { hi[0], lo[1],  1.0f, -1.0f },
+        { hi[0], hi[1],  1.0f,  1.0f },
+        { lo[0], hi[1], -1.0f,  1.0f },
+    };
+
+    for (int c = 0; c < 4; c++)
+    {
+        float  cx = corners[c][0];
+        float  cy = corners[c][1];
+
+        for (int band = 0; band < 2; band++)
+        {
+            float  f0 = stops[band][0],     a0 = stops[band][1];
+            float  f1 = stops[band + 1][0], a1 = stops[band + 1][1];
+
+            for (int s = 0; s < kShadowCornerSegs; s++)
+            {
+                float  t0  = 1.5707963f * (float) s       / (float) kShadowCornerSegs;
+                float  t1  = 1.5707963f * (float) (s + 1) / (float) kShadowCornerSegs;
+                float  ux0 = corners[c][2] * std::cos (t0) * kShadowMarginSideMm;
+                float  uy0 = corners[c][3] * std::sin (t0) * kShadowMarginDepthMm;
+                float  ux1 = corners[c][2] * std::cos (t1) * kShadowMarginSideMm;
+                float  uy1 = corners[c][3] * std::sin (t1) * kShadowMarginDepthMm;
+
+                quad (cx + ux0 * f0, cy + uy0 * f0, a0,
+                      cx + ux1 * f0, cy + uy1 * f0, a0,
+                      cx + ux1 * f1, cy + uy1 * f1, a1,
+                      cx + ux0 * f1, cy + uy0 * f1, a1);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::DrawShadows
+//
+//  Before the bodies and without depth: the shadow lies in the ground plane
+//  the devices stand on, so writing depth from a transparent skirt would punch
+//  a hole in whatever the device draws next.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::DrawShadows (const DeskSceneComposition & comp,
+                                const D3D11_VIEWPORT       & viewport,
+                                bool                         includeMonitor)
+{
+    HRESULT   hr      = S_OK;
+    float     mvp[16] = {};
+
+
+
+    if (includeMonitor && !m_monitorShadowVerts.empty())
+    {
+        SceneCamera::Mul44 (comp.monitorWorld, comp.viewProj, mvp);
+
+        hr = m_renderer.DrawTriangles (m_monitorShadowVerts.data(), m_monitorShadowVerts.size(),
+                                       mvp, false, viewport, false);
+        CHRA (hr);
+    }
+
+    for (int drive = 0; drive < comp.driveCount && !m_driveShadowVerts.empty(); drive++)
+    {
+        SceneCamera::Mul44 (comp.driveWorld[drive], comp.viewProj, mvp);
+
+        hr = m_renderer.DrawTriangles (m_driveShadowVerts.data(), m_driveShadowVerts.size(),
+                                       mvp, false, viewport, false);
+        CHRA (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::DrawLampGlows
 //
 //  Runs last in a frame and without depth: a glow is light spilling onto the
@@ -678,6 +856,9 @@ HRESULT DeskScene::RenderStrip (ID3D11RenderTargetView * dstRtv, const DeskScene
 
     // Its own depth pass: the strip overlays the finished frame.
     hr = m_renderer.BeginDepthPass();
+    CHRA (hr);
+
+    hr = DrawShadows (strip, viewport, false);
     CHRA (hr);
 
     hr = DrawDrives (strip, viewport);
@@ -827,6 +1008,9 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
     viewport.MaxDepth = 1.0f;
 
     hr = m_renderer.BeginDepthPass();
+    CHRA (hr);
+
+    hr = DrawShadows (m_comp, viewport, true);
     CHRA (hr);
 
     // Opaque bodies: monitor, then each placed drive.

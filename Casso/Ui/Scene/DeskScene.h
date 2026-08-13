@@ -126,6 +126,26 @@ public:
     static constexpr float  kMonitorGlowRgb[3] = { 0.400f, 1.000f, 0.520f };
     static constexpr float  kDriveGlowRgb[3]   = { 1.000f, 0.260f, 0.180f };
 
+    // Contact shadow: what grounds a device. Without one every model reads as
+    // pasted onto the backdrop rather than standing on a desk -- the scene has
+    // no floor geometry, but the eye infers a surface from the shadow alone,
+    // which is the whole trick. Drawn in the ground plane before the bodies,
+    // so the device paints over the part of it that is underneath.
+    //
+    // The margin is where the penumbra lives: darkest at the silhouette, gone
+    // by the outer edge. It is ANISOTROPIC because the camera is, and equal
+    // margins do not read as equal on screen. The scene's gaze is shallow, so
+    // the depth axis (front-to-back) foreshortens hard -- a margin there
+    // becomes a thin smear under the front lip -- while the side margins keep
+    // their full width and turn into dark vertical bands standing beside the
+    // device. Sides therefore stay tight and depth runs long.
+    static constexpr float  kShadowMarginSideMm  = 9.0f;
+    static constexpr float  kShadowMarginDepthMm = 34.0f;
+    static constexpr float  kShadowAlpha         = 0.70f;
+    static constexpr float  kShadowMidStop       = 0.30f;   // fraction of the margin
+    static constexpr float  kShadowMidAlpha      = 0.30f;
+    static constexpr int    kShadowCornerSegs    = 4;
+
     // The picture sub-mesh: its own curved grid spanning exactly the band
     // (mesh edge == band edge, UVs a clean 0..1 span), floated off the tube
     // sheet by more than the tube's worst chord sag -- the two meshes
@@ -174,6 +194,9 @@ private:
     HRESULT  DrawLampGlows    (const DeskSceneComposition & comp,
                                const D3D11_VIEWPORT       & viewport,
                                bool                         includeMonitor);
+    HRESULT  DrawShadows      (const DeskSceneComposition & comp,
+                               const D3D11_VIEWPORT       & viewport,
+                               bool                         includeMonitor);
 
     static void  TintInto (const std::vector<Dxui3DRenderer::Vertex> & base,
                            float                                       factor,
@@ -185,6 +208,12 @@ private:
     static void  BuildLampGlow (const DeskSceneModel                & model,
                                 const float                           rgb[3],
                                 std::vector<Dxui3DRenderer::Vertex> & out);
+
+    // Builds the contact shadow for a model: a filled core over its ground
+    // footprint plus a penumbra skirt fading out over kShadowMarginMm, with
+    // rounded corners, all in the model's ground plane.
+    static void  BuildContactShadow (const DeskSceneModel                & model,
+                                     std::vector<Dxui3DRenderer::Vertex> & out);
 
     Dxui3DRenderer          m_renderer;
     ID3D11DeviceContext   * m_context      = nullptr;   // non-owning
@@ -206,6 +235,10 @@ private:
     // drives share one copy and only their world matrices differ.
     std::vector<Dxui3DRenderer::Vertex>   m_monitorGlowVerts;
     std::vector<Dxui3DRenderer::Vertex>   m_driveGlowVerts;
+
+    // Contact shadows, likewise built once in model space.
+    std::vector<Dxui3DRenderer::Vertex>   m_monitorShadowVerts;
+    std::vector<Dxui3DRenderer::Vertex>   m_driveShadowVerts;
     bool                                  m_powerLampOn     = false;
     bool                                  m_driveActive[2]  = {};
     bool                                  m_lampsDirty      = true;

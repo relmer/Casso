@@ -757,4 +757,54 @@ void DeskSceneModel::ComputeBounds()
 
     memcpy (m_boundsMin, lo, sizeof (m_boundsMin));
     memcpy (m_boundsMax, hi, sizeof (m_boundsMax));
+
+    ComputeGroundFootprint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneModel::ComputeGroundFootprint
+//
+//  The XY extent of the geometry that actually TOUCHES the ground, not the
+//  full bounding box: the monitor's bezel overhangs its shell by 20 mm and
+//  the drives' lips overhang theirs, so a shadow sized to the box would jut
+//  out in front of the object it belongs to. Anything within kGroundBandMm of
+//  the model's lowest vertex counts as contact.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::ComputeGroundFootprint()
+{
+    float   ceiling = m_boundsMin[2] + kGroundBandMm;
+    float   lo[2]   = { FLT_MAX, FLT_MAX };
+    float   hi[2]   = { -FLT_MAX, -FLT_MAX };
+
+
+
+    for (const std::vector<Dxui3DRenderer::Vertex> * batch : { &m_opaque, &m_glass, &m_lamp, &m_door })
+    {
+        for (const Dxui3DRenderer::Vertex & v : *batch)
+        {
+            if (v.z <= ceiling)
+            {
+                lo[0] = std::min (lo[0], v.x);  hi[0] = std::max (hi[0], v.x);
+                lo[1] = std::min (lo[1], v.y);  hi[1] = std::max (hi[1], v.y);
+            }
+        }
+    }
+
+    // No contact geometry at all (a model floating above its own origin)
+    // collapses to the box, which is the honest fallback.
+    if (lo[0] > hi[0])
+    {
+        lo[0] = m_boundsMin[0];  hi[0] = m_boundsMax[0];
+        lo[1] = m_boundsMin[1];  hi[1] = m_boundsMax[1];
+    }
+
+    m_footprintMin[0] = lo[0];  m_footprintMax[0] = hi[0];
+    m_footprintMin[1] = lo[1];  m_footprintMax[1] = hi[1];
 }

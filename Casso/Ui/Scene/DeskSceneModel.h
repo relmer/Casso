@@ -124,6 +124,17 @@ public:
     void  BoundsMin (float out[3]) const { memcpy (out, m_boundsMin, sizeof (m_boundsMin)); }
     void  BoundsMax (float out[3]) const { memcpy (out, m_boundsMax, sizeof (m_boundsMax)); }
 
+    // The XY rect of the geometry resting on the ground plane (z ==
+    // BoundsMin's z), which is where a contact shadow belongs -- overhanging
+    // bezels and lips are excluded.
+    void  FootprintMin (float out[2]) const { memcpy (out, m_footprintMin, sizeof (m_footprintMin)); }
+    void  FootprintMax (float out[2]) const { memcpy (out, m_footprintMax, sizeof (m_footprintMax)); }
+
+    // How far above the lowest vertex still counts as touching the ground.
+    // Wide enough to catch a foot pad's top face, tight enough to exclude
+    // the case wall rising off it.
+    static constexpr float  kGroundBandMm = 2.5f;
+
     // Sub-mesh identity colors, shared with scripts/modelgen/. Matching is
     // by value with kKdEpsilon, exactly as Printer3DScene matches its LEDs,
     // so a Tinkercad-refined model that keeps the palette keeps working.
@@ -149,9 +160,10 @@ private:
     void     BuildBrandStamp    (float leftMm, float topZMm, float heightMm, float frontY);
     void     BuildPadlockStamp  ();
     void     AddRegionBoxes     ();
-    void     ComputeBounds      ();
+    void     ComputeBounds         ();
+    void     ComputeGroundFootprint ();
 
-    DeskDeviceKind                       m_kind         = DeskDeviceKind::Monitor2c;
+    DeskDeviceKind                       m_kind            = DeskDeviceKind::Monitor2c;
     std::vector<Dxui3DRenderer::Vertex>  m_opaque;
     std::vector<Dxui3DRenderer::Vertex>  m_glass;
     std::vector<Dxui3DRenderer::Vertex>  m_lamp;
@@ -160,8 +172,10 @@ private:
     std::vector<DeskLampAnchor>          m_lamps;
     std::vector<DeskRegionBox>           m_regions;
     CurvedDisplaySurface                 m_surface;
-    float                                m_doorPivotY   = 0.0f;
-    float                                m_doorPivotZ   = 0.0f;
-    float                                m_boundsMin[3] = {};
-    float                                m_boundsMax[3] = {};
+    float                                m_doorPivotY      = 0.0f;
+    float                                m_doorPivotZ      = 0.0f;
+    float                                m_boundsMin[3]    = {};
+    float                                m_boundsMax[3]    = {};
+    float                                m_footprintMin[2] = {};
+    float                                m_footprintMax[2] = {};
 };
