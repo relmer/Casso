@@ -1584,6 +1584,7 @@ void EmulatorShell::SyncSceneDriveLabels()
     bool                          visible = !m_d3dRenderer.IsFullscreen();
 
 
+
     for (int i = 0; i < (int) m_sceneDriveLabel.size(); i++)
     {
         std::wstring  basename;
