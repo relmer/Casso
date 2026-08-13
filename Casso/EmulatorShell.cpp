@@ -136,11 +136,10 @@ static constexpr int     s_kStripBandDp     = 150;
 static constexpr int     s_kStripEdgeZoneDp = 8;
 
 // Padding around the 3D drive row when the CRT monitor is opted out and the
-// row composes into the classic bottom band. The row is contained for a
-// straight-on frustum, so the gaze tilt would otherwise carry the near-front
-// edges past the band; the pad also keeps the drives off the window edge the
-// way the 2D widgets' band padding did.
-static constexpr int     s_kSceneDriveRowPadDp = 16;
+// row composes into the classic bottom band -- breathing room off the window
+// edge, the way the 2D widgets' band padding sat around them. (Containment
+// itself is exact: ComputeStrip solves the standoff in the gaze's frame.)
+static constexpr int     s_kSceneDriveRowPadDp = 10;
 
 // Minimum emulator-viewport (center) the window must always host, plus a
 // small pad past the last menu title, so the bottom drive bar can never be
@@ -2867,7 +2866,8 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         if (DeskSceneDriveCount() > 0)
         {
             composed = DeskSceneLayout::ComputeStrip (driveRow, m_scaler.Dpi(), DeskSceneDriveCount(),
-                                                      m_deskScene.Metrics(), comp) == S_OK;
+                                                      m_deskScene.Metrics(), comp,
+                                                      DeskSceneLayout::kDriveBandGazeDownRad) == S_OK;
         }
 
         m_deskScene.SetComposition (composed ? comp : DeskSceneComposition{});

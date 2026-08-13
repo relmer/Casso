@@ -75,6 +75,34 @@ public:
         }
     }
 
+    // How much of drive 0's lid the composition shows: the projected drop
+    // from the back-top edge to the front-top edge, over the drive's whole
+    // projected height. Zero looking straight on, growing with the gaze.
+    static float ProjectedTopFaceFraction (const DeskSceneComposition & comp,
+                                           const DeskSceneMetrics     & metrics)
+    {
+        float  cx            = (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f;
+        float  frontTop[3]   = { cx, metrics.driveMin[1], metrics.driveMax[2] };
+        float  backTop[3]    = { cx, metrics.driveMax[1], metrics.driveMax[2] };
+        float  frontLow[3]   = { cx, metrics.driveMin[1], metrics.driveMin[2] };
+        float  world[3]      = {};
+        float  pxFrontTop[2] = {};
+        float  pxBackTop[2]  = {};
+        float  pxFrontLow[2] = {};
+
+
+        Assert::IsTrue (SceneCamera::TransformPoint (comp.driveWorld[0], frontTop, world));
+        Assert::IsTrue (SceneCamera::ProjectToScreen (comp.viewProj, world, comp.viewportPx, pxFrontTop));
+
+        Assert::IsTrue (SceneCamera::TransformPoint (comp.driveWorld[0], backTop, world));
+        Assert::IsTrue (SceneCamera::ProjectToScreen (comp.viewProj, world, comp.viewportPx, pxBackTop));
+
+        Assert::IsTrue (SceneCamera::TransformPoint (comp.driveWorld[0], frontLow, world));
+        Assert::IsTrue (SceneCamera::ProjectToScreen (comp.viewProj, world, comp.viewportPx, pxFrontLow));
+
+        return (pxFrontTop[1] - pxBackTop[1]) / (pxFrontLow[1] - pxBackTop[1]);
+    }
+
     TEST_METHOD (Compute_Is_Deterministic)
     {
         DeskSceneMetrics      metrics = MakeMetrics();
@@ -188,6 +216,63 @@ public:
             AssertDeviceContained (comp, comp.driveWorld[0], metrics.driveMin, metrics.driveMax);
             AssertDeviceContained (comp, comp.driveWorld[1], metrics.driveMin, metrics.driveMax);
         }
+    }
+
+    TEST_METHOD (Strip_Row_Is_Contained_At_Every_Gaze)
+    {
+        DeskSceneMetrics  metrics  = MakeMetrics();
+        RECT              shapes[] = { { 0, 0, 1120, 300 },
+                                       { 0, 0, 900, 500 },
+                                       { 0, 0, 3000, 200 },
+                                       { 20, 40, 700, 460 } };
+        float             gazes[]  = { 0.0f,
+                                       DeskSceneLayout::kGazeDownRad,
+                                       DeskSceneLayout::kDriveBandGazeDownRad,
+                                       0.7f };
+
+
+
+        // The standoff is solved in the gaze's frame, so a steep look-down
+        // contains the row as exactly as a straight-on one -- solving in
+        // world axes cropped the near-front edge off the band.
+        for (const RECT & vp : shapes)
+        {
+            for (float gaze : gazes)
+            {
+                DeskSceneComposition  comp;
+
+                AssertSucceeded (DeskSceneLayout::ComputeStrip (vp, 96, 2, metrics, comp, gaze));
+
+                AssertDeviceContained (comp, comp.driveWorld[0], metrics.driveMin, metrics.driveMax);
+                AssertDeviceContained (comp, comp.driveWorld[1], metrics.driveMin, metrics.driveMax);
+            }
+        }
+    }
+
+    TEST_METHOD (Steeper_Gaze_Shows_More_Of_The_Drive_Top)
+    {
+        DeskSceneMetrics      metrics    = MakeMetrics();
+        RECT                  vp         = { 0, 0, 1120, 300 };
+        DeskSceneComposition  shallow;
+        DeskSceneComposition  steep;
+        float                 topShallow = 0.0f;
+        float                 topSteep   = 0.0f;
+
+
+
+        AssertSucceeded (DeskSceneLayout::ComputeStrip (vp, 96, 2, metrics, shallow,
+                                                        DeskSceneLayout::kGazeDownRad));
+        AssertSucceeded (DeskSceneLayout::ComputeStrip (vp, 96, 2, metrics, steep,
+                                                        DeskSceneLayout::kDriveBandGazeDownRad));
+
+        // How much lid the viewer sees: the projected gap between the drive's
+        // front-top edge and the back-top edge, as a fraction of the whole
+        // drive's projected height. The band's gaze is calibrated to the 2D
+        // widget's 56 dp case top over its 104 dp faceplate.
+        topShallow = ProjectedTopFaceFraction (shallow, metrics);
+        topSteep   = ProjectedTopFaceFraction (steep, metrics);
+
+        Assert::IsTrue (topSteep > topShallow * 1.5f);
     }
 
     TEST_METHOD (SceneScale_Halves_When_Dpi_Doubles)

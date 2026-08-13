@@ -104,7 +104,8 @@ public:
                                   UINT                     dpi,
                                   int                      driveCount,
                                   const DeskSceneMetrics & metrics,
-                                  DeskSceneComposition   & out);
+                                  DeskSceneComposition   & out,
+                                  float                    gazeDownRad = kGazeDownRad);
 
     // The fixed model->world mount: X right stays, model Z (up) becomes world
     // Y, model Y (back) becomes world -Z, uniformly scaled by `scale`, then
@@ -157,6 +158,16 @@ public:
     // scene read as 3D instead of a flat front-on cutout.
     static constexpr float  kGazeDownRad       = 0.09f;
 
+    // The drive row composed on its own -- the CRT monitor opted out -- is
+    // seen from the angle the 2D drive widget DREW: its receding case top
+    // stood 56 dp over a 104 dp faceplate, so the same 0.54 top-to-front
+    // ratio is the target. Calibrated, not derived: the flat-projection
+    // estimate (0.21 rad from the model's 86 mm height and 222 mm depth)
+    // reads far too shallow, because a box this deep at the band's standoff
+    // foreshortens its top hard. The old chrome's perspective, actually
+    // built this time.
+    static constexpr float  kDriveBandGazeDownRad = 0.420f;
+
     // The picture's actual on-screen height in this composition -- measured
     // through the full transform (band placement on the glass, sag, gaze
     // keystone), so the Ctrl+0 solve targets what the user really sees.
@@ -172,6 +183,16 @@ private:
                                    float                   tanHalfY,
                                    float                   tanHalfX,
                                    float                 & outEyeZ);
+
+    // Containment solved in the gaze's frame: returns the camera's DISTANCE
+    // along the gaze (not a world Z), so the fit holds at any look-down.
+    static void     SolveStandoffTilted (const float             sceneMin[3],
+                                         const float             sceneMax[3],
+                                         float                   aimY,
+                                         float                   gazeDownRad,
+                                         float                   tanHalfY,
+                                         float                   tanHalfX,
+                                         float                 & outDist);
 
     // One full composition solve at a specific drive drop; Compute wraps it
     // with the gap-reserving correction.

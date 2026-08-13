@@ -37,8 +37,8 @@ Entries before versioning was introduced use dates only.
 - **The CRT monitor is optional; the 3D drives are not.** A Settings >
   Theme checkbox (on by default) drops the monitor and puts the picture
   back on a flat rect at classic sizes, live and in place — the 3D drive
-  row still composes into the band below it, so the drives are the same
-  objects either way.
+  row still composes into the band below it, seen from the angle the old
+  2D drive widgets were drawn at, now as real geometry.
 
 ### Fixed
 - Pasting text into the guest no longer garbles at line wraps and no

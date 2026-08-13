@@ -82,6 +82,57 @@ void DeskSceneLayout::SolveStandoff (const float   sceneMin[3],
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneLayout::SolveStandoffTilted
+//
+//  The same closed form, solved in the GAZE's frame rather than the world's,
+//  so containment survives a steep look-down. The camera aims at (0, aimY, 0)
+//  along f = (0, -sin g, -cos g) from distance `dist`, with up
+//  u = (0, cos g, -sin g); for a point q relative to the aim point, its depth
+//  is f.q + dist and its lateral offsets are u.q and qx, giving
+//
+//      dist >= |u.q| / tanHalfY - f.q       and       dist >= |qx| / tanHalfX - f.q
+//
+//  over all eight corners. Solving in world axes instead (SolveStandoff) is
+//  exact only at zero gaze: the tilt rotates the near-bottom corners out of
+//  the frustum the untilted solve just fitted, which is what cropped the
+//  drive row's front edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneLayout::SolveStandoffTilted (const float   sceneMin[3],
+                                           const float   sceneMax[3],
+                                           float         aimY,
+                                           float         gazeDownRad,
+                                           float         tanHalfY,
+                                           float         tanHalfX,
+                                           float       & outDist)
+{
+    float   dist  = 0.0f;
+    float   sinG  = std::sin (gazeDownRad);
+    float   cosG  = std::cos (gazeDownRad);
+
+
+    for (int corner = 0; corner < 8; corner++)
+    {
+        float   qx    = (corner & 1) ? sceneMax[0] : sceneMin[0];
+        float   qy    = ((corner & 2) ? sceneMax[1] : sceneMin[1]) - aimY;
+        float   qz    = (corner & 4) ? sceneMax[2] : sceneMin[2];
+        float   depth = -sinG * qy - cosG * qz;               // f.q
+        float   up    =  cosG * qy - sinG * qz;               // u.q
+
+        dist = std::max (dist, std::abs (up) * kContainMargin / tanHalfY - depth);
+        dist = std::max (dist, std::abs (qx) * kContainMargin / tanHalfX - depth);
+    }
+
+    outDist = dist;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneLayout::Compute
 //
 //  The drop correction: the input-mode row is fixed-height chrome living in
@@ -488,10 +539,11 @@ Error:
 //
 //  DeskSceneLayout::ComputeStrip
 //
-//  Drives only, full model scale, centered row on the ground plane. The
-//  strip band is short and the row symmetric about its center, so the
-//  closed-form standoff with the aim at the row's vertical center contains
-//  it without the desk composition's asymmetric refine passes.
+//  Drives only, full model scale, centered row on the ground plane. The row
+//  is symmetric about its center, so the closed-form standoff with the aim at
+//  the row's vertical center contains it without the desk composition's
+//  asymmetric refine passes -- solved in the gaze's frame, so a steep
+//  look-down contains as exactly as a shallow one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -499,7 +551,8 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
                                        UINT                     dpi,
                                        int                      driveCount,
                                        const DeskSceneMetrics & metrics,
-                                       DeskSceneComposition   & out)
+                                       DeskSceneComposition   & out,
+                                       float                    gazeDownRad)
 {
     HRESULT   hr          = S_OK;
     int       viewportW   = viewportPx.right - viewportPx.left;
@@ -509,7 +562,7 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
     float     driveW      = metrics.driveMax[0] - metrics.driveMin[0];
     float     driveCx     = (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f;
     float     rowCy       = 0.0f;
-    float     eyeZ        = 0.0f;
+    float     dist        = 0.0f;
     float     sceneMin[3] = { FLT_MAX, FLT_MAX, FLT_MAX };
     float     sceneMax[3] = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
     float     driveTx[2]  = {};
@@ -550,10 +603,10 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
 
     rowCy = (sceneMin[1] + sceneMax[1]) * 0.5f;
 
-    SolveStandoff (sceneMin, sceneMax, rowCy, tanHalfY, tanHalfY * aspect, eyeZ);
+    SolveStandoffTilted (sceneMin, sceneMax, rowCy, gazeDownRad, tanHalfY, tanHalfY * aspect, dist);
 
     {
-        float   eye[3] = { 0.0f, rowCy + std::sin (kGazeDownRad) * eyeZ, std::cos (kGazeDownRad) * eyeZ };
+        float   eye[3] = { 0.0f, rowCy + std::sin (gazeDownRad) * dist, std::cos (gazeDownRad) * dist };
         float   at[3]  = { 0.0f, rowCy, 0.0f };
 
         SceneCamera::LookAtRH         (eye, at, out.view);
