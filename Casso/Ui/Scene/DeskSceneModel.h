@@ -48,9 +48,15 @@ enum class DeskDeviceKind
 //  it on and off, so the model only records where it is and which triangles
 //  belong to it (by range into LampVerts).
 //
+//  `frontY` is the lens face (the most proud vertex, viewer at -Y) and
+//  `radius` half its larger in-plane extent -- between them the scene can
+//  size and seat a glow disc on the lens without knowing the model.
+//
 struct DeskLampAnchor
 {
     float   center[3]   = {};
+    float   frontY      = 0.0f;
+    float   radius      = 0.0f;
     size_t  firstVertex = 0;
     size_t  vertexCount = 0;
 };

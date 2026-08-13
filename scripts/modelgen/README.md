@@ -19,6 +19,14 @@ without touching the loader.
 | `gen_profile.py` | `Resources/Models/ProFile/` | Apple ProFile 5 MB (439×110×226) |
 | `gen_monitor2c.py` | `Resources/Models/Monitor2c/` | Apple Monitor //c (248×200×280 + stand) |
 
+**Color is identity.** The desk scene splits a model into sub-meshes by
+matching `Kd` VALUES within ±0.02 per channel (`DeskSceneModel::kKdEpsilon`)
+against the palette in `DeskSceneModel.h` — glass, monitor lamp, drive lamp,
+door, latch. A color that drifts inside that epsilon of one of them is swept
+into that sub-mesh with no diagnostic, and for glass that means *dropped*
+(the scene generates its own tube). Keep every other color at least a channel
+clear of the palette.
+
 The Monitor //c's glass is a true spherical-sag mesh — the surface the
 live emulator framebuffer will texture onto in the desk scene, with the
 sag radius as a named parameter.

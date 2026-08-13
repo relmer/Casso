@@ -5,7 +5,7 @@ the case (no hard box edges facing the viewer), an inner lip beveling down
 into the screen recess, rounded-corner fillets over the tube corners, curved
 CRT glass (true spherical sag -- the mesh the live display texture maps
 onto), a chin carrying the brand (stamped by the scene code from the shared
-CassoBranding silhouette) and a //c-style pill power lamp, and vent grooves
+CassoBranding silhouette) and a round lensed power lamp, and vent grooves
 on the lid. X right, Y back, Z up; the bezel plate front sits at y=-10.
 
 The screen opening is genuinely open -- the shell starts BEHIND the cavity,
@@ -35,9 +35,16 @@ m = Mesh()
 plat      = m.color("plat",      (0.870, 0.862, 0.835))
 plat_dk   = m.color("plat_dk",   (0.780, 0.772, 0.745))
 bezel_c   = m.color("bezel",     (0.845, 0.837, 0.810))
-cavity_c  = m.color("cavity",    (0.070, 0.075, 0.080))
+# NOTE: the desk scene identifies sub-meshes by Kd VALUE within +/-0.02 per
+# channel (DeskSceneModel::kKdEpsilon), so every color here must stay clear of
+# the identity palette or its triangles are silently swept into that sub-mesh.
+# The cavity used to be (0.070, 0.075, 0.080), which is inside epsilon of the
+# glass Kd on all three channels -- the whole recess was being classified as
+# glass and dropped, because the scene generates its own tube.
+cavity_c  = m.color("cavity",    (0.055, 0.055, 0.062))
 glass_c   = m.color("glass",     (0.050, 0.090, 0.070))
 lamp_c    = m.color("lamp",      (0.290, 0.870, 0.380))
+lampring  = m.color("lampring",  (0.045, 0.045, 0.050))
 foot_c    = m.color("foot",      (0.320, 0.310, 0.300))
 
 # Shell: tapers toward the back (narrower and lower at the rear). Starts
@@ -109,11 +116,16 @@ for r in range(ROWS):
             return (x, BASE_Y - (max_sag - sag), z)
         m.add_quad(pt(c, r), pt(c + 1, r), pt(c + 1, r + 1), pt(c, r + 1), glass_c)
 
-# Power lamp: the //c-style indicator -- a narrow vertical bar leaning right,
-# like every switch and LED on the //c family (a thin proud sheet).
-LX, LZ0, LZ1, LW, LEAN = W - 42.0, Z0 + 12.0, Z0 + 25.0, 3.2, 3.0
-m.add_quad((LX, YF - 0.6, LZ0), (LX + LW, YF - 0.6, LZ0),
-           (LX + LW + LEAN, YF - 0.6, LZ1), (LX + LEAN, YF - 0.6, LZ1), lamp_c)
+# Power lamp: a round lens seated in a dark bezel recess. It was a flat
+# proud sheet, which reads as a painted slash rather than a light -- an
+# indicator only looks lit when something dark surrounds it and the lit part
+# has body. The recess ring is drawn first (flush, wider), the lens stands
+# proud of it, and the scene adds the halo when the lamp is on.
+LCX, LCZ = W - 40.0, Z0 + 18.0
+LENS_R, RING_R = 3.4, 6.2
+
+m.cylinder(LCX, YF - 0.40, LCZ, RING_R,  0.40, lampring, axis="y", segments=20)
+m.cylinder(LCX, YF - 1.30, LCZ, LENS_R,  1.30, lamp_c,   axis="y", segments=20)
 
 # Lid vent grooves: darker strips across the top, rear two-thirds.
 for i in range(10):

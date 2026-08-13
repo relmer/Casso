@@ -277,6 +277,13 @@ public:
         Assert::AreEqual (68.0f, model.Lamps()[0].center[0], 0.01f);
         Assert::AreEqual (16.0f, model.Lamps()[0].center[2], 0.01f);
 
+        // ...and the lens face plus half its larger in-plane extent, which is
+        // what the scene seats its glow disc on. The box spans y -2.6..-0.6
+        // and 6 mm across, and the viewer is at -Y, so the face is the MOST
+        // NEGATIVE y -- a mid-Y anchor would bury the glow inside the lens.
+        Assert::AreEqual (-2.6f, model.Lamps()[0].frontY, 0.01f);
+        Assert::AreEqual ( 3.0f, model.Lamps()[0].radius, 0.01f);
+
         Assert::AreEqual ((size_t) 2, model.RegionBoxes().size());
         Assert::IsTrue (model.RegionBoxes()[0].region == DriveWidgetRegion::Eject);
         Assert::IsTrue (model.RegionBoxes()[1].region == DriveWidgetRegion::Body);
@@ -287,6 +294,46 @@ public:
         {
             Assert::IsTrue (model.RegionBoxes()[0].boxMin[axis] >= model.RegionBoxes()[1].boxMin[axis]);
             Assert::IsTrue (model.RegionBoxes()[0].boxMax[axis] <= model.RegionBoxes()[1].boxMax[axis]);
+        }
+    }
+
+    TEST_METHOD (Identity_Colors_Are_Farther_Apart_Than_The_Match_Epsilon)
+    {
+        // Sub-meshes are identified by Kd VALUE within kKdEpsilon per channel,
+        // so any two identity colors closer than that would make the split
+        // order-dependent -- and a MODEL color that drifts inside epsilon of
+        // one is swept into that sub-mesh silently. That is not hypothetical:
+        // the monitor's screen-cavity color was (0.070, 0.075, 0.080), inside
+        // epsilon of the glass Kd on all three channels, so the entire recess
+        // was classified as glass and dropped (the scene builds its own tube).
+        // Nothing looked wrong until a second dark part was added next to a
+        // lamp and vanished. This pins the palette's own separation; the
+        // generators carry the matching rule for the colors they invent.
+        const float *  palette[] =
+        {
+            DeskSceneModel::kGlassKd,
+            DeskSceneModel::kMonitorLampKd,
+            DeskSceneModel::kDriveLampKd,
+            DeskSceneModel::kDriveDoorKd,
+            DeskSceneModel::kDriveLatchKd,
+        };
+
+        for (size_t a = 0; a < std::size (palette); a++)
+        {
+            for (size_t b = a + 1; b < std::size (palette); b++)
+            {
+                bool  separated = false;
+
+                for (int c = 0; c < 3; c++)
+                {
+                    separated = separated ||
+                                std::abs (palette[a][c] - palette[b][c]) > DeskSceneModel::kKdEpsilon;
+                }
+
+                Assert::IsTrue (separated,
+                                L"two identity colors are within the match epsilon on every "
+                                L"channel -- the sub-mesh split would depend on test order");
+            }
         }
     }
 

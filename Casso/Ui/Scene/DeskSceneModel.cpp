@@ -304,11 +304,16 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
             lo[2] = std::min (lo[2], v.z);  hi[2] = std::max (hi[2], v.z);
         }
 
-        anchor.center[0]   = (lo[0] + hi[0]) * 0.5f;
-        anchor.center[1]   = (lo[1] + hi[1]) * 0.5f;
-        anchor.center[2]   = (lo[2] + hi[2]) * 0.5f;
-        anchor.firstVertex = 0;
-        anchor.vertexCount = m_lamp.size();
+        if (!m_lamp.empty())
+        {
+            anchor.center[0]   = (lo[0] + hi[0]) * 0.5f;
+            anchor.center[1]   = (lo[1] + hi[1]) * 0.5f;
+            anchor.center[2]   = (lo[2] + hi[2]) * 0.5f;
+            anchor.frontY      = lo[1];                                    // most proud (viewer at -Y)
+            anchor.radius      = std::max (hi[0] - lo[0], hi[2] - lo[2]) * 0.5f;
+            anchor.firstVertex = 0;
+            anchor.vertexCount = m_lamp.size();
+        }
 
         m_lamps.push_back (anchor);
     }

@@ -79,6 +79,9 @@ StyleCopReport.xml
 # ...but Wavefront OBJ 3D models under Resources are source assets, not
 # compiler output (e.g. the printer panel's embedded ImageWriter model).
 !Resources/**/*.obj
+# The generators write their OBJ/MTL pair beside themselves before it is
+# copied over the checked-in asset; that scratch pair is not source.
+scripts/modelgen/*.mtl
 *.iobj
 *.pch
 *.pdb

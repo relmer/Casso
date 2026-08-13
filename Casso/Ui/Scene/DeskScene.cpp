@@ -80,6 +80,11 @@ HRESULT DeskScene::LoadModels (const std::string & monitorObj, const std::string
                                    kLabelTopZMm, kLabelCellMm, kLabelFrontY, kLabelRgb);
     }
 
+    // Glow discs: model-space and state-free, so they are built once here and
+    // the draw only decides whether a given lamp is lit.
+    BuildLampGlow (m_monitor, kMonitorGlowRgb, m_monitorGlowVerts);
+    BuildLampGlow (m_drive,   kDriveGlowRgb,   m_driveGlowVerts);
+
     m_modelsLoaded = true;
     m_glassUvDirty = true;
     m_lampsDirty   = true;
@@ -513,6 +518,136 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::BuildLampGlow
+//
+//  Concentric bands from kGlowProfile, fanned in the lens plane: the inner
+//  band is a triangle fan off the center, the rest are quad rings. Bands
+//  rather than one linear fan because a single gradient reads as a flat
+//  translucent disc with a visible edge -- the knees are what make it look
+//  like light instead of a decal.
+//
+//  Premultiplied throughout (the renderer composites source-over), so every
+//  color channel is already scaled by its own alpha.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::BuildLampGlow (const DeskSceneModel                & model,
+                               const float                           rgb[3],
+                               std::vector<Dxui3DRenderer::Vertex> & out)
+{
+    constexpr int  kBandCount = (int) (sizeof (kGlowProfile) / sizeof (kGlowProfile[0]));
+
+    out.clear();
+
+    if (model.Lamps().empty() || model.Lamps()[0].radius <= 0.0f)
+    {
+        return;
+    }
+
+    const DeskLampAnchor &  lamp = model.Lamps()[0];
+    float                   y    = lamp.frontY - kGlowLiftMm;
+
+    auto  vertexAt = [&] (const GlowBand & band, float angle) -> Dxui3DRenderer::Vertex
+    {
+        float  radius   = lamp.radius * band.radiusScale;
+        float  color[3] = {};
+
+        for (int c = 0; c < 3; c++)
+        {
+            color[c] = (rgb[c] + (1.0f - rgb[c]) * band.whiteMix) * band.alpha;
+        }
+
+        return Dxui3DRenderer::Vertex
+        {
+            lamp.center[0] + radius * std::cos (angle),
+            y,
+            lamp.center[2] + radius * std::sin (angle),
+            0.0f, 0.0f,
+            color[0], color[1], color[2], band.alpha
+        };
+    };
+
+    for (int i = 0; i < kGlowSegments; i++)
+    {
+        float  a0 = 6.2831853f * (float) i       / (float) kGlowSegments;
+        float  a1 = 6.2831853f * (float) (i + 1) / (float) kGlowSegments;
+
+        out.push_back (vertexAt (kGlowProfile[0], 0.0f));
+        out.push_back (vertexAt (kGlowProfile[1], a0));
+        out.push_back (vertexAt (kGlowProfile[1], a1));
+
+        for (int band = 1; band < kBandCount - 1; band++)
+        {
+            const GlowBand &  inner = kGlowProfile[band];
+            const GlowBand &  outer = kGlowProfile[band + 1];
+
+            out.push_back (vertexAt (inner, a0));
+            out.push_back (vertexAt (outer, a0));
+            out.push_back (vertexAt (outer, a1));
+
+            out.push_back (vertexAt (inner, a0));
+            out.push_back (vertexAt (outer, a1));
+            out.push_back (vertexAt (inner, a1));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::DrawLampGlows
+//
+//  Runs last in a frame and without depth: a glow is light spilling onto the
+//  housing, not a solid, so it must neither be occluded by the lens it sits on
+//  nor leave its transparent rim in the depth buffer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::DrawLampGlows (const DeskSceneComposition & comp,
+                                  const D3D11_VIEWPORT       & viewport,
+                                  bool                         includeMonitor)
+{
+    HRESULT   hr      = S_OK;
+    float     mvp[16] = {};
+
+
+
+    if (includeMonitor && m_powerLampOn && !m_monitorGlowVerts.empty())
+    {
+        SceneCamera::Mul44 (comp.monitorWorld, comp.viewProj, mvp);
+
+        hr = m_renderer.DrawTriangles (m_monitorGlowVerts.data(), m_monitorGlowVerts.size(),
+                                       mvp, false, viewport, false);
+        CHRA (hr);
+    }
+
+    for (int drive = 0; drive < comp.driveCount && !m_driveGlowVerts.empty(); drive++)
+    {
+        if (!m_driveActive[drive])
+        {
+            continue;
+        }
+
+        SceneCamera::Mul44 (comp.driveWorld[drive], comp.viewProj, mvp);
+
+        hr = m_renderer.DrawTriangles (m_driveGlowVerts.data(), m_driveGlowVerts.size(),
+                                       mvp, false, viewport, false);
+        CHRA (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::RenderStrip
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -546,6 +681,9 @@ HRESULT DeskScene::RenderStrip (ID3D11RenderTargetView * dstRtv, const DeskScene
     CHRA (hr);
 
     hr = DrawDrives (strip, viewport);
+    CHRA (hr);
+
+    hr = DrawLampGlows (strip, viewport, false);
     CHRA (hr);
 
 Error:
@@ -736,6 +874,9 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
                                        mvp, false, viewport, true);
         CHRA (hr);
     }
+
+    hr = DrawLampGlows (m_comp, viewport, true);
+    CHRA (hr);
 
 Error:
     return hr;
