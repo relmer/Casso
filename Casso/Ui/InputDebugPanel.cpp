@@ -349,7 +349,7 @@ std::wstring InputDebugPanel::SourceLabel (InputEventCategory category)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR InputDebugPanel::ButtonAnnotation (Word address) noexcept
+LPCWSTR InputDebugPanel::ButtonAnnotation (Word address, bool mouseButtonAtC063) noexcept
 {
     // Empty for any address that is not one of the three button switches.
     LPCWSTR  text = L"";
@@ -359,7 +359,13 @@ LPCWSTR InputDebugPanel::ButtonAnnotation (Word address) noexcept
     {
         case s_kOpenAppleAddress:   text = L"Open-Apple/Btn0";          break;
         case s_kClosedAppleAddress: text = L"Closed-Apple/Btn1 (bow)";  break;
-        case s_kShiftButtonAddress: text = L"Shift/Btn2";               break;
+
+        // Naming the //c's mouse button for what it is, and flagging the
+        // inverted sense, so a reader is not left checking the datasheet.
+        case s_kShiftButtonAddress: text = mouseButtonAtC063
+                                               ? L"Mouse button (active low)"
+                                               : L"Shift/Btn2";
+                                                                        break;
         default:                                                        break;
     }
 
@@ -498,7 +504,8 @@ void InputDebugPanel::FormatInputEvent (
     const InputEvent &                         src,
     std::chrono::steady_clock::time_point      uptimeAnchor,
     const InputFilterState &                   filter,
-    InputEventDisplay &                        out)
+    InputEventDisplay &                        out,
+    bool                                       mouseButtonAtC063)
 {
     Word     address  = 0;
     Byte     value    = 0;
@@ -616,8 +623,16 @@ void InputDebugPanel::FormatInputEvent (
         case InputEventType::ButtonRead:
             address = src.payload.io.address;
             value   = src.payload.io.value;
-            pressed = (value & s_kButtonPressedBit) != 0;
-            button  = ButtonAnnotation (address);
+
+            // Bit 7 set means pressed for Open-Apple / Closed-Apple and for
+            // the //e's shift-key mod -- but the //c wires its MOUSE BUTTON to
+            // $C063 ACTIVE LOW, so there $00 is the press. Reporting the raw
+            // bit for both had the panel calling a held mouse button released.
+            pressed = (address == s_kShiftButtonAddress && mouseButtonAtC063)
+                          ? (value & s_kButtonPressedBit) == 0
+                          : (value & s_kButtonPressedBit) != 0;
+
+            button  = ButtonAnnotation (address, mouseButtonAtC063);
             out.address = std::format (L"${:04X}", address);
             out.value   = std::format (L"${:02X}", value);
             out.meaning = std::format (L"DxuiButton read {} -> {}  pressed={}",
@@ -672,11 +687,12 @@ void InputDebugPanel::ProjectOne (
     const InputEvent &                         src,
     std::deque<InputEventDisplay> &            deque,
     std::chrono::steady_clock::time_point      uptimeAnchor,
-    const InputFilterState &                   filter)
+    const InputFilterState &                   filter,
+    bool                                       mouseButtonAtC063)
 {
     InputEventDisplay  entry;
 
-    FormatInputEvent (src, uptimeAnchor, filter, entry);
+    FormatInputEvent (src, uptimeAnchor, filter, entry, mouseButtonAtC063);
     deque.push_back (std::move (entry));
 }
 
@@ -1273,7 +1289,7 @@ void InputDebugPanel::DrainAndProject()
     {
         for (const InputEvent & e : m_pendingHostEvents)
         {
-            ProjectOne (e, m_events, m_uptimeAnchor, m_filter);
+            ProjectOne (e, m_events, m_uptimeAnchor, m_filter, m_mouseButtonAtC063);
         }
 
         m_pendingHostEvents.clear();
@@ -1284,7 +1300,7 @@ void InputDebugPanel::DrainAndProject()
     {
         lostEvent = MakeStampedEvent (InputEventCategory::System, InputEventType::EventsLost);
         lostEvent.payload.lost.count = lost;
-        ProjectOne (lostEvent, m_events, m_uptimeAnchor, m_filter);
+        ProjectOne (lostEvent, m_events, m_uptimeAnchor, m_filter, m_mouseButtonAtC063);
     }
 
     do
@@ -1292,7 +1308,7 @@ void InputDebugPanel::DrainAndProject()
         n = m_ring.Drain (batch.data(), (uint32_t) batch.size());
         for (size_t i = 0; i < n; i++)
         {
-            ProjectOne (batch[i], m_events, m_uptimeAnchor, m_filter);
+            ProjectOne (batch[i], m_events, m_uptimeAnchor, m_filter, m_mouseButtonAtC063);
         }
     }
     while (n == batch.size());

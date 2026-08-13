@@ -103,8 +103,22 @@ public:
 
     // Soft-switch surface (CPU thread, forwarded by keyboard/bank)
 
-    Byte    ReadXInterruptStatus() const { return m_xInt   ? 0x80 : 0x00; }   // $C015 bit 7
-    Byte    ReadYInterruptStatus() const { return m_yInt   ? 0x80 : 0x00; }   // $C017 bit 7
+    // All three are PURE STATUS READS: reporting bit 7 without acknowledging.
+    // Their names invite the opposite conclusion, so both traps are recorded
+    // here -- each was implemented the "documented" way and each broke:
+    //
+    //  $C015 RSTXINT / $C017 RSTYINT -- the names say the read resets the
+    //      latch, and MAME lowers its mouse IRQ on this read. But the real
+    //      ROM 4 firmware polls them as status inside its service loop and
+    //      acknowledges with $C048 (RSTXY); clearing on the read cost it
+    //      movement units (the firmware oracle tracked 2 of 5).
+    //
+    //  $C019 -- the //c Technical Reference Manual (2nd ed.) claims the read
+    //      resets the VBL flag. Apple //c Technical Note #9 exists to correct
+    //      exactly that: "This is not correct... the high bit remains set",
+    //      cleared only by a $C070/$C07E access (see AccessPtrig).
+    Byte    ReadXInterruptStatus () const { return m_xInt   ? 0x80 : 0x00; }   // $C015 bit 7
+    Byte    ReadYInterruptStatus () const { return m_yInt   ? 0x80 : 0x00; }   // $C017 bit 7
     Byte    ReadVblInterrupt     () const { return m_vblInt ? 0x80 : 0x00; }   // $C019 bit 7
     Byte    ReadButton           () const;                                      // $C063 bit 7
     Byte    ReadMouX1            () const { return m_mouX1; }                   // $C066 bit 7

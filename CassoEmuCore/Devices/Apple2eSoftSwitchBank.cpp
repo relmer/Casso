@@ -105,7 +105,7 @@ Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
         {
             case 0xC015: topBit = m_mouse->ReadXInterruptStatus(); break;
             case 0xC017: topBit = m_mouse->ReadYInterruptStatus(); break;
-            case 0xC019: topBit = m_mouse->ReadVblInterrupt     (); break;
+            case 0xC019: topBit = m_mouse->ReadVblInterrupt(); break;
             default:     isMouseC = false;                         break;
         }
     }
@@ -320,14 +320,21 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
             // interrupts were enabled and starving the guest's main loop.
             m_mouse->AccessPtrig();
 
-            // $C078/$C079 additionally toggle //c IOU access (IOUDIS): $C078
-            // reverts $C058-$C05F to annunciator/DHIRES, $C079 makes them the
-            // mouse/VBL interrupt switches.
-            if (address == 0xC078)
+            // Two address pairs drive the one IOUDIS latch, and both must
+            // work: $C078 / $C079 (named "disable / enable IOU access", the
+            // pair the ROM 4 firmware itself brackets its IOU writes with) and
+            // $C07E / $C07F (SETIOUDIS / CLRIOUDIS). IOU access OFF leaves
+            // $C058-$C05F as annunciator/DHIRES; ON makes them the mouse and
+            // VBL interrupt switches. Apple //c Technical Note #9 spells the
+            // second pair out -- a program polling VBL "must have turned
+            // IOUDis off by writing to $C07F, then accessed ENVBL at $C05B" --
+            // so honoring only $C078/$C079 left that documented sequence
+            // silently programming annunciators instead of the mouse.
+            if (address == 0xC078 || address == 0xC07E)
             {
                 m_mouse->WriteIouAccess (false);
             }
-            else if (address == 0xC079)
+            else if (address == 0xC079 || address == 0xC07F)
             {
                 m_mouse->WriteIouAccess (true);
             }
