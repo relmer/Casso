@@ -184,22 +184,17 @@ public:
         Assert::AreEqual (1, one.driveCount);
         Assert::AreEqual (2, two.driveCount);
 
-        // The drives stand BESIDE the monitor at its own depth, not between
-        // it and the viewer: two flank it symmetrically, and a lone drive
-        // takes the right-hand place rather than sliding to the middle,
-        // where it would stand in front of the screen. Translation lives in
-        // row 3 of the world matrix, offset by the model's own center since
-        // devices are placed at true size.
+        // A single drive centers on the scene axis; two flank it
+        // symmetrically. Translation lives in row 3 of the world matrix,
+        // offset by the model's own center -- devices are placed at true
+        // size, so that offset is the whole correction.
         {
             float   driveCx = (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f;
 
-            Assert::IsTrue (two.driveWorld[0][12] < two.driveWorld[1][12]);
+            Assert::AreEqual (-driveCx, one.driveWorld[0][12], 0.01f);
+            Assert::IsTrue   (two.driveWorld[0][12] < two.driveWorld[1][12]);
             Assert::AreEqual (-(two.driveWorld[0][12] + driveCx),
                               two.driveWorld[1][12] + driveCx, 0.01f);
-
-            Assert::AreEqual (two.driveWorld[1][12], one.driveWorld[0][12], 0.01f);
-            Assert::IsTrue (one.driveWorld[0][12] + driveCx >
-                            (metrics.monitorMax[0] - metrics.monitorMin[0]) * 0.5f);
         }
     }
 

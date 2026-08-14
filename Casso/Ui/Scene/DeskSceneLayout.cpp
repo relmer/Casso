@@ -135,12 +135,13 @@ void DeskSceneLayout::SolveStandoffTilted (const float   sceneMin[3],
 //
 //  DeskSceneLayout::Compute
 //
-//  The drop correction: the input-mode row is fixed-height chrome living in
-//  the projected gap between monitor and drives, and the gap scales with
-//  the scene while the chrome does not -- so when the solve leaves too
-//  little room, the drive drop deepens by the deficit (converted at the
-//  glass's pixel density, a slight overestimate of the correction that
-//  converges from above) and the composition re-solves.
+//  `reservedGapPx` is inert now and kept only so callers need not change in
+//  lockstep. It used to widen a gap between the monitor and the drive row for
+//  the input-mode chrome to sit in, by sliding the drives forward and
+//  re-solving. There is no such gap to widen any more: the monitor STANDS ON
+//  the drives and every front face shares one plane, so the two are adjacent
+//  by construction. The input row needs a home of its own rather than a seam
+//  to hide in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -151,37 +152,13 @@ HRESULT DeskSceneLayout::Compute (const RECT             & viewportPx,
                                   DeskSceneComposition   & out,
                                   int                      reservedGapPx)
 {
-    HRESULT   hr     = S_OK;
-    float     dropMm = kDriveDeskGapMm;
+    HRESULT   hr = S_OK;
 
 
 
-    hr = SolveComposition (viewportPx, dpi, driveCount, metrics, dropMm, out);
+    hr = SolveComposition (viewportPx, dpi, driveCount, metrics, kDriveDeskGapMm, out);
 
-    for (int pass = 0; hr == S_OK && reservedGapPx > 0 && driveCount > 0 && pass < 3; pass++)
-    {
-        int     driveTop = INT_MAX;
-        int     gapNow   = 0;
-        float   pxPerMm  = 0.0f;
-        int     glassHPx = out.glassRectPx.bottom - out.glassRectPx.top;
-
-        for (int i = 0; i < driveCount; i++)
-        {
-            driveTop = std::min (driveTop, (int) out.driveRectPx[i].top);
-        }
-
-        gapNow  = driveTop - out.monitorRectPx.bottom;
-        pxPerMm = (float) glassHPx / (metrics.glass.z1 - metrics.glass.z0);
-
-        if (gapNow >= reservedGapPx || pxPerMm <= 0.0f)
-        {
-            break;
-        }
-
-        dropMm += (float) (reservedGapPx - gapNow) / pxPerMm;
-
-        hr = SolveComposition (viewportPx, dpi, driveCount, metrics, dropMm, out);
-    }
+    (void) reservedGapPx;
 
     return hr;
 }
@@ -217,8 +194,11 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     float     eyeY         = 0.0f;
     float     eyeZ         = 0.0f;
     float     forwardMm    = 0.0f;
+    float     monitorLiftMm = 0.0f;
     float     sceneMin[3]  = {};
     float     sceneMax[3]  = {};
+    float     deviceMin[3] = {};
+    float     deviceMax[3] = {};
     float     driveTx[2]   = {};
 
 
@@ -235,31 +215,38 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     aspect         = (float) viewportW / (float) viewportH;
     tanHalfX       = tanHalfY * aspect;
 
-    // Monitor: centered on x = 0, feet on the ground plane, front at z = 0.
-    MakeDeviceWorld (-monitorCx, 0.0f, 0.0f, 1.0f, out.monitorWorld);
+    // Monitor: centered on x = 0, front at z = 0, standing ON the drives --
+    // its feet land on their lids, so the whole stack is one solid.
+    monitorLiftMm = (driveCount > 0) ? (metrics.driveMax[2] - metrics.driveMin[2]) : 0.0f;
+
+    MakeDeviceWorld (-monitorCx, monitorLiftMm, 0.0f, 1.0f, out.monitorWorld);
 
     // Drives: a forward row on the ground plane -- toward the viewer, so
     // they read below the monitor from the straight-ahead camera -- at the
     // band's placement scale. One drive centers; two flank the centerline
     // with a gap.
-    // Drives at true size on the same desk, FLANKING the monitor at its own
-    // depth -- where they actually stood. Standing them between the viewer
-    // and the screen is the arrangement that looks wrong once the sizes are
-    // real: a Disk II a foot nearer the eye than a 9-inch monitor projects
-    // twice its apparent size, so the drives dominate the frame and the
-    // picture shrinks to a stamp. Beside it, both are the same distance
-    // away and read at their true relative size.
+    // The period stack: the drives sit side by side on the desk and the
+    // MONITOR SITS ON TOP OF THEM, which is how these desks were actually
+    // built (and how the reference photos are stacked). Two arrangements
+    // were tried and rejected first, both for the same reason -- where a
+    // device stands decides how distorted it looks. In front of the monitor,
+    // a Disk II a foot nearer the eye projects at twice the monitor's
+    // apparent size and swamps the picture. Flanking it, the drives sit far
+    // enough off-axis that the fov needed to contain them shows each one's
+    // whole 220 mm flank and lid, which reads as a crazily elongated box.
+    // Stacked under the monitor they are near the view axis and barely below
+    // eye level, so the front face is what you see -- as in the photographs.
     //
-    // `dropMm` is the side gap Compute widens to open room for the input
-    // row -- sliding them further out along the desk.
-    driveTx[0] = -((monitorW + driveW) * 0.5f + dropMm);
-    driveTx[1] =  ((monitorW + driveW) * 0.5f + dropMm);
-    forwardMm  = -metrics.monitorMin[1];   // fronts flush with the monitor's
+    // Every front face sits in ONE plane, the monitor's: a stack whose parts
+    // stand at different distances reads as an accident, and it costs the
+    // scene depth for nothing -- the nearer part just looks oversized. The
+    // drives are therefore pushed back until their fronts are flush with the
+    // monitor's bezel, which is also how a stack gets assembled in life.
+    driveTx[0] = (driveCount == 2) ? -(driveW + kDriveGapMm) * 0.5f : 0.0f;
+    driveTx[1] = (driveW + kDriveGapMm) * 0.5f;
+    forwardMm  = -metrics.monitorMin[1];
 
-    if (driveCount == 1)
-    {
-        driveTx[0] = driveTx[1];
-    }
+    (void) dropMm;
 
     for (int i = 0; i < driveCount; i++)
     {
@@ -272,26 +259,56 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     // Each device contributes its own body PLUS the ground clearance its
     // contact shadow needs (X and the toward-viewer Z only -- a shadow has no
     // height and the far side hides behind its own device).
-    sceneMin[0] = metrics.monitorMin[0] - monitorCx - metrics.monitorPadSideMm;
-    sceneMax[0] = metrics.monitorMax[0] - monitorCx + metrics.monitorPadSideMm;
-    sceneMin[1] = metrics.monitorMin[2];
-    sceneMax[1] = metrics.monitorMax[2];
-    sceneMin[2] = -metrics.monitorMax[1];
-    sceneMax[2] = -metrics.monitorMin[1] + metrics.monitorPadDepthMm;
+    // TWO bounds are tracked, and the difference matters.
+    //
+    // `scene` includes each device's contact-shadow ground clearance and is
+    // what the camera fit must contain, or the shadows are clipped away.
+    // `device` is the hardware alone, and is what the composition REPORTS as
+    // its footprint. Ctrl+0 shrink-wraps the window around that footprint, so
+    // reporting the padded bounds sized the window around a skirt of empty
+    // floor -- a wide band of dead space down both sides and along the
+    // bottom, which is exactly where the ground pads lie.
+    deviceMin[0] = metrics.monitorMin[0] - monitorCx;
+    deviceMax[0] = metrics.monitorMax[0] - monitorCx;
+    deviceMin[1] = metrics.monitorMin[2] + monitorLiftMm;
+    deviceMax[1] = metrics.monitorMax[2] + monitorLiftMm;
+    deviceMin[2] = -metrics.monitorMax[1];
+    deviceMax[2] = -metrics.monitorMin[1];
+
+    // A device STANDING ON another device has no ground shadow to reserve
+    // for: the monitor's would fall on the drive lids it sits on, hidden
+    // behind the drives themselves. Reserving it anyway cost the frame a
+    // wide band of empty floor on three sides for a shadow nobody can see.
+    {
+        float  monPadSide  = (monitorLiftMm > 0.0f) ? 0.0f : metrics.monitorPadSideMm;
+        float  monPadDepth = (monitorLiftMm > 0.0f) ? 0.0f : metrics.monitorPadDepthMm;
+
+        sceneMin[0] = deviceMin[0] - monPadSide;
+        sceneMax[0] = deviceMax[0] + monPadSide;
+        sceneMin[1] = deviceMin[1];
+        sceneMax[1] = deviceMax[1];
+        sceneMin[2] = deviceMin[2];
+        sceneMax[2] = deviceMax[2] + monPadDepth;
+    }
 
     for (int i = 0; i < driveCount; i++)
     {
-        float   lo[3] = { metrics.driveMin[0] - driveCx + driveTx[i] - metrics.drivePadSideMm,
-                          metrics.driveMin[2],
-                          forwardMm - metrics.driveMax[1] };
-        float   hi[3] = { metrics.driveMax[0] - driveCx + driveTx[i] + metrics.drivePadSideMm,
-                          metrics.driveMax[2],
-                          forwardMm - metrics.driveMin[1] + metrics.drivePadDepthMm };
+        float   dlo[3] = { metrics.driveMin[0] - driveCx + driveTx[i],
+                           metrics.driveMin[2],
+                           forwardMm - metrics.driveMax[1] };
+        float   dhi[3] = { metrics.driveMax[0] - driveCx + driveTx[i],
+                           metrics.driveMax[2],
+                           forwardMm - metrics.driveMin[1] };
+        float   lo[3]  = { dlo[0] - metrics.drivePadSideMm, dlo[1], dlo[2] };
+        float   hi[3]  = { dhi[0] + metrics.drivePadSideMm, dhi[1],
+                           dhi[2] + metrics.drivePadDepthMm };
 
         for (int axis = 0; axis < 3; axis++)
         {
-            sceneMin[axis] = std::min (sceneMin[axis], lo[axis]);
-            sceneMax[axis] = std::max (sceneMax[axis], hi[axis]);
+            deviceMin[axis] = std::min (deviceMin[axis], dlo[axis]);
+            deviceMax[axis] = std::max (deviceMax[axis], dhi[axis]);
+            sceneMin[axis]  = std::min (sceneMin[axis],  lo[axis]);
+            sceneMax[axis]  = std::max (sceneMax[axis],  hi[axis]);
         }
     }
 
@@ -302,7 +319,7 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     // and tighten distance AND vertical aim until the scene fills the
     // viewport with just the contain margin -- without this the symmetric
     // frustum wastes the whole top margin on a bottom-heavy scene.
-    glassCy = (metrics.glass.z0 + metrics.glass.z1) * 0.5f;
+    glassCy = (metrics.glass.z0 + metrics.glass.z1) * 0.5f + monitorLiftMm;
 
     // The eye is PLACED, not solved: a seated person kViewingDistanceMm from
     // the monitor's front plane, sitting kEyeAboveMonitorTopMm above the
@@ -310,21 +327,32 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     // in the frame follows from that one position.
     {
         float   at[3]     = { 0.0f, glassCy, 0.0f };
-        float   eyeUp     = metrics.monitorMax[2] + kEyeAboveMonitorTopMm;
+        float   eyeUp     = metrics.monitorMax[2] + monitorLiftMm + kEyeAboveMonitorTopMm;
         float   backOff   = 1.0f;
         float   fovY      = 0.0f;
 
-        // Two passes at most: place the eye, solve the fov that shows the
-        // whole scene from there, and if that fov would exceed what a person
-        // can take in at once, LEAN BACK instead of widening further. Moving
-        // the eye away along its own sight line is the physical answer to
-        // "it does not all fit", and it keeps a pathological viewport from
-        // turning the frame into a fisheye.
-        for (int pass = 0; pass < 2; pass++)
+        // Place the eye, solve the fov that shows the whole scene from there,
+        // and correct two things per pass.
+        //
+        // The GAZE re-centers. A symmetric frustum aimed at the middle of the
+        // screen has to reach from there down past the drives standing in
+        // front of the desk, and then wastes exactly as much frame above the
+        // monitor as it spent below -- most of the window empty. Tilting the
+        // aim to the middle of what is actually there halves the fov needed
+        // and fills the frame. The eye does not move: this is where the
+        // person is looking, not where they are sitting.
+        //
+        // And if the fov still exceeds what anyone takes in at once, they
+        // LEAN BACK. Moving the eye away along its own sight line is the
+        // physical answer to "it does not all fit", and it keeps a
+        // pathological viewport from turning the frame into a fisheye.
+        for (int pass = 0; pass < 4; pass++)
         {
             float   eye[3]   = { 0.0f, glassCy + (eyeUp - glassCy) * backOff, kViewingDistanceMm * backOff };
             float   needTanX = 0.0f;
             float   needTanY = 0.0f;
+            float   tanLo    = FLT_MAX;
+            float   tanHi    = -FLT_MAX;
 
             SceneCamera::LookAtRH (eye, at, out.view);
 
@@ -357,6 +385,9 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
 
                 needTanX = std::max (needTanX, std::abs (view[0]) / depth);
                 needTanY = std::max (needTanY, std::abs (view[1]) / depth);
+
+                tanLo = std::min (tanLo, view[1] / depth);
+                tanHi = std::max (tanHi, view[1] / depth);
             }
 
             // Fit the tighter axis: a wide window is bounded by height, a
@@ -367,12 +398,30 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
             eyeY = eye[1];
             eyeZ = eye[2];
 
-            if (tanHalfY <= std::tan (kMaxFovY * 0.5f) || pass > 0)
+            if (tanHalfY > std::tan (kMaxFovY * 0.5f))
+            {
+                backOff *= tanHalfY / std::tan (kMaxFovY * 0.5f);
+                continue;
+            }
+
+            // Tilt the gaze so the scene's vertical span sits centered, then
+            // re-solve against the new aim. Converges in a pass or two; a
+            // negligible correction means it already is centered.
+            if (tanLo <= tanHi)
+            {
+                float   midTan = (tanLo + tanHi) * 0.5f;
+
+                if (std::abs (midTan) <= 0.002f)
+                {
+                    break;
+                }
+
+                at[1] += midTan * kViewingDistanceMm * backOff;
+            }
+            else
             {
                 break;
             }
-
-            backOff *= tanHalfY / std::tan (kMaxFovY * 0.5f);
         }
 
         fovY = std::clamp (2.0f * std::atan (tanHalfY), kMinFovY, kMaxFovY);
@@ -383,8 +432,11 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
 
     {
 
-        // The scene's own projected footprint, for aspect-matched sizing
-        // (Ctrl+0 shrink-wraps the window around it).
+        // The HARDWARE's projected footprint, for aspect-matched sizing
+        // (Ctrl+0 shrink-wraps the window around it). Deliberately the
+        // device bounds and not the padded scene: wrapping the window around
+        // the contact shadows' ground clearance surrounds the machine with a
+        // band of empty floor on the two sides and the near edge.
         {
             float   pxMin[2] = { FLT_MAX, FLT_MAX };
             float   pxMax[2] = { -FLT_MAX, -FLT_MAX };
@@ -392,9 +444,9 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
 
             for (int corner = 0; corner < 8; corner++)
             {
-                float   pt[3] = { (corner & 1) ? sceneMax[0] : sceneMin[0],
-                                  (corner & 2) ? sceneMax[1] : sceneMin[1],
-                                  (corner & 4) ? sceneMax[2] : sceneMin[2] };
+                float   pt[3] = { (corner & 1) ? deviceMax[0] : deviceMin[0],
+                                  (corner & 2) ? deviceMax[1] : deviceMin[1],
+                                  (corner & 4) ? deviceMax[2] : deviceMin[2] };
                 float   px[2] = {};
 
                 if (!SceneCamera::ProjectToScreen (out.viewProj, pt, viewportPx, px))
