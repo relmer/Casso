@@ -76,7 +76,12 @@ GZ0, GZ1  = BZ0 + BEZEL_FW, BZ1 - BEZEL_FW
 NOTCH_W   = 30.0                  # power button notch, in the right strip
 NOTCH_H   = 15.0                  # shallow: just enough throw for the button
 NOTCH_D   = 10.0                  # 1 cm front to back
-NX0       = DX + (STRIP_W - NOTCH_W) * 0.5
+
+# Equal margins beside the notch: groove's inner edge to the notch's left
+# equals the notch's right to the frame's right edge. Centering on the whole
+# strip instead put the groove-side margin a millimeter tight while the
+# right side carried its margin PLUS the edge roll, reading wider still.
+NX0       = DX + GROOVE_W + (STRIP_W - GROOVE_W - NOTCH_W) * 0.5
 NZ1       = H
 NZ0       = H - NOTCH_H
 
@@ -224,16 +229,18 @@ m.add("icon_bar",  icon_bar,  BEIGE)
 
 # ---------------------------------------------- calibration ruler (debug)
 #
-# A 3-inch vertical magenta line up the REVEAL AREA's axis, rising from the
-# case bottom: an in-scene ruler for judging the brand stamp's centering.
-# The reveal area is the whole beige column right of the screen opening --
-# opening edge to case edge -- NOT the divided strip alone: centering on the
-# strip put the ruler visibly right of the column's middle. Because the
-# ruler lives ON the case it suffers the exact same perspective as the stamp
-# at every height, so "the mark's center of gravity sits on the line" can be
-# judged straight off a capture. Not part of the product model -- flip the
-# flag off and regenerate before shipping.
-REVEAL_CX = (OX1 + W) * 0.5
+# A 3-inch vertical magenta line up the REVEAL's axis, rising from the case
+# bottom: an in-scene ruler for judging the brand stamp's centering. The
+# reveal's axis is the strip's, measured from the groove's INNER edge to the
+# frame's right edge -- the same line the power notch centers on, so the
+# ruler, button, and molded icon all share one column (the user's annotated
+# centerline pinned this definition; measuring from the screen opening
+# instead read visibly left). Because the ruler lives ON the case it suffers
+# the exact same perspective as the stamp at every height, so "the mark's
+# center of gravity sits on the line" can be judged straight off a capture.
+# Not part of the product model -- flip the flag off and regenerate before
+# shipping.
+REVEAL_CX = (DX + GROOVE_W + W) * 0.5
 
 DEBUG_CENTER_LINE = True
 if DEBUG_CENTER_LINE:

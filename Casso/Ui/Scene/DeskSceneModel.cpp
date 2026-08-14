@@ -46,17 +46,18 @@ static constexpr float   s_kBrandTopZMm   = 27.0f;
 static constexpr float   s_kBrandHeightMm = 16.0f;
 static constexpr float   s_kBrandFrontY   = -10.6f;
 
-// The Monitor II's mark: low on the right reveal, centered on the reveal
-// AREA's axis -- the whole beige column from the screen opening's edge
-// (x 303.9) to the case edge (x 374.9), (OX1 + W) / 2 in cad_monitor2.py
-// terms. Centering on the divided strip alone read visibly off; the eye
-// takes the column, groove and all, as one area. The LEFT edge is COMPUTED
-// at load (see the Monitor2 branch): the cassowary's drawn mass sits
-// off-center inside its 36-column grid, so centering the stamp's box
-// mis-centers the visual weight; the silhouette's mass centroid gives the
-// exact correction. The //c chin and drive placements bake the bias into
-// their own tuned constants instead.
-static constexpr float   s_kMon2BrandCenterXMm = 339.4f;
+// The Monitor II's mark: low on the right reveal, on the reveal's axis --
+// the strip measured from the groove's INNER edge (x 324.9) to the frame's
+// right edge (x 374.9), (DX + GROOVE_W + W) / 2 in cad_monitor2.py terms.
+// That is the power notch's own center line, so mark, molded icon, and
+// button share one column; the user's annotated centerline pinned this
+// definition after a screen-opening-based center read visibly left. The
+// LEFT edge is COMPUTED at load (see the Monitor2 branch): the cassowary's
+// drawn mass sits off-center inside its 36-column grid, so centering the
+// stamp's box mis-centers the visual weight; the silhouette's mass centroid
+// gives the exact correction. The //c chin and drive placements bake the
+// bias into their own tuned constants instead.
+static constexpr float   s_kMon2BrandCenterXMm = 349.9f;
 static constexpr float   s_kMon2BrandTopZMm   = 46.0f;
 static constexpr float   s_kMon2BrandHeightMm = 24.0f;
 static constexpr float   s_kMon2BrandFrontY   = -0.8f;
