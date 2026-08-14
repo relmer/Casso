@@ -19,6 +19,12 @@ Entries before versioning was introduced use dates only.
 - Device models are now built with a CAD kernel and exported to the same
   OBJ/MTL the loader already read, so openings are boolean cuts and edges
   are real fillets.
+- **The input-mode selector lives on the command toolbar.** One "Input"
+  label groups LED + device-glyph segments for joystick, paddle, and mouse
+  (per-segment tooltips carry the details), replacing the row that lost
+  its home when the monitor came to rest on the drives. To make room, the
+  volume slider left the bar: hovering Volume opens a small flyout with a
+  vertical slider and the percentage readout.
 - **A real-time 3D desk scene replaces the skeuomorphic theme's 2D chrome.**
   A period Apple Monitor //c and two Disk II drives render as true 3D
   models, and the emulator picture maps onto the monitor's spherical-sag

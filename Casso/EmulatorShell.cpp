@@ -2769,6 +2769,11 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // path as the menu; the volume group drives the master output gain and
     // persists in GlobalUserPrefs (saved with the rest on exit).
     m_toolbar.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
+
+    // Input-mode segments route through the same toggle the band selector
+    // used, so the leave-time neutralization of held arrow / X / Z inputs
+    // runs identically.
+    m_toolbar.SetInputSink ([this] (InputMappingMode mode) { ToggleInputMappingMode (mode); });
     m_toolbar.SetVolumeSink ([this] (float volume01, bool muted)
     {
         m_globalPrefs.masterVolume = volume01;
@@ -2901,9 +2906,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
             m_driveBandSurface.SetBounds (RECT{ 0, bandTop, clientW, clientH });
-            if (!CrtMonitorActive())
+            if (!DeskSceneActive())
             {
                 LayoutJoystickButton (clientW, bandTop, bandHeight, dpi);
+            }
+            else
+            {
+                m_joystickButton.Hide();
             }
         }
 
@@ -3018,9 +3027,15 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
                 driveTop = std::min (driveTop, (int) comp.driveRectPx[i].top);
             }
 
-            bandTop = std::max (monBottom, monBottom + (driveTop - monBottom - bandH) / 2);
+            // The input row lives on the command toolbar now -- there is no
+            // gap between monitor and drives to float it in since the stack
+            // became physical, and a row over the drive lids read as debris.
+            m_joystickButton.Hide();
 
-            LayoutJoystickButton (widthPx, bandTop, bandH, m_scaler.Dpi());
+            (void) bandTop;
+            (void) monBottom;
+            (void) driveTop;
+            (void) bandH;
         }
     }
     else if (DeskSceneActive() && m_d3dRenderer.IsFullscreen())
@@ -4069,7 +4084,8 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     // The device selector's glyph style follows the drive style --
     // full skeuomorphic themes get the 3/4 perspective peripherals, compact
     // (DarkModern / retro) themes the top-down glyphs.
-    m_joystickButton.SetSkeuoStyle (!theme.compactDrives);
+    m_joystickButton.SetSkeuoStyle   (!theme.compactDrives);
+    m_toolbar.SetInputSkeuoStyle     (!theme.compactDrives);
 
     // Push the nav/dropdown palette onto the menu bar so both the
     // in-window strip and the popup-backed dropdown render with chrome
@@ -8881,11 +8897,23 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 
         // Entering paddle mode captures the mouse, so the hover that would
         // normally dismiss the tooltip never fires. Show the paddle notice
-        // and let it auto-dismiss after a few seconds.
-        m_joystickTooltip.ShowTimed (m_joystickButton.Bounds(),
-                                     m_joystickButton.TooltipText(),
-                                     nowMs,
-                                     s_kPaddleNoticeMs);
+        // and let it auto-dismiss after a few seconds. Anchor: the band
+        // selector where it still exists (compact themes), else the toolbar
+        // strip -- in the desk scene the selector is hidden and its empty
+        // bounds would pin the notice to the window's top-left corner.
+        {
+            RECT  anchor = m_joystickButton.Bounds();
+
+            if (anchor.right <= anchor.left)
+            {
+                anchor = m_toolbar.Bounds();
+            }
+
+            m_joystickTooltip.ShowTimed (anchor,
+                                         m_joystickButton.TooltipText(),
+                                         nowMs,
+                                         s_kPaddleNoticeMs);
+        }
 
         StartPaddleCapture();
     }
@@ -8928,6 +8956,8 @@ void EmulatorShell::SyncInputModeUi()
 void EmulatorShell::SyncSelectorState()
 {
     m_joystickButton.SetState (m_arrowsJoystick, m_pointerMode,
+                               m_mouse != nullptr && m_mouseConnected);
+    m_toolbar.SetInputState   (m_arrowsJoystick, m_pointerMode,
                                m_mouse != nullptr && m_mouseConnected);
 }
 

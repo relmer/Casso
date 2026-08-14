@@ -3,6 +3,7 @@
 
 #include "CassoTheme.h"
 #include "CommandToolbar.h"
+#include "InputDeviceSelector.h"
 
 #include "../../Resource.h"
 
@@ -44,6 +45,37 @@ static constexpr wchar_t  s_kGlyphVolume     = L'\uE767';   // speaker
 static constexpr wchar_t  s_kGlyphMuted      = L'\uE74F';   // muted speaker
 static constexpr wchar_t  s_kGlyphPrint      = L'\uE749';   // printer (monoline, matches the set)
 
+// Volume flyout (vertical slider + readout under the track).
+static constexpr int      s_kFlyoutWidthDp    = 56;
+static constexpr int      s_kFlyoutHeightDp   = 154;
+static constexpr int      s_kFlyoutPadDp      = 8;
+static constexpr int      s_kFlyoutDropDp     = 2;    // gap under the bar
+
+// Input cluster: LED + glyph segments under one shared label.
+static constexpr int      s_kSegIconDp        = 24;
+static constexpr int      s_kSegPadXDp        = 5;
+static constexpr int      s_kSegLedDp         = 7;    // LED diameter
+static constexpr int      s_kSegLedGapDp      = 4;
+static constexpr int      s_kSegGapDp         = 2;
+static constexpr int      s_kInputLabelGapDp  = 8;    // label -> first segment
+
+// LED state colors -- the drive-bar blue the band selector used.
+static constexpr uint32_t s_kLedOnCore  = 0xFF3DA1FF;
+static constexpr uint32_t s_kLedOffCore = 0xFF06121A;
+
+static constexpr const wchar_t * s_kInputLabel = L"Input";
+
+// Per-segment tooltips. The segments carry no labels of their own, so the
+// tips lead with the mode name the old selector showed as text.
+static constexpr const wchar_t * s_kTipJoystickSeg =
+    L"Joystick mode: map the arrow keys and X/Z to the joystick and\n"
+    L"buttons 0/1. Click to toggle; works alongside the pointer devices.";
+static constexpr const wchar_t * s_kTipPaddleSeg =
+    L"Paddle mode: captures the mouse and maps it to paddles 0/1 and\n"
+    L"buttons 0/1. Press ESC to exit this mode.";
+static constexpr const wchar_t * s_kTipMouseSeg =
+    L"Mouse mode: send host mouse inputs to the machine.";
+
 
 
 
@@ -72,6 +104,7 @@ CommandToolbar::CommandToolbar()
     m_muteButton.glyph = s_kGlyphVolume;
     m_muteButton.label = L"Volume";
 
+    m_volumeSlider.SetVertical      (true);
     m_volumeSlider.SetRange         (0.0f, 100.0f);
     m_volumeSlider.SetStep          (1.0f);
     m_volumeSlider.SetSuffix        (L"%");
@@ -124,7 +157,8 @@ bool CommandToolbar::PointIn (const RECT & rc, int x, int y)
 
 bool CommandToolbar::HitTest (int x, int y) const
 {
-    return PointIn (m_barRect, x, y);
+    return PointIn (m_barRect, x, y) ||
+           (m_flyoutOpen && PointIn (m_flyoutRc, x, y));
 }
 
 
@@ -188,6 +222,64 @@ static void PaintStatusLed (IDxuiPainter & painter, float cx, float cy, UINT dpi
         painter.FillCircleApprox (cx, cy, r * 1.8f, halo);
         painter.FillCircleApprox (cx, cy, r,        core);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::SetInputState / InputSegSelected
+//
+//  State mirrors the band selector's exactly: the joystick segment lights
+//  from the arrows mapping, paddle / mouse from the pointer mode, and the
+//  mouse segment exists only when the machine has a mouse. The keep-alive
+//  rect is the union of the volume button and its flyout, so the pointer can
+//  travel between them across the bar's margin without the flyout closing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::SetInputState (bool arrowsJoystick, InputMappingMode pointer, bool mouseAvailable)
+{
+    m_arrowsJoystick = arrowsJoystick;
+    m_pointerMode    = pointer;
+    m_mouseAvailable = mouseAvailable;
+}
+
+
+bool CommandToolbar::InputSegSelected (int index) const
+{
+    switch (index)
+    {
+        case 0:  return m_arrowsJoystick;
+        case 1:  return m_pointerMode == InputMappingMode::Paddle;
+        case 2:  return m_pointerMode == InputMappingMode::Mouse;
+        default: return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::FlyoutKeepAliveRc
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT CommandToolbar::FlyoutKeepAliveRc() const
+{
+    RECT  rc = m_muteButton.rc;
+
+
+
+    rc.left   = (std::min) (rc.left,   m_flyoutRc.left);
+    rc.right  = (std::max) (rc.right,  m_flyoutRc.right);
+    rc.bottom = (std::max) (rc.bottom, m_flyoutRc.bottom);
+
+    return rc;
 }
 
 
@@ -260,17 +352,40 @@ int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scale
         }
     };
 
-    // Total width a mode wants: six command buttons + the mute button + the
-    // slider, with group gaps between the three clusters.
+    int  segW      = MulDiv (s_kSegPadXDp * 2 + s_kSegLedDp + s_kSegLedGapDp + s_kSegIconDp,
+                             (int) dpi, s_kBaseDpi);
+    int  segGap    = MulDiv (s_kSegGapDp,       (int) dpi, s_kBaseDpi);
+    int  labelGap  = MulDiv (s_kInputLabelGapDp, (int) dpi, s_kBaseDpi);
+
+    // The input cluster: the shared label (dropped in icon-only mode, like
+    // every other label) + LED/glyph segments.
+    auto  clusterWidth = [&] (Mode mode) -> int
+    {
+        int  w = InputSegCount() * segW + (InputSegCount() - 1) * segGap;
+
+        if (mode != Mode::IconOnly)
+        {
+            w += measure (s_kInputLabel, s_kFontDip * (float) dpi / (float) s_kBaseDpi) + 3 + labelGap;
+        }
+
+        return w;
+    };
+
+    // Total width a mode wants: the command buttons, the volume button (its
+    // slider lives in the flyout now, not the bar), and the input cluster,
+    // with group gaps between the four clusters.
     auto  totalWidth = [&] (Mode mode) -> int
     {
         int  w = 0;
 
         for (const Button & b : m_buttons) { w += buttonWidth (b, mode) + btnGap; }
-        w += buttonWidth (m_muteButton, mode) + sliderW;
-        w += (groupGap - btnGap) + groupGap + groupGap;
+        w += buttonWidth (m_muteButton, mode);
+        w += clusterWidth (mode);
+        w += (groupGap - btnGap) + groupGap + groupGap + groupGap;
         return w;
     };
+
+    (void) sliderW;
 
     // Widest presentation that fits wins; icon-only additionally shrinks the
     // slider in Layout when even it overflows.
@@ -383,20 +498,9 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
         }
     };
 
-    // Icon-only overflow: shrink the slider toward its minimum before
-    // anything clips off the right edge.
-    if (m_mode == Mode::IconOnly)
-    {
-        int  wanted = (groupGap - btnGap) + groupGap + groupGap + sliderW;
-
-        for (const Button & b : m_buttons) { wanted += buttonWidth (b) + btnGap; }
-        wanted += buttonWidth (m_muteButton);
-
-        if (wanted > avail)
-        {
-            sliderW = (std::max) (sliderMinW, sliderW - (wanted - avail));
-        }
-    }
+    (void) sliderW;
+    (void) sliderMinW;
+    (void) sliderMaxH;
 
     auto  place = [&] (Button & btn)
     {
@@ -410,18 +514,61 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     place (m_buttons[1]);                       // Printer
     x += groupGap - btnGap;
 
-    place (m_muteButton);                       // Volume (mute toggle)
-    {
-        // The slider stays a comfortable height, vertically centered -- in the
-        // taller ribbon band a full-height slider would look stretched.
-        int   bandH    = bottom - top;
-        int   sliderH  = (std::min) (bandH, sliderMaxH);
-        int   sy       = top + (bandH - sliderH) / 2;
-        RECT  sliderRc = { x, sy, x + sliderW, sy + sliderH };
+    place (m_muteButton);                       // Volume (opens the flyout)
+    x += groupGap - btnGap;
 
-        m_volumeSlider.SetRect (sliderRc);
+    // The flyout hangs under the volume button, left-aligned to it; the
+    // slider fills it inside the padding, readout under the track.
+    {
+        int   flyW   = MulDiv (s_kFlyoutWidthDp,  (int) dpi, s_kBaseDpi);
+        int   flyH   = MulDiv (s_kFlyoutHeightDp, (int) dpi, s_kBaseDpi);
+        int   flyPad = MulDiv (s_kFlyoutPadDp,    (int) dpi, s_kBaseDpi);
+        int   drop   = MulDiv (s_kFlyoutDropDp,   (int) dpi, s_kBaseDpi);
+        int   fx     = m_muteButton.rc.left +
+                       ((m_muteButton.rc.right - m_muteButton.rc.left) - flyW) / 2;
+
+        fx         = (std::max) (fx, (int) m_barRect.left);
+        m_flyoutRc = RECT { fx, m_barRect.bottom + drop,
+                            fx + flyW, m_barRect.bottom + drop + flyH };
+
+        m_volumeSlider.SetRect (RECT { m_flyoutRc.left + flyPad,  m_flyoutRc.top + flyPad,
+                                       m_flyoutRc.right - flyPad, m_flyoutRc.bottom - flyPad });
         m_volumeSlider.SetDpi  (dpi);
-        x += sliderW + groupGap;
+    }
+
+    // Input cluster: the shared label, then LED + glyph segments.
+    {
+        int  segW     = MulDiv (s_kSegPadXDp * 2 + s_kSegLedDp + s_kSegLedGapDp + s_kSegIconDp,
+                                (int) dpi, s_kBaseDpi);
+        int  segGap   = MulDiv (s_kSegGapDp,        (int) dpi, s_kBaseDpi);
+        int  labelGap = MulDiv (s_kInputLabelGapDp, (int) dpi, s_kBaseDpi);
+
+        m_inputLabelRc = {};
+
+        if (m_mode != Mode::IconOnly)
+        {
+            // +3px slack over the measured width: DrawString wraps on a rect
+            // even fractionally narrower than the layout width it measured.
+            int  labelW = measure (s_kInputLabel, s_kFontDip * (float) dpi / (float) s_kBaseDpi) + 3;
+
+            m_inputLabelRc = RECT { x, top, x + labelW, bottom };
+            x += labelW + labelGap;
+        }
+
+        for (int i = 0; i < 3; i++)
+        {
+            if (i < InputSegCount())
+            {
+                m_inputSegs[i].rc = RECT { x, top, x + segW, bottom };
+                x += segW + ((i + 1 < InputSegCount()) ? segGap : 0);
+            }
+            else
+            {
+                m_inputSegs[i].rc = {};
+            }
+        }
+
+        x += groupGap;
     }
 
     place (m_buttons[2]);                       // Screenshot
@@ -451,9 +598,26 @@ const wchar_t * CommandToolbar::TooltipAt (int x, int y, RECT & anchor) const
 
 
 
-    // Outside icon-only mode the labels are visible, so a tooltip would just
-    // repeat them. Null means "no tip"; `anchor` is then left alone.
-    if (m_mode == Mode::IconOnly)
+    // The input segments carry no labels in ANY mode -- the cluster's shared
+    // label only names the group -- so their tooltips always show and lead
+    // with the mode name.
+    {
+        static constexpr const wchar_t * s_kSegTips[3] =
+            { s_kTipJoystickSeg, s_kTipPaddleSeg, s_kTipMouseSeg };
+
+        for (int i = 0; i < InputSegCount(); i++)
+        {
+            if (tip == nullptr && PointIn (m_inputSegs[i].rc, x, y))
+            {
+                anchor = m_inputSegs[i].rc;
+                tip    = s_kSegTips[i];
+            }
+        }
+    }
+
+    // Outside icon-only mode the button labels are visible, so a tooltip
+    // would just repeat them. Null means "no tip"; `anchor` is left alone.
+    if (tip == nullptr && m_mode == Mode::IconOnly)
     {
         for (const Button & btn : m_buttons)
         {
@@ -498,9 +662,14 @@ bool CommandToolbar::OnToolbarMouseMove (int x, int y, bool leftDown)
     UNREFERENCED_PARAMETER (leftDown);
 
 
-    if (m_volumeSlider.OnMouseMove (x, y))
+    if (m_flyoutOpen && m_volumeSlider.OnMouseMove (x, y))
     {
         over = true;
+    }
+
+    if (m_flyoutOpen)
+    {
+        m_volumeSlider.SetMouseHover (x, y);
     }
 
     for (Button & btn : m_buttons)
@@ -513,7 +682,30 @@ bool CommandToolbar::OnToolbarMouseMove (int x, int y, bool leftDown)
     m_muteButton.hovered = PointIn (m_muteButton.rc, x, y);
     if (!m_muteButton.hovered) { m_muteButton.pressed = false; }
 
-    return over || m_muteButton.hovered || PointIn (m_barRect, x, y);
+    for (int i = 0; i < InputSegCount(); i++)
+    {
+        m_inputSegs[i].hovered = PointIn (m_inputSegs[i].rc, x, y);
+        if (!m_inputSegs[i].hovered) { m_inputSegs[i].pressed = false; }
+        over = over || m_inputSegs[i].hovered;
+    }
+
+    // The flyout opens on hover over the volume button and stays while the
+    // pointer remains in the button-flyout corridor -- the union rect, so
+    // the travel across the bar's bottom margin cannot close it. A drag in
+    // progress pins it open regardless (the pointer may leave the track).
+    if (m_muteButton.hovered)
+    {
+        m_flyoutOpen = true;
+    }
+    else if (m_flyoutOpen && !m_volumeSlider.Dragging() &&
+             !PointIn (FlyoutKeepAliveRc(), x, y))
+    {
+        m_flyoutOpen = false;
+    }
+
+    return over || m_muteButton.hovered ||
+           (m_flyoutOpen && PointIn (m_flyoutRc, x, y)) ||
+           PointIn (m_barRect, x, y);
 }
 
 
@@ -536,6 +728,19 @@ void CommandToolbar::OnToolbarMouseLeave()
 
     m_muteButton.hovered = false;
     m_muteButton.pressed = false;
+
+    for (InputSeg & seg : m_inputSegs)
+    {
+        seg.hovered = false;
+        seg.pressed = false;
+    }
+
+    // The pointer left the window entirely; a drag can survive that (the
+    // shell keeps forwarding while captured), so only close when idle.
+    if (!m_volumeSlider.Dragging())
+    {
+        m_flyoutOpen = false;
+    }
 }
 
 
@@ -564,9 +769,9 @@ void CommandToolbar::OnToolbarMouseLeave()
 
 bool CommandToolbar::OnToolbarLButtonDown (int x, int y)
 {
-    // The slider gets first claim, but only while unmuted -- a muted slider
-    // is inert and the press should fall through to the bar.
-    bool  handled = !m_muted && m_volumeSlider.OnLButtonDown (x, y);
+    // The flyout's slider gets first claim while open and unmuted -- a muted
+    // slider is inert and the press should fall through.
+    bool  handled = m_flyoutOpen && !m_muted && m_volumeSlider.OnLButtonDown (x, y);
 
     for (Button & btn : m_buttons)
     {
@@ -583,9 +788,19 @@ bool CommandToolbar::OnToolbarLButtonDown (int x, int y)
         handled              = true;
     }
 
-    // Clicks on the bar's dead space are eaten so they do not fall through
-    // to whatever is behind the toolbar.
-    return handled || PointIn (m_barRect, x, y);
+    for (int i = 0; !handled && i < InputSegCount(); i++)
+    {
+        if (PointIn (m_inputSegs[i].rc, x, y))
+        {
+            m_inputSegs[i].pressed = true;
+            handled                = true;
+        }
+    }
+
+    // Clicks on the bar's dead space -- and the open flyout's -- are eaten
+    // so they do not fall through to whatever is behind.
+    return handled || PointIn (m_barRect, x, y) ||
+           (m_flyoutOpen && PointIn (m_flyoutRc, x, y));
 }
 
 
@@ -649,7 +864,28 @@ bool CommandToolbar::OnToolbarLButtonUp (int x, int y)
         handled = true;
     }
 
-    return handled || PointIn (m_barRect, x, y);
+    // Input segments: press-and-release on the same segment toggles its mode.
+    {
+        static constexpr InputMappingMode s_kSegModes[3] =
+            { InputMappingMode::Joystick, InputMappingMode::Paddle, InputMappingMode::Mouse };
+
+        for (int i = 0; i < 3; i++)
+        {
+            bool  segWasPressed = m_inputSegs[i].pressed;
+
+            m_inputSegs[i].pressed = false;
+
+            if (!handled && segWasPressed && i < InputSegCount() &&
+                PointIn (m_inputSegs[i].rc, x, y))
+            {
+                if (m_inputSink) { m_inputSink (s_kSegModes[i]); }
+                handled = true;
+            }
+        }
+    }
+
+    return handled || PointIn (m_barRect, x, y) ||
+           (m_flyoutOpen && PointIn (m_flyoutRc, x, y));
 }
 
 
@@ -829,5 +1065,128 @@ void CommandToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     }
 
     PaintButton (m_muteButton, painter, text, theme);
-    m_volumeSlider.Paint (painter, text, dxuiTheme);
+    PaintInputCluster (painter, text, theme);
+
+    // The flyout paints LAST: it hangs below the bar over whatever chrome or
+    // scene is there, and everything on the bar must be under it.
+    if (m_flyoutOpen)
+    {
+        PaintVolumeFlyout (painter, text, theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::PaintInputCluster
+//
+//  The shared "Input" label (muted ink -- it names the group, it is not a
+//  button) and the LED + glyph segments. Hover chrome matches the buttons';
+//  the LED is the state, exactly as the band selector drew it: an outline
+//  would read as focus, a lit LED reads as ON.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRenderer & text,
+                                        const CassoTheme & theme)
+{
+    HRESULT   hr       = S_OK;
+    float     fontDip  = s_kFontDip * (float) m_dpi / (float) s_kBaseDpi;
+    int       ledD     = MulDiv (s_kSegLedDp,    (int) m_dpi, s_kBaseDpi);
+    int       ledGap   = MulDiv (s_kSegLedGapDp, (int) m_dpi, s_kBaseDpi);
+    int       segPad   = MulDiv (s_kSegPadXDp,   (int) m_dpi, s_kBaseDpi);
+    int       iconD    = MulDiv (s_kSegIconDp,   (int) m_dpi, s_kBaseDpi);
+    uint32_t  mutedInk = (theme.navItemText & 0x00FFFFFF) | 0x99000000;
+
+
+
+    if (m_inputLabelRc.right > m_inputLabelRc.left)
+    {
+        hr = text.DrawString (s_kInputLabel,
+                              (float) m_inputLabelRc.left,
+                              (float) m_inputLabelRc.top,
+                              (float) (m_inputLabelRc.right  - m_inputLabelRc.left),
+                              (float) (m_inputLabelRc.bottom - m_inputLabelRc.top),
+                              mutedInk, fontDip, s_kFontFamily,
+                              DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    for (int i = 0; i < InputSegCount(); i++)
+    {
+        const InputSeg &  seg    = m_inputSegs[i];
+        bool              active = seg.hovered || seg.pressed;
+        float             sl     = (float) seg.rc.left;
+        float             st     = (float) seg.rc.top;
+        float             sw     = (float) (seg.rc.right  - seg.rc.left);
+        float             sh     = (float) (seg.rc.bottom - seg.rc.top);
+
+
+
+        if (active)
+        {
+            painter.FillRect    (sl, st, sw, sh, seg.pressed ? theme.buttonPressed
+                                                             : theme.buttonHover);
+            painter.OutlineRect (sl, st, sw, sh, 1.0f, theme.buttonBorder);
+        }
+
+        // LED left of the glyph, both vertically centered in the segment.
+        {
+            float  ledCx = sl + (float) segPad + (float) ledD * 0.5f;
+            float  ledCy = st + sh * 0.5f;
+            bool   on    = InputSegSelected (i);
+
+            painter.FillCircleApprox (ledCx, ledCy, (float) ledD * 0.5f,
+                                      on ? s_kLedOnCore : s_kLedOffCore);
+        }
+
+        {
+            int   boxL = seg.rc.left + segPad + ledD + ledGap;
+            int   boxT = seg.rc.top + ((seg.rc.bottom - seg.rc.top) - iconD) / 2;
+            RECT  box  = { boxL, boxT, boxL + iconD, boxT + iconD };
+
+            switch (i)
+            {
+                case 0:  InputDeviceSelector::PaintJoystickGlyph (painter, box, m_inputSkeuo); break;
+                case 1:  InputDeviceSelector::PaintPaddleGlyph   (painter, box, m_inputSkeuo); break;
+                case 2:  InputDeviceSelector::PaintMouseGlyph    (painter, box, m_inputSkeuo); break;
+                default: break;
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::PaintVolumeFlyout
+//
+//  A small panel hanging under the volume button: themed surface, hairline
+//  border, and the vertical slider with its % readout under the track. The
+//  panel background must be OPAQUE -- it floats over the live scene, and a
+//  translucent flyout would read as a rendering artifact.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::PaintVolumeFlyout (IDxuiPainter & painter, IDxuiTextRenderer & text,
+                                        const CassoTheme & theme)
+{
+    float  fl = (float) m_flyoutRc.left;
+    float  ft = (float) m_flyoutRc.top;
+    float  fw = (float) (m_flyoutRc.right  - m_flyoutRc.left);
+    float  fh = (float) (m_flyoutRc.bottom - m_flyoutRc.top);
+
+
+
+    painter.FillRect (fl - 1.0f, ft - 1.0f, fw + 2.0f, fh + 2.0f, theme.buttonBorder);
+    painter.FillRect (fl, ft, fw, fh, theme.navStrip);
+
+    m_volumeSlider.SetEnabled (!m_muted);
+    m_volumeSlider.Paint (painter, text, theme);
 }
