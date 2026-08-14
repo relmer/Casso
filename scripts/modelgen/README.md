@@ -13,11 +13,12 @@ without touching the loader.
 
 | Generator | Output | Object |
 |---|---|---|
-| `gen_diskii.py` | `Resources/Models/DiskII/` | Apple Disk II (155×86×222 mm) |
-| `gen_duodisk.py` | `Resources/Models/DuoDisk/` | Apple DuoDisk A9M0106 (386×89×222) |
-| `gen_disk2c.py` | `Resources/Models/Disk2c/` | Apple //c external Drive A2M4020 (152×70×216) |
-| `gen_profile.py` | `Resources/Models/ProFile/` | Apple ProFile 5 MB (439×110×226) |
-| `gen_monitor2c.py` | `Resources/Models/Monitor2c/` | Apple Monitor //c (248×200×280 + stand) |
+| `cad_diskii.py` | `Resources/Models/DiskII/` | Apple Disk II A2M0003 (155×220×96 mm) |
+| `cad_disk2c.py` | `Resources/Models/Disk2c/` | Apple //c external Drive A2M4020 (152×216×70) |
+| `cad_monitor2c.py` | `Resources/Models/Monitor2c/` | Apple Monitor //c G090H (248×280×200) |
+| `cad_monitor2.py` | `Resources/Models/Monitor2/` | Apple Monitor II A2M2010 (343×348×292) |
+| `gen_duodisk.py` | `Resources/Models/DuoDisk/` | Apple DuoDisk A9M0106 (386×89×222) — meshkit, not yet migrated |
+| `gen_profile.py` | `Resources/Models/ProFile/` | Apple ProFile 5 MB (439×110×226) — meshkit, not yet migrated |
 
 **Color is identity.** The desk scene splits a model into sub-meshes by
 matching `Kd` VALUES within ±0.02 per channel (`DeskSceneModel::kKdEpsilon`)
@@ -51,7 +52,7 @@ After regenerating, copy the OBJ/MTL pair over the checked-in copy under
 
 `cadkit.py` bridges [CadQuery](https://cadquery.readthedocs.io/) solids to the
 same OBJ/MTL dialect above, one `usemtl` group per part, so a CAD-built model
-drops into `Resources/Models/` unchanged. `cad_monitor2.py` is the first.
+drops into `Resources/Models/` unchanged. Everything the desk scene loads is CAD-built now; `gen_*` remains only for the not-yet-shipped DuoDisk and ProFile.
 
 Prefer it over hand-emitting geometry. A wall of `add_quad` calls cannot be
 reviewed: nothing in the source makes *"this face covers the whole screen
