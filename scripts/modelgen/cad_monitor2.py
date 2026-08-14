@@ -48,9 +48,15 @@ GLASS_H = DIAG_MM / math.hypot(EMU_ASPECT, 1.0)
 MARGIN    = 19.0                  # case face to its screen opening, all sides
 GAP       = 6.0                   # even gap, case opening to bezel, all round
 BEZEL_FW  = 16.0                  # the bezel's own frame width
-STRIP_W   = 52.0                  # the divided strip on the right
-GROOVE_W  = 2.0                   # the reveal dividing it off
+GROOVE_W  = 2.0                   # the groove dividing the reveal off
 GROOVE_D  = 1.2
+
+# The reveal is sized from the power notch outward: a 1-inch notch with a
+# quarter-inch margin to each side, 1.5 inches of reveal in all. The strip
+# adds the groove that divides it from the symmetric front margin.
+NOTCH_W   = 25.4                  # power button notch: 1 in
+NOTCH_MGN = 6.35                  # margin beside the notch: 1/4 in
+STRIP_W   = GROOVE_W + NOTCH_W + NOTCH_MGN * 2.0
 
 OPEN_W = GLASS_W + (GAP + BEZEL_FW) * 2.0
 OPEN_H = GLASS_H + (GAP + BEZEL_FW) * 2.0
@@ -73,15 +79,13 @@ BZ0, BZ1  = OZ0 + GAP, OZ1 - GAP
 GX0, GX1  = BX0 + BEZEL_FW, BX1 - BEZEL_FW
 GZ0, GZ1  = BZ0 + BEZEL_FW, BZ1 - BEZEL_FW
 
-NOTCH_W   = 30.0                  # power button notch, in the right strip
 NOTCH_H   = 15.0                  # shallow: just enough throw for the button
 NOTCH_D   = 10.0                  # 1 cm front to back
 
 # Equal margins beside the notch: groove's inner edge to the notch's left
-# equals the notch's right to the frame's right edge. Centering on the whole
-# strip instead put the groove-side margin a millimeter tight while the
-# right side carried its margin PLUS the edge roll, reading wider still.
-NX0       = DX + GROOVE_W + (STRIP_W - GROOVE_W - NOTCH_W) * 0.5
+# equals the notch's right to the frame's right edge, the edge roll counted
+# INSIDE the margin rather than appended to it.
+NX0       = DX + GROOVE_W + NOTCH_MGN
 NZ1       = H
 NZ0       = H - NOTCH_H
 
