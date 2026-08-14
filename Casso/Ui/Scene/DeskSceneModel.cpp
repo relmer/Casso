@@ -10,10 +10,28 @@
 
 
 
-// Baked light direction in model space (X right, Y back, Z up): overhead
-// front-left, like the reference photos -- raking enough that the beveled
-// front surfaces separate from each other, which is what sells the 3D read.
-static constexpr float   s_kLightDir[3] = { -0.35f, -0.55f, 0.75f };
+// The room's two ceiling lights, in DESK space: origin at the computer's
+// center on the desk surface, X right, Y back (toward the wall), Z up. The
+// ceiling hangs five feet above the desk; one fixture is two feet left of
+// the computer, the other seven feet right, both slightly forward of the
+// machines so the front faces catch some direct light. Load() translates
+// these into each model's own coordinates.
+static constexpr float   s_kRoomLights[2][3] =
+{
+    { -610.0f, -450.0f, 1524.0f },     // 2 ft left, 5 ft up
+    { 2134.0f, -450.0f, 1524.0f },     // 7 ft right, 5 ft up
+};
+
+// Inverse-square falloff, normalized so a face at ceiling-height distance
+// under a light bakes at full span. The near-left light dominates and the
+// far-right one back-fills, which is what two real fixtures would do.
+static constexpr float   s_kLightRefMm  = 1524.0f;
+
+// Where the monitor's model-space floor rests in desk space: on top of the
+// drive stack. A nominal Disk II height serves both pairings -- at five
+// feet of throw the shorter //c drives move the light angle by well under
+// a degree.
+static constexpr float   s_kMonitorRestMm = 96.0f;
 
 // Two-sided Lambert ramp. The floor is deliberately low: a shallow ramp
 // reads as a flat 2D cutout.
@@ -28,9 +46,17 @@ static constexpr float   s_kBrandTopZMm   = 27.0f;
 static constexpr float   s_kBrandHeightMm = 16.0f;
 static constexpr float   s_kBrandFrontY   = -10.6f;
 
-// The Monitor II's mark: bottom of the divided right strip (strip spans
-// x 291..343), proud of the case front at y = 0.
-static constexpr float   s_kMon2BrandLeftMm   = 300.0f;
+// The Monitor II's mark: low on the right reveal, centered on the reveal
+// AREA's axis -- the whole beige column from the screen opening's edge
+// (x 303.9) to the case edge (x 374.9), (OX1 + W) / 2 in cad_monitor2.py
+// terms. Centering on the divided strip alone read visibly off; the eye
+// takes the column, groove and all, as one area. The LEFT edge is COMPUTED
+// at load (see the Monitor2 branch): the cassowary's drawn mass sits
+// off-center inside its 36-column grid, so centering the stamp's box
+// mis-centers the visual weight; the silhouette's mass centroid gives the
+// exact correction. The //c chin and drive placements bake the bias into
+// their own tuned constants instead.
+static constexpr float   s_kMon2BrandCenterXMm = 339.4f;
 static constexpr float   s_kMon2BrandTopZMm   = 46.0f;
 static constexpr float   s_kMon2BrandHeightMm = 24.0f;
 static constexpr float   s_kMon2BrandFrontY   = -0.8f;
@@ -106,10 +132,13 @@ bool DeskSceneModel::ColorMatches (float r, float g, float b, const float kd[3])
 //
 //  DeskSceneModel::AppendLitTri
 //
-//  Per-face Lambert baked on the CPU, two-sided (|dot|) since the meshes are
-//  drawn with culling off -- the same lighting model the printer scene bakes.
-//  The shade premultiplies into the vertex tint; the pixel shader is tex*col
-//  and the untextured path samples opaque white, so tint IS the lit color.
+//  Per-face lighting baked on the CPU from the room's two ceiling fixtures:
+//  Lambert per light, two-sided (|dot|) since the meshes are drawn with
+//  culling off, attenuated by inverse-square falloff and summed. The shade
+//  premultiplies into the vertex tint; the pixel shader is tex*col and the
+//  untextured path samples opaque white, so tint IS the lit color. Light
+//  positions were moved into model space by Load(), so face math stays in
+//  the mesh's own coordinates.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,18 +150,30 @@ void DeskSceneModel::AppendLitTri (std::vector<Dxui3DRenderer::Vertex> & out, co
                        e1[2] * e2[0] - e1[0] * e2[2],
                        e1[0] * e2[1] - e1[1] * e2[0] };
     float   nl     = std::sqrt (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
-    float   ll     = std::sqrt (s_kLightDir[0] * s_kLightDir[0] +
-                                s_kLightDir[1] * s_kLightDir[1] +
-                                s_kLightDir[2] * s_kLightDir[2]);
-    float   d      = 0.0f;
+    float   c[3]   = { (tri.p0[0] + tri.p1[0] + tri.p2[0]) / 3.0f,
+                       (tri.p0[1] + tri.p1[1] + tri.p2[1]) / 3.0f,
+                       (tri.p0[2] + tri.p1[2] + tri.p2[2]) / 3.0f };
+    float   sum    = 0.0f;
     float   shade  = s_kShadeFloor + s_kShadeSpan;
 
 
 
     if (nl > 0.0f)
     {
-        d     = (n[0] * s_kLightDir[0] + n[1] * s_kLightDir[1] + n[2] * s_kLightDir[2]) / (nl * ll);
-        shade = s_kShadeFloor + s_kShadeSpan * std::abs (d);
+        for (const float * light : m_lightsModel)
+        {
+            float  toL[3] = { light[0] - c[0], light[1] - c[1], light[2] - c[2] };
+            float  r      = std::sqrt (toL[0] * toL[0] + toL[1] * toL[1] + toL[2] * toL[2]);
+
+            if (r > 0.0f)
+            {
+                float  d = (n[0] * toL[0] + n[1] * toL[1] + n[2] * toL[2]) / (nl * r);
+
+                sum += std::abs (d) * (s_kLightRefMm * s_kLightRefMm) / (r * r);
+            }
+        }
+
+        shade = s_kShadeFloor + s_kShadeSpan * (std::min) (1.0f, sum);
     }
 
     for (const float * p : { tri.p0, tri.p1, tri.p2 })
@@ -214,6 +255,32 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
     hr = ObjMeshParser::Parse (objText, mtlText, triangles);
     CHRA (hr);
 
+    // Move the room's ceiling lights into this model's own coordinates so
+    // the per-face bake needs no transform: the model's x-center rests on
+    // the computer's desk-space center line, and a monitor's floor sits on
+    // top of the drive stack rather than on the desk.
+    {
+        float  minX = FLT_MAX;
+        float  maxX = -FLT_MAX;
+        float  rest = IsMonitorKind (kind) ? s_kMonitorRestMm : 0.0f;
+
+        for (const ObjTriangle & tri : triangles)
+        {
+            for (const float * p : { tri.p0, tri.p1, tri.p2 })
+            {
+                minX = (std::min) (minX, p[0]);
+                maxX = (std::max) (maxX, p[0]);
+            }
+        }
+
+        for (size_t i = 0; i < std::size (s_kRoomLights); i++)
+        {
+            m_lightsModel[i][0] = s_kRoomLights[i][0] + (minX + maxX) * 0.5f;
+            m_lightsModel[i][1] = s_kRoomLights[i][1];
+            m_lightsModel[i][2] = s_kRoomLights[i][2] - rest;
+        }
+    }
+
     for (const ObjTriangle & tri : triangles)
     {
         if (IsMonitorKind (kind) && ColorMatches (tri.r, tri.g, tri.b, kGlassKd))
@@ -254,8 +321,39 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         // beside the power button.
         if (kind == DeskDeviceKind::Monitor2)
         {
-            BuildBrandStamp (s_kMon2BrandLeftMm, s_kMon2BrandTopZMm,
-                             s_kMon2BrandHeightMm, s_kMon2BrandFrontY);
+            // Center the silhouette's MASS, not its grid box: the drawn
+            // cassowary is heavier on one side, so box-centering leaves the
+            // visual weight off-axis. Sum the set cells' column centers and
+            // solve the left edge so the centroid lands on the strip's
+            // axis. The proof is in the scene: the strip's calibration
+            // ruler shares the stamp's height and perspective, so centroid-
+            // on-ruler is judgeable straight off a capture.
+            float   cell   = s_kMon2BrandHeightMm / (float) CassoBranding::kGridH;
+            double  sumCol = 0.0;
+            int     count  = 0;
+
+            for (int row = 0; row < CassoBranding::kGridH; row++)
+            {
+                uint64_t  bits = CassoBranding::SilhouetteRow (row);
+
+                for (int col = 0; col < CassoBranding::kGridW; col++)
+                {
+                    if ((bits & (1ULL << col)) != 0)
+                    {
+                        sumCol += (double) col + 0.5;
+                        count++;
+                    }
+                }
+            }
+
+            {
+                float  centroidCols = (count > 0) ? (float) (sumCol / count)
+                                                  : (float) CassoBranding::kGridW * 0.5f;
+                float  leftMm       = s_kMon2BrandCenterXMm - centroidCols * cell;
+
+                BuildBrandStamp (leftMm, s_kMon2BrandTopZMm,
+                                 s_kMon2BrandHeightMm, s_kMon2BrandFrontY);
+            }
         }
         else
         {

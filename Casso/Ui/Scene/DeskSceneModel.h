@@ -186,7 +186,7 @@ public:
 
 private:
     static bool  ColorMatches   (float r, float g, float b, const float kd[3]);
-    static void  AppendLitTri   (std::vector<Dxui3DRenderer::Vertex> & out, const struct ObjTriangle & tri);
+    void         AppendLitTri   (std::vector<Dxui3DRenderer::Vertex> & out, const struct ObjTriangle & tri);
     static void  AppendFlatTri  (std::vector<Dxui3DRenderer::Vertex> & out, const struct ObjTriangle & tri);
 
     HRESULT  BuildGlassSurface  ();
@@ -212,4 +212,5 @@ private:
     float                                m_boundsMax[3]    = {};
     float                                m_footprintMin[2] = {};
     float                                m_footprintMax[2] = {};
+    float                                m_lightsModel[2][3] = {};
 };

@@ -1537,7 +1537,10 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
     m_mainMenu.SetVisible (!hidden);
     m_toolbar.SetVisible (!hidden);
     m_joystickButton.SetVisible (!hidden);
-    m_driveBandSurface.SetVisible (!hidden);
+    // The band surface only exists for the 2D chrome; under the desk scene
+    // the drives paint from the scene and the band would read as a leftover
+    // bar along the window's bottom edge.
+    m_driveBandSurface.SetVisible (!hidden && !DeskSceneActive());
     m_switchBar.SetVisible (!hidden);
     m_driveChrome[0].SetVisible (!hidden);
     m_driveChrome[1].SetVisible (!hidden);
@@ -2905,15 +2908,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             int  bandTop    = driveRect.top;
             int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
+            m_driveBandSurface.SetVisible (!DeskSceneActive());
             m_driveBandSurface.SetBounds (RECT{ 0, bandTop, clientW, clientH });
-            if (!DeskSceneActive())
-            {
-                LayoutJoystickButton (clientW, bandTop, bandHeight, dpi);
-            }
-            else
-            {
-                m_joystickButton.Hide();
-            }
+            LayoutJoystickButton (clientW, bandTop, bandHeight, dpi);
         }
 
         LayoutSwitchBar (dpi);
@@ -4220,6 +4217,20 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
     int            centerY = bandTopPx + bandHeightPx / 2;
     DxuiDpiScaler  scaler;
     RECT           anchor  = { centerX, centerY, centerX, centerY };
+
+
+
+    // With the desk scene active the selector's home is the command toolbar
+    // and there is no band for it here. This is the one choke point every
+    // caller funnels through -- init, OnSize, theme apply, the cached DPI
+    // relayout -- so the gate lives HERE: gating the call sites one by one
+    // is how the retired widget kept resurrecting at the window's bottom
+    // edge whenever a path nobody remembered re-laid it.
+    if (DeskSceneActive())
+    {
+        m_joystickButton.Hide();
+        return;
+    }
 
 
 
@@ -9597,11 +9608,9 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 int  bandTop    = driveRect.top;
                 int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
+                m_driveBandSurface.SetVisible (!DeskSceneActive());
                 m_driveBandSurface.SetBounds (RECT{ 0, bandTop, static_cast<int> (width), renderH });
-                if (!CrtMonitorActive())
-                {
-                    LayoutJoystickButton (static_cast<int> (width), bandTop, bandHeight, dpi);
-                }
+                LayoutJoystickButton (static_cast<int> (width), bandTop, bandHeight, dpi);
             }
 
             LayoutSwitchBar (dpi);

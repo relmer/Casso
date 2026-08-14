@@ -29,48 +29,53 @@ import cadquery as cq
 from cadkit import KD, Model, sag_sheet
 
 # ---------------------------------------------------------------- dimensions
+#
+# BUILT OUTWARD FROM THE TUBE. The visible CRT carries the emulator's own
+# aspect (280:192 = 35:24) at the advertised 12-inch tube's 11.5-inch visible
+# diagonal, and every case dimension derives from it: glass -> bezel frame ->
+# recess gap -> front frame margin -> case. Nothing else decides the case's
+# shape; a case chosen first and squared off is how the screen ended up a
+# giant square with the picture letterboxed inside it.
 
-# Proportions are measured off the reference photograph rather than chosen:
-# as fractions of the case, the bezel assembly covers .78 x .76 and the
-# visible tube .65 x .67, with the divided strip .15 of the width. The tube
-# comes out at a 1.20 aspect, which is what the real one reads as. Earlier
-# passes had the bezel at .67 x .63 and the tube at .56 x .50 -- everything
-# inside the case too small, which is what made it look nothing like the
-# object.
-W, H, D   = 343.0, 292.0, 348.0
+import math
 
-STRIP_W   = 52.0                  # the divided strip on the right (.15 W)
-DX        = W - STRIP_W           # the stylistic divider groove
-GROOVE_W  = 2.0
+EMU_ASPECT = 280.0 / 192.0        # the emulator display's own aspect
+DIAG_MM    = 11.5 * 25.4          # visible tube diagonal, advertised 12-in class
+
+GLASS_W = DIAG_MM * EMU_ASPECT / math.hypot(EMU_ASPECT, 1.0)
+GLASS_H = DIAG_MM / math.hypot(EMU_ASPECT, 1.0)
+
+MARGIN    = 19.0                  # case face to its screen opening, all sides
+GAP       = 6.0                   # even gap, case opening to bezel, all round
+BEZEL_FW  = 16.0                  # the bezel's own frame width
+STRIP_W   = 52.0                  # the divided strip on the right
+GROOVE_W  = 2.0                   # the reveal dividing it off
 GROOVE_D  = 1.2
 
-MARGIN    = 19.0                  # case face to its screen opening -- ALL
-                                  # FOUR SIDES: the top and bottom frame match
-                                  # the left's thickness (the divider strip
-                                  # handles the right)
-OPEN_W    = DX - MARGIN * 2.0     # inset MARGIN from the reveal as well:
-                                  # the frame band between the inner bezel
-                                  # and the reveal matches the band between
-                                  # the inner bezel and the case's left edge
-OX0       = MARGIN
-OX1       = OX0 + OPEN_W
-OZ0       = MARGIN
-OZ1       = H - MARGIN
+OPEN_W = GLASS_W + (GAP + BEZEL_FW) * 2.0
+OPEN_H = GLASS_H + (GAP + BEZEL_FW) * 2.0
 
-GAP       = 6.0                   # even gap, case opening to bezel, all round
+W = OPEN_W + MARGIN * 2.0 + STRIP_W
+H = OPEN_H + MARGIN * 2.0
+D = H * 1.18                      # the real case's depth-to-height proportion
+
+DX  = W - STRIP_W                 # the reveal's position
+OX0 = MARGIN
+OX1 = OX0 + OPEN_W
+OZ0 = MARGIN
+OZ1 = H - MARGIN
+
 CAVITY_D  = 60.0                  # how deep the case is hollowed behind the front
 RECESS    = 13.0                  # how far the bezel stands behind the front
 
-BEZEL_FW  = 16.0                  # the bezel's own frame width
 BX0, BX1  = OX0 + GAP, OX1 - GAP
 BZ0, BZ1  = OZ0 + GAP, OZ1 - GAP
 GX0, GX1  = BX0 + BEZEL_FW, BX1 - BEZEL_FW
 GZ0, GZ1  = BZ0 + BEZEL_FW, BZ1 - BEZEL_FW
 
 NOTCH_W   = 30.0                  # power button notch, in the right strip
-NOTCH_H   = 15.0                  # bottom edge raised 50%: a shallow notch,
-                                  # just enough throw for the locked button
-NOTCH_D   = 9.0
+NOTCH_H   = 15.0                  # shallow: just enough throw for the button
+NOTCH_D   = 10.0                  # 1 cm front to back
 NX0       = DX + (STRIP_W - NOTCH_W) * 0.5
 NZ1       = H
 NZ0       = H - NOTCH_H
@@ -90,7 +95,7 @@ m = Model()
 # A solid box, edges softened, then hollowed from the front and cut through.
 case = (cq.Workplane("XY")
         .box(W, D, H, centered=(False, False, False))
-        .edges("|Y").fillet(6.0))
+        .edges("|Y").fillet(3.0))
 
 # The screen cavity: a pocket back from the front face. Cutting it is what
 # makes the opening a hole -- the failure mode of the hand-built version was
@@ -167,6 +172,76 @@ led = (cq.Workplane("XY")
        .translate((NX0 + (NOTCH_W - 14.4) * 0.5, 1.6, NZ0 + NOTCH_H - 5.7)))
 
 m.add("led", led, KD["monitor_lamp"])
+
+# ------------------------------------------------------- molded power icon
+#
+# Below the button on the reveal strip: the power symbol as MOLD RELIEF, not
+# ink -- raised ridges in the case's own plastic, one color with the strip,
+# read entirely through the shading of their side faces. A square (75% of
+# the button's width), a circle inside it that does not quite touch the
+# square, and a vertical bar inside that which does not quite touch the
+# circle.
+
+ICON_S   = (NOTCH_W - 3.0) * 0.75          # square side: 75% of the button width
+ICON_CX  = NX0 + NOTCH_W * 0.5            # centered under the button
+ICON_TOP = NZ0 - 2.0                       # 2 mm below the notch
+ICON_CZ  = ICON_TOP - ICON_S * 0.5
+RIDGE_W  = 1.5                             # stroke width of the relief
+RIDGE_H  = 1.0                             # a full millimeter proud: at 0.45
+                                           # the relief barely read at all
+
+IX0 = ICON_CX - ICON_S * 0.5
+IZ0 = ICON_TOP - ICON_S
+
+icon_sq = (cq.Workplane("XY")
+           .box(ICON_S, RIDGE_H, ICON_S, centered=(False, False, False))
+           .translate((IX0, -RIDGE_H, IZ0)))
+icon_sq = icon_sq.cut(
+    cq.Workplane("XY")
+      .box(ICON_S - RIDGE_W * 2.0, RIDGE_H + 1.0, ICON_S - RIDGE_W * 2.0,
+           centered=(False, False, False))
+      .translate((IX0 + RIDGE_W, -RIDGE_H - 0.5, IZ0 + RIDGE_W)))
+
+ICON_R = ICON_S * 0.5 - RIDGE_W - 1.0      # ...which does not quite touch
+
+icon_ring = (cq.Workplane("XY")
+             .cylinder(RIDGE_H, ICON_R, direct=(0, 1, 0), centered=(True, True, False))
+             .translate((ICON_CX, -RIDGE_H, ICON_CZ)))
+icon_ring = icon_ring.cut(
+    cq.Workplane("XY")
+      .cylinder(RIDGE_H + 1.0, ICON_R - RIDGE_W, direct=(0, 1, 0), centered=(True, True, False))
+      .translate((ICON_CX, -RIDGE_H - 0.5, ICON_CZ)))
+
+BAR_H = (ICON_R - RIDGE_W - 1.0) * 2.0     # ...which does not quite touch
+
+icon_bar = (cq.Workplane("XY")
+            .box(RIDGE_W, RIDGE_H, BAR_H, centered=(False, False, False))
+            .translate((ICON_CX - RIDGE_W * 0.5, -RIDGE_H, ICON_CZ - BAR_H * 0.5)))
+
+m.add("icon_sq",   icon_sq,   BEIGE)
+m.add("icon_ring", icon_ring, BEIGE)
+m.add("icon_bar",  icon_bar,  BEIGE)
+
+# ---------------------------------------------- calibration ruler (debug)
+#
+# A 3-inch vertical magenta line up the REVEAL AREA's axis, rising from the
+# case bottom: an in-scene ruler for judging the brand stamp's centering.
+# The reveal area is the whole beige column right of the screen opening --
+# opening edge to case edge -- NOT the divided strip alone: centering on the
+# strip put the ruler visibly right of the column's middle. Because the
+# ruler lives ON the case it suffers the exact same perspective as the stamp
+# at every height, so "the mark's center of gravity sits on the line" can be
+# judged straight off a capture. Not part of the product model -- flip the
+# flag off and regenerate before shipping.
+REVEAL_CX = (OX1 + W) * 0.5
+
+DEBUG_CENTER_LINE = True
+if DEBUG_CENTER_LINE:
+    m.add("calibration",
+          cq.Workplane("XY")
+            .box(1.2, 0.6, 76.2, centered=(False, False, False))
+            .translate((REVEAL_CX - 0.6, -0.6, 0.0)),
+          (1.0, 0.0, 1.0))
 
 # Rear lid vents, as shallow cuts rather than proud strips.
 for i in range(9):

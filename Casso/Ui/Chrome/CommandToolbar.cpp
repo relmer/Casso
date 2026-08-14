@@ -117,6 +117,21 @@ CommandToolbar::CommandToolbar()
         m_volume01 = v / 100.0f;
         if (m_volumeSink) { m_volumeSink (m_volume01, m_muted); }
     });
+
+    // The readout names the state, not just the number: "Muted" while muted
+    // (the slider shows 0 then), the percentage otherwise.
+    m_volumeSlider.SetValueFormatter ([this] (float v) -> std::wstring
+    {
+        wchar_t  buf[16] = {};
+
+        if (m_muted)
+        {
+            return L"Muted";
+        }
+
+        swprintf_s (buf, L"%d%%", (int) std::lround (v));
+        return buf;
+    });
 }
 
 
@@ -1231,22 +1246,39 @@ void CommandToolbar::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
 
 void CommandToolbar::PaintJoystickMono (IDxuiPainter & painter, const RECT & box, uint32_t ink)
 {
-    float  w      = (float) (box.right  - box.left);
-    float  h      = (float) (box.bottom - box.top);
-    float  stroke = (std::max) (1.0f, w / 26.0f);
-    float  cx     = (float) box.left + w * 0.5f;
-    float  baseL  = (float) box.left + w * 0.16f;
-    float  baseT  = (float) box.top + h * 0.54f;
-    float  baseW  = w * 0.68f;
-    float  baseH  = h * 0.30f;
+    float  w         = (float) (box.right  - box.left);
+    float  h         = (float) (box.bottom - box.top);
+    float  stroke    = (std::max) (1.0f, w / 26.0f);
+    float  cx        = (float) box.left + w * 0.5f;
+    float  capHalf   = w * 0.085f;
+    float  bodyHalf  = w * 0.155f;
+    float  waistHalf = w * 0.045f;
+    float  capY      = (float) box.top + h * 0.08f;
+    float  shoulderY = (float) box.top + h * 0.16f;
+    float  bodyY     = (float) box.top + h * 0.30f;
+    float  waistY    = (float) box.top + h * 0.52f;
+    float  baseT     = (float) box.top + h * 0.62f;
+    float  baseH     = h * 0.26f;
+    float  baseHalf  = w * 0.32f;
 
 
 
-    // Outline only, at the MDL2 pen weight: the blocky base's border, the
-    // stick rising from its center, and the knob as a small outlined ball.
-    painter.OutlineRect    (baseL, baseT, baseW, baseH, stroke, ink);
-    painter.DrawLineApprox (cx, baseT, cx, (float) box.top + h * 0.24f, stroke, ink);
-    StrokeCircle           (painter, cx, (float) box.top + h * 0.17f, w * 0.075f, stroke, ink);
+    // The handle's half-profile, top to bottom, outline only and symmetric
+    // about the centerline: flat cap; shoulder angling out; the nearly-
+    // cylindrical upper body; the slow taper in to the narrow waist; the
+    // straight shaft down to the base; the base slab's border.
+    painter.DrawLineApprox (cx - capHalf, capY, cx + capHalf, capY, stroke, ink);
+
+    painter.DrawLineApprox (cx - capHalf,  capY,      cx - bodyHalf,  shoulderY, stroke, ink);
+    painter.DrawLineApprox (cx + capHalf,  capY,      cx + bodyHalf,  shoulderY, stroke, ink);
+    painter.DrawLineApprox (cx - bodyHalf, shoulderY, cx - bodyHalf,  bodyY,     stroke, ink);
+    painter.DrawLineApprox (cx + bodyHalf, shoulderY, cx + bodyHalf,  bodyY,     stroke, ink);
+    painter.DrawLineApprox (cx - bodyHalf, bodyY,     cx - waistHalf, waistY,    stroke, ink);
+    painter.DrawLineApprox (cx + bodyHalf, bodyY,     cx + waistHalf, waistY,    stroke, ink);
+    painter.DrawLineApprox (cx - waistHalf, waistY,   cx + waistHalf, waistY,    stroke, ink);
+
+    painter.DrawLineApprox (cx, waistY, cx, baseT, stroke, ink);
+    painter.OutlineRect    (cx - baseHalf, baseT, baseHalf * 2.0f, baseH, stroke, ink);
 }
 
 
@@ -1261,23 +1293,44 @@ void CommandToolbar::PaintJoystickMono (IDxuiPainter & painter, const RECT & box
 
 void CommandToolbar::PaintPaddleMono (IDxuiPainter & painter, const RECT & box, uint32_t ink)
 {
-    float  w      = (float) (box.right  - box.left);
-    float  h      = (float) (box.bottom - box.top);
-    float  stroke = (std::max) (1.0f, w / 26.0f);
-    float  cx     = (float) box.left + w * 0.5f;
-    float  bodyL  = (float) box.left + w * 0.26f;
-    float  bodyT  = (float) box.top + h * 0.48f;
-    float  bodyW  = w * 0.48f;
-    float  bodyH  = h * 0.38f;
+    constexpr int  s_kArcSegments = 16;
 
 
 
-    // The A2M2001 hand controller in outline: the body's border with the
-    // big dial knob outlined above it, and the side fire button as a stub.
-    painter.OutlineRect    (bodyL, bodyT, bodyW, bodyH, stroke, ink);
-    StrokeCircle           (painter, cx, (float) box.top + h * 0.32f, w * 0.17f, stroke, ink);
-    painter.DrawLineApprox (bodyL + bodyW, bodyT + bodyH * 0.45f,
-                            bodyL + bodyW + w * 0.09f, bodyT + bodyH * 0.45f, stroke, ink);
+    float  w       = (float) (box.right  - box.left);
+    float  h       = (float) (box.bottom - box.top);
+    float  stroke  = (std::max) (1.0f, w / 26.0f);
+    float  cx      = (float) box.left + w * 0.5f;
+    float  cy      = (float) box.top + h * 0.34f;
+    float  outerR  = w * 0.24f;
+    float  botHalf = w * 0.13f;
+    float  botY    = (float) box.top + h * 0.88f;
+    float  aL      = 3.1415926f * 160.0f / 180.0f;
+    float  aR      = 3.1415926f *  20.0f / 180.0f;
+
+
+
+    // The keyhole read: one outer contour -- the knob arc wrapping the top,
+    // from the left shoulder angle around to the right, handing off to the
+    // tapering sides and a flat bottom -- with the knob itself as an inner
+    // ring (screen coords, y down).
+    for (int i = 0; i < s_kArcSegments; i++)
+    {
+        float  t0 = aL + (aR + 2.0f * 3.1415926f - aL) * (float) i       / (float) s_kArcSegments;
+        float  t1 = aL + (aR + 2.0f * 3.1415926f - aL) * (float) (i + 1) / (float) s_kArcSegments;
+
+        painter.DrawLineApprox (cx + outerR * std::cos (t0), cy + outerR * std::sin (t0),
+                                cx + outerR * std::cos (t1), cy + outerR * std::sin (t1),
+                                stroke, ink);
+    }
+
+    painter.DrawLineApprox (cx + outerR * std::cos (aL), cy + outerR * std::sin (aL),
+                            cx - botHalf, botY, stroke, ink);
+    painter.DrawLineApprox (cx + outerR * std::cos (aR), cy + outerR * std::sin (aR),
+                            cx + botHalf, botY, stroke, ink);
+    painter.DrawLineApprox (cx - botHalf, botY, cx + botHalf, botY, stroke, ink);
+
+    StrokeCircle (painter, cx, cy, w * 0.115f, stroke, ink);
 }
 
 
