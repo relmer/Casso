@@ -82,6 +82,8 @@ StyleCopReport.xml
 # copied over the checked-in asset; that scratch pair is not source.
 scripts/modelgen/*.mesh
 scripts/modelgen/*.mtl
+# preview.py renders are for looking at, never for keeping
+scripts/modelgen/*.png
 *.iobj
 *.pch
 *.pdb

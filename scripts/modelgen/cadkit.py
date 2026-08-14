@@ -29,6 +29,11 @@ KD = {
     "drive_lamp_alt": (0.250, 0.845, 0.330),
     "drive_door_alt": (0.720, 0.712, 0.685),
     "drive_latch_alt":(0.640, 0.632, 0.605),
+
+    # Placement metadata, not scenery: a marker the scene reads to learn
+    # where the brand mark belongs, then throws away instead of drawing.
+    # Bury it inside a solid -- nothing should ever see it.
+    "brand_anchor":   (0.980, 0.010, 0.640),
 }
 
 
@@ -105,6 +110,16 @@ class Model:
             f.write("\n")
 
         return len(index), sum(len(t) for _, t in groups)
+
+
+def rect_wire(y, x0, x1, z0, z1):
+    """A rectangular wire at depth y, from explicit 3D corners -- loft
+    sections built this way sidestep every workplane-orientation trap."""
+    import cadquery as cq
+
+    pts = [cq.Vector(x0, y, z0), cq.Vector(x1, y, z0),
+           cq.Vector(x1, y, z1), cq.Vector(x0, y, z1), cq.Vector(x0, y, z0)]
+    return cq.Wire.makePolygon(pts)
 
 
 def sag_sheet(x0, x1, z0, z1, front_y, radius_scale, cols=48, rows=36):

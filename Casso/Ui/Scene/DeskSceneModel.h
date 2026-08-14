@@ -170,6 +170,15 @@ public:
     static constexpr float  kDriveLatchKd[3]  = { 0.230f, 0.230f, 0.250f };
     static constexpr float  kKdEpsilon        = 0.02f;
 
+    // Placement METADATA rather than scenery: a marker buried in the case
+    // that names the axis the brand mark centers on. The mark itself cannot
+    // live in the mesh -- it is a multi-color stamp, and identity here is one
+    // Kd per part -- but its position can, and belongs there: it moves
+    // whenever the reveal is resized, and a copy of that number kept in this
+    // file drifted off the axis every single time. Triangles wearing this
+    // color are read and DISCARDED, never drawn.
+    static constexpr float  kBrandAnchorKd[3] = { 0.980f, 0.010f, 0.640f };
+
     // The platinum-era drives (the //c's 5.25 unit) wear the same PARTS in
     // different colors: a green in-use lamp instead of red, and a door bar
     // and latch in case-colored plastic instead of black. Identity here is
@@ -230,4 +239,5 @@ private:
     float                                m_footprintMin[2] = {};
     float                                m_footprintMax[2] = {};
     float                                m_lightsModel[2][3] = {};
+    float                                m_brandAxisX        = 0.0f;
 };
