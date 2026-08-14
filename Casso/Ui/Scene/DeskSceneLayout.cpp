@@ -180,26 +180,26 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
                                            float                    dropMm,
                                            DeskSceneComposition   & out)
 {
-    HRESULT   hr           = S_OK;
-    int       viewportW    = viewportPx.right - viewportPx.left;
-    int       viewportH    = viewportPx.bottom - viewportPx.top;
-    float     aspect       = 0.0f;
-    float     tanHalfY     = std::tan (kFovY * 0.5f);
-    float     tanHalfX     = 0.0f;
-    float     monitorCx    = (metrics.monitorMin[0] + metrics.monitorMax[0]) * 0.5f;
-    float     monitorW     = metrics.monitorMax[0] - metrics.monitorMin[0];
-    float     driveW       = metrics.driveMax[0] - metrics.driveMin[0];
-    float     driveCx      = (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f;
-    float     glassCy      = 0.0f;
-    float     eyeY         = 0.0f;
-    float     eyeZ         = 0.0f;
-    float     forwardMm    = 0.0f;
-    float     monitorLiftMm = 0.0f;
-    float     sceneMin[3]  = {};
-    float     sceneMax[3]  = {};
-    float     deviceMin[3] = {};
-    float     deviceMax[3] = {};
-    float     driveTx[2]   = {};
+    HRESULT  hr            = S_OK;
+    int      viewportW     = viewportPx.right - viewportPx.left;
+    int      viewportH     = viewportPx.bottom - viewportPx.top;
+    float    aspect        = 0.0f;
+    float    tanHalfY      = std::tan (kFovY * 0.5f);
+    float    tanHalfX      = 0.0f;
+    float    monitorCx     = (metrics.monitorMin[0] + metrics.monitorMax[0]) * 0.5f;
+    float    monitorW      = metrics.monitorMax[0] - metrics.monitorMin[0];
+    float    driveW        = metrics.driveMax[0] - metrics.driveMin[0];
+    float    driveCx       = (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f;
+    float    glassCy       = 0.0f;
+    float    eyeY          = 0.0f;
+    float    eyeZ          = 0.0f;
+    float    forwardMm     = 0.0f;
+    float    monitorLiftMm = 0.0f;
+    float    sceneMin[3]   = {};
+    float    sceneMax[3]   = {};
+    float    deviceMin[3]  = {};
+    float    deviceMax[3]  = {};
+    float    driveTx[2]    = {};
 
 
 

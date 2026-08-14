@@ -9,6 +9,16 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased] — 3D desk scene
 
 ### Added
+- **The desk wears what the machine wore, at real size and in a real
+  arrangement.** The //e and ][+ get a beige Apple Monitor II standing on
+  Disk II drives; the //c gets its platinum Monitor //c over the matching
+  5.25 drives — switching machines swaps the whole stack. Devices are
+  modeled at true dimensions and the camera is a seated person's eye 30
+  inches from the screen, so the perspective is the placement rather than
+  a set of tuned constants.
+- Device models are now built with a CAD kernel and exported to the same
+  OBJ/MTL the loader already read, so openings are boolean cuts and edges
+  are real fillets.
 - **A real-time 3D desk scene replaces the skeuomorphic theme's 2D chrome.**
   A period Apple Monitor //c and two Disk II drives render as true 3D
   models, and the emulator picture maps onto the monitor's spherical-sag

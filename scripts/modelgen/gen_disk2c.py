@@ -15,8 +15,14 @@ plat     = m.color("plat",     (0.870, 0.862, 0.835))
 plat_dk  = m.color("plat_dk",  (0.790, 0.782, 0.755))
 panel_c  = m.color("panel",    (0.830, 0.822, 0.795))
 slot_dk  = m.color("slot_dk",  (0.060, 0.060, 0.070))
+# Identity colors, not free choices: the desk scene finds the door/latch
+# assembly and the activity lamp by Kd (DeskSceneModel's kDriveDoorAltKd /
+# kDriveLatchAltKd / kDriveLampAltKd -- the platinum-era set). The lamp green
+# is deliberately OFF the monitor lamp's green, which it would otherwise be
+# identified as, putting the drive's lamp in the monitor's sub-mesh.
 latch_c  = m.color("latch",    (0.720, 0.712, 0.685))
-lamp_c   = m.color("lamp",     (0.290, 0.870, 0.380))
+tab_c    = m.color("tab",      (0.640, 0.632, 0.605))
+lamp_c   = m.color("lamp",     (0.250, 0.845, 0.330))
 foot_c   = m.color("foot",     (0.320, 0.310, 0.300))
 
 rainbow = [m.color(f"rb{i}", c) for i, c in enumerate([
@@ -40,8 +46,12 @@ m.box(LIP, -0.8, LIP, W - LIP, 0.4, H - LIP, panel_c)
 SLOT_Z0, SLOT_Z1 = 42.0, 47.0
 m.box(13.0, -1.4, SLOT_Z0, W - 13.0, -0.8, SLOT_Z1, slot_dk)
 
-# Latch bar BELOW the slot: the //c drive's wide flip lever.
+# Latch bar BELOW the slot: the //c drive's wide flip lever, with a slightly
+# darker grip tab centered on it. Both carry platinum-era door identities, so
+# the scene finds this assembly and swings it on eject the way it does the
+# Disk II's black door.
 m.box(W / 2 - 26.0, -3.4, SLOT_Z0 - 12.0, W / 2 + 26.0, -0.8, SLOT_Z0 - 2.0, latch_c)
+m.box(W / 2 - 11.0, -4.0, SLOT_Z0 - 10.5, W / 2 + 11.0, -3.4, SLOT_Z0 - 3.5, tab_c)
 
 # Activity lamp, lower-left (green, //c family style).
 m.cylinder(22.0, -2.2, 14.0, 2.8, 1.8, lamp_c, axis="y", segments=12)

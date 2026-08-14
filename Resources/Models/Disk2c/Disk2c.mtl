@@ -30,9 +30,15 @@ Kd 0.72 0.712 0.685
 d 1
 illum 0.0
 
-newmtl color_4906593
+newmtl color_10723738
 Ka 0 0 0 
-Kd 0.29 0.87 0.38
+Kd 0.64 0.632 0.605
+d 1
+illum 0.0
+
+newmtl color_4249428
+Ka 0 0 0 
+Kd 0.25 0.845 0.33
 d 1
 illum 0.0
 

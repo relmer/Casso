@@ -695,6 +695,11 @@ private:
     // chrome paths carry on.
     HRESULT InitializeDeskScene  ();
 
+    // Loads the monitor + drive pair the active machine wore (//c gets its
+    // own platinum set, everything else the beige Monitor II over Disk IIs).
+    // Called again on a machine switch.
+    HRESULT LoadDeskSceneModelsForMachine ();
+
     // Resolves a client-px position against the composed scene (glass /
     // drive region / nothing).
     SceneHitResult  DeskSceneHit (int xPx, int yPx) const;
@@ -896,7 +901,11 @@ private:
 
     DeskScene                  m_deskScene;
     bool                       m_deskSceneReady = false;
-    int                        m_deskSceneDebug = 0;       // CASSO_SCENE_DEBUG: 1=layout rects, 2=+calibration texture
+
+    // Which machine family the loaded models belong to, so a switch that
+    // does not cross the //c boundary skips the reload.
+    bool  m_deskSceneMachineIsC = false;
+    int   m_deskSceneDebug      = 0;   // CASSO_SCENE_DEBUG: 1=layout rects, 2=+calibration texture
 
     // Fullscreen drive overlay strip (FR-015): the pure FSM plus this
     // frame's composed band. The hotkey edge arrives via the accelerator;

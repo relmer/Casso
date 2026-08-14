@@ -46,3 +46,30 @@ resolves them exactly.
 
 After regenerating, copy the OBJ/MTL pair over the checked-in copy under
 `Resources/Models/<Name>/`.
+
+## CAD models
+
+`cadkit.py` bridges [CadQuery](https://cadquery.readthedocs.io/) solids to the
+same OBJ/MTL dialect above, one `usemtl` group per part, so a CAD-built model
+drops into `Resources/Models/` unchanged. `cad_monitor2.py` is the first.
+
+Prefer it over hand-emitting geometry. A wall of `add_quad` calls cannot be
+reviewed: nothing in the source makes *"this face covers the whole screen
+opening"* visible, so shape errors only surface in a screenshot. With a kernel
+an opening is a boolean cut — it cannot silently be a solid face — and a
+softened edge is a fillet rather than a hand-built chamfer strip.
+
+```powershell
+python -m pip install cadquery
+python cad_monitor2.py                                     # writes Monitor2.obj/.mtl here
+python preview.py Monitor2.obj Monitor2.mtl out.png 8 -90  # LOOK at it (elev, azim)
+```
+
+**Render the preview before wiring a model into the app.** Two of the desk
+scene's model regressions — a case front that hid the entire screen, and a
+tube curled tight enough that the raster read as a disc — were visible in a
+one-second preview and reached the user instead.
+
+Proportions are worth measuring off a reference photograph as fractions of the
+overall case, rather than picked to feel right; `cad_monitor2.py` records the
+ones it was built from.

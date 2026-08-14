@@ -1273,23 +1273,28 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::InitializeDeskScene
+//  EmulatorShell::LoadDeskSceneModelsForMachine
 //
-//  Loads the embedded Monitor //c and Disk II models and stands the scene
-//  renderer up on the host device. Missing or unparseable model text is a
-//  build defect (the resources are compiled into the exe), so the guards
-//  assert; the shell then simply leaves m_deskSceneReady false and the 2D
-//  chrome carries on.
+//  The desk wears what the machine wore. The //c gets its platinum Monitor //c
+//  over the matching 5.25 drives; everything else gets the beige Monitor II
+//  over Disk IIs. Pairing across the families is what reads wrong -- a //c
+//  monitor standing on Disk IIs is two eras of Apple industrial design in one
+//  stack, in two different shades of case plastic.
+//
+//  Called again on a machine switch, so the stack changes with the machine.
+//  Reloading rebuilds every cached mesh (glow discs, contact shadows, badge
+//  stamps), which is why the scene's own state is re-pushed afterward.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT EmulatorShell::InitializeDeskScene()
+HRESULT EmulatorShell::LoadDeskSceneModelsForMachine()
 {
     HRESULT      hr         = S_OK;
-    std::string  monitorObj = PrinterPanel::LoadTextResource (IDR_MODEL_MONITOR2C_OBJ);
-    std::string  monitorMtl = PrinterPanel::LoadTextResource (IDR_MODEL_MONITOR2C_MTL);
-    std::string  driveObj   = PrinterPanel::LoadTextResource (IDR_MODEL_DISKII_OBJ);
-    std::string  driveMtl   = PrinterPanel::LoadTextResource (IDR_MODEL_DISKII_MTL);
+    bool         isC        = IsApple2c();
+    std::string  monitorObj = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_MONITOR2C_OBJ : IDR_MODEL_MONITOR2_OBJ);
+    std::string  monitorMtl = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_MONITOR2C_MTL : IDR_MODEL_MONITOR2_MTL);
+    std::string  driveObj   = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_DISK2C_OBJ    : IDR_MODEL_DISKII_OBJ);
+    std::string  driveMtl   = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_DISK2C_MTL    : IDR_MODEL_DISKII_MTL);
     bool         haveText   = false;
 
 
@@ -1297,10 +1302,41 @@ HRESULT EmulatorShell::InitializeDeskScene()
     haveText = !monitorObj.empty() && !monitorMtl.empty() && !driveObj.empty() && !driveMtl.empty();
     CBRA (haveText);
 
+    hr = m_deskScene.LoadModels (isC ? DeskDeviceKind::Monitor2c : DeskDeviceKind::Monitor2,
+                                 monitorObj, monitorMtl, driveObj, driveMtl);
+    CHRA (hr);
+
+    m_deskSceneMachineIsC = isC;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::InitializeDeskScene
+//
+//  Loads the model pair the ACTIVE MACHINE wore and stands the scene renderer
+//  up on the host device. Missing or unparseable model text is a build defect
+//  (the resources are compiled into the exe), so the guards assert; the shell
+//  then simply leaves m_deskSceneReady false and the 2D chrome carries on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::InitializeDeskScene()
+{
+    HRESULT   hr = S_OK;
+
+
+
     hr = m_deskScene.Initialize (m_host->GetDevice(), m_host->GetContext());
     CHRA (hr);
 
-    hr = m_deskScene.LoadModels (monitorObj, monitorMtl, driveObj, driveMtl);
+    hr = LoadDeskSceneModelsForMachine();
     CHRA (hr);
 
     // A powered monitor's lamp is lit for as long as the machine exists;
@@ -3210,6 +3246,21 @@ void EmulatorShell::ReflowChromeForMachineChange()
         newIsApple2c  = IsApple2c();
         layoutChanged = (newHasDisk != m_chromeSizedForHasDisk) ||
                         (newIsApple2c != m_chromeSizedForApple2c);
+    }
+
+    // The desk wears what the machine wore, so crossing the //c boundary
+    // swaps both models. Reloading rebuilds every cached mesh, so the
+    // scene's own state is pushed again right after.
+    if (m_deskSceneReady && IsApple2c() != m_deskSceneMachineIsC)
+    {
+        HRESULT  hrModels = LoadDeskSceneModelsForMachine();
+
+        if (SUCCEEDED (hrModels))
+        {
+            m_deskScene.SetPowerLampOn (true);
+        }
+
+        IGNORE_RETURN_VALUE (hrModels, S_OK);
     }
 
     // Resize the window by the total bottom-band delta -- the drive band

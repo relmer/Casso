@@ -38,9 +38,22 @@ enum class DriveWidgetRegion;
 
 enum class DeskDeviceKind
 {
-    Monitor2c,
+    Monitor2c,     // the //c's platinum 9-inch
+    Monitor2,      // the //e's beige 12-inch (Monitor II)
     DiskII,
 };
+
+
+//
+//  Both monitors carry glass, a power lamp and a brand stamp, and differ only
+//  in where those sit -- so the load path keys off "is a monitor" rather than
+//  naming one of them, which is how the //e monitor first arrived wearing the
+//  //c's brand position.
+//
+inline bool IsMonitorKind (DeskDeviceKind kind)
+{
+    return kind == DeskDeviceKind::Monitor2c || kind == DeskDeviceKind::Monitor2;
+}
 
 
 //
@@ -152,6 +165,19 @@ public:
     static constexpr float  kDriveDoorKd[3]   = { 0.160f, 0.160f, 0.180f };
     static constexpr float  kDriveLatchKd[3]  = { 0.230f, 0.230f, 0.250f };
     static constexpr float  kKdEpsilon        = 0.02f;
+
+    // The platinum-era drives (the //c's 5.25 unit) wear the same PARTS in
+    // different colors: a green in-use lamp instead of red, and a door bar
+    // and latch in case-colored plastic instead of black. Identity here is
+    // by color, so those parts need identities of their own -- without them
+    // a platinum drive loads as a case with no door and no lamp, which the
+    // asset guards reject outright. Each stays clear of every other entry by
+    // more than kKdEpsilon on at least one channel; the green in particular
+    // is deliberately off the monitor lamp's, which it would otherwise be
+    // mistaken for.
+    static constexpr float  kDriveLampAltKd[3]  = { 0.250f, 0.845f, 0.330f };
+    static constexpr float  kDriveDoorAltKd[3]  = { 0.720f, 0.712f, 0.685f };
+    static constexpr float  kDriveLatchAltKd[3] = { 0.640f, 0.632f, 0.605f };
 
     // Toward-viewer lift applied to the glass (verts + surface together) so
     // its corners never depth-tie with the cavity front they were generated

@@ -44,8 +44,12 @@ public:
 
     // Parses both device models from OBJ/MTL text (embedded resources,
     // decoded by the shell).
-    HRESULT  LoadModels (const std::string & monitorObj, const std::string & monitorMtl,
-                         const std::string & driveObj,   const std::string & driveMtl);
+    // `monitorKind` selects which monitor is being loaded, which decides
+    // where its brand stamp lands -- the //c wears it on the chin, the
+    // Monitor II on its divided right strip.
+    HRESULT  LoadModels (DeskDeviceKind       monitorKind,
+                         const std::string  & monitorObj, const std::string & monitorMtl,
+                         const std::string  & driveObj,   const std::string & driveMtl);
 
     const DeskSceneModel &  MonitorModel () const { return m_monitor; }
     const DeskSceneModel &  DriveModel   () const { return m_drive; }

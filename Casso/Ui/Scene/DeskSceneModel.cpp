@@ -28,17 +28,24 @@ static constexpr float   s_kBrandTopZMm   = 27.0f;
 static constexpr float   s_kBrandHeightMm = 16.0f;
 static constexpr float   s_kBrandFrontY   = -10.6f;
 
+// The Monitor II's mark: bottom of the divided right strip (strip spans
+// x 291..343), proud of the case front at y = 0.
+static constexpr float   s_kMon2BrandLeftMm   = 300.0f;
+static constexpr float   s_kMon2BrandTopZMm   = 46.0f;
+static constexpr float   s_kMon2BrandHeightMm = 24.0f;
+static constexpr float   s_kMon2BrandFrontY   = -0.8f;
+
 // The drive's cassowary, lower-right of the faceplate like the 2D widget,
 // proud of the black plate (front y = -1).
 static constexpr float   s_kDriveBrandLeftMm   = 127.0f;
-static constexpr float   s_kDriveBrandTopZMm   = 34.0f;
-static constexpr float   s_kDriveBrandHeightMm = 26.0f;
+static constexpr float   s_kDriveBrandTopZMm   = 38.0f;
+static constexpr float   s_kDriveBrandHeightMm = 29.0f;
 static constexpr float   s_kDriveBrandFrontY   = -1.8f;
 
 // The IN-USE label: "IN USE" plus the pointer triangle, sitting to the
 // LED's left at the LED's height (the 2D widget's arrangement).
 static constexpr float   s_kInUseLeftMm  = 20.0f;
-static constexpr float   s_kInUseTopZMm  = 19.5f;
+static constexpr float   s_kInUseTopZMm  = 21.8f;
 static constexpr float   s_kInUseCellMm  = 1.0f;
 static constexpr float   s_kInUseFrontY  = -1.8f;
 static constexpr float   s_kInUseRgb[3]  = { 0.750f, 0.730f, 0.700f };
@@ -46,10 +53,10 @@ static constexpr float   s_kInUseRgb[3]  = { 0.750f, 0.730f, 0.700f };
 // DiskII interactive regions, model space (mm). The eject region wraps the
 // slot + door bar + latch; the body box wraps the whole case including the
 // proud front furniture.
-static constexpr float   s_kDiskIiEjectMin[3] = {  14.0f, -5.0f, 44.0f };
-static constexpr float   s_kDiskIiEjectMax[3] = { 141.0f,  3.0f, 63.0f };
+static constexpr float   s_kDiskIiEjectMin[3] = {  14.0f, -5.0f, 49.1f };
+static constexpr float   s_kDiskIiEjectMax[3] = { 141.0f,  3.0f, 70.3f };
 static constexpr float   s_kDiskIiBodyMin[3]  = {   0.0f, -5.0f,  0.0f };
-static constexpr float   s_kDiskIiBodyMax[3]  = { 155.0f, 222.0f, 86.0f };
+static constexpr float   s_kDiskIiBodyMax[3]  = { 155.0f, 220.0f, 96.0f };
 
 // Write-protect padlock stamp on the drive faceplate (model mm): brass body
 // with a shackle arch and a keyhole, top-right beside the badge row like
@@ -58,15 +65,15 @@ static constexpr float   s_kDiskIiBodyMax[3]  = { 155.0f, 222.0f, 86.0f };
 // ties.
 static constexpr float   s_kPadlockBodyX0    = 127.0f;
 static constexpr float   s_kPadlockBodyX1    = 137.0f;
-static constexpr float   s_kPadlockBodyZ0    = 58.0f;
-static constexpr float   s_kPadlockBodyZ1    = 66.5f;
-static constexpr float   s_kPadlockArchZ1    = 72.0f;
+static constexpr float   s_kPadlockBodyZ0    = 64.7f;
+static constexpr float   s_kPadlockBodyZ1    = 74.2f;
+static constexpr float   s_kPadlockArchZ1    = 80.4f;
 static constexpr float   s_kPadlockLegW      = 1.7f;
 static constexpr float   s_kPadlockArchInset = 1.5f;
 static constexpr float   s_kPadlockHoleX0    = 131.4f;
 static constexpr float   s_kPadlockHoleX1    = 132.6f;
-static constexpr float   s_kPadlockHoleZ0    = 60.0f;
-static constexpr float   s_kPadlockHoleZ1    = 63.5f;
+static constexpr float   s_kPadlockHoleZ0    = 67.0f;
+static constexpr float   s_kPadlockHoleZ1    = 70.9f;
 static constexpr float   s_kPadlockShackleY  = -1.95f;
 static constexpr float   s_kPadlockBodyY     = -2.00f;
 static constexpr float   s_kPadlockHoleY     = -2.05f;
@@ -202,24 +209,28 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
     m_regions.clear();
     m_surface = {};
 
-    lampKd = (kind == DeskDeviceKind::Monitor2c) ? kMonitorLampKd : kDriveLampKd;
+    lampKd = IsMonitorKind (kind) ? kMonitorLampKd : kDriveLampKd;
 
     hr = ObjMeshParser::Parse (objText, mtlText, triangles);
     CHRA (hr);
 
     for (const ObjTriangle & tri : triangles)
     {
-        if (kind == DeskDeviceKind::Monitor2c && ColorMatches (tri.r, tri.g, tri.b, kGlassKd))
+        if (IsMonitorKind (kind) && ColorMatches (tri.r, tri.g, tri.b, kGlassKd))
         {
             AppendFlatTri (m_glass, tri);
         }
-        else if (ColorMatches (tri.r, tri.g, tri.b, lampKd))
+        else if (ColorMatches (tri.r, tri.g, tri.b, lampKd) ||
+                 (kind == DeskDeviceKind::DiskII &&
+                  ColorMatches (tri.r, tri.g, tri.b, kDriveLampAltKd)))
         {
             AppendFlatTri (m_lamp, tri);
         }
         else if (kind == DeskDeviceKind::DiskII &&
-                 (ColorMatches (tri.r, tri.g, tri.b, kDriveDoorKd) ||
-                  ColorMatches (tri.r, tri.g, tri.b, kDriveLatchKd)))
+                 (ColorMatches (tri.r, tri.g, tri.b, kDriveDoorKd)     ||
+                  ColorMatches (tri.r, tri.g, tri.b, kDriveLatchKd)    ||
+                  ColorMatches (tri.r, tri.g, tri.b, kDriveDoorAltKd)  ||
+                  ColorMatches (tri.r, tri.g, tri.b, kDriveLatchAltKd)))
         {
             AppendLitTri (m_door, tri);
         }
@@ -236,9 +247,20 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         v.r = v.g = v.b = v.a = 1.0f;
     }
 
-    if (kind == DeskDeviceKind::Monitor2c)
+    if (IsMonitorKind (kind))
     {
-        BuildBrandStamp (s_kBrandLeftMm, s_kBrandTopZMm, s_kBrandHeightMm, s_kBrandFrontY);
+        // The mark sits where each case has room for it: on the //c's chin
+        // under the screen, and on the Monitor II's divided right strip, down
+        // beside the power button.
+        if (kind == DeskDeviceKind::Monitor2)
+        {
+            BuildBrandStamp (s_kMon2BrandLeftMm, s_kMon2BrandTopZMm,
+                             s_kMon2BrandHeightMm, s_kMon2BrandFrontY);
+        }
+        else
+        {
+            BuildBrandStamp (s_kBrandLeftMm, s_kBrandTopZMm, s_kBrandHeightMm, s_kBrandFrontY);
+        }
 
         hr = BuildGlassSurface();
         CHRA (hr);

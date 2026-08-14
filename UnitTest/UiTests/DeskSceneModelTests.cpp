@@ -465,11 +465,13 @@ public:
         // Proud of the faceplate at its top-right (the 2D widget's badge
         // position), clear of the badge plaque and the slot: every vertex
         // sits in front of the plate (y < -1) inside that corner region.
+        // The z band tracks the faceplate, which scales with the case
+        // height -- above the slot (top at 58) and below the top lip (89).
         for (const Dxui3DRenderer::Vertex & v : model.PadlockVerts())
         {
             Assert::IsTrue (v.y < -1.0f && v.y > -3.0f);
             Assert::IsTrue (v.x > 120.0f && v.x < 142.0f);
-            Assert::IsTrue (v.z > 55.0f  && v.z < 76.0f);
+            Assert::IsTrue (v.z > 60.0f  && v.z < 84.0f);
         }
     }
 

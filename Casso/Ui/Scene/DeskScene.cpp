@@ -48,14 +48,15 @@ void DeskScene::Shutdown()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DeskScene::LoadModels (const std::string & monitorObj, const std::string & monitorMtl,
-                               const std::string & driveObj,   const std::string & driveMtl)
+HRESULT DeskScene::LoadModels (DeskDeviceKind       monitorKind,
+                               const std::string  & monitorObj, const std::string & monitorMtl,
+                               const std::string  & driveObj,   const std::string & driveMtl)
 {
     HRESULT   hr = S_OK;
 
 
 
-    hr = m_monitor.Load (DeskDeviceKind::Monitor2c, monitorObj, monitorMtl);
+    hr = m_monitor.Load (monitorKind, monitorObj, monitorMtl);
     CHRA (hr);
 
     hr = m_drive.Load (DeskDeviceKind::DiskII, driveObj, driveMtl);
@@ -67,7 +68,7 @@ HRESULT DeskScene::LoadModels (const std::string & monitorObj, const std::string
     {
         constexpr float   kLabelCellMm = 0.85f;
         constexpr float   kLabelLeftMm = 15.2f;
-        constexpr float   kLabelTopZMm = 72.0f;
+        constexpr float   kLabelTopZMm = 80.4f;   // on the badge plaque (71.4 .. 82.6)
         constexpr float   kLabelFrontY = -1.9f;
         constexpr float   kLabelRgb[3] = { 0.150f, 0.140f, 0.130f };
 
