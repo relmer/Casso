@@ -52,7 +52,7 @@ static constexpr int      s_kFlyoutPadDp      = 8;
 static constexpr int      s_kFlyoutDropDp     = 2;    // gap under the bar
 
 // Input cluster: LED + glyph segments under one shared label.
-static constexpr int      s_kSegIconDp        = 24;
+static constexpr int      s_kSegIconDp        = 28;
 static constexpr int      s_kSegPadXDp        = 5;
 static constexpr int      s_kSegLedDp         = 7;    // LED diameter
 static constexpr int      s_kSegLedGapDp      = 4;
@@ -1099,7 +1099,7 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
     int       ledGap   = MulDiv (s_kSegLedGapDp, (int) m_dpi, s_kBaseDpi);
     int       segPad   = MulDiv (s_kSegPadXDp,   (int) m_dpi, s_kBaseDpi);
     int       iconD    = MulDiv (s_kSegIconDp,   (int) m_dpi, s_kBaseDpi);
-    uint32_t  mutedInk = (theme.navItemText & 0x00FFFFFF) | 0x99000000;
+    uint32_t  labelInk = theme.navItemText;   // same ink as the button labels
 
 
 
@@ -1110,7 +1110,7 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
                               (float) m_inputLabelRc.top,
                               (float) (m_inputLabelRc.right  - m_inputLabelRc.left),
                               (float) (m_inputLabelRc.bottom - m_inputLabelRc.top),
-                              mutedInk, fontDip, s_kFontFamily,
+                              labelInk, fontDip, s_kFontFamily,
                               DxuiTextHAlign::Left, DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
@@ -1148,15 +1148,162 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
             int   boxT = seg.rc.top + ((seg.rc.bottom - seg.rc.top) - iconD) / 2;
             RECT  box  = { boxL, boxT, boxL + iconD, boxT + iconD };
 
-            switch (i)
+            if (m_inputMonoline)
             {
-                case 0:  InputDeviceSelector::PaintJoystickGlyph (painter, box, m_inputSkeuo); break;
-                case 1:  InputDeviceSelector::PaintPaddleGlyph   (painter, box, m_inputSkeuo); break;
-                case 2:  InputDeviceSelector::PaintMouseGlyph    (painter, box, m_inputSkeuo); break;
-                default: break;
+                switch (i)
+                {
+                    case 0:  PaintJoystickMono (painter, box, theme.navItemText); break;
+                    case 1:  PaintPaddleMono   (painter, box, theme.navItemText); break;
+                    case 2:  PaintMouseMono    (painter, box, theme.navItemText); break;
+                    default: break;
+                }
+            }
+            else
+            {
+                // The paddle master sits high in its grid next to the
+                // joystick's; a small drop balances the pair visually.
+                if (i == 1)
+                {
+                    int  drop = MulDiv (3, (int) m_dpi, s_kBaseDpi);
+
+                    box.top    += drop;
+                    box.bottom += drop;
+                }
+
+                switch (i)
+                {
+                    case 0:  InputDeviceSelector::PaintJoystickGlyph (painter, box, m_inputSkeuo); break;
+                    case 1:  InputDeviceSelector::PaintPaddleGlyph   (painter, box, m_inputSkeuo); break;
+                    case 2:  InputDeviceSelector::PaintMouseGlyph    (painter, box, m_inputSkeuo); break;
+                    default: break;
+                }
             }
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::StrokeCircle + the monoline glyph painters
+//
+//  Monoline device glyphs in the Segoe MDL2 language the bar's other icons
+//  speak: uniform stroke, dots for controls, no shading. Drawn rather than
+//  taken from the font because MDL2 has no paddle, and one hand-drawn glyph
+//  next to two font glyphs would mismatch stroke weight -- so all three are
+//  drawn with the same pen. Geometry is in box fractions, so the set scales
+//  together.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
+                                   float r, float stroke, uint32_t ink)
+{
+    constexpr int  s_kSegments = 20;
+
+    for (int i = 0; i < s_kSegments; i++)
+    {
+        float  a0 = 6.2831853f * (float) i       / (float) s_kSegments;
+        float  a1 = 6.2831853f * (float) (i + 1) / (float) s_kSegments;
+
+        painter.DrawLineApprox (cx + r * std::cos (a0), cy + r * std::sin (a0),
+                                cx + r * std::cos (a1), cy + r * std::sin (a1),
+                                stroke, ink);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::PaintJoystickMono
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::PaintJoystickMono (IDxuiPainter & painter, const RECT & box, uint32_t ink)
+{
+    float  w      = (float) (box.right  - box.left);
+    float  h      = (float) (box.bottom - box.top);
+    float  stroke = (std::max) (1.5f, w / 16.0f);
+    float  cx     = (float) box.left + w * 0.5f;
+    float  baseY  = (float) box.top + h * 0.82f;
+
+
+
+    // Base plate, stick, knob dot, and the fire-button dot on the plate.
+    painter.DrawLineApprox   (cx - w * 0.34f, baseY, cx + w * 0.34f, baseY, stroke, ink);
+    painter.DrawLineApprox   (cx - w * 0.26f, baseY, cx - w * 0.30f, baseY - h * 0.10f, stroke, ink);
+    painter.DrawLineApprox   (cx + w * 0.26f, baseY, cx + w * 0.30f, baseY - h * 0.10f, stroke, ink);
+    painter.DrawLineApprox   (cx, baseY, cx, (float) box.top + h * 0.30f, stroke, ink);
+    painter.FillCircleApprox (cx, (float) box.top + h * 0.24f, w * 0.11f, ink);
+    painter.FillCircleApprox (cx - w * 0.24f, baseY - h * 0.09f, w * 0.055f, ink);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::PaintPaddleMono
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::PaintPaddleMono (IDxuiPainter & painter, const RECT & box, uint32_t ink)
+{
+    float  w      = (float) (box.right  - box.left);
+    float  h      = (float) (box.bottom - box.top);
+    float  stroke = (std::max) (1.5f, w / 16.0f);
+    float  cx     = (float) box.left + w * 0.5f;
+    float  cy     = (float) box.top + h * 0.46f;
+    float  r      = w * 0.30f;
+
+
+
+    // The dial: an outlined knob with its pointer tick, over a base line --
+    // and the paddle's fire button as a dot beside the dial.
+    StrokeCircle (painter, cx, cy, r, stroke, ink);
+    painter.DrawLineApprox   (cx, cy, cx + r * 0.62f, cy - r * 0.62f, stroke, ink);
+    painter.DrawLineApprox   (cx - w * 0.36f, (float) box.top + h * 0.88f,
+                              cx + w * 0.36f, (float) box.top + h * 0.88f, stroke, ink);
+    painter.FillCircleApprox ((float) box.left + w * 0.86f, (float) box.top + h * 0.80f,
+                              w * 0.055f, ink);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::PaintMouseMono
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::PaintMouseMono (IDxuiPainter & painter, const RECT & box, uint32_t ink)
+{
+    float  w      = (float) (box.right  - box.left);
+    float  h      = (float) (box.bottom - box.top);
+    float  stroke = (std::max) (1.5f, w / 16.0f);
+    float  bodyL  = (float) box.left + w * 0.28f;
+    float  bodyT  = (float) box.top + h * 0.16f;
+    float  bodyW  = w * 0.44f;
+    float  bodyH  = h * 0.70f;
+
+
+
+    // The M0100's box body with its single wide button: outline, the button
+    // split a third down, and the cable stub off the top.
+    painter.OutlineRect    (bodyL, bodyT, bodyW, bodyH, stroke, ink);
+    painter.DrawLineApprox (bodyL, bodyT + bodyH * 0.34f,
+                            bodyL + bodyW, bodyT + bodyH * 0.34f, stroke, ink);
+    painter.DrawLineApprox (bodyL + bodyW * 0.5f, bodyT,
+                            bodyL + bodyW * 0.5f, bodyT - h * 0.10f, stroke, ink);
 }
 
 

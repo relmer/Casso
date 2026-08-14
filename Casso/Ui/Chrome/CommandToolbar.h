@@ -85,6 +85,12 @@ public:
     void  SetInputState      (bool arrowsJoystick, InputMappingMode pointer, bool mouseAvailable);
     void  SetInputSkeuoStyle (bool skeuo)                { m_inputSkeuo = skeuo; }
 
+    // Monoline icon experiment: strokes-and-dots device glyphs matching the
+    // Segoe MDL2 language of the bar's other icons, instead of the shaded
+    // skeuomorphic drawings. On by default so the bar reads as one icon set;
+    // flip off to compare against the peripheral renderings.
+    void  SetInputMonoline   (bool monoline)             { m_inputMonoline = monoline; }
+
     // The volume flyout (vertical slider + readout) opens on hover over the
     // volume button and closes when the pointer leaves button + flyout.
     // Exposed so the shell can keep presenting frames while it is up.
@@ -142,6 +148,15 @@ private:
                                      IDxuiTextRenderer & text, const struct CassoTheme & theme);
     void             PaintInputCluster (IDxuiPainter & painter, IDxuiTextRenderer & text,
                                         const struct CassoTheme & theme);
+
+    // A circle outline as line segments -- the painter has filled circles
+    // and lines, but no arcs or outlined circles.
+    static void      StrokeCircle      (IDxuiPainter & painter, float cx, float cy,
+                                        float r, float stroke, uint32_t ink);
+
+    static void      PaintJoystickMono (IDxuiPainter & painter, const RECT & box, uint32_t ink);
+    static void      PaintPaddleMono   (IDxuiPainter & painter, const RECT & box, uint32_t ink);
+    static void      PaintMouseMono    (IDxuiPainter & painter, const RECT & box, uint32_t ink);
     void             PaintVolumeFlyout (IDxuiPainter & painter, IDxuiTextRenderer & text,
                                         const struct CassoTheme & theme);
 
@@ -160,6 +175,7 @@ private:
     InputMappingMode      m_pointerMode    = InputMappingMode::Off;
     bool                  m_mouseAvailable = false;
     bool                  m_inputSkeuo     = true;
+    bool                  m_inputMonoline  = true;
 
     bool                  m_flyoutOpen     = false;
     RECT                  m_flyoutRc       = {};

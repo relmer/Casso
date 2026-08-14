@@ -44,13 +44,15 @@ DX        = W - STRIP_W           # the stylistic divider groove
 GROOVE_W  = 2.0
 GROOVE_D  = 1.2
 
-MARGIN    = 19.0                  # case face to its screen opening
+MARGIN    = 19.0                  # case face to its screen opening -- ALL
+                                  # FOUR SIDES: the top and bottom frame match
+                                  # the left's thickness (the divider strip
+                                  # handles the right)
 OPEN_W    = DX - MARGIN           # the opening runs right up to the divider
-OPEN_H    = 234.0
 OX0       = MARGIN
 OX1       = OX0 + OPEN_W
-OZ0       = (H - OPEN_H) * 0.5
-OZ1       = OZ0 + OPEN_H
+OZ0       = MARGIN
+OZ1       = H - MARGIN
 
 GAP       = 6.0                   # even gap, case opening to bezel, all round
 CAVITY_D  = 60.0                  # how deep the case is hollowed behind the front
@@ -63,7 +65,8 @@ GX0, GX1  = BX0 + BEZEL_FW, BX1 - BEZEL_FW
 GZ0, GZ1  = BZ0 + BEZEL_FW, BZ1 - BEZEL_FW
 
 NOTCH_W   = 30.0                  # power button notch, in the right strip
-NOTCH_H   = 30.0
+NOTCH_H   = 15.0                  # bottom edge raised 50%: a shallow notch,
+                                  # just enough throw for the locked button
 NOTCH_D   = 9.0
 NX0       = DX + (STRIP_W - NOTCH_W) * 0.5
 NZ1       = H
@@ -146,7 +149,7 @@ m.add_triangles("glass",
 # The button, locked down: it fills the lower part of the notch and stands
 # proud of the notch floor, not of the case.
 button = (cq.Workplane("XY")
-          .box(NOTCH_W - 3.0, NOTCH_D - 3.0, NOTCH_H - 13.0, centered=(False, False, False))
+          .box(NOTCH_W - 3.0, NOTCH_D - 3.0, NOTCH_H - 8.5, centered=(False, False, False))
           .translate((NX0 + 1.5, 1.0, NZ0 + 1.0))
           .edges("|Y").fillet(1.5))
 
@@ -154,9 +157,11 @@ m.add("button", button, BEZEL_DK)
 
 # The LED sits ABOVE it, uncovered because the button is down. Wide and
 # short -- long axis left to right.
+# 5% smaller than the first pass on both axes, per review against the
+# reference: 19.0 x 4.6 read a touch oversized for the notch.
 led = (cq.Workplane("XY")
-       .box(NOTCH_W - 11.0, 1.4, 4.6, centered=(False, False, False))
-       .translate((NX0 + 5.5, 1.6, NZ0 + NOTCH_H - 8.5)))
+       .box(18.0, 1.4, 4.4, centered=(False, False, False))
+       .translate((NX0 + 6.0, 1.6, NZ0 + NOTCH_H - 6.2)))
 
 m.add("led", led, KD["monitor_lamp"])
 
