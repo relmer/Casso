@@ -523,6 +523,21 @@ public:
     //
     static LRESULT  KindToHt  (DxuiHitTestKind kind);
 
+    //
+    //  Whether an NC mouse message may be claimed by a caption system
+    //  button, or has to be left to the window manager. The message's
+    //  wParam is the hit code the OS derived from our own WM_NCHITTEST
+    //  answer, so a resize code means "the user is starting a resize"
+    //  EVEN THOUGH the point may sit on a button -- the corner grab zones
+    //  deliberately reach under them.
+    //
+    //  Public because this predicate IS the top-right-corner contract, and
+    //  it is the only part of the NC-mouse path reachable without a real
+    //  window: everything around it in HandleNcMouse is HWND bookkeeping
+    //  that bails out before the decision in a synthetic host.
+    //
+    static bool  NcMouseMayHitSystemButton (bool resizable, WPARAM hitTest);
+
 private:
     static LRESULT CALLBACK  s_WndProcThunk   (HWND, UINT, WPARAM, LPARAM);
 
@@ -602,13 +617,6 @@ private:
     static DxuiHitTestKind  ClassifyResizeEdge (POINT clientDip,
                                                 RECT  clientBoundsDip,
                                                 int   resizeBorderPx);
-
-    // True when an NC mouse message's wParam is one of the eight resize hit
-    // codes. The OS derives that wParam from the answer WM_NCHITTEST already
-    // gave, so it is the authoritative statement of "this press is a resize"
-    // -- and the point may still be over a caption button, because the corner
-    // grab zones deliberately extend under them.
-    static bool  IsResizeHitTest (WPARAM ht);
 
     static void            NotifySystemButtonsMaximizedInTree (IDxuiControl * control, bool maximized);
     static IDxuiControl *  FindNcSystemControlInTree          (IDxuiControl * control, POINT clientDip);

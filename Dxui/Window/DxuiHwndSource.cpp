@@ -2651,7 +2651,7 @@ LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
     // WM_NCLBUTTONDOWN, so DefWindowProc never entered the resize loop. The
     // latched hover is released on the way out, or the button stays lit while
     // the pointer sits in the corner over it.
-    if (m_params.resizable && IsResizeHitTest (wp))
+    if (!NcMouseMayHitSystemButton (m_params.resizable, wp))
     {
         if (m_lastHoveredNcControl != nullptr)
         {
@@ -3248,7 +3248,7 @@ bool DxuiHwndSource::RouteCaptionNcMouse (UINT msg, WPARAM wp, LPARAM lp)
     // See HandleNcMouse: a press on a resize edge or corner is the OS acting
     // on the answer we already gave WM_NCHITTEST, and must not be claimed by
     // the caption button the corner grab zone reaches under.
-    BAIL_OUT_IF (m_params.resizable && IsResizeHitTest (wp), S_OK);
+    BAIL_OUT_IF (!NcMouseMayHitSystemButton (m_params.resizable, wp), S_OK);
 
     if (msg == WM_NCMOUSELEAVE && m_lastHoveredNcControl != nullptr)
     {
@@ -3574,15 +3574,17 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IsResizeHitTest
+//  NcMouseMayHitSystemButton
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiHwndSource::IsResizeHitTest (WPARAM ht)
+bool DxuiHwndSource::NcMouseMayHitSystemButton (bool resizable, WPARAM hitTest)
 {
-    return ht == HTTOPLEFT    || ht == HTTOP    || ht == HTTOPRIGHT ||
-           ht == HTLEFT       || ht == HTRIGHT  ||
-           ht == HTBOTTOMLEFT || ht == HTBOTTOM || ht == HTBOTTOMRIGHT;
+    bool  isResize = hitTest == HTTOPLEFT    || hitTest == HTTOP    || hitTest == HTTOPRIGHT ||
+                     hitTest == HTLEFT       || hitTest == HTRIGHT  ||
+                     hitTest == HTBOTTOMLEFT || hitTest == HTBOTTOM || hitTest == HTBOTTOMRIGHT;
+
+    return !(resizable && isResize);
 }
 
 

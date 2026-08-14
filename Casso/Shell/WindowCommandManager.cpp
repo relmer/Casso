@@ -3,6 +3,7 @@
 #include "WindowCommandManager.h"
 
 #include "../AssetBootstrap.h"
+#include "../Config/WindowPlacementProfile.h"
 #include "../EmulatorShell.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
@@ -829,13 +830,27 @@ void WindowCommandManager::OnViewCommand (int id)
                 w = desiredClientW + ncOverheadW;
                 h = desiredClientH + ncOverheadH;
 
+                // The 100%-emulator framing can ask for a window larger than
+                // the display -- more so now that the scene is a full desk
+                // rather than a bare framebuffer. Fit it to the work area
+                // and let the placement rule hold the caption's top-left on
+                // screen; centering is what gives way, not reachability.
+                // Without this the oversized window was centered on the work
+                // area, which put its top-left off the top-left of it: a
+                // window the pointer could no longer grab.
                 hMon = MonitorFromWindow (m_shell.m_hwnd, MONITOR_DEFAULTTONEAREST);
-                GetMonitorInfo (hMon, &mi);
 
-                x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - w) / 2;
-                y = mi.rcWork.top  + (mi.rcWork.bottom - mi.rcWork.top - h) / 2;
+                if (hMon != nullptr && GetMonitorInfo (hMon, &mi))
+                {
+                    RECT  placed = WindowPlacementProfile::FitToWorkArea (mi.rcWork, w, h);
 
-                SetWindowPos (m_shell.m_hwnd, nullptr, x, y, w, h, SWP_NOZORDER);
+                    x = (int) placed.left;
+                    y = (int) placed.top;
+                    w = (int) (placed.right  - placed.left);
+                    h = (int) (placed.bottom - placed.top);
+
+                    SetWindowPos (m_shell.m_hwnd, nullptr, x, y, w, h, SWP_NOZORDER);
+                }
             }
 
             break;
