@@ -334,6 +334,16 @@ HRESULT Dxui3DRenderer::CreatePipelineState()
 
         hr = m_device->CreateDepthStencilState (&depth, m_depthStateTest.GetAddressOf());
         CHR (hr);
+
+        // Read-only depth, for translucent light: it must be HIDDEN by solids
+        // standing in front of it -- a glow inside a recess cannot spill over
+        // the housing around it -- while leaving its own transparent rim out
+        // of the depth buffer, where it would punch a hole in whatever draws
+        // next.
+        depth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+
+        hr = m_device->CreateDepthStencilState (&depth, m_depthStateReadOnly.GetAddressOf());
+        CHR (hr);
     }
 
     {
@@ -588,7 +598,8 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
                                        const float      mvp[16],
                                        bool             textured,
                                        const D3D11_VIEWPORT & viewportPx,
-                                       bool             depthTest)
+                                       bool             depthTest,
+                                       bool             depthWrite)
 {
     HRESULT                     hr             = S_OK;
     D3D11_MAPPED_SUBRESOURCE    mapped         = {};
@@ -597,9 +608,17 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
     float                       blendFactor[4] = {};
     ID3D11ShaderResourceView  * srv            = nullptr;
     bool                        useDepth       = depthTest && m_depthDsv != nullptr;
+    ID3D11DepthStencilState   * depthState     = m_depthState.Get();
 
     CBREx (m_device != nullptr, E_UNEXPECTED);
     CBREx (verts != nullptr && vertexCount > 0 && (vertexCount % 3) == 0, E_INVALIDARG);
+
+    // Solids test and write; translucent light tests without writing, so it
+    // hides behind what stands in front of it without masking what follows.
+    if (useDepth)
+    {
+        depthState = depthWrite ? m_depthStateTest.Get() : m_depthStateReadOnly.Get();
+    }
 
     // Externally-adopted SRV (the desk scene's CRT output) wins over the
     // CPU-uploaded content texture; untextured draws sample opaque white.
@@ -643,7 +662,7 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
     // the painter and text renderer needs no save/restore etiquette.
     m_context->RSSetViewports         (1, &viewportPx);
     m_context->OMSetBlendState        (m_blendState.Get(), blendFactor, 0xFFFFFFFF);
-    m_context->OMSetDepthStencilState (useDepth ? m_depthStateTest.Get() : m_depthState.Get(), 0);
+    m_context->OMSetDepthStencilState (depthState, 0);
     m_context->RSSetState             (m_rasterState.Get());
 
     m_context->IASetInputLayout       (m_layout.Get());

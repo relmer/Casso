@@ -81,7 +81,8 @@ public:
                             const float      mvp[16],
                             bool             textured,
                             const D3D11_VIEWPORT & viewportPx,
-                            bool             depthTest = false);
+                            bool             depthTest  = false,
+                            bool             depthWrite = true);
 
 private:
     HRESULT  CreateShaders      ();
@@ -100,6 +101,7 @@ private:
     ComPtr<ID3D11RasterizerState>     m_rasterState;
     ComPtr<ID3D11DepthStencilState>   m_depthState;       // depth off (painter's algorithm)
     ComPtr<ID3D11DepthStencilState>   m_depthStateTest;   // LESS test + write (meshes)
+    ComPtr<ID3D11DepthStencilState>   m_depthStateReadOnly;   // LESS test, no write (light)
     ComPtr<ID3D11SamplerState>        m_sampler;
 
     ComPtr<ID3D11Texture2D>           m_depthTex;

@@ -40,7 +40,8 @@ from cadkit import KD, Model, sag_sheet
 import math
 
 EMU_ASPECT = 280.0 / 192.0        # the emulator display's own aspect
-DIAG_MM    = 11.5 * 25.4          # visible tube diagonal, advertised 12-in class
+DIAG_MM    = 11.0 * 25.4          # visible diagonal; the 12-in figure is the
+                                  # tube class, not the picture (CRT Database)
 
 GLASS_W = DIAG_MM * EMU_ASPECT / math.hypot(EMU_ASPECT, 1.0)
 GLASS_H = DIAG_MM / math.hypot(EMU_ASPECT, 1.0)
@@ -80,7 +81,15 @@ GX0, GX1  = BX0 + BEZEL_FW, BX1 - BEZEL_FW
 GZ0, GZ1  = BZ0 + BEZEL_FW, BZ1 - BEZEL_FW
 
 NOTCH_H   = 15.0                  # shallow: just enough throw for the button
-NOTCH_D   = 10.0                  # 1 cm front to back
+NOTCH_D   = 19.05                 # 3/4 in front to back
+
+# The button's face sits this far behind the case face, with clearance left
+# behind it inside the notch. Its thickness is what is LEFT of the notch's
+# depth once both are taken, so deepening the notch thickens the button and
+# the setback stays put instead of the face sinking into the pocket.
+BTN_SETBACK = 1.0
+BTN_BACKGAP = 2.0
+BTN_D       = NOTCH_D - BTN_SETBACK - BTN_BACKGAP
 
 # Equal margins beside the notch: groove's inner edge to the notch's left
 # equals the notch's right to the frame's right edge, the edge roll counted
@@ -166,8 +175,8 @@ m.add_triangles("glass",
 # The button, locked down: it fills the lower part of the notch and stands
 # proud of the notch floor, not of the case.
 button = (cq.Workplane("XY")
-          .box(NOTCH_W - 3.0, NOTCH_D - 3.0, NOTCH_H - 8.5, centered=(False, False, False))
-          .translate((NX0 + 1.5, 1.0, NZ0 + 1.0))
+          .box(NOTCH_W - 3.0, BTN_D, NOTCH_H - 8.5, centered=(False, False, False))
+          .translate((NX0 + 1.5, BTN_SETBACK, NZ0 + 1.0))
           .edges("|Y").fillet(1.5))
 
 m.add("button", button, BEZEL_DK)
@@ -269,3 +278,6 @@ if __name__ == "__main__":
     nv, nt = m.emit(os.path.join(out, "Monitor2.mesh"),
                     os.path.join(out, "Monitor2.mtl"), "Monitor2.mtl")
     print(f"Monitor2 (CAD): {nv} verts, {nt} tris")
+    print(f"  case {W:.1f} x {H:.1f} x {D:.1f} mm, glass {GLASS_W:.1f} x {GLASS_H:.1f}")
+    print(f"  reveal axis x = {REVEAL_CX:.1f}  <- s_kMon2BrandCenterXMm")
+    print(f"  notch depth {NOTCH_D:.2f}, button {BTN_D:.2f} thick, setback {BTN_SETBACK:.1f}")

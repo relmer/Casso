@@ -127,6 +127,11 @@ public:
 
     static constexpr float  kGlowLiftMm        = 0.35f;
     static constexpr int    kGlowSegments      = 24;
+
+    // How much of the way to the housing's edge the outermost band may reach.
+    // Short of 1 because the bound is a flat box and the case's corners are
+    // rounded away from it.
+    static constexpr float  kGlowEdgeMargin    = 0.82f;
     static constexpr float  kMonitorGlowRgb[3] = { 0.400f, 1.000f, 0.520f };
     static constexpr float  kDriveGlowRgb[3]   = { 1.000f, 0.260f, 0.180f };
 

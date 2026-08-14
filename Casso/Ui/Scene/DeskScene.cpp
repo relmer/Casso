@@ -475,7 +475,8 @@ HRESULT DeskScene::DrawDrives (const DeskSceneComposition & comp, const D3D11_VI
     {
         SceneCamera::Mul44 (comp.driveWorld[drive], comp.viewProj, mvp);
 
-        hr = m_renderer.DrawTriangles (m_drive.OpaqueVerts().data(), m_drive.OpaqueVerts().size(),
+        hr = m_renderer.DrawTriangles (m_drive.OpaqueVerts (m_driveActive[drive]).data(),
+                                       m_drive.OpaqueVerts (m_driveActive[drive]).size(),
                                        mvp, false, viewport, true);
         CHRA (hr);
 
@@ -558,8 +559,30 @@ void DeskScene::BuildLampGlow (const DeskSceneModel                & model,
         return;
     }
 
-    const DeskLampAnchor &  lamp = model.Lamps()[0];
-    float                   y    = lamp.frontY - kGlowLiftMm;
+    const DeskLampAnchor &  lamp    = model.Lamps()[0];
+    float                   y       = lamp.frontY - kGlowLiftMm;
+    float                   lo[3]   = {};
+    float                   hi[3]   = {};
+    float                   outer   = kGlowProfile[(int) (sizeof (kGlowProfile) / sizeof (kGlowProfile[0])) - 1].radiusScale;
+    float                   radiusX = lamp.radiusX;
+    float                   radiusZ = lamp.radiusZ;
+
+    // Keep the halo inside the housing it shines from. Depth testing hides
+    // the part that falls on the case, but past the case's silhouette there
+    // is nothing to hide behind, and a lamp sunk in the power notch would
+    // otherwise leave a speck of light floating in the air beside the
+    // cabinet. The reach is measured to the nearest edge of the model, with
+    // margin for the rounded corner the flat bound does not know about.
+    model.BoundsMin (lo);
+    model.BoundsMax (hi);
+
+    if (outer > 0.0f)
+    {
+        radiusX = (std::min) (radiusX, (std::min) (lamp.center[0] - lo[0], hi[0] - lamp.center[0])
+                                       * kGlowEdgeMargin / outer);
+        radiusZ = (std::min) (radiusZ, (std::min) (lamp.center[2] - lo[2], hi[2] - lamp.center[2])
+                                       * kGlowEdgeMargin / outer);
+    }
 
     // Elliptical, following the lens's own proportions: a circular glow over
     // the tall narrow rhombus of the //c power indicator reads as a light
@@ -576,9 +599,9 @@ void DeskScene::BuildLampGlow (const DeskSceneModel                & model,
 
         return Dxui3DRenderer::Vertex
         {
-            lamp.center[0] + lamp.radiusX * band.radiusScale * std::cos (angle),
+            lamp.center[0] + radiusX * band.radiusScale * std::cos (angle),
             y,
-            lamp.center[2] + lamp.radiusZ * band.radiusScale * std::sin (angle),
+            lamp.center[2] + radiusZ * band.radiusScale * std::sin (angle),
             0.0f, 0.0f,
             color[0], color[1], color[2], band.alpha
         };
@@ -789,9 +812,11 @@ Error:
 //
 //  DeskScene::DrawLampGlows
 //
-//  Runs last in a frame and without depth: a glow is light spilling onto the
-//  housing, not a solid, so it must neither be occluded by the lens it sits on
-//  nor leave its transparent rim in the depth buffer.
+//  Runs last in a frame, testing depth but never writing it: a glow is light,
+//  not a solid, so it must not leave its transparent rim in the depth buffer
+//  -- but it DOES have to hide behind the housing, or the power lamp's halo
+//  floats over the case corner instead of shining out of the notch its lens
+//  is actually sunk into.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -809,7 +834,7 @@ HRESULT DeskScene::DrawLampGlows (const DeskSceneComposition & comp,
         SceneCamera::Mul44 (comp.monitorWorld, comp.viewProj, mvp);
 
         hr = m_renderer.DrawTriangles (m_monitorGlowVerts.data(), m_monitorGlowVerts.size(),
-                                       mvp, false, viewport, false);
+                                       mvp, false, viewport, true, false);
         CHRA (hr);
     }
 
@@ -823,7 +848,7 @@ HRESULT DeskScene::DrawLampGlows (const DeskSceneComposition & comp,
         SceneCamera::Mul44 (comp.driveWorld[drive], comp.viewProj, mvp);
 
         hr = m_renderer.DrawTriangles (m_driveGlowVerts.data(), m_driveGlowVerts.size(),
-                                       mvp, false, viewport, false);
+                                       mvp, false, viewport, true, false);
         CHRA (hr);
     }
 
@@ -1027,7 +1052,8 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
     // Opaque bodies: monitor, then each placed drive.
     SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, mvp);
 
-    hr = m_renderer.DrawTriangles (m_monitor.OpaqueVerts().data(), m_monitor.OpaqueVerts().size(),
+    hr = m_renderer.DrawTriangles (m_monitor.OpaqueVerts (m_powerLampOn).data(),
+                                   m_monitor.OpaqueVerts (m_powerLampOn).size(),
                                    mvp, false, viewport, true);
     CHRA (hr);
 
