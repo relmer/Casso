@@ -157,6 +157,6 @@ for i in range(10):
 if __name__ == "__main__":
     import os
     out = os.path.dirname(os.path.abspath(__file__))
-    nv, nt = m.emit(os.path.join(out, "Monitor2c.obj"),
+    nv, nt = m.emit(os.path.join(out, "Monitor2c.mesh"),
                     os.path.join(out, "Monitor2c.mtl"), "Monitor2c.mtl")
     print(f"Monitor2c (CAD): {nv} verts, {nt} tris")

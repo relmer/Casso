@@ -47,5 +47,5 @@ for fx in (30.0, W - 30.0):
 if __name__ == "__main__":
     import os
     out = os.path.dirname(os.path.abspath(__file__))
-    m.emit(os.path.join(out, "ProFile.obj"), os.path.join(out, "ProFile.mtl"), "ProFile.mtl")
+    m.emit(os.path.join(out, "ProFile.mesh"), os.path.join(out, "ProFile.mtl"), "ProFile.mtl")
     print(f"ProFile: {len(m.verts)} verts, {len(m.tris)} tris")

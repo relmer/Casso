@@ -68,5 +68,5 @@ for fx in (22.0, W - 22.0):
 if __name__ == "__main__":
     import os
     out = os.path.dirname(os.path.abspath(__file__))
-    m.emit(os.path.join(out, "DuoDisk.obj"), os.path.join(out, "DuoDisk.mtl"), "DuoDisk.mtl")
+    m.emit(os.path.join(out, "DuoDisk.mesh"), os.path.join(out, "DuoDisk.mtl"), "DuoDisk.mtl")
     print(f"DuoDisk: {len(m.verts)} verts, {len(m.tris)} tris")

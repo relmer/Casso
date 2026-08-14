@@ -36,8 +36,8 @@ sag radius as a named parameter.
 
 ```powershell
 cd scripts/modelgen
-python gen_diskii.py                                   # writes DiskII.obj/.mtl here
-python preview.py DiskII.obj DiskII.mtl out.png 14 -60 # elev, azim
+python gen_diskii.py                                   # writes DiskII.mesh/.mtl here
+python preview.py DiskII.mesh DiskII.mtl out.png 14 -60 # elev, azim
 ```
 
 `preview.py` is a small software z-buffer renderer (PIL + numpy) — the
@@ -62,8 +62,8 @@ softened edge is a fillet rather than a hand-built chamfer strip.
 
 ```powershell
 python -m pip install cadquery
-python cad_monitor2.py                                     # writes Monitor2.obj/.mtl here
-python preview.py Monitor2.obj Monitor2.mtl out.png 8 -90  # LOOK at it (elev, azim)
+python cad_monitor2.py                                     # writes Monitor2.mesh/.mtl here
+python preview.py Monitor2.mesh Monitor2.mtl out.png 8 -90  # LOOK at it (elev, azim)
 ```
 
 **Render the preview before wiring a model into the app.** Two of the desk

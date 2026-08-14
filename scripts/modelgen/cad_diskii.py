@@ -132,6 +132,6 @@ for fx in (16.0, W - 16.0):
 if __name__ == "__main__":
     import os
     out = os.path.dirname(os.path.abspath(__file__))
-    nv, nt = m.emit(os.path.join(out, "DiskII.obj"),
+    nv, nt = m.emit(os.path.join(out, "DiskII.mesh"),
                     os.path.join(out, "DiskII.mtl"), "DiskII.mtl")
     print(f"DiskII (CAD): {nv} verts, {nt} tris")
