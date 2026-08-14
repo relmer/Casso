@@ -134,7 +134,11 @@ void CommandToolbar::SetVolume (float volume01, bool muted)
     m_volume01 = std::clamp (volume01, 0.0f, 1.0f);
     m_muted    = muted;
 
-    m_volumeSlider.SetValue   (m_volume01 * 100.0f);
+    // Muted DISPLAYS as silence -- slider at the bottom, 0% -- while the
+    // stored level survives underneath, so unmuting restores exactly what
+    // the user had. The slider is disabled while muted, so the zeroed
+    // display can never be dragged into becoming the stored value.
+    m_volumeSlider.SetValue   (m_muted ? 0.0f : m_volume01 * 100.0f);
     m_volumeSlider.SetEnabled (!m_muted);
     m_muteButton.glyph = m_muted ? s_kGlyphMuted : s_kGlyphVolume;
 }
@@ -1229,19 +1233,20 @@ void CommandToolbar::PaintJoystickMono (IDxuiPainter & painter, const RECT & box
 {
     float  w      = (float) (box.right  - box.left);
     float  h      = (float) (box.bottom - box.top);
-    float  stroke = (std::max) (1.5f, w / 16.0f);
+    float  stroke = (std::max) (1.0f, w / 26.0f);
     float  cx     = (float) box.left + w * 0.5f;
-    float  baseY  = (float) box.top + h * 0.82f;
+    float  baseL  = (float) box.left + w * 0.16f;
+    float  baseT  = (float) box.top + h * 0.54f;
+    float  baseW  = w * 0.68f;
+    float  baseH  = h * 0.30f;
 
 
 
-    // Base plate, stick, knob dot, and the fire-button dot on the plate.
-    painter.DrawLineApprox   (cx - w * 0.34f, baseY, cx + w * 0.34f, baseY, stroke, ink);
-    painter.DrawLineApprox   (cx - w * 0.26f, baseY, cx - w * 0.30f, baseY - h * 0.10f, stroke, ink);
-    painter.DrawLineApprox   (cx + w * 0.26f, baseY, cx + w * 0.30f, baseY - h * 0.10f, stroke, ink);
-    painter.DrawLineApprox   (cx, baseY, cx, (float) box.top + h * 0.30f, stroke, ink);
-    painter.FillCircleApprox (cx, (float) box.top + h * 0.24f, w * 0.11f, ink);
-    painter.FillCircleApprox (cx - w * 0.24f, baseY - h * 0.09f, w * 0.055f, ink);
+    // Outline only, at the MDL2 pen weight: the blocky base's border, the
+    // stick rising from its center, and the knob as a small outlined ball.
+    painter.OutlineRect    (baseL, baseT, baseW, baseH, stroke, ink);
+    painter.DrawLineApprox (cx, baseT, cx, (float) box.top + h * 0.24f, stroke, ink);
+    StrokeCircle           (painter, cx, (float) box.top + h * 0.17f, w * 0.075f, stroke, ink);
 }
 
 
@@ -1258,21 +1263,21 @@ void CommandToolbar::PaintPaddleMono (IDxuiPainter & painter, const RECT & box, 
 {
     float  w      = (float) (box.right  - box.left);
     float  h      = (float) (box.bottom - box.top);
-    float  stroke = (std::max) (1.5f, w / 16.0f);
+    float  stroke = (std::max) (1.0f, w / 26.0f);
     float  cx     = (float) box.left + w * 0.5f;
-    float  cy     = (float) box.top + h * 0.46f;
-    float  r      = w * 0.30f;
+    float  bodyL  = (float) box.left + w * 0.26f;
+    float  bodyT  = (float) box.top + h * 0.48f;
+    float  bodyW  = w * 0.48f;
+    float  bodyH  = h * 0.38f;
 
 
 
-    // The dial: an outlined knob with its pointer tick, over a base line --
-    // and the paddle's fire button as a dot beside the dial.
-    StrokeCircle (painter, cx, cy, r, stroke, ink);
-    painter.DrawLineApprox   (cx, cy, cx + r * 0.62f, cy - r * 0.62f, stroke, ink);
-    painter.DrawLineApprox   (cx - w * 0.36f, (float) box.top + h * 0.88f,
-                              cx + w * 0.36f, (float) box.top + h * 0.88f, stroke, ink);
-    painter.FillCircleApprox ((float) box.left + w * 0.86f, (float) box.top + h * 0.80f,
-                              w * 0.055f, ink);
+    // The A2M2001 hand controller in outline: the body's border with the
+    // big dial knob outlined above it, and the side fire button as a stub.
+    painter.OutlineRect    (bodyL, bodyT, bodyW, bodyH, stroke, ink);
+    StrokeCircle           (painter, cx, (float) box.top + h * 0.32f, w * 0.17f, stroke, ink);
+    painter.DrawLineApprox (bodyL + bodyW, bodyT + bodyH * 0.45f,
+                            bodyL + bodyW + w * 0.09f, bodyT + bodyH * 0.45f, stroke, ink);
 }
 
 
@@ -1289,19 +1294,19 @@ void CommandToolbar::PaintMouseMono (IDxuiPainter & painter, const RECT & box, u
 {
     float  w      = (float) (box.right  - box.left);
     float  h      = (float) (box.bottom - box.top);
-    float  stroke = (std::max) (1.5f, w / 16.0f);
-    float  bodyL  = (float) box.left + w * 0.28f;
-    float  bodyT  = (float) box.top + h * 0.16f;
-    float  bodyW  = w * 0.44f;
-    float  bodyH  = h * 0.70f;
+    float  stroke = (std::max) (1.0f, w / 26.0f);
+    float  bodyL  = (float) box.left + w * 0.30f;
+    float  bodyT  = (float) box.top + h * 0.20f;
+    float  bodyW  = w * 0.40f;
+    float  bodyH  = h * 0.62f;
 
 
 
-    // The M0100's box body with its single wide button: outline, the button
+    // The M0100 in outline: the box body's border, the single wide button's
     // split a third down, and the cable stub off the top.
     painter.OutlineRect    (bodyL, bodyT, bodyW, bodyH, stroke, ink);
-    painter.DrawLineApprox (bodyL, bodyT + bodyH * 0.34f,
-                            bodyL + bodyW, bodyT + bodyH * 0.34f, stroke, ink);
+    painter.DrawLineApprox (bodyL, bodyT + bodyH * 0.32f,
+                            bodyL + bodyW, bodyT + bodyH * 0.32f, stroke, ink);
     painter.DrawLineApprox (bodyL + bodyW * 0.5f, bodyT,
                             bodyL + bodyW * 0.5f, bodyT - h * 0.10f, stroke, ink);
 }

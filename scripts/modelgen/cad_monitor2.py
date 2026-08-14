@@ -48,7 +48,10 @@ MARGIN    = 19.0                  # case face to its screen opening -- ALL
                                   # FOUR SIDES: the top and bottom frame match
                                   # the left's thickness (the divider strip
                                   # handles the right)
-OPEN_W    = DX - MARGIN           # the opening runs right up to the divider
+OPEN_W    = DX - MARGIN * 2.0     # inset MARGIN from the reveal as well:
+                                  # the frame band between the inner bezel
+                                  # and the reveal matches the band between
+                                  # the inner bezel and the case's left edge
 OX0       = MARGIN
 OX1       = OX0 + OPEN_W
 OZ0       = MARGIN
@@ -157,11 +160,11 @@ m.add("button", button, BEZEL_DK)
 
 # The LED sits ABOVE it, uncovered because the button is down. Wide and
 # short -- long axis left to right.
-# 5% smaller than the first pass on both axes, per review against the
-# reference: 19.0 x 4.6 read a touch oversized for the notch.
+# Trimmed twice on review against the reference: 5% off the first pass,
+# then another 20% -- a power LED is a sliver, not a light bar.
 led = (cq.Workplane("XY")
-       .box(18.0, 1.4, 4.4, centered=(False, False, False))
-       .translate((NX0 + 6.0, 1.6, NZ0 + NOTCH_H - 6.2)))
+       .box(14.4, 1.4, 3.5, centered=(False, False, False))
+       .translate((NX0 + (NOTCH_W - 14.4) * 0.5, 1.6, NZ0 + NOTCH_H - 5.7)))
 
 m.add("led", led, KD["monitor_lamp"])
 
