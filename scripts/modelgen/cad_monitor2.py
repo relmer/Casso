@@ -26,7 +26,7 @@ X right, Y back, Z up; the case front sits at y=0.
 """
 
 import cadquery as cq
-from cadkit import KD, Model, rect_wire, sag_sheet
+from cadkit import KD, Model, round_rect_wire, sag_sheet
 
 # ---------------------------------------------------------------- dimensions
 #
@@ -70,10 +70,24 @@ GROOVE_D  = 1.2
 # sits in the case's own front plane, and the rake then FIXES the funnel's
 # width between them -- which fixes the bezel frame, the case opening, and
 # so the whole case.
-PROTRUDE   = 0.75 * 25.4          # bezel front face, proud of the case face
-BAND       = 0.50 * 25.4          # the flat front band's width
-RAKE_DEG   = 75.0                 # 90 would be straight back into the case
-TUBE_DROP  = PROTRUDE             # so the tube's rim lands on the case face
+PROTRUDE     = 0.75 * 25.4        # bezel front face, proud of the case face
+BAND         = 0.50 * 25.4        # the flat front band's width
+RAKE_DEG     = 75.0               # 90 would be straight back into the case
+TUBE_DROP    = PROTRUDE           # so the tube's rim lands on the case face
+BEZEL_FILLET = 3.0                # outer corners, and the funnel's own
+
+# ------------------------------------------------------------ the faceplate
+#
+# CRT patents quote faceplate curvature against a reference radius
+# R = 1.767 x the screen diagonal, with real tubes landing between 1.2R
+# (deeply curved) and 8R (the late flat-square sets). A 1983 monochrome tube
+# belongs near the curved end.
+#
+# Note this is NOT the tube's depth: how far back the funnel and neck run is
+# set by the deflection angle (about 90 degrees in this class), a separate
+# parameter entirely. Tying the face's radius to the cabinet's depth would
+# give a dome, not a screen.
+FACE_R = 1.30 * 1.767 * DIAG_MM
 
 # The reveal is sized from the power notch outward: a 1-inch notch with a
 # quarter-inch margin to each side, 1.5 inches of reveal in all. The strip
@@ -190,11 +204,15 @@ BAND_Z0, BAND_Z1 = BZ0 + BAND, BZ1 - BAND
 
 bezel = (cq.Workplane("XY")
          .box(BX1 - BX0, PROTRUDE + CAVITY_D * 0.5, BZ1 - BZ0, centered=(False, False, False))
-         .translate((BX0, -PROTRUDE, BZ0)))
+         .translate((BX0, -PROTRUDE, BZ0))
+         .edges("|Y").fillet(BEZEL_FILLET))
 
+# Rounded loft sections, so the funnel's own corners -- the ones running
+# front-to-back from the band down to the tube -- come out radiused without
+# having to select four diagonal edges after the fact.
 funnel = cq.Solid.makeLoft([
-    rect_wire(-PROTRUDE,             BAND_X0, BAND_X1, BAND_Z0, BAND_Z1),
-    rect_wire(-PROTRUDE + TUBE_DROP, GX0,     GX1,     GZ0,     GZ1),
+    round_rect_wire(-PROTRUDE,             BAND_X0, BAND_X1, BAND_Z0, BAND_Z1, BEZEL_FILLET),
+    round_rect_wire(-PROTRUDE + TUBE_DROP, GX0,     GX1,     GZ0,     GZ1,     BEZEL_FILLET),
 ])
 
 bezel = bezel.cut(cq.Workplane(obj=funnel))
@@ -209,12 +227,15 @@ m.add("bezel", bezel, BEZEL)
 
 # The sheet the live display maps onto, filling the funnel's inner mouth: a
 # section of a sphere, its RIM on the mouth's plane and its center bulging
-# forward from there toward the band. A 12-inch tube is far flatter than the
-# 9-inch //c's -- too tight a sphere curls the corners away hard enough that
-# the raster reads as a disc instead of a rectangle.
+# forward from there toward the band. sag_sheet wants the radius in half
+# diagonals of the SHEET, so convert the faceplate's physical radius here
+# rather than carrying a second, hand-tuned number.
+GLASS_HALF_DIAG = math.hypot((GX1 - GX0 - 2.0) * 0.5, (GZ1 - GZ0 - 2.0) * 0.5)
+
 m.add_triangles("glass",
                 sag_sheet(GX0 + 1.0, GX1 - 1.0, GZ0 + 1.0, GZ1 - 1.0,
-                          front_y=-PROTRUDE + TUBE_DROP, radius_scale=9.0),
+                          front_y=-PROTRUDE + TUBE_DROP,
+                          radius_scale=FACE_R / GLASS_HALF_DIAG),
                 KD["glass"])
 
 # ------------------------------------------------------- power button + LED

@@ -18,7 +18,7 @@ power lamp is the //c-family rhombus: the switch bar's own proportions
 """
 
 import cadquery as cq
-from cadkit import KD, Model, sag_sheet
+from cadkit import KD, Model, rect_wire, sag_sheet
 
 # ---------------------------------------------------------------- dimensions
 
@@ -49,14 +49,6 @@ CAVITY   = (0.055, 0.055, 0.062)
 LAMPRING = (0.045, 0.045, 0.050)
 
 m = Model()
-
-
-def rect_wire(y, x0, x1, z0, z1):
-    """A rectangular wire at height y, from explicit 3D corners -- loft
-    sections built this way sidestep every workplane-orientation trap."""
-    pts = [cq.Vector(x0, y, z0), cq.Vector(x1, y, z0),
-           cq.Vector(x1, y, z1), cq.Vector(x0, y, z1), cq.Vector(x0, y, z0)]
-    return cq.Wire.makePolygon(pts)
 
 
 # -------------------------------------------------------------------- shell

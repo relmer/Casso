@@ -122,6 +122,40 @@ def rect_wire(y, x0, x1, z0, z1):
     return cq.Wire.makePolygon(pts)
 
 
+def round_rect_wire(y, x0, x1, z0, z1, r):
+    """A rounded rectangle wire at depth y: straight runs joined by quarter
+    arcs of radius r.
+
+    Lofting between two of these rounds the resulting wall's corners BY
+    CONSTRUCTION, which is far steadier than lofting sharp sections and then
+    hunting the diagonal corner edges with a selector to fillet them.
+    """
+    import cadquery as cq
+
+    def v(x, z):
+        return cq.Vector(x, y, z)
+
+    def corner(cx, cz, sx, sz):
+        # Quarter arc about (cx, cz), from the x-side point to the z-side one.
+        k = 0.70710678
+        return cq.Edge.makeThreePointArc(v(cx + sx * r, cz),
+                                         v(cx + sx * r * k, cz + sz * r * k),
+                                         v(cx, cz + sz * r))
+
+    edges = [
+        cq.Edge.makeLine(v(x0 + r, z0), v(x1 - r, z0)),
+        corner(x1 - r, z0 + r, +1, -1),
+        cq.Edge.makeLine(v(x1, z0 + r), v(x1, z1 - r)),
+        corner(x1 - r, z1 - r, +1, +1),
+        cq.Edge.makeLine(v(x1 - r, z1), v(x0 + r, z1)),
+        corner(x0 + r, z1 - r, -1, +1),
+        cq.Edge.makeLine(v(x0, z1 - r), v(x0, z0 + r)),
+        corner(x0 + r, z0 + r, -1, -1),
+    ]
+
+    return cq.Wire.assembleEdges(edges)
+
+
 def sag_sheet(x0, x1, z0, z1, front_y, radius_scale, cols=48, rows=36):
     """A spherical-sag rectangular sheet bulging toward the viewer (-Y).
 
