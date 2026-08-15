@@ -342,6 +342,11 @@ CassoCli input.a65 -o output.bin -l listing.txt -t
 CassoCli input.a65 -s   -o output.s19
 CassoCli input.a65 -s2  -o output.hex
 
+# Write only the assembled bytes, or a BLOAD-ready DOS 3.3 binary
+# (the default is a full 64 KB image padded with the fill byte)
+CassoCli input.a65 --raw      -o output.bin
+CassoCli input.a65 --dos-bin  -o output.bin
+
 # Pre-define a symbol on the command line
 CassoCli input.a65 -d DEBUG=1 -o output.bin
 
@@ -404,7 +409,7 @@ Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
 | Expressions | full operator set: `+ - * / % & \| ^ ~ << >>`, `<label`, `>label`, current-PC `*` |
 | Listing output | `-l [file]` (stdout or file), `-c` for cycle counts, `-m` for macro expansion |
 | Symbol table | `-t` |
-| Output formats | flat binary (default), `-s` (S-record), `-s2` (Intel HEX) |
+| Output formats | full 64 KB image (default), `--raw` (assembled span only), `--dos-bin` (span behind a DOS 3.3 load-address/length header), `-s` (S-record), `-s2` (Intel HEX) |
 | Fill control | `-z` for `$00` fill (default `$FF`) |
 | Pre-defined symbols | `-d NAME` or `-d NAME=VALUE` |
 | Debug info | `-g [file]` |

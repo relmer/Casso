@@ -176,6 +176,7 @@
   <ItemGroup>
     <ClCompile Include="Assembler.cpp" />
     <ClCompile Include="AssemblySession.cpp" />
+    <ClCompile Include="CommandLineParser.cpp" />
     <ClCompile Include="Cpu.cpp" />
     <ClCompile Include="Cpu6502.cpp" />
     <ClCompile Include="CpuOperations.cpp" />
@@ -200,6 +201,8 @@
     <ClInclude Include="Assembler.h" />
     <ClInclude Include="AssemblySession.h" />
     <ClInclude Include="AssemblerTypes.h" />
+    <ClInclude Include="CommandLineOptions.h" />
+    <ClInclude Include="CommandLineParser.h" />
     <ClInclude Include="Cpu.h" />
     <ClInclude Include="Cpu6502.h" />
     <ClInclude Include="ICpu.h" />

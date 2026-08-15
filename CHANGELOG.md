@@ -6,6 +6,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Added
+- **`--raw` and `--dos-bin` assembler output.** The assembler could only write
+  a full 64 KB memory image, padded with the fill byte — correct for ROM
+  burning and reference comparison, useless for loading a 2 KB routine, which
+  meant slicing 64 KB down by hand. `--raw` writes only the assembled span;
+  `--dos-bin` writes that span behind the 4-byte load-address/length header an
+  Apple DOS 3.3 binary file carries, so the result is ready to `BLOAD` once
+  placed on a disk. The default is unchanged.
+
+### Changed
+- **An explicit output-format flag now wins over the filename's extension.**
+  Extension matching remains as the fallback when no flag is given, so as65-era
+  scripts naming a `.s19` or `.hex` output keep working. Previously the
+  extension always won, which meant `-s -o out.dat` silently wrote a flat
+  binary despite the flag asking for an S-record.
+- Command-line option modelling and parsing moved from the `CassoCli`
+  executable into `CassoCore`, where the test project can link it. Parsing was
+  previously unreachable from any test. Behavior is unchanged and now pinned by
+  tests; the grammar's one filesystem question — does `build` name a real
+  `build.a65`? — is injected rather than probed directly.
+
 ## [1.16.1] — the //c mouse works with VBL-interrupt software
 
 ### Fixed

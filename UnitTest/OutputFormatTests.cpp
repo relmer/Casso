@@ -187,4 +187,147 @@ namespace OutputFormatTests
             Assert::IsTrue (output.find ("A942EA") != std::string::npos, L"Should contain all data bytes");
         }
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BinaryShapeTests
+    //
+    //  The three binary shapes. What separates them is entirely about padding
+    //  and headers, so each test asserts the exact byte count as well as the
+    //  content -- a shape that quietly gains or loses a prefix is the failure
+    //  mode that matters.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (BinaryShapeTests)
+    {
+    public:
+
+        TEST_METHOD (Raw_WritesOnlyTheAssembledBytes)
+        {
+            std::vector<Byte>   data = { 0xA9, 0x42, 0xEA };
+            std::ostringstream  oss;
+            std::string         output;
+
+
+
+            OutputFormats::WriteRaw (data, oss);
+            output = oss.str();
+
+            Assert::AreEqual ((size_t) 3, output.size(), L"no padding before or after");
+            Assert::AreEqual ((int) 0xA9, (int) (Byte) output[0]);
+            Assert::AreEqual ((int) 0xEA, (int) (Byte) output[2]);
+        }
+
+
+        TEST_METHOD (Raw_OfNothing_WritesNothing)
+        {
+            std::vector<Byte>   data;
+            std::ostringstream  oss;
+
+
+
+            OutputFormats::WriteRaw (data, oss);
+
+            Assert::AreEqual ((size_t) 0, oss.str().size());
+        }
+
+
+        //  DOS stores the load address IN the file, which is why BLOAD needs
+        //  no address argument. Both header fields are little-endian.
+        TEST_METHOD (DosBinary_PrefixesLoadAddressAndLength)
+        {
+            std::vector<Byte>   data = { 0xA9, 0x42, 0xEA };
+            std::ostringstream  oss;
+            std::string         output;
+
+
+
+            OutputFormats::WriteDosBinary (data, 0x6000, oss);
+            output = oss.str();
+
+            Assert::AreEqual ((size_t) 7, output.size(), L"4-byte header plus 3 bytes of payload");
+            Assert::AreEqual ((int) 0x00, (int) (Byte) output[0], L"load address low byte");
+            Assert::AreEqual ((int) 0x60, (int) (Byte) output[1], L"load address high byte");
+            Assert::AreEqual ((int) 0x03, (int) (Byte) output[2], L"length low byte");
+            Assert::AreEqual ((int) 0x00, (int) (Byte) output[3], L"length high byte");
+            Assert::AreEqual ((int) 0xA9, (int) (Byte) output[4], L"payload follows the header");
+        }
+
+
+        TEST_METHOD (DosBinary_WritesLengthLittleEndianAcrossBothBytes)
+        {
+            std::vector<Byte>   data (0x0123, 0xEA);
+            std::ostringstream  oss;
+            std::string         output;
+
+
+
+            OutputFormats::WriteDosBinary (data, 0x0803, oss);
+            output = oss.str();
+
+            Assert::AreEqual ((int) 0x03, (int) (Byte) output[0], L"load address low byte");
+            Assert::AreEqual ((int) 0x08, (int) (Byte) output[1], L"load address high byte");
+            Assert::AreEqual ((int) 0x23, (int) (Byte) output[2], L"length low byte");
+            Assert::AreEqual ((int) 0x01, (int) (Byte) output[3], L"length high byte");
+        }
+
+
+        //  File offset must equal absolute address, which is the entire point
+        //  of the flat shape.
+        TEST_METHOD (FlatImage_PlacesBytesAtTheirAbsoluteAddress)
+        {
+            std::vector<Byte>   data = { 0xA9, 0x42 };
+            std::ostringstream  oss;
+            std::string         output;
+
+
+
+            OutputFormats::WriteFlatImage (data, 0x6000, 0xFF, oss);
+            output = oss.str();
+
+            Assert::AreEqual ((size_t) 0x10000, output.size(), L"a full 64 KB address space");
+            Assert::AreEqual ((int) 0xA9, (int) (Byte) output[0x6000]);
+            Assert::AreEqual ((int) 0x42, (int) (Byte) output[0x6001]);
+        }
+
+
+        TEST_METHOD (FlatImage_PadsWithTheGivenFillByte)
+        {
+            std::vector<Byte>   data = { 0xA9 };
+            std::ostringstream  oss;
+            std::string         output;
+
+
+
+            OutputFormats::WriteFlatImage (data, 0x0800, 0x00, oss);
+            output = oss.str();
+
+            Assert::AreEqual ((int) 0x00, (int) (Byte) output[0x0000], L"fill before the span");
+            Assert::AreEqual ((int) 0xA9, (int) (Byte) output[0x0800]);
+            Assert::AreEqual ((int) 0x00, (int) (Byte) output[0xFFFF], L"fill after the span");
+        }
+
+
+        //  The fill byte is visible output, so matching a reference image
+        //  requires matching what its gaps were padded with.
+        TEST_METHOD (FlatImage_FillByteIsHonoredNotAssumed)
+        {
+            std::vector<Byte>   data = { 0xA9 };
+            std::ostringstream  oss;
+            std::string         output;
+
+
+
+            OutputFormats::WriteFlatImage (data, 0x0800, 0xEA, oss);
+            output = oss.str();
+
+            Assert::AreEqual ((int) 0xEA, (int) (Byte) output[0x0000]);
+            Assert::AreEqual ((int) 0xEA, (int) (Byte) output[0xFFFF]);
+        }
+    };
 }
