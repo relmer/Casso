@@ -438,6 +438,13 @@ void Function2()
 - Scripts are in `scripts/` — `Build.ps1`, `RunTests.ps1`, `VSTools.ps1`
 - Supported platforms: x64, ARM64
 - Toolset: v145 (VS 2026)
+- **`RunTests.ps1` does not build unless you pass `-Build`.** Every VS Code
+  task that calls it is labeled "(no build)" and the composite `Build + Test`
+  tasks chain a build in front; from a terminal, pass `-Build`. A staleness
+  guard refuses to run when the test assembly is older than the newest source
+  that compiles into it, because a stale run reports a full, confident pass
+  against code that is not on disk — and a new test file that never compiled
+  in is simply absent from the count.
 
 ### Style Gate (pre-push)
 
