@@ -285,16 +285,23 @@ public:
         Assert::AreEqual ( 3.0f, model.Lamps()[0].radiusX, 0.01f);
         Assert::AreEqual ( 3.0f, model.Lamps()[0].radiusZ, 0.01f);
 
-        Assert::AreEqual ((size_t) 2, model.RegionBoxes().size());
+        // Eject still ranks first. The padlock's box overlaps the top of the
+        // eject zone, so listing the badge ahead of it would take clicks away
+        // from eject in that strip just to serve a tooltip -- the badge is
+        // hover-only furniture and must not outrank a control.
+        Assert::AreEqual ((size_t) 3, model.RegionBoxes().size());
         Assert::IsTrue (model.RegionBoxes()[0].region == DriveWidgetRegion::Eject);
-        Assert::IsTrue (model.RegionBoxes()[1].region == DriveWidgetRegion::Body);
+        Assert::IsTrue (model.RegionBoxes()[1].region == DriveWidgetRegion::Padlock);
+        Assert::IsTrue (model.RegionBoxes()[2].region == DriveWidgetRegion::Body);
 
-        // The eject box is contained inside the body box -- precedence by
+        // Eject and padlock both sit inside the body box -- precedence by
         // declaration order, like the 2D widget's eject-inside-body rects.
         for (int axis = 0; axis < 3; axis++)
         {
-            Assert::IsTrue (model.RegionBoxes()[0].boxMin[axis] >= model.RegionBoxes()[1].boxMin[axis]);
-            Assert::IsTrue (model.RegionBoxes()[0].boxMax[axis] <= model.RegionBoxes()[1].boxMax[axis]);
+            Assert::IsTrue (model.RegionBoxes()[0].boxMin[axis] >= model.RegionBoxes()[2].boxMin[axis]);
+            Assert::IsTrue (model.RegionBoxes()[0].boxMax[axis] <= model.RegionBoxes()[2].boxMax[axis]);
+            Assert::IsTrue (model.RegionBoxes()[1].boxMin[axis] >= model.RegionBoxes()[2].boxMin[axis]);
+            Assert::IsTrue (model.RegionBoxes()[1].boxMax[axis] <= model.RegionBoxes()[2].boxMax[axis]);
         }
     }
 

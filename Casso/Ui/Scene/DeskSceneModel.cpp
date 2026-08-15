@@ -113,6 +113,9 @@ static constexpr float   s_kPadlockHoleZ1    = 70.9f;
 static constexpr float   s_kPadlockShackleY  = -1.95f;
 static constexpr float   s_kPadlockBodyY     = -2.00f;
 static constexpr float   s_kPadlockHoleY     = -2.05f;
+// Slack around the padlock's hit box: the badge is ~10 mm across and the
+// tooltip should answer a deliberate hover, not demand marksmanship.
+static constexpr float   s_kPadlockHitPadMm  = 2.5f;
 static constexpr float   s_kPadlockFill[3]   = { 0.847f, 0.718f, 0.416f };   // warm brass
 static constexpr float   s_kPadlockShade[3]  = { 0.478f, 0.376f, 0.149f };   // darker brass
 static constexpr float   s_kPadlockHole[3]   = { 0.165f, 0.129f, 0.035f };   // keyhole
@@ -1148,6 +1151,21 @@ void DeskSceneModel::AddRegionBoxes()
     memcpy (box.boxMin, s_kDiskIiEjectMin, sizeof (box.boxMin));
     memcpy (box.boxMax, s_kDiskIiEjectMax, sizeof (box.boxMax));
     box.region = DriveWidgetRegion::Eject;
+    m_regions.push_back (box);
+
+    // The padlock ranks BELOW eject and above body. Its box overlaps the top
+    // of the eject zone, and declaration order is precedence -- listing it
+    // first would have quietly taken clicks away from eject in that strip for
+    // the sake of a tooltip. The badge keeps everything above the slot, which
+    // is most of it. Slack all round so the badge is not a pixel hunt, and
+    // the near face reaches in front of the plate it stands on.
+    box.boxMin[0] = s_kPadlockBodyX0 - s_kPadlockHitPadMm;
+    box.boxMin[1] = s_kPadlockHoleY - 1.0f;
+    box.boxMin[2] = s_kPadlockBodyZ0 - s_kPadlockHitPadMm;
+    box.boxMax[0] = s_kPadlockBodyX1 + s_kPadlockHitPadMm;
+    box.boxMax[1] = 0.5f;
+    box.boxMax[2] = s_kPadlockArchZ1 + s_kPadlockHitPadMm;
+    box.region    = DriveWidgetRegion::Padlock;
     m_regions.push_back (box);
 
     memcpy (box.boxMin, s_kDiskIiBodyMin, sizeof (box.boxMin));

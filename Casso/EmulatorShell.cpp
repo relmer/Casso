@@ -7150,8 +7150,14 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
                 std::wstring                  name = std::filesystem::path (
                     m_diskStore.GetSourcePath (6, sceneHit.driveIndex)).filename().wstring();
 
+                // The protection tooltip belongs to the PADLOCK, not to the
+                // drive: it explains that badge, and volunteering it for a
+                // dwell anywhere on the case answers a question the user did
+                // not ask. Everywhere else the drive just names its disk.
+                bool  onPadlock = (sceneHit.region == DriveWidgetRegion::Padlock);
+
                 anchor = comp.driveRectPx[sceneHit.driveIndex];
-                tip    = st.writeProtect.Any()
+                tip    = (onPadlock && st.writeProtect.Any())
                        ? ComposeWriteProtectTooltip (sceneHit.driveIndex + 1, name, st.writeProtect)
                        : name;
             }

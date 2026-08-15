@@ -19,6 +19,12 @@ enum class DriveWidgetRegion
     None,
     Body,
     Eject,
+
+    // The write-protect padlock stamped on the faceplate. Its own region
+    // because the tooltip that explains protection belongs to the badge that
+    // signals it, not to the whole drive: a dwell anywhere on the case was
+    // answering a question the user had not asked.
+    Padlock,
 };
 
 

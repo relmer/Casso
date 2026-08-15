@@ -25,28 +25,6 @@ RECT ThemePage::MakeRect (int l, int t, int w, int h)
 }
 
 
-// Linear interpolation between two ARGB endpoints, premultiplied
-// per-channel. Used for the title-bar gradient bands.
-uint32_t ThemePage::LerpArgb (uint32_t a, uint32_t b, float t)
-{
-    uint8_t  aA   = (uint8_t) ((a >> 24) & 0xFF);
-    uint8_t  rA   = (uint8_t) ((a >> 16) & 0xFF);
-    uint8_t  gA   = (uint8_t) ((a >>  8) & 0xFF);
-    uint8_t  bA   = (uint8_t) ( a        & 0xFF);
-    uint8_t  aB   = (uint8_t) ((b >> 24) & 0xFF);
-    uint8_t  rB   = (uint8_t) ((b >> 16) & 0xFF);
-    uint8_t  gB   = (uint8_t) ((b >>  8) & 0xFF);
-    uint8_t  bB   = (uint8_t) ( b        & 0xFF);
-    uint8_t  aOut = (uint8_t) (aA + (int) ((aB - (int) aA) * t));
-    uint8_t  rOut = (uint8_t) (rA + (int) ((rB - (int) rA) * t));
-    uint8_t  gOut = (uint8_t) (gA + (int) ((gB - (int) gA) * t));
-    uint8_t  bOut = (uint8_t) (bA + (int) ((bB - (int) bA) * t));
-
-
-
-    return ((uint32_t) aOut << 24) | ((uint32_t) rOut << 16) |
-           ((uint32_t) gOut <<  8) |  (uint32_t) bOut;
-}
 
 void ThemePage::ComputePreviewGeometry (const RECT  & availRect,
                                         int           driveBandDp,
@@ -100,6 +78,8 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
                                    const std::function<WriteProtectInfo (int)>          & writeProtectSource,
                                    std::array<DriveWidget, 2>           & previewDrives,
                                    JoystickToggleButton                 & previewButton,
+                                   DxuiCaptionBar                       & previewCaption,
+                                   MainMenu                             & previewMenu,
                                    bool                                   crtMonitor,
                                    PreviewSceneRequest                  & outScene)
 {
@@ -146,101 +126,48 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
     screenH = std::max (0, prevH - titleH - navH - driveBarH);
     effectiveDpi = (UINT) std::max (24, (int) (96.0f * scale));
 
-    // Title bar gradient.
+    // Caption and menu strip: the REAL ones, laid out small.
+    //
+    // These were hand-drawn before -- a gradient loop, a caption string, three
+    // invented system buttons, and a menu that was a literal
+    // "File Edit Machine Disk View Help". Two implementations of one thing,
+    // and the copy drifted: the app's menu also carries Debug, ahead of Help,
+    // and the mock had neither. Painting the actual widgets means it cannot
+    // drift again -- a menu added to the app appears here for free.
+    //
+    // Neither widget needs a window, a command sink or a popup host to lay
+    // out and paint; input is what those are for, and a preview takes none.
     {
-        int  bandSteps = std::max (1, titleH);
-        int  i         = 0;
+        DxuiDpiScaler  chromeScaler;
+        RECT           captionDip = {};
+        RECT           navPx      = { prevRect.left, prevRect.top + titleH,
+                                      prevRect.right, prevRect.top + titleH + navH };
 
-        for (i = 0; i < bandSteps; i++)
-        {
-            float     t    = (float) i / (float) bandSteps;
-            uint32_t  argb = LerpArgb (theme.titleBarTop, theme.titleBarBottom, t);
+        chromeScaler.SetDpi (effectiveDpi);
 
-            painter.FillRect ((float) prevRect.left, (float) (prevRect.top + i),
-                              (float) prevW, 1.0f, argb);
-        }
-    }
+        // The caption takes DIP bounds and scales them itself at paint, so
+        // hand it the preview rect divided back down by the same factor.
+        captionDip.left   = (int) ((float) prevRect.left / scale);
+        captionDip.top    = (int) ((float) prevRect.top / scale);
+        captionDip.right  = (int) ((float) prevRect.right / scale);
+        captionDip.bottom = captionDip.top + kPrevTitleBarDp;
 
-    // Caption + system buttons.
-    {
-        int    sysBtnW     = ScalePx (kPrevSysButtonWDp);
-        int    sysBtnGap   = std::max (0, ScalePx (kPrevSysButtonGapDp));
-        float  captionDip  = (float) kPrevCaptionFontDp * scale;
-        int    btnRight    = prevRect.right;
-        int    btnTop      = prevRect.top;
-        int    btnH        = titleH;
-        int    btnMaxRight = 0;
-        int    btnMinRight = 0;
+        previewCaption.ConfigureButtons (DxuiCaptionBar::Buttons::MinMaxClose);
+        previewCaption.SetTitle         (L"Casso emulator");
+        previewCaption.SetMaximized     (false);
+        previewCaption.Layout           (captionDip, chromeScaler);
+        previewCaption.Paint            (painter, text, theme);
 
-        hr = text.DrawString (L"Casso emulator",
-                              (float) (prevRect.left + ScalePx (12)),
-                              (float) btnTop,
-                              (float) (prevW - 3 * (sysBtnW + sysBtnGap) - ScalePx (24)),
-                              (float) btnH,
-                              theme.titleText,
-                              captionDip,
-                              DxuiTheme::kBodyFace,
-                              DxuiTextRenderer::HAlign::Left,
-                              DxuiTextRenderer::VAlign::Center);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        // The menu bar is the other convention: PIXEL bounds, with the dpi
+        // sizing the glyphs and row. Give it the text renderer or it measures
+        // titles with a fallback glyph width and spaces them wrongly.
+        ChromeVisualState  menuVisual = {};
 
-        // Close (rightmost) -- drawn in its IDLE state (like min/max), NOT
-        // the red hover fill, so the mockup matches a fresh app caption
-        // rather than looking permanently hovered. Glyph is a real "x"
-        // (multiplication sign) drawn as text since the painter is
-        // axis-aligned only (two crossing FillRects read as a "+").
-        painter.FillRect ((float) (btnRight - sysBtnW), (float) btnTop,
-                          (float) sysBtnW, (float) btnH,
-                          theme.sysButtonIdle);
-        hr = text.DrawString (s_kpszMultiplyX,
-                              (float) (btnRight - sysBtnW),
-                              (float) btnTop,
-                              (float) sysBtnW,
-                              (float) btnH,
-                              theme.titleText,
-                              captionDip,
-                              DxuiTheme::kBodyFace,
-                              DxuiTextRenderer::HAlign::Center,
-                              DxuiTextRenderer::VAlign::Center);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        menuVisual.dpi = effectiveDpi;
 
-        btnMaxRight = btnRight - sysBtnW - sysBtnGap;
-        painter.FillRect ((float) (btnMaxRight - sysBtnW), (float) btnTop,
-                          (float) sysBtnW, (float) btnH, theme.sysButtonIdle);
-        painter.OutlineRect ((float) (btnMaxRight - sysBtnW + ScalePx (12)),
-                             (float) (btnTop + ScalePx (10)),
-                             (float) (sysBtnW - ScalePx (24)),
-                             (float) (btnH - ScalePx (20)),
-                             1.0f, theme.titleText);
-
-        btnMinRight = btnMaxRight - sysBtnW - sysBtnGap;
-        painter.FillRect ((float) (btnMinRight - sysBtnW), (float) btnTop,
-                          (float) sysBtnW, (float) btnH, theme.sysButtonIdle);
-        painter.FillRect ((float) (btnMinRight - sysBtnW + ScalePx (12)),
-                          (float) (btnTop + btnH / 2),
-                          (float) (sysBtnW - ScalePx (24)), 1.0f,
-                          theme.titleText);
-    }
-
-    // Nav strip.
-    {
-        int    navTop = prevRect.top + titleH;
-        float  navDip = (float) kPrevNavFontDp * scale;
-
-        painter.FillRect ((float) prevRect.left, (float) navTop,
-                          (float) prevW, (float) navH,
-                          theme.navStrip);
-        hr = text.DrawString (L"File   Edit   Machine   Disk   View   Help",
-                              (float) (prevRect.left + ScalePx (12)),
-                              (float) navTop,
-                              (float) (prevW - ScalePx (24)),
-                              (float) navH,
-                              theme.navItemText,
-                              navDip,
-                              DxuiTheme::kBodyFace,
-                              DxuiTextRenderer::HAlign::Left,
-                              DxuiTextRenderer::VAlign::Center);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        previewMenu.SetTextRendererForMeasure (&text);
+        previewMenu.Layout                    (navPx, chromeScaler);
+        previewMenu.PaintStrip                (painter, text, menuVisual, theme);
     }
 
     // Screen area: live emulator framebuffer, aspect-fit.
@@ -797,7 +724,7 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
 
         hasDisk = m_hasDiskSource ? m_hasDiskSource() : true;
 
-        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_previewDrives, m_previewJoystickButton, m_crtMonitorCheckbox.Checked(), m_sceneRequest);
+        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_previewDrives, m_previewJoystickButton, m_previewCaption, m_previewMenu, m_crtMonitorCheckbox.Checked(), m_sceneRequest);
 
         // The 3D pass runs after the whole panel tree, so it would otherwise
         // land on top of the menu about to be painted below. An in-window

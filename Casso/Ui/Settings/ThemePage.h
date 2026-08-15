@@ -6,6 +6,8 @@
 #include "../Chrome/ChromeMetrics.h"
 #include "../Chrome/DriveWidget.h"
 #include "../Chrome/JoystickToggleButton.h"
+#include "../Chrome/MainMenu.h"
+#include "Window/DxuiCaptionBar.h"
 #include "../IDriveCommandSink.h"
 #include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiButton.h"
@@ -111,13 +113,12 @@ private:
     static constexpr int  kPrevDriveBarFullDp  = 225;
     static constexpr int  kPrevDriveBarCmptDp  = 105;
     static constexpr int  kPrevJoystickBandDp  = 43;
-    static constexpr int  kPrevSysButtonWDp    = 46;
-    static constexpr int  kPrevSysButtonGapDp  = 1;
-    static constexpr int  kPrevCaptionFontDp   = 14;
-    static constexpr int  kPrevNavFontDp       = 13;
+    // No system-button or caption/menu font metrics here any more: the real
+    // DxuiCaptionBar and MainMenu carry their own, and a second set of
+    // numbers describing the same chrome is precisely how the mock drifted
+    // out of step with it.
 
     static RECT      MakeRect (int l, int t, int w, int h);
-    static uint32_t  LerpArgb (uint32_t a, uint32_t b, float t);
 
 
     // Computes the actual preview rect inside availRect that matches
@@ -188,6 +189,8 @@ private:
                                      const std::function<WriteProtectInfo (int)>          & writeProtectSource,
                                      std::array<DriveWidget, 2>           & previewDrives,
                                      JoystickToggleButton                 & previewButton,
+                                     DxuiCaptionBar                       & previewCaption,
+                                     MainMenu                             & previewMenu,
                                      bool                                   crtMonitor,
                                      PreviewSceneRequest                  & outScene);
 
@@ -222,6 +225,13 @@ private:
     // theme preview also shows the lit blue LED in the band above the
     // drive widgets, mirroring the live chrome.
     mutable JoystickToggleButton        m_previewJoystickButton;
+
+    // The app's OWN caption bar and menu, instanced for the preview rather
+    // than redrawn by hand. Neither is adopted or wired to anything -- they
+    // are laid out and painted, nothing more -- so the mock cannot drift out
+    // of step with the chrome it is advertising.
+    mutable DxuiCaptionBar              m_previewCaption;
+    mutable MainMenu                    m_previewMenu;
 
     // Refreshed every paint, read by the sheet right afterward.
     mutable PreviewSceneRequest         m_sceneRequest;
