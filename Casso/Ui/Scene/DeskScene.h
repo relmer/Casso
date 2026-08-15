@@ -193,6 +193,21 @@ public:
     // needs to clear the tube -- and any real gap above the picture casts
     // the mask's silhouette inward over it along grazing corner rays,
     // eating the picture's corners as small dark divets.
+    // The sheen: the room reflected in the faceplate. Curvature is a depth
+    // change, and at arm's length a couple of centimeters of sag is a two
+    // percent change in distance -- invisible. What actually says "curved"
+    // in a photograph of a CRT is the reflection sliding across the glass,
+    // so the geometry gets a highlight to bend.
+    //
+    // Direction is a stand-in for a ceiling fixture up and to the left; the
+    // exponent sets how tight the hot spot is, the strength how much of the
+    // picture it is allowed to wash out.
+    static constexpr float  kSheenLight[3]   = { -0.45f, -0.62f, 0.64f };
+    static constexpr float  kSheenEyeMm      = 900.0f;
+    static constexpr float  kSheenExponent   = 5.0f;
+    static constexpr float  kSheenStrength   = 0.15f;
+    static constexpr float  kSheenLiftMm     = 0.52f;
+
     static constexpr float  kMaskPadMm       = 4.0f;
     static constexpr float  kMaskRadiusMm    = 10.0f;
     static constexpr float  kMaskLiftMm      = 0.48f;
@@ -208,6 +223,7 @@ public:
 private:
     void     RebuildGlassUvs  (const CrtUvRect & displayUv, int displayW, int displayH);
     void     RebuildLampVerts ();
+    void     BuildGlassSheen  (const CurvedDisplaySurface & surface);
     HRESULT  DrawDrives       (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
     HRESULT  DrawLampGlows    (const DeskSceneComposition & comp,
                                const D3D11_VIEWPORT       & viewport,
@@ -245,6 +261,7 @@ private:
     std::vector<Dxui3DRenderer::Vertex>   m_glassVerts;         // the tube: dark, untextured
     std::vector<Dxui3DRenderer::Vertex>   m_pictureVerts;       // band-exact curved grid, textured
     std::vector<Dxui3DRenderer::Vertex>   m_maskVerts;          // rounded-corner tube mask ring
+    std::vector<Dxui3DRenderer::Vertex>   m_sheenVerts;         // the room, reflected in the glass
     CrtUvRect                             m_glassUv;
     bool                                  m_glassUvDirty    = true;
 

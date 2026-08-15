@@ -83,15 +83,24 @@ CORNER_ANG   = 0.03               # radians per segment where those radii live
 # ------------------------------------------------------------ the faceplate
 #
 # CRT patents quote faceplate curvature against a reference radius
-# R = 1.767 x the screen diagonal, with real tubes landing between 1.2R
-# (deeply curved) and 8R (the late flat-square sets). A 1983 monochrome tube
-# belongs at the curved end of that range -- this one sits right on it.
+# R = 1.767 x the screen diagonal, with real tubes landing between 1.2R and
+# 8R (the late flat-square sets).
+#
+# This one sits just BELOW that range, and from measurement rather than
+# taste. A tube's mask edge lies on the sphere, so each edge's midpoint
+# stands forward of its own corners and perspective magnifies it outward:
+# a curved faceplate photographs with bowed edges, a flat one does not.
+# Measured off a photo of the real unit, the top edge bows 20.9 px on a
+# 706 px chord, which at the shot's ~300 mm camera distance works out to
+# about 21 mm of corner sag -- R near 0.96 of the reference. That the answer
+# lands outside the patents' range is consistent, not contradictory: those
+# describe the flat-square generation, and this tube predates it.
 #
 # Note this is NOT the tube's depth: how far back the funnel and neck run is
 # set by the deflection angle (about 90 degrees in this class), a separate
 # parameter entirely. Tying the face's radius to the cabinet's depth would
 # give a dome, not a screen.
-FACE_R = 1.20 * 1.767 * DIAG_MM
+FACE_R = 0.96 * 1.767 * DIAG_MM
 
 # The reveal is sized from the power notch outward: a 1-inch notch with a
 # quarter-inch margin to each side, 1.5 inches of reveal in all. The strip

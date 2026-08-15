@@ -447,7 +447,122 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
     }
 
     m_glassUv      = displayUv;
+    BuildGlassSheen (surface);
+
     m_glassUvDirty = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::BuildGlassSheen
+//
+//  The room, reflected in the faceplate. Without it the tube's curvature is
+//  invisible: sag is a DEPTH change, and a couple of centimeters of it at
+//  arm's length is a two percent change in distance the eye cannot read. In
+//  a photograph of a real CRT the curvature is carried almost entirely by
+//  the reflection sliding across the glass, so the shape needs a highlight
+//  to bend before it can be seen bending.
+//
+//  A Blinn half-vector term over the sphere's own normals, premultiplied and
+//  drawn translucent over the picture. It rides the same surface the picture
+//  does, so it tracks any change to the radius for free.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::BuildGlassSheen (const CurvedDisplaySurface & surface)
+{
+    float   cx     = (surface.x0 + surface.x1) * 0.5f;
+    float   cz     = (surface.z0 + surface.z1) * 0.5f;
+    float   apexY  = surface.baseY - CurvedDisplayMath::MaxSag (surface);
+    float   ctr[3] = { cx, apexY + surface.radius, cz };
+    float   eye[3] = { cx, apexY - kSheenEyeMm, cz };
+    float   ll     = std::sqrt (kSheenLight[0] * kSheenLight[0] +
+                                kSheenLight[1] * kSheenLight[1] +
+                                kSheenLight[2] * kSheenLight[2]);
+
+
+
+    m_sheenVerts.clear();
+
+    if (surface.radius <= 0.0f || ll <= 0.0f)
+    {
+        return;
+    }
+
+    auto  vertexAt = [&] (int col, int row) -> Dxui3DRenderer::Vertex
+    {
+        Dxui3DRenderer::Vertex   v     = {};
+        float                    pt[3] = {};
+        float                    n[3]  = {};
+        float                    h[3]  = {};
+        float                    nl    = 0.0f;
+        float                    hl    = 0.0f;
+        float                    spec  = 0.0f;
+
+        CurvedDisplayMath::ModelPointFromUv (surface,
+                                             (float) col / (float) kPictureGridCols,
+                                             (float) row / (float) kPictureGridRows, pt);
+
+        // Outward normal: away from the sphere's center, which sits one
+        // radius behind the apex.
+        for (int i = 0; i < 3; i++)
+        {
+            n[i] = pt[i] - ctr[i];
+        }
+
+        nl = std::sqrt (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+
+        if (nl > 0.0f)
+        {
+            float  toEye[3] = { eye[0] - pt[0], eye[1] - pt[1], eye[2] - pt[2] };
+            float  el       = std::sqrt (toEye[0] * toEye[0] + toEye[1] * toEye[1] +
+                                         toEye[2] * toEye[2]);
+
+            if (el > 0.0f)
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    h[i] = toEye[i] / el + kSheenLight[i] / ll;
+                }
+
+                hl = std::sqrt (h[0] * h[0] + h[1] * h[1] + h[2] * h[2]);
+            }
+
+            if (hl > 0.0f)
+            {
+                float  d = (n[0] * h[0] + n[1] * h[1] + n[2] * h[2]) / (nl * hl);
+
+                spec = (d > 0.0f) ? std::pow (d, kSheenExponent) * kSheenStrength : 0.0f;
+            }
+        }
+
+        v.x = pt[0];
+        v.y = pt[1] - kSheenLiftMm;
+        v.z = pt[2];
+        v.r = v.g = v.b = spec;      // premultiplied: white light at alpha
+        v.a = spec;
+
+        return v;
+    };
+
+    m_sheenVerts.reserve ((size_t) kPictureGridCols * kPictureGridRows * 6);
+
+    for (int row = 0; row < kPictureGridRows; row++)
+    {
+        for (int col = 0; col < kPictureGridCols; col++)
+        {
+            m_sheenVerts.push_back (vertexAt (col,     row));
+            m_sheenVerts.push_back (vertexAt (col + 1, row));
+            m_sheenVerts.push_back (vertexAt (col + 1, row + 1));
+            m_sheenVerts.push_back (vertexAt (col,     row));
+            m_sheenVerts.push_back (vertexAt (col + 1, row + 1));
+            m_sheenVerts.push_back (vertexAt (col,     row + 1));
+        }
+    }
 }
 
 
@@ -1086,6 +1201,17 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
     {
         hr = m_renderer.DrawTriangles (m_maskVerts.data(), m_maskVerts.size(),
                                        mvp, false, viewport, true);
+        CHRA (hr);
+    }
+
+    // The reflection goes on last of the tube's layers and over the mask,
+    // because a real faceplate reflects the room across its whole face, dark
+    // border included. Depth tested but not written: it is light, and the
+    // bezel in front of it must still win.
+    if (!m_sheenVerts.empty())
+    {
+        hr = m_renderer.DrawTriangles (m_sheenVerts.data(), m_sheenVerts.size(),
+                                       mvp, false, viewport, true, false);
         CHRA (hr);
     }
 
