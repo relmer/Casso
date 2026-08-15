@@ -9866,6 +9866,16 @@ void EmulatorShell::UpdateWindowTitle()
         title += wideName;
     }
 
+#if defined (_DEBUG)
+    // Say it outright. The build-identity stamp below appears on debug builds
+    // ONLY, so its presence was already the signal -- but that is a fact about
+    // the code, not something a caption reading "v1.17.0 x64 (...)" conveys to
+    // anyone looking at it. A debug build is ~6x the CPU of a release one for
+    // identical work, so mistaking one for the other sends you measuring the
+    // wrong binary.
+    title += L" [Debug]";
+#endif
+
     // Flag a paused / stopped emulator in every build -- those states are worth
     // surfacing because the window looks the same either way. Running is the
     // expected state and gets no tag at all, so the caption stays a clean
