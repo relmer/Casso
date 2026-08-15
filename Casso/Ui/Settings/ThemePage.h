@@ -191,6 +191,7 @@ private:
                                      JoystickToggleButton                 & previewButton,
                                      DxuiCaptionBar                       & previewCaption,
                                      MainMenu                             & previewMenu,
+                                     bool                                 & chromeConfigured,
                                      bool                                   crtMonitor,
                                      PreviewSceneRequest                  & outScene);
 
@@ -232,6 +233,7 @@ private:
     // of step with the chrome it is advertising.
     mutable DxuiCaptionBar              m_previewCaption;
     mutable MainMenu                    m_previewMenu;
+    mutable bool                        m_previewChromeConfigured = false;
 
     // Refreshed every paint, read by the sheet right afterward.
     mutable PreviewSceneRequest         m_sceneRequest;

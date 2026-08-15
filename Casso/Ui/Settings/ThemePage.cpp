@@ -80,6 +80,7 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
                                    JoystickToggleButton                 & previewButton,
                                    DxuiCaptionBar                       & previewCaption,
                                    MainMenu                             & previewMenu,
+                                   bool                                 & chromeConfigured,
                                    bool                                   crtMonitor,
                                    PreviewSceneRequest                  & outScene)
 {
@@ -152,11 +153,20 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         captionDip.right  = (int) ((float) prevRect.right / scale);
         captionDip.bottom = captionDip.top + kPrevTitleBarDp;
 
-        previewCaption.ConfigureButtons (DxuiCaptionBar::Buttons::MinMaxClose);
-        previewCaption.SetTitle         (L"Casso emulator");
-        previewCaption.SetMaximized     (false);
-        previewCaption.Layout           (captionDip, chromeScaler);
-        previewCaption.Paint            (painter, text, theme);
+        // Configured ONCE. ConfigureButtons builds fresh button objects and
+        // adopts them, so calling it every paint churned the caption's child
+        // list -- and the panel's pointers to the previous, now-destroyed
+        // buttons went with it. Layout walked one and took the process down.
+        if (!chromeConfigured)
+        {
+            previewCaption.ConfigureButtons (DxuiCaptionBar::Buttons::MinMaxClose);
+            previewCaption.SetTitle         (L"Casso emulator");
+            previewCaption.SetMaximized     (false);
+            chromeConfigured = true;
+        }
+
+        previewCaption.Layout (captionDip, chromeScaler);
+        previewCaption.Paint  (painter, text, theme);
 
         // The menu bar is the other convention: PIXEL bounds, with the dpi
         // sizing the glyphs and row. Give it the text renderer or it measures
@@ -724,7 +734,7 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
 
         hasDisk = m_hasDiskSource ? m_hasDiskSource() : true;
 
-        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_previewDrives, m_previewJoystickButton, m_previewCaption, m_previewMenu, m_crtMonitorCheckbox.Checked(), m_sceneRequest);
+        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_previewDrives, m_previewJoystickButton, m_previewCaption, m_previewMenu, m_previewChromeConfigured, m_crtMonitorCheckbox.Checked(), m_sceneRequest);
 
         // The 3D pass runs after the whole panel tree, so it would otherwise
         // land on top of the menu about to be painted below. An in-window
