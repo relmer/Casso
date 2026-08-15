@@ -163,11 +163,16 @@ private:
     // Aspect-fits the emulator content into `contentRect`, caches the
     // resulting on-screen rect, and runs the CRT post-process pass into
     // `dstRtv`. Timed as "D3DRenderer.CrtPostProcess".
-    HRESULT RenderCrtFrame (ID3D11RenderTargetView * dstRtv, const RECT & contentRect);
+    // targetW/H are the render target's own size, which is NOT always the back
+    // buffer's: the desk scene's chain runs at the picture's size.
+    HRESULT RenderCrtFrame (ID3D11RenderTargetView * dstRtv,
+                            const RECT             & contentRect,
+                            int                      targetW,
+                            int                      targetH);
 
-    // Creates (or resizes) the offscreen scene-content target to the
-    // current logical back-buffer size.
-    HRESULT EnsureSceneContentTarget ();
+    // Creates (or resizes) the offscreen scene-content target. Sized to the
+    // PICTURE, not the window -- see UploadAndCompositeOffscreen.
+    HRESULT EnsureSceneContentTarget (int width, int height);
 
     ComPtr<ID3D11Device>             m_device;
     ComPtr<ID3D11DeviceContext>      m_context;

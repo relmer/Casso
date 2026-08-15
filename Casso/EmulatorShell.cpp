@@ -1138,13 +1138,14 @@ HRESULT EmulatorShell::InitializeRenderer()
 
             if (SUCCEEDED (hrComposite))
             {
-                // The chain aspect-fits within pictureRect; recompute the
-                // same fit so the sampled subrect matches it exactly.
+                // The chain aspect-fits within pictureRect; recompute the same
+                // fit so the sampled subrect matches it exactly. The texture
+                // IS pictureRect now, so this is very nearly the whole of it
+                // -- only a rounding row or column of letterbox survives.
                 RECT                       fitted     = ComputeAspectFitRectInRect (pictureRect,
                                                             kFramebufferWidth, kFramebufferHeight);
                 CrtUvRect                  uv         = ComputeUvRectForFit (fitted,
-                                                            m_d3dRenderer.GetBackBufferWidth(),
-                                                            m_d3dRenderer.GetBackBufferHeight());
+                                                            pictureW, pictureH);
                 ID3D11ShaderResourceView * displaySrv = m_d3dRenderer.GetSceneContentSrv();
 
                 // Calibration mode: swap in the stripe pattern so the glass

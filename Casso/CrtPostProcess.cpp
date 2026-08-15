@@ -848,8 +848,9 @@ HRESULT CrtPostProcess::Process (
     int                         backBufferW,
     int                         backBufferH)
 {
-    HRESULT  hr   = S_OK;
-    int      cur  = 0;
+    HRESULT    hr    = S_OK;
+    int        cur   = 0;
+    CrtParams  local = params;
 
 
 
@@ -861,7 +862,15 @@ HRESULT CrtPostProcess::Process (
     hr = EnsureSize (backBufferW, backBufferH);
     CHRA (hr);
 
-    hr = UploadConstants (params);
+    // outputW/H describe THIS target, not the window. The blur kernels step
+    // by one of its texels, so a caller that measured the back buffer while
+    // the chain runs at picture size would blur by a fifth of the distance it
+    // meant to. The chain is the only thing that knows what it is drawing
+    // into, so it settles the question here rather than trusting the caller.
+    local.outputW = (backBufferW > 0) ? (float) backBufferW : 1.0f;
+    local.outputH = (backBufferH > 0) ? (float) backBufferH : 1.0f;
+
+    hr = UploadConstants (local);
     CHRA (hr);
 
     // Brightness pass: srcEmulator -> ppMain[0], in the letterboxed

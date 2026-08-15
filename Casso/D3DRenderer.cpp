@@ -450,7 +450,7 @@ HRESULT D3DRenderer::UploadAndComposite (ID3D11RenderTargetView * dstRtv, const 
         contentRect.bottom = m_backBufferH;
     }
 
-    hr = RenderCrtFrame (dstRtv, contentRect);
+    hr = RenderCrtFrame (dstRtv, contentRect, m_backBufferW, m_backBufferH);
     CHRA (hr);
 
     m_redrawForced        = false;
@@ -484,6 +484,12 @@ Error:
 //  and the letterbox margins around the fitted rect must read as black glass
 //  rather than stale frames.
 //
+//  The target is exactly the PICTURE's size, not the window's. It used to be
+//  window-sized with the picture in one corner, which meant all nine of the
+//  chain's passes swept the whole window to produce an image occupying about
+//  a twentieth of it -- measured at 93% of the process's entire GPU cost, and
+//  essentially all of it spent filtering black pixels the glass never samples.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT D3DRenderer::UploadAndCompositeOffscreen (const uint32_t * framebuffer, const RECT & pictureRect)
@@ -493,14 +499,17 @@ HRESULT D3DRenderer::UploadAndCompositeOffscreen (const uint32_t * framebuffer, 
     D3D11_MAPPED_SUBRESOURCE   mapped   = {};
     const uint32_t           * src      = nullptr;
     Byte                     * dst      = nullptr;
+    int                        pictureW = (int) (pictureRect.right  - pictureRect.left);
+    int                        pictureH = (int) (pictureRect.bottom - pictureRect.top);
 
 
 
     BAIL_OUT_IF (m_context == nullptr,                     S_OK);
     BAIL_OUT_IF (m_deviceRemoved,                          S_OK);
     BAIL_OUT_IF (m_backBufferW <= 0 || m_backBufferH <= 0, S_OK);
+    BAIL_OUT_IF (pictureW <= 0 || pictureH <= 0,           S_OK);
 
-    hr = EnsureSceneContentTarget();
+    hr = EnsureSceneContentTarget (pictureW, pictureH);
     CHRA (hr);
 
     m_context->ClearRenderTargetView (m_sceneRtv.Get(), black);
@@ -523,7 +532,7 @@ HRESULT D3DRenderer::UploadAndCompositeOffscreen (const uint32_t * framebuffer, 
         m_context->Unmap (m_texture.Get(), 0);
     }
 
-    hr = RenderCrtFrame (m_sceneRtv.Get(), pictureRect);
+    hr = RenderCrtFrame (m_sceneRtv.Get(), pictureRect, pictureW, pictureH);
     CHRA (hr);
 
     m_redrawForced        = false;
@@ -550,27 +559,29 @@ Error:
 //
 //  EnsureSceneContentTarget
 //
-//  Sized to the logical back buffer, like the CRT chain's ping-pong targets,
-//  so the chain's viewport arithmetic is identical on both output paths; the
-//  scene samples only the fitted subrect via ComputeUvRectForFit.
+//  Sized to the PICTURE, so the chain's passes cover exactly the pixels the
+//  glass will sample and the scene's UVs span the whole texture. See
+//  UploadAndCompositeOffscreen for what a window-sized target cost.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT D3DRenderer::EnsureSceneContentTarget()
+HRESULT D3DRenderer::EnsureSceneContentTarget (int width, int height)
 {
     HRESULT               hr   = S_OK;
     D3D11_TEXTURE2D_DESC  desc = {};
 
 
 
-    BAIL_OUT_IF (m_sceneTex != nullptr && m_sceneTexW == m_backBufferW && m_sceneTexH == m_backBufferH, S_OK);
+    CBRAEx (width > 0 && height > 0, E_INVALIDARG);
+
+    BAIL_OUT_IF (m_sceneTex != nullptr && m_sceneTexW == width && m_sceneTexH == height, S_OK);
 
     m_sceneTex.Reset();
     m_sceneRtv.Reset();
     m_sceneSrv.Reset();
 
-    desc.Width            = (UINT) m_backBufferW;
-    desc.Height           = (UINT) m_backBufferH;
+    desc.Width            = (UINT) width;
+    desc.Height           = (UINT) height;
     desc.MipLevels        = 1;
     desc.ArraySize        = 1;
     desc.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -587,8 +598,8 @@ HRESULT D3DRenderer::EnsureSceneContentTarget()
     hr = m_device->CreateShaderResourceView (m_sceneTex.Get(), nullptr, m_sceneSrv.GetAddressOf());
     CHRA (hr);
 
-    m_sceneTexW = m_backBufferW;
-    m_sceneTexH = m_backBufferH;
+    m_sceneTexW = width;
+    m_sceneTexH = height;
 
 Error:
     return hr;
@@ -609,7 +620,10 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT D3DRenderer::RenderCrtFrame (ID3D11RenderTargetView * dstRtv, const RECT & contentRect)
+HRESULT D3DRenderer::RenderCrtFrame (ID3D11RenderTargetView * dstRtv,
+                                     const RECT             & contentRect,
+                                     int                      targetW,
+                                     int                      targetH)
 {
     HRESULT          hr         = S_OK;
     RECT             fittedRect = {};
@@ -617,7 +631,7 @@ HRESULT D3DRenderer::RenderCrtFrame (ID3D11RenderTargetView * dstRtv, const RECT
 
 
 
-    if (m_texWidth > 0 && m_texHeight > 0 && m_backBufferW > 0 && m_backBufferH > 0)
+    if (m_texWidth > 0 && m_texHeight > 0 && targetW > 0 && targetH > 0)
     {
         fittedRect = ComputeAspectFitRectInRect (contentRect, m_texWidth, m_texHeight);
     }
@@ -628,8 +642,8 @@ HRESULT D3DRenderer::RenderCrtFrame (ID3D11RenderTargetView * dstRtv, const RECT
                             dstRtv,
                             m_crtParams,
                             fittedRect,
-                            m_backBufferW,
-                            m_backBufferH);
+                            targetW,
+                            targetH);
     CHRA (hr);
 
 Error:
