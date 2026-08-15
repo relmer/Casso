@@ -337,6 +337,35 @@ private:
     // Door assemblies, rotated copies of the model's cached door verts;
     // progress -1 forces the first build.
     std::vector<Dxui3DRenderer::Vertex>   m_driveDoorVerts[2];
+
+    // GPU-resident copies of every array that is NOT rebuilt per frame, which
+    // is all of them but the doors. Re-uploading the lot each frame made the
+    // renderer's DrawTriangles the most expensive call in the process (15% of
+    // CPU samples, 90% of all memcpy time) to push 2.8 MB of furniture that
+    // had not moved.
+    //
+    // ONE revision covers all of them: rebuilds are rare (a model load, a
+    // resize, a lamp changing state), so re-uploading everything when any of
+    // it changes costs nothing measurable -- and it makes the failure mode
+    // impossible to hit by forgetting a per-array bump. Every rebuild path
+    // ends in TouchGeometry().
+    Dxui3DRenderer::StaticMesh            m_monitorOpaqueMesh[2];   // by lamp state
+    Dxui3DRenderer::StaticMesh            m_driveOpaqueMesh[2];     // by activity
+    Dxui3DRenderer::StaticMesh            m_padlockMesh;
+    Dxui3DRenderer::StaticMesh            m_labelMesh[2];
+    Dxui3DRenderer::StaticMesh            m_monitorShadowMesh;
+    Dxui3DRenderer::StaticMesh            m_driveShadowMesh;
+    Dxui3DRenderer::StaticMesh            m_monitorGlowMesh;
+    Dxui3DRenderer::StaticMesh            m_driveGlowMesh;
+    Dxui3DRenderer::StaticMesh            m_glassMesh;
+    Dxui3DRenderer::StaticMesh            m_pictureMesh;
+    Dxui3DRenderer::StaticMesh            m_maskMesh;
+    Dxui3DRenderer::StaticMesh            m_sheenMesh;
+    Dxui3DRenderer::StaticMesh            m_monitorLampMesh;
+    Dxui3DRenderer::StaticMesh            m_driveLampMesh[2];
+    uint32_t                              m_geometryRev = 1;
+
+    void  TouchGeometry () { m_geometryRev++; }
     float                                 m_doorProgress[2] = { -1.0f, -1.0f };
     bool                                  m_driveWp[2]      = {};
 };

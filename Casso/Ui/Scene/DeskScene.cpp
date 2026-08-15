@@ -153,6 +153,8 @@ void DeskScene::BuildDerivedGeometry()
     m_modelsLoaded = true;
     m_glassUvDirty = true;
     m_lampsDirty   = true;
+
+    TouchGeometry();
 }
 
 
@@ -519,6 +521,8 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
     BuildGlassSheen (surface);
 
     m_glassUvDirty = false;
+
+    TouchGeometry();
 }
 
 
@@ -677,9 +681,10 @@ HRESULT DeskScene::DrawDrives (const DeskSceneComposition & comp, const D3D11_VI
     {
         SceneCamera::Mul44 (comp.driveWorld[drive], comp.viewProj, mvp);
 
-        hr = m_renderer.DrawTriangles (m_drive.OpaqueVerts (m_driveActive[drive]).data(),
-                                       m_drive.OpaqueVerts (m_driveActive[drive]).size(),
-                                       mvp, false, viewport, true);
+        hr = m_renderer.DrawStatic (m_driveOpaqueMesh[m_driveActive[drive] ? 1 : 0],
+                                    m_drive.OpaqueVerts (m_driveActive[drive]).data(),
+                                    m_drive.OpaqueVerts (m_driveActive[drive]).size(),
+                                    m_geometryRev, mvp, false, viewport, true);
         CHRA (hr);
 
         // Door assembly: a rotated copy of the model's cached verts, rebuilt
@@ -704,21 +709,21 @@ HRESULT DeskScene::DrawDrives (const DeskSceneComposition & comp, const D3D11_VI
 
         if (m_driveWp[drive] && !m_drive.PadlockVerts().empty())
         {
-            hr = m_renderer.DrawTriangles (m_drive.PadlockVerts().data(), m_drive.PadlockVerts().size(),
+            hr = m_renderer.DrawStatic (m_padlockMesh, m_drive.PadlockVerts().data(), m_drive.PadlockVerts().size(), m_geometryRev,
                                            mvp, false, viewport, true);
             CHRA (hr);
         }
 
         if (!m_driveLabelVerts[drive].empty())
         {
-            hr = m_renderer.DrawTriangles (m_driveLabelVerts[drive].data(), m_driveLabelVerts[drive].size(),
+            hr = m_renderer.DrawStatic (m_labelMesh[drive], m_driveLabelVerts[drive].data(), m_driveLabelVerts[drive].size(), m_geometryRev,
                                            mvp, false, viewport, true);
             CHRA (hr);
         }
 
         if (!m_driveLampVerts[drive].empty())
         {
-            hr = m_renderer.DrawTriangles (m_driveLampVerts[drive].data(), m_driveLampVerts[drive].size(),
+            hr = m_renderer.DrawStatic (m_driveLampMesh[drive], m_driveLampVerts[drive].data(), m_driveLampVerts[drive].size(), m_geometryRev,
                                            mvp, false, viewport, true);
             CHRA (hr);
         }
@@ -988,7 +993,7 @@ HRESULT DeskScene::DrawShadows (const DeskSceneComposition & comp,
     {
         SceneCamera::Mul44 (comp.monitorWorld, comp.viewProj, mvp);
 
-        hr = m_renderer.DrawTriangles (m_monitorShadowVerts.data(), m_monitorShadowVerts.size(),
+        hr = m_renderer.DrawStatic (m_monitorShadowMesh, m_monitorShadowVerts.data(), m_monitorShadowVerts.size(), m_geometryRev,
                                        mvp, false, viewport, false);
         CHRA (hr);
     }
@@ -997,7 +1002,7 @@ HRESULT DeskScene::DrawShadows (const DeskSceneComposition & comp,
     {
         SceneCamera::Mul44 (comp.driveWorld[drive], comp.viewProj, mvp);
 
-        hr = m_renderer.DrawTriangles (m_driveShadowVerts.data(), m_driveShadowVerts.size(),
+        hr = m_renderer.DrawStatic (m_driveShadowMesh, m_driveShadowVerts.data(), m_driveShadowVerts.size(), m_geometryRev,
                                        mvp, false, viewport, false);
         CHRA (hr);
     }
@@ -1035,7 +1040,7 @@ HRESULT DeskScene::DrawLampGlows (const DeskSceneComposition & comp,
     {
         SceneCamera::Mul44 (comp.monitorWorld, comp.viewProj, mvp);
 
-        hr = m_renderer.DrawTriangles (m_monitorGlowVerts.data(), m_monitorGlowVerts.size(),
+        hr = m_renderer.DrawStatic (m_monitorGlowMesh, m_monitorGlowVerts.data(), m_monitorGlowVerts.size(), m_geometryRev,
                                        mvp, false, viewport, true, false);
         CHRA (hr);
     }
@@ -1049,7 +1054,7 @@ HRESULT DeskScene::DrawLampGlows (const DeskSceneComposition & comp,
 
         SceneCamera::Mul44 (comp.driveWorld[drive], comp.viewProj, mvp);
 
-        hr = m_renderer.DrawTriangles (m_driveGlowVerts.data(), m_driveGlowVerts.size(),
+        hr = m_renderer.DrawStatic (m_driveGlowMesh, m_driveGlowVerts.data(), m_driveGlowVerts.size(), m_geometryRev,
                                        mvp, false, viewport, true, false);
         CHRA (hr);
     }
@@ -1126,6 +1131,8 @@ void DeskScene::RebuildLampVerts()
     TintInto (m_drive.LampVerts(),   m_driveActive[1] ? 1.0f : kLampOffDim, m_driveLampVerts[1]);
 
     m_lampsDirty = false;
+
+    TouchGeometry();
 }
 
 
@@ -1262,9 +1269,10 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
     // Opaque bodies: monitor, then each placed drive.
     SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, mvp);
 
-    hr = m_renderer.DrawTriangles (m_monitor.OpaqueVerts (m_powerLampOn).data(),
-                                   m_monitor.OpaqueVerts (m_powerLampOn).size(),
-                                   mvp, false, viewport, true);
+    hr = m_renderer.DrawStatic (m_monitorOpaqueMesh[m_powerLampOn ? 1 : 0],
+                                m_monitor.OpaqueVerts (m_powerLampOn).data(),
+                                m_monitor.OpaqueVerts (m_powerLampOn).size(),
+                                m_geometryRev, mvp, false, viewport, true);
     CHRA (hr);
 
     hr = DrawDrives (m_comp, viewport);
@@ -1276,7 +1284,7 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
 
     if (!m_glassVerts.empty())
     {
-        hr = m_renderer.DrawTriangles (m_glassVerts.data(), m_glassVerts.size(),
+        hr = m_renderer.DrawStatic (m_glassMesh, m_glassVerts.data(), m_glassVerts.size(), m_geometryRev,
                                        mvp, false, viewport, true);
         CHRA (hr);
     }
@@ -1285,7 +1293,7 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
     {
         m_renderer.SetContentSrv (displaySrv);
 
-        hr = m_renderer.DrawTriangles (m_pictureVerts.data(), m_pictureVerts.size(),
+        hr = m_renderer.DrawStatic (m_pictureMesh, m_pictureVerts.data(), m_pictureVerts.size(), m_geometryRev,
                                        mvp, true, viewport, true);
 
         m_renderer.SetContentSrv (nullptr);
@@ -1294,7 +1302,7 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
 
     if (!m_maskVerts.empty())
     {
-        hr = m_renderer.DrawTriangles (m_maskVerts.data(), m_maskVerts.size(),
+        hr = m_renderer.DrawStatic (m_maskMesh, m_maskVerts.data(), m_maskVerts.size(), m_geometryRev,
                                        mvp, false, viewport, true);
         CHRA (hr);
     }
@@ -1305,14 +1313,14 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
     // bezel in front of it must still win.
     if (!m_sheenVerts.empty())
     {
-        hr = m_renderer.DrawTriangles (m_sheenVerts.data(), m_sheenVerts.size(),
+        hr = m_renderer.DrawStatic (m_sheenMesh, m_sheenVerts.data(), m_sheenVerts.size(), m_geometryRev,
                                        mvp, false, viewport, true, false);
         CHRA (hr);
     }
 
     if (!m_monitorLampVerts.empty())
     {
-        hr = m_renderer.DrawTriangles (m_monitorLampVerts.data(), m_monitorLampVerts.size(),
+        hr = m_renderer.DrawStatic (m_monitorLampMesh, m_monitorLampVerts.data(), m_monitorLampVerts.size(), m_geometryRev,
                                        mvp, false, viewport, true);
         CHRA (hr);
     }

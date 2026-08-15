@@ -129,7 +129,42 @@ public:
                             bool             depthTest  = false,
                             bool             depthWrite = true);
 
+    // A vertex array parked on the GPU between frames -- one per array, held
+    // by whoever owns the geometry. See DrawStatic.
+    struct StaticMesh
+    {
+        ComPtr<ID3D11Buffer>  buffer;
+        size_t                vertexCount = 0;
+        uint32_t              revision    = 0;
+    };
+
+    // DrawTriangles for geometry that does not change every frame, which in
+    // this scene is nearly all of it. `revision` is the caller's own counter,
+    // bumped whenever it rebuilds the array; the vertices are re-uploaded only
+    // when it moves, so a still frame costs no copying at all. Passing a
+    // revision that never changes for an array that does is the one way to get
+    // this wrong -- it draws stale geometry, silently.
+    HRESULT  DrawStatic (StaticMesh     & mesh,
+                         const Vertex   * verts,
+                         size_t           vertexCount,
+                         uint32_t         revision,
+                         const float      mvp[16],
+                         bool             textured,
+                         const D3D11_VIEWPORT & viewportPx,
+                         bool             depthTest  = false,
+                         bool             depthWrite = true);
+
 private:
+    // The tail both draw paths share, once the vertices are wherever they
+    // live: transform, full state set, Draw.
+    HRESULT  IssueDraw (ID3D11Buffer             * vertexBuffer,
+                        size_t                     vertexCount,
+                        const float                mvp[16],
+                        ID3D11ShaderResourceView * srv,
+                        const D3D11_VIEWPORT     & viewportPx,
+                        bool                       useDepth,
+                        ID3D11DepthStencilState  * depthState);
+
     HRESULT  CreateShaders      ();
     HRESULT  CreatePipelineState ();
     HRESULT  EnsureVertexBuffer (size_t requiredVerts);

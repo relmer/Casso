@@ -873,14 +873,11 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
                                        bool             depthTest,
                                        bool             depthWrite)
 {
-    HRESULT                     hr             = S_OK;
-    D3D11_MAPPED_SUBRESOURCE    mapped         = {};
-    UINT                        stride         = sizeof (Vertex);
-    UINT                        offset         = 0;
-    float                       blendFactor[4] = {};
-    ID3D11ShaderResourceView  * srv            = nullptr;
-    bool                        useDepth       = depthTest && m_depthDsv != nullptr;
-    ID3D11DepthStencilState   * depthState     = m_depthState.Get();
+    HRESULT                     hr         = S_OK;
+    D3D11_MAPPED_SUBRESOURCE    mapped     = {};
+    ID3D11ShaderResourceView  * srv        = nullptr;
+    bool                        useDepth   = depthTest && m_depthDsv != nullptr;
+    ID3D11DepthStencilState   * depthState = m_depthState.Get();
 
     CBREx (m_device != nullptr, E_UNEXPECTED);
     CBREx (verts != nullptr && vertexCount > 0 && (vertexCount % 3) == 0, E_INVALIDARG);
@@ -910,6 +907,129 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
     CHR (hr);
     memcpy (mapped.pData, verts, vertexCount * sizeof (Vertex));
     m_context->Unmap (m_vertexBuffer.Get(), 0);
+
+    hr = IssueDraw (m_vertexBuffer.Get(), vertexCount, mvp, srv, viewportPx, useDepth, depthState);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawStatic
+//
+//  The same draw, out of a buffer that lives on the GPU between frames.
+//
+//  Nearly all of the scene's geometry is furniture -- a case, a bezel, two
+//  drive bodies, the shadows they cast -- and it does not move from one frame
+//  to the next. Pushing it through the WRITE_DISCARD path anyway made this
+//  file's DrawTriangles the most expensive thing in the process: a CPU profile
+//  put 15% of the app's samples under it, and 90% of every sample that landed
+//  in memcpy or memset. The monitor alone is 1.3 MB of vertices per frame.
+//
+//  The caller keeps a StaticMesh per array and hands back a revision it bumps
+//  whenever it rebuilds. A revision that has not moved means the GPU's copy is
+//  still good, so the draw is just state plus Draw().
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dxui3DRenderer::DrawStatic (StaticMesh           & mesh,
+                                    const Vertex         * verts,
+                                    size_t                 vertexCount,
+                                    uint32_t               revision,
+                                    const float            mvp[16],
+                                    bool                   textured,
+                                    const D3D11_VIEWPORT & viewportPx,
+                                    bool                   depthTest,
+                                    bool                   depthWrite)
+{
+    HRESULT                    hr         = S_OK;
+    ID3D11ShaderResourceView * srv        = nullptr;
+    bool                       useDepth   = depthTest && m_depthDsv != nullptr;
+    ID3D11DepthStencilState  * depthState = m_depthState.Get();
+
+
+    CBREx (m_device != nullptr, E_UNEXPECTED);
+    CBREx (verts != nullptr && vertexCount > 0 && (vertexCount % 3) == 0, E_INVALIDARG);
+
+    if (useDepth)
+    {
+        depthState = depthWrite ? m_depthStateTest.Get() : m_depthStateReadOnly.Get();
+    }
+
+    if (textured && m_externalSrv != nullptr)
+    {
+        srv = m_externalSrv;
+    }
+    else
+    {
+        srv = (textured && m_contentSrv != nullptr) ? m_contentSrv.Get() : m_whiteSrv.Get();
+    }
+
+    // Immutable rather than default-plus-update: the contents are fixed for
+    // the life of the buffer by construction, and a revision change discards
+    // the whole thing anyway.
+    if (mesh.buffer == nullptr || mesh.revision != revision || mesh.vertexCount != vertexCount)
+    {
+        D3D11_BUFFER_DESC       desc = {};
+        D3D11_SUBRESOURCE_DATA  init = {};
+
+        mesh.buffer.Reset();
+
+        desc.ByteWidth = (UINT) (vertexCount * sizeof (Vertex));
+        desc.Usage     = D3D11_USAGE_IMMUTABLE;
+        desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+
+        init.pSysMem = verts;
+
+        hr = m_device->CreateBuffer (&desc, &init, mesh.buffer.GetAddressOf());
+        CHR (hr);
+
+        mesh.vertexCount = vertexCount;
+        mesh.revision    = revision;
+    }
+
+    hr = IssueDraw (mesh.buffer.Get(), vertexCount, mvp, srv, viewportPx, useDepth, depthState);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IssueDraw
+//
+//  Everything both draw paths share once the vertices are on the GPU: the
+//  transform, the full state set, and the draw itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
+                                   size_t                     vertexCount,
+                                   const float                mvp[16],
+                                   ID3D11ShaderResourceView * srv,
+                                   const D3D11_VIEWPORT     & viewportPx,
+                                   bool                       useDepth,
+                                   ID3D11DepthStencilState  * depthState)
+{
+    HRESULT                   hr             = S_OK;
+    D3D11_MAPPED_SUBRESOURCE  mapped         = {};
+    UINT                      stride         = sizeof (Vertex);
+    UINT                      offset         = 0;
+    float                     blendFactor[4] = {};
+
+
+    CBREx (vertexBuffer != nullptr, E_UNEXPECTED);
 
     hr = m_context->Map (m_mvpBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
     CHR (hr);
@@ -945,7 +1065,7 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
 
     m_context->IASetInputLayout       (m_layout.Get());
     m_context->IASetPrimitiveTopology (D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    m_context->IASetVertexBuffers     (0, 1, m_vertexBuffer.GetAddressOf(), &stride, &offset);
+    m_context->IASetVertexBuffers     (0, 1, &vertexBuffer, &stride, &offset);
 
     m_context->VSSetShader            (m_vs.Get(), nullptr, 0);
     m_context->VSSetConstantBuffers   (0, 1, m_mvpBuffer.GetAddressOf());
