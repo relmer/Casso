@@ -516,6 +516,8 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
     const float              * lampKd    = nullptr;
     float                      anchorLo  = FLT_MAX;
     float                      anchorHi  = -FLT_MAX;
+    float                      frontLo   = FLT_MAX;
+    float                      frontHi   = -FLT_MAX;
     bool                       lampFound = false;
     bool                       doorOk    = false;
 
@@ -567,15 +569,26 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
     {
         const ObjTriangle &  tri = triangles[t];
 
-        // Metadata first, and it never reaches a vertex buffer: the anchor
-        // exists to be measured, not seen. Its axis is the midpoint of its
-        // extent, so any marker shape at all names the same line.
+        // Metadata first, and it never reaches a vertex buffer: the anchors
+        // exist to be measured, not seen. Each names the midpoint of its own
+        // extent, so any marker shape at all names the same line or plane.
         if (ColorMatches (tri.r, tri.g, tri.b, kBrandAnchorKd))
         {
             for (const float * p : { tri.p0, tri.p1, tri.p2 })
             {
                 anchorLo = (std::min) (anchorLo, p[0]);
                 anchorHi = (std::max) (anchorHi, p[0]);
+            }
+
+            continue;
+        }
+
+        if (ColorMatches (tri.r, tri.g, tri.b, kFrontAnchorKd))
+        {
+            for (const float * p : { tri.p0, tri.p1, tri.p2 })
+            {
+                frontLo = (std::min) (frontLo, p[1]);
+                frontHi = (std::max) (frontHi, p[1]);
             }
 
             continue;
@@ -617,6 +630,11 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
     {
         m_brandAxisX = (anchorLo + anchorHi) * 0.5f;
     }
+
+    // No marker means no protruding front: the model's own frontmost point is
+    // its frame, which is true of every device that is a plain box.
+    m_frontPlaneY = (frontHi >= frontLo) ? (frontLo + frontHi) * 0.5f
+                                         : m_boundsMin[1];
 
     if (IsMonitorKind (kind))
     {

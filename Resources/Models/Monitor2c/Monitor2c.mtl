@@ -60,15 +60,20 @@ d 1
 
 newmtl mat_12
 Ka 0 0 0 
-Kd 0.05 0.09 0.07
+Kd 0.98 0.01 0.24
 d 1
 
 newmtl mat_13
 Ka 0 0 0 
-Kd 0.045 0.045 0.05
+Kd 0.05 0.09 0.07
 d 1
 
 newmtl mat_14
+Ka 0 0 0 
+Kd 0.045 0.045 0.05
+d 1
+
+newmtl mat_15
 Ka 0 0 0 
 Kd 0.29 0.87 0.38
 d 1

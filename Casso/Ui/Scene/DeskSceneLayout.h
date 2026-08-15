@@ -47,6 +47,14 @@ struct DeskSceneMetrics
     float                 driveMax[3]   = {};
     CurvedDisplaySurface  glass;                 // the monitor's surface
 
+    // Model y of each device's FRAME front -- the plane the stack lines up
+    // on. Separate from the mins because a protruding bezel or faceplate is
+    // not the frame: see DeskSceneModel::FrontPlaneY. Defaulting both to zero
+    // leaves synthetic test geometry stacked on the origin plane, which is
+    // what a plain box would report anyway.
+    float                 monitorFrontY = 0.0f;
+    float                 driveFrontY   = 0.0f;
+
     // Ground-plane clearance each device's contact shadow needs, in that
     // device's model mm (side, front-to-back). The containment solve counts
     // it as part of the scene: a shadow lies on the floor BEYOND its device

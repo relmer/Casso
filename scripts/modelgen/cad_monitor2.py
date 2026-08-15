@@ -353,6 +353,20 @@ m.add("brand_anchor",
         .translate((REVEAL_CX, D * 0.5, H * 0.5)),
       KD["brand_anchor"])
 
+# ------------------------------------------------------------ front anchor
+#
+# The FRAME's front plane, which the drives line up with. It is not the
+# model's frontmost point -- the bezel band stands PROTRUDE proud of the
+# case, and the tube's own bulge reaches a couple of millimeters past even
+# that -- and lining the drives up with the frontmost point marched them
+# most of an inch toward the viewer. Straddling the plane, so the midpoint
+# of the marker's depth names it whatever shape the marker is.
+m.add("front_anchor",
+      cq.Workplane("XY")
+        .box(0.4, 0.4, 0.4, centered=(True, True, True))
+        .translate((REVEAL_CX, 0.0, H * 0.25)),
+      KD["front_anchor"])
+
 # ---------------------------------------------- calibration ruler (debug)
 #
 # A 3-inch vertical magenta line up the REVEAL's axis, rising from the case

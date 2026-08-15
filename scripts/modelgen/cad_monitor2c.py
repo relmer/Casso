@@ -146,6 +146,18 @@ for i in range(10):
           PLAT_DK)
 
 
+# --------------------------------------------------------------- front anchor
+#
+# The FRAME's front plane -- the shell's own front section, a centimeter
+# BEHIND the proud plate that carries the screen. The drives line up with
+# this, not with the plate and not with the model origin.
+m.add("front_anchor",
+      cq.Workplane("XY")
+        .box(0.4, 0.4, 0.4, centered=(True, True, True))
+        .translate((W * 0.5, SHELL_FRONT, H * 0.25)),
+      KD["front_anchor"])
+
+
 if __name__ == "__main__":
     import os
     out = os.path.dirname(os.path.abspath(__file__))

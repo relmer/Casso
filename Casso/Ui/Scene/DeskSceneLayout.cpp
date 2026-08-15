@@ -237,14 +237,18 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     // Stacked under the monitor they are near the view axis and barely below
     // eye level, so the front face is what you see -- as in the photographs.
     //
-    // Every front face sits in ONE plane, the monitor's: a stack whose parts
-    // stand at different distances reads as an accident, and it costs the
-    // scene depth for nothing -- the nearer part just looks oversized. The
-    // drives are therefore pushed back until their fronts are flush with the
-    // monitor's bezel, which is also how a stack gets assembled in life.
+    // Every front face sits in ONE plane, the monitor's FRAME: a stack whose
+    // parts stand at different distances reads as an accident, and it costs
+    // the scene depth for nothing -- the nearer part just looks oversized.
+    //
+    // The frame, NOT the monitor's frontmost point. This monitor's inner bezel
+    // stands proud of its frame by design and the tube bulges past even that,
+    // so measuring the mesh marched the drives most of an inch toward the
+    // viewer -- out of the plane the stack is supposed to share. Each model
+    // names its own frame plane; see DeskSceneModel::FrontPlaneY.
     driveTx[0] = (driveCount == 2) ? -(driveW + kDriveGapMm) * 0.5f : 0.0f;
     driveTx[1] = (driveW + kDriveGapMm) * 0.5f;
-    forwardMm  = -metrics.monitorMin[1];
+    forwardMm  = metrics.driveFrontY - metrics.monitorFrontY;
 
     (void) dropMm;
 

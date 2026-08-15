@@ -176,7 +176,9 @@ DeskSceneMetrics DeskScene::Metrics() const
     m_drive.BoundsMin   (metrics.driveMin);
     m_drive.BoundsMax   (metrics.driveMax);
 
-    metrics.glass = m_monitor.Surface();
+    metrics.glass         = m_monitor.Surface();
+    metrics.monitorFrontY = m_monitor.FrontPlaneY();
+    metrics.driveFrontY   = m_drive.FrontPlaneY();
 
     // The room the contact shadows need on the floor, so the containment
     // solve keeps them inside the picture instead of clipping them away.

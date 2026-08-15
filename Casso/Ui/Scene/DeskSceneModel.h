@@ -145,6 +145,13 @@ public:
     void  BoundsMin (float out[3]) const { memcpy (out, m_boundsMin, sizeof (m_boundsMin)); }
     void  BoundsMax (float out[3]) const { memcpy (out, m_boundsMax, sizeof (m_boundsMax)); }
 
+    // Model y of the FRAME's front face -- what devices stand flush with.
+    // Deliberately not BoundsMin's y: this monitor's bezel protrudes an inch
+    // past its frame and its tube bulges past even that, and lining the drives
+    // up with the frontmost point marched them most of an inch forward of
+    // where they belong. See kFrontAnchorKd.
+    float  FrontPlaneY () const { return m_frontPlaneY; }
+
     // The XY rect of the geometry resting on the ground plane (z ==
     // BoundsMin's z), which is where a contact shadow belongs -- overhanging
     // bezels and lips are excluded.
@@ -178,6 +185,12 @@ public:
     // file drifted off the axis every single time. Triangles wearing this
     // color are read and DISCARDED, never drawn.
     static constexpr float  kBrandAnchorKd[3] = { 0.980f, 0.010f, 0.640f };
+
+    // Likewise for the FRAME's front plane, which no amount of measuring the
+    // mesh recovers: a monitor's bezel or faceplate stands proud of the frame
+    // on purpose, and the model origin is not the frame either (the //c case
+    // front sits a centimeter behind its plate). Only the generator knows.
+    static constexpr float  kFrontAnchorKd[3] = { 0.980f, 0.010f, 0.240f };
 
     // The platinum-era drives (the //c's 5.25 unit) wear the same PARTS in
     // different colors: a green in-use lamp instead of red, and a door bar
@@ -240,4 +253,5 @@ private:
     float                                m_footprintMax[2] = {};
     float                                m_lightsModel[2][3] = {};
     float                                m_brandAxisX        = 0.0f;
+    float                                m_frontPlaneY       = 0.0f;
 };

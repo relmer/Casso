@@ -30,10 +30,19 @@ KD = {
     "drive_door_alt": (0.720, 0.712, 0.685),
     "drive_latch_alt":(0.640, 0.632, 0.605),
 
-    # Placement metadata, not scenery: a marker the scene reads to learn
-    # where the brand mark belongs, then throws away instead of drawing.
-    # Bury it inside a solid -- nothing should ever see it.
+    # Placement metadata, not scenery: markers the scene reads to learn where
+    # something belongs, then throws away instead of drawing. They never reach
+    # a vertex buffer, so they may sit anywhere -- but bury them inside a solid
+    # anyway, so a generator run that forgets to tag one shows up as a speck
+    # rather than as nothing.
     "brand_anchor":   (0.980, 0.010, 0.640),
+
+    # The case's FRONT PLANE, which is not the model's frontmost point: a
+    # monitor's bezel or faceplate stands proud of the frame by design, and
+    # the drives line up with the FRAME. Nor is it the model origin -- the //c
+    # case front sits a centimeter back from its proud plate. Only the
+    # generator knows which plane is the frame's, so it says so here.
+    "front_anchor":   (0.980, 0.010, 0.240),
 }
 
 

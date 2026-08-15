@@ -45,7 +45,7 @@ d 1
 
 newmtl mat_9
 Ka 0 0 0 
-Kd 0.7 0.652 0.54
+Kd 0.98 0.01 0.24
 d 1
 
 newmtl mat_10
@@ -89,6 +89,11 @@ Kd 0.7 0.652 0.54
 d 1
 
 newmtl mat_18
+Ka 0 0 0 
+Kd 0.7 0.652 0.54
+d 1
+
+newmtl mat_19
 Ka 0 0 0 
 Kd 0.05 0.09 0.07
 d 1
