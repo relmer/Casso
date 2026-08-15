@@ -671,6 +671,12 @@ private:
     // out the chrome in place -- and persists to GlobalUserPrefs.
     void    SetCrtMonitorEnabled (bool enabled);
 
+    // Settings > Theme antialiasing, in SAMPLES (1 / 2 / 4). Applies to the
+    // next frame and persists to GlobalUserPrefs; ApplySceneAntiAliasing is
+    // the startup half, which pushes the stored value without re-saving it.
+    void    SetSceneAntiAliasing   (int samples);
+    void    ApplySceneAntiAliasing ();
+
     // The 3D scene renders whenever a skeuo theme is active and the models
     // loaded. The DRIVES are not optional -- they are 3D objects in every
     // skeuo presentation; compact themes keep their flat widgets.

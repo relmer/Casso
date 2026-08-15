@@ -41,6 +41,15 @@ struct GlobalUserPrefs
     // skeuoMonitorFrame / deskScene keys, both ignored when loading.)
     bool         crtMonitor          = true;
 
+    // Multisampling for the 3D desk scene, in SAMPLES: 1 (off), 2, or 4. It
+    // costs real GPU -- the whole scene is drawn into a target this many times
+    // over -- and how much depends on the machine and the window size, so it
+    // is a user choice rather than a constant. Global, not per machine or per
+    // monitor: it describes the host's graphics budget, and nothing about the
+    // emulated hardware. Values outside the set are clamped down to the
+    // nearest supported one on load.
+    int          sceneAntiAliasing   = 4;
+
     // Disk II audio asset download consent. Tri-state string:
     //   "ask"     -- user has never been prompted (default)
     //   "allow"   -- silently re-fetch missing audio assets

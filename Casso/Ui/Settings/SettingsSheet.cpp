@@ -254,6 +254,14 @@ HRESULT SettingsSheet::OpenModeless (
         m_emuShell->SetCrtMonitorEnabled (enabled);
     });
 
+    // Scene antialiasing rides the same live-and-persist channel: the cost is
+    // what the user is judging, so they need to see it change while they drag.
+    m_themePage->SetAntiAliasingSamples (prefs.sceneAntiAliasing);
+    m_themePage->SetOnAntiAliasingChanged ([this] (int samples)
+    {
+        m_emuShell->SetSceneAntiAliasing (samples);
+    });
+
     // Live preview (#8): dragging / keyboard-editing a Display control blurs +
     // dims the sheet and reveals the running emulator through the overlap
     // region so the CRT edit is visible. Mouse gives a clean start/end; a

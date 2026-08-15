@@ -610,6 +610,53 @@ void Dxui3DRenderer::SetScissor (const RECT * rect)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetSceneSampleCount
+//
+//  Drops the cached multisampled targets so the next BeginMultisampledScene
+//  rebuilds them at the new count. Not applied mid-scene: the detour in
+//  flight still has to resolve out of the texture it started in, and the
+//  next frame is soon enough for a settings change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dxui3DRenderer::SetSceneSampleCount (UINT samples)
+{
+    UINT   wanted = (samples >= 4) ? 4 : ((samples >= 2) ? 2 : 1);
+
+
+
+    if (wanted == m_sampleCount || m_inMsaaScene)
+    {
+        return;
+    }
+
+    m_sampleCount = wanted;
+
+    m_msaaTex.Reset();
+    m_msaaRtv.Reset();
+    m_resolveTex.Reset();
+    m_resolveSrv.Reset();
+    m_msaaWidth  = 0;
+    m_msaaHeight = 0;
+
+    // The depth buffer's sample count has to match the target it is bound
+    // with, so it is stale now too. BeginDepthPass would notice by itself --
+    // it compares against the bound target every pass -- but dropping it here
+    // keeps "no target outlives a count change" true at the one place that
+    // changes the count.
+    m_depthTex.Reset();
+    m_depthDsv.Reset();
+    m_depthSamples = 0;
+    m_depthWidth   = 0;
+    m_depthHeight  = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BeginMultisampledScene
 //
 //  Points the scene at an offscreen multisampled target. Flip-model swap
@@ -642,10 +689,10 @@ HRESULT Dxui3DRenderer::BeginMultisampledScene()
 
     CBREx (m_device != nullptr, E_UNEXPECTED);
 
-    BAIL_OUT_IF (kSceneSampleCount <= 1 || m_inMsaaScene, S_OK);
+    BAIL_OUT_IF (m_sampleCount <= 1 || m_inMsaaScene, S_OK);
 
     hr = m_device->CheckMultisampleQualityLevels (DXGI_FORMAT_B8G8R8A8_UNORM,
-                                                  kSceneSampleCount, &quality);
+                                                  m_sampleCount, &quality);
 
     // Not an error, just a device that will not do it: draw unantialiased.
     BAIL_OUT_IF (FAILED (hr) || quality == 0, S_OK);
@@ -678,7 +725,7 @@ HRESULT Dxui3DRenderer::BeginMultisampledScene()
         desc.MipLevels          = 1;
         desc.ArraySize          = 1;
         desc.Format             = DXGI_FORMAT_B8G8R8A8_UNORM;
-        desc.SampleDesc.Count   = kSceneSampleCount;
+        desc.SampleDesc.Count   = m_sampleCount;
         desc.SampleDesc.Quality = quality - 1;
         desc.Usage              = D3D11_USAGE_DEFAULT;
         desc.BindFlags          = D3D11_BIND_RENDER_TARGET;

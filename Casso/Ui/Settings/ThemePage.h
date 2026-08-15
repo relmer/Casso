@@ -14,6 +14,7 @@
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiLabel.h"
+#include "Widgets/DxuiSlider.h"
 
 
 class DxuiHwndSource;
@@ -71,6 +72,17 @@ public:
     using CrtMonitorFn = std::function<void (bool enabled)>;
     void  SetOnCrtMonitorToggled (CrtMonitorFn fn) { m_onCrtMonitorToggled = std::move (fn); }
     void  SetCrtMonitorChecked   (bool checked)   { m_crtMonitorCheckbox.SetChecked (checked); }
+
+    // Scene antialiasing, in SAMPLES (1 / 2 / 4) at this boundary -- the
+    // slider's three stops are an interior detail.
+    using AntiAliasingFn = std::function<void (int samples)>;
+    void  SetOnAntiAliasingChanged (AntiAliasingFn fn) { m_onAntiAliasingChanged = std::move (fn); }
+    void  SetAntiAliasingSamples   (int samples)       { m_aaSlider.SetValue (StopForSamples (samples)); }
+
+    const DxuiSlider &  AntiAliasingSlider () const { return m_aaSlider; }
+
+    static int    SamplesForStop (float stop);
+    static float  StopForSamples (int samples);
 
     // The theme id the dropdown currently shows (may differ from the id
     // active at open once the user has changed the selection). Empty if
@@ -213,6 +225,9 @@ private:
     DxuiDropdown   m_themeDropdown;
     DxuiButton     m_applyNowButton;
     DxuiCheckbox   m_crtMonitorCheckbox;
+    DxuiLabel      m_aaLabel;
+    DxuiSlider     m_aaSlider;
+    AntiAliasingFn m_onAntiAliasingChanged;
     RECT           m_previewRect          = {};
     DxuiDpiScaler  m_scaler;
 

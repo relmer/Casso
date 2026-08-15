@@ -1347,6 +1347,8 @@ HRESULT EmulatorShell::InitializeDeskScene()
     // drive activity arrives per frame from the drive state sync.
     m_deskScene.SetPowerLampOn (true);
 
+    ApplySceneAntiAliasing();
+
     {
         wchar_t   debugValue[8] = {};
 
@@ -4209,6 +4211,69 @@ void EmulatorShell::SetCrtMonitorEnabled (bool enabled)
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SetSceneAntiAliasing
+//
+//  The scene's multisampling, in samples (1 / 2 / 4). Applies to the very next
+//  frame -- the renderer drops its offscreen targets and rebuilds them at the
+//  new count -- so the user sees the trade they just made without restarting.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetSceneAntiAliasing (int samples)
+{
+    HRESULT  hr     = S_OK;
+    int      wanted = (samples >= 4) ? 4 : ((samples >= 2) ? 2 : 1);
+
+
+
+    BAIL_OUT_IF (m_globalPrefs.sceneAntiAliasing == wanted, S_OK);
+
+    m_globalPrefs.sceneAntiAliasing = wanted;
+
+    ApplySceneAntiAliasing();
+
+    if (m_userConfigStore != nullptr)
+    {
+        hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
+    }
+    else
+    {
+        hr = m_globalPrefs.Save (m_assetBaseDir, m_uiFs);
+    }
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    m_d3dRenderer.MarkRedrawNeeded();
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ApplySceneAntiAliasing
+//
+//  Pushes the stored count at every renderer that draws the scene. Separate
+//  from the setter because startup has to apply it too, without re-saving the
+//  file it was just read from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplySceneAntiAliasing()
+{
+    m_deskScene.SetSampleCount ((UINT) m_globalPrefs.sceneAntiAliasing);
 }
 
 

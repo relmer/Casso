@@ -104,9 +104,17 @@ public:
     // the scene rather than crop it.
     void     SetScissor (const RECT * rect);
 
-    // Antialiasing quality for the scene pass. 1 disables the detour
-    // entirely; 4 is the sweet spot for edge crawl against bandwidth.
-    static constexpr UINT  kSceneSampleCount = 4;
+    // Antialiasing for the scene pass, in SAMPLES: 1 disables the offscreen
+    // detour entirely, 2 and 4 arm it. What it costs is very much a property
+    // of the machine -- on an integrated GPU the whole scene is rasterized
+    // into a target this many times over, out of the same memory bandwidth
+    // the CPU is using -- so the user owns the number, not this file.
+    // Unsupported counts fall back to drawing unantialiased, exactly as a
+    // device that will not multisample at all does.
+    void     SetSceneSampleCount (UINT samples);
+    UINT     SceneSampleCount    () const { return m_sampleCount; }
+
+    static constexpr UINT  kDefaultSceneSampleCount = 4;
 
     // Transform `verts` by row-major `mvp` (row-vector convention: clip = v * M)
     // and draw as a triangle list into the currently bound render target,
@@ -155,6 +163,7 @@ private:
     int                               m_msaaWidth   = 0;
     int                               m_msaaHeight  = 0;
     bool                              m_inMsaaScene = false;
+    UINT                              m_sampleCount = kDefaultSceneSampleCount;
 
     ComPtr<ID3D11Texture2D>         m_depthTex;
     ComPtr<ID3D11DepthStencilView>  m_depthDsv;

@@ -100,6 +100,11 @@ public:
     // free to cover, and the scene must stop at that boundary.
     void  SetClipRect (const RECT * rectPx) { m_renderer.SetScissor (rectPx); }
 
+    // Antialiasing for this scene, in samples (1 / 2 / 4). Owned by the user
+    // through a global pref: what it costs depends on the host's GPU and the
+    // window's size, not on anything the emulated machine does.
+    void  SetSampleCount (UINT samples) { m_renderer.SetSceneSampleCount (samples); }
+
     // Hand the scene a picture from CPU pixels, for callers with no CRT chain
     // of their own: the settings preview lives on the sheet's device and only
     // has the framebuffer bytes. Pass PictureSrv() to Render as the display.

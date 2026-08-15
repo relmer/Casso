@@ -39,6 +39,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "$cassoGlobalPrefsVersion",
     "activeTheme",
     "crtMonitor",
+    "sceneAntiAliasing",
     "lastSelectedMachine",
     "lastDiskCreateFolder",
     "audioDownloadConsent",
@@ -936,6 +937,7 @@ JsonValue GlobalUserPrefs::ToJson() const
 
     root.emplace_back ("activeTheme",          JsonValue (activeTheme));
     root.emplace_back ("crtMonitor",            JsonValue (crtMonitor));
+    root.emplace_back ("sceneAntiAliasing",     JsonValue ((double) sceneAntiAliasing));
     root.emplace_back ("lastSelectedMachine",  JsonValue (lastSelectedMachine));
     root.emplace_back ("lastDiskCreateFolder", JsonValue (lastDiskCreateFolder));
     root.emplace_back ("audioDownloadConsent", JsonValue (audioDownloadConsent));
@@ -1056,6 +1058,17 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     version              = GetIntOpt    (v, s_kpszVersionKey,        s_kCurrentVersion);
     activeTheme          = GetStringOpt (v, "activeTheme",            activeTheme);
     crtMonitor            = TryGetBoolOpt   (v, "crtMonitor",              crtMonitor);
+
+    // Samples, not a quality index: 1, 2 or 4 only. Anything else is a
+    // hand-edited file or a value from a build that knows more counts than
+    // this one, and rounding DOWN to a supported count is the safe direction
+    // -- it can only ever cost less than what was asked for.
+    {
+        int  aa = GetIntOpt (v, "sceneAntiAliasing", sceneAntiAliasing);
+
+        sceneAntiAliasing = (aa >= 4) ? 4 : ((aa >= 2) ? 2 : 1);
+    }
+
     lastSelectedMachine  = GetStringOpt (v, "lastSelectedMachine",    lastSelectedMachine);
     lastDiskCreateFolder = GetStringOpt (v, "lastDiskCreateFolder",   lastDiskCreateFolder);
     audioDownloadConsent = GetStringOpt (v, "audioDownloadConsent",   audioDownloadConsent);

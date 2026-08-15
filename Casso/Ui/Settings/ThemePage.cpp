@@ -413,6 +413,51 @@ ThemePage::ThemePage(std::wstring title)
     {
         if (m_onCrtMonitorToggled) { m_onCrtMonitorToggled (checked); }
     });
+
+    // Antialiasing, as SAMPLES rather than a quality word, because that is
+    // what the cost is proportional to and the labels can say so. Three stops:
+    // the slider carries 0/1/2 and the formatter names them, so the control
+    // cannot land between supported counts.
+    Adopt (m_aaLabel);
+    Adopt (m_aaSlider);
+
+    m_aaLabel.SetText (L"Edge smoothing");
+
+    m_aaSlider.SetRange (0.0f, 2.0f);
+    m_aaSlider.SetStep  (1.0f);
+    m_aaSlider.SetTickInterval (1.0f);
+    m_aaSlider.SetValueFormatter ([] (float v) -> std::wstring
+    {
+        return (v >= 1.5f) ? L"4x" : ((v >= 0.5f) ? L"2x" : L"Off");
+    });
+    m_aaSlider.SetOnChange ([this] (float v)
+    {
+        if (m_onAntiAliasingChanged) { m_onAntiAliasingChanged (SamplesForStop (v)); }
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThemePage::SamplesForStop / StopForSamples
+//
+//  The slider counts stops; everything else counts samples. Kept as a pair so
+//  the mapping is written once and cannot drift between the two directions.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ThemePage::SamplesForStop (float stop)
+{
+    return (stop >= 1.5f) ? 4 : ((stop >= 0.5f) ? 2 : 1);
+}
+
+
+float ThemePage::StopForSamples (int samples)
+{
+    return (samples >= 4) ? 2.0f : ((samples >= 2) ? 1.0f : 0.0f);
 }
 
 
@@ -564,7 +609,8 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int   y          = rect.top  + pad;
     int   rowGap     = scaler.Px (8);
     int   previewGap = scaler.Px (24);
-    int   previewTop = y + 2 * rowHeight + rowGap + previewGap;
+    // Three rows above the preview now: theme, the CRT opt-in, edge smoothing.
+    int   previewTop = y + 3 * rowHeight + 2 * rowGap + previewGap;
     RECT  rowBounds  = { x, y, x + labelWidth + dropWidth, y + rowHeight };
     int   applyGap   = 0;
     int   applyWidth = 0;
@@ -623,6 +669,20 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
         m_crtMonitorCheckbox.Layout (cbRect, scaler);
         m_crtMonitorCheckbox.SetDpi (dpi);
+    }
+
+    // Edge-smoothing row under it, laid out on the same grid as the theme row
+    // so the label column lines up: label at the left, a short slider beside
+    // it (three stops need no width, and a full-width one reads as continuous).
+    {
+        int   aaTop     = y + (rowHeight + rowGap) * 2;
+        int   aaSliderW = scaler.Px (150);
+
+        m_aaLabel.Layout  (MakeRect (x, aaTop, labelWidth, rowHeight), scaler);
+        m_aaLabel.SetDpi  (dpi);
+
+        m_aaSlider.Layout (MakeRect (x + labelWidth, aaTop, aaSliderW, rowHeight), scaler);
+        m_aaSlider.SetDpi (dpi);
     }
 
     m_previewRect.left   = x;
@@ -701,6 +761,8 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
     m_themeDropdown.PaintBase     (painter, text);
     m_applyNowButton.Paint        (painter, text, theme);
     m_crtMonitorCheckbox.Paint  (painter, text, theme);
+    m_aaLabel.Paint             (painter, text);
+    m_aaSlider.Paint            (painter, text, theme);
 
     // Live preview tracks the dropdown's effective hovered/highlighted
     // item while open (so mouse hover and arrow-key nav both update
