@@ -96,7 +96,7 @@ public:
     // and the scene draws straight to the destination; End then has nothing
     // to composite and is equally quiet, so callers pair them unconditionally.
     HRESULT  BeginMultisampledScene ();
-    HRESULT  EndMultisampledScene   (const D3D11_VIEWPORT & viewportPx);
+    HRESULT  EndMultisampledScene   ();
 
     // Crop every subsequent draw to `rect` (target pixels); null clears it.
     // For keeping a scene inside a sub-rect that something else may cover --

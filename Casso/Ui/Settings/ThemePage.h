@@ -152,9 +152,25 @@ public:
         PreviewSceneMode  mode   = PreviewSceneMode::None;
         RECT              rectPx = {};   // where the scene composes
         RECT              clipPx = {};   // and where it must stop
+
+        // The mock's own reduced DPI, which the 2D widgets already scale by.
+        // It does NOT set the scene's size -- the layout contain-fits to the
+        // viewport and never reads it -- it only scales the dp reservations
+        // the layout makes inside that fit.
+        UINT              dpi    = 96;
     };
 
-    const PreviewSceneRequest &  SceneRequest () const { return m_sceneRequest; }
+    // Consume-once: the sheet takes the request and leaves it empty. A page
+    // that did not paint this frame therefore asks for nothing, which is what
+    // stops the scene from staying on screen after the user switches tabs.
+    PreviewSceneRequest  TakeSceneRequest () const
+    {
+        PreviewSceneRequest  taken = m_sceneRequest;
+
+        m_sceneRequest = {};
+
+        return taken;
+    }
 
     // The live framebuffer, for the scene's glass -- the same source the flat
     // preview blit uses. Null when the shell has not supplied one.

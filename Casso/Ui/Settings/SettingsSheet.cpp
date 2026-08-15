@@ -526,7 +526,7 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
         return;
     }
 
-    request = m_themePage->SceneRequest();
+    request = m_themePage->TakeSceneRequest();
 
     if (request.mode == ThemePage::PreviewSceneMode::None ||
         request.rectPx.right <= request.rectPx.left ||
@@ -568,9 +568,12 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
+    // The DPI does not set the scene's size -- SolveComposition contain-fits
+    // the scene's corners to the viewport and never consults it -- so this
+    // only feeds the layout's own dp-based reservations.
     hr = (request.mode == ThemePage::PreviewSceneMode::Full)
-       ? DeskSceneLayout::Compute     (request.rectPx, Dpi(), 2, m_previewScene.Metrics(), comp)
-       : DeskSceneLayout::ComputeStrip (request.rectPx, Dpi(), 2, m_previewScene.Metrics(), comp);
+       ? DeskSceneLayout::Compute      (request.rectPx, request.dpi, 2, m_previewScene.Metrics(), comp)
+       : DeskSceneLayout::ComputeStrip (request.rectPx, request.dpi, 2, m_previewScene.Metrics(), comp);
 
     if (FAILED (hr) || hr == S_FALSE)
     {
@@ -620,21 +623,23 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
 
 HRESULT SettingsSheet::LoadPreviewSceneModels()
 {
-    HRESULT      hr         = S_OK;
-    bool         isC        = (m_emuShell != nullptr) && m_emuShell->IsApple2c();
-    std::string  monitorObj = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_MONITOR2C_OBJ : IDR_MODEL_MONITOR2_OBJ);
-    std::string  monitorMtl = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_MONITOR2C_MTL : IDR_MODEL_MONITOR2_MTL);
-    std::string  driveObj   = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_DISK2C_OBJ    : IDR_MODEL_DISKII_OBJ);
-    std::string  driveMtl   = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_DISK2C_MTL    : IDR_MODEL_DISKII_MTL);
-    bool         haveText   = false;
+    HRESULT  hr  = S_OK;
+    bool     isC = (m_emuShell != nullptr) && m_emuShell->IsApple2c();
 
 
 
-    haveText = !monitorObj.empty() && !monitorMtl.empty() && !driveObj.empty() && !driveMtl.empty();
-    CBRA (haveText);
+    // The shell has already parsed and baked the pair this machine wears, and
+    // the result is device-independent, so take it rather than doing all of
+    // that again on the way into the Theme tab.
+    CBRA (m_emuShell != nullptr);
 
-    hr = m_previewScene.LoadModels (isC ? DeskDeviceKind::Monitor2c : DeskDeviceKind::Monitor2,
-                                    monitorObj, monitorMtl, driveObj, driveMtl);
+    {
+        bool  shellHasModels = m_emuShell->m_deskScene.HasModels();
+
+        CBRA (shellHasModels);
+    }
+
+    hr = m_previewScene.AdoptModelsFrom (m_emuShell->m_deskScene);
     CHRA (hr);
 
     m_previewScene.SetPowerLampOn (true);

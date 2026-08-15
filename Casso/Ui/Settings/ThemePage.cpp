@@ -427,6 +427,7 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
     if (scene3d && hasDisk)
     {
         outScene.mode   = sceneCrt ? PreviewSceneMode::Full : PreviewSceneMode::DrivesOnly;
+        outScene.dpi    = effectiveDpi;
         outScene.rectPx = sceneCrt
             ? RECT { prevRect.left, prevRect.top + titleH + navH, prevRect.right, prevRect.bottom }
             : RECT { prevRect.left, prevRect.bottom - driveBarH, prevRect.right, prevRect.bottom };

@@ -730,12 +730,13 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Dxui3DRenderer::EndMultisampledScene (const D3D11_VIEWPORT & viewportPx)
+HRESULT Dxui3DRenderer::EndMultisampledScene()
 {
     HRESULT                    hr         = S_OK;
     ID3D11RenderTargetView   * rawRtv     = nullptr;
     ID3D11ShaderResourceView * saved      = m_externalSrv;
     Vertex                     quad[6]    = {};
+    D3D11_VIEWPORT             full       = {};
     float                      identity[16] = { 1, 0, 0, 0,
                                                 0, 1, 0, 0,
                                                 0, 0, 1, 0,
@@ -762,8 +763,18 @@ HRESULT Dxui3DRenderer::EndMultisampledScene (const D3D11_VIEWPORT & viewportPx)
     quad[4] = {  1.0f, -1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
     quad[5] = { -1.0f, -1.0f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
 
+    // The WHOLE target, never the scene's viewport. The offscreen texture is
+    // target-sized and the quad's UVs span all of it, so mapping it through a
+    // sub-rect viewport would squeeze the entire image into that rect --
+    // scaling the scene down a second time and shifting it off its own
+    // geometry. It cost a few pixels of drift, and made a resize flicker as
+    // the mismatch changed with every new size.
+    full.Width    = (float) m_msaaWidth;
+    full.Height   = (float) m_msaaHeight;
+    full.MaxDepth = 1.0f;
+
     m_externalSrv = m_resolveSrv.Get();
-    hr            = DrawTriangles (quad, 6, identity, true, viewportPx, false);
+    hr            = DrawTriangles (quad, 6, identity, true, full, false);
     m_externalSrv = saved;
 
     m_savedRtv.Reset();

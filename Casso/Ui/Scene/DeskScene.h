@@ -51,6 +51,12 @@ public:
                          const std::string  & monitorObj, const std::string & monitorMtl,
                          const std::string  & driveObj,   const std::string & driveMtl);
 
+    // Share another scene's parsed models rather than parsing the same text
+    // again. The data is pure CPU vertex arrays, so a scene on a different
+    // device can take it as-is -- which is what keeps a second scene (the
+    // settings preview) from paying the lamp's occlusion bake all over again.
+    HRESULT  AdoptModelsFrom (const DeskScene & other);
+
     const DeskSceneModel &  MonitorModel () const { return m_monitor; }
     const DeskSceneModel &  DriveModel   () const { return m_drive; }
 
@@ -236,6 +242,7 @@ public:
 private:
     void     RebuildGlassUvs  (const CrtUvRect & displayUv, int displayW, int displayH);
     void     RebuildLampVerts ();
+    void     BuildDerivedGeometry ();
     void     BuildGlassSheen  (const CurvedDisplaySurface & surface);
     HRESULT  DrawDrives       (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
     HRESULT  DrawLampGlows    (const DeskSceneComposition & comp,

@@ -81,8 +81,67 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind       monitorKind,
                                    kLabelTopZMm, kLabelCellMm, kLabelFrontY, kLabelRgb);
     }
 
-    // Glow discs: model-space and state-free, so they are built once here and
-    // the draw only decides whether a given lamp is lit.
+    BuildDerivedGeometry();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::AdoptModelsFrom
+//
+//  Takes another scene's already-parsed models instead of parsing the same
+//  text again. A DeskSceneModel is pure CPU vertex data -- nothing in it
+//  belongs to a device -- so a second scene on a DIFFERENT device can share
+//  it outright, and only the derived geometry has to be rebuilt.
+//
+//  This is what keeps the settings sheet cheap to open. Parsing costs a
+//  moment; the lamp's occlusion bake, which traces a ray from the lens to
+//  every nearby face, costs considerably more, and paying it a second time
+//  stalled the Theme tab visibly on the way in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::AdoptModelsFrom (const DeskScene & other)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    CBRA (other.m_modelsLoaded);
+
+    m_monitor = other.m_monitor;
+    m_drive   = other.m_drive;
+
+    m_driveLabelVerts[0] = other.m_driveLabelVerts[0];
+    m_driveLabelVerts[1] = other.m_driveLabelVerts[1];
+
+    BuildDerivedGeometry();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::BuildDerivedGeometry
+//
+//  Everything cached FROM the models: state-free glow discs and the contact
+//  shadows, plus the dirty flags that make the per-frame copies rebuild.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::BuildDerivedGeometry()
+{
     BuildLampGlow (m_monitor, kMonitorGlowRgb, m_monitorGlowVerts);
     BuildLampGlow (m_drive,   kDriveGlowRgb,   m_driveGlowVerts);
 
@@ -94,9 +153,6 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind       monitorKind,
     m_modelsLoaded = true;
     m_glassUvDirty = true;
     m_lampsDirty   = true;
-
-Error:
-    return hr;
 }
 
 
@@ -1238,7 +1294,7 @@ Error:
     // between Begin and End would otherwise strand the detour armed, and
     // every later draw would land in an offscreen target nobody composites --
     // the scene would simply vanish. A no-op when Begin declined.
-    hrEnd = m_renderer.EndMultisampledScene (viewport);
+    hrEnd = m_renderer.EndMultisampledScene();
     IGNORE_RETURN_VALUE (hrEnd, S_OK);
 
     return hr;
