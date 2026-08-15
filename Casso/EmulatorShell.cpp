@@ -5476,7 +5476,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // scanlines/bloom/color-bleed toggles + magnitudes) to the
     // renderer every UI frame so user edits land on the very next
     // present. The active theme's `crtDefaults` only apply when the
-    // user hasn't customised anything yet (see MakeCrtParams), and they
+    // user hasn't customized anything yet (see MakeCrtParams), and they
     // come RESOLVED -- reading the base theme here dropped the machine
     // overrides, so the picture changed brightness whenever a resize let
     // the other caller set the parameters instead.
