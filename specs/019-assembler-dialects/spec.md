@@ -1,4 +1,4 @@
-# Feature Specification: Merlin and ca65 Assembler Dialects
+# Feature Specification: Merlin Assembler Dialect
 
 **Feature Branch**: `019-assembler-dialects`
 
@@ -6,19 +6,24 @@
 
 **Status**: Draft
 
-**Input**: User description: "Broaden Casso's assembler beyond its single AS65-flavored dialect to also accept Merlin and ca65 source — the two dominant Apple II assemblers, classic and modern — so developers can bring existing source instead of porting it." (Seeded by GitHub issue #92.)
+**Input**: User description: "Broaden Casso's assembler beyond its single AS65-flavored dialect to also accept Merlin source — what the classic Apple II world writes in — so developers can bring existing source instead of porting it." (Seeded by GitHub issue #92.)
 
 ## Overview
 
 Casso's assembler is a faithful AS65 reimplementation, and AS65 is a dialect
-almost nobody writing Apple II code today uses. The two that matter are **Merlin**
-— what the classic Apple II world wrote in, and still writes in — and **ca65**,
-the modern cross-development standard.
+almost nobody writing Apple II code today uses. The one that matters most is
+**Merlin** — what the classic Apple II world wrote in, and still writes in.
 
 The practical consequence is that a developer with an existing project cannot try
 Casso at all. Their source does not assemble, and the first thing Casso asks of a
 prospective user is to port a codebase. That is a hard sell for a tool whose pitch
 is convenience.
+
+This feature delivers two things: a **general dialect mechanism**, and **Merlin**
+as its first new profile. The mechanism is not Merlin overhead — a dialect cannot
+be added without it — and once it exists, each further dialect is a profile rather
+than surgery on the assembler. `023-ca65-dialect` is the next profile and depends
+on the mechanism landing here.
 
 Two axes are involved and they are independent:
 
@@ -26,9 +31,9 @@ Two axes are involved and they are independent:
   string encodings, macro grammar.
 - **CPU target** is *which opcodes are legal*.
 
-65C02 code can be written in Merlin or in ca65, so selecting a dialect MUST NOT
-imply a CPU, and selecting a CPU MUST work under any dialect. Casso's existing
-`--cpu` selection already covers the second axis; this feature adds the first.
+65C02 code can be written in any dialect, so selecting a dialect MUST NOT imply a
+CPU, and selecting a CPU MUST work under any dialect. Casso's existing `--cpu`
+selection already covers the second axis; this feature adds the first.
 
 ### Relationship to disk file access
 
@@ -139,42 +144,14 @@ confirm the diagnostic names the right construct at the right position.
 
 ---
 
-### User Story 4 - Assemble the absolute subset of ca65 source (Priority: P3)
-
-A developer with a ca65 project that does not depend on the linker assembles it in
-Casso and gets the expected bytes.
-
-**Why this priority**: ca65 is the modern standard and worth reaching, but real
-ca65 projects assume `ld65` — named segments resolved by a linker configuration,
-object files, imports and exports. Casso emits one absolutely-located image.
-Supporting the absolute subset is achievable and useful; full compatibility means
-building a linker, which is a much larger feature and out of scope here.
-
-**Independent Test**: Assemble a ca65 source file that uses no linker features and
-compare against reference bytes; confirm that source which *does* require the
-linker is rejected with a clear explanation.
-
-**Acceptance Scenarios**:
-
-1. **Given** ca65 source using `.setcpu`, `.res`, `.macro`/`.endmacro`, and
-   `.repeat`, **When** it is assembled, **Then** the output matches the reference
-   bytes.
-2. **Given** ca65 source using `@`-prefixed cheap locals and unnamed `:` labels with
-   `:+` / `:-` references, **When** it is assembled, **Then** the references resolve
-   as ca65 defines them.
-3. **Given** ca65 source using `.import`, `.export`, or a `.segment` that requires a
-   linker configuration, **When** it is assembled, **Then** it is rejected with a
-   message explaining that the absolute subset is supported and which construct
-   exceeded it.
-
----
-
 ### Edge Cases
 
 - How does the system handle the `:` character, which is a label *terminator* in
-  Casso's current dialect, a local-label *prefix* in Merlin, and an *unnamed label*
-  in ca65? Its meaning MUST be resolved by the active dialect, and the same source
-  text MUST be allowed to mean different things under different dialects.
+  Casso's current dialect and a local-label *prefix* in Merlin? Its meaning MUST be
+  resolved by the active dialect, and the same source text MUST be allowed to mean
+  different things under different dialects. A third meaning arrives with
+  `023-ca65-dialect`, so the resolution MUST be dialect-driven rather than a
+  two-way special case.
 - What happens to source whose meaning depends on column position, when it is
   written with tabs rather than spaces? Merlin's column rules MUST be applied to a
   defined interpretation of tabs, and that interpretation MUST be documented.
@@ -231,26 +208,17 @@ linker is rejected with a clear explanation.
   resolve included files relative to the source that names them.
 - **FR-015**: The assembler MUST accept Merlin's CPU-selection directive.
 
-#### ca65 dialect
-
-- **FR-016**: The assembler MUST accept the absolute subset of ca65 — source that
-  does not require a linker to resolve.
-- **FR-017**: The assembler MUST accept ca65's cheap-local and unnamed-label forms.
-- **FR-018**: The assembler MUST reject ca65 constructs that require a linker, with
-  a diagnostic naming the construct and stating that the absolute subset is
-  supported.
-
 #### Diagnostics and compatibility
 
-- **FR-019**: Diagnostics MUST describe constructs using the vocabulary of the
+- **FR-016**: Diagnostics MUST describe constructs using the vocabulary of the
   active dialect.
-- **FR-020**: Diagnostics MUST carry file, line, and column in a machine-parseable
+- **FR-017**: Diagnostics MUST carry file, line, and column in a machine-parseable
   form.
-- **FR-021**: A construct rejected because it belongs to a different dialect MUST
+- **FR-018**: A construct rejected because it belongs to a different dialect MUST
   say which dialect defines it.
-- **FR-022**: Existing invocations of the assembler MUST either behave as they do
+- **FR-019**: Existing invocations of the assembler MUST either behave as they do
   today or have their change documented in release notes.
-- **FR-023**: Every dialect and its flags MUST be documented in the tool's help
+- **FR-020**: Every dialect and its flags MUST be documented in the tool's help
   output.
 
 ### Key Entities
@@ -285,10 +253,13 @@ linker is rejected with a clear explanation.
 
 ## Assumptions
 
-- Merlin is the priority; ca65's absolute subset is worth reaching but is
-  explicitly a lesser goal, and full ca65 compatibility — which requires a linker
-  and relocatable objects — is out of scope. Relocatable output is tracked
-  separately as GitHub issue #58.
+- Merlin is the only new dialect in this feature. ca65 was originally scoped here
+  and has been split into `023-ca65-dialect`, because the honest ca65 story needs
+  a linker and that decision deserves its own scoping rather than riding along as
+  a low-priority tail. The dialect mechanism built here is what 023 consumes.
+- The dialect mechanism MUST be built for more than two profiles even though only
+  two ship here. Hard-coding an AS65-or-Merlin choice would have to be undone by
+  the very next dialect.
 - Backward compatibility with Casso's current assembler invocation is desirable but
   not paramount; the existing dialect has extremely limited adoption, so a
   documented change is acceptable where it buys a cleaner model.
