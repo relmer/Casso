@@ -19,6 +19,21 @@ for bootable images), each with its own conventions and runtime.
 This feature makes the loop **edit → assemble → place on disk → boot** a single
 toolchain, so a developer types one command and watches their program run.
 
+### Minimum viable path
+
+Stories 1, 2, and 3 together — produce a loadable artifact, put it on a disk, take
+files off a disk — are the smallest set that lets a developer **migrate an
+existing project onto a modern host**, which is the situation that motivated this
+work. All three are P1 for that reason.
+
+Note the order a migrating developer actually experiences: extraction (Story 3)
+comes *first*, because their source is currently on Apple II disks and has to come
+off before anything else can happen. It is listed third because it is the least
+coupled to the others, not because it is needed last.
+
+Stories 4 through 6 are refinements. Each is independently valuable and none gates
+the migration.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Assemble to a loadable binary (Priority: P1)
@@ -91,15 +106,17 @@ loading it produces the expected bytes in memory.
 
 ---
 
-### User Story 3 - Read a disk image's contents (Priority: P2)
+### User Story 3 - Read a disk image's contents (Priority: P1)
 
 A developer lists what is on a disk image and extracts a file from it to the host
 — to recover source stored on a disk, to inspect what a program actually wrote, or
 to confirm that a placement worked.
 
-**Why this priority**: Listing is how a developer verifies Story 2 without booting
-the emulator, which makes the loop debuggable. Extraction answers the recurring
-request to get source code *out* of a disk image and edit it on a modern machine.
+**Why this priority**: For a developer migrating an existing project, this is
+step one — their source lives on Apple II disks today and cannot be edited on a
+modern host until it can be extracted. Nothing else in this feature is reachable
+for them until it exists. It also makes the loop debuggable, since listing is how
+a developer verifies Story 2 without booting the emulator.
 
 **Independent Test**: List a disk image with known contents and confirm every file
 is reported with the correct name, type, size, and lock state; extract one and

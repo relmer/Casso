@@ -30,6 +30,22 @@ Two axes are involved and they are independent:
 imply a CPU, and selecting a CPU MUST work under any dialect. Casso's existing
 `--cpu` selection already covers the second axis; this feature adds the first.
 
+### Relationship to disk file access
+
+This feature and `020-disk-file-access` are the two halves of one migration story,
+and neither is sufficient alone. Disk access without dialect support lets a
+developer move their source to a modern host, where it then fails to assemble.
+Dialect support without disk access lets them assemble source they have no way to
+get off their disks or onto a bootable one.
+
+**Stories 1 and 2 here, plus Stories 1 through 3 of 020, are the complete minimum
+for a developer with an existing Merlin project.** Everything else in either
+feature is a refinement on top of that.
+
+Merlin's `DSK` directive, which assembles straight to a disk image, becomes
+implementable only once 020 lands. It is the one construct in this feature with a
+hard dependency on the other, and it is deferred rather than blocking.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Assemble existing Merlin source unmodified (Priority: P1)
@@ -281,8 +297,5 @@ linker is rejected with a clear explanation.
   in what the machine does.
 - The reference for correctness is byte-identical output against the original
   assembler, not agreement with any published grammar.
-- Merlin's `DSK` directive, which assembles directly to a disk, becomes meaningful
-  only once Casso can write files into disk images. Whether to honor it is deferred
-  until that capability exists.
 - No new third-party dependency is introduced; dialect support is additional
   parsing, not a vendored grammar.
