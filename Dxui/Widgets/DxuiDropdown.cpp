@@ -329,6 +329,40 @@ bool DxuiDropdown::HitTest (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InWindowMenuRect
+//
+//  What the open menu covers of this window. Derived from the box the same
+//  way ItemHitTest derives it, for the same reason: the fallback menu is laid
+//  out immediately below the box, and deriving keeps both from drifting out of
+//  step with the paint.
+//
+//  Empty for a live popup, which is a separate HWND covering the desktop
+//  rather than anything in this window's frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiDropdown::InWindowMenuRect() const
+{
+    RECT  menuRect = {};
+
+
+
+    if (m_open && m_activePopup == nullptr && !m_items.empty())
+    {
+        menuRect        = m_boundsDip;
+        menuRect.top    = m_boundsDip.bottom;
+        menuRect.bottom = m_boundsDip.bottom + (int) m_items.size() * m_scaler.Px (s_kRowHeightDip);
+    }
+
+    return menuRect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ItemHitTest
 //
 //  Which list row a point falls on, for the IN-WINDOW fallback menu only.
@@ -337,10 +371,6 @@ bool DxuiDropdown::HitTest (int x, int y) const
 //  with its own coordinate space and its own click callback -- so this returns
 //  a miss whenever one is up. Hit-testing both would double-handle every click
 //  on a hosted dropdown.
-//
-//  The fallback menu is laid out immediately below the box, so its rect is
-//  derived here rather than stored: nothing else needs it, and deriving keeps
-//  it from drifting out of step with the paint.
 //
 //  A point below the last row is a miss, not the last row.
 //

@@ -89,6 +89,19 @@ public:
     // whatever the frame already holds.
     HRESULT  RenderStrip (ID3D11RenderTargetView * dstRtv, const DeskSceneComposition & strip);
 
+    // Crop the scene to a sub-rect of the target; null clears it. The
+    // settings preview draws inside a mock window that an open dropdown is
+    // free to cover, and the scene must stop at that boundary.
+    void  SetClipRect (const RECT * rectPx) { m_renderer.SetScissor (rectPx); }
+
+    // Hand the scene a picture from CPU pixels, for callers with no CRT chain
+    // of their own: the settings preview lives on the sheet's device and only
+    // has the framebuffer bytes. Pass PictureSrv() to Render as the display.
+    HRESULT  UploadPicture (const uint32_t * bgra, int width, int height)
+    { return m_renderer.UpdateContentTexture (bgra, width, height); }
+
+    ID3D11ShaderResourceView *  PictureSrv () const { return m_renderer.ContentSrv(); }
+
     // Debug aid: outlines a client-px rect in the given color (2px bars),
     // drawn over the scene. Gated by the shell's CASSO_SCENE_DEBUG env var.
     void  DrawDebugRect (const RECT & rectPx, int backBufferW, int backBufferH, uint32_t argb);

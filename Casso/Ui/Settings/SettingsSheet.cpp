@@ -5,6 +5,7 @@
 #include "../../EmulatorShell.h"
 #include "../../Config/GlobalUserPrefs.h"
 #include "Ui/Chrome/ChromeMetrics.h"
+#include "Ui/PrinterPanel.h"
 #include "Widgets/DxuiLabel.h"
 #include "Window/DxuiButtonRow.h"
 #include "resource.h"
@@ -197,6 +198,11 @@ HRESULT SettingsSheet::OpenModeless (
                     int widthPx, int heightPx)
             {
                 m_compositor.Compose (contentSrv, backBufferRtv, widthPx, heightPx);
+
+                // After Compose, and not from an after-paint hook: a window
+                // that composes never runs one. The finished 2D frame is on
+                // the back buffer now, which is what the scene draws over.
+                RenderThemePreviewScene (backBufferRtv, widthPx, heightPx);
             });
     }
 
@@ -477,6 +483,165 @@ void SettingsSheet::OnDialogTick()
     }
 
     UpdatePreviewCompose();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RenderThemePreviewScene
+//
+//  Draws the desk scene into the theme preview's mock window, so a skeuo theme
+//  previews as what it actually is. The 2D paint deliberately left the screen
+//  and the drive row out for exactly this.
+//
+//  The models load a SECOND time here. The shell's scene belongs to the
+//  emulator window's device and this sheet is its own window with its own
+//  device, so there is nothing to borrow -- and a few thousand triangles is a
+//  cheap price for not advertising a presentation the app retired.
+//
+//  Clipped, because the theme dropdown is allowed to cover the preview and
+//  this pass runs after the whole panel tree. The scissor crops rather than
+//  re-projects: shrinking the viewport instead would squash the scene into
+//  whatever is left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int widthPx, int heightPx)
+{
+    ThemePage::PreviewSceneRequest  request;
+    DeskSceneComposition            comp;
+    HRESULT                         hr       = S_OK;
+    int                             fbW      = 0;
+    int                             fbH      = 0;
+    const uint32_t                * fbPixels = nullptr;
+    CrtUvRect                       uv       = { 0.0f, 0.0f, 1.0f, 1.0f };
+
+
+
+    if (m_themePage == nullptr || rtv == nullptr || widthPx <= 0 || heightPx <= 0)
+    {
+        return;
+    }
+
+    request = m_themePage->SceneRequest();
+
+    if (request.mode == ThemePage::PreviewSceneMode::None ||
+        request.rectPx.right <= request.rectPx.left ||
+        request.clipPx.bottom <= request.clipPx.top)
+    {
+        return;
+    }
+
+    // First frame that wants it: stand the scene up. Tried-once, because a
+    // device that cannot carry it will not start working later, and retrying
+    // every frame would just burn the failure over and over.
+    if (!m_previewSceneReady && !m_previewSceneTried)
+    {
+        m_previewSceneTried = true;
+
+        if (PopupHost() != nullptr)
+        {
+            hr = m_previewScene.Initialize (PopupHost()->GetDevice(), PopupHost()->GetContext());
+
+            if (SUCCEEDED (hr))
+            {
+                HRESULT  hrModels = LoadPreviewSceneModels();
+
+                m_previewSceneReady = SUCCEEDED (hrModels);
+            }
+        }
+    }
+
+    if (!m_previewSceneReady)
+    {
+        return;
+    }
+
+    // The machine can change under a staged pick, and the desk wears what the
+    // machine wore.
+    if (m_emuShell != nullptr && m_emuShell->IsApple2c() != m_previewSceneIsC)
+    {
+        hr = LoadPreviewSceneModels();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    hr = (request.mode == ThemePage::PreviewSceneMode::Full)
+       ? DeskSceneLayout::Compute     (request.rectPx, Dpi(), 2, m_previewScene.Metrics(), comp)
+       : DeskSceneLayout::ComputeStrip (request.rectPx, Dpi(), 2, m_previewScene.Metrics(), comp);
+
+    if (FAILED (hr) || hr == S_FALSE)
+    {
+        return;
+    }
+
+    m_previewScene.SetComposition (comp);
+    m_previewScene.SetClipRect    (&request.clipPx);
+
+    if (request.mode == ThemePage::PreviewSceneMode::Full)
+    {
+        // The picture comes from the emulator's framebuffer bytes: this
+        // device has no CRT chain of its own, and the preview already has the
+        // pixels for the flat blit it used to do.
+        fbPixels = m_themePage->FramebufferPixels (fbW, fbH);
+
+        if (fbPixels != nullptr && fbW > 0 && fbH > 0)
+        {
+            hr = m_previewScene.UploadPicture (fbPixels, fbW, fbH);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        hr = m_previewScene.Render (rtv, m_previewScene.PictureSrv(), uv, fbW, fbH);
+    }
+    else
+    {
+        hr = m_previewScene.RenderStrip (rtv, comp);
+    }
+
+    m_previewScene.SetClipRect (nullptr);
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadPreviewSceneModels
+//
+//  The same pairing rule the shell uses: the //c gets its platinum monitor
+//  over matching drives, everything else the beige Monitor II over Disk IIs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsSheet::LoadPreviewSceneModels()
+{
+    HRESULT      hr         = S_OK;
+    bool         isC        = (m_emuShell != nullptr) && m_emuShell->IsApple2c();
+    std::string  monitorObj = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_MONITOR2C_OBJ : IDR_MODEL_MONITOR2_OBJ);
+    std::string  monitorMtl = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_MONITOR2C_MTL : IDR_MODEL_MONITOR2_MTL);
+    std::string  driveObj   = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_DISK2C_OBJ    : IDR_MODEL_DISKII_OBJ);
+    std::string  driveMtl   = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_DISK2C_MTL    : IDR_MODEL_DISKII_MTL);
+    bool         haveText   = false;
+
+
+
+    haveText = !monitorObj.empty() && !monitorMtl.empty() && !driveObj.empty() && !driveMtl.empty();
+    CBRA (haveText);
+
+    hr = m_previewScene.LoadModels (isC ? DeskDeviceKind::Monitor2c : DeskDeviceKind::Monitor2,
+                                    monitorObj, monitorMtl, driveObj, driveMtl);
+    CHRA (hr);
+
+    m_previewScene.SetPowerLampOn (true);
+    m_previewSceneIsC = isC;
+
+Error:
+    return hr;
 }
 
 

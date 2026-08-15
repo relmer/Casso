@@ -63,6 +63,10 @@ public:
     // pass null to fall back.
     void     SetContentSrv        (ID3D11ShaderResourceView * srv) { m_externalSrv = srv; }
 
+    // The CPU-uploaded texture's view, for callers that want to hand it back
+    // as an explicit content SRV rather than relying on the fallback.
+    ID3D11ShaderResourceView *  ContentSrv () const { return m_contentSrv.Get(); }
+
     // Prepare (and clear) a depth buffer matching the currently bound render
     // target, for draws submitted with `depthTest == true`. Call once at the
     // start of a scene frame, AFTER the caller's render target is bound --
@@ -93,6 +97,12 @@ public:
     // to composite and is equally quiet, so callers pair them unconditionally.
     HRESULT  BeginMultisampledScene ();
     HRESULT  EndMultisampledScene   (const D3D11_VIEWPORT & viewportPx);
+
+    // Crop every subsequent draw to `rect` (target pixels); null clears it.
+    // For keeping a scene inside a sub-rect that something else may cover --
+    // shrinking the viewport instead would re-map the projection and squash
+    // the scene rather than crop it.
+    void     SetScissor (const RECT * rect);
 
     // Antialiasing quality for the scene pass. 1 disables the detour
     // entirely; 4 is the sweet spot for edge crawl against bandwidth.
@@ -126,6 +136,9 @@ private:
     ComPtr<ID3D11Buffer>              m_mvpBuffer;
     ComPtr<ID3D11BlendState>          m_blendState;
     ComPtr<ID3D11RasterizerState>     m_rasterState;
+    ComPtr<ID3D11RasterizerState>     m_rasterStateScissor;
+    RECT                              m_scissor    = {};
+    bool                              m_hasScissor = false;
     ComPtr<ID3D11DepthStencilState>   m_depthState;       // depth off (painter's algorithm)
     ComPtr<ID3D11DepthStencilState>   m_depthStateTest;   // LESS test + write (meshes)
     ComPtr<ID3D11DepthStencilState>   m_depthStateReadOnly;   // LESS test, no write (light)

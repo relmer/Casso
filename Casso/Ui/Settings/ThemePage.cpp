@@ -99,7 +99,9 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
                                    const std::function<std::wstring (int)>              & mountedPathSource,
                                    const std::function<WriteProtectInfo (int)>          & writeProtectSource,
                                    std::array<DriveWidget, 2>           & previewDrives,
-                                   JoystickToggleButton                 & previewButton)
+                                   JoystickToggleButton                 & previewButton,
+                                   bool                                   crtMonitor,
+                                   PreviewSceneRequest                  & outScene)
 {
     RECT     prevRect     = {};
     float    scale        = 0.0f;
@@ -122,6 +124,14 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
 
 
 
+    // Skeuo hands the drives to the 3D scene in every case, and the monitor
+    // too unless the user opted it out -- the same two-step the live chrome
+    // makes with DeskSceneActive and CrtMonitorActive.
+    bool  scene3d  = !theme.compactDrives;
+    bool  sceneCrt = scene3d && crtMonitor;
+
+    outScene = {};
+
     ComputePreviewGeometry (availRect, driveBandDp, prevRect, scale);
     if (scale <= 0.0f)
     {
@@ -135,11 +145,6 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
     driveBarH = ScalePx (driveBandDp);
     screenH = std::max (0, prevH - titleH - navH - driveBarH);
     effectiveDpi = (UINT) std::max (24, (int) (96.0f * scale));
-
-    // Outer 1px frame so the preview reads as a discrete window
-    // on the panel background.
-    painter.OutlineRect ((float) prevRect.left, (float) prevRect.top,
-                         (float) prevW, (float) prevH, 1.0f, 0xFF101010);
 
     // Title bar gradient.
     {
@@ -239,13 +244,23 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
     }
 
     // Screen area: live emulator framebuffer, aspect-fit.
+    //
+    // With the CRT in the scene the picture belongs on curved glass, so the
+    // flat rect and its blit are skipped entirely -- but the area is still
+    // blacked out first, because the scene composes onto whatever is behind
+    // it and the page background showing through the tube would be worse
+    // than a dark screen.
     {
         int  screenTop = prevRect.top + titleH + navH;
 
+        // Under the scene this is the DESK the devices stand on, so it takes
+        // the theme's own background -- the color the live window clears to.
+        // Black would read as a dead screen the size of the whole preview.
         painter.FillRect ((float) prevRect.left, (float) screenTop,
-                          (float) prevW, (float) screenH, 0xFF000000);
+                          (float) prevW, (float) screenH,
+                          sceneCrt ? theme.Background() : 0xFF000000);
 
-        if (screenH > 0 && framebufferSource)
+        if (screenH > 0 && framebufferSource && !sceneCrt)
         {
             int               fbW      = 0;
             int               fbH      = 0;
@@ -296,9 +311,11 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         int                widgetY       = 0;
         int                d             = 0;
 
+        // Same for the band the 3D drives stand in: the live chrome hides its
+        // surface under the scene rather than painting a bar behind them.
         painter.FillRect ((float) prevRect.left, (float) driveTop,
                           (float) prevW, (float) driveBarH,
-                          theme.navStrip);
+                          scene3d ? theme.Background() : theme.navStrip);
 
         // Layout each preview drive: probe widget[0] for its
         // intrinsic size at the effective DPI, then space the
@@ -368,7 +385,7 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         // bar to the joystick band, so the preview shows just the band
         // fill + joystick button -- matching the live chrome's Phase D
         // reclaim. (The widgets were laid out above but go undrawn.)
-        if (hasDisk)
+        if (hasDisk && !scene3d)
         {
             previewDrives[0].Paint (painter, text, theme);
             previewDrives[1].Paint (painter, text, theme);
@@ -387,8 +404,33 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
             previewButton.SetTextRenderer (&text);
             previewButton.SetOn           (true);
             previewButton.Layout          (anchor, previewScaler);
-            previewButton.Paint           (painter, text, theme);
+
+            // The scene's drives stand where this band is; the live chrome
+            // retired this button from the bottom for the same reason.
+            if (!scene3d)
+            {
+                previewButton.Paint (painter, text, theme);
+            }
         }
+    }
+
+    // Outer 1px frame so the preview reads as a discrete window on the panel
+    // background. Drawn LAST because every band fill above spans the full
+    // width and would otherwise erase it -- which went unnoticed while the
+    // screen was black and the contrast carried the boundary by itself.
+    painter.OutlineRect ((float) prevRect.left, (float) prevRect.top,
+                         (float) prevW, (float) prevH, 1.0f, 0xFF101010);
+
+    // Hand the sheet the region to compose into. Full takes the picture and
+    // the drives together, exactly as the live scene lays them out; with the
+    // CRT opted out only the drive band is the scene's.
+    if (scene3d && hasDisk)
+    {
+        outScene.mode   = sceneCrt ? PreviewSceneMode::Full : PreviewSceneMode::DrivesOnly;
+        outScene.rectPx = sceneCrt
+            ? RECT { prevRect.left, prevRect.top + titleH + navH, prevRect.right, prevRect.bottom }
+            : RECT { prevRect.left, prevRect.bottom - driveBarH, prevRect.right, prevRect.bottom };
+        outScene.clipPx = outScene.rectPx;
     }
 }
 
@@ -754,7 +796,27 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
 
         hasDisk = m_hasDiskSource ? m_hasDiskSource() : true;
 
-        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_previewDrives, m_previewJoystickButton);
+        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_previewDrives, m_previewJoystickButton, m_crtMonitorCheckbox.Checked(), m_sceneRequest);
+
+        // The 3D pass runs after the whole panel tree, so it would otherwise
+        // land on top of the menu about to be painted below. An in-window
+        // menu drops straight down over the preview, so cropping the scene
+        // to what is left underneath keeps the live preview alive while the
+        // user arrows through the list. A hosted popup is its own window and
+        // covers nothing here, which is why InWindowMenuRect returns empty
+        // for one.
+        {
+            RECT  menu = m_themeDropdown.InWindowMenuRect();
+
+            if (menu.bottom > menu.top && menu.bottom > m_sceneRequest.clipPx.top)
+            {
+                m_sceneRequest.clipPx.top = std::min (menu.bottom, m_sceneRequest.clipPx.bottom);
+            }
+        }
+    }
+    else
+    {
+        m_sceneRequest = {};
     }
 
     m_themeDropdown.PaintMenu   (painter, text);

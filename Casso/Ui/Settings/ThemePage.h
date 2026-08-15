@@ -130,6 +130,38 @@ private:
                                          RECT        & outPrevRect,
                                          float       & outScale);
 
+public:
+    // What the 3D desk scene should draw over the mock window, decided during
+    // the 2D paint and consumed by the sheet's after-paint hook. The preview
+    // cannot draw the scene itself: it paints through the 2D painter, and the
+    // scene needs the render target after the panel tree is done with it.
+    //
+    // Skeuo themes hand the picture and drives to the scene exactly as the
+    // live chrome does, so the 2D paint LEAVES THOSE OUT rather than drawing
+    // underneath -- the mock's flat screen rect and flat drive widgets are
+    // what made the preview keep showing a presentation the app retired.
+    enum class PreviewSceneMode
+    {
+        None,        // compact theme: the flat mock is the whole preview
+        Full,        // monitor and drives, the CRT checkbox on
+        DrivesOnly,  // CRT opted out: flat picture, 3D drives beneath it
+    };
+
+    struct PreviewSceneRequest
+    {
+        PreviewSceneMode  mode   = PreviewSceneMode::None;
+        RECT              rectPx = {};   // where the scene composes
+        RECT              clipPx = {};   // and where it must stop
+    };
+
+    const PreviewSceneRequest &  SceneRequest () const { return m_sceneRequest; }
+
+    // The live framebuffer, for the scene's glass -- the same source the flat
+    // preview blit uses. Null when the shell has not supplied one.
+    const uint32_t *  FramebufferPixels (int & outW, int & outH) const
+    { return m_framebufferSource ? m_framebufferSource (outW, outH) : nullptr; }
+
+private:
     static void  PaintPreviewWindow (DxuiPainter                          & painter,
                                      DxuiTextRenderer                     & text,
                                      const RECT                           & availRect,
@@ -139,7 +171,9 @@ private:
                                      const std::function<std::wstring (int)>              & mountedPathSource,
                                      const std::function<WriteProtectInfo (int)>          & writeProtectSource,
                                      std::array<DriveWidget, 2>           & previewDrives,
-                                     JoystickToggleButton                 & previewButton);
+                                     JoystickToggleButton                 & previewButton,
+                                     bool                                   crtMonitor,
+                                     PreviewSceneRequest                  & outScene);
 
     std::vector<std::string>      m_themeIds;
     int                           m_activeIndex = -1;
@@ -172,4 +206,7 @@ private:
     // theme preview also shows the lit blue LED in the band above the
     // drive widgets, mirroring the live chrome.
     mutable JoystickToggleButton        m_previewJoystickButton;
+
+    // Refreshed every paint, read by the sheet right afterward.
+    mutable PreviewSceneRequest         m_sceneRequest;
 };

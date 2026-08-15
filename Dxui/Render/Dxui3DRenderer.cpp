@@ -325,6 +325,16 @@ HRESULT Dxui3DRenderer::CreatePipelineState()
 
         hr = m_device->CreateRasterizerState (&raster, m_rasterState.GetAddressOf());
         CHR (hr);
+
+        // The same state with the scissor honored, for callers that must keep
+        // a scene inside a sub-rect of the target -- the settings preview
+        // draws under a dropdown that is allowed to cover it. A viewport
+        // cannot do this job: shrinking it would re-map the projection and
+        // squash the scene rather than crop it.
+        raster.ScissorEnable = TRUE;
+
+        hr = m_device->CreateRasterizerState (&raster, m_rasterStateScissor.GetAddressOf());
+        CHR (hr);
     }
 
     // Two depth modes: off for hand-ordered painter's-algorithm batches, and
@@ -572,6 +582,26 @@ HRESULT Dxui3DRenderer::BeginDepthPass()
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetScissor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dxui3DRenderer::SetScissor (const RECT * rect)
+{
+    m_hasScissor = (rect != nullptr) && (rect->right > rect->left) && (rect->bottom > rect->top);
+
+    if (m_hasScissor)
+    {
+        m_scissor = *rect;
+    }
 }
 
 
@@ -844,10 +874,16 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
 
     // Full state set every draw (mirrors DxuiPainter::End): interleaving with
     // the painter and text renderer needs no save/restore etiquette.
+    if (m_hasScissor)
+    {
+        m_context->RSSetScissorRects (1, &m_scissor);
+    }
+
     m_context->RSSetViewports         (1, &viewportPx);
     m_context->OMSetBlendState        (m_blendState.Get(), blendFactor, 0xFFFFFFFF);
     m_context->OMSetDepthStencilState (depthState, 0);
-    m_context->RSSetState             (m_rasterState.Get());
+    m_context->RSSetState             (m_hasScissor ? m_rasterStateScissor.Get()
+                                                    : m_rasterState.Get());
 
     m_context->IASetInputLayout       (m_layout.Get());
     m_context->IASetPrimitiveTopology (D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
