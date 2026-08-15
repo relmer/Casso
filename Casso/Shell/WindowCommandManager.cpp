@@ -795,6 +795,18 @@ void WindowCommandManager::OnViewCommand (int id)
                 int   ncOverheadH     = 0;
 
 
+                // Leave the maximized state before sizing. SetWindowPos on a
+                // zoomed window moves and resizes it but leaves WS_MAXIMIZE
+                // set, so the window keeps claiming to be maximized: the
+                // caption still offers Restore, and the next Restore snaps
+                // back to a stale rect. Restoring first also makes the
+                // non-client measurement below describe the presentation the
+                // window is about to have.
+                if (IsZoomed (m_shell.m_hwnd))
+                {
+                    ShowWindow (m_shell.m_hwnd, SW_RESTORE);
+                }
+
                 // Target client area: framebuffer at the current DPI
                 // (linear scale), with the chrome band insets summed by
                 // the single source of truth. EmulatorShell::

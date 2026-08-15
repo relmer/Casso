@@ -399,6 +399,11 @@ void ThemeManager::AddChangeListener (ChangeListener listener)
 
 void ThemeManager::NotifyListeners (const LoadedTheme & theme)
 {
+    // Every caller hands this the RESOLVED theme, which makes it the one
+    // place that always sees the machine overrides -- so the CRT snapshot
+    // refreshes here rather than in each of them.
+    m_activeCrtDefaults = theme.crtDefaults;
+
     for (const ChangeListener & listener : m_listeners)
     {
         if (listener)

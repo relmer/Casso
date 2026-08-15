@@ -75,6 +75,7 @@ BAND         = 0.50 * 25.4        # the flat front band's width
 RAKE_DEG     = 60.0               # 90 would be straight back into the case
 TUBE_DROP    = PROTRUDE           # so the tube's rim lands on the case face
 BEZEL_FILLET = 3.0                # the bezel's outer corners
+OPEN_FILLET  = BEZEL_FILLET + GAP  # and the case opening's, one gap outside
 MOUTH_R      = 14.0               # the opening's corner radius: a tube face
                                   # is a rounded rectangle, and the funnel
                                   # follows it around
@@ -176,8 +177,13 @@ case = (cq.Workplane("XY")
 # The screen cavity: a pocket back from the front face. Cutting it is what
 # makes the opening a hole -- the failure mode of the hand-built version was
 # a case front that was quietly solid.
+#
+# Its corners are rounded to hold the same gap the straight sides do. Cut
+# square, the opening's corners stood outside the bezel's filleted ones and
+# each corner showed a black triangle of bare cavity.
 case = case.cut(
     cq.Workplane("XY").box(OX1 - OX0, CAVITY_D, OZ1 - OZ0, centered=(False, False, False))
+      .edges("|Y").fillet(OPEN_FILLET)
       .translate((OX0, -1.0, OZ0)))
 
 # The stylistic divider groove down the front of the right strip.
@@ -201,6 +207,7 @@ m.add("case", case, BEIGE, angular=CORNER_ANG)
 # rather than as more case. A thin shell lining the pocket.
 lining = (cq.Workplane("XY")
           .box(OX1 - OX0, CAVITY_D - 2.0, OZ1 - OZ0, centered=(False, False, False))
+          .edges("|Y").fillet(OPEN_FILLET)
           .translate((OX0, 1.0, OZ0))
           .faces("<Y").shell(-1.2))
 

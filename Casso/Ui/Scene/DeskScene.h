@@ -227,11 +227,35 @@ public:
     static constexpr float  kSheenStrength   = 0.15f;
     static constexpr float  kSheenLiftMm     = 0.52f;
 
+    // And it fades out on the same rounded outline the tube layers stop on.
+    // The sheen is lifted above all of them, so square corners would put the
+    // brightest thing in the scene on top of the bezel's mouth.
+    static constexpr float  kSheenFadeMm     = 2.0f;
+
     static constexpr float  kMaskPadMm       = 4.0f;
     static constexpr float  kMaskRadiusMm    = 10.0f;
     static constexpr float  kMaskLiftMm      = 0.48f;
-    static constexpr int    kMaskArcSegments = 8;
     static constexpr float  kMaskTint[3]     = { 0.012f, 0.020f, 0.016f };
+
+    // The tube layers stop on a ROUNDED outline, not on the sheet's square
+    // corners. The bezel's mouth is a rounded rectangle, so a square-cornered
+    // tube pushes a wedge of itself out past the opening at every corner --
+    // and since the layers are lifted off the sheet to clear each other, that
+    // wedge lands in FRONT of the bezel instead of being hidden by it. The
+    // result read as a second, squarer screen sitting behind the first.
+    //
+    // The radius belongs to the model: cad_monitor2.MOUTH_R is the mouth's,
+    // and the sheet is inset one millimeter inside the mouth, so the outline
+    // that keeps a uniform offset from the mouth is one millimeter tighter.
+    // Offsetting a rounded rectangle inward by d drops its radius by d.
+    static constexpr float  kGlassEdgeRadiusMm = 13.0f;
+
+    // Ring tessellation. The sides need many samples because the sphere bulges
+    // millimeters over a span that long -- far past any lift -- and a coarse
+    // chord would dive under the layer beneath and let it show through.
+    static constexpr int    kRingSideSegments  = 24;
+    static constexpr int    kRingArcSegments   = 10;
+    static constexpr int    kRingCrossSegments = 6;
 
     // Drive door swing: fully open lifts the door bar this far off the
     // faceplate (a touch past 60 degrees, like the real drive at rest), and

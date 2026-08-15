@@ -359,6 +359,10 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
     // poke through it at grazing corner angles, so none exists. The mask
     // covers (rounded opening) -> glass edge just above the picture,
     // rounding the corners the way a real faceplate does.
+    //
+    // Both stop on the glass's ROUNDED outline. See kGlassEdgeRadiusMm: a
+    // square outer corner pushes a lifted wedge past the bezel's rounded
+    // mouth, which reads as a second screen behind the first.
     {
         float  gx0    = surface.x0;
         float  gx1    = surface.x1;
@@ -373,10 +377,15 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
         float  oz0    = std::max (bz0 - kMaskPadMm, gz0);
         float  oz1    = std::min (bz1 + kMaskPadMm, gz1);
         float  radius = std::min ({ kMaskRadiusMm, (ox1 - ox0) * 0.5f, (oz1 - oz0) * 0.5f });
+        float  edgeR  = std::min ({ kGlassEdgeRadiusMm, (gx1 - gx0) * 0.5f, (gz1 - gz0) * 0.5f });
 
-        std::vector<Dxui3DRenderer::Vertex> *  target = nullptr;
-        float                                  lift   = 0.0f;
-        const float                          * tint   = kTubeTint;
+        struct RingPoint { float x; float z; };
+
+        constexpr float                        kHalfPi = 1.5707963f;
+
+        std::vector<Dxui3DRenderer::Vertex> *  target  = nullptr;
+        float                                  lift    = 0.0f;
+        const float                          * tint    = kTubeTint;
 
         auto surfacePoint = [&] (float x, float z, Dxui3DRenderer::Vertex & v)
         {
@@ -405,51 +414,86 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
             surfacePoint (x2, z2, v);  target->push_back (v);
         };
 
-        // Strips are long (they span the glass), and the sag sphere bulges
-        // millimeters over such spans -- far past any lift -- so a flat
-        // corner-to-corner quad would slice below the tube and let it poke
-        // through as dark petals. Subdivide each strip patch and put every
-        // sample on the sphere; the leftover chord error is far under the
-        // lift.
-        auto pushPatch = [&] (float ax, float az, float bx, float bz,
-                              float cx2, float cz2, float dx, float dz)
+        // A rounded rectangle walked counter-clockwise in a fixed structure:
+        // four quarter arcs and four sides, always the same sample counts. Two
+        // outlines of different size and radius therefore correspond point for
+        // point, and the ring stretched between them cannot twist. A zero
+        // radius simply collapses its arc onto the corner.
+        auto outline = [] (float x0, float x1, float z0, float z1, float r,
+                           std::vector<RingPoint> & out)
         {
-            constexpr int   kAlong  = 24;
-            constexpr int   kAcross = 3;
+            const float   arcs[4][3] = { { x1 - r, z1 - r, 0.0f              },   // top-right
+                                         { x0 + r, z1 - r, kHalfPi           },   // top-left
+                                         { x0 + r, z0 + r, kHalfPi * 2.0f    },   // bottom-left
+                                         { x1 - r, z0 + r, kHalfPi * 3.0f    } }; // bottom-right
+            const float   sides[4][4] = { { x1 - r, z1, x0 + r, z1 },             // top
+                                          { x0, z1 - r, x0, z0 + r },             // left
+                                          { x0 + r, z0, x1 - r, z0 },             // bottom
+                                          { x1, z0 + r, x1, z1 - r } };           // right
 
-            for (int i = 0; i < kAlong; i++)
+            out.clear();
+
+            for (int k = 0; k < 4; k++)
             {
-                for (int j = 0; j < kAcross; j++)
+                // Half-open: each segment leaves its end point to the next one,
+                // so the walk closes on itself without doubled samples.
+                for (int i = 0; i < kRingArcSegments; i++)
                 {
-                    float   s0 = (float) i / (float) kAlong;
-                    float   s1 = (float) (i + 1) / (float) kAlong;
-                    float   t0 = (float) j / (float) kAcross;
-                    float   t1 = (float) (j + 1) / (float) kAcross;
+                    float   a = arcs[k][2] + kHalfPi * (float) i / (float) kRingArcSegments;
 
-                    auto lerp2 = [&] (float s, float t, float & outX, float & outZ)
-                    {
-                        float   topX = ax + (bx - ax) * s;
-                        float   topZ = az + (bz - az) * s;
-                        float   botX = dx + (cx2 - dx) * s;
-                        float   botZ = dz + (cz2 - dz) * s;
+                    out.push_back ({ arcs[k][0] + r * std::cos (a),
+                                     arcs[k][1] + r * std::sin (a) });
+                }
 
-                        outX = topX + (botX - topX) * t;
-                        outZ = topZ + (botZ - topZ) * t;
-                    };
+                for (int i = 0; i < kRingSideSegments; i++)
+                {
+                    float   t = (float) i / (float) kRingSideSegments;
 
-                    float   p00x = 0.0f, p00z = 0.0f, p10x = 0.0f, p10z = 0.0f;
-                    float   p11x = 0.0f, p11z = 0.0f, p01x = 0.0f, p01z = 0.0f;
-
-                    lerp2 (s0, t0, p00x, p00z);
-                    lerp2 (s1, t0, p10x, p10z);
-                    lerp2 (s1, t1, p11x, p11z);
-                    lerp2 (s0, t1, p01x, p01z);
-
-                    pushTri (p00x, p00z, p10x, p10z, p11x, p11z);
-                    pushTri (p00x, p00z, p11x, p11z, p01x, p01z);
+                    out.push_back ({ sides[k][0] + (sides[k][2] - sides[k][0]) * t,
+                                     sides[k][1] + (sides[k][3] - sides[k][1]) * t });
                 }
             }
         };
+
+        // The ring between two such outlines. Subdivided ACROSS as well as
+        // along: the sphere bulges millimeters over spans this long -- far
+        // past any lift -- so a single quad from outline to outline would
+        // slice below the layer beneath and let it poke through as dark
+        // petals. Every sample lands back on the sphere, leaving a chord
+        // error well under the lift.
+        auto pushRing = [&] (const std::vector<RingPoint> & inner,
+                             const std::vector<RingPoint> & outer)
+        {
+            for (size_t i = 0; i < outer.size(); i++)
+            {
+                size_t   j = (i + 1) % outer.size();
+
+                for (int k = 0; k < kRingCrossSegments; k++)
+                {
+                    float       t0 = (float) k / (float) kRingCrossSegments;
+                    float       t1 = (float) (k + 1) / (float) kRingCrossSegments;
+
+                    auto mix = [] (const RingPoint & a, const RingPoint & b, float t) -> RingPoint
+                    { return { a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t }; };
+
+                    RingPoint   oi = mix (outer[i], inner[i], t0);
+                    RingPoint   oj = mix (outer[j], inner[j], t0);
+                    RingPoint   ii = mix (outer[i], inner[i], t1);
+                    RingPoint   ij = mix (outer[j], inner[j], t1);
+
+                    pushTri (oi.x, oi.z, ii.x, ii.z, ij.x, ij.z);
+                    pushTri (oi.x, oi.z, ij.x, ij.z, oj.x, oj.z);
+                }
+            }
+        };
+
+        std::vector<RingPoint>   edgeRing;
+        std::vector<RingPoint>   bandRing;
+        std::vector<RingPoint>   openRing;
+
+        outline (gx0, gx1, gz0, gz1, edgeR,      edgeRing);
+        outline (bx0, bx1, bz0, bz1, 0.0f,       bandRing);
+        outline (ox0, ox1, oz0, oz1, radius,     openRing);
 
         // The tube ring: band -> glass edge, ON the surface (no lift).
         m_glassVerts.clear();
@@ -457,10 +501,7 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
         lift   = 0.0f;
         tint   = kTubeTint;
 
-        pushPatch (gx0, gz1, gx1, gz1, bx1, bz1, bx0, bz1);   // top
-        pushPatch (bx0, bz0, bx1, bz0, gx1, gz0, gx0, gz0);   // bottom
-        pushPatch (gx0, gz1, bx0, bz1, bx0, bz0, gx0, gz0);   // left
-        pushPatch (bx1, bz1, gx1, gz1, gx1, gz0, bx1, bz0);   // right
+        pushRing (bandRing, edgeRing);
 
         // The mask ring: rounded opening -> glass edge, floated past the
         // picture's lift.
@@ -469,37 +510,7 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
         lift   = kMaskLiftMm;
         tint   = kMaskTint;
 
-        // Four strips from the glass edges to the square opening.
-        pushPatch (gx0, gz1, gx1, gz1, ox1, oz1, ox0, oz1);   // top
-        pushPatch (ox0, oz0, ox1, oz0, gx1, gz0, gx0, gz0);   // bottom
-        pushPatch (gx0, gz1, ox0, oz1, ox0, oz0, gx0, gz0);   // left
-        pushPatch (ox1, oz1, gx1, gz1, gx1, gz0, ox1, oz0);   // right
-
-        // Four corner fans: from each opening corner out to its quarter arc.
-        {
-            float   corners[4][4] = { { ox0, oz1, 1.0f, -1.0f },     // top-left: center is right+down
-                                      { ox1, oz1, -1.0f, -1.0f },    // top-right
-                                      { ox1, oz0, -1.0f, 1.0f },     // bottom-right
-                                      { ox0, oz0, 1.0f, 1.0f } };    // bottom-left
-
-            for (int k = 0; k < 4; k++)
-            {
-                float   cx = corners[k][0] + corners[k][2] * radius;   // arc center
-                float   cz = corners[k][1] + corners[k][3] * radius;
-
-                for (int i = 0; i < kMaskArcSegments; i++)
-                {
-                    float  a0  = (float) i / (float) kMaskArcSegments * 1.5707963f;
-                    float  a1  = (float) (i + 1) / (float) kMaskArcSegments * 1.5707963f;
-                    float  p0x = cx - corners[k][2] * radius * std::cos (a0);
-                    float  p0z = cz - corners[k][3] * radius * std::sin (a0);
-                    float  p1x = cx - corners[k][2] * radius * std::cos (a1);
-                    float  p1z = cz - corners[k][3] * radius * std::sin (a1);
-
-                    pushTri (corners[k][0], corners[k][1], p0x, p0z, p1x, p1z);
-                }
-            }
-        }
+        pushRing (openRing, edgeRing);
     }
 
     m_glassUv      = displayUv;
@@ -549,6 +560,22 @@ void DeskScene::BuildGlassSheen (const CurvedDisplaySurface & surface)
         return;
     }
 
+    // Coverage on the rounded outline, as a signed distance: zero outside it,
+    // one a fade-width inside. Standard rounded-box distance -- push the point
+    // in by the straight extent, and what is left is measured against the
+    // corner radius.
+    auto  coverage = [&] (float x, float z) -> float
+    {
+        float   halfX = (surface.x1 - surface.x0) * 0.5f;
+        float   halfZ = (surface.z1 - surface.z0) * 0.5f;
+        float   r     = std::min ({ kGlassEdgeRadiusMm, halfX, halfZ });
+        float   qx    = std::max (std::abs (x - cx) - (halfX - r), 0.0f);
+        float   qz    = std::max (std::abs (z - cz) - (halfZ - r), 0.0f);
+        float   d     = std::sqrt (qx * qx + qz * qz) - r;
+
+        return std::min (std::max (-d / kSheenFadeMm, 0.0f), 1.0f);
+    };
+
     auto  vertexAt = [&] (int col, int row) -> Dxui3DRenderer::Vertex
     {
         Dxui3DRenderer::Vertex   v     = {};
@@ -595,6 +622,8 @@ void DeskScene::BuildGlassSheen (const CurvedDisplaySurface & surface)
                 spec = (d > 0.0f) ? std::pow (d, kSheenExponent) * kSheenStrength : 0.0f;
             }
         }
+
+        spec *= coverage (pt[0], pt[2]);
 
         v.x = pt[0];
         v.y = pt[1] - kSheenLiftMm;

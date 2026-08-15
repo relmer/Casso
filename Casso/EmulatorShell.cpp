@@ -5410,16 +5410,15 @@ bool EmulatorShell::TryPresentUiFrame()
     // scanlines/bloom/color-bleed toggles + magnitudes) to the
     // renderer every UI frame so user edits land on the very next
     // present. The active theme's `crtDefaults` only apply when the
-    // user hasn't customised anything yet (see MakeCrtParams).
+    // user hasn't customised anything yet (see MakeCrtParams), and they
+    // come RESOLVED -- reading the base theme here dropped the machine
+    // overrides, so the picture changed brightness whenever a resize let
+    // the other caller set the parameters instead.
     {
         const ThemeCrtDefaults *  themeDefaults = nullptr;
-        if (m_themeManager != nullptr)
+        if (m_themeManager != nullptr && m_themeManager->GetActiveTheme() != nullptr)
         {
-            const LoadedTheme *  active = m_themeManager->GetActiveTheme();
-            if (active != nullptr)
-            {
-                themeDefaults = &active->crtDefaults;
-            }
+            themeDefaults = &m_themeManager->ActiveCrtDefaults();
         }
 
         CrtParams  params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
@@ -9663,18 +9662,13 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         if (!m_uiFramebuffer.empty())
         {
             const ThemeCrtDefaults  * themeDefaults = nullptr;
-            LoadedTheme               resolvedTheme;
             CrtParams                 params        = {};
-            bool                      fHaveTheme    = false;
 
             if (m_themeManager != nullptr && m_themeManager->GetActiveTheme() != nullptr)
             {
-                resolvedTheme = m_themeManager->GetActiveResolvedTheme();
-                themeDefaults = &resolvedTheme.crtDefaults;
-                fHaveTheme    = true;
+                themeDefaults = &m_themeManager->ActiveCrtDefaults();
             }
 
-            (void) fHaveTheme;
             params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
                                     (size_t) m_colorMode.load(std::memory_order_acquire),
                                     themeDefaults,
