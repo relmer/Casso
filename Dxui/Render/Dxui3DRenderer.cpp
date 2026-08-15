@@ -166,7 +166,16 @@ void Dxui3DRenderer::Shutdown()
     m_whiteSrv.Reset();
     m_depthTex.Reset();
     m_depthDsv.Reset();
+    m_msaaTex.Reset();
+    m_msaaRtv.Reset();
+    m_resolveTex.Reset();
+    m_resolveSrv.Reset();
+    m_savedRtv.Reset();
 
+    m_msaaWidth            = 0;
+    m_msaaHeight           = 0;
+    m_inMsaaScene          = false;
+    m_depthSamples         = 0;
     m_vertexBufferCapacity = 0;
     m_contentWidth         = 0;
     m_contentHeight        = 0;
@@ -526,22 +535,27 @@ HRESULT Dxui3DRenderer::BeginDepthPass()
 
     tex->GetDesc (&desc);
 
+    // Sample count too: depth must match the bound target's, and during the
+    // multisampled scene pass that target is the MSAA one. A single-sample
+    // depth buffer against a multisampled color target is invalid, and the
+    // whole scene silently stops drawing.
     if ((int) desc.Width != m_depthWidth || (int) desc.Height != m_depthHeight ||
-        m_depthDsv == nullptr)
+        desc.SampleDesc.Count != m_depthSamples || m_depthDsv == nullptr)
     {
         D3D11_TEXTURE2D_DESC   depthDesc = {};
 
         m_depthTex.Reset();
         m_depthDsv.Reset();
 
-        depthDesc.Width            = desc.Width;
-        depthDesc.Height           = desc.Height;
-        depthDesc.MipLevels        = 1;
-        depthDesc.ArraySize        = 1;
-        depthDesc.Format           = DXGI_FORMAT_D24_UNORM_S8_UINT;
-        depthDesc.SampleDesc.Count = 1;
-        depthDesc.Usage            = D3D11_USAGE_DEFAULT;
-        depthDesc.BindFlags        = D3D11_BIND_DEPTH_STENCIL;
+        depthDesc.Width              = desc.Width;
+        depthDesc.Height             = desc.Height;
+        depthDesc.MipLevels          = 1;
+        depthDesc.ArraySize          = 1;
+        depthDesc.Format             = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        depthDesc.SampleDesc.Count   = desc.SampleDesc.Count;
+        depthDesc.SampleDesc.Quality = desc.SampleDesc.Quality;
+        depthDesc.Usage              = D3D11_USAGE_DEFAULT;
+        depthDesc.BindFlags          = D3D11_BIND_DEPTH_STENCIL;
 
         hr = m_device->CreateTexture2D (&depthDesc, nullptr, m_depthTex.GetAddressOf());
         CHR (hr);
@@ -549,11 +563,181 @@ HRESULT Dxui3DRenderer::BeginDepthPass()
         hr = m_device->CreateDepthStencilView (m_depthTex.Get(), nullptr, m_depthDsv.GetAddressOf());
         CHR (hr);
 
-        m_depthWidth  = (int) desc.Width;
-        m_depthHeight = (int) desc.Height;
+        m_depthWidth   = (int) desc.Width;
+        m_depthHeight  = (int) desc.Height;
+        m_depthSamples = desc.SampleDesc.Count;
     }
 
     m_context->ClearDepthStencilView (m_depthDsv.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BeginMultisampledScene
+//
+//  Points the scene at an offscreen multisampled target. Flip-model swap
+//  chains cannot themselves be multisampled -- DXGI pins SampleDesc.Count to
+//  1 on them -- so antialiasing means rendering elsewhere and resolving.
+//
+//  The target is cleared TRANSPARENT rather than seeded with a copy of the
+//  destination. Premultiplied source-over compositing is associative, so
+//  layering the scene onto nothing and then compositing that layer over the
+//  destination lands on exactly the pixels drawing directly would have.
+//
+//  Does nothing when the device will not multisample at this count, leaving
+//  the scene to draw unantialiased rather than not at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dxui3DRenderer::BeginMultisampledScene()
+{
+    HRESULT                          hr       = S_OK;
+    UINT                             quality  = 0;
+    int                              width    = 0;
+    int                              height   = 0;
+    float                            clear[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    D3D11_TEXTURE2D_DESC             dstDesc  = {};
+    ComPtr<ID3D11RenderTargetView>   rtv;
+    ComPtr<ID3D11Resource>           res;
+    ComPtr<ID3D11Texture2D>          tex;
+
+
+
+    CBREx (m_device != nullptr, E_UNEXPECTED);
+
+    BAIL_OUT_IF (kSceneSampleCount <= 1 || m_inMsaaScene, S_OK);
+
+    hr = m_device->CheckMultisampleQualityLevels (DXGI_FORMAT_B8G8R8A8_UNORM,
+                                                  kSceneSampleCount, &quality);
+
+    // Not an error, just a device that will not do it: draw unantialiased.
+    BAIL_OUT_IF (FAILED (hr) || quality == 0, S_OK);
+
+    // Size from the destination the caller just bound.
+    m_context->OMGetRenderTargets (1, rtv.GetAddressOf(), nullptr);
+    CBREx (rtv != nullptr, E_UNEXPECTED);
+
+    rtv->GetResource (res.GetAddressOf());
+    hr = res.As (&tex);
+    CHR (hr);
+
+    tex->GetDesc (&dstDesc);
+    width  = (int) dstDesc.Width;
+    height = (int) dstDesc.Height;
+
+    CBREx (width > 0 && height > 0, E_UNEXPECTED);
+
+    if (width != m_msaaWidth || height != m_msaaHeight || m_msaaRtv == nullptr)
+    {
+        D3D11_TEXTURE2D_DESC   desc = {};
+
+        m_msaaTex.Reset();
+        m_msaaRtv.Reset();
+        m_resolveTex.Reset();
+        m_resolveSrv.Reset();
+
+        desc.Width              = (UINT) width;
+        desc.Height             = (UINT) height;
+        desc.MipLevels          = 1;
+        desc.ArraySize          = 1;
+        desc.Format             = DXGI_FORMAT_B8G8R8A8_UNORM;
+        desc.SampleDesc.Count   = kSceneSampleCount;
+        desc.SampleDesc.Quality = quality - 1;
+        desc.Usage              = D3D11_USAGE_DEFAULT;
+        desc.BindFlags          = D3D11_BIND_RENDER_TARGET;
+
+        hr = m_device->CreateTexture2D (&desc, nullptr, m_msaaTex.GetAddressOf());
+        CHR (hr);
+
+        hr = m_device->CreateRenderTargetView (m_msaaTex.Get(), nullptr, m_msaaRtv.GetAddressOf());
+        CHR (hr);
+
+        desc.SampleDesc.Count   = 1;
+        desc.SampleDesc.Quality = 0;
+        desc.BindFlags          = D3D11_BIND_SHADER_RESOURCE;
+
+        hr = m_device->CreateTexture2D (&desc, nullptr, m_resolveTex.GetAddressOf());
+        CHR (hr);
+
+        hr = m_device->CreateShaderResourceView (m_resolveTex.Get(), nullptr,
+                                                 m_resolveSrv.GetAddressOf());
+        CHR (hr);
+
+        m_msaaWidth  = width;
+        m_msaaHeight = height;
+    }
+
+    // Remember where the finished layer goes back to.
+    m_savedRtv = rtv;
+
+    m_context->ClearRenderTargetView (m_msaaRtv.Get(), clear);
+    m_context->OMSetRenderTargets    (1, m_msaaRtv.GetAddressOf(), nullptr);
+
+    m_inMsaaScene = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EndMultisampledScene
+//
+//  Resolves the multisampled scene and composites it over the target the
+//  caller had bound, as one textured quad in clip space with depth off.
+//  Harmless when Begin declined.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dxui3DRenderer::EndMultisampledScene (const D3D11_VIEWPORT & viewportPx)
+{
+    HRESULT                    hr         = S_OK;
+    ID3D11RenderTargetView   * rawRtv     = nullptr;
+    ID3D11ShaderResourceView * saved      = m_externalSrv;
+    Vertex                     quad[6]    = {};
+    float                      identity[16] = { 1, 0, 0, 0,
+                                                0, 1, 0, 0,
+                                                0, 0, 1, 0,
+                                                0, 0, 0, 1 };
+
+
+
+    BAIL_OUT_IF (!m_inMsaaScene, S_OK);
+
+    m_inMsaaScene = false;
+
+    m_context->ResolveSubresource (m_resolveTex.Get(), 0, m_msaaTex.Get(), 0,
+                                   DXGI_FORMAT_B8G8R8A8_UNORM);
+
+    rawRtv = m_savedRtv.Get();
+    m_context->OMSetRenderTargets (1, &rawRtv, nullptr);
+
+    // A full-target quad in clip space, tinted opaque white so the shader's
+    // tex*col passes the resolved premultiplied pixels through untouched.
+    quad[0] = { -1.0f,  1.0f, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+    quad[1] = {  1.0f,  1.0f, 0.5f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+    quad[2] = {  1.0f, -1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+    quad[3] = { -1.0f,  1.0f, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+    quad[4] = {  1.0f, -1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+    quad[5] = { -1.0f, -1.0f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+
+    m_externalSrv = m_resolveSrv.Get();
+    hr            = DrawTriangles (quad, 6, identity, true, viewportPx, false);
+    m_externalSrv = saved;
+
+    m_savedRtv.Reset();
+    CHRA (hr);
 
 Error:
     return hr;

@@ -1127,6 +1127,7 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
     D3D11_VIEWPORT   viewport  = {};
     float            mvp[16]   = {};
     bool             uvChanged = false;
+    HRESULT          hrEnd     = S_OK;
 
 
 
@@ -1157,6 +1158,13 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
     viewport.Width    = (float) (m_comp.viewportPx.right - m_comp.viewportPx.left);
     viewport.Height   = (float) (m_comp.viewportPx.bottom - m_comp.viewportPx.top);
     viewport.MaxDepth = 1.0f;
+
+    // Everything from here to EndMultisampledScene lands in the offscreen
+    // multisampled target: the case silhouette, the reveal groove, the molded
+    // icon's ridges and the bezel's radii are all geometry edges, which is
+    // exactly what the resolve smooths.
+    hr = m_renderer.BeginMultisampledScene();
+    CHRA (hr);
 
     hr = m_renderer.BeginDepthPass();
     CHRA (hr);
@@ -1226,5 +1234,12 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
     CHRA (hr);
 
 Error:
+    // Resolve and composite on EVERY exit, not just the clean one: a failure
+    // between Begin and End would otherwise strand the detour armed, and
+    // every later draw would land in an offscreen target nobody composites --
+    // the scene would simply vanish. A no-op when Begin declined.
+    hrEnd = m_renderer.EndMultisampledScene (viewport);
+    IGNORE_RETURN_VALUE (hrEnd, S_OK);
+
     return hr;
 }

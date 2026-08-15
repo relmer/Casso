@@ -71,6 +71,33 @@ public:
     // hand-built painter's-algorithm batches keep passing false.
     HRESULT  BeginDepthPass ();
 
+    // Multisampled scene pass. Between these two calls the scene draws into
+    // an offscreen MSAA target instead of the caller's render target; End
+    // resolves it and composites the result back.
+    //
+    // The detour exists because a flip-model swap chain CANNOT be
+    // multisampled -- DXGI requires SampleDesc.Count == 1 on it -- so the
+    // only way to antialias is to render somewhere else and resolve.
+    //
+    // The offscreen target starts fully transparent and the scene layers into
+    // it exactly as it would have layered onto the destination: this
+    // renderer blends premultiplied source-over, and premultiplied
+    // compositing is associative, so compositing the finished layer over the
+    // destination gives the same pixels as drawing straight onto it. No copy
+    // of the destination is needed going in.
+    //
+    // Call Begin AFTER binding the destination -- it sizes the offscreen
+    // target by querying it, the same contract BeginDepthPass keeps. When the
+    // device will not multisample at this count Begin quietly does nothing
+    // and the scene draws straight to the destination; End then has nothing
+    // to composite and is equally quiet, so callers pair them unconditionally.
+    HRESULT  BeginMultisampledScene ();
+    HRESULT  EndMultisampledScene   (const D3D11_VIEWPORT & viewportPx);
+
+    // Antialiasing quality for the scene pass. 1 disables the detour
+    // entirely; 4 is the sweet spot for edge crawl against bandwidth.
+    static constexpr UINT  kSceneSampleCount = 4;
+
     // Transform `verts` by row-major `mvp` (row-vector convention: clip = v * M)
     // and draw as a triangle list into the currently bound render target,
     // restricted to `viewportPx`. `textured` selects the content texture;
@@ -104,10 +131,23 @@ private:
     ComPtr<ID3D11DepthStencilState>   m_depthStateReadOnly;   // LESS test, no write (light)
     ComPtr<ID3D11SamplerState>        m_sampler;
 
-    ComPtr<ID3D11Texture2D>           m_depthTex;
-    ComPtr<ID3D11DepthStencilView>    m_depthDsv;
-    int                               m_depthWidth  = 0;
-    int                               m_depthHeight = 0;
+    // The multisampled scene detour: an MSAA color target the scene draws
+    // into, and the single-sample texture it resolves to before being
+    // composited back over the caller's target.
+    ComPtr<ID3D11Texture2D>           m_msaaTex;
+    ComPtr<ID3D11RenderTargetView>    m_msaaRtv;
+    ComPtr<ID3D11Texture2D>           m_resolveTex;
+    ComPtr<ID3D11ShaderResourceView>  m_resolveSrv;
+    ComPtr<ID3D11RenderTargetView>    m_savedRtv;        // the caller's, while detoured
+    int                               m_msaaWidth   = 0;
+    int                               m_msaaHeight  = 0;
+    bool                              m_inMsaaScene = false;
+
+    ComPtr<ID3D11Texture2D>         m_depthTex;
+    ComPtr<ID3D11DepthStencilView>  m_depthDsv;
+    UINT                            m_depthSamples = 0;
+    int                             m_depthWidth   = 0;
+    int                             m_depthHeight  = 0;
 
     ComPtr<ID3D11Texture2D>           m_contentTex;
     ComPtr<ID3D11ShaderResourceView>  m_contentSrv;
