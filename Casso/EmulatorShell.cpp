@@ -292,6 +292,10 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
         int   skewPx        = MulDiv (vanishingX - widgetCenterX, 27, 100);
         RECT  widgetAnchor  = { widgetX, y, widgetX, y };
 
+        // Visible again: the desk scene turns these off rather than just
+        // collapsing them, and this is the one path that brings the flat
+        // widgets back, so it is where they earn their visibility.
+        driveChrome[i].SetVisible (true);
         driveChrome[i].SetPerspectiveSkewPx (skewPx);
         driveChrome[i].Layout (widgetAnchor, scaler);
     }
@@ -1542,8 +1546,11 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
     // bar along the window's bottom edge.
     m_driveBandSurface.SetVisible (!hidden && !DeskSceneActive());
     m_switchBar.SetVisible (!hidden);
-    m_driveChrome[0].SetVisible (!hidden);
-    m_driveChrome[1].SetVisible (!hidden);
+
+    // Leaving fullscreen must not hand the flat widgets back to a scene that
+    // has already retired them.
+    m_driveChrome[0].SetVisible (!hidden && !DeskSceneActive());
+    m_driveChrome[1].SetVisible (!hidden && !DeskSceneActive());
     m_sceneDriveLabel[0].SetVisible (!hidden);
     m_sceneDriveLabel[1].SetVisible (!hidden);
 
@@ -1578,6 +1585,12 @@ void EmulatorShell::SyncSceneDriveChrome()
 
     SyncSceneDriveLabels();
 
+    // INVISIBLE, not merely collapsed. Hide() only empties the bounds, and a
+    // visible panel with empty bounds is one stray Layout away from painting:
+    // a resize arranges the docked bands before this runs, so the retired 2D
+    // widgets flashed along the bottom edge for a frame under the 3D drives.
+    m_driveChrome[0].SetVisible (false);
+    m_driveChrome[1].SetVisible (false);
     m_driveChrome[0].Hide();
     m_driveChrome[1].Hide();
 
