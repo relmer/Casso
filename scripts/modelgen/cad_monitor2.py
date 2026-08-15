@@ -74,7 +74,11 @@ PROTRUDE     = 0.75 * 25.4        # bezel front face, proud of the case face
 BAND         = 0.50 * 25.4        # the flat front band's width
 RAKE_DEG     = 60.0               # 90 would be straight back into the case
 TUBE_DROP    = PROTRUDE           # so the tube's rim lands on the case face
-BEZEL_FILLET = 3.0                # outer corners, and the funnel's own
+BEZEL_FILLET = 3.0                # the bezel's outer corners
+MOUTH_R      = 14.0               # the opening's corner radius: a tube face
+                                  # is a rounded rectangle, and the funnel
+                                  # follows it around
+CORNER_ANG   = 0.03               # radians per segment where those radii live
 
 # ------------------------------------------------------------ the faceplate
 #
@@ -178,7 +182,11 @@ case = case.cut(
     cq.Workplane("XY").box(NOTCH_W, NOTCH_D, NOTCH_H + 2.0, centered=(False, False, False))
       .translate((NX0, -0.5, NZ0)))
 
-m.add("case", case, BEIGE)
+# Finer than the default, and note it is the ANGULAR tolerance doing the
+# work: at 3 mm the chords never sag far enough for the linear one to bite,
+# so the stock setting spent about three segments on a quarter turn and the
+# corners read as facets meeting at an angle rather than as rounds.
+m.add("case", case, BEIGE, angular=CORNER_ANG)
 
 # The cavity's inner surfaces, so the recess around the bezel reads dark
 # rather than as more case. A thin shell lining the pocket.
@@ -211,17 +219,23 @@ bezel = (cq.Workplane("XY")
 # front-to-back from the band down to the tube -- come out radiused without
 # having to select four diagonal edges after the fact.
 funnel = cq.Solid.makeLoft([
-    round_rect_wire(-PROTRUDE,             BAND_X0, BAND_X1, BAND_Z0, BAND_Z1, BEZEL_FILLET),
-    round_rect_wire(-PROTRUDE + TUBE_DROP, GX0,     GX1,     GZ0,     GZ1,     BEZEL_FILLET),
+    round_rect_wire(-PROTRUDE,             BAND_X0, BAND_X1, BAND_Z0, BAND_Z1, MOUTH_R),
+    round_rect_wire(-PROTRUDE + TUBE_DROP, GX0,     GX1,     GZ0,     GZ1,     MOUTH_R),
 ])
 
 bezel = bezel.cut(cq.Workplane(obj=funnel))
-bezel = bezel.cut(
-    cq.Workplane("XY")
-      .box(GX1 - GX0, CAVITY_D, GZ1 - GZ0, centered=(False, False, False))
-      .translate((GX0, -PROTRUDE + TUBE_DROP, GZ0)))
 
-m.add("bezel", bezel, BEZEL)
+# The tunnel behind the mouth carries the SAME rounded profile. Cut square,
+# its corners stood proud of the funnel's rounded ones and left a wedge of
+# bezel hanging into each corner of the opening.
+tunnel = cq.Solid.makeLoft([
+    round_rect_wire(-PROTRUDE + TUBE_DROP,             GX0, GX1, GZ0, GZ1, MOUTH_R),
+    round_rect_wire(-PROTRUDE + TUBE_DROP + CAVITY_D,  GX0, GX1, GZ0, GZ1, MOUTH_R),
+])
+
+bezel = bezel.cut(cq.Workplane(obj=tunnel))
+
+m.add("bezel", bezel, BEZEL, angular=CORNER_ANG)
 
 # --------------------------------------------------------------------- tube
 

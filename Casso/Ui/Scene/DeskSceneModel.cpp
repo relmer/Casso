@@ -160,35 +160,39 @@ void DeskSceneModel::AppendLitTri (std::vector<Dxui3DRenderer::Vertex> & out, co
                        e1[2] * e2[0] - e1[0] * e2[2],
                        e1[0] * e2[1] - e1[1] * e2[0] };
     float   nl     = std::sqrt (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
-    float   c[3]   = { (tri.p0[0] + tri.p1[0] + tri.p2[0]) / 3.0f,
-                       (tri.p0[1] + tri.p1[1] + tri.p2[1]) / 3.0f,
-                       (tri.p0[2] + tri.p1[2] + tri.p2[2]) / 3.0f };
-    float   sum    = 0.0f;
-    float   shade  = s_kShadeFloor + s_kShadeSpan;
 
 
-
-    if (nl > 0.0f)
-    {
-        for (const float * light : m_lightsModel)
-        {
-            float  toL[3] = { light[0] - c[0], light[1] - c[1], light[2] - c[2] };
-            float  r      = std::sqrt (toL[0] * toL[0] + toL[1] * toL[1] + toL[2] * toL[2]);
-
-            if (r > 0.0f)
-            {
-                float  d = (n[0] * toL[0] + n[1] * toL[1] + n[2] * toL[2]) / (nl * r);
-
-                sum += std::abs (d) * (s_kLightRefMm * s_kLightRefMm) / (r * r);
-            }
-        }
-
-        shade = s_kShadeFloor + s_kShadeSpan * (std::min) (1.0f, sum);
-    }
 
     for (const float * p : { tri.p0, tri.p1, tri.p2 })
     {
-        Dxui3DRenderer::Vertex   v = {};
+        Dxui3DRenderer::Vertex   v     = {};
+        float                    sum   = 0.0f;
+        float                    shade = s_kShadeFloor + s_kShadeSpan;
+
+        // Sampled at the VERTEX, not the face's center. These are point
+        // lights, so distance and angle vary across a face -- evaluating
+        // once per face gives the two triangles of a flat quad two
+        // different shades and draws their shared edge as a crease running
+        // corner to corner. The face's own normal still drives the Lambert
+        // term, so a flat surface stays flat; only the falloff varies, and
+        // it now varies continuously across the seam.
+        if (nl > 0.0f)
+        {
+            for (const float * light : m_lightsModel)
+            {
+                float  toL[3] = { light[0] - p[0], light[1] - p[1], light[2] - p[2] };
+                float  r      = std::sqrt (toL[0] * toL[0] + toL[1] * toL[1] + toL[2] * toL[2]);
+
+                if (r > 0.0f)
+                {
+                    float  d = (n[0] * toL[0] + n[1] * toL[1] + n[2] * toL[2]) / (nl * r);
+
+                    sum += std::abs (d) * (s_kLightRefMm * s_kLightRefMm) / (r * r);
+                }
+            }
+
+            shade = s_kShadeFloor + s_kShadeSpan * (std::min) (1.0f, sum);
+        }
 
         v.x = p[0];  v.y = p[1];  v.z = p[2];
         v.r = tri.r * shade;
@@ -399,58 +403,65 @@ void DeskSceneModel::AddLampSpill (const ObjTriangle                      & tri,
                                    const std::vector<const ObjTriangle *> & occluders,
                                    size_t                                   vertexBase)
 {
-    float   c[3]   = { (tri.p0[0] + tri.p1[0] + tri.p2[0]) / 3.0f,
-                       (tri.p0[1] + tri.p1[1] + tri.p2[1]) / 3.0f,
-                       (tri.p0[2] + tri.p1[2] + tri.p2[2]) / 3.0f };
-    float   toL[3] = { center[0] - c[0], center[1] - c[1], center[2] - c[2] };
-    float   r      = std::sqrt (toL[0] * toL[0] + toL[1] * toL[1] + toL[2] * toL[2]);
     float   e1[3]  = { tri.p1[0] - tri.p0[0], tri.p1[1] - tri.p0[1], tri.p1[2] - tri.p0[2] };
     float   e2[3]  = { tri.p2[0] - tri.p0[0], tri.p2[1] - tri.p0[1], tri.p2[2] - tri.p0[2] };
     float   n[3]   = { e1[1] * e2[2] - e1[2] * e2[1],
                        e1[2] * e2[0] - e1[0] * e2[2],
                        e1[0] * e2[1] - e1[1] * e2[0] };
     float   nl     = std::sqrt (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
-    float   emit   = 0.0f;
-    float   recv   = 0.0f;
-    float   atten  = 0.0f;
+    size_t  k      = 0;
 
 
 
-    if (r <= 0.0f || r > s_kLedRangeMm || nl <= 0.0f)
+    if (nl <= 0.0f)
     {
         return;
     }
 
-    // Behind the lens is dark: the emitter radiates into the hemisphere its
-    // face looks at, which is what keeps light off the cabinet behind it.
-    emit = -(dir[0] * toL[0] + dir[1] * toL[1] + dir[2] * toL[2]) / r;
-
-    if (emit <= 0.0f)
+    // Per vertex, for the same reason the room bake is: one sample at the
+    // face's center steps at every shared edge, and a lamp this close to
+    // its housing makes those steps obvious.
+    for (const float * p : { tri.p0, tri.p1, tri.p2 })
     {
-        return;
-    }
+        float  toL[3] = { center[0] - p[0], center[1] - p[1], center[2] - p[2] };
+        float  r      = std::sqrt (toL[0] * toL[0] + toL[1] * toL[1] + toL[2] * toL[2]);
+        float  emit   = 0.0f;
+        float  recv   = 0.0f;
+        float  atten  = 0.0f;
+        bool   shaded = false;
 
-    for (const ObjTriangle * blocker : occluders)
-    {
-        if (RayHitsTriangle (c, toL, *blocker))
+        if (r <= 0.0f || r > s_kLedRangeMm)
         {
-            return;
+            k++;
+            continue;
         }
-    }
 
-    // Inverse square, but never nearer than the reference distance: a lens
-    // is an area, not a point, and a true point source a few millimeters off
-    // the notch floor divides by almost nothing -- the surface saturates to
-    // white and the lamp's color is the thing that gets lost.
-    recv  = std::abs (n[0] * toL[0] + n[1] * toL[1] + n[2] * toL[2]) / (nl * r);
-    atten = emit * recv * s_kLedGain * (s_kLedRefMm * s_kLedRefMm) /
-            ((std::max) (r, s_kLedRefMm) * (std::max) (r, s_kLedRefMm));
+        // Behind the lens is dark: the emitter radiates into the hemisphere
+        // its face looks at, which keeps light off the cabinet behind it.
+        emit = -(dir[0] * toL[0] + dir[1] * toL[1] + dir[2] * toL[2]) / r;
 
-    for (size_t k = 0; k < 3; k++)
-    {
-        m_opaqueLamp[vertexBase + k].r += tri.r * rgb[0] * atten;
-        m_opaqueLamp[vertexBase + k].g += tri.g * rgb[1] * atten;
-        m_opaqueLamp[vertexBase + k].b += tri.b * rgb[2] * atten;
+        for (const ObjTriangle * blocker : occluders)
+        {
+            shaded = shaded || RayHitsTriangle (p, toL, *blocker);
+        }
+
+        if (emit > 0.0f && !shaded)
+        {
+            // Inverse square, but never nearer than the reference distance:
+            // a lens is an area, not a point, and a true point source a few
+            // millimeters off the notch floor divides by almost nothing --
+            // the surface saturates to white and the lamp's color is the
+            // thing that gets lost.
+            recv  = std::abs (n[0] * toL[0] + n[1] * toL[1] + n[2] * toL[2]) / (nl * r);
+            atten = emit * recv * s_kLedGain * (s_kLedRefMm * s_kLedRefMm) /
+                    ((std::max) (r, s_kLedRefMm) * (std::max) (r, s_kLedRefMm));
+
+            m_opaqueLamp[vertexBase + k].r += tri.r * rgb[0] * atten;
+            m_opaqueLamp[vertexBase + k].g += tri.g * rgb[1] * atten;
+            m_opaqueLamp[vertexBase + k].b += tri.b * rgb[2] * atten;
+        }
+
+        k++;
     }
 }
 

@@ -38,13 +38,23 @@ KD = {
 
 
 class Part:
-    """One solid and the flat color it exports under."""
+    """One solid and the flat color it exports under.
 
-    def __init__(self, name, solid, color, tolerance=0.35):
+    Two tolerances, and for small radii the SECOND is the one that matters.
+    The linear one bounds how far a chord may sag from the true surface, but
+    a 3 mm fillet's chords never sag far enough to trip it, so tightening it
+    changes nothing at all (measured: identical triangle counts from 0.35
+    all the way down to 0.01). The angular one bounds the turn per segment,
+    and it is what actually decides whether a rounded corner reads as a round
+    or as two flats meeting at an angle.
+    """
+
+    def __init__(self, name, solid, color, tolerance=0.35, angular=0.3):
         self.name = name
         self.solid = solid
         self.color = color
         self.tolerance = tolerance
+        self.angular = angular
 
 
 class Model:
@@ -52,8 +62,8 @@ class Model:
         self.parts = []
         self.raw = []          # analytic triangle soup (curved sheets)
 
-    def add(self, name, solid, color, tolerance=0.35):
-        self.parts.append(Part(name, solid, color, tolerance))
+    def add(self, name, solid, color, tolerance=0.35, angular=0.3):
+        self.parts.append(Part(name, solid, color, tolerance, angular))
         return self
 
     def add_triangles(self, name, tris, color):
@@ -70,7 +80,7 @@ class Model:
 
         for part in self.parts:
             shape = part.solid.val() if hasattr(part.solid, "val") else part.solid
-            verts, faces = shape.tessellate(part.tolerance)
+            verts, faces = shape.tessellate(part.tolerance, part.angular)
             tris = [tuple(tuple(verts[i]) for i in f) for f in faces]
             mat = f"mat_{len(groups)}"
             colors[mat] = part.color
