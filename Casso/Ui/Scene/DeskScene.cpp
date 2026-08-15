@@ -253,13 +253,18 @@ void DeskScene::SetDriveVisuals (int drive, bool lampOn, float doorProgress, boo
 
     SetDriveActivity (drive, lampOn);
 
-    m_driveWp[drive] = writeProtected;
+    if (m_driveWp[drive] != writeProtected)
+    {
+        m_driveWp[drive] = writeProtected;
+        InvalidatePlate();                 // the padlock appears or goes
+    }
 
     if (m_doorProgress[drive] < 0.0f ||
         std::abs (doorProgress - m_doorProgress[drive]) > kDoorProgressEps)
     {
         m_doorProgress[drive] = doorProgress;
         m_driveDoorVerts[drive].clear();   // rebuilt lazily in Render
+        InvalidatePlate();
     }
 }
 
@@ -1203,60 +1208,43 @@ void DeskScene::DrawDebugRect (const RECT & rectPx, int backBufferW, int backBuf
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DeskScene::Render
+//  DeskScene::RenderPlate
 //
-//  Matrix multiplies and draw submission only -- geometry was cached at load
-//  or on the change that dirtied it. Depth-tested throughout: the devices are
-//  solid bodies, and the glass sits proud of the monitor's recess.
+//  Draws everything EXCEPT the picture into the cached plate: the desk, the
+//  case, the bezel, the drives, the tube ring, the mask, the sheen, the lamps
+//  and their glows. All of it is furniture -- it changes when a model loads,
+//  the window resizes or a lamp lights, and not otherwise -- so it is drawn
+//  into a texture and kept, and the frames in between just lay that texture
+//  down again.
+//
+//  This is where the multisampling happens, which is the point: the resolve
+//  used to be paid sixty times a second to antialias edges that had not moved
+//  since the last time. Measured at ~20 points of GPU on this machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
-                           ID3D11ShaderResourceView * displaySrv,
-                           const CrtUvRect          & displayUv,
-                           int                        displayW,
-                           int                        displayH)
+HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int height)
 {
-    HRESULT          hr        = S_OK;
-    D3D11_VIEWPORT   viewport  = {};
-    float            mvp[16]   = {};
-    bool             uvChanged = false;
-    HRESULT          hrEnd     = S_OK;
+    HRESULT                  hr           = S_OK;
+    HRESULT                  hrEnd        = S_OK;
+    float                    mvp[16]      = {};
+    float                    clear[4]     = { 0.0f, 0.0f, 0.0f, 0.0f };
+    ID3D11RenderTargetView * rawPlate     = nullptr;
 
 
 
-    BAIL_OUT_IF (!m_modelsLoaded || m_comp.viewportPx.right <= m_comp.viewportPx.left, S_OK);
-    BAIL_OUT_IF (dstRtv == nullptr || m_context == nullptr, S_OK);
+    hr = EnsurePlateTarget (width, height);
+    CHRA (hr);
 
-    // Bind the destination explicitly: the CRT offscreen pass that just ran
-    // left the display texture bound, and BeginDepthPass sizes its buffer by
-    // querying whatever is bound.
-    m_context->OMSetRenderTargets (1, &dstRtv, nullptr);
+    // Behind the picture first.
+    rawPlate = m_backPlateRtv.Get();
+    m_context->OMSetRenderTargets (1, &rawPlate, nullptr);
 
-    uvChanged = m_glassUvDirty ||
-                displayUv.u0 != m_glassUv.u0 || displayUv.v0 != m_glassUv.v0 ||
-                displayUv.u1 != m_glassUv.u1 || displayUv.v1 != m_glassUv.v1;
+    // Transparent, not the theme's backdrop: the plate is a LAYER. Whatever
+    // the frame already holds shows through wherever the devices do not
+    // stand, which is what keeps the desk background the host's business.
+    m_context->ClearRenderTargetView (rawPlate, clear);
 
-    if (uvChanged)
-    {
-        RebuildGlassUvs (displayUv, displayW, displayH);
-    }
-
-    if (m_lampsDirty)
-    {
-        RebuildLampVerts();
-    }
-
-    viewport.TopLeftX = (float) m_comp.viewportPx.left;
-    viewport.TopLeftY = (float) m_comp.viewportPx.top;
-    viewport.Width    = (float) (m_comp.viewportPx.right - m_comp.viewportPx.left);
-    viewport.Height   = (float) (m_comp.viewportPx.bottom - m_comp.viewportPx.top);
-    viewport.MaxDepth = 1.0f;
-
-    // Everything from here to EndMultisampledScene lands in the offscreen
-    // multisampled target: the case silhouette, the reveal groove, the molded
-    // icon's ridges and the bezel's radii are all geometry edges, which is
-    // exactly what the resolve smooths.
     hr = m_renderer.BeginMultisampledScene();
     CHRA (hr);
 
@@ -1289,16 +1277,25 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
         CHRA (hr);
     }
 
-    if (!m_pictureVerts.empty() && displaySrv != nullptr)
-    {
-        m_renderer.SetContentSrv (displaySrv);
+    // And now what goes IN FRONT of it.
+    //
+    // Two plates, not one, and this is the seam. Everything above is BEHIND
+    // the raster and opaque -- the cavity lining shows straight through the
+    // mouth -- so a single plate laid over the picture simply hid it. What
+    // follows belongs on top of the raster instead, and gets its own layer.
+    //
+    // The depth buffer carries over deliberately: BeginDepthPass is NOT
+    // called again, so the sheen and the glows still test against the case
+    // and bezel that the first half drew.
+    hr = m_renderer.EndMultisampledScene();
+    CHRA (hr);
 
-        hr = m_renderer.DrawStatic (m_pictureMesh, m_pictureVerts.data(), m_pictureVerts.size(), m_geometryRev,
-                                       mvp, true, viewport, true);
+    rawPlate = m_frontPlateRtv.Get();
+    m_context->OMSetRenderTargets (1, &rawPlate, nullptr);
+    m_context->ClearRenderTargetView (rawPlate, clear);
 
-        m_renderer.SetContentSrv (nullptr);
-        CHRA (hr);
-    }
+    hr = m_renderer.BeginMultisampledScene();
+    CHRA (hr);
 
     if (!m_maskVerts.empty())
     {
@@ -1336,5 +1333,201 @@ Error:
     hrEnd = m_renderer.EndMultisampledScene();
     IGNORE_RETURN_VALUE (hrEnd, S_OK);
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::EnsurePlateTarget
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::EnsurePlateTarget (int width, int height)
+{
+    HRESULT               hr     = S_OK;
+    D3D11_TEXTURE2D_DESC  desc   = {};
+    ComPtr<ID3D11Device>  device;
+
+
+
+    CBREx (width > 0 && height > 0 && m_context != nullptr, E_INVALIDARG);
+
+    BAIL_OUT_IF (m_backPlateTex != nullptr && m_plateW == width && m_plateH == height, S_OK);
+
+    m_context->GetDevice (device.GetAddressOf());
+    CBREx (device != nullptr, E_UNEXPECTED);
+
+    m_backPlateTex.Reset();
+    m_backPlateRtv.Reset();
+    m_backPlateSrv.Reset();
+    m_frontPlateTex.Reset();
+    m_frontPlateRtv.Reset();
+    m_frontPlateSrv.Reset();
+
+    desc.Width            = (UINT) width;
+    desc.Height           = (UINT) height;
+    desc.MipLevels        = 1;
+    desc.ArraySize        = 1;
+    desc.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.Usage            = D3D11_USAGE_DEFAULT;
+    desc.BindFlags        = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+    hr = device->CreateTexture2D (&desc, nullptr, m_backPlateTex.GetAddressOf());
+    CHRA (hr);
+
+    hr = device->CreateRenderTargetView (m_backPlateTex.Get(), nullptr, m_backPlateRtv.GetAddressOf());
+    CHRA (hr);
+
+    hr = device->CreateShaderResourceView (m_backPlateTex.Get(), nullptr, m_backPlateSrv.GetAddressOf());
+    CHRA (hr);
+
+    hr = device->CreateTexture2D (&desc, nullptr, m_frontPlateTex.GetAddressOf());
+    CHRA (hr);
+
+    hr = device->CreateRenderTargetView (m_frontPlateTex.Get(), nullptr, m_frontPlateRtv.GetAddressOf());
+    CHRA (hr);
+
+    hr = device->CreateShaderResourceView (m_frontPlateTex.Get(), nullptr, m_frontPlateSrv.GetAddressOf());
+    CHRA (hr);
+
+    m_plateW = width;
+    m_plateH = height;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::Render
+//
+//  Two layers now: the picture, which changes, drawn straight into the frame;
+//  and the plate, which does not, laid over it. Compositing is associative
+//  under premultiplied source-over, so plate-over-picture lands on exactly the
+//  pixels drawing them in order did -- the mask and the sheen still sit on the
+//  raster, and the bezel still hides what is behind it.
+//
+//  The picture is the only thing under the plate, and it never reaches beyond
+//  the mask's opening, so it needs no depth test of its own: wherever the
+//  monitor's body would have occluded it, the plate is opaque.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
+                           ID3D11ShaderResourceView * displaySrv,
+                           const CrtUvRect          & displayUv,
+                           int                        displayW,
+                           int                        displayH)
+{
+    HRESULT                 hr        = S_OK;
+    D3D11_VIEWPORT          viewport  = {};
+    float                   mvp[16]   = {};
+    bool                    uvChanged = false;
+    int                     targetW   = 0;
+    int                     targetH   = 0;
+    PlateKey                key;
+    ComPtr<ID3D11Resource>  res;
+    ComPtr<ID3D11Texture2D> tex;
+    D3D11_TEXTURE2D_DESC    dstDesc   = {};
+
+
+
+    BAIL_OUT_IF (!m_modelsLoaded || m_comp.viewportPx.right <= m_comp.viewportPx.left, S_OK);
+    BAIL_OUT_IF (dstRtv == nullptr || m_context == nullptr, S_OK);
+
+    // Bind the destination explicitly: the CRT offscreen pass that just ran
+    // left the display texture bound, and BeginDepthPass sizes its buffer by
+    // querying whatever is bound.
+    m_context->OMSetRenderTargets (1, &dstRtv, nullptr);
+
+    uvChanged = m_glassUvDirty ||
+                displayUv.u0 != m_glassUv.u0 || displayUv.v0 != m_glassUv.v0 ||
+                displayUv.u1 != m_glassUv.u1 || displayUv.v1 != m_glassUv.v1;
+
+    if (uvChanged)
+    {
+        RebuildGlassUvs (displayUv, displayW, displayH);
+    }
+
+    if (m_lampsDirty)
+    {
+        RebuildLampVerts();
+    }
+
+    dstRtv->GetResource (res.GetAddressOf());
+    hr = res.As (&tex);
+    CHRA (hr);
+
+    tex->GetDesc (&dstDesc);
+    targetW = (int) dstDesc.Width;
+    targetH = (int) dstDesc.Height;
+
+    CBREx (targetW > 0 && targetH > 0, E_UNEXPECTED);
+
+    viewport.TopLeftX = (float) m_comp.viewportPx.left;
+    viewport.TopLeftY = (float) m_comp.viewportPx.top;
+    viewport.Width    = (float) (m_comp.viewportPx.right - m_comp.viewportPx.left);
+    viewport.Height   = (float) (m_comp.viewportPx.bottom - m_comp.viewportPx.top);
+    viewport.MaxDepth = 1.0f;
+
+    // Everything the plate depends on, compared as one blob. A field added to
+    // the composition or forgotten here would show as a scene that stops
+    // responding, so the comparison is deliberately of the WHOLE struct
+    // rather than of the handful of members that seem to matter.
+    key.geometryRev = m_geometryRev;
+    key.targetW     = targetW;
+    key.targetH     = targetH;
+    key.samples     = m_renderer.SceneSampleCount();
+    key.clip        = m_clipRect;
+    key.hasClip     = m_hasClip ? 1 : 0;
+    key.comp        = m_comp;
+
+    if (!m_plateValid || memcmp (&key, &m_plateKey, sizeof (key)) != 0)
+    {
+        hr = RenderPlate (viewport, targetW, targetH);
+        CHRA (hr);
+
+        m_plateKey   = key;
+        m_plateValid = true;
+
+        m_context->OMSetRenderTargets (1, &dstRtv, nullptr);
+    }
+
+    // Back plate, picture, front plate -- the stack in order.
+    if (m_backPlateSrv != nullptr)
+    {
+        hr = m_renderer.CompositeFullTarget (m_backPlateSrv.Get(), m_plateW, m_plateH);
+        CHRA (hr);
+    }
+
+    if (!m_pictureVerts.empty() && displaySrv != nullptr)
+    {
+        SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, mvp);
+
+        m_renderer.SetContentSrv (displaySrv);
+
+        hr = m_renderer.DrawStatic (m_pictureMesh, m_pictureVerts.data(), m_pictureVerts.size(),
+                                    m_geometryRev, mvp, true, viewport, false);
+
+        m_renderer.SetContentSrv (nullptr);
+        CHRA (hr);
+    }
+
+    if (m_frontPlateSrv != nullptr)
+    {
+        hr = m_renderer.CompositeFullTarget (m_frontPlateSrv.Get(), m_plateW, m_plateH);
+        CHRA (hr);
+    }
+
+Error:
     return hr;
 }

@@ -98,7 +98,15 @@ public:
     // Crop the scene to a sub-rect of the target; null clears it. The
     // settings preview draws inside a mock window that an open dropdown is
     // free to cover, and the scene must stop at that boundary.
-    void  SetClipRect (const RECT * rectPx) { m_renderer.SetScissor (rectPx); }
+    // The clip is remembered as well as applied: it bounds what the plate
+    // gets drawn INTO, so a plate built under one clip is wrong under the
+    // next and has to be rebuilt. See PlateKey.
+    void  SetClipRect (const RECT * rectPx)
+    {
+        m_renderer.SetScissor (rectPx);
+        m_clipRect = (rectPx != nullptr) ? *rectPx : RECT{};
+        m_hasClip  = (rectPx != nullptr);
+    }
 
     // Antialiasing for this scene, in samples (1 / 2 / 4). Owned by the user
     // through a global pref: what it costs depends on the host's GPU and the
@@ -365,7 +373,47 @@ private:
     Dxui3DRenderer::StaticMesh            m_driveLampMesh[2];
     uint32_t                              m_geometryRev = 1;
 
-    void  TouchGeometry () { m_geometryRev++; }
+    // Rebuilt geometry means both the GPU copies and the plate are stale.
+    // A change that only alters WHAT IS DRAWN -- a door part-way open, a
+    // padlock appearing -- invalidates the plate alone, so an animation does
+    // not also re-upload two megabytes of case that did not move.
+    void  TouchGeometry  () { m_geometryRev++; m_plateValid = false; }
+    void  InvalidatePlate() { m_plateValid = false; }
+
+    // The plate: every layer but the picture, drawn once into a texture and
+    // laid back down each frame. See RenderPlate.
+    struct PlateKey
+    {
+        uint32_t              geometryRev = 0;
+        int                   targetW     = 0;
+        int                   targetH     = 0;
+        UINT                  samples     = 0;
+        RECT                  clip        = {};
+        int                   hasClip     = 0;
+        DeskSceneComposition  comp        = {};
+    };
+
+    RECT                              m_clipRect = {};
+    bool                              m_hasClip  = false;
+
+    // TWO plates, because the picture sits in the MIDDLE of the stack: the
+    // cavity behind the raster is opaque and shows through the mouth, so a
+    // single plate laid over the picture hid it outright. Back holds what is
+    // behind the raster, front what is on top of it, and the frame is
+    // front OVER (picture OVER back).
+    ComPtr<ID3D11Texture2D>           m_backPlateTex;
+    ComPtr<ID3D11RenderTargetView>    m_backPlateRtv;
+    ComPtr<ID3D11ShaderResourceView>  m_backPlateSrv;
+    ComPtr<ID3D11Texture2D>           m_frontPlateTex;
+    ComPtr<ID3D11RenderTargetView>    m_frontPlateRtv;
+    ComPtr<ID3D11ShaderResourceView>  m_frontPlateSrv;
+    int                               m_plateW     = 0;
+    int                               m_plateH     = 0;
+    bool                              m_plateValid = false;
+    PlateKey                          m_plateKey   = {};
+
+    HRESULT  EnsurePlateTarget (int width, int height);
+    HRESULT  RenderPlate       (const D3D11_VIEWPORT & viewport, int width, int height);
     float                                 m_doorProgress[2] = { -1.0f, -1.0f };
     bool                                  m_driveWp[2]      = {};
 };

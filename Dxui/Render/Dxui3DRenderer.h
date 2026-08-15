@@ -98,6 +98,11 @@ public:
     HRESULT  BeginMultisampledScene ();
     HRESULT  EndMultisampledScene   ();
 
+    // Lay a premultiplied texture over the whole bound target as one quad --
+    // what EndMultisampledScene does with its resolve, exposed because the
+    // desk scene composites a cached plate the same way.
+    HRESULT  CompositeFullTarget (ID3D11ShaderResourceView * srv, int width, int height);
+
     // Crop every subsequent draw to `rect` (target pixels); null clears it.
     // For keeping a scene inside a sub-rect that something else may cover --
     // shrinking the viewport instead would re-map the projection and squash

@@ -779,15 +779,8 @@ Error:
 
 HRESULT Dxui3DRenderer::EndMultisampledScene()
 {
-    HRESULT                    hr         = S_OK;
-    ID3D11RenderTargetView   * rawRtv     = nullptr;
-    ID3D11ShaderResourceView * saved      = m_externalSrv;
-    Vertex                     quad[6]    = {};
-    D3D11_VIEWPORT             full       = {};
-    float                      identity[16] = { 1, 0, 0, 0,
-                                                0, 1, 0, 0,
-                                                0, 0, 1, 0,
-                                                0, 0, 0, 1 };
+    HRESULT                  hr     = S_OK;
+    ID3D11RenderTargetView * rawRtv = nullptr;
 
 
 
@@ -801,8 +794,50 @@ HRESULT Dxui3DRenderer::EndMultisampledScene()
     rawRtv = m_savedRtv.Get();
     m_context->OMSetRenderTargets (1, &rawRtv, nullptr);
 
-    // A full-target quad in clip space, tinted opaque white so the shader's
-    // tex*col passes the resolved premultiplied pixels through untouched.
+    hr = CompositeFullTarget (m_resolveSrv.Get(), m_msaaWidth, m_msaaHeight);
+
+    m_savedRtv.Reset();
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CompositeFullTarget
+//
+//  Lay a premultiplied texture over the whole bound target as one quad.
+//
+//  The WHOLE target, never a scene viewport. The source is target-sized and
+//  the quad's UVs span all of it, so mapping it through a sub-rect viewport
+//  would squeeze the entire image into that rect -- scaling the scene down a
+//  second time and shifting it off its own geometry. It cost a few pixels of
+//  drift, and made a resize flicker as the mismatch changed with every size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dxui3DRenderer::CompositeFullTarget (ID3D11ShaderResourceView * srv, int width, int height)
+{
+    HRESULT                    hr           = S_OK;
+    ID3D11ShaderResourceView * saved        = m_externalSrv;
+    Vertex                     quad[6]      = {};
+    D3D11_VIEWPORT             full         = {};
+    float                      identity[16] = { 1, 0, 0, 0,
+                                                0, 1, 0, 0,
+                                                0, 0, 1, 0,
+                                                0, 0, 0, 1 };
+
+
+
+    CBREx (srv != nullptr && width > 0 && height > 0, E_INVALIDARG);
+
+    // Tinted opaque white so the shader's tex*col passes the premultiplied
+    // pixels through untouched.
     quad[0] = { -1.0f,  1.0f, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f };
     quad[1] = {  1.0f,  1.0f, 0.5f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f };
     quad[2] = {  1.0f, -1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
@@ -810,21 +845,14 @@ HRESULT Dxui3DRenderer::EndMultisampledScene()
     quad[4] = {  1.0f, -1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
     quad[5] = { -1.0f, -1.0f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
 
-    // The WHOLE target, never the scene's viewport. The offscreen texture is
-    // target-sized and the quad's UVs span all of it, so mapping it through a
-    // sub-rect viewport would squeeze the entire image into that rect --
-    // scaling the scene down a second time and shifting it off its own
-    // geometry. It cost a few pixels of drift, and made a resize flicker as
-    // the mismatch changed with every new size.
-    full.Width    = (float) m_msaaWidth;
-    full.Height   = (float) m_msaaHeight;
+    full.Width    = (float) width;
+    full.Height   = (float) height;
     full.MaxDepth = 1.0f;
 
-    m_externalSrv = m_resolveSrv.Get();
+    m_externalSrv = srv;
     hr            = DrawTriangles (quad, 6, identity, true, full, false);
     m_externalSrv = saved;
 
-    m_savedRtv.Reset();
     CHRA (hr);
 
 Error:
