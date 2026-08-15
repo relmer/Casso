@@ -350,7 +350,7 @@ m.add("brand_anchor",
 # center of gravity sits on the line" can be judged straight off a capture.
 # Not part of the product model -- flip the flag off and regenerate before
 # shipping.
-DEBUG_CENTER_LINE = True
+DEBUG_CENTER_LINE = False
 if DEBUG_CENTER_LINE:
     m.add("calibration",
           cq.Workplane("XY")
