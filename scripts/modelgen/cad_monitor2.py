@@ -72,7 +72,7 @@ GROOVE_D  = 1.2
 # so the whole case.
 PROTRUDE     = 0.75 * 25.4        # bezel front face, proud of the case face
 BAND         = 0.50 * 25.4        # the flat front band's width
-RAKE_DEG     = 75.0               # 90 would be straight back into the case
+RAKE_DEG     = 60.0               # 90 would be straight back into the case
 TUBE_DROP    = PROTRUDE           # so the tube's rim lands on the case face
 BEZEL_FILLET = 3.0                # outer corners, and the funnel's own
 
@@ -81,13 +81,13 @@ BEZEL_FILLET = 3.0                # outer corners, and the funnel's own
 # CRT patents quote faceplate curvature against a reference radius
 # R = 1.767 x the screen diagonal, with real tubes landing between 1.2R
 # (deeply curved) and 8R (the late flat-square sets). A 1983 monochrome tube
-# belongs near the curved end.
+# belongs at the curved end of that range -- this one sits right on it.
 #
 # Note this is NOT the tube's depth: how far back the funnel and neck run is
 # set by the deflection angle (about 90 degrees in this class), a separate
 # parameter entirely. Tying the face's radius to the cabinet's depth would
 # give a dome, not a screen.
-FACE_R = 1.30 * 1.767 * DIAG_MM
+FACE_R = 1.20 * 1.767 * DIAG_MM
 
 # The reveal is sized from the power notch outward: a 1-inch notch with a
 # quarter-inch margin to each side, 1.5 inches of reveal in all. The strip
