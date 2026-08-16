@@ -372,7 +372,12 @@ specs/002-as65-assembler-compat/testdata/conformance/expected/
 6502_functional_test.bin
 dormann_temp/
 
-# Harte SingleStepTests — generated binary test data (regenerated on demand)
+# Harte SingleStepTests — FULL-depth vectors (10,000/opcode, ~186 MB). Not
+# checked in: producing them costs a 1.7 GB JSON download. They live in
+# %LOCALAPPDATA%\Casso\HarteTests\ so one copy serves every checkout on the
+# machine. The REDUCED set (200/opcode, ~4 MB) IS checked in, under
+# UnitTest/HarteVectors/, so a fresh clone and CI get real opcode coverage
+# with no setup. See docs/testing.md.
 UnitTest/nes6502/
 UnitTest/6502/
 UnitTest/synertek65c02/
