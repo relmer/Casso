@@ -97,6 +97,24 @@ program.
    `Denibblize_UnformattedTrack_ZeroFillsThatTrackAndKeepsOthers` test pins, and
    it must keep passing — collapsing it into case 5 would make blank disks
    unwritable.
+7. `list` a disk with a track carrying an **out-of-range** sector number, and one
+   with **duplicate** sector numbers: both report incomplete coverage and both
+   refuse writes. Neither goes through a decode failure, so a fix aimed only at
+   the abandoned-track path would leave both reporting a clean disk.
+
+Cases 5-7 are the three distinct ways a logical sector ends up zeroed. Each gets
+its own test beside the existing unformatted one, because the defect survived
+precisely by hiding behind a passing test whose name and comment covered only the
+benign case:
+
+```text
+Denibblize_PartiallyDecodableTrack_ReportsDataLossAndDoesNotZeroTail
+Denibblize_OutOfRangeSectorNumber_ReportsIncompleteCoverage
+Denibblize_DuplicateSectorNumbers_ReportsIncompleteCoverage
+```
+
+All three are built the way the existing test builds its wiped track: nibblize a
+valid image, then patch one address field's 4-and-4 encoded sector value.
 
 Run 1-3 against `.dsk`, `.do`, `.po`, and `.woz` of the same content — SC-004
 requires byte-exact extraction across every mountable format.

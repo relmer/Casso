@@ -105,9 +105,22 @@ static HRESULT  RenibblizeTracks (const vector<Byte>  & sectors,
                                   DiskImage           & inOutImage);
 ```
 
-**The decode loop must continue past a failed sector and resynchronize**, not
-`break`. The present `break` is why one undecodable sector currently zeroes every
-later sector in scan order on that track (research R-002).
+**A track's outcome is decided by coverage, not by how the loop exited.** The
+decoder maintains a 16-bit mask of which logical sectors were filled; setting an
+already-set bit is itself a violation. `Complete` iff the mask is `0xFFFF` with no
+bit set twice.
+
+This matters because the existing loop has **three** ways to leave a logical
+sector zeroed and only one of them fails: `break` on a decode failure
+(NibblizationLayer.cpp:766), `continue` on an out-of-range sector number (771),
+and two physical sectors claiming the same number so one logical slot goes
+unclaimed. The loop is bounded at sixteen iterations, so the latter two consume an
+iteration without filling a distinct slot — no failure, nothing reported. A fix
+aimed only at `break` leaves both live. Coverage catches all three, and anything
+similar nobody anticipated.
+
+The loop must also continue past a failed sector and resynchronize on the next
+address prologue rather than abandoning the track.
 
 **The three-argument form must fail rather than bypass.** Keeping it purely for
 source compatibility would preserve the defect's reachability in the one place

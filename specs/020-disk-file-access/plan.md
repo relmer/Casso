@@ -157,12 +157,15 @@ repeated as though it were a constraint.
 Ordered by dependency, not by story number. Each phase is a commit.
 
 **Phase A — Foundational (blocks everything).**
-`SectorDecodeReport` classifying each track `Complete` / `Unformatted` /
-`Partial`, and the decode-continues-and-resynchronizes fix (FR-018); the
-three-argument `Denibblize` rewired to forward and fail on data loss, which fixes
-`DiskImage::Serialize` without touching it; the misleading generalization in
-`NibblizationTests.cpp:308`'s comment narrowed to the unformatted case;
-`TrackWritability` (FR-016, FR-017, FR-019); `RenibblizeTracks`;
+`SectorDecodeReport` classifying each track by **coverage** — a 16-bit mask,
+`Complete` iff all sixteen logical sectors were filled exactly once — which
+subsumes the `break`, out-of-range, and duplicate zero-fill paths in one check
+rather than patching each (FR-018); decode continues past a failed sector and
+resynchronizes; the three-argument `Denibblize` rewired to forward and fail on
+data loss, which fixes `DiskImage::Serialize` without touching it; the misleading
+generalization in `NibblizationTests.cpp:308`'s comment narrowed to the
+unformatted case, plus sibling tests for the partial, out-of-range, and duplicate
+cases; `TrackWritability` (FR-016, FR-017, FR-019); `RenibblizeTracks`;
 `VolumeIntegrityReport` with bounded traversal (FR-037, FR-038). No write path
 may consume denibblized output before this lands.
 

@@ -90,10 +90,41 @@ and the gap between them is exactly the defect:
    license for the behavior, and a later reader will cite it to revert the fix.
 3. **The report must carry the shape of the failure, not just its presence.** It
    MUST distinguish "no address fields found → unformatted, benign, writable"
-   from "some decoded then failed → data loss, refuse the write". A report that
-   only says "not all sixteen decoded" collapses the two, and its consumer then
-   either rejects blank disks or accepts damaged ones — the latter being this
-   defect again, wearing a report. Sector count alone is insufficient.
+   from "coverage incomplete → data loss, refuse the write". A report that only
+   says "not all sixteen decoded" collapses the two, and its consumer then either
+   rejects blank disks or accepts damaged ones — the latter being this defect
+   again, wearing a report.
+
+**The `break` is not the only zero-fill path.** Two more leave logical sectors
+zeroed with no decode failure at all, so a fix aimed at `break` alone leaves both
+live:
+
+- **Out-of-range sector number** — `continue` at NibblizationLayer.cpp:771 skips a
+  sector whose address field claims, say, sector 200. The loop is bounded at
+  sixteen iterations, so that iteration is consumed and one logical slot is never
+  filled. Nothing failed; nothing was reported.
+- **Duplicate sector numbers** — two physical sectors both claiming sector 5 both
+  `memcpy` to the same offset. The second overwrites the first and some other
+  logical slot goes unclaimed. Again no failure.
+
+Both are corruption modes a damaged or deliberately-formatted track produces.
+
+**Therefore `Complete` is a coverage property, not a loop property.** "Ran sixteen
+times without failing" does not mean intact. The sound definition:
+
+```text
+Complete     = all 16 logical sectors written EXACTLY ONCE
+Partial      = address fields present, coverage incomplete or duplicated
+Unformatted  = no address fields found at all
+```
+
+Implemented as a 16-bit coverage mask per track, checked at end of track, with a
+second write to an already-covered slot counting as a violation. Sixteen bits and
+one comparison — cheaper than the decode work already happening. It **subsumes**
+the `break` case rather than sitting beside it (a track cut short simply has
+incomplete coverage), so one property decides the outcome instead of three
+conditions that must each be remembered, and any future mechanism that loses a
+sector is caught without anyone having anticipated it.
 
 **Call-site census** (verified by grep): exactly **one** production caller,
 `DiskImage::Serialize` at `DiskImage.cpp:434`. Everything else is tests — twelve

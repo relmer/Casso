@@ -47,13 +47,46 @@ defect wearing a report.
 
 | Outcome | Meaning | Writable? |
 |---|---|---|
-| `Complete` | All sixteen sectors, numbered 0-15, each decoded exactly once | Yes |
+| `Complete` | All sixteen logical sectors written **exactly once** | Yes |
 | `Unformatted` | **No address field located anywhere** in a full revolution | Yes — a blank track is legitimately all zeros, and writing to it produces a standard track |
-| `Partial` | At least one address field located, but not a complete standard set — some sectors decoded, others did not, or numbers repeated | **No** |
+| `Partial` | Address fields present, but coverage is incomplete or duplicated | **No** |
 
-The discriminator between `Unformatted` and `Partial` is *whether any address
-field was found*, not how many sectors decoded. A track whose address fields are
-present but whose data fields all fail is `Partial` — damaged — not blank.
+Two independent discriminators, and neither substitutes for the other:
+
+- **Address fields present?** separates `Unformatted` from the rest. A track whose
+  address fields are present but whose data fields all fail is `Partial` —
+  damaged — not blank.
+- **Coverage complete?** separates `Complete` from `Partial`.
+
+**`Complete` is a coverage property, not a loop property.** "The loop ran sixteen
+times without failing" does not mean the track is intact, because the existing
+loop has three separate ways to leave a logical sector unfilled and only one of
+them involves a failure:
+
+1. **Decode failure** — `break` at NibblizationLayer.cpp:766 abandons the rest of
+   the track.
+2. **Out-of-range sector number** — `continue` at line 771 skips a sector whose
+   address field claims, say, sector 200. The loop still runs only sixteen times,
+   so one logical slot is never filled. **Nothing failed and nothing is
+   reported.**
+3. **Duplicate sector numbers** — two physical sectors both claiming sector 5 both
+   `memcpy` to the same offset; the second overwrites the first and some other
+   logical slot goes unclaimed. **Again no failure.**
+
+Cases 2 and 3 are corruption modes a damaged or deliberately-formatted track
+produces, and both would survive a classification built only on "did any sector
+fail to decode."
+
+**Implementation**: a 16-bit coverage mask per track. Setting a bit that is
+already set is itself a coverage violation (that is the duplicate case). At end
+of track, `Complete` iff the mask is `0xFFFF` and no bit was set twice. Sixteen
+bits and one comparison — cheaper than the decode work already being done.
+
+This subsumes the `break` case rather than sitting beside it: a track cut short
+simply has incomplete coverage. One property decides the outcome instead of three
+conditions that each have to be remembered and reported independently, and any
+future mechanism that loses a sector is caught by the same check without anyone
+having anticipated it.
 
 ### Fields
 
@@ -61,16 +94,18 @@ present but whose data fields all fail is `Partial` — damaged — not blank.
 |---|---|
 | `trackCount` | Tracks examined |
 | `outcome[track]` | `Complete`, `Unformatted`, or `Partial` |
-| `sectorRecovered[track][sector]` | Whether this specific sector decoded |
+| `coverage[track]` | The 16-bit mask — which logical sectors were filled |
+| `duplicated[track]` | A logical sector was written more than once |
 | `hasDataLoss` | Any track is `Partial` |
-| `unrecoveredCount` | Sectors not recovered on `Partial` tracks only — an `Unformatted` track contributes nothing, because nothing was lost |
+| `unrecoveredCount` | Logical sectors left uncovered on `Partial` tracks only — an `Unformatted` track contributes nothing, because nothing was lost |
 
 **Rules**
 
 - Decoding MUST continue past a failed sector and resynchronize on the next
   address prologue, rather than abandoning the rest of the track. The present
-  `break` is the defect this replaces, and it is why one bad sector currently
-  zeroes the whole tail of a track.
+  `break` is the most visible defect this replaces, but fixing only `break`
+  leaves the out-of-range and duplicate paths live — which is why the outcome is
+  decided by coverage rather than by which exit the loop took.
 - A sector on a `Partial` track that did not decode MUST be marked unrecovered
   rather than presented as zeros indistinguishable from genuinely zeroed data.
 - Zeros for an `Unformatted` track are **correct and intended** for a sector
