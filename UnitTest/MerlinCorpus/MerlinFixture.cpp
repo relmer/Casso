@@ -114,20 +114,75 @@ HRESULT MerlinFixture::LoadSource (
     const std::string          &  relativePath,
     std::string                &  outText)
 {
-    HRESULT              hr        = S_OK;
+    HRESULT              hr    = S_OK;
     MerlinFixtureFile    file;
-    Byte                 masked    = 0;
 
     outText.clear();
 
     hr = LoadObject (provider, relativePath, file);
     CHR (hr);
 
-    outText.reserve (file.payload.size());
+    DecodeText (file.payload, outText);
 
-    for (size_t i = 0; i < file.payload.size(); i++)
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinFixture::LoadTextSource
+//
+//  A DOS 3.3 type-T file, which carries no header at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MerlinFixture::LoadTextSource (
+    IFixtureProvider           &  provider,
+    const std::string          &  relativePath,
+    std::string                &  outText)
+{
+    HRESULT              hr   = S_OK;
+    std::vector<Byte>    raw;
+
+    outText.clear();
+
+    hr = provider.OpenFixture (relativePath, raw);
+    CHR (hr);
+
+    DecodeText (raw, outText);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinFixture::DecodeText
+//
+//  The text decoding both source paths share, so the type-B and type-T forms
+//  cannot drift into decoding the same characters differently.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MerlinFixture::DecodeText (
+    const std::vector<Byte>    &  payload,
+    std::string                &  outText)
+{
+    Byte  masked = 0;
+
+    outText.reserve (payload.size());
+
+    for (size_t i = 0; i < payload.size(); i++)
     {
-        masked = static_cast<Byte> (file.payload[i] & 0x7F);
+        masked = static_cast<Byte> (payload[i] & 0x7F);
 
         if (masked == s_kSourceLineTerminator)
         {
@@ -138,7 +193,4 @@ HRESULT MerlinFixture::LoadSource (
             outText.push_back (static_cast<char> (masked));
         }
     }
-
-Error:
-    return hr;
 }

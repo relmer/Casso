@@ -42,17 +42,29 @@ struct MerlinFixtureFile
 //  that are wrong without looking wrong.
 //
 //  THIS CODE MUST NEVER ASSERT THAT BIT 7 IS SET. Two separate conventions break
-//  that assumption, and both are load-bearing:
+//  that assumption. They live in different files and are unrelated:
 //
-//    - Merlin stores source as high-bit ASCII EXCEPT for spaces, which are plain
-//      $20. LABELS.S alone contains 81 of them. A decoder validating the high bit
-//      would fail on the first space of every file.
-//    - DCI, in object output, marks its terminator by CLEARING the high bit --
-//      the exact case a chunk of this corpus exists to pin. An assertion here
-//      would reject the evidence it was meant to protect.
+//    - In SOURCE, spaces appear BOTH ways. A space separating fields carries the
+//      high bit ($A0); a space inside comment text does not ($20). LABELS.S holds
+//      214 of the former and 81 of the latter. Measured across all nine committed
+//      sources, spaces are the ONLY bytes below $80 -- not one non-space low byte
+//      in any of them. A decoder validating the high bit dies on the first
+//      comment line of the first file.
+//    - In OBJECTS, DCI marks its terminator by CLEARING the high bit, where the
+//      cleared bit is meaningful data rather than an encoding artifact. An
+//      assertion here would reject evidence the corpus exists to pin.
 //
-//  Masking is unconditional for that reason: it is correct whether or not the
-//  bit was set, where a check would have to know which convention applied.
+//  Masking is unconditional for that reason: correct whichever convention
+//  applies, where a check would have to know which one it was looking at.
+//
+//  THE SOURCE DISTINCTION IS A TRAP FOR THE PARSER, and is deliberately not
+//  surfaced by this API. The encoding happens to mark field structure apart from
+//  comment text, which looks like a free lexer. It is not: source arriving by any
+//  other route -- a host editor, a read off a disk image, a file Casso itself
+//  writes -- carries no such distinction, and a parser leaning on it would work
+//  only on files authored on a Merlin disk. It is an observation about these
+//  bytes, never grammar. T.SENDMSG settles it: all 26 of its spaces are $A0 and
+//  none are $20, so the distinction is not even present in every vendor file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,9 +78,27 @@ public:
         const std::string          &  relativePath,
         MerlinFixtureFile          &  outFile);
 
-    //  A source file, decoded to ordinary text: high bits masked off and Merlin's
-    //  CR line terminators translated to newlines.
+    //  A type-B source file, decoded to ordinary text: the four-byte header
+    //  removed, high bits masked off, and Merlin's CR line terminators
+    //  translated to newlines.
     static HRESULT           LoadSource (
+        IFixtureProvider           &  provider,
+        const std::string          &  relativePath,
+        std::string                &  outText);
+
+    //  A type-T source file. Same text decoding, but DOS 3.3 gives a text file
+    //  NO header -- the bytes are the content from offset zero. The vendor macro
+    //  libraries ship this way: T.SENDMSG begins with the literal characters
+    //  "SE", not a load address.
+    //
+    //  Kept as a separate entry point rather than sniffed, because guessing the
+    //  file type from its bytes is precisely the kind of inference that succeeds
+    //  on the sample and fails on the next file. Using the wrong one is safe: the
+    //  length check in the type-B path rejects a header that was never there
+    //  (T.SENDMSG's first four bytes claim 50382 bytes of a 149-byte file), so
+    //  the mistake surfaces as a failure rather than as text missing its first
+    //  four characters.
+    static HRESULT           LoadTextSource (
         IFixtureProvider           &  provider,
         const std::string          &  relativePath,
         std::string                &  outText);
@@ -77,4 +107,8 @@ private:
     static HRESULT           StripHeader (
         const std::vector<Byte>    &  raw,
         MerlinFixtureFile          &  outFile);
+
+    static void              DecodeText (
+        const std::vector<Byte>    &  payload,
+        std::string                &  outText);
 };

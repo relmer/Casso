@@ -118,12 +118,20 @@ postponed, not overlooked. Implementation continues meanwhile; nothing in the
 feature depends on which way it goes, because both outcomes leave the fixtures
 where they are and change only how the constitution describes them.
 
-Two facts sharpen it whenever it is taken up. Every current allowlist row —
+Three facts sharpen it whenever it is taken up. Every current allowlist row —
 `stb_vorbis.c` and three shaders — is **code that ships inside a binary**, and
 the fixtures ship in none; that is the distinction a carve-out would formalize.
-And the fixtures and disk volumes are **already committed on master**, so the
-constitution is out of compliance today regardless of what this feature does.
-Deferring decides nothing about that; it only decides not to decide yet.
+The fixtures and disk volumes are **already committed on master**, so the
+constitution is out of compliance today regardless of what this feature does;
+deferring decides nothing about that, it only decides not to decide yet.
+
+And the sharpest edge is not the source and object text at all.
+`UnitTest/Fixtures/Disks/` carries three complete volumes including
+`MERLIN.SYSTEM`, `PRODOS`, `BASIC.SYSTEM` and the assembler itself — **runnable
+third-party software**, committed deliberately and documented as such, not merely
+data. A carve-out written for "non-code test fixtures" would not cover it on its
+own wording. Whichever route is chosen has to address the volumes explicitly
+rather than by analogy to the extracted text.
 
 The previous claim that this feature adds no dependencies was wrong: it added no
 *code* dependency, which is not the same statement.

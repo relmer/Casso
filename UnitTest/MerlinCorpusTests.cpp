@@ -256,21 +256,27 @@ namespace MerlinCorpusTests
 
 
 
-        //  Merlin stores source as high-bit ASCII EXCEPT for spaces, which are
-        //  plain $20 -- LABELS.S contains 81 of them. A decoder that required the
-        //  high bit would fail on the first space of the first line, and the
-        //  field model this whole dialect turns on is made of spaces.
-        TEST_METHOD (LoadSource_KeepsSpacesThatCarryNoHighBit)
+        //  Spaces appear BOTH ways in stored source: $A0 separating fields, $20
+        //  inside comment text. LABELS.S holds 214 of the first and 81 of the
+        //  second, and across all nine committed sources spaces are the only
+        //  bytes below $80. A decoder requiring the high bit dies on the first
+        //  comment line of the first file -- long before reaching any DCI.
+        //
+        //  Both forms must arrive as one ordinary space. The parser is not
+        //  allowed to tell them apart (see MerlinFixture.h): source reaching
+        //  Casso by any other route carries no such distinction.
+        TEST_METHOD (LoadSource_DecodesBothSpaceFormsToOneOrdinarySpace)
         {
             FixtureProvider  provider;
             std::string      text;
 
             AssertSucceeded (MerlinFixture::LoadSource (provider, "Merlin/LABELS.S", text));
 
-            Assert::IsTrue (text.find (' ') != std::string::npos,
-                            L"the decoded source must still contain spaces");
-            Assert::IsTrue (text.find ('*') != std::string::npos,
-                            L"and high-bit characters must have decoded to plain ASCII");
+            //  "END BRK ;table end" -- $A0 separators before and after BRK, then
+            //  $20 spaces inside the comment. If either form survived undecoded
+            //  this substring could not match.
+            Assert::IsTrue (text.find ("END BRK ;table end") != std::string::npos,
+                            L"field-separating $A0 and comment-text $20 must both decode to ' '");
         }
 
 
@@ -359,6 +365,38 @@ namespace MerlinCorpusTests
 
             Assert::IsTrue (FAILED (hrLoad),
                             L"two bytes cannot carry a four-byte header");
+        }
+
+
+
+        //  DOS 3.3 gives a type-T file no header at all: T.SENDMSG's bytes begin
+        //  with the literal characters "SE".
+        TEST_METHOD (LoadTextSource_ReadsATypeTFileFromOffsetZero)
+        {
+            FixtureProvider  provider;
+            std::string      text;
+
+            AssertSucceeded (MerlinFixture::LoadTextSource (provider, "Merlin/T.SENDMSG", text));
+
+            Assert::IsTrue (text.rfind ("SE", 0) == 0,
+                            L"a type-T file starts at its first byte, with no header to skip");
+        }
+
+
+
+        //  Reaching for the wrong loader must fail rather than quietly return
+        //  text missing its first four characters. T.SENDMSG's leading bytes read
+        //  as a header claiming 50382 bytes of a 149-byte file, so the length
+        //  check catches it -- which is the second job that check does, beyond
+        //  the truncated-extraction case it was written for.
+        TEST_METHOD (LoadSource_RefusesATypeTFileRatherThanEatingFourCharacters)
+        {
+            FixtureProvider  provider;
+            std::string      text;
+            HRESULT          hrLoad = MerlinFixture::LoadSource (provider, "Merlin/T.SENDMSG", text);
+
+            Assert::IsTrue (FAILED (hrLoad),
+                            L"a headerless file decoded as type-B must fail, not lose its first four bytes");
         }
 
 

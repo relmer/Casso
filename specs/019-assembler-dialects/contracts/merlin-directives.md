@@ -104,6 +104,28 @@ The fixed columns visible in Merlin listings are the **editor's** formatting, no
 an assembler requirement. A parser demanding an opcode at a specific column would
 be wrong.
 
+### The stored encoding marks field structure. Do not use it.
+
+On disk, Merlin distinguishes the two kinds of space: a space **separating
+fields** carries the high bit (`$A0`), a space **inside comment text** does not
+(`$20`). `LABELS.S` holds 214 of the first and 81 of the second, and across all
+nine committed sources spaces are the only bytes below `$80` — not one non-space
+low byte in any of them.
+
+This looks like a free lexer and it is a trap. **The parser must not depend on
+it.** Source reaching Casso by any other route carries no such distinction: a
+host editor, a read off a disk image, a file Casso itself writes. A parser
+leaning on the encoding would work only on files authored on a Merlin disk and
+fail on everything else — including files it had just produced.
+
+`T.SENDMSG` settles it independently: all 26 of its spaces are `$A0` and none are
+`$20`, so the distinction is not even reliably present in vendor source. It is an
+observation about these bytes, never grammar. The field model above is the
+grammar, and it is defined on ordinary spaces.
+
+The fixture decoder collapses both forms to one space before any parser sees
+them, so this is enforced by construction rather than by discipline.
+
 ## Refused, by name
 
 Each refusal names the construct and gives the reason. None surfaces as an
