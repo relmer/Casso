@@ -177,6 +177,18 @@ One unit of correctness evidence. Compiled in; never read from disk.
 | `expectedBytes` | Captured from real Merlin, or hand-authored for the negative class |
 | `merlinVersion` | The exact version captured from; edge semantics differ across revisions |
 | `class` | `Captured` or `NegativeHandAuthored` |
+| `discriminates` | Whether this entry must **fail** under the AS65 profile |
+
+`discriminates` is what stops the corpus being vacuous. Labels, origin, literals,
+and the expression evaluator are shared, so an entry built from those alone
+assembles identically whether the Merlin profile works or is never consulted.
+
+Set it for every entry whose stated purpose is a Merlin-specific construct; the
+harness then asserts the entry fails under AS65 as well as matching under Merlin.
+Leave it clear for shared-construct entries, which are legitimate engine
+regression cover rather than evidence about the dialect. Recording it per entry
+makes "assembles under both dialects" a stated property instead of an open
+question.
 
 **Validation**: A `Captured` entry must carry a `merlinVersion`; a
 `NegativeHandAuthored` entry must not claim one. The two classes stay distinct so

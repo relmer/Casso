@@ -106,6 +106,27 @@ against the DOS 3.3 System Master, where `FID` extracts at its canonical load
 address of `$0803` — verification against an external fact rather than against
 itself.
 
+## Does the entry actually test Merlin?
+
+Most of what Merlin source contains is **shared** with AS65: labels, origin,
+literals, and the whole expression evaluator. An entry built only from those
+assembles identically whether the Merlin profile works or is never consulted. A
+corpus can be large, entirely green, and prove nothing about the dialect.
+
+So every entry records whether it **discriminates**. An entry whose purpose is a
+Merlin-specific construct must be verified to **fail under AS65** as well as
+matching under Merlin. If it passes under both, one of two things is true and
+both are defects: it is not exercising the construct it claims to, or the profile
+is not being consulted.
+
+Shared-construct entries leave the flag clear. They are legitimate — engine
+regression cover, which SC-004 already leans on — and marking them says so rather
+than leaving a reader to wonder.
+
+This is the same technique as verifying a new test fails without its fix. A green
+result proves nothing on its own; what proves something is knowing the specific
+way it would have gone red.
+
 ## The two entry classes
 
 **Captured** entries carry bytes from real Merlin and a version stamp.

@@ -494,6 +494,28 @@ The corpus MUST contain, at minimum:
   bytes treated as an error rather than a trivially satisfied comparison —
   because a corpus that silently covers nothing is worse than no corpus, it being
   indistinguishable from a passing one.
+- **Entries that must discriminate, and are checked to.** Labels, origin,
+  literals, and the expression evaluator are shared across dialects, so an entry
+  built only from those assembles identically whether the Merlin profile works or
+  is never consulted. A corpus can be large, entirely green, and vacuous.
+
+  Every entry is therefore classified. An entry whose stated purpose is a
+  **Merlin-specific construct** — the data and hex directives, the string family,
+  variable symbols, the loop and dummy constructs, macros and their positional
+  parameters, file inclusion, the CPU directive, or a semicolon inside the
+  operand field — MUST be verified to **fail under the AS65 profile**. If it
+  passes under both, either it is not exercising the construct it claims or the
+  profile is not being consulted, and both are defects.
+
+  A **shared-construct** entry is legitimate and is not required to discriminate;
+  it is regression cover for the engine, which SC-004 already depends on.
+  Recording the class per entry is what makes "passes under both dialects" read
+  as a stated property rather than an open question.
+
+  This gives the corpus a second job. Byte-identity alone shows Merlin's output
+  is right; discrimination additionally shows the **profile** produced it — which
+  is the claim SC-009 rests on, and precisely what a seam shaped by one dialect
+  would otherwise satisfy trivially.
 - **A separate negative class**, for subset-boundary refusals (FR-016 through
   FR-019) and diagnostic expectations (User Story 3). These expectations are
   **hand-authored, not Merlin-captured**, because Merlin produces no bytes for
