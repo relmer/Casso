@@ -17,8 +17,9 @@
 ###############################################################################
 * binary
 
-# The documentation is ordinary text and should behave that way. `binary` is a
-# macro for `-diff -merge -text`, so restoring diff and merge takes saying so --
-# setting `text` alone would leave the README undiffable.
+# The documentation and the license note are ordinary text and should behave
+# that way. `binary` is a macro for `-diff -merge -text`, so restoring diff and
+# merge takes saying so -- setting `text` alone would leave them undiffable.
 README.md      text=auto diff merge
+LICENSE        text=auto diff merge
 .gitattributes text=auto diff merge

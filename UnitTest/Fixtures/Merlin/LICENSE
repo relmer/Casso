@@ -1,0 +1,32 @@
+EVERY FILE IN THIS DIRECTORY is third-party material licensed under
+Creative Commons Attribution-NonCommercial-NoDerivatives 3.0 (CC BY-NC-ND 3.0).
+
+    https://creativecommons.org/licenses/by-nc-nd/3.0/
+
+This license covers all files in this directory, not any single one of them.
+It does NOT extend to the parent directory or to any sibling directory.
+
+Work:      Merlin Pro macro assembler, version 2.23
+Author:    Glen Bredon
+Publisher: Roger Wagner Publishing, 1984
+Source:    https://archive.org/details/MerlinProMacroAssembler
+
+The files here are vendor source code and its shipped object code, extracted
+byte for byte from the distribution disk and used as test fixtures for the
+Merlin assembler dialect. They are not compiled into, linked into, or
+distributed with any Casso binary.
+
+Casso itself is MIT licensed. These files are not, and the difference is
+per-directory rather than per-repository. Two obligations follow:
+
+  NO DERIVATIVES. Do not alter these files. Beyond the license term, an
+  altered fixture is worthless as an oracle -- its entire value is being
+  exactly what the vendor shipped. Tests MUST treat them as read-only. A
+  mismatch is a finding about Casso, never a reason to edit a fixture.
+
+  NON-COMMERCIAL. Anyone redistributing Casso commercially must remove this
+  directory and the tests that consume it.
+
+Provenance is verifiable rather than asserted: scripts/ExtractMerlinFixtures.ps1
+re-derives every file here from a hash-pinned disk image, and README.md records
+the expected SHA-256 of each.
