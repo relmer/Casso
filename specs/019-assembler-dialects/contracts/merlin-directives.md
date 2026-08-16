@@ -56,8 +56,24 @@ therefore requires **one entry per spelling**, not one for the family.
 
 ### Comments and line structure
 
-`*` in column 1 introduces a whole-line comment. `;` introduces a comment at any
-field position.
+`*` in column 1 introduces a whole-line comment. A comment otherwise occupies the
+trailing comment field.
+
+**A semicolon is not a comment introducer "anywhere."** Inside the operand field
+it is data — Merlin uses it to separate macro arguments. Observed on the Merlin 8
+v2.47 disk, in `PI.ADD.S`:
+
+```
+ ADD SUMSTR;DEFLEN;PL      macro call, three arguments
+ VAR MSGPNT;OUTPUT         macro call, two arguments
+ BCS SKIP ;Do another page if nec        instruction, then a comment
+```
+
+The difference is the field boundary, not the character: a semicolon within the
+whitespace-delimited operand token belongs to the operand; one beginning the field
+after it starts a comment. A parser that stripped from the first `;` would silently
+truncate every macro call on the disk to its first argument — which is the class of
+bug that produces plausible-looking wrong bytes.
 
 The line model is **field-based, not literal columns**: runs of whitespace
 separate the label, opcode, operand, and comment fields, and the only significant
@@ -90,6 +106,8 @@ reported in one pass.
 Recorded here so they are answered with evidence rather than reasoning. The
 corpus is the arbiter; the manual is not.
 
+- Is a semicolon required to start the comment field, or is everything after the
+  operand field a comment regardless? Both fit the source observed so far.
 - Does Merlin accept a form of `XC` that resets the target to 6502? If so it is in
   scope and cheap; if not, nothing to do.
 - Is Merlin's symbol matching case sensitive?

@@ -242,6 +242,10 @@ confirm the diagnostic names the right construct at the right position.
   resolution MUST NOT depend on which table happens to be consulted first.
 - What happens when a macro defined in one dialect's grammar is invoked with the
   argument syntax of another? It MUST be rejected rather than partially expanded.
+- Is a semicolon *required* to start the comment field, or does Merlin treat
+  everything after the operand field as comment regardless of what it begins with?
+  Both readings fit the source observed so far, and they differ for a line whose
+  fourth field starts with an ordinary word. MUST be settled by capture.
 - Does Merlin accept a form of its CPU-selection directive that resets the target
   back to 6502? If it does, that form is in scope and cheap to support; if it does
   not, there is nothing to do. This MUST be settled by capturing the construct
@@ -309,8 +313,13 @@ references outside this file.
 #### Merlin dialect
 
 - **FR-007**: The assembler MUST accept Merlin's comment conventions: a whole-line
-  comment introduced by an asterisk in the first column, and a comment introduced
-  by a semicolon at any field position.
+  comment introduced by an asterisk in the first column, and a comment occupying
+  the trailing comment field. A semicolon does **not** introduce a comment "at any
+  position" — **inside the operand field it is data**, and Merlin uses it to
+  separate macro arguments. The distinction is the field boundary: a semicolon
+  within the whitespace-delimited operand token belongs to the operand, while one
+  beginning the field after it starts a comment. This reinforces the field model
+  in FR-008 rather than qualifying it.
 - **FR-008**: The assembler MUST accept Merlin's label rules and its local-label
   prefix. Merlin's line structure is field-based rather than literal-column-based:
   runs of whitespace separate the label, opcode, operand, and comment fields, and
@@ -493,12 +502,20 @@ SC-001 is measured against a defined floor rather than a judgment about what
   the very next dialect.
 - Scope is **absolute Merlin**. Merlin shipped a relocating linker, and its
   relocatable mode with entry and external symbols is used for library routines
-  and run-time packages, so this boundary is real rather than theoretical — it is
-  simply not where most published 8-bit Merlin source sits. Supporting it needs a
-  linker Casso does not have; that linker would also serve ca65
-  (`023-ca65-dialect`) and relocatable object output (GitHub issue #58), so the
-  boundary is expected to widen once one exists. It is specified as data (FR-019)
-  for that reason.
+  and run-time packages, so this boundary is real rather than theoretical.
+
+  It is also closer to hand than assumed. The Apple PI sample project shipped on
+  the Merlin 8 v2.47 distribution disk opens with `REL` and declares `ENT`
+  symbols — refused constructs, in the disk's own flagship example. Real users
+  will therefore meet the boundary early, which raises the stakes on FR-016
+  through FR-019: the refusal must read as "your source is relocatable" the first
+  time someone assembles the sample that came with their assembler. It also makes
+  that project excellent negative-corpus material.
+
+  Supporting it needs a linker Casso does not have; that linker would also serve
+  ca65 (`023-ca65-dialect`) and relocatable object output (GitHub issue #58), so
+  the boundary is expected to widen once one exists. It is specified as data
+  (FR-019) for that reason.
 - Backward compatibility with Casso's current assembler invocation is desirable but
   not paramount; the existing dialect has extremely limited adoption, so a
   documented change is acceptable where it buys a cleaner model.
