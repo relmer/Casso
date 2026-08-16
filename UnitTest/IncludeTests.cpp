@@ -2,6 +2,7 @@
 
 #include "Assembler.h"
 #include "TestHelpers.h"
+#include "MockFileReader.h"
 
 
 
@@ -15,59 +16,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace IncludeTests
 {
-    ////////////////////////////////////////////////////////////////////////////////
-    //
-    //  MockFileReader
-    //
-    //  An in-memory FileReader so .include can be tested without touching the
-    //  filesystem.
-    //
-    //  That is what makes include testing practical at all -- a nested include
-    //  graph, a circular include, and a missing file are all a few table
-    //  entries here, where on disk each would be a fixture tree to create and
-    //  clean up.
-    //
-    //  It records which paths were REQUESTED, not just what it returned, so a
-    //  test can assert the resolution order and that a file was read once
-    //  rather than repeatedly.
-    //
-    //  Path matching is exact and deliberately unforgiving, which is how the
-    //  assembler's own path resolution stays the thing under test rather than
-    //  being papered over by a lenient double.
-    //
-    ////////////////////////////////////////////////////////////////////////////////
-
-    class MockFileReader : public FileReader
-    {
-    public:
-        std::unordered_map<std::string, std::string> files;
-
-
-
-        FileReadResult ReadFile (const std::string & filename, const std::string & baseDir) override
-        {
-            FileReadResult result = {};
-
-            auto it = files.find (filename);
-
-            if (it != files.end())
-            {
-                result.success  = true;
-                result.contents = it->second;
-            }
-            else
-            {
-                result.success = false;
-                result.error   = "File not found: " + filename;
-            }
-
-            return result;
-        }
-    };
-
-
-
-
 
     TEST_CLASS (IncludeDirectiveTests)
     {

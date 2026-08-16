@@ -534,6 +534,7 @@
   <ItemGroup>
     <ClInclude Include="Pch.h" />
     <ClInclude Include="TestHelpers.h" />
+    <ClInclude Include="MockFileReader.h" />
     <ClInclude Include="TestCpu65C02.h" />
     <ClInclude Include="EhmTestHelper.h" />
     <ClInclude Include="HarteTestRunner.h" />
