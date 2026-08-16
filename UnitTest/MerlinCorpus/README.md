@@ -131,6 +131,15 @@ it. It does **not** catch a garble that merely changes an operand.
 
 So: **read the first few entries yourself.** Nothing downstream will tell you.
 
+This guard has a **demonstrated near-miss**, not a theoretical one. The first
+version of `scripts/SendCassoKeys.ps1` corrupted every shifted character —
+`:` arrived as `;`, `"` as `'` — and it surfaced only because the garbled text
+happened to be a BASIC syntax error, so the guest complained. Had the first thing
+typed been valid under either spelling, subtly wrong source would have been
+entered, assembled faithfully, and its bytes captured. The entry would have been
+perfectly self-consistent and tested the wrong thing, and **none of the five
+automated axes would have caught it**.
+
 ### 4. Delete the target object file — required, not advice
 
 **Before every assembly**, delete the object file you are about to produce, from
