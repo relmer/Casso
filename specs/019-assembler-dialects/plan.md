@@ -58,6 +58,17 @@ to it must be additive: one table row, one enumerator, one arm, one flag parser.
 Roughly 20 Merlin directives in scope, 5 refused at the subset boundary. Baseline
 test suite is 2,961 Debug / 2,958 Release.
 
+**Those baselines are softer than they look, and will move for reasons unrelated
+to this feature.** The Dormann integration tests live inside the test DLL and
+fetch their source on demand, so when that data is unreachable the suite runs
+faster by *doing less work* while still reporting a pass. A fix is in flight
+elsewhere. Two consequences: do **not** re-baseline against a figure measured
+while that data is absent, or the contamination gets baked into this feature's
+evidence; and when the fix lands, the counts will shift. That shift is not a
+regression in the seam extraction, must not be chased, and is not grounds for
+weakening T010 — that gate's claim was about *which files changed*, not about an
+absolute count.
+
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*

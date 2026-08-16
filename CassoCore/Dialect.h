@@ -24,6 +24,16 @@
 //  sweep in DialectMechanismTests enforces this, and caught exactly that
 //  mistake the first time it ran.
 //
+//  That rule holds BECAUSE this enum is TOTAL over the profiles: every
+//  enumerator must have a counterpart, so an enum sweep is a valid test. Do not
+//  copy the sweep to an enum where partial coverage is the design --
+//  CommandLineOptions::Subcommand is the counter-example, where None, Help,
+//  Version and As65 deliberately have no row in the subcommand table because
+//  they are not bare words a user types. An enum sweep there would fail
+//  correctly-shaped code. DirectiveTokenTests is the pattern to copy: it sweeps
+//  spellings to tokens and tokens back to canonical names, and Directive is
+//  total the same way this is.
+//
 //  A dialect is SYNTAX ONLY. It never implies a CPU: 65C02 code can be written
 //  in any dialect, and the mechanism must not assume a profile has just one
 //  instruction set available to it. Where a profile takes its CPU FROM is part

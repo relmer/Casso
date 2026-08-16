@@ -488,6 +488,12 @@ The corpus MUST contain, at minimum:
 - **Expression-evaluator entries** covering Merlin's operator set, its precedence,
   and its current-program-counter form. The evaluator is shared with AS65, and
   Merlin's operators and precedence may not match it.
+- **A harness that fails when the corpus is missing.** A comparison loop over an
+  empty entry table reports success while covering nothing. The corpus MUST
+  assert its own presence — a non-zero entry count, and an entry with no expected
+  bytes treated as an error rather than a trivially satisfied comparison —
+  because a corpus that silently covers nothing is worse than no corpus, it being
+  indistinguishable from a passing one.
 - **A separate negative class**, for subset-boundary refusals (FR-016 through
   FR-019) and diagnostic expectations (User Story 3). These expectations are
   **hand-authored, not Merlin-captured**, because Merlin produces no bytes for

@@ -31,6 +31,13 @@ Baseline before this feature: **2,961 tests Debug, 2,958 Release**. The
 three-test delta between configurations is unexplained and tracked separately as
 issue #113 — it is not something this feature introduced or is expected to fix.
 
+Treat those numbers as soft. The Dormann integration tests fetch their source on
+demand from inside the test DLL, so when that data is unreachable the suite gets
+faster by **doing less work while still reporting a pass** — the same shape as a
+run against a stale assembly. Do not re-baseline against a figure measured in
+that state, and expect the counts to move when the fix lands elsewhere. A count
+that changed for that reason is not a regression here.
+
 Debug takes roughly 15 minutes and Release roughly 2, so **Release is the one to
 use while iterating**. For the edit-test loop, `-Filter` narrows the run further:
 

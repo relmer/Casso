@@ -39,8 +39,16 @@ namespace DialectMechanismTests
     {
     public:
 
-        //  Sweeps the ENUM, not the table, which is what catches the failure the
-        //  table cannot report: an enumerator added without a profile behind it.
+        //  Sweeps the ENUM, not the table, which is what catches the failure a
+        //  table sweep structurally cannot report: an enumerator added without a
+        //  profile behind it. Every row a table sweep visits has a profile by
+        //  construction, so only the enum side can find the gap.
+        //
+        //  Valid because DialectId is TOTAL over the profiles. The same sweep
+        //  against a partial enum -- CommandLineOptions::Subcommand, where
+        //  several values deliberately have no table row -- would fail
+        //  correctly-shaped code. DirectiveTokenTests sweeps both directions for
+        //  the same reason.
         TEST_METHOD (EveryDialectIdResolvesToAProfile)
         {
             int  idCount = (int) DialectId::Count;
