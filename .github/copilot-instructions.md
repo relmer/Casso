@@ -445,6 +445,15 @@ void Function2()
   that compiles into it, because a stale run reports a full, confident pass
   against code that is not on disk — and a new test file that never compiled
   in is simply absent from the count.
+- **`RunTests.ps1 -Filter <word>`** runs only matching tests, for the edit-test
+  loop. A bare word matches as a substring of the fully qualified name
+  (`-Filter Merlin`); anything containing filter grammar passes through to
+  vstest's `/TestCaseFilter:` verbatim. A filtered run prints a loud banner
+  saying it is not the suite — never report a filtered pass as a suite pass.
+- Debug and Release differ enormously: the Debug suite runs ~15 minutes, Release
+  ~2. They also run **different test sets** — assertion-behavior tests verify
+  nothing in Release — so Release is not a drop-in substitute for the pre-merge
+  gate.
 
 ### Style Gate (pre-push)
 
@@ -531,6 +540,18 @@ the pre-merge gate.
 
 - **NEVER squash on merge.** All branch merges to `master` must use
   `--no-ff` to preserve commit history.
+- **Worktree branch names must match the spec-kit pattern `NNN-name`.**
+  `EnterWorktree` prefixes the branch it creates with `worktree-`, and
+  `.specify/scripts/powershell/check-prerequisites.ps1` rejects anything that
+  does not start with three digits — so a worktree entered the obvious way
+  leaves every speckit workflow refusing to run. Rename the branch to bare
+  `NNN-name` after creating the worktree.
+- **`.specify/feature.json` is per-checkout state, not a deliverable.** It names
+  the active spec, so two concurrent sessions each want it pointing somewhere
+  different. Repoint it in your worktree, keep it out of the merge to `master`,
+  and beware `git add -A`, which sweeps it into a commit silently. The
+  `CLAUDE.md` active-spec block has the same hazard: do not flip it from a
+  feature branch while another session owns it.
 
 ## Workspace Hygiene
 
