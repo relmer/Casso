@@ -135,6 +135,42 @@ public:
             L"and counts in blocks rather than sectors");
     }
 
+    //  The independently extracted copy, minus the four-byte DOS 3.3 header the
+    //  reader consumes. Comparing against these bytes is strictly stronger than
+    //  comparing a length: a length check passes under any corruption that
+    //  happens to preserve size, and the oracle is already sitting there.
+    vector<Byte> ExpectedMakeDumpPayload()
+    {
+        FixtureProvider  fixtures;
+        vector<Byte>     stored;
+
+        AssertSucceeded (fixtures.OpenFixture ("Merlin/MAKE DUMP", stored));
+        Assert::AreEqual (size_t (593), stored.size(), L"the stored file carries its header");
+
+        return vector<Byte> (stored.begin() + 4, stored.end());
+    }
+
+    void AssertIsMakeDumpPayload (const vector<Byte> & actual)
+    {
+        vector<Byte>  expected = ExpectedMakeDumpPayload();
+        size_t        i        = 0;
+
+        // 589 is the length the header declares. Naming it here makes the
+        // failure legible: 618 would mean 29 line-feed bytes were expanded on
+        // the way out, which is the text-mode corruption this file's payload is
+        // uniquely suited to expose.
+        Assert::AreEqual (size_t (589), expected.size());
+        Assert::AreEqual (expected.size(), actual.size());
+
+        for (i = 0; i < expected.size(); i++)
+        {
+            if (actual[i] != expected[i])
+            {
+                Assert::Fail (L"payload differs from the independently extracted copy");
+            }
+        }
+    }
+
     TEST_METHOD (Get_WithNoOutputFile_ReturnsPayloadForStandardOutput)
     {
         // With no destination named the bytes go to the process's own output,
@@ -151,8 +187,7 @@ public:
 
         Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
         Assert::IsTrue (result.hasPayload, L"the payload is returned for the caller to deliver");
-        Assert::AreEqual (size_t (589), result.payload.size(),
-            L"589 bytes: the stored file's 593 less its four-byte header");
+        AssertIsMakeDumpPayload (result.payload);
         Assert::AreEqual (size_t (0), io.files.count ("C:\\out.bin"),
             L"and nothing was written to the host");
     }
@@ -173,7 +208,47 @@ public:
         Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
         Assert::IsFalse (result.hasPayload, L"a named destination is not the process output");
         Assert::AreEqual (size_t (1), io.files.count ("C:\\out.bin"));
-        Assert::AreEqual (size_t (589), io.files["C:\\out.bin"].size());
+        AssertIsMakeDumpPayload (io.files["C:\\out.bin"]);
+    }
+
+    TEST_METHOD (Get_PayloadCorrectnessStopsAtTheSeam_NotAtTheHostEdge)
+    {
+        // WHAT THIS TEST DOES NOT PROVE, stated because the omission is easy to
+        // miss and a green run here looks exactly like coverage.
+        //
+        // MAKE DUMP's payload contains 29 line-feed bytes and no pre-existing
+        // CR/LF pair. Delivered through a standard output left in text mode,
+        // those 29 become 58 and the file arrives as 618 bytes rather than 589
+        // -- purely additive corruption, so any count other than those two
+        // numbers means something else is wrong.
+        //
+        // That translation happens in the runtime BELOW the seam, at the host
+        // edge. The substitute used here does not translate, so this assertion
+        // passes whether or not the edge sets binary mode. The fake's own
+        // header says as much; this test says it at the point of temptation.
+        //
+        // No automated test can cover it: unit tests may not touch real system
+        // state, and no test may run the console binary. The edge is therefore
+        // verified by the manual check in quickstart.md, and the mode call
+        // carries a comment saying why it must not be removed.
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        CommandLineOptions  options   = MakeOptions (CommandLineOptions::DiskOptions::Verb::Get);
+        DiskCommandResult   result;
+        int                 lineFeeds = 0;
+
+        SeedRealDisk (io);
+        options.disk.path = "MAKE DUMP";
+
+        result = runner.Run (options);
+
+        for (Byte b : result.payload)
+        {
+            if (b == 0x0A) { lineFeeds++; }
+        }
+
+        Assert::AreEqual (29, lineFeeds,
+            L"the payload carries the line feeds that make the host edge's mode matter");
     }
 
     TEST_METHOD (Get_ReportsTheLoadAddressOnTheErrorStream)

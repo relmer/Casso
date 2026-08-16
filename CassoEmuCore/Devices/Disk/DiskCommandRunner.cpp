@@ -307,16 +307,25 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
     }
 
     // Damage from the catalog walk, and from the track layer beneath it.
+    //
+    // Each message must say the LISTING IS INCOMPLETE, not merely that the disk
+    // is damaged. A pipeline that treats status 1 as a warning and carries on
+    // will otherwise consume a truncated listing that reads as whole, and its
+    // log will describe a disk problem rather than a missing-entries problem.
+    // The status carries the distinction for a script; the wording has to carry
+    // it for whoever reads the log afterwards.
     for (const std::string & note : listing.damage)
     {
-        result.diagnostics += Failure (options.disk.imagePath, "", note) + "\n";
+        result.diagnostics += Failure (options.disk.imagePath, "",
+            note + " -- THIS LISTING IS INCOMPLETE, entries may be missing") + "\n";
         result.exitStatus   = kWithComplaints;
     }
 
     if (report.HasDataLoss())
     {
         snprintf (summary, sizeof (summary),
-                  "%d sector(s) could not be decoded and read back as zeros",
+                  "%d sector(s) could not be decoded and read back as zeros "
+                  "-- THIS LISTING IS INCOMPLETE, entries may be missing",
                   report.GetUnrecoveredCount());
 
         result.diagnostics += Failure (options.disk.imagePath, "", summary) + "\n";
@@ -416,7 +425,8 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     if (report.HasDataLoss())
     {
         snprintf (note, sizeof (note),
-                  "%d sector(s) could not be decoded; extracted content may be incomplete",
+                  "%d sector(s) could not be decoded -- THIS FILE IS INCOMPLETE, "
+                  "unreadable sectors were delivered as zeros",
                   report.GetUnrecoveredCount());
 
         result.diagnostics += Failure (options.disk.imagePath, options.disk.path, note) + "\n";

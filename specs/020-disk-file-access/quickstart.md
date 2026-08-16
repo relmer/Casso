@@ -160,6 +160,36 @@ self-referential chains; confirm every operation returns rather than hanging.
 This is a real hang risk, not a theoretical one: the integrity pass walks every
 chain, and it runs by design on volumes chosen for being damaged.
 
+## Binary-output check (manual) — the one no test can reach
+
+**Why it is manual.** This platform opens standard output in text mode, so the
+runtime rewrites every `$0A` byte as `$0D $0A` on the way out. That translation
+happens in the runtime *below* the file seam, so the in-memory substitute the
+unit tests use does not perform it — those tests pass whether or not the edge
+sets binary mode, and a green run there is evidence of nothing. Nor can it be
+automated at a higher level: unit tests may not touch real system state, and
+**no test may run the console binary**.
+
+So the assertion lives here, and the fixture that exposes it is chosen rather
+than constructed:
+
+```powershell
+# MAKE DUMP's payload is 589 bytes containing 29 line-feed bytes and NO
+# pre-existing CR/LF pair, so any corruption is purely additive.
+CassoCli.exe disk get <merlin.dsk> "MAKE DUMP" > out.bin
+(Get-Item out.bin).Length      # MUST be 589
+```
+
+| Result | Meaning |
+|---|---|
+| **589** | Correct. The edge put its handle in binary mode. |
+| **618** | 589 + 29. Standard output was left in text mode; every line feed was expanded. |
+| anything else | Something other than text mode is wrong — the arithmetic only produces these two. |
+
+Compare the bytes against `UnitTest/Fixtures/Merlin/MAKE DUMP` from offset 4;
+they must be identical. A length check alone passes under any corruption that
+happens to preserve size.
+
 ## Interrupted-write check (manual)
 
 Crash safety is hard to unit-test and worth one manual pass. Start a `put`,
