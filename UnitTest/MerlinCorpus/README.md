@@ -45,6 +45,26 @@ forty lines of PowerShell that would fall over on the first nibble image. When
 
 ## Procedure
 
+### 0. Work on a COPY of the disk — always
+
+```powershell
+Copy-Item DevDisks\Merlin8-v2.47.do DevDisks\Merlin8-v2.47-work.do
+```
+
+Mount the copy, never the original. Capture writes source files, object files,
+and deletes targets between assemblies — all on a disk that is **irreplaceable
+commercial software the developer supplied**. A corrupted original cannot be
+regenerated from anything in this repository.
+
+The copy is also free to throw away and remake between entries, which is the
+cheapest possible reset when an editing session goes wrong.
+
+Verify the original afterwards, since a hash is cheap and a silent write is not:
+
+```powershell
+Get-FileHash DevDisks\Merlin8-v2.47.do -Algorithm SHA256
+```
+
 ### 1. Write the source
 
 Batch aggressively. Put **many constructs in one composite source file** rather

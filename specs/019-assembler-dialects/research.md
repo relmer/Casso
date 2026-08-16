@@ -207,6 +207,35 @@ asserts each row produces a refusal, entirely in memory. Keeping prose
 documentation in step is a repository-level check, because a unit test may not
 read a file.
 
+## T021d, partially settled: does Merlin's editor normalize?
+
+**Established.** Merlin's editor **tabs fields to fixed display columns**. Typing
+`LABEL   LDA #$41` with three spaces renders `LDA` far beyond three spaces out,
+at a tab stop. Typing a leading space with no label puts the opcode at a
+different column again. So what appears on screen is not what was typed, and the
+column positions in Merlin listings are the editor's doing — which is what
+`FR-008`'s field-based line model already assumed, now with evidence.
+
+**Not yet settled.** Whether the *stored bytes* are normalized, which is the part
+that actually matters. Strong prior evidence says they are compact rather than
+column-padded: the vendor's own `PI.ADD.S` on disk holds ` ADD SUMSTR;DEFLEN;PL`
+with a single leading space, not padding out to the display column. But that is
+inference from someone else's file, not a closed loop on one we wrote.
+
+**Blocked on**: how to leave the editor's Add mode. `ESC` (as `WM_CHAR` and as
+`WM_KEYDOWN`), a bare `RETURN` on an empty line, and `Ctrl-C` all fail to exit —
+each is simply appended as another source line. Without exiting there is no way
+to reach Save, and no file to extract and compare.
+
+This wants the Merlin manual's editor command list rather than more guessing.
+The rest of the capture path is proven: Merlin boots, the editor accepts typed
+source, and extraction works.
+
+**Verified incidentally**: the emulator's key path needs `WM_CHAR` for printable
+characters (see `scripts/SendCassoKeys.ps1`), and control keys may need
+`WM_KEYDOWN` — though for `ESC` neither form exits Add mode, so the blocker is
+Merlin's command set rather than the input path.
+
 ## Open items carried into tasks
 
 These are the requirements-checklist gaps that need a technical answer. Each
