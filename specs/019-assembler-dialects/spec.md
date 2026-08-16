@@ -155,6 +155,11 @@ confirm the diagnostic names the right construct at the right position.
   different things under different dialects. A third meaning arrives with
   `023-ca65-dialect`, so the resolution MUST be dialect-driven rather than a
   two-way special case.
+- What happens when source is assembled in Merlin's relocatable mode, or declares
+  entry or external symbols for its relocating linker? Casso emits one absolutely
+  located image and has no linker, so this MUST be refused with the construct
+  named and the reason given — never as an unknown-directive error, which reads
+  as "Merlin support is broken" rather than "your source is relocatable."
 - What happens to source whose meaning depends on column position, when it is
   written with tabs rather than spaces? Merlin's column rules MUST be applied to a
   defined interpretation of tabs, and that interpretation MUST be documented.
@@ -211,18 +216,37 @@ confirm the diagnostic names the right construct at the right position.
   resolve included files relative to the source that names them.
 - **FR-015**: The assembler MUST accept Merlin's CPU-selection directive.
 
+#### Subset boundary
+
+Merlin's normal build is absolute, but it is not the only one: Merlin shipped a
+relocating linker, and source can be assembled into a relocatable module with
+entry and external symbols resolved later. Casso emits one absolutely located
+image and has no linker, so that path is out of scope — and MUST say so rather
+than failing as though the source were malformed.
+
+- **FR-016**: The assembler MUST reject Merlin constructs that require
+  relocatable output or a linker — relocatable-mode assembly, and entry and
+  external symbol declarations — naming the specific construct.
+- **FR-017**: A subset-boundary refusal MUST be distinguishable from a syntax
+  error, so a developer can tell "Casso does not do this" from "your source is
+  wrong."
+- **FR-018**: A subset-boundary refusal MUST report every offending construct in
+  the source, not only the first, so the scale of the gap is visible in one pass.
+- **FR-019**: The supported subset MUST be defined in one place that both the
+  implementation and the documentation derive from, so they cannot disagree.
+
 #### Diagnostics and compatibility
 
-- **FR-016**: Diagnostics MUST describe constructs using the vocabulary of the
+- **FR-020**: Diagnostics MUST describe constructs using the vocabulary of the
   active dialect.
-- **FR-017**: Diagnostics MUST carry file, line, and column in a machine-parseable
+- **FR-021**: Diagnostics MUST carry file, line, and column in a machine-parseable
   form.
-- **FR-018**: A construct rejected because it belongs to a different dialect MUST
+- **FR-022**: A construct rejected because it belongs to a different dialect MUST
   say which dialect defines it.
-- **FR-019**: Existing invocations of the assembler MUST either behave as they do
+- **FR-023**: Existing invocations of the assembler MUST either behave as they do
   today or have their change documented in release notes.
-- **FR-020**: Every dialect and its flags MUST be documented in the tool's help
-  output.
+- **FR-024**: Every dialect and its flags MUST be documented in the tool's help
+  output, including where the supported Merlin subset ends.
 
 ### Key Entities
 
@@ -253,6 +277,10 @@ confirm the diagnostic names the right construct at the right position.
   any assembly from the tool's own output alone.
 - **SC-006**: Diagnostics for dialect-specific errors identify the correct line and
   column in every case covered by the test corpus.
+- **SC-007**: Every construct outside the supported subset produces a diagnostic
+  naming it — no such construct fails as an unexplained parse error.
+- **SC-008**: A developer can determine whether their Merlin project is within
+  the supported subset from the documentation alone, without attempting it.
 
 ## Assumptions
 
@@ -263,6 +291,14 @@ confirm the diagnostic names the right construct at the right position.
 - The dialect mechanism MUST be built for more than two profiles even though only
   two ship here. Hard-coding an AS65-or-Merlin choice would have to be undone by
   the very next dialect.
+- Scope is **absolute Merlin**. Merlin shipped a relocating linker, and its
+  relocatable mode with entry and external symbols is used for library routines
+  and run-time packages, so this boundary is real rather than theoretical — it is
+  simply not where most published 8-bit Merlin source sits. Supporting it needs a
+  linker Casso does not have; that linker would also serve ca65
+  (`023-ca65-dialect`) and relocatable object output (GitHub issue #58), so the
+  boundary is expected to widen once one exists. It is specified as data (FR-019)
+  for that reason.
 - Backward compatibility with Casso's current assembler invocation is desirable but
   not paramount; the existing dialect has extremely limited adoption, so a
   documented change is acceptable where it buys a cleaner model.

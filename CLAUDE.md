@@ -25,9 +25,17 @@ session:
 - `specs/023-ca65-dialect` — ca65's absolute subset, split out of 019. Depends on
   019's dialect mechanism; full compatibility needs a linker (GH #58).
 
-019 and 020 can run in parallel. Their only shared code is the CassoCli
-command-line surface, which has been moved into `CassoCore` with tests so both
-can extend it without a blind merge.
+**Sequencing.** 019 and 020 can run in parallel — their only shared code was the
+CassoCli command-line surface, which has been moved into `CassoCore` with tests
+so both can extend it without a blind merge. The others are gated: 021 needs
+020's filesystem layer, 022 needs 020/021, and **023 needs 019's dialect
+mechanism** (023 SC-006 requires that adding ca65 change nothing in that
+mechanism), so 023 must not start before 019 lands.
+
+**020 is partially delivered.** Its User Story 1 (assembler binary output) is
+already done and on master: `--raw` and `--dos-bin` live in
+`CassoCore/OutputFormats` alongside `WriteFlatImage`, with tests. A session
+picking up 020 should plan US2 onward and treat US1 as complete.
 
 Recent specs live under `specs/` (015 printer support, 016 Apple //c, and 017
 blank-disk creation are all complete and shipped).
