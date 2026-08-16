@@ -159,9 +159,10 @@ Release green is the bar.
 
 ## Capturing a corpus entry
 
-Not part of validation. Offline, one-time per entry, and needs a Merlin Pro disk
-image you supply yourself — the image is commercial software and is never
-committed, on the same grounds as the gitignored DOS 3.3 master.
+Not part of validation. Offline, one-time per entry, and needed only to **add** a
+fixture — the five vendor oracles require none of it. The image is committed at
+`UnitTest/Fixtures/Disks/Merlin-proDos2.23.dsk`, so you no longer supply your own;
+capture works against a copy of it, never the pristine image.
 
 ```powershell
 scripts\CaptureMerlinCorpus.ps1 -Entry <name> -MerlinImage <path>

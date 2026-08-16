@@ -49,9 +49,21 @@ deliberate decision rather than as a side effect of adding dialects. Two things
 follow from it, and neither is optional:
 
 - **`UnitTest/CommandLineTests.cpp` changes.** It pins the fallback's behavior,
-  and spec 020 is developing against that same file. There is no way to remove
-  the heuristic without editing those tests; the coordination cost is real and
-  belongs to this decision, not to whoever hits the conflict.
+  and spec 020 is developing against that same file with 384 lines in flight
+  across the shared command-line surface. **020 merges first**, then this lands —
+  the session holding unmerged work does not resolve around the other's edit. The
+  deeper reason is not conflict: 020 adds `disk` to `s_kSubcommands`, and that
+  table is what decides which bare words reach the fallback, so removing it
+  earlier would mean writing tests against an intermediate table about to move.
+- **Deleting `BareWordThatIsNotASubcommand_StaysAs65` is intended.** 020 added it
+  as a tripwire so a new table row could not erode the fallback incidentally, and
+  so removal would have to be a deliberate act with its own CHANGELOG entry. This
+  is that act; the commit message must say so, or it reads later as someone
+  deleting an inconvenient test.
+- **Adding `as65` and removing the fallback happen in ONE commit.** The table on
+  master holds only `{ "run", Subcommand::Run }`, so `Subcommand::As65` is
+  reachable solely through the fallback. Split across two commits, the tree has a
+  midpoint where AS65 cannot be selected at all.
 - **A prominent `CHANGELOG.md` entry**, under breaking changes rather than inside
   the feature announcement. A script that has invoked Casso this way for its whole
   life will stop working, and the error it gets must name the replacement rather

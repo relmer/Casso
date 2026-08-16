@@ -26,11 +26,11 @@ fixtures, lifted verbatim from the pinned Merlin Pro 2.23 disk. Nothing at test 
 
 **Language/Version**: C++ (`stdcpplatest`, MSVC v145 / VS 2026)
 
-**Primary Dependencies**: No new *code* dependency — Windows SDK and STL only.
-But see the Constitution Check below: this feature does introduce third-party
-**test data** under a non-permissive license, which the constitution's dependency
-rules do not currently contemplate and which is **an open decision, not a settled
-one**.
+**Primary Dependencies**: None added — Windows SDK and STL only. The feature does
+introduce third-party **test data** under a non-permissive license, but
+constitution 1.9.0 settles that such fixtures are not dependencies at all: they
+ship in nothing and reach no end user. Obligation discharged by the sidecar
+`LICENSE` in each fixture directory. See the Constitution Check below.
 
 **Storage**: Corpus fixtures are committed under `UnitTest/Fixtures/Merlin/` and
 read through `IFixtureProvider::OpenFixture`, the only sanctioned path to fixture
@@ -91,51 +91,33 @@ absolute count.
 | V. Simplicity | The seam is justified by FR-001 and by 023 depending on it; it is not speculative. The profile is mostly data specifically to avoid an elaborate class hierarchy. | PASS |
 | VI. Thin Executable, Testable Core | Everything lands in `CassoCore`. `CassoCli` gains **only I/O edges**: printing a diagnostic using the error's own file, printing a string core generated, and returning a code core computed. Every decision behind those — what to report, when to report it, which exit code applies, and the text of generated help — lives in core where `UnitTest` reaches it. | PASS |
 
-**Post-design re-check**: one **OPEN** item, recorded rather than waved through.
+**Post-design re-check**: PASS, with the one previously open item now closed.
 
-**Third-party test data vs the dependency allowlist.** `UnitTest/Fixtures/Merlin/`
-now holds vendor source and object code under **CC BY-NC-ND 3.0**. The
-constitution's Technology Constraints permit additional third-party dependencies
-*only* when allowlisted, and require MIT/BSD/Apache/PD licensing and placement
-under `External/`. The fixtures satisfy none of those three, and the fixtures
-README itself notes that a commercial redistributor must delete the directory —
-a real constraint on an otherwise MIT project.
+**Third-party test data vs the dependency allowlist — RESOLVED** by constitution
+**1.9.0** (2026-08-16), which this feature's finding prompted. The allowlist is
+now scoped to material that **ships** — compiled into, linked into, or
+distributed alongside a released binary — and test fixtures are declared not to
+be dependencies: they are inputs consumed by the test suite, ship in nothing, and
+reach no end user.
 
-The honest reading is that the constitution's rule was written for **vendored
-code that ships in the product**, and these are **test data that ship in no
-binary**. That is a plausible distinction but it is not the written rule, and
-this plan is not the place to decide it. Two ways forward, both the project's
-call rather than this feature's:
+`UnitTest/Fixtures/Merlin/` and `UnitTest/Fixtures/Disks/` are compliant under
+that rule. Each carries a sidecar `LICENSE` naming the license, the attribution,
+and the provenance, which is the whole obligation — no allowlist entry, no
+per-file accounting, and no amendment when a fixture is added.
 
-1. Amend the constitution (MINOR bump) with a carve-out for non-code test
-   fixtures — license, location, and attribution requirements stated separately
-   from the code-dependency allowlist.
-2. Add an explicit allowlist row for the fixtures and justify the license
-   deviation there.
+Two details matter for this feature specifically. The rule is **role-based**
+rather than content-based, so the bootable volumes under `Disks/` are covered on
+its own terms; a carve-out worded for "non-code test fixtures" would not have
+covered `MERLIN.SYSTEM` and `PRODOS`, and the constitution deliberately states
+the rule while the directory's `LICENSE` states the facts. And the no-derivatives
+term engages the clause requiring a fixture whose license forbids modification to
+be **read-only to its tests** — satisfied here by construction, since
+`IFixtureProvider::OpenFixture` opens read-only and nothing in this feature
+writes to a fixture.
 
-This row is **OPEN by decision, deferred on 2026-08-16** — asked and consciously
-postponed, not overlooked. Implementation continues meanwhile; nothing in the
-feature depends on which way it goes, because both outcomes leave the fixtures
-where they are and change only how the constitution describes them.
-
-Three facts sharpen it whenever it is taken up. Every current allowlist row —
-`stb_vorbis.c` and three shaders — is **code that ships inside a binary**, and
-the fixtures ship in none; that is the distinction a carve-out would formalize.
-The fixtures and disk volumes are **already committed on master**, so the
-constitution is out of compliance today regardless of what this feature does;
-deferring decides nothing about that, it only decides not to decide yet.
-
-And the sharpest edge is not the source and object text at all.
-`UnitTest/Fixtures/Disks/` carries three complete volumes including
-`MERLIN.SYSTEM`, `PRODOS`, `BASIC.SYSTEM` and the assembler itself — **runnable
-third-party software**, committed deliberately and documented as such, not merely
-data. A carve-out written for "non-code test fixtures" would not cover it on its
-own wording. Whichever route is chosen has to address the volumes explicitly
-rather than by analogy to the extracted text.
-
-The previous claim that this feature adds no dependencies was wrong: it added no
-*code* dependency, which is not the same statement.
-
+The earlier claim that this feature adds no dependencies is now true as stated
+rather than by a technicality: it adds no dependency at all, because fixtures are
+not dependencies.
 One deliberate deviation from the `/speckit-plan` workflow is recorded rather
 than silently taken: the step that rewrites `CLAUDE.md`'s active-spec block was
 **not** performed. That block currently names spec 020, which another session is

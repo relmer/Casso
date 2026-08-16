@@ -492,9 +492,17 @@ Three conditions ride with it, none optional:
 - The files MUST stay **unmodified**. The no-derivatives term forbids altered
   copies, and an adjusted fixture has stopped being an oracle — a mismatch is a
   finding about Casso, never a reason to edit the file.
-- The directory MUST carry its own attribution and license notice, because it is
-  **not** under this repository's license. The distinction is per-file and stops
-  at that directory.
+- The directory MUST carry a sidecar `LICENSE` naming the license, the required
+  attribution, and where the material came from, because it is **not** under this
+  repository's license. **The directory is the unit** — one notice covers every
+  file in it, and files sharing a license are grouped into their own subdirectory
+  rather than annotated individually. Constitution 1.9.0 requires this and
+  requires nothing more: no allowlist entry, no per-file accounting, and no
+  amendment when a fixture is added.
+- The no-derivatives term engages the constitution's read-only clause: a fixture
+  whose license forbids modification MUST be read-only to the tests consuming it.
+  Satisfied by construction here, since `IFixtureProvider::OpenFixture` opens
+  read-only and nothing in this feature writes to a fixture.
 - Anyone redistributing Casso commercially MUST remove the directory and the
   tests depending on it.
 
@@ -679,10 +687,13 @@ The corpus MUST contain, at minimum:
   reason those volumes are there at all. The image is needed here only to **add**
   a fixture, via `scripts/ExtractMerlinFixtures.ps1`.
 
-  It does widen the license question rather than narrow it: the disks contain
-  runnable Merlin, not just source and object under CC BY-NC-ND. Whatever the
-  Constitution Check's open dependency item settles, it must cover the volumes,
-  not only the extracts.
+  The volumes carry runnable Merlin — `MERLIN.SYSTEM`, `PRODOS`,
+  `BASIC.SYSTEM`, the assembler itself — not just source and object text, which
+  once looked like the harder half of the license question. Constitution 1.9.0
+  settles it and covers them: the rule is stated by **role** — inputs consumed by
+  the test suite, shipping in nothing, reaching no end user — rather than by what
+  the bytes contain, so a bootable volume qualifies on the rule's own terms.
+  `UnitTest/Fixtures/Disks/LICENSE` names the software explicitly.
 - **Capture depends on Casso running Merlin correctly, but only at capture time.**
   Nothing at test time touches Merlin or the emulator. The dependency is
   discharged by cross-checking a sample of entries against hand-derived
