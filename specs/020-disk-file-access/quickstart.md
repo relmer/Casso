@@ -89,8 +89,14 @@ program.
 3. `get` a text file: high-bit encoding converted, line endings normalized.
 4. `list` a disk with a damaged catalog: readable entries on stdout, damage on
    stderr, **exit status 1**.
-5. `list` a disk with an undecodable track: unrecovered sectors identified as
-   unrecovered, never as zero bytes.
+5. `list` a disk with a **partially** decodable track — some sectors decode, then
+   a failure: unrecovered sectors identified as unrecovered, never as zero bytes,
+   and the write path refuses that track.
+6. `list` a disk with a **wholly unformatted** track: reported as blank, **not**
+   as damage, and the write path accepts it. This is the case the existing
+   `Denibblize_UnformattedTrack_ZeroFillsThatTrackAndKeepsOthers` test pins, and
+   it must keep passing — collapsing it into case 5 would make blank disks
+   unwritable.
 
 Run 1-3 against `.dsk`, `.do`, `.po`, and `.woz` of the same content — SC-004
 requires byte-exact extraction across every mountable format.

@@ -82,12 +82,20 @@ already-leaked space or an invisible file's data; refusing to guess is correct.
 ## Track layer
 
 ```cpp
-//  NibblizationLayer.h -- extended. The existing three-argument Denibblize
-//  keeps its signature and behavior for callers that do not need the report.
+//  NibblizationLayer.h -- extended.
+
+//  Reporting form. Succeeds whenever it could decode at all; the report
+//  carries the SHAPE of what it found, so a caller that can present partial
+//  results (list, extract) decides for itself.
 static HRESULT  Denibblize (const DiskImage      & img,
                             DiskFormat             fmt,
                             vector<Byte>         & out,
                             SectorDecodeReport   & outReport);
+
+//  Existing signature, existing callers -- but NOT a bypass. Forwards to the
+//  reporting form and FAILS when the report shows data loss, succeeding only
+//  when every track is Complete or Unformatted.
+static HRESULT  Denibblize (const DiskImage & img, DiskFormat fmt, vector<Byte> & out);
 
 //  Re-encode ONLY the listed tracks; every other track's packed bits are left
 //  exactly as they are (FR-017).
@@ -97,10 +105,25 @@ static HRESULT  RenibblizeTracks (const vector<Byte>  & sectors,
                                   DiskImage           & inOutImage);
 ```
 
-**The decode loop must continue past a failed sector, not break.** The present
-`break` is why one undecodable sector currently zeroes every later sector in scan
-order on that track (research R-002). Sectors that do not decode are marked
-unrecovered in the report; they are never presented as zero bytes.
+**The decode loop must continue past a failed sector and resynchronize**, not
+`break`. The present `break` is why one undecodable sector currently zeroes every
+later sector in scan order on that track (research R-002).
+
+**The three-argument form must fail rather than bypass.** Keeping it purely for
+source compatibility would preserve the defect's reachability in the one place
+that matters: `DiskImage::Serialize` — the emulator's flush path and the sole
+production caller — would keep calling the reportless form and keep silently
+truncating. Forwarding-and-failing instead means:
+
+- all twelve existing test call sites keep compiling unchanged;
+- the unformatted-track test keeps passing, because `Unformatted` is benign;
+- **no caller can obtain a silently truncated buffer, whichever overload it
+  picks**;
+- `Serialize` is fixed whether or not anyone remembers to migrate it.
+
+The point is to remove the attractive nuisance, not to document around it. A
+simpler-looking overload that quietly loses data will eventually be chosen by
+someone who did not read this file.
 
 ## Writability
 

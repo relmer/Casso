@@ -145,15 +145,26 @@ UnitTest/
 dependencies. The filesystem layer lands in `CassoEmuCore` beside the disk
 devices; the grammar lands in `CassoCore` beside the parser it extends.
 
+`AppleTextCodec` and `ApplesoftTokenizer` go in `CassoCore` because they are pure
+text transforms with no device dependency, they sit naturally beside `Parser` and
+the expression evaluator, and `CassoCore` is the lower layer. **Not** because it
+saves `CassoCli` from linking `CassoEmuCore` — `CassoCli.vcxproj` already
+references both projects, so that reasoning is simply false and must not be
+repeated as though it were a constraint.
+
 ## Phasing
 
 Ordered by dependency, not by story number. Each phase is a commit.
 
 **Phase A — Foundational (blocks everything).**
-`SectorDecodeReport` and the decode-continues fix (FR-018); `TrackWritability`
-(FR-016, FR-017, FR-019); `RenibblizeTracks`; `VolumeIntegrityReport` with
-bounded traversal (FR-037, FR-038). No write path may consume denibblized output
-before this lands.
+`SectorDecodeReport` classifying each track `Complete` / `Unformatted` /
+`Partial`, and the decode-continues-and-resynchronizes fix (FR-018); the
+three-argument `Denibblize` rewired to forward and fail on data loss, which fixes
+`DiskImage::Serialize` without touching it; the misleading generalization in
+`NibblizationTests.cpp:308`'s comment narrowed to the unformatted case;
+`TrackWritability` (FR-016, FR-017, FR-019); `RenibblizeTracks`;
+`VolumeIntegrityReport` with bounded traversal (FR-037, FR-038). No write path
+may consume denibblized output before this lands.
 
 **Phase B — DOS 3.3 volume.** Reader first (US3 is P1 and nothing exists);
 then write, delete with free-space return, replace. Generalizes

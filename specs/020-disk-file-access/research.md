@@ -66,14 +66,54 @@ eject, with no error surfaced anywhere.
 silently returns zeros for data it could not read — the exact shape of a
 data-loss bug. FR-018 is the fix.
 
+**A test already pins this behavior, and it is right about the case it tests.**
+`UnitTest/EmuTests/NibblizationTests.cpp:308` deliberately asserts the zero-fill,
+reasoning that "missing sectors read back as zeros … is intentional for sector
+images (a blank disk is all zeros), not silent corruption of a valid track."
+
+That reasoning is correct for the case it exercises and wrong as a general claim,
+and the gap between them is exactly the defect:
+
+- **Wholly unformatted track** (no address fields anywhere): zeros are correct — a
+  blank disk really is all zeros. The test wipes an entire track, so this is the
+  case it covers.
+- **Partially decodable track** (some sectors decode, then a failure): `break`
+  zeroes the tail. That *is* the "silent corruption of a valid track" the comment
+  claims it is not.
+
+**Three consequences:**
+
+1. **The existing test does not block the fix.** It wipes the whole track, so
+   under continue-and-resync it still yields zeros and still passes. No existing
+   test breaks.
+2. **The comment must be narrowed as part of the fix.** Left standing it reads as
+   license for the behavior, and a later reader will cite it to revert the fix.
+3. **The report must carry the shape of the failure, not just its presence.** It
+   MUST distinguish "no address fields found → unformatted, benign, writable"
+   from "some decoded then failed → data loss, refuse the write". A report that
+   only says "not all sixteen decoded" collapses the two, and its consumer then
+   either rejects blank disks or accepts damaged ones — the latter being this
+   defect again, wearing a report. Sector count alone is insufficient.
+
+**Call-site census** (verified by grep): exactly **one** production caller,
+`DiskImage::Serialize` at `DiskImage.cpp:434`. Everything else is tests — twelve
+sites across `NibblizationTests` (9) and `BlankDiskBuilderTests` (3).
+
+**Overload decision**: keep both signatures, but the existing three-argument form
+**forwards to the reporting form and fails on data loss** rather than bypassing
+it. Preserving it as a reportless passthrough would leave the defect reachable in
+the one place that matters — the flush path — while looking like compatibility.
+Forwarding-and-failing keeps all twelve test sites compiling, keeps the
+unformatted-track test passing, fixes `Serialize` whether or not anyone migrates
+it, and leaves no overload that silently loses data for someone to pick later.
+
 **Action**: The pre-existing emulator-side exposure is a defect in its own right
 and should be tracked separately rather than folded silently into this feature.
 See spec § Dependencies and Known Defects.
 
-**Alternatives considered**: Treating a decode failure as a whole-operation
+**Alternatives considered**: Treating any decode failure as a whole-operation
 error. Rejected — US3 explicitly wants a useful partial report from a damaged
-disk, so the result must distinguish per-sector outcomes rather than collapse to
-one HRESULT.
+disk, and it would also make blank tracks fail, which is wrong.
 
 ---
 

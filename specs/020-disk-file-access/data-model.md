@@ -37,22 +37,58 @@ it came from.
 What denibblization recovered, per track and per sector. Fills the gap described
 in research R-002 and satisfies FR-018.
 
+**The report must carry the *shape* of a failure, not just its presence.** A
+report that says only "not all sixteen sectors decoded" collapses two cases that
+demand opposite handling, and a consumer forced to choose between them will
+either reject blank disks or accept damaged ones — the second being the original
+defect wearing a report.
+
+### TrackDecodeOutcome
+
+| Outcome | Meaning | Writable? |
+|---|---|---|
+| `Complete` | All sixteen sectors, numbered 0-15, each decoded exactly once | Yes |
+| `Unformatted` | **No address field located anywhere** in a full revolution | Yes — a blank track is legitimately all zeros, and writing to it produces a standard track |
+| `Partial` | At least one address field located, but not a complete standard set — some sectors decoded, others did not, or numbers repeated | **No** |
+
+The discriminator between `Unformatted` and `Partial` is *whether any address
+field was found*, not how many sectors decoded. A track whose address fields are
+present but whose data fields all fail is `Partial` — damaged — not blank.
+
+### Fields
+
 | Field | Meaning |
 |---|---|
 | `trackCount` | Tracks examined |
-| `sectorRecovered[track][sector]` | Whether this sector decoded to a valid standard sector |
-| `trackFullyRecovered(track)` | All sixteen sectors recovered |
-| `isFullyRecovered` | Every track fully recovered |
-| `unrecoveredCount` | Total sectors not recovered |
+| `outcome[track]` | `Complete`, `Unformatted`, or `Partial` |
+| `sectorRecovered[track][sector]` | Whether this specific sector decoded |
+| `hasDataLoss` | Any track is `Partial` |
+| `unrecoveredCount` | Sectors not recovered on `Partial` tracks only — an `Unformatted` track contributes nothing, because nothing was lost |
 
 **Rules**
 
-- A sector that did not decode MUST be marked unrecovered rather than left as
-  zeros indistinguishable from genuinely zeroed data (FR-018, Edge Cases).
-- Decoding MUST continue past a failed sector rather than abandoning the rest of
-  the track — the present `break` is the defect this replaces.
-- The report is an output of reading, not of writing: it describes the image as
-  found.
+- Decoding MUST continue past a failed sector and resynchronize on the next
+  address prologue, rather than abandoning the rest of the track. The present
+  `break` is the defect this replaces, and it is why one bad sector currently
+  zeroes the whole tail of a track.
+- A sector on a `Partial` track that did not decode MUST be marked unrecovered
+  rather than presented as zeros indistinguishable from genuinely zeroed data.
+- Zeros for an `Unformatted` track are **correct and intended** for a sector
+  image, and no consumer may treat that as damage.
+- The report describes the image as found; it is an output of reading.
+
+### Note for implementers
+
+`UnitTest/EmuTests/NibblizationTests.cpp:308`
+(`Denibblize_UnformattedTrack_ZeroFillsThatTrackAndKeepsOthers`) deliberately
+pins the zero-fill and **passes unchanged** under this design, because it wipes an
+entire track — the `Unformatted` case, where zeros are right.
+
+Its comment, however, generalizes from that case to "missing sectors read back as
+zeros … not silent corruption of a valid track." That claim is true for the case
+tested and false for `Partial`, which is exactly the defect. **The comment MUST be
+narrowed to the unformatted case as part of the fix.** Left standing it reads as
+license for the behavior, and a later reader will use it to revert the fix.
 
 ---
 
@@ -64,11 +100,15 @@ FR-017, FR-019.
 | Field | Meaning |
 |---|---|
 | `imageRefusalReason` | Set when the whole image is unwritable — a quarter-track map resolving off whole-track positions, or metadata declaring timing-sensitive capture. Checked before any track is decoded. |
-| `isTrackWritable(track)` | The track decoded to sixteen distinct valid standard sectors |
+| `isTrackWritable(track)` | Outcome is `Complete` or `Unformatted` — never `Partial` |
 
 **Rules**
 
 - Writability is **positive proof**, never protection-scheme recognition (FR-019).
+- `Unformatted` is writable. Refusing it would make blank and newly formatted
+  regions unwritable, which is wrong. On a bit-stream image a deliberately
+  unformatted track is a protection signal, but that case is caught by the two
+  whole-image checks above, which run first and refuse the image outright.
 - A write is refused only when it needs a track that is not writable (FR-016) —
   an unwritable track elsewhere on the disk does not block it.
 - Tracks not being written are never re-encoded (FR-017).
