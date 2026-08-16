@@ -51,8 +51,27 @@ FileReadResult DefaultFileReader::ReadFile (const std::string & filename, const 
 ////////////////////////////////////////////////////////////////////////////////
 
 Assembler::Assembler (const Microcode instructionSet[256], AssemblerOptions options) :
-    m_opcodeTable (instructionSet),
-    m_options     (options)
+    m_instructionSets (instructionSet),
+    m_options         (options)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Assembler::Assembler
+//
+//  Base and extended instruction sets, so a dialect's in-source CPU directive
+//  has something to select.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Assembler::Assembler (const Microcode baseSet[256], const Microcode extendedSet[256], AssemblerOptions options) :
+    m_instructionSets (baseSet, extendedSet),
+    m_options         (options)
 {
 }
 
@@ -119,7 +138,7 @@ void Assembler::RecordWarning (AssemblyResult & result, int lineNumber, const st
 
 AssemblyResult Assembler::Assemble (const std::string & sourceText)
 {
-    AssemblySession session (m_opcodeTable, m_options);
+    AssemblySession session (m_instructionSets, m_options);
     return session.Run (sourceText);
 }
 

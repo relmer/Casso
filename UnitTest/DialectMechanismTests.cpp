@@ -3,7 +3,10 @@
 #include "Dialect.h"
 #include "DialectProfile.h"
 #include "DialectRegistry.h"
+#include "InstructionSetProvider.h"
 #include "Parser.h"
+#include "TestHelpers.h"
+#include "TestCpu65C02.h"
 
 
 
@@ -181,6 +184,71 @@ namespace DialectMechanismTests
             Assert::IsTrue (as65.GetCpuSelectionSource() == CpuSelectionSource::CommandLine);
             Assert::AreEqual (std::string (""), std::string (as65.GetCpuDirectiveName()),
                               L"a command-line dialect has no in-source directive to name");
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  InstructionSetProviderTests
+    //
+    //  The CPU axis of the mechanism: holding more than one instruction table so
+    //  an in-source directive has something to select.
+    //
+    //  No dialect selects yet, which is exactly why these exist -- the machinery
+    //  would otherwise be untested until the first dialect that uses it, and a
+    //  fault in it would surface as wrong bytes rather than as a failure here.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (InstructionSetProviderTests)
+    {
+    public:
+
+        //  One set: nothing to switch to, and asking for the extended one
+        //  honestly returns what you already had rather than a null table every
+        //  caller would have to test for.
+        TEST_METHOD (SingleSet_HasNoExtendedAndFallsBackToBase)
+        {
+            TestCpu                 cpu;
+            InstructionSetProvider  provider (cpu.GetInstructionSet());
+
+            Assert::IsFalse (provider.HasExtended(), L"one set means nothing to select");
+            Assert::IsTrue (&provider.GetExtended() == &provider.GetBase(),
+                            L"with no extended set, the extended table IS the base table");
+        }
+
+
+
+        TEST_METHOD (TwoSets_ReportsAnExtendedSet)
+        {
+            TestCpu                 cpu;
+            TestCpu65C02            cmos;
+            InstructionSetProvider  provider (cpu.GetInstructionSet(), cmos.GetInstructionSet());
+
+            Assert::IsTrue (provider.HasExtended(), L"two sets means there is something to select");
+            Assert::IsTrue (&provider.GetExtended() != &provider.GetBase(),
+                            L"the extended table must be distinct from the base");
+        }
+
+
+
+        //  The tables must differ in the way that matters: the extended one
+        //  encodes instructions the base rejects. Identical tables would satisfy
+        //  every structural assertion above while making selection pointless.
+        TEST_METHOD (ExtendedSet_EncodesInstructionsTheBaseRejects)
+        {
+            TestCpu                 cpu;
+            TestCpu65C02            cmos;
+            InstructionSetProvider  provider (cpu.GetInstructionSet(), cmos.GetInstructionSet());
+
+            Assert::IsFalse (provider.GetBase().IsMnemonic ("PHX"),
+                             L"PHX is not a 6502 instruction");
+            Assert::IsTrue (provider.GetExtended().IsMnemonic ("PHX"),
+                            L"PHX is a 65C02 instruction, so the extended table must carry it");
         }
     };
 }

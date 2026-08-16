@@ -3,6 +3,7 @@
 #include "AssemblerTypes.h"
 #include "ExpressionEvaluator.h"
 #include "OpcodeTable.h"
+#include "InstructionSetProvider.h"
 #include "Directive.h"
 #include "Parser.h"
 
@@ -37,6 +38,15 @@ struct LineInfo
     // the top-level input. Pass 2 walks this list rather than the pending
     // lines, so without it every pass-2 diagnostic would lose the file.
     std::string      sourceFile;
+
+    // Which instruction set was active when pass 1 sized this line. RECORDED
+    // rather than recomputed, because pass 2 must size the line exactly as
+    // pass 1 did. Recomputing would only agree if the CPU-selection directive
+    // were reached identically in both passes, and conditional assembly can
+    // break that -- a directive inside a block whose taken-ness differs would
+    // leave pass 2 emitting against a table pass 1 never used, surfacing as a
+    // byte mismatch arbitrarily far from its cause.
+    bool             usedExtendedSet = false;
 };
 
 
@@ -86,7 +96,7 @@ struct PendingLine
 class AssemblySession
 {
 public:
-    AssemblySession (const OpcodeTable & opcodeTable, const AssemblerOptions & options);
+    AssemblySession (const InstructionSetProvider & instructionSets, const AssemblerOptions & options);
 
     AssemblyResult Run (const std::string & sourceText);
 
@@ -348,7 +358,13 @@ private:
     void InjectBuiltin (const std::string & name, int32_t value);
     void EmitByte      (Byte b, Word & emitPC);
 
-    const OpcodeTable      & m_opcodeTable;
+    // A POINTER rather than a reference, because an in-source CPU directive
+    // re-seats it mid-assembly. Only ever changed at a line boundary, never
+    // within one, so both passes agree about which table a given line used.
+    const InstructionSetProvider  & m_instructionSets;
+    const OpcodeTable             * m_opcodeTable;
+    bool                            m_extendedActive = false;
+
     const AssemblerOptions & m_options;
     AssemblyResult           m_result             = {};
 

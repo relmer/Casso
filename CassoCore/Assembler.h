@@ -2,6 +2,7 @@
 
 #include "AssemblerTypes.h"
 #include "OpcodeTable.h"
+#include "InstructionSetProvider.h"
 
 
 
@@ -22,7 +23,14 @@ class Microcode;
 class Assembler
 {
 public:
+    // One instruction set, with nothing to switch to. Unchanged, so every
+    // existing caller behaves exactly as it did.
     Assembler (const Microcode instructionSet[256], AssemblerOptions options = {});
+
+    // Base and extended sets, for a dialect whose source can select the wider
+    // one. The extended table is injected because it lives in the emulator
+    // library, which this one must not reach into.
+    Assembler (const Microcode baseSet[256], const Microcode extendedSet[256], AssemblerOptions options = {});
 
     AssemblyResult Assemble (const std::string & sourceText);
 
@@ -34,6 +42,6 @@ public:
 private:
     void RecordWarning (AssemblyResult & result, int lineNumber, const std::string & message);
 
-    OpcodeTable      m_opcodeTable;
-    AssemblerOptions m_options;
+    InstructionSetProvider m_instructionSets;
+    AssemblerOptions       m_options;
 };

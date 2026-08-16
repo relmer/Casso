@@ -426,7 +426,7 @@ std::vector<std::string> AssemblySession::GenerateByteDirectives (const std::vec
 
 bool AssemblySession::IsBranchMnemonic (const std::string & mnemonic) const
 {
-    return m_opcodeTable.HasMode (mnemonic, GlobalAddressingMode::Relative);
+    return m_opcodeTable->HasMode (mnemonic, GlobalAddressingMode::Relative);
 }
 
 
@@ -582,7 +582,7 @@ GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
             continue;
         }
 
-        if (m_opcodeTable.HasMode (mnemonic, candidate.mode))
+        if (m_opcodeTable->HasMode (mnemonic, candidate.mode))
         {
             mode = candidate.mode;
             break;
@@ -643,7 +643,7 @@ Byte AssemblySession::EstimateErrorRecoverySize (OperandSyntax syntax, const std
         case OperandSyntax::Indirect:
             // A jump is 3 bytes -- JMP (abs), JMP (abs,X), JSR abs -- and every
             // other parenthesized form is 2, on both instruction sets.
-            size = m_opcodeTable.HasMode (mnemonic, GlobalAddressingMode::JumpAbsolute) ? 3 : 2;
+            size = m_opcodeTable->HasMode (mnemonic, GlobalAddressingMode::JumpAbsolute) ? 3 : 2;
             break;
 
         case OperandSyntax::IndexedX:
@@ -811,10 +811,11 @@ bool AssemblySession::TryEvaluateDirectiveArgs (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-AssemblySession::AssemblySession (const OpcodeTable & opcodeTable, const AssemblerOptions & options) :
-    m_opcodeTable  (opcodeTable),
-    m_options      (options),
-    m_listingLevel (options.generateListing ? 1 : 0)
+AssemblySession::AssemblySession (const InstructionSetProvider & instructionSets, const AssemblerOptions & options) :
+    m_instructionSets (instructionSets),
+    m_opcodeTable     (&instructionSets.GetBase()),
+    m_options         (options),
+    m_listingLevel    (options.generateListing ? 1 : 0)
 {
 }
 
@@ -1154,6 +1155,12 @@ HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
 
     info.parsed            = Parser::ParseLine (current.text, current.sourceLineNumber);
     info.sourceFile        = current.sourceFile;
+
+    // Which instruction set sized this line. Recorded here so pass 2 replays it
+    // rather than recomputing -- see LineInfo::usedExtendedSet for why
+    // recomputation is not equivalent.
+    info.usedExtendedSet   = m_extendedActive;
+
     info.pc                = m_pc;
     info.isInstruction     = false;
     info.isDirective       = false;
@@ -1951,7 +1958,7 @@ HRESULT AssemblySession::DetectMacroDefinition (const PendingLine & current, Lin
     BAIL_OUT_IF (!IsMacroDefinitionStart (info.parsed, operandUpper), S_OK);
 
     // Name collision check
-    if (m_opcodeTable.IsMnemonic (info.parsed.mnemonic))
+    if (m_opcodeTable->IsMnemonic (info.parsed.mnemonic))
     {
         RecordError (current.sourceLineNumber, "Macro name conflicts with mnemonic: " + info.parsed.mnemonic);
     }
@@ -2451,7 +2458,7 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
 
     {
         std::string labelError;
-        HRESULT     hrLabel = Parser::ValidateLabel (info.parsed.label, m_opcodeTable, labelError);
+        HRESULT     hrLabel = Parser::ValidateLabel (info.parsed.label, *m_opcodeTable, labelError);
 
         if (FAILED (hrLabel))
         {
@@ -2472,7 +2479,7 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
             // Warn if label resembles mnemonic by case
             upper = ToUpperCase (info.parsed.label);
 
-            if (upper != info.parsed.label && m_opcodeTable.IsMnemonic (upper))
+            if (upper != info.parsed.label && m_opcodeTable->IsMnemonic (upper))
             {
                 RecordWarning (current.sourceLineNumber, "Label name resembles mnemonic: " + info.parsed.label);
             }
@@ -3903,7 +3910,7 @@ HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, Line
     // and not be an opcode, a bit-op, or a macro name.
     fLooksLikeLabel = info.parsed.startsAtColumn0 &&
                       info.parsed.label.empty() &&
-                      !m_opcodeTable.IsMnemonic (info.parsed.mnemonic) &&
+                      !m_opcodeTable->IsMnemonic (info.parsed.mnemonic) &&
                       !IsBitOpMnemonic (info.parsed.mnemonic) &&
                       (m_macros.find (info.parsed.mnemonic) == m_macros.end());
 
@@ -3917,7 +3924,7 @@ HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, Line
         hr = ExtractColonlessLabelName (current, labelName);
         CHR (hr);
 
-        hrLabel = Parser::ValidateLabel (labelName, m_opcodeTable, labelError);
+        hrLabel = Parser::ValidateLabel (labelName, *m_opcodeTable, labelError);
 
         if (FAILED (hrLabel))
         {
@@ -4198,7 +4205,7 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
         info.resolvedMode = mode;
 
 
-        if (m_opcodeTable.TryLookup (info.parsed.mnemonic, mode, entry))
+        if (m_opcodeTable->TryLookup (info.parsed.mnemonic, mode, entry))
         {
             m_pc += 1 + entry.operandSize;
         }
@@ -4219,14 +4226,14 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
                 altMode = GlobalAddressingMode::AbsoluteY;
             }
 
-            if (altMode != mode && m_opcodeTable.TryLookup (info.parsed.mnemonic, altMode, entry))
+            if (altMode != mode && m_opcodeTable->TryLookup (info.parsed.mnemonic, altMode, entry))
             {
                 info.resolvedMode = altMode;
                 m_pc += 1 + entry.operandSize;
             }
             else if (!info.hasError)
             {
-                if (!m_opcodeTable.IsMnemonic (info.parsed.mnemonic))
+                if (!m_opcodeTable->IsMnemonic (info.parsed.mnemonic))
                 {
                     RecordError (current.sourceLineNumber, "Invalid mnemonic: " + info.parsed.mnemonic);
                 }
@@ -4433,6 +4440,13 @@ HRESULT AssemblySession::RunPass2()
         // originating file has to be re-established here or every diagnostic
         // raised while emitting would be attributed to the top-level input.
         m_currentSourceFile = info.sourceFile;
+
+        // Same reasoning for the instruction set: REPLAY what pass 1 recorded
+        // for this line rather than re-deriving it. Emitting against a
+        // different table than the one that sized the line is how an operand
+        // ends up the wrong width.
+        m_opcodeTable = info.usedExtendedSet ? &m_instructionSets.GetExtended()
+                                             : &m_instructionSets.GetBase();
 
         if (info.hasError)
         {
@@ -5152,7 +5166,7 @@ HRESULT AssemblySession::ResolveInstructionValue (const LineInfo & info, int32_t
             emit = false;
 
 
-            if (m_opcodeTable.TryLookup (info.parsed.mnemonic, mode, entry))
+            if (m_opcodeTable->TryLookup (info.parsed.mnemonic, mode, entry))
             {
                 // Emit placeholder bytes handled by caller
             }
@@ -5242,7 +5256,7 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
         Byte        offsetByte  = 0;
         bool        hasEncoding = false;
 
-        hasEncoding = m_opcodeTable.TryLookup (info.parsed.mnemonic, mode, entry);
+        hasEncoding = m_opcodeTable->TryLookup (info.parsed.mnemonic, mode, entry);
 
         if (!hasEncoding)
         {
@@ -5286,7 +5300,7 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
     {
         OpcodeEntry entry = {};
 
-        if (!m_opcodeTable.TryLookup (info.parsed.mnemonic, mode, entry))
+        if (!m_opcodeTable->TryLookup (info.parsed.mnemonic, mode, entry))
         {
             RecordError (info.parsed.lineNumber, "Cannot encode: " + info.parsed.mnemonic);
         }
@@ -5363,7 +5377,7 @@ HRESULT AssemblySession::BuildListingEntry (const LineInfo & info, Word emitPCSt
         {
             OpcodeEntry cycleEntry = {};
 
-            if (m_opcodeTable.TryLookup (info.parsed.mnemonic, info.resolvedMode, cycleEntry))
+            if (m_opcodeTable->TryLookup (info.parsed.mnemonic, info.resolvedMode, cycleEntry))
             {
                 listLine.cycleCounts = cycleEntry.cycleCounts;
             }
