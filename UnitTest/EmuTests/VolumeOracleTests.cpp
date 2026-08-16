@@ -43,11 +43,24 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  restyled, which is also why the objects differ in length. Equal size is not
 //  evidence of equal content; compare bytes.
 //
-//  WHAT THESE DISKS CANNOT COVER, so it is not mistaken for a gap later: no
-//  tree-storage file exists on either ProDOS volume, and none can. A tree needs
-//  more than 256 data blocks and these are 280-block disks whose largest file
-//  is 60. Tree traversal has to be synthetic, which is a legitimate use of a
-//  constructed fixture rather than a shortfall.
+//  WHAT THESE DISKS CANNOT COVER, so it is not mistaken for a gap later. Both
+//  cases need a constructed fixture, which is a legitimate use of one rather
+//  than a shortfall -- the real volumes simply cannot reach them:
+//
+//      Tree storage        A tree needs more than 256 data blocks. These are
+//                          280-block volumes whose largest file is 60, so no
+//                          tree exists here and none could.
+//
+//      Random-access text  All 24 text files across both ProDOS volumes have an
+//                          auxiliary type of 0, meaning sequential. None sets a
+//                          record length, so the random-access form -- where the
+//                          auxiliary type IS the record size and sparse blocks
+//                          are meaningful -- is unexercised by real material.
+//
+//  The rule the split follows: use real disks to ask whether the reader
+//  understands the format, and synthetic fixtures to construct a specific shape
+//  on purpose. A synthetic fixture cannot answer the first question, because it
+//  was built by the same understanding it would be testing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,6 +160,52 @@ public:
         // into the track/sector list. The synthetic multi-list test constructs
         // that shape; this one finds it on a disk somebody shipped.
         AssertMatchesOracle ("KEYMAC.S", "Merlin/KEYMAC.S", 0x0901);
+    }
+
+    //  Type T has no header and no stored length: the file ends at the first
+    //  $00 and everything after is sector padding. A different code path from
+    //  the binaries above, and one with nothing to sanity-check against.
+    void AssertTextMatchesOracle (const char * onDiskName, const char * fixturePath)
+    {
+        vector<Byte>  disk     = Load (kDos33Disk);
+        vector<Byte>  expected = Load (fixturePath);
+        Dos33Volume   volume (disk);
+        FilePayload   got;
+        size_t        i        = 0;
+
+        AssertSucceeded (volume.Read (FilePath::Parse (onDiskName), got));
+
+        Assert::AreEqual (expected.size(), got.bytes.size(),
+            L"a type-T file's length is where its terminator falls, not a stored number");
+
+        Assert::IsFalse (got.hasLoadAddress, L"type T records no load address");
+
+        for (i = 0; i < got.bytes.size(); i++)
+        {
+            if (got.bytes[i] != expected[i])
+            {
+                Assert::Fail (L"payload differs from the independently extracted file");
+            }
+        }
+    }
+
+    TEST_METHOD (Oracle_TextFile_MatchesIndependentExtraction)
+    {
+        // The byte comparison IS the guard here, and that is the point of
+        // having it. T.SENDMSG begins with the literal characters "SE" -- so a
+        // reader that mis-dispatched and stripped four bytes as a binary header
+        // would lose "SE" and two more, and return 145 bytes of entirely
+        // plausible source text. No crash, no absurd length to catch it, just
+        // quietly truncated. The binaries have a declared length that would
+        // look wrong; type T has nothing to check against but the real bytes.
+        AssertTextMatchesOracle ("T.SENDMSG", "Merlin/T.SENDMSG");
+    }
+
+    TEST_METHOD (Oracle_LargerTextFile_MatchesIndependentExtraction)
+    {
+        // 1,084 bytes spans multiple sectors, so this also exercises the
+        // track/sector walk on the type-T path rather than only on binaries.
+        AssertTextMatchesOracle ("T.PI.MACS", "Merlin/T.PI.MACS");
     }
 
     TEST_METHOD (Dos33_RealDisk_EnumeratesItsCatalog)
