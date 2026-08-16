@@ -227,6 +227,9 @@
     <ClCompile Include="Devices\Disk\NibblizationLayer.cpp" />
     <ClCompile Include="Devices\Disk\SectorDecodeReport.cpp" />
     <ClCompile Include="Devices\Disk\TrackWritability.cpp" />
+    <ClCompile Include="Devices\Disk\VolumeIntegrityReport.cpp" />
+    <ClCompile Include="Devices\Disk\FilePath.cpp" />
+    <ClCompile Include="Devices\Disk\ChainWalkGuard.cpp" />
     <ClCompile Include="Devices\Disk\WozLoader.cpp" />
     <ClCompile Include="Devices\Disk\BlankDiskBuilder.cpp" />
     <ClCompile Include="Devices\Disk\Dos33Skeleton.cpp" />
@@ -304,6 +307,11 @@
     <ClInclude Include="Devices\Disk\NibblizationLayer.h" />
     <ClInclude Include="Devices\Disk\SectorDecodeReport.h" />
     <ClInclude Include="Devices\Disk\TrackWritability.h" />
+    <ClInclude Include="Devices\Disk\IVolume.h" />
+    <ClInclude Include="Devices\Disk\VolumeTypes.h" />
+    <ClInclude Include="Devices\Disk\VolumeIntegrityReport.h" />
+    <ClInclude Include="Devices\Disk\FilePath.h" />
+    <ClInclude Include="Devices\Disk\ChainWalkGuard.h" />
     <ClInclude Include="Devices\Disk\WozLoader.h" />
     <ClInclude Include="Devices\Disk\BlankDiskBuilder.h" />
     <ClInclude Include="Devices\Disk\Dos33Skeleton.h" />
