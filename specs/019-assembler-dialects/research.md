@@ -236,16 +236,33 @@ line is input (a line with no text and `<R>` is typed)". Tried and rejected, eac
 appended as another source line: `ESC` as `WM_CHAR`, `ESC` as `WM_KEYDOWN`, a
 bare `RETURN`, `Ctrl-C`, `Ctrl-X`, and `Ctrl-X` followed by `RETURN`.
 
-The likeliest remaining explanation is the editor's own auto-tabbing: if starting
-a line places whitespace in the buffer, then `RETURN` submits a line of
-whitespace, which is not "a line with no text". `Ctrl-X` clears the buffer, but a
-following `RETURN` still appends — so either the auto-tab re-populates
-immediately, or the null-line test wants something else again. Clearing the
-buffer with backspaces before `RETURN` is the untried candidate.
+The manual is explicit on all three relevant points: Add mode exits when `RETURN`
+is "the FIRST character of a line"; typing "a space and then RETURN" enters an
+empty line and **deliberately bypasses the exit**; and "the cursor is
+automatically tabbed one space to the right of the line number", which is cursor
+positioning rather than a character in the buffer.
 
-Everything either side of this is proven: Merlin boots, the editor accepts typed
-source with correct shifted characters, `Ctrl-X` reaches it, and extraction
-works. Only the transition out of Add mode is unresolved.
+A bare `WM_CHAR 0x0D` sent as the only input after entering Add mode **did**
+leave an empty source at what appeared to be the command prompt. The same input
+after four typed lines did not reliably do so, and subsequent `D5,20` and `L`
+commands were appended as source lines rather than executed.
+
+**Stopping here rather than continuing.** Several successive inferences about
+which mode the editor was in — drawn from the line-number indicator and a small
+prompt glyph — turned out to be wrong, and firing further commands into a state
+that cannot be read reliably produces garbage lines rather than information. The
+line counter in particular is not the mode signal it appears to be: a bare
+`RETURN` both adds a line and (sometimes) exits, so an incrementing counter
+proves nothing either way.
+
+What this actually needs is the ability to **read the editor's state** rather
+than infer it from a screenshot — the same capability gap as issue #117, and the
+same answer (#51 / #59). Failing that, it needs someone who can drive Merlin
+interactively and report the exact working sequence.
+
+Everything either side of this transition is proven: Merlin boots, the editor
+accepts typed source with correct shifted characters, control characters reach
+it, and extraction works.
 
 ## Open items carried into tasks
 
