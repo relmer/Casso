@@ -211,7 +211,7 @@ namespace MerlinParserTests
 
         TEST_METHOD (RegistryResolvesMerlinByNameAndByEnumerator)
         {
-            const DialectProfile  &  byId = DialectRegistry::Get (DialectId::Merlin);
+            const DialectProfile  &  byId   = DialectRegistry::Get (DialectId::Merlin);
             DialectId                byName = DialectId::As65;
 
             Assert::IsTrue (DialectRegistry::TryLookUpByName ("merlin", byName), L"'merlin' must name a dialect");
