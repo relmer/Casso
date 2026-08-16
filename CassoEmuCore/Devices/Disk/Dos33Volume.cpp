@@ -197,8 +197,19 @@ void Dos33Volume::CollectEntries (
 //
 //  Both the list chain and the data sectors go through the guard, so a file
 //  whose list points back into itself -- or at another file's list -- stops
-//  rather than spinning. Returns false when the walk hit a bound, which the
-//  caller reports as an unfollowable chain instead of a short file.
+//  rather than spinning. Returns false when the walk hit a bound.
+//
+//  AN ENTRY THAT CLAIMS NO SECTORS IS NOT A BROKEN CHAIN. Real disks carry
+//  catalog entries that occupy no storage at all -- Merlin Pro's own disk uses
+//  them to draw section headings in CATALOG, with a sector count of zero and a
+//  track/sector pointer of $7F/$7F that was never meant to be followed. DOS
+//  lists them without complaint, so a reader that called them damaged would
+//  report a shipped disk as broken.
+//
+//  The discriminator is the entry's own sector count, not the pointer: zero
+//  sectors means the entry declares it occupies nothing, so there is nothing to
+//  reach and nothing lost. A pointer that leads nowhere while the entry claims
+//  sectors IS damage, and stays reported.
 //
 //  A zero track/sector pair is a sparse hole, which DOS 3.3 writes for a file
 //  with gaps. It is kept in the list and read back as zeros, because that is
@@ -217,6 +228,13 @@ bool Dos33Volume::CollectDataSectors (
     bool  ok         = true;
 
 
+
+    // An entry occupying no sectors has no chain, which is a fact about the
+    // entry rather than a failure to read one.
+    if (entry.sectorCount == 0)
+    {
+        return true;
+    }
 
     while (ok && listTrack != 0)
     {
@@ -528,8 +546,13 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
         vector<uint32_t>  units;
         bool              walked = CollectDataSectors (entries[owner], units, guard);
 
-        // The list sectors themselves are part of the file's footprint.
-        outReport.AddClaim (ToUnit (entries[owner].tsListTrack, entries[owner].tsListSector), owner);
+        // The list sectors themselves are part of the file's footprint -- but
+        // only for an entry that occupies storage at all. A decorative entry's
+        // pointer names a sector it does not own.
+        if (entries[owner].sectorCount > 0)
+        {
+            outReport.AddClaim (ToUnit (entries[owner].tsListTrack, entries[owner].tsListSector), owner);
+        }
 
         for (uint32_t unit : units)
         {
