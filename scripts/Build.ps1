@@ -69,6 +69,43 @@ if (-not (Test-Path $solutionPath)) {
     throw "Solution not found: $solutionPath"
 }
 
+#
+#  Point this clone at the repo's hooks, so the pre-push style gate actually
+#  runs.
+#
+#  Git deliberately refuses to let a repository configure its own clones --
+#  core.hooksPath arriving with a checkout would make cloning any repo an
+#  arbitrary-code-execution hazard -- so .git/config never syncs and the
+#  setting has to be applied locally, once per clone. Documenting that step
+#  is not enough: a clone whose owner did not read the docs pushes style
+#  violations that CI then catches after the fact, which is the slow way to
+#  learn something the hook reports in a second.
+#
+#  Doing it here rather than in a setup script means it self-heals. Everyone
+#  builds, so every clone and every new worktree acquires the hook without
+#  anyone remembering to. It announces itself the one time it changes
+#  anything, because a build script quietly rewriting git config is the sort
+#  of thing that should be findable later.
+#
+#  Not fatal on failure: a missing git, a detached checkout, or an exported
+#  tree with no .git are all reasons the build should still run. CI's
+#  tree-wide style job is the real backstop regardless.
+#
+$hooksDir = '.githooks'
+if (Test-Path (Join-Path $repoRoot '.git')) {
+    try {
+        $currentHooks = git -C $repoRoot config --local --get core.hooksPath 2>$null
+        if ($currentHooks -ne $hooksDir) {
+            git -C $repoRoot config --local core.hooksPath $hooksDir 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "Enabled the pre-push style hook for this clone (core.hooksPath -> $hooksDir)." -ForegroundColor DarkGray
+            }
+        }
+    } catch {
+        Write-Host "Could not set core.hooksPath; pushes will not be style-gated locally." -ForegroundColor DarkYellow
+    }
+}
+
 # GPL/copyleft guard for vendored shader ports. Runs before the
 # msbuild invocation so a license drift fails the build with a clear
 # error before any compile output is produced. Skipped for Clean/CleanAll

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Solution-wide build settings. MSBuild imports this automatically for every
+  project beneath it, so a setting that belongs to the whole tree lives here
+  rather than being copy-pasted into six .vcxproj files and drifting.
+
+  SupportJustMyCode
+    OFF. /JMC injects a call to __CheckForDebuggerJustMyCode at the top of
+    EVERY function so the debugger can step over frames that are not yours.
+    That is a fine trade in most codebases and a poor one here: the 6502
+    inner loop is a chain of tiny functions (StepOne, FetchOperand, ReadByte,
+    FindDevice, ResolveByte, vector::operator[]), several of them per
+    emulated cycle, and each one now pays a probe.
+
+    Profiling one Debug run of DOS33_SAVE_RoundTripsToDsk put
+    __CheckForDebuggerJustMyCode at 24.5% of all samples, the single largest
+    leaf in the process, ahead of Cpu::StepOne itself at 9.1%.
+
+    Turning it off costs Just My Code stepping in the debugger: call stacks
+    show library frames, and F10 steps into them. It changes nothing else.
+    No optimization, no iterator debugging, no _DEBUG behavior, no asserts.
+    Release never sets /JMC anyway, so scoping this to Debug would only add
+    noise.
+
+    It has to be ClCompile METADATA, not just the property of the same name:
+    the property alone left /JMC on all 26 command lines. And it has to be
+    here rather than in Directory.Build.targets, because an ItemDefinitionGroup
+    only reaches items declared after it, and ClCompile items are declared by
+    the .vcxproj itself. This file is imported first; that one is imported
+    last.
+-->
+<Project>
+
+  <PropertyGroup>
+    <SupportJustMyCode>false</SupportJustMyCode>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <SupportJustMyCode>false</SupportJustMyCode>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+</Project>
