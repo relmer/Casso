@@ -11,9 +11,6 @@ added and what is guaranteed untouched.
 These are pinned by `UnitTest/CommandLineTests.cpp`, which spec 020 is also
 developing against. Breaking any of them breaks that session too.
 
-- `CassoCli input.a65 -o out.bin` — an unrecognized first argument is a source
-  filename, not an error. **The fallback stays.** Removing it is deferred to its
-  own decision with a CHANGELOG entry; recorded on GitHub issue #92.
 - `CassoCli run …` — untouched.
 - Every existing AS65 flag, its spelling, its concatenation rules, and its
   defaults.
@@ -31,25 +28,39 @@ developing against. Breaking any of them breaks that session too.
 CassoCli as65 <source> [options]
 ```
 
-FR-001 requires an **explicit** selection of AS65, and today there is none — AS65
-is only reachable by inference, through the fallback above. That is a gap in the
+FR-001 requires an **explicit** selection of AS65, and there was none — AS65 was
+reachable only by inference, through the fallback heuristic. That is a gap in the
 contract, not a stylistic one: without it, "the assembler accepts an explicit
 dialect selection covering AS65 and Merlin" is half true.
 
 It costs one table row and no new arm, because `Subcommand::As65` already exists
-and is already where the fallback lands. Explicit and inferred selection must
-produce identical options for the same source; the difference is only that one is
-stated and the other is guessed, which is exactly what the reporting table below
-distinguishes.
+and is already where the fallback landed.
 
-One existing invocation changes: `CassoCli as65` with no operand currently means
-"assemble the file named `as65`", resolved through the source-extension list, and
-becomes a usage error. `run` and `merlin` already carry the same hazard. It is a
-CHANGELOG line, not a silent fix.
+## Removed
 
-This is also what makes retiring the fallback *possible* later — the heuristic
-cannot be removed while it is the only way to reach AS65. Removing it remains its
-own decision on issue #92, and is **not** taken here.
+### The unrecognized-first-argument fallback
+
+`CassoCli input.a65 -o out.bin` — treating an unrecognized first argument as a
+source filename — **is removed** (GitHub issue #92). The replacement is
+`CassoCli as65 input.a65 -o out.bin`.
+
+This is a **breaking change to the most common existing invocation**, taken as a
+deliberate decision rather than as a side effect of adding dialects. Two things
+follow from it, and neither is optional:
+
+- **`UnitTest/CommandLineTests.cpp` changes.** It pins the fallback's behavior,
+  and spec 020 is developing against that same file. There is no way to remove
+  the heuristic without editing those tests; the coordination cost is real and
+  belongs to this decision, not to whoever hits the conflict.
+- **A prominent `CHANGELOG.md` entry**, under breaking changes rather than inside
+  the feature announcement. A script that has invoked Casso this way for its whole
+  life will stop working, and the error it gets must name the replacement rather
+  than print usage — a bare "unknown argument" turns a one-line fix into a
+  bisect.
+
+The removal is only *possible* because `as65` now exists: the heuristic cannot be
+retired while it is the sole route to AS65, which is why the selector and the
+removal land in that order and not the reverse.
 
 ### The `merlin` subcommand
 
@@ -82,9 +93,9 @@ Both halves of SC-005 — the dialect **and** the CPU target — are covered.
 | Situation | Where reported |
 |---|---|
 | Dialect stated by subcommand | Nowhere — the invocation is the record |
-| Dialect inferred by fallback, `-v` given | stderr |
-| Dialect inferred by fallback, listing produced | Listing header |
-| Dialect inferred, neither `-v` nor a listing | Not reported; discoverable, not unconditionally emitted |
+| Dialect defaulted (caller set none), `-v` given | stderr |
+| Dialect defaulted, listing produced | Listing header |
+| Dialect defaulted, neither `-v` nor a listing | Not reported; discoverable, not unconditionally emitted |
 | CPU stated by `--cpu` | Nowhere — the invocation is the record |
 | CPU selected in source, `-v` given | stderr |
 | CPU selected in source, listing produced | Listing header |
@@ -92,6 +103,14 @@ Both halves of SC-005 — the dialect **and** the CPU target — are covered.
 
 "Discoverable" means available without guessing. It does not mean always printed,
 and it must never mean printed on stdout.
+
+The three "defaulted" rows survived the fallback's removal but changed what
+triggers them. They no longer describe the CLI guessing from an unrecognized
+argument — that path is gone, and via the command line the dialect is now always
+stated. They describe a **caller** that set no dialect and took
+`AssemblerOptions`' AS65 default, which FR-006 makes reachable from entry points
+that are not the command line. Deleting the rows along with the heuristic would
+have removed reporting from the one case where it is still the only way to know.
 
 **The decision of what to report and when lives in core**, not in the executable.
 `CassoCli` receives a string and prints it. Same for the exit code below and for

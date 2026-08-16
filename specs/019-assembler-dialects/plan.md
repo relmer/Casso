@@ -55,8 +55,13 @@ evaluation.
 
 **Constraints**: Output bytes for every existing AS65 source must be unchanged
 (SC-004). Existing AS65 *acceptance* must be unchanged (FR-005 as clarified).
-`CommandLineParser` is shared with the concurrently developed spec 020, so changes
-to it must be additive: one table row, one enumerator, one arm, one flag parser.
+`CommandLineParser` is shared with the concurrently developed spec 020. Everything
+this feature *adds* to it is additive — two table rows, one enumerator, one arm,
+one flag parser — but the decision to remove the unrecognized-first-argument
+fallback (#92) is deliberately **not** additive, and it changes
+`UnitTest/CommandLineTests.cpp`, which that session is developing against. Keep
+the non-additive part confined to the fallback cases so the conflict surface is as
+narrow as the change allows.
 
 **Scale/Scope**: One new dialect profile plus the mechanism, sized for N profiles.
 Roughly 20 Merlin directives in scope, 5 refused at the subset boundary. Baseline
@@ -81,7 +86,7 @@ absolute count.
 |---|---|---|
 | I. Code Quality | New code follows EHM, single-exit, declarations-at-top, and the file/class layout rules. Each dialect profile is a class with methods and therefore gets its own header/source pair. No anonymous namespaces; tables are file-scope `static constexpr` because they span 3+ lines. | PASS |
 | II. Testing Discipline | Every new class is in `CassoCore` and reachable from `UnitTest`. Corpus fixtures are read through `IFixtureProvider::OpenFixture`, the only sanctioned path; the multi-file case uses an injected mock reader. No test opens a host path, and FR-019 was clarified specifically to avoid a doc-reading test. | PASS |
-| III. User Experience Consistency | `merlin` is a bare-word subcommand matching `run`. The dialect is reported on the diagnostic stream and in listing headers, never unconditionally on stdout, so piped listings are unaffected. Existing invocations are untouched — the AS65 fallback stays. | PASS |
+| III. User Experience Consistency | `merlin` is a bare-word subcommand matching `run`. The dialect is reported on the diagnostic stream and in listing headers, never unconditionally on stdout, so piped listings are unaffected. **One existing invocation is deliberately broken**: the unrecognized-first-argument fallback is removed (#92), so `CassoCli input.a65` becomes `CassoCli as65 input.a65`. Consistency is the argument *for* it — every other mode is a bare-word subcommand and AS65 was the one reachable only by guess — but it is a breaking change, and this row passes only because it comes with an explicit selector, a breaking-changes CHANGELOG entry, and an error that names the replacement. | PASS |
 | IV. Performance | One virtual call per source line. No allocation added to the per-line path beyond what `ParseLine` already does. | PASS |
 | V. Simplicity | The seam is justified by FR-001 and by 023 depending on it; it is not speculative. The profile is mostly data specifically to avoid an elaborate class hierarchy. | PASS |
 | VI. Thin Executable, Testable Core | Everything lands in `CassoCore`. `CassoCli` gains **only I/O edges**: printing a diagnostic using the error's own file, printing a string core generated, and returning a code core computed. Every decision behind those — what to report, when to report it, which exit code applies, and the text of generated help — lives in core where `UnitTest` reaches it. | PASS |
@@ -108,9 +113,20 @@ call rather than this feature's:
 2. Add an explicit allowlist row for the fixtures and justify the license
    deviation there.
 
-Until one is chosen, this row is **OPEN**, and the previous claim that this
-feature adds no dependencies was wrong: it added no *code* dependency, which is
-not the same statement.
+This row is **OPEN by decision, deferred on 2026-08-16** — asked and consciously
+postponed, not overlooked. Implementation continues meanwhile; nothing in the
+feature depends on which way it goes, because both outcomes leave the fixtures
+where they are and change only how the constitution describes them.
+
+Two facts sharpen it whenever it is taken up. Every current allowlist row —
+`stb_vorbis.c` and three shaders — is **code that ships inside a binary**, and
+the fixtures ship in none; that is the distinction a carve-out would formalize.
+And the fixtures and disk volumes are **already committed on master**, so the
+constitution is out of compliance today regardless of what this feature does.
+Deferring decides nothing about that; it only decides not to decide yet.
+
+The previous claim that this feature adds no dependencies was wrong: it added no
+*code* dependency, which is not the same statement.
 
 One deliberate deviation from the `/speckit-plan` workflow is recorded rather
 than silently taken: the step that rewrites `CLAUDE.md`'s active-spec block was

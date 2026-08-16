@@ -139,20 +139,33 @@ empty, so AS65's position-less diagnostics are unchanged.
 **Decision**: One row in `s_kSubcommands` (`{ "merlin", Subcommand::Merlin }`),
 one `Subcommand::Merlin` enumerator, one arm in `Parse`, and one
 `ParseMerlinFlags`. A `dialect` field is added to `CommandLineOptions` and to
-`AssemblerOptions`. The "unrecognized first argument is a source filename"
-fallback is **unchanged**, and sets the dialect to AS65 as an inference.
+`AssemblerOptions`. An `as65` row is added alongside, giving AS65 the explicit
+selector FR-001 requires, and the "unrecognized first argument is a source
+filename" fallback is **removed** once that selector exists.
 
 `--cpu` is rejected under `merlin` with a message naming `XC` (FR-026).
 
 **Rationale**: The header at `CommandLineParser.h:22` states the table is data
 precisely so a subcommand is a row plus a parser rather than a reshaped
 dispatcher. Spec 020 is being developed concurrently against the same file, and
-`UnitTest/CommandLineTests.cpp` pins current behavior, so the change must be
-purely additive.
+`UnitTest/CommandLineTests.cpp` pins current behavior, so everything **added**
+here is additive. The fallback removal below is the deliberate exception, and it
+is an exception to the additivity constraint rather than to the
+don't-reshape-the-dispatcher one — the dispatcher keeps its shape.
 
-**Deferred, deliberately**: Removing the fallback heuristic. It breaks the
-documented `CassoCli input.a65 -o out.bin` form and needs its own decision plus a
-CHANGELOG entry. Recorded on GitHub issue #92.
+**Decided, not deferred** (reversing an earlier deferral in this document):
+the fallback heuristic is **removed in this feature**. It was deferred while AS65
+had no explicit selector, because removing the only route to a dialect is not a
+cleanup; adding `as65` removes that objection and the decision was taken
+knowingly rather than by drift.
+
+Two costs come with it and are accepted rather than discovered later. It breaks
+the documented `CassoCli input.a65 -o out.bin` form, so it needs a prominent
+`CHANGELOG.md` entry under breaking changes and an error that names the
+replacement instead of printing usage. And it forces edits to
+`UnitTest/CommandLineTests.cpp`, which spec 020 is developing against
+concurrently — the change stops being purely additive at exactly that file, and
+that session will need to rebase. Recorded on GitHub issue #92.
 
 ## D6 — Corpus fixtures and capture
 

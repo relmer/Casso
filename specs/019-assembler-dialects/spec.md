@@ -287,7 +287,8 @@ references outside this file.
 - **FR-004**: The dialect in effect **and the CPU target in effect** MUST both be
   discoverable without guessing. An explicit dialect selection is self-documenting
   from the invocation itself; where either was inferred rather than stated — the
-  dialect by fallback, or the CPU by an in-source directive — the tool MUST report
+  dialect by a caller that set none and took the default, or the CPU by an
+  in-source directive — the tool MUST report
   it on the diagnostic stream under verbose output, and in the listing header when
   a listing is produced. Neither MUST be emitted unconditionally on standard
   output, which carries the listing when no listing file is named and is therefore
@@ -418,7 +419,13 @@ with the construct named and the reason given.
 - **FR-022**: A construct rejected because it belongs to a different dialect MUST
   say which dialect defines it.
 - **FR-023**: Existing invocations of the assembler MUST either behave as they do
-  today or have their change documented in release notes.
+  today or have their change documented in release notes. Exactly one takes the
+  second branch: removing the unrecognized-first-argument fallback (#92) breaks
+  `CassoCli input.a65 -o out.bin`, whose replacement is `CassoCli as65 input.a65
+  -o out.bin`. "Documented" is not satisfied by a mention — it requires a
+  breaking-changes heading in `CHANGELOG.md` and an error message that names the
+  replacement, because the population affected is build scripts that nobody
+  re-reads until they fail.
 - **FR-024**: Every dialect and its flags MUST be documented in the tool's help
   output, including where the supported Merlin subset ends.
 - **FR-030**: The Merlin entry point MUST use the same exit-code vocabulary as
