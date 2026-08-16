@@ -1,7 +1,7 @@
 # Merlin Corpus — Capture Procedure
 
 The corpus is the correctness evidence for the Merlin dialect. Every captured
-entry pairs source authored here with the bytes **real Merlin 8 produced from
+entry pairs source authored here with the bytes **real Merlin Pro produced from
 it**, so a test can assert byte-identity without running another assembler.
 
 This document is the procedure. It is written to be followed by someone who was
@@ -23,7 +23,7 @@ source compiles to, captured through a reference implementation.
 
 ## Prerequisites
 
-- A Merlin 8 disk image at `DevDisks/Merlin8-v2.47.do`, relative to the
+- A Merlin Pro disk image at `DevDisks/Merlin-proDos2.23.dsk`, relative to the
   repository root. Any flat DOS-order image works; the version is recorded per
   entry because edge semantics differ across revisions.
 - A Casso build, since Merlin runs under our own emulation.
@@ -48,7 +48,7 @@ forty lines of PowerShell that would fall over on the first nibble image. When
 ### 0. Work on a COPY of the disk — always
 
 ```powershell
-Copy-Item DevDisks\Merlin8-v2.47.do DevDisks\Merlin8-v2.47-work.do
+Copy-Item DevDisks\Merlin-proDos2.23.dsk DevDisks\Merlin-pro-work.dsk
 ```
 
 Mount the copy, never the original. Capture writes source files, object files,
@@ -62,7 +62,7 @@ cheapest possible reset when an editing session goes wrong.
 Verify the original afterwards, since a hash is cheap and a silent write is not:
 
 ```powershell
-Get-FileHash DevDisks\Merlin8-v2.47.do -Algorithm SHA256
+Get-FileHash DevDisks\Merlin-proDos2.23.dsk -Algorithm SHA256
 ```
 
 ### 1. Write the source
@@ -230,7 +230,7 @@ twice against external facts rather than against itself:
   Two independent readers of the same bytes agreeing is a stronger check than
   either one looking self-consistent.
 
-Merlin 8 v2.47 is confirmed to boot and run correctly under Casso: menus,
+Merlin Pro 2.23 is confirmed to boot and run correctly under Casso: menus,
 catalog, and disk access all work. One cosmetic defect is known and does not
 affect assembly — the title banner renders MouseText glyphs where flashing text
 belongs (issue #117).

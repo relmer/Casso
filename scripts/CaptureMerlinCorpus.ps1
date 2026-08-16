@@ -21,7 +21,7 @@
     Corpus entry name. Becomes the identifier in CorpusEntries.h.
 
 .PARAMETER MerlinImage
-    Path to the Merlin 8 disk image. Defaults to DevDisks/Merlin8-v2.47.do
+    Path to the Merlin Pro disk image. Defaults to DevDisks/Merlin-proDos2.23.dsk
     relative to the repository root.
 
 .PARAMETER SourceName
@@ -102,7 +102,7 @@ $searched = @()
 
 if (-not $MerlinImage)
 {
-    $candidates = @(Join-Path $repoRoot 'DevDisks\Merlin8-v2.47.do')
+    $candidates = @(Join-Path $repoRoot 'DevDisks\Merlin-proDos2.23.dsk')
 
     # A linked worktree has its own root, but the disk lives once beside the
     # PRIMARY working tree -- worktrees share a filesystem, not a directory. The
@@ -112,7 +112,7 @@ if (-not $MerlinImage)
     if ($LASTEXITCODE -eq 0 -and $commonDir)
     {
         $primaryRoot = Split-Path -Parent $commonDir
-        $candidates += Join-Path $primaryRoot 'DevDisks\Merlin8-v2.47.do'
+        $candidates += Join-Path $primaryRoot 'DevDisks\Merlin-proDos2.23.dsk'
     }
 
     foreach ($candidate in $candidates)
@@ -130,7 +130,7 @@ if (-not $MerlinImage)
 if (-not $MerlinImage -or -not (Test-Path -LiteralPath $MerlinImage))
 {
     $where = if ($searched) { "Looked in:`n  " + ($searched -join "`n  ") } else { "Looked for '$MerlinImage'." }
-    throw "No Merlin 8 disk image found. $where`n`nIt is commercial software and is never committed -- supply your own copy, the way machine ROMs work. See UnitTest/MerlinCorpus/README.md."
+    throw "No Merlin Pro disk image found. $where`n`nIt is commercial software and is never committed -- supply your own copy, the way machine ROMs work. See UnitTest/MerlinCorpus/README.md."
 }
 
 if ($ConfirmAbsent)

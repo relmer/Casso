@@ -160,7 +160,7 @@ CHANGELOG entry. Recorded on GitHub issue #92.
 expected bytes as byte arrays, in a generated header under `UnitTest`. Multi-file
 entries are served by a `MockFileReader` promoted out of `IncludeTests.cpp` into
 its own shared header. A documented PowerShell capture script regenerates an
-entry by running real Merlin 8 under Casso.
+entry by running real Merlin Pro under Casso.
 
 Each entry records the Merlin version it was captured from.
 
@@ -168,7 +168,7 @@ Each entry records the Merlin version it was captured from.
 fixtures satisfy that by construction rather than by discipline. The `FileReader`
 seam already exists on `AssemblerOptions` for exactly the multi-file case.
 
-**Capture dependency**: none on `020-disk-file-access`. The Merlin 8 disk is a
+**Capture dependency**: none on `020-disk-file-access`. The Merlin Pro disk is a
 flat DOS-order image, so sector *S* of track *T* sits at `((T * 16) + S) * 256`
 with no nibble decoding — walking the VTOC, catalog chain, and track/sector list
 is about forty lines of PowerShell. `scripts/ExtractDos33File.ps1` does exactly
@@ -221,21 +221,27 @@ O  -> filename     save object code
                    then extract with ExtractDos33File.ps1
 ```
 
-Run end to end against `LABELS.S`. Merlin reported `--End assembly, 1028 bytes,
-Errors: 0` with a full symbol table (`LABTBL =$8000`, `END =$8403`), the menu
-showed `Object: A$8000,L$0404`, and the extractor independently read back **load
-`$8000`, 1028 bytes**. Every number agrees.
+Run end to end against `LABELS.S`. Merlin reported `--End assembly, 984 bytes,
+Errors: 0` with a full symbol table (`LABTBL =$8000`, `END =$83D7`), the menu
+showed `Object: A$8000,L$03D8`, and the extractor independently read back **load
+`$8000`, 984 bytes**. Every number agrees.
 
 **And the re-assembled object is byte-identical to the one the vendor shipped.**
 Extracting `LABELS` from the pristine disk and comparing against the object
-produced by re-assembling `LABELS.S` gives an exact match over all 1028 bytes.
-Merlin 8 running under Casso reproduces Glen Bredon's own 1982 output exactly.
+produced by re-assembling `LABELS.S` gives an exact match over all 984 bytes.
+Merlin Pro running under Casso reproduces Glen Bredon's own 1982 output exactly.
 That is the oracle validated as strongly as it can be.
 
-*(One caveat stated rather than glossed: the work-copy image hash was unchanged
-after the save, so it cannot be distinguished from the save having written
-identical bytes in place. The byte comparison above holds either way, and the
-assembly demonstrably ran.)*
+*(The earlier "unchanged image hash" caveat is now **settled**, not carried.
+Saving the object under its existing name leaves the image byte-identical,
+because DOS 3.3 rewrites the same sectors with the same content. Saving the same
+object under a **new** name changed the image hash and produced a second catalog
+entry, also byte-identical to the shipped object. So the save writes; an
+unchanged hash means an identical in-place write, not a no-op.)*
+
+Two incidental facts about the object-save prompt, learned the hard way: typing
+**replaces** the pre-filled filename rather than appending to it, and `$08` is not
+a backspace here — sending it corrupts the prompt into a `SYNTAX ERROR`.
 
 ### DCI encoding, captured rather than read
 
@@ -243,14 +249,14 @@ assembly demonstrably ran.)*
 directives, and the highest-risk area in the dialect. From the captured bytes:
 
 ```
-DCI "0024CH"  ->  B0 B0 B2 B4 C3 48
-                  '0' '0' '2' '4' 'C' with the high bit SET
-                                   'H' with the high bit CLEAR
+DCI "0200IN"  ->  B0 B2 B0 B0 C9 4E
+                  '0' '2' '0' '0' 'I' with the high bit SET
+                                   'N' with the high bit CLEAR
 ```
 
 So `DCI` sets the high bit on every character **except the last**, which
 identifies the terminator convention empirically. Confirmed across the following
-entries (`0025CV` → `... C3 56`, `0036CSWL` → `... D7 4C`).
+entries (`0100ST` → `... D3 D4`).
 
 ### Read the prompt, not the line counter
 

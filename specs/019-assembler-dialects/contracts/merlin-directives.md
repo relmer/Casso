@@ -63,8 +63,8 @@ therefore requires **one entry per spelling**, not one for the family.
 trailing comment field.
 
 **A semicolon is not a comment introducer "anywhere."** Inside the operand field
-it is data — Merlin uses it to separate macro arguments. Observed on the Merlin 8
-v2.47 disk, in `PI.ADD.S`:
+it is data — Merlin uses it to separate macro arguments. Verified on the
+**Merlin Pro 2.23** disk, in `PI.ADD.S` and `PI.START.S`:
 
 ```
  ADD SUMSTR;DEFLEN;PL      macro call, three arguments
@@ -124,10 +124,23 @@ Two of those refusals are not equally final, and the message must reflect it:
 | Relocatable mode and entry symbols, **no** external symbols | The module exports without importing, so it assembles on its own once relocatable mode is removed and an origin supplied. Say that. |
 | Any external symbol declared | No workaround — it references symbols defined in other modules, and resolving those needs a linker Casso does not have. Say that instead; offering the fix above would send the developer down a path that cannot work. |
 
-The distinction is not academic. `PI.ADD.S`, on the vendor's own disk, is the
-export-only case: `REL` at the top and `ENT` on two labels, no `EXT`. The most
-likely first encounter with this boundary is therefore the one with a two-line
-fix, and a refusal that merely names the construct would turn it into a dead end.
+The distinction is not academic, and the vendor disk supplies **both** cases:
+
+- `PI.ADD.S` — `REL` plus `ENT` on four labels, **no `EXT`**. The export-only
+  case, which assembles once relocatable mode is removed and an origin supplied.
+- `PI.START.S` — `REL` plus `EXT` three times and one `ENT`. The case with **no**
+  workaround.
+
+So a developer meeting this boundary will hit both messages from the same
+project, which is precisely why offering the export-only fix indiscriminately
+would send them down a path that cannot work for half the files.
+
+Note also that the whole APPLE PI group is the **linker demo** — its own source
+header says "This is just a test source for the linker." All five `PI.*.S` files
+belong to the relocatable mode this spec puts out of scope, so they are
+**negative** corpus material only. Feeding them in as positive byte-comparison
+cases would generate confusing failures against a boundary the spec has already
+decided.
 | `XC` (second occurrence) | Selects the 65802/65816, which Casso does not emulate | A 65816 core |
 | `TYP` | Sets a filesystem file type, meaningless without a filesystem that has types | `020-disk-file-access` |
 | `SAV` | Saves the object so far and continues — multi-output segmentation | Its own decision. **Not** a 020 dependency; 020 landing will not make the right behavior obvious. |

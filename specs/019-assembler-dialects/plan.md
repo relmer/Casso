@@ -19,7 +19,7 @@ diagnostic is attributed to the top-level input. And Merlin's relocatable path
 must be refused by name rather than failing as an unknown directive, which means
 the subset boundary is a table rather than scattered checks.
 
-Correctness is measured against bytes captured from real Merlin 8, compiled into
+Correctness is measured against bytes captured from real Merlin Pro, compiled into
 the test project. Nothing at test time reads a disk or invokes another assembler.
 
 ## Technical Context
@@ -157,7 +157,7 @@ UnitTest/
     └── README.md                # capture procedure
 
 scripts/
-└── CaptureMerlinCorpus.ps1      # regenerates one entry against real Merlin 8
+└── CaptureMerlinCorpus.ps1      # regenerates one entry against real Merlin Pro
 ```
 
 **Structure Decision**: Everything behavioral lands in `CassoCore`, which both the

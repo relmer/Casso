@@ -106,7 +106,7 @@ scripts\RunTests.ps1 -Build -Configuration Release -Filter MerlinCorpusTests
 ```
 
 This is SC-001. Every entry meeting the corpus floor assembles to bytes identical
-to those captured from real Merlin 8. Nothing here reads a file or invokes another
+to those captured from real Merlin Pro. Nothing here reads a file or invokes another
 assembler — sources are compiled-in literals, and multi-file entries are served
 by an injected mock reader.
 
@@ -158,7 +158,7 @@ Release green is the bar.
 
 ## Capturing a corpus entry
 
-Not part of validation. Offline, one-time per entry, and needs a Merlin 8 disk
+Not part of validation. Offline, one-time per entry, and needs a Merlin Pro disk
 image you supply yourself — the image is commercial software and is never
 committed, on the same grounds as the gitignored DOS 3.3 master.
 
@@ -166,7 +166,7 @@ committed, on the same grounds as the gitignored DOS 3.3 master.
 scripts\CaptureMerlinCorpus.ps1 -Entry <name> -MerlinImage <path>
 ```
 
-The script assembles the entry under real Merlin 8 running in Casso and writes the
+The script assembles the entry under real Merlin Pro running in Casso and writes the
 resulting bytes into the generated corpus header, recording the exact Merlin
 version alongside them. Only source authored here and the bytes it produced are
 committed.

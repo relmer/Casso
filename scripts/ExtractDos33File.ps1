@@ -5,7 +5,7 @@
 .DESCRIPTION
     Throwaway corpus-capture tooling, NOT a product feature.
 
-    This exists only because the Merlin 8 development disk happens to be a flat
+    This exists only because the Merlin Pro development disk happens to be a flat
     DOS-order image, where sector N of track T sits at a fixed offset and needs
     no nibble decoding. It is roughly the minimum code that can walk a VTOC,
     follow a catalog chain, and concatenate a file's data sectors.
@@ -33,11 +33,11 @@
     including the DOS BIN header. For diagnosing a mismatch.
 
 .EXAMPLE
-    ./scripts/ExtractDos33File.ps1 -Image Merlin8-v2.47.do
+    ./scripts/ExtractDos33File.ps1 -Image Merlin-proDos2.23.dsk
     Lists the catalog.
 
 .EXAMPLE
-    ./scripts/ExtractDos33File.ps1 -Image Merlin8-v2.47.do -Name PI.ADD
+    ./scripts/ExtractDos33File.ps1 -Image Merlin-proDos2.23.dsk -Name PI.ADD
     Extracts PI.ADD, reporting its load address and length.
 #>
 [CmdletBinding()]

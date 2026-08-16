@@ -12,7 +12,7 @@
     child windows), so posted key messages are delivered to it whether or not it
     is focused, and the developer can keep typing elsewhere.
 
-    Verified against Merlin 8 v2.47: posting "C" from a background window
+    Verified against Merlin Pro 2.23: posting "C" from a background window
     produced Merlin's catalog listing, and the listing matched
     ExtractDos33File.ps1's own catalog walk file for file.
 

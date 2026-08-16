@@ -68,7 +68,7 @@ dependency is therefore a refinement, not a prerequisite.
 
 - Q: Where do the reference bytes for SC-001 come from, given unit tests may not
   touch disk and a Merlin disk image cannot be committed? → A: Capture them
-  offline from real Merlin 8 running under Casso's own emulation, once per corpus
+  offline from real Merlin Pro running under Casso's own emulation, once per corpus
   entry, and commit the source-plus-bytes pairs as compiled-in fixtures. The
   emulation dependency exists only at capture time and is discharged by
   cross-checking a sample against hand-derived expectations from the manual.
@@ -534,8 +534,16 @@ The corpus MUST contain, at minimum:
 
 - **SC-001**: A corpus of real, unmodified Merlin source meeting the **Corpus
   Floor** above assembles to output byte-identical to reference bytes **captured
-  beforehand** from real Merlin. The comparison is against committed fixtures;
-  nothing invokes another assembler at test time.
+  beforehand** from the pinned oracle below. The comparison is against committed
+  fixtures; nothing invokes another assembler at test time.
+
+  **The oracle is pinned, not "Merlin".** It is **Merlin Pro 2.23**, archive.org
+  item `MerlinProMacroAssembler`, CC BY-NC-ND 3.0, Glen Bredon / Roger Wagner
+  Publishing 1984, obtained via `scripts/FetchMerlin.ps1` which verifies a
+  per-file SHA-256. Naming a version is not pedantry: different Merlin releases
+  ship *different source files*, so a figure measured against one is not
+  comparable to the other. Every recorded byte count MUST state the oracle it
+  came from.
 - **SC-002**: A developer with an existing Merlin project can assemble it in Casso
   without editing any source line.
 - **SC-003**: Valid Merlin source is rejected only where the subset-boundary table
@@ -588,7 +596,7 @@ The corpus MUST contain, at minimum:
   and run-time packages, so this boundary is real rather than theoretical.
 
   It is also closer to hand than assumed. The Apple PI sample project shipped on
-  the Merlin 8 v2.47 distribution disk opens with `REL` and declares `ENT`
+  the Merlin Pro 2.23 distribution disk opens with `REL` and declares `ENT`
   symbols — refused constructs, in the disk's own flagship example. Real users
   will therefore meet the boundary early, which raises the stakes on FR-016
   through FR-019: the refusal must read as "your source is relocatable" the first
@@ -607,11 +615,22 @@ The corpus MUST contain, at minimum:
   in what the machine does.
 - The reference for correctness is byte-identical output against the original
   assembler, not agreement with any published grammar.
-- **The oracle is real Merlin 8, not Merlin 32.** Merlin 32 implements Merlin 16+
-  syntax; validating against a dialect this feature is not implementing would bake
-  the wrong expectations into the corpus. It may cross-check constructs the two
-  dialects share; it is not the authority. Reading its source is governed by the
-  project's clean-room rule: consult for behavior, never copy.
+- **The oracle is Merlin Pro 2.23**, and the version is part of the identity.
+  Provenance: archive.org item `MerlinProMacroAssembler`, **CC BY-NC-ND 3.0**,
+  Glen Bredon / Roger Wagner Publishing 1984, fetched by
+  `scripts/FetchMerlin.ps1` against pinned SHA-256 hashes.
+
+  The license is why this release and not another. A corpus exists to be citable,
+  and an explicit grant for verbatim non-commercial redistribution with
+  attribution is a different thing from an archive item that simply declares no
+  license at all. Merlin Pro 2.23 was used briefly and is **out**: no license
+  declaration, and its disk ships *different* source files, so figures measured
+  against it do not transfer.
+
+  Merlin 32 is also not the oracle: it implements Merlin 16+ syntax, so validating
+  against it would bake the wrong expectations into the corpus. It may cross-check
+  constructs the dialects share; it is not the authority. Reading its source is
+  governed by the project's clean-room rule — consult for behavior, never copy.
 - **Reference bytes are captured offline, once per corpus entry**, and committed
   as compiled-in literals paired with the source that produced them. Multi-file
   entries are served through the injected file-reader seam. No test reads a file
