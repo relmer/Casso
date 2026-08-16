@@ -243,11 +243,25 @@ bezel = (cq.Workplane("XY")
 # than the sides do. That shows up as a hard step in the shading where the
 # corner meets the straight run, reading as a dark band cutting across the
 # bezel.
-FUNNEL_FRONT_R = MOUTH_R + FUNNEL_RUN
+#
+# The MOUTH is not GX0..GX1 either. The tube's rim sits GLASS_INSET inside
+# that, and a mouth cut level with GX0 therefore left an annular gap between
+# the two -- through which the case's near-black cavity lining showed as a
+# dark band lying over the funnel's inner edge, right where the bezel should
+# have met the glass. So the mouth comes in past the rim by MOUTH_LAP and the
+# bezel laps OVER it, the way a real bezel holds a tube.
+GLASS_INSET  = 1.0
+MOUTH_LAP    = 0.5
+
+MX0, MX1     = GX0 + GLASS_INSET + MOUTH_LAP, GX1 - GLASS_INSET - MOUTH_LAP
+MZ0, MZ1     = GZ0 + GLASS_INSET + MOUTH_LAP, GZ1 - GLASS_INSET - MOUTH_LAP
+MOUTH_RR     = MOUTH_R - GLASS_INSET - MOUTH_LAP
+
+FUNNEL_FRONT_R = MOUTH_RR + FUNNEL_RUN
 
 funnel = cq.Solid.makeLoft([
     round_rect_wire(-PROTRUDE,             BAND_X0, BAND_X1, BAND_Z0, BAND_Z1, FUNNEL_FRONT_R),
-    round_rect_wire(-PROTRUDE + TUBE_DROP, GX0,     GX1,     GZ0,     GZ1,     MOUTH_R),
+    round_rect_wire(-PROTRUDE + TUBE_DROP, MX0,     MX1,     MZ0,     MZ1,     MOUTH_RR),
 ])
 
 bezel = bezel.cut(cq.Workplane(obj=funnel))
@@ -256,8 +270,8 @@ bezel = bezel.cut(cq.Workplane(obj=funnel))
 # its corners stood proud of the funnel's rounded ones and left a wedge of
 # bezel hanging into each corner of the opening.
 tunnel = cq.Solid.makeLoft([
-    round_rect_wire(-PROTRUDE + TUBE_DROP,             GX0, GX1, GZ0, GZ1, MOUTH_R),
-    round_rect_wire(-PROTRUDE + TUBE_DROP + CAVITY_D,  GX0, GX1, GZ0, GZ1, MOUTH_R),
+    round_rect_wire(-PROTRUDE + TUBE_DROP,             MX0, MX1, MZ0, MZ1, MOUTH_RR),
+    round_rect_wire(-PROTRUDE + TUBE_DROP + CAVITY_D,  MX0, MX1, MZ0, MZ1, MOUTH_RR),
 ])
 
 bezel = bezel.cut(cq.Workplane(obj=tunnel))
@@ -271,10 +285,12 @@ m.add("bezel", bezel, BEZEL, angular=CORNER_ANG)
 # forward from there toward the band. sag_sheet wants the radius in half
 # diagonals of the SHEET, so convert the faceplate's physical radius here
 # rather than carrying a second, hand-tuned number.
-GLASS_HALF_DIAG = math.hypot((GX1 - GX0 - 2.0) * 0.5, (GZ1 - GZ0 - 2.0) * 0.5)
+GLASS_HALF_DIAG = math.hypot((GX1 - GX0 - GLASS_INSET * 2.0) * 0.5,
+                             (GZ1 - GZ0 - GLASS_INSET * 2.0) * 0.5)
 
 m.add_triangles("glass",
-                sag_sheet(GX0 + 1.0, GX1 - 1.0, GZ0 + 1.0, GZ1 - 1.0,
+                sag_sheet(GX0 + GLASS_INSET, GX1 - GLASS_INSET,
+                          GZ0 + GLASS_INSET, GZ1 - GLASS_INSET,
                           front_y=-PROTRUDE + TUBE_DROP,
                           radius_scale=FACE_R / GLASS_HALF_DIAG),
                 KD["glass"])
