@@ -47,9 +47,12 @@ get off their disks or onto a bootable one.
 for a developer with an existing Merlin project.** Everything else in either
 feature is a refinement on top of that.
 
-Merlin's `DSK` directive, which assembles straight to a disk image, becomes
-implementable only once 020 lands. It is the one construct in this feature with a
-hard dependency on the other, and it is deferred rather than blocking.
+Merlin's `DSK` directive names a file to assemble object code into rather than
+buffering it in memory — a workaround for precisely the memory pressure that
+drives a developer to a modern host in the first place. Its observable effect is
+to name the output, which this feature can honor by itself; writing into a
+mounted disk image rather than a host file is the part that wants 020. The
+dependency is therefore a refinement, not a prerequisite.
 
 ## User Scenarios & Testing *(mandatory)*
 
