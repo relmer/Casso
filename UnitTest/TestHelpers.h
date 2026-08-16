@@ -95,9 +95,16 @@ public:
     // Execute one instruction at the current PC
     void Step ()
     {
-        Byte        opcode      = memory[PC];
-        Microcode   microcode   = instructionSet[opcode];
-        OperandInfo operandInfo = { 0 };
+        // By reference, as Cpu::StepOne does. Taking the row by value copied
+        // the whole Microcode on every emulated instruction, and because
+        // Microcode has a default member initializer the copy dragged
+        // __autoclassinit2 in to zero the object first. A CPU profile of the
+        // Dormann run put __autoclassinit2 at 5.4% and this operator[] at
+        // 4.9% -- about a tenth of the run spent copying a table row that
+        // never changes.
+        Byte                opcode      = memory[PC];
+        const Microcode  &  microcode   = instructionSet[opcode];
+        OperandInfo         operandInfo = { 0 };
 
         FetchOperand (microcode, operandInfo);
         ++PC;
