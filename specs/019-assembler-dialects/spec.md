@@ -372,6 +372,17 @@ with the construct named and the reason given.
 - **FR-017**: A subset-boundary refusal MUST be distinguishable from a syntax
   error, so a developer can tell "Casso does not do this" from "your source is
   wrong."
+- **FR-031**: Where a refused construct has a workaround, the refusal MUST name
+  it. Specifically, a module using relocatable mode and entry symbols but **no
+  external symbols** exports without importing, so it assembles absolutely once
+  relocatable mode is removed and an origin supplied — the refusal MUST say so.
+  A module declaring external symbols has no such workaround, because it
+  references symbols defined elsewhere and resolving those needs the linker Casso
+  does not have; that refusal MUST say that instead of offering a fix which would
+  not work. Naming the construct (FR-016) does not by itself require naming a way
+  forward, and the two cases are not interchangeable: the sample project shipped
+  on the Merlin distribution disk is the export-only case, so the most likely
+  first encounter with this boundary is the one that has a two-line fix.
 - **FR-018**: A subset-boundary refusal MUST report every offending construct in
   the source, not only the first, so the scale of the gap is visible in one pass.
 - **FR-019**: The supported subset MUST be defined by a single table in code,

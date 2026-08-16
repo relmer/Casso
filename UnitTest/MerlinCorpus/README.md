@@ -57,6 +57,17 @@ twenty.
 
 Type or paste into Merlin's editor.
 
+**Do not be tempted to write the file directly instead.** Merlin source on this
+disk is stored as a **type-B (BINARY) file with load address `$0901`**, in
+high-bit ASCII with CR line terminators — not as a type-T text file. Confirmed on
+every `.S` file on the distribution disk. A text-typed file will not open in
+Merlin's editor, so a write path that produced one would fail in a way that looks
+like a Merlin problem rather than a tooling problem.
+
+That is the argument for the editor route: Merlin produces its own format
+natively, and pasting avoids having to reproduce it. Anyone building the write
+half later needs the format above, and needs to know a plain text file is not it.
+
 ### 3. Verify the round trip — do not skip this
 
 **Paste is not trusted.** Issue #110 reports the guest paste path garbling

@@ -49,7 +49,10 @@ therefore requires **one entry per spelling**, not one for the family.
 | `]name` | Variable symbol, reassignable |
 | `LUP` / `--^` | Loop and its terminator |
 | `DUM` / `DEND` | Dummy section — assigns addresses, emits no bytes |
-| `MAC` / `EOM`, `<<<`, `]1`… | Macro definition, invocation, positional parameters |
+| `NAME MAC` … `<<<` | Macro definition. **`<<<` is the terminator, not the invocation** — every macro in the disk's own library ends with it |
+| `NAME arg;arg` | Macro invocation: bare name, arguments separated by `;` |
+| `]1`, `]2`, `]3` | Positional parameters inside a macro body |
+| `IF <char>=]n` | Merlin's first-character conditional, used throughout the vendor macro library to switch on how a parameter was written (`IF #=]1`, `IF (=]2`, `IF "=]1`) |
 | `PUT` / `USE` | File inclusion, resolved relative to the including source |
 | `XC` (first) | Enables the 65C02 instruction set for the rest of the assembly |
 | `DSK` | Names the assembly's output — **the command line takes precedence** |
@@ -81,6 +84,22 @@ column is the first — a line beginning with whitespace has no label. Tabs are
 whitespace and separate fields exactly as spaces do; no tab-stop expansion is
 performed, because tab stops affect only display.
 
+**The field scanner MUST respect quoting.** Whitespace ends the operand field only
+outside a quoted string, because Merlin source is full of strings containing
+spaces. From `PI.START.S` on the distribution disk:
+
+```
+ INV "APPLE PI"
+ ASC "       This program computes pi to many "
+ ASC "Number of 11-char. columns for printout "
+ ASC "(1-10) "
+```
+
+Note the leading and trailing spaces *inside* the quotes — they are payload
+bytes, so a naive whitespace split would both truncate the operand and silently
+change the emitted data. The string family is already the highest-risk area for
+its encodings; quoting makes it the highest-risk area for field scanning too.
+
 The fixed columns visible in Merlin listings are the **editor's** formatting, not
 an assembler requirement. A parser demanding an opcode at a specific column would
 be wrong.
@@ -97,6 +116,18 @@ reported in one pass.
 | Relocatable-mode assembly | Needs a linker | GitHub issue #112 |
 | Entry symbol declaration | Needs a linker | GitHub issue #112 |
 | External symbol declaration | Needs a linker | GitHub issue #112 |
+
+Two of those refusals are not equally final, and the message must reflect it:
+
+| Source shape | What the refusal says |
+|---|---|
+| Relocatable mode and entry symbols, **no** external symbols | The module exports without importing, so it assembles on its own once relocatable mode is removed and an origin supplied. Say that. |
+| Any external symbol declared | No workaround — it references symbols defined in other modules, and resolving those needs a linker Casso does not have. Say that instead; offering the fix above would send the developer down a path that cannot work. |
+
+The distinction is not academic. `PI.ADD.S`, on the vendor's own disk, is the
+export-only case: `REL` at the top and `ENT` on two labels, no `EXT`. The most
+likely first encounter with this boundary is therefore the one with a two-line
+fix, and a refusal that merely names the construct would turn it into a dead end.
 | `XC` (second occurrence) | Selects the 65802/65816, which Casso does not emulate | A 65816 core |
 | `TYP` | Sets a filesystem file type, meaningless without a filesystem that has types | `020-disk-file-access` |
 | `SAV` | Saves the object so far and continues — multi-output segmentation | Its own decision. **Not** a 020 dependency; 020 landing will not make the right behavior obvious. |
@@ -107,7 +138,22 @@ Recorded here so they are answered with evidence rather than reasoning. The
 corpus is the arbiter; the manual is not.
 
 - Is a semicolon required to start the comment field, or is everything after the
-  operand field a comment regardless? Both fit the source observed so far.
+  operand field a comment regardless? Both fit the source observed so far — every
+  trailing comment on the disk happens to begin with `;`. **Experiment**: assemble
+  a line whose fourth field begins with an ordinary word and would be a syntax
+  error if parsed as anything but a comment. Acceptance confirms
+  comment-by-position; an error proves `;` is required. One line, one assembly,
+  definitive — and the entry is worth keeping either way to pin the answer against
+  regression.
+- Does an unterminated `MAC` fall through into the next one? The vendor library
+  has `ADDX MAC` / `TXA` immediately followed by `ADDA MAC` with no intervening
+  `<<<`, sharing a single terminator — so either `ADDX` is a fall-through into
+  `ADDA`'s body, or it is a one-instruction macro and the idiom means something
+  else. This matters twice: for expansion, and because the unterminated-macro
+  diagnostic must not fire on legitimate vendor source.
+- How are labels inside a macro body scoped? The vendor library reuses the bare
+  label `NC` in three separate macros, so expanding two of them into one assembly
+  would collide unless Merlin scopes or renames them.
 - Does Merlin accept a form of `XC` that resets the target to 6502? If so it is in
   scope and cheap; if not, nothing to do.
 - Is Merlin's symbol matching case sensitive?
