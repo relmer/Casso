@@ -469,6 +469,26 @@ look like a blank track, a stale binary that looks like a run, a missing profile
 that looks like support. Ask of any success path: could this have reported
 success while doing nothing?
 
+Two specific practices fall out of this:
+
+- **Verify a new test fails without the fix.** A test written after the code it
+  covers frequently passes for the wrong reason — the setup happens to satisfy it
+  regardless of whether the fix is present. Revert the fix, confirm the test
+  fails, restore. The assertion message is the proof:
+  `Expected:<opener.a65> Actual:<>` shows what the broken path actually produced,
+  where a green run shows nothing at all. A real case: tests for include-file
+  diagnostic attribution passed immediately, because the include happened to be
+  the last thing processed, so the ambient state was coincidentally correct. They
+  only discriminated once a trailing top-level line was added.
+- **A `Copy-Item` restore defeats build staleness detection.** `Copy-Item`
+  preserves `LastWriteTime`, so restoring a backup makes the source look **older**
+  than the object built from the edited version. MSBuild then skips the rebuild —
+  the tell is a sub-second "Build succeeded" — and the suite runs against the code
+  you just reverted. `RunTests.ps1`'s staleness guard **cannot** catch this: it
+  detects source *newer* than the assembly, and this is the reverse, so the guard
+  sees a fresh assembly and passes. After any restore, stamp the file before
+  rebuilding: `(Get-Item path).LastWriteTime = Get-Date`
+
 ## Build System
 
 ### Building
