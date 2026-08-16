@@ -590,6 +590,14 @@ branch to `master`** (and re-run after resolving merge conflicts).
 - Every commit that lands on `master` must leave the codebase compilable and tests-passing
 - **Code analysis MUST pass** before merging to master: run `scripts\Build.ps1 -RunCodeAnalysis` to verify
 - **ALWAYS** update `CHANGELOG.md` for user-visible changes (`feat`, `fix`, `perf`)
+- **NEVER** add a changelog entry for a `docs` commit. The changelog records
+  code changes -- what the software now does differently. Checking in a spec,
+  plan, or tasks file changes no behavior and gets no entry, however
+  significant the spec. Same for `chore`, `build`, `test` and `ci` unless a
+  user would notice the result.
+- `[Unreleased]` means "on master, not yet released", not one feature's staging
+  area. It will hold work from several features at once, so do not retitle it
+  after any one of them.
 - **ALWAYS** update `README.md` when features, test counts, or roadmap items change
 
 On a feature branch, prefer cheap, targeted validation per commit (compile the
