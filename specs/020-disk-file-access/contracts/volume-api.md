@@ -59,20 +59,37 @@ the existing readers and writers are.
 ## Integrity pass
 
 ```cpp
-//  VolumeIntegrityReport.h -- one mechanism, four consumers: delete, listing,
+//  VolumeIntegrityReport -- one mechanism, four consumers: delete, listing,
 //  allocation, and the pre-commit check on every computed write.
-struct VolumeIntegrityReport
-{
-    //  Empty, one, or several claimants per addressable unit.
-    vector<vector<uint16_t>>  claimedBy;
-    vector<uint16_t>          crossLinked;
-    vector<uint16_t>          allocatedButUnclaimed;
-    vector<uint16_t>          claimedButFree;
-    vector<uint16_t>          unfollowableChains;
-    bool                      catalogFullyParsed = false;
-    bool                      isClean            = false;
-};
+//
+//  Claims are held BOTH ways. The requirement asks which units each file
+//  claims AND which units have several claimants, and neither slicing derives
+//  the other without re-walking every chain the pass already followed.
+vector<vector<uint16_t>>  claimantsByUnit;   // who claims each unit, by name
+vector<vector<uint32_t>>  claimsByOwner;     // which units each entry claims
+vector<bool>              allocatedInFreeMap;
+vector<uint32_t>          crossLinked;
+vector<uint32_t>          allocatedButUnclaimed;
+vector<uint32_t>          claimedButFree;
+vector<uint16_t>          unfollowableChains;
+bool                      catalogFullyParsed;
+bool                      isClean;
 ```
+
+**Cost, settled once so it is not re-litigated.** Holding claims both ways is
+not a space concern at any size this project can encounter. The total is bounded
+by allocated units rather than by how they are indexed, and the ceiling is the
+*format*, not any drive: ProDOS block pointers are 16 bits, so 65,535 blocks —
+**32 MB** — is the largest volume that can exist. Fully allocated at that
+maximum, both slices together are a few hundred kilobytes, transiently. Larger
+media in later features do not change this.
+
+The axis worth watching is **time**. The pass is O(volume) and FR-039 runs it
+before every computed write; at a few tens of thousands of units that is
+microseconds per command-line invocation, so it is a non-issue here. It becomes
+interesting only if a caller runs it on something frequent — a live UI refresh in
+the disk manager, say — and that is a caching question, not a structural one.
+Noted so spec 021 inherits the analysis rather than the surprise.
 
 **Termination is part of the contract** (FR-038). Traversal is bounded by a
 visited set and a ceiling derived from the volume's capacity; a chain that hits

@@ -255,6 +255,47 @@ public:
         Assert::IsTrue (report.IsClean(), L"catalog and free map agreeing is a clean volume");
     }
 
+    TEST_METHOD (IntegrityReport_ClaimsOfAnEntry_AreRecoverableWithoutReWalking)
+    {
+        // The requirement asks which units each file claims, not merely how
+        // many claimants a unit has. A structure that answers only the second
+        // forces every caller to re-walk chains the pass already followed.
+        VolumeIntegrityReport  report;
+
+        report.Reset (kUnits);
+        report.AddClaim (5,  1);
+        report.AddClaim (9,  1);
+        report.AddClaim (14, 1);
+        report.AddClaim (20, 2);
+        report.Finish();
+
+        Assert::AreEqual (size_t (3), report.GetClaimsOf (1).size(),
+            L"the entry's own units must be listed");
+        Assert::AreEqual (uint32_t (5),  report.GetClaimsOf (1)[0]);
+        Assert::AreEqual (uint32_t (14), report.GetClaimsOf (1)[2]);
+        Assert::AreEqual (size_t (1), report.GetClaimsOf (2).size());
+        Assert::AreEqual (size_t (0), report.GetClaimsOf (99).size(),
+            L"an entry the pass never saw claims nothing, which is not an error");
+    }
+
+    TEST_METHOD (IntegrityReport_CrossLink_NamesTheClaimantsNotJustTheCount)
+    {
+        // A damage report that says "two files share this sector" without
+        // saying which two leaves the user unable to act on it.
+        VolumeIntegrityReport  report;
+
+        report.Reset (kUnits);
+        report.AddClaim (33, 4);
+        report.AddClaim (33, 7);
+        report.Finish();
+
+        Assert::AreEqual (size_t (2), report.GetClaimantsOf (33).size());
+        Assert::AreEqual (uint16_t (4), report.GetClaimantsOf (33)[0]);
+        Assert::AreEqual (uint16_t (7), report.GetClaimantsOf (33)[1]);
+        Assert::AreEqual (size_t (0), report.GetClaimantsOf (kUnits + 1).size(),
+            L"a unit outside the volume has no claimants and is not an error");
+    }
+
     TEST_METHOD (FilePath_SingleComponent_IsWhatFlatVolumesExpress)
     {
         FilePath  path = FilePath::Parse ("HELLO");
