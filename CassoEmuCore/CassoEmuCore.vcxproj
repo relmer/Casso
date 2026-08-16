@@ -225,6 +225,7 @@
     <ClCompile Include="Devices\Disk\DiskImage.cpp" />
     <ClCompile Include="Devices\Disk\Disk2NibbleEngine.cpp" />
     <ClCompile Include="Devices\Disk\NibblizationLayer.cpp" />
+    <ClCompile Include="Devices\Disk\SectorDecodeReport.cpp" />
     <ClCompile Include="Devices\Disk\WozLoader.cpp" />
     <ClCompile Include="Devices\Disk\BlankDiskBuilder.cpp" />
     <ClCompile Include="Devices\Disk\Dos33Skeleton.cpp" />
@@ -300,6 +301,7 @@
     <ClInclude Include="Devices\Disk\DiskImage.h" />
     <ClInclude Include="Devices\Disk\Disk2NibbleEngine.h" />
     <ClInclude Include="Devices\Disk\NibblizationLayer.h" />
+    <ClInclude Include="Devices\Disk\SectorDecodeReport.h" />
     <ClInclude Include="Devices\Disk\WozLoader.h" />
     <ClInclude Include="Devices\Disk\BlankDiskBuilder.h" />
     <ClInclude Include="Devices\Disk\Dos33Skeleton.h" />

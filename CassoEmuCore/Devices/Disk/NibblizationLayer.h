@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "DiskImage.h"
+#include "SectorDecodeReport.h"
 
 
 
@@ -43,5 +44,14 @@ public:
     static HRESULT  NibblizeDo  (const vector<Byte> & raw, DiskImage & out);
     static HRESULT  NibblizePo  (const vector<Byte> & raw, DiskImage & out);
 
+    //  Reports what each track yielded; succeeds whenever it could decode at
+    //  all, so a caller that can present partial results decides for itself.
+    static HRESULT  Denibblize  (const DiskImage     & img,
+                                 DiskFormat            fmt,
+                                 vector<Byte>        & out,
+                                 SectorDecodeReport  & outReport);
+
+    //  Forwards to the reporting form and FAILS on data loss. Not a
+    //  passthrough: no caller may obtain a silently truncated buffer.
     static HRESULT  Denibblize  (const DiskImage & img, DiskFormat fmt, vector<Byte> & out);
 };
