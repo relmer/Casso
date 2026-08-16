@@ -222,19 +222,30 @@ column-padded: the vendor's own `PI.ADD.S` on disk holds ` ADD SUMSTR;DEFLEN;PL`
 with a single leading space, not padding out to the display column. But that is
 inference from someone else's file, not a closed loop on one we wrote.
 
-**Blocked on**: how to leave the editor's Add mode. `ESC` (as `WM_CHAR` and as
-`WM_KEYDOWN`), a bare `RETURN` on an empty line, and `Ctrl-C` all fail to exit —
-each is simply appended as another source line. Without exiting there is no way
-to reach Save, and no file to extract and compare.
+**Blocked on**: how to leave the editor's Add mode.
 
-This wants the Merlin manual's editor command list rather than more guessing.
-The rest of the capture path is proven: Merlin boots, the editor accepts typed
-source, and extraction works.
+The input layer is **not** the problem, and that was checked before blaming the
+editor. Posting `Ctrl-C` while an Applesoft `10 GOTO 10` loop runs produces
+`BREAK IN 10`, so control characters reach the guest through the same
+`WM_CHAR`-only path the script uses. `Ctrl-X` also demonstrably reaches *Merlin*:
+it is the one input that does **not** advance the line counter, which matches the
+manual's "cancels the current line being edited."
 
-**Verified incidentally**: the emulator's key path needs `WM_CHAR` for printable
-characters (see `scripts/SendCassoKeys.ps1`), and control keys may need
-`WM_KEYDOWN` — though for `ESC` neither form exits Add mode, so the blocker is
-Merlin's command set rather than the input path.
+What still fails is the exit itself. The manual says Add mode ends "if a null
+line is input (a line with no text and `<R>` is typed)". Tried and rejected, each
+appended as another source line: `ESC` as `WM_CHAR`, `ESC` as `WM_KEYDOWN`, a
+bare `RETURN`, `Ctrl-C`, `Ctrl-X`, and `Ctrl-X` followed by `RETURN`.
+
+The likeliest remaining explanation is the editor's own auto-tabbing: if starting
+a line places whitespace in the buffer, then `RETURN` submits a line of
+whitespace, which is not "a line with no text". `Ctrl-X` clears the buffer, but a
+following `RETURN` still appends — so either the auto-tab re-populates
+immediately, or the null-line test wants something else again. Clearing the
+buffer with backspaces before `RETURN` is the untried candidate.
+
+Everything either side of this is proven: Merlin boots, the editor accepts typed
+source with correct shifted characters, `Ctrl-X` reaches it, and extraction
+works. Only the transition out of Add mode is unresolved.
 
 ## Open items carried into tasks
 
