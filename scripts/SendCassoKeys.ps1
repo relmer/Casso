@@ -65,25 +65,21 @@ public static class CassoKeys {
     [DllImport("user32.dll")] public static extern uint MapVirtualKey(uint c, uint t);
     [DllImport("user32.dll")] public static extern short VkKeyScan(char c);
 
-    const uint WM_KEYDOWN = 0x0100;
-    const uint WM_KEYUP   = 0x0101;
-    const uint WM_CHAR    = 0x0102;
+    const uint WM_CHAR = 0x0102;
 
-    // Posts the full down/char/up sequence. WM_CHAR carries the character the
-    // guest actually latches; the key messages bracket it so anything watching
-    // for key state sees a consistent press.
-    public static void Send(IntPtr h, ushort vk, char ch) {
-        uint sc = MapVirtualKey(vk, 0);
-        IntPtr down = (IntPtr)(1 | (sc << 16));
-        IntPtr up   = (IntPtr)(1 | (sc << 16) | (1u << 30) | (1u << 31));
-        PostMessage(h, WM_KEYDOWN, (IntPtr)vk, down);
-        PostMessage(h, WM_CHAR,    (IntPtr)ch, down);
-        PostMessage(h, WM_KEYUP,   (IntPtr)vk, up);
-    }
-
-    public static ushort VkFor(char c) {
-        short r = VkKeyScan(c);
-        return (ushort)(r & 0xFF);
+    // WM_CHAR ONLY, deliberately.
+    //
+    // Bracketing it with WM_KEYDOWN/WM_KEYUP corrupts every SHIFTED character:
+    // Casso derives the character from the virtual key plus the real keyboard's
+    // shift state, which a posted message cannot influence, so the key messages
+    // win and ':' arrives as ';' and '"' arrives as '\''. That is fatal for
+    // Merlin source, which is full of '#', '$', '"', ':', '<' and '>'.
+    //
+    // Verified at a BASIC prompt: with key messages, FLASH : PRINT "TEST" echoed
+    // as FLASH ; PRINT 'TEST' and produced a syntax error. With WM_CHAR alone it
+    // echoed correctly and ran.
+    public static void Send(IntPtr h, char ch) {
+        PostMessage(h, WM_CHAR, (IntPtr)ch, (IntPtr)1);
     }
 }
 '@
@@ -98,19 +94,18 @@ if ($hwnd -eq [IntPtr]::Zero)
 
 if ($Escape)
 {
-    [CassoKeys]::Send($hwnd, 0x1B, [char]27)
+    [CassoKeys]::Send($hwnd, [char]27)
     Start-Sleep -Milliseconds $DelayMs
 }
 
 foreach ($ch in $Text.ToCharArray())
 {
-    $vk = [CassoKeys]::VkFor($ch)
-    [CassoKeys]::Send($hwnd, $vk, $ch)
+    [CassoKeys]::Send($hwnd, $ch)
     Start-Sleep -Milliseconds $DelayMs
 }
 
 if ($Return)
 {
-    [CassoKeys]::Send($hwnd, 0x0D, [char]13)
+    [CassoKeys]::Send($hwnd, [char]13)
     Start-Sleep -Milliseconds $DelayMs
 }
