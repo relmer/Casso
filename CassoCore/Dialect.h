@@ -45,6 +45,7 @@
 enum class DialectId
 {
     As65,           // Casso's original dialect; the inferred default
+    Merlin,         // Glen Bredon's Merlin, in its absolute (non-relocatable) subset
 
     Count,          // sentinel: sizes dialect-indexed tables
 };

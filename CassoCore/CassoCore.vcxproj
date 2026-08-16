@@ -186,6 +186,7 @@
     <ClCompile Include="OpcodeTable.cpp" />
     <ClCompile Include="OutputFormats.cpp" />
     <ClCompile Include="As65Dialect.cpp" />
+    <ClCompile Include="MerlinDialect.cpp" />
     <ClCompile Include="DialectRegistry.cpp" />
     <ClCompile Include="DiagnosticFormatter.cpp" />
     <ClCompile Include="InstructionSetProvider.cpp" />
@@ -226,6 +227,7 @@
     <ClInclude Include="OpcodeTable.h" />
     <ClInclude Include="OutputFormats.h" />
     <ClInclude Include="As65Dialect.h" />
+    <ClInclude Include="MerlinDialect.h" />
     <ClInclude Include="Dialect.h" />
     <ClInclude Include="DialectProfile.h" />
     <ClInclude Include="DialectRegistry.h" />

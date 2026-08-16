@@ -59,8 +59,13 @@ therefore requires **one entry per spelling**, not one for the family.
 
 ### Comments and line structure
 
-`*` in column 1 introduces a whole-line comment. A comment otherwise occupies the
-trailing comment field.
+`*` in column 1 introduces a whole-line comment. So does `;` in column 1 — 8 such
+lines appear across `CLOCK.S`, `KEYMAC.S`, and `MAKE DUMP.S`, all of them
+continuations of a preceding comment. That is **not a second rule**: with no label
+present, column 1 is the first field boundary, so a semicolon there is simply a
+semicolon beginning a field, and the general rule below already covers it.
+
+A comment otherwise occupies the trailing comment field.
 
 **A semicolon is not a comment introducer "anywhere."** Inside the operand field
 it is data — Merlin uses it to separate macro arguments. Verified on the
@@ -99,6 +104,27 @@ Note the leading and trailing spaces *inside* the quotes — they are payload
 bytes, so a naive whitespace split would both truncate the operand and silently
 change the emitted data. The string family is already the highest-risk area for
 its encodings; quoting makes it the highest-risk area for field scanning too.
+
+**And the delimiter is ANY character, not a quote.** Merlin takes the first
+character after the directive as the delimiter and runs to its next occurrence.
+`KEYMAC.S` depends on this, in the one place where a fixed quote set is
+guaranteed to fail:
+
+```
+ ASC !7" "&$9F!
+ ASC !" ASC ""!
+```
+
+Both choose `!` *because* their text contains `"`. Of the 166 string-directive
+lines on the disk, 164 use `"` and these 2 do not — which is exactly the
+distribution that lets a `"`-only scanner look correct on almost every line while
+shredding these two. The second one is the sharper case: a `"` scanner ends the
+operand after two characters.
+
+This has a structural consequence. **The operand scanner must know the
+mnemonic**, because which rule applies depends on the directive. That is not a
+layering violation — the mnemonic field is read before the operand field, so it
+is in hand by the time the operand is scanned.
 
 The fixed columns visible in Merlin listings are the **editor's** formatting, not
 an assembler requirement. A parser demanding an opcode at a specific column would
@@ -173,13 +199,19 @@ Recorded here so they are answered with evidence rather than reasoning. The
 corpus is the arbiter; the manual is not.
 
 - Is a semicolon required to start the comment field, or is everything after the
-  operand field a comment regardless? Both fit the source observed so far — every
-  trailing comment on the disk happens to begin with `;`. **Experiment**: assemble
-  a line whose fourth field begins with an ordinary word and would be a syntax
-  error if parsed as anything but a comment. Acceptance confirms
-  comment-by-position; an error proves `;` is required. One line, one assembly,
-  definitive — and the entry is worth keeping either way to pin the answer against
-  regression.
+  operand field a comment regardless? **Still open — the corpus cannot settle
+  it.** Measured directly: of the 26 lines where an implied-mode opcode (`RTS`,
+  `SEI`, `PHA`…) takes no operand and so is followed by the comment field, **all
+  26** begin that field with `;`. Zero counterexamples. But that is absence of a
+  counterexample in source a human wrote by convention, not evidence about what
+  the assembler *accepts*, and the two differ precisely here. The parser
+  implements the conservative reading (`;` introduces the comment), which is safe
+  under either answer, since it accepts everything the disk contains.
+  **Experiment**: assemble a line whose fourth field begins with an ordinary word
+  and would be a syntax error if parsed as anything but a comment. Acceptance
+  confirms comment-by-position; an error proves `;` is required. One line, one
+  assembly, definitive — and the entry is worth keeping either way to pin the
+  answer against regression.
 - Does an unterminated `MAC` fall through into the next one? The vendor library
   has `ADDX MAC` / `TXA` immediately followed by `ADDA MAC` with no intervening
   `<<<`, sharing a single terminator — so either `ADDX` is a fall-through into

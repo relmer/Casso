@@ -3,6 +3,7 @@
 #include "DialectRegistry.h"
 
 #include "As65Dialect.h"
+#include "MerlinDialect.h"
 
 
 
@@ -10,16 +11,17 @@
 
 // The profiles themselves. Stateless, so one shared instance each -- a profile
 // holds grammar and nothing about the assembly in progress.
-static const As65Dialect  s_kAs65Dialect;
+static const As65Dialect    s_kAs65Dialect;
+static const MerlinDialect  s_kMerlinDialect;
 
 
 
 // Every dialect, in enumerator order so a row can be found by index as well as
-// by name. Merlin's row lands here when its profile exists; until then the
-// table has one entry and the mechanism is still the mechanism.
+// by name.
 static constexpr DialectRegistry::Entry  s_kDialects[] =
 {
-    { "as65", DialectId::As65, &s_kAs65Dialect },
+    { "as65",   DialectId::As65,   &s_kAs65Dialect   },
+    { "merlin", DialectId::Merlin, &s_kMerlinDialect },
 };
 
 
