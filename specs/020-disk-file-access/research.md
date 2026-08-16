@@ -388,11 +388,13 @@ is the property that let 019 and 020 proceed in parallel at all.
 
 ---
 
-## R-011 — DOS 3.3 text is settled by measurement; ProDOS is not
+## R-011 — Both text conventions settled by measurement (CLOSED)
 
-**Decision**: The high-bit convention is a **parameter** of the text codec. The
-DOS 3.3 value is now evidence-backed; the ProDOS value is not, and the parameter
-is what lets that asymmetry be honest.
+**Decision**: The high-bit convention stays a **parameter** of the text codec --
+not because the answer is unknown, but because measurement showed there is no
+single answer to know. Both filesystems carry high-bit text in practice; the
+ProDOS type does not constrain its producer, so a decoder must tolerate either
+and the encoder picks one as policy.
 
 ### DOS 3.3 — settled: high-bit-set ASCII, `$8D` terminators
 
@@ -424,22 +426,41 @@ low-ASCII banner line and suggested spaces were plain. The whole-file counts say
 the opposite. Same shape as the catalog-names trap below: a sample adjacent to
 the truth is not the truth.
 
-### ProDOS — still unsettled, on two machines independently
+### ProDOS — SETTLED by measurement, and the common assertion is wrong
 
-TXT files are conventionally plain seven-bit ASCII with `$0D`, high bit clear,
-so they interchange with other systems — asserted widely, not observed.
+Real ProDOS `TXT` files arrived with the Merlin fixture disks. Measured:
 
-Two separate machines with different disk caches both failed to produce a
-sample. The cached DOS 3.3 master holds **no type-T file at all** (catalog
-enumerated directly: entirely `A`, `I`, `B`). The demo `.dsk` images have no DOS
-catalog. And a cached **ProDOS Users Disk** enumerates to nine entries — `PRODOS`,
-`BASIC.SYSTEM`, `FILER`, `CONVERT` as `SYS`; `STARTUP`, `MOIRE`, `HYPNOSIS`,
-`ANIMALS` as `BAS` — with **no TXT file anywhere**. Two independent failures is
-better evidence that the sample is hard to come by than one would be.
+| File | Bytes | High-bit | `$A0` | `$20` | `$8D` | `$0D` |
+|---|---:|---:|---:|---:|---:|---:|
+| `/MERLIN/LIB/SENDMSG.S` | 149 | **149** | 26 | 0 | 15 | 0 |
+| `/MERLIN/SOURCE/PI.NAMES.S` (first block) | 256 | 223 | 3 | 33 | 10 | 0 |
 
-**To settle it**: any ProDOS software disk shipping documentation or a README as
-type `$04`; most ProDOS applications of the era did. Dumping one such file's
-first bytes closes this in a minute.
+**ProDOS text here is high-bit-set ASCII with `$8D` terminators — the same
+convention as DOS 3.3, not the plain seven-bit ASCII with `$0D` that is widely
+asserted.** `SENDMSG.S` is 149 of 149 bytes high with every space at `$A0`.
+
+And it is **mixed** in exactly the way DOS 3.3 files are: `PI.NAMES.S` carries 33
+plain `$20` spaces among 223 high-bit bytes. So the tolerance the decoder already
+has is required on this filesystem too, not merely on the other one.
+
+### The conclusion is subtler than "ProDOS is high ASCII"
+
+Every sample here was written by Merlin, an Apple II assembler that uses the
+high-bit convention natively. That is not a reason to discount the evidence —
+these are genuine ProDOS `TXT` files that a reader must handle — but it is a
+reason not to over-generalize from it. A `TXT` file written by a Pascal or
+AppleWorks-era tool may well be plain ASCII.
+
+So the durable finding is: **the ProDOS `TXT` type does not imply a character
+convention. The producer decides, and both occur.** That is more useful than
+either single answer, and it settles the design questions:
+
+- **Decoding must tolerate both**, which it does. This is now a requirement
+  supported by measurement rather than a defensive choice.
+- **Encoding is a policy decision, not a discovered fact.** Casso writes for
+  Apple II developers whose other tools are Apple II tools, so high ASCII is the
+  better default on both filesystems — chosen deliberately, and recorded as a
+  choice rather than as a finding.
 
 ### Being wrong is cheaper than it first appeared — reads cannot be corrupted
 

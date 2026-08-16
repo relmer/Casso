@@ -35,6 +35,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  so nothing here can disturb them; a test that wrote to one would destroy
 //  evidence for every later run.
 //
+//  DO NOT CROSS-VALIDATE BETWEEN DISKS. The extracted files under Merlin/ came
+//  from Merlin-proDos2.23.dsk, so comparing against that disk is meaningful and
+//  comparing against either ProDOS disk is not. The trap is well disguised:
+//  LABELS.S is 2,078 bytes on the DOS 3.3 disk and 2,078 bytes on 2.33-a, and
+//  1,928 of those bytes differ -- a later revision with its comment banner
+//  restyled, which is also why the objects differ in length. Equal size is not
+//  evidence of equal content; compare bytes.
+//
+//  WHAT THESE DISKS CANNOT COVER, so it is not mistaken for a gap later: no
+//  tree-storage file exists on either ProDOS volume, and none can. A tree needs
+//  more than 256 data blocks and these are 280-block disks whose largest file
+//  is 60. Tree traversal has to be synthetic, which is a legitimate use of a
+//  constructed fixture rather than a shortfall.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 
@@ -216,6 +230,94 @@ public:
 
         Assert::AreEqual (size_t (0), report.GetUnfollowableChains().size(),
             L"an entry that claims no sectors has nothing to follow, which is not damage");
+    }
+
+    TEST_METHOD (BinaryHeader_IsPresentOnDos33AndAbsentOnProDos)
+    {
+        // The same program on both disks, stored two ways:
+        //
+        //   DOS 3.3   00 80 D8 03 | B0 B2 B0 B0 C9 4E ...
+        //             ^^^^^^^^^^^  load $8000, length 984
+        //   ProDOS                  B0 B2 B0 B0 C9 4E ...
+        //
+        // One filesystem records where a binary loads inside the file; the
+        // other records it in the directory entry, with the length in EOF. That
+        // asymmetry is exactly the shape that yields a four-byte offset bug in
+        // one filesystem only -- and a reader unified across the two would
+        // acquire it. Pinned in both directions so either mistake is caught.
+        vector<Byte>  dos33  = Load (kDos33Disk);
+        vector<Byte>  prodos = Load (kProDosMerlin);
+        vector<Byte>  stored = Load ("Merlin/LABELS");
+        FilePayload   fromDos;
+        FilePayload   fromPro;
+
+        {
+            Dos33Volume  volume (dos33);
+
+            AssertSucceeded (volume.Read (FilePath::Parse ("LABELS"), fromDos));
+        }
+
+        {
+            // PARMS is a seedling binary in the volume directory. LABELS on the
+            // ProDOS disk lives in a subdirectory this reader does not walk --
+            // and comparing it against the DOS 3.3 copy would be invalid anyway,
+            // since the two disks carry different revisions of the same name.
+            ProDosVolume  volume (prodos);
+
+            AssertSucceeded (volume.Read (FilePath::Parse ("PARMS"), fromPro));
+        }
+
+        // DOS 3.3: the load address came from the file's own first two bytes,
+        // and those bytes must NOT still be in the payload.
+        Assert::IsTrue (fromDos.hasLoadAddress, L"a DOS 3.3 binary carries its load address inline");
+        Assert::AreEqual (Word (0x8000), fromDos.loadAddress);
+        Assert::AreEqual (stored.size() - kDosBinHeaderBytes, fromDos.bytes.size(),
+            L"the four header bytes are consumed, not returned");
+        Assert::AreEqual (stored[kDosBinHeaderBytes], fromDos.bytes[0],
+            L"the payload begins where the header ends");
+
+        // ProDOS: the load address came from the directory entry, and the file
+        // has NO inline header -- so nothing may be stripped. Applying DOS-style
+        // stripping here would shorten the payload by exactly four bytes.
+        Assert::IsTrue (fromPro.hasLoadAddress, L"a ProDOS binary records its load address in the entry");
+        Assert::AreEqual (Word (0x8000), fromPro.loadAddress);
+        Assert::AreEqual (size_t (44), fromPro.bytes.size(),
+            L"the payload is the entry's whole EOF, with no header removed");
+        Assert::AreEqual (Byte (0x3C), fromPro.bytes[0],
+            L"and it begins at the first stored byte");
+    }
+
+    TEST_METHOD (ProDos_TextFileOnARealVolume_IsHighAsciiAndMixed)
+    {
+        // What settles the ProDOS text convention, which had no sample until
+        // these disks arrived. /MERLIN/LIB/SENDMSG.S is 149 of 149 bytes
+        // high-bit with 26 high spaces and 15 $8D terminators -- the DOS 3.3
+        // convention, NOT the plain seven-bit ASCII widely assumed for ProDOS.
+        //
+        // And PI.NAMES.S is mixed in the same way DOS 3.3 files are: 223 of 256
+        // high with 33 plain $20 spaces among them. So tolerance is required on
+        // this filesystem too, not merely on the other one.
+        vector<Byte>   disk = Load (kProDosApple);
+        ProDosVolume   volume (disk);
+        FilePayload    got;
+        size_t         high = 0;
+        size_t         low  = 0;
+        size_t         i    = 0;
+
+        AssertSucceeded (volume.Read (FilePath::Parse ("APPLESOFT.S"), got));
+
+        Assert::IsTrue (got.bytes.size() > 0, L"the text file must have content");
+        Assert::AreEqual (Byte (0x04), got.type, L"ProDOS type $04 is TXT");
+
+        for (i = 0; i < got.bytes.size(); i++)
+        {
+            if (got.bytes[i] >= 0x80) { high++; } else { low++; }
+        }
+
+        Assert::IsTrue (high > low,
+            L"ProDOS text on a real volume is predominantly HIGH-bit, not plain seven-bit ASCII");
+        Assert::IsTrue (low > 0,
+            L"and it is MIXED, so a decoder asserting bit 7 would reject a real file here too");
     }
 
     TEST_METHOD (ProDos_RealDiskInDosSectorOrder_Enumerates)
