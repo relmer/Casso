@@ -36,10 +36,10 @@ Paths are repository-relative and follow the structure in [plan.md](./plan.md):
 
 **Purpose**: Test scaffolding that later phases fill in.
 
-- [ ] T001 [P] Promote `MockFileReader` out of `UnitTest/IncludeTests.cpp` into `UnitTest/MockFileReader.h`, register in `UnitTest.vcxproj`, and update `UnitTest/IncludeTests.cpp` to include it instead of defining it
+- [x] T001 [P] Promote `MockFileReader` out of `UnitTest/IncludeTests.cpp` into `UnitTest/MockFileReader.h`, register in `UnitTest.vcxproj`, and update `UnitTest/IncludeTests.cpp` to include it instead of defining it
 - [x] T002a Create `scripts/ExtractDos33File.ps1` — catalog walk and file extraction from a flat DOS-order image, stripping the DOS BIN header. **Throwaway capture tooling, not a product feature**: it exists only because the Merlin disk happens to be flat DOS-order, and it does not duplicate `020-disk-file-access`'s `disk get`, which is tested C++ spanning every mountable format including WOZ. Delete it if 020's extraction lands first. *(Validated against the DOS 3.3 System Master: FID extracts at load `$0803`, CHAIN at `$0208` / 453 bytes with the stripped payload matching the raw sectors after the 4-byte header.)*
-- [ ] T002 [P] Create `UnitTest/MerlinCorpus/README.md` documenting the capture procedure end to end: the developer supplies their own Merlin 8 image, source goes in by typing or pasting into Merlin's editor, and bytes come back out via `scripts/ExtractDos33File.ps1`. Record the Merlin-version-per-entry rule and why the disk image is never committed
-- [ ] T003 [P] Create `scripts/CaptureMerlinCorpus.ps1` skeleton with `-Entry` and `-MerlinImage` parameters and usage text, calling `ExtractDos33File.ps1` for the read-back half
+- [x] T002 [P] Create `UnitTest/MerlinCorpus/README.md` documenting the capture procedure end to end: the developer supplies their own Merlin 8 image, source goes in by typing or pasting into Merlin's editor, and bytes come back out via `scripts/ExtractDos33File.ps1`. Record the Merlin-version-per-entry rule and why the disk image is never committed
+- [x] T003 [P] Create `scripts/CaptureMerlinCorpus.ps1` skeleton with `-Entry` and `-MerlinImage` parameters and usage text, calling `ExtractDos33File.ps1` for the read-back half
 
 ---
 
