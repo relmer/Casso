@@ -164,10 +164,26 @@ Each entry records the Merlin version it was captured from.
 fixtures satisfy that by construction rather than by discipline. The `FileReader`
 seam already exists on `AssemblerOptions` for exactly the multi-file case.
 
-**Capture dependency**: Getting source onto the Merlin disk and object bytes back
-off it are `020-disk-file-access` capabilities. Until 020 lands, an external disk
-tool covers those two steps. This is a convenience dependency at capture time
-only; nothing at test time touches Merlin, a disk, or the emulator.
+**Capture dependency**: none on `020-disk-file-access`. The Merlin 8 disk is a
+flat DOS-order image, so sector *S* of track *T* sits at `((T * 16) + S) * 256`
+with no nibble decoding — walking the VTOC, catalog chain, and track/sector list
+is about forty lines of PowerShell. `scripts/ExtractDos33File.ps1` does exactly
+that, validated against the DOS 3.3 System Master where `FID` extracts at its
+canonical load address of `$0803`.
+
+That script is **throwaway capture tooling**. It does not duplicate 020's
+`disk get`, which is tested C++ spanning every mountable format including WOZ; it
+is viable only because this one disk happens to be flat DOS-order, and it should
+be deleted once 020's extraction makes it redundant.
+
+Source goes in by typing or pasting into Merlin's editor. Paste is **not trusted**
+— issue #110 reports the guest paste path garbling input — so each entry's source
+is round-tripped: saved to the disk from within Merlin, extracted back, and
+compared against what was intended. The answer to an unreliable channel is to
+verify it, not to avoid it. Typing cost drops by batching many constructs into a
+few composite source files, assembled once and split by known offsets.
+
+Nothing at test time touches Merlin, a disk, or the emulator.
 
 **Alternatives considered**: An on-disk corpus directory read by integration
 tests. Rejected — it moves the corpus out of the unit-test tier for no benefit,

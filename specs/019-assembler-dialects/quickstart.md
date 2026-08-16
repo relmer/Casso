@@ -169,6 +169,23 @@ manual. Agreement confirms the emulation ran Merlin correctly on the day of
 capture; disagreement means either a corpus error or an emulator bug, and both are
 worth finding.
 
-The two disk steps — source onto the Merlin disk, bytes back off it — are
-`020-disk-file-access` capabilities. Until that lands, **AppleCommander** covers
-them. Convenience only; nothing functional depends on it.
+Bytes come back off the disk with `scripts/ExtractDos33File.ps1`:
+
+```powershell
+scripts\ExtractDos33File.ps1 -Image <path>                  # list the catalog
+scripts\ExtractDos33File.ps1 -Image <path> -Name OBJ.OUT    # extract one file
+```
+
+It works only because the Merlin disk is a flat DOS-order image; it is capture
+tooling, not a product feature, and does not stand in for
+`020-disk-file-access`'s `disk get`. Delete it when that lands.
+
+Source goes in by typing or pasting into Merlin's editor — and **paste is
+verified, not trusted**. Issue #110 reports the guest paste path garbling input,
+so save the source back to the disk from within Merlin, extract it, and compare
+against what you intended. A clean round trip is the proof; without it, a garbled
+paste becomes a captured expectation and the corpus quietly encodes a lie.
+
+Batch constructs into a few composite source files rather than one per construct:
+assemble once with the listing on, save the object, extract, split by known
+offsets.

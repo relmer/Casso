@@ -530,8 +530,13 @@ SC-001 is measured against a defined floor rather than a judgment about what
   records the exact Merlin version, because edge semantics differ across
   revisions.
 - Capture runs Merlin under Casso, which needs source onto the Merlin disk and
-  bytes back off it — both `020-disk-file-access` capabilities. Until that lands
-  an external disk tool covers those two steps. Convenience dependency, not
-  functional.
+  bytes back off it. Neither blocks on `020-disk-file-access`. Bytes come off with
+  a small throwaway extractor, because the Merlin disk is a flat DOS-order image
+  whose sectors sit at fixed offsets; source goes in by typing or pasting into
+  Merlin's own editor. Paste is not trusted — it is **verified per entry** by
+  saving the source back to the disk, extracting it, and comparing against what
+  was intended, since the guest paste path is reported to garble input. The
+  extractor is capture tooling, not a product capability, and is deleted if 020's
+  extraction lands first.
 - No new third-party dependency is introduced; dialect support is additional
   parsing, not a vendored grammar.
