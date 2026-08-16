@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -232,6 +232,7 @@
     <ClCompile Include="DirectiveTokenTests.cpp" />
     <ClCompile Include="DialectMechanismTests.cpp" />
     <ClCompile Include="MerlinDiagnosticTests.cpp" />
+    <ClCompile Include="MerlinCorpusTests.cpp" />
     <ClCompile Include="IncludeTests.cpp" />
     <ClCompile Include="StructTests.cpp" />
     <ClCompile Include="CmapTests.cpp" />
@@ -538,6 +539,7 @@
     <ClInclude Include="Pch.h" />
     <ClInclude Include="TestHelpers.h" />
     <ClInclude Include="MockFileReader.h" />
+    <ClInclude Include="MerlinCorpus\CorpusHarness.h" />
     <ClInclude Include="TestCpu65C02.h" />
     <ClInclude Include="EhmTestHelper.h" />
     <ClInclude Include="HarteTestRunner.h" />
