@@ -35,7 +35,7 @@ subclass per dialect.
 |---|---|---|---|
 | `id` | Which dialect this is | `As65` | `Merlin` |
 | `name` | Spelling used in diagnostics and on the command line | `as65` | `merlin` |
-| `lineComment` | Introducer plus the column rule that governs it | `;` anywhere | `*` in column 1; `;` anywhere |
+| `lineComment` | Introducer plus the field rule that governs it | `;` anywhere | `*` in column 1; `;` **beginning the field after the operand** — inside the operand it is data |
 | `labelRule` | How a label is recognized | `name:`, or bare word in column 0 | bare word in column 1; no terminator |
 | `fieldModel` | How a line divides into fields | positional, as today | whitespace-run separated: label, opcode, operand, comment |
 | `localLabelSigil` | The local-label scheme | none | `:` prefix |

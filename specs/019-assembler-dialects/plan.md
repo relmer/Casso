@@ -26,8 +26,11 @@ fixtures, lifted verbatim from the pinned Merlin Pro 2.23 disk. Nothing at test 
 
 **Language/Version**: C++ (`stdcpplatest`, MSVC v145 / VS 2026)
 
-**Primary Dependencies**: None added. Windows SDK and STL only, per the
-constitution's dependency baseline.
+**Primary Dependencies**: No new *code* dependency — Windows SDK and STL only.
+But see the Constitution Check below: this feature does introduce third-party
+**test data** under a non-permissive license, which the constitution's dependency
+rules do not currently contemplate and which is **an open decision, not a settled
+one**.
 
 **Storage**: Corpus fixtures are committed under `UnitTest/Fixtures/Merlin/` and
 read through `IFixtureProvider::OpenFixture`, the only sanctioned path to fixture
@@ -83,8 +86,31 @@ absolute count.
 | V. Simplicity | The seam is justified by FR-001 and by 023 depending on it; it is not speculative. The profile is mostly data specifically to avoid an elaborate class hierarchy. | PASS |
 | VI. Thin Executable, Testable Core | Everything lands in `CassoCore`. `CassoCli` gains **only I/O edges**: printing a diagnostic using the error's own file, printing a string core generated, and returning a code core computed. Every decision behind those — what to report, when to report it, which exit code applies, and the text of generated help — lives in core where `UnitTest` reaches it. | PASS |
 
-**Post-design re-check**: PASS. No violation surfaced during Phase 1; the
-Complexity Tracking table below is empty.
+**Post-design re-check**: one **OPEN** item, recorded rather than waved through.
+
+**Third-party test data vs the dependency allowlist.** `UnitTest/Fixtures/Merlin/`
+now holds vendor source and object code under **CC BY-NC-ND 3.0**. The
+constitution's Technology Constraints permit additional third-party dependencies
+*only* when allowlisted, and require MIT/BSD/Apache/PD licensing and placement
+under `External/`. The fixtures satisfy none of those three, and the fixtures
+README itself notes that a commercial redistributor must delete the directory —
+a real constraint on an otherwise MIT project.
+
+The honest reading is that the constitution's rule was written for **vendored
+code that ships in the product**, and these are **test data that ship in no
+binary**. That is a plausible distinction but it is not the written rule, and
+this plan is not the place to decide it. Two ways forward, both the project's
+call rather than this feature's:
+
+1. Amend the constitution (MINOR bump) with a carve-out for non-code test
+   fixtures — license, location, and attribution requirements stated separately
+   from the code-dependency allowlist.
+2. Add an explicit allowlist row for the fixtures and justify the license
+   deviation there.
+
+Until one is chosen, this row is **OPEN**, and the previous claim that this
+feature adds no dependencies was wrong: it added no *code* dependency, which is
+not the same statement.
 
 One deliberate deviation from the `/speckit-plan` workflow is recorded rather
 than silently taken: the step that rewrites `CLAUDE.md`'s active-spec block was
@@ -134,7 +160,7 @@ CassoCore/
 ├── StringEncoding.h/.cpp        # high-bit / inverse / flashing / terminator
 ├── InstructionSetProvider.h/.cpp# both opcode tables, switchable mid-assembly
 ├── Parser.h/.cpp                # delegates line parsing to the active profile
-├── Directive.h/.cpp             # shared token enum; spelling tables move to profiles
+├── Directive.h/.cpp             # shared token enum; the AS65 table STAYS, Merlin adds its own
 ├── AssemblerTypes.h             # AssemblyError gains file/column; options gain dialect
 ├── AssemblySession.h/.cpp       # per-line active table; diagnostics carry file/column
 ├── CommandLineOptions.h         # Subcommand::Merlin, dialect field
@@ -154,7 +180,7 @@ UnitTest/
 ├── MerlinDiagnosticTests.cpp
 ├── MerlinCorpusTests.cpp
 └── MerlinCorpus/
-    ├── CorpusEntries.h          # generated: source + expected bytes + version
+    ├── CorpusHarness.h          # entry shape + byte comparison
     └── README.md                # capture procedure
 
 scripts/

@@ -245,7 +245,7 @@ showed `Object: A$8000,L$03D8`, and the extractor independently read back **load
 **And the re-assembled object is byte-identical to the one the vendor shipped.**
 Extracting `LABELS` from the pristine disk and comparing against the object
 produced by re-assembling `LABELS.S` gives an exact match over all 984 bytes.
-Merlin Pro running under Casso reproduces Glen Bredon's own 1982 output exactly.
+Merlin Pro running under Casso reproduces Glen Bredon's own 1984 output exactly.
 That is the oracle validated as strongly as it can be.
 
 *(The earlier "unchanged image hash" caveat is now **settled**, not carried.

@@ -25,6 +25,32 @@ developing against. Breaking any of them breaks that session too.
 
 ## Added
 
+### The `as65` subcommand
+
+```
+CassoCli as65 <source> [options]
+```
+
+FR-001 requires an **explicit** selection of AS65, and today there is none — AS65
+is only reachable by inference, through the fallback above. That is a gap in the
+contract, not a stylistic one: without it, "the assembler accepts an explicit
+dialect selection covering AS65 and Merlin" is half true.
+
+It costs one table row and no new arm, because `Subcommand::As65` already exists
+and is already where the fallback lands. Explicit and inferred selection must
+produce identical options for the same source; the difference is only that one is
+stated and the other is guessed, which is exactly what the reporting table below
+distinguishes.
+
+One existing invocation changes: `CassoCli as65` with no operand currently means
+"assemble the file named `as65`", resolved through the source-extension list, and
+becomes a usage error. `run` and `merlin` already carry the same hazard. It is a
+CHANGELOG line, not a silent fix.
+
+This is also what makes retiring the fallback *possible* later — the heuristic
+cannot be removed while it is the only way to reach AS65. Removing it remains its
+own decision on issue #92, and is **not** taken here.
+
 ### The `merlin` subcommand
 
 ```

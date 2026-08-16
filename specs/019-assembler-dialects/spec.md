@@ -472,13 +472,24 @@ a test, and it cannot be forgotten. Reading is reserved for constructs genuinely
 ambiguous from bytes alone — those that change what the assembler *does* rather
 than what it *emits*, which comparison cannot settle.
 
-**Vendor source is used, never committed.** It is the disk author's copyrighted
-work, on the same footing as the disk image itself, so it MUST NOT enter the
-repository even though assembling it is legitimate and valuable. What may be
-recorded is the *result* — for instance that re-assembling a vendor file
-reproduces its shipped object byte-for-byte — which is this project's observation
-rather than the vendor's text, and is the part that carries the information.
-Committed corpus entries are authored here.
+**Vendor source and objects ARE committed, verbatim, under the grant.** This
+supersedes an earlier rule that they must never enter the repository — written
+when the candidate oracle carried no license declaration at all, which made
+"assemble it but do not ship it" the only defensible position. The pinned
+oracle's CC BY-NC-ND 3.0 grant explicitly permits verbatim non-commercial
+redistribution with attribution, and `UnitTest/Fixtures/Merlin/` does exactly and
+only that.
+
+Three conditions ride with it, none optional:
+
+- The files MUST stay **unmodified**. The no-derivatives term forbids altered
+  copies, and an adjusted fixture has stopped being an oracle — a mismatch is a
+  finding about Casso, never a reason to edit the file.
+- The directory MUST carry its own attribution and license notice, because it is
+  **not** under this repository's license. The distinction is per-file and stops
+  at that directory.
+- Anyone redistributing Casso commercially MUST remove the directory and the
+  tests depending on it.
 
 The corpus MUST contain, at minimum:
 
@@ -623,9 +634,14 @@ The corpus MUST contain, at minimum:
   The license is why this release and not another. A corpus exists to be citable,
   and an explicit grant for verbatim non-commercial redistribution with
   attribution is a different thing from an archive item that simply declares no
-  license at all. Merlin Pro 2.23 was used briefly and is **out**: no license
-  declaration, and its disk ships *different* source files, so figures measured
-  against it do not transfer.
+  license at all. **Merlin 8 v2.47** was used briefly and is **out**: its archive
+  item declares no license, and its disk ships *different* source files, so
+  figures measured against it do not transfer.
+
+  Nor do figures transfer between Merlin Pro's own disks. The ProDOS **2.33**
+  images carry their own `LABELS` / `LABELS.S` at different sizes — a later build,
+  not a discrepancy. **Source and object correspond within a disk, never across
+  disks**, which is why every fixture came from the single DOS 3.3 2.23 image.
 
   Merlin 32 is also not the oracle: it implements Merlin 16+ syntax, so validating
   against it would bake the wrong expectations into the corpus. It may cross-check
@@ -641,11 +657,25 @@ The corpus MUST contain, at minimum:
   A fixture MUST NOT be edited to make a test pass. The license's no-derivatives
   term forbids altered copies, and a fixture that has been adjusted has stopped
   being an oracle: a mismatch is a finding about Casso, not about the file.
-- **The Merlin disk image is never committed** — commercial software, the same
-  grounds on which `dos33-master.dsk` is gitignored. A developer regenerating the
-  corpus supplies their own copy, the way ROM images already work. Only source
-  authored here and the bytes it produced are committed; those bytes are this
-  project's output, not Merlin's.
+- **The disk images are committed too**, under `UnitTest/Fixtures/Disks/` — the
+  DOS 3.3 2.23 volume this feature's fixtures came from, plus two ProDOS volumes,
+  each with its vendor catalog listing. That is a correction: this spec previously
+  said the image was not committed, which was written before the images landed on
+  master and was simply false thereafter. `scripts/FetchMerlin.ps1` still retrieves
+  and hash-verifies them against the archive item, so the provenance chain is
+  re-runnable rather than asserted; committing them makes it re-runnable *and*
+  offline.
+
+  This does not give **this** feature a second oracle. 019's tests read the
+  extracted `Merlin/*` files, never the `.dsk` — reading the image would mean a
+  DOS 3.3 reader inside a test, which is `020-disk-file-access`'s job and the
+  reason those volumes are there at all. The image is needed here only to **add**
+  a fixture, via `scripts/ExtractMerlinFixtures.ps1`.
+
+  It does widen the license question rather than narrow it: the disks contain
+  runnable Merlin, not just source and object under CC BY-NC-ND. Whatever the
+  Constitution Check's open dependency item settles, it must cover the volumes,
+  not only the extracts.
 - **Capture depends on Casso running Merlin correctly, but only at capture time.**
   Nothing at test time touches Merlin or the emulator. The dependency is
   discharged by cross-checking a sample of entries against hand-derived
