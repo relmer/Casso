@@ -87,6 +87,7 @@ private:
 
     friend class ProDosReader;
     friend class ProDosFileWriter;
+    friend class ProDosVolume;
 
     //  ProDOS block half -> DOS 3.3 logical sector within the track. Derived
     //  from the standard 2:1 ProDOS physical interleave composed with the

@@ -78,11 +78,20 @@ struct VolumeListing
 //
 //  The bytes of one file plus what is needed to place it correctly.
 //
+//
+//  The auxiliary type is kept separate from the load address even though ProDOS
+//  stores them in the same field. For a binary they are the same number; for a
+//  text file the auxiliary type is a record length and means nothing about
+//  where the file loads. Collapsing them would make a caller that asks "where
+//  does this load?" get an answer for files that do not load anywhere.
+//
 struct FilePayload
 {
     vector<Byte>     bytes;
     Byte             type           = 0;
     Word             loadAddress    = 0;
+    Word             auxType        = 0;
     bool             hasLoadAddress = false;
+    bool             hasAuxType     = false;
     PayloadEncoding  encoding       = PayloadEncoding::Verbatim;
 };

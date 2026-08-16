@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/ProDosSkeleton.h"
+#include "Devices/Disk/ProDosVolume.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -373,6 +374,127 @@ public:
         vol[ProDosSkeleton::BlockByteOffset (keyBlock, 0 + 256)] = 0xEA;
 
         AssertFailed (ProDosReader::ExtractFile (vol, "VICTIM", readBack, fileType, auxType));
+    }
+
+
+    TEST_METHOD (Volume_Enumerate_ReportsVolumeNameFilesAndFreeSpace)
+    {
+        vector<Byte>   vol     = MakeVolume ("MYDISK");
+        vector<Byte>   payload (600, 0x41);
+        VolumeListing  listing;
+
+        AssertSucceeded (ProDosFileWriter::WriteFile (vol, "PROG", 0x06, 0x6000, payload));
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.Enumerate (listing));
+        }
+
+        Assert::IsTrue (listing.hasVolumeName);
+        Assert::AreEqual (string ("MYDISK"), listing.volumeName);
+        Assert::AreEqual (size_t (1), listing.entries.size());
+        Assert::AreEqual (string ("PROG"), listing.entries[0].name);
+        Assert::AreEqual (Byte (0x06), listing.entries[0].type);
+
+        // A binary's auxiliary type IS its load address; naming it as such
+        // saves every caller from having to know that.
+        Assert::IsTrue (listing.entries[0].hasLoadAddress);
+        Assert::AreEqual (Word (0x6000), listing.entries[0].loadAddress);
+        Assert::IsTrue (listing.entries[0].hasEofBytes);
+        Assert::AreEqual (uint32_t (600), listing.entries[0].eofBytes);
+        Assert::IsFalse (listing.entries[0].isLocked);
+        Assert::IsTrue (listing.freeUnits > 0 && listing.freeUnits < 280);
+    }
+
+
+    TEST_METHOD (Volume_Read_ReturnsTheBytesAndTheLoadAddress)
+    {
+        vector<Byte>  vol     = MakeVolume();
+        vector<Byte>  payload (600, 0x7E);
+        FilePayload   got;
+
+        AssertSucceeded (ProDosFileWriter::WriteFile (vol, "PROG", 0x06, 0x2000, payload));
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.Read (FilePath::Parse ("PROG"), got));
+        }
+
+        Assert::AreEqual (size_t (600), got.bytes.size());
+        Assert::AreEqual (Byte (0x7E), got.bytes[599]);
+        Assert::IsTrue (got.hasLoadAddress);
+        Assert::AreEqual (Word (0x2000), got.loadAddress);
+        Assert::IsTrue (got.hasAuxType, L"ProDOS records an auxiliary type for every file");
+    }
+
+
+    TEST_METHOD (Volume_Read_MultiComponentPath_IsRefusedNotSilentlyTruncated)
+    {
+        vector<Byte>  vol     = MakeVolume();
+        vector<Byte>  payload (600, 0x11);
+        FilePayload   got;
+        HRESULT       hr      = S_OK;
+
+        AssertSucceeded (ProDosFileWriter::WriteFile (vol, "PROG", 0x06, 0x2000, payload));
+
+        {
+            ProDosVolume  volume (vol);
+
+            hr = volume.Read (FilePath::Parse ("UTIL/PROG"), got);
+        }
+
+        Assert::IsTrue (FAILED (hr),
+            L"subdirectory traversal is not built, so a deeper path must be refused");
+    }
+
+
+    TEST_METHOD (Volume_IntegrityReport_CleanVolumeAgreesWithItsBitmap)
+    {
+        // The volume's own structures -- boot blocks, directory, bitmap -- are
+        // claimed by the volume rather than by any file. Without that, every
+        // volume would report its own metadata as space allocated to nobody.
+        vector<Byte>           vol     = MakeVolume();
+        vector<Byte>           payload (600, 0x22);
+        VolumeIntegrityReport  report;
+
+        AssertSucceeded (ProDosFileWriter::WriteFile (vol, "PROG", 0x06, 0x2000, payload));
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.BuildIntegrityReport (report));
+        }
+
+        Assert::IsTrue (report.IsCatalogFullyParsed());
+        Assert::AreEqual (size_t (0), report.GetCrossLinked().size(),
+            L"no block may be claimed twice");
+        Assert::AreEqual (size_t (0), report.GetClaimedButFree().size(),
+            L"nothing the directory references may be marked free");
+        Assert::AreEqual (size_t (0), report.GetAllocatedButUnclaimed().size(),
+            L"and nothing allocated may be unaccounted for");
+        Assert::IsTrue (report.IsClean(), L"a freshly written volume is consistent");
+    }
+
+
+    TEST_METHOD (Volume_IntegrityReport_NamesTheBlocksAFileClaims)
+    {
+        // A sapling: one index block plus two data blocks.
+        vector<Byte>           vol     = MakeVolume();
+        vector<Byte>           payload (600, 0x33);
+        VolumeIntegrityReport  report;
+
+        AssertSucceeded (ProDosFileWriter::WriteFile (vol, "PROG", 0x06, 0x2000, payload));
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.BuildIntegrityReport (report));
+        }
+
+        Assert::AreEqual (size_t (3), report.GetClaimsOf (0).size(),
+            L"the index block counts as the file's footprint too");
     }
 
 
