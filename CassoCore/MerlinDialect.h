@@ -1,6 +1,7 @@
 #pragma once
 
 #include "DialectProfile.h"
+#include "StringEncoding.h"
 
 
 
@@ -49,6 +50,14 @@ public:
     // Every accepted spelling, so a test can sweep the vocabulary rather than a
     // hand-picked sample -- matching DirectiveTable::GetAllSpellings.
     static std::span<const Spelling>  GetAllSpellings();
+
+    // Which encoding one of the six string spellings selects. The spellings are
+    // Merlin's, so the mapping lives here; what each mode DOES with the text is
+    // dialect-independent and lives in StringEncoding.
+    //
+    // Returns Plain for a spelling that is not a string directive, which callers
+    // must not reach -- resolve the token first.
+    static StringEncodingMode  EncodingModeForSpelling (const std::string & spelling);
 };
 
 
@@ -94,10 +103,10 @@ public:
 //  164 of the 166 string lines on the disk use `"`; the two that do not are the
 //  reason this is a rule about delimiters and not about quotes.
 //
-//  What this profile does NOT yet do: recognize Merlin's directive spellings.
-//  `directiveToken` stays `Directive::None` until the Merlin spelling table
-//  lands, so a directive currently parses as an ordinary mnemonic. The profile
-//  is registered but is not reachable from the command line until the `merlin`
+//  What this profile does NOT yet do: assemble. It resolves directives to
+//  tokens and encodes string data, but most directive HANDLERS are still null,
+//  and labels, expressions and macros are not implemented. The profile is
+//  registered but is not reachable from the command line until the `merlin`
 //  subcommand exists, so this is an incomplete profile rather than a broken
 //  advertised feature.
 //
@@ -116,6 +125,13 @@ public:
     const char *        GetCpuDirectiveName   () const override { return "XC"; }
 
     ParsedLine          ParseLine (const std::string & line, int lineNumber) const override;
+
+    // Merlin assembles to $8000 when the source names no origin. LABELS.S proves
+    // it: the file contains no ORG and no object-file directive, and its shipped
+    // object loads at $8000. as65 defaults to 0, so this cannot be one shared
+    // default -- and getting it wrong yields 984 byte-perfect bytes at the wrong
+    // address, which reads as a far deeper problem than it is.
+    Word                GetDefaultOrigin () const override { return 0x8000; }
 
 private:
     static bool         IsFieldSpace       (char ch);

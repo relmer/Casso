@@ -181,6 +181,57 @@ std::span<const MerlinDirectiveTable::Spelling> MerlinDirectiveTable::GetAllSpel
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MerlinDirectiveTable::EncodingModeForSpelling
+//
+//  Which of the six encodings a string spelling selects.
+//
+//  A table rather than a chain of comparisons, and separate from the spelling
+//  table above because the two answer different questions: that one says "this
+//  is string data", this one says "encoded how". Collapsing them would put an
+//  encoding column on every row of a table that is mostly not strings.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+StringEncodingMode MerlinDirectiveTable::EncodingModeForSpelling (const std::string & spelling)
+{
+    struct ModeRow
+    {
+        const char *        name;
+        StringEncodingMode  mode;
+    };
+
+    static constexpr ModeRow  s_kModes[] =
+    {
+        { "ASC", StringEncodingMode::Plain          },
+        { "DCI", StringEncodingMode::DciTerminated  },
+        { "INV", StringEncodingMode::Inverse        },
+        { "FLS", StringEncodingMode::Flashing       },
+        { "STR", StringEncodingMode::LengthPrefixed },
+        { "REV", StringEncodingMode::Reversed       },
+    };
+
+    StringEncodingMode  mode = StringEncodingMode::Plain;
+
+
+
+    for (const ModeRow & row : s_kModes)
+    {
+        if (spelling == row.name)
+        {
+            mode = row.mode;
+            break;
+        }
+    }
+
+    return mode;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MerlinDialect::TakesDelimitedText
 //
 //  Whether this mnemonic's operand is delimiter-quoted rather than

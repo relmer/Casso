@@ -37,7 +37,34 @@ operations.
 **`REV` was missing from this list** and was found in the vendor sources, which is
 why the family is six spellings and not five. It is the argument for deriving the
 table from the corpus rather than transcribing it: a spelling nobody wrote down
-still has to assemble.
+still has to assemble. Its behavior is verified — `REV "CALL-151"` in
+`MAKE DUMP.S` emits `151-LLAC` in high ASCII, which is why searching that object
+for the forward spelling finds nothing.
+
+**Half of this table has no oracle**, counting only the five sources that ship an
+object to compare against:
+
+| Mode | Lines with an object | Status |
+|---|---|---|
+| `ASC` | 24 | **Verified** |
+| `DCI` | 130 | **Verified** — and 983 of `LABELS`'s 984 bytes |
+| `REV` | 1 | **Verified** |
+| `INV` | 0 | **Unverified** — its one use is in `PI.START.S`, a linker demo shipping no object |
+| `FLS` | 0 | **Unverified** — appears nowhere in the corpus |
+| `STR` | 0 | **Unverified** — appears nowhere in the corpus |
+
+This is why the corpus floor demands one captured entry **per spelling** rather
+than one for the family. For `INV`, `FLS` and `STR` the implementation follows
+documentation, not bytes, and only capture can settle them. Each is marked
+`UNVERIFIED` at its own line in `StringEncoding.cpp`.
+
+**The delimiter rule is not an ordering.** `"` (`$22`) and `!` (`$21`) both
+produce high ASCII in the vendor objects, which rules out any rule comparing the
+delimiter's ASCII value against `'` (`$27`) — `!` sorts below it and would have to
+give low ASCII. The rule implemented is that every delimiter sets the high bit
+except the apostrophe. **The apostrophe half is unverified**: no `'`-delimited
+string appears anywhere in the corpus. It is the conservative choice, because it
+changes nothing about any string the corpus does contain.
 
 The counts are from the nine committed sources. `DCI` at 130 uses is the
 workhorse and the corpus's sharpest probe, which is consistent with its being the

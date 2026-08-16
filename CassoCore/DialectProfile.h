@@ -75,4 +75,15 @@ public:
     // One source line into its parts. Purely syntactic: nothing is evaluated,
     // no symbol is looked up, no address assigned.
     virtual ParsedLine          ParseLine (const std::string & line, int lineNumber) const = 0;
+
+    // Where assembly starts when the source names no origin. A real difference
+    // between dialects rather than a convenience: as65 begins at 0 and Merlin at
+    // $8000, and LABELS.S -- which contains no origin directive at all and ships
+    // an object loading at $8000 -- is what settles Merlin's.
+    //
+    // A default rather than a pure virtual, because a dialect with no opinion
+    // should not have to state one. This is the seam being EXTENDED, which
+    // SC-009 expressly permits; what it forbids is a dialect reaching into how
+    // the assembly runs.
+    virtual Word                GetDefaultOrigin () const { return 0; }
 };
