@@ -17,23 +17,30 @@
     construct.
 
     Files downloaded, all into DevDisks/:
-      - Merlin-proDos2.23.dsk         (140 KB) the assembler, DOS 3.3 order
-      - Merlin Pro Manual_djvu.txt    (244 KB) the manual, OCR text
-      - MerlinProExtras_djvu.txt      ( 24 KB) supplementary documentation
-      - Merlin-proDos2.23Catalog.txt  (  2 KB) catalog listing
+      - Merlin-proDos2.23.dsk              (140 KB) DOS 3.3 volume
+      - Merlin-proProdos2.33-a.dsk         (140 KB) ProDOS volume /MERLIN
+      - Merlin-proProdos2.33-b.dsk         (140 KB) ProDOS volume /APPLESOFT
+      - Merlin Pro Manual_djvu.txt         (244 KB) the manual, OCR text
+      - MerlinProExtras_djvu.txt           ( 24 KB) supplementary documentation
+      - Merlin-proDos2.23Catalog.txt       (  2 KB) catalog listing
+      - Merlin-proProdos2.33-aCatalog.txt  (  5 KB) catalog listing
+      - Merlin-proProdos2.33-bCatalog.txt  (  1 KB) catalog listing
+
+    All three disks are 143360-byte images in DOS sector order. The two 2.33
+    images hold ProDOS volumes despite that ordering, which is the interesting
+    part: they exercise order detection rather than the easy case where the
+    filesystem and the sector order agree.
 
     Source: https://archive.org/details/MerlinProMacroAssembler
     Author: Glen Bredon. Published by Roger Wagner Publishing, 1984.
     License: CC BY-NC-ND 3.0 -- http://creativecommons.org/licenses/by-nc-nd/3.0/
 
     The license permits verbatim non-commercial redistribution with
-    attribution, so these files may be committed as test data. This script
-    exists either way: it is how a clone that does not carry them gets them,
-    and how one that does confirms the bytes are unmodified.
-
-    The ProDOS variants on the same archive item (2.33-a / 2.33-b) are not
-    fetched: Casso's extraction tooling reads DOS 3.3 order, and the DOS 3.3
-    build carries the same assembler.
+    attribution, so these files may be committed as test data. The disks and
+    catalog listings are committed, under UnitTest/Fixtures/Disks/; the manual
+    and extras are not, being reference reading rather than test input. This
+    script is how a clone gets the uncommitted pieces, and how anyone confirms
+    the committed ones are still the bytes they claim to be.
 
 .PARAMETER Force
     If set, re-downloads files even if they already exist.
@@ -66,14 +73,22 @@ $destDir = Join-Path $repoRoot 'DevDisks'
 #  someone hunting through the assembler.
 #
 $assets = @(
-    @{ Name = 'Merlin-proDos2.23.dsk';        Size = 143360; Dos33 = $true;  Desc = 'Merlin Pro 2.23 disk (DOS 3.3)';
+    @{ Name = 'Merlin-proDos2.23.dsk';             Size = 143360; Volume = 'Dos33';  Desc = 'Merlin Pro 2.23 disk (DOS 3.3)';
        Sha256 = 'CB7FD9522A3B90792ACBB00D6C811323DC046DC2920FC05A640858BFE611F0E6' },
-    @{ Name = 'Merlin Pro Manual_djvu.txt';   Size = 250249; Dos33 = $false; Desc = 'Merlin Pro manual (text)';
+    @{ Name = 'Merlin-proProdos2.33-a.dsk';        Size = 143360; Volume = 'MERLIN'; Desc = 'Merlin Pro 2.33 side A (ProDOS /MERLIN)';
+       Sha256 = '90DDC687D78373B034B0576BADEE5F46EF6C0AD74E232ACDF04FD171D418B9DC' },
+    @{ Name = 'Merlin-proProdos2.33-b.dsk';        Size = 143360; Volume = 'APPLESOFT'; Desc = 'Merlin Pro 2.33 side B (ProDOS /APPLESOFT)';
+       Sha256 = '48DD8471C63D1FDF4C10DE78546C976FC411CD3A94E152B913B8AFCF50797FFE' },
+    @{ Name = 'Merlin Pro Manual_djvu.txt';        Size = 250249; Volume = $null;   Desc = 'Merlin Pro manual (text)';
        Sha256 = 'B0D87F506CA477C76B2CCAC272CD2E199AE0605FD7A50F8CDA68845B4EC8AF8D' },
-    @{ Name = 'MerlinProExtras_djvu.txt';     Size = 24960;  Dos33 = $false; Desc = 'Merlin Pro extras (text)';
+    @{ Name = 'MerlinProExtras_djvu.txt';          Size = 24960;  Volume = $null;   Desc = 'Merlin Pro extras (text)';
        Sha256 = '82A12747D0AE6B152F4423CC779F5E11716DBC0BD1A4483D3B75DAA4B11449EA' },
-    @{ Name = 'Merlin-proDos2.23Catalog.txt'; Size = 2445;   Dos33 = $false; Desc = 'Disk catalog listing';
-       Sha256 = '2BE9A70FB401052D831AEEFDFC68C475B923744D41BDCB0F7EC50F5E3927AAD1' }
+    @{ Name = 'Merlin-proDos2.23Catalog.txt';      Size = 2445;   Volume = $null;   Desc = 'Catalog listing (DOS 3.3)';
+       Sha256 = '2BE9A70FB401052D831AEEFDFC68C475B923744D41BDCB0F7EC50F5E3927AAD1' },
+    @{ Name = 'Merlin-proProdos2.33-aCatalog.txt'; Size = 5399;   Volume = $null;   Desc = 'Catalog listing (/MERLIN)';
+       Sha256 = '9E775537136370314744918A99E3BDD6F7EDCAC0ADEDEAF9629680DFB342C5C2' },
+    @{ Name = 'Merlin-proProdos2.33-bCatalog.txt'; Size = 1006;   Volume = $null;   Desc = 'Catalog listing (/APPLESOFT)';
+       Sha256 = '5E3524D44CD80C8E9A30C373B643FB78953502BC16E3342F2A239B55709BD2D3' }
 )
 
 #
@@ -101,6 +116,44 @@ function Test-Dos33Volume {
 }
 
 #
+#  Confirms a ProDOS volume by reading the volume directory header and
+#  matching its name.
+#
+#  The name is checked rather than just the storage-type nibble, because that
+#  nibble alone is not evidence. Probing Merlin-proDos2.23.dsk -- a DOS 3.3
+#  disk -- at the ProDOS-order block 2 offset finds 0xF in the high nibble and
+#  yields a "volume name" of pure garbage, since the bytes there are boot code.
+#  A one-field check would call that disk ProDOS.
+#
+#  These images hold ProDOS volumes in DOS sector order, so block 2 lives at
+#  track 0 sector 11 rather than at offset 1024.
+#
+function Test-ProdosVolume {
+    param([string]$Path, [string]$VolumeName)
+
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $block = (0 * 16 + 11) * 256
+
+    if ($bytes.Length -lt ($block + 256)) { return $false }
+
+    $storageType = [int]$bytes[$block + 4]
+
+    # High nibble $F marks the volume directory header; low nibble is the
+    # name length, which ProDOS caps at 15.
+    if (($storageType -band 0xF0) -ne 0xF0) { return $false }
+
+    $nameLength = $storageType -band 0x0F
+
+    if ($nameLength -lt 1 -or $nameLength -gt 15) { return $false }
+
+    $name = -join (1..$nameLength | ForEach-Object {
+        [char]([int]$bytes[$block + 4 + $_])
+    })
+
+    return ($name -eq $VolumeName)
+}
+
+#
 #  Returns a human-readable reason the file on disk is not the expected asset,
 #  or $null if it checks out. Used for both the already-present case and the
 #  just-downloaded case so the two cannot drift apart.
@@ -118,8 +171,15 @@ function Get-AssetProblem {
         return "hash mismatch (got $hash)"
     }
 
-    if ($Asset.Dos33 -and -not (Test-Dos33Volume -Path $Path)) {
-        return 'not a DOS 3.3 volume (VTOC check failed)'
+    if ($Asset.Volume -eq 'Dos33') {
+        if (-not (Test-Dos33Volume -Path $Path)) {
+            return 'not a DOS 3.3 volume (VTOC check failed)'
+        }
+    }
+    elseif ($Asset.Volume) {
+        if (-not (Test-ProdosVolume -Path $Path -VolumeName $Asset.Volume)) {
+            return "not the ProDOS volume /$($Asset.Volume) (directory header check failed)"
+        }
     }
 
     return $null

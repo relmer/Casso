@@ -21,6 +21,7 @@ in later phases (D1, D2, US2). Audited per plan.md
 | `copyprotected.woz`      | 0 (placeholder)| Placeholder (Phase 11) | Phase 11 builds a synthetic CP-style v2 WOZ with a non-standard 50000-bit track 0 length so the variable-bit-count code path of the nibble engine is exercised end-to-end. No real CP boot-loader is emulated; FR-024 is met by demonstrating the engine handles variable-length tracks via the headless harness. | Synthetic — original to this repo | Zero-byte placeholder; real bytes synthesized at test-init |
 | `golden/`                | dir            | Empty        | Golden hashes/framebuffers populated in V1       | n/a                                 | Tracked directory (`.gitkeep`)                         |
 | `Merlin/`                | 31638 (12 files) | Real       | Vendor source and shipped object code extracted verbatim from the Merlin Pro 2.23 disk (archive.org item `MerlinProMacroAssembler`), re-derivable via `scripts/ExtractMerlinFixtures.ps1` from a hash-pinned image. Byte-identical oracles for the Merlin dialect. | **CC BY-NC-ND 3.0** — Glen Bredon / Roger Wagner Publishing, 1984. Not MIT. See `Merlin/README.md`. | Tracked binaries, unmodified and must stay so |
+| `Disks/`                 | 438930 (6 files) | Real       | Three unmodified Apple II volumes from the same archive item — one DOS 3.3, two ProDOS (`/MERLIN`, `/APPLESOFT`) — plus the vendor catalog listing for each. All three images are in DOS sector order, so filesystem and ordering must be determined independently. Obtained and hash-verified by `scripts/FetchMerlin.ps1`. | **CC BY-NC-ND 3.0** — Glen Bredon / Roger Wagner Publishing, 1984–85. Not MIT, and **contains runnable software**. See `Disks/README.md`. | Tracked binaries, read-only, unmodified and must stay so |
 
 ## Rules
 
@@ -35,15 +36,22 @@ in later phases (D1, D2, US2). Audited per plan.md
   (`BuildSyntheticDsk` / `BuildSyntheticPo` / `BuildSyntheticWoz`) for the
   headless boot-ROM scenarios; `NibblizationTests.cpp` and `WozLoaderTests.cpp`
   for round-trip unit tests.
-- `Merlin/` is a deliberate exception to that posture, not a drift from it. A
-  synthetic fixture cannot serve as an assembler oracle: the whole value of
-  those files is that a third party produced the expected bytes, so bytes we
-  generate ourselves would only prove Casso agrees with Casso. The exception is
-  narrow and paid for — the material is redistributable under an explicit
-  license, verbatim, with attribution, and its provenance is re-derivable from
-  a hash-pinned source. Do not read it as permission to ship third-party
-  software as a fixture generally; read it as the bar such a fixture has to
-  clear.
+- `Merlin/` and `Disks/` are deliberate exceptions to that posture, not a drift
+  from it. Neither job can be done synthetically. An assembler oracle is only
+  worth anything because a third party produced the expected bytes — bytes we
+  generate ourselves would prove Casso agrees with Casso. A filesystem reader
+  validated against images this repository wrote agrees with its own
+  understanding of the format by construction, including where that
+  understanding is wrong. The exceptions are narrow and paid for: the material
+  is redistributable under an explicit license, verbatim, with attribution, and
+  its provenance is re-derivable from a hash-pinned source. Do not read this as
+  permission to ship third-party software as a fixture generally; read it as
+  the bar such a fixture has to clear. Where a specific structural shape needs
+  constructing on purpose, synthetic is still correct.
+- Real-volume fixtures are **read-only**. A test that writes to one destroys
+  evidence for every later run and breaches the no-derivatives term of their
+  license. Copy the bytes and mutate the copy; `IFixtureProvider` opens
+  read-only and never writes back.
 - Fixtures are not uniformly MIT. `Merlin/` is CC BY-NC-ND 3.0, which carries a
   non-commercial restriction the rest of the repository does not. Check a
   directory's own README before copying its contents anywhere.

@@ -1,0 +1,17 @@
+Merlin-Pro ProDOS 2.33 Side B
+
+CATALOG DISK                                                     SLOT 6  DRIVE 1
+/APPLESOFT                                                        
+   NAME           TYPE  BLKS  MODIFIED         CREATED          ENDFILE SUBTYPE
+
+  *PRODOS          SYS    30  17-AUG-84  0:00  <NO DATE>  0:00    14848 
+   SOURCEROR.FP    BIN     1  17-APR-84 22:38  29-JAN-84 11:44      463 A=$A800
+   WHATSIT.A.Q     TXT    60  27-APR-84 23:06  29-JAN-84 10:35    29798 R=    0
+   WHATSIT.B.Q     TXT    53  22-APR-84 15:39  29-JAN-84 10:37    26615 R=    0
+   WHATSIT.C.Q     TXT    51  22-APR-84 16:47  29-JAN-84 10:39    25213 R=    0
+   WHATSIT.D.Q     TXT    39  23-APR-84 22:38  29-JAN-84 10:40    19337 R=    0
+   APPLESOFT.S     TXT     5  27-APR-84 16:17  29-JAN-84 10:43     1838 R=    0
+  *BASIC.SYSTEM    SYS    21  15-NOV-83  0:00  <NO DATE>  0:00    10240 
+   STARTUP         BAS     5  <NO DATE>  0:00  <NO DATE>  0:00     1677 A=$0801
+
+BLOCKS FREE:8     USED:272   TOTAL:280
