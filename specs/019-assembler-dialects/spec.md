@@ -630,5 +630,11 @@ The corpus MUST contain, at minimum:
   was intended, since the guest paste path is reported to garble input. The
   extractor is capture tooling, not a product capability, and is deleted if 020's
   extraction lands first.
+- **The committed source for an entry is the copy read back off the disk**, not
+  the text that was typed. That is what Merlin assembled, so it is the only text
+  guaranteed to correspond to the captured bytes, and it makes each entry
+  self-consistent by construction. Merlin's editor may normalize whitespace or
+  column positions on save; committing the disk copy makes that harmless instead
+  of making every entry fail a byte-exactness check nobody can satisfy.
 - No new third-party dependency is introduced; dialect support is additional
   parsing, not a vendored grammar.

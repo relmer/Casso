@@ -68,18 +68,48 @@ That is the argument for the editor route: Merlin produces its own format
 natively, and pasting avoids having to reproduce it. Anyone building the write
 half later needs the format above, and needs to know a plain text file is not it.
 
-### 3. Verify the round trip — do not skip this
+### 3. Read the source back — and commit *that* copy
 
-**Paste is not trusted.** Issue #110 reports the guest paste path garbling
-input. The response is to verify the channel, not to avoid it:
+Save the source to the disk from within Merlin, then read it back:
 
-1. Save the source to the disk from within Merlin.
-2. Extract it back: `scripts/ExtractDos33File.ps1 -Image <image> -Name <name>`
-3. Compare against what you intended, byte for byte.
+```powershell
+scripts\CaptureMerlinCorpus.ps1 -Entry myentry -SourceName MYENTRY.S `
+    -Expected corpus\myentry.s -Canonical corpus\myentry.s -Verify
+```
 
-A clean round trip proves the paste. Without it, a garbled paste becomes a
-captured expectation, and the corpus quietly encodes a lie — which is worse than
-having no entry at all, because it launders a mistake into evidence.
+**The disk copy is canonical.** It is what Merlin actually assembled, so it is
+the only text guaranteed to correspond to the bytes captured from it. Commit it,
+not the text you pasted. The entry is then self-consistent by construction.
+
+That matters because Merlin's editor may not store what you typed byte-for-byte.
+It is column-oriented over a high-bit, CR-terminated format, and normalizing
+whitespace or column positions on save would be entirely ordinary. **Whether it
+does is a settle-by-capture question — find out on entry one**, before the
+harness shape depends on the answer.
+
+The comparison stays, and stays loud, but a mismatch is **information rather than
+a failed capture**. Judge which it is:
+
+- **Editor normalization** — expected and benign. The committed disk copy is
+  correct regardless.
+- **A garbled paste** (issue #110) — the entry is still self-consistent, but it
+  now tests a construct you did not intend.
+
+The check is deliberately not fatal. Making routine normalization fail every
+capture invites loosening the comparison, and a loosened comparison is no guard
+at all.
+
+#### The gap this leaves — automation does not close it
+
+If the paste garbled *and* Merlin assembled the garbled source, the entry is
+self-consistent: the bytes genuinely came from the source beside them. It simply
+tests something other than what you meant.
+
+The `discriminates` flag catches the worst version — a garble that destroys the
+Merlin construct makes the entry stop failing under AS65, and the harness reports
+it. It does **not** catch a garble that merely changes an operand.
+
+So: **read the first few entries yourself.** Nothing downstream will tell you.
 
 ### 4. Delete the target object file — required, not advice
 
