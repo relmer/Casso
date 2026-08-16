@@ -1,0 +1,37 @@
+EVERY FILE IN THIS DIRECTORY is third-party material licensed under
+Creative Commons Attribution-NonCommercial-NoDerivatives 3.0 (CC BY-NC-ND 3.0).
+
+    https://creativecommons.org/licenses/by-nc-nd/3.0/
+
+This license covers all files in this directory, not any single one of them.
+It does NOT extend to the parent directory or to any sibling directory.
+
+Work:      Merlin Pro macro assembler -- distribution disks and catalog listings
+Author:    Glen Bredon
+Publisher: Roger Wagner Publishing, 1984-1985
+Source:    https://archive.org/details/MerlinProMacroAssembler
+
+The files here are three complete, unmodified Apple II disk images -- one DOS
+3.3 volume and two ProDOS volumes -- plus the vendor's own catalog listing for
+each. They are test fixtures for the disk filesystem layer, used because a
+synthetic image can only agree with the reader that generated it. They are not
+compiled into, linked into, or distributed with any Casso binary.
+
+READ THIS PART. These images contain complete, runnable third-party software:
+MERLIN.SYSTEM, PRODOS, BASIC.SYSTEM, the assembler itself, and more. That is a
+larger thing to carry in a repository than source text, and it is here
+deliberately rather than by extension of some other precedent.
+
+Casso itself is MIT licensed. These files are not, and the difference is
+per-directory rather than per-repository. Two obligations follow:
+
+  NO DERIVATIVES. Do not alter these images, including by writing to one
+  through a mounted drive. Tests MUST copy the bytes and mutate the copy. A
+  fixture written to in place destroys the evidence for every later run.
+
+  NON-COMMERCIAL. Anyone redistributing Casso commercially must remove this
+  directory and the tests that consume it.
+
+Provenance is verifiable rather than asserted: scripts/FetchMerlin.ps1 obtains
+each file from the archive item above and verifies it against a pinned SHA-256,
+which README.md also records.
