@@ -316,6 +316,7 @@
     <ClInclude Include="Devices\Disk\ChainWalkGuard.h" />
     <ClInclude Include="Devices\Disk\Dos33Volume.h" />
     <ClInclude Include="Devices\Disk\ProDosVolume.h" />
+    <ClInclude Include="Devices\Disk\IDiskFileIo.h" />
     <ClInclude Include="Devices\Disk\WozLoader.h" />
     <ClInclude Include="Devices\Disk\BlankDiskBuilder.h" />
     <ClInclude Include="Devices\Disk\Dos33Skeleton.h" />
