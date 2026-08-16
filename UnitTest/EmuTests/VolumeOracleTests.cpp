@@ -4,6 +4,8 @@
 #include "Devices/Disk/Dos33Volume.h"
 #include "Devices/Disk/ProDosVolume.h"
 #include "Devices/Disk/NibblizationLayer.h"
+#include "Devices/Disk/ProDosSkeleton.h"
+#include "Devices/Disk/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -30,6 +32,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  purpose -- a deliberately corrupt catalog, an exhausted volume, a chosen
 //  boundary. What they cannot answer is whether the reader understands the
 //  format or merely agrees with the writer that shares its assumptions.
+//
+//  The case for that in one sentence: the bug class which survives every
+//  self-consistent check is the one where wrong output still looks like output.
+//  Mis-strip four bytes from one of the text files here and it returns 145
+//  bytes of perfectly readable Merlin source -- no crash, no absurd length,
+//  nothing a length check or a round trip would notice. Only a copy produced by
+//  something else says it is wrong.
 //
 //  The disks are READ-ONLY third-party material. OpenFixture hands back a copy,
 //  so nothing here can disturb them; a test that wrote to one would destroy
@@ -377,6 +386,81 @@ public:
             L"ProDOS text on a real volume is predominantly HIGH-bit, not plain seven-bit ASCII");
         Assert::IsTrue (low > 0,
             L"and it is MIXED, so a decoder asserting bit 7 would reject a real file here too");
+    }
+
+    TEST_METHOD (Detect_Dos33Disk_IsNotMistakenForProDos)
+    {
+        // The negative case a one-field probe fails. Read the storage-type
+        // nibble at the offset a ProDOS volume header would occupy on this DOS
+        // 3.3 disk and the high nibble is $F -- exactly what a genuine header
+        // looks like -- because those bytes are 6502 boot code. A detector that
+        // stopped there would call a DOS 3.3 disk ProDOS.
+        //
+        // The name that follows decodes to garbage, which is what gives it
+        // away, so detection corroborates across the name, the entry geometry
+        // and the block count, and cross-checks the other filesystem's own
+        // structures.
+        //  Where a ProDOS volume header would begin in a ProDOS-ORDERED file:
+        //  block 2 at byte 1024, then past the two link words.
+        constexpr size_t  kProDosOrderedHeader = 2 * 512 + 4;
+
+        vector<Byte>  disk    = Load (kDos33Disk);
+        Byte          typeLen = disk[kProDosOrderedHeader];
+        size_t        nameLen = (size_t) (typeLen & 0x0F);
+        bool          nameOk  = true;
+        size_t        i       = 0;
+
+        Assert::AreEqual (Byte (0xF0), (Byte) (typeLen & 0xF0),
+            L"the trap is real: 6502 boot code presents a ProDOS-looking storage nibble here");
+
+        // What actually gives it away: the "volume name" that follows is boot
+        // code, not a name. A detector that corroborates catches it; one that
+        // stops at the nibble does not.
+        for (i = 0; nameOk && i < nameLen; i++)
+        {
+            Byte  c = disk[kProDosOrderedHeader + 1 + i];
+
+            nameOk = isalnum ((unsigned char) c) != 0 || c == '.';
+        }
+
+        Assert::IsFalse (nameOk, L"the name that follows is 6502 code, not a volume name");
+
+        Assert::IsTrue (VolumeKind::Dos33 == VolumeImage::DetectFilesystem (disk),
+            L"and detection must identify the disk correctly regardless");
+    }
+
+    TEST_METHOD (Detect_ProDosDisksInDosSectorOrder_AreIdentified)
+    {
+        vector<Byte>  merlin = Load (kProDosMerlin);
+        vector<Byte>  apple  = Load (kProDosApple);
+
+        Assert::IsTrue (VolumeKind::ProDos == VolumeImage::DetectFilesystem (merlin));
+        Assert::IsTrue (VolumeKind::ProDos == VolumeImage::DetectFilesystem (apple));
+    }
+
+    TEST_METHOD (Detect_GarbageBuffer_IsUnknownRatherThanGuessed)
+    {
+        // Refusing to name a filesystem is an answer. Guessing one would send
+        // a reader at structures that are not there.
+        vector<Byte>  noise (NibblizationLayer::kImageByteSize, 0xE5);
+
+        Assert::IsTrue (VolumeKind::Unknown == VolumeImage::DetectFilesystem (noise));
+    }
+
+    TEST_METHOD (SectorOrder_ProDosFileFormRoundTripsThroughDosLogical)
+    {
+        // Sector order and filesystem are independent, so the reorder must be
+        // exactly invertible -- otherwise writing back a .po image would move
+        // every sector that a read had moved.
+        vector<Byte>  original = Load (kProDosApple);
+        vector<Byte>  asFile;
+        vector<Byte>  backAgain;
+
+        VolumeImage::DosLogicalToProDosFile (original, asFile);
+        VolumeImage::ProDosFileToDosLogical (asFile, backAgain);
+
+        Assert::AreEqual (original.size(), backAgain.size());
+        Assert::IsTrue (original == backAgain, L"the reorder must be its own inverse");
     }
 
     TEST_METHOD (ProDos_RealDiskInDosSectorOrder_Enumerates)

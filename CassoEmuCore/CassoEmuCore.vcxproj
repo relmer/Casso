@@ -232,6 +232,7 @@
     <ClCompile Include="Devices\Disk\ChainWalkGuard.cpp" />
     <ClCompile Include="Devices\Disk\Dos33Volume.cpp" />
     <ClCompile Include="Devices\Disk\ProDosVolume.cpp" />
+    <ClCompile Include="Devices\Disk\VolumeImage.cpp" />
     <ClCompile Include="Devices\Disk\WozLoader.cpp" />
     <ClCompile Include="Devices\Disk\BlankDiskBuilder.cpp" />
     <ClCompile Include="Devices\Disk\Dos33Skeleton.cpp" />
@@ -317,6 +318,7 @@
     <ClInclude Include="Devices\Disk\Dos33Volume.h" />
     <ClInclude Include="Devices\Disk\ProDosVolume.h" />
     <ClInclude Include="Devices\Disk\IDiskFileIo.h" />
+    <ClInclude Include="Devices\Disk\VolumeImage.h" />
     <ClInclude Include="Devices\Disk\WozLoader.h" />
     <ClInclude Include="Devices\Disk\BlankDiskBuilder.h" />
     <ClInclude Include="Devices\Disk\Dos33Skeleton.h" />
