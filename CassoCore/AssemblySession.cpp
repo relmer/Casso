@@ -1959,6 +1959,7 @@ HRESULT AssemblySession::DetectMacroDefinition (const PendingLine & current, Lin
     m_pass1State = Pass1State::CollectingMacro;
     m_currentMacroName = info.parsed.mnemonic;
     m_currentMacroLine = current.sourceLineNumber;
+    m_currentMacroFile = current.sourceFile;
     m_currentMacroBody.clear();
     m_currentMacroParams.clear();
     m_currentMacroLocals.clear();
@@ -2113,6 +2114,7 @@ HRESULT AssemblySession::HandleIfDirective (const PendingLine & current, const s
     state.parentAssembling = IsAssembling();
     state.seenElse         = false;
     state.openLineNumber   = current.sourceLineNumber;
+    state.openFile         = current.sourceFile;
 
     if (state.parentAssembling)
     {
@@ -2178,6 +2180,7 @@ HRESULT AssemblySession::HandleIfdefDirective (const PendingLine & current,
     state.parentAssembling = IsAssembling();
     state.seenElse         = false;
     state.openLineNumber   = current.sourceLineNumber;
+    state.openFile         = current.sourceFile;
 
     if (state.parentAssembling)
     {
@@ -4282,8 +4285,16 @@ HRESULT AssemblySession::ValidateAssemblyCompletion()
 
 
 
+    // These diagnostics are DEFERRED: the construct opened arbitrarily far back,
+    // and by now the ambient source file is whichever was processed last. So the
+    // file is restored from where the construct OPENED, exactly as the line
+    // number already was. Without this an IF opened inside an included file is
+    // reported with the right line and the wrong file, which is a stronger
+    // version of blaming the end of the file.
     if (m_pass1State == Pass1State::CollectingMacro)
     {
+        m_currentSourceFile = m_currentMacroFile;
+
         RecordError (m_currentMacroLine, "Unclosed macro definition: " + m_currentMacroName);
     }
 
@@ -4294,6 +4305,8 @@ HRESULT AssemblySession::ValidateAssemblyCompletion()
     // line: errors are read in source order, like every other diagnostic here.
     for (const ConditionalState & open : m_condStack)
     {
+        m_currentSourceFile = open.openFile;
+
         RecordError (open.openLineNumber, "Unclosed if block (no matching endif)");
     }
 

@@ -326,6 +326,23 @@ private:
     // originating file is still known -- by the time a diagnostic is reported,
     // the only path in hand is the top-level input, which is exactly how errors
     // inside included files came to be misattributed.
+    //
+    // THE BOUNDARY OF THIS DESIGN, which matters more than the design:
+    //
+    //   * Correct for a diagnostic raised AT the line being processed. That is
+    //     the overwhelming majority, and it is why this is ambient state rather
+    //     than an argument threaded through every call site.
+    //
+    //   * WRONG for a diagnostic about a construct that opened somewhere else.
+    //     By the time an unclosed IF or an unterminated macro is reported, this
+    //     holds whatever was processed last. Every DEFERRED carrier must capture
+    //     its own file when the construct opens -- ConditionalState::openFile
+    //     and MacroDefinition::sourceFile exist for exactly that -- and restore
+    //     it here before recording.
+    //
+    // A new deferred diagnostic needs a new captured file. Reaching for ambient
+    // state there produces the right line and the wrong file, which reads as a
+    // correct diagnostic and is the harder bug to see.
     std::string  m_currentSourceFile;
     bool IsAssembling  () const;
     void InjectBuiltin (const std::string & name, int32_t value);
@@ -351,6 +368,7 @@ private:
     Pass1State                                         m_pass1State         = Pass1State::Normal;
     std::string                                        m_currentMacroName;
     int                                                m_currentMacroLine   = 0;
+    std::string                                        m_currentMacroFile;
     std::vector<std::string>                           m_currentMacroBody;
     std::vector<std::string>                           m_currentMacroParams;
     std::vector<std::string>                           m_currentMacroLocals;

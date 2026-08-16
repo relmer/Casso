@@ -161,6 +161,13 @@ struct MacroDefinition
     std::vector<std::string> body;          // Raw source lines between macro and endm
     std::vector<std::string> localLabels;   // Labels declared with local
     int                      lineNumber = 0; // Source line of macro keyword
+
+    // The file the macro keyword appeared in. Same reasoning as
+    // ConditionalState::openFile: a diagnostic about a definition is reported
+    // long after the definition was read, so the file has to be captured where
+    // the construct OPENED rather than taken from ambient state. Empty means
+    // the top-level input.
+    std::string              sourceFile;
 };
 
 
@@ -201,6 +208,14 @@ struct ConditionalState
     // levels are open and blame the end of the file -- which is never where
     // the fix goes.
     int  openLineNumber   = 0;
+
+    // And the file it opened in, for the same reason one level up. This
+    // diagnostic is DEFERRED to the end of the pass, by which time the
+    // assembler's ambient notion of "the current file" is whatever was
+    // processed last. An IF opened inside an included file would otherwise be
+    // reported with the right line and the wrong file, which is a stronger
+    // version of blaming the end of the file. Empty means the top-level input.
+    std::string  openFile;
 };
 
 

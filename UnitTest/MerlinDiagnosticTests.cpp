@@ -76,6 +76,60 @@ namespace MerlinDiagnosticTests
 
 
 
+        //  A DEFERRED diagnostic: the block opens inside the include and is not
+        //  reported until the end of the pass, by which time ambient state names
+        //  whatever file was processed last. Getting the line right and the file
+        //  wrong reads as a correct diagnostic, which is what makes it worth
+        //  pinning.
+        TEST_METHOD (UnclosedIfInsideInclude_NamesTheIncludedFile)
+        {
+            TestCpu           cpu;
+            MockFileReader    reader;
+            AssemblerOptions  opts;
+
+            reader.files["opener.a65"] = "  .ifdef NOTDEFINED\n  LDA #$01\n";
+
+            opts.fileReader = &reader;
+
+            //  The trailing top-level line is what makes this test discriminating.
+            //  With the include last, the ambient file at end of pass would still
+            //  be the include and the assertion would hold with or without the
+            //  fix. Assembling a top-level line afterwards moves ambient back to
+            //  the top-level input, so only a captured open-file can pass.
+            Assembler       assembler (cpu.GetInstructionSet(), opts);
+            AssemblyResult  result = assembler.Assemble ("  .org $800\n  .include \"opener.a65\"\n  NOP\n");
+
+            Assert::IsFalse (result.errors.empty(), L"an unclosed conditional must be an error");
+            Assert::AreEqual (std::string ("opener.a65"), result.errors[0].file,
+                              L"an unclosed IF must name the file it OPENED in, not the last file processed");
+        }
+
+
+
+        //  Same shape, the other deferred carrier.
+        TEST_METHOD (UnclosedMacroInsideInclude_NamesTheIncludedFile)
+        {
+            TestCpu           cpu;
+            MockFileReader    reader;
+            AssemblerOptions  opts;
+
+            reader.files["opener.a65"] = "MYMAC macro\n  LDA #$01\n";
+
+            opts.fileReader = &reader;
+
+            //  Trailing top-level line for the same reason as above: it moves the
+            //  ambient file off the include, so the assertion can only pass if the
+            //  definition captured its own.
+            Assembler       assembler (cpu.GetInstructionSet(), opts);
+            AssemblyResult  result = assembler.Assemble ("  .org $800\n  .include \"opener.a65\"\n  NOP\n");
+
+            Assert::IsFalse (result.errors.empty(), L"an unterminated macro must be an error");
+            Assert::AreEqual (std::string ("opener.a65"), result.errors[0].file,
+                              L"an unterminated macro must name the file its definition OPENED in");
+        }
+
+
+
         //  Position fields are additive, so a diagnostic that knows no column
         //  reports 0 and the formatter leaves it out entirely.
         TEST_METHOD (DiagnosticWithoutColumn_ReportsZero)
