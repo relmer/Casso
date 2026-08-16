@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CommandLine.h"
+#include "DiskCommand.h"
 #include "CassoCli.h"
 
 
@@ -52,6 +53,10 @@ int main (int argc, char * argv[])
     else if (options.subcommand == CommandLineOptions::Subcommand::Run)
     {
         exitCode = DoRun (options);
+    }
+    else if (options.subcommand == CommandLineOptions::Subcommand::Disk)
+    {
+        exitCode = DiskCommand::Run (options);
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::As65)
     {

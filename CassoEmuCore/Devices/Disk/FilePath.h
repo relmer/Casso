@@ -31,7 +31,7 @@ public:
     //  doubled separator is tolerated rather than producing a nameless step.
     static FilePath  Parse (const std::string & text);
 
-    const vector<std::string> &  GetComponents () const { return m_components; }
+    const std::vector<std::string> &  GetComponents () const { return m_components; }
 
     bool  IsRooted () const { return m_isRooted; }
     bool  IsEmpty  () const { return m_components.empty(); }
@@ -49,7 +49,7 @@ public:
     std::string  ToString () const;
 
 private:
-    vector<std::string>  m_components;
-    bool                 m_isRooted = false;
-    std::string          m_empty;
+    std::vector<std::string>  m_components;
+    bool                      m_isRooted   = false;
+    std::string               m_empty;
 };

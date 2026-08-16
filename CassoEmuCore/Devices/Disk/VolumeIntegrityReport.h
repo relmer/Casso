@@ -70,17 +70,17 @@ public:
     //  Which units this entry claims. Answers the first clause of the
     //  requirement directly, rather than making a caller re-walk every chain to
     //  recover something the pass already saw.
-    const vector<uint32_t> &  GetClaimsOf (uint16_t owner) const;
+    const std::vector<uint32_t> &  GetClaimsOf (uint16_t owner) const;
 
     //  Every entry claiming a unit, not merely how many. A damage report that
     //  can only say "two files share this sector" without naming them leaves
     //  the user unable to act on it.
-    const vector<uint16_t> &  GetClaimantsOf (uint32_t unit) const;
+    const std::vector<uint16_t> &  GetClaimantsOf (uint32_t unit) const;
 
-    const vector<uint32_t> &  GetCrossLinked           () const { return m_crossLinked; }
-    const vector<uint32_t> &  GetAllocatedButUnclaimed () const { return m_allocatedButUnclaimed; }
-    const vector<uint32_t> &  GetClaimedButFree        () const { return m_claimedButFree; }
-    const vector<uint16_t> &  GetUnfollowableChains    () const { return m_unfollowableChains; }
+    const std::vector<uint32_t> &  GetCrossLinked           () const { return m_crossLinked; }
+    const std::vector<uint32_t> &  GetAllocatedButUnclaimed () const { return m_allocatedButUnclaimed; }
+    const std::vector<uint32_t> &  GetClaimedButFree        () const { return m_claimedButFree; }
+    const std::vector<uint16_t> &  GetUnfollowableChains    () const { return m_unfollowableChains; }
 
     bool  IsCatalogFullyParsed () const { return m_catalogFullyParsed; }
 
@@ -114,15 +114,15 @@ private:
     //  microseconds per command-line invocation. It only becomes interesting if
     //  a caller runs it on something frequent, such as a live UI refresh, and
     //  that is a caching question rather than a structural one.
-    vector<vector<uint16_t>>  m_claimantsByUnit;
-    vector<vector<uint32_t>>  m_claimsByOwner;
-    vector<bool>              m_allocated;
-    vector<uint16_t>          m_emptyClaimants;
-    vector<uint32_t>          m_emptyClaims;
-    vector<uint32_t>          m_crossLinked;
-    vector<uint32_t>          m_allocatedButUnclaimed;
-    vector<uint32_t>          m_claimedButFree;
-    vector<uint16_t>          m_unfollowableChains;
-    bool                      m_catalogFullyParsed    = true;
-    bool                      m_isClean               = false;
+    std::vector<std::vector<uint16_t>>  m_claimantsByUnit;
+    std::vector<std::vector<uint32_t>>  m_claimsByOwner;
+    std::vector<bool>                   m_allocated;
+    std::vector<uint16_t>               m_emptyClaimants;
+    std::vector<uint32_t>               m_emptyClaims;
+    std::vector<uint32_t>               m_crossLinked;
+    std::vector<uint32_t>               m_allocatedButUnclaimed;
+    std::vector<uint32_t>               m_claimedButFree;
+    std::vector<uint16_t>               m_unfollowableChains;
+    bool                                m_catalogFullyParsed    = true;
+    bool                                m_isClean               = false;
 };

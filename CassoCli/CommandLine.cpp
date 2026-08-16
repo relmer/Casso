@@ -769,7 +769,16 @@ static void PrintUsageHeader (const char * sp, const char * lp)
               << "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n"
               << "\n"
               << "Usage: CassoCli <source> [flags] | run <binary | source> [options] | "
-              << sp << "? | " << lp << "version\n";
+              << sp << "? | " << lp << "version\n"
+              << "       CassoCli disk list <image> [" << lp << "long]\n"
+              << "                disk get  <image> <path> [" << lp << "out <file>]"
+                 " [" << lp << "text | " << lp << "basic | " << lp << "verbatim]\n"
+              << "                disk put  <image> <file> [" << lp << "as <path>]"
+                 " [" << lp << "type <t>] [" << lp << "addr $XXXX]\n"
+              << "                disk delete <image> <path>   |   disk boot <image> <path>\n"
+              << "         aliases: ls = list, rm = delete."
+                 "  put/get are named from the DISK's point of view.\n"
+              << "         exit: 0 clean, 1 succeeded with complaints, 2 produced no output\n";
 }
 
 

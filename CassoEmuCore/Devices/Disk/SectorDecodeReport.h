@@ -84,7 +84,7 @@ public:
     int   GetUnrecoveredCount () const;
 
 private:
-    vector<TrackDecodeOutcome>  m_outcome;
-    vector<Word>                m_coverage;
-    vector<bool>                m_duplicated;
+    std::vector<TrackDecodeOutcome>  m_outcome;
+    std::vector<Word>                m_coverage;
+    std::vector<bool>                m_duplicated;
 };

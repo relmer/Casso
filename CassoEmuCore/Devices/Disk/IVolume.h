@@ -48,12 +48,12 @@ public:
     //  Adds or replaces. Produces the complete post-write buffer.
     virtual HRESULT  Write (const FilePath     & path,
                             const FilePayload  & payload,
-                            vector<Byte>       & outBuffer) const = 0;
+                            std::vector<Byte>       & outBuffer) const = 0;
 
     //  Removes a file, returning only space it uniquely owns and reporting the
     //  rest as leaked. Remains available for a file whose chain is damaged, so
     //  a bad entry cannot strand the volume.
-    virtual HRESULT  Delete (const FilePath & path, vector<Byte> & outBuffer) const = 0;
+    virtual HRESULT  Delete (const FilePath & path, std::vector<Byte> & outBuffer) const = 0;
 
     //  What the catalog actually references. Consumed by delete, by listing,
     //  by allocation, and by the pre-commit check on every write.
@@ -62,5 +62,5 @@ public:
     //  Sets which program the volume runs after its operating system loads.
     //  The two filesystems do this by entirely different means and are
     //  deliberately NOT unified behind a shared helper.
-    virtual HRESULT  SetStartupProgram (const FilePath & path, vector<Byte> & outBuffer) const = 0;
+    virtual HRESULT  SetStartupProgram (const FilePath & path, std::vector<Byte> & outBuffer) const = 0;
 };

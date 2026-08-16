@@ -90,14 +90,14 @@ struct FileEntry
 //
 struct VolumeListing
 {
-    std::string          volumeName;              // ProDOS
-    Byte                 volumeNumber    = 0;     // DOS 3.3
-    bool                 hasVolumeName   = false;
-    bool                 hasVolumeNumber = false;
-    uint32_t             totalUnits      = 0;
-    uint32_t             freeUnits       = 0;
-    vector<FileEntry>    entries;
-    vector<std::string>  damage;                  // empty means a clean read
+    std::string               volumeName;   // ProDOS
+    Byte                      volumeNumber    = 0;   // DOS 3.3
+    bool                      hasVolumeName   = false;
+    bool                      hasVolumeNumber = false;
+    uint32_t                  totalUnits      = 0;
+    uint32_t                  freeUnits       = 0;
+    std::vector<FileEntry>    entries;
+    std::vector<std::string>  damage;   // empty means a clean read
 };
 
 
@@ -114,11 +114,11 @@ struct VolumeListing
 //
 struct FilePayload
 {
-    vector<Byte>     bytes;
-    Byte             type           = 0;
-    Word             loadAddress    = 0;
-    Word             auxType        = 0;
-    bool             hasLoadAddress = false;
-    bool             hasAuxType     = false;
-    PayloadEncoding  encoding       = PayloadEncoding::Verbatim;
+    std::vector<Byte>  bytes;
+    Byte               type           = 0;
+    Word               loadAddress    = 0;
+    Word               auxType        = 0;
+    bool               hasLoadAddress = false;
+    bool               hasAuxType     = false;
+    PayloadEncoding    encoding       = PayloadEncoding::Verbatim;
 };

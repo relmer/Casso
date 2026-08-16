@@ -64,8 +64,8 @@ class IDiskFileIo
 public:
     virtual ~IDiskFileIo () = default;
 
-    virtual HRESULT  ReadAllBytes  (const std::string & path, vector<Byte> & outBytes) = 0;
-    virtual HRESULT  WriteAllBytes (const std::string & path, const vector<Byte> & bytes) = 0;
+    virtual HRESULT  ReadAllBytes  (const std::string & path, std::vector<Byte> & outBytes) = 0;
+    virtual HRESULT  WriteAllBytes (const std::string & path, const std::vector<Byte> & bytes) = 0;
 
     //  Size and modification time, for the read-then-commit staleness check.
     virtual HRESULT  Stat          (const std::string & path, FileStamp & outStamp) = 0;
@@ -85,5 +85,5 @@ public:
 
     //  Payload bytes to the process's own output, byte-for-byte. See the note
     //  above on why this belongs to the seam rather than to the caller.
-    virtual HRESULT  WritePayloadToStandardOutput (const vector<Byte> & bytes) = 0;
+    virtual HRESULT  WritePayloadToStandardOutput (const std::vector<Byte> & bytes) = 0;
 };

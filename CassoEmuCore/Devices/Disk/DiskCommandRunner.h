@@ -5,7 +5,12 @@
 #include "CommandLineOptions.h"
 #include "IDiskFileIo.h"
 #include "IVolume.h"
-#include "VolumeImage.h"
+#include "SectorDecodeReport.h"
+
+//  Forward-declared rather than included: pulling VolumeImage.h in would drag
+//  DiskImage.h through this header and into the console project, which does not
+//  share the core library's Pch conveniences.
+enum class VolumeKind;
 
 
 
@@ -30,10 +35,10 @@ struct DiskCommandResult
     //  meanings the assembler and run subcommands already assign.
     int           exitStatus  = 0;
 
-    std::string   output;                 // stdout, text
-    std::string   diagnostics;            // stderr, always
-    vector<Byte>  payload;                // stdout, binary
-    bool          hasPayload  = false;
+    std::string        output;   // stdout, text
+    std::string        diagnostics;   // stderr, always
+    std::vector<Byte>  payload;   // stdout, binary
+    bool               hasPayload  = false;
 };
 
 
@@ -69,7 +74,7 @@ public:
 private:
     //  Loads the image and identifies its filesystem, or explains why not.
     HRESULT  OpenVolume (const std::string   & imagePath,
-                         vector<Byte>        & outSectors,
+                         std::vector<Byte>        & outSectors,
                          VolumeKind          & outKind,
                          SectorDecodeReport  & outReport,
                          DiskCommandResult   & result);

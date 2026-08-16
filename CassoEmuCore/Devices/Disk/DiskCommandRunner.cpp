@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskCommandRunner.h"
+#include "VolumeImage.h"
 #include "Dos33Volume.h"
 #include "ProDosVolume.h"
 #include "NibblizationLayer.h"
