@@ -243,8 +243,13 @@ confirm the diagnostic names the right construct at the right position.
   not, there is nothing to do. This MUST be settled by capturing the construct
   against real Merlin rather than by reasoning from the manual.
 - What happens when included files are written in a different dialect than the
-  including file? The dialect MUST apply to the whole assembly, and mixed-dialect
-  inclusion MUST be reported rather than silently mis-parsed.
+  including file? The dialect MUST apply to the whole assembly. No detection is
+  required or possible — an included file does not declare a dialect — so this
+  resolves to ordinary parsing: source written in another dialect fails to parse
+  under the active one, and the resulting diagnostic MUST name which dialect
+  defines the offending construct (FR-022) and which file it came from (FR-025).
+  The requirement is that the failure be *explained*, not that mixing be detected
+  ahead of time.
 - What happens to existing build scripts that invoke Casso's assembler today?
   Their behavior MUST be preserved, or the change MUST be stated explicitly in
   release notes — the project's user-experience principle forbids silent
@@ -279,7 +284,12 @@ references outside this file.
   carries the listing when no listing file is named and is therefore piped by
   build scripts.
 - **FR-005**: Each dialect MUST be applied strictly and authentically; the
-  assembler MUST NOT accept a lenient union of all dialects.
+  assembler MUST NOT accept a lenient union of all dialects. "Authentic" is
+  measured against the dialect the profile names, and for AS65 that dialect is
+  what Casso's assembler accepts *today* — this requirement forbids admitting
+  another dialect's constructs into AS65, and does not license tightening AS65
+  against source it currently accepts. SC-004 holds AS65 output unchanged; this
+  holds AS65 acceptance unchanged, which is what FR-023 depends on.
 - **FR-006**: Dialect selection MUST be available to every entry point that
   assembles source, not only the command-line tool.
 - **FR-026**: The Merlin dialect MUST take its CPU target from Merlin's in-source
