@@ -151,7 +151,13 @@ void AppleTextCodec::Decode (
     AppleTextConvention         convention,
     std::string              &  outHostText)
 {
-    Byte    terminator = GetTerminator (convention);
+    constexpr Byte  kLineFeed = 0x0A;
+
+    //  Stripped to seven bits, so it matches whichever form the file carries.
+    //  Both conventions reduce to the same value here, which is a consequence
+    //  of tolerating mixed bytes rather than a coincidence: once the high bit
+    //  is ignored, high-ASCII and plain-ASCII text differ in nothing.
+    Byte    terminator = (Byte) (GetTerminator (convention) & 0x7F);
     size_t  i          = 0;
 
 
@@ -162,8 +168,30 @@ void AppleTextCodec::Decode (
     {
         Byte  stripped = (Byte) (appleBytes[i] & 0x7F);
 
-        if (stripped == (Byte) (terminator & 0x7F))
+        if (stripped == terminator)
         {
+            // A line feed following a carriage return belongs to it. Apple II
+            // convention is CR-only, but a file that arrived from elsewhere
+            // carries both, and emitting two newlines would double every blank
+            // line in it.
+            bool  hasLineFeed = (i + 1) < appleBytes.size()
+                             && (Byte) (appleBytes[i + 1] & 0x7F) == kLineFeed;
+
+            outHostText += '\n';
+
+            if (hasLineFeed)
+            {
+                i++;
+            }
+
+            continue;
+        }
+
+        if (stripped == kLineFeed)
+        {
+            // A lone line feed is still a line ending. Passing it through as a
+            // literal would put a raw newline in the host text anyway, so it
+            // may as well be one deliberately.
             outHostText += '\n';
             continue;
         }

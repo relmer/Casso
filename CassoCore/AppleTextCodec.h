@@ -30,9 +30,28 @@
 //  CONTENTS, and generalizing from the adjacent case is exactly how a comment
 //  in the nibblization tests came to license a data-loss defect.
 //
-//  Round-trip identity is the invariant that matters. Whichever convention is
-//  right, host -> Apple -> host must return the original text; a put/get cycle
-//  is the user-visible form of the same property.
+//  ROUND-TRIP IDENTITY HOLDS IN ONE DIRECTION ONLY, and the asymmetry is
+//  deliberate rather than incidental:
+//
+//      host -> Apple -> host   IDENTITY. This is what putting a file on a disk
+//                              and reading it back must preserve, and it is
+//                              what the tests pin.
+//
+//      Apple -> host -> Apple  NOT identity. It NORMALIZES: a plain $20 comes
+//                              back as $A0, a plain $0D as $8D, a CR/LF pair as
+//                              a single terminator.
+//
+//  Decoding is deliberately many-to-one -- tolerating mixed high and low bytes
+//  is what lets a real vendor file be read at all -- and many-to-one cannot be
+//  inverted. The consequence is user-visible: extracting a text file and
+//  placing it back rewrites bytes that were never edited. On a real macro
+//  library that is 37 low-ASCII bytes changed in a file the user may care about
+//  preserving.
+//
+//  The lossless path is therefore NOT this class. A caller that wants
+//  byte-exact round-tripping asks for no conversion at all, which the volume
+//  layer provides by default -- reads return raw bytes and this codec is only
+//  invoked when a caller explicitly selects a text encoding.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

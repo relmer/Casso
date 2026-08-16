@@ -143,6 +143,79 @@ public:
             L"a plain terminator must end the line even in high-bit content");
     }
 
+    TEST_METHOD (Decode_CarriageReturnLineFeedPair_IsOneLineNotTwo)
+    {
+        // Apple II convention is CR-only, but a file that arrived from
+        // elsewhere carries both. Emitting a newline for each would double
+        // every line break in it.
+        vector<Byte>  bytes;
+        std::string   decoded;
+
+        bytes.push_back (0xC1);   // 'A'
+        bytes.push_back (0x8D);   // CR
+        bytes.push_back (0x8A);   // LF belonging to it
+        bytes.push_back (0xC2);   // 'B'
+
+        AppleTextCodec::Decode (bytes, AppleTextConvention::HighAscii, decoded);
+
+        Assert::AreEqual (std::string ("A\nB"), decoded,
+            L"a CR/LF pair is one line ending, not two");
+    }
+
+    TEST_METHOD (Decode_LoneLineFeed_IsALineEnding)
+    {
+        vector<Byte>  bytes;
+        std::string   decoded;
+
+        bytes.push_back (0xC1);
+        bytes.push_back (0x8A);   // LF with no CR before it
+        bytes.push_back (0xC2);
+
+        AppleTextCodec::Decode (bytes, AppleTextConvention::HighAscii, decoded);
+
+        Assert::AreEqual (std::string ("A\nB"), decoded);
+    }
+
+    TEST_METHOD (Decode_IsManyToOne_SoTheApplesideRoundTripNormalizes)
+    {
+        // Stated as a test rather than left to be discovered. Tolerating mixed
+        // bytes is what lets a real vendor file be read, and many-to-one cannot
+        // be inverted -- so extracting a text file and placing it back rewrites
+        // bytes nobody edited. The byte-exact path is no conversion at all.
+        vector<Byte>  lowForm;
+        vector<Byte>  highForm;
+        std::string   fromLow;
+        std::string   fromHigh;
+
+        lowForm.push_back (0x41);   // 'A' plain
+        lowForm.push_back (0x20);   // space plain
+        lowForm.push_back (0x0D);   // CR plain
+
+        highForm.push_back (0xC1);  // 'A' high
+        highForm.push_back (0xA0);  // space high
+        highForm.push_back (0x8D);  // CR high
+
+        AppleTextCodec::Decode (lowForm,  AppleTextConvention::HighAscii, fromLow);
+        AppleTextCodec::Decode (highForm, AppleTextConvention::HighAscii, fromHigh);
+
+        Assert::AreEqual (fromLow, fromHigh,
+            L"two distinct Apple byte sequences decode to identical host text");
+
+        {
+            vector<Byte>  reEncoded;
+            size_t        badAt = 0;
+
+            AssertSucceeded (AppleTextCodec::Encode (fromLow, AppleTextConvention::HighAscii,
+                                                     reEncoded, badAt));
+
+            Assert::AreEqual (highForm.size(), reEncoded.size());
+            Assert::AreEqual (Byte (0xA0), reEncoded[1],
+                L"a plain space comes back high -- normalization, not identity");
+            Assert::AreNotEqual (lowForm[1], reEncoded[1],
+                L"which is exactly why the Apple-side round trip is not the identity");
+        }
+    }
+
     TEST_METHOD (Encode_CrLfCollapsesToOneLine)
     {
         // Host text arrives with CRLF on this platform. Two terminators would
