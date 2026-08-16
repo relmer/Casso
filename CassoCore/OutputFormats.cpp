@@ -8,13 +8,102 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WriteBinary
+//  WriteRaw
+//
+//  The assembled span and nothing else -- no padding before the start address
+//  and none after the end.
+//
+//  This is the shape every modern step downstream wants: a disk tool placing
+//  the file, a comparison against a reference build, or a loader told
+//  separately where the bytes go. The full-image shape below cannot serve
+//  those, because it buries a two-kilobyte routine in 64 KB of fill.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void OutputFormats::WriteBinary (const std::vector<Byte> & data, std::ostream & stream, Byte fillByte)
+void OutputFormats::WriteRaw (const std::vector<Byte> & data, std::ostream & stream)
 {
     stream.write (reinterpret_cast<const char *> (data.data()), data.size());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteDosBinary
+//
+//  The assembled span behind the 4-byte header an Apple DOS 3.3 binary file
+//  carries: load address then length, each little-endian.
+//
+//  DOS stores the destination IN THE FILE rather than in the catalog, which is
+//  why BLOAD needs no address argument. Emitting the header here means the
+//  bytes are ready to be placed on a disk verbatim; deriving it later would
+//  require the disk tool to be told an address the assembler already knew.
+//
+//  The length field is 16 bits, so a span of exactly 64 KB cannot be
+//  described. The caller rejects that case (see kMaxDosBinaryLength) rather
+//  than this writer emitting a file that claims to be empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void OutputFormats::WriteDosBinary (const std::vector<Byte> & data, Word startAddr, std::ostream & stream)
+{
+    Word  length = (Word) data.size();
+
+
+
+    stream.put ((char) (startAddr & 0xFF));
+    stream.put ((char) ((startAddr >> 8) & 0xFF));
+    stream.put ((char) (length & 0xFF));
+    stream.put ((char) ((length >> 8) & 0xFF));
+
+    stream.write (reinterpret_cast<const char *> (data.data()), data.size());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteFlatImage
+//
+//  Writes the assembled bytes as a FULL 64 KB memory image: fill from $0000
+//  to the start address, the code, then fill out to $FFFF.
+//
+//  This is the as65-compatible output shape, not a convenience. Tools that
+//  consume a flat image -- ROM burners, emulator memory loaders, byte-for-byte
+//  comparison against a reference build -- index it by absolute address, so
+//  the file offset must equal the address. Writing only the assembled span
+//  would shift every byte by the start address.
+//
+//  The fill byte is caller-supplied because it is visible in the output and
+//  therefore part of the comparison: matching a reference image requires
+//  matching what its gaps were padded with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void OutputFormats::WriteFlatImage (const std::vector<Byte> & data, Word startAddr, Byte fillByte, std::ostream & stream)
+{
+    constexpr uint32_t  kAddressSpaceSize = 0x10000;
+    uint32_t            endAddress        = 0;
+
+
+
+    for (Word i = 0; i < startAddr; i++)
+    {
+        stream.put ((char) fillByte);
+    }
+
+    stream.write (reinterpret_cast<const char *> (data.data()), data.size());
+
+    endAddress = (uint32_t) startAddr + (uint32_t) data.size();
+
+    for (uint32_t i = endAddress; i < kAddressSpaceSize; i++)
+    {
+        stream.put ((char) fillByte);
+    }
 }
 
 

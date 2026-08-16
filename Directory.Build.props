@@ -41,4 +41,55 @@
     </ClCompile>
   </ItemDefinitionGroup>
 
+  <!--
+    Debug STL: bounds checks WITHOUT the iterator-tracking machinery.
+
+    _ITERATOR_DEBUG_LEVEL defaults to 2 whenever _DEBUG is defined. Level 2
+    bounds-checks container access AND makes every iterator carry a
+    back-pointer to its container while every container keeps a linked list of
+    its live iterators, so the STL can detect use-after-invalidation. The
+    bookkeeping is the expensive half: the 6502 memory bus reads through
+    std::vector, so the emulator pays it several times per emulated
+    instruction.
+
+    Measured on a pure-interpreter probe (min of 3 runs, full rebuild each):
+
+      _ITERATOR_DEBUG_LEVEL=2 (default)   11.87 s
+      =1                                  10.17 s   -14%
+      =0                                   8.21 s   -31%
+      =0 + _MSVC_STL_HARDENING=1           7.73 s   -35%
+      Release floor                        2.52 s
+
+    A flat =0 would be the wrong trade: it drops out-of-range detection on
+    vector::operator[], which in an emulator indexing memory arrays on every
+    instruction turns a precise assert into silent corruption. But the
+    subscript check is guarded by
+
+        #if _MSVC_STL_HARDENING_VECTOR || _ITERATOR_DEBUG_LEVEL != 0
+
+    and _MSVC_STL_HARDENING_VECTOR derives from _MSVC_STL_HARDENING, which is
+    an INDEPENDENT switch defaulting to 0. So =0 plus hardening keeps the
+    check and drops only the bookkeeping. =1 does not: it still enables the
+    checked-iterator machinery, which is why it recovers less than half as
+    much.
+
+    Scoped to Debug deliberately. This file applies to every configuration,
+    and defining _MSVC_STL_HARDENING globally would add bounds checks to
+    shipping Release code at an unmeasured cost.
+
+    _ITERATOR_DEBUG_LEVEL is an ABI switch: container layouts change, so
+    every translation unit and linked library must agree. Setting it here is
+    what makes that true by construction, and MSVC's detect_mismatch pragma
+    turns any disagreement into a link error rather than a crash.
+
+    /RTC1 stays ON. It is another 22% of the Debug/Release gap, but it buys
+    local-buffer-overrun and uninitialized-read detection, and the emulator
+    writes through raw memory buffers, precisely what /RTCs protects.
+  -->
+  <ItemDefinitionGroup Condition="'$(Configuration)' == 'Debug'">
+    <ClCompile>
+      <PreprocessorDefinitions>_ITERATOR_DEBUG_LEVEL=0;_MSVC_STL_HARDENING=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
 </Project>

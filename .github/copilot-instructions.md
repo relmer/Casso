@@ -431,6 +431,75 @@ void Function2()
 - Temp files are acceptable only in integration tests, never in unit tests.
 - If code cannot be tested this way, it usually lives in the wrong project — see **Architecture: Thin Exe, Rich Testable Core** above; move the logic into a core lib rather than leaving it untested in the exe.
 
+### Degraded Operation Must Be Observable
+
+A component that cannot do its job MUST NOT be indistinguishable from one that
+did. This class has bitten five times, in five different layers:
+
+- `NibblizationLayer::Denibblize` returned `S_OK` over sectors it had
+  zero-filled, on the flush path (GH #115)
+- `RunTests.ps1` reported a full, confident pass against a stale test assembly
+- Dormann integration tests passed without their data present, having done no
+  work
+- A `DialectId` enumerator with no profile behind it silently answered with a
+  different dialect — support that looked present and was not
+- A corpus harness looping over an empty entry list passes by comparing nothing
+
+Concretely:
+
+- **Tests**: a test that cannot reach its data FAILS. It does not skip quietly
+  and it does not pass. "N passed" must mean N things were checked.
+- **Fixtures and corpora**: assert a non-zero item count *before* asserting over
+  the items. A loop over an empty set is a passing test that tests nothing, and
+  it is indistinguishable from a full one in the output.
+- **Production code**: a function that could not do what it was asked MUST NOT
+  return success. That is what EHM exists for; producing `S_OK` after a partial
+  failure defeats the whole pattern.
+- **Identifier / implementation pairs**: where an enum is **total** over its
+  implementations, sweep the *enum*, not only the table — a table sweep visits
+  only rows that exist by construction and structurally cannot find a missing
+  one. `DialectId` and `Directive` are total; `CommandLineOptions::Subcommand`
+  is deliberately partial (`None` / `Help` / `Version` / `As65` are not
+  bare-word subcommands), so the same sweep there would fail correct code.
+  `UnitTest/DirectiveTokenTests.cpp` sweeps both directions and is the
+  exemplar.
+
+The common shape is a **degraded state that reads as a healthy one**: zeros that
+look like a blank track, a stale binary that looks like a run, a missing profile
+that looks like support. Ask of any success path: could this have reported
+success while doing nothing?
+
+Two specific practices fall out of this:
+
+- **Verify a new test fails without the fix.** A test written after the code it
+  covers frequently passes for the wrong reason — the setup happens to satisfy it
+  regardless of whether the fix is present. Revert the fix, confirm the test
+  fails, restore. The assertion message is the proof:
+  `Expected:<opener.a65> Actual:<>` shows what the broken path actually produced,
+  where a green run shows nothing at all. A real case: tests for include-file
+  diagnostic attribution passed immediately, because the include happened to be
+  the last thing processed, so the ambient state was coincidentally correct. They
+  only discriminated once a trailing top-level line was added.
+
+  The general form is **mutate what the test covers and confirm the test
+  notices.** Reverting a fix is the instance that applies when the fix changed
+  existing behavior. A test covering newly-added API has nothing to revert to —
+  "without the fix" does not compile — so the mutation is to stub the
+  implementation instead: make the classifier return a constant and confirm the
+  test goes red. A test that stays green under a reverted fix is therefore not
+  automatically weak; check first whether there was prior behavior to
+  discriminate against. Two of the three damage tests for GH #115 stayed green
+  correctly, because the mechanisms they cover reported nothing at all before
+  that work.
+- **A `Copy-Item` restore defeats build staleness detection.** `Copy-Item`
+  preserves `LastWriteTime`, so restoring a backup makes the source look **older**
+  than the object built from the edited version. MSBuild then skips the rebuild —
+  the tell is a sub-second "Build succeeded" — and the suite runs against the code
+  you just reverted. `RunTests.ps1`'s staleness guard **cannot** catch this: it
+  detects source *newer* than the assembly, and this is the reverse, so the guard
+  sees a fresh assembly and passes. After any restore, stamp the file before
+  rebuilding: `(Get-Item path).LastWriteTime = Get-Date`
+
 ## Build System
 
 ### Building
@@ -438,6 +507,22 @@ void Function2()
 - Scripts are in `scripts/` — `Build.ps1`, `RunTests.ps1`, `VSTools.ps1`
 - Supported platforms: x64, ARM64
 - Toolset: v145 (VS 2026)
+- **`RunTests.ps1` does not build unless you pass `-Build`.** Every VS Code
+  task that calls it is labeled "(no build)" and the composite `Build + Test`
+  tasks chain a build in front; from a terminal, pass `-Build`. A staleness
+  guard refuses to run when the test assembly is older than the newest source
+  that compiles into it, because a stale run reports a full, confident pass
+  against code that is not on disk — and a new test file that never compiled
+  in is simply absent from the count.
+- **`RunTests.ps1 -Filter <word>`** runs only matching tests, for the edit-test
+  loop. A bare word matches as a substring of the fully qualified name
+  (`-Filter Merlin`); anything containing filter grammar passes through to
+  vstest's `/TestCaseFilter:` verbatim. A filtered run prints a loud banner
+  saying it is not the suite — never report a filtered pass as a suite pass.
+- Debug and Release differ enormously: the Debug suite runs ~15 minutes, Release
+  ~2. They also run **different test sets** — assertion-behavior tests verify
+  nothing in Release — so Release is not a drop-in substitute for the pre-merge
+  gate.
 
 ### Style Gate (pre-push)
 
@@ -470,10 +555,20 @@ status enum or an out-param, and leave `hr` meaning only success or failure.
 have no choice. Where producing it is genuinely unavoidable, mark the line
 `// EHM-ALLOW-SFALSE: <reason>`.
 
-Enable the hook once per clone (shared by all worktrees):
+**`Build.ps1` enables the hook for you.** It points the clone at `.githooks`
+on every run, announcing itself the one time it changes anything, so a fresh
+clone or a new worktree acquires the gate without anyone remembering to.
+
+Git refuses to let a repository configure its own clones — `core.hooksPath`
+arriving with a checkout would make cloning an arbitrary-code-execution
+hazard — so `.git/config` never syncs and this cannot be committed once and
+inherited. Building is the closest thing to a step everyone already takes.
+
+To set it by hand (or to check):
 
 ```powershell
 git config core.hooksPath .githooks
+git config --get core.hooksPath
 ```
 
 - The pre-push hook is **diff-scoped**: it inspects only the lines a push
@@ -524,6 +619,18 @@ the pre-merge gate.
 
 - **NEVER squash on merge.** All branch merges to `master` must use
   `--no-ff` to preserve commit history.
+- **Worktree branch names must match the spec-kit pattern `NNN-name`.**
+  `EnterWorktree` prefixes the branch it creates with `worktree-`, and
+  `.specify/scripts/powershell/check-prerequisites.ps1` rejects anything that
+  does not start with three digits — so a worktree entered the obvious way
+  leaves every speckit workflow refusing to run. Rename the branch to bare
+  `NNN-name` after creating the worktree.
+- **`.specify/feature.json` is per-checkout state, not a deliverable.** It names
+  the active spec, so two concurrent sessions each want it pointing somewhere
+  different. Repoint it in your worktree, keep it out of the merge to `master`,
+  and beware `git add -A`, which sweeps it into a commit silently. The
+  `CLAUDE.md` active-spec block has the same hazard: do not flip it from a
+  feature branch while another session owns it.
 
 ## Workspace Hygiene
 

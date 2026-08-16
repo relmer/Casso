@@ -227,6 +227,7 @@
     <ClCompile Include="ConditionalAssemblyTests.cpp" />
     <ClCompile Include="MacroTests.cpp" />
     <ClCompile Include="ConstantTests.cpp" />
+    <ClCompile Include="CommandLineTests.cpp" />
     <ClCompile Include="DirectiveTests.cpp" />
     <ClCompile Include="DirectiveTokenTests.cpp" />
     <ClCompile Include="IncludeTests.cpp" />

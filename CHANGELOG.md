@@ -9,6 +9,7 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased] — 3D desk scene
 
 ### Added
+
 - **The desk wears what the machine wore, at real size and in a real
   arrangement.** The //e and ][+ get a beige Apple Monitor II standing on
   Disk II drives; the //c gets its platinum Monitor //c over the matching
@@ -63,8 +64,29 @@ Entries before versioning was introduced use dates only.
   around them. Every device also casts a contact shadow on the ground
   plane, so the scene reads as objects standing on a desk rather than
   artwork pasted on the backdrop.
+- **`--raw` and `--dos-bin` assembler output.** The assembler could only write
+  a full 64 KB memory image, padded with the fill byte — correct for ROM
+  burning and reference comparison, useless for loading a 2 KB routine, which
+  meant slicing 64 KB down by hand. `--raw` writes only the assembled span;
+  `--dos-bin` writes that span behind the 4-byte load-address/length header an
+  Apple DOS 3.3 binary file carries, so the result is ready to `BLOAD` once
+  placed on a disk. The default is unchanged.
+
+### Changed
+
+- **An explicit output-format flag now wins over the filename's extension.**
+  Extension matching remains as the fallback when no flag is given, so as65-era
+  scripts naming a `.s19` or `.hex` output keep working. Previously the
+  extension always won, which meant `-s -o out.dat` silently wrote a flat
+  binary despite the flag asking for an S-record.
+- Command-line option modelling and parsing moved from the `CassoCli`
+  executable into `CassoCore`, where the test project can link it. Parsing was
+  previously unreachable from any test. Behavior is unchanged and now pinned by
+  tests; the grammar's one filesystem question — does `build` name a real
+  `build.a65`? — is injected rather than probed directly.
 
 ### Fixed
+
 - Pasting text into the guest no longer garbles at line wraps and no
   longer leaks the Ctrl+V character into the input line (#110).
 - Losing the audio endpoint (undocking, switching the default output
@@ -78,6 +100,7 @@ Entries before versioning was introduced use dates only.
   CPU thread now services the command queue while paused (without
   stepping the emulation), which also unsticks paused mounts, drive-audio
   settings, and write-protect toggles.
+
 
 ## [1.16.1] — the //c mouse works with VBL-interrupt software
 
