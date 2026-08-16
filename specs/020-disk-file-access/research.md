@@ -388,40 +388,68 @@ is the property that let 019 and 020 proceed in parallel at all.
 
 ---
 
-## R-011 — The two filesystems' text conventions, one of them unverified
+## R-011 — DOS 3.3 text is settled by measurement; ProDOS is not
 
-**Decision**: Make the high-bit convention a **parameter** of the text codec
-rather than a constant, and record which filesystem uses which as data.
+**Decision**: The high-bit convention is a **parameter** of the text codec. The
+DOS 3.3 value is now evidence-backed; the ProDOS value is not, and the parameter
+is what lets that asymmetry be honest.
 
-**What is verified**: DOS 3.3 stores catalog *names* in high ASCII — measured on
-the cached master, where `HELLO` is `C8 C5 CC CC CF` and the greeting field is
-`$A0`-padded. Sequential text files are asserted to follow the same high-bit
-convention with `$8D` terminators, which is the native Apple II character
-convention.
+### DOS 3.3 — settled: high-bit-set ASCII, `$8D` terminators
 
-**What is NOT verified**: the ProDOS side. TXT files are conventionally plain
-seven-bit ASCII with `$0D`, high bit clear, so they interchange with other
-systems — asserted widely, but not observed here.
+Measured across whole files on a Merlin disk carrying eight type-T files:
 
-**Why it was not settled empirically**: no ProDOS volume carrying a real TXT
-file is available on this machine, and the cached DOS 3.3 master turns out to
-carry **no type-T file at all** (its catalog is entirely A, I, and B — enumerated
-directly). The demo `.dsk` images have no DOS catalog. So the question could not
-be answered by observation, and guessing was declined.
+| File | Bytes | High-bit | `$A0` spaces | `$20` spaces |
+|---|---|---|---|---|
+| `T.MACRO LIBRARY` | 1,616 | 1,578 | 236 | 37 |
+| `T.SENDMSG` | 150 | 150 | 26 | 0 |
+| `PI.NAMES` | 40 | 39 | 0 | 1 |
 
-**Why parameterizing is the right answer regardless**: being wrong is expensive
-and quiet. Every character would land off by `$80`, which reads as garbage
-rather than as an obvious converter bug. A parameter costs one argument, makes
-the answer a data change instead of a rewrite, and lets round-trip identity —
-the invariant that actually matters — be tested for both conventions today.
+Terminators in `T.MACRO LIBRARY`'s first 256 bytes: `$8D` × 28, `$0D` × 0.
+`T.SENDMSG` is the clean specimen — 100% high-bit, every space `$A0`, no
+low-ASCII at all. **Spaces are high too**, not merely letters.
 
-**To settle it**: obtain a ProDOS volume with a TXT file, dump its first bytes,
-and read the convention off the disk.
+### The decoder consequence, which matters more than the convention
+
+**Real files are mixed, so the decoder must strip bit 7 if present and tolerate
+it absent — never validate it.** `T.MACRO LIBRARY` carries 37 legitimate `$20`
+spaces inside otherwise high-bit content, on a banner comment line padded with
+low ASCII. A decoder asserting bit 7 would reject a genuine vendor file.
+
+The same tolerance applies to terminators: comparing the *raw* byte to `$8D`
+would miss a plain `$0D` line ending in the same file and silently run two lines
+together. The comparison therefore happens **after** stripping.
+
+This was nearly gotten backwards from a 48-byte sample, which landed on that
+low-ASCII banner line and suggested spaces were plain. The whole-file counts say
+the opposite. Same shape as the catalog-names trap below: a sample adjacent to
+the truth is not the truth.
+
+### ProDOS — still unsettled, on two machines independently
+
+TXT files are conventionally plain seven-bit ASCII with `$0D`, high bit clear,
+so they interchange with other systems — asserted widely, not observed.
+
+Two separate machines with different disk caches both failed to produce a
+sample. The cached DOS 3.3 master holds **no type-T file at all** (catalog
+enumerated directly: entirely `A`, `I`, `B`). The demo `.dsk` images have no DOS
+catalog. And a cached **ProDOS Users Disk** enumerates to nine entries — `PRODOS`,
+`BASIC.SYSTEM`, `FILER`, `CONVERT` as `SYS`; `STARTUP`, `MOIRE`, `HYPNOSIS`,
+`ANIMALS` as `BAS` — with **no TXT file anywhere**. Two independent failures is
+better evidence that the sample is hard to come by than one would be.
+
+**To settle it**: any ProDOS software disk shipping documentation or a README as
+type `$04`; most ProDOS applications of the era did. Dumping one such file's
+first bytes closes this in a minute.
+
+**Why the parameter is right regardless**: being wrong is expensive and quiet —
+every character off by `$80`, which reads as garbage rather than as an obvious
+converter bug. A parameter costs one argument, makes the answer a data change
+instead of a rewrite, and lets round-trip identity be tested for both
+conventions today.
 
 **A trap worth naming**: the verified fact about catalog *names* is not evidence
 about file *contents*. Generalizing from the adjacent case is exactly how a
-comment in the nibblization tests came to license a data-loss defect, and the
-same shape is available here.
+comment in the nibblization tests came to license a data-loss defect.
 
 ---
 

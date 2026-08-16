@@ -97,6 +97,52 @@ public:
         AssertRoundTripsBothConventions (all);
     }
 
+    TEST_METHOD (Decode_MixedHighAndLowAscii_IsToleratedNotRejected)
+    {
+        // Real vendor files are mixed. Merlin's T.MACRO LIBRARY is 1,578 of
+        // 1,616 bytes high-bit, with 37 plain $20 spaces sitting among 236
+        // high $A0 ones -- a banner comment line padded with low-ASCII inside
+        // otherwise high-bit content.
+        //
+        // So the high bit is STRIPPED IF PRESENT AND TOLERATED IF ABSENT, never
+        // validated. A decoder that required bit 7 would reject a genuine file.
+        vector<Byte>  mixed;
+        std::string   decoded;
+
+        mixed.push_back (0xCC);   // 'L' high
+        mixed.push_back (0xC4);   // 'D' high
+        mixed.push_back (0xC1);   // 'A' high
+        mixed.push_back (0x20);   // a PLAIN space, as the real file contains
+        mixed.push_back (0xA0);   // and a high space, as it also contains
+        mixed.push_back (0x23);   // plain '#'
+        mixed.push_back (0x8D);   // high terminator
+
+        AppleTextCodec::Decode (mixed, AppleTextConvention::HighAscii, decoded);
+
+        // Two spaces, because the input carries both a plain $20 and a high
+        // $A0 -- and they must decode to the SAME character, which is the point.
+        Assert::AreEqual (std::string ("LDA  #\n"), decoded,
+            L"both high and low bytes must decode to the same characters");
+    }
+
+    TEST_METHOD (Decode_PlainTerminatorInHighAsciiContent_StillEndsTheLine)
+    {
+        // The other half of tolerance: comparing the RAW byte to $8D would miss
+        // a plain $0D line ending inside an otherwise high-bit file, silently
+        // running two lines together. Comparing after stripping catches both.
+        vector<Byte>  mixed;
+        std::string   decoded;
+
+        mixed.push_back (0xC1);   // 'A' high
+        mixed.push_back (0x0D);   // a PLAIN carriage return
+        mixed.push_back (0xC2);   // 'B' high
+
+        AppleTextCodec::Decode (mixed, AppleTextConvention::HighAscii, decoded);
+
+        Assert::AreEqual (std::string ("A\nB"), decoded,
+            L"a plain terminator must end the line even in high-bit content");
+    }
+
     TEST_METHOD (Encode_CrLfCollapsesToOneLine)
     {
         // Host text arrives with CRLF on this platform. Two terminators would

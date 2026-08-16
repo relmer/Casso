@@ -136,6 +136,14 @@ Error:
 //  file that did not are different files, and quietly agreeing them would make
 //  the round trip lossy in the one place users notice.
 //
+//  THE HIGH BIT IS STRIPPED IF PRESENT AND TOLERATED IF ABSENT -- never
+//  validated. Real vendor files are mixed: Merlin's T.MACRO LIBRARY is 1,578 of
+//  1,616 bytes high-bit, with 37 plain $20 spaces among 236 high $A0 ones. A
+//  decoder that required bit 7 would reject a genuine file, and one that
+//  compared the raw byte to $8D would miss a plain $0D line ending in the same
+//  file. Comparing after stripping handles both, which is why the terminator
+//  test happens on the seven-bit value.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void AppleTextCodec::Decode (
@@ -152,14 +160,14 @@ void AppleTextCodec::Decode (
 
     for (i = 0; i < appleBytes.size(); i++)
     {
-        Byte  b = appleBytes[i];
+        Byte  stripped = (Byte) (appleBytes[i] & 0x7F);
 
-        if (b == terminator)
+        if (stripped == (Byte) (terminator & 0x7F))
         {
             outHostText += '\n';
             continue;
         }
 
-        outHostText += (char) (b & 0x7F);
+        outHostText += (char) stripped;
     }
 }
