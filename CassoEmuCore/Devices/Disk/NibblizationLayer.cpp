@@ -357,6 +357,88 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NibblizationLayer::RenibblizeTracks
+//
+//  Re-encodes only the named tracks, leaving every other track's packed bits
+//  exactly as they are.
+//
+//  This is what makes a write to a bit-stream image safe. Re-encoding the whole
+//  image would replace all 35 tracks with freshly synthesized standard nibbles,
+//  discarding timing, sync patterns, and weak bits everywhere -- including on
+//  tracks the operation never touched. A 512-byte file has no business
+//  rewriting a disk.
+//
+//  Tracks outside the image are skipped rather than treated as an error: the
+//  caller names the tracks its edit landed on, and an image shorter than the
+//  nominal geometry simply has nothing at those positions.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT NibblizationLayer::RenibblizeTracks (
+    const vector<Byte>    &  sectors,
+    DiskFormat               fmt,
+    std::span<const int>     tracks,
+    DiskImage             &  inOutImage)
+{
+    HRESULT       hr         = S_OK;
+    const int *   interleave = nullptr;
+    size_t        rawSize    = sectors.size();
+    size_t        i          = 0;
+    int           track      = 0;
+    int           logical    = 0;
+    int           trackCount = inOutImage.GetTrackCount();
+
+    CBRAEx (rawSize == (size_t) kImageByteSize, E_INVALIDARG);
+
+    switch (fmt)
+    {
+        case DiskFormat::Dsk: interleave = kDsk_LtoP;             break;
+        case DiskFormat::Do:  interleave = kDsk_LtoP;             break;
+        case DiskFormat::Po:  interleave = kPo_DosLogicalToFile;  break;
+        case DiskFormat::Woz: interleave = kDsk_LtoP;             break;
+        default:              hr         = E_INVALIDARG;          break;
+    }
+
+    CHR (hr);
+
+    for (i = 0; i < tracks.size(); i++)
+    {
+        size_t  bitOffset = 0;
+
+        track = tracks[i];
+
+        if (track < 0 || track >= kTrackCount || track >= trackCount)
+        {
+            continue;
+        }
+
+        inOutImage.ResizeTrack (track, kTrackBitCapacity);
+
+        for (logical = 0; logical < kSectorsPerTrack; logical++)
+        {
+            size_t  offset = static_cast<size_t> (track * kSectorsPerTrack + interleave[logical])
+                           * kSectorByteSize;
+
+            AppendAddressField (inOutImage.GetTrackBitsForWrite (track), bitOffset,
+                                kDefaultVolume,
+                                static_cast<Byte> (track),
+                                static_cast<Byte> (logical));
+            AppendDataField    (inOutImage.GetTrackBitsForWrite (track), bitOffset, &sectors[offset]);
+        }
+
+        inOutImage.SetTrackBitCount (track, bitOffset);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  NibblizationLayer::NibblizeDsk / NibblizeDo / NibblizePo
 //
 ////////////////////////////////////////////////////////////////////////////////

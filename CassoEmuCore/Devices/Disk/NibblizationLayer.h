@@ -54,4 +54,11 @@ public:
     //  Forwards to the reporting form and FAILS on data loss. Not a
     //  passthrough: no caller may obtain a silently truncated buffer.
     static HRESULT  Denibblize  (const DiskImage & img, DiskFormat fmt, vector<Byte> & out);
+
+    //  Re-encodes ONLY the named tracks; every other track's packed bits are
+    //  left byte-identical, so a write cannot disturb what it did not touch.
+    static HRESULT  RenibblizeTracks (const vector<Byte>    & sectors,
+                                      DiskFormat              fmt,
+                                      std::span<const int>    tracks,
+                                      DiskImage             & inOutImage);
 };

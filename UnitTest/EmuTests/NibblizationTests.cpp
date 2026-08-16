@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/NibblizationLayer.h"
+#include "Devices/Disk/TrackWritability.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -624,6 +625,159 @@ public:
         img.SetTrackBitCount (kWiped, DiskImage::kDefaultTrackByteSize * 8);
 
         AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered));
+    }
+
+    TEST_METHOD (RenibblizeTracks_LeavesEveryOtherTrackBitIdentical)
+    {
+        // The whole argument for a targeted rewrite: a small edit must not
+        // resynthesize the rest of the disk. Re-encoding everything would
+        // discard timing, sync, and weak bits on tracks nothing was written to.
+        DiskImage       img;
+        vector<Byte>    raw      = MakePinnedRandomImage (0xC0FFEE01u);
+        vector<Byte>    edited;
+        vector<Byte>    before;
+        const int       kTouched = 12;
+        const int       kIntact  = 13;
+        int             tracks[] = { kTouched };
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+
+        before = img.GetTrackBits (kIntact);
+        edited = raw;
+
+        // Change a byte that lives on the touched track only.
+        edited[static_cast<size_t> (kTouched) * 16 * NibblizationLayer::kSectorByteSize] ^= 0xFF;
+
+        AssertSucceeded (NibblizationLayer::RenibblizeTracks (edited, DiskFormat::Dsk, tracks, img));
+
+        {
+            const vector<Byte> &  after     = img.GetTrackBits (kIntact);
+            size_t                i         = 0;
+            bool                  identical = after.size() == before.size();
+
+            for (i = 0; identical && i < before.size(); i++)
+            {
+                identical = after[i] == before[i];
+            }
+
+            Assert::IsTrue (identical, L"an untouched track's bits must be byte-identical");
+        }
+    }
+
+    TEST_METHOD (RenibblizeTracks_TouchedTrackCarriesTheEdit)
+    {
+        // The other half: the track that was named must actually change, and
+        // the image must still denibblize cleanly afterwards.
+        DiskImage           img;
+        vector<Byte>        raw      = MakePinnedRandomImage (0x5EED1234u);
+        vector<Byte>        edited;
+        vector<Byte>        recovered;
+        SectorDecodeReport  report;
+        const int           kTouched = 4;
+        int                 tracks[] = { kTouched };
+        size_t              at       = static_cast<size_t> (kTouched) * 16
+                                     * NibblizationLayer::kSectorByteSize;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+
+        edited      = raw;
+        edited[at] ^= 0xFF;
+
+        AssertSucceeded (NibblizationLayer::RenibblizeTracks (edited, DiskFormat::Dsk, tracks, img));
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+
+        Assert::AreEqual (edited[at], recovered[at], L"the edit must survive the re-encode");
+        Assert::IsFalse (report.HasDataLoss(), L"a re-encoded image must still decode cleanly");
+        Assert::IsTrue (TrackDecodeOutcome::Complete == report.GetOutcome (kTouched),
+            L"the rewritten track must read back Complete");
+    }
+
+    TEST_METHOD (TrackWritability_CleanImage_EveryTrackWritable)
+    {
+        DiskImage           img;
+        vector<Byte>        raw = MakePinnedRandomImage (0x11223344u);
+        vector<Byte>        recovered;
+        SectorDecodeReport  report;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+
+        {
+            TrackWritability  writability = TrackWritability::Evaluate (img, report);
+
+            Assert::IsTrue (writability.IsImageWritable(), L"a standard image must be writable");
+            Assert::IsTrue (writability.IsTrackWritable (0),  L"track 0 must be writable");
+            Assert::IsTrue (writability.IsTrackWritable (34), L"the last track must be writable");
+        }
+    }
+
+    TEST_METHOD (TrackWritability_DamagedTrack_RefusesOnlyThatTrack)
+    {
+        // Refusal is per track. A track the operation never touches must not
+        // block a write elsewhere on the disk -- that is the difference between
+        // protecting data and refusing to work.
+        DiskImage           img;
+        vector<Byte>        raw       = MakePinnedRandomImage (0x99887766u);
+        vector<Byte>        recovered;
+        SectorDecodeReport  report;
+        const int           kDamaged  = 6;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+
+        {
+            vector<Byte> &  bits   = img.GetTrackBitsForWrite (kDamaged);
+            size_t          addrAt = FindAddressField (bits, 2);
+
+            Assert::AreNotEqual (SIZE_MAX, addrAt, L"the track must carry address fields to corrupt");
+
+            PatchFieldChecksum (bits, addrAt, NibblizationLayer::kDefaultVolume,
+                                static_cast<Byte> (kDamaged));
+        }
+
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+
+        {
+            TrackWritability  writability = TrackWritability::Evaluate (img, report);
+            int               elsewhere[] = { kDamaged - 1, kDamaged + 1 };
+            int               includes[]  = { kDamaged - 1, kDamaged };
+
+            Assert::IsTrue  (writability.IsImageWritable(),
+                L"one damaged track does not condemn the whole image");
+            Assert::IsFalse (writability.IsTrackWritable (kDamaged),
+                L"the damaged track itself must be refused");
+            Assert::IsTrue  (writability.AreTracksWritable (elsewhere),
+                L"a write that avoids the damage must be allowed");
+            Assert::IsFalse (writability.AreTracksWritable (includes),
+                L"a write that needs the damaged track must be refused");
+        }
+    }
+
+    TEST_METHOD (TrackWritability_HalfTrackData_RefusesTheWholeImage)
+    {
+        // Data between whole tracks has nowhere to go in a sector image, and
+        // the loss would be silent. Checked before any track is examined.
+        DiskImage           img;
+        vector<Byte>        raw = MakePinnedRandomImage (0xABCDEF01u);
+        vector<Byte>        recovered;
+        SectorDecodeReport  report;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+
+        // Point a half-track position at a slot that is not its whole track,
+        // which is what a bit-stream capture of a protected disk looks like.
+        img.SetQuarterTrackSlot (10, 7);
+
+        {
+            TrackWritability  writability = TrackWritability::Evaluate (img, report);
+            bool              hasReason   = !writability.GetImageRefusalReason().empty();
+
+            Assert::IsFalse (writability.IsImageWritable(),
+                L"an image holding data between tracks must be refused outright");
+            Assert::IsTrue  (hasReason, L"the refusal must say why");
+            Assert::IsFalse (writability.IsTrackWritable (0),
+                L"the whole-image refusal outranks any per-track answer");
+        }
     }
 };
 
