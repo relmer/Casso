@@ -227,7 +227,7 @@ engine, evaluator, or opcode tables — the claim 023 gates on.
 |---|---|
 | Phase A silently changes AS65 behavior while "just moving code" | Phase A is isolated and its exit criterion is a fully unchanged test suite. Any test edit in Phase A is a signal to stop. |
 | Merlin does not boot cleanly under Casso, blocking capture | Capture is offline and one-time. A sample of entries is cross-checked against hand-derived expectations from the manual, so a disagreement identifies whether the corpus or the emulator is at fault. |
-| Pass 1 and pass 2 disagree about the active instruction table | The table is recorded per line in pass 1 and replayed, never recomputed. Called out in research.md D3 as an explicit task. |
+| Pass 1 and pass 2 disagree about the active instruction table | The table is recorded per line in pass 1 and replayed, never recomputed. The failure this prevents is specific: a CPU-selection directive inside a conditional block whose taken-ness differs between passes would leave pass 2 sizing instructions against a different table than pass 1 bound them with. That surfaces as a corpus byte mismatch far from its cause, which is among the hardest defects here to trace — so the rule is a design constraint, not an optimization. Called out in research.md D3 and as task T018. |
 | Concurrent spec 020 conflicts in `CommandLineParser` | Changes are additive by construction: one row, one enumerator, one arm, one new flag parser. No dispatcher restructuring. |
 | Merlin's expression semantics differ from the shared evaluator | The corpus floor requires evaluator entries, and Phase D lands them before Phase E depends on them. If they diverge, the evaluator gains a dialect-scoped operator table rather than the profile forking it. |
 

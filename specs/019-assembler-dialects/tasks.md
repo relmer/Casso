@@ -19,6 +19,11 @@ description: "Task list for 019-assembler-dialects"
 - **[Story]**: Which user story the task belongs to (US1, US2, US3)
 - Exact file paths are included in every task
 
+IDs above T077 were added after generation and sit in their **execution**
+position rather than at the end, so the file still reads in the order the work
+happens. Existing IDs are never renumbered, because the phase notes and
+dependency graph reference them.
+
 ## Path Conventions
 
 Paths are repository-relative and follow the structure in [plan.md](./plan.md):
@@ -135,6 +140,7 @@ Paths are repository-relative and follow the structure in [plan.md](./plan.md):
 - [ ] T053 [US2] Report an inferred dialect on stderr under verbose and in the listing header in `CassoCli/CommandLine.cpp` — never unconditionally on stdout, which carries the listing when no listing file is named (FR-004)
 - [ ] T054 [P] [US2] Add merlin grammar tests to a **new** `UnitTest/MerlinCommandLineTests.cpp` rather than editing `UnitTest/CommandLineTests.cpp`, and register it in `UnitTest.vcxproj`
 - [ ] T055 [US2] Verify `UnitTest/CommandLineTests.cpp` passes with zero modifications, confirming spec 020's pinned behavior is intact
+- [ ] T078 [US2] Return the shared exit-code vocabulary from the merlin path in `CassoCli/CommandLine.cpp` — 0 clean, 1 succeeded with complaints, 2 no output — matching the existing assembler path so a driving script needs no per-subcommand knowledge; a subset-boundary refusal exits 2 and is distinguished by its message, not by a distinct code (FR-030)
 
 **Checkpoint**: Dialect selection is explicit, strict, and additive to the shared command-line surface.
 

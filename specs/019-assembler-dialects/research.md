@@ -100,8 +100,12 @@ agreeing about which table was active for a given line, which matters because pa
 
 **Open risk**: The active table must be recorded **per line** during pass 1 and
 replayed in pass 2, not recomputed. Recomputing would work only if the directive's
-position were identical in both passes, which conditional assembly can break.
-This is captured as a task rather than left to discovery.
+position were identical in both passes, which conditional assembly can break: a
+CPU-selection directive inside a conditional block whose taken-ness differs
+between passes leaves pass 2 sizing instructions against a table pass 1 did not
+bind them with. The symptom is a corpus byte mismatch arbitrarily far from its
+cause, which makes this a design constraint rather than an optimization. Captured
+as task T018 rather than left to discovery.
 
 **Alternatives considered**: Building a merged table and validating legality
 separately. Rejected — it duplicates the legality rule in two places and makes

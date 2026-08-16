@@ -88,6 +88,26 @@ than stopping at the first — so the scale of the gap is visible at once. Each
 names the construct and the reason, and never surfaces as an unknown-directive
 error.
 
+## Exit codes
+
+`merlin` speaks the vocabulary the tool already uses, so a script driving it needs
+no per-subcommand knowledge of what a number means.
+
+| Code | Meaning |
+|---|---|
+| 0 | Clean — assembled, no complaints |
+| 1 | Succeeded with complaints — assembled, but warnings were emitted |
+| 2 | No output — assembly failed, including every subset-boundary refusal |
+
+This matches the existing assembler path (`0` clean, `1` warned, `2` no output).
+The `run` path extends the same vocabulary with `3` for an illegal opcode, which
+has no analogue here.
+
+A subset-boundary refusal exits **2**, not a distinct code. The refusal is
+distinguished by its *message* (FR-017), which is where a developer reads the
+difference; the exit code answers only "did I get an output file," which is what
+a script needs. Spec `020-disk-file-access` has been given the same convention.
+
 ## Help
 
 `CassoCli merlin --help` describes the dialect's own flags and states where the

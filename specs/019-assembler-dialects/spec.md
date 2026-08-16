@@ -396,6 +396,12 @@ with the construct named and the reason given.
   today or have their change documented in release notes.
 - **FR-024**: Every dialect and its flags MUST be documented in the tool's help
   output, including where the supported Merlin subset ends.
+- **FR-030**: The Merlin entry point MUST use the same exit-code vocabulary as
+  the tool's existing subcommands: **0** for a clean run, **1** for a run that
+  succeeded but emitted complaints, **2** for a run that produced no output. A
+  script driving the tool must not need per-subcommand knowledge of what a given
+  number means. This convention is shared with `020-disk-file-access`, which is
+  defining exit codes for its own subcommand concurrently.
 - **FR-025**: A diagnostic originating inside an included file MUST name that
   file, not the top-level input. The tool reports every diagnostic against the
   top-level input today, which misattributes errors from included source; Merlin's
