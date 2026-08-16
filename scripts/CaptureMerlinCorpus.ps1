@@ -39,6 +39,19 @@
     paste path garbling input, and a garbled paste captured as an expectation is
     worse than no entry at all.
 
+.PARAMETER ConfirmAbsent
+    Assert that ObjectName is NOT on the disk, which is the precondition for
+    capture. Delete the target from within DOS before every assembly and confirm
+    it here: absence afterwards then proves the assembly produced nothing, and
+    presence proves THIS assembly wrote it.
+
+    DOS 3.3 catalogs carry no timestamps, so this is the only freshness check
+    available. Without it, an assembly that errors before saving leaves the
+    PREVIOUS entry's object file in place, and capturing it records one entry's
+    bytes as another's expectation -- self-consistent, plausible, wrong, and it
+    will never fail, because the assembler faithfully reproduces the first
+    entry's bytes from the first entry's constructs.
+
 .EXAMPLE
     ./scripts/CaptureMerlinCorpus.ps1 -Entry strings -SourceName STRINGS.S -Expected corpus/strings.s -Verify
     Confirms the pasted source survived before anything is captured from it.
@@ -56,7 +69,9 @@ param(
 
     [string]$Expected = '',
 
-    [switch]$Verify
+    [switch]$Verify,
+
+    [switch]$ConfirmAbsent
 )
 
 Set-StrictMode -Version Latest
@@ -98,6 +113,45 @@ if (-not $MerlinImage -or -not (Test-Path -LiteralPath $MerlinImage))
 {
     $where = if ($searched) { "Looked in:`n  " + ($searched -join "`n  ") } else { "Looked for '$MerlinImage'." }
     throw "No Merlin 8 disk image found. $where`n`nIt is commercial software and is never committed -- supply your own copy, the way machine ROMs work. See UnitTest/MerlinCorpus/README.md."
+}
+
+if ($ConfirmAbsent)
+{
+    if (-not $ObjectName)
+    {
+        throw '-ConfirmAbsent needs -ObjectName (the target you deleted from within DOS).'
+    }
+
+    # Attempt an extraction rather than scanning the printed catalog. Two
+    # reasons: the listing goes to the host and cannot be captured cleanly, and
+    # substring matching would be WRONG -- looking for "PI.ADD" in catalog text
+    # also matches "PI.ADD.S", so a check meant to prove absence would report a
+    # file present that is not there. Extraction matches the name exactly.
+    $probe   = Join-Path ([System.IO.Path]::GetTempPath()) "merlin-absent-probe-$Entry.bin"
+    $present = $true
+
+    try
+    {
+        & $extractor -Image $MerlinImage -Name $ObjectName -OutFile $probe -Raw *> $null
+    }
+    catch
+    {
+        $present = $false
+    }
+
+    if (Test-Path -LiteralPath $probe)
+    {
+        Remove-Item -LiteralPath $probe -Force
+    }
+
+    if ($present)
+    {
+        throw "'$ObjectName' is still on the disk. Delete it from within DOS before assembling -- otherwise a failed assembly leaves the previous object in place and you capture the wrong entry's bytes."
+    }
+
+    Write-Host "'$ObjectName' is absent -- safe to assemble." -ForegroundColor Green
+    Write-Host '  Anything present afterwards was written by THIS assembly.' -ForegroundColor DarkGray
+    return
 }
 
 if ($Verify)

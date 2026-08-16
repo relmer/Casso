@@ -560,6 +560,12 @@ The corpus MUST contain, at minimum:
   because it is written to fit the seam that exists, which proves only that the
   seam supports profiles shaped like the one already there.
 
+  The corpus's discrimination checks are what give this criterion teeth. Matching
+  bytes show only that the output is correct; an entry that also **fails under
+  the other dialect** shows the *profile* produced those bytes rather than shared
+  machinery that would have produced them regardless. Without that, a seam which
+  has only ever met one dialect satisfies SC-009 for free.
+
 ## Assumptions
 
 - Merlin is the only new dialect in this feature. ca65 was originally scoped here

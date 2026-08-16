@@ -81,13 +81,53 @@ A clean round trip proves the paste. Without it, a garbled paste becomes a
 captured expectation, and the corpus quietly encodes a lie — which is worse than
 having no entry at all, because it launders a mistake into evidence.
 
-### 4. Assemble and capture
+### 4. Delete the target object file — required, not advice
+
+**Before every assembly**, delete the object file you are about to produce, from
+within DOS:
+
+```
+DELETE MYENTRY.OBJ
+```
+
+Confirm it is gone before assembling:
+
+```powershell
+scripts\CaptureMerlinCorpus.ps1 -Entry myentry -ObjectName MYENTRY.OBJ -ConfirmAbsent
+```
+
+This is the only freshness check available, because **DOS 3.3 catalogs carry no
+timestamps** — there is no equivalent of the staleness guard that protects the
+test suite.
+
+Two ways capture otherwise produces bytes that did not come from the source
+beside them:
+
+- **The assembly errored and you captured anyway.** Merlin reports errors on
+  screen, and nothing downstream of the screen knows.
+- **The object file is stale.** Assemble entry A, save, edit for entry B,
+  assemble, hit an error before saving — and A's object is still on the disk.
+  Capture it and you have recorded A's bytes as B's expectation. It is
+  self-consistent, plausible, wrong, and **it will never fail**: the assembler
+  faithfully reproduces A's bytes from A's constructs, and the test compares them
+  to A's bytes.
+
+Deleting first converts "did Merlin succeed?" from something you have to watch
+for into something the extraction step asserts. Absence afterwards proves nothing
+wrote it; presence proves *this* assembly did.
+
+### 5. Assemble and capture
 
 Assemble under Merlin with the listing on, save the object, and extract it with
 the same script. The script reports the load address and length from the DOS
 binary header and strips them, leaving the payload.
 
-### 5. Record the entry
+If extraction reports the file is missing, **the assembly failed** — go back and
+read Merlin's errors. Do not capture. An entry with empty expected bytes is an
+error in the harness, and deleting first is what makes that guard reachable
+rather than theoretical.
+
+### 6. Record the entry
 
 Add source, bytes, and **the exact Merlin version** to `CorpusEntries.h`.
 

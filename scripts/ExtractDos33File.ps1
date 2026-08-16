@@ -270,7 +270,12 @@ $entry = $catalog | Where-Object { $_.Name -eq $Name }
 if (-not $entry)
 {
     $names = ($catalog | ForEach-Object { $_.Name }) -join ', '
-    throw "No file named '$Name'. Catalog holds: $names"
+
+    # During corpus capture this is the EXPECTED signal that an assembly failed,
+    # not merely a typo. The procedure deletes the target before assembling, so
+    # its absence afterwards proves nothing wrote it -- which is the only
+    # freshness check available on a filesystem with no timestamps.
+    throw "No file named '$Name'. If you just assembled and deleted this target first, the assembly did not produce it -- check Merlin for errors rather than capturing. Catalog holds: $names"
 }
 
 $payload = Get-FileBytes -Bytes $bytes -Entry $entry
