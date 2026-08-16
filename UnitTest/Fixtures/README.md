@@ -56,9 +56,20 @@ in later phases (D1, D2, US2). Audited per plan.md
   non-commercial restriction the rest of the repository does not. Check a
   directory's own README before copying its contents anywhere.
 - Adding a new fixture: append a row to the matrix above with provenance,
-  license, and size, then commit the file. If it is third-party material, it
-  also needs its own README in its own subdirectory stating the license,
-  the attribution the license requires, and how the bytes can be re-derived.
+  license, and size, then commit the file.
+- **Non-permissively licensed fixtures need a sidecar `LICENSE` file, and that
+  is the whole obligation.** One `LICENSE` per directory covers every file in
+  it, naming the license, the attribution it requires, and where the material
+  came from. Group files that share a license into their own subdirectory
+  rather than annotating them individually — the directory is the unit. No
+  per-file license accounting is required, and adding a fixture is never a
+  constitution amendment.
+- Fixtures are not dependencies. The **Approved Third-Party Dependencies**
+  allowlist in the constitution governs material that *ships* — compiled into,
+  linked into, or distributed alongside a released binary — where a license
+  grant has to be established in detail. Fixtures reach no end user, so a
+  non-permissive license is acceptable here where it would not be there.
+  Permissive and repo-original fixtures need nothing at all.
 
 ## See also
 

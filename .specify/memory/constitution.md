@@ -2,6 +2,33 @@
 ================================================================================
 SYNC IMPACT REPORT
 ================================================================================
+Version change: 1.8.0 -> 1.9.0 (MINOR -- scoped the dependency allowlist to
+  shipped material and added a lighter rule for test fixtures)
+Modified principles: N/A
+Modified sections:
+  - Technology Constraints / Dependencies: stated that the Approved
+    Third-Party Dependencies allowlist governs material that SHIPS
+    (compiled into, linked into, or distributed alongside a released
+    binary), and that test fixtures are not dependencies. Fixtures need
+    no allowlist entry, no per-file accounting, and no amendment; a
+    non-permissively licensed fixture needs a sidecar LICENSE file
+    covering its directory, and a fixture whose license forbids
+    modification must be read-only to its tests.
+Added sections: N/A
+Removed sections: N/A
+Templates requiring updates:
+  ✅ plan-template.md - Constitution Check still aligned
+  ✅ spec-template.md - No template change required
+  ✅ tasks-template.md - No template change required
+Follow-up TODOs: None. Resolves the deferred D1 finding in
+  specs/019-assembler-dialects: UnitTest/Fixtures/Merlin and
+  UnitTest/Fixtures/Disks are compliant under this rule, and each now
+  carries a LICENSE file.
+================================================================================
+
+================================================================================
+SYNC IMPACT REPORT (PRIOR)
+================================================================================
 Version change: 1.7.0 -> 1.8.0 (MINOR -- added Core Principle VI: Thin
   Executable, Testable Core)
 Modified principles: N/A
@@ -185,6 +212,17 @@ Essentially all logic MUST live in a linked core library, not the application ex
 **Testing Framework**: Microsoft C++ Unit Test Framework
 **Dependencies**: Windows SDK and C++ STL form the baseline. Additional third-party dependencies are permitted ONLY when explicitly listed in the **Approved Third-Party Dependencies** allowlist below. Each entry MUST be MIT/BSD/Apache/PD-licensed (no copyleft), source-vendored in-tree under `External/` (no package manager, no binary downloads), and accompanied by upstream attribution (tag/SHA, license file, `README.casso.md` recording provenance).
 
+**Scope**: this allowlist governs material that ships — anything compiled into, linked into, or distributed alongside a released binary. That is where a license grant has to be established in detail, because we are redistributing someone else's work to end users under our own release.
+
+**Test fixtures are NOT dependencies** and do not require an allowlist entry, a per-file accounting, or a constitution amendment. They are inputs consumed by the test suite, ship in nothing, and reach no end user. A non-permissive license is acceptable for a fixture where it would not be acceptable for a dependency, and the bar is correspondingly lighter:
+
+- Non-permissively licensed fixtures MUST carry a sidecar license note. One `LICENSE` file per directory covers every file in that directory; it MUST name the license, the attribution the license requires, and where the material came from.
+- Where several files share a license, group them in their own subdirectory rather than annotating each file. The directory is the unit.
+- Permissively licensed and repo-original fixtures need nothing.
+- A fixture whose license forbids modification MUST be treated as read-only by the tests that consume it.
+
+The distinction is deliberate. Establishing detailed permission for every shipped artifact is a real obligation; extending that ceremony to test data buys nothing and discourages using the realistic inputs that make a test suite worth having.
+
 **Approved Third-Party Dependencies**:
 
 | Dependency           | License           | Used By        | Location                          | Purpose                                   |
@@ -251,4 +289,4 @@ This constitution supersedes all ad-hoc practices. All code changes MUST verify 
 
 **Guidance Reference**: See `.github/copilot-instructions.md` for detailed runtime development guidance and code style rules.
 
-**Version**: 1.8.0 | **Ratified**: 2026-01-24 | **Last Amended**: 2026-07-08
+**Version**: 1.9.0 | **Ratified**: 2026-01-24 | **Last Amended**: 2026-08-16
