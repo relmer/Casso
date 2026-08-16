@@ -2,6 +2,7 @@
 #include "HeadlessHost.h"
 #include "FixtureProvider.h"
 #include "KeystrokeInjector.h"
+#include "MachineIdle.h"
 #include "TextScreenScraper.h"
 #include "Devices/AppleMouse.h"
 #include "Devices/Apple2eSoftSwitchBank.h"
@@ -557,7 +558,7 @@ public:
             AssertSucceeded (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes));
             core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
 
-            core.RunCycles (60'000'000);                       // boot DOS 3.3 to ]
+            MachineIdle::RunUntilIdle (core, 60'000'000);                       // boot DOS 3.3 to ]
             auto dump = [&] (const char * tag)
             {
                 Logger::WriteMessage (tag);
@@ -635,7 +636,7 @@ public:
             core.PowerCycle();
             AssertSucceeded (core.diskStore->MountFromBytes (6, 0, "control.woz", DiskFormat::Woz, bytes));
             core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
-            core.RunCycles (60'000'000);
+            MachineIdle::RunUntilIdle (core, 60'000'000);
 
             KeystrokeInjector::InjectLine (core, "NEW");
             KeystrokeInjector::InjectLine (core, "10 PRINT \"HI\"");
@@ -719,7 +720,7 @@ public:
                 core.PowerCycle();
                 AssertSucceeded (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes));
                 core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
-                core.RunCycles (60'000'000);                   // boot DOS 3.3 to ]
+                MachineIdle::RunUntilIdle (core, 60'000'000);                   // boot DOS 3.3 to ]
 
                 KeystrokeInjector::InjectLine (core, "NEW");
                 KeystrokeInjector::InjectLine (core, "10 D$=CHR$(4)");
@@ -756,7 +757,7 @@ public:
                 core.PowerCycle();
                 AssertSucceeded (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes2));
                 core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
-                core.RunCycles (60'000'000);
+                MachineIdle::RunUntilIdle (core, 60'000'000);
 
                 KeystrokeInjector::InjectLine (core, "LOAD MOUSE.TEST", 12'000'000);
                 KeystrokeInjector::InjectLine (core, "LIST", 3'000'000);

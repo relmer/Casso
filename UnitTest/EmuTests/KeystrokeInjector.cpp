@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "KeystrokeInjector.h"
+#include "MachineIdle.h"
 
 
 
@@ -153,7 +154,12 @@ size_t KeystrokeInjector::InjectLine (
         if (SUCCEEDED (hrReturn))
         {
             consumed++;
-            core.RunCycles (settleCycles);
+
+            // Settle until the machine is actually done, with settleCycles
+            // as the ceiling rather than the target. A caller whose ceiling
+            // is shorter than the quiet window never reaches idle and so
+            // spends the whole budget, exactly as this used to.
+            MachineIdle::RunUntilIdle (core, settleCycles);
         }
     }
 
