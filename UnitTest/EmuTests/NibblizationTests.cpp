@@ -466,6 +466,12 @@ public:
         // first bad sector, leaving that sector AND every later one in scan
         // order as zeros, while reporting success. Corrupting one address
         // field's checksum mid-track must cost exactly that one sector.
+        //
+        // Measured against the old behavior, this case lost SIX sectors where
+        // it now loses one -- the whole tail of the track from the damage
+        // onward. That ratio is the most compact statement of what the defect
+        // actually cost, and it is why this assertion is on the COUNT rather
+        // than merely on the outcome.
         DiskImage           img;
         vector<Byte>        raw     = MakePinnedRandomImage (0x1234ABCDu);
         vector<Byte>        recovered;
