@@ -156,17 +156,33 @@ CHANGELOG entry. Recorded on GitHub issue #92.
 
 ## D6 — Corpus fixtures and capture
 
-**Decision**: Corpus entries are **compiled-in**: source as string literals,
-expected bytes as byte arrays, in a generated header under `UnitTest`. Multi-file
-entries are served by a `MockFileReader` promoted out of `IncludeTests.cpp` into
-its own shared header. A documented PowerShell capture script regenerates an
-entry by running real Merlin Pro under Casso.
+**Decision (revised)**: Corpus entries are **committed fixtures** under
+`UnitTest/Fixtures/Merlin/`, read through `IFixtureProvider::OpenFixture`.
+Multi-file entries are served by a `MockFileReader` promoted out of
+`IncludeTests.cpp` into its own shared header.
 
-Each entry records the Merlin version it was captured from.
+This replaces an earlier plan to compile source and bytes in as generated
+literals, and it is better on every axis: the fixtures are the vendor's actual
+files rather than a transcription of them, they need no capture step to run, and
+`OpenFixture` is the project's **only** sanctioned path to fixture bytes —
+`UnitTest/Fixtures/README.md` states the Constitution II contract plainly, that
+there is no `std::ifstream` of host paths from test code and that anything
+outside `UnitTest/Fixtures/` is a violation. A design reading `DevDisks/` would
+have been reverted in review, whatever its merits.
 
-**Rationale**: Constitution II forbids unit tests reading disk. Compiled-in
-fixtures satisfy that by construction rather than by discipline. The `FileReader`
-seam already exists on `AssemblerOptions` for exactly the multi-file case.
+**Capture is now only for ADDING a fixture**, not for running the suite. Tests
+run on every build on every machine with no fetch step;
+`scripts/ExtractMerlinFixtures.ps1` re-derives every fixture from the hash-pinned
+disk, so the provenance chain from archive.org to the directory is re-runnable
+end to end.
+
+**Fixture format**: raw DOS 3.3 bytes. Skip the 4-byte BIN header, take the
+length from bytes 2–3, mask bit 7, translate `$8D` to newline. Do **not** assert
+bit 7 is set — `DCI` marks its terminator by clearing it, which this feature
+established from the oracle. Compare objects from offset 4.
+
+**A fixture is never edited to make a test pass.** The ND term forbids altered
+copies, and a mismatch is a finding about Casso rather than about the file.
 
 **Capture dependency**: none on `020-disk-file-access`. The Merlin Pro disk is a
 flat DOS-order image, so sector *S* of track *T* sits at `((T * 16) + S) * 256`

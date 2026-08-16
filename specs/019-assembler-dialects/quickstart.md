@@ -107,8 +107,9 @@ scripts\RunTests.ps1 -Build -Configuration Release -Filter MerlinCorpusTests
 
 This is SC-001. Every entry meeting the corpus floor assembles to bytes identical
 to those captured from real Merlin Pro. Nothing here reads a file or invokes another
-assembler — sources are compiled-in literals, and multi-file entries are served
-by an injected mock reader.
+assembler — sources and objects are committed fixtures read through
+`IFixtureProvider::OpenFixture`, and multi-file entries are served by an injected
+mock reader. No fetch step: the fixtures run on every build on every machine.
 
 ### Phase F — every boundary construct is refused by name
 

@@ -19,8 +19,8 @@ diagnostic is attributed to the top-level input. And Merlin's relocatable path
 must be refused by name rather than failing as an unknown directive, which means
 the subset boundary is a table rather than scattered checks.
 
-Correctness is measured against bytes captured from real Merlin Pro, compiled into
-the test project. Nothing at test time reads a disk or invokes another assembler.
+Correctness is measured against vendor source and shipped object code committed as
+fixtures, lifted verbatim from the pinned Merlin Pro 2.23 disk. Nothing at test time reads a disk or invokes another assembler.
 
 ## Technical Context
 
@@ -29,8 +29,9 @@ the test project. Nothing at test time reads a disk or invokes another assembler
 **Primary Dependencies**: None added. Windows SDK and STL only, per the
 constitution's dependency baseline.
 
-**Storage**: N/A. Corpus fixtures are compiled-in string literals and byte
-arrays, not files.
+**Storage**: Corpus fixtures are committed under `UnitTest/Fixtures/Merlin/` and
+read through `IFixtureProvider::OpenFixture`, the only sanctioned path to fixture
+bytes. No test opens a host path.
 
 **Testing**: Microsoft C++ Unit Test Framework, in the existing `UnitTest`
 project. Extended suites `scripts/RunDormannTest.ps1` and
@@ -76,7 +77,7 @@ absolute count.
 | Principle | Assessment | Verdict |
 |---|---|---|
 | I. Code Quality | New code follows EHM, single-exit, declarations-at-top, and the file/class layout rules. Each dialect profile is a class with methods and therefore gets its own header/source pair. No anonymous namespaces; tables are file-scope `static constexpr` because they span 3+ lines. | PASS |
-| II. Testing Discipline | Every new class is in `CassoCore` and reachable from `UnitTest`. Corpus fixtures are compiled-in; the multi-file case uses an injected mock reader. No test reads a file, and FR-019 was clarified specifically to avoid a doc-reading test. | PASS |
+| II. Testing Discipline | Every new class is in `CassoCore` and reachable from `UnitTest`. Corpus fixtures are read through `IFixtureProvider::OpenFixture`, the only sanctioned path; the multi-file case uses an injected mock reader. No test opens a host path, and FR-019 was clarified specifically to avoid a doc-reading test. | PASS |
 | III. User Experience Consistency | `merlin` is a bare-word subcommand matching `run`. The dialect is reported on the diagnostic stream and in listing headers, never unconditionally on stdout, so piped listings are unaffected. Existing invocations are untouched — the AS65 fallback stays. | PASS |
 | IV. Performance | One virtual call per source line. No allocation added to the per-line path beyond what `ParseLine` already does. | PASS |
 | V. Simplicity | The seam is justified by FR-001 and by 023 depending on it; it is not speculative. The profile is mostly data specifically to avoid an elaborate class hierarchy. | PASS |
@@ -215,7 +216,7 @@ first corpus entries — starting with the ones that **settle open questions**:
 irregular spacing, symbol case and length, and expression operators and
 precedence. Entries land before the parser that must satisfy them.
 
-**Exit criterion**: corpus harness runs, entries are compiled in, and the six
+**Exit criterion**: corpus harness runs against the committed fixtures, and the six
 "settle by capture" items in research.md have answers recorded.
 
 ### Phase E — Merlin profile

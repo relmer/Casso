@@ -126,7 +126,7 @@ Two of those refusals are not equally final, and the message must reflect it:
 
 The distinction is not academic, and the vendor disk supplies **both** cases:
 
-- `PI.ADD.S` — `REL` plus `ENT` on four labels, **no `EXT`**. The export-only
+- `PI.ADD.S` — `REL` plus `ENT` on **six** labels, **no `EXT`**. The export-only
   case, which assembles once relocatable mode is removed and an origin supplied.
 - `PI.START.S` — `REL` plus `EXT` three times and one `ENT`. The case with **no**
   workaround.

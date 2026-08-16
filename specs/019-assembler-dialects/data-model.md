@@ -167,7 +167,10 @@ diagnostics exactly as it does today.
 
 ## CorpusEntry
 
-One unit of correctness evidence. Compiled in; never read from disk.
+One unit of correctness evidence. Source and expected bytes live as **committed
+fixtures** under `UnitTest/Fixtures/Merlin/`, read through
+`IFixtureProvider::OpenFixture` — the only sanctioned path to fixture bytes. No
+test opens a host path.
 
 | Field | Meaning |
 |---|---|

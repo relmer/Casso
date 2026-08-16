@@ -69,7 +69,7 @@ dependency is therefore a refinement, not a prerequisite.
 - Q: Where do the reference bytes for SC-001 come from, given unit tests may not
   touch disk and a Merlin disk image cannot be committed? → A: Capture them
   offline from real Merlin Pro running under Casso's own emulation, once per corpus
-  entry, and commit the source-plus-bytes pairs as compiled-in fixtures. The
+  entry, and commit the source-plus-bytes pairs as fixtures. The
   emulation dependency exists only at capture time and is discharged by
   cross-checking a sample against hand-derived expectations from the manual.
 - Q: Does the file-and-column diagnostic requirement mean retrofitting every
@@ -631,10 +631,16 @@ The corpus MUST contain, at minimum:
   against it would bake the wrong expectations into the corpus. It may cross-check
   constructs the dialects share; it is not the authority. Reading its source is
   governed by the project's clean-room rule — consult for behavior, never copy.
-- **Reference bytes are captured offline, once per corpus entry**, and committed
-  as compiled-in literals paired with the source that produced them. Multi-file
-  entries are served through the injected file-reader seam. No test reads a file
-  or invokes an assembler, so test isolation is satisfied by construction.
+- **Reference source and bytes are committed as fixtures** under
+  `UnitTest/Fixtures/Merlin/`, lifted verbatim from the pinned disk, and read
+  through `IFixtureProvider::OpenFixture` — the project's only sanctioned path to
+  fixture bytes. No test opens a host path, so test isolation is satisfied by the
+  contract rather than by discipline. Multi-file entries are served through the
+  injected file-reader seam.
+
+  A fixture MUST NOT be edited to make a test pass. The license's no-derivatives
+  term forbids altered copies, and a fixture that has been adjusted has stopped
+  being an oracle: a mismatch is a finding about Casso, not about the file.
 - **The Merlin disk image is never committed** — commercial software, the same
   grounds on which `dos33-master.dsk` is gitignored. A developer regenerating the
   corpus supplies their own copy, the way ROM images already work. Only source
