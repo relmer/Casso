@@ -44,6 +44,15 @@ public:
         CommandLineOptions::Subcommand     token;
     };
 
+    // One row of the disk-verb table, nested for the same reason
+    // SubcommandName is: a bare struct in the .cpp would have external linkage
+    // that no keyword can take away.
+    struct DiskVerbName
+    {
+        const char                            *  name;
+        CommandLineOptions::DiskOptions::Verb    verb;
+    };
+
     static CommandLineOptions  Parse (int argc, char * argv[], const FileExistsFn & fileExists);
 
     // Shared with the executable, which needs the same tests when it decides
@@ -69,4 +78,7 @@ private:
     static void  ParseAs65Flags    (int argc, char * argv[], CommandLineOptions & options);
     static void  ApplyAs65Defaults (CommandLineOptions & options, const FileExistsFn & fileExists);
     static void  ParseRunOptions   (int argc, char * argv[], int argIndex, CommandLineOptions & options);
+    static void  ParseDiskOptions  (int argc, char * argv[], int argIndex, CommandLineOptions & options);
+
+    static CommandLineOptions::DiskOptions::Verb  LookUpDiskVerb (const std::string & word);
 };

@@ -644,4 +644,148 @@ namespace CommandLineTests
             Assert::IsFalse (CommandLineParser::EndsWith ("a", ".a65"));
         }
     };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DiskSubcommandTests
+    //
+    //  The `disk` grammar. Its options are NESTED rather than flattened into the
+    //  top-level struct, because a verb, an image path, and an encoding selector
+    //  mean nothing to any other subcommand -- and nothing already in that struct
+    //  means anything to `disk`. Every assertion here goes through `opts.disk`,
+    //  which is the boundary being kept visible.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DiskSubcommandTests)
+    {
+    public:
+        TEST_METHOD (Disk_SelectsTheSubcommand)
+        {
+            ArgVector           args = { "CassoCli", "disk", "list", "my.dsk" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::Disk);
+            Assert::IsTrue (opts.disk.verb  == CommandLineOptions::DiskOptions::Verb::List);
+            Assert::AreEqual (std::string ("my.dsk"), opts.disk.imagePath);
+        }
+
+        TEST_METHOD (Disk_TerseAliasesResolveToTheDescriptiveVerbs)
+        {
+            // `ls` and `rm` are what fingers type; the descriptive words are
+            // what help displays. They must be the same verb, not two.
+            ArgVector           lsArgs = { "CassoCli", "disk", "ls", "my.dsk" };
+            ArgVector           rmArgs = { "CassoCli", "disk", "rm", "my.dsk", "PROG" };
+            CommandLineOptions  ls     = CommandLineParser::Parse (lsArgs.Count(), lsArgs.Data(), NoProbe());
+            CommandLineOptions  rm     = CommandLineParser::Parse (rmArgs.Count(), rmArgs.Data(), NoProbe());
+
+            Assert::IsTrue (ls.disk.verb == CommandLineOptions::DiskOptions::Verb::List);
+            Assert::IsTrue (rm.disk.verb == CommandLineOptions::DiskOptions::Verb::Delete);
+        }
+
+        TEST_METHOD (Disk_CatIsNotAVerb)
+        {
+            // Deliberately absent: it collides with the established meaning of
+            // printing a file's contents, which this tool does under `get`.
+            ArgVector           args = { "CassoCli", "disk", "cat", "my.dsk" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::None);
+        }
+
+        TEST_METHOD (Disk_GetTakesAnOnDiskPathAndAnOutputFile)
+        {
+            ArgVector           args = { "CassoCli", "disk", "get", "my.dsk", "PROG", "--out", "prog.bin" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::Get);
+            Assert::AreEqual (std::string ("my.dsk"),   opts.disk.imagePath);
+            Assert::AreEqual (std::string ("PROG"),     opts.disk.path);
+            Assert::AreEqual (std::string ("prog.bin"), opts.disk.hostFile);
+        }
+
+        TEST_METHOD (Disk_PutsSecondOperandIsAHostFileNotAnOnDiskPath)
+        {
+            // The asymmetry is inherent: put is the only verb whose second
+            // operand lives on the host. --as names the file on the disk.
+            ArgVector           args = { "CassoCli", "disk", "put", "my.dsk", "prog.bin",
+                                         "--as", "PROG", "--type", "B", "--addr", "$6000" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::Put);
+            Assert::AreEqual (std::string ("prog.bin"), opts.disk.hostFile);
+            Assert::AreEqual (std::string ("PROG"),     opts.disk.path);
+            Assert::AreEqual (std::string ("B"),        opts.disk.typeName);
+            Assert::IsTrue   (opts.disk.hasLoadAddress);
+            Assert::AreEqual ((Word) 0x6000,            opts.disk.loadAddress);
+        }
+
+        TEST_METHOD (Disk_LoadAddressZeroIsDistinguishableFromUnspecified)
+        {
+            // $0000 is a legal load address, which is why the has-flag exists.
+            ArgVector           given  = { "CassoCli", "disk", "put", "my.dsk", "p.bin", "--addr", "$0000" };
+            ArgVector           absent = { "CassoCli", "disk", "put", "my.dsk", "p.bin" };
+            CommandLineOptions  a      = CommandLineParser::Parse (given.Count(),  given.Data(),  NoProbe());
+            CommandLineOptions  b      = CommandLineParser::Parse (absent.Count(), absent.Data(), NoProbe());
+
+            Assert::IsTrue  (a.disk.hasLoadAddress);
+            Assert::AreEqual ((Word) 0, a.disk.loadAddress);
+            Assert::IsFalse (b.disk.hasLoadAddress);
+            Assert::AreEqual ((Word) 0, b.disk.loadAddress);
+        }
+
+        TEST_METHOD (Disk_EncodingDefaultsToVerbatim)
+        {
+            // Verbatim means no CHARACTER conversion -- the lossless path.
+            ArgVector           args = { "CassoCli", "disk", "get", "my.dsk", "PROG" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim);
+        }
+
+        TEST_METHOD (Disk_EncodingSelectorsAreRecognized)
+        {
+            ArgVector           textArgs  = { "CassoCli", "disk", "get", "my.dsk", "T", "--text" };
+            ArgVector           basicArgs = { "CassoCli", "disk", "get", "my.dsk", "B", "--basic" };
+            CommandLineOptions  text      = CommandLineParser::Parse (textArgs.Count(),  textArgs.Data(),  NoProbe());
+            CommandLineOptions  basic     = CommandLineParser::Parse (basicArgs.Count(), basicArgs.Data(), NoProbe());
+
+            Assert::IsTrue (text.disk.encoding  == CommandLineOptions::DiskOptions::Encoding::Text);
+            Assert::IsTrue (basic.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Basic);
+        }
+
+        TEST_METHOD (Disk_LongListingFlag)
+        {
+            ArgVector           args = { "CassoCli", "disk", "list", "my.dsk", "--long" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.disk.longListing);
+        }
+
+        TEST_METHOD (Disk_DoesNotDisturbTheAssemblerFields)
+        {
+            // The whole point of nesting. A disk invocation must leave the
+            // assembler-shaped fields at their defaults, so a later reader
+            // cannot mistake one subcommand's state for another's.
+            ArgVector           args = { "CassoCli", "disk", "put", "my.dsk", "prog.bin", "--addr", "$6000" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue   (opts.inputFile.empty(),  L"disk does not set the assembler's input");
+            Assert::IsTrue   (opts.outputFile.empty(), L"nor its output");
+            Assert::IsFalse  (opts.hasLoadAddress,     L"--addr belongs to the disk options only");
+            Assert::AreEqual ((Word) 0x8000, opts.loadAddress, L"the assembler default is untouched");
+        }
+
+        TEST_METHOD (BareWordThatIsNotASubcommand_StaysAs65)
+        {
+            // Adding a row must not turn an unrecognized first argument into an
+            // error: it is a source filename, which is how as65 was invoked.
+            ArgVector           args = { "CassoCli", "disky.a65" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::As65);
+        }
+    };
 }

@@ -13,7 +13,26 @@
 //
 static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
 {
-    { "run", CommandLineOptions::Subcommand::Run },
+    { "run",  CommandLineOptions::Subcommand::Run  },
+    { "disk", CommandLineOptions::Subcommand::Disk },
+};
+
+
+//
+//  Second-level verbs of the `disk` subcommand. Descriptive words are what help
+//  displays; the terse spellings are accepted because they are what fingers
+//  type. `cat` is deliberately absent -- it collides with the established
+//  meaning of printing a file's contents, which this tool does under `get`.
+//
+static constexpr CommandLineParser::DiskVerbName  s_kDiskVerbs[] =
+{
+    { "list",   CommandLineOptions::DiskOptions::Verb::List   },
+    { "ls",     CommandLineOptions::DiskOptions::Verb::List   },
+    { "get",    CommandLineOptions::DiskOptions::Verb::Get    },
+    { "put",    CommandLineOptions::DiskOptions::Verb::Put    },
+    { "delete", CommandLineOptions::DiskOptions::Verb::Delete },
+    { "rm",     CommandLineOptions::DiskOptions::Verb::Delete },
+    { "boot",   CommandLineOptions::DiskOptions::Verb::Boot   },
 };
 
 
@@ -24,6 +43,168 @@ static constexpr const char *  s_kpszSourceExtensions[] =
     ".asm",
     ".s",
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LookUpDiskVerb
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CommandLineOptions::DiskOptions::Verb CommandLineParser::LookUpDiskVerb (const std::string & word)
+{
+    CommandLineOptions::DiskOptions::Verb  verb = CommandLineOptions::DiskOptions::Verb::None;
+    size_t                                 i    = 0;
+
+
+
+    for (i = 0; i < std::size (s_kDiskVerbs); i++)
+    {
+        if (word == s_kDiskVerbs[i].name)
+        {
+            verb = s_kDiskVerbs[i].verb;
+            break;
+        }
+    }
+
+    return verb;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseDiskOptions
+//
+//  Grammar, positional then flagged:
+//
+//      disk list   <image> [--long]
+//      disk get    <image> <path> [--out <file>] [--text | --basic | --verbatim]
+//      disk put    <image> <file> [--as <path>] [--type <t>] [--addr $XXXX]
+//                                 [--text | --basic | --verbatim]
+//      disk delete <image> <path>
+//      disk boot   <image> <path>
+//
+//  Positional meaning depends on the verb: `put` names a HOST file to place and
+//  optionally renames it with --as, while every other verb names a file already
+//  on the disk. That asymmetry is inherent -- put is the only verb whose second
+//  operand lives on the host -- so it is spelled out rather than smoothed over.
+//
+//  Parsing does not validate that required operands are present. That is the
+//  runner's job, because a missing operand needs a message naming what was
+//  expected, and the parser has no way to report one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::ParseDiskOptions (
+    int                   argc,
+    char               *  argv[],
+    int                   argIndex,
+    CommandLineOptions &  options)
+{
+    int  i          = argIndex;
+    int  positional = 0;
+
+
+
+    if (i < argc)
+    {
+        options.disk.verb = LookUpDiskVerb (argv[i]);
+        i++;
+    }
+
+    for ( ; i < argc; i++)
+    {
+        std::string  arg      = argv[i];
+        bool         hasValue = (i + 1) < argc;
+
+        if (arg == "--long")
+        {
+            options.disk.longListing = true;
+            continue;
+        }
+
+        if (arg == "--text")
+        {
+            options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+            continue;
+        }
+
+        if (arg == "--basic")
+        {
+            options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+            continue;
+        }
+
+        if (arg == "--verbatim")
+        {
+            options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Verbatim;
+            continue;
+        }
+
+        if (arg == "--out" && hasValue)
+        {
+            options.disk.hostFile = argv[i + 1];
+            i++;
+            continue;
+        }
+
+        if (arg == "--as" && hasValue)
+        {
+            options.disk.path = argv[i + 1];
+            i++;
+            continue;
+        }
+
+        if (arg == "--type" && hasValue)
+        {
+            options.disk.typeName = argv[i + 1];
+            i++;
+            continue;
+        }
+
+        if (arg == "--addr" && hasValue)
+        {
+            Word     address = 0;
+            HRESULT  hr      = ParseAddress (argv[i + 1], address);
+
+            if (SUCCEEDED (hr))
+            {
+                options.disk.loadAddress    = address;
+                options.disk.hasLoadAddress = true;
+            }
+
+            i++;
+            continue;
+        }
+
+        // Anything else is positional. The first is always the image.
+        if (positional == 0)
+        {
+            options.disk.imagePath = arg;
+        }
+        else if (positional == 1)
+        {
+            // `put` takes a host file here; every other verb takes a path on
+            // the disk. --as may override the on-disk name afterwards.
+            if (options.disk.verb == CommandLineOptions::DiskOptions::Verb::Put)
+            {
+                options.disk.hostFile = arg;
+            }
+            else
+            {
+                options.disk.path = arg;
+            }
+        }
+
+        positional++;
+    }
+}
 
 
 
@@ -1001,6 +1182,10 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
     if (named == CommandLineOptions::Subcommand::Run)
     {
         ParseRunOptions (argc, argv, 2, options);
+    }
+    else if (named == CommandLineOptions::Subcommand::Disk)
+    {
+        ParseDiskOptions (argc, argv, 2, options);
     }
 
 Error:

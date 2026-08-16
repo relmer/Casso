@@ -17,6 +17,19 @@
 //  would force every consumer to unpack before reading a field that means the
 //  same thing either way.
 //
+//  That rationale holds for the assembler-shaped subcommands, which genuinely
+//  do share an input file, an output file, a fill byte, and addresses. It does
+//  NOT hold for `disk`: a verb, an image path, a file name, and an encoding
+//  selector mean nothing to any other subcommand, and nothing already here
+//  means anything to `disk`. Flattening eight unrelated fields in would leave
+//  the paragraph above technically present and quietly untrue -- "most fields
+//  are shared" would stop being so, and the next subcommand would inherit a
+//  struct that is half assembler options and half something else.
+//
+//  So `disk` nests. The grouping is visible at every use site, the shared-field
+//  character of the top level survives, and the cost is one level of
+//  indirection in code that is not hot.
+//
 //  Address fields are paired with has-flags because 0 is a legal address. A
 //  load address of $0000 and no load address given are different requests, and
 //  the value alone cannot tell them apart.
@@ -35,8 +48,32 @@
 
 struct CommandLineOptions
 {
-    enum class Subcommand    { None, Run, Help, Version, As65 };
+    enum class Subcommand    { None, Run, Help, Version, As65, Disk };
     enum class CpuTarget     { M6502, M65C02 };
+
+    //
+    //  Everything the `disk` subcommand expresses. Nested rather than
+    //  flattened, per the note above.
+    //
+    struct DiskOptions
+    {
+        enum class Verb      { None, List, Get, Put, Delete, Boot };
+
+        //  How a payload's bytes relate to the file on the host. Verbatim means
+        //  no CHARACTER conversion -- length and header semantics still apply,
+        //  because those record where a file ends rather than transforming it.
+        enum class Encoding  { Verbatim, Text, Basic };
+
+        Verb         verb           = Verb::None;
+        Encoding     encoding       = Encoding::Verbatim;
+        std::string  imagePath;                        // the disk image
+        std::string  path;                             // the file ON the disk
+        std::string  hostFile;                         // source for put, --out for get
+        std::string  typeName;                         // --type, as the user spelled it
+        Word         loadAddress    = 0;               // --addr
+        bool         hasLoadAddress = false;           // $0000 is a legal address
+        bool         longListing    = false;           // --long
+    };
 
     //  Binary is the as65 full-64-KB image and stays the default, so an
     //  existing invocation keeps producing exactly what it always did. Raw and
@@ -67,6 +104,10 @@ struct CommandLineOptions
     bool          hasStopAddress  = false;
     bool          hasEntryAddress = false;
     char          flagPrefix      = '-';                // '-' for Unix-style, '/' for Windows-style
+
+    //  Live only when subcommand == Disk. Grouped so its boundary is visible
+    //  at every use site rather than mixed into the assembler's fields.
+    DiskOptions   disk;
 
     // AS65-compatible options
     bool                                      cycleCounts       = false;   // -c
