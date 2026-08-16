@@ -8,6 +8,55 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MerlinDirectiveTable
+//
+//  Merlin's spelling -> token mapping. A second dialect is a second TABLE, not a
+//  second assembler, which is what `Directive.h` says the token enum exists for.
+//
+//  Every spelling here was taken from the committed vendor sources rather than
+//  transcribed from the manual, with one deliberate exception noted below. The
+//  corpus supplies its own frequencies -- DCI appears 130 times, ASC 35, ERR 17,
+//  HEX 13 -- so the table reflects what Merlin source actually contains.
+//
+//  DDB is the exception: it appears nowhere on the disk. It is included anyway,
+//  because absence from one vendor's source is not absence from the language,
+//  and DDB is the one data directive whose byte order the existing Word token
+//  cannot express.
+//
+//  Merlin has NO dotted spellings, so these tokens have no canonical name in
+//  DirectiveTable, which is as65's. Diagnostics quoting a Merlin directive must
+//  come through GetCanonicalName here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class MerlinDirectiveTable
+{
+public:
+    struct Spelling
+    {
+        const char *  name;
+        Directive     token;
+    };
+
+    // `word` is expected upper-cased. Returns Directive::None when the spelling
+    // is not a Merlin directive.
+    static Directive           FromSpelling (const std::string & word);
+
+    // Merlin's own spelling for a token, for diagnostics and listings. Empty for
+    // a token Merlin does not have.
+    static const char *        GetCanonicalName (Directive directive);
+
+    // Every accepted spelling, so a test can sweep the vocabulary rather than a
+    // hand-picked sample -- matching DirectiveTable::GetAllSpellings.
+    static std::span<const Spelling>  GetAllSpellings();
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MerlinDialect
 //
 //  Glen Bredon's Merlin, in the absolute subset this feature supports.

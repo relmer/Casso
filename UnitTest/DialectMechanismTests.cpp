@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Dialect.h"
+#include "Directive.h"
+#include "MerlinDialect.h"
 #include "DialectProfile.h"
 #include "DialectRegistry.h"
 #include "InstructionSetProvider.h"
@@ -249,6 +251,73 @@ namespace DialectMechanismTests
                              L"PHX is not a 6502 instruction");
             Assert::IsTrue (provider.GetExtended().IsMnemonic ("PHX"),
                             L"PHX is a 65C02 instruction, so the extended table must carry it");
+        }
+    };
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DirectiveTokenTotalityTests
+    //
+    //  The totality claim that survives having more than one dialect.
+    //
+    //  DirectiveTokenTests used to sweep every Directive and require an as65
+    //  canonical spelling. That held only while as65 was the only dialect. Merlin
+    //  brought tokens as65 must NOT accept -- FR-005 forbids admitting one
+    //  dialect's constructs into another -- so the old claim became false without
+    //  anything being wrong.
+    //
+    //  This is the weaker claim that is still true and still worth having: a
+    //  token belonging to NO dialect is unreachable, which is exactly the bug the
+    //  original sweep was defending against. It lives here because it is the only
+    //  place both spelling tables are in scope.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DirectiveTokenTotalityTests)
+    {
+    public:
+
+        TEST_METHOD (EveryDirectiveTokenIsClaimedByADialect)
+        {
+            int  token = 0;
+
+            for (token = 1; token < (int) Directive::Count; token++)
+            {
+                Directive     which    = (Directive) token;
+                const char *  as65Name = DirectiveTable::GetCanonicalName (which);
+                const char *  merlName = MerlinDirectiveTable::GetCanonicalName (which);
+                std::wstring  message  = L"Directive token " + std::to_wstring (token)
+                                       + L" has no spelling in any dialect, so nothing can ever produce it";
+
+                Assert::IsTrue ((as65Name[0] != '\0') || (merlName[0] != '\0'), message.c_str());
+            }
+        }
+
+
+
+        //  Every Merlin spelling resolves to its own token, sweeping the table
+        //  rather than a sample -- so a spelling added later is covered without
+        //  anyone editing this test.
+        TEST_METHOD (EveryMerlinSpellingResolvesToItsOwnToken)
+        {
+            for (const MerlinDirectiveTable::Spelling & entry : MerlinDirectiveTable::GetAllSpellings())
+            {
+                std::wstring  message = L"Merlin spelling did not resolve to its own token";
+
+                Assert::IsTrue (MerlinDirectiveTable::FromSpelling (entry.name) == entry.token, message.c_str());
+            }
+        }
+
+
+
+        //  as65 must not have quietly gained Merlin's vocabulary. This is the
+        //  guard on FR-005 at the table level: HEX and DCI are Merlin words, and
+        //  an as65 source using them must still fail.
+        TEST_METHOD (As65DoesNotAcceptMerlinOnlySpellings)
+        {
+            Assert::IsTrue (DirectiveTable::FromSpelling ("HEX")  == Directive::None, L"HEX is not an as65 directive");
+            Assert::IsTrue (DirectiveTable::FromSpelling ("DCI")  == Directive::None, L"DCI is not an as65 directive");
+            Assert::IsTrue (DirectiveTable::FromSpelling (".HEX") == Directive::None, L"and no dotted form exists either");
         }
     };
 }

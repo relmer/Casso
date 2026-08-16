@@ -2990,6 +2990,36 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
     { Directive::Text,        &AssemblySession::HandlePass1Text,                  &AssemblySession::EmitTextDirective      },
     { Directive::Title,       &AssemblySession::HandlePass1Title,                 nullptr                                  },
     { Directive::Word,        &AssemblySession::HandlePass1Word,                  &AssemblySession::EmitWordDirective      },
+
+    //  Merlin's directives. The TOKENS exist so the vocabulary is complete in
+    //  one place and this static_assert fires once rather than once per
+    //  directive task; the BEHAVIORS land task by task after this.
+    //
+    //  A null pair means "no handler", which for these means not implemented
+    //  YET -- not "does nothing". They are unreachable today because no dialect
+    //  but as65 can be selected, and each must be filled before Merlin source
+    //  can assemble: emitting nothing for a HEX line would be the silent
+    //  wrong-bytes failure this feature is built to avoid.
+    { Directive::StringData,      nullptr,                                  nullptr                                  },
+    { Directive::HexData,         nullptr,                                  nullptr                                  },
+    { Directive::WordHighFirst,   nullptr,                                  nullptr                                  },
+    { Directive::ErrorIf,         nullptr,                                  nullptr                                  },
+    { Directive::Loop,            nullptr,                                  nullptr                                  },
+    { Directive::LoopEnd,         nullptr,                                  nullptr                                  },
+    { Directive::DummySection,    nullptr,                                  nullptr                                  },
+    { Directive::DummySectionEnd, nullptr,                                  nullptr                                  },
+    { Directive::MacroDef,        nullptr,                                  nullptr                                  },
+    { Directive::MacroEnd,        nullptr,                                  nullptr                                  },
+    { Directive::CpuSelect,       nullptr,                                  nullptr                                  },
+    { Directive::ObjectFile,      nullptr,                                  nullptr                                  },
+
+    //  Refused by name rather than handled. The refusal is a table of its own,
+    //  consulted before dispatch, so these rows stay null by design.
+    { Directive::Relocatable,     nullptr,                                  nullptr                                  },
+    { Directive::EntrySymbol,     nullptr,                                  nullptr                                  },
+    { Directive::ExternalSymbol,  nullptr,                                  nullptr                                  },
+    { Directive::FileType,        nullptr,                                  nullptr                                  },
+    { Directive::SaveObject,      nullptr,                                  nullptr                                  },
     };
 
     // Adding a Directive without adding its row fails the build here. Row

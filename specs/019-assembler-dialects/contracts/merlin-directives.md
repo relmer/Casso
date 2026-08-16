@@ -25,13 +25,23 @@ One token carrying an encoding mode, not five tokens. The five spellings differ
 only in high-bit handling, inversion, and terminator convention — parameters, not
 operations.
 
-| Spelling | High bit | Inverse | Flashing | Terminator |
-|---|---|---|---|---|
-| `ASC` | from delimiter | no | no | none |
-| `DCI` | from delimiter | no | no | last character inverted in high bit |
-| `INV` | — | yes | no | none |
-| `FLS` | — | no | yes | none |
-| `STR` | from delimiter | no | no | leading length byte |
+| Spelling | High bit | Inverse | Flashing | Terminator | Uses on disk |
+|---|---|---|---|---|---|
+| `ASC` | from delimiter | no | no | none | 35 |
+| `DCI` | from delimiter | no | no | last character inverted in high bit | **130** |
+| `INV` | — | yes | no | none | 1 |
+| `FLS` | — | no | yes | none | 0 |
+| `STR` | from delimiter | no | no | leading length byte | 0 |
+| `REV` | from delimiter | no | no | text emitted **reversed** | 3 |
+
+**`REV` was missing from this list** and was found in the vendor sources, which is
+why the family is six spellings and not five. It is the argument for deriving the
+table from the corpus rather than transcribing it: a spelling nobody wrote down
+still has to assemble.
+
+The counts are from the nine committed sources. `DCI` at 130 uses is the
+workhorse and the corpus's sharpest probe, which is consistent with its being the
+encoding whose terminator convention is easiest to get subtly wrong.
 
 Merlin infers high-bit or low-bit from *which delimiter quotes the string*, so
 delimiter handling is part of resolving the mode rather than a separate concern.
@@ -192,6 +202,33 @@ decided.
 | `XC` (second occurrence) | Selects the 65802/65816, which Casso does not emulate | A 65816 core |
 | `TYP` | Sets a filesystem file type, meaningless without a filesystem that has types | `020-disk-file-access` |
 | `SAV` | Saves the object so far and continues — multi-output segmentation | Its own decision. **Not** a 020 dependency; 020 landing will not make the right behavior obvious. |
+
+## Found in the sources, missing from this contract
+
+Extracting every opcode-field word from the nine committed sources and removing
+the 6502/65C02 mnemonics left 43 distinct words. Most are macro invocations from
+the vendor library (`STADR` 21, `KBD` 7, `TR` 5, `MOV` 5 …). The rest exposed
+gaps in this document, all now in the table:
+
+| Word | Uses | What it is | Status |
+|---|---|---|---|
+| `REV` | 3 | Sixth string spelling | **Added** to the string family above |
+| `ERR` | 17 | Assembly-time assertion — fails when its expression is non-zero | **Added**; `LABELS.S` cannot assemble without it |
+| `PAG` | 1 | Page eject in the listing | **Added**, reusing the existing `Page` token |
+| `AST` | 4 | Asterisk line in the listing | **Open** — listing cosmetics, no byte effect |
+| `EXP` | 4 | Macro-expansion listing control | **Open** — listing cosmetics, no byte effect |
+| `VAR` | 1 | Macro variable substitution | **Open** — semantics unconfirmed, do not guess |
+
+**`BLT` (9) and `BGE` (7) are not directives.** They are Merlin's aliases for
+`BCC` and `BCS`, so they belong to the instruction layer rather than to this
+table — 16 uses across the corpus, and source using them will not assemble until
+the mnemonic layer knows them. Recorded here because this is where they were
+found, not because this is where they are fixed.
+
+`AST`, `EXP` and `VAR` are left open deliberately. The first two affect only the
+listing and cannot change a byte; `VAR`'s semantics are not confirmed by anything
+observed, and guessing at a macro-substitution rule is exactly the way to produce
+plausible wrong bytes.
 
 ## Unsettled, to be answered by capture
 
