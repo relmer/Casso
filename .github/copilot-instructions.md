@@ -577,6 +577,15 @@ git config --get core.hooksPath
   `scripts/CheckStyle.ps1 -Mode Tree` as the backstop — a violation anywhere
   fails the build, so the backlog can never regrow.
 - Check your branch by hand any time with `scripts/CheckStyle.ps1`.
+- **Adding a NEW file? Run `scripts/CheckStyle.ps1 -Mode Staged` before you
+  commit.** Diff mode compares two commits, so a file that has never been
+  committed contributes no added lines to that comparison and is invisible to
+  every rule — the run reports `0 file(s) checked … OK` and means it. The
+  first violation then surfaces only once the commit exists, and fixing it
+  costs an amend. Staged mode diffs the index against `HEAD`, so it sees the
+  new file while it is still staged. It skips the commit-message check, since
+  there is no commit yet, and says `SKIPPED` out loud when nothing is staged
+  rather than passing on an empty inspection.
 
 ### Merge-to-Master Gates
 These gates apply to **`master`** — i.e. every commit that lands on `master`

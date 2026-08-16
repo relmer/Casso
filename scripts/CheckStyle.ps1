@@ -24,10 +24,17 @@
     push, a clone that never enabled the hook).
 
 .PARAMETER Mode
-    `Diff`  (default) -- check only lines added between -Against and
+    `Diff`   (default) -- check only lines added between -Against and
                          -Revision.
-    `Tree`  -- check every tracked file. Expect existing violations until
-               the backlog sweep lands.
+    `Staged` -- check only lines the INDEX adds over HEAD. Use before
+                committing, and especially when adding a NEW file: Diff
+                mode compares commits, so a file that has never been
+                committed contributes no added lines and is invisible to
+                it. Its first violation therefore surfaces only after the
+                commit exists, making the fix an amend. Staged mode sees
+                it while it is still staged.
+    `Tree`   -- check every tracked file. Expect existing violations until
+                the backlog sweep lands.
 
 .PARAMETER Against
     Base ref for Diff mode. Defaults to origin/master, then master.
@@ -49,11 +56,16 @@
     Checks lines added on the current branch versus origin/master.
 
 .EXAMPLE
+    scripts/CheckStyle.ps1 -Mode Staged
+    Checks what is staged, before committing it. The only mode that sees a
+    brand-new file.
+
+.EXAMPLE
     scripts/CheckStyle.ps1 -Mode Tree
     Full-tree audit -- reports the whole existing backlog.
 #>
 param(
-    [ValidateSet('Diff', 'Tree')]
+    [ValidateSet('Diff', 'Staged', 'Tree')]
     [string]$Mode = 'Diff',
 
     [string]$Against = '',
@@ -289,17 +301,29 @@ function Resolve-BaseRef
 #  each following `+` line advances it. Removed lines are ignored -- a
 #  push cannot be blamed for text it deletes.
 #
+#  -Cached diffs the index against HEAD instead of comparing two commits.
+#  That is what lets a never-committed file be checked: against a commit
+#  range it has no "added" lines at all, because neither side of the range
+#  contains it, so every rule silently passes over it.
+#
 ####################################################################
 
 function Get-AddedLines
 {
-    param([string]$Base, [string]$Tip)
+    param([string]$Base, [string]$Tip, [switch]$Cached)
 
     $results = @()
     $file    = ''
     $lineNo  = 0
 
-    $diff = git -C $repoRoot diff --unified=0 --no-color --diff-filter=d "$Base...$Tip" 2>$null
+    if ($Cached)
+    {
+        $diff = git -C $repoRoot diff --cached --unified=0 --no-color --diff-filter=d 2>$null
+    }
+    else
+    {
+        $diff = git -C $repoRoot diff --unified=0 --no-color --diff-filter=d "$Base...$Tip" 2>$null
+    }
 
     foreach ($raw in $diff)
     {
@@ -1094,11 +1118,30 @@ if ($Mode -eq 'Diff')
 
 $sink = [System.Collections.Generic.List[object]]::new()
 
-if ($Mode -eq 'Diff')
+if ($Mode -eq 'Diff' -or $Mode -eq 'Staged')
 {
-    $added        = Get-AddedLines -Base $Against -Tip $Revision
+    if ($Mode -eq 'Staged')
+    {
+        $added      = Get-AddedLines -Cached
+        $scopeLabel = 'lines added by the staged changes'
+
+        # Nothing staged means nothing was checked, and this script's own
+        # rule is that a gate reporting OK when it inspected nothing is
+        # worse than no gate. Same reasoning as the unresolvable-base
+        # guard above: say SKIPPED out loud rather than pass cheerfully.
+        if ($added.Count -eq 0)
+        {
+            [Console]::Error.WriteLine("CheckStyle: SKIPPED -- nothing is staged. Stage your changes, then re-run.")
+            exit 0
+        }
+    }
+    else
+    {
+        $added      = Get-AddedLines -Base $Against -Tip $Revision
+        $scopeLabel = "lines added between $Against and $Revision"
+    }
+
     $touchedFiles = @($added | Select-Object -ExpandProperty File -Unique)
-    $scopeLabel   = "lines added between $Against and $Revision"
 
     foreach ($group in ($added | Group-Object File))
     {
@@ -1140,9 +1183,17 @@ foreach ($b in (Test-EhmConditionCalls -Files $touchedFiles))
 # Structural rules analyse the whole file but report only where the diff
 # reached, so a pre-existing violation in a file you merely touched cannot
 # block a push. Tree mode passes $null and reports everything.
+#
+#  Note for Staged mode: the structural rules read whole files from the
+#  working tree, not from the index. With everything staged those are the
+#  same bytes; with a partial stage they are not, so a structural finding
+#  can point at an unstaged line. Reporting it is still the right call --
+#  a real violation sitting in the file is worth knowing about -- but the
+#  line number belongs to the working tree.
+#
 $addedIndex = $null
 
-if ($Mode -eq 'Diff')
+if ($Mode -eq 'Diff' -or $Mode -eq 'Staged')
 {
     $addedIndex = [System.Collections.Generic.HashSet[string]]::new()
     foreach ($a in $added) { [void] $addedIndex.Add("$($a.File)|$($a.Line)") }
@@ -1156,6 +1207,9 @@ if ($Structural)
     }
 }
 
+# Diff only, deliberately: in Staged mode the commit being checked does not
+# exist yet, so there is no message to inspect. The pre-push hook still runs
+# Diff mode and catches a bad subject before it leaves the machine.
 if (-not $SkipCommitCheck -and $Mode -eq 'Diff')
 {
     foreach ($b in (Test-CommitMessages -Base $Against -Tip $Revision))
