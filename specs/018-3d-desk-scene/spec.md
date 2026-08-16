@@ -18,6 +18,12 @@
 - Q: How does a device's perspective relate to where it sits in the window? → A: One shared viewpoint centered on the display; every device is truly placed in that one world, so its perspective follows from its position — devices to the right are seen slightly from the left, devices below slightly from above, corners combine both. Per-device cameras and straight-on billboarding are prohibited. This is the mechanism that makes docked positions (follow-on spec) read correctly, including live perspective change while dragging.
 - Q: Does undocking drives into separate windows carry into the 3D scene (today's chrome is dockable)? → A: Documented parity exception — in this phase the scene is one composed surface with drives in the default position. The follow-on docking spec implements the agreed model: the user drags a drive as a full-opacity rendering of the drive itself (not a translucent ghost) that follows the cursor and may travel outside the window, and on release it always docks to an edge of the Casso window — drives are never free-floating windows.
 
+### Session 2026-08-15
+
+- Q: The original input said "Monitor //c + two Disk II drives". Is one monitor used for every machine? → A: No — the scene shows what the machine actually shipped with, and never mixes the two families. The //e and ][+ get an Apple Monitor II (A2M2010) standing on Disk II drives; the //c gets a Monitor //c over Disk IIc drives. A //c monitor on Disk IIs is two eras of Apple industrial design in one stack. (FR-017)
+- Q: Multisampling costs real GPU and how much depends entirely on the host. Constant or user setting? → A: A user setting, and a global one — it describes the host's graphics budget, not the emulated machine, so it is neither per machine nor per monitor. Off / 2x / 4x, applied without a restart. (FR-018)
+- Q: How much of the CRT treatment's cost is acceptable for an idle machine? → A: The scene must not spend GPU redrawing what has not changed, and the post-process must not be sized to the window when the picture is a fraction of it. (FR-020, SC-007)
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Curved-glass monitor with the live picture (Priority: P1)
@@ -87,9 +93,9 @@ A user can switch between the skeuomorphic theme and the two compact-drive theme
 
 ### Functional Requirements
 
-- **FR-001**: In the skeuomorphic theme, the system MUST present the emulated display on a 3D Apple Monitor //c model whose screen surface carries period-correct spherical curvature, replacing the current 2D monitor frame.
+- **FR-001**: In the skeuomorphic theme, the system MUST present the emulated display on the 3D monitor model paired with the emulated machine (FR-017), whose screen surface carries period-correct spherical curvature, replacing the current 2D monitor frame.
 - **FR-002**: The system MUST map pointing-device input (mouse, touch, pen) over the curved display to emulated screen coordinates such that any visible emulated pixel can be hit, with accuracy within one emulated pixel of the equivalent flat-display mapping, across the entire glass including corners and edges.
-- **FR-003**: The system MUST render the machine's disk drives as 3D Disk II models in the scene, showing one drive per configured drive, and no drive objects for machines without them.
+- **FR-003**: The system MUST render the machine's disk drives as the 3D drive models paired with the emulated machine (FR-017), showing one drive per configured drive, and no drive objects for machines without them.
 - **FR-004**: Each 3D drive MUST show disk activity via its in-use light with no user-perceivable lag relative to today's 2D drive band.
 - **FR-005**: Each 3D drive MUST visibly distinguish loaded versus empty state.
 - **FR-006**: Hovering a 3D drive MUST show the same tooltip content the 2D drive band shows today, including the mounted image name and the write-protect explanations introduced in the blank-disk-creation feature, with identical wording.
@@ -103,11 +109,15 @@ A user can switch between the skeuomorphic theme and the two compact-drive theme
 - **FR-014**: Fullscreen MUST present the curved glass alone — the picture filling the screen with curvature and curvature-correct input, monitor body/drives/backdrop hidden.
 - **FR-015**: In fullscreen, the system MUST provide a drive overlay strip with full windowed-mode drive interaction parity (activity, tooltips, slot/body clicks): summoned by pointer-to-bottom-edge when the host owns the pointer, or by a dedicated hotkey when the guest has pointer capture (mouse/paddle) — the hotkey releases capture for the interaction and restores it on dismissal. The strip auto-hides on pointer-leave but never while a tooltip or the disk browser is open. Pointer-to-edge summoning MUST be disabled while the guest has capture. While hidden, drive activity MUST surface via an unobtrusive indicator (its exact form is a design-time decision). The Disk menu remains available as today.
 - **FR-016**: Within each composed presentation — the windowed desk scene, and the fullscreen drive strip as its own composition — all devices MUST render from that presentation's single shared viewpoint with their true positions in one scene, so each device's perspective corresponds to where it sits relative to that presentation's center (right of center → seen slightly from the left, below → slightly from above, and combinations). Per-device cameras or straight-on billboarding MUST NOT be used. (Elaborates how the FR-013 viewpoint projects each device.)
+- **FR-017**: The scene MUST show the monitor and drives the emulated machine actually shipped with, and MUST NOT pair them across families. The Apple //e and ][+ get an Apple Monitor II (A2M2010) standing on Disk II drives; the Apple //c gets a Monitor //c standing on Disk IIc drives. Switching machines MUST swap the whole stack together.
+- **FR-018**: Edge smoothing (multisampling) for the scene MUST be user-selectable between off, 2x and 4x, and MUST take effect without restarting the application. The setting is GLOBAL — it describes the host's graphics budget, not anything about the emulated machine — so it MUST NOT be stored per machine or per monitor.
+- **FR-019**: The CRT scanline treatment MUST be free of aliasing artifacts — moiré banding, or a pattern that crawls as the window is resized — at every window size and picture scale the scene produces. Where the line pitch approaches the display's own pixel pitch, the effect MUST fade smoothly toward flat rather than alias.
+- **FR-020**: The scene MUST NOT spend GPU redrawing what has not changed. Geometry that only changes on a model load, a resize, or a state change (a lamp lighting, a door moving) MUST NOT be re-rasterized every frame, and the CRT post-process MUST be sized to the picture rather than to the window.
 
 ### Key Entities
 
 - **Desk scene**: The composed 3D presentation for the skeuomorphic theme — a fixed arrangement of device objects viewed from the front, composed over the theme's existing backdrop (no modeled environment in this phase); owns which devices appear based on the emulated machine's configuration.
-- **Device object**: A 3D representation of one physical device (Monitor //c, Disk II drive) built from the checked-in parametric models; carries interactive regions (slot, body) and state indicators (lamps, door/disk state).
+- **Device object**: A 3D representation of one physical device — Apple Monitor II (A2M2010) or Monitor //c, Disk II or Disk IIc drive — built from the checked-in parametric models; carries interactive regions (slot, body) and state indicators (lamps, door/disk state). Which pair appears is decided by the emulated machine (FR-017).
 - **Curved display surface**: The monitor's glass; presents the live emulated picture with spherical curvature and defines the mapping between pointer positions on the glass and emulated screen coordinates.
 - **Drive state**: Per-drive live status feeding the scene — mounted image identity, activity, loaded/empty, and write-protect status with its user-facing explanation (shared with the existing 2D band and menus).
 
@@ -120,11 +130,13 @@ A user can switch between the skeuomorphic theme and the two compact-drive theme
 - **SC-003**: All drive interactions available in the 2D band (activity light, loaded/empty state, tooltips including write-protect wording, slot-click eject+browse, body-click browse) are demonstrably present in the 3D scene — 100% parity on a scripted walkthrough checklist.
 - **SC-004**: Theme switching completes in under one second in either direction with the emulated machine running throughout.
 - **SC-005**: Both non-skeuomorphic themes (dark-modern, retro) produce pixel-identical rendering to the current release in a side-by-side capture comparison.
-- **SC-006**: A first-time viewer shown the skeuomorphic theme identifies the on-screen objects as a period Apple monitor and disk drives without prompting (qualitative gestalt check against reference photos).
+- **SC-006**: A first-time viewer shown the skeuomorphic theme identifies the on-screen objects as a period Apple monitor and disk drives without prompting (qualitative gestalt check against reference photos), and identifies the pair as belonging to the same machine.
+- **SC-007**: With the machine idle at a prompt, the scene costs materially less than redrawing it whole each frame: at a maximized window on integrated graphics, GPU utilization sits in the mid-teens rather than approaching saturation, and no measurable share of CPU goes to re-sending geometry that has not moved.
+- **SC-008**: The scanline treatment shows no periodic banding across a text-free area of raster at any window size, and the pattern does not visibly change character as the window is resized.
 
 ## Assumptions
 
-- The checked-in parametric models (Monitor //c, Disk II) on this branch are the visual source for the scene; refinements to the models themselves are ordinary asset updates, not spec changes.
+- The checked-in parametric models on this branch are the visual source for the scene: Apple Monitor II (A2M2010) and Disk II for the //e and ][+, Monitor //c and Disk IIc for the //c. Refinements to the models themselves are ordinary asset updates, not spec changes — the original input named only the //c pair because that is what existed when it was written.
 - The scene uses a fixed front-facing composition chosen to echo today's skeuomorphic layout (monitor above/behind, drives below/beside); the exact arrangement is a design-time decision, not user-configurable in this phase.
 - User rearrangement, docking, and layout persistence are a follow-on feature with its interaction model already agreed (drag the full-opacity drive rendering, cursor-following and free to leave the window during the drag, always resolving to a dock edge of the Casso window on release); undocking drives into separate windows is therefore unavailable in this phase as a documented parity exception. New device types (DuoDisk, //c external drive, ProFile hard disk) arrive in later features paired with their emulation work.
 - The existing skeuomorphic 2D drive band and monitor frame are fully superseded within the skeuomorphic theme: their behavior contract (tooltips, click regions, indicator timing) is the parity reference during development, and the 2D frame/band code is removed once parity is validated — no fallback path and no user-visible toggle. The app's existing graphics baseline is sufficient for the scene.
