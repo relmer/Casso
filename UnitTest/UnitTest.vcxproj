@@ -271,6 +271,7 @@
     <ClCompile Include="AppleTextCodecTests.cpp" />
     <ClCompile Include="EmuTests\Dos33VolumeTests.cpp" />
     <ClCompile Include="EmuTests\VolumeIntegrityTests.cpp" />
+    <ClCompile Include="EmuTests\DiskCommandRunnerTests.cpp" />
     <ClCompile Include="EmuTests\VolumeOracleTests.cpp" />
     <ClCompile Include="EmuTests\BlankDiskBuilderTests.cpp" />
     <ClCompile Include="EmuTests\ProDosVolumeTests.cpp" />
