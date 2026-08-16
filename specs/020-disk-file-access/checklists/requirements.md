@@ -32,8 +32,15 @@
 ## Notes
 
 - Requirements were renumbered flat during the 2026-08-15 clarification pass when
-  three requirements were inserted after FR-015. The former FR-016..FR-029 are now
-  FR-019..FR-032. Anything referencing the old numbers predates that pass.
+  requirements were inserted after FR-015 and after FR-030. The former
+  FR-016..FR-029 are now FR-019..FR-033. Anything referencing the old numbers
+  predates that pass.
+- **Spec 019 deliberately did NOT renumber flat, and that divergence is correct.**
+  019's FR-016..FR-019 are cited externally from a GitHub issue, so renumbering
+  would have broken a live reference; it kept an irregular sequence instead.
+  Nothing outside this file cites 020's numbers, so flat renumbering was free
+  here. Two specs, opposite choices, each right for its own constraint — do not
+  "fix" one to match the other.
 - The clarification pass resolved an internal contradiction: the former FR-029
   required detecting an image in use by a running emulator, while the Assumptions
   declared that scenario out of scope. The requirement now matches the scope —
@@ -52,4 +59,16 @@
 - Exit-status vocabulary (FR-030) is shared with the assembler and run
   subcommands and was matched to their existing meanings rather than minted new,
   so a script driving the tool needs no per-subcommand knowledge. This is a
-  cross-feature concern; spec 019 was given the same note.
+  cross-feature concern; spec 019 was given the same note. FR-031 deliberately
+  stops the sharing at 2: codes of 3 and above stay subcommand-scoped, because
+  requiring global uniqueness would couple subcommands that are otherwise
+  independent — the property that let 019 and 020 be developed in parallel.
+- The ProDOS substrate is further along than a filename survey suggests, because
+  `ProDosReader` and `ProDosFileWriter` are declared inside the skeleton's header
+  rather than in files named for themselves. Read already handles all three
+  storage types; write already handles two of them with real bitmap allocation.
+  The genuine gaps are tree growth, delete with free-space return, and
+  subdirectory traversal — the existing classes were built for bootable-disk
+  creation, not as a general filesystem layer, so they are volume-directory-only
+  and append-only. **Delete is on the P1 critical path**, not a later nicety,
+  because FR-011 requires that writing an existing name replace it.

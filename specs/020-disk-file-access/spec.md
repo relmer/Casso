@@ -391,23 +391,30 @@ program in the guest, and confirm the listing matches the source text.
   makes their direction unambiguous; the help text MUST say so. `cat` MUST NOT
   be used for the catalog listing, because it collides with the established
   meaning of printing a file's contents — which this tool does under `get`.
-- **FR-030**: Every operation MUST report its outcome through an exit status
-  drawn from the tool's existing vocabulary, so a script driving `disk` needs no
-  per-subcommand knowledge: **0** the operation completed cleanly, **1** the
+- **FR-030**: Every operation MUST report its outcome through an exit status.
+  The values **0**, **1**, and **2** are reserved and mean the same thing in
+  every subcommand of this tool: **0** the operation completed cleanly, **1** the
   operation succeeded but had complaints (a partial read, damage described on
   the error stream, with the usable result still on the output stream), **2** the
-  operation produced no output. This is the same meaning `as65` and `run`
-  already assign to those values.
-- **FR-031**: Failure messages MUST name the image, the file, and the reason, and
+  operation produced no output. This is the meaning the assembler and run
+  subcommands already assign, so a script needs no per-subcommand knowledge to
+  branch on those three.
+- **FR-031**: Exit statuses of **3** and above are scoped to the subcommand that
+  returns them and MUST be documented in that subcommand's own help. They carry
+  no cross-subcommand meaning and MUST NOT be coordinated against other
+  subcommands' values — a caller already knows which subcommand it invoked, so
+  requiring global uniqueness above 2 would couple independent subcommands
+  without making any script more correct.
+- **FR-032**: Failure messages MUST name the image, the file, and the reason, and
   MUST go to the error stream so they do not contaminate piped output.
-- **FR-032**: Every capability MUST be documented in the tool's help output.
-- **FR-033**: Because modifying an image mounted in a running emulator is out of
+- **FR-033**: Every capability MUST be documented in the tool's help output.
+- **FR-034**: Because modifying an image mounted in a running emulator is out of
   scope (see Assumptions), and because the emulator holds no handle on the file
   to detect, the system MUST document the hazard rather than claim to prevent
   it. It MUST additionally make a best-effort exclusive-open probe and refuse
   when some *other* holder has the file open — which the platform can detect —
   without implying that a clean probe means no emulator is running.
-- **FR-034**: The system MUST record the target image's size and modification
+- **FR-035**: The system MUST record the target image's size and modification
   time when it reads the image, and MUST re-verify both immediately before
   committing a write, refusing if either changed. This closes the window in
   which another writer landed between read and commit. It cannot detect a write
