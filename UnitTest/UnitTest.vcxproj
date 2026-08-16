@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -295,6 +295,7 @@
     <ClCompile Include="EmuTests\VideoTimingTests.cpp" />
     <ClCompile Include="EmuTests\TextScreenScraper.cpp" />
     <ClCompile Include="EmuTests\KeystrokeInjector.cpp" />
+    <ClCompile Include="EmuTests\MachineIdle.cpp" />
     <ClCompile Include="EmuTests\MemoryProbeHelpers.cpp" />
     <ClCompile Include="EmuTests\Phase8IntegrationTests.cpp" />
     <ClCompile Include="EmuTests\Phase9IntegrationTests.cpp" />
@@ -546,6 +547,7 @@
     <ClInclude Include="EmuTests\HeadlessHost.h" />
     <ClInclude Include="EmuTests\TextScreenScraper.h" />
     <ClInclude Include="EmuTests\KeystrokeInjector.h" />
+    <ClInclude Include="EmuTests\MachineIdle.h" />
     <ClInclude Include="EmuTests\MemoryProbeHelpers.h" />
     <ClInclude Include="Dxui\MockDxuiControl.h" />
     <ClInclude Include="Dxui\MockDxuiPainter.h" />

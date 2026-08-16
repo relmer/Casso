@@ -486,10 +486,20 @@ status enum or an out-param, and leave `hr` meaning only success or failure.
 have no choice. Where producing it is genuinely unavoidable, mark the line
 `// EHM-ALLOW-SFALSE: <reason>`.
 
-Enable the hook once per clone (shared by all worktrees):
+**`Build.ps1` enables the hook for you.** It points the clone at `.githooks`
+on every run, announcing itself the one time it changes anything, so a fresh
+clone or a new worktree acquires the gate without anyone remembering to.
+
+Git refuses to let a repository configure its own clones — `core.hooksPath`
+arriving with a checkout would make cloning an arbitrary-code-execution
+hazard — so `.git/config` never syncs and this cannot be committed once and
+inherited. Building is the closest thing to a step everyone already takes.
+
+To set it by hand (or to check):
 
 ```powershell
 git config core.hooksPath .githooks
+git config --get core.hooksPath
 ```
 
 - The pre-push hook is **diff-scoped**: it inspects only the lines a push
