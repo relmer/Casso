@@ -451,7 +451,28 @@ with the construct named and the reason given.
 ### Corpus Floor
 
 SC-001 is measured against a defined floor rather than a judgment about what
-"representative" means. The corpus MUST contain, at minimum:
+"representative" means.
+
+**Two sources, because each has the other's blind spot.** The *manual* enumerates
+the vocabulary and tells you what to test **for**. The *disk* demonstrates idiom —
+how constructs are actually written — and surfaces what the manual
+under-documents; the semicolon serving as a macro-argument separator is not
+something a manual states clearly, and vendor source showed it in minutes.
+
+The disk's blind spot is symmetric and easy to miss: **it cannot report what the
+vocabulary contains that this vendor did not use.** Absence from the disk is not
+evidence of absence from the language. Where the manual lists a construct the
+disk never exercises, that MUST become a corpus entry rather than an assumption.
+
+**Vendor source is captured, not read.** Beyond what is needed to fix the field
+model, the macro grammar, and the string family, the remaining source on the disk
+MUST be added as corpus entries rather than studied for spec revisions. A
+byte mismatch is a better signal than a reading: it is specific, it is attached to
+a test, and it cannot be forgotten. Reading is reserved for constructs genuinely
+ambiguous from bytes alone — those that change what the assembler *does* rather
+than what it *emits*, which comparison cannot settle.
+
+The corpus MUST contain, at minimum:
 
 - **One entry per construct named in FR-007 through FR-015.** Breadth beyond the
   floor is opportunistic; the floor itself is not.

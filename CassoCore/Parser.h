@@ -106,11 +106,26 @@ class OpcodeTable;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+class DialectProfile;
+
+
+
 class Parser
 {
 public:
     static std::vector<std::string> SplitLines (const std::string & source);
+
+    // Delegates to the active dialect. The overload without a profile keeps
+    // AS65 as the default, so every caller that predates dialect selection is
+    // unaffected.
     static ParsedLine               ParseLine  (const std::string & line, int lineNumber);
+    static ParsedLine               ParseLine  (const std::string & line, int lineNumber, const DialectProfile & dialect);
+
+    // Lexical helpers shared with the dialect profiles, which need exactly the
+    // same primitives to segment a line.
+    static std::string              StripComments (const std::string & line);
+    static std::string              Trim          (const std::string & s);
+    static std::string              ToUpper       (const std::string & s);
 
     static ClassifiedOperand          ClassifyOperand   (const std::string & operand);
     static HRESULT                    ParseValue        (const std::string & text, int & value);

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Dialect.h"
+
 
 
 
@@ -85,6 +87,11 @@ class FileReader;
 
 struct AssemblerOptions
 {
+    // Which dialect's syntax the source is written in. Carried here rather than
+    // in a command-line parser so EVERY entry point selects it the same way --
+    // the CLI, the tests, and anything later that assembles source. Defaults to
+    // AS65, so callers that predate dialect selection are unaffected.
+    DialectId                                   dialect           = DialectId::As65;
     Byte                                        fillByte          = 0xFF;
     bool                                        generateListing   = false;
     WarningMode                                 warningMode       = WarningMode::Warn;
