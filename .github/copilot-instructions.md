@@ -480,6 +480,17 @@ Two specific practices fall out of this:
   diagnostic attribution passed immediately, because the include happened to be
   the last thing processed, so the ambient state was coincidentally correct. They
   only discriminated once a trailing top-level line was added.
+
+  The general form is **mutate what the test covers and confirm the test
+  notices.** Reverting a fix is the instance that applies when the fix changed
+  existing behavior. A test covering newly-added API has nothing to revert to —
+  "without the fix" does not compile — so the mutation is to stub the
+  implementation instead: make the classifier return a constant and confirm the
+  test goes red. A test that stays green under a reverted fix is therefore not
+  automatically weak; check first whether there was prior behavior to
+  discriminate against. Two of the three damage tests for GH #115 stayed green
+  correctly, because the mechanisms they cover reported nothing at all before
+  that work.
 - **A `Copy-Item` restore defeats build staleness detection.** `Copy-Item`
   preserves `LastWriteTime`, so restoring a backup makes the source look **older**
   than the object built from the edited version. MSBuild then skips the rebuild —
