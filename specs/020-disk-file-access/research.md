@@ -388,6 +388,43 @@ is the property that let 019 and 020 proceed in parallel at all.
 
 ---
 
+## R-011 — The two filesystems' text conventions, one of them unverified
+
+**Decision**: Make the high-bit convention a **parameter** of the text codec
+rather than a constant, and record which filesystem uses which as data.
+
+**What is verified**: DOS 3.3 stores catalog *names* in high ASCII — measured on
+the cached master, where `HELLO` is `C8 C5 CC CC CF` and the greeting field is
+`$A0`-padded. Sequential text files are asserted to follow the same high-bit
+convention with `$8D` terminators, which is the native Apple II character
+convention.
+
+**What is NOT verified**: the ProDOS side. TXT files are conventionally plain
+seven-bit ASCII with `$0D`, high bit clear, so they interchange with other
+systems — asserted widely, but not observed here.
+
+**Why it was not settled empirically**: no ProDOS volume carrying a real TXT
+file is available on this machine, and the cached DOS 3.3 master turns out to
+carry **no type-T file at all** (its catalog is entirely A, I, and B — enumerated
+directly). The demo `.dsk` images have no DOS catalog. So the question could not
+be answered by observation, and guessing was declined.
+
+**Why parameterizing is the right answer regardless**: being wrong is expensive
+and quiet. Every character would land off by `$80`, which reads as garbage
+rather than as an obvious converter bug. A parameter costs one argument, makes
+the answer a data change instead of a rewrite, and lets round-trip identity —
+the invariant that actually matters — be tested for both conventions today.
+
+**To settle it**: obtain a ProDOS volume with a TXT file, dump its first bytes,
+and read the convention off the disk.
+
+**A trap worth naming**: the verified fact about catalog *names* is not evidence
+about file *contents*. Generalizing from the adjacent case is exactly how a
+comment in the nibblization tests came to license a data-loss defect, and the
+same shape is available here.
+
+---
+
 ## R-010 — Deferred, with rationale
 
 Not researched here because none changes the architecture, and each is better
