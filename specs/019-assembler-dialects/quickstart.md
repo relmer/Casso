@@ -31,19 +31,25 @@ Baseline before this feature: **2,961 tests Debug, 2,958 Release**. The
 three-test delta between configurations is unexplained and tracked separately as
 issue #113 — it is not something this feature introduced or is expected to fix.
 
-`RunTests.ps1` takes no filter argument; it runs the whole assembly. Debug takes
-roughly 15 minutes and Release roughly 2, so **Release is the one to use while
-iterating**. Where a phase criterion below names a specific test class, run it
-directly instead:
+Debug takes roughly 15 minutes and Release roughly 2, so **Release is the one to
+use while iterating**. For the edit-test loop, `-Filter` narrows the run further:
 
 ```powershell
-. scripts\VSTools.ps1
-& (Get-VS2026VSTestPath) x64\Release\UnitTest.dll /TestCaseFilter:"FullyQualifiedName~MerlinCorpusTests"
+scripts\RunTests.ps1 -Build -Configuration Release -Filter Merlin
 ```
 
-Build first — that path is the assembly `RunTests.ps1 -Build` produces, and
-invoking vstest directly skips the staleness guard that would otherwise catch a
-stale binary for you.
+A bare word is promoted to a fully-qualified-name substring match, so `-Filter
+Merlin` catches every Merlin test class. Anything containing filter grammar is
+passed to vstest verbatim, so the full expression syntax stays available:
+
+```powershell
+scripts\RunTests.ps1 -Filter "FullyQualifiedName~Merlin&Name!~Slow"
+```
+
+A filtered run prints a loud banner because it is **not** a suite run — reading a
+green partial result as a suite pass is the same class of mistake the staleness
+guard exists to prevent. Every phase criterion below that uses `-Filter` still
+needs a full-suite run before the phase is considered done.
 
 ## Phase exit criteria, as commands
 
@@ -71,7 +77,7 @@ of test this gate protects.
 ### Phase B — diagnostics name the right file
 
 ```powershell
-& (Get-VS2026VSTestPath) x64\Release\UnitTest.dll /TestCaseFilter:"FullyQualifiedName~MerlinDiagnosticTests"
+scripts\RunTests.ps1 -Build -Configuration Release -Filter MerlinDiagnosticTests
 ```
 
 A diagnostic raised inside an included file names that file, not the top-level
@@ -89,7 +95,7 @@ existing corpus produces.
 ### Phase E — the Merlin corpus matches captured bytes
 
 ```powershell
-& (Get-VS2026VSTestPath) x64\Release\UnitTest.dll /TestCaseFilter:"FullyQualifiedName~MerlinCorpusTests"
+scripts\RunTests.ps1 -Build -Configuration Release -Filter MerlinCorpusTests
 ```
 
 This is SC-001. Every entry meeting the corpus floor assembles to bytes identical
@@ -100,7 +106,7 @@ by an injected mock reader.
 ### Phase F — every boundary construct is refused by name
 
 ```powershell
-& (Get-VS2026VSTestPath) x64\Release\UnitTest.dll /TestCaseFilter:"FullyQualifiedName~MerlinSubsetBoundaryTests"
+scripts\RunTests.ps1 -Build -Configuration Release -Filter MerlinSubsetBoundaryTests
 ```
 
 The test sweeps the boundary table's accessor rather than a hand-picked sample, so
@@ -109,7 +115,7 @@ a row added to the table is covered without anyone editing a test.
 ### Phase H — a third dialect needs no engine change
 
 ```powershell
-& (Get-VS2026VSTestPath) x64\Release\UnitTest.dll /TestCaseFilter:"FullyQualifiedName~DialectMechanismTests"
+scripts\RunTests.ps1 -Build -Configuration Release -Filter DialectMechanismTests
 git show --stat HEAD -- CassoCore/AssemblySession.cpp CassoCore/ExpressionEvaluator.cpp CassoCore/OpcodeTable.cpp
 ```
 
@@ -164,5 +170,5 @@ capture; disagreement means either a corpus error or an emulator bug, and both a
 worth finding.
 
 The two disk steps — source onto the Merlin disk, bytes back off it — are
-`020-disk-file-access` capabilities. Until that lands, an external disk tool covers
+`020-disk-file-access` capabilities. Until that lands, **AppleCommander** covers
 them. Convenience only; nothing functional depends on it.
