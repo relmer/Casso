@@ -33,9 +33,11 @@
 
 - Requirements were renumbered flat during the 2026-08-15 clarification pass, in
   three rounds as requirements were inserted after FR-011, FR-015, and FR-030.
-  The spec now runs FR-001..FR-036 with no gaps or letter suffixes. Anything
+  The spec now runs FR-001..FR-040 with no gaps or letter suffixes. Anything
   citing a number outside that range, or citing a number whose text does not
-  match, predates the pass — re-read rather than reconcile.
+  match, predates the pass — re-read rather than reconcile. The volume-integrity
+  requirements were appended as a final subsection rather than inserted next to
+  volume access, deliberately, to stop the renumbering there.
 - **Spec 019 deliberately did NOT renumber flat, and that divergence is correct.**
   019's FR-016..FR-019 are cited externally from a GitHub issue, so renumbering
   would have broken a live reference; it kept an irregular sequence instead.
@@ -83,3 +85,11 @@
 - **Delete is on the P1 critical path**, not a later nicety, because FR-012
   requires that writing an existing name replace it, and replace cannot be built
   on an append-only writer.
+- The volume-integrity pass (FR-037..FR-040) is one mechanism with four
+  consumers — delete, listing, allocation, and the pre-commit check on every
+  computed write — and should be built once as a first-class pass rather than
+  three or four times inside its callers. The fourth consumer is the one that
+  changes the feature's character: checking the computed result before committing
+  makes the write path self-verifying. That is the structural answer to the class
+  of defect where a write path reports success over output it never inspected,
+  which is how the denibblization defect recorded below survived.

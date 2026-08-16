@@ -46,6 +46,7 @@ the migration.
 - Q: What does the tool return when a volume is damaged but partly readable? → A: Three states on the tool's existing exit-status vocabulary — 0 clean, 1 succeeded with complaints, 2 produced no output.
 - Q: What does delete do when a file's sector chain is damaged — refuse, or free what is readable and leak the rest? → A: Neither blindly. Free only what the catalog proves the file uniquely owns, report the rest as leaked, and keep the file removable so a damaged file cannot strand the volume.
 - Q: Are files addressed by bare name or by path? → A: By path from the first pass, so subdirectory support is a filled-in capability rather than a later signature change.
+- Q: Is the volume reference map built per consumer or once? → A: Once, as a first-class integrity pass with four consumers — delete, listing, allocation, and the pre-commit check on every computed write.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -438,6 +439,44 @@ program in the guest, and confirm the listing matches the source text.
   which another writer landed between read and commit. It cannot detect a write
   that lands after the commit, and the documentation MUST say so.
 
+#### Volume integrity
+
+These requirements describe one mechanism, not one feature's helper. The same
+pass answers what delete may safely free (FR-011), what a listing reports as
+damage (US3), whether allocation may trust the free map (Edge Cases), and
+whether a computed write is correct before it is committed (FR-013). It is
+specified once here because building it three or four times approximately is
+how the versions drift apart.
+
+- **FR-037**: The system MUST be able to determine, for a whole volume, what its
+  catalog actually references: which sectors or blocks each file claims, which
+  are claimed by more than one file, which the free map marks allocated but no
+  readable file claims, and which files have a chain the walk could not follow
+  to its end.
+- **FR-038**: That determination MUST terminate on any input. A corrupted chain
+  pointer can form a cycle, and this pass runs by design on volumes selected for
+  being damaged, so traversal MUST be bounded — by a visited set, an iteration
+  ceiling derived from the volume's own capacity, or both — and a chain that hits
+  the bound MUST be reported as unfollowable rather than followed further.
+- **FR-039**: Every write MUST run this pass over the **computed result**, before
+  anything is committed, and MUST refuse to commit a result that fails it: a
+  sector claimed twice, a free map disagreeing with what the catalog references,
+  or a file whose chain the edit broke. Verifying its own output is what keeps a
+  write path from reporting success over a volume it has quietly damaged.
+- **FR-040**: The guarantee in FR-011 that delete frees only what a file uniquely
+  owns is bounded by what the catalog could be read. Where the catalog itself did
+  not fully parse, a file that could not be read claims nothing observable, so a
+  sector it shares with the file being deleted would be freed. This requires
+  catalog damage and cross-linking together and is the one case the rule can
+  still lose data; the system MUST NOT claim otherwise, and MUST warn distinctly
+  when deleting from a volume whose catalog did not fully parse.
+
+Note the asymmetry that keeps the rest safe: delete only ever frees sectors the
+deleted file itself claims, so the large ambiguous set — allocated in the free
+map, claimed by no readable file — is never touched. That set is either
+already-leaked space or an invisible file's data, and refusing to guess between
+them is the correct behavior, not a gap.
+
 ### Key Entities
 
 - **Volume**: A formatted filesystem on a disk image — DOS 3.3 or ProDOS. Knows its
@@ -477,6 +516,13 @@ program in the guest, and confirm the listing matches the source text.
 - **SC-008**: No write ever destroys data the tool could not read. Verified
   against an image carrying a track that does not decode to standard sectors:
   the write is refused, and the image is byte-for-byte unchanged afterwards.
+- **SC-009**: No write is ever committed without having been checked. Every
+  committed image passed the volume integrity pass over its computed result, and
+  a deliberately corrupted result is refused rather than written — verified by
+  the pass rejecting a result whose free map and catalog disagree.
+- **SC-010**: Every operation over a deliberately damaged volume terminates.
+  Verified against volumes carrying cyclic and self-referential chains, with no
+  operation failing to return.
 
 ## Assumptions
 
