@@ -41,9 +41,9 @@ public:
 
     FileReadResult ReadFile (const std::string & filename, const std::string & baseDir) override
     {
-        FileReadResult                                                 result = {};
-        std::unordered_map<std::string, std::string>::const_iterator   found  = files.find (filename);
-        bool                                                           wasFound = found != files.end();
+        FileReadResult                                                result   = {};
+        std::unordered_map<std::string, std::string>::const_iterator  found    = files.find (filename);
+        bool                                                          wasFound = found != files.end();
 
 
 
