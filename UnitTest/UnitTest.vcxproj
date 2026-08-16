@@ -230,6 +230,7 @@
     <ClCompile Include="CommandLineTests.cpp" />
     <ClCompile Include="DirectiveTests.cpp" />
     <ClCompile Include="DirectiveTokenTests.cpp" />
+    <ClCompile Include="DialectMechanismTests.cpp" />
     <ClCompile Include="IncludeTests.cpp" />
     <ClCompile Include="StructTests.cpp" />
     <ClCompile Include="CmapTests.cpp" />

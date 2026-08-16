@@ -18,6 +18,12 @@
 //  As65 is first and is the default everywhere, so every caller that predates
 //  dialect selection keeps the behavior it had.
 //
+//  An enumerator is added WITH its profile, never ahead of it. DialectRegistry
+//  must answer for every value here, and a placeholder enumerator would resolve
+//  to the wrong profile while looking like support that exists. The registry
+//  sweep in DialectMechanismTests enforces this, and caught exactly that
+//  mistake the first time it ran.
+//
 //  A dialect is SYNTAX ONLY. It never implies a CPU: 65C02 code can be written
 //  in any dialect, and the mechanism must not assume a profile has just one
 //  instruction set available to it. Where a profile takes its CPU FROM is part
@@ -29,7 +35,6 @@
 enum class DialectId
 {
     As65,           // Casso's original dialect; the inferred default
-    Merlin,         // The classic Apple II dialect
 
     Count,          // sentinel: sizes dialect-indexed tables
 };

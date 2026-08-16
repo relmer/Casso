@@ -51,19 +51,19 @@ Paths are repository-relative and follow the structure in [plan.md](./plan.md):
 
 ### Seam extraction — must change no behavior
 
-- [x] T004 Create `CassoCore/Dialect.h` with the `DialectId` enum (`As65`, `Merlin`) and register it in `CassoCore.vcxproj`
+- [x] T004 Create `CassoCore/Dialect.h` with the `DialectId` enum and register it in `CassoCore.vcxproj`. *(Ships with `As65` only. `Merlin` was initially listed and the registry sweep failed on its first run, correctly: an enumerator with no profile resolves to the wrong profile while looking like support that exists. The enumerator lands with the profile in T027.)*
 - [x] T005 Create `CassoCore/DialectProfile.h` declaring the abstract seam — identity, CPU-selection source, and `ParseLine` — and register it in `CassoCore.vcxproj`. *(Built with **one** virtual, not the four originally sketched: extraction showed line parsing is the honest boundary and the other three are internal to a profile that needs them. Virtuals get added when a dialect proves it needs one — see [data-model.md](./data-model.md).)*
 - [x] T006 Create `CassoCore/As65Dialect.h` / `CassoCore/As65Dialect.cpp` holding today's grammar moved verbatim from `Parser::ParseLine`, and register both in `CassoCore.vcxproj`. **The AS65 directive spelling table does not move**: `DirectiveTable` keeps its global table and `GetAllSpellings()` accessor, and the profile delegates to them. Moving it would change `UnitTest/DirectiveTokenTests.cpp:70`, which sweeps that accessor — and T010 forbids exactly that
 - [x] T007 Create `CassoCore/DialectRegistry.h` / `CassoCore/DialectRegistry.cpp` with the name-to-profile table and a `GetAllDialects()` accessor matching the `DirectiveTable::GetAllSpellings` pattern, and register both in `CassoCore.vcxproj`
 - [x] T008 Route `Parser::ParseLine` through the active profile in `CassoCore/Parser.cpp` and `CassoCore/Parser.h`, moving the file-scope `StripComments` helper into the profile
 - [x] T009 Add `dialect` to `AssemblerOptions` in `CassoCore/AssemblerTypes.h`, defaulting to `DialectId::As65` so every existing caller is unaffected
 - [x] T010 Verify the seam changed nothing, **before any new test file is added**: full suite green in `x64\Release` AND `git diff --stat origin/master -- UnitTest/` shows no *existing* test file modified. Adding new files is expected later and does not violate this gate; editing one that already existed does, and means behavior moved with the code — stop and find out what
-- [ ] T011 [P] Add `DialectRegistry` sweep tests to `UnitTest/DialectMechanismTests.cpp` asserting every `DialectId` enumerator resolves to a profile, and register the file in `UnitTest.vcxproj`. Runs **after** T010, since it adds a file under `UnitTest/`
+- [x] T011 [P] Add `DialectRegistry` sweep tests to `UnitTest/DialectMechanismTests.cpp` asserting every `DialectId` enumerator resolves to a profile, and register the file in `UnitTest.vcxproj`. Runs **after** T010, since it adds a file under `UnitTest/`
 
 ### Diagnostic positions
 
 - [ ] T012 Add `file` (default empty) and `column` (default 0) to `AssemblyError` in `CassoCore/AssemblerTypes.h`
-- [ ] T013 Route `RecordError` and `RecordWarning` through the current `PendingLine`'s `sourceFile` in `CassoCore/AssemblySession.cpp`
+- [ ] T013 Route `RecordError` and `RecordWarning` through the current `PendingLine`'s `sourceFile` in `CassoCore/AssemblySession.cpp`. **Populate the position where the error is CREATED, not where it is reported** — that is the whole difficulty. Extending the error record is trivial; include attribution is only correct if the originating file is captured at the point of failure, since by reporting time the only file in hand is the top-level input. The value must also survive the trip out of core to reach the reporting site in the executable
 - [ ] T014 Make `ReportAssemblyDiagnostics` in `CassoCli/CommandLine.cpp` print the error's own `file` when set, falling back to the input path when empty so AS65 diagnostics are byte-for-byte unchanged
 - [ ] T015 [P] Add tests to `UnitTest/MerlinDiagnosticTests.cpp` proving a diagnostic raised inside an included file names that file rather than the top-level input, and register the file in `UnitTest.vcxproj`
 
@@ -104,7 +104,7 @@ Paths are repository-relative and follow the structure in [plan.md](./plan.md):
 
 ### The Merlin profile
 
-- [ ] T027 [US1] Create `CassoCore/MerlinDialect.h` / `.cpp` as a `DialectProfile` subclass, register it in `CassoCore/DialectRegistry.cpp` and `CassoCore.vcxproj`
+- [ ] T027 [US1] Create `CassoCore/MerlinDialect.h` / `.cpp` as a `DialectProfile` subclass, register it in `CassoCore/DialectRegistry.cpp` and `CassoCore.vcxproj`, and **add the `DialectId::Merlin` enumerator in the same change**. The enumerator is added *with* its profile, never ahead of it — a placeholder resolves to the wrong profile while looking like support that exists, and `DialectMechanismTests` fails until the registry answers for it
 - [ ] T028 [US1] Implement Merlin comment conventions in `CassoCore/MerlinDialect.cpp` — asterisk in column 1 for a whole-line comment, semicolon at any field position (FR-007)
 - [ ] T029 [US1] Implement field-based line segmentation in `CassoCore/MerlinDialect.cpp` — whitespace runs separate label, opcode, operand, and comment; tabs are ordinary whitespace with no tab-stop expansion; no field is required at a specific column. **The scanner must respect quoting**: whitespace ends the operand only outside a quoted string, or `ASC "HELLO WORLD"` splits into an operand and a bogus comment. **And a `;` inside the operand field is data**, not a comment — it is Merlin's macro-argument separator (FR-007, FR-008)
 - [ ] T030 [US1] Implement label rules and the local-label prefix in `CassoCore/MerlinDialect.cpp`, scoping locals to the enclosing global label (FR-008)
