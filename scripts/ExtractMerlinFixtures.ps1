@@ -61,11 +61,18 @@ $kDiskSha256 = 'CB7FD9522A3B90792ACBB00D6C811323DC046DC2920FC05A640858BFE611F0E6
 #
 #  Pairs are byte-identical oracles. CLOCK is one source producing two objects
 #  through DO/ELSE/FIN, so it covers conditional assembly and yields two
-#  independent checks. PI.START.S has no object listed on purpose: it is the
-#  linker demo, and the object on the disk is post-link, so comparing against
-#  it would be meaningless. It is here as the subset-boundary specimen -- REL,
-#  ENT, EXT and USE in one file, each of which must draw a diagnostic naming
-#  the construct rather than an unexplained parse error.
+#  independent checks.
+#
+#  The two PI files carry no object on purpose: they are the linker demo, and
+#  the objects beside them on the disk are post-link, so comparing against
+#  those would be meaningless. They are the subset-boundary specimens, and
+#  there are two because the boundary has two sides. PI.START.S imports --
+#  three EXT references -- which nothing can resolve without a linker.
+#  PI.ADD.S only exports (ENT, no EXT), which a user can work around by
+#  assembling absolutely. One specimen would exercise one refusal and leave
+#  the other unexamined, and the two must not produce the same diagnostic:
+#  offering the absolute-assembly workaround for a file that imports would be
+#  advice that cannot work.
 #
 $fixtures = @(
     @{ Source = 'LABELS.S';       Objects = @('LABELS')               ; Role = 'Oracle -- 105x DCI, the string-encoding probe' },
@@ -73,7 +80,8 @@ $fixtures = @(
     @{ Source = 'PRINTFILER.S';   Objects = @('PRINTFILER')           ; Role = 'Oracle' },
     @{ Source = 'MAKE DUMP.S';    Objects = @('MAKE DUMP')            ; Role = 'Oracle' },
     @{ Source = 'CLOCK.S';        Objects = @('CLOCK.24','CLOCK.12')  ; Role = 'Oracle -- DO/ELSE/FIN, one source, two objects' },
-    @{ Source = 'PI.START.S';     Objects = @()                       ; Role = 'Boundary -- REL/ENT/EXT/USE, must be refused by name' }
+    @{ Source = 'PI.START.S';     Objects = @()                       ; Role = 'Boundary -- imports (REL/ENT/EXT/USE), no workaround exists' },
+    @{ Source = 'PI.ADD.S';       Objects = @()                       ; Role = 'Boundary -- exports only (REL/ENT/USE, no EXT), workaround exists' }
 )
 
 function Get-SectorOffset([int]$Track, [int]$Sector) {

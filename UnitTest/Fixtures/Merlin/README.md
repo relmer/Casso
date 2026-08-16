@@ -62,6 +62,7 @@ Sizes are the complete stored file including the 4-byte DOS 3.3 BIN header;
 | `CLOCK.24` | 369 | `$0240` | 365 | `45312FACAE405CFDA35190914DA355434B23FF45B32A746B18540AC6AC9DE297` |
 | `CLOCK.12` | 369 | `$0240` | 365 | `822E1B28A0E53D75D50666D1C3D9A159A2611F31D6AEBD67EB4F5DF913894B64` |
 | `PI.START.S` | 3187 | `$0901` | 3183 | `BF3E2099A0A5CCF54FC8D51329BC605154795B0A0D93A3D69FC2D7164373941A` |
+| `PI.ADD.S` | 2037 | `$0901` | 2033 | `ADFAB2BFEFA955B0B4E6737D6C3305C1F3EDEACB1970EB3C4C6EF50CDB7D754E` |
 
 Source disk: `Merlin-proDos2.23.dsk`, 143360 bytes, SHA-256
 `CB7FD9522A3B90792ACBB00D6C811323DC046DC2920FC05A640858BFE611F0E6`.
@@ -75,11 +76,16 @@ Source disk: `Merlin-proDos2.23.dsk`, 143360 bytes, SHA-256
 | `PRINTFILER.S` | `PRINTFILER` | General-purpose. |
 | `MAKE DUMP.S` | `MAKE DUMP` | General-purpose, and the largest source at 6659 bytes. |
 | `CLOCK.S` | `CLOCK.24`, `CLOCK.12` | One source, two objects, selected by `DO HOURS-12` / `ELSE` / `FIN`. Conditional assembly plus two independent checks off one file. The two objects differ in exactly 4 bytes of 369, so a conditional-assembly defect shows up as a specific small delta rather than a wall of noise. |
-| `PI.START.S` | *(none — deliberate)* | The subset boundary. This is the linker demo; Bredon's own header calls it "just a test source for the linker." It uses `REL`, `ENT`, `EXT` (x3) and `USE`, all outside absolute Merlin. It must draw a diagnostic naming the offending construct, never byte-identical output. The `PI.START` object on the disk is post-link and is **not** a valid comparison target, which is why it is not extracted. |
+| `PI.START.S` | *(none — deliberate)* | The subset boundary, **importing** side. This is the linker demo; Bredon's own header calls it "just a test source for the linker." `REL`, `ENT`, `EXT` (x3) and `USE` — all outside absolute Merlin. Must draw a diagnostic naming the offending construct, never byte-identical output. |
+| `PI.ADD.S` | *(none — deliberate)* | The subset boundary, **exporting** side: `REL`, `ENT` and `USE` with no `EXT` at all. The distinction is not cosmetic. A file that only exports can be assembled absolutely as a workaround; a file that imports cannot be, without a linker. So the two must not produce the same diagnostic — offering the absolute-assembly workaround for `PI.START.S` would be advice that cannot work. Two specimens, because the boundary has two sides. |
+
+The `PI.*` objects on the disk are post-link and are **not** valid comparison
+targets, which is why none are extracted.
 
 `RWTS DEMO.S` is on the disk but not extracted: it ships no object, so there is
-nothing to compare against. The remaining `PI.*.S` files are omitted as
-redundant — `PI.START.S` already carries all four out-of-subset directives.
+nothing to compare against. `PI.MAIN.S` and `PI.DIV.S` are omitted as redundant
+— both import, so `PI.START.S` already covers them. `PI.LOOK.S` is the other
+export-only file and is omitted for the same reason relative to `PI.ADD.S`.
 
 ## Encoding, and how to read these
 
