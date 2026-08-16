@@ -124,8 +124,16 @@ public:
                                  Byte               & outFileType,
                                  Word               & outAuxType);
 
+    //  A block number the volume could actually hold. Every pointer walked here
+    //  comes off the disk, so none of them may be trusted: block numbers index
+    //  directly into the sector buffer, and an out-of-range one reads far past
+    //  its end rather than merely returning something wrong.
+    static bool  IsBlockInRange (Word block);
+
 private:
-    static void  AppendIndexedBlocks (const vector<Byte> & volume,
+    //  False when the index block itself is unusable, so the caller reports an
+    //  unreadable file instead of gathering garbage.
+    static bool  AppendIndexedBlocks (const vector<Byte> & volume,
                                       Word                 indexBlock,
                                       vector<Word>       & dataBlocks);
 };

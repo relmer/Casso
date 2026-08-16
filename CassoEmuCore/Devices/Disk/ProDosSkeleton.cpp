@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "ProDosSkeleton.h"
+#include "ChainWalkGuard.h"
 
 
 
@@ -214,18 +215,21 @@ HRESULT ProDosReader::ExtractFile (
     Byte               & outFileType,
     Word               & outAuxType)
 {
-    HRESULT       hr          = S_OK;
-    size_t        volumeBytes = volume.size();
-    size_t        nameBytes   = fileName.size();
-    int           dirBlock    = 0;
-    size_t        entryOffset = 0;
-    size_t        entry       = 0;
-    Byte          storage     = 0;
-    Word          keyPointer  = 0;
-    uint32_t      eof         = 0;
-    bool          found       = false;
-    vector<Byte>  data;
-    vector<Word>  dataBlocks;
+    HRESULT         hr          = S_OK;
+    size_t          volumeBytes = volume.size();
+    size_t          nameBytes   = fileName.size();
+    int             dirBlock    = 0;
+    size_t          entryOffset = 0;
+    size_t          entry       = 0;
+    Byte            storage     = 0;
+    Word            keyPointer  = 0;
+    uint32_t        eof         = 0;
+    bool            found       = false;
+    bool            keyOk       = false;
+    bool            gathered    = true;
+    vector<Byte>    data;
+    vector<Word>    dataBlocks;
+    ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
 
 
 
@@ -237,8 +241,18 @@ HRESULT ProDosReader::ExtractFile (
 
     while (!found && dirBlock != 0)
     {
-        int  first = (dirBlock == ProDosSkeleton::kDirKeyBlock) ? 1 : 0;
-        int  n     = 0;
+        int   first   = (dirBlock == ProDosSkeleton::kDirKeyBlock) ? 1 : 0;
+        int   n       = 0;
+        bool  stepOk  = ProDosReader::IsBlockInRange ((Word) dirBlock)
+                     && guard.TryVisit ((uint32_t) dirBlock);
+
+        // A directory chain that loops or leaves the volume stops here. Both
+        // are reachable from a damaged disk, and following either reads outside
+        // the buffer or never returns.
+        if (!stepOk)
+        {
+            break;
+        }
 
         for (n = first; !found && n < (int) ProDosSkeleton::kEntriesPerBlock; n++)
         {
@@ -294,6 +308,11 @@ HRESULT ProDosReader::ExtractFile (
 
     // Resolve the data-block list per storage type. A zero block number in
     // an index is a sparse hole, kept in the list and emitted as zeros.
+    // The key pointer is the root of every storage type's block structure, and
+    // is followed before anything else validates it.
+    keyOk = IsBlockInRange (keyPointer);
+    CBREx (keyOk, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
+
     switch (storage)
     {
         case ProDosSkeleton::kStorageSeedling:
@@ -301,14 +320,14 @@ HRESULT ProDosReader::ExtractFile (
             break;
 
         case ProDosSkeleton::kStorageSapling:
-            AppendIndexedBlocks (volume, keyPointer, dataBlocks);
+            gathered = AppendIndexedBlocks (volume, keyPointer, dataBlocks);
             break;
 
         case ProDosSkeleton::kStorageTree:
         {
             int  i = 0;
 
-            for (i = 0; i < (int) NibblizationLayer::kSectorByteSize; i++)
+            for (i = 0; gathered && i < (int) NibblizationLayer::kSectorByteSize; i++)
             {
                 Word  indexBlock = (Word)
                     (volume[ProDosSkeleton::BlockByteOffset (keyPointer, (size_t) i)]
@@ -316,7 +335,7 @@ HRESULT ProDosReader::ExtractFile (
 
                 if (indexBlock != 0)
                 {
-                    AppendIndexedBlocks (volume, indexBlock, dataBlocks);
+                    gathered = AppendIndexedBlocks (volume, indexBlock, dataBlocks);
                 }
                 else
                 {
@@ -337,15 +356,20 @@ HRESULT ProDosReader::ExtractFile (
             break;
     }
 
+    // A file whose block structure could not be walked is unreadable, not
+    // short. Returning what was gathered would hand back a truncated file that
+    // looks complete.
+    CBREx (gathered, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
+
     for (Word block : dataBlocks)
     {
-        size_t  i = 0;
+        size_t  i        = 0;
+        bool    readable = block != 0 && IsBlockInRange (block);
 
         for (i = 0; i < 512 && data.size() < (size_t) eof; i++)
         {
-            data.push_back ((block != 0)
-                ? volume[ProDosSkeleton::BlockByteOffset (block, i)]
-                : (Byte) 0);
+            data.push_back (readable ? volume[ProDosSkeleton::BlockByteOffset (block, i)]
+                                     : (Byte) 0);
         }
     }
 
@@ -373,21 +397,59 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProDosReader::AppendIndexedBlocks (
+bool ProDosReader::AppendIndexedBlocks (
     const vector<Byte> & volume,
     Word                 indexBlock,
     vector<Word>       & dataBlocks)
 {
-    int  i = 0;
+    int   i     = 0;
+    bool  valid = ProDosReader::IsBlockInRange (indexBlock);
 
 
+
+    if (!valid)
+    {
+        return false;
+    }
 
     for (i = 0; i < (int) NibblizationLayer::kSectorByteSize; i++)
     {
-        dataBlocks.push_back ((Word)
+        Word  block = (Word)
             (volume[ProDosSkeleton::BlockByteOffset (indexBlock, (size_t) i)]
-           | (volume[ProDosSkeleton::BlockByteOffset (indexBlock, (size_t) i + 256)] << 8)));
+           | (volume[ProDosSkeleton::BlockByteOffset (indexBlock, (size_t) i + 256)] << 8));
+
+        // Zero is a sparse hole and legitimate; anything past the volume is
+        // corruption, and following it would read outside the buffer entirely.
+        if (block != 0 && !ProDosReader::IsBlockInRange (block))
+        {
+            return false;
+        }
+
+        dataBlocks.push_back (block);
     }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosReader::IsBlockInRange
+//
+//  Block numbers index straight into the sector buffer through
+//  BlockByteOffset, which multiplies out to a byte offset without checking
+//  anything. A block past the volume therefore does not return wrong data --
+//  it reads past the end of the buffer. Every pointer followed here came off
+//  a disk that may be damaged or hostile, so none is trusted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProDosReader::IsBlockInRange (Word block)
+{
+    return block < (Word) ProDosSkeleton::kTotalBlocks;
 }
 
 
