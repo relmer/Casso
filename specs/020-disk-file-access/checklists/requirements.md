@@ -33,11 +33,19 @@
 
 - Requirements were renumbered flat during the 2026-08-15 clarification pass, in
   three rounds as requirements were inserted after FR-011, FR-015, and FR-030.
-  The spec now runs FR-001..FR-040 with no gaps or letter suffixes. Anything
-  citing a number outside that range, or citing a number whose text does not
-  match, predates the pass — re-read rather than reconcile. The volume-integrity
-  requirements were appended as a final subsection rather than inserted next to
-  volume access, deliberately, to stop the renumbering there.
+  The spec now runs **FR-001..FR-042 and SC-001..SC-011** with no gaps or letter
+  suffixes. Anything citing a number outside that range, or citing a number whose
+  text does not match, predates the pass — re-read rather than reconcile.
+  Everything added after the renumbering (volume integrity, then recovery) was
+  **appended as a new final subsection** rather than inserted, deliberately, to
+  stop the renumbering there.
+- **A cross-artifact analysis pass caught nine stale citations that survived the
+  renumbering**, in this file and in the boot-configuration block of tasks.md,
+  data-model.md, and research.md — all shifted by exactly the amount their own
+  round predicted, and this file, which documents the rule, was among the worst
+  offenders. Renumbering is cheap inside one file and expensive across eight; the
+  append-only policy above exists because of this, and any future insertion should
+  be checked with a citation sweep rather than assumed clean.
 - **Spec 019 deliberately did NOT renumber flat, and that divergence is correct.**
   019's FR-016..FR-019 are cited externally from a GitHub issue, so renumbering
   would have broken a live reference; it kept an irregular sequence instead.
@@ -48,8 +56,8 @@
   required detecting an image in use by a running emulator, while the Assumptions
   declared that scenario out of scope. The requirement now matches the scope —
   document the hazard, probe only for what the platform can observe, and re-verify
-  the file between read and commit (FR-033, FR-034).
-- FR-017 records a pre-existing defect rather than new behavior: the sector
+  the file between read and commit (FR-035, FR-036).
+- FR-018 records a pre-existing defect rather than new behavior: the sector
   decoder currently discards undecodable sectors as zeros while reporting success,
   on a path the emulator already uses. It is captured under Dependencies and Known
   Defects, is a hard prerequisite for every write path here, and the
@@ -59,10 +67,10 @@
   bootable volume's startup program is set for each filesystem (US4, P2), and the
   accepted spelling of file types on the command line. None of them change the
   architecture or the acceptance criteria above.
-- Exit-status vocabulary (FR-030) is shared with the assembler and run
+- Exit-status vocabulary (FR-031) is shared with the assembler and run
   subcommands and was matched to their existing meanings rather than minted new,
   so a script driving the tool needs no per-subcommand knowledge. This is a
-  cross-feature concern; spec 019 was given the same note. FR-031 deliberately
+  cross-feature concern; spec 019 was given the same note. FR-032 deliberately
   stops the sharing at 2: codes of 3 and above stay subcommand-scoped, because
   requiring global uniqueness would couple subcommands that are otherwise
   independent — the property that let 019 and 020 be developed in parallel.

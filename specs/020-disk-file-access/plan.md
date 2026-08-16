@@ -80,14 +80,34 @@ concurrently.
 - **V. Simplicity** — PASS with one deliberate generalization: the integrity pass
   is built once as a first-class mechanism rather than three or four times inside
   its callers (R-005). Justified below.
-- **VI. Thin Executable, Testable Core (NON-NEGOTIABLE)** — PASS. Core owns
-  `IVolume`, `Dos33Volume`, `ProDosVolume`, `VolumeIntegrityReport`,
-  `SectorDecodeReport`, the extended `NibblizationLayer`, and the whole `disk`
-  grammar (in `CassoCore`, where the parser already lives). `CassoCli` owns only:
-  reading the file, recording size/mtime, the temp-file-plus-atomic-replace
-  commit, the exclusive-open probe, and printing.
+- **VI. Thin Executable, Testable Core (NON-NEGOTIABLE)** — **initially FAILED;
+  now PASS after re-siting.** The first draft of this plan put `FileCommit`, the
+  exit-status mapping, the staleness comparison, and `DoDisk`'s dispatch and
+  message construction in `CassoCli` and recorded the principle as satisfied. It
+  is not: **`UnitTest.vcxproj` references CassoCore, CassoEmuCore, Casso, and
+  Dxui — not CassoCli** (verified). Nothing in `CassoCli` can be linked by a
+  test, so every one of those was unreachable by the litmus this plan quotes.
+  Temp-name derivation, collision policy, status mapping, and metadata
+  comparison are *decisions*, not syscalls, and the existing `CommandLine.cpp`
+  is exactly what the principle names as divergence not to imitate.
 
-**Post-design re-check**: PASS. Complexity Tracking carries one justified entry.
+  Resolved by moving all of it into `CassoEmuCore` — which `UnitTest` links and
+  `CassoCli` references — behind an `IDiskFileIo` seam: core owns `IVolume`,
+  both volumes, `VolumeIntegrityReport`, `SectorDecodeReport`, `TrackWritability`,
+  `CommitPlan`, `DiskCommandRunner`, and the extended `NibblizationLayer`; the
+  `disk` grammar stays in `CassoCore` beside the parser. `CassoCli` keeps only
+  `Win32DiskFileIo` (the `ifstream` / `ofstream` / `ReplaceFileW` calls) and a
+  `DoDisk` that constructs it, calls the runner, prints, and returns the status.
+- **II. Testing Discipline / Test Isolation (NON-NEGOTIABLE)** — PASS **only
+  because of the seam above**. The commit path's verification (SC-005: image
+  unchanged after every documented failure, no temporary left behind) would
+  otherwise require reading and writing real files, which Test Isolation forbids.
+  Those checks run against a fake `IDiskFileIo` whose file table is inspectable.
+  Crash safety genuinely cannot be unit-tested, so the interrupted-write check is
+  the one sanctioned manual pass, called out as such in quickstart.md.
+
+**Post-design re-check**: PASS, after a cross-artifact analysis pass caught the
+VI violation above. Complexity Tracking carries one justified entry.
 
 ## Project Structure
 
@@ -104,7 +124,7 @@ specs/020-disk-file-access/
 │   └── disk-subcommand.md
 ├── checklists/
 │   └── requirements.md
-└── tasks.md             # Phase 2 (/speckit-tasks — not yet created)
+└── tasks.md             # Phase 2 (/speckit-tasks — T001..T051)
 ```
 
 ### Source Code (repository root)
@@ -116,11 +136,19 @@ CassoEmuCore/Devices/Disk/
 ├── ProDosVolume.h/.cpp          # NEW — wraps + extends the existing reader/writer
 ├── VolumeIntegrityReport.h/.cpp # NEW — the one pass, four consumers
 ├── VolumeTypes.h                # NEW — FilePath, FileEntry, FilePayload, listing
-├── NibblizationLayer.h/.cpp     # EXTEND — SectorDecodeReport; decode continues
-│                                #   past a failed sector; RenibblizeTracks
+├── SectorDecodeReport.h         # NEW — track layer, NOT VolumeTypes.h: the
+│                                #   decoder must not include a header from the
+│                                #   filesystem layer above it
+├── NibblizationLayer.h/.cpp     # EXTEND — coverage-based classification; decode
+│                                #   continues past a failed sector; RenibblizeTracks
 ├── TrackWritability.h/.cpp      # NEW — positive proof of standard-ness
 ├── Dos33Skeleton.h/.cpp         # EXTEND — geometry constants shared with the volume
 └── ProDosSkeleton.h/.cpp        # EXTEND — tree growth, delete, directory reorder
+
+├── IDiskFileIo.h                # NEW — byte-level file seam (read/write/stat/replace)
+├── DiskCommandRunner.h/.cpp     # NEW — every disk-command DECISION, testable
+├── CommitPlan.h/.cpp            # NEW — temp-name policy, staleness comparison
+└── DirectBootBuilder.h/.cpp     # NEW — no-OS boot image (US5, P3)
 
 CassoCore/
 ├── CommandLineOptions.h         # EXTEND — Disk subcommand + DiskVerb + operands
@@ -128,9 +156,9 @@ CassoCore/
 ├── AppleTextCodec.h/.cpp        # NEW — host text <-> high ASCII, line endings
 └── ApplesoftTokenizer.h/.cpp    # NEW — listing <-> tokenized form (US6, P3)
 
-CassoCli/
-├── CommandLine.cpp              # + DoDisk: read, compute, re-verify, commit, print
-└── FileCommit.h/.cpp            # NEW — temp file + atomic replace + cleanup
+CassoCli/                        # syscalls and printing ONLY — UnitTest cannot link this
+├── CommandLine.cpp              # + DoDisk: construct IO, call runner, print, return status
+└── Win32DiskFileIo.h/.cpp       # NEW — ifstream / ofstream / ReplaceFileW / stat
 
 UnitTest/
 ├── CommandLineTests.cpp         # EXTEND — disk grammar (existing tests MUST stay green)
@@ -156,6 +184,16 @@ repeated as though it were a constraint.
 
 Ordered by dependency, not by story number. Each phase is a commit.
 
+**`tasks.md` supersedes the lettering below.** These letters group work by
+*component*; tasks.md regrouped the same work by *story* (Phase 1 Setup,
+2 Foundational, 3 US3, 4 US2, 5 US4, 6 US5, 7 US6, 8 Polish) so each phase is an
+independently testable increment, which is what the task breakdown needs and
+what this sketch was not. The dependency order is identical either way — only the
+grouping differs. Mapping: A → tasks Phase 2; B and C → split across tasks
+Phases 3 (readers) and 4 (writers + delete); D → split across the same two, since
+the CLI verbs land with the story they serve; E → Phase 5; F → Phases 6 and 7;
+G → Phase 8.
+
 **Phase A — Foundational (blocks everything).**
 `SectorDecodeReport` classifying each track by **coverage** — a 16-bit mask,
 `Complete` iff all sixteen logical sectors were filled exactly once — which
@@ -176,8 +214,9 @@ then write, delete with free-space return, replace. Generalizes
 **Phase C — ProDOS volume.** Wrap the existing reader/writer behind `IVolume`;
 add tree growth, delete with free-space return, path-based traversal.
 
-**Phase D — Commit path + CLI.** `FileCommit`; the one table row and one arm;
-`DoDisk`; help text. Delivers US2 and US3 end to end.
+**Phase D — Commit path + CLI.** `CommitPlan` and `DiskCommandRunner` in core
+behind `IDiskFileIo`; the one table row and one arm; `Win32DiskFileIo` and a thin
+`DoDisk` in the exe; help text. Delivers US2 and US3 end to end.
 
 **Phase E — Boot configuration (US4, P2).** DOS 3.3 greeting patch at the
 verified offset; ProDOS directory reorder. Two mechanisms, not one helper.

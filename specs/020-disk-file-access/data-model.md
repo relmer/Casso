@@ -178,8 +178,9 @@ below this surface (research R-001), so the seam is deliberately narrow.
 | `BuildIntegrityReport` | The pass of FR-037..FR-040 |
 | `SetStartupProgram` | Mechanism differs entirely per filesystem (R-003, R-004) |
 
-Every mutating operation takes the current sector buffer and produces a **new**
-one. None mutates in place. That is what makes FR-013's all-or-nothing guarantee
+The volume holds its sector buffer as an immutable input; every mutating
+operation produces a **complete new** buffer and none writes through to the
+input. That is what makes FR-013's all-or-nothing guarantee
 structural rather than disciplined.
 
 ---
@@ -299,6 +300,13 @@ What the shell needs to land a computed image safely (FR-013, FR-036, R-007).
 
 ## StartupProgram
 
+**Terminology.** The user-facing term is **boot program**, which is what the spec
+and the help text say and what the `boot` verb sets. `SetStartupProgram` is the
+API name only, chosen because "boot" is already overloaded in this codebase by
+boot blocks, boot sectors, and the boot payload. R-003's "greeting" is DOS 3.3's
+own name for its instance of the concept and appears only when describing that
+filesystem's on-disk field.
+
 Deliberately **not** unified behind one "write the boot name" helper — the two
 mechanisms are different in kind (research R-003, R-004).
 
@@ -307,4 +315,4 @@ mechanisms are different in kind (research R-003, R-004).
 | DOS 3.3 | Patch the greeting filename inside the DOS image at **T01 S09 `+$75`**, 30 bytes, high ASCII, `$A0`-padded (verified against the stock master). No catalog change. |
 | ProDOS | Reorder the volume directory so the desired `SYS` file is the first one the boot path finds. No stored name exists to patch. |
 
-Setting a startup program that is not present on the volume is refused (FR-024).
+Setting a startup program that is not present on the volume is refused (FR-025).

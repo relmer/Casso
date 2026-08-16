@@ -30,9 +30,9 @@ struct without a blind merge.
 
 ```text
 casso disk list   <image> [--long]
-casso disk get    <image> <path> [--out <file>] [--text | --basic | --raw]
+casso disk get    <image> <path> [--out <file>] [--text | --basic | --binary]
 casso disk put    <image> <file> [--as <path>] [--type <t>] [--addr $XXXX]
-                                 [--text | --basic | --raw]
+                                 [--text | --basic | --binary]
 casso disk delete <image> <path>
 casso disk boot   <image> <path>
 ```
@@ -47,6 +47,13 @@ transfers without adopting that tool's flag syntax.
 `cat` is deliberately **not** a spelling of `list`: it collides with the
 established meaning of printing a file's contents, which this tool does under
 `get`.
+
+The encoding selector is `--binary`, **not** `--raw`, for the same reason:
+`--raw` already exists on the assembler as an *output shape*
+(`CommandLineOptions::OutputFormat::Raw`). Reusing the spelling for an encoding
+selector would give one flag two meanings inside one parser — and spec 019 is
+editing that parser concurrently, which is the worst possible time to introduce a
+collision that only shows up as a confusing help page.
 
 ## Exit statuses
 

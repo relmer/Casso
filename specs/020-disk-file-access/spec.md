@@ -477,6 +477,21 @@ map, claimed by no readable file — is never touched. That set is either
 already-leaked space or an invisible file's data, and refusing to guess between
 them is the correct behavior, not a gap.
 
+#### Recovery from a refused write
+
+- **FR-041**: When a write is refused because the image could not be read
+  losslessly, the system MUST preserve the rejected state rather than discard it.
+  It MUST produce a recovery artifact beside the target in a form that loses
+  nothing — including the very content that caused the refusal — leave the
+  original untouched, and name that artifact's location in the message. A refusal
+  that leaves the user no way to recover their work is only half a fix: the point
+  is to keep the original intact **and** the work retrievable, and to let the user
+  choose between them.
+- **FR-042**: Producing the recovery artifact MUST NOT overwrite an existing
+  file, and MUST NOT change what is currently in use or where the system will look
+  on next start. Preserving the work and adopting it are different operations, and
+  only the first is in scope here.
+
 ### Key Entities
 
 - **Volume**: A formatted filesystem on a disk image — DOS 3.3 or ProDOS. Knows its
@@ -498,6 +513,10 @@ them is the correct behavior, not a gap.
   third-party tool.
 - **SC-002**: A developer new to Casso can complete that loop for the first time
   using only the tool's own help output, without consulting external documentation.
+  Mechanically checkable form: the help output contains a copy-pasteable worked
+  example covering assemble → place → boot, and every verb and option used in
+  that example appears in the same help output. Whether a newcomer *succeeds* is a
+  review gate, not a test — the checkable part is that the material is there.
 - **SC-003**: Files placed by Casso are read correctly by the guest operating
   system in 100% of cases for the supported file types — verified by listing and
   loading each type from a booted machine.
@@ -511,8 +530,10 @@ them is the correct behavior, not a gap.
 - **SC-006**: A full iteration — assemble, place, launch, program running — takes
   under 10 seconds on a typical development machine for a program of a few
   kilobytes.
-- **SC-007**: A direct-boot image reaches the developer's code measurably faster
-  than the equivalent operating-system boot of the same program.
+- **SC-007**: A direct-boot image reaches the developer's code in **under 25% of
+  the emulated CPU cycles** the equivalent DOS 3.3 boot of the same program takes.
+  Emulated cycles rather than wall clock, so the measurement is deterministic and
+  independent of host speed and emulation throttling.
 - **SC-008**: No write ever destroys data the tool could not read. Verified
   against an image carrying a track that does not decode to standard sectors:
   the write is refused, and the image is byte-for-byte unchanged afterwards.
@@ -523,6 +544,11 @@ them is the correct behavior, not a gap.
 - **SC-010**: Every operation over a deliberately damaged volume terminates.
   Verified against volumes carrying cyclic and self-referential chains, with no
   operation failing to return.
+- **SC-011**: A write refused for unreadable content always leaves the user both
+  options. Verified by refusing a write on an image with a damaged track and
+  confirming: the original is byte-for-byte unchanged, a recovery artifact exists
+  beside it, that artifact reproduces every track including the damaged one, no
+  pre-existing file was overwritten, and what is currently in use is unchanged.
 
 ## Assumptions
 

@@ -309,7 +309,7 @@ exclusive-open probe therefore succeeds even with the image mounted, so the
 obvious mechanism cannot work.
 
 **Rationale**: The spec's own Assumptions already declared a mounted image out of
-scope, while the former FR-029 required detecting exactly that — an internal
+scope, while the pre-renumber FR-029 (now FR-035 and FR-036) required detecting exactly that — an internal
 contradiction. The fix is the requirement, not the mechanism. Spec 021's disk
 manager can coordinate properly because it runs *inside* the process that knows
 what is mounted; a separate CLI process fundamentally cannot without inventing a
@@ -376,7 +376,7 @@ answered against real code than in advance.
   spellings, `DATA` payloads, `REM` text), which is a test-design question best
   settled against a real listing.
 - **Direct-boot loader capacity** (US5, P3) — how many sectors a custom boot
-  path can pull before handing off, which sets FR-026's reported capacity.
+  path can pull before handing off, which sets FR-027's reported capacity.
 - **File-type spelling on the command line** — whether types are accepted as
   names (`BIN`, `TXT`), numbers, or both.
 

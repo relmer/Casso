@@ -9,6 +9,11 @@ bytes and assertable in `UnitTest`, per Constitution Principle VI.
 ```cpp
 //  IVolume.h -- the filesystem seam. Two implementations, almost no shared
 //  structure below this surface, so the interface stays narrow.
+//  The volume holds the current sector buffer as an immutable const reference
+//  supplied at construction. Every mutating call therefore reads that buffer
+//  and produces a COMPLETE new one in outBuffer; none writes through to the
+//  input. That is what makes FR-013's all-or-nothing guarantee structural
+//  rather than a discipline someone has to remember.
 class IVolume
 {
 public:
@@ -17,8 +22,7 @@ public:
     virtual HRESULT  Enumerate   (VolumeListing & outListing) const = 0;
     virtual HRESULT  Read        (const FilePath & path, FilePayload & outPayload) const = 0;
 
-    //  Add or replace. Produces a COMPLETE new sector buffer; never mutates
-    //  the input. This is what makes FR-013 structural rather than careful.
+    //  Add or replace.
     virtual HRESULT  Write       (const FilePath     & path,
                                   const FilePayload  & payload,
                                   vector<Byte>       & outBuffer) const = 0;
