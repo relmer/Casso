@@ -7,6 +7,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk2Controller.h"
 #include "Devices/Disk/NibblizationLayer.h"
+#include "MachineIdle.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -49,14 +50,21 @@ public:
     static constexpr int         kDrive1              = 0;
     static constexpr int         kDrive2              = 1;
 
+    // Ceilings, not targets. Both are spent through MachineIdle, which
+    // stops as soon as the machine goes quiet; they only bound how long a
+    // machine that never settles is allowed to spin before the assertions
+    // below report what went wrong.
+    //
     // DOS 3.3 cold boot from a real .dsk: boot ROM loads sector 0,
-    // bootstrap chain loads more sectors from track 0..1, DOS init
-    // sets up vectors, prints "APPLE //e" banner + ]. Empirically
-    // this lands well under 200M cycles in debug builds.
+    // bootstrap chain loads more sectors from track 0..1, DOS init sets up
+    // vectors, prints the banner + ], then loads and runs HELLO. Measured
+    // at 12.2M cycles, so the ceiling is roughly 16x headroom.
     static constexpr uint64_t    kDos33ColdBootCycles = 200'000'000ULL;
 
     // CATALOG seeks to track 17 (VTOC), reads VTOC, walks the catalog
-    // chain printing each entry. Real-disk timing in cycle units.
+    // chain printing each entry. Measured at 3.6M; the other typed lines
+    // this ceiling is shared with run from 1.2M (HOME, NEW, LIST) to 6.4M
+    // (SAVE).
     static constexpr uint64_t    kCatalogCycles       = 60'000'000ULL;
 
     static std::vector<Byte> ReadFileOrEmpty (const std::filesystem::path & full)
@@ -189,7 +197,7 @@ public:
         core.bus->WriteByte (kIntCxRomOff, 0);
         core.cpu->SetPC (kBootRomEntry);
 
-        core.RunCycles (kDos33ColdBootCycles);
+        MachineIdle::RunUntilIdle (core, kDos33ColdBootCycles);
 
         std::vector<std::string>  rows = TextScreenScraper::Scrape40 (
             *core.bus, TextScreenScraper::kTextPage1);
@@ -285,7 +293,7 @@ public:
         core.bus->WriteByte (kIntCxRomOff, 0);
         core.cpu->SetPC (kBootRomEntry);
 
-        core.RunCycles (kDos33ColdBootCycles);
+        MachineIdle::RunUntilIdle (core, kDos33ColdBootCycles);
 
         auto Screen = [&] () -> std::string
         {
@@ -411,7 +419,7 @@ public:
         core.bus->WriteByte (kIntCxRomOff, 0);
         core.cpu->SetPC (kBootRomEntry);
 
-        core.RunCycles (kDos33ColdBootCycles);
+        MachineIdle::RunUntilIdle (core, kDos33ColdBootCycles);
 
         auto Screen = [&] () -> std::string
         {
@@ -533,7 +541,7 @@ public:
         core.bus->WriteByte (kIntCxRomOff, 0);
         core.cpu->SetPC (kBootRomEntry);
 
-        core.RunCycles (kDos33ColdBootCycles);
+        MachineIdle::RunUntilIdle (core, kDos33ColdBootCycles);
 
         auto Screen = [&] () -> std::string
         {
@@ -619,7 +627,7 @@ public:
         core.bus->WriteByte (kIntCxRomOff, 0);
         core.cpu->SetPC (kBootRomEntry);
 
-        core.RunCycles (kDos33ColdBootCycles);
+        MachineIdle::RunUntilIdle (core, kDos33ColdBootCycles);
 
         {
             std::vector<std::string>  rows = TextScreenScraper::Scrape40 (
@@ -688,7 +696,7 @@ public:
         core.bus->WriteByte (kIntCxRomOff, 0);
         core.cpu->SetPC (kBootRomEntry);
 
-        core.RunCycles (kDos33ColdBootCycles);
+        MachineIdle::RunUntilIdle (core, kDos33ColdBootCycles);
 
         {
             std::vector<std::string>  rows = TextScreenScraper::Scrape40 (

@@ -43,8 +43,10 @@ public:
         const std::string &  text,
         uint64_t           keyCycles = kPerKeyCycleBudget);
 
-    // Convenience: types `text` then a Return ($0D), then runs an
-    // additional cycle budget for the ROM to act on the line.
+    // Convenience: types `text` then a Return ($0D), then lets the ROM act
+    // on the line. `settleCycles` is a ceiling, not a target: the machine
+    // runs until MachineIdle says it has finished, or until the ceiling is
+    // reached, whichever comes first.
     static size_t   InjectLine (
         EmulatorCore  &  core,
         const std::string &  text,
