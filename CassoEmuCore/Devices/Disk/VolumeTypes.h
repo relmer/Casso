@@ -25,11 +25,38 @@
 //  How a payload's bytes relate to what the guest will hold. Selects the
 //  conversion in both directions; Verbatim is the absence of one.
 //
+//  THE THREE CONVERSIONS DIFFER IN WHETHER THEY ROUND-TRIP, and a caller
+//  reasoning about "extract, edit, put back" needs to know which it is using:
+//
+//      Verbatim     No character conversion. Length and header semantics still
+//                   apply -- those record where a file ENDS and are its
+//                   identity, not a transformation. Never yields sector slack.
+//
+//      HostText     LOSSY, deliberately: decoding is many-to-one so that a real
+//                   vendor file carrying mixed high and low bytes can be read at
+//                   all. Host -> Apple -> host is the identity; the other
+//                   direction normalizes, turning a plain space high and a
+//                   CR/LF pair into one terminator.
+//
+//      Applesoft    Detokenizing and retokenizing is the LEAST likely of the
+//                   three to round-trip exactly, because tokenizers normalize
+//                   spacing and canonicalize forms. It is also where loss is
+//                   most surprising: someone extracting a text file has opted
+//                   into a conversion, while someone whose saved program comes
+//                   back subtly reformatted has not. This must be settled
+//                   deliberately when the tokenizer is built rather than
+//                   inherited from whatever it happens to do.
+//
+//  Note that a DOS 3.3 binary needs no verbatim mode of its own: stripping the
+//  four-byte header is REVERSIBLE, because reading reports the load address and
+//  writing rebuilds the header from it. The raw form would be less useful, since
+//  the caller would then have to parse the header itself.
+//
 enum class PayloadEncoding
 {
-    Verbatim,           // Bytes as they are, in and out.
-    HostText,           // Host text <-> high ASCII with the target's line endings.
-    ApplesoftListing,   // Host text listing <-> tokenized on-disk form.
+    Verbatim,           // Bytes as they are, in and out. Lossless.
+    HostText,           // Host text <-> Apple text. Lossy in the Apple direction.
+    ApplesoftListing,   // Host text listing <-> tokenized form. Loss to be settled.
 };
 
 

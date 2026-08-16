@@ -441,11 +441,23 @@ better evidence that the sample is hard to come by than one would be.
 type `$04`; most ProDOS applications of the era did. Dumping one such file's
 first bytes closes this in a minute.
 
-**Why the parameter is right regardless**: being wrong is expensive and quiet —
-every character off by `$80`, which reads as garbage rather than as an obvious
-converter bug. A parameter costs one argument, makes the answer a data change
-instead of a rewrite, and lets round-trip identity be tested for both
-conventions today.
+### Being wrong is cheaper than it first appeared — reads cannot be corrupted
+
+Tolerating mixed bytes has a consequence worth stating on its own: **decoding is
+independent of the convention entirely.** Once the high bit is ignored,
+high-ASCII and plain-ASCII text differ in nothing, so the parameter only affects
+the *encode* side.
+
+That changes the cost of guessing wrong from "we mangle files in both
+directions" to "we write the wrong convention, and reading it back still works."
+Much smaller, and it is why shipping with this question open is defensible
+rather than merely tolerable. A wrong guess produces ProDOS text files a
+period-correct tool might render oddly; it cannot make Casso unable to read its
+own output, and it cannot damage an existing file on read.
+
+**Why the parameter is right regardless**: a parameter costs one argument, makes
+the answer a data change instead of a rewrite, and lets round-trip identity be
+tested for both conventions today.
 
 **A trap worth naming**: the verified fact about catalog *names* is not evidence
 about file *contents*. Generalizing from the adjacent case is exactly how a
