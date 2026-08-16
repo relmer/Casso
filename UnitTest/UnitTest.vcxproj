@@ -232,6 +232,7 @@
     <ClCompile Include="DirectiveTokenTests.cpp" />
     <ClCompile Include="DialectMechanismTests.cpp" />
     <ClCompile Include="MerlinDiagnosticTests.cpp" />
+    <ClCompile Include="MerlinCorpus\MerlinFixture.cpp" />
     <ClCompile Include="MerlinCorpusTests.cpp" />
     <ClCompile Include="IncludeTests.cpp" />
     <ClCompile Include="StructTests.cpp" />
@@ -540,6 +541,7 @@
     <ClInclude Include="TestHelpers.h" />
     <ClInclude Include="MockFileReader.h" />
     <ClInclude Include="MerlinCorpus\CorpusHarness.h" />
+    <ClInclude Include="MerlinCorpus\MerlinFixture.h" />
     <ClInclude Include="TestCpu65C02.h" />
     <ClInclude Include="EhmTestHelper.h" />
     <ClInclude Include="HarteTestRunner.h" />
