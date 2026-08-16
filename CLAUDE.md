@@ -7,10 +7,11 @@ Project guidelines, code style, EHM patterns, build rules, and current feature c
 Read that file at the start of every session.
 
 <!-- SPECKIT START -->
-**Active spec: `specs/020-disk-file-access`** (Draft) — disk file access for the
+**Active spec: `specs/020-disk-file-access`** (Planned) — disk file access for the
 build loop: assembler binary output, DOS 3.3 / ProDOS file read+write, a
-`disk` subcommand, and boot configuration. Next step is `/speckit-clarify` or
-`/speckit-plan`.
+`disk` subcommand, and boot configuration. Clarified and planned; see
+[`specs/020-disk-file-access/plan.md`](specs/020-disk-file-access/plan.md).
+Next step is `/speckit-tasks`.
 
 Four further specs are drafted but NOT started, each to be picked up in its own
 session:
@@ -35,7 +36,16 @@ mechanism), so 023 must not start before 019 lands.
 **020 is partially delivered.** Its User Story 1 (assembler binary output) is
 already done and on master: `--raw` and `--dos-bin` live in
 `CassoCore/OutputFormats` alongside `WriteFlatImage`, with tests. A session
-picking up 020 should plan US2 onward and treat US1 as complete.
+picking up 020 should implement US2 onward and treat US1 as complete.
+
+**Two 020 findings that outlive the feature.** `NibblizationLayer::Denibblize`
+stops at the first sector it cannot decode on a track and leaves that sector and
+every later one on the track as zeros, while returning `S_OK` — and
+`DiskImage::Serialize` puts it on the emulator's flush path, so a guest that
+leaves a track partly written can lose the rest of it on eject today. Separately,
+`ProDosReader` and `ProDosFileWriter` already exist but are declared inside
+`ProDosSkeleton.h`, so a survey by filename misses them; DOS 3.3 has no reader at
+all. Both are written up in `specs/020-disk-file-access/research.md`.
 
 Recent specs live under `specs/` (015 printer support, 016 Apple //c, and 017
 blank-disk creation are all complete and shipped).
