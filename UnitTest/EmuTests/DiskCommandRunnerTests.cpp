@@ -350,4 +350,100 @@ public:
         Assert::IsTrue (result.diagnostics.find ("list") != std::string::npos,
             L"a bad verb should say what the good ones are");
     }
+
+    TEST_METHOD (Get_WithText_ConvertsFromAppleTextToHostText)
+    {
+        // T.SENDMSG is a real type-T file: high-bit ASCII with $8D line
+        // terminators. Asked for as text it must arrive as something a host
+        // editor opens, and asked for verbatim it must arrive untouched.
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        CommandLineOptions  options   = MakeOptions (CommandLineOptions::DiskOptions::Verb::Get);
+        DiskCommandResult   verbatim;
+        DiskCommandResult   converted;
+        size_t              highBytes = 0;
+        size_t              newlines  = 0;
+        size_t              i         = 0;
+
+        SeedRealDisk (io);
+        options.disk.path = "T.SENDMSG";
+
+        verbatim = runner.Run (options);
+
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+        converted             = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kClean, verbatim.exitStatus);
+        Assert::AreEqual (DiskCommandRunner::kClean, converted.exitStatus);
+
+        for (i = 0; i < verbatim.payload.size(); i++)
+        {
+            if (verbatim.payload[i] >= 0x80) { highBytes++; }
+        }
+
+        Assert::IsTrue (highBytes > 0,
+            L"the stored file must be high-bit for the conversion to mean anything");
+
+        for (i = 0; i < converted.payload.size(); i++)
+        {
+            Assert::IsTrue (converted.payload[i] < 0x80,
+                L"converted text carries no high-bit bytes");
+
+            if (converted.payload[i] == '\n') { newlines++; }
+        }
+
+        Assert::IsTrue (newlines > 0, L"and its line endings are the host's");
+
+        Assert::IsFalse (verbatim.payload == converted.payload,
+            L"the two encodings must not deliver the same bytes -- otherwise the flag did nothing");
+    }
+
+    TEST_METHOD (Get_WithBasic_IsRefusedRatherThanQuietlyIgnored)
+    {
+        // The failure this forbids is specific: --basic parsed and then dropped
+        // would hand back tokenized bytes while the help promises a listing, and
+        // nothing in the output would distinguish that from a file needing no
+        // conversion. A refusal is the honest answer until the tokenizer exists.
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        CommandLineOptions options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Get);
+        DiskCommandResult  result;
+
+        SeedRealDisk (io);
+        options.disk.path     = "T.SENDMSG";
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsFalse (result.hasPayload, L"nothing may be delivered under a conversion not performed");
+        Assert::IsTrue (result.diagnostics.find ("--basic") != std::string::npos,
+            L"and the refusal must name the flag it is refusing");
+    }
+
+    TEST_METHOD (Get_WithText_ToANamedFile_ConvertsThereToo)
+    {
+        // The conversion belongs to the payload, not to the destination. A
+        // caller who redirects to a file and a caller who pipes must get the
+        // same bytes.
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        CommandLineOptions options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Get);
+        DiskCommandResult  piped;
+        DiskCommandResult  written;
+
+        SeedRealDisk (io);
+        options.disk.path     = "T.SENDMSG";
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+
+        piped = runner.Run (options);
+
+        options.disk.hostFile = "C:\\out.txt";
+        written               = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kClean, written.exitStatus);
+        Assert::AreEqual (size_t (1), io.files.count ("C:\\out.txt"));
+        Assert::IsTrue (io.files["C:\\out.txt"] == piped.payload,
+            L"the same conversion, whichever way the bytes leave");
+    }
 };

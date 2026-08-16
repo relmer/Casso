@@ -486,6 +486,48 @@ comment in the nibblization tests came to license a data-loss defect.
 
 ---
 
+## R-012 — Runtime validation pass over quickstart §US3 (T022)
+
+Run against the shipped `CassoCli.exe`, not through the seam. Every scenario in
+quickstart §US3 was exercised against real material; what follows is what it
+found rather than a restatement of what passed.
+
+**Confirmed working.** `list` on a DOS 3.3 `.dsk` reproduces the machine's own
+`CATALOG` output on 66 of 67 lines — the one difference is the reference's
+trailing `]` prompt against our free-space summary. `list` on a `.do` correctly
+identifies a ProDOS volume in DOS sector order. `get` of a binary reports its
+load address on stderr and delivers 589 bytes through a real shell redirect
+rather than 618, which is the manual check the binary-mode call exists for.
+A damaged catalog delivers 25 stdout lines, one stderr complaint naming the
+listing as incomplete, and exit 1.
+
+**Fixed: `--text` was parsed and then ignored.** The flag reached
+`CommandLineOptions` and nothing consulted it, so `get --text` returned the
+stored bytes and reported success. Wired into `DiskCommandRunner::ApplyEncoding`
+and verified end to end: `T.SENDMSG` extracts as 149 high-bit bytes verbatim and
+as 149 plain bytes with 15 line feeds under `--text`.
+
+**Fixed: `--basic` now refuses instead of silently doing nothing.** There is no
+Applesoft tokenizer yet. A parsed-then-dropped flag is worse than an absent one,
+because the caller reads "converted to a listing" in the help and cannot tell
+tokenized output from a file that needed no conversion.
+
+**Observed, deliberately NOT fixed: copy-protected disks whose VTOC satisfies
+detection.** `The Print Shop Color side B.woz` lists as DOS 3.3 with exit 0, a
+volume number of 0, and a catalog of one type-I entry plus rows with no visible
+name. Side A of the same title reports 307 undecodable sectors and exits 1,
+which is correct. Six other protected `.woz` titles are refused outright.
+
+A name-plausibility check was written for this and **reverted**, because it
+rejected 20 of the 63 entries on a disk Merlin shipped. Those heading rows are
+drawn in INVERSE VIDEO, whose character codes are below $20 — indistinguishable
+by byte value from the arbitrary bytes on the protected disk. So name bytes
+cannot separate the two cases, and tightening on them would reject real vendor
+material to catch a disk that is out of scope anyway. Recorded here so the same
+idea is not tried again without new evidence.
+
+---
+
 ## R-010 — Deferred, with rationale
 
 Not researched here because none changes the architecture, and each is better

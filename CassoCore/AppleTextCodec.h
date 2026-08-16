@@ -12,23 +12,26 @@
 //
 //  Host text to Apple II text and back.
 //
-//  THE HIGH-BIT CONVENTION IS A PARAMETER, NOT A CONSTANT, and deliberately so.
+//  THE HIGH-BIT CONVENTION IS A PARAMETER, NOT A CONSTANT, and the measurement
+//  that was supposed to settle it made the case stronger rather than removing it.
+//
 //  DOS 3.3 sequential text is high-bit-set ASCII terminated by $8D -- the native
-//  Apple II character convention. ProDOS TXT files are conventionally plain
-//  seven-bit ASCII with $0D, high bit clear, so they interchange with other
-//  systems. That difference is asserted often enough to be worth believing, but
-//  it has NOT been verified against a real ProDOS text file here, and the cost
-//  of being wrong is nasty: every character off by $80 reads as garbage rather
-//  than as an obvious bug in a converter.
+//  Apple II character convention. ProDOS TXT files are widely asserted to be
+//  plain seven-bit ASCII with $0D so they interchange with other systems. Real
+//  ProDOS volumes say otherwise: /APPLESOFT/APPLESOFT.S and /MERLIN/LIB/SENDMSG.S
+//  are predominantly high-bit with $8D terminators, and PI.NAMES.S is MIXED --
+//  223 of 256 bytes high, with 33 plain $20 spaces among them.
 //
-//  Parameterizing costs one argument and makes the answer a data change rather
-//  than a rewrite. Settling it needs a ProDOS volume carrying a real TXT file --
-//  dump its first bytes and read the convention off the disk.
+//  The conclusion is narrower than either claim: the TXT type does not imply a
+//  convention, the producer does. So a decoder may not assert the high bit on
+//  either filesystem, and the parameter stays -- as a statement about which
+//  convention to WRITE, which is the only place it can be decided rather than
+//  observed.
 //
-//  Note what is NOT evidence for this: DOS 3.3 stores catalog NAMES in high
-//  ASCII, which is verifiable on any master image. That says nothing about file
-//  CONTENTS, and generalizing from the adjacent case is exactly how a comment
-//  in the nibblization tests came to license a data-loss defect.
+//  Note what was NOT evidence for any of this: DOS 3.3 stores catalog NAMES in
+//  high ASCII, which is verifiable on any master image. That says nothing about
+//  file CONTENTS, and generalizing from the adjacent case is exactly how a
+//  comment in the nibblization tests came to license a data-loss defect.
 //
 //  ROUND-TRIP IDENTITY HOLDS IN ONE DIRECTION ONLY, and the asymmetry is
 //  deliberate rather than incidental:

@@ -82,6 +82,12 @@ private:
     void  RunList (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunGet  (const CommandLineOptions & options, DiskCommandResult & result);
 
+    //  Applies the requested character conversion, or refuses one this build
+    //  cannot perform. A parsed-then-ignored flag is worse than an absent one.
+    static HRESULT  ApplyEncoding (const CommandLineOptions & options,
+                                   FilePayload              & payload,
+                                   DiskCommandResult        & result);
+
     //  One line per catalog entry, in the shape the guest's own listing uses.
     static std::string  FormatDos33Entry  (const FileEntry & entry);
     static std::string  FormatProDosEntry (const FileEntry & entry, bool longForm);

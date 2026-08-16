@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskCommandRunner.h"
+#include "AppleTextCodec.h"
 #include "VolumeImage.h"
 #include "Dos33Volume.h"
 #include "ProDosVolume.h"
@@ -343,6 +344,73 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::ApplyEncoding
+//
+//  Turns the file's stored bytes into what the caller asked for. Verbatim is
+//  the absence of a conversion and is the default, so a caller who says nothing
+//  gets the bytes the disk holds.
+//
+//  AN ENCODING THIS BUILD CANNOT PERFORM IS REFUSED, NOT IGNORED. A flag that
+//  is parsed and then silently dropped is worse than one that does not exist:
+//  the caller reads "converted to a listing" in the help, gets tokenized bytes,
+//  and has no way to tell the difference from a file that needed no conversion.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ApplyEncoding (
+    const CommandLineOptions &  options,
+    FilePayload              &  payload,
+    DiskCommandResult        &  result)
+{
+    HRESULT      hr = S_OK;
+    std::string  hostText;
+
+
+
+    switch (options.disk.encoding)
+    {
+        case CommandLineOptions::DiskOptions::Encoding::Verbatim:
+            break;
+
+        case CommandLineOptions::DiskOptions::Encoding::Text:
+            // Both conventions decode identically -- once the high bit is
+            // ignored, high-ASCII and plain-ASCII text differ in nothing -- so
+            // this choice is inert on the read path. It becomes load-bearing
+            // when writing, which is where the terminator gets chosen.
+            //
+            // High ASCII is the measured answer on both filesystems: the ProDOS
+            // fixture volumes carry TXT files that are predominantly high-bit
+            // with $8D terminators, not the plain seven-bit form usually
+            // assumed for that filesystem.
+            AppleTextCodec::Decode (payload.bytes, AppleTextConvention::HighAscii, hostText);
+
+            payload.bytes.assign (hostText.begin(), hostText.end());
+            payload.encoding = PayloadEncoding::HostText;
+            break;
+
+        case CommandLineOptions::DiskOptions::Encoding::Basic:
+            result.diagnostics += "--basic is not available in this build: "
+                                  "no Applesoft tokenizer yet\n";
+            result.exitStatus   = kNoOutput;
+            hr                  = E_NOTIMPL;
+            break;
+
+        default:
+            result.diagnostics += "unknown encoding -- try: --text, --basic, --verbatim\n";
+            result.exitStatus   = kNoOutput;
+            hr                  = E_INVALIDARG;
+            break;
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::RunGet
 //
 //  Extraction goes to a named file when one is given and to the process's own
@@ -394,6 +462,9 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
         result.exitStatus   = kNoOutput;
         BAIL_OUT_IF (true, hr);
     }
+
+    hr = ApplyEncoding (options, payload, result);
+    BAIL_OUT_IF (FAILED (hr), hr);
 
     if (!options.disk.hostFile.empty())
     {
