@@ -141,16 +141,33 @@ directly usable as host text. To get source text:
 
 1. Skip the 4-byte BIN header.
 2. Read `Length` bytes (bytes 2-3 of the header, little-endian).
-3. Mask off bit 7 of every byte — the disk stores high-bit-set ASCII, spaces
-   included (`$A0`).
+3. Mask off bit 7 of every byte.
 4. Translate `$8D` (`$0D` once masked) to a newline.
 
-Do not assume bit 7 is set on every byte: these files contain legitimate
-low-ASCII, which is exactly how `DCI` marks its terminating character. Strip
-bit 7, never assert it.
+**Strip bit 7; never assert it.** The rule is worth stating precisely, because
+the obvious sanity check on high-bit ASCII is wrong here and fails immediately.
+
+Measured across all seven sources, the only bytes with bit 7 clear are spaces —
+there is not one non-space byte below `$80` in any of them. But spaces appear
+*both* ways, and which one depends on where the space sits:
+
+```
+END BRK ;table end
+C5 CE C4 A0 C2 D2 CB A0 BB F4 E1 E2 EC E5 20 E5 EE E4
+ E  N  D  ^   B  R  K  ^   ;  t  a  b  l  e  ^  e  n  d
+          $A0           $A0                  $20
+          field separators           inside comment text
+```
+
+Field-separating spaces carry bit 7; spaces inside comment text do not.
+`LABELS.S` alone holds 214 of the former and 81 of the latter. A decoder that
+asserts bit 7 dies on the first comment line of the first file, long before
+reaching anything subtle.
 
 Objects are raw 6502 object code behind the same 4-byte header; compare against
-assembler output starting at offset 4.
+assembler output starting at offset 4. Bit 7 matters there too but for an
+unrelated reason: `DCI` marks its terminating character by *clearing* bit 7, so
+low-ASCII in an object is meaningful data rather than an encoding artifact.
 
 ## Rules
 
