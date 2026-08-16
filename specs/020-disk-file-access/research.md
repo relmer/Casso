@@ -126,6 +126,28 @@ incomplete coverage), so one property decides the outcome instead of three
 conditions that must each be remembered, and any future mechanism that loses a
 sector is caught without anyone having anticipated it.
 
+**Three corrections from implementing it**, each caught by a test rather than by
+review:
+
+1. **The "exactly once" test is no longer redundant.** It was specified as
+   insurance against a change to the sixteen-iteration bound; the implementation
+   made that change (scanning one revolution instead), so duplicates can now
+   coexist with full coverage and the weaker "mask is full" test would be wrong.
+2. **The revolution bound must be tested where the address field was found, not
+   where the cursor sits.** The gap trailing the last sector leaves the cursor
+   short of a full revolution, so a bound on the cursor admits one more attempt
+   that wraps onto an already-recovered header — reporting a duplicate the disk
+   does not have. Damage invented by the scan is as bad as damage missed by it.
+3. **Coverage is indexed by output-buffer slot, not by the number the address
+   field carried.** Every consumer holds the flat buffer; the interleave between
+   the two belongs to the track layer.
+
+**Also found while implementing**: the decoder never verified the address-field
+checksum. An unverified header yields a plausible but wrong sector number, and
+the payload is then filed under the wrong logical sector — silent misplacement
+rather than a reported failure. Now validated, with a mismatch resynchronizing
+onto the next header.
+
 **Call-site census** (verified by grep): exactly **one** production caller,
 `DiskImage::Serialize` at `DiskImage.cpp:434`. Everything else is tests — twelve
 sites across `NibblizationTests` (9) and `BlankDiskBuilderTests` (3).

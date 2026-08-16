@@ -80,21 +80,18 @@ fail to decode."
 **Implementation**: a 16-bit coverage mask per track, plus a check that no bit is
 set twice. `Complete` iff every bit is set and each was set exactly once.
 
-Note precisely why the second half of that test is there, because it is **not**
-catching a case that can occur today. Under the current loop it is redundant: the
-sixteen-iteration bound, the fact that the `memcpy` at the bottom is the only
-writer, and the single zero-fill of the output buffer together force
-`distinct slots ≤ memcpy iterations ≤ 16`. A duplicate or a skipped sector caps
-distinct slots at fifteen, so `mask == 0xFFFF` already implies each was filled
-exactly once.
+The second half of that test was originally specified as future-proofing —
+redundant under a sixteen-iteration loop, where the bound alone forces
+`distinct slots ≤ iterations ≤ 16` and a full mask already implies each slot was
+filled once. **It is no longer redundant.** The implementation replaced the fixed
+iteration count with a scan over one revolution, which is exactly the
+generalization that was anticipated, so a duplicate can now coexist with full
+coverage and a fullness test would silently stop meaning what it says.
 
-It is there to **decouple the invariant from the loop bound**. Sixteen fixed
-iterations assumes exactly sixteen sectors in rotational order; scanning until
-the bit stream wraps is the more general algorithm and a plausible future change.
-The moment anyone makes it, duplicates *can* coexist with full coverage and
-"the mask is full" silently stops meaning what it says. "Set exactly once" costs
-one extra test and holds under both; "mask is full" costs nothing today and
-quietly becomes wrong later.
+Recorded because the sequence is the point: a rule justified as "this holds under
+a bound we may change" survived the change, where one justified as "this catches a
+case that exists" would have been deleted as dead weight before the change made
+it live.
 
 This subsumes the `break` case rather than sitting beside it: a track cut short
 simply has incomplete coverage. One property decides the outcome instead of three
