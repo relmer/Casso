@@ -84,6 +84,24 @@ $fixtures = @(
     @{ Source = 'PI.ADD.S';       Objects = @()                       ; Role = 'Boundary -- exports only (REL/ENT/USE, no EXT), workaround exists' }
 )
 
+#
+#  Macro libraries the boundary specimens include.
+#
+#  PI.START.S says `USE PI.MACS` and PI.ADD.S adds `PUT SENDMSG`, but the files
+#  on disk are named T.PI.MACS and T.SENDMSG -- Merlin prefixes `T.` to a
+#  PUT/USE operand to find the file. Without these committed, a refusal test
+#  would be resolving an include that cannot be found, and would report a
+#  missing-file diagnostic while appearing to prove something about REL/ENT/EXT.
+#
+#  They are type T, not type B: no 4-byte header, and the file ends at the
+#  first $00 rather than at a declared length. That difference is the reason
+#  they are listed separately rather than folded in above.
+#
+$textFixtures = @(
+    @{ Name = 'T.PI.MACS';  Role = 'Include target of `USE PI.MACS`' },
+    @{ Name = 'T.SENDMSG';  Role = 'Include target of `PUT SENDMSG`' }
+)
+
 function Get-SectorOffset([int]$Track, [int]$Sector) {
     return ((($Track * 16) + $Sector) * 256)
 }
@@ -227,6 +245,47 @@ foreach ($fixture in $fixtures) {
             Length = $length
             Sha256 = (Get-FileHash $destPath -Algorithm SHA256).Hash
         }
+    }
+}
+
+foreach ($textFixture in $textFixtures) {
+    $name = $textFixture.Name
+    $destPath = Join-Path $destDir $name
+
+    if ((Test-Path $destPath) -and -not $Force) {
+        Write-Host "  SKIP  $name -- already extracted" -ForegroundColor DarkGray
+        $skipped++
+        $bytes = [System.IO.File]::ReadAllBytes($destPath)
+    }
+    else {
+        $raw = Read-DosFile -Image $image -Name $name
+
+        if (-not $raw) {
+            Write-Host "  FAIL  $name -- not found in catalog" -ForegroundColor Red
+            $failed++
+            continue
+        }
+
+        # A DOS 3.3 text file has no header and no stored length. It ends at
+        # the first $00, and everything after that is sector padding.
+        $end = [Array]::IndexOf($raw, [byte]0)
+
+        if ($end -lt 0) { $end = $raw.Length }
+
+        $bytes = New-Object byte[] $end
+        [Array]::Copy($raw, 0, $bytes, 0, $end)
+        [System.IO.File]::WriteAllBytes($destPath, $bytes)
+
+        Write-Host "  OK    $name ($end bytes, type T)" -ForegroundColor Green
+        $written++
+    }
+
+    $inventory += [pscustomobject]@{
+        Name   = $name
+        Bytes  = $bytes.Length
+        Load   = 'n/a'
+        Length = $bytes.Length
+        Sha256 = (Get-FileHash $destPath -Algorithm SHA256).Hash
     }
 }
 

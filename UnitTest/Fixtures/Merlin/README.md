@@ -63,6 +63,8 @@ Sizes are the complete stored file including the 4-byte DOS 3.3 BIN header;
 | `CLOCK.12` | 369 | `$0240` | 365 | `822E1B28A0E53D75D50666D1C3D9A159A2611F31D6AEBD67EB4F5DF913894B64` |
 | `PI.START.S` | 3187 | `$0901` | 3183 | `BF3E2099A0A5CCF54FC8D51329BC605154795B0A0D93A3D69FC2D7164373941A` |
 | `PI.ADD.S` | 2037 | `$0901` | 2033 | `ADFAB2BFEFA955B0B4E6737D6C3305C1F3EDEACB1970EB3C4C6EF50CDB7D754E` |
+| `T.PI.MACS` | 1084 | *(type T)* | 1084 | `2DB71CEF45DD5DDF94A4DC195D76D1EE067F79D1950066ADB15F89A8DC0A7C9B` |
+| `T.SENDMSG` | 149 | *(type T)* | 149 | `E3C13A00775F445E01EE90A8EF3965491CE84A4494841181A6D1C403572475FC` |
 
 Source disk: `Merlin-proDos2.23.dsk`, 143360 bytes, SHA-256
 `CB7FD9522A3B90792ACBB00D6C811323DC046DC2920FC05A640858BFE611F0E6`.
@@ -75,7 +77,7 @@ Source disk: `Merlin-proDos2.23.dsk`, 143360 bytes, SHA-256
 | `KEYMAC.S` | `KEYMAC` | General-purpose. |
 | `PRINTFILER.S` | `PRINTFILER` | General-purpose. |
 | `MAKE DUMP.S` | `MAKE DUMP` | General-purpose, and the largest source at 6659 bytes. |
-| `CLOCK.S` | `CLOCK.24`, `CLOCK.12` | One source, two objects, selected by `DO HOURS-12` / `ELSE` / `FIN`. Conditional assembly plus two independent checks off one file. The two objects differ in exactly 4 bytes of 369, so a conditional-assembly defect shows up as a specific small delta rather than a wall of noise. |
+| `CLOCK.S` | `CLOCK.24`, `CLOCK.12` | One source, two objects, selected by `DO HOURS-12` / `ELSE` / `FIN`. Conditional assembly plus two independent checks off one file. The two objects differ in exactly 4 bytes of 369, so a conditional-assembly defect shows up as a specific small delta rather than a wall of noise. **Needs `KBD` input** — see below. |
 | `PI.START.S` | *(none — deliberate)* | The subset boundary, **importing** side. This is the linker demo; Bredon's own header calls it "just a test source for the linker." `REL`, `ENT`, `EXT` (x3) and `USE` — all outside absolute Merlin. Must draw a diagnostic naming the offending construct, never byte-identical output. |
 | `PI.ADD.S` | *(none — deliberate)* | The subset boundary, **exporting** side: `REL`, `ENT` and `USE` with no `EXT` at all. The distinction is not cosmetic. A file that only exports can be assembled absolutely as a workaround; a file that imports cannot be, without a linker. So the two must not produce the same diagnostic — offering the absolute-assembly workaround for `PI.START.S` would be advice that cannot work. Two specimens, because the boundary has two sides. |
 
@@ -86,6 +88,51 @@ targets, which is why none are extracted.
 nothing to compare against. `PI.MAIN.S` and `PI.DIV.S` are omitted as redundant
 — both import, so `PI.START.S` already covers them. `PI.LOOK.S` is the other
 export-only file and is omitted for the same reason relative to `PI.ADD.S`.
+
+## `KBD` — three of the five oracles cannot be assembled non-interactively
+
+The single most important thing to know before planning against this corpus.
+`KBD` assigns a symbol from **an interactive prompt at assembly time**. Merlin
+stops and asks; the answer becomes the symbol's value and can then drive
+conditional assembly. A batch assembler has nobody to ask.
+
+| Source | `KBD` symbols | Effect on the object |
+|---|---|---|
+| `LABELS.S` | *(none)* | — |
+| `MAKE DUMP.S` | *(none)* | — |
+| `KEYMAC.S` | `SAVOBJ` — "Save object code? (YES/NO)" | Gates saving only; should not change the bytes. |
+| `CLOCK.S` | `SAVOBJ`, `VERSION` — "Want 12 or 24 hour version (12/24)?" | `VERSION` selects the object: 24 → `CLOCK.24`, 12 → `CLOCK.12`. |
+| `PRINTFILER.S` | `FORMAT` (1 = format, 0 = pack), `MONITOR` (1 = monitor, 0 = don't) | Both are semantic. Four combinations, one shipped object. |
+
+So `LABELS.S` and `MAKE DUMP.S` are the only drop-in oracles. The other three
+need a way to supply `KBD` values without a terminal — a command-line symbol
+definition, a scripted answer list, or whatever the dialect mechanism settles
+on. That is a design decision, not an oversight to code around.
+
+`PRINTFILER.S` has a useful property while that is unresolved: which of its four
+combinations produced the shipped 286-byte object is not recorded anywhere. Try
+all four and exactly one should match byte-for-byte — that identifies the
+vendor's build configuration and validates the assembler in the same pass. If
+none match, or more than one does, that is itself the finding.
+
+`CLOCK.S` is the reason to solve `KBD` rather than route around it: it is the
+only source here that yields two different objects, and `VERSION` is how.
+
+## `PUT` and `USE` prepend `T.` to the operand
+
+`PI.START.S` says `USE PI.MACS` and `PI.ADD.S` adds `PUT SENDMSG`, but the files
+on the disk are named `T.PI.MACS` and `T.SENDMSG`. Merlin prefixes `T.` when
+resolving a `PUT`/`USE` operand to a filename, which is why both are committed
+here under their on-disk names.
+
+Without them a refusal test would be resolving an include that cannot be found,
+and would report a missing-file diagnostic while appearing to say something
+about `REL`/`ENT`/`EXT`. `T.SENDMSG` is also a compact specimen of the macro
+features in its own right — `]1` and `]2` parameters, `:NXTCHR` local labels,
+and a nested macro call.
+
+Both are type **T**: no 4-byte header, and the file ends at the first `$00`
+rather than at a declared length.
 
 ## Encoding, and how to read these
 
