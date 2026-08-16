@@ -44,12 +44,27 @@ subclass per dialect.
 | `stringEncodings` | Span of spelling → `StringEncodingMode` rows | none | `ASC`/`DCI`/`INV`/`FLS`/`STR` |
 | `cpuSource` | Where the CPU target comes from | command line | in-source directive only |
 
-**Virtual hooks** (only where a table cannot express the behavior):
+**Virtual hooks.** As built, there is **one**: parse a line into a `ParsedLine`.
 
-- Segment a raw line into fields.
-- Resolve a local label against the enclosing global label.
-- Resolve and assign a variable symbol.
-- Substitute macro parameters for this dialect's parameter syntax.
+That is narrower than this document originally specified, and the narrowing was
+a finding rather than an oversight. Extracting the AS65 grammar showed that line
+parsing is the honest boundary: everything downstream — the two-pass engine, the
+expression evaluator, the opcode tables — consumes a `ParsedLine` without caring
+which profile produced it. Field segmentation, local-label resolution, variable
+symbols, and macro parameter substitution are all *internal* to a profile that
+happens to need them, and AS65 needs none of them.
+
+The four originally listed were a design sketch made before the extraction. They
+are not missing; they were never required. Shipping them as speculative virtuals
+would have made every profile implement behavior most dialects do not have, which
+is the opposite of the goal.
+
+**Virtuals are added when a dialect proves it needs one**, not in advance. Merlin
+is expected to add some — its field model, operand-internal semicolons, quoted
+operands, and first-character conditional all exert pressure the AS65 grammar
+never did. That growth is the narrow-seam decision working, not failing. See the
+plan's note on why extending the seam is distinct from modifying the engine,
+which is what SC-009 actually forbids.
 
 **Validation**: `cpuSource` of `in-source` and a non-empty command-line CPU flag
 are mutually exclusive — that pairing is what FR-026 refuses.

@@ -52,7 +52,7 @@ Paths are repository-relative and follow the structure in [plan.md](./plan.md):
 ### Seam extraction — must change no behavior
 
 - [x] T004 Create `CassoCore/Dialect.h` with the `DialectId` enum (`As65`, `Merlin`) and register it in `CassoCore.vcxproj`
-- [x] T005 Create `CassoCore/DialectProfile.h` declaring the abstract seam — data members per [data-model.md](./data-model.md) plus the four virtual hooks — and register it in `CassoCore.vcxproj`
+- [x] T005 Create `CassoCore/DialectProfile.h` declaring the abstract seam — identity, CPU-selection source, and `ParseLine` — and register it in `CassoCore.vcxproj`. *(Built with **one** virtual, not the four originally sketched: extraction showed line parsing is the honest boundary and the other three are internal to a profile that needs them. Virtuals get added when a dialect proves it needs one — see [data-model.md](./data-model.md).)*
 - [x] T006 Create `CassoCore/As65Dialect.h` / `CassoCore/As65Dialect.cpp` holding today's grammar moved verbatim from `Parser::ParseLine`, and register both in `CassoCore.vcxproj`. **The AS65 directive spelling table does not move**: `DirectiveTable` keeps its global table and `GetAllSpellings()` accessor, and the profile delegates to them. Moving it would change `UnitTest/DirectiveTokenTests.cpp:70`, which sweeps that accessor — and T010 forbids exactly that
 - [x] T007 Create `CassoCore/DialectRegistry.h` / `CassoCore/DialectRegistry.cpp` with the name-to-profile table and a `GetAllDialects()` accessor matching the `DirectiveTable::GetAllSpellings` pattern, and register both in `CassoCore.vcxproj`
 - [x] T008 Route `Parser::ParseLine` through the active profile in `CassoCore/Parser.cpp` and `CassoCore/Parser.h`, moving the file-scope `StripComments` helper into the profile
@@ -189,7 +189,7 @@ Paths are repository-relative and follow the structure in [plan.md](./plan.md):
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T069 Add a synthetic, test-only third dialect profile to `UnitTest/DialectMechanismTests.cpp` and prove it works end to end — this is what catches a mechanism secretly built for exactly two dialects (SC-009)
+- [ ] T069 Add a synthetic, test-only third dialect profile to `UnitTest/DialectMechanismTests.cpp` and prove it works end to end — this is what catches a mechanism secretly built for exactly two dialects (SC-009). **Do not pull this forward.** Run against a seam shaped by AS65 alone it passes trivially, because the synthetic profile gets written to fit whatever seam exists; it only carries weight once Merlin has pressed on the seam with its field model, operand-internal semicolons, quoted operands, and first-character conditional
 - [ ] T070 Verify SC-009 against **T069's commit alone**, not against `origin/master`: `git show --stat HEAD -- CassoCore/AssemblySession.cpp CassoCore/ExpressionEvaluator.cpp CassoCore/OpcodeTable.cpp` must be empty. Diffing against master cannot work — T013, T018, T033, T036, T037, T042, T061, T063, and T064 all modify `AssemblySession.cpp` earlier in this same feature, so that diff is never empty and the criterion 023 gates on would go unverified. The claim is that *adding a dialect* touches none of the three, which is a property of the adding commit
 - [ ] T071 [P] Update `CHANGELOG.md` with the merlin subcommand, the dialect mechanism, and the corrected include-file diagnostic attribution
 - [ ] T072 [P] Update `README.md` with the new dialect, the updated test count, and the roadmap position relative to `023-ca65-dialect`

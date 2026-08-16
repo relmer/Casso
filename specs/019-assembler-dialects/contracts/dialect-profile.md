@@ -13,13 +13,25 @@ and their column rules, the label rule, the field model, the local-label and
 variable sigils, the directive spelling table, the string-encoding table, and
 where the CPU target comes from.
 
-Four behaviors are virtual, because no table expresses them: segmenting a line
-into fields, resolving a local label against its enclosing global, resolving a
-variable symbol, and substituting macro parameters.
+**As built the seam has one virtual**: parse a line into a `ParsedLine`.
+Everything downstream consumes that without knowing which profile produced it,
+which is precisely what keeps the engine shared.
 
-A profile that needs a fifth virtual is a signal the seam is wrong. Raise it
-rather than widening the interface quietly — a widening interface is how a
-mechanism ends up hard-coded for the dialects that happen to exist.
+Earlier drafts of this contract listed four virtuals — field segmentation, local
+labels, variable symbols, macro parameters. Extracting the AS65 grammar showed
+those are *internal* to a profile that needs them rather than obligations on
+every profile, and AS65 needs none of them. They are not missing; they were never
+required.
+
+**Virtuals are added when a dialect proves it needs one.** Merlin will likely add
+some. That is the narrow-seam decision working: the alternative was making every
+future dialect implement behavior it may not have.
+
+What that does *not* license is widening the seam to avoid a hard problem. The
+test is whether the behavior is genuinely per-dialect syntax. If a proposed
+virtual would let a profile reach into how the assembly *runs* rather than how
+source is *read*, the seam is being used to smuggle engine changes, and that is
+the thing to raise.
 
 ## What the mechanism guarantees
 

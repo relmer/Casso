@@ -34,9 +34,13 @@ interface:
 
 - Data: comment introducers and their column rules, the label rule, the field
   model, the directive spelling table (span), the string-encoding table (span).
-- Virtual hooks, only where behavior genuinely cannot be a table: line
-  segmentation into fields, local-label resolution, variable-symbol handling, and
-  macro parameter substitution.
+- Virtual hooks, only where behavior genuinely cannot be a table.
+
+**As implemented, that is one hook** — parse a line into a `ParsedLine`. The four
+sketched here before the extraction (field segmentation, local labels, variable
+symbols, macro parameters) turned out to be internal to a profile that needs
+them, not obligations on every profile; AS65 needs none. Virtuals get added when
+a dialect proves it needs one, and Merlin is expected to add some.
 
 **Rationale**: SC-009 requires a third profile to need no change to the shared
 engine, evaluator, or opcode tables. A wide virtual interface makes each new

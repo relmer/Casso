@@ -523,6 +523,15 @@ The corpus MUST contain, at minimum:
   synthetic, test-only profile exercised in the unit tests. The claim is verified
   rather than asserted; `023-ca65-dialect` gates on it (023 SC-006).
 
+  Two qualifications, both load-bearing. **Extending the dialect seam is not
+  modifying the engine**: adding a virtual to the profile interface is how the
+  mechanism absorbs a dialect it has not met, and is expected — what this
+  criterion forbids is a dialect reaching into how the assembly *runs*. And the
+  demonstration MUST be sequenced **after** the second real dialect lands: run
+  against a seam shaped by one dialect, a synthetic profile passes trivially
+  because it is written to fit the seam that exists, which proves only that the
+  seam supports profiles shaped like the one already there.
+
 ## Assumptions
 
 - Merlin is the only new dialect in this feature. ca65 was originally scoped here

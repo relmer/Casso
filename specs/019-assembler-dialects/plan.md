@@ -112,7 +112,7 @@ specs/019-assembler-dialects/
 CassoCore/
 ├── Dialect.h                    # DialectId enum + registry row type
 ├── DialectRegistry.h/.cpp       # name -> profile table, GetAllDialects()
-├── DialectProfile.h             # abstract seam: data + the few virtual hooks
+├── DialectProfile.h             # abstract seam: identity, CPU source, ParseLine
 ├── As65Dialect.h/.cpp           # today's grammar, extracted unchanged
 ├── MerlinDialect.h/.cpp         # the new profile
 ├── MerlinSubsetBoundary.h/.cpp  # refusal table + GetAll accessor + generated
@@ -239,6 +239,31 @@ text.
 
 **Exit criterion**: the synthetic profile compiles and passes without touching the
 engine, evaluator, or opcode tables — the claim 023 gates on.
+
+**Why this is last, and must not be pulled forward.** Run the synthetic-profile
+test against a seam shaped by AS65 alone and it passes trivially, because the
+synthetic profile gets written to fit the seam that exists. All that proves is
+that the seam supports profiles shaped like AS65 — which is not the claim. The
+test carries weight only once **two genuinely different real profiles** have
+shaped the seam, and Merlin is the one that exerts real pressure: field-based
+lines, semicolons that mean different things inside and outside the operand,
+quoted operands containing spaces, and a first-character conditional. If the seam
+survives all of that with the engine unchanged, a third profile passing means
+something.
+
+**Expect the seam to grow during Phase E, and do not read that as a failure.**
+Adding a virtual to `DialectProfile` is *extending the seam*. SC-009 forbids
+modifying the **engine** — the two-pass driver, the expression evaluator, the
+opcode tables — which is a different thing entirely. A later reader who conflates
+them will either fight a legitimate addition or weaken the criterion to
+accommodate it; both are worse than saying this plainly here.
+
+Two consequences to price in. Each virtual added for Merlin also lands on
+`As65Dialect`, and that churn is the honest cost of not shipping speculative
+hooks — the cheaper side of the trade, but not free. And the T010-style "no
+existing test modified" evidence will **not** hold across that churn, nor should
+it be expected to; T010's gate was scoped to the extraction, where behavior
+preservation was the entire claim.
 
 ## Risks
 
