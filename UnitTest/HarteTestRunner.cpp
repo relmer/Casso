@@ -223,14 +223,70 @@ Error:
 
 std::string GetHarteTestDataDir (const char * cpuType)
 {
-    // __FILE__ resolves to the source file path at compile time.
-    // Navigate from UnitTest/ to UnitTest/<cpuType>/
-    std::string thisFile (__FILE__);
-    std::string dir = thisFile.substr (0, thisFile.find_last_of ("\\/"));
+    // Two locations, checked in order of depth: whichever set is richest wins.
+    //
+    // The reduced set (200 vectors/opcode, ~4 MB) is checked in, so a fresh
+    // clone, a new worktree, and CI all have real opcode coverage with no
+    // setup. The full set (10,000/opcode, ~186 MB) is not checked in -- it
+    // costs a 1.7 GB download to produce -- so it lives in the machine-wide
+    // cache under %LOCALAPPDATA%\Casso\, the same user-writable root
+    // AssetBootstrap already uses, where one copy serves every checkout.
+    //
+    // This used to resolve from __FILE__ alone, which bakes in the path of
+    // the tree the binary was compiled in. Combined with the vectors being
+    // untracked, that meant any checkout where nobody had run the generator
+    // -- every worktree, and CI on every run since the suite was written --
+    // found an empty directory and passed 409 opcode tests in under a
+    // millisecond each without executing a single vector. HarteVectorDepth
+    // below now reports what was actually loaded, so that cannot recur
+    // silently. See docs/testing.md.
+    std::string  dir;
 
 
 
-    return dir + "\\" + cpuType;
+    // 1. Explicit override, for CI or a scratch data set.
+    {
+        char  * env = nullptr;
+        size_t  len = 0;
+
+        if (_dupenv_s (&env, &len, "CASSO_HARTE_DIR") == 0 && env != nullptr)
+        {
+            dir = std::string (env) + "\\" + cpuType;
+            free (env);
+
+            return dir;
+        }
+    }
+
+    // 2. The full-depth set, if this machine has generated one. Preferred
+    //    over the checked-in set precisely because it is deeper.
+    {
+        char  * env = nullptr;
+        size_t  len = 0;
+
+        if (_dupenv_s (&env, &len, "LOCALAPPDATA") == 0 && env != nullptr)
+        {
+            std::string  cached = std::string (env) + "\\Casso\\HarteTests\\" + cpuType;
+
+            free (env);
+
+            if (std::filesystem::exists (cached))
+            {
+                return cached;
+            }
+        }
+    }
+
+    // 3. The checked-in reduced set. __FILE__ is sound here, unlike above:
+    //    these vectors are tracked, so they exist in whichever tree this
+    //    binary was built from.
+    {
+        std::string  thisFile (__FILE__);
+
+        dir = thisFile.substr (0, thisFile.find_last_of ("\\/"));
+    }
+
+    return dir + "\\HarteVectors\\" + cpuType;
 }
 
 
@@ -549,6 +605,124 @@ namespace HarteTests
     //  which one.
     //
     ////////////////////////////////////////////////////////////////////////////////
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  HarteVectorDepth
+    //
+    //  Reports which vector set the opcode tests below actually ran against,
+    //  and fails if the answer is "none".
+    //
+    //  Two problems, one test. RunHarteOpcode skips an opcode whose file is
+    //  missing, which is right per-opcode -- Harte publishes all 256 bytes and
+    //  Casso models a deliberate subset -- but it makes "no vectors at all"
+    //  indistinguishable from "every vector passed". CI ran 409 opcode tests
+    //  to green for the life of the suite without loading a single vector, and
+    //  nothing in the output said so.
+    //
+    //  The second problem is quieter: the checked-in set is 200 vectors per
+    //  opcode, not the 10,000 upstream publishes. That is a deliberate trade
+    //  (docs/testing.md) but a reduced default is exactly the kind of thing
+    //  that gets forgotten, so the depth is stated on every run rather than
+    //  left in a document someone has to think to open.
+    //
+    //  The numbers are read out of the file headers, never hardcoded. Point
+    //  the resolver at a full-depth set and this reports 10,000 with no code
+    //  change, so the message cannot drift out of step with the data.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (HarteVectorDepth)
+    {
+    public:
+
+        TEST_METHOD (HarteVectorsArePresentAndDepthIsReported)
+        {
+            ReportDepth ("6502");
+            ReportDepth ("rockwell65c02");
+        }
+
+
+    private:
+
+        static constexpr int  kFullDepth = 10000;
+
+        // Vector count is the first field of the file header.
+        static int ReadVectorCount (const std::filesystem::path & path)
+        {
+            std::ifstream  f (path, std::ios::binary);
+            Byte           header[2] = { 0, 0 };
+
+            if (!f.read (reinterpret_cast<char *> (header), sizeof (header)))
+            {
+                return 0;
+            }
+
+            return header[0] | (header[1] << 8);
+        }
+
+
+        static void ReportDepth (const char * cpuDir)
+        {
+            std::string      dir      = GetHarteTestDataDir (cpuDir);
+            int              files    = 0;
+            int              minDepth = 0;
+            int              maxDepth = 0;
+            long long        vectors  = 0;
+            std::error_code  ec;
+
+            for (const auto & entry : std::filesystem::directory_iterator (dir, ec))
+            {
+                if (entry.path().extension() != ".bin")
+                {
+                    continue;
+                }
+
+                int  depth = ReadVectorCount (entry.path());
+
+                files++;
+                vectors += depth;
+                minDepth = (files == 1) ? depth : (std::min) (minDepth, depth);
+                maxDepth = (std::max) (maxDepth, depth);
+            }
+
+            if (files == 0)
+            {
+                std::string  message =
+                    "No Harte vectors found for '" + std::string (cpuDir) +
+                    "' at " + dir + ". Every opcode test for this CPU is "
+                    "passing without executing anything. The reduced set is "
+                    "checked in under UnitTest/HarteVectors/, so an empty "
+                    "directory means the checkout is incomplete. See "
+                    "docs/testing.md.";
+
+                Assert::Fail (ToWide (message).c_str());
+            }
+
+            std::string  summary =
+                "Harte " + std::string (cpuDir) + ": " + std::to_string (files) +
+                " opcodes, " +
+                (minDepth == maxDepth
+                     ? std::to_string (minDepth) + " vectors each"
+                     : std::to_string (minDepth) + "-" + std::to_string (maxDepth) + " vectors") +
+                " (" + std::to_string (vectors) + " total) -- " +
+                (maxDepth >= kFullDepth ? "FULL depth." : "REDUCED set.") +
+                " Upstream publishes " + std::to_string (kFullDepth) +
+                "/opcode; scripts/RunHarteTests.ps1 fetches and runs it. " +
+                "Source: " + dir + "\n";
+
+            Logger::WriteMessage (summary.c_str());
+        }
+
+
+        static std::wstring ToWide (const std::string & text)
+        {
+            return std::wstring (text.begin(), text.end());
+        }
+    };
+
+
+
 
     TEST_CLASS (HarteTestRunner)
     {

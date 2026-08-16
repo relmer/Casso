@@ -53,6 +53,15 @@ Requires Visual Studio 2026 (v18.x) with "Desktop development with C++" workload
 
 Or use the VS Code tasks (Ctrl+Shift+B).
 
+Run **Debug** before merging. Release is not a substitute: `ExpectedEhmAssert`
+compiles its checks out there, so those tests execute the code under test but
+verify nothing about the assert.
+
+If you touch the CPU core, run the full-depth Harte vectors
+(`.\scripts\RunHarteTests.ps1`) — the set checked in and run by default is 200
+vectors per opcode, not the full 10,000. See [docs/testing.md](docs/testing.md)
+for what that covers and when the deeper set is warranted.
+
 ## Code Style
 
 - See [.github/copilot-instructions.md](.github/copilot-instructions.md) for detailed formatting rules
