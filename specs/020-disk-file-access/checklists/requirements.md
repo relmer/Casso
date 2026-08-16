@@ -31,10 +31,11 @@
 
 ## Notes
 
-- Requirements were renumbered flat during the 2026-08-15 clarification pass when
-  requirements were inserted after FR-015 and after FR-030. The former
-  FR-016..FR-029 are now FR-019..FR-033. Anything referencing the old numbers
-  predates that pass.
+- Requirements were renumbered flat during the 2026-08-15 clarification pass, in
+  three rounds as requirements were inserted after FR-011, FR-015, and FR-030.
+  The spec now runs FR-001..FR-036 with no gaps or letter suffixes. Anything
+  citing a number outside that range, or citing a number whose text does not
+  match, predates the pass — re-read rather than reconcile.
 - **Spec 019 deliberately did NOT renumber flat, and that divergence is correct.**
   019's FR-016..FR-019 are cited externally from a GitHub issue, so renumbering
   would have broken a live reference; it kept an irregular sequence instead.
@@ -63,12 +64,22 @@
   stops the sharing at 2: codes of 3 and above stay subcommand-scoped, because
   requiring global uniqueness would couple subcommands that are otherwise
   independent — the property that let 019 and 020 be developed in parallel.
-- The ProDOS substrate is further along than a filename survey suggests, because
-  `ProDosReader` and `ProDosFileWriter` are declared inside the skeleton's header
-  rather than in files named for themselves. Read already handles all three
-  storage types; write already handles two of them with real bitmap allocation.
-  The genuine gaps are tree growth, delete with free-space return, and
-  subdirectory traversal — the existing classes were built for bootable-disk
-  creation, not as a general filesystem layer, so they are volume-directory-only
-  and append-only. **Delete is on the P1 critical path**, not a later nicety,
-  because FR-011 requires that writing an existing name replace it.
+- **The two filesystems are not at the same starting point, and planning must not
+  assume parity.** ProDOS has both a reader and a writer already (declared inside
+  the skeleton's header rather than in files named for themselves, which is why a
+  filename survey misses them): read handles all three storage types, write
+  handles two of them with real bitmap allocation. DOS 3.3 has neither — there is
+  no reader at all, and its writer is a single zero-parameter method that emits
+  one hardcoded greeting file, not a general writer with defaults. The
+  countervailing point is that DOS 3.3's structures are far simpler — flat
+  catalog, track/sector list, no tree, no subdirectories — so building its reader
+  from nothing is small work, while ProDOS's remaining work is fiddlier per line.
+  Net effort is comparable; it sits in different places. The specific risk is that
+  **US3 is P1 and needs both readers, and only one exists.**
+- Remaining gaps by filesystem: ProDOS needs tree growth, delete with free-space
+  return, and subdirectory traversal; DOS 3.3 needs a reader and a real writer.
+  Both existing classes were built for bootable-disk creation rather than as a
+  general filesystem layer, so both are append-only and neither deletes.
+- **Delete is on the P1 critical path**, not a later nicety, because FR-012
+  requires that writing an existing name replace it, and replace cannot be built
+  on an append-only writer.

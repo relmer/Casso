@@ -40,10 +40,12 @@ the migration.
 
 - Q: When writing into a bit-stream image, what happens to tracks the operation never touched? → A: Re-encode only the tracks whose sectors changed; copy every other track's original bit stream verbatim. Representability is judged per touched track, not per image.
 - Q: How is an unwritable track identified — by detecting copy protection? → A: No. Detect standard-ness and refuse anything not provably standard; never enumerate protection schemes. The posture is fail-safe.
-- Q: How far does the all-or-nothing guarantee in FR-012 extend? → A: To crash safety. Build the complete image in memory or fail, then commit via a uniquely named temp file and an atomic replace.
+- Q: How far does the all-or-nothing guarantee in FR-013 extend? → A: To crash safety. Build the complete image in memory or fail, then commit via a uniquely named temp file and an atomic replace.
 - Q: How should the tool detect that a target image is in use by a running emulator? → A: It should not — that scenario is already out of scope per the Assumptions, and the emulator holds no handle to detect. Document the hazard, keep a best-effort probe for other holders, and re-verify the file has not changed between read and write.
 - Q: What second-level verbs does the `disk` subcommand use? → A: Descriptive canonical verbs (`list`, `put`, `get`, `delete`, `boot`) with terse aliases (`ls`, `rm`). No `cat`.
 - Q: What does the tool return when a volume is damaged but partly readable? → A: Three states on the tool's existing exit-status vocabulary — 0 clean, 1 succeeded with complaints, 2 produced no output.
+- Q: What does delete do when a file's sector chain is damaged — refuse, or free what is readable and leak the rest? → A: Neither blindly. Free only what the catalog proves the file uniquely owns, report the rest as leaked, and keep the file removable so a damaged file cannot strand the volume.
+- Q: Are files addressed by bare name or by path? → A: By path from the first pass, so subdirectory support is a filled-in capability rather than a later signature change.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -309,39 +311,55 @@ program in the guest, and confirm the listing matches the source text.
 - **FR-008**: The system MUST write a file into a ProDOS volume, allocating from
   the volume bitmap and growing the file's block structure as its size requires.
 - **FR-009**: The system MUST extract a file's contents from either volume type.
+  Files MUST be addressed by path rather than by a bare name, so a file inside a
+  subdirectory is reachable on the filesystem that has them. A volume without
+  subdirectories simply has paths one component long.
 - **FR-010**: The system MUST delete a file from either volume type, returning its
   space to the volume.
-- **FR-011**: Writing a file whose name already exists MUST replace the existing
-  file, not create a duplicate entry or fail.
-- **FR-012**: Every write operation MUST be all-or-nothing: on any failure the
+- **FR-011**: Delete MUST NOT free a sector or block that anything else still
+  references. Before returning space, the system MUST determine what the volume's
+  catalog actually references, and free only what the deleted file uniquely owns.
+  Space the file referenced but that cannot be safely freed MUST be reported as
+  leaked rather than freed, and a file whose sector chain is damaged MUST still be
+  removable on those terms — refusing to delete it would strand the volume, and
+  the migrating developer of US3 is working with exactly the degraded disks where
+  that arises.
+- **FR-012**: Writing a file whose name already exists MUST replace the existing
+  file, not create a duplicate entry or fail. Replacement MUST be computed as a
+  whole — the complete post-replacement image produced before anything is
+  committed — never as a delete applied to the target followed by a write. A
+  failure between the two steps of an in-place replacement would leave the old
+  file freed and the new one absent, which loses the file outright and is worse
+  than a refused write.
+- **FR-013**: Every write operation MUST be all-or-nothing: on any failure the
   image MUST be left byte-for-byte as it was. The complete new image MUST be
   built in memory and validated before anything is committed, and the commit
   MUST be crash-safe — written to a uniquely named temporary file alongside the
   target, then atomically replacing it — so an interrupted write cannot truncate
   or corrupt the original. The temporary file MUST be removed on any failure,
   and its name MUST NOT collide when two invocations target the same image.
-- **FR-013**: The system MUST refuse to write to a volume that is write-protected,
+- **FR-014**: The system MUST refuse to write to a volume that is write-protected,
   and MUST refuse to overwrite a file that is locked. The refusal MUST be
   reported in intelligible terms naming the image and the reason, not as a raw
   platform error code — including when write protection is enforced by the host
   file's read-only attribute and surfaces as an access denial at commit time.
-- **FR-014**: Volume access MUST work on every disk image format Casso can already
+- **FR-015**: Volume access MUST work on every disk image format Casso can already
   mount, including bit-stream images, not only sector-order images.
-- **FR-015**: The system MUST refuse to write to an image whose track data cannot
+- **FR-016**: The system MUST refuse to write to an image whose track data cannot
   be losslessly represented as standard sectors, reporting why. Representability
   is judged **per track**: a track that cannot round-trip blocks the write only
   when the operation needs to write to that track.
-- **FR-016**: Writing to a bit-stream image MUST re-encode only the tracks whose
+- **FR-017**: Writing to a bit-stream image MUST re-encode only the tracks whose
   sector contents changed. Every other track's original bit stream MUST be
   preserved verbatim, so timing, sync patterns, weak bits, and data held at
   half/quarter-track positions survive a write elsewhere on the disk.
-- **FR-017**: Reading a bit-stream image MUST report, per track, whether that
+- **FR-018**: Reading a bit-stream image MUST report, per track, whether that
   track decoded to a complete set of standard sectors, so a caller can tell a
   clean track from an undecodable one rather than silently seeing an undecodable
-  track as zeros. This report is what FR-015 and FR-016 judge, and what US3's
+  track as zeros. This report is what FR-016 and FR-017 judge, and what US3's
   damage description draws on. It is a precondition for every write path, not a
   refinement of one: without it a write silently destroys what it cannot decode.
-- **FR-018**: The standard-ness test MUST be a positive proof, not a search for
+- **FR-019**: The standard-ness test MUST be a positive proof, not a search for
   known protection schemes. A track qualifies only when it decodes to sixteen
   distinct, valid, standard sectors; anything else is refused. The system MUST
   additionally refuse, before examining any track, an image whose quarter-track
@@ -355,43 +373,43 @@ program in the guest, and confirm the listing matches the source text.
 
 #### File types and encoding
 
-- **FR-019**: The system MUST accept a file type and, where the filesystem stores
+- **FR-020**: The system MUST accept a file type and, where the filesystem stores
   one, a load address when placing a file.
-- **FR-020**: The system MUST convert host text to the target's character encoding
+- **FR-021**: The system MUST convert host text to the target's character encoding
   and line-ending convention when placing a text file, and reverse the conversion
   when extracting one.
-- **FR-021**: The system MUST convert an Applesoft BASIC listing in host text into
+- **FR-022**: The system MUST convert an Applesoft BASIC listing in host text into
   the tokenized on-disk form when placing it as a BASIC program, and reverse the
   conversion when extracting one.
-- **FR-022**: Placing a BASIC listing that cannot be tokenized MUST be refused with
+- **FR-023**: Placing a BASIC listing that cannot be tokenized MUST be refused with
   the offending line number and text reported.
 
 #### Boot configuration
 
-- **FR-023**: The system MUST set which program a bootable volume runs after its
+- **FR-024**: The system MUST set which program a bootable volume runs after its
   operating system loads.
-- **FR-024**: Setting a boot program that is not present on the volume MUST be
+- **FR-025**: Setting a boot program that is not present on the volume MUST be
   refused.
-- **FR-025**: The system MUST be able to produce a disk image that boots directly
+- **FR-026**: The system MUST be able to produce a disk image that boots directly
   into a supplied binary with no operating system present.
-- **FR-026**: A direct-boot image MUST reject a payload that exceeds the memory the
+- **FR-027**: A direct-boot image MUST reject a payload that exceeds the memory the
   boot path can load, reporting the available capacity.
-- **FR-027**: A direct-boot image MUST support entering the payload at an address
+- **FR-028**: A direct-boot image MUST support entering the payload at an address
   other than its load address.
 
 #### Interface
 
-- **FR-028**: Every capability above MUST be reachable from the command-line tool
+- **FR-029**: Every capability above MUST be reachable from the command-line tool
   using subcommand-style invocation consistent with the existing tool: a single
   `disk` subcommand carrying second-level verbs.
-- **FR-029**: The second-level verbs MUST be descriptive words — `list`, `put`,
+- **FR-030**: The second-level verbs MUST be descriptive words — `list`, `put`,
   `get`, `delete`, `boot` — and MUST additionally accept the terse aliases `ls`
   for `list` and `rm` for `delete`. Help output MUST display the descriptive
   form. `put` and `get` are named from the disk's perspective, which is what
   makes their direction unambiguous; the help text MUST say so. `cat` MUST NOT
   be used for the catalog listing, because it collides with the established
   meaning of printing a file's contents — which this tool does under `get`.
-- **FR-030**: Every operation MUST report its outcome through an exit status.
+- **FR-031**: Every operation MUST report its outcome through an exit status.
   The values **0**, **1**, and **2** are reserved and mean the same thing in
   every subcommand of this tool: **0** the operation completed cleanly, **1** the
   operation succeeded but had complaints (a partial read, damage described on
@@ -399,22 +417,22 @@ program in the guest, and confirm the listing matches the source text.
   operation produced no output. This is the meaning the assembler and run
   subcommands already assign, so a script needs no per-subcommand knowledge to
   branch on those three.
-- **FR-031**: Exit statuses of **3** and above are scoped to the subcommand that
+- **FR-032**: Exit statuses of **3** and above are scoped to the subcommand that
   returns them and MUST be documented in that subcommand's own help. They carry
   no cross-subcommand meaning and MUST NOT be coordinated against other
   subcommands' values — a caller already knows which subcommand it invoked, so
   requiring global uniqueness above 2 would couple independent subcommands
   without making any script more correct.
-- **FR-032**: Failure messages MUST name the image, the file, and the reason, and
+- **FR-033**: Failure messages MUST name the image, the file, and the reason, and
   MUST go to the error stream so they do not contaminate piped output.
-- **FR-033**: Every capability MUST be documented in the tool's help output.
-- **FR-034**: Because modifying an image mounted in a running emulator is out of
+- **FR-034**: Every capability MUST be documented in the tool's help output.
+- **FR-035**: Because modifying an image mounted in a running emulator is out of
   scope (see Assumptions), and because the emulator holds no handle on the file
   to detect, the system MUST document the hazard rather than claim to prevent
   it. It MUST additionally make a best-effort exclusive-open probe and refuse
   when some *other* holder has the file open — which the platform can detect —
   without implying that a clean probe means no emulator is running.
-- **FR-035**: The system MUST record the target image's size and modification
+- **FR-036**: The system MUST record the target image's size and modification
   time when it reads the image, and MUST re-verify both immediately before
   committing a write, refusing if either changed. This closes the window in
   which another writer landed between read and commit. It cannot detect a write
@@ -506,6 +524,6 @@ program in the guest, and confirm the listing matches the source text.
   track partially written can already lose the rest of that track on eject today,
   with no error surfaced. This feature does not introduce the defect, but it does
   make it reachable from a second direction and would build a write path on top
-  of it. FR-017 is the fix. It MUST land before any write path that consumes
+  of it. FR-018 is the fix. It MUST land before any write path that consumes
   denibblized output, and the pre-existing emulator-side exposure SHOULD be
   tracked as its own defect rather than folded silently into this feature.
