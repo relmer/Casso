@@ -31,6 +31,12 @@ struct LineInfo
     int              macroDepth;
     bool             conditionalSkip;
     bool             listingSuppressed;
+
+    // The file this line came from, carried across from the PendingLine so
+    // pass 2 can attribute a diagnostic as accurately as pass 1. Empty means
+    // the top-level input. Pass 2 walks this list rather than the pending
+    // lines, so without it every pass-2 diagnostic would lose the file.
+    std::string      sourceFile;
 };
 
 
@@ -314,6 +320,13 @@ private:
 
     void RecordError   (int lineNumber, const std::string & message);
     void RecordWarning (int lineNumber, const std::string & message);
+
+    // The file whose line is being processed right now. Stamped onto every
+    // diagnostic AT THE POINT IT IS RECORDED, which is the only moment the
+    // originating file is still known -- by the time a diagnostic is reported,
+    // the only path in hand is the top-level input, which is exactly how errors
+    // inside included files came to be misattributed.
+    std::string  m_currentSourceFile;
     bool IsAssembling  () const;
     void InjectBuiltin (const std::string & name, int32_t value);
     void EmitByte      (Byte b, Word & emitPC);

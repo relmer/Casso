@@ -62,10 +62,10 @@ Paths are repository-relative and follow the structure in [plan.md](./plan.md):
 
 ### Diagnostic positions
 
-- [ ] T012 Add `file` (default empty) and `column` (default 0) to `AssemblyError` in `CassoCore/AssemblerTypes.h`
-- [ ] T013 Route `RecordError` and `RecordWarning` through the current `PendingLine`'s `sourceFile` in `CassoCore/AssemblySession.cpp`. **Populate the position where the error is CREATED, not where it is reported** — that is the whole difficulty. Extending the error record is trivial; include attribution is only correct if the originating file is captured at the point of failure, since by reporting time the only file in hand is the top-level input. The value must also survive the trip out of core to reach the reporting site in the executable
-- [ ] T014 Make `ReportAssemblyDiagnostics` in `CassoCli/CommandLine.cpp` print the error's own `file` when set, falling back to the input path when empty so AS65 diagnostics are byte-for-byte unchanged
-- [ ] T015 [P] Add tests to `UnitTest/MerlinDiagnosticTests.cpp` proving a diagnostic raised inside an included file names that file rather than the top-level input, and register the file in `UnitTest.vcxproj`
+- [x] T012 Add `file` (default empty) and `column` (default 0) to `AssemblyError` in `CassoCore/AssemblerTypes.h`
+- [x] T013 Route `RecordError` and `RecordWarning` through the current `PendingLine`'s `sourceFile` in `CassoCore/AssemblySession.cpp`. **Populate the position where the error is CREATED, not where it is reported** — that is the whole difficulty. Extending the error record is trivial; include attribution is only correct if the originating file is captured at the point of failure, since by reporting time the only file in hand is the top-level input. The value must also survive the trip out of core to reach the reporting site in the executable
+- [x] T014 Make `ReportAssemblyDiagnostics` in `CassoCli/CommandLine.cpp` print the error's own `file` when set, falling back to the input path when empty so AS65 diagnostics are byte-for-byte unchanged
+- [x] T015 [P] Add tests to `UnitTest/MerlinDiagnosticTests.cpp` proving a diagnostic raised inside an included file names that file rather than the top-level input, and register the file in `UnitTest.vcxproj`
 
 ### Switchable instruction set
 

@@ -187,6 +187,7 @@
     <ClCompile Include="OutputFormats.cpp" />
     <ClCompile Include="As65Dialect.cpp" />
     <ClCompile Include="DialectRegistry.cpp" />
+    <ClCompile Include="DiagnosticFormatter.cpp" />
     <ClCompile Include="Directive.cpp" />
     <ClCompile Include="Parser.cpp" />
     <ClCompile Include="Pch.cpp">
@@ -227,6 +228,7 @@
     <ClInclude Include="Dialect.h" />
     <ClInclude Include="DialectProfile.h" />
     <ClInclude Include="DialectRegistry.h" />
+    <ClInclude Include="DiagnosticFormatter.h" />
     <ClInclude Include="Directive.h" />
     <ClInclude Include="Parser.h" />
     <ClInclude Include="Pch.h" />

@@ -34,10 +34,32 @@ enum class SymbolKind
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblyError
+//
+//  One diagnostic. Position is carried so an editor can jump to it.
+//
+//  `file` and `column` are DEFAULTED, which is what makes them additive: every
+//  diagnostic that predates them keeps compiling and keeps its shape, and a
+//  dialect that knows its column populates one without obliging every other
+//  site to.
+//
+//  An empty `file` means the top-level input rather than "unknown". That is the
+//  distinction that lets the reporting side print exactly what it always did
+//  for a diagnostic with no file of its own, while an error raised inside an
+//  included file names the file it actually came from.
+//
+//  A column of 0 means "no column known", since columns are 1-based when known.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 struct AssemblyError
 {
-    int         lineNumber;
-    std::string message;
+    int          lineNumber;
+    std::string  message;
+    std::string  file;
+    int          column = 0;
 };
 
 

@@ -2,6 +2,7 @@
 
 #include "CommandLine.h"
 #include "Assembler.h"
+#include "DiagnosticFormatter.h"
 #include "Cpu.h"
 #include "Cpu65C02Table.h"
 #include "Microcode.h"
@@ -299,14 +300,17 @@ static AssembleResult AssembleFile (const std::string & inputFile,
 
 static void ReportAssemblyDiagnostics (const AssembleResult & ar)
 {
+    // The input path is the FALLBACK, not the answer. A diagnostic that carries
+    // its own file names that file -- which is how an error inside an included
+    // file stops being attributed to the top-level source.
     for (const auto & w : ar.result.warnings)
     {
-        std::println (stderr, "{}:{}: warning: {}", ar.inputFile, w.lineNumber, w.message);
+        std::println (stderr, "{}", DiagnosticFormatter::Format (w, ar.inputFile, DiagnosticSeverity::Warning));
     }
 
     for (const auto & e : ar.result.errors)
     {
-        std::println (stderr, "{}:{}: error: {}", ar.inputFile, e.lineNumber, e.message);
+        std::println (stderr, "{}", DiagnosticFormatter::Format (e, ar.inputFile, DiagnosticSeverity::Error));
     }
 
     if (!ar.ok)

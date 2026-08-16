@@ -833,6 +833,7 @@ void AssemblySession::RecordError (int lineNumber, const std::string & message)
     AssemblyError error = {};
     error.lineNumber = lineNumber;
     error.message    = message;
+    error.file       = m_currentSourceFile;
     m_result.errors.push_back (error);
     m_result.success = false;
 }
@@ -867,6 +868,7 @@ void AssemblySession::RecordWarning (int lineNumber, const std::string & message
             AssemblyError warning = {};
             warning.lineNumber = lineNumber;
             warning.message    = message;
+            warning.file       = m_currentSourceFile;
             m_result.warnings.push_back (warning);
             break;
         }
@@ -876,6 +878,7 @@ void AssemblySession::RecordWarning (int lineNumber, const std::string & message
             AssemblyError error = {};
             error.lineNumber = lineNumber;
             error.message    = message;
+            error.file       = m_currentSourceFile;
             m_result.errors.push_back (error);
             m_result.success = false;
             break;
@@ -1144,7 +1147,13 @@ HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
 
 
 
+    // Before anything can fail: a diagnostic raised while processing this line
+    // must name the file the line came from, and this is the last point at
+    // which that is known.
+    m_currentSourceFile    = current.sourceFile;
+
     info.parsed            = Parser::ParseLine (current.text, current.sourceLineNumber);
+    info.sourceFile        = current.sourceFile;
     info.pc                = m_pc;
     info.isInstruction     = false;
     info.isDirective       = false;
@@ -4407,6 +4416,11 @@ HRESULT AssemblySession::RunPass2()
         Word emitPC         = info.pc;
         bool lineHasAddress = false;
 
+        // Pass 2 walks the recorded lines rather than the pending ones, so the
+        // originating file has to be re-established here or every diagnostic
+        // raised while emitting would be attributed to the top-level input.
+        m_currentSourceFile = info.sourceFile;
+
         if (info.hasError)
         {
             // Nothing to emit
@@ -4556,6 +4570,8 @@ HRESULT AssemblySession::ReportUnresolvedEqus()
         {
             continue;
         }
+
+        m_currentSourceFile = info.sourceFile;
 
         if (info.parsed.constantKind == SymbolKind::Equ &&
             m_fullSymbols.find (info.parsed.constantName) == m_fullSymbols.end())
@@ -5456,16 +5472,23 @@ HRESULT AssemblySession::DetectUnusedLabels()
 
         if (m_referencedLabels.find (sym.first) == m_referencedLabels.end())
         {
-            int defLine = 0;
+            int          defLine = 0;
+            std::string  defFile;
 
             for (const auto & info : m_lineInfos)
             {
                 if (info.parsed.label == sym.first)
                 {
                     defLine = info.parsed.lineNumber;
+                    defFile = info.sourceFile;
                     break;
                 }
             }
+
+            // The warning belongs to where the label was DEFINED, so the file
+            // comes from that line rather than from wherever the sweep happens
+            // to be.
+            m_currentSourceFile = defFile;
 
             RecordWarning (defLine, "Unused label: " + sym.first);
         }
