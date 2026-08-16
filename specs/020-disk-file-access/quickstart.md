@@ -8,9 +8,13 @@ detail in `data-model.md`. This file is the run guide, not the implementation.
 ## Prerequisites
 
 - `scripts/Build.ps1` succeeds for x64 Debug and Release.
-- `%LOCALAPPDATA%\Casso\Disks\DOS 3.3 System Master.dsk` present for the
-  boot-level gates. Every test that needs it **skips gracefully** when it is
-  absent — the sanctioned exception carried over from the existing suite.
+- `%LOCALAPPDATA%\Casso\Disks\DOS 3.3 System Master.dsk` — **required**, not
+  optional. Every test that needs it **fails** when it is absent rather than
+  skipping: a test that cannot reach its data must not pass, or a machine
+  missing the asset reports a confident green suite over guest-visible criteria
+  nothing verified. This deliberately reverses the skip-if-missing pattern
+  earlier disk specs used; that pattern is why the Dormann suite ran green while
+  doing no work.
 
 ## Unit validation
 

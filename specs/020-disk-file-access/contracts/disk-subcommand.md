@@ -30,9 +30,9 @@ struct without a blind merge.
 
 ```text
 casso disk list   <image> [--long]
-casso disk get    <image> <path> [--out <file>] [--text | --basic | --binary]
+casso disk get    <image> <path> [--out <file>] [--text | --basic | --verbatim]
 casso disk put    <image> <file> [--as <path>] [--type <t>] [--addr $XXXX]
-                                 [--text | --basic | --binary]
+                                 [--text | --basic | --verbatim]
 casso disk delete <image> <path>
 casso disk boot   <image> <path>
 ```
@@ -48,12 +48,14 @@ transfers without adopting that tool's flag syntax.
 established meaning of printing a file's contents, which this tool does under
 `get`.
 
-The encoding selector is `--binary`, **not** `--raw`, for the same reason:
-`--raw` already exists on the assembler as an *output shape*
-(`CommandLineOptions::OutputFormat::Raw`). Reusing the spelling for an encoding
-selector would give one flag two meanings inside one parser — and spec 019 is
-editing that parser concurrently, which is the worst possible time to introduce a
-collision that only shows up as a confusing help page.
+The no-conversion selector is `--verbatim`, and both obvious alternatives were
+rejected for the same reason: `--raw` already names an assembler *output shape*
+(`OutputFormat::Raw`), and `--binary` names another (`OutputFormat::Binary`, the
+padded 64 KB image). Either spelling would give one word two meanings inside one
+parser — and spec 019 is editing that parser concurrently, which is the worst
+moment to introduce a collision whose only symptom is a confusing help page.
+`--verbatim` also says what it actually does: the other two selectors transform
+the bytes, and this one does not.
 
 ## Exit statuses
 

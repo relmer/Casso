@@ -40,8 +40,8 @@ the CLI shell only. Core never touches the filesystem.
 
 **Testing**: Microsoft C++ Unit Test Framework. Synthetic buffers throughout;
 `BlankDiskBuilder` produces formatted volumes, deliberate corruption produces
-damaged ones. Boot-level gates reuse the existing real-CPU DOS-boot harness with
-mandatory skip-if-missing.
+damaged ones. Boot-level gates use the real-CPU DOS-boot harness and **fail**
+when its cached asset is absent, rather than skipping.
 
 **Target Platform**: Windows 10/11 x64 (ARM64 build-only — no device available,
 so x64 Debug + Release green is the bar)
@@ -62,52 +62,67 @@ concurrently.
 
 *Constitution v1.8.0. Evaluated pre-Phase-0, re-checked post-design.*
 
-- **I. Code Quality (NON-NEGOTIABLE)** — PASS. EHM single-exit, declarations at
-  top, banners, no anonymous namespaces, no magic numbers. Gated by CheckStyle
-  pre-push and CI. New classes get their own `.h`/`.cpp` pairs rather than being
-  nested in a skeleton header — the existing readers/writers are declared inside
-  `ProDosSkeleton.h`, which is precisely why a filename survey missed them
-  (R-001). That is debt to avoid repeating, not a template.
-- **II. Testing Discipline (NON-NEGOTIABLE)** — PASS. Every volume operation is
-  data-in/data-out over byte buffers, so no test touches a real file, registry,
-  or process. The boot-level acceptance gates reuse the sanctioned existing
-  exception (cached master image, graceful skip when absent).
-- **III. User Experience Consistency** — PASS. Subcommand style with long
-  options; errors to stderr; every capability in `--help`; exit statuses reuse
-  the meanings `as65` and `run` already assign rather than minting new ones.
-- **IV. Performance** — PASS. Negligible data volumes; nothing on the emulation
-  thread.
+**Every row states what was checked, not just the verdict.** A bare "PASS" is
+indistinguishable from a check that verified nothing — the same shape the
+instructions now call out as degraded operation reading as healthy operation. A
+row citing its evidence is falsifiable by a reader in ten seconds; that is what
+caught the Principle VI failure below, and it was reading a project file, not
+thinking harder. See GH **#85** for the standing thin-executable work and the
+list of what legitimately stays in an executable; this plan does not re-argue it.
+
+- **I. Code Quality (NON-NEGOTIABLE)** — PASS. *Checked*: CheckStyle CS0001–CS0020
+  runs pre-push and as CI's `style` job in `-Mode Tree`, so EHM shape, banners,
+  spacing, and alignment are mechanically gated rather than asserted here. Magic
+  numbers and EHM single-exit are not gated and remain review's job. New classes
+  get their own `.h`/`.cpp` pairs: `ProDosReader` and `ProDosFileWriter` are
+  declared inside `ProDosSkeleton.h`, which is exactly why a filename survey
+  missed them (R-001) — debt to avoid repeating, not a template.
+- **II. Testing Discipline (NON-NEGOTIABLE)** — PASS. *Checked*: every volume
+  operation is data-in/data-out over byte buffers; the commit path reaches the
+  host only through `IDiskFileIo`, which `UnitTest` substitutes with a fake whose
+  file table is inspectable — so "image unchanged, no temporary left" is
+  assertable without touching a real file. **The boot-level gates FAIL when the
+  cached master image is absent; they do not skip.** This reverses what spec 017
+  did and what an earlier draft of this plan inherited: a test that cannot reach
+  its data must not pass, because "N passed" has to mean N things were checked.
+  That exact pattern is why the Dormann suite ran green while doing no work.
+  Crash safety is the one thing genuinely not unit-testable, so the
+  interrupted-write check is a single declared manual pass.
+- **III. User Experience Consistency** — PASS. *Checked*: subcommand style with
+  long options; diagnostics to stderr and payloads to stdout so output pipes;
+  every capability in `--help`; exit statuses 0/1/2 reuse the meanings
+  `CommandLine.cpp:1218`/`1159`/`986` already assign rather than minting new ones.
+  `--verbatim` was chosen over `--raw` and `--binary` because both already mean
+  something else on the assembler side of the same parser.
+- **IV. Performance** — PASS. *Checked*: the integrity pass walks at most 560
+  sectors or 280 blocks per volume, so running it per write is negligible;
+  nothing added runs on the emulation thread.
 - **V. Simplicity** — PASS with one deliberate generalization: the integrity pass
   is built once as a first-class mechanism rather than three or four times inside
-  its callers (R-005). Justified below.
+  its callers (R-005). Justified in Complexity Tracking below.
 - **VI. Thin Executable, Testable Core (NON-NEGOTIABLE)** — **initially FAILED;
-  now PASS after re-siting.** The first draft of this plan put `FileCommit`, the
-  exit-status mapping, the staleness comparison, and `DoDisk`'s dispatch and
-  message construction in `CassoCli` and recorded the principle as satisfied. It
-  is not: **`UnitTest.vcxproj` references CassoCore, CassoEmuCore, Casso, and
-  Dxui — not CassoCli** (verified). Nothing in `CassoCli` can be linked by a
-  test, so every one of those was unreachable by the litmus this plan quotes.
-  Temp-name derivation, collision policy, status mapping, and metadata
-  comparison are *decisions*, not syscalls, and the existing `CommandLine.cpp`
-  is exactly what the principle names as divergence not to imitate.
+  now PASS.** *Checked*: `UnitTest.vcxproj` lines 555–570 reference
+  `CassoCore`, `CassoEmuCore`, `Casso`, and `Dxui` — **not `CassoCli`**.
+  Therefore nothing in `CassoCli` is reachable by a test.
 
-  Resolved by moving all of it into `CassoEmuCore` — which `UnitTest` links and
-  `CassoCli` references — behind an `IDiskFileIo` seam: core owns `IVolume`,
-  both volumes, `VolumeIntegrityReport`, `SectorDecodeReport`, `TrackWritability`,
-  `CommitPlan`, `DiskCommandRunner`, and the extended `NibblizationLayer`; the
-  `disk` grammar stays in `CassoCore` beside the parser. `CassoCli` keeps only
-  `Win32DiskFileIo` (the `ifstream` / `ofstream` / `ReplaceFileW` calls) and a
-  `DoDisk` that constructs it, calls the runner, prints, and returns the status.
-- **II. Testing Discipline / Test Isolation (NON-NEGOTIABLE)** — PASS **only
-  because of the seam above**. The commit path's verification (SC-005: image
-  unchanged after every documented failure, no temporary left behind) would
-  otherwise require reading and writing real files, which Test Isolation forbids.
-  Those checks run against a fake `IDiskFileIo` whose file table is inspectable.
-  Crash safety genuinely cannot be unit-tested, so the interrupted-write check is
-  the one sanctioned manual pass, called out as such in quickstart.md.
+  An earlier draft placed `FileCommit`, the exit-status mapping, the staleness
+  comparison, and `DoDisk`'s dispatch and message construction there and recorded
+  this row as PASS. Temp-name derivation, collision policy, status mapping, and
+  metadata comparison are *decisions*, not syscalls. Resolved by moving them to
+  `CassoEmuCore` (which `UnitTest` links and `CassoCli` references) behind
+  `IDiskFileIo`. `CassoCli` keeps `Win32DiskFileIo` and a `DoDisk` that
+  constructs it, calls the runner, prints, and returns the status — in its own
+  `CassoCli/DiskCommand.cpp`, not appended to the 1,222-line `CommandLine.cpp`
+  that GH #85 names as the offender.
 
-**Post-design re-check**: PASS, after a cross-artifact analysis pass caught the
-VI violation above. Complexity Tracking carries one justified entry.
+  Recorded rather than erased, because the failure mode is instructive: the
+  natural home for CLI-adjacent logic *is* the CLI, so this condition reproduces
+  the violation faster than review catches it. It is the second same-day instance
+  after the parser extraction in `8b632268`. The fix that worked was not a more
+  careful self-assessment — it was reading a project file. Hence the
+  evidence-citing format above.
+
+**Post-design re-check**: PASS. Complexity Tracking carries one justified entry.
 
 ## Project Structure
 
@@ -157,8 +172,10 @@ CassoCore/
 └── ApplesoftTokenizer.h/.cpp    # NEW — listing <-> tokenized form (US6, P3)
 
 CassoCli/                        # syscalls and printing ONLY — UnitTest cannot link this
-├── CommandLine.cpp              # + DoDisk: construct IO, call runner, print, return status
-└── Win32DiskFileIo.h/.cpp       # NEW — ifstream / ofstream / ReplaceFileW / stat
+├── DiskCommand.h/.cpp           # NEW — DoDisk: construct IO, call runner, print
+├── Win32DiskFileIo.h/.cpp       # NEW — ifstream / ofstream / ReplaceFileW / stat
+└── CommandLine.cpp              # + one PrintUsage registration line ONLY (1,222
+                                 #   lines already, and spec 019 is editing it)
 
 UnitTest/
 ├── CommandLineTests.cpp         # EXTEND — disk grammar (existing tests MUST stay green)
