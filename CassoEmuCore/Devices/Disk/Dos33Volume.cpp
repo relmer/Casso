@@ -251,7 +251,10 @@ bool Dos33Volume::CollectDataSectors (
         }
 
         // Both halves of the next pointer come from the sector being left, and
-        // must be read BEFORE either is overwritten.
+        // must be read BEFORE either is overwritten. Taking the sector half
+        // from the file's head instead walks correctly on the first hop -- the
+        // head IS the current sector there -- and then loops on the second,
+        // which reports a healthy file as an unfollowable chain.
         {
             int  nextTrack  = ReadByte (listTrack, listSector, kTsOffNextTrack);
             int  nextSector = ReadByte (listTrack, listSector, kTsOffNextSector);
