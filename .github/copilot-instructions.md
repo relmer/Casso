@@ -431,6 +431,44 @@ void Function2()
 - Temp files are acceptable only in integration tests, never in unit tests.
 - If code cannot be tested this way, it usually lives in the wrong project — see **Architecture: Thin Exe, Rich Testable Core** above; move the logic into a core lib rather than leaving it untested in the exe.
 
+### Degraded Operation Must Be Observable
+
+A component that cannot do its job MUST NOT be indistinguishable from one that
+did. This class has bitten five times, in five different layers:
+
+- `NibblizationLayer::Denibblize` returned `S_OK` over sectors it had
+  zero-filled, on the flush path (GH #115)
+- `RunTests.ps1` reported a full, confident pass against a stale test assembly
+- Dormann integration tests passed without their data present, having done no
+  work
+- A `DialectId` enumerator with no profile behind it silently answered with a
+  different dialect — support that looked present and was not
+- A corpus harness looping over an empty entry list passes by comparing nothing
+
+Concretely:
+
+- **Tests**: a test that cannot reach its data FAILS. It does not skip quietly
+  and it does not pass. "N passed" must mean N things were checked.
+- **Fixtures and corpora**: assert a non-zero item count *before* asserting over
+  the items. A loop over an empty set is a passing test that tests nothing, and
+  it is indistinguishable from a full one in the output.
+- **Production code**: a function that could not do what it was asked MUST NOT
+  return success. That is what EHM exists for; producing `S_OK` after a partial
+  failure defeats the whole pattern.
+- **Identifier / implementation pairs**: where an enum is **total** over its
+  implementations, sweep the *enum*, not only the table — a table sweep visits
+  only rows that exist by construction and structurally cannot find a missing
+  one. `DialectId` and `Directive` are total; `CommandLineOptions::Subcommand`
+  is deliberately partial (`None` / `Help` / `Version` / `As65` are not
+  bare-word subcommands), so the same sweep there would fail correct code.
+  `UnitTest/DirectiveTokenTests.cpp` sweeps both directions and is the
+  exemplar.
+
+The common shape is a **degraded state that reads as a healthy one**: zeros that
+look like a blank track, a stale binary that looks like a run, a missing profile
+that looks like support. Ask of any success path: could this have reported
+success while doing nothing?
+
 ## Build System
 
 ### Building
