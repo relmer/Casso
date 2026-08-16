@@ -57,10 +57,16 @@ scripts\RunTests.ps1 -Build
 git diff --stat origin/master -- UnitTest/
 ```
 
-The suite passes **and** the second command shows no test modifications. Phase A
-moves the AS65 grammar behind the seam without altering it, so any test edit in
-this phase means behavior moved with it. That is the signal to stop and find out
-what changed.
+The suite passes **and** the second command shows no *existing* test file
+modified. Phase A moves the AS65 grammar behind the seam without altering it, so
+an edit to a test that already existed means behavior moved with it. That is the
+signal to stop and find out what changed. Run this before adding any new test
+file — new files are expected later in the phase and do not violate the gate.
+
+This is also why the AS65 directive spelling table stays in `DirectiveTable`
+rather than moving into the profile: `UnitTest/DirectiveTokenTests.cpp` sweeps
+`GetAllSpellings()`, and moving the table would force an edit to exactly the kind
+of test this gate protects.
 
 ### Phase B — diagnostics name the right file
 
@@ -104,14 +110,20 @@ a row added to the table is covered without anyone editing a test.
 
 ```powershell
 & (Get-VS2026VSTestPath) x64\Release\UnitTest.dll /TestCaseFilter:"FullyQualifiedName~DialectMechanismTests"
-git diff --stat origin/master -- CassoCore/AssemblySession.cpp CassoCore/ExpressionEvaluator.cpp CassoCore/OpcodeTable.cpp
+git show --stat HEAD -- CassoCore/AssemblySession.cpp CassoCore/ExpressionEvaluator.cpp CassoCore/OpcodeTable.cpp
 ```
 
 This is SC-009, and the two commands are equally important. The synthetic
-test-only profile must pass, **and** adding it must not have touched the engine,
-the evaluator, or the opcode tables. A mechanism secretly hard-coded for two
-dialects passes every Merlin test and fails exactly here, which is the cheap way
-to catch it before 023 finds it the expensive way.
+test-only profile must pass, **and** the commit that added it must show no change
+to the engine, the evaluator, or the opcode tables. A mechanism secretly
+hard-coded for two dialects passes every Merlin test and fails exactly here, which
+is the cheap way to catch it before 023 finds it the expensive way.
+
+Note the diff is scoped to **the adding commit**, not to `origin/master`. Earlier
+phases of this same feature legitimately modify `AssemblySession.cpp` — new
+directive rows, dummy sections, per-line instruction tables — so a diff against
+master is never empty and would prove nothing. The claim SC-009 makes is about
+what *adding a dialect* costs, which is a property of that one commit.
 
 ## Before merging to master
 

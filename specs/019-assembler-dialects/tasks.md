@@ -1,5 +1,4 @@
 ---
-
 description: "Task list for 019-assembler-dialects"
 ---
 
@@ -19,10 +18,11 @@ description: "Task list for 019-assembler-dialects"
 - **[Story]**: Which user story the task belongs to (US1, US2, US3)
 - Exact file paths are included in every task
 
-IDs above T077 were added after generation and sit in their **execution**
-position rather than at the end, so the file still reads in the order the work
-happens. Existing IDs are never renumbered, because the phase notes and
-dependency graph reference them.
+Tasks added after generation sit in their **execution** position rather than at
+the end, so the file still reads in the order the work happens. They carry either
+the next free number (T078, T079) or a letter suffix where they belong beside an
+existing task (T033a, T053a, T062a). Existing IDs are never renumbered, because
+the phase notes and the dependency graph reference them.
 
 ## Path Conventions
 
@@ -37,7 +37,7 @@ Paths are repository-relative and follow the structure in [plan.md](./plan.md):
 **Purpose**: Test scaffolding that later phases fill in.
 
 - [ ] T001 [P] Promote `MockFileReader` out of `UnitTest/IncludeTests.cpp` into `UnitTest/MockFileReader.h`, register in `UnitTest.vcxproj`, and update `UnitTest/IncludeTests.cpp` to include it instead of defining it
-- [ ] T002 [P] Create `UnitTest/MerlinCorpus/README.md` documenting the capture procedure, the Merlin-version-per-entry rule, and why the disk image is never committed
+- [ ] T002 [P] Create `UnitTest/MerlinCorpus/README.md` documenting the capture procedure end to end — including that the developer supplies their own Merlin 8 image and that **AppleCommander** moves files on and off it until `020-disk-file-access` lands — plus the Merlin-version-per-entry rule and why the disk image is never committed
 - [ ] T003 [P] Create `scripts/CaptureMerlinCorpus.ps1` skeleton with `-Entry` and `-MerlinImage` parameters and usage text
 
 ---
@@ -52,12 +52,12 @@ Paths are repository-relative and follow the structure in [plan.md](./plan.md):
 
 - [ ] T004 Create `CassoCore/Dialect.h` with the `DialectId` enum (`As65`, `Merlin`) and register it in `CassoCore.vcxproj`
 - [ ] T005 Create `CassoCore/DialectProfile.h` declaring the abstract seam — data members per [data-model.md](./data-model.md) plus the four virtual hooks — and register it in `CassoCore.vcxproj`
-- [ ] T006 Create `CassoCore/As65Dialect.h` / `CassoCore/As65Dialect.cpp` holding today's grammar moved verbatim from `Parser::ParseLine`, and register both in `CassoCore.vcxproj`
+- [ ] T006 Create `CassoCore/As65Dialect.h` / `CassoCore/As65Dialect.cpp` holding today's grammar moved verbatim from `Parser::ParseLine`, and register both in `CassoCore.vcxproj`. **The AS65 directive spelling table does not move**: `DirectiveTable` keeps its global table and `GetAllSpellings()` accessor, and the profile delegates to them. Moving it would change `UnitTest/DirectiveTokenTests.cpp:70`, which sweeps that accessor — and T010 forbids exactly that
 - [ ] T007 Create `CassoCore/DialectRegistry.h` / `CassoCore/DialectRegistry.cpp` with the name-to-profile table and a `GetAllDialects()` accessor matching the `DirectiveTable::GetAllSpellings` pattern, and register both in `CassoCore.vcxproj`
 - [ ] T008 Route `Parser::ParseLine` through the active profile in `CassoCore/Parser.cpp` and `CassoCore/Parser.h`, moving the file-scope `StripComments` helper into the profile
 - [ ] T009 Add `dialect` to `AssemblerOptions` in `CassoCore/AssemblerTypes.h`, defaulting to `DialectId::As65` so every existing caller is unaffected
-- [ ] T010 Verify the seam changed nothing: full suite green in `x64\Release` AND `git diff --stat origin/master -- UnitTest/` shows no test modifications. A test edit here means behavior moved with the code — stop and find out what
-- [ ] T011 [P] Add `DialectRegistry` sweep tests to `UnitTest/DialectMechanismTests.cpp` asserting every `DialectId` enumerator resolves to a profile, and register the file in `UnitTest.vcxproj`
+- [ ] T010 Verify the seam changed nothing, **before any new test file is added**: full suite green in `x64\Release` AND `git diff --stat origin/master -- UnitTest/` shows no *existing* test file modified. Adding new files is expected later and does not violate this gate; editing one that already existed does, and means behavior moved with the code — stop and find out what
+- [ ] T011 [P] Add `DialectRegistry` sweep tests to `UnitTest/DialectMechanismTests.cpp` asserting every `DialectId` enumerator resolves to a profile, and register the file in `UnitTest.vcxproj`. Runs **after** T010, since it adds a file under `UnitTest/`
 
 ### Diagnostic positions
 
@@ -86,12 +86,12 @@ Paths are repository-relative and follow the structure in [plan.md](./plan.md):
 ### Corpus first — these settle open questions the parser depends on
 
 - [ ] T020 [US1] Define the `CorpusEntry` shape from [data-model.md](./data-model.md) and the comparison harness in `UnitTest/MerlinCorpusTests.cpp`, serving multi-source entries through `UnitTest/MockFileReader.h`, and register the file in `UnitTest.vcxproj`
-- [ ] T021 [US1] Implement `scripts/CaptureMerlinCorpus.ps1` to assemble one entry under real Merlin 8 in Casso and emit source, bytes, and Merlin version into `UnitTest/MerlinCorpus/CorpusEntries.h`
+- [ ] T021 [US1] Implement `scripts/CaptureMerlinCorpus.ps1` to assemble one entry under real Merlin 8 in Casso and emit source, bytes, and Merlin version into `UnitTest/MerlinCorpus/CorpusEntries.h`. Getting source onto the Merlin disk and bytes back off it uses **AppleCommander** until `020-disk-file-access` provides `disk put` / `disk get`; name the tool and its invocation explicitly in the script and in `UnitTest/MerlinCorpus/README.md`, since the whole MVP is gated behind this path
 - [ ] T022 [P] [US1] Capture irregular-spacing entries — extra spaces, tabs, and mixtures — into `UnitTest/MerlinCorpus/CorpusEntries.h` to settle the field-based line model empirically
 - [ ] T023 [P] [US1] Capture mixed-case and long-symbol entries into `UnitTest/MerlinCorpus/CorpusEntries.h` to settle symbol case sensitivity, length limit, and legal character set (research.md CHK008, CHK009)
 - [ ] T024 [P] [US1] Capture expression entries covering Merlin's operator set, precedence, and the current-program-counter form into `UnitTest/MerlinCorpus/CorpusEntries.h` (research.md CHK052)
 - [ ] T025 [P] [US1] Capture a `XC OFF` entry into `UnitTest/MerlinCorpus/CorpusEntries.h` to settle whether Merlin accepts a reset form (spec Edge Cases)
-- [ ] T026 [US1] Cross-check a sample of captured entries against hand-derived expectations from the Merlin manual, and record the answers to all settle-by-capture items in `specs/019-assembler-dialects/research.md`
+- [ ] T026 [US1] Cross-check a sample of captured entries against hand-derived expectations from the Merlin manual, and record the answers to all settle-by-capture items in `specs/019-assembler-dialects/research.md`. **If T025 shows a CPU-target reset form exists**, amend FR-015 and the `InstructionSetProvider` state transition in `data-model.md` — both currently describe a one-way `base → extended` change — and add the implementing task before T040 rather than discovering the conflict during it
 
 ### The Merlin profile
 
@@ -101,7 +101,8 @@ Paths are repository-relative and follow the structure in [plan.md](./plan.md):
 - [ ] T030 [US1] Implement label rules and the local-label prefix in `CassoCore/MerlinDialect.cpp`, scoping locals to the enclosing global label (FR-008)
 - [ ] T031 [US1] Implement variable symbols in `CassoCore/MerlinDialect.cpp` with reassignment semantics (FR-011)
 - [ ] T032 [US1] Add the Merlin directive spelling table to `CassoCore/MerlinDialect.cpp`, reusing existing `Directive` tokens wherever the operation is identical
-- [ ] T033 [P] [US1] Add new `Directive` tokens for reversed-order words and raw hexadecimal data in `CassoCore/Directive.h` and `CassoCore/Directive.cpp`, and their pass-1/pass-2 rows in `CassoCore/AssemblySession.cpp` (FR-009)
+- [ ] T033 [P] [US1] Add **all** new `Directive` tokens this feature introduces in `CassoCore/Directive.h` and `CassoCore/Directive.cpp`, with their pass-1/pass-2 rows in `CassoCore/AssemblySession.cpp`: reversed-order words, raw hexadecimal data, the loop construct and its terminator, the dummy section and its terminator, CPU selection, and the single encoded-string token. Adding them in one task keeps the exhaustiveness-checked `switch` compiling once rather than breaking at each of T035–T040 (research.md D2, FR-009)
+- [ ] T033a [US1] Resolve directive spellings that collide with an instruction mnemonic by the active dialect's rule in `CassoCore/MerlinDialect.cpp`, using the `DirectiveTable::FromAmbiguousSpelling` precedent so resolution never depends on which table is consulted first (spec Edge Cases)
 - [ ] T034 [P] [US1] Create `CassoCore/StringEncoding.h` / `.cpp` implementing high-bit, inverse, flashing, and terminator handling per [contracts/merlin-directives.md](./contracts/merlin-directives.md), and register both in `CassoCore.vcxproj`
 - [ ] T035 [US1] Wire the five Merlin string spellings to one `Directive` token carrying a `StringEncodingMode` in `CassoCore/MerlinDialect.cpp`, including delimiter-driven high-bit inference (FR-010)
 - [ ] T036 [P] [US1] Implement the loop construct and its terminator in `CassoCore/MerlinDialect.cpp` and `CassoCore/AssemblySession.cpp` (FR-011)
@@ -135,12 +136,15 @@ Paths are repository-relative and follow the structure in [plan.md](./plan.md):
 - [ ] T048 [US2] Add `Subcommand::Merlin` and a `dialect` field to `CommandLineOptions` in `CassoCore/CommandLineOptions.h`
 - [ ] T049 [US2] Add one row `{ "merlin", CommandLineOptions::Subcommand::Merlin }` to `s_kSubcommands` and one arm in `Parse` in `CassoCore/CommandLineParser.cpp`, leaving the unrecognized-first-argument AS65 fallback intact
 - [ ] T050 [US2] Add `ParseMerlinFlags` to `CassoCore/CommandLineParser.h` and `CassoCore/CommandLineParser.cpp` per [contracts/cli.md](./contracts/cli.md)
-- [ ] T051 [US2] Refuse `--cpu` under the merlin subcommand in `CassoCore/CommandLineParser.cpp` with a message naming the in-source CPU directive — refused, never accepted and ignored (FR-026)
+- [ ] T051 [US2] Refuse `--cpu` **when the active profile's `cpuSource` is in-source**, driven by profile data rather than by a merlin-specific branch, in `CassoCore/CommandLineParser.cpp`; the message names the directive supplied by the profile. A hard-coded merlin arm here would put a per-dialect branch in the shared mechanism, which is what `contracts/dialect-profile.md` guarantee 3 forbids and what SC-009 exists to catch (FR-026)
 - [ ] T052 [US2] Set `AssemblerOptions::dialect` from `CommandLineOptions::dialect` in `CassoCli/CommandLine.cpp`, and set it to AS65 as an inference on the fallback path
-- [ ] T053 [US2] Report an inferred dialect on stderr under verbose and in the listing header in `CassoCli/CommandLine.cpp` — never unconditionally on stdout, which carries the listing when no listing file is named (FR-004)
+- [ ] T053 [US2] Create `CassoCore/DialectReporting.h` / `.cpp` deciding **what** dialect-and-CPU line to emit and **when**, per the reporting table in [contracts/cli.md](./contracts/cli.md), and register both in `CassoCore.vcxproj`. `CassoCli/CommandLine.cpp` only prints what it returns — never unconditionally on stdout, which carries the listing when no listing file is named. The decision lives in core so `UnitTest` can exercise it (FR-004, SC-005)
+- [ ] T053a [P] [US2] Report the **CPU target** alongside the dialect through the same path — including when it was left at the dialect's default, so "no directive was seen" is not misread as "the flag was ignored" — in `CassoCore/DialectReporting.cpp` (SC-005)
+- [ ] T053b [P] [US2] Register the `merlin` subcommand and its flag table in the tool's usage and help output via `CassoCli/CommandLine.h` and `CassoCli/CommandLine.cpp`, deriving the flag list from core so help cannot drift from the parser, with a test (FR-024, US2 acceptance 4)
 - [ ] T054 [P] [US2] Add merlin grammar tests to a **new** `UnitTest/MerlinCommandLineTests.cpp` rather than editing `UnitTest/CommandLineTests.cpp`, and register it in `UnitTest.vcxproj`
 - [ ] T055 [US2] Verify `UnitTest/CommandLineTests.cpp` passes with zero modifications, confirming spec 020's pinned behavior is intact
-- [ ] T078 [US2] Return the shared exit-code vocabulary from the merlin path in `CassoCli/CommandLine.cpp` — 0 clean, 1 succeeded with complaints, 2 no output — matching the existing assembler path so a driving script needs no per-subcommand knowledge; a subset-boundary refusal exits 2 and is distinguished by its message, not by a distinct code (FR-030)
+- [ ] T078 [US2] Create `CassoCore/AssemblerExitCode.h` / `.cpp` mapping an `AssemblyResult` to the shared vocabulary — 0 clean, 1 succeeded with complaints, 2 no output — and register both in `CassoCore.vcxproj`; `CassoCli/CommandLine.cpp` returns what it computes. A subset-boundary refusal maps to 2 and is distinguished by its message, not by a distinct code. In core so the mapping is unit-testable rather than reachable only by running the exe (FR-030)
+- [ ] T079 [P] [US2] Add a cross-dialect strictness test to `UnitTest/MerlinCommandLineTests.cpp`: a Merlin-only construct assembled under AS65 is rejected naming the construct and the active dialect, and an AS65-only construct under Merlin likewise. This is US2's independent test and FR-005's direct evidence — no other task exercises the accept/reject matrix
 
 **Checkpoint**: Dialect selection is explicit, strict, and additive to the shared command-line surface.
 
@@ -158,11 +162,12 @@ Paths are repository-relative and follow the structure in [plan.md](./plan.md):
 - [ ] T059 [P] [US3] Refuse the file-type directive in `CassoCore/MerlinDialect.cpp` as owned by `020-disk-file-access` (FR-028)
 - [ ] T060 [P] [US3] Refuse the save-object directive in `CassoCore/MerlinDialect.cpp` as multi-output segmentation needing its own decision — the message must NOT describe it as waiting on 020 (FR-029)
 - [ ] T061 [US3] Make a boundary refusal distinguishable from a syntax error in `CassoCore/AssemblySession.cpp`, and collect every offender across the whole pass before failing rather than stopping at the first (FR-017, FR-018)
-- [ ] T062 [US3] Generate the subset-boundary section of `merlin --help` from the boundary table in `CassoCli/CommandLine.cpp` so help and implementation cannot disagree (FR-019, FR-024)
+- [ ] T062 [US3] Generate the subset-boundary help text **from the boundary table inside `CassoCore/MerlinSubsetBoundary.cpp`**, returning a string that `CassoCli/CommandLine.cpp` merely prints. Generation in the executable would be unreachable from `UnitTest`, so FR-019's "cannot disagree by construction" would gain no test — and Principle VI is non-negotiable (FR-019, FR-024)
+- [ ] T062a [P] [US3] Add a test to `UnitTest/MerlinSubsetBoundaryTests.cpp` asserting the generated help text names every row the accessor returns, so a row added to the table without help coverage fails the build rather than shipping
 - [ ] T063 [US3] Populate `column` on every Merlin diagnostic in `CassoCore/MerlinDialect.cpp` and `CassoCore/AssemblySession.cpp` (FR-021)
 - [ ] T064 [US3] Describe constructs in the active dialect's vocabulary, and name which dialect defines a construct rejected as belonging to another, in `CassoCore/AssemblySession.cpp` (FR-020, FR-022)
 - [ ] T065 [US3] Explain the column rule when a Merlin label is indented, rather than reporting an unknown symbol, in `CassoCore/MerlinDialect.cpp` (User Story 3 acceptance 1)
-- [ ] T066 [P] [US3] Add the hand-authored negative corpus class — boundary refusals and diagnostic expectations, kept distinct from captured entries — to `UnitTest/MerlinCorpus/CorpusEntries.h`
+- [ ] T066 [P] [US3] Add the hand-authored negative corpus class — boundary refusals and diagnostic expectations, kept distinct from captured entries — to `UnitTest/MerlinCorpus/CorpusEntries.h`, including an entry where a macro is invoked with another dialect's argument syntax and must be **rejected rather than partially expanded** (spec Edge Cases)
 - [ ] T067 [P] [US3] Add `UnitTest/MerlinSubsetBoundaryTests.cpp` sweeping the boundary accessor and asserting every row produces the expected refusal, and register it in `UnitTest.vcxproj`
 - [ ] T068 [US3] Verify SC-006 and SC-007: every dialect-specific diagnostic identifies the correct line and column, and every out-of-subset construct is named rather than failing as a parse error
 
@@ -173,14 +178,14 @@ Paths are repository-relative and follow the structure in [plan.md](./plan.md):
 ## Phase 6: Polish & Cross-Cutting Concerns
 
 - [ ] T069 Add a synthetic, test-only third dialect profile to `UnitTest/DialectMechanismTests.cpp` and prove it works end to end — this is what catches a mechanism secretly built for exactly two dialects (SC-009)
-- [ ] T070 Verify SC-009: `git diff --stat origin/master -- CassoCore/AssemblySession.cpp CassoCore/ExpressionEvaluator.cpp CassoCore/OpcodeTable.cpp` shows the synthetic profile required no change to the engine, evaluator, or opcode tables
+- [ ] T070 Verify SC-009 against **T069's commit alone**, not against `origin/master`: `git show --stat HEAD -- CassoCore/AssemblySession.cpp CassoCore/ExpressionEvaluator.cpp CassoCore/OpcodeTable.cpp` must be empty. Diffing against master cannot work — T013, T018, T033, T036, T037, T042, T061, T063, and T064 all modify `AssemblySession.cpp` earlier in this same feature, so that diff is never empty and the criterion 023 gates on would go unverified. The claim is that *adding a dialect* touches none of the three, which is a property of the adding commit
 - [ ] T071 [P] Update `CHANGELOG.md` with the merlin subcommand, the dialect mechanism, and the corrected include-file diagnostic attribution
 - [ ] T072 [P] Update `README.md` with the new dialect, the updated test count, and the roadmap position relative to `023-ca65-dialect`
 - [ ] T073 [P] Document the supported subset and where it ends in the repository docs, deriving the list from `CassoCore/MerlinSubsetBoundary.cpp` (SC-008)
 - [ ] T074 Run `scripts/RunDormannTest.ps1` — required for assembler changes
 - [ ] T075 Run `scripts/RunHarteTests.ps1 -SkipGenerate` — required for assembler changes
 - [ ] T076 Run `scripts/Build.ps1 -RunCodeAnalysis` and `scripts/CheckStyle.ps1`, and confirm x64 Debug and Release are both green
-- [ ] T077 Revert `.specify/feature.json` to `specs/020-disk-file-access` before merging, so master does not thrash between two concurrent specs
+- [ ] T077 Revert `.specify/feature.json` to `specs/020-disk-file-access` before merging, so master does not thrash between two concurrent specs. This is the **only** mechanism for that file — plan.md states the same, and staging by explicit path throughout the feature is what keeps it from being committed accidentally in the meantime
 
 ---
 
@@ -193,8 +198,11 @@ Paths are repository-relative and follow the structure in [plan.md](./plan.md):
 - T010 gates everything. If the seam changed behavior, no later phase's evidence is trustworthy.
 - T016–T018 block T040 — the CPU-selection directive has nothing to switch without the provider.
 - T020–T026 block T027 onward. The corpus settles six open questions, and building the parser first means guessing at answers the capture can supply.
-- T056 blocks T057–T062. The boundary table is the single source those all derive from.
+- T056 blocks T057–T062a. The boundary table is the single source those all derive from, including its generated help text.
+- T033 blocks T035–T040. All the new `Directive` tokens land in one commit so the exhaustiveness-checked `switch` breaks once rather than at every directive task.
+- T005 blocks T051. The `--cpu` refusal reads the profile's `cpuSource`, so the field must exist on the seam before the parser can consult it.
 - T069 depends on the whole mechanism, so it lands last despite being the criterion 023 gates on.
+- T070 must be evaluated against T069's own commit. Diffing against `origin/master` cannot work, because earlier tasks in this feature legitimately modify `AssemblySession.cpp`.
 
 **Story independence**: US2 and US3 both depend on US1's profile existing, so they are not parallel with it. They are independent of each other and can proceed in either order once US1 lands.
 

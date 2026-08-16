@@ -175,8 +175,12 @@ rejected accordingly.
 1. **Given** source containing a construct that only Merlin accepts, **When** it is
    assembled in AS65 mode, **Then** it is rejected with a diagnostic naming the
    construct and the active dialect.
-2. **Given** any dialect selection, **When** the developer also selects a CPU target,
-   **Then** both apply independently and neither overrides the other.
+2. **Given** a dialect that exposes a command-line CPU flag, **When** the developer
+   selects both a dialect and a CPU target, **Then** both apply independently and
+   neither overrides the other.
+2a. **Given** a dialect that takes its CPU from source instead, **When** the
+   developer passes a command-line CPU flag, **Then** it is refused with a message
+   naming that dialect's in-source directive — never accepted and ignored.
 3. **Given** no dialect selection, **When** the developer assembles, **Then** the
    dialect that was inferred is reported on the diagnostic stream under verbose
    output and in the listing header, and never unconditionally on standard
@@ -276,13 +280,14 @@ references outside this file.
   defines CPU selection may take the CPU from there exclusively.
 - **FR-003**: Where a dialect defines its own in-source CPU selection, that
   in-source directive MUST take effect for the remainder of the assembly.
-- **FR-004**: The dialect in effect MUST be discoverable without guessing. An
-  explicit dialect selection is self-documenting from the invocation itself; where
-  the dialect was inferred rather than stated, the tool MUST report it — on the
-  diagnostic stream under verbose output, and in the listing header when a listing
-  is produced. It MUST NOT be emitted unconditionally on standard output, which
-  carries the listing when no listing file is named and is therefore piped by
-  build scripts.
+- **FR-004**: The dialect in effect **and the CPU target in effect** MUST both be
+  discoverable without guessing. An explicit dialect selection is self-documenting
+  from the invocation itself; where either was inferred rather than stated — the
+  dialect by fallback, or the CPU by an in-source directive — the tool MUST report
+  it on the diagnostic stream under verbose output, and in the listing header when
+  a listing is produced. Neither MUST be emitted unconditionally on standard
+  output, which carries the listing when no listing file is named and is therefore
+  piped by build scripts. SC-005 is measured entirely against this requirement.
 - **FR-005**: Each dialect MUST be applied strictly and authentically; the
   assembler MUST NOT accept a lenient union of all dialects. "Authentic" is
   measured against the dialect the profile names, and for AS65 that dialect is
@@ -456,12 +461,16 @@ SC-001 is measured against a defined floor rather than a judgment about what
   nothing invokes another assembler at test time.
 - **SC-002**: A developer with an existing Merlin project can assemble it in Casso
   without editing any source line.
-- **SC-003**: Every rejection of valid Merlin source is a reported defect, not an
-  expected limitation — the dialect is complete or the gap is documented.
+- **SC-003**: Valid Merlin source is rejected only where the subset-boundary table
+  says so. A rejection with no corresponding boundary row is a defect rather than a
+  limitation, which makes the table the definition of "expected limitation" and
+  gives this criterion something to measure against.
 - **SC-004**: The existing AS65 dialect's output remains byte-for-byte identical
   for every source file in the current test corpus.
 - **SC-005**: A developer can determine which dialect and CPU target were used for
-  any assembly from the tool's own output alone.
+  any assembly from the tool's own output alone, by the means FR-004 defines —
+  the invocation itself where either was stated, and verbose output or the
+  listing header where either was inferred.
 - **SC-006**: Diagnostics for dialect-specific errors identify the correct line and
   column in every case covered by the test corpus.
 - **SC-007**: Every construct outside the supported subset produces a diagnostic

@@ -173,6 +173,11 @@ it is never unclear where an expectation came from.
 ## AssemblerOptions (extended)
 
 Gains `dialect`, defaulting to `As65`. This is where FR-006 is satisfied: every
-entry point that assembles source — the CLI, the GUI's in-app assembler, and the
-tests — selects a dialect through the same field, and the subcommand parsers do
-nothing but populate it.
+entry point that assembles source selects a dialect through the same field, and
+the subcommand parsers do nothing but populate it.
+
+Today that means `CassoCli` and `UnitTest`. The `Casso` GUI has **no** assembler
+entry point — it references neither `Assembler` nor `AssemblerOptions` — so FR-006
+is about the shape of the seam rather than a third caller that exists now. Any
+future in-app assembler inherits dialect selection without further work, which is
+the point of putting it on the options struct rather than in a parser.

@@ -69,7 +69,7 @@ test suite is 2,961 Debug / 2,958 Release.
 | III. User Experience Consistency | `merlin` is a bare-word subcommand matching `run`. The dialect is reported on the diagnostic stream and in listing headers, never unconditionally on stdout, so piped listings are unaffected. Existing invocations are untouched — the AS65 fallback stays. | PASS |
 | IV. Performance | One virtual call per source line. No allocation added to the per-line path beyond what `ParseLine` already does. | PASS |
 | V. Simplicity | The seam is justified by FR-001 and by 023 depending on it; it is not speculative. The profile is mostly data specifically to avoid an elaborate class hierarchy. | PASS |
-| VI. Thin Executable, Testable Core | Everything lands in `CassoCore`. `CassoCli` gains only diagnostic formatting — reading an error's own file rather than the input path. | PASS |
+| VI. Thin Executable, Testable Core | Everything lands in `CassoCore`. `CassoCli` gains **only I/O edges**: printing a diagnostic using the error's own file, printing a string core generated, and returning a code core computed. Every decision behind those — what to report, when to report it, which exit code applies, and the text of generated help — lives in core where `UnitTest` reaches it. | PASS |
 
 **Post-design re-check**: PASS. No violation surfaced during Phase 1; the
 Complexity Tracking table below is empty.
@@ -78,8 +78,14 @@ One deliberate deviation from the `/speckit-plan` workflow is recorded rather
 than silently taken: the step that rewrites `CLAUDE.md`'s active-spec block was
 **not** performed. That block currently names spec 020, which another session is
 developing concurrently, and flipping it here would put the two specs in conflict
-on a shared project file for exactly the reason `.specify/feature.json` is being
-kept out of the merge.
+on a shared project file.
+
+`.specify/feature.json` is handled by exactly one mechanism, not two: it is
+repointed to 019 as session-local state and **reverted to `020-disk-file-access`
+by task T077 before the merge**, so master never thrashes between the two
+concurrent specs. Staging is by explicit path throughout the feature rather than
+`git add -A`, so the file cannot be swept into a commit by accident in the
+meantime.
 
 ## Project Structure
 
@@ -109,7 +115,10 @@ CassoCore/
 ├── DialectProfile.h             # abstract seam: data + the few virtual hooks
 ├── As65Dialect.h/.cpp           # today's grammar, extracted unchanged
 ├── MerlinDialect.h/.cpp         # the new profile
-├── MerlinSubsetBoundary.h/.cpp  # refusal table + GetAll accessor + help text
+├── MerlinSubsetBoundary.h/.cpp  # refusal table + GetAll accessor + generated
+│                                # help text (in core, so a test can reach it)
+├── DialectReporting.h/.cpp      # decides what dialect/CPU line to emit and when
+├── AssemblerExitCode.h/.cpp     # maps an assembly result to 0 / 1 / 2
 ├── StringEncoding.h/.cpp        # high-bit / inverse / flashing / terminator
 ├── InstructionSetProvider.h/.cpp# both opcode tables, switchable mid-assembly
 ├── Parser.h/.cpp                # delegates line parsing to the active profile
@@ -120,7 +129,9 @@ CassoCore/
 └── CommandLineParser.h/.cpp     # one row, one arm, ParseMerlinFlags
 
 CassoCli/
-└── CommandLine.cpp              # diagnostics print the error's own file
+└── CommandLine.cpp              # I/O edges only: print diagnostics using the
+                                 # error's own file, print core-generated help,
+                                 # return the core-computed exit code
 
 UnitTest/
 ├── MockFileReader.h             # promoted out of IncludeTests.cpp
@@ -157,7 +168,15 @@ Introduce `DialectProfile`, `DialectRegistry`, and `As65Dialect`; move today's
 through the active profile. Add `dialect` to `AssemblerOptions` and default it to
 AS65.
 
-**Exit criterion**: the full suite passes with zero test changes. This phase is
+**The AS65 directive spelling table does not move.** `DirectiveTable` keeps its
+existing global table and `GetAllSpellings()` accessor, and the AS65 profile
+delegates to them; Merlin brings its own table alongside. Moving the table into
+the profile would change `UnitTest/DirectiveTokenTests.cpp:70`, which sweeps that
+accessor — and this phase's whole value is that no existing test changes. A later
+migration is possible; it is not this feature's business.
+
+**Exit criterion**: the full suite passes with **no existing test file modified**.
+Adding new test files is expected and does not violate the gate. This phase is
 provably behavior-preserving or it is wrong, which is why it is first and alone.
 
 ### Phase B — Diagnostics carry position

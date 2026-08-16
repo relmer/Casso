@@ -51,15 +51,26 @@ violating FR-005.
 
 ## Dialect reporting
 
+Both halves of SC-005 — the dialect **and** the CPU target — are covered.
+
 | Situation | Where reported |
 |---|---|
 | Dialect stated by subcommand | Nowhere — the invocation is the record |
 | Dialect inferred by fallback, `-v` given | stderr |
 | Dialect inferred by fallback, listing produced | Listing header |
 | Dialect inferred, neither `-v` nor a listing | Not reported; discoverable, not unconditionally emitted |
+| CPU stated by `--cpu` | Nowhere — the invocation is the record |
+| CPU selected in source, `-v` given | stderr |
+| CPU selected in source, listing produced | Listing header |
+| CPU left at the dialect's default | Reported wherever the dialect is, so "no directive was seen" is not read as "the flag was ignored" |
 
 "Discoverable" means available without guessing. It does not mean always printed,
 and it must never mean printed on stdout.
+
+**The decision of what to report and when lives in core**, not in the executable.
+`CassoCli` receives a string and prints it. Same for the exit code below and for
+generated help text: the executable is an I/O edge, and every choice behind it must
+be reachable from `UnitTest`.
 
 ## Diagnostics
 
