@@ -234,8 +234,19 @@ bezel = (cq.Workplane("XY")
 # Rounded loft sections, so the funnel's own corners -- the ones running
 # front-to-back from the band down to the tube -- come out radiused without
 # having to select four diagonal edges after the fact.
+#
+# The FRONT section's radius is the mouth's plus the distance the funnel
+# travels inward, which is what makes the two sections a true constant-width
+# offset of each other. Given both the same radius, the funnel measures its
+# intended 11 mm across the straight runs but 15.6 mm across the corner
+# diagonal -- 41% wider, so the corner rakes back at a visibly shallower angle
+# than the sides do. That shows up as a hard step in the shading where the
+# corner meets the straight run, reading as a dark band cutting across the
+# bezel.
+FUNNEL_FRONT_R = MOUTH_R + FUNNEL_RUN
+
 funnel = cq.Solid.makeLoft([
-    round_rect_wire(-PROTRUDE,             BAND_X0, BAND_X1, BAND_Z0, BAND_Z1, MOUTH_R),
+    round_rect_wire(-PROTRUDE,             BAND_X0, BAND_X1, BAND_Z0, BAND_Z1, FUNNEL_FRONT_R),
     round_rect_wire(-PROTRUDE + TUBE_DROP, GX0,     GX1,     GZ0,     GZ1,     MOUTH_R),
 ])
 
