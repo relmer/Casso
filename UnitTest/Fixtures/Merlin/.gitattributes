@@ -1,0 +1,24 @@
+###############################################################################
+#  These fixtures are byte-verbatim vendor artifacts. Any transformation
+#  destroys them.
+#
+#  The repository root sets `* text=auto` and this clone runs core.autocrlf,
+#  so without this file git decides per-file whether to rewrite line endings
+#  by sniffing for NUL bytes. That heuristic gets the right answer here only
+#  by accident: the object files carry NULs and are classified binary, while
+#  LABELS.S and CLOCK.S carry none and are classified TEXT -- they survive
+#  solely because DOS 3.3 terminates lines with $8D, so there is no $0A for
+#  normalization to find. Add one fixture with a low-ASCII newline and git
+#  would silently rewrite it, breaking both the hashes in README.md and the
+#  oracle itself, in a way that reads as an assembler bug.
+#
+#  A corrupted oracle is worse than a missing one: it fails while looking
+#  authoritative. So the classification is stated rather than inferred.
+###############################################################################
+* binary
+
+# The documentation is ordinary text and should behave that way. `binary` is a
+# macro for `-diff -merge -text`, so restoring diff and merge takes saying so --
+# setting `text` alone would leave the README undiffable.
+README.md      text=auto diff merge
+.gitattributes text=auto diff merge

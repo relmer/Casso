@@ -1,0 +1,91 @@
+Merlin-Pro ProDOS 2.33 Side A
+
+CATALOG DISK                                                     SLOT 6  DRIVE 1
+/MERLIN                                                           
+   NAME           TYPE  BLKS  MODIFIED         CREATED          ENDFILE SUBTYPE
+
+  *MERLIN.SYSTEM   SYS    37  26-MAR-85 12:25  <NO DATE>  0:00    18432 
+  *PRODOS          SYS    30  17-AUG-84  0:00  <NO DATE>  0:00    14848 
+   PARMS           BIN     1  27-SEP-84 20:00  17-JAN-84 16:46       44 A=$8000
+  *SOURCEROR       DIR     1  25-OCT-84 20:23  26-JAN-84 13:57      512 
+  *LIB             DIR     1  30-SEP-84  9:31  <NO DATE>  0:01      512 
+  *SOURCE          DIR     2  17-FEB-85 10:42  <NO DATE>  0:01     1024 
+  *PI              DIR     1  10-OCT-84 19:40  <NO DATE>  0:00      512 
+  *UTIL            DIR     2  26-MAR-85 13:11  <NO DATE>  0:00     1024 
+
+BLOCKS FREE:21    USED:259   TOTAL:280
+
+CATALOG DISK                                                     SLOT 6  DRIVE 1
+/MERLIN/SOURCEROR                                                 
+   NAME           TYPE  BLKS  MODIFIED         CREATED          ENDFILE SUBTYPE
+
+  *OBJ             BIN     9  25-OCT-84 20:23  26-JAN-84 13:57     4085 A=$9A00
+   LABELS          BIN     4  09-FEB-84 13:16  26-JAN-84 13:58     1028 A=$8000
+   LABELS.S        TXT     6  09-FEB-84 13:16  26-JAN-84 15:42     2078 R=    0
+
+BLOCKS FREE:21    USED:259   TOTAL:280
+
+CATALOG DISK                                                     SLOT 6  DRIVE 1
+/MERLIN/LIB                                                       
+   NAME           TYPE  BLKS  MODIFIED         CREATED          ENDFILE SUBTYPE
+
+  *SENDMSG.S       TXT     1  31-MAR-84 11:15  <NO DATE>  0:01      149 R=    0
+  *FPMACROS.S      TXT     3  17-JAN-84  0:00  <NO DATE>  0:01      994 R=    0
+  *MACROS.S        TXT     5  30-SEP-84  9:31  <NO DATE>  0:01     1671 R=    0
+  *PRDEC.S         TXT     3  31-MAR-84 11:27  21-JAN-84 20:06      812 R=    0
+  *ROCKWELL.S      TXT     4  25-FEB-84 22:49  25-FEB-84 22:49     1147 R=    0
+  *OUTPUT.S        TXT     3  07-APR-84 16:48  31-MAR-84 10:57      685 R=    0
+
+BLOCKS FREE:21    USED:259   TOTAL:280
+
+CATALOG DISK                                                     SLOT 6  DRIVE 1
+/MERLIN/SOURCE                                                    
+   NAME           TYPE  BLKS  MODIFIED         CREATED          ENDFILE SUBTYPE
+
+   KEYMAC.S        TXT    13  27-SEP-84 20:39  17-JAN-84 16:48     6053 R=    0
+   PARMS.S         TXT     6  27-SEP-84 20:54  17-JAN-84 16:46     2270 R=    0
+   PI.START.S      TXT     8  07-FEB-84 20:06  02-FEB-84 13:57     3206 R=    0
+   PI.MAIN.S       TXT     7  02-FEB-84 14:02  02-FEB-84 13:55     2972 R=    0
+   PI.LOOK.S       TXT     3  02-FEB-84 14:04  02-FEB-84 14:04      928 R=    0
+   PI.DIV.S        TXT     8  02-FEB-84 14:05  02-FEB-84 14:05     3378 R=    0
+   PI.ADD.S        TXT     6  07-FEB-84 20:09  02-FEB-84 14:07     2097 R=    0
+   PI.MACS.S       TXT     4  18-JAN-84 14:45  <NO DATE>  0:00     1085 R=    0
+   PI.NAMES.S      TXT     1  02-FEB-84 15:34  02-FEB-84 15:34      459 R=    0
+  *PRINTFILER.S    TXT     9  26-OCT-84 17:04  02-FEB-84 15:35     4089 R=    0
+  *CLOCK.S         TXT    19  16-OCT-84 10:15  12-SEP-84 21:44     8776 R=    0
+  *MAKE.DUMP.S     TXT    13  30-SEP-84 10:02  23-SEP-84 17:46     6043 R=    0
+
+BLOCKS FREE:21    USED:259   TOTAL:280
+
+CATALOG DISK                                                     SLOT 6  DRIVE 1
+/MERLIN/PI                                                        
+   NAME           TYPE  BLKS  MODIFIED         CREATED          ENDFILE SUBTYPE
+
+   START           $F8     3  16-APR-84  9:19  02-FEB-84 13:57      656 
+   MAIN            $F8     1  10-OCT-84 19:40  02-FEB-84 13:58      464 
+   LOOK            $F8     1  16-APR-84  9:20  02-FEB-84 14:04       81 
+   DIV             $F8     1  16-APR-84  9:21  02-FEB-84 14:05      400 
+   ADD             $F8     1  16-APR-84  9:22  02-FEB-84 14:07      275 
+   OBJ             BIN     4  02-FEB-84 14:14  02-FEB-84 14:14     1508 A=$0803
+   NAMES           CMD     1  02-FEB-84 14:10  02-FEB-84 13:19       85 
+
+BLOCKS FREE:21    USED:259   TOTAL:280
+
+CATALOG DISK                                                     SLOT 6  DRIVE 1
+/MERLIN/UTIL                                                      
+   NAME           TYPE  BLKS  MODIFIED         CREATED          ENDFILE SUBTYPE
+
+  *XREF            BIN     5  26-MAR-85 11:33  19-JAN-84 23:34     1683 A=$A000
+  *XREFA           BIN     5  26-MAR-85 11:53  19-JAN-84 23:39     1563 A=$A000
+   KEYMAC          BIN     3  27-SEP-84 17:25  17-JAN-84 16:48      674 A=$A000
+   CLOCK.12        BIN     3  16-OCT-84 10:14  11-SEP-84 23:29      528 A=$A7E4
+  *FORMATTER       BIN     3  27-SEP-84 17:12  18-JAN-84 22:16     1016 A=$A400
+   PRINTFILER      BIN     1  26-OCT-84 17:04  30-JAN-84  1:51      281 A=$029D
+  *MON.65C02       BIN     1  27-SEP-84 17:19  25-FEB-84 23:38      274 A=$A800
+   CLOCK.24        BIN     1  16-OCT-84 10:13  12-SEP-84 23:33      503 A=$A7E4
+   CLOCK.BAS       BIN     1  16-OCT-84 10:13  12-SEP-84 23:33      381 A=$0250
+   MAKE.DUMP       BIN     3  30-SEP-84  9:42  23-SEP-84 17:46      596 A=$A000
+   CLR.HI.BIT      BIN     1  29-SEP-84 16:25  29-SEP-84 16:25       50 A=$0280
+  *CONV.LNK.REL    BIN     1  16-OCT-84 18:49  15-OCT-84 17:08      235 A=$0800
+
+BLOCKS FREE:21    USED:259   TOTAL:280
