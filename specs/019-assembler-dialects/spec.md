@@ -472,6 +472,14 @@ a test, and it cannot be forgotten. Reading is reserved for constructs genuinely
 ambiguous from bytes alone — those that change what the assembler *does* rather
 than what it *emits*, which comparison cannot settle.
 
+**Vendor source is used, never committed.** It is the disk author's copyrighted
+work, on the same footing as the disk image itself, so it MUST NOT enter the
+repository even though assembling it is legitimate and valuable. What may be
+recorded is the *result* — for instance that re-assembling a vendor file
+reproduces its shipped object byte-for-byte — which is this project's observation
+rather than the vendor's text, and is the part that carries the information.
+Committed corpus entries are authored here.
+
 The corpus MUST contain, at minimum:
 
 - **One entry per construct named in FR-007 through FR-015.** Breadth beyond the

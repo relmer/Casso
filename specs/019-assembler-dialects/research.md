@@ -207,6 +207,59 @@ asserts each row produces a refusal, entirely in memory. Keeping prose
 documentation in step is a repository-level check, because a unit test may not
 read a file.
 
+## The capture pipeline is proven, and needs no editor
+
+There is a complete path with **zero editor interaction**, which sidesteps the
+Add-mode problem entirely:
+
+```
+L  -> filename     load a source file already on the disk
+E                  enter ED/ASM
+ASM                assemble
+Q                  back to the menu
+O  -> filename     save object code
+                   then extract with ExtractDos33File.ps1
+```
+
+Run end to end against `LABELS.S`. Merlin reported `--End assembly, 1028 bytes,
+Errors: 0` with a full symbol table (`LABTBL =$8000`, `END =$8403`), the menu
+showed `Object: A$8000,L$0404`, and the extractor independently read back **load
+`$8000`, 1028 bytes**. Every number agrees.
+
+**And the re-assembled object is byte-identical to the one the vendor shipped.**
+Extracting `LABELS` from the pristine disk and comparing against the object
+produced by re-assembling `LABELS.S` gives an exact match over all 1028 bytes.
+Merlin 8 running under Casso reproduces Glen Bredon's own 1982 output exactly.
+That is the oracle validated as strongly as it can be.
+
+*(One caveat stated rather than glossed: the work-copy image hash was unchanged
+after the save, so it cannot be distinguished from the save having written
+identical bytes in place. The byte comparison above holds either way, and the
+assembly demonstrably ran.)*
+
+### DCI encoding, captured rather than read
+
+`LABELS.S` is a table of `DCI` strings — one of the five string-encoding
+directives, and the highest-risk area in the dialect. From the captured bytes:
+
+```
+DCI "0024CH"  ->  B0 B0 B2 B4 C3 48
+                  '0' '0' '2' '4' 'C' with the high bit SET
+                                   'H' with the high bit CLEAR
+```
+
+So `DCI` sets the high bit on every character **except the last**, which
+identifies the terminator convention empirically. Confirmed across the following
+entries (`0025CV` → `... C3 56`, `0036CSWL` → `... D7 4C`).
+
+### Read the prompt, not the line counter
+
+The mode signal is the **prompt**: `%` at the main menu, `:` in the editor's
+command mode, a line number in Add mode. The line counter is *not* a mode
+signal — a bare `RETURN` both adds a line and exits, so an incrementing counter
+proves nothing. Several wrong state inferences earlier came from reading the
+counter; the prompt was visible in the same screenshots all along.
+
 ## T021d, partially settled: does Merlin's editor normalize?
 
 **Established.** Merlin's editor **tabs fields to fixed display columns**. Typing
