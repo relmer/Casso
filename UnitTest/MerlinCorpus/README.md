@@ -55,18 +55,38 @@ twenty.
 
 ### 2. Get it onto the disk
 
-Type or paste into Merlin's editor.
+Type or paste into Merlin's editor. To do that **without taking the keyboard
+away from whoever is using the machine**, use `scripts/SendCassoKeys.ps1`, which
+posts key messages to the emulator window rather than synthesizing focused
+input:
 
-**Do not be tempted to write the file directly instead.** Merlin source on this
-disk is stored as a **type-B (BINARY) file with load address `$0901`**, in
-high-bit ASCII with CR line terminators — not as a type-T text file. Confirmed on
-every `.S` file on the distribution disk. A text-typed file will not open in
-Merlin's editor, so a write path that produced one would fail in a way that looks
-like a Merlin problem rather than a tooling problem.
+```powershell
+scripts\SendCassoKeys.ps1 -ProcessId <casso pid> -Text " LDA #`$41" -Return
+```
 
-That is the argument for the editor route: Merlin produces its own format
-natively, and pasting avoids having to reproduce it. Anyone building the write
-half later needs the format above, and needs to know a plain text file is not it.
+Focused input (`SendInput`, `SendKeys`) requires the emulator window to be
+foreground and additionally needs a click into the display panel before keys are
+delivered at all. Posted messages need neither.
+
+Merlin's menu also offers `R :Read text file`, so a **type-T text file** can be
+read in as source — `L :Load source` is the one that requires Merlin's own
+type-B format. Either route still needs a way to write to the disk, which is why
+the editor remains the practical path today.
+
+Merlin source on this disk is stored as a **type-B (BINARY) file with load
+address `$0901`**, in high-bit ASCII with CR line terminators — confirmed on
+every `.S` file on the distribution disk, and corroborated by Merlin's own
+`Source: A$0901` display on the boot screen.
+
+An earlier version of this document claimed a text-typed file "will not open in
+Merlin's editor". **That is wrong**, and running Merlin disproved it: the menu
+carries both `L :Load source`, which wants the type-B format, and `R :Read text
+file`, which reads a type-T file. Either is a viable target for a future write
+path; the type-B route just avoids a conversion step.
+
+The editor remains the practical route today because writing *any* file to the
+disk needs DOS 3.3 write support that the capture tooling does not have — not
+because a text file would be rejected.
 
 ### 3. Read the source back — and commit *that* copy
 
@@ -171,10 +191,20 @@ Agreement confirms the emulation ran Merlin correctly on the day of capture.
 Disagreement means either a corpus error or an emulator bug, and both are worth
 finding.
 
-This is the same standard the extraction script was held to: it was validated
-against the DOS 3.3 System Master, where `FID` extracts at its canonical load
-address of `$0803` — verification against an external fact rather than against
-itself.
+This is the same standard the extraction script was held to. It was validated
+twice against external facts rather than against itself:
+
+- On the DOS 3.3 System Master, `FID` extracts at its canonical load address of
+  `$0803`.
+- On the Merlin disk, its catalog walk matches **Merlin's own `C :Catalog`
+  output** file for file — names, type letters, sector counts, and lock flags.
+  Two independent readers of the same bytes agreeing is a stronger check than
+  either one looking self-consistent.
+
+Merlin 8 v2.47 is confirmed to boot and run correctly under Casso: menus,
+catalog, and disk access all work. One cosmetic defect is known and does not
+affect assembly — the title banner renders MouseText glyphs where flashing text
+belongs (issue #117).
 
 ## Does the entry actually test Merlin?
 
