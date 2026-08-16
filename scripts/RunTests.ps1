@@ -30,9 +30,26 @@
     Run even when the test assembly is older than the newest source file.
     For deliberately re-running a previous build's results.
 
+.PARAMETER Filter
+    Run only matching tests. A bare word is treated as a substring of the fully
+    qualified name, so -Filter Merlin does what you expect; anything containing
+    a filter operator is passed to vstest verbatim, so the full
+    /TestCaseFilter: grammar remains available.
+
+    The Debug suite takes roughly 15 minutes, which is long enough that people
+    route around it. This exists so the edit-test loop does not have to.
+
 .EXAMPLE
     ./scripts/RunTests.ps1 -Build
     Builds, then runs the full suite.
+
+.EXAMPLE
+    ./scripts/RunTests.ps1 -Build -Filter CommandLine
+    Builds, then runs only tests whose qualified name contains "CommandLine".
+
+.EXAMPLE
+    ./scripts/RunTests.ps1 -Filter "FullyQualifiedName~Merlin&Name!~Slow"
+    Passes a full vstest filter expression through unchanged.
 #>
 [CmdletBinding()]
 param(
@@ -44,7 +61,9 @@ param(
 
     [switch]$Build,
 
-    [switch]$AllowStale
+    [switch]$AllowStale,
+
+    [string]$Filter = ''
 )
 
 if ($Platform -eq 'Auto') {
@@ -155,7 +174,29 @@ if (-not $AllowStale) {
 Write-Host "Running tests from $testAssembly" -ForegroundColor Cyan
 Write-Host "vstest.console path: $vstestPath" -ForegroundColor DarkGray
 
-& $vstestPath $testAssembly
+$vstestArgs = @($testAssembly)
+
+if ($Filter) {
+    # A bare word is the common case and the awkward one to type, so promote it
+    # to a name-substring match; anything already containing filter grammar is
+    # the caller's own expression and passes through untouched.
+    $expression = $Filter
+    if ($Filter -notmatch '[~=!&|()]') {
+        $expression = "FullyQualifiedName~$Filter"
+    }
+
+    $vstestArgs += "/TestCaseFilter:$expression"
+
+    # A filtered run is not a suite run. Say so, loudly and every time -- the
+    # failure mode this guards against is reading a green partial result as
+    # though the suite had passed.
+    Write-Host ''
+    Write-Host "FILTERED RUN -- this is NOT the full suite." -ForegroundColor Yellow
+    Write-Host "  filter: $expression" -ForegroundColor DarkGray
+    Write-Host ''
+}
+
+& $vstestPath @vstestArgs
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
