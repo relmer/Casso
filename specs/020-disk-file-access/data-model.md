@@ -77,10 +77,24 @@ Cases 2 and 3 are corruption modes a damaged or deliberately-formatted track
 produces, and both would survive a classification built only on "did any sector
 fail to decode."
 
-**Implementation**: a 16-bit coverage mask per track. Setting a bit that is
-already set is itself a coverage violation (that is the duplicate case). At end
-of track, `Complete` iff the mask is `0xFFFF` and no bit was set twice. Sixteen
-bits and one comparison — cheaper than the decode work already being done.
+**Implementation**: a 16-bit coverage mask per track, plus a check that no bit is
+set twice. `Complete` iff every bit is set and each was set exactly once.
+
+Note precisely why the second half of that test is there, because it is **not**
+catching a case that can occur today. Under the current loop it is redundant: the
+sixteen-iteration bound, the fact that the `memcpy` at the bottom is the only
+writer, and the single zero-fill of the output buffer together force
+`distinct slots ≤ memcpy iterations ≤ 16`. A duplicate or a skipped sector caps
+distinct slots at fifteen, so `mask == 0xFFFF` already implies each was filled
+exactly once.
+
+It is there to **decouple the invariant from the loop bound**. Sixteen fixed
+iterations assumes exactly sixteen sectors in rotational order; scanning until
+the bit stream wraps is the more general algorithm and a plausible future change.
+The moment anyone makes it, duplicates *can* coexist with full coverage and
+"the mask is full" silently stops meaning what it says. "Set exactly once" costs
+one extra test and holds under both; "mask is full" costs nothing today and
+quietly becomes wrong later.
 
 This subsumes the `break` case rather than sitting beside it: a track cut short
 simply has incomplete coverage. One property decides the outcome instead of three

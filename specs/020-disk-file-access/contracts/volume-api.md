@@ -106,9 +106,15 @@ static HRESULT  RenibblizeTracks (const vector<Byte>  & sectors,
 ```
 
 **A track's outcome is decided by coverage, not by how the loop exited.** The
-decoder maintains a 16-bit mask of which logical sectors were filled; setting an
-already-set bit is itself a violation. `Complete` iff the mask is `0xFFFF` with no
-bit set twice.
+decoder maintains a 16-bit mask of which logical sectors were filled. `Complete`
+iff every bit is set and each was set exactly once.
+
+The "exactly once" half is deliberately stronger than today's loop requires — the
+sixteen-iteration bound already makes a full mask imply it. It is specified that
+way so the invariant does not depend on that bound, which is a plausible thing to
+change: scanning until the bit stream wraps is the more general algorithm, and
+under it duplicates can coexist with full coverage. One extra test now, correct
+under both.
 
 This matters because the existing loop has **three** ways to leave a logical
 sector zeroed and only one of them fails: `break` on a decode failure
