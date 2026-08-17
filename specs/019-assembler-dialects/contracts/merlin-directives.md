@@ -248,9 +248,28 @@ gaps in this document, all now in the table:
 
 **`BLT` (9) and `BGE` (7) are not directives.** They are Merlin's aliases for
 `BCC` and `BCS`, so they belong to the instruction layer rather than to this
-table — 16 uses across the corpus, and source using them will not assemble until
-the mnemonic layer knows them. Recorded here because this is where they were
-found, not because this is where they are fixed.
+table. Recorded here because this is where they were found, not because this is
+where they are fixed.
+
+The use count understates the impact, because what matters is which *oracles*
+they gate:
+
+| Source | `BLT`/`BGE` | `KBD` | Macros | First-attemptable |
+|---|---|---|---|---|
+| `LABELS.S` | — | — | — | **yes** |
+| `MAKE DUMP.S` | 2 | — | 9 | needs aliases + macros |
+| `KEYMAC.S` | — | 1 | yes | needs `KBD` |
+| `PRINTFILER.S` | 1 | 2 | yes | needs both |
+| `CLOCK.S` | 6 | 2 | yes | needs both |
+
+Three of five sources — and **four of the six objects**, since `CLOCK.S` yields
+two — cannot assemble until the mnemonic layer knows the aliases.
+
+Two consequences for sequencing. `LABELS.S` is the only oracle needing neither
+aliases, nor `KBD`, nor macros, which makes it the first target on evidence
+rather than on impression. And `MAKE DUMP.S` is the only other source free of
+`KBD`, so **two byte-identical oracles are reachable without ever solving
+interactive input** — that decision can wait until the corpus forces it.
 
 `AST`, `EXP` and `VAR` are left open deliberately. The first two affect only the
 listing and cannot change a byte; `VAR`'s semantics are not confirmed by anything

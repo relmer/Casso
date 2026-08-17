@@ -4,6 +4,46 @@ description: "Task list for 019-assembler-dialects"
 
 # Tasks: Merlin Assembler Dialect
 
+## State of play
+
+*Updated 2026-08-16. Keep this current or delete it — a stale status block is
+read by whoever has no other way to check.*
+
+**Done.** Phases 1 and 2 complete: the dialect seam, diagnostic file/column
+positions, and the switchable instruction set. In Phase 3, the Merlin profile
+exists with its field-based line model (T027–T029), its directive table
+(T032/T033), and string encoding (T034/T035). Suite is **3030** Release.
+
+**The first real result.** `LABELS.S`'s 105 `DCI` lines reproduce **983 of the
+984 bytes** of the shipped `LABELS` object, byte for byte, through the real
+parser and encoder. The 984th is the `$00` of `END BRK`.
+
+**Next: T030**, labels and local labels. `LABELS.S` then needs only `ERR` and
+`/` in expressions to attempt all 984 bytes end to end — it is the only oracle
+requiring neither macros, nor `KBD`, nor `BLT`/`BGE`, which is why it is first.
+
+**Known to be needed, not yet done.** `BLT` and `BGE` are Merlin's aliases for
+`BCC`/`BCS` and belong to the **instruction layer**, not the directive table.
+Three of the five oracle sources use them — `PRINTFILER`, `MAKE DUMP`, `CLOCK` —
+so four of the six objects are blocked on that alias support. `MAKE DUMP.S` is
+the only other oracle needing no `KBD`, so two byte-identical results are
+reachable without ever solving interactive input.
+
+**Blocked on someone else.** T049 (explicit `as65` selector + fallback removal)
+is **held until spec 020's command-line work reaches `master`** — see
+[docs/coordination.md](../../docs/coordination.md). Nothing else is blocked.
+
+**Carrying a known incompleteness.** Every new `Directive` token has a row in
+`AssemblySession`'s handler table, but most handlers are null. Null means *not
+implemented yet*, not *does nothing*; they are unreachable while as65 is the only
+selectable dialect, and T036–T042 fill them.
+
+**Evidence gaps that capture must close, not reasoning.** Three of the six string
+encodings have no oracle: `INV` appears once in a linker demo that ships no
+object, and `FLS` and `STR` appear nowhere in the corpus. The apostrophe half of
+the delimiter rule is likewise unverified. Each is marked `UNVERIFIED` at its own
+line in `CassoCore/StringEncoding.cpp`.
+
 **Input**: Design documents from `/specs/019-assembler-dialects/`
 
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md), [research.md](./research.md), [data-model.md](./data-model.md), [contracts/](./contracts/)

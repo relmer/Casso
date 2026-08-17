@@ -198,3 +198,57 @@ paste becomes a captured expectation and the corpus quietly encodes a lie.
 Batch constructs into a few composite source files rather than one per construct:
 assemble once with the listing on, save the object, extract, split by known
 offsets.
+
+### Driving Merlin under emulation
+
+Learned by breaking each of these. Merlin is an interactive program from 1984
+being driven by a script, and several of its prompts respond to keystrokes in
+ways that look like emulator faults but are not.
+
+**Send `WM_CHAR`, never `WM_KEYDOWN`.** `scripts/SendCassoKeys.ps1` posts
+`WM_CHAR` only. Casso derives the character from the virtual key plus the *real*
+keyboard's shift state, so a synthetic `WM_KEYDOWN` produces the unshifted
+character — `"` arrives as `'`, `<` as `,`. Every shifted character in the source
+is silently wrong. This was caught only because Applesoft rejected
+`FLASH ; PRINT "TEST"` as a syntax error; a Merlin source line would have
+assembled to different bytes without complaint.
+
+**Read the PROMPT to know the mode, not the line counter.** Merlin's editor shows
+`%` for the command level, `:` for Add mode, and a line number when editing a
+line. The line counter keeps moving in states where input is not going where you
+think, so it is not a mode signal.
+
+**Exiting Add mode: `RETURN` as the very first character of a line.** A `RETURN`
+after any text just ends that line. `ESC` in either of its message forms, a bare
+`RETURN` mid-line, and `Ctrl-C` are all *appended as source text* rather than
+exiting — six attempts before the manual settled it. To enter a deliberately
+blank line without exiting, type a space first, then `RETURN`.
+
+**`$08` is not backspace here.** Sending it to Merlin's object-name prompt
+corrupts the prompt into `SYNTAX ERROR`. There is no character-delete on that
+prompt worth using from a script; compose the string correctly instead.
+
+**A pre-filled name is replaced, not appended to.** At the object-name prompt
+Merlin offers a default; typing does not extend it, it overwrites from the first
+character. Do not send a name expecting it to concatenate.
+
+**A filename cannot start with a digit.** DOS 3.3 rejects it, and the failure
+surfaces later as a missing file rather than at the prompt.
+
+**Answer the Update-source prompt deliberately.** After assembling, Merlin asks
+whether to update the source on disk. It decides whether the disk copy matches
+what was assembled, which is the only copy worth committing.
+
+**Do not chase these as emulator bugs.** Each looked like one first. The related
+Casso-side issue that IS real is #110 (guest paste garbling), which is why the
+round-trip verification above is mandatory rather than advisory.
+
+### The banner corruption, and what it is not
+
+The `Merlin` banner renders corrupted under emulation. Four hypotheses were
+eliminated — it is not `ALTCHARSET` left set (COUT resets it), not a
+Casso-specific text-mode fault, not a paste artifact, and a reference screenshot
+from the archive shows the same characters. It needs memory inspection to settle
+(GH #117, related to #51 / #59). **It does not affect captured bytes**, so it is
+not a blocker for corpus work — do not spend time on it before the corpus needs
+it.
