@@ -67,6 +67,14 @@ The catalog listings are the vendor's own record of what each disk holds. They
 are the expected-results reference for enumeration tests: a directory listing
 Casso produces should account for exactly these entries.
 
+They are close enough to compare line by line, not merely entry by entry.
+Skipping the four header lines of `Merlin-proDos2.23Catalog.txt`, a `CassoCli
+disk list` of that image matches **66 of its 67 lines exactly**, including the
+backspace-drawn heading rows described below; the one difference is the
+reference's trailing `]` prompt against our free-space summary. Free space is
+37 sectors of 560 on the DOS 3.3 disk, 21 blocks of 280 on `/MERLIN`, and 8 of
+280 on `/APPLESOFT`.
+
 ## All three images are in DOS sector order
 
 Including the two holding ProDOS volumes. This is the single most useful
@@ -90,6 +98,92 @@ A format detector that checks one field misidentifies this disk. That makes it a
 negative test worth keeping: format detection must corroborate across more than
 a single nibble, and this image proves the point without anyone having to
 construct a hostile case.
+
+## A binary's load address lives inside the file on DOS 3.3 and outside it on ProDOS
+
+The same asymmetry, measured on both filesystems here. It is the shape that
+produces a four-byte offset bug on one filesystem only — and a reader unified
+across the two acquires it.
+
+```
+DOS 3.3   LABELS      00 80 D8 03 | B0 B2 B0 B0 C9 4E ...
+                      ^^^^^^^^^^^   load $8000, length 984, then the payload
+ProDOS    PARMS                     3C ...
+                      no header at all: load $8000 comes from aux_type,
+                      length 44 from EOF, both in the directory entry
+```
+
+So a DOS 3.3 binary's stored size is its payload plus four, and its declared
+length is checkable against that. A ProDOS binary's stored size *is* its EOF and
+there is nothing to cross-check — apply DOS-style stripping to one and it comes
+back four bytes short with no other symptom.
+
+Verified on this set: `PARMS` on `/MERLIN` is type `$06`, one block, EOF 44,
+aux `$8000`, first stored byte `$3C`.
+
+## The DOS 3.3 disk's decorative catalog entries are drawn with backspaces
+
+Twenty of its sixty-three entries occupy no sectors and exist to draw section
+headings in `CATALOG`. All twenty carry a track/sector pointer of `$7F/$7F` — a
+sentinel never meant to be followed — and a sector count of zero.
+
+Their *names* are the part worth knowing about. The first is:
+
+```
+C1 88 88 88 88 88 88 88 88 CD C5 D2 CC C9 CE A0 D0 D2 CF A0 AD A0 C4 CF D3 A0 B3 AE B3 A0
+ A  <-- eight backspaces -->  M  E  R  L  I  N     P  R  O     -     D  O  S     3  .  3
+```
+
+`$C1` is a high-ASCII `A`; `$88` is **backspace**. DOS prints ` *T 000 ` and then
+the thirty name bytes straight to the screen, so the eight backspaces walk the
+cursor back over the `A`, the sector count, the type letter and the lock flag,
+and the heading lands at column zero. It is a display trick encoded in a filename.
+
+Three consequences for anything reading this disk:
+
+1. **Zero-sector entries are not broken chains.** The discriminator is the
+   entry's own sector count, not the `$7F/$7F` pointer: zero sectors means the
+   entry declares it occupies nothing, so there is nothing to reach and nothing
+   lost. A reader that follows the pointer reports a shipped disk as damaged, on
+   twenty of sixty-three entries.
+2. **Do not validate catalog names as printable text.** Eight of these thirty
+   bytes are below `$20` once the high bit is stripped. A printable-only check
+   looks reasonable, and rejects twenty entries a vendor shipped. This was tried
+   and reverted; do not try it again without new evidence.
+3. **Render them.** DOS renders them, the vendor's own captured listing shows
+   them, and hiding them makes a listing disagree with the machine's. Anyone who
+   wants them gone is asking for a filter, which is a different request.
+
+## ProDOS text on these volumes is high-bit, and mixed
+
+Contrary to the widely repeated claim that ProDOS `TXT` is plain seven-bit ASCII
+with `$0D`. Measured here:
+
+| File | Volume | Finding |
+|---|---|---|
+| `SENDMSG.S` | `/MERLIN/LIB` | 149 of 149 bytes high-bit, 26 high spaces, 15 `$8D` terminators |
+| `APPLESOFT.S` | `/APPLESOFT` | predominantly high-bit with `$8D`, and mixed |
+| `PI.NAMES.S` | `/APPLESOFT` | 223 of 256 high, with 33 plain `$20` spaces among them |
+
+The conclusion is narrower than either claim: **the `TXT` type does not imply a
+convention — the producer does.** So a decoder must strip bit 7 and may never
+assert it, on *either* filesystem. The `UnitTest/Fixtures/Merlin` README documents
+the same rule for DOS 3.3 with the field-separator-versus-comment-space detail.
+
+## What these volumes cannot exercise
+
+Stated so neither reads later as a coverage gap. Both need a constructed
+fixture, which is the legitimate use of one — these volumes simply cannot reach
+the shape:
+
+| Shape | Why not |
+|---|---|
+| ProDOS **tree** storage | A tree needs more than 256 data blocks. These are 280-block volumes and the largest file on any of them is `WHATSIT.A.Q` at 60 blocks, so no tree exists here and none could. |
+| **Random-access** text | Every `TXT` file across both ProDOS volumes has an auxiliary type of 0, meaning sequential. None sets a record length, so the form where the auxiliary type *is* the record size and unwritten records are sparse holes has no real sample. |
+
+The second is the more dangerous of the two, because a reader that copied
+`aux_type` into the load address regardless of file type would report `$0000` for
+every text file here and be indistinguishable from a correct one.
 
 ## What each volume exercises
 
