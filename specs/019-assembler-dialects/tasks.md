@@ -31,9 +31,98 @@ data, equates, listing directives, instruction aliases, the directive behaviors
 **emit-cursor split (T035e–T035g)**, and **the keyboard-input directive and the
 four expression facts the last three oracles needed (T035h)**. **T069 and T070
 are also done** — see the note on T069 for why its hold expired. Suite is
-**3194** Release / **3197** Debug, both green; Dormann and Harte both pass. In
+**3227** Release / **3230** Debug, both green; Dormann and Harte both pass. In
 Phase 4, the conflict-free core subset is done: the **exit-code mapping (T078)**
-and the **dialect-and-CPU reporting decision (T053/T053a/T053c)**.
+and the **dialect-and-CPU reporting decision (T053/T053a/T053c)**. In Phase 5,
+the **whole subset boundary is built and enforced** — T056–T062a and T067; see
+below.
+
+## The subset boundary — built, enforced, and reachable only from core
+
+**Six constructs were recognized and then silently ignored.** `REL`, `ENT`,
+`EXT`, `TYP`, `SAV` and every occurrence of `XC` had null handler rows, and a
+directive with a null pass-1 row is dropped without a word — so a relocatable
+module assembled "successfully" into bytes nobody asked for. That is the exact
+degraded-reads-as-healthy shape the coding standards name, sitting in the
+feature that exists to avoid it.
+
+**The boundary is one table and the refusals are composed from it**, so guarantee
+6 holds by construction. `CassoCore/MerlinSubsetBoundary.{h,cpp}` holds the six
+rows and generates the help text; every diagnostic and every help line is built
+from the same fields.
+
+**It took FOUR files, not the two T056 named, and the split is the contract's.**
+Guarantee 1 forbids the shared engine being parameterized by dialect, so
+`AssemblySession` must not name `MerlinSubsetBoundary`. The row shape, the
+lookup and the wording therefore live in `CassoCore/SubsetBoundary.{h,cpp}` as
+mechanism, and Merlin's rows reach the engine through a new profile accessor —
+`DialectProfile::GetSubsetBoundary`, defaulting to an empty span, following the
+`GetOriginSemantic` precedent exactly. A profile stating no boundary cannot reach
+the refusal path at all, which is what keeps the driver free of any dialect's
+name. `MerlinDialect::GetSubsetBoundary` hands the table through and is the whole
+of T057's share of `MerlinDialect.cpp`.
+
+**A FOURTH reason class was needed, and the spec says three.** spec.md's
+subset-boundary preamble names "needs a linker, needs a CPU Casso does not
+emulate, needs a capability another feature owns" — but FR-029 forbids
+describing the save-object directive as another feature's, so it cannot use the
+third. `SubsetBoundaryReason::NeedsItsOwnDecision` is the fourth, and its
+widening text says out loud that disk file access will not settle it. **The
+preamble's "three reasons" should be corrected to four.**
+
+**The contract's stated workaround is INCOMPLETE and the message says more than
+it does.** `contracts/merlin-directives.md` says the export-only module
+"assembles on its own once relocatable mode is removed and an origin supplied".
+Following that alone leaves six `ENT` lines behind, and each is refused in its
+own right — so the message names all three steps: remove `REL`, drop the `ENT`
+declarations, supply an origin with `ORG`.
+
+**The linkage is a property of the MODULE, and that is why refusals are
+deferred.** One `EXT` anywhere removes the workaround from every refusal in the
+file, including those above it in the source, so composing the message where the
+construct was met would have to guess. Offenders are collected through pass 1
+and reported from `ValidateAssemblyCompletion`, each with the file it was met in
+restored — the deferred-diagnostic rule `m_currentSourceFile` documents.
+
+**Crossing the boundary stops the assembly before pass 2.** The refusals ARE the
+answer; letting pass 2 run buries them under the undefined symbols a linker would
+have resolved. That is T061's "collect every offender across the whole pass
+before failing" read literally, and it is what makes `PI.START.S` report five
+refusals rather than five refusals and a wall of noise.
+
+**A refusal is distinguishable STRUCTURALLY, not by its wording.**
+`AssemblyError::kind` is a new additive field defaulting to the reading every
+existing diagnostic had. A test asserting only that a message contains some
+phrase is the bare-substring trap this feature has already been caught by once,
+so the assertion is on the field and the negative half — that a genuine syntax
+error does not claim it — is asserted too.
+
+**Two vendor files, two messages, and the counts are the evidence.**
+`PI.ADD.S` produces exactly 7 refusals (one `REL`, six `ENT`), all carrying the
+fix; `PI.START.S` produces exactly 5 (one `REL`, three `EXT`, one `ENT`), none
+carrying it and two denying it. Both are assembled with `SAVOBJ` answered 0 so
+the object-file directive inside the conditional stays unassembled.
+
+**Twelve mutations, twelve caught, none needing a second try.** Among them:
+never claiming a refused line, claiming every occurrence (so the first `XC`
+would be refused), forcing the linkage both ways, dropping the workaround
+selection, recording a refusal as an ordinary error, letting pass 2 run anyway,
+stopping at the first offender, dropping the widening from the help text,
+dropping a row from the help text, refusing constructs inside a skipped
+conditional, and the profile returning an empty boundary.
+
+**`XC`'s first occurrence is still unimplemented, and that is T040's.** The
+second and every later occurrence is refused; the first is left exactly as it
+was — recognized, unclaimed, doing nothing — because switching the instruction
+set is Phase 3 work with its own unsettled question about a reset form. Nothing
+about the refusal path assumes it stays that way.
+
+**Two validation scripts were stale and one could not run at all.** T049a
+removed the unrecognized-first-argument fallback without updating
+`scripts/RunDormannTest.ps1` or `scripts/BuildDemoDisk.ps1`, both of which pass a
+source file as the first argument. Dormann failed inside its own error handling
+rather than reporting the refusal, so the suite T074 requires was unrunnable on
+this branch. Both now name `as65`; fixed in its own commit.
 
 ## Reporting and exit codes — done in core, with nothing wired to the CLI yet
 
@@ -346,8 +435,10 @@ collection state rather than through their rows; `WordHighFirst`,
 `Loop`/`LoopEnd`, `DummySection`/`DummySectionEnd`, `CpuSelect` and `ObjectFile`
 are not. **`KeyboardInput`'s rows are null for the third reason**, the one `Org`
 already used: it acts entirely in the pass-1 prelude, before a label can bind,
-so a row would never be reached. Three meanings for one null is worth watching,
-and each is stated at its own rows.
+so a row would never be reached. **The five refused-by-name tokens are null for a
+FOURTH reason**, and it is now real rather than anticipated: the boundary claims
+those lines in the prelude, so their rows are unreachable by construction. Four
+meanings for one null is worth watching, and each is stated at its own rows.
 
 **Two guards in the macro work are deliberately uncovered, and are recorded at
 the code rather than left to be rediscovered.** The digit test that separates
@@ -648,20 +739,20 @@ The **one** sanctioned exception is T049a, removing the fallback heuristic: a de
 
 **Independent test**: A known error introduced per dialect produces a diagnostic naming the right construct at the right position; every boundary construct produces a named refusal rather than a parse error.
 
-- [ ] T056 [US3] Create `CassoCore/MerlinSubsetBoundary.h` / `.cpp` with one row per refused construct carrying spelling, reason class, explanation, and what widens it, exposed by a `GetAll`-style accessor; register both in `CassoCore.vcxproj` (FR-019)
-- [ ] T057 [US3] Refuse relocatable-mode assembly and entry and external symbol declarations in `CassoCore/MerlinDialect.cpp` via the boundary table, naming each construct (FR-016)
-- [ ] T057a [US3] Make the relocatable refusal **actionable** in `CassoCore/MerlinSubsetBoundary.cpp`: a module with relocatable mode and entry symbols but no external symbols exports without importing, so the message states it assembles on its own once relocatable mode is removed and an origin supplied. A module declaring any external symbol gets the other message — no workaround, resolving cross-module references needs the linker in issue #112 — because offering the first fix there sends the developer down a path that cannot work. The vendor's own sample is the export-only case, so this is the likely first encounter (FR-031)
-- [ ] T058 [US3] Refuse the second occurrence of the CPU-selection directive in `CassoCore/MerlinDialect.cpp` as selecting an unemulated CPU (FR-016)
-- [ ] T059 [P] [US3] Refuse the file-type directive in `CassoCore/MerlinDialect.cpp` as owned by `020-disk-file-access` (FR-028)
-- [ ] T060 [P] [US3] Refuse the save-object directive in `CassoCore/MerlinDialect.cpp` as multi-output segmentation needing its own decision — the message must NOT describe it as waiting on 020 (FR-029)
-- [ ] T061 [US3] Make a boundary refusal distinguishable from a syntax error in `CassoCore/AssemblySession.cpp`, and collect every offender across the whole pass before failing rather than stopping at the first (FR-017, FR-018)
-- [ ] T062 [US3] Generate the subset-boundary help text **from the boundary table inside `CassoCore/MerlinSubsetBoundary.cpp`**, returning a string that `CassoCli/CommandLine.cpp` merely prints. Generation in the executable would be unreachable from `UnitTest`, so FR-019's "cannot disagree by construction" would gain no test — and Principle VI is non-negotiable (FR-019, FR-024)
-- [ ] T062a [P] [US3] Add a test to `UnitTest/MerlinSubsetBoundaryTests.cpp` asserting the generated help text names every row the accessor returns, so a row added to the table without help coverage fails the build rather than shipping
+- [x] T056 [US3] Create `CassoCore/MerlinSubsetBoundary.h` / `.cpp` with one row per refused construct carrying spelling, reason class, explanation, and what widens it, exposed by a `GetAll`-style accessor; register both in `CassoCore.vcxproj` (FR-019). *(Four files, not two. The row shape, the lookup and the wording are MECHANISM and live in `CassoCore/SubsetBoundary.{h,cpp}`; only the rows and the help text are Merlin's. Guarantee 1 forbids `AssemblySession` naming a dialect's class, and it must compose the refusal, so the composer cannot sit in the Merlin file. Two columns beyond the four named: whether a construct is what makes the module depend on another, and the workaround pair T057a needs — both are data the composer reads, not behavior.)*
+- [x] T057 [US3] Refuse relocatable-mode assembly and entry and external symbol declarations in `CassoCore/MerlinDialect.cpp` via the boundary table, naming each construct (FR-016). *(The profile's share is one accessor — `MerlinDialect::GetSubsetBoundary` handing the table through a new `DialectProfile` virtual that defaults to an empty span. The refusal itself is in the pass-1 prelude, which is where the directive-row comment already said it belonged: "consulted before dispatch, so these rows stay null by design". Claimed there so a refused construct never reaches content dispatch and fails as an unknown directive.)*
+- [x] T057a [US3] Make the relocatable refusal **actionable** in `CassoCore/MerlinSubsetBoundary.cpp`: a module with relocatable mode and entry symbols but no external symbols exports without importing, so the message states it assembles on its own once relocatable mode is removed and an origin supplied. A module declaring any external symbol gets the other message — no workaround, resolving cross-module references needs the linker in issue #112 — because offering the first fix there sends the developer down a path that cannot work. The vendor's own sample is the export-only case, so this is the likely first encounter (FR-031). *(The contract's stated fix is incomplete and the message says more than it does: removing `REL` and supplying an origin leaves the `ENT` lines, each refused in its own right, so the message names all three steps. `PI.ADD.S` gets 7 refusals all carrying the fix, `PI.START.S` gets 5 with none carrying it and two denying it — and a test asserts the two files' first refusals are not the same string.)*
+- [x] T058 [US3] Refuse the second occurrence of the CPU-selection directive in `CassoCore/MerlinDialect.cpp` as selecting an unemulated CPU (FR-016). *(A `SubsetBoundaryTrigger` column, so "accepted once, refused thereafter" is a property of the row rather than a special case in the driver. The FIRST occurrence is deliberately untouched — still recognized, unclaimed and doing nothing, which is T040's to fill. An occurrence inside a false conditional is neither refused nor counted, since the source never crossed the boundary there.)*
+- [x] T059 [P] [US3] Refuse the file-type directive in `CassoCore/MerlinDialect.cpp` as owned by `020-disk-file-access` (FR-028). *(The message says "Casso's disk file-access support", not the spec number: a spec identifier means nothing to whoever reads the diagnostic, and the comment rule bans spec references in code anyway.)*
+- [x] T060 [P] [US3] Refuse the save-object directive in `CassoCore/MerlinDialect.cpp` as multi-output segmentation needing its own decision — the message must NOT describe it as waiting on 020 (FR-029). *(Goes further than not-describing: the widening text denies it out loud — "a decision about multi-output assembly, which disk file access will not settle" — so the wrong reading is refuted rather than merely omitted, and a test asserts that clause is present. It needed a fourth reason class; see the note above on the spec's "three reasons".)*
+- [x] T061 [US3] Make a boundary refusal distinguishable from a syntax error in `CassoCore/AssemblySession.cpp`, and collect every offender across the whole pass before failing rather than stopping at the first (FR-017, FR-018). *(Distinguishable STRUCTURALLY: `AssemblyError::kind`, a new additive field. A test asserting a phrase in the message would be the bare-substring trap this feature has already been caught by, so the assertion is on the field and the negative half is asserted too. "Before failing" is taken literally — pass 2 does not run once the boundary is crossed, so the refusals are not buried under the undefined symbols a linker would have resolved.)*
+- [x] T062 [US3] Generate the subset-boundary help text **from the boundary table inside `CassoCore/MerlinSubsetBoundary.cpp`**, returning a string that `CassoCli/CommandLine.cpp` merely prints. Generation in the executable would be unreachable from `UnitTest`, so FR-019's "cannot disagree by construction" would gain no test — and Principle VI is non-negotiable (FR-019, FR-024). *(`MerlinSubsetBoundary::GetHelpText` returns the string. **Nothing prints it yet**: `CassoCli/CommandLine.cpp` is one of the files spec 020 holds unmerged work in, so the print is T053b's along with the rest of the help output. Same intended state as T053/T078 — reachable only from the tests until the wiring lands.)*
+- [x] T062a [P] [US3] Add a test to `UnitTest/MerlinSubsetBoundaryTests.cpp` asserting the generated help text names every row the accessor returns, so a row added to the table without help coverage fails the build rather than shipping. *(Built from the row FIELDS rather than from the generator, or a mutation would move both sides and the test would stay green. Spelling, explanation and widening must appear on the SAME line as the construct, so a help text holding every value in two unrelated columns cannot pass; a second test counts listed lines against the row count in both directions.)*
 - [ ] T063 [US3] Populate `column` on every Merlin diagnostic in `CassoCore/MerlinDialect.cpp` and `CassoCore/AssemblySession.cpp` (FR-021)
 - [ ] T064 [US3] Describe constructs in the active dialect's vocabulary, and name which dialect defines a construct rejected as belonging to another, in `CassoCore/AssemblySession.cpp` (FR-020, FR-022)
 - [ ] T065 [US3] Explain the column rule when a Merlin label is indented, rather than reporting an unknown symbol, in `CassoCore/MerlinDialect.cpp` (User Story 3 acceptance 1)
 - [ ] T066 [P] [US3] Add the hand-authored negative corpus class — boundary refusals and diagnostic expectations, kept distinct from captured entries — to `UnitTest/MerlinCorpusTests.cpp` as hand-authored entries, including an entry where a macro is invoked with another dialect's argument syntax and must be **rejected rather than partially expanded** (spec Edge Cases)
-- [ ] T067 [P] [US3] Add `UnitTest/MerlinSubsetBoundaryTests.cpp` sweeping the boundary accessor and asserting every row produces the expected refusal, and register it in `UnitTest.vcxproj`
+- [x] T067 [P] [US3] Add `UnitTest/MerlinSubsetBoundaryTests.cpp` sweeping the boundary accessor and asserting every row produces the expected refusal, and register it in `UnitTest.vcxproj`. *(28 tests. The sweep builds each row's source FROM the row, so a row added to the table is exercised without anyone editing the file, and it asserts the message quotes the row's own construct, explanation and widening rather than merely being non-empty. Three guards sit upstream of it, because a sweep cannot see the failures that would make it sweep the wrong thing: the table is non-empty, no two rows share a token, and every construct `Directive.h` marks as recognized-only-to-be-refused has a row — that last one is the inverse direction, which a table sweep structurally cannot check. The same sweep under AS65 asserts nothing is refused, so the refusal is proved to come from the active profile rather than from the token being in the shared vocabulary.)*
 - [ ] T068 [US3] Verify SC-006 and SC-007: every dialect-specific diagnostic identifies the correct line and column, and every out-of-subset construct is named rather than failing as a parse error
 
 **Checkpoint**: Diagnostics are dialect-native, positioned, and boundary refusals are unmistakable.
