@@ -84,6 +84,7 @@ enum class Directive
     CpuSelect,              // XC
     ObjectFile,             // DSK
     KeyboardInput,          // KBD -- binds a symbol from an answer supplied to the assembly
+    ParameterBinding,       // VAR -- binds the positional parameters, with no macro call
 
     //  Recognized ONLY so they can be refused by name. A construct outside the
     //  supported subset must say so; failing as an unknown directive reads as

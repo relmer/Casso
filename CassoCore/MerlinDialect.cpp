@@ -15,51 +15,51 @@ static constexpr MerlinDirectiveTable::Spelling  s_kMerlinSpellings[] =
     //  They differ in high-bit handling, inversion, and terminator convention --
     //  parameters rather than different work. Which encoding applies is resolved
     //  from the spelling later; the token only says "string data".
-    { "ASC",  Directive::StringData      },   //  35
-    { "DCI",  Directive::StringData      },   // 130 -- the workhorse, and the corpus's sharpest probe
-    { "INV",  Directive::StringData      },   //   1
-    { "FLS",  Directive::StringData      },
-    { "STR",  Directive::StringData      },
-    { "REV",  Directive::StringData      },   //   3 -- found in the sources, absent from the spec's list
+    { "ASC",  Directive::StringData       },   //  35
+    { "DCI",  Directive::StringData       },   // 130 -- the workhorse, and the corpus's sharpest probe
+    { "INV",  Directive::StringData       },   //   1
+    { "FLS",  Directive::StringData       },
+    { "STR",  Directive::StringData       },
+    { "REV",  Directive::StringData       },   //   3 -- found in the sources, absent from the spec's list
 
     //  Data.
-    { "DFB",  Directive::Byte            },   //  14
-    { "DB",   Directive::Byte            },
-    { "DA",   Directive::Word            },   //   8
-    { "DW",   Directive::Word            },
-    { "DDB",  Directive::WordHighFirst   },   //   0 -- vocabulary, not idiom; see the header
-    { "HEX",  Directive::HexData         },   //  13
-    { "DS",   Directive::Ds              },   //   2
+    { "DFB",  Directive::Byte             },   //  14
+    { "DB",   Directive::Byte             },
+    { "DA",   Directive::Word             },   //   8
+    { "DW",   Directive::Word             },
+    { "DDB",  Directive::WordHighFirst    },   //   0 -- vocabulary, not idiom; see the header
+    { "HEX",  Directive::HexData          },   //  13
+    { "DS",   Directive::Ds               },   //   2
 
     //  Location and output.
-    { "ORG",  Directive::Org             },   //  16
-    { "DSK",  Directive::ObjectFile      },   //   2
-    { "END",  Directive::End             },
+    { "ORG",  Directive::Org              },   //  16
+    { "DSK",  Directive::ObjectFile       },   //   2
+    { "END",  Directive::End              },
 
     //  Inclusion. Two spellings, one operation -- the difference between them is
     //  which filesystem convention the name follows, not what the assembler does.
-    { "PUT",  Directive::Include         },   //   1
-    { "USE",  Directive::Include         },   //   2
+    { "PUT",  Directive::Include          },   //   1
+    { "USE",  Directive::Include          },   //   2
 
     //  Conditional assembly. CLOCK.S turns one source into two objects with
     //  these, which is why it is the corpus's best single specimen.
-    { "DO",   Directive::If              },   //   5
-    { "ELSE", Directive::Else            },   //   1
-    { "FIN",  Directive::Endif           },   //   5
+    { "DO",   Directive::If               },   //   5
+    { "ELSE", Directive::Else             },   //   1
+    { "FIN",  Directive::Endif            },   //   5
 
     //  Macros. `<<<` is the TERMINATOR of a definition, not an invocation --
     //  every macro in the vendor library ends with it.
-    { "MAC",  Directive::MacroDef        },   //  18
-    { "<<<",  Directive::MacroEnd        },   //  18
+    { "MAC",  Directive::MacroDef         },   //  18
+    { "<<<",  Directive::MacroEnd         },   //  18
 
     //  Structure.
-    { "LUP",  Directive::Loop            },
-    { "--^",  Directive::LoopEnd         },
-    { "DUM",  Directive::DummySection    },
-    { "DEND", Directive::DummySectionEnd },
+    { "LUP",  Directive::Loop             },
+    { "--^",  Directive::LoopEnd          },
+    { "DUM",  Directive::DummySection     },
+    { "DEND", Directive::DummySectionEnd  },
 
     //  Assembly-time assertion. LABELS.S depends on it.
-    { "ERR",  Directive::ErrorIf         },   //  17
+    { "ERR",  Directive::ErrorIf          },   //  17
 
     //  Listing control, which as65 already has tokens for.
     //
@@ -69,27 +69,36 @@ static constexpr MerlinDirectiveTable::Spelling  s_kMerlinSpellings[] =
     //  it rather than each bringing a token whose handler would do nothing. A
     //  token exists for an operation the assembler cannot already perform, and
     //  "recognized, affects no output" is an operation it can.
-    { "PAG",  Directive::Page            },   //   1
-    { "TR",   Directive::OptNoop         },   //   1
-    { "EXP",  Directive::OptNoop         },   //   4
-    { "AST",  Directive::OptNoop         },   //   4
+    { "PAG",  Directive::Page             },   //   1
+    { "TR",   Directive::OptNoop          },   //   1
+    { "EXP",  Directive::OptNoop          },   //   4
+    { "AST",  Directive::OptNoop          },   //   4
 
     //  The CPU selector. Merlin takes its target from here and nowhere else.
-    { "XC",   Directive::CpuSelect       },
+    { "XC",   Directive::CpuSelect        },
 
     //  Binds the symbol in the label field to an answer supplied to the
     //  assembly. Merlin asks the operator at the keyboard; a batch assembler
     //  takes the answer from its predefined symbols and refuses to guess. Seven
     //  lines across the vendor sources, and three of the five oracle programs
     //  are unreachable without it.
-    { "KBD",  Directive::KeyboardInput   },   //   7
+    { "KBD",  Directive::KeyboardInput    },   //   7
+
+    //  Binds the positional parameters without a macro call, so a fragment
+    //  pulled in with an inclusion directive can be parameterized the way a
+    //  macro body is. `PI.ADD.S` writes `VAR MSGPNT;OUTPUT` immediately before
+    //  `PUT SENDMSG`, and the eight parameter references in the included
+    //  fragment resolve to it. The operand separator is the macro argument
+    //  separator, which is why the field scanner already keeps a semicolon
+    //  inside the operand out of the comment field.
+    { "VAR",  Directive::ParameterBinding },   //   1
 
     //  Outside the supported subset. Present so they are refused BY NAME.
-    { "REL",  Directive::Relocatable     },   //   2
-    { "ENT",  Directive::EntrySymbol     },   //   7
-    { "EXT",  Directive::ExternalSymbol  },   //   3
-    { "TYP",  Directive::FileType        },
-    { "SAV",  Directive::SaveObject      },   //   2
+    { "REL",  Directive::Relocatable      },   //   2
+    { "ENT",  Directive::EntrySymbol      },   //   7
+    { "EXT",  Directive::ExternalSymbol   },   //   3
+    { "TYP",  Directive::FileType         },
+    { "SAV",  Directive::SaveObject       },   //   2
 };
 
 
@@ -418,23 +427,66 @@ MacroSyntax MerlinDialect::GetMacroSyntax() const
 //
 //  MerlinDialect::IsVariableNameStart
 //
-//  What may follow the sigil in a VARIABLE, as opposed to in a positional macro
-//  parameter. A digit means `]1`, which the macro expander substitutes long
-//  before any symbol is looked up, so it must never be rewritten here.
-//
-//  No test discriminates the digit today and none can, which is worth stating
-//  rather than leaving to be rediscovered: a macro body is stored as raw text
-//  and re-parsed only AFTER substitution, so a parameter reference never
-//  reaches this function on a line whose parse is used. The guard stays because
-//  it is what keeps that true by construction rather than by luck -- without it,
-//  a stray `]1` outside a macro would become a symbol named for a parameter
-//  instead of drawing an expression error.
+//  What may follow the sigil in a NAMED variable, as opposed to in a positional
+//  parameter. The digit is the whole distinction, and it is what decides which
+//  of the two a label field spells: `]LOOP` is a program-counter symbol the
+//  source may redefine, and `]1` is never a label at all.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MerlinDialect::IsVariableNameStart (char ch)
 {
     return isalpha ((unsigned char) ch) || (ch == '_');
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinDialect::IsParameterIndex
+//
+//  What may follow the sigil in a POSITIONAL parameter. One digit is the whole
+//  form -- `]12` is parameter 1 beside a literal 2 -- and zero is excluded,
+//  because the argument-count form asks a question rather than naming a slot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MerlinDialect::IsParameterIndex (char ch)
+{
+    return (ch >= '1') && (ch <= '9');
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinDialect::GetPositionalParameterSymbol
+//
+//  The symbol one positional parameter binds under, so the directive that
+//  assigns them outside a macro call defines exactly the names a reference in
+//  the source resolves to.
+//
+//  It goes through the same qualification a named variable does, which is what
+//  keeps the two answers from drifting: the binding and the reference are one
+//  rule spelled once, rather than a prefix written out twice.
+//
+//  A PARAMETER BOUND THIS WAY HOLDS A VALUE, not the text of its expression.
+//  That is what the directive assigns -- Merlin documents it as setting the
+//  variables to expressions -- and it is what lets the shared symbol table hold
+//  the result. The divergence it implies is worth stating: a reference pasted
+//  into a longer identifier, which textual substitution inside a macro body
+//  would splice, lexes here as one symbol instead. No vendor line does it, so
+//  the corpus cannot settle which reading Merlin takes outside a macro.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MerlinDialect::GetPositionalParameterSymbol (int index) const
+{
+    return QualifyVariableName (std::to_string (index));
 }
 
 
@@ -479,6 +531,13 @@ std::string MerlinDialect::QualifyVariableName (const std::string & spelling)
 //  variable definition" leaves every use of one unresolvable, which is the same
 //  trap the local-label prefix had.
 //
+//  A POSITIONAL PARAMETER IS REWRITTEN TOO, and it has to be. Inside a macro
+//  body the expander replaces it textually long before the line is parsed, so
+//  one arriving here is a reference outside any expansion -- which is exactly
+//  the form the parameter-binding directive exists to serve. Leaving it alone
+//  hands the sigil to an expression tokenizer that cannot lex it, so the
+//  fragment the directive parameterizes fails at every reference in it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string MerlinDialect::QualifyVariableRefs (const std::string & text)
@@ -492,7 +551,7 @@ std::string MerlinDialect::QualifyVariableRefs (const std::string & text)
     {
         bool  startsName = (text[i] == s_kVariableSigil) &&
                            (i + 1 < text.size()) &&
-                           IsVariableNameStart (text[i + 1]);
+                           (IsVariableNameStart (text[i + 1]) || IsParameterIndex (text[i + 1]));
 
         if (startsName)
         {
@@ -1054,6 +1113,19 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
     // Resolve the opcode field against Merlin's vocabulary. A word that is not a
     // directive stays a mnemonic -- it is an instruction or a macro invocation,
     // and telling those two apart needs the macro table rather than the parser.
+    //
+    // THE DIRECTIVE TABLE IS ASKED FIRST, and that must not be what decides the
+    // answer. It cannot be, because the table holds no spelling the instruction
+    // tables answer to: with the two disjoint, either order gives the same
+    // result. That is measured rather than assumed -- every mnemonic in both
+    // instruction sets is asked of every dialect -- so a spelling added here
+    // that would shadow an instruction fails before it can ship.
+    //
+    // A spelling that genuinely is BOTH does not go in this table at all. It
+    // goes where as65's `RMB` does, in the ambiguous table, and is resolved from
+    // the operand: `DirectiveTable::FromAmbiguousSpelling`. Merlin has no such
+    // spelling today, which is why it has no ambiguous table of its own -- an
+    // always-empty lookup would be an answer nothing could ever exercise.
     result.directiveToken = MerlinDirectiveTable::FromSpelling (opcode);
     result.isDirective    = (result.directiveToken != Directive::None);
 

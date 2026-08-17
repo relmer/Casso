@@ -4544,6 +4544,168 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::BindPositionalParameters
+//
+//  One parameter-binding line, in whichever pass is asking.
+//
+//  The values are split on the MACRO ARGUMENT separator, because these are the
+//  same parameters an invocation supplies and a source writing them two ways
+//  would be two rules for one form. The name each binds under is the profile's,
+//  so a binding and a reference to it cannot disagree about what the symbol is
+//  called.
+//
+//  They bind as REASSIGNABLE, which is the whole point: a fragment may be
+//  included twice under different bindings, and an immutable symbol would report
+//  the second as a duplicate of the first.
+//
+//  EACH DIAGNOSTIC BELONGS TO EXACTLY ONE PASS, because this line is visited by
+//  both and anything said in both is said twice. How the line is WRITTEN is
+//  settled in pass 1, which is the first pass that can answer it. Whether an
+//  expression resolves is settled in pass 2, which is the first pass that can:
+//  the vendor's own use binds a label defined BELOW the fragment it
+//  parameterizes, so refusing a forward reference in pass 1 would reject the one
+//  shape the directive exists for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::BindPositionalParameters (int                 lineNumber,
+                                                   const ParsedLine &  parsed,
+                                                   ExprContext      &  ctx,
+                                                   bool                isFinalPass)
+{
+    HRESULT                   hr        = S_OK;
+    MacroSyntax               syntax    = m_dialect.GetMacroSyntax();
+    std::vector<std::string>  values    = Parser::SplitOnSeparator (parsed.directiveArg, syntax.argumentSeparator);
+    size_t                    count     = values.size();
+    bool                      hasValues = (count > 0);
+    bool                      fitsForm  = (count <= (size_t) kMaxPositionalParams);
+
+
+
+    if (!hasValues && !isFinalPass)
+    {
+        RecordError (lineNumber, parsed.directive + " binds no parameters -- values are separated by '"
+                                 + std::string (1, syntax.argumentSeparator) + "'");
+    }
+
+    BAIL_OUT_IF (!hasValues, S_OK);
+
+    // More values than the positional form can name. The extras would bind to
+    // symbols no source can spell, which is silently assembling a program whose
+    // author believed every value was in use.
+    if (!fitsForm && !isFinalPass)
+    {
+        RecordError (lineNumber, parsed.directive + " binds " + std::to_string (count)
+                                 + " parameters, and only " + std::to_string (kMaxPositionalParams)
+                                 + " can be referred to");
+    }
+
+    BAIL_OUT_IF (!fitsForm, S_OK);
+
+    for (size_t i = 0; i < count; i++)
+    {
+        std::string  name    = m_dialect.GetPositionalParameterSymbol ((int) i + 1);
+        ExprResult   er      = {};
+        bool         isNamed = !name.empty();
+
+        // A profile claiming this directive and naming no symbol for a parameter
+        // would bind nothing while reporting success, so it fails loudly here
+        // rather than leaving every reference undefined for no stated reason.
+        CBRA (isNamed);
+
+        er = ExpressionEvaluator::Evaluate (values[i], ctx);
+
+        if (er.success)
+        {
+            m_symbols[name]     = (Word) er.value;
+            m_symbolKinds[name] = SymbolKind::Set;
+            m_exprSymbols[name] = er.value;
+
+            if (isFinalPass)
+            {
+                m_fullSymbols[name] = er.value;
+            }
+        }
+        else if (isFinalPass)
+        {
+            RecordErrorAt (lineNumber, parsed.operandColumn,
+                           "Cannot evaluate parameter binding: " + er.error);
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1ParameterBinding
+//
+//  Pass 1 binds so the lines below are SIZED against the values in effect --
+//  a parameter naming a zero-page address makes the instruction beside it two
+//  bytes rather than three, and getting that wrong moves every label after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1ParameterBinding (const PendingLine & current, LineInfo & info)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_pass1Ctx.currentPC = (int32_t) m_pc;
+
+    hr = BindPositionalParameters (current.sourceLineNumber, info.parsed, m_pass1Ctx, false);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RebindParameters
+//
+//  And pass 2 binds again, where the line is reached, for the reason
+//  RebindMutableConstant does: pass 2 reads one table built after pass 1
+//  finished, so without this every reference resolves to the LAST binding the
+//  file made rather than to the one above it.
+//
+//  It emits nothing, which is why the cursor is untouched. The pass-2 column is
+//  the only hook that runs in source order, and the assembly-time assertion
+//  already uses it for an action rather than for bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::RebindParameters (const LineInfo & info, Word & /*emitPC*/)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_pass2Ctx.currentPC = (int32_t) info.pc;
+
+    hr = BindPositionalParameters (info.parsed.lineNumber, info.parsed, m_pass2Ctx, true);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::IgnorePass1Directive
 //
 //  Recognized and deliberately does nothing: .OPT_NOOP is accepted only for
@@ -4642,6 +4804,13 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
     //  are null for the same reason ORG's are rather than because it is
     //  unimplemented.
     { Directive::KeyboardInput,   nullptr,                                  nullptr                                  },
+
+    //  VAR binds in BOTH passes. Pass 1 so the lines below it are sized against
+    //  the values in effect, and pass 2 so a reference resolves against the
+    //  binding above it rather than the last one the file made. The pass-2 row
+    //  emits no bytes -- the same use of that column the assembly-time assertion
+    //  already makes.
+    { Directive::ParameterBinding, &AssemblySession::HandlePass1ParameterBinding, &AssemblySession::RebindParameters },
 
     //  Refused by name rather than handled. The refusal is a table of its own,
     //  consulted before dispatch, so these rows stay null by design.

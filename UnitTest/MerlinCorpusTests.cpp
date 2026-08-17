@@ -1056,16 +1056,18 @@ namespace MerlinCorpusTests
         //  The linker demo. Both sides of the boundary: one exports only, one
         //  also imports, and the counts are what the two shapes cost.
         //
-        //  PI.ADD.S carries the ONE gap in the corpus, and it is one directive
+        //  PI.ADD.S carried the ONE gap in the corpus, and it was one directive
         //  rather than nine problems. Line 123 is `VAR MSGPNT;OUTPUT`, which
         //  binds the positional parameters for the fragment the next line pulls
         //  in with `PUT SENDMSG` -- Merlin's way of parameterizing an included
-        //  body without a macro call. `VAR` is not in Casso's directive table at
-        //  all, so the line itself draws a diagnostic and the eight `]1`/`]2`
-        //  references in the included fragment have nothing to resolve to. That
-        //  is nine rejections of valid Merlin source with no boundary row behind
-        //  them, which is exactly what SC-003 calls a defect.
-        { "Merlin/PI.ADD.S",     s_kSaveObjectOff,  7, 9 },
+        //  body without a macro call. The directive was absent from the table
+        //  entirely, so the line itself drew a diagnostic and the eight `]1`/`]2`
+        //  references in the included fragment had nothing to resolve to: nine
+        //  rejections of valid Merlin source with no boundary row behind them,
+        //  which is exactly what SC-003 calls a defect. The directive is now
+        //  implemented and the count is zero -- reached by fixing the cause, and
+        //  the assertion below is what forced it to be reached deliberately.
+        { "Merlin/PI.ADD.S",     s_kSaveObjectOff,  7, 0 },
         { "Merlin/PI.START.S",   s_kSaveObjectOff,  5, 0 },
     };
 
@@ -1160,13 +1162,12 @@ namespace MerlinCorpusTests
             //  fails in.
             Assert::IsTrue (attributed > 0, L"no vendor source reached the boundary, so nothing was attributed");
 
-            //  The corpus-wide count of rejections SC-003 does not account for.
-            //  Stated once so it can only change deliberately, in either
-            //  direction: a tenth appearing is a new defect, and it dropping to
-            //  zero means the parameter-binding directive landed.
-            Assert::AreEqual ((size_t) 9, unexplained,
-                              L"the only rejections without a boundary row are PI.ADD.S's parameter-binding directive"
-                              L" and the eight references in the fragment it parameterizes");
+            //  The corpus-wide count of rejections SC-003 does not account for,
+            //  which is now NONE. Stated as an exact figure rather than left
+            //  implied by the per-file column, so a defect appearing in a file
+            //  whose own row nobody revisited still fails here.
+            Assert::AreEqual ((size_t) 0, unexplained,
+                              L"every rejection of a vendor source is a boundary refusal, and anything else is a defect");
         }
 
 

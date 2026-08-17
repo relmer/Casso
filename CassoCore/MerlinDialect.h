@@ -223,6 +223,11 @@ public:
     std::string         ExplainUnknownOperation (const ParsedLine & parsed,
                                                  bool               operandNamesAnOperation) const override;
 
+    // What one positional parameter binds under, so the directive that assigns
+    // them outside a macro call defines exactly the symbols a reference in the
+    // source resolves to.
+    std::string         GetPositionalParameterSymbol (int index) const override;
+
     // The stored name a variable symbol binds under. Public so a test can state
     // the expectation in the same terms the profile does rather than repeating
     // the marker as a literal.
@@ -231,6 +236,7 @@ public:
 private:
     static bool         IsFieldSpace            (char ch);
     static bool         IsVariableNameStart     (char ch);
+    static bool         IsParameterIndex        (char ch);
     static bool         IsCharConstantDelimiter (char ch);
     static bool         TakesDelimitedText      (const std::string & mnemonic);
     static void         SkipCharConstant        (const std::string & line, size_t & pos);

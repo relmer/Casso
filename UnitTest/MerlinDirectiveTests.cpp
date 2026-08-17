@@ -7,6 +7,8 @@
 #include "EmuTests/FixtureProvider.h"
 #include "EhmTestHelper.h"
 #include "Assembler.h"
+#include "DialectRegistry.h"
+#include "DialectProfile.h"
 
 
 
@@ -3163,6 +3165,244 @@ namespace MerlinDirectiveTests
 
             Assert::IsTrue (result.errors[0].message.find ("SHIFT") != std::string::npos,
                             L"named by the macro the source was defining");
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinParameterBindingTests
+    //
+    //  VAR, which binds the positional parameters with no macro call, so a
+    //  fragment pulled in by an inclusion directive can be parameterized the way
+    //  a macro body is.
+    //
+    //  The vendor shape is the whole reason it exists: `PI.ADD.S` writes
+    //  `VAR MSGPNT;OUTPUT` immediately before `PUT SENDMSG`, and the eight
+    //  parameter references in the included fragment resolve to it. That file
+    //  stops at the subset boundary before pass 2, so it can never show the BYTES
+    //  a binding produces -- these do, on the same shape.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinParameterBindingTests)
+    {
+    public:
+
+        //  The parameters hold VALUES, which is what makes the line below the
+        //  binding size itself: a parameter naming a zero-page address gives a
+        //  two-byte instruction, and one naming an absolute address three.
+        TEST_METHOD (ABoundParameterIsUsableAsAnOperand)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "PTR = $19\n"
+                                              "SINK = $1234\n"
+                                              " VAR PTR;SINK\n"
+                                              " STA ]1\n"
+                                              " JSR ]2\n");
+            std::vector<Byte>  expected = { 0x85, 0x19, 0x20, 0x34, 0x12 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"both parameters resolve, and the first sizes as zero page");
+        }
+
+
+
+        //  The binding is REASSIGNABLE, and each line sees the assignment above
+        //  it. Pass 2 reads one symbol table built after pass 1 finished, so a
+        //  binding made only in pass 1 gives every reference in the file the LAST
+        //  value it ever held -- which assembles cleanly into the wrong bytes.
+        TEST_METHOD (EachReferenceSeesTheBindingMostRecentlyAboveIt)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " VAR $19\n"
+                                              " STA ]1\n"
+                                              " VAR $1A\n"
+                                              " STA ]1\n");
+            std::vector<Byte>  expected = { 0x85, 0x19, 0x85, 0x1A };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the second binding must not reach back over the first reference");
+        }
+
+
+
+        //  The vendor's own use binds a label defined BELOW the fragment it
+        //  parameterizes, so a forward reference is the shape this directive
+        //  exists for rather than an edge case. Pass 1 cannot evaluate it and
+        //  must not complain; pass 2 can and does.
+        TEST_METHOD (AParameterBoundToALabelDefinedBelowItStillResolves)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " VAR LATER\n"
+                                              " JSR ]1\n"
+                                              "LATER RTS\n");
+            std::vector<Byte>  expected = { 0x20, 0x03, 0x80, 0x60 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the binding settles in the pass that knows the label");
+        }
+
+
+
+        //  The same claim where pass 1 can carry none of it. Both bindings name
+        //  labels defined below them, so neither is known until pass 2 -- and
+        //  pass 2 has to rebind AS IT REACHES each one. A single binding made
+        //  after pass 1 finished gives both references the file's last value,
+        //  which assembles cleanly into a call to the wrong routine.
+        TEST_METHOD (RebindingHappensWhereEachBindingSitsAndNotOnceAtTheEnd)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " VAR FIRST\n"
+                                              " JSR ]1\n"
+                                              " VAR SECOND\n"
+                                              " JSR ]1\n"
+                                              "FIRST RTS\n"
+                                              "SECOND RTS\n");
+            std::vector<Byte>  expected = { 0x20, 0x06, 0x80, 0x20, 0x07, 0x80, 0x60, 0x60 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"each call goes to the routine bound above it");
+        }
+
+
+
+        //  A parameter is bound as REASSIGNABLE, which is what lets the source
+        //  go on assigning it the ordinary way. Binding it as immutable is
+        //  invisible until something tries: the directive itself overwrites
+        //  whatever is there, and only the assignment form checks the kind.
+        TEST_METHOD (AParameterTheDirectiveBoundMayStillBeAssignedDirectly)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " VAR $19\n"
+                                              "]1 = $1A\n"
+                                              " STA ]1\n");
+            std::vector<Byte>  expected = { 0x85, 0x1A };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the assignment rebinds what the directive bound");
+        }
+
+
+
+        //  A binding whose expression never resolves, in either pass. Pass 1
+        //  holds its tongue so a forward reference survives, which is precisely
+        //  what would let this go unreported if pass 2 held its tongue too.
+        TEST_METHOD (ABindingThatNeverResolvesIsReported)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" VAR NOSUCH\n");
+
+            Assert::AreEqual ((size_t) 1, result.errors.size(), L"one diagnostic, about the expression that never settled");
+            Assert::AreEqual (1, result.errors[0].lineNumber, L"reported at the binding");
+        }
+
+
+
+        //  The whole vendor shape, on source this test owns: a binding, a
+        //  fragment pulled in under the name the disk would store it as, and a
+        //  label the fragment refers to that is defined after it.
+        TEST_METHOD (AnIncludedFragmentIsParameterizedByTheBindingAboveIt)
+        {
+            MockFileReader     reader;
+            AssemblyResult     result;
+            std::vector<Byte>  expected = { 0x85, 0x19, 0x20, 0x05, 0x80, 0x60 };
+
+            reader.files["T.FRAG"] = " STA ]1\n JSR ]2\n";
+
+            result = MerlinAssemblyFixture::AssembleMerlinWithReader (
+                         "PTR = $19\n"
+                         " VAR PTR;OUT\n"
+                         " PUT FRAG\n"
+                         "OUT RTS\n",
+                         reader);
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual (1, reader.CountRequests ("T.FRAG"), L"the fragment has to be reached for this to mean anything");
+            Assert::IsTrue (result.bytes == expected, L"the fragment's parameters resolve to what the caller bound");
+        }
+
+
+
+        //  And a reference with nothing bound to it must FAIL. Without this the
+        //  test above passes against an assembler that quietly reads an unbound
+        //  parameter as zero, which is a different program assembled in silence.
+        TEST_METHOD (AParameterReferenceWithNoBindingIsRejected)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" STA ]1\n");
+
+            Assert::IsFalse (result.errors.empty(), L"an unbound parameter is not a value");
+        }
+
+
+
+        //  The symbol the directive binds is the one a reference is rewritten to,
+        //  and both come from the profile rather than from a prefix written out
+        //  twice. Asserted through the registry so the claim is about the dialect
+        //  the assembler actually consulted.
+        TEST_METHOD (TheBoundSymbolIsTheOneTheProfileNames)
+        {
+            const DialectProfile  &  merlin = DialectRegistry::Get (DialectId::Merlin);
+            AssemblyResult           result = MerlinAssemblyFixture::AssembleMerlin (" VAR $1234\n");
+            std::string              name   = merlin.GetPositionalParameterSymbol (1);
+
+            Assert::IsFalse (name.empty(), L"a dialect with this directive has to name the symbol it binds");
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual ((size_t) 1, result.symbols.count (name), L"the binding landed under the profile's name");
+            Assert::AreEqual (0x1234, (int) result.symbols.at (name), L"and holds what the directive assigned");
+        }
+
+
+
+        //  as65 has no such directive and must not acquire one. Its own reading
+        //  of the line is beside the point; what matters is that it does not
+        //  assemble as a binding.
+        TEST_METHOD (As65HasNoParameterBinding)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::Assemble (
+                                         " .org $8000\n var $19\n sta ]1\n", DialectId::As65);
+
+            Assert::IsFalse (result.errors.empty(), L"AS65 must not gain Merlin's parameter binding");
+        }
+
+
+
+        TEST_METHOD (ABindingWithNoValuesIsReported)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" VAR\n");
+
+            Assert::AreEqual ((size_t) 1, result.errors.size(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "VAR"),
+                            L"named by the directive that bound nothing");
+        }
+
+
+
+        //  More values than the one-digit reference form can name. The extras
+        //  would bind to symbols no source can spell, so the line is refused
+        //  rather than half-obeyed.
+        TEST_METHOD (MoreValuesThanCanBeReferredToIsReported)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" VAR 1;2;3;4;5;6;7;8;9;10\n");
+
+            Assert::AreEqual ((size_t) 1, result.errors.size(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "10"),
+                            L"the count the source wrote is what makes the message actionable");
+        }
+
+
+
+        //  The separator is the MACRO ARGUMENT separator, not a comma. These are
+        //  the same parameters an invocation supplies, so a source writing them
+        //  two ways would be two rules for one form.
+        TEST_METHOD (TheValuesAreSeparatedTheWayMacroArgumentsAre)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" VAR $19,$1A\n STA ]2\n");
+
+            Assert::IsFalse (result.errors.empty(),
+                             L"a comma leaves one value, so the second parameter is unbound");
         }
     };
 }

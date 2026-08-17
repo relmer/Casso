@@ -196,6 +196,16 @@ private:
     HRESULT HandlePass1CpuSelect       (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1ObjectFile      (const PendingLine & current, LineInfo & info);
 
+    // The directive that assigns the positional parameters with no macro call.
+    // Both passes bind, through one helper, because a reference resolves against
+    // the assignment most recently before it and pass 2 would otherwise read one
+    // table built after pass 1 finished -- the same disagreement
+    // RebindMutableConstant exists for.
+    HRESULT HandlePass1ParameterBinding (const PendingLine & current, LineInfo & info);
+    HRESULT RebindParameters            (const LineInfo & info, Word & emitPC);
+    HRESULT BindPositionalParameters    (int lineNumber, const ParsedLine & parsed,
+                                         ExprContext & ctx, bool isFinalPass);
+
     // Every collected line requeued as many times as the count asked for, and
     // the collecting state left behind. A separate step from the terminator's
     // handler because it is the whole of what the terminator MEANS, and a

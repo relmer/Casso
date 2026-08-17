@@ -315,6 +315,17 @@ public:
     // rather than an accessor apiece -- see MacroSyntax above.
     virtual MacroSyntax         GetMacroSyntax () const { return {}; }
 
+    // The symbol one positional parameter binds under, for a dialect whose
+    // source can assign the parameters without a macro call. Empty for a dialect
+    // that cannot, which is why this is a default rather than a pure virtual.
+    //
+    // It is on the seam rather than in the engine because the NAME is the
+    // dialect's: a parameter reference is rewritten while the line is parsed,
+    // and a directive binding the same parameter has to produce the identical
+    // name or every reference resolves to nothing. One answer serves both, for
+    // the reason the local-label prefix and the extra symbol characters do.
+    virtual std::string         GetPositionalParameterSymbol (int /*index*/) const { return {}; }
+
     // The constructs this dialect recognizes and refuses, with the reason for
     // each. Empty for a dialect that refuses nothing, which is why this is a
     // default rather than a pure virtual -- and which is also what keeps the
