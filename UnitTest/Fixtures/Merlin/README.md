@@ -259,6 +259,30 @@ delimiters by ASCII value — `!` (`$21`) sorts below `'` (`$27`) and would have
 give low ASCII under one. No `'`-delimited string appears anywhere in the corpus,
 so the low-ASCII case is unverifiable here too.
 
+**Digits after the closing delimiter are hexadecimal bytes, emitted verbatim.**
+Fourteen lines across the sources carry them — `ASC " PHA"8D`,
+`ASC "Z LD  #0"88888808` — and `MAKE DUMP` is the file that settles what they
+mean, because it is the one that ships an object containing them:
+
+```
+ ASC "This destroys current source."8D8D
+ ASC "Do you really want it (Y/N)? "00
+
+... F3 EF F5 F2 E3 E5 AE 8D 8D C4 EF ...            ... A0 00 ...
+     s  o  u  r  c  e  .              D  o              ^  ^
+                        two bytes                       |  the trailing 00
+                                            the string's own trailing space
+```
+
+Two facts, and the second is the one no reasoning would have produced. The
+digits are hexadecimal, two per byte. And the trailing run does **not** go
+through the delimiter's high-bit convention the way the text does: `00` stays
+`00`, where a high-bit rule would have written `80`.
+
+Every one of the fourteen is a bare digit run with no separator, so the corpus
+says nothing about a comma form. Nor does any of them follow `DCI`, so whether a
+trailing run counts toward that directive's terminator is unverifiable here.
+
 ## Default origin
 
 `LABELS.S` contains no `ORG` and no object-file directive, and `LABELS` loads at
@@ -298,6 +322,40 @@ sit — only `CMD?` is in a source that ships an object and is ever byte-compare
 the other three are in a linker demo used solely as a negative specimen. So the
 corpus establishes that the character is legal, and only one of the four sits on
 a path where a rejection would surface as a failed comparison.
+
+## `ORG` moves the program counter and NOT the output cursor
+
+The largest finding in `MAKE DUMP`, and the one most likely to be discovered the
+expensive way, because nothing in the source hints at it.
+
+`MAKE DUMP.S` assembles three sections at three different addresses — the loader
+at `$9000`, an interface at `$0300`, a main program at `$0900` — and ships a
+**589-byte contiguous object loading at `$9000`**. So `ORG` is not a "put the
+next bytes at this address" directive in the sense as65's is. It changes the
+address labels bind to and branches are computed from; the bytes keep landing at
+the next position in the file.
+
+Checkable in the object without assembling anything. The loader section is 89
+bytes, and file offset 89 is exactly where the `$0300` section begins:
+
+```
+offset  0: A9 4C 8D F5 03 ...      LDA #$4C / STA $03F5     (assembled at $9000)
+offset 89: 48 2C 4D 03 38 ...      PHA / BIT $034D / SEC    (assembled at $0300)
+```
+
+A bare `ORG` with no operand appears twice and restores the address to the real
+load position — base plus current file offset — which is only meaningful under
+this model.
+
+**This is an engine property, not a dialect one.** Casso's assembler builds an
+address-indexed image, so today the same source produces 36,197 bytes spanning
+`$0300` to `$9600` instead of 589. Separating the emit cursor from the program
+counter is a change to the shared two-pass driver, which the dialect-profile
+contract calls a spec amendment rather than a local edit.
+
+Two smaller facts fall out of the same bytes. `LDA #LABEL` takes the **low**
+byte and `LDA #>LABEL` the high one: `STADR START;AMPER+1` with `START` at
+`$0300` produces `A9 00 8D F6 03 A9 03 8D F7 03`.
 
 ## Rules
 
