@@ -15,8 +15,10 @@ exists with its field-based line model (T027–T029), its directive table
 (T032/T033), string encoding (T034/T035), local labels (T030), raw hexadecimal
 data, equates, listing directives, instruction aliases, the directive behaviors
 `LABELS.S` needs, **macros in full (T038)**, **variable symbols (T031)**, and the
-**emit-cursor split (T035e–T035g)**. Suite is **3141** Release / **3144** Debug,
-both green.
+**emit-cursor split (T035e–T035g)**. **T069 and T070 are also done** — see the
+note on T069 for why its hold expired. Suite is **3143** Release / **3146**
+Debug, both green; Dormann and Harte (30,600 6502 + 51,200 Rockwell 65C02
+vectors) both pass.
 
 **Macros and variables landed as ONE commit, deliberately.** Merlin writes a
 positional parameter and a reassignable symbol with the same character — `]1` is
@@ -195,6 +197,12 @@ to catch. as65 declares no aliases and is swept to prove it.
 **The other three oracle objects did NOT come along with them.** `PRINTFILER`
 and `CLOCK` need `KBD`, which is unsolved; both also use macros. So the aliases
 unblock those objects without delivering any of them.
+
+**SC-004 re-verified after the engine change.** `AssemblerTests`,
+`RegressionTests`, `IntegrationTests` and `OutputFormatTests` — 180 tests
+between them — are green in both configurations, and the split was mutated
+eleven ways to check they would have noticed: freezing the output cursor alone
+fails twelve of them.
 
 **Blocked on someone else.** T049 (explicit `as65` selector + fallback removal)
 is **held until spec 020's command-line work reaches `master`** — see
@@ -530,7 +538,7 @@ The **one** sanctioned exception is T049a, removing the fallback heuristic: a de
 ## Phase 6: Polish & Cross-Cutting Concerns
 
 - [x] T069 Add a synthetic, test-only third dialect profile to `UnitTest/DialectMechanismTests.cpp` and prove it works end to end — this is what catches a mechanism secretly built for exactly two dialects (SC-009). ~~**Do not pull this forward.**~~ **That hold has EXPIRED and the task was pulled forward deliberately**, rather than being contradicted silently. Its reason was that against a seam shaped by AS65 alone the synthetic profile gets written to fit whatever seam exists; Merlin has since pressed on the seam with the field model, operand-internal semicolons, quoted operands, mnemonic aliases, macro syntax, variable symbols and now the origin semantic — so the seam it is written against is a real one. **The profile must declare the OPPOSITE origin semantic from AS65**, or it never exercises the axis the emit-cursor split added and passes while testing nothing, which is the exact trap this task's own warning describes
-- [ ] T070 Verify SC-009 against **T069's commit alone**, not against `origin/master`: `git show --stat HEAD -- CassoCore/AssemblySession.cpp CassoCore/ExpressionEvaluator.cpp CassoCore/OpcodeTable.cpp` must be empty. Diffing against master cannot work — T013, T018, T033, T036, T037, T042, T061, T063, and T064 all modify `AssemblySession.cpp` earlier in this same feature, so that diff is never empty and the criterion 023 gates on would go unverified. The claim is that *adding a dialect* touches none of the three, which is a property of the adding commit
+- [x] T070 Verify SC-009 against **T069's commit alone**, not against `origin/master`: `git show --stat HEAD -- CassoCore/AssemblySession.cpp CassoCore/ExpressionEvaluator.cpp CassoCore/OpcodeTable.cpp` must be empty. *(Run against T069's commit and empty: that commit changes exactly one file, `UnitTest/DialectMechanismTests.cpp`. The synthetic profile reaches the engine through `AssemblerOptions::dialectProfile`, an injection point added in the PRECEDING commit for the reason the registry cannot supply: a closed table cannot demonstrate that a dialect outside it would work. Same shape as `fileReader`.)* Diffing against master cannot work — T013, T018, T033, T036, T037, T042, T061, T063, and T064 all modify `AssemblySession.cpp` earlier in this same feature, so that diff is never empty and the criterion 023 gates on would go unverified. The claim is that *adding a dialect* touches none of the three, which is a property of the adding commit
 - [ ] T071a [P] Add a **breaking changes** entry to `CHANGELOG.md`, as its own heading rather than inside the feature announcement: `CassoCli input.a65 -o out.bin` no longer works and becomes `CassoCli as65 input.a65 -o out.bin`, and a bare `CassoCli as65` stops resolving `as65` as a source filename (both T049a). **Written as part of T049a's single commit, not afterward** — this entry is the deliberate-act record that 020's tripwire test was protecting. A reader scanning for what will break must not have to find it inside a paragraph about dialect support. State the replacement invocation literally, so the entry is copy-pasteable into a build script
 - [ ] T071 [P] Update `CHANGELOG.md` with the merlin subcommand, the dialect mechanism, and the corrected include-file diagnostic attribution
 - [ ] T072 [P] Update `README.md` with the new dialect, the updated test count, and the roadmap position relative to `023-ca65-dialect`
