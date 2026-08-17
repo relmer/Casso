@@ -392,6 +392,27 @@ Either way it is its own piece of work with its own tests, and whoever picks it
 up should start here rather than rediscovering the measurement — or the reason
 the easy version of it is a worse bug than the one it fixes.
 
+### Accepted as-is, by the project owner
+
+**Neither fix is being made, and this is a decision rather than an omission.**
+The judgment was that the scenario is exceedingly rare, that the residue is a
+single stray 143,360-byte file, and that a person who minds one can delete it.
+
+That leaves the section's "must not litter" phrasing overstating the
+requirement, so read it as a preference that lost to the cost of satisfying it.
+What was weighed: the orphan appears only when the process is killed *inside*
+the commit window — every attempt to hit that instant from outside the process
+landed after the replace, and reaching it at all required stopping the process
+from within. Ordinary failures clean up after themselves and successful runs
+sweep their own temporary. The target image is never left damaged in any of
+these cases, which is the guarantee the whole plan exists to provide, and that
+guarantee is met.
+
+A future reader should not treat this as an invitation to fix it casually. The
+two shapes above are still the only real ones, the deterministic-name shortcut
+is still a worse bug than the defect, and anyone who reopens this is choosing to
+spend that cost with the tradeoff already known.
+
 ---
 
 ## R-008 — In-use detection is out of scope, and the requirement said otherwise
