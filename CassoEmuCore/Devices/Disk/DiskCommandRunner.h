@@ -132,6 +132,20 @@ public:
         "         It cannot tell whether the image is mounted here -- a mounted image is\n"
         "         not held open -- so a mounted disk is neither detected nor protected.";
 
+    //  The line the worked example starts on, so a reader and a test look for
+    //  the same thing.
+    static constexpr const char *  kExampleHeading =
+        "Example -- the whole loop, from source to a program running in the emulator:";
+
+    //  Every verb, every option, the exit statuses, and a worked example of the
+    //  whole loop, as one block the console executable prints verbatim.
+    //
+    //  It is assembled here rather than spelled out beside the printing code for
+    //  the reason kInUseHelpText already gives: the test assembly does not link
+    //  the console executable, so help written there is help nothing can check.
+    //  Building it here lets a test read exactly what a user reads.
+    static std::string  BuildHelpText();
+
 private:
     void  RunList   (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunGet    (const CommandLineOptions & options, DiskCommandResult & result);

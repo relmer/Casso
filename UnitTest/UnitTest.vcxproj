@@ -276,6 +276,7 @@
     <ClCompile Include="EmuTests\CrossFormatWriteTests.cpp" />
     <ClCompile Include="EmuTests\CommitPlanTests.cpp" />
     <ClCompile Include="EmuTests\DiskCommandRunnerTests.cpp" />
+    <ClCompile Include="EmuTests\DiskHelpTextTests.cpp" />
     <ClCompile Include="EmuTests\DiskFailureModeTests.cpp" />
     <ClCompile Include="EmuTests\DirectBootTests.cpp" />
     <ClCompile Include="EmuTests\GuestVisibleDirectBootTests.cpp" />

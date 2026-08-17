@@ -64,6 +64,10 @@ public:
     // instead of a hand-picked sample.
     static std::span<const SubcommandName>  GetAllSubcommands();
 
+    // Every accepted disk-verb spelling, aliases included, for the same reason
+    // -- and because the help output has to describe all of them.
+    static std::span<const DiskVerbName>    GetAllDiskVerbs();
+
 private:
     static HRESULT  ParseBoundedHex (const char * text, long maxValue, long & outValue);
     static HRESULT  ParseAddress    (const char * text, Word & address);

@@ -28,6 +28,102 @@ DiskCommandRunner::DiskCommandRunner (IDiskFileIo & fileIo)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::BuildHelpText
+//
+//  Everything a user needs to reach every capability: the verbs, what each one
+//  does, the options, the exit statuses, and a worked example of the whole loop
+//  rather than a flag list.
+//
+//  THE EXAMPLE IS THE POINT. A flag reference tells a reader what each switch
+//  spells and leaves them to guess the order and the combination, and the two
+//  traps below are exactly what they would guess wrong. So the example runs the
+//  loop end to end and then says why two of its steps look the way they do.
+//
+//  The first trap is the header. `--dos-bin` and `put --addr` each write a DOS
+//  3.3 four-byte header, and a file carrying both loads its own header at the
+//  load address -- where a `BRUN` executes it. The stale header's first byte is
+//  the low half of the load address, which for anything in page $60 and below is
+//  a BRK, so the machine lands in the monitor with no clue as to why.
+//
+//  The second is the greeting. A booting DOS 3.3 RUNs the name in its greeting
+//  field, which runs an Applesoft or Integer program, so naming a binary there
+//  sets the name and boots without running it. The example places a one-line
+//  greeting that BRUNs the binary, which is what actually closes the loop.
+//
+//  The exit statuses say the subcommand defines none above 2. "There are none"
+//  is the documentation the requirement asks for -- silence would be read as an
+//  omission, and a caller would have no way to tell the two apart.
+//
+//  Assembled here, in the library, rather than beside the printing code: the
+//  test assembly does not link the console executable, so help written there
+//  could never be checked against the capability it describes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::BuildHelpText()
+{
+    std::string  text;
+
+
+
+    text =
+        "       CassoCli disk list   <image> [--long]\n"
+        "                disk get    <image> <path> [--out <file>]"
+                       " [--text | --basic | --verbatim]\n"
+        "                disk put    <image> <file> [--as <path>] [--type <t>]"
+                       " [--addr $XXXX]\n"
+        "                                           [--text | --basic | --verbatim]\n"
+        "                disk delete <image> <path>\n"
+        "                disk boot   <image> <path>\n"
+        "         list   catalogs the volume -- name, type, size, lock state, free\n"
+        "                space, and any damage found. --long adds the ProDOS columns.\n"
+        "         get    copies a file OFF the disk, to --out or to standard output.\n"
+        "         put    copies a host file ON to the disk. --as names it there,\n"
+        "                --type sets the file type, --addr the load address.\n"
+        "         delete removes a file and returns the space it alone claimed.\n"
+        "         boot   sets which program the volume runs when it boots.\n"
+        "         aliases: ls = list, rm = delete.\n"
+        "         put and get are named from the DISK's point of view: put places a\n"
+        "         host file on the disk, get takes one off it.\n"
+        "         Disk options always take the -- spelling, whichever prefix the\n"
+        "         assembler flags are given with.\n"
+        "         --verbatim (the default) places bytes unchanged; --text converts\n"
+        "         the high-bit encoding and the line endings.\n"
+        "         exit: 0 clean, 1 succeeded with complaints, 2 produced no output.\n"
+        "         disk defines no status above 2 -- every outcome it can report is\n"
+        "         one of those three, so a script needs nothing disk-specific.\n"
+        "         ";
+
+    text += ApplesoftTokenizer::kRoundTripHelpText;
+    text += "\n         ";
+    text += kInUseHelpText;
+    text += "\n\n";
+    text += kExampleHeading;
+    text +=
+        "\n"
+        "  CassoCli prog.a65 -o prog.bin --raw\n"
+        "  CassoCli disk put mydisk.dsk prog.bin --as PROG --type B --addr $6000\n"
+        "  CassoCli disk put mydisk.dsk greet.bas --as STARTUP --basic\n"
+        "  CassoCli disk boot mydisk.dsk STARTUP\n"
+        "  Casso.exe --disk1 mydisk.dsk\n"
+        "         -o names the assembled output file; --disk1 mounts an image in\n"
+        "         drive 1 as the emulator starts.\n"
+        "         Assemble with --raw rather than --dos-bin: put writes the DOS 3.3\n"
+        "         header itself from --addr, and a file that already carries one has\n"
+        "         its own header loaded as code where the program should begin.\n"
+        "         greet.bas holds one Applesoft line -- 10 PRINT CHR$(4);\"BRUN PROG\"\n"
+        "         -- because a booting DOS 3.3 volume RUNs its greeting. Naming the\n"
+        "         binary there sets the name and the disk boots without running it.\n";
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::Failure
 //
 //  Image, file, reason, in that order. A script's user sees the first line and

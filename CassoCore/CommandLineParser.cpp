@@ -227,6 +227,26 @@ std::span<const CommandLineParser::SubcommandName> CommandLineParser::GetAllSubc
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetAllDiskVerbs
+//
+//  Every spelling the disk grammar accepts, aliases included, so a test can
+//  sweep the whole table rather than a hand-picked sample. What it is for is the
+//  help output: a verb added here and not described there is a capability the
+//  user cannot find, and only a sweep of this table can notice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const CommandLineParser::DiskVerbName> CommandLineParser::GetAllDiskVerbs()
+{
+    return std::span<const DiskVerbName> (s_kDiskVerbs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ParseBoundedHex
 //
 //  Shared by ParseAddress and ParseFillByte, which differ only in their upper
