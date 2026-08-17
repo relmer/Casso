@@ -75,6 +75,14 @@ public:
     struct OpenedImage
     {
         std::string         imagePath;
+
+        //  The container's own bytes, kept because rendering an edited volume
+        //  back needs them: a bit-stream image preserves every track the edit
+        //  did not touch verbatim, and it can only do that from the file it
+        //  came from. Re-reading here instead would let the two halves of the
+        //  write disagree about what the image held.
+        std::vector<Byte>   fileBytes;
+
         std::vector<Byte>   sectors;
         VolumeKind          kind          = VolumeKind {};
         SectorDecodeReport  report;
@@ -124,8 +132,52 @@ public:
         "         not held open -- so a mounted disk is neither detected nor protected.";
 
 private:
-    void  RunList (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunGet  (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunList   (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunGet    (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunPut    (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunDelete (const CommandLineOptions & options, DiskCommandResult & result);
+
+    //  Renders an edited sector buffer back into the container it came from and
+    //  puts it where the old one was. One helper because the two orderings it
+    //  imposes -- render first, then commit -- are what keep a refused write
+    //  from ever reaching the target.
+    HRESULT  SaveAndCommit (const OpenedImage        & opened,
+                            const std::vector<Byte>  & editedSectors,
+                            DiskCommandResult        & result);
+
+    //  Turns a volume layer's refusal into something a user can act on.
+    //
+    //  THIS IS WHAT KEEPS A PLATFORM CODE OUT OF THE OUTPUT. The volume layer
+    //  answers in Win32 codes because they carry the right meanings without
+    //  asserting on user input, but a number is not a reason -- the person
+    //  reading it wants to know that their file is locked, not that something
+    //  returned 0x80070005.
+    static std::string  DescribeVolumeRefusal (HRESULT hr);
+
+    //  The same job for the atomic replace, which is where write protection
+    //  enforced by the HOST file's read-only attribute finally surfaces -- the
+    //  volume layer never sees it, because nothing about the image's contents
+    //  says the file may not be written.
+    static std::string  DescribeReplaceFailure (HRESULT hr);
+
+    //  Which type byte a placement uses: what the caller named, or the sensible
+    //  one for the conversion they asked for.
+    static HRESULT  ResolveFileType (const CommandLineOptions & options,
+                                     VolumeKind                 kind,
+                                     Byte                     & outType,
+                                     DiskCommandResult        & result);
+
+    //  The bytes a host file becomes on the disk, with whatever conversion was
+    //  asked for already applied. Refuses a conversion this build cannot do.
+    static HRESULT  BuildPutPayload (const CommandLineOptions  & options,
+                                     VolumeKind                  kind,
+                                     const std::vector<Byte>   & hostBytes,
+                                     FilePayload               & outPayload,
+                                     DiskCommandResult         & result);
+
+    //  What the file is called on the disk: --as when given, otherwise the host
+    //  file's own last component, which is the name the caller already chose.
+    static std::string  OnDiskNameFor (const CommandLineOptions & options);
 
     //  Names the image and the reason, sets the no-output status, and returns
     //  nothing -- so a refusal path cannot report one without the other.

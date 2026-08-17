@@ -756,6 +756,21 @@ namespace CommandLineTests
             Assert::IsTrue (basic.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Basic);
         }
 
+        TEST_METHOD (Disk_VerbatimIsASelectorOfItsOwn_NotJustTheAbsenceOfTheOthers)
+        {
+            // Verbatim being the default makes it easy to leave --verbatim
+            // parsed-but-inert, which nothing would notice until somebody used
+            // it to override an earlier selector. It is spelled that way rather
+            // than --raw or --binary because both of those already name
+            // assembler output shapes in this same parser.
+            ArgVector           args = { "CassoCli", "disk", "put", "my.dsk", "p.bin",
+                                         "--text", "--verbatim" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim,
+                L"the last selector on the line wins, including the default one");
+        }
+
         TEST_METHOD (Disk_LongListingFlag)
         {
             ArgVector           args = { "CassoCli", "disk", "list", "my.dsk", "--long" };

@@ -222,6 +222,7 @@ HRESULT DiskCommandRunner::OpenImage (
 
     statHr                    = m_fileIo.Stat (imagePath, outOpened.stamp);
     outOpened.stampRecorded   = SUCCEEDED (statHr);
+    outOpened.fileBytes       = fileBytes;
 
     hr = VolumeImage::Load (fileBytes, imagePath, outOpened.sectors, outOpened.report);
 
@@ -269,6 +270,105 @@ void DiskCommandRunner::RefuseCommit (
     result.exitStatus   = kNoOutput;
 
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::DescribeVolumeRefusal
+//
+//  A verdict from the filesystem layer, in words.
+//
+//  That layer answers in Win32 codes on purpose -- they carry the meanings a
+//  refusal needs without asserting the way E_INVALIDARG does, since everything
+//  it refuses came from a user rather than from a caller's bug. What they are
+//  not is an explanation. Printing the code would tell someone whose file is
+//  locked that the tool returned a number, and the one thing they could have
+//  done about it would be missing from the message.
+//
+//  Anything unrecognized still gets a sentence rather than a code, because a
+//  case added below this layer must not be able to leak one upward.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
+{
+    if (hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED))
+    {
+        return "is locked on this volume -- unlock it on the disk before writing over it";
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_DISK_FULL))
+    {
+        return "does not fit: the volume has no room left, either for the file's "
+               "contents or for another catalog entry";
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_NAME))
+    {
+        return "is not a name this filesystem can store -- it must be a single "
+               "component starting with a letter, short enough for the catalog, "
+               "and free of commas and control characters";
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND))
+    {
+        return "is not on this volume";
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE))
+    {
+        return "is larger than this filesystem can record for one file";
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER))
+    {
+        return "is a binary, which has to be told where it loads -- give --addr $XXXX";
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED))
+    {
+        return "is a directory, and this tool does not go inside one -- so removing "
+               "it would strand everything beneath it";
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF))
+    {
+        return "has a sector chain that cannot be followed to its end";
+    }
+
+    return "was refused by the filesystem on this volume";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::DescribeReplaceFailure
+//
+//  WRITE PROTECTION ARRIVES HERE AND NOWHERE ELSE when it comes from the host
+//  file's read-only attribute. Nothing about the image's contents says it may
+//  not be written, so the volume layer computes a perfectly good new image and
+//  the platform refuses at the last step. Reporting that as a generic failure
+//  would leave the user with a refusal and no idea which of the two things to
+//  fix.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::DescribeReplaceFailure (HRESULT hr)
+{
+    if (hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED))
+    {
+        return "is write-protected -- clear its read-only attribute and try again. "
+               "Nothing was written";
+    }
+
+    return "could not be replaced -- it may be read-only or in use";
 }
 
 
@@ -379,8 +479,7 @@ HRESULT DiskCommandRunner::CommitImage (
     progress.furthestAttempted = CommitPlan::Step::Replace;
 
     hr = m_fileIo.ReplaceAtomically (tempPath, opened.imagePath);
-    CHRF (hr, RefuseCommit (opened.imagePath,
-                            "could not be replaced -- it may be read-only or in use", result));
+    CHRF (hr, RefuseCommit (opened.imagePath, DescribeReplaceFailure (hr), result));
 
     progress.replaceSucceeded = true;
 
@@ -674,6 +773,426 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::OnDiskNameFor
+//
+//  --as when the caller gave one, and otherwise the host file's own last
+//  component. Nothing is stripped or shortened on the way: the caller already
+//  chose that name, and inventing a different one would leave them looking for
+//  a file the catalog does not hold. A name the filesystem cannot store is
+//  refused by the volume layer, which is where that rule belongs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::OnDiskNameFor (const CommandLineOptions & options)
+{
+    size_t  lastSeparator = options.disk.hostFile.find_last_of ("/\\");
+
+
+
+    if (!options.disk.path.empty())
+    {
+        return options.disk.path;
+    }
+
+    if (lastSeparator == std::string::npos)
+    {
+        return options.disk.hostFile;
+    }
+
+    return options.disk.hostFile.substr (lastSeparator + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ResolveFileType
+//
+//  The two filesystems number their types differently and name them
+//  differently, so the spellings accepted here are each one's own. A letter
+//  that means Applesoft on DOS 3.3 and nothing on ProDOS must not resolve to
+//  whatever ProDOS keeps at that number.
+//
+//  A caller who named no type gets the one that matches the conversion they
+//  asked for -- text when they asked for text, a binary otherwise, which is
+//  what a build loop places.
+//
+//  AN UNRECOGNIZED SPELLING IS REFUSED, not defaulted. Defaulting would place
+//  the file under a type the caller did not ask for and say nothing, and the
+//  guest would report the mismatch much later as a file that will not load.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ResolveFileType (
+    const CommandLineOptions  & options,
+    VolumeKind                  kind,
+    Byte                      & outType,
+    DiskCommandResult         & result)
+{
+    HRESULT      hr         = S_OK;
+    bool         isDos      = kind == VolumeKind::Dos33;
+    bool         isText     = options.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Text;
+    bool         named      = !options.disk.typeName.empty();
+    bool         recognized = true;
+    size_t       i          = 0;
+    std::string  spelling   = options.disk.typeName;
+
+
+
+    outType = isDos ? (isText ? Dos33Volume::kTypeText  : Dos33Volume::kTypeBinary)
+                    : (isText ? ProDosVolume::kTypeText : ProDosVolume::kTypeBinary);
+
+    BAIL_OUT_IF (!named, S_OK);
+
+    for (i = 0; i < spelling.size(); i++)
+    {
+        if (spelling[i] >= 'a' && spelling[i] <= 'z')
+        {
+            spelling[i] = (char) (spelling[i] - 'a' + 'A');
+        }
+    }
+
+    if (isDos)
+    {
+        if      (spelling == "T" || spelling == "TXT") { outType = Dos33Volume::kTypeText; }
+        else if (spelling == "I" || spelling == "INT") { outType = Dos33Volume::kTypeInteger; }
+        else if (spelling == "A" || spelling == "BAS") { outType = Dos33Volume::kTypeApplesoft; }
+        else if (spelling == "B" || spelling == "BIN") { outType = Dos33Volume::kTypeBinary; }
+        else if (spelling == "R" || spelling == "REL") { outType = Dos33Volume::kTypeRelocatable; }
+        else                                           { recognized = false; }
+    }
+    else
+    {
+        if      (spelling == "T" || spelling == "TXT") { outType = ProDosVolume::kTypeText; }
+        else if (spelling == "B" || spelling == "BIN") { outType = ProDosVolume::kTypeBinary; }
+        else if (spelling == "A" || spelling == "BAS") { outType = ProDosVolume::kTypeBasic; }
+        else if (spelling == "S" || spelling == "SYS") { outType = ProDosVolume::kTypeSystem; }
+        else                                           { recognized = false; }
+    }
+
+    if (!recognized)
+    {
+        result.diagnostics += "--type " + options.disk.typeName + " means nothing on this volume -- "
+                            + (isDos ? "DOS 3.3 takes T, I, A, B or R"
+                                     : "ProDOS takes TXT, BIN, BAS or SYS")
+                            + "\n";
+
+        result.exitStatus   = kNoOutput;
+        hr                  = E_NOTIMPL;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::BuildPutPayload
+//
+//  What the host file becomes on the disk.
+//
+//  VERBATIM IS THE ABSENCE OF A CHARACTER CONVERSION AND NOTHING MORE. The
+//  bytes go down as they came in; the length and whatever header the type
+//  carries are still applied below this, because those record where the file
+//  ENDS and are its identity rather than a transformation of it. That is what
+//  makes extract-edit-replace safe: the bytes the caller did not touch come
+//  back exactly as they were.
+//
+//  Text is written in the high-ASCII convention on BOTH filesystems, which is
+//  the measured answer rather than the assumed one -- the ProDOS fixture
+//  volumes' own TXT files are predominantly high-bit with $8D terminators. It
+//  is also what the read path decodes, so the two directions agree.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::BuildPutPayload (
+    const CommandLineOptions  & options,
+    VolumeKind                  kind,
+    const vector<Byte>        & hostBytes,
+    FilePayload               & outPayload,
+    DiskCommandResult         & result)
+{
+    HRESULT      hr        = S_OK;
+    Byte         type      = 0;
+    size_t       badOffset = 0;
+    char         note[160] = {};
+    std::string  hostText;
+
+
+
+    hr = ResolveFileType (options, kind, type, result);
+    CHR (hr);
+
+    outPayload.type           = type;
+    outPayload.loadAddress    = options.disk.loadAddress;
+    outPayload.hasLoadAddress = options.disk.hasLoadAddress;
+
+    switch (options.disk.encoding)
+    {
+        case CommandLineOptions::DiskOptions::Encoding::Verbatim:
+            outPayload.bytes    = hostBytes;
+            outPayload.encoding = PayloadEncoding::Verbatim;
+            break;
+
+        case CommandLineOptions::DiskOptions::Encoding::Text:
+            hostText.assign (hostBytes.begin(), hostBytes.end());
+
+            hr = AppleTextCodec::Encode (hostText, AppleTextConvention::HighAscii,
+                                         outPayload.bytes, badOffset);
+
+            if (FAILED (hr))
+            {
+                // Naming the offset is the whole value of the refusal. A smart
+                // quote pasted into a listing looks identical to a plain one in
+                // an editor, and "somewhere in this file" is not actionable.
+                snprintf (note, sizeof (note),
+                          "byte %u of the host file has no Apple II text representation, "
+                          "so nothing was converted\n",
+                          (unsigned) badOffset);
+
+                result.diagnostics += note;
+                result.exitStatus   = kNoOutput;
+                break;
+            }
+
+            outPayload.encoding = PayloadEncoding::HostText;
+            break;
+
+        case CommandLineOptions::DiskOptions::Encoding::Basic:
+            result.diagnostics += "--basic is not available in this build: "
+                                  "no Applesoft tokenizer yet\n";
+            result.exitStatus   = kNoOutput;
+            hr                  = E_NOTIMPL;
+            break;
+
+        default:
+            result.diagnostics += "unknown encoding -- try: --text, --basic, --verbatim\n";
+            result.exitStatus   = kNoOutput;
+            hr                  = E_INVALIDARG;
+            break;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::SaveAndCommit
+//
+//  The second half of every edit: render the new sector buffer back into the
+//  container it came from, then put it where the old one was.
+//
+//  THE ORDER IS THE GUARANTEE. Rendering can still refuse -- a bit-stream image
+//  whose edit lands on a track that cannot be re-encoded as standard sectors is
+//  refused whole, never track by track -- and a refusal at that point has
+//  touched nothing, because the commit has not begun. Committing first and
+//  rendering afterwards is not a rearrangement of this; it is the half-written
+//  image the all-or-nothing rule exists to forbid.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::SaveAndCommit (
+    const OpenedImage   & opened,
+    const vector<Byte>  & editedSectors,
+    DiskCommandResult   & result)
+{
+    HRESULT       hr = S_OK;
+    std::string   refusal;
+    std::string   reason;
+    vector<Byte>  newFileBytes;
+
+
+
+    hr     = VolumeImage::Save (opened.fileBytes, opened.imagePath, editedSectors,
+                                newFileBytes, refusal);
+
+    reason = refusal.empty()
+           ? std::string ("could not be written back in the format it came from")
+           : refusal;
+
+    CHRF (hr, RefuseCommit (opened.imagePath, reason, result));
+
+    hr = CommitImage (opened, newFileBytes, result);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::RunPut
+//
+//  Placing a host file on the disk: read it, convert it if asked, let the
+//  filesystem compute the whole new volume, render that back into the container
+//  and commit it.
+//
+//  NOTHING IS WRITTEN UNTIL EVERY DECISION HAS BEEN MADE. Each refusal below --
+//  no such host file, a type nobody recognizes, a name the catalog cannot
+//  store, a locked file, a volume with no room -- happens with the image on
+//  disk untouched, because the only thing this path can commit is a finished
+//  buffer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandResult & result)
+{
+    HRESULT       hr       = S_OK;
+    bool          named    = !options.disk.hostFile.empty();
+    std::string   diskName = OnDiskNameFor (options);
+    OpenedImage   opened;
+    FilePayload   payload;
+    FilePath      path;
+    vector<Byte>  hostBytes;
+    vector<Byte>  edited;
+
+
+
+    if (!named)
+    {
+        result.diagnostics += "no host file named to place -- put takes the file to "
+                              "copy onto the disk\n";
+        result.exitStatus   = kNoOutput;
+        BAIL_OUT_IF (true, E_INVALIDARG);
+    }
+
+    hr = OpenImage (options.disk.imagePath, opened, result);
+    BAIL_OUT_IF (FAILED (hr), hr);
+
+    hr = m_fileIo.ReadAllBytes (options.disk.hostFile, hostBytes);
+
+    if (FAILED (hr))
+    {
+        result.diagnostics += Failure (options.disk.hostFile, "", "cannot be read") + "\n";
+        result.exitStatus   = kNoOutput;
+        BAIL_OUT_IF (true, hr);
+    }
+
+    hr = BuildPutPayload (options, opened.kind, hostBytes, payload, result);
+    BAIL_OUT_IF (FAILED (hr), hr);
+
+    path = FilePath::Parse (diskName);
+
+    {
+        Dos33Volume   dos (opened.sectors);
+        ProDosVolume  pro (opened.sectors);
+        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
+                             ? static_cast<IVolume &> (dos)
+                             : static_cast<IVolume &> (pro);
+
+        hr = volume.Write (path, payload, edited);
+    }
+
+    if (FAILED (hr))
+    {
+        result.diagnostics += Failure (options.disk.imagePath, diskName,
+                                       DescribeVolumeRefusal (hr)) + "\n";
+        result.exitStatus   = kNoOutput;
+        BAIL_OUT_IF (true, hr);
+    }
+
+    hr = SaveAndCommit (opened, edited, result);
+    BAIL_OUT_IF (FAILED (hr), hr);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::RunDelete
+//
+//  Removal, plus the account of what it declined to do.
+//
+//  THE ACCOUNT IS THE POINT OF REPORTING AT ALL. A delete frees only space the
+//  file uniquely owned; anything another catalog entry also claims is left
+//  allocated, because freeing it would damage that other file and nothing would
+//  say so until somebody read it, possibly weeks later. Leaked space is
+//  recoverable at any time and a cross-linked free is not, so the asymmetry
+//  runs this way -- and the user is told, on the error stream, with the command
+//  still reporting that it succeeded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskCommandResult & result)
+{
+    HRESULT        hr    = S_OK;
+    bool           named = !options.disk.path.empty();
+    OpenedImage    opened;
+    FilePath       path;
+    DeleteOutcome  outcome;
+    vector<Byte>   edited;
+
+
+
+    if (!named)
+    {
+        result.diagnostics += "no file named to delete\n";
+        result.exitStatus   = kNoOutput;
+        BAIL_OUT_IF (true, E_INVALIDARG);
+    }
+
+    hr = OpenImage (options.disk.imagePath, opened, result);
+    BAIL_OUT_IF (FAILED (hr), hr);
+
+    path = FilePath::Parse (options.disk.path);
+
+    {
+        Dos33Volume   dos (opened.sectors);
+        ProDosVolume  pro (opened.sectors);
+        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
+                             ? static_cast<IVolume &> (dos)
+                             : static_cast<IVolume &> (pro);
+
+        hr = volume.Delete (path, edited, outcome);
+    }
+
+    if (FAILED (hr))
+    {
+        result.diagnostics += Failure (options.disk.imagePath, options.disk.path,
+                                       DescribeVolumeRefusal (hr)) + "\n";
+        result.exitStatus   = kNoOutput;
+        BAIL_OUT_IF (true, hr);
+    }
+
+    hr = SaveAndCommit (opened, edited, result);
+    BAIL_OUT_IF (FAILED (hr), hr);
+
+    for (const std::string & warning : outcome.warnings)
+    {
+        result.diagnostics += Failure (options.disk.imagePath, options.disk.path, warning) + "\n";
+        result.exitStatus   = kWithComplaints;
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::Run
 //
 //  A verb this build does not implement reports failure rather than doing
@@ -699,7 +1218,13 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             break;
 
         case CommandLineOptions::DiskOptions::Verb::Put:
+            RunPut (options, result);
+            break;
+
         case CommandLineOptions::DiskOptions::Verb::Delete:
+            RunDelete (options, result);
+            break;
+
         case CommandLineOptions::DiskOptions::Verb::Boot:
             result.diagnostics += "that disk verb is not available in this build\n";
             result.exitStatus   = kNoOutput;

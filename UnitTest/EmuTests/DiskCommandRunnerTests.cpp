@@ -4,6 +4,8 @@
 #include "FakeDiskFileIo.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/NibblizationLayer.h"
+#include "Devices/Disk/Dos33Skeleton.h"
+#include "Devices/Disk/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -325,13 +327,16 @@ public:
 
     TEST_METHOD (UnbuiltVerb_ReportsFailureRatherThanDoingNothingQuietly)
     {
+        // Boot is the verb still to be built. This test moved onto it when put
+        // and delete were wired up: pointing it at a verb that now works would
+        // leave it green for a reason unrelated to what it is named for.
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
         DiskCommandResult  result;
 
         SeedRealDisk (io);
 
-        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::Put));
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::Boot));
 
         Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus,
             L"an absent capability must not look like a completed operation");
@@ -815,5 +820,823 @@ public:
         Assert::AreEqual (size_t (1), io.files.count ("C:\\out.txt"));
         Assert::IsTrue (io.files["C:\\out.txt"] == piped.payload,
             L"the same conversion, whichever way the bytes leave");
+    }
+
+    //
+    //  ------------------------------------------------------------------
+    //  put and delete.
+    //
+    //  These are the first verbs that change a user's disk, so every refusal
+    //  below asserts the image is byte-for-byte what it was rather than
+    //  merely that an error came back -- an error verdict is satisfied by a
+    //  half-written image.
+    //  ------------------------------------------------------------------
+    //
+
+    static constexpr const char *  kBlankImage = "C:\\disks\\blank.dsk";
+    static constexpr const char *  kHostFile   = "C:\\build\\prog.bin";
+    static constexpr const char *  kProImage   = "C:\\disks\\merlin.po.dsk";
+    static constexpr const char *  kProOrdered = "C:\\disks\\merlin.po";
+
+    static constexpr Byte      kBlankVolumeNumber = 254;
+    static constexpr size_t    kPayloadBytes      = 512;
+    static constexpr Word      kLoadAddress       = 0x6000;
+
+    //  Bigger than the 496 sectors a freshly formatted volume leaves free, so
+    //  placement is refused for want of room rather than for any other reason.
+    static constexpr size_t    kOversizedBytes    = 130000;
+
+    //  Catalog geometry, restated here only for the two tests that reach into
+    //  a catalog entry directly -- to lock a file, and to break its chain.
+    static constexpr int       kVtocTrack          = 17;
+    static constexpr int       kCatalogFirstSector = 15;
+
+    static constexpr size_t    kEntryBase         = 0x0B;
+    static constexpr size_t    kEntOffTsTrack     = 0x00;
+    static constexpr size_t    kEntOffTsSector    = 0x01;
+    static constexpr size_t    kEntOffType        = 0x02;
+    static constexpr size_t    kTsOffNextTrack    = 0x01;
+    static constexpr size_t    kTsOffNextSector   = 0x02;
+    static constexpr Byte      kLockedBit         = 0x80;
+    static constexpr Byte      kTrackOffTheVolume = 40;
+
+    vector<Byte> MakeBlankDos33Image()
+    {
+        vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+
+        AssertSucceeded (Dos33Skeleton::Write (buffer, kBlankVolumeNumber));
+
+        return buffer;
+    }
+
+    void SeedFile (FakeDiskFileIo & io, const char * path, const vector<Byte> & bytes)
+    {
+        io.files[path]  = bytes;
+        io.stamps[path] = FileStamp { bytes.size(), 100 };
+    }
+
+    //  A payload nothing else on the disk could be mistaken for, so a read-back
+    //  comparison fails loudly rather than matching some neighboring sector.
+    vector<Byte> MakePayload (size_t count = kPayloadBytes)
+    {
+        vector<Byte>  bytes (count, 0);
+        size_t        i     = 0;
+
+        for (i = 0; i < count; i++)
+        {
+            bytes[i] = (Byte) ((i * 7 + 0x21) & 0xFF);
+        }
+
+        return bytes;
+    }
+
+    CommandLineOptions MakePutOptions (const char * image,
+                                       const char * hostFile,
+                                       const char * asName)
+    {
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Put, image);
+
+        options.disk.hostFile = hostFile;
+
+        if (asName != nullptr)
+        {
+            options.disk.path = asName;
+        }
+
+        return options;
+    }
+
+    CommandLineOptions MakeDeleteOptions (const char * image, const char * path)
+    {
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Delete, image);
+
+        options.disk.path = path;
+
+        return options;
+    }
+
+    //  Reads a file back through a FRESH runner over the committed image, which
+    //  is the only way to prove the bytes went to the disk rather than merely
+    //  through the runner that put them there.
+    DiskCommandResult GetFromCommittedImage (FakeDiskFileIo & io,
+                                             const char     * image,
+                                             const char     * path,
+                                             CommandLineOptions::DiskOptions::Encoding encoding
+                                                 = CommandLineOptions::DiskOptions::Encoding::Verbatim)
+    {
+        DiskCommandRunner   reader (io);
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Get, image);
+
+        options.disk.path     = path;
+        options.disk.encoding = encoding;
+
+        return reader.Run (options);
+    }
+
+    std::string ListCommittedImage (FakeDiskFileIo & io, const char * image)
+    {
+        DiskCommandRunner  reader (io);
+
+        return reader.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List, image)).output;
+    }
+
+    void AssertImageMatches (FakeDiskFileIo & io, const char * path, const vector<Byte> & expected)
+    {
+        size_t  i = 0;
+
+        Assert::AreEqual (size_t (1), io.files.count (path), L"the image must still be there");
+        Assert::AreEqual (expected.size(), io.files[path].size(), L"and be the size it was");
+
+        for (i = 0; i < expected.size(); i++)
+        {
+            if (io.files[path][i] != expected[i])
+            {
+                Assert::Fail (L"the image differs from what it was before the refused write");
+            }
+        }
+
+        Assert::IsTrue (io.HasNoTemporaryFiles(), L"and no temporary may be left beside it");
+    }
+
+    static void AssertNamesNoPlatformCode (const std::string & diagnostics)
+    {
+        // FR-014's demand is that a refusal reads as a reason. A hexadecimal
+        // HRESULT is the specific failure mode it forbids, and it is the shape
+        // a message picks up the moment somebody formats `hr` into it.
+        Assert::IsTrue (diagnostics.find ("0x") == std::string::npos,
+            L"a refusal must not carry a raw platform code");
+    }
+
+    TEST_METHOD (Put_ABinaryOntoAFreshVolume_LandsAndReadsBackByteForByte)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult   result;
+        DiskCommandResult   readBack;
+        vector<Byte>        payload = MakePayload();
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   payload);
+
+        options.disk.typeName       = "B";
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus,
+            L"a placement with room, a legal name and an address is clean");
+
+        Assert::IsTrue (io.HasNoTemporaryFiles(), L"and leaves nothing beside the image");
+
+        // 512 bytes plus the four-byte load/length header DOS stores inside the
+        // file is 516 bytes -- three data sectors -- and the track/sector list
+        // is a fourth. The `B 002` that the task text and quickstart both
+        // carried is the arithmetic for a payload of 252 bytes or fewer.
+        Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" B 004 PROG") != std::string::npos,
+            L"the guest's own listing shape, with the sector count the file really occupies");
+
+        readBack = GetFromCommittedImage (io, kBlankImage, "PROG");
+
+        Assert::AreEqual (DiskCommandRunner::kClean, readBack.exitStatus);
+        Assert::IsTrue (readBack.payload == payload,
+            L"the bytes on the disk are the bytes that went in");
+
+        Assert::IsTrue (readBack.diagnostics.find ("$6000") != std::string::npos,
+            L"and the load address survived the round trip");
+    }
+
+    TEST_METHOD (PutVerbatim_RoundTripsTheFILEBytes_NotTheImageBytes)
+    {
+        // THE GATE FOR --verbatim, AND THE ASSERTION IS FILE EQUALITY.
+        //
+        // Image equality is the wrong check and would fail here for two reasons
+        // that have nothing to do with character conversion. A DOS 3.3 file
+        // occupies whole sectors, so the bytes past its recorded length are
+        // whatever was there before; and a replacement reallocates, so the file
+        // can land somewhere else entirely on a disk that is otherwise
+        // unchanged. Neither says anything about whether the bytes were
+        // perturbed. What must hold -- and all that must hold -- is that the
+        // file comes back identical.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options   = MakePutOptions (kImage, kHostFile, "MAKE DUMP");
+        DiskCommandResult   extracted;
+        DiskCommandResult   result;
+        DiskCommandResult   readBack;
+
+        SeedRealDisk (io);
+
+        extracted = GetFromCommittedImage (io, kImage, "MAKE DUMP");
+
+        Assert::AreEqual (DiskCommandRunner::kClean, extracted.exitStatus);
+        AssertIsMakeDumpPayload (extracted.payload);
+
+        SeedFile (io, kHostFile, extracted.payload);
+
+        options.disk.typeName       = "B";
+        options.disk.loadAddress    = 0x9000;
+        options.disk.hasLoadAddress = true;
+        options.disk.encoding       = CommandLineOptions::DiskOptions::Encoding::Verbatim;
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus,
+            L"replacing a file with its own contents must succeed");
+
+        readBack = GetFromCommittedImage (io, kImage, "MAKE DUMP");
+
+        Assert::AreEqual (DiskCommandRunner::kClean, readBack.exitStatus);
+
+        // The file, byte for byte, through a path that re-read the committed
+        // image rather than trusting the runner that wrote it.
+        AssertIsMakeDumpPayload (readBack.payload);
+        Assert::IsTrue (readBack.payload == extracted.payload);
+
+        // And the reason an image comparison could not stand in for that: the
+        // file occupies four sectors, so its footprint on the disk is 1024
+        // bytes while the file itself is 589. Comparing the footprint would
+        // compare 431 bytes that are not the file.
+        Assert::AreEqual (size_t (589), readBack.payload.size());
+        Assert::IsTrue (ListCommittedImage (io, kImage).find ("B 004 MAKE DUMP\n") != std::string::npos,
+            L"four sectors of footprint for a 589-byte file");
+    }
+
+    TEST_METHOD (PutVerbatim_ReusesTheSpaceItFreed_AssertedSeparatelyFromTheBytes)
+    {
+        // The sector-reuse question, kept apart from the byte question on
+        // purpose. Conflating them is what makes an image comparison look like
+        // a conversion check: this asserts the volume gave back exactly what it
+        // took, which is about ALLOCATION, and says nothing about the contents.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kImage, kHostFile, "MAKE DUMP");
+        DiskCommandResult   extracted;
+        std::string         before;
+        std::string         after;
+
+        SeedRealDisk (io);
+
+        before    = ListCommittedImage (io, kImage);
+        extracted = GetFromCommittedImage (io, kImage, "MAKE DUMP");
+
+        SeedFile (io, kHostFile, extracted.payload);
+
+        options.disk.typeName       = "B";
+        options.disk.loadAddress    = 0x9000;
+        options.disk.hasLoadAddress = true;
+
+        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+
+        after = ListCommittedImage (io, kImage);
+
+        Assert::IsTrue (before.find ("sectors free of 560") != std::string::npos,
+            L"the listing must actually be reporting free space for this to mean anything");
+
+        Assert::AreEqual (FreeSpaceLine (before), FreeSpaceLine (after),
+            L"a file replaced by its own contents leaks nothing and grows nothing");
+    }
+
+    //  The trailing free-space report, which the listing separates from the
+    //  entries with a blank line. Taken as text rather than reparsed, so a
+    //  change of either number shows up in the failure message.
+    static std::string FreeSpaceLine (const std::string & listing)
+    {
+        size_t  at = listing.rfind ("\n\n");
+
+        Assert::IsTrue (at != std::string::npos, L"the listing must carry a free-space report");
+
+        return listing.substr (at);
+    }
+
+    TEST_METHOD (Put_OverALockedFile_IsRefusedInTermsThatSayItIsLocked)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult   result;
+        vector<Byte>        committed;
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   MakePayload());
+
+        options.disk.typeName       = "B";
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+
+        LockFirstCatalogEntry (io.files[kBlankImage]);
+        committed = io.files[kBlankImage];
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("is locked on this volume") != std::string::npos,
+            L"the refusal must say the file is locked, not merely that something failed");
+
+        AssertNamesNoPlatformCode (result.diagnostics);
+        AssertImageMatches (io, kBlankImage, committed);
+    }
+
+    TEST_METHOD (Put_WhenTheVolumeHasNoRoom_RefusesAndLeavesTheImageByteIdentical)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "BIG");
+        DiskCommandResult   result;
+        vector<Byte>        blank   = MakeBlankDos33Image();
+
+        SeedFile (io, kBlankImage, blank);
+        SeedFile (io, kHostFile,   MakePayload (kOversizedBytes));
+
+        options.disk.typeName = "T";
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("does not fit") != std::string::npos,
+            L"and says the volume has no room, not something generic");
+
+        AssertNamesNoPlatformCode (result.diagnostics);
+        AssertImageMatches (io, kBlankImage, blank);
+        Assert::AreEqual (0, io.writeCount, L"nothing was written anywhere at all");
+    }
+
+    TEST_METHOD (Put_WithANameTheCatalogCannotStore_RefusesAndSaysWhatALegalNameIs)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "9LIVES");
+        DiskCommandResult   result;
+        vector<Byte>        blank   = MakeBlankDos33Image();
+
+        SeedFile (io, kBlankImage, blank);
+        SeedFile (io, kHostFile,   MakePayload());
+
+        options.disk.typeName       = "B";
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("9LIVES") != std::string::npos,
+            L"the message names the name that was refused");
+        Assert::IsTrue (result.diagnostics.find ("starting with a letter") != std::string::npos,
+            L"and says what a legal one looks like");
+
+        AssertNamesNoPlatformCode (result.diagnostics);
+        AssertImageMatches (io, kBlankImage, blank);
+    }
+
+    TEST_METHOD (Put_WithBasic_IsRefusedRatherThanQuietlyPlacingUntokenizedText)
+    {
+        // The failure this forbids is put's version of get's: --basic parsed
+        // and dropped would place a host listing verbatim under a BASIC type,
+        // and the guest would answer a LIST with garbage.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult   result;
+        vector<Byte>        blank   = MakeBlankDos33Image();
+
+        SeedFile (io, kBlankImage, blank);
+        SeedFile (io, kHostFile,   MakePayload (16));
+
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("--basic") != std::string::npos,
+            L"the refusal names the flag it is refusing");
+
+        AssertImageMatches (io, kBlankImage, blank);
+        Assert::AreEqual (0, io.writeCount);
+    }
+
+    TEST_METHOD (Put_ABinaryWithNoLoadAddress_SaysWhichFlagIsMissing)
+    {
+        // $0000 is a legal load address, so defaulting would be
+        // indistinguishable from an answer. The refusal has to name the flag,
+        // or the caller is left guessing which of several things was wrong.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult   result;
+        vector<Byte>        blank   = MakeBlankDos33Image();
+
+        SeedFile (io, kBlankImage, blank);
+        SeedFile (io, kHostFile,   MakePayload());
+
+        options.disk.typeName = "B";
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("--addr") != std::string::npos,
+            L"the message must name the flag that would fix it");
+
+        AssertNamesNoPlatformCode (result.diagnostics);
+        AssertImageMatches (io, kBlankImage, blank);
+    }
+
+    TEST_METHOD (Put_ToAWriteProtectedImage_SaysWriteProtectedRatherThanReportingACode)
+    {
+        // FR-014's harder half. Nothing about the image's CONTENTS says it may
+        // not be written, so the volume layer computes a perfectly good result
+        // and the platform denies access at the last step. Reported as a
+        // generic failure, the user is left with two candidate causes and no
+        // way to tell which.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult   result;
+        vector<Byte>        blank   = MakeBlankDos33Image();
+
+        SeedFile (io, kBlankImage, blank);
+        SeedFile (io, kHostFile,   MakePayload());
+
+        options.disk.typeName       = "B";
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        io.failNextReplace  = true;
+        io.nextReplaceError = HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED);
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("write-protected") != std::string::npos,
+            L"the reason given must be write protection, not a generic replace failure");
+
+        AssertNamesNoPlatformCode (result.diagnostics);
+        AssertImageMatches (io, kBlankImage, blank);
+    }
+
+    TEST_METHOD (Put_WithText_WritesTheDiskConventionAndReadsBackAsHostText)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options  = MakePutOptions (kBlankImage, kHostFile, "NOTES");
+        DiskCommandResult   stored;
+        DiskCommandResult   asText;
+        std::string         source   = "HELLO\nWORLD\n";
+        vector<Byte>        hostText (source.begin(), source.end());
+        size_t              i        = 0;
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   hostText);
+
+        options.disk.typeName = "T";
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+
+        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+
+        stored = GetFromCommittedImage (io, kBlankImage, "NOTES");
+
+        Assert::AreEqual (DiskCommandRunner::kClean, stored.exitStatus);
+        Assert::IsTrue (stored.payload.size() > 0, L"something must actually have been stored");
+
+        for (i = 0; i < stored.payload.size(); i++)
+        {
+            Assert::IsTrue (stored.payload[i] >= 0x80,
+                L"the stored file is in the disk's own high-bit convention");
+            Assert::IsTrue (stored.payload[i] != 0x0A,
+                L"and carries none of the host's line endings");
+        }
+
+        asText = GetFromCommittedImage (io, kBlankImage, "NOTES",
+                                        CommandLineOptions::DiskOptions::Encoding::Text);
+
+        Assert::IsTrue (asText.payload == hostText,
+            L"host text placed and read back as text is the identity");
+    }
+
+    TEST_METHOD (Put_WithTextAndNoNamedType_TakesTheFilesystemsOwnTextType)
+    {
+        // A caller who named no type gets the one that matches the conversion
+        // they asked for. Defaulting to a binary instead would refuse this
+        // invocation outright, for want of the load address a binary needs --
+        // which is a confusing way to be told the type was wrong.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "NOTES");
+        std::string         source  = "HELLO\n";
+        vector<Byte>        hostText (source.begin(), source.end());
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   hostText);
+
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+
+        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus,
+            L"text with no named type needs no load address");
+
+        Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" T 002 NOTES") != std::string::npos,
+            L"and lands as the filesystem's text type");
+    }
+
+    TEST_METHOD (Put_WithTextThatHasNoAppleRepresentation_NamesTheOffendingByte)
+    {
+        // A smart quote pasted into a listing looks identical to a plain one in
+        // an editor. "Somewhere in this file" is not something anybody can act
+        // on, so the offset is the value of the refusal.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "NOTES");
+        DiskCommandResult   result;
+        vector<Byte>        blank   = MakeBlankDos33Image();
+        vector<Byte>        source  = { 'H', 'I', ' ', 'T', 'H', 0xE2, 'R', 'E' };
+
+        SeedFile (io, kBlankImage, blank);
+        SeedFile (io, kHostFile,   source);
+
+        options.disk.typeName = "T";
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("byte 5") != std::string::npos,
+            L"the message points at the byte, not merely at the file");
+
+        AssertImageMatches (io, kBlankImage, blank);
+    }
+
+    TEST_METHOD (Put_WithATypeThisFilesystemDoesNotHave_RefusesAndListsWhatItTakes)
+    {
+        // Defaulting instead would place the file under a type nobody asked for
+        // and say nothing; the guest reports the mismatch much later, as a file
+        // that will not load.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult   result;
+        vector<Byte>        blank   = MakeBlankDos33Image();
+
+        SeedFile (io, kBlankImage, blank);
+        SeedFile (io, kHostFile,   MakePayload());
+
+        options.disk.typeName = "SYS";
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("DOS 3.3 takes") != std::string::npos,
+            L"and the refusal lists what this filesystem does take");
+
+        AssertImageMatches (io, kBlankImage, blank);
+    }
+
+    TEST_METHOD (Put_WithNoAsName_TakesTheHostFilesOwnLastComponent)
+    {
+        // SEARCHING FOR THE NAME AS A SUBSTRING IS NOT ENOUGH HERE, and this
+        // test was written that way first. A DOS 3.3 catalog name may hold
+        // colons and backslashes, so the whole host path is a legal name -- and
+        // it CONTAINS the leaf, so a substring assertion is satisfied by an
+        // implementation that never stripped the directories at all. Measured
+        // by mutation: the weak form passed against exactly that.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, "C:\\build\\sub\\PROG.BIN", nullptr);
+        DiskCommandResult   result;
+        std::string         listing;
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, "C:\\build\\sub\\PROG.BIN", MakePayload());
+
+        options.disk.typeName       = "B";
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        result  = runner.Run (options);
+        listing = ListCommittedImage (io, kBlankImage);
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+
+        Assert::IsTrue (listing.find (" B 004 PROG.BIN\n") != std::string::npos,
+            L"the on-disk name is the host file's own last component and nothing else");
+
+        Assert::IsTrue (listing.find ("BUILD") == std::string::npos,
+            L"and carries none of the host's directories with it");
+    }
+
+    TEST_METHOD (Put_OntoAProDosVolume_RecordsTheLoadAddressAsTheAuxiliaryType)
+    {
+        // Where a binary's load address lives is the one thing the two
+        // filesystems disagree about: DOS writes it into the file's own first
+        // four bytes and ProDOS records it in the directory entry instead.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options  = MakePutOptions (kProImage, kHostFile, "PROG");
+        DiskCommandRunner   reader (io);
+        DiskCommandResult   result;
+        DiskCommandResult   readBack;
+        CommandLineOptions  listing  = MakeOptions (CommandLineOptions::DiskOptions::Verb::List, kProImage);
+        vector<Byte>        payload  = MakePayload();
+
+        SeedRealDisk (io, "Disks/Merlin-proProdos2.33-a.dsk", kProImage);
+        SeedFile (io, kHostFile, payload);
+
+        options.disk.typeName       = "BIN";
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+
+        listing.disk.longListing = true;
+
+        Assert::IsTrue (reader.Run (listing).output.find ("aux=$6000") != std::string::npos,
+            L"ProDOS records the load address in the entry, not in the file");
+
+        readBack = GetFromCommittedImage (io, kProImage, "PROG");
+
+        Assert::IsTrue (readBack.payload == payload,
+            L"and the file itself carries no header of its own");
+    }
+
+    TEST_METHOD (Put_ToAProDosOrderedContainer_IsRenderedBackThroughTheSameReorder)
+    {
+        // A .po holds its sectors in ProDOS order, so an edited buffer has to
+        // be turned back into that order on the way out. Handing the volume
+        // layer's own buffer straight to the commit instead is INVISIBLE on a
+        // .dsk, where the two are the same bytes -- every other test here would
+        // stay green while the tool wrote a file no Apple II could read.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options    = MakePutOptions (kProOrdered, kHostFile, "PROG");
+        DiskCommandResult   readBack;
+        FixtureProvider     fixtures;
+        vector<Byte>        dosOrdered;
+        vector<Byte>        proOrdered;
+        vector<Byte>        payload    = MakePayload();
+
+        AssertSucceeded (fixtures.OpenFixture ("Disks/Merlin-proProdos2.33-a.dsk", dosOrdered));
+
+        VolumeImage::DosLogicalToProDosFile (dosOrdered, proOrdered);
+
+        Assert::IsFalse (proOrdered == dosOrdered,
+            L"the two orders must actually differ, or this test proves nothing");
+
+        SeedFile (io, kProOrdered, proOrdered);
+        SeedFile (io, kHostFile,   payload);
+
+        options.disk.typeName       = "BIN";
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+
+        readBack = GetFromCommittedImage (io, kProOrdered, "PROG");
+
+        Assert::AreEqual (DiskCommandRunner::kClean, readBack.exitStatus,
+            L"the committed file must still be a ProDOS volume in ProDOS order");
+
+        Assert::IsTrue (readBack.payload == payload);
+    }
+
+    //  Sets the lock bit on the first catalog entry, which is where a file
+    //  placed onto a freshly formatted volume lands.
+    static void LockFirstCatalogEntry (vector<Byte> & buffer)
+    {
+        size_t  at = Dos33Skeleton::SectorOffset (kVtocTrack, kCatalogFirstSector)
+                   + kEntryBase + kEntOffType;
+
+        buffer[at] = (Byte) (buffer[at] | kLockedBit);
+    }
+
+    //  Points the first entry's track/sector list at a track that is not on the
+    //  volume, so a walk of its chain cannot reach the end.
+    static void BreakFirstEntrysChain (vector<Byte> & buffer)
+    {
+        size_t  entryAt = Dos33Skeleton::SectorOffset (kVtocTrack, kCatalogFirstSector) + kEntryBase;
+        int     track   = buffer[entryAt + kEntOffTsTrack];
+        int     sector  = buffer[entryAt + kEntOffTsSector];
+        size_t  listAt  = Dos33Skeleton::SectorOffset (track, sector);
+
+        buffer[listAt + kTsOffNextTrack]  = kTrackOffTheVolume;
+        buffer[listAt + kTsOffNextSector] = 0;
+    }
+
+    TEST_METHOD (Delete_RemovesTheFileFromTheCommittedImage)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        DiskCommandResult   readBack;
+
+        SeedRealDisk (io);
+
+        // The trailing newline matters: this disk also carries MAKE DUMP.S, and
+        // a substring search would go on finding the removed file inside its
+        // neighbor's name and report a delete that never happened as one that
+        // did -- or, here, the reverse.
+        Assert::IsTrue (ListCommittedImage (io, kImage).find ("MAKE DUMP\n") != std::string::npos,
+            L"the file must be there before the delete for this to mean anything");
+
+        result = runner.Run (MakeDeleteOptions (kImage, "MAKE DUMP"));
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::IsTrue (io.HasNoTemporaryFiles());
+
+        Assert::IsTrue (ListCommittedImage (io, kImage).find ("MAKE DUMP\n") == std::string::npos,
+            L"and it is gone from the image on disk, not merely from a buffer");
+
+        Assert::IsTrue (ListCommittedImage (io, kImage).find ("MAKE DUMP.S\n") != std::string::npos,
+            L"while the file whose name merely contains it is untouched");
+
+        readBack = GetFromCommittedImage (io, kImage, "MAKE DUMP");
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, readBack.exitStatus,
+            L"and no longer resolves by name");
+    }
+
+    TEST_METHOD (Delete_AFileTheVolumeDoesNotHave_RefusesNamingImageAndFile)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        vector<Byte>        original = OriginalImageBytes();
+
+        SeedRealDisk (io);
+
+        result = runner.Run (MakeDeleteOptions (kImage, "NOSUCHFILE"));
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find (kImage) != std::string::npos);
+        Assert::IsTrue (result.diagnostics.find ("NOSUCHFILE") != std::string::npos);
+        Assert::IsTrue (result.diagnostics.find ("is not on this volume") != std::string::npos,
+            L"and says which of the refusals this is");
+
+        AssertNamesNoPlatformCode (result.diagnostics);
+        AssertImageMatches (io, kImage, original);
+    }
+
+    TEST_METHOD (Delete_ALockedFile_IsRefusedInTermsThatSayItIsLocked)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult   result;
+        vector<Byte>        committed;
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   MakePayload());
+
+        options.disk.typeName       = "B";
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+
+        LockFirstCatalogEntry (io.files[kBlankImage]);
+        committed = io.files[kBlankImage];
+
+        result = runner.Run (MakeDeleteOptions (kBlankImage, "PROG"));
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("is locked on this volume") != std::string::npos);
+
+        AssertNamesNoPlatformCode (result.diagnostics);
+        AssertImageMatches (io, kBlankImage, committed);
+    }
+
+    TEST_METHOD (Delete_WhenTheChainCannotBeFollowed_SucceedsAndSaysWhatItCouldNotAccountFor)
+    {
+        // The reason the removal's ACCOUNT had to become part of the volume
+        // interface. Delete stays available for a file whose chain is damaged,
+        // so a bad entry cannot strand the volume -- but a caller that reported
+        // only success would leave the user believing every sector came back.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult   result;
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   MakePayload());
+
+        options.disk.typeName       = "B";
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+
+        BreakFirstEntrysChain (io.files[kBlankImage]);
+
+        result = runner.Run (MakeDeleteOptions (kBlankImage, "PROG"));
+
+        Assert::AreEqual (DiskCommandRunner::kWithComplaints, result.exitStatus,
+            L"a removal that could not account for everything is not a clean one");
+
+        Assert::IsTrue (result.diagnostics.find ("could not be followed") != std::string::npos,
+            L"and says what it could not do, rather than only that something was wrong");
+
+        Assert::IsTrue (ListCommittedImage (io, kBlankImage).find ("PROG") == std::string::npos,
+            L"while still removing the entry, so a bad file cannot strand the volume");
     }
 };

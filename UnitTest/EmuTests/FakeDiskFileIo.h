@@ -52,6 +52,13 @@ public:
     bool         failNextReplace     = false;
     bool         reportHeldByOther   = false;
 
+    //  WHICH failure the replace reports, because the reason is not
+    //  interchangeable. A read-only target denies access and a caller must be
+    //  told the image is write-protected; anything else is a different problem
+    //  with a different fix, and a fake that answered one code for all of them
+    //  would let a message naming the wrong cause pass.
+    HRESULT      nextReplaceError    = E_FAIL;
+
     //  Set to make Stat report something different from what was recorded at
     //  read time, which is how the staleness check is exercised without a
     //  second process.
@@ -145,7 +152,7 @@ public:
         if (failNextReplace)
         {
             failNextReplace = false;
-            return E_FAIL;
+            return nextReplaceError;
         }
 
         if (found == files.end())
