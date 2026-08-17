@@ -3,6 +3,7 @@
 #include "CommandLine.h"
 #include "Assembler.h"
 #include "Cpu.h"
+#include "Devices/Disk/DiskCommandRunner.h"
 #include "Cpu65C02Table.h"
 #include "Microcode.h"
 #include "OutputFormats.h"
@@ -778,7 +779,8 @@ static void PrintUsageHeader (const char * sp, const char * lp)
               << "                disk delete <image> <path>   |   disk boot <image> <path>\n"
               << "         aliases: ls = list, rm = delete."
                  "  put/get are named from the DISK's point of view.\n"
-              << "         exit: 0 clean, 1 succeeded with complaints, 2 produced no output\n";
+              << "         exit: 0 clean, 1 succeeded with complaints, 2 produced no output\n"
+              << "         " << DiskCommandRunner::kInUseHelpText << "\n";
 }
 
 

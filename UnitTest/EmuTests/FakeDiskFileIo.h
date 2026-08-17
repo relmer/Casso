@@ -40,6 +40,12 @@ public:
     //  What was written to the process's output, in order.
     vector<Byte>  standardOutput;
 
+    //  Every path WriteAllBytes was asked to write, in order, whether or not
+    //  the write was then made to fail. It is how a test learns the name a
+    //  temporary was given without having to restate the derivation, which
+    //  would make the test agree with the code by construction.
+    vector<std::string>  writtenPaths;
+
     //  Induced failures. Each is off by default so a test opts into exactly the
     //  one it means to exercise.
     bool         failNextWrite       = false;
@@ -69,13 +75,24 @@ public:
         return S_OK;
     }
 
+    //  A FAILED WRITE LEAVES A PARTIAL FILE BEHIND, deliberately, because that
+    //  is what the platform does. A stream that fails partway has already
+    //  created the file and put some of the bytes in it, so a substitute that
+    //  fails cleanly would let a commit path that never cleans up after a
+    //  failed write pass every test written against it -- the one shape those
+    //  tests exist to catch.
     HRESULT  WriteAllBytes (const std::string & path, const vector<Byte> & bytes) override
     {
         writeCount++;
+        writtenPaths.push_back (path);
 
         if (failNextWrite)
         {
             failNextWrite = false;
+
+            files[path]  = vector<Byte> (bytes.begin(), bytes.begin() + (bytes.size() / 2));
+            stamps[path] = FileStamp { files[path].size(), 1 };
+
             return E_FAIL;
         }
 

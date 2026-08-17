@@ -172,27 +172,37 @@ std::string DiskCommandRunner::FormatProDosEntry (const FileEntry & entry, bool 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskCommandRunner::OpenVolume
+//  DiskCommandRunner::OpenImage
 //
 //  Reads the image, normalizes its sector order, and identifies the filesystem.
 //  Each failure explains itself rather than collapsing into one message,
 //  because "cannot read the file" and "read it but do not recognize it" send
 //  the user somewhere different.
 //
+//  IT ALSO RECORDS THE SIZE AND MODIFICATION TIME, HERE AND NOWHERE ELSE. The
+//  staleness check compares what the file looked like when its contents were
+//  taken against what it looks like at the moment of commit; a stamp taken any
+//  later than this agrees with itself and closes no window at all.
+//
+//  A stamp the platform declines to give is recorded as ABSENT rather than as
+//  zero, so a commit can refuse instead of silently comparing two zeros and
+//  concluding nothing changed. Reading does not need it and is unaffected.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskCommandRunner::OpenVolume (
-    const std::string   & imagePath,
-    vector<Byte>        & outSectors,
-    VolumeKind          & outKind,
-    SectorDecodeReport  & outReport,
-    DiskCommandResult   & result)
+HRESULT DiskCommandRunner::OpenImage (
+    const std::string  & imagePath,
+    OpenedImage        & outOpened,
+    DiskCommandResult  & result)
 {
-    HRESULT       hr    = S_OK;
-    bool          named = !imagePath.empty();
+    HRESULT       hr      = S_OK;
+    bool          named   = !imagePath.empty();
+    HRESULT       statHr  = S_OK;
     vector<Byte>  fileBytes;
 
 
+
+    outOpened.imagePath = imagePath;
 
     if (!named)
     {
@@ -210,7 +220,10 @@ HRESULT DiskCommandRunner::OpenVolume (
         return hr;
     }
 
-    hr = VolumeImage::Load (fileBytes, imagePath, outSectors, outReport);
+    statHr                    = m_fileIo.Stat (imagePath, outOpened.stamp);
+    outOpened.stampRecorded   = SUCCEEDED (statHr);
+
+    hr = VolumeImage::Load (fileBytes, imagePath, outOpened.sectors, outOpened.report);
 
     if (FAILED (hr))
     {
@@ -220,9 +233,9 @@ HRESULT DiskCommandRunner::OpenVolume (
         return hr;
     }
 
-    outKind = VolumeImage::DetectFilesystem (outSectors);
+    outOpened.kind = VolumeImage::DetectFilesystem (outOpened.sectors);
 
-    if (outKind == VolumeKind::Unknown)
+    if (outOpened.kind == VolumeKind::Unknown)
     {
         result.diagnostics += Failure (imagePath, "",
             "carries no DOS 3.3 or ProDOS filesystem this tool recognizes") + "\n";
@@ -231,6 +244,156 @@ HRESULT DiskCommandRunner::OpenVolume (
     }
 
     return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::RefuseCommit
+//
+//  One place that turns a refused commit into what the user sees, so a path
+//  cannot report the reason without also setting the status, or the other way
+//  round.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RefuseCommit (
+    const std::string  & imagePath,
+    const std::string  & reason,
+    DiskCommandResult  & result)
+{
+    result.diagnostics += Failure (imagePath, "", reason) + "\n";
+    result.exitStatus   = kNoOutput;
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::CommitImage
+//
+//  The whole of putting a computed image where the old one was, in the order
+//  the guarantees require: refuse while somebody else has it, refuse if it
+//  moved under us, write the new bytes somewhere they cannot be mistaken for
+//  the image, and only then let them become the image in one step.
+//
+//  NOTHING HERE MAY LEAVE THE TARGET PART-WRITTEN, which is why the new bytes
+//  never go near it. They go to a temporary beside it and arrive by an atomic
+//  replace, so an interruption at any point leaves either the old image or the
+//  new one, and never a mixture.
+//
+//  THE CLEANUP IS DRIVEN BY THE PLAN, NOT BY EACH FAILURE PATH. A removal
+//  written beside each bail-out is a removal the next bail-out forgets: the
+//  ordering rule is asked once, at the single exit, from a record of how far
+//  the sequence actually got. That record tracks the furthest step ATTEMPTED,
+//  because a write that failed halfway is exactly the case with a partial file
+//  sitting there and exactly the case a reader assumes is clean.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::CommitImage (
+    const OpenedImage   & opened,
+    const vector<Byte>  & newImageBytes,
+    DiskCommandResult   & result)
+{
+    HRESULT               hr            = S_OK;
+    HRESULT               removeHr      = S_OK;
+    bool                  held          = false;
+    bool                  stale         = false;
+    bool                  foundFreeName = false;
+    bool                  cleanUp       = false;
+    unsigned              attempt       = 0;
+    CommitPlan::Progress  progress;
+    FileStamp             observed;
+    std::string           tempPath;
+
+
+
+    // The probe comes first because it is the only check that costs nothing to
+    // be wrong about: refusing before anything exists leaves no cleanup to get
+    // right. It catches another TOOL holding the file and cannot catch this
+    // emulator, which keeps no handle on a mounted image.
+    progress.furthestAttempted = CommitPlan::Step::Probe;
+
+    held = m_fileIo.IsHeldByAnotherProcess (opened.imagePath);
+    CBRFEx (!held, HRESULT_FROM_WIN32 (ERROR_SHARING_VIOLATION),
+            RefuseCommit (opened.imagePath,
+                          "is open in another program -- close it and try again", result));
+
+    progress.furthestAttempted = CommitPlan::Step::Reverify;
+
+    CBRFEx (opened.stampRecorded, HRESULT_FROM_WIN32 (ERROR_CANT_ACCESS_FILE),
+            RefuseCommit (opened.imagePath,
+                          "could not be checked for changes when it was read, so it will "
+                          "not be written over", result));
+
+    hr = m_fileIo.Stat (opened.imagePath, observed);
+    CHRF (hr, RefuseCommit (opened.imagePath,
+                            "has gone away since it was read", result));
+
+    stale = CommitPlan::IsStale (opened.stamp.sizeBytes, opened.stamp.modifiedUnix,
+                                 observed.sizeBytes,     observed.modifiedUnix);
+
+    // STG_E_NOTCURRENT says exactly this and nothing else -- the object changed
+    // since it was last read. The Win32 table has no code for it, and inventing
+    // a near-miss from that table would read as a different problem in a log.
+    CBRFEx (!stale, STG_E_NOTCURRENT,
+            RefuseCommit (opened.imagePath,
+                          "changed since it was read -- nothing was written, read it "
+                          "again and retry", result));
+
+    // Step over anything already sitting at the name we would take. This is
+    // the abandoned-temporary case; the invocation tag inside the name is what
+    // handles two live invocations, since both of those would otherwise find
+    // attempt zero free at the same instant.
+    for (attempt = 0; attempt < CommitPlan::kMaxAttempts; attempt++)
+    {
+        tempPath      = CommitPlan::TemporaryPathFor (opened.imagePath, m_invocationTag, attempt);
+        foundFreeName = !m_fileIo.Exists (tempPath);
+
+        if (foundFreeName)
+        {
+            break;
+        }
+    }
+
+    CBRFEx (foundFreeName, HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS),
+            RefuseCommit (opened.imagePath,
+                          "already has that many temporary files beside it -- remove them "
+                          "and try again", result));
+
+    progress.furthestAttempted = CommitPlan::Step::WriteTemporary;
+
+    hr = m_fileIo.WriteAllBytes (tempPath, newImageBytes);
+    CHRF (hr, RefuseCommit (opened.imagePath,
+                            "could not be written beside -- the folder may be read-only "
+                            "or full", result));
+
+    progress.furthestAttempted = CommitPlan::Step::Replace;
+
+    hr = m_fileIo.ReplaceAtomically (tempPath, opened.imagePath);
+    CHRF (hr, RefuseCommit (opened.imagePath,
+                            "could not be replaced -- it may be read-only or in use", result));
+
+    progress.replaceSucceeded = true;
+
+Error:
+    cleanUp = CommitPlan::ShouldRemoveTemporary (progress);
+
+    if (cleanUp)
+    {
+        removeHr = m_fileIo.Remove (tempPath);
+        IGNORE_RETURN_VALUE (removeHr, S_OK);
+    }
+
+    return hr;
 }
 
 
@@ -252,21 +415,19 @@ HRESULT DiskCommandRunner::OpenVolume (
 void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommandResult & result)
 {
     HRESULT             hr           = S_OK;
-    VolumeKind          kind         = VolumeKind::Unknown;
-    vector<Byte>        sectors;
-    SectorDecodeReport  report;
+    OpenedImage         opened;
     VolumeListing       listing;
     char                summary[128] = {};
 
 
 
-    hr = OpenVolume (options.disk.imagePath, sectors, kind, report, result);
+    hr = OpenImage (options.disk.imagePath, opened, result);
     BAIL_OUT_IF (FAILED (hr), hr);
 
     {
-        Dos33Volume   dos (sectors);
-        ProDosVolume  pro (sectors);
-        IVolume     & volume = (kind == VolumeKind::Dos33)
+        Dos33Volume   dos (opened.sectors);
+        ProDosVolume  pro (opened.sectors);
+        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
                              ? static_cast<IVolume &> (dos)
                              : static_cast<IVolume &> (pro);
 
@@ -293,7 +454,7 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
 
         for (const FileEntry & entry : listing.entries)
         {
-            result.output += (kind == VolumeKind::Dos33)
+            result.output += (opened.kind == VolumeKind::Dos33)
                            ? FormatDos33Entry (entry)
                            : FormatProDosEntry (entry, options.disk.longListing);
 
@@ -302,7 +463,7 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
 
         snprintf (summary, sizeof (summary), "\n%u %s free of %u\n",
                   (unsigned) listing.freeUnits,
-                  (kind == VolumeKind::Dos33) ? "sectors" : "blocks",
+                  (opened.kind == VolumeKind::Dos33) ? "sectors" : "blocks",
                   (unsigned) listing.totalUnits);
 
         result.output += summary;
@@ -323,12 +484,12 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
         result.exitStatus   = kWithComplaints;
     }
 
-    if (report.HasDataLoss())
+    if (opened.report.HasDataLoss())
     {
         snprintf (summary, sizeof (summary),
                   "%d sector(s) could not be decoded and read back as zeros "
                   "-- THIS LISTING IS INCOMPLETE, entries may be missing",
-                  report.GetUnrecoveredCount());
+                  opened.report.GetUnrecoveredCount());
 
         result.diagnostics += Failure (options.disk.imagePath, "", summary) + "\n";
         result.exitStatus   = kWithComplaints;
@@ -423,10 +584,8 @@ HRESULT DiskCommandRunner::ApplyEncoding (
 void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandResult & result)
 {
     HRESULT             hr        = S_OK;
-    VolumeKind          kind      = VolumeKind::Unknown;
     bool                named     = !options.disk.path.empty();
-    vector<Byte>        sectors;
-    SectorDecodeReport  report;
+    OpenedImage         opened;
     FilePayload         payload;
     FilePath            path;
     char                note[128] = {};
@@ -440,15 +599,15 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
         BAIL_OUT_IF (true, E_INVALIDARG);
     }
 
-    hr = OpenVolume (options.disk.imagePath, sectors, kind, report, result);
+    hr = OpenImage (options.disk.imagePath, opened, result);
     BAIL_OUT_IF (FAILED (hr), hr);
 
     path = FilePath::Parse (options.disk.path);
 
     {
-        Dos33Volume   dos (sectors);
-        ProDosVolume  pro (sectors);
-        IVolume     & volume = (kind == VolumeKind::Dos33)
+        Dos33Volume   dos (opened.sectors);
+        ProDosVolume  pro (opened.sectors);
+        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
                              ? static_cast<IVolume &> (dos)
                              : static_cast<IVolume &> (pro);
 
@@ -494,12 +653,12 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
         result.diagnostics += note;
     }
 
-    if (report.HasDataLoss())
+    if (opened.report.HasDataLoss())
     {
         snprintf (note, sizeof (note),
                   "%d sector(s) could not be decoded -- THIS FILE IS INCOMPLETE, "
                   "unreadable sectors were delivered as zeros",
-                  report.GetUnrecoveredCount());
+                  opened.report.GetUnrecoveredCount());
 
         result.diagnostics += Failure (options.disk.imagePath, options.disk.path, note) + "\n";
         result.exitStatus   = kWithComplaints;
