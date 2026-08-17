@@ -251,6 +251,12 @@ struct AssemblyResult
     std::vector<AssemblyError>                  warnings;
     std::vector<AssemblyLine>                   listing;
     std::string                                 listingTitle;
+
+    //  How many source lines pass 2 processed. Counted separately from
+    //  `listing` because a listing is only BUILT when one was asked for, so
+    //  its size is zero on an ordinary assembly and says nothing about the
+    //  work done.
+    size_t                                      linesAssembled = 0;
 };
 
 

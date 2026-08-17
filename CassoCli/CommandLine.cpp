@@ -1197,7 +1197,10 @@ int DoAs65 (const CommandLineOptions & options)
 
     if (!options.quiet)
     {
-        std::cerr << ar.result.listing.size() << " lines assembled\n";
+        //  linesAssembled, NOT listing.size(): the listing is only built when
+        //  one was requested, so this reported "0 lines assembled" for every
+        //  ordinary invocation -- of a file it had just assembled correctly.
+        std::cerr << ar.result.linesAssembled << " lines assembled\n";
     }
 
     // Each output artifact is optional but fails the run the same way, so the

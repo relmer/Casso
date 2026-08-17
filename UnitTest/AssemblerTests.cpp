@@ -685,6 +685,57 @@ namespace AssemblerTests
         //
         ////////////////////////////////////////////////////////////////////////////////
 
+        //  The tool's summary line counts THIS, and used to count
+        //  listing.size() instead. A listing is only built when one was asked
+        //  for, so an ordinary run reported "0 lines assembled" for a file it
+        //  had just assembled correctly -- a number that was wrong precisely
+        //  when nobody had asked for the feature that made it right.
+        TEST_METHOD (LinesAssembled_IsCountedEvenWithNoListing)
+        {
+            Assembler asm6502 = BuildAssembler();
+            auto result = asm6502.Assemble (
+                R"(                 .org $C000
+                                    NOP
+                                    RTS
+                )");
+
+            Assert::IsTrue (result.success);
+            Assert::IsTrue (result.listing.empty(), L"no listing was requested, so there is none");
+            Assert::IsTrue (result.linesAssembled >= 3,
+                            L"the three source lines were assembled whether or not they were listed");
+        }
+
+
+
+
+        //  With a listing, the two agree -- which is what makes the count a
+        //  correction rather than a second, differently-wrong number.
+        TEST_METHOD (LinesAssembled_MatchesTheListingWhenOneIsBuilt)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+
+            cpu.InitForTest();
+            options.generateListing = true;
+
+            {
+                Assembler  asm6502 (cpu.GetInstructionSet(), options);
+                auto       result = asm6502.Assemble (
+                    R"(                 .org $C000
+                                        NOP
+                                        RTS
+                    )");
+
+                Assert::IsTrue   (result.success);
+                Assert::IsFalse  (result.listing.empty());
+                Assert::AreEqual (result.listing.size(), result.linesAssembled,
+                                  L"the count and the listing must not disagree about the same assembly");
+            }
+        }
+
+
+
+
         TEST_METHOD (Org_SetsStartAddress)
         {
             Assembler asm6502 = BuildAssembler();

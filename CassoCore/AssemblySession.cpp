@@ -6463,6 +6463,13 @@ HRESULT AssemblySession::BuildListingEntry (const LineInfo & info, Word emitPCSt
 
 
 
+    // Counted BEFORE both bails below, because this is how many lines were
+    // assembled rather than how many were listed. The two differ whenever no
+    // listing was asked for -- which is the ordinary case -- and again inside
+    // a suppressed region, whose lines are assembled and deliberately not
+    // shown.
+    m_result.linesAssembled++;
+
     BAIL_OUT_IF (!m_options.generateListing, S_OK);
 
     // A suppressed line still lists when it was skipped by a conditional, so
