@@ -24,6 +24,24 @@ Entries before versioning was introduced use dates only.
   replacement literally, ready to paste back, because the population this
   breaks is build scripts and nobody re-reads one until the day it fails.
 
+### Added
+- **`CassoCli merlin <source>` assembles Merlin source.** The dialect is named
+  by a subcommand, the way `as65` is. Its flags are `-o <file>` (which beats any
+  name the source gives itself), `-l[<file>]` for a listing, and `-v`. The object
+  written is the assembled stream: Merlin's origin relocates rather than seeks,
+  so one contiguous object may carry sections destined for several addresses,
+  and the padded 64 KB image `as65` writes by default would scatter it.
+
+  There is no `--cpu` flag, and passing one is refused rather than ignored:
+  Merlin selects its CPU in the source, and the refusal names the directive that
+  does it. Exit codes are the ones every assembler subcommand already speaks —
+  0 clean, 1 assembled with complaints, 2 no output — and a construct outside
+  the supported Merlin subset earns the same 2 as a syntax error, distinguished
+  by its message rather than by a number.
+
+  `CassoCli --help` now lists the dialects, each one's flags, where each takes
+  its CPU target from, and where Merlin support ends.
+
 ### Fixed
 - **Pasting into the guest no longer garbles the text.** A valid Applesoft line
   pasted at the `]` prompt produced a SYNTAX ERROR while typing the same line
@@ -46,6 +64,18 @@ Entries before versioning was introduced use dates only.
   placed on a disk. The default is unchanged.
 
 ### Changed
+- **A run that named no `--cpu` now reports the target that stood.** Under `-v`
+  it goes to stderr, and into the listing header when a listing is produced —
+  never to stdout, which carries the listing itself when no listing file is
+  named. This affects `as65` as well as `merlin`: a build that passes `-v` or
+  `-l` gains one line reading `cpu: 6502 (dialect default)`. The point is that
+  "nothing selected a CPU, so the default stands" and "the flag I passed was
+  quietly dropped" used to look identical, and a dialect that selects its CPU in
+  source makes the difference matter.
+- **The usage line no longer advertises the removed bare-source form.** It read
+  `CassoCli <source> [flags]`, which stopped working when the dialect became
+  something the invocation names; it is now built from the subcommand table, as
+  is the list of alternatives offered when the first word names nothing.
 - **An explicit output-format flag now wins over the filename's extension.**
   Extension matching remains as the fallback when no flag is given, so as65-era
   scripts naming a `.s19` or `.hex` output keep working. Previously the

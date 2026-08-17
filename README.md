@@ -359,6 +359,17 @@ CassoCli as65 input.a65 -c -l listing.txt
 # The default is a strict 6502; 65C02-only opcodes are rejected without --cpu.
 CassoCli as65 input.a65c --cpu 65c02 -o output.bin
 
+# Assemble Merlin source. The object written is the assembled stream, since
+# Merlin's ORG relocates rather than seeks -- see CassoCli --help for where
+# Merlin support ends.
+CassoCli merlin SOURCE.S -o OBJECT
+
+# Merlin names its own object file, so -o is only needed to override the source
+CassoCli merlin SOURCE.S
+
+# There is no --cpu here: Merlin selects its CPU in the source, with XC, and a
+# CPU flag is refused rather than quietly ignored.
+
 # Assemble and run an assembly source directly
 CassoCli run input.a65
 
