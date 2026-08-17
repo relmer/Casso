@@ -3,6 +3,7 @@
 #include "MerlinCorpus/CorpusHarness.h"
 #include "MerlinCorpus/MerlinFixture.h"
 #include "EmuTests/FixtureProvider.h"
+#include "EhmTestHelper.h"
 #include "TestHelpers.h"
 #include "Assembler.h"
 
@@ -350,7 +351,17 @@ namespace MerlinCorpusTests
             std::vector<Byte>    raw      = { 0x00, 0x80, 0x10, 0x00, 0xA9, 0x41 };  // claims 16, carries 2
             StubFixtureProvider  provider (raw);
             MerlinFixtureFile    file;
-            HRESULT              hrLoad   = MerlinFixture::LoadObject (provider, "anything", file);
+            HRESULT              hrLoad   = S_OK;
+
+            //  The decoder validates with asserting macros, because a fixture
+            //  that fails these checks means the extraction is broken rather
+            //  than that a user typed something odd. This test drives that path
+            //  deliberately, so the assertion is expected rather than a failure.
+            {
+                UnitTestHelpers::ExpectedEhmAssert  expected;
+
+                hrLoad = MerlinFixture::LoadObject (provider, "anything", file);
+            }
 
             Assert::IsTrue (FAILED (hrLoad),
                             L"a declared length that disagrees with the payload must fail, not decode");
@@ -363,7 +374,13 @@ namespace MerlinCorpusTests
             std::vector<Byte>    raw      = { 0x00, 0x80 };
             StubFixtureProvider  provider (raw);
             MerlinFixtureFile    file;
-            HRESULT              hrLoad   = MerlinFixture::LoadObject (provider, "anything", file);
+            HRESULT              hrLoad   = S_OK;
+
+            {
+                UnitTestHelpers::ExpectedEhmAssert  expected;
+
+                hrLoad = MerlinFixture::LoadObject (provider, "anything", file);
+            }
 
             Assert::IsTrue (FAILED (hrLoad),
                             L"two bytes cannot carry a four-byte header");
@@ -395,7 +412,13 @@ namespace MerlinCorpusTests
         {
             FixtureProvider  provider;
             std::string      text;
-            HRESULT          hrLoad = MerlinFixture::LoadSource (provider, "Merlin/T.SENDMSG", text);
+            HRESULT          hrLoad = S_OK;
+
+            {
+                UnitTestHelpers::ExpectedEhmAssert  expected;
+
+                hrLoad = MerlinFixture::LoadSource (provider, "Merlin/T.SENDMSG", text);
+            }
 
             Assert::IsTrue (FAILED (hrLoad),
                             L"a headerless file decoded as type-B must fail, not lose its first four bytes");
