@@ -195,6 +195,109 @@ namespace MerlinParserTests
             Assert::IsTrue (blank.isEmpty,      L"an empty line is empty");
             Assert::IsTrue (whitespace.isEmpty, L"and so is one holding only whitespace");
         }
+
+
+
+        //  From CLOCK.S. The equate sign sits in the OPCODE field with the name
+        //  beside it in the label field, so this is a field-model fact and not an
+        //  expression one: a parser hunting for the sign inside the operand finds
+        //  it in the wrong place and leaves the line looking like an instruction
+        //  named for it. 128 equates across the vendor sources and no other
+        //  spelling.
+        //
+        //  The three fields must also be CLEARED. Leaving the name in the label
+        //  field binds it twice -- once at the program counter and once as the
+        //  constant -- and the second binding is reported as a duplicate of the
+        //  first, which is how a whole file of equates fails on itself.
+        TEST_METHOD (AnEquateIsReadFromTheFieldsAndThenClearsThem)
+        {
+            MerlinDialect  merlin;
+            ParsedLine     line = merlin.ParseLine ("HOURS = VERSION-25", 1);
+
+            Assert::IsTrue (line.isConstant, L"the sign in the opcode field makes this an equate");
+            Assert::AreEqual (std::string ("HOURS"),      line.constantName, L"the name comes from the label field");
+            Assert::AreEqual (std::string ("VERSION-25"), line.constantExpr, L"and the expression from the operand");
+            Assert::IsTrue (line.label.empty(),    L"the label must not also bind at the program counter");
+            Assert::IsTrue (line.mnemonic.empty(), L"and the sign must not survive as an instruction");
+        }
+
+
+
+        //  From KEYMAC.S, and from three more in the linker demo. The label
+        //  validator rejected all four before this, which fails a file the vendor
+        //  shipped a working object for.
+        TEST_METHOD (AQuestionMarkIsPartOfALabel)
+        {
+            MerlinDialect  merlin;
+            ParsedLine     line = merlin.ParseLine ("CMD? LDA #$00", 1);
+
+            Assert::AreEqual (std::string ("CMD?"), line.label,    L"'?' is a label character, not a field break");
+            Assert::AreEqual (std::string ("LDA"),  line.mnemonic, L"and the opcode follows it");
+        }
+
+
+
+        //  A character constant may hold a SPACE, so a whitespace-delimited scan
+        //  keeps `#"` and hands the rest to the comment field. That is not a
+        //  string-directive rule -- the opcode here is an instruction -- which is
+        //  why it was diagnosed as a missing operator and was really the scanner.
+        TEST_METHOD (ACharacterConstantMayHoldASpace)
+        {
+            MerlinDialect  merlin;
+            ParsedLine     line = merlin.ParseLine (" LDA #\" \"", 1);
+
+            Assert::AreEqual (std::string ("LDA"),      line.mnemonic, L"an ordinary instruction");
+            Assert::AreEqual (std::string ("#\" \""),   line.operand,
+                              L"the space inside the quotes is the constant, not the end of the operand");
+        }
+
+
+
+        //  From KEYMAC.S: `NI <<<`. The body's own branch target sits on the line
+        //  that CLOSES the definition -- precisely the line closing a body throws
+        //  away. Twelve hand-written macro tests were green before the vendor
+        //  source found it.
+        TEST_METHOD (AMacroTerminatorMayCarryALabel)
+        {
+            MerlinDialect  merlin;
+            ParsedLine     line = merlin.ParseLine ("NI <<<", 1);
+
+            Assert::AreEqual (std::string ("NI"), line.label, L"the terminator line may name a target");
+            Assert::IsTrue (line.directiveToken == Directive::MacroEnd, L"and still closes the definition");
+        }
+
+
+
+        //  A variable symbol standing where an ordinary label would. It binds as
+        //  the REASSIGNABLE kind, which is the whole of the difference: CLOCK.S
+        //  names eight separate loop targets `]LOOP`, and a symbol that could only
+        //  be defined once reports seven duplicates.
+        TEST_METHOD (AVariableSymbolStandsWhereALabelDoesAndIsReassignable)
+        {
+            MerlinDialect  merlin;
+            ParsedLine     variable = merlin.ParseLine ("]LOOP LDA #$00", 1);
+            ParsedLine     ordinary = merlin.ParseLine ("LOOP LDA #$00", 2);
+
+            Assert::AreEqual (std::string ("LDA"), variable.mnemonic, L"the rest of the line is unaffected");
+            Assert::IsTrue (variable.labelKind == SymbolKind::Set,   L"a variable label may be redefined");
+            Assert::IsTrue (ordinary.labelKind == SymbolKind::Label, L"an ordinary one may not");
+        }
+
+
+
+        //  Every positioned diagnostic rests on these. Three DIFFERENT columns in
+        //  one line, because an implementation stamping one constant satisfies any
+        //  assertion that only looks at one field -- and they are 1-based, so a
+        //  0-based reading is off by one everywhere rather than visibly wrong.
+        TEST_METHOD (EachFieldRecordsWhereItWasWritten)
+        {
+            MerlinDialect  merlin;
+            ParsedLine     line = merlin.ParseLine ("START  LDA   #$41", 1);
+
+            Assert::AreEqual (1,  line.labelColumn,    L"the label opens the line");
+            Assert::AreEqual (8,  line.mnemonicColumn, L"the opcode follows two spaces after a five-character label");
+            Assert::AreEqual (14, line.operandColumn,  L"and the operand three after a three-character opcode");
+        }
     };
 
 
@@ -319,6 +422,44 @@ namespace MerlinParserTests
 
             Assert::IsTrue (line.isDirective, L"HEX is a Merlin directive");
             Assert::AreEqual (std::string ("HEX"), line.directive, L"and is quoted back the way Merlin spells it");
+        }
+
+
+
+        //  The two word directives differ in BYTE ORDER, so they cannot share a
+        //  token: one token would make the emitter pick an order from nothing.
+        //  Asserted as a pair, because either one alone is satisfied by a table
+        //  that maps both spellings to whichever token is being checked.
+        TEST_METHOD (TheTwoWordDirectivesCarryDifferentTokens)
+        {
+            Assert::IsTrue (MerlinDirectiveTable::FromSpelling ("DA")  == Directive::Word,
+                            L"DA is the processor's own order");
+            Assert::IsTrue (MerlinDirectiveTable::FromSpelling ("DW")  == Directive::Word,
+                            L"and DW is a second spelling of it");
+            Assert::IsTrue (MerlinDirectiveTable::FromSpelling ("DDB") == Directive::WordHighFirst,
+                            L"DDB is the reversed order and must not resolve to the same operation");
+        }
+
+
+
+        //  Merlin holds no dotted form of anything, which is what makes a
+        //  diagnostic quoting `.org` at a Merlin line describe a construct that
+        //  cannot exist. Swept over the whole vocabulary rather than spot-checked,
+        //  since one dotted spelling admitted later would be invisible otherwise.
+        TEST_METHOD (NoMerlinSpellingIsWrittenWithALeadingDot)
+        {
+            std::span<const MerlinDirectiveTable::Spelling>  spellings = MerlinDirectiveTable::GetAllSpellings();
+
+            Assert::IsTrue (spellings.size() > 0, L"a sweep over an empty vocabulary checks nothing");
+
+            for (const MerlinDirectiveTable::Spelling & spelling : spellings)
+            {
+                std::string   name = spelling.name;
+                std::wstring  what (name.begin(), name.end());
+
+                Assert::IsFalse (name.empty(), L"a spelling with no characters cannot be written at all");
+                Assert::AreNotEqual ('.', name[0], (what + L" is spelled the way as65 spells a directive").c_str());
+            }
         }
     };
 
