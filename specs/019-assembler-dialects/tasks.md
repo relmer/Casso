@@ -6,8 +6,14 @@ description: "Task list for 019-assembler-dialects"
 
 ## State of play
 
-*Updated 2026-08-16. Keep this current or delete it — a stale status block is
+*Updated 2026-08-17. Keep this current or delete it — a stale status block is
 read by whoever has no other way to check.*
+
+**PHASE 5 IS COMPLETE.** T063–T068 all landed; see each task's own line for what
+diverged. Suite is **3246** Debug / **3243** Release, both green; Dormann and
+Harte both pass; `scripts/BuildDemoDisk.ps1` reproduces its committed disk image
+byte for byte, which is how the message changes below were checked against a real
+caller rather than only against tests.
 
 **ALL SIX ORACLE OBJECTS NOW REPRODUCE BYTE FOR BYTE.** Five vendor sources,
 handed to `Assembler::Assemble` exactly as they sit in the fixtures, zero
@@ -31,10 +37,11 @@ data, equates, listing directives, instruction aliases, the directive behaviors
 **emit-cursor split (T035e–T035g)**, and **the keyboard-input directive and the
 four expression facts the last three oracles needed (T035h)**. **T069 and T070
 are also done** — see the note on T069 for why its hold expired. Suite is
-**3227** Release / **3230** Debug, both green; Dormann and Harte both pass. In
+**3243** Release / **3246** Debug, both green; Dormann and Harte both pass. In
 Phase 4, the conflict-free core subset is done: the **exit-code mapping (T078)**
-and the **dialect-and-CPU reporting decision (T053/T053a/T053c)**. In Phase 5,
-the **whole subset boundary is built and enforced** — T056–T062a and T067; see
+and the **dialect-and-CPU reporting decision (T053/T053a/T053c)**. **Phase 5 is
+complete**: the subset boundary is built and enforced (T056–T062a, T067), and
+diagnostics are positioned, dialect-native and attributed (T063–T066, T068); see
 below.
 
 ## The subset boundary — built, enforced, and reachable only from core
@@ -123,6 +130,78 @@ removed the unrecognized-first-argument fallback without updating
 source file as the first argument. Dormann failed inside its own error handling
 rather than reporting the refusal, so the suite T074 requires was unrunnable on
 this branch. Both now name `as65`; fixed in its own commit.
+
+## Diagnostics — positioned, dialect-native, and attributed
+
+**A COLUMN TRAVELS WITH THE FILE, NOT WITH THE MESSAGE.** `AssemblySession`
+already had one ambient value stamped onto every diagnostic — the originating
+file — with a long note on its own member saying exactly where it is correct and
+where it is not. The column is the same value at the same six sites, so every
+caveat carried over rather than being rediscovered. The three deferred carriers
+capture their own column beside their own file: the boundary offense, the open
+conditional, and the macro definition.
+
+**The ambient column answers for the LINE; a field-subject diagnostic says so.**
+A duplicated label points at the label and an operand that will not evaluate
+points at the operand, through a second recorder rather than by moving the
+ambient value and trusting the next caller to reset it. A column of 0 there means
+the field was never written and the line's own column stands in — which can never
+invent a position for a dialect that records none, since that dialect's line
+column is 0 as well.
+
+**as65's diagnostics are asserted to be unchanged, not assumed.** FR-021 makes
+the position fields additive, and "additive" is a claim about what did NOT change,
+which is otherwise untestable. as65 records no columns, so a sweep over its
+diagnostics requires every one to report 0.
+
+**THREE as65 MESSAGES CHANGE, AND THAT IS USER-VISIBLE.** The origin and
+reserve-space diagnostics hard-coded `.org` and `.ds` — spellings that appear in
+neither dialect's table and are simply wrong at a Merlin line, where the source
+wrote `ORG`. They now quote `ParsedLine::directive`, which makes as65 read `.ORG`
+and `.DS`. Nothing in the tree pinned the old text, `BuildDemoDisk.ps1` produces
+the identical disk image, and the alternative was a dialect branch in shared
+mechanism. `.align` and the struct diagnostics were deliberately left alone:
+those tokens are as65-only and unreachable under Merlin.
+
+**A WORD THE ACTIVE DIALECT CANNOT EXECUTE IS NOW ATTRIBUTED**, and the answer
+comes from the registry rather than from a comparison. `FindForeignConstruct`
+walks every dialect but the active one and reports whether the word is a
+directive there or an alternate instruction spelling — two categories, because
+they are not interchangeable to a reader: a directive is source in the wrong
+assembler's language, and an alias names an instruction the machine really has
+under another name. The category fragment carries its own article, since a caller
+cannot choose between `a` and `an` for a word it did not write.
+
+**The indented label gets the column rule, and the engine supplies the one fact
+the profile cannot.** Whether the field AFTER the unknown word names something
+the assembler could execute is a question about shared, unnamed instruction
+tables; a profile reaching into them to compose a sentence is the seam leaking in
+the direction the contract spends most of its words on. So the engine computes it
+dialect-neutrally — active profile's aliases, active profile's directives, shared
+opcode table — and the profile decides what it means.
+
+**A MACRO PARAMETER WITH NO ARGUMENT IS NOW AN ERROR**, which is a behavior change
+and not only a diagnostic. It was substituted with empty text, so a call
+punctuated for another assembler — the argument separator is the dialect's —
+arrived as one argument however many were meant and assembled a *different
+program* without complaint. All six vendor oracles are unaffected, which is the
+evidence that real Merlin source never relied on the old reading; had one relied
+on it, the rule would have had to go rather than the oracle.
+
+**One vacuous test, found by mutation rather than by reading.** The macro entry's
+byte assertion originally used a body that failed a step later whether or not the
+call was refused, so the mutation that reported the mismatch and then expanded
+anyway went uncaught. The body is now a data directive and a bare shift, both of
+which assemble cleanly under the empty substitution — so the unrefused reading
+emits three bytes of a different program in silence, and the assertion
+distinguishes them. **Twenty-three mutations over this slice, twenty-two caught.**
+
+**One guard is deliberately uncovered and is recorded at the code**, in the
+pattern this feature has used three times before. The operand column of an
+explicit macro invocation written flush against its name keeps the attached and
+spaced spellings agreeing, and nothing can observe it: the operand column is read
+only by operand-subject diagnostics, and none can arise on a line whose opcode
+field is a macro call. Mutated, not caught, kept.
 
 ## Reporting and exit codes — done in core, with nothing wired to the CLI yet
 
@@ -748,12 +827,12 @@ The **one** sanctioned exception is T049a, removing the fallback heuristic: a de
 - [x] T061 [US3] Make a boundary refusal distinguishable from a syntax error in `CassoCore/AssemblySession.cpp`, and collect every offender across the whole pass before failing rather than stopping at the first (FR-017, FR-018). *(Distinguishable STRUCTURALLY: `AssemblyError::kind`, a new additive field. A test asserting a phrase in the message would be the bare-substring trap this feature has already been caught by, so the assertion is on the field and the negative half is asserted too. "Before failing" is taken literally — pass 2 does not run once the boundary is crossed, so the refusals are not buried under the undefined symbols a linker would have resolved.)*
 - [x] T062 [US3] Generate the subset-boundary help text **from the boundary table inside `CassoCore/MerlinSubsetBoundary.cpp`**, returning a string that `CassoCli/CommandLine.cpp` merely prints. Generation in the executable would be unreachable from `UnitTest`, so FR-019's "cannot disagree by construction" would gain no test — and Principle VI is non-negotiable (FR-019, FR-024). *(`MerlinSubsetBoundary::GetHelpText` returns the string. **Nothing prints it yet**: `CassoCli/CommandLine.cpp` is one of the files spec 020 holds unmerged work in, so the print is T053b's along with the rest of the help output. Same intended state as T053/T078 — reachable only from the tests until the wiring lands.)*
 - [x] T062a [P] [US3] Add a test to `UnitTest/MerlinSubsetBoundaryTests.cpp` asserting the generated help text names every row the accessor returns, so a row added to the table without help coverage fails the build rather than shipping. *(Built from the row FIELDS rather than from the generator, or a mutation would move both sides and the test would stay green. Spelling, explanation and widening must appear on the SAME line as the construct, so a help text holding every value in two unrelated columns cannot pass; a second test counts listed lines against the row count in both directions.)*
-- [ ] T063 [US3] Populate `column` on every Merlin diagnostic in `CassoCore/MerlinDialect.cpp` and `CassoCore/AssemblySession.cpp` (FR-021)
-- [ ] T064 [US3] Describe constructs in the active dialect's vocabulary, and name which dialect defines a construct rejected as belonging to another, in `CassoCore/AssemblySession.cpp` (FR-020, FR-022)
-- [ ] T065 [US3] Explain the column rule when a Merlin label is indented, rather than reporting an unknown symbol, in `CassoCore/MerlinDialect.cpp` (User Story 3 acceptance 1)
-- [ ] T066 [P] [US3] Add the hand-authored negative corpus class — boundary refusals and diagnostic expectations, kept distinct from captured entries — to `UnitTest/MerlinCorpusTests.cpp` as hand-authored entries, including an entry where a macro is invoked with another dialect's argument syntax and must be **rejected rather than partially expanded** (spec Edge Cases)
+- [x] T063 [US3] Populate `column` on every Merlin diagnostic in `CassoCore/MerlinDialect.cpp` and `CassoCore/AssemblySession.cpp` (FR-021). *(**Five files, not the two the task named, and the column travels with the FILE rather than with the message.** `Parser.h`, `AssemblerTypes.h` and `AssemblySession.h` come along because the position has to be carried and the deferred carriers have to hold it. `ParsedLine` gains three field columns the profile records as it segments; `AssemblySession` stamps one onto every diagnostic at each of the six places it already stamped `m_currentSourceFile`, so every caveat documented on that member carries over unchanged — including the deferred one. Three deferred carriers therefore capture their own: the boundary offense, `ConditionalState::openColumn`, and `m_currentMacroColumn`. **Divergence:** the ambient column answers for the LINE (the opcode field, else the label), and a diagnostic whose subject is a particular field uses a second recorder, `RecordErrorAt`, rather than moving the ambient value — 8 sites, the label and operand ones. A column of 0 there means the field was never written and the line's own column stands in, which cannot invent a position for a dialect recording none. as65 records none and its diagnostics are swept to prove they still report 0.)*
+- [x] T064 [US3] Describe constructs in the active dialect's vocabulary, and name which dialect defines a construct rejected as belonging to another, in `CassoCore/AssemblySession.cpp` (FR-020, FR-022). *(Two halves. **Vocabulary:** three shared-engine messages quoted as65 spellings at a Merlin line — the origin and reserve-space directives, both of which Merlin has, and the assertion directive. They now quote `ParsedLine::directive`, the active dialect's own canonical name. **Divergence, and it is user-visible:** as65's text changes from a hand-written lowercase `.org` / `.ds` to the spelling its table holds, `.ORG` / `.DS`. Nothing in the tree pinned either, and the alternative was a dialect branch in shared mechanism. `.align` and the struct diagnostics are deliberately untouched — those tokens are as65-only and unreachable under Merlin, so changing them would be churn with no reader. **Attribution, and it took six files beyond the one the task named** — `DialectRegistry.{h,cpp}`, `DialectProfile.h`, `As65Dialect.{h,cpp}` and `MerlinDialect.{h,cpp}` — because a dialect can only be named by asking the registry, and the registry can only ask a profile through the seam: `DialectRegistry::FindForeignConstruct` answers which OTHER dialect defines a rejected word, and whether as a directive or as an alternate instruction spelling; it needed one new profile accessor, `GetDirectiveForSpelling`, so a foreign table can be consulted without its parser running. The category fragment carries its own article, since a caller cannot choose between `a` and `an` for a word it did not write.)*
+- [x] T065 [US3] Explain the column rule when a Merlin label is indented, rather than reporting an unknown symbol, in `CassoCore/MerlinDialect.cpp` (User Story 3 acceptance 1). *(A profile virtual, `ExplainUnknownOperation`, defaulting to empty so the engine keeps its own wording for a dialect with nothing to add. **The engine supplies the one fact the profile cannot get for itself** — whether the field after the unknown word names something the assembler could execute — because the instruction tables are shared and arrive unnamed, and a profile reaching into them to compose a sentence is the seam leaking. Both conditions are load-bearing and both were mutated: dropping the operand test makes an as65 directive under Merlin get the column rule instead of its attribution.)*
+- [x] T066 [P] [US3] Add the hand-authored negative corpus class — boundary refusals and diagnostic expectations, kept distinct from captured entries — to `UnitTest/MerlinCorpusTests.cpp` as hand-authored entries, including an entry where a macro is invoked with another dialect's argument syntax and must be **rejected rather than partially expanded** (spec Edge Cases). *(Nine entries, each stating kind, line, column, a phrase it must carry and one it must not — the last being the assertion a bare substring cannot make, since `mustSay` alone is satisfied by a message that also reports the symptom. No two entries expect the same column, and that is asserted over the table rather than left as a comment. **The macro entry needed a behavior change, not just a test**: a positional parameter the body refers to with no argument to fill it was substituted with empty text, so a call punctuated for another assembler assembled a different program in silence. It is now refused, and all six vendor oracles are unaffected — which is the evidence that real Merlin source never relied on it. **The entry's first version was VACUOUS and mutation is what said so**: its body failed a step later whether or not the call was refused, so the mutation that reported the mismatch and expanded anyway went uncaught. The body is now a data directive and a bare shift, both of which assemble cleanly under the empty substitution.)*
 - [x] T067 [P] [US3] Add `UnitTest/MerlinSubsetBoundaryTests.cpp` sweeping the boundary accessor and asserting every row produces the expected refusal, and register it in `UnitTest.vcxproj`. *(28 tests. The sweep builds each row's source FROM the row, so a row added to the table is exercised without anyone editing the file, and it asserts the message quotes the row's own construct, explanation and widening rather than merely being non-empty. Three guards sit upstream of it, because a sweep cannot see the failures that would make it sweep the wrong thing: the table is non-empty, no two rows share a token, and every construct `Directive.h` marks as recognized-only-to-be-refused has a row — that last one is the inverse direction, which a table sweep structurally cannot check. The same sweep under AS65 asserts nothing is refused, so the refusal is proved to come from the active profile rather than from the token being in the shared vocabulary.)*
-- [ ] T068 [US3] Verify SC-006 and SC-007: every dialect-specific diagnostic identifies the correct line and column, and every out-of-subset construct is named rather than failing as a parse error
+- [x] T068 [US3] Verify SC-006 and SC-007: every dialect-specific diagnostic identifies the correct line and column, and every out-of-subset construct is named rather than failing as a parse error. *(`BoundaryDiagnosticQualityTests` in `UnitTest/MerlinSubsetBoundaryTests.cpp`, swept from the accessor so a row added later is covered without anyone editing a test. SC-006 varies the indent per row, so no two rows expect the same column and a cumulative construct puts its two occurrences in different places — an implementation reporting the first occurrence's position for the second fails there and nowhere else. SC-007 asserts the refusal EXISTS and is the only thing said about the line; the existence guard is not decoration, since a row producing nothing at all satisfies "no other error" with zero on both sides. **Measured on the way:** a construct in column 1 is a label, so the boundary can only be crossed from column 2 onward — the sweep started at 1 and produced no refusal for any row. The criteria are not carried by this class alone: the diagnostics that are NOT refusals have no table to sweep and are pinned entry by entry in the negative corpus, each with an exact line and column.)*
 
 **Checkpoint**: Diagnostics are dialect-native, positioned, and boundary refusals are unmistakable.
 
