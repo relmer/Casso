@@ -2839,6 +2839,38 @@ namespace MerlinDirectiveTests
 
 
 
+        //  The selection is REPORTED, because nothing outside the source can
+        //  work it out. The directive may sit inside a conditional, so an
+        //  invocation that passed no CPU flag cannot otherwise tell "the
+        //  dialect's default stood" from "the source chose the wider set" -- and
+        //  those two are what the reported CPU exists to separate.
+        TEST_METHOD (TheSelectionIsReportedSoACallerCanSayWhichSetRan)
+        {
+            AssemblyResult  selected = MerlinAssemblyFixture::AssembleMerlinWithExtendedSet (" XC\n PHX\n");
+            AssemblyResult  narrow   = MerlinAssemblyFixture::AssembleMerlinWithExtendedSet (" NOP\n");
+
+            Assert::IsTrue  (selected.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (selected).c_str());
+            Assert::IsTrue  (selected.extendedSetSelectedInSource,
+                             L"a source that selected the wider set must say so");
+            Assert::IsTrue  (narrow.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (narrow).c_str());
+            Assert::IsFalse (narrow.extendedSetSelectedInSource,
+                             L"and one that did not must not, or the report is true of every assembly");
+        }
+
+
+
+        //  A directive that could not be honored must not claim it was. The
+        //  refusal below is reported to the developer; a caller reading the
+        //  result would otherwise announce a processor the assembly never ran on.
+        TEST_METHOD (NothingIsReportedSelectedWhenThereWasNothingToSelect)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" XC\n");
+
+            Assert::IsFalse (result.extendedSetSelectedInSource);
+        }
+
+
+
         //  An assembly handed one instruction table cannot honor the directive, and
         //  a provider with nothing to switch to answers with the table it already
         //  had -- so saying nothing would leave the source told it had reached a

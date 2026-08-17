@@ -291,6 +291,14 @@ struct AssemblyResult
     //  assembly -- which keeps the precedence rule in one place instead of
     //  repeated at every entry point that produces output.
     std::string                                 outputFileName;
+
+    //  Whether the SOURCE selected the wider instruction set, through a dialect
+    //  that has a directive for it. Reported because nothing outside the source
+    //  can know: the directive may sit inside a conditional, so a caller that
+    //  passed no CPU flag cannot otherwise tell "the dialect's default stood"
+    //  from "the source chose the wider set" -- and telling those apart is the
+    //  whole reason the CPU in effect is reported at all.
+    bool                                        extendedSetSelectedInSource = false;
 };
 
 

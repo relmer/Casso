@@ -4482,6 +4482,13 @@ HRESULT AssemblySession::HandlePass1CpuSelect (const PendingLine & current, Line
     m_extendedActive = true;
     m_opcodeTable    = &m_instructionSets.GetExtended();
 
+    // Reported so the caller can say WHICH instruction set the assembly ran on
+    // and what chose it. Nothing outside the source knows: the directive may sit
+    // inside a conditional, so an invocation that passed no CPU flag cannot tell
+    // "the default stood" from "the source selected the wider set" without being
+    // told, and those two read identically in an empty report.
+    m_result.extendedSetSelectedInSource = true;
+
 Error:
     return hr;
 }
