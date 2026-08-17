@@ -136,6 +136,7 @@ private:
     void  RunGet    (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunPut    (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunDelete (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunBoot   (const CommandLineOptions & options, DiskCommandResult & result);
 
     //  Renders an edited sector buffer back into the container it came from and
     //  puts it where the old one was. One helper because the two orderings it
@@ -159,6 +160,13 @@ private:
     //  volume layer never sees it, because nothing about the image's contents
     //  says the file may not be written.
     static std::string  DescribeReplaceFailure (HRESULT hr);
+
+    //  Whether a booting DOS 3.3 would actually run this file. Its boot command
+    //  is RUN, so a greeting RUN does not understand is one in name only --
+    //  measured on the stock master, where a binary named as the greeting
+    //  leaves the disk booting and the program never running.
+    static bool  IsRunnableAsDos33Greeting (const VolumeListing  & listing,
+                                            const std::string    & name);
 
     //  Which type byte a placement uses: what the caller named, or the sensible
     //  one for the conversion they asked for.

@@ -340,6 +340,18 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
         return "has a sector chain that cannot be followed to its end";
     }
 
+    if (hr == HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED))
+    {
+        return "cannot be made this volume's startup program: the image carries no "
+               "operating system on the tracks a boot reads, so nothing would run it";
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_BAD_FILE_TYPE))
+    {
+        return "is not a program this volume's boot path launches -- on ProDOS that "
+               "means a file of type SYS, and not the kernel itself";
+    }
+
     return "was refused by the filesystem on this volume";
 }
 
@@ -1193,6 +1205,145 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::RunBoot
+//
+//  Which program the disk runs once its operating system has loaded.
+//
+//  A PROGRAM THAT IS NOT ON THE VOLUME IS REFUSED, BY NAME. Setting a startup
+//  program is the one edit whose mistake is invisible until somebody boots the
+//  disk -- there is no listing that shows it and no file that appears -- so a
+//  typo accepted here surfaces as a machine that boots to an error, hours later
+//  and somewhere else. The volume layer looks the name up for exactly this
+//  reason, and the message says which name failed rather than that something
+//  did.
+//
+//  The two filesystems reach the same outcome by entirely different means, and
+//  neither of them is a write of a file: DOS 3.3 patches a name into its own
+//  image and ProDOS reorders its volume directory. Both arrive here as one call
+//  and leave through the same commit as every other edit.
+//
+//  A DOS 3.3 GREETING IS RUN, NOT BRUN, AND THAT IS SAID OUT LOUD. Booting the
+//  stock master with a binary named as its greeting was measured: the disk
+//  boots, the program does not run, and the screen shows no complaint anybody
+//  would connect to it. The name field is the only thing this sets, so the
+//  command DOS issues stays RUN -- which leaves a placement that succeeded and a
+//  disk that does nothing. Saying so costs one line and the complaints status;
+//  refusing outright would be wrong, since a disk whose boot command has been
+//  patched by hand is a real thing and its owner knows what they are doing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommandResult & result)
+{
+    HRESULT        hr       = S_OK;
+    HRESULT        listHr   = S_OK;
+    bool           named    = !options.disk.path.empty();
+    bool           runnable = true;
+    OpenedImage    opened;
+    FilePath       path;
+    VolumeListing  listing;
+    vector<Byte>   edited;
+
+
+
+    if (!named)
+    {
+        result.diagnostics += "no program named to boot -- boot takes the file on the "
+                              "disk to run after the operating system loads\n";
+        result.exitStatus   = kNoOutput;
+        BAIL_OUT_IF (true, E_INVALIDARG);
+    }
+
+    hr = OpenImage (options.disk.imagePath, opened, result);
+    BAIL_OUT_IF (FAILED (hr), hr);
+
+    path = FilePath::Parse (options.disk.path);
+
+    {
+        Dos33Volume   dos (opened.sectors);
+        ProDosVolume  pro (opened.sectors);
+        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
+                             ? static_cast<IVolume &> (dos)
+                             : static_cast<IVolume &> (pro);
+
+        hr = volume.SetStartupProgram (path, edited);
+
+        if (SUCCEEDED (hr) && opened.kind == VolumeKind::Dos33)
+        {
+            listHr = volume.Enumerate (listing);
+            IGNORE_RETURN_VALUE (listHr, S_OK);
+
+            runnable = IsRunnableAsDos33Greeting (listing, options.disk.path);
+        }
+    }
+
+    if (FAILED (hr))
+    {
+        result.diagnostics += Failure (options.disk.imagePath, options.disk.path,
+                                       DescribeVolumeRefusal (hr)) + "\n";
+        result.exitStatus   = kNoOutput;
+        BAIL_OUT_IF (true, hr);
+    }
+
+    hr = SaveAndCommit (opened, edited, result);
+    BAIL_OUT_IF (FAILED (hr), hr);
+
+    if (!runnable)
+    {
+        result.diagnostics += Failure (options.disk.imagePath, options.disk.path,
+            "is set as the startup program, but a booting DOS 3.3 RUNs its greeting -- "
+            "which runs an Applesoft or Integer program. This file is neither, so the "
+            "disk will boot without running it") + "\n";
+
+        result.exitStatus   = kWithComplaints;
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::IsRunnableAsDos33Greeting
+//
+//  Whether a booting DOS 3.3 would actually run this file.
+//
+//  Measured against the stock master rather than reasoned about: with a binary
+//  named as the greeting the machine boots and the program never runs, because
+//  the command DOS issues at boot is RUN. Anything RUN does not understand is a
+//  greeting in name only.
+//
+//  A name that is not on the volume answers true, because the refusal for that
+//  belongs to the layer that looked it up and one refusal per problem is the
+//  rule.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::IsRunnableAsDos33Greeting (const VolumeListing  & listing,
+                                                   const std::string    & name)
+{
+    for (const FileEntry & entry : listing.entries)
+    {
+        if (_stricmp (entry.name.c_str(), name.c_str()) == 0)
+        {
+            return entry.type == Dos33Volume::kTypeApplesoft
+                || entry.type == Dos33Volume::kTypeInteger;
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::Run
 //
 //  A verb this build does not implement reports failure rather than doing
@@ -1226,8 +1377,7 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             break;
 
         case CommandLineOptions::DiskOptions::Verb::Boot:
-            result.diagnostics += "that disk verb is not available in this build\n";
-            result.exitStatus   = kNoOutput;
+            RunBoot (options, result);
             break;
 
         default:

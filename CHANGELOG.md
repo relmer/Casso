@@ -36,8 +36,20 @@ Entries before versioning was introduced use dates only.
   re-encoded, or the image changing under us — leaves the original
   byte-for-byte as it was, with no leftover temporary and a message saying
   which of those it was rather than a platform error code. Placing an
-  Applesoft listing (`--basic`) and setting a boot program are not in this
-  build and are refused rather than silently doing something else.
+  Applesoft listing (`--basic`) is not in this build and is refused rather
+  than silently doing something else.
+- **`disk boot <image> <program>`: the disk runs your program at boot, with
+  nothing typed.** The two filesystems do this by entirely different means and
+  both are handled: DOS 3.3 keeps the name of the program it runs inside its
+  own image, so that field is patched in place and the catalog is left alone;
+  ProDOS has no such field at all — it launches the first system program its
+  volume directory reaches — so the chosen one is moved in front of it, and
+  the ProDOS kernel itself is never nominated. A program that is not on the
+  volume is refused by name, because a startup program is the one setting with
+  nothing to show for itself in a listing: a typo would surface as a machine
+  booting to an error, later and somewhere else. A booting DOS 3.3 RUNs its
+  greeting, so naming a binary there succeeds and says out loud that the disk
+  will boot without running it.
 - **`--raw` and `--dos-bin` assembler output.** The assembler could only write
   a full 64 KB memory image, padded with the fill byte — correct for ROM
   burning and reference comparison, useless for loading a 2 KB routine, which

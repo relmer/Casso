@@ -325,24 +325,6 @@ public:
         Assert::IsTrue (result.diagnostics.find ("recognizes") != std::string::npos);
     }
 
-    TEST_METHOD (UnbuiltVerb_ReportsFailureRatherThanDoingNothingQuietly)
-    {
-        // Boot is the verb still to be built. This test moved onto it when put
-        // and delete were wired up: pointing it at a verb that now works would
-        // leave it green for a reason unrelated to what it is named for.
-        FakeDiskFileIo     io;
-        DiskCommandRunner  runner (io);
-        DiskCommandResult  result;
-
-        SeedRealDisk (io);
-
-        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::Boot));
-
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus,
-            L"an absent capability must not look like a completed operation");
-        Assert::IsTrue (result.diagnostics.size() > 0);
-    }
-
     TEST_METHOD (UnknownVerb_SuggestsTheOnesThatExist)
     {
         FakeDiskFileIo     io;
@@ -1638,5 +1620,279 @@ public:
 
         Assert::IsTrue (ListCommittedImage (io, kBlankImage).find ("PROG") == std::string::npos,
             L"while still removing the entry, so a bad file cannot strand the volume");
+    }
+
+    //
+    //  ------------------------------------------------------------------
+    //  boot.
+    //
+    //  The one edit with nothing to show for itself in a listing: what a disk
+    //  runs at boot is not a file and does not appear beside the files. So the
+    //  assertions here read the bytes the mechanism actually uses, and the
+    //  refusals are held to the same standard as put's and delete's -- image
+    //  byte-for-byte as it was, no temporary, one reason in words.
+    //  ------------------------------------------------------------------
+    //
+
+    //  Where a booted DOS reads the name of the program it runs. Restated from
+    //  the published layout rather than taken from the implementation, and
+    //  corroborated by this fixture: the Merlin DOS 3.3 disk carries the
+    //  high-ASCII spelling of HELLO here, exactly as the stock master does.
+    static constexpr int     kGreetingTrack  = 1;
+    static constexpr int     kGreetingSector = 9;
+    static constexpr size_t  kGreetingOffset = 0x75;
+    static constexpr size_t  kNameFieldBytes = 30;
+
+    //  The Applesoft program placed on the DOS 3.3 disk to be booted into, a
+    //  binary that disk already carries, and a file on the Merlin ProDOS disk
+    //  that its boot path could never launch.
+    static constexpr const char *  kDosProgram      = "BOOTME";
+    static constexpr const char *  kBinaryOnTheDisk = "MERLIN.X";
+    static constexpr const char *  kProProgram      = "PARMS";
+
+    static std::string GreetingNameIn (const vector<Byte> & image)
+    {
+        size_t       at   = Dos33Skeleton::SectorOffset (kGreetingTrack, kGreetingSector)
+                          + kGreetingOffset;
+        std::string  name;
+        size_t       i    = 0;
+
+        for (i = 0; i < kNameFieldBytes; i++)
+        {
+            name += (char) (image[at + i] & 0x7F);
+        }
+
+        while (!name.empty() && name.back() == ' ')
+        {
+            name.pop_back();
+        }
+
+        return name;
+    }
+
+    CommandLineOptions MakeBootOptions (const char * image, const char * path)
+    {
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Boot, image);
+
+        options.disk.path = path;
+
+        return options;
+    }
+
+    TEST_METHOD (Boot_SetsTheNameTheGuestReadsAtBootTime_InTheCommittedImage)
+    {
+        // An Applesoft program, because that is what a booting DOS 3.3 RUNs.
+        // The binary case is the one below, and it is a complaint rather than a
+        // refusal.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  put = MakePutOptions (kImage, kHostFile, kDosProgram);
+        DiskCommandResult   result;
+
+        SeedRealDisk (io);
+        SeedFile (io, kHostFile, MakePayload (16));
+
+        put.disk.typeName = "A";
+
+        Assert::AreEqual (std::string ("HELLO"), GreetingNameIn (io.files[kImage]),
+            L"this disk boots its own greeting today, or the command below changes nothing");
+
+        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (put).exitStatus,
+            L"the program has to be on the disk before it can be booted into");
+
+        result = runner.Run (MakeBootOptions (kImage, kDosProgram));
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus,
+            L"naming a program the volume holds and DOS can run is a clean operation");
+
+        Assert::AreEqual (std::string(), result.diagnostics, L"with nothing to complain about");
+        Assert::IsTrue (io.HasNoTemporaryFiles(), L"and nothing left beside the image");
+
+        Assert::AreEqual (std::string (kDosProgram), GreetingNameIn (io.files[kImage]),
+            L"and the name the guest reads at boot is the one that was asked for -- read "
+            L"back off the COMMITTED image, not out of a buffer the runner still held");
+
+        Assert::IsTrue (ListCommittedImage (io, kImage).find (" A 004 HELLO") != std::string::npos,
+            L"while the greeting it used to run is still on the disk, untouched: this "
+            L"changes what runs, not what is on the volume");
+    }
+
+    TEST_METHOD (Boot_ABinaryOnADos33Volume_SucceedsAndSaysDosWillNotRunIt)
+    {
+        // Measured on the stock master with a real 6502: the disk boots and the
+        // binary is never executed, because DOS 3.3's boot command is RUN. The
+        // name IS set -- refusing would be wrong, since a disk whose boot
+        // command has been patched by hand is a real thing -- so the honest
+        // answer is the complaints status and a sentence saying which.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+
+        SeedRealDisk (io);
+
+        result = runner.Run (MakeBootOptions (kImage, kBinaryOnTheDisk));
+
+        Assert::AreEqual (DiskCommandRunner::kWithComplaints, result.exitStatus,
+            L"a startup program DOS will not run is not a clean outcome");
+
+        Assert::IsTrue (result.diagnostics.find ("RUNs its greeting") != std::string::npos,
+            L"and the complaint says what DOS does at boot");
+
+        Assert::IsTrue (result.diagnostics.find (kBinaryOnTheDisk) != std::string::npos,
+            L"naming the file it is about");
+
+        Assert::AreEqual (std::string (kBinaryOnTheDisk), GreetingNameIn (io.files[kImage]),
+            L"while still setting the name, which is what was asked for");
+
+        AssertNamesNoPlatformCode (result.diagnostics);
+    }
+
+    TEST_METHOD (Boot_ANameTheVolumeDoesNotHold_IsRefusedNamingTheMissingFile)
+    {
+        // The refusal FR-025 asks for, and the reason it is worth having: a
+        // startup program that is not there produces no symptom until somebody
+        // boots the disk, and then the symptom is on a machine somewhere else.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        vector<Byte>        original = OriginalImageBytes();
+
+        SeedRealDisk (io);
+
+        result = runner.Run (MakeBootOptions (kImage, "NOSUCHFILE"));
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("NOSUCHFILE") != std::string::npos,
+            L"the message must name the file that is missing, not merely report a failure");
+        Assert::IsTrue (result.diagnostics.find (kImage) != std::string::npos);
+        Assert::IsTrue (result.diagnostics.find ("is not on this volume") != std::string::npos);
+
+        AssertNamesNoPlatformCode (result.diagnostics);
+        AssertImageMatches (io, kImage, original);
+
+        Assert::AreEqual (std::string ("HELLO"), GreetingNameIn (io.files[kImage]),
+            L"and the disk still boots what it booted before");
+    }
+
+    TEST_METHOD (Boot_WithNoProgramNamed_SaysWhatItWanted)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        vector<Byte>        original = OriginalImageBytes();
+
+        SeedRealDisk (io);
+
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::Boot));
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("no program named") != std::string::npos);
+
+        AssertImageMatches (io, kImage, original);
+    }
+
+    TEST_METHOD (Boot_AVolumeWithNoOperatingSystemOnIt_IsRefusedInWordsRatherThanPatchedAnyway)
+    {
+        // A formatted data disk reserves the tracks DOS would occupy but has
+        // nothing in them. Patching a name there would report success for a
+        // disk that cannot boot at all.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult   result;
+        vector<Byte>        committed;
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   MakePayload());
+
+        options.disk.typeName       = "B";
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+
+        committed = io.files[kBlankImage];
+
+        result = runner.Run (MakeBootOptions (kBlankImage, "PROG"));
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("no operating system") != std::string::npos,
+            L"and says that is what is missing, rather than blaming the file");
+
+        AssertNamesNoPlatformCode (result.diagnostics);
+        AssertImageMatches (io, kBlankImage, committed);
+    }
+
+    TEST_METHOD (Boot_ProDos_AFileTheBootPathCannotLaunch_IsRefusedInWords)
+    {
+        // On ProDOS the mechanism is directory order, so any file could be
+        // moved to the front -- and moving one the kernel will never launch
+        // produces a disk that looks configured and boots something else.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        vector<Byte>        original;
+
+        SeedRealDisk (io, "Disks/Merlin-proProdos2.33-a.dsk", kProImage);
+
+        original = io.files[kProImage];
+
+        result = runner.Run (MakeBootOptions (kProImage, kProProgram));
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find (kProProgram) != std::string::npos);
+        Assert::IsTrue (result.diagnostics.find ("type SYS") != std::string::npos,
+            L"and says what this boot path does launch");
+
+        AssertNamesNoPlatformCode (result.diagnostics);
+        AssertImageMatches (io, kProImage, original);
+    }
+
+    //  Which of two names the committed listing reaches first. Both must be
+    //  present: comparing two positions where one of them is "not found" is a
+    //  comparison against the largest number there is, which passes.
+    void AssertListedBefore (const std::string & listing,
+                             const std::string & first,
+                             const std::string & second)
+    {
+        size_t  at     = listing.find (first);
+        size_t  behind = listing.find (second);
+
+        Assert::IsTrue (at     != std::string::npos, L"the first name must be in the listing");
+        Assert::IsTrue (behind != std::string::npos, L"and so must the second");
+        Assert::IsTrue (at < behind, L"in that order");
+    }
+
+    TEST_METHOD (Boot_ProDos_ASystemProgramPlacedByPut_OvertakesTheOneTheDiskLaunchesNow)
+    {
+        // /MERLIN launches MERLIN.SYSTEM, the first system program its volume
+        // directory reaches. Nominating a newly placed one has to overtake it,
+        // and the proof is the ORDER in the committed image rather than any
+        // field, because ProDOS stores no startup name anywhere to inspect.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kProImage, kHostFile, "CASSO.SYSTEM");
+        DiskCommandResult   result;
+
+        SeedRealDisk (io, "Disks/Merlin-proProdos2.33-a.dsk", kProImage);
+        SeedFile (io, kHostFile, MakePayload (60));
+
+        options.disk.typeName = "SYS";
+
+        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus,
+            L"the placement must succeed before the reorder can mean anything");
+
+        AssertListedBefore (ListCommittedImage (io, kProImage), "MERLIN.SYSTEM", "CASSO.SYSTEM");
+
+        result = runner.Run (MakeBootOptions (kProImage, "CASSO.SYSTEM"));
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (std::string(), result.diagnostics);
+        Assert::IsTrue (io.HasNoTemporaryFiles());
+
+        AssertListedBefore (ListCommittedImage (io, kProImage), "CASSO.SYSTEM", "MERLIN.SYSTEM");
+
+        Assert::IsTrue (ListCommittedImage (io, kProImage).find ("PARMS") != std::string::npos,
+            L"and every other entry is still on the disk");
     }
 };
