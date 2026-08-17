@@ -273,6 +273,7 @@
     <ClCompile Include="EmuTests\VolumeIntegrityTests.cpp" />
     <ClCompile Include="EmuTests\CrossFormatExtractionTests.cpp" />
     <ClCompile Include="EmuTests\CrossFormatWriteTests.cpp" />
+    <ClCompile Include="EmuTests\CommitPlanTests.cpp" />
     <ClCompile Include="EmuTests\DiskCommandRunnerTests.cpp" />
     <ClCompile Include="EmuTests\ProDosSyntheticShapeTests.cpp" />
     <ClCompile Include="EmuTests\VolumeOracleTests.cpp" />
