@@ -21,7 +21,8 @@ verifying its own output, an edited volume rendered back into any of the four
 containers it came from, a crash-safe commit that leaves the target
 byte-identical after every failure it can be made to suffer, a command line
 that reaches all of it, and a real 6502 cataloging and loading what that command
-line placed. Suite is **3223 Debug / 3220 Release** green; the 3-test
+line placed. Suite was **3223 Debug / 3220 Release** green at the end of that
+phase, and is 3242 / 3239 now that Phase 5 has landed; the 3-test
 delta is the pre-existing GH #113, not this work. (It was 3220 / 3217 before
 T033 added 3, 3212 / 3209 before
 T034 added 8, 3191 / 3188 before
@@ -34,6 +35,25 @@ now-obsolete `Write_IsNotYetImplemented_AndSaysSoRatherThanSucceeding`.)
 reorder shipped in Phase 3 was wrong and had been silent ever since — see the
 divergences block. Read that before assuming the sector-order question is
 settled anywhere else in the tree.
+
+**Phase 5 is done, and the suite is 3242 Debug / 3239 Release.** T036–T039
+shipped together: DOS 3.3's greeting field, ProDOS's directory reorder, the
+`boot` verb, and a real-CPU gate that boots each image and **types nothing at
+all**. The two mechanisms were kept apart on purpose and the difference is not
+cosmetic — one writes thirty bytes of high ASCII into DOS's own code on track 1,
+the other writes no name anywhere and swaps two 39-byte directory records. (The
+counts were 3223 / 3220 before this phase added 19 and removed the
+now-pointless `UnbuiltVerb_ReportsFailureRatherThanDoingNothingQuietly`.)
+
+**The finding a session picking up Phase 6 should carry: a booting DOS 3.3 RUNs
+its greeting.** Naming a BINARY in that field sets the name perfectly and the
+guest never executes it — measured on the stock master, and the disk shows no
+complaint anybody would connect to the setting. The name field is all this
+feature patches, so the command stays RUN. `disk boot` therefore succeeds with
+the complaints status and a sentence saying so, rather than refusing: a disk
+whose boot command has been patched by hand is a real thing. **This is what US5
+(direct boot) is actually for** on the assembler-output path — a developer's
+binary is not a DOS 3.3 greeting, and no amount of naming makes it one.
 
 **Next.** Phase 4 has one task left (T035, which is done by hand), and it is the work here where
 a bug **destroys data** rather than failing loudly. Everything through Phase 3
@@ -337,6 +357,24 @@ reaches a state where the cursor sits alone on the following line, which is what
 made a `BLOAD` get eaten while this file was being written. Recorded rather than
 solved: **the mutation is invisible because the available screens do not
 distinguish a correct rule from a weaker one that happens to agree.**
+
+And again on T036–T039, where **fifteen mutations were run: fourteen were caught
+and the fifteenth is the one this file already predicted.** Replacing
+`HandBackVerifiedResult` with a bare `outBuffer = result;` passes the whole
+suite, exactly as T028 recorded for `Write` and `Delete` — no input can
+distinguish it, because the check exists for buffers correct code cannot
+produce. It is recorded rather than solved for the third time, and the
+structural answer stays the one T028 gave: the check and the hand-off are one
+call, so DELETING it is loud even though REPLACING it is silent.
+
+Two things worth carrying from the caught fourteen. **The guest gate is among
+the named failures for every mutation that moves the field or the record** —
+moving the greeting offset by one byte, patching it into the catalog track,
+never swapping, swapping with the last candidate rather than the first, and
+copying one byte of a record instead of thirty-nine — so the boot cases are
+discriminating rather than decorative. **And the ProDOS control had to be
+constructed rather than assumed**: see T039's decision 2, where "placed but not
+nominated" turned out not to be a control at all.
 
 **Blocked on nobody; 019 is blocked on this branch.** Spec 019 runs
 concurrently. Measured overlap is three files — `CassoCore/CassoCore.vcxproj`,
@@ -687,10 +725,10 @@ filesystem can delete today.
 **Independent test**: quickstart §US4 — set a boot program, boot the image, the
 program runs unattended.
 
-- [ ] T036 [US4] Implement `Dos33Volume::SetStartupProgram` in `CassoEmuCore/Devices/Disk/Dos33Volume.cpp`: patch the greeting filename **in place at T01 S09 `+$75`**, 30 bytes, high ASCII, `$A0`-padded (verified against the stock master in research R-003). No catalog change, no chaining file
-- [ ] T037 [US4] Implement `ProDosVolume::SetStartupProgram` in `CassoEmuCore/Devices/Disk/ProDosVolume.cpp`: reorder the volume directory so the chosen `SYS` file is the first the boot path finds. **Deliberately not shared with T036** — the two mechanisms differ in kind, and a unified "write the boot name" helper would be wrong for both
-- [ ] T038 [US4] Add the `boot` verb to `ParseDiskOptions` and the runner (FR-024); refuse a program not present on the volume, naming the missing file (FR-025)
-- [ ] T039 [US4] Boot gate: real-CPU tests — a DOS 3.3 image with a set boot program runs it unattended after DOS loads; a ProDOS image launches the chosen system program
+- [x] T036 [US4] Implement `Dos33Volume::SetStartupProgram` in `CassoEmuCore/Devices/Disk/Dos33Volume.cpp`: patch the greeting filename **in place at T01 S09 `+$75`**, 30 bytes, high ASCII, `$A0`-padded (verified against the stock master in research R-003). No catalog change, no chaining file. **Three decisions.** (1) **The name written is the one the CATALOG stores, byte for byte, not the one the caller typed.** DOS matches the greeting against catalog names on the disk, so a lower-case spelling — or one of the control characters a real disk legitimately carries in a name — would name a file DOS then fails to find, and the disk would boot to an error with the field looking perfectly plausible. The bytes are copied out of the entry rather than re-encoded. (2) **A volume with nothing on the tracks DOS occupies is REFUSED** (`ERROR_NOT_SUPPORTED`). The format reserves tracks 0–2 whether or not anything was installed in them, so the patch would land in space nothing reads and the command would report success for a disk that still cannot boot at all. (3) **The patch goes through `HandBackVerifiedResult` like every other mutating call**, though it moves no sector: the standard belongs to the seam, not to the operation. The test that carries the task compares the WHOLE image and requires every differing byte to fall inside the thirty, which is what makes "no catalog change, no chaining file" an assertion rather than a claim. The offset is restated in the test from the published layout rather than borrowed from the code, and is corroborated a second time by the Merlin DOS 3.3 fixture, which carries `HELLO` in exactly the same place
+- [x] T037 [US4] Implement `ProDosVolume::SetStartupProgram` in `CassoEmuCore/Devices/Disk/ProDosVolume.cpp`: reorder the volume directory so the chosen `SYS` file is the first the boot path finds. **Deliberately not shared with T036** — the two mechanisms differ in kind, and a unified "write the boot name" helper would be wrong for both. **They stayed separate, and what each writes differs in kind**: T036 writes thirty bytes of high ASCII into DOS's own code on track 1 and touches nothing else; T037 writes no name anywhere and swaps two 39-byte directory records. **Three decisions.** (1) **The records are SWAPPED, not repacked.** Every other record keeps its position, its dates and its pointers, and the volume header's tally and every block pointer are untouched — which is also why the integrity comparison passes trivially. (2) **The kernel is excluded from the candidates.** `PRODOS` is a `SYS` file like any other, the boot block finds it by NAME rather than by position, and nominating it would ask a running ProDOS to load ProDOS. Both shipped fixtures corroborate the rule from outside the code: `/MERLIN` lists `MERLIN.SYSTEM` first and launches it, `/APPLESOFT` lists `PRODOS` first and launches `BASIC.SYSTEM`. Naming the kernel is refused with `ERROR_BAD_FILE_TYPE`, the same code a non-`SYS` file gets, under one message covering both. (3) **A program already in front leaves the volume byte-for-byte as it was**, rather than being rewritten to what it already says
+- [x] T038 [US4] Add the `boot` verb to `ParseDiskOptions` and the runner (FR-024); refuse a program not present on the volume, naming the missing file (FR-025). **The grammar was already complete**, as it was for T032: T017 landed `boot` in `s_kDiskVerbs` and the usage block in `CassoCli/CommandLine.cpp` already documents `disk boot <image> <path>`, so this task added the runner arm, its refusals and its tests, and changed no parser row. **Two decisions.** (1) **A binary named as a DOS 3.3 greeting is a COMPLAINT, not a refusal.** Measured with a real processor on the stock master: the disk boots and the program is never executed, because the command a booting DOS 3.3 issues is RUN — which `Dos33FileWriter::WriteHello`'s own comment has said since spec 017. Refusing would be wrong, since a disk whose boot command has been patched by hand is a real thing and its owner knows what they did, so the name is set, the status is 1, and the message says what DOS will do with it. (2) **`UnbuiltVerb_ReportsFailureRatherThanDoingNothingQuietly` is DELETED rather than moved again.** It had migrated from verb to verb as each was built; `boot` was the last one, so pointing it anywhere now leaves it green for a reason unrelated to its name. `UnknownVerb_SuggestsTheOnesThatExist` covers the property it existed for
+- [x] T039 [US4] Boot gate: real-CPU tests — a DOS 3.3 image with a set boot program runs it unattended after DOS loads; a ProDOS image launches the chosen system program. **Five decisions.** (1) **Nothing is typed, at all.** US4's claim is that the program runs unattended, so a test that helped the guest along would be testing something else — which also keeps the whole case clear of the pager hazard T033 records. (2) **Every case carries its own control, and on ProDOS the control had to be the same disk pointed at the OTHER system program.** A placement alone can land the new file in front of `BASIC.SYSTEM`, because ProDOS reuses directory slots in place and `/APPLESOFT` has a hole early in its directory: the first draft used "placed but not nominated" as the control, the kernel launched it anyway, and the case would have passed with the reorder doing nothing. (3) **The primary witness is two bytes the program writes to memory, not the screen.** A screen can be made to say anything; those bytes are written only by the instructions that write them, so they say the program EXECUTED rather than merely got loaded. (4) **The DOS 3.3 program is Applesoft, and the second case is why.** A booting DOS 3.3 RUNs its greeting, so a binary named there is never executed — measured, and now pinned by a case that asserts the complaint and then asks the guest whether it agrees. (5) **The placed program initializes the text screen itself.** The harness enters at the boot ROM rather than through RESET, so the monitor's cold start never ran and the output hook, the text window and the cursor are whatever powering on left in zero page; a program printing through `COUT` writes into memory that is not the screen, and the screen shows the noise it powered up with. Measured that way first. The harness the placement gate carried moved into `UnitTest/EmuTests/GuestSession.h/.cpp`, so the paging rules exist once rather than in two copies that can drift
 
 ---
 
