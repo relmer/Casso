@@ -592,6 +592,25 @@ GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
         }
     }
 
+    // A dialect that lets the accumulator go unnamed resolves there when the
+    // mnemonic has no implied form at all. Which mnemonics those are is the
+    // opcode table's answer, not the profile's -- a second list would be a
+    // second list to get wrong -- and a dialect that requires `LSR A` reaches
+    // none of this, so a bare LSR stays the missing operand it has always been.
+    //
+    // The implied-mode test is uncovered and cannot be covered: no mnemonic in
+    // either table carries an implied AND an accumulator encoding, so removing
+    // it changes nothing anything can observe. Recorded here rather than
+    // dropped, because it is what keeps the precedence right by construction
+    // instead of by the tables happening not to overlap.
+    if ((syntax == OperandSyntax::None) &&
+        (m_dialect.GetOperandlessForm() == OperandlessForm::ImpliedOrAccumulator) &&
+        !m_opcodeTable->HasMode (mnemonic, GlobalAddressingMode::SingleByteNoOperand) &&
+        m_opcodeTable->HasMode (mnemonic, GlobalAddressingMode::Accumulator))
+    {
+        mode = GlobalAddressingMode::Accumulator;
+    }
+
     return mode;
 }
 
@@ -818,7 +837,8 @@ AssemblySession::AssemblySession (const InstructionSetProvider & instructionSets
     m_instructionSets (instructionSets),
     m_opcodeTable     (&instructionSets.GetBase()),
     m_options         (options),
-    m_dialect         (DialectRegistry::Get (options.dialect)),
+    m_dialect         (options.dialectProfile != nullptr ? *options.dialectProfile
+                                                         : DialectRegistry::Get (options.dialect)),
     m_listingLevel    (options.generateListing ? 1 : 0)
 {
 }
@@ -959,6 +979,36 @@ void AssemblySession::EmitByte (Byte b, Word & emitPC)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::ReserveBytes
+//
+//  Pass 1's only way to occupy space, and the reason the two cursors cannot
+//  drift by accident. Sizing a line moves the program counter and the output
+//  cursor by the same amount every time; the sole thing that separates them is
+//  an origin directive, and only in a dialect whose origin relocates.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::ReserveBytes (Word count)
+{
+    m_pc        += count;
+    m_outputPos += count;
+
+    // A directive that reserved nothing has produced no output, so it must not
+    // be what stops the first origin from placing the image.
+    if (count > 0)
+    {
+        m_outputStarted = true;
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::Initialize
 //
 //  Resets the session and seeds the symbol table before pass 1 walks a line.
@@ -995,11 +1045,19 @@ HRESULT AssemblySession::Initialize (const std::string & sourceText)
     m_result.startAddress = m_dialect.GetDefaultOrigin();
     m_pc                 = m_result.startAddress;
 
+    // The output cursor starts wherever the program counter does. Only an
+    // origin directive can separate them, and only in a dialect that says so.
+    m_outputPos          = m_result.startAddress;
+    m_outputStarted      = false;
+
     // Both passes evaluate with the dialect's binding rule, or an expression
     // would fold one way while sizing a line and the other way while emitting
-    // it.
+    // it. Same for the character-constant spelling, and for the same reason.
     m_pass1Ctx.binding   = m_dialect.GetOperatorBinding();
     m_pass2Ctx.binding   = m_dialect.GetOperatorBinding();
+
+    m_pass1Ctx.highAsciiCharDelimiter = m_dialect.GetHighAsciiCharDelimiter();
+    m_pass2Ctx.highAsciiCharDelimiter = m_dialect.GetHighAsciiCharDelimiter();
 
     m_lines = Parser::SplitLines (sourceText);
 
@@ -1178,6 +1236,7 @@ HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
     info.usedExtendedSet   = m_extendedActive;
 
     info.pc                = m_pc;
+    info.outputPos         = m_outputPos;
     info.isInstruction     = false;
     info.isDirective       = false;
     info.isConstant        = false;
@@ -1473,6 +1532,13 @@ HRESULT AssemblySession::RunPreludeDirectives (const PendingLine & current, Line
 
     case Pass1Prelude::Org:
         hr = HandleOrgDirective (current, info);
+        CHR (hr);
+
+        // An origin claims the line before the label stage runs, so a label
+        // sharing it had been dropped without a word. It binds to where output
+        // has reached -- see RecordLabel for why that is not the program
+        // counter.
+        hr = RecordLabel (current, info, m_outputPos);
         info.isDirective = true;
         break;
 
@@ -1559,7 +1625,7 @@ HRESULT AssemblySession::RunPass1Stages (const PendingLine & current, LineInfo &
     BAIL_OUT_IF (claimed, S_OK);
 
     // The PC has stopped moving, so a label on this line binds here.
-    hr = RecordLabel (current, info);
+    hr = RecordLabel (current, info, m_pc);
     CHR (hr);
 
     hr = RunContentStages (current, info);
@@ -2420,6 +2486,21 @@ HRESULT AssemblySession::HandleEndifDirective (const PendingLine & current)
 //  value that only arrives in pass 2 would mean every one of them was wrong
 //  the first time round.
 //
+//  WHETHER THE OUTPUT CURSOR COMES ALONG is the dialect's answer, not this
+//  function's. A seeking dialect writes into an address-indexed image, so the
+//  cursor follows and the gap becomes fill. A relocating one leaves the output
+//  contiguous and changes only what labels bind to -- which is how one Merlin
+//  object holds three sections assembled at three addresses.
+//
+//  Either way the FIRST origin places the image: until something has been
+//  reserved there is no output to strand, and the byte stream has to begin
+//  where the source said it would.
+//
+//  An origin with NO OPERAND resyncs the program counter to the cursor -- "put
+//  the address back where the bytes actually are". That is meaningless while
+//  the two cannot differ, so a seeking dialect keeps reporting it as a missing
+//  operand rather than silently accepting a no-op.
+//
 //  The FIRST .org also sets m_result.startAddress, which is the load address
 //  of the emitted image. Later ones only move the PC; the image still begins
 //  where the first one put it.
@@ -2432,10 +2513,20 @@ HRESULT AssemblySession::HandleEndifDirective (const PendingLine & current)
 
 HRESULT AssemblySession::HandleOrgDirective (const PendingLine & current, LineInfo & info)
 {
-    HRESULT     hr = S_OK;
+    HRESULT     hr        = S_OK;
+    bool        relocates = (m_dialect.GetOriginSemantic() == OriginSemantic::ProgramCounterOnly);
+    bool        isResync  = relocates && info.parsed.directiveArg.empty();
     ExprResult  er;
 
 
+
+    if (isResync)
+    {
+        m_pc    = m_outputPos;
+        info.pc = m_pc;
+    }
+
+    BAIL_OUT_IF (isResync, S_OK);
 
     m_pass1Ctx.currentPC = (int32_t) m_pc;
     er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass1Ctx);
@@ -2456,6 +2547,12 @@ HRESULT AssemblySession::HandleOrgDirective (const PendingLine & current, LineIn
         m_pc    = newAddr;
         info.pc = m_pc;
 
+        if (!relocates || !m_outputStarted)
+        {
+            m_outputPos    = newAddr;
+            info.outputPos = newAddr;
+        }
+
         if (!m_originSet)
         {
             m_result.startAddress = newAddr;
@@ -2463,7 +2560,7 @@ HRESULT AssemblySession::HandleOrgDirective (const PendingLine & current, LineIn
         }
     }
 
-// Error:
+Error:
     return hr;
 }
 
@@ -2496,8 +2593,11 @@ HRESULT AssemblySession::HandleSegmentSwitch (LineInfo & info, bool & handled)
 
     BAIL_OUT_IF (!IsSegmentDirective (token), S_OK);
 
-    // Save current PC to current segment
-    m_segmentPC[(int) m_currentSegment] = m_pc;
+    // Save current PC to current segment, and the output cursor beside it --
+    // a segment picks up where it left off in BOTH, or its bytes would resume
+    // at the right address and the wrong place in the file.
+    m_segmentPC[(int) m_currentSegment]        = m_pc;
+    m_segmentOutputPos[(int) m_currentSegment] = m_outputPos;
 
     // The long and short spellings share a token, so each segment is one
     // comparison rather than two -- and .CODE can no longer drift from
@@ -2516,8 +2616,10 @@ HRESULT AssemblySession::HandleSegmentSwitch (LineInfo & info, bool & handled)
     }
 
     // Restore target segment's PC
-    m_pc    = m_segmentPC[(int) m_currentSegment];
-    info.pc = m_pc;
+    m_pc           = m_segmentPC[(int) m_currentSegment];
+    m_outputPos    = m_segmentOutputPos[(int) m_currentSegment];
+    info.pc        = m_pc;
+    info.outputPos = m_outputPos;
 
     info.isDirective = true;
     handled = true;
@@ -2679,7 +2781,7 @@ Error:
 //
 //  AssemblySession::RecordLabel
 //
-//  Binds a label to the current PC in pass 1, so pass 2 can resolve forward
+//  Binds a label to `address` in pass 1, so pass 2 can resolve forward
 //  references to it. Three tables are written together and must stay in step:
 //  m_symbols (the Word address), m_symbolKinds (Label vs Equ vs Set, which is
 //  what lets .SET be redefined and a label not), and m_exprSymbols (the
@@ -2694,9 +2796,16 @@ Error:
 //  far more often a typo that would otherwise assemble into something silently
 //  wrong.
 //
+//  The address is passed in rather than read from m_pc because a label sharing
+//  a line with an origin directive binds to the OUTPUT CURSOR, not to the
+//  relocated program counter. Merlin's `HEREINT ORG INTRFACE` is the case: the
+//  loader that copies the interface section to page 3 needs to know where the
+//  section sits in the file it was loaded from, so binding the label to $0300
+//  would be silently, plausibly wrong.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & info)
+HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & info, Word address)
 {
     HRESULT      hr      = S_OK;
     char         prefix  = m_dialect.GetLocalLabelPrefix();
@@ -2737,9 +2846,9 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
         {
             std::string  upper;
 
-            m_symbols[stored]     = m_pc;
+            m_symbols[stored]     = address;
             m_symbolKinds[stored] = SymbolKind::Label;
-            m_exprSymbols[stored] = (int32_t) m_pc;
+            m_exprSymbols[stored] = (int32_t) address;
 
             // Warn if label resembles mnemonic by case
             upper = ToUpperCase (spelled);
@@ -2938,7 +3047,7 @@ HRESULT AssemblySession::HandlePass1Word (const PendingLine & /*current*/, LineI
 
 
 
-    m_pc += (Word) (args.size() * 2);
+    ReserveBytes ((Word) (args.size() * 2));
 
     return S_OK;
 }
@@ -2962,7 +3071,7 @@ HRESULT AssemblySession::HandlePass1Text (const PendingLine & /*current*/, LineI
 
 
 
-    m_pc += (Word) text.size();
+    ReserveBytes ((Word) text.size());
 
     return S_OK;
 }
@@ -3178,7 +3287,7 @@ HRESULT AssemblySession::HandlePass1Hex (const PendingLine & current, LineInfo &
         RecordError (current.sourceLineNumber, error);
     }
 
-    m_pc += (Word) bytes.size();
+    ReserveBytes ((Word) bytes.size());
 
     return S_OK;
 }
@@ -3242,7 +3351,7 @@ HRESULT AssemblySession::HandlePass1String (const PendingLine & current, LineInf
         RecordError (current.sourceLineNumber, error);
     }
 
-    m_pc += (Word) bytes.size();
+    ReserveBytes ((Word) bytes.size());
 
     return S_OK;
 }
@@ -3265,7 +3374,7 @@ HRESULT AssemblySession::HandlePass1Dd (const PendingLine & /*current*/, LineInf
 
 
 
-    m_pc += (Word) (args.size() * 4);
+    ReserveBytes ((Word) (args.size() * 4));
 
     return S_OK;
 }
@@ -3304,7 +3413,7 @@ HRESULT AssemblySession::HandlePass1Ds (const PendingLine & current, LineInfo & 
         }
         else
         {
-            m_pc += (Word) er.value;
+            ReserveBytes ((Word) er.value);
         }
     }
 
@@ -3354,7 +3463,7 @@ HRESULT AssemblySession::HandlePass1Align (const PendingLine & current, LineInfo
 
         if (overshoot != 0)
         {
-            m_pc += (Word) (alignment - overshoot);
+            ReserveBytes ((Word) (alignment - overshoot));
         }
     }
 
@@ -3669,11 +3778,11 @@ HRESULT AssemblySession::HandlePass1DataDirectives (const PendingLine & current,
     if (values.empty() && !info.parsed.directiveArg.empty())
     {
         auto args = Parser::SplitArgList (info.parsed.directiveArg);
-        m_pc += (Word) args.size();
+        ReserveBytes ((Word) args.size());
     }
     else
     {
-        m_pc += (Word) values.size();
+        ReserveBytes ((Word) values.size());
     }
 
 // Error:
@@ -4844,7 +4953,7 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
 
         if (m_opcodeTable->TryLookup (info.parsed.mnemonic, mode, entry))
         {
-            m_pc += 1 + entry.operandSize;
+            ReserveBytes ((Word) (1 + entry.operandSize));
         }
         else
         {
@@ -4866,7 +4975,7 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
             if (altMode != mode && m_opcodeTable->TryLookup (info.parsed.mnemonic, altMode, entry))
             {
                 info.resolvedMode = altMode;
-                m_pc += 1 + entry.operandSize;
+                ReserveBytes ((Word) (1 + entry.operandSize));
             }
             else if (!info.hasError)
             {
@@ -4884,7 +4993,7 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
                 }
 
                 info.hasError = true;
-                m_pc += EstimateErrorRecoverySize (info.classified.syntax, info.parsed.mnemonic);
+                ReserveBytes (EstimateErrorRecoverySize (info.classified.syntax, info.parsed.mnemonic));
             }
         }
     }
@@ -5011,7 +5120,7 @@ HRESULT AssemblySession::HandleMultiNop (const PendingLine & current, LineInfo &
             info.parsed.directive      = ".MULTINOP";
             info.parsed.directiveToken = Directive::MultiNop;
             info.parsed.directiveArg   = info.parsed.operand;
-            m_pc += (Word) er.value;
+            ReserveBytes ((Word) er.value);
         }
 
         handled = true;
@@ -5069,8 +5178,12 @@ HRESULT AssemblySession::RunPass2()
 
     for (const auto & info : m_lineInfos)
     {
-        Word emitPCStart    = info.pc;
-        Word emitPC         = info.pc;
+        // Bytes go where pass 1 said they would land, which is NOT the address
+        // the line runs at once a relocating origin has moved the two apart.
+        // Expressions on the line still see info.pc, because that is what a
+        // label on it bound to and what a branch from it is computed against.
+        Word emitPCStart    = info.outputPos;
+        Word emitPC         = info.outputPos;
         bool lineHasAddress = false;
 
         // Pass 2 walks the recorded lines rather than the pending ones, so the

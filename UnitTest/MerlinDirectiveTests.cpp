@@ -246,6 +246,60 @@ namespace MerlinDirectiveTests
             Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "assertion failed"),
                             L"a forward reference must resolve rather than report as unresolvable");
         }
+
+
+
+        //  The second form. A leading backslash makes the operand a CEILING
+        //  rather than a condition: the assertion fires when the assembly has
+        //  grown past it. `MAKE DUMP.S` bounds all three of its sections that way.
+        TEST_METHOD (TheAddressCheckFormFiresWhenTheAssemblyOverruns)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         " ORG $300\n HEX 0102030405\n ERR \\$303\n");
+
+            Assert::IsFalse (result.success, L"five bytes from $300 reach $305, which is past $303");
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "assertion failed"),
+                            L"and it is the same assertion, not a syntax error about the backslash");
+        }
+
+
+
+        TEST_METHOD (TheAddressCheckFormIsSilentWhenItFits)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         " ORG $300\n HEX 0102030405\n ERR \\$400\n");
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual ((size_t) 5, result.bytes.size(), L"and the assertion itself emits nothing");
+        }
+
+
+
+        //  The ceiling is the WHOLE operand. Merlin folds left to right, so
+        //  without grouping this reads as "did it overrun $300, plus five" -- a
+        //  comparison result with something added to it, which is non-zero and
+        //  fires on a file that fits exactly.
+        TEST_METHOD (TheAddressCheckCeilingIsTheWholeExpression)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         " ORG $300\n HEX 0102030405\n ERR \\$300+5\n");
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual ((size_t) 5, result.bytes.size(), L"$305 is not past $305");
+        }
+
+
+
+        //  The address it checks is the PROGRAM COUNTER, which a relocating origin
+        //  has moved away from where the bytes are landing. A ceiling measured
+        //  against the output position would pass this and fail the vendor source.
+        TEST_METHOD (TheAddressCheckMeasuresTheRelocatedProgramCounter)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         " ORG $9000\n DFB $11\n ORG $300\n HEX 0102030405\n ERR \\$303\n");
+
+            Assert::IsFalse (result.success, L"the section runs at $300 even though its bytes sit at $9001");
+        }
     };
 
 
@@ -458,6 +512,377 @@ namespace MerlinDirectiveTests
             AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" ORG $300\n BRK\n");
 
             Assert::AreEqual (0x0300, (int) result.startAddress, L"a source naming an origin decides its own");
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinOriginSemanticTests
+    //
+    //  What an origin directive moves. Merlin's relocates the program counter and
+    //  leaves the output cursor alone, so a source assembling several sections at
+    //  several addresses still ships as one contiguous stream. AS65's seeks, and
+    //  the gap between two sections becomes fill.
+    //
+    //  Every test here has an AS65 counterpart, because the two dialects share
+    //  the directive and differ only in what it does -- so a Merlin-only test
+    //  would pass just as happily against an engine that never asked.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinOriginSemanticTests)
+    {
+    public:
+
+        //  Three bytes written at three different addresses, arriving as three
+        //  consecutive bytes. The label values are the other half: HERE is where
+        //  its section SITS in the file, AFTER is where the resync put the
+        //  program counter back to, and the byte between them ran at $0300.
+        TEST_METHOD (AnOriginRelocatesWithoutMovingTheOutput)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $9000\n DFB $11\n"
+                                              "HERE ORG $300\n DFB $22\n"
+                                              " ORG\nAFTER DFB $33\n");
+            std::vector<Byte>  expected = { 0x11, 0x22, 0x33 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the output stays contiguous across both origins");
+            Assert::AreEqual (0x9000, (int) result.startAddress, L"and loads where the first origin put it");
+        }
+
+
+
+        //  The same source under AS65, whose origin seeks. It cannot produce
+        //  three bytes: the second section lands 36 KB below the first and the
+        //  image spans the gap.
+        TEST_METHOD (As65SeeksAndLeavesTheGapBehind)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::Assemble (
+                                         " .org $9000\n .byte $11\n"
+                                         " .org $300\n .byte $22\n", DialectId::As65);
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes.size() > 3,
+                            L"a seeking origin writes into an address-indexed image, so the gap is in the output");
+            Assert::AreEqual (0x0300, (int) result.startAddress, L"and the image begins at the lowest address written");
+        }
+
+
+
+        //  The first origin places the image, and a directive that reserved
+        //  NOTHING must not be what stops it. Otherwise a zero-length
+        //  reservation above the origin silently moves the whole object to the
+        //  dialect's default address -- perfect bytes, wrong place.
+        TEST_METHOD (ADirectiveReservingNothingDoesNotCountAsOutput)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " DS 0\n ORG $9000\n DFB $11\n");
+            std::vector<Byte>  expected = { 0x11 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"nothing was reserved, so nothing was emitted before the origin");
+            Assert::AreEqual (0x9000, (int) result.startAddress, L"and the origin still decides where the image begins");
+        }
+
+
+
+        //  A bare origin resyncs the program counter to where output has actually
+        //  reached. `MAKE DUMP.S` writes it twice, commenting both as recalling
+        //  the real load address, and it is meaningless unless the two can drift.
+        TEST_METHOD (ABareOriginResyncsTheProgramCounterToTheOutput)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         " ORG $9000\n DFB $11\n"
+                                         " ORG $300\n DFB $22\n"
+                                         " ORG\nAFTER DFB $33\n");
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual (0x9002, (int) result.symbols.at ("AFTER"),
+                              L"the resync must name the file position, not the address the last section ran at");
+        }
+
+
+
+        //  Nothing to resync to where the two cursors are the same thing, so AS65
+        //  keeps reporting a missing operand rather than quietly accepting a
+        //  no-op that reads as though it did something.
+        TEST_METHOD (As65StillRefusesAnOriginWithNoOperand)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::Assemble (" .org\n .byte $11\n", DialectId::As65);
+
+            Assert::IsFalse (result.success, L"an operandless .org must stay an error under AS65");
+        }
+
+
+
+        //  A label sharing a line with an origin binds to the OUTPUT position.
+        //  `MAKE DUMP`'s loader copies its interface section to page 3 and needs
+        //  to know where that section sits in the file it was loaded from, so
+        //  binding the label to the relocated address would be silently wrong --
+        //  and it would still assemble.
+        TEST_METHOD (ALabelOnAnOriginLineBindsToTheOutputPosition)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         " ORG $9000\n DFB $11\n"
+                                         "HERE ORG $300\n DFB $22\n");
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual (0x9001, (int) result.symbols.at ("HERE"),
+                              L"HERE is where the relocated section sits in the file, not where it runs");
+        }
+
+
+
+        //  It has to BIND, which is the part that was missing: the origin claimed
+        //  the line before the label stage ran, so a label there was dropped
+        //  without a word and every use of it reported as undefined.
+        TEST_METHOD (ALabelOnAnOriginLineIsUsableAsASymbol)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $9000\n DFB $11\n"
+                                              "HERE ORG $300\n DFB $22\n"
+                                              " ORG\n DA HERE\n");
+            std::vector<Byte>  expected = { 0x11, 0x22, 0x01, 0x90 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the label must resolve where it is used, not only be recorded");
+        }
+
+
+
+        //  AS65 dropped such a label too, so this is a dialect-neutral fix rather
+        //  than a Merlin one. The VALUE differs only because the dialects differ
+        //  about what the origin did to the output cursor -- one rule, two
+        //  answers, no branch.
+        TEST_METHOD (As65BindsALabelOnAnOriginLineToTheAddressItSeekedTo)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::Assemble (
+                                         " .org $9000\n .byte $11\n"
+                                         "HERE: .org $300\n .byte $22\n", DialectId::As65);
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual (0x0300, (int) result.symbols.at ("HERE"),
+                              L"where the origin seeks, the output cursor IS the new address");
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinOperandlessInstructionTests
+    //
+    //  Merlin writes accumulator mode by leaving the operand off entirely. AS65
+    //  requires the register named, and treats a bare shift as a missing operand.
+    //
+    //  Which mnemonics have an accumulator encoding is the opcode table's answer,
+    //  so a mnemonic that HAS an implied form must keep resolving to it -- that is
+    //  the guard against a rule that swallows every operandless line.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinOperandlessInstructionTests)
+    {
+    public:
+
+        TEST_METHOD (ABareShiftIsAccumulatorMode)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" LSR\n ASL\n ROL\n ROR\n");
+            std::vector<Byte>  expected = { 0x4A, 0x0A, 0x2A, 0x6A };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"all four shifts take their accumulator opcode");
+        }
+
+
+
+        TEST_METHOD (AMnemonicWithAnImpliedFormStillTakesIt)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" NOP\n TAX\n INX\n");
+            std::vector<Byte>  expected = { 0xEA, 0xAA, 0xE8 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the accumulator fallback must not displace an implied encoding");
+        }
+
+
+
+        TEST_METHOD (TheAccumulatorMayStillBeNamed)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" LSR A\n");
+            std::vector<Byte>  expected = { 0x4A };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the explicit spelling is not withdrawn by accepting the bare one");
+        }
+
+
+
+        TEST_METHOD (As65StillRequiresTheAccumulatorNamed)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::Assemble (" lsr\n", DialectId::As65);
+
+            Assert::IsFalse (result.success, L"a bare shift must stay a missing operand under AS65");
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "Missing operand"),
+                            L"and must say so rather than failing some other way");
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinCharacterConstantTests
+    //
+    //  Merlin spells a character constant two ways and they mean different bytes:
+    //  the apostrophe form is the plain character and the double-quoted form is
+    //  the same character in high ASCII, matching the convention its string
+    //  directives take from their delimiter.
+    //
+    //  `MAKE DUMP.S` compares keystrokes and builds hexadecimal digits with the
+    //  quoted form throughout -- `CMP #"N"`, `ORA #"0"` -- so its object is the
+    //  oracle for which bit 7 is.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinCharacterConstantTests)
+    {
+    public:
+
+        TEST_METHOD (ADoubleQuotedCharacterIsHighAscii)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" LDA #\"A\"\n");
+            std::vector<Byte>  expected = { 0xA9, 0xC1 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the quoted form sets bit 7");
+        }
+
+
+
+        TEST_METHOD (AnApostropheCharacterStaysLow)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" LDA #'A'\n");
+            std::vector<Byte>  expected = { 0xA9, 0x41 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the two spellings must not collapse into one");
+        }
+
+
+
+        TEST_METHOD (AQuotedCharacterTakesPartInAnExpression)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" LDA #\"9\"+1\n");
+            std::vector<Byte>  expected = { 0xA9, 0xBA };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"it is a value, not a whole-operand special case");
+        }
+
+
+
+        //  The instruction forms above are all settled in PASS 1, so they say
+        //  nothing about whether pass 2 lexes the same way. A data directive is
+        //  what discriminates: its arguments are evaluated where the bytes are
+        //  emitted. Confirmed by mutation -- carrying the spelling into pass 1
+        //  alone leaves every other test in this class green.
+        //
+        //  The `+1` is load-bearing rather than decoration. An argument that is
+        //  ENTIRELY a quoted run is taken as string data before the evaluator
+        //  ever sees it, so a bare `DA "A"` would exercise the wrong path.
+        TEST_METHOD (AQuotedCharacterAlsoResolvesWhereTheBytesAreEmitted)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" DA \"A\"+1\n");
+            std::vector<Byte>  expected = { 0xC2, 0x00 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"both passes must read the same character spelling");
+        }
+
+
+
+        TEST_METHOD (As65DoesNotAcceptTheQuotedForm)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::Assemble (" lda #\"A\"\n", DialectId::As65);
+
+            Assert::IsFalse (result.success, L"admitting one dialect's spelling into another is what strictness forbids");
+        }
+
+
+
+        TEST_METHOD (As65KeepsTheApostropheForm)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::Assemble (" lda #'A'\n", DialectId::As65);
+            std::vector<Byte>  expected = { 0xA9, 0x41 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the spelling AS65 already had must be untouched");
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinByteSelectorTests
+    //
+    //  In Merlin the selector after the immediate sigil picks a byte out of the
+    //  WHOLE expression. The shared evaluator's `<` and `>` are prefix operators
+    //  binding to the term beside them, which is what AS65 means by them.
+    //
+    //  Settled from the object. `MAKE DUMP`'s loader stores the end of a section
+    //  with `LDA #>HEREMAIN-1` and the shipped bytes hold the high byte of the
+    //  subtracted value. Both readings agree on the LOW byte of every such pair,
+    //  which is what lets the mistake survive a careless comparison.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinByteSelectorTests)
+    {
+    public:
+
+        TEST_METHOD (TheHighByteSelectorAppliesToTheWholeExpression)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "TARGET = $90A7\n LDA #>TARGET-1\n");
+            std::vector<Byte>  expected = { 0xA9, 0x90 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the byte is taken after the subtraction, not before it");
+        }
+
+
+
+        //  The low selector needs a DIVISION to be testable at all, and that is
+        //  worth stating rather than leaving as an odd-looking source. Addition,
+        //  subtraction and multiplication are all congruent modulo 256, so
+        //  `<X-1` and `<(X-1)` agree for every X -- a subtraction test here
+        //  passes under both readings and proves nothing. Division does not
+        //  commute with taking a byte, so it discriminates. Verified by mutation.
+        TEST_METHOD (TheLowByteSelectorDoesTheSame)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "TARGET = $9105\n LDA #<TARGET/$100\n");
+            std::vector<Byte>  expected = { 0xA9, 0x91 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the whole expression is divided, and the byte taken afterwards");
+        }
+
+
+
+        TEST_METHOD (As65KeepsTheSelectorBindingToItsOwnTerm)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::Assemble (
+                                              "TARGET equ $90A7\n lda #>TARGET-1\n", DialectId::As65);
+            std::vector<Byte>  expected = { 0xA9, 0x8F };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"AS65's prefix operator must bind exactly as it always did");
         }
     };
 

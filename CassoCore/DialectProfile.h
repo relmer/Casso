@@ -34,6 +34,63 @@ enum class CpuSelectionSource
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OriginSemantic
+//
+//  What an origin directive moves. The assembler tracks two positions that most
+//  source never separates: where a byte LANDS in the output, and what address it
+//  will RUN at. Every directive that reserves space moves both by the same
+//  amount, so only an origin can tell them apart.
+//
+//  as65 seeks: the output is an address-indexed image, so an origin moves the
+//  output position and the program counter together and the gap between two
+//  sections becomes fill bytes. Merlin relocates: the output stays one
+//  contiguous stream and the origin changes only what labels bind to and what
+//  branches are computed from. `MAKE DUMP` is the proof -- three sections at
+//  $9000, $0300 and $0900 in one 589-byte object loading at $9000.
+//
+//  DATA rather than a branch. The two-pass driver reads this once per origin
+//  line and is otherwise unaware that dialects differ about it, which is the
+//  same shape CpuSelectionSource uses to keep the command-line parser from
+//  naming a dialect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class OriginSemantic
+{
+    MovesOutputCursor,    // seek: the output position follows the program counter
+    ProgramCounterOnly,   // relocate: the output stays contiguous
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OperandlessForm
+//
+//  What an instruction written with no operand at all means. as65 requires the
+//  accumulator to be named -- `LSR A` -- and treats a bare `LSR` as a missing
+//  operand. Merlin writes the bare form, and `MAKE DUMP` uses it five times.
+//
+//  Which mnemonics have an accumulator encoding is NOT stated here: the opcode
+//  table already knows, and a second list in a profile is a second list to get
+//  wrong. All this says is whether the dialect lets the operand be left off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class OperandlessForm
+{
+    ImpliedOnly,            // no operand means the implied mode and nothing else
+    ImpliedOrAccumulator,   // ...or the accumulator, where there is no implied mode
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MnemonicAlias
 //
 //  One extra spelling a dialect accepts for an instruction the shared opcode
@@ -193,6 +250,27 @@ public:
     // expression parser -- the operator set and the folds stay one
     // implementation.
     virtual OperatorBinding     GetOperatorBinding () const { return OperatorBinding::ByPrecedence; }
+
+    // Whether an origin directive seeks in the output or only relocates the
+    // program counter, and -- inseparably -- whether an origin with no operand
+    // at all means anything. Resyncing the program counter to where output has
+    // actually reached is only expressible once the two can drift apart, so a
+    // seeking dialect keeps treating a bare origin as a missing operand.
+    //
+    // A default rather than a pure virtual: seeking is what every dialect Casso
+    // had before Merlin did, so a profile with no opinion keeps it.
+    virtual OriginSemantic      GetOriginSemantic () const { return OriginSemantic::MovesOutputCursor; }
+
+    // Whether an instruction may be written with no operand where the mnemonic
+    // has no implied encoding.
+    virtual OperandlessForm     GetOperandlessForm () const { return OperandlessForm::ImpliedOnly; }
+
+    // The delimiter that spells a HIGH-ASCII character constant, or 0 for a
+    // dialect with none. The apostrophe form always yields the plain character;
+    // Merlin additionally writes `"A"` for the same character with bit 7 set,
+    // which is the convention its string directives already use -- `CMP #"N"`
+    // and `ORA #"0"` in `MAKE DUMP.S` are comparisons against high-ASCII text.
+    virtual char                GetHighAsciiCharDelimiter () const { return 0; }
 
     // The character marking a label as local to the enclosing global one, or 0
     // for a dialect with no such concept.

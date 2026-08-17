@@ -536,6 +536,89 @@ namespace MerlinCorpusTests
                              L"Merlin source assembling identically under AS65 would mean the profile is not being consulted");
         }
 
+        //  The second whole-file oracle, and a far broader one than LABELS.S. It
+        //  is the largest source on the disk, it assembles THREE sections at
+        //  three different addresses into one contiguous object, and it exercises
+        //  macros, per-expansion body labels, local labels, raw hexadecimal, the
+        //  string family with trailing hexadecimal runs, branch aliases,
+        //  assembly-time assertions in both forms, and the byte selectors.
+        //
+        //  The 589 bytes are what makes it worth having. Nothing was relaxed to
+        //  reach them: the comparison is whole-file, byte-for-byte, against the
+        //  object the vendor shipped beside the source.
+        TEST_METHOD (MakeDumpSourceAssemblesToItsShippedObjectByteForByte)
+        {
+            FixtureProvider    provider;
+            TestCpu            cpu;
+            std::string        source;
+            MerlinFixtureFile  object;
+            AssemblerOptions   options    = {};
+            AssemblyResult     result;
+            CorpusComparison   comparison = {};
+
+            cpu.InitForTest();
+            options.dialect = DialectId::Merlin;
+
+            AssertSucceeded (MerlinFixture::LoadSource (provider, "Merlin/MAKE DUMP.S", source));
+            AssertSucceeded (MerlinFixture::LoadObject (provider, "Merlin/MAKE DUMP", object));
+
+            {
+                Assembler  merlin (cpu.GetInstructionSet(), options);
+
+                result = merlin.Assemble (source);
+            }
+
+            Assert::IsTrue (result.errors.empty(), FirstDiagnostic (result).c_str());
+
+            comparison = CorpusHarness::Compare (object.payload, result.bytes);
+
+            {
+                std::string   described = CorpusHarness::Describe ("MAKE DUMP.S", comparison);
+                std::wstring  message (described.begin(), described.end());
+
+                Assert::IsTrue (comparison.verdict == CorpusVerdict::Match, message.c_str());
+            }
+
+            //  The load address is half the claim. Three sections at $9000,
+            //  $0300 and $0900 collapse to ONE object loading at $9000, which is
+            //  only true because the origin directive relocates rather than
+            //  seeking -- and 589 contiguous bytes cannot span that range.
+            Assert::AreEqual (static_cast<int> (object.loadAddress), static_cast<int> (result.startAddress),
+                              L"the object loads where its first origin put it, not where its lowest section runs");
+        }
+
+
+
+        //  The discriminating half. Every construct above is Merlin's, so a
+        //  result identical under AS65 would mean the profile was never consulted.
+        TEST_METHOD (MakeDumpSourceUnderAs65DoesNotProduceMerlinsBytes)
+        {
+            FixtureProvider    provider;
+            TestCpu            cpu;
+            std::string        source;
+            MerlinFixtureFile  object;
+            AssemblerOptions   options    = {};
+            AssemblyResult     result;
+            CorpusComparison   comparison = {};
+
+            cpu.InitForTest();
+            options.dialect = DialectId::As65;
+
+            AssertSucceeded (MerlinFixture::LoadSource (provider, "Merlin/MAKE DUMP.S", source));
+            AssertSucceeded (MerlinFixture::LoadObject (provider, "Merlin/MAKE DUMP", object));
+
+            {
+                Assembler  as65 (cpu.GetInstructionSet(), options);
+
+                result = as65.Assemble (source);
+            }
+
+            comparison = CorpusHarness::Compare (object.payload, result.bytes);
+
+            Assert::IsFalse (comparison.verdict == CorpusVerdict::Match,
+                             L"Merlin source assembling identically under AS65 would mean the profile is not being consulted");
+        }
+
     private:
 
         //  The first diagnostic, so a failure names what the assembler objected to

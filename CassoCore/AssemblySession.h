@@ -24,6 +24,17 @@ struct LineInfo
     ParsedLine        parsed;
     ClassifiedOperand classified;
     Word              pc;
+
+    // Where this line's bytes LAND, as against `pc`, which is what address they
+    // will RUN at. The same number for every line of an as65 assembly and for
+    // most of a Merlin one; they part company at a Merlin origin directive,
+    // which relocates the program counter and leaves the output contiguous.
+    //
+    // Recorded per line rather than recomputed in pass 2 for the same reason
+    // `usedExtendedSet` is: pass 2 walks this list, not the source, and would
+    // have to replay every origin to arrive at the number pass 1 already knew.
+    Word              outputPos;
+
     bool              isInstruction;
     bool              isDirective;
     bool              isConstant;
@@ -117,7 +128,7 @@ private:
     HRESULT HandleConditionalDirective (const PendingLine & current, LineInfo & info, bool & handled);
     HRESULT HandleOrgDirective         (const PendingLine & current, LineInfo & info);
     HRESULT HandleSegmentSwitch        (LineInfo & info, bool & handled);
-    HRESULT RecordLabel                (const PendingLine & current, LineInfo & info);
+    HRESULT RecordLabel                (const PendingLine & current, LineInfo & info, Word address);
     HRESULT ApplyLocalLabelScope       (const PendingLine & current, LineInfo & info);
     HRESULT HandleConstantDefinition   (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1Directives      (const PendingLine & current, LineInfo & info, bool & handled);
@@ -403,6 +414,13 @@ private:
     void InjectBuiltin (const std::string & name, int32_t value);
     void EmitByte      (Byte b, Word & emitPC);
 
+    // Reserves `count` bytes in pass 1: the program counter and the output
+    // cursor both move, because every directive that occupies space moves where
+    // the next byte lands AND what address it will run at, by the same amount.
+    // An origin directive is the only thing that can move one without the other,
+    // which is why this is the single place the two advance together.
+    void ReserveBytes  (Word count);
+
     // A POINTER rather than a reference, because an in-source CPU directive
     // re-seats it mid-assembly. Only ever changed at a line boundary, never
     // within one, so both passes agree about which table a given line used.
@@ -427,10 +445,35 @@ private:
     std::unordered_map<std::string, int32_t>           m_exprSymbols;
     ExprContext                                        m_pass1Ctx           = { &m_exprSymbols, 0 };
     Word                                               m_pc                 = 0;
+
+    // Where the next byte LANDS, which m_pc says nothing about once a dialect
+    // whose origin only relocates has moved the program counter. Seeded from
+    // the same default origin, advanced by exactly the same amounts, and
+    // repositioned by an origin directive only where the dialect says so.
+    Word                                               m_outputPos          = 0;
+
+    // Whether anything has been reserved yet. The FIRST origin directive
+    // establishes where output begins whatever the dialect, so it moves the
+    // cursor too; after that, moving it is the seeking dialect's behavior alone
+    // and doing it for a relocating one would strand the bytes already placed.
+    bool                                               m_outputStarted      = false;
+
     bool                                               m_originSet          = false;
     bool                                               m_endAssembly        = false;
     Segment                                            m_currentSegment     = Segment::Code;
     Word                                               m_segmentPC[3]       = { 0, 0, 0 };
+
+    // The output cursor each segment left off at, saved and restored beside its
+    // program counter. Kept as a pair rather than derived from m_segmentPC,
+    // which would only be right for a dialect whose origin seeks.
+    //
+    // NO TEST DISCRIMINATES THIS TODAY, and that is recorded rather than left
+    // to be rediscovered: segment directives are as65-only tokens, and as65's
+    // two cursors never part, so this array and m_segmentPC hold the same
+    // values on every path anything can reach. It stays because it is what
+    // keeps the property true by construction for the first relocating dialect
+    // that gains segments -- verified by mutation, which nothing caught.
+    Word                                               m_segmentOutputPos[3] = { 0, 0, 0 };
     // The global label every local label since it belongs to. Empty until the
     // first global one, which is why a local before it is an error rather than
     // a symbol in an unnamed scope.

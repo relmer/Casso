@@ -21,6 +21,13 @@ struct ExprContext
     // precedence it has always had and only a dialect that says otherwise
     // changes.
     OperatorBinding                                  binding = OperatorBinding::ByPrecedence;
+
+    // The delimiter that spells a HIGH-ASCII character constant, or 0 where the
+    // dialect has none. Defaulted for the same reason as `binding`: an
+    // expression arriving from a caller that never heard of dialects lexes
+    // exactly as it always did, and the apostrophe form is unaffected either
+    // way.
+    char                                             highAsciiCharDelimiter = 0;
 };
 
 

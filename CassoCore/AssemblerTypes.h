@@ -4,6 +4,10 @@
 
 
 
+class DialectProfile;
+
+
+
 
 
 enum class WarningMode
@@ -148,6 +152,17 @@ struct AssemblerOptions
     // the CLI, the tests, and anything later that assembles source. Defaults to
     // AS65, so callers that predate dialect selection are unaffected.
     DialectId                                   dialect           = DialectId::As65;
+
+    // A profile that is not in the registry, for a caller that has one. Null --
+    // which is every production caller -- means the registry answers for
+    // `dialect` as it always did.
+    //
+    // The injection point exists because the registry is a closed table, and a
+    // mechanism that can only be exercised through its own table cannot be shown
+    // to work for a dialect that is not in it yet. That is precisely the claim
+    // SC-009 makes, so the claim needs a door. Same shape as `fileReader`: the
+    // dependency is named here rather than reached for.
+    const DialectProfile                      * dialectProfile    = nullptr;
     Byte                                        fillByte          = 0xFF;
     bool                                        generateListing   = false;
     WarningMode                                 warningMode       = WarningMode::Warn;

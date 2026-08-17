@@ -51,7 +51,9 @@ struct ExpressionEvaluator::Token
 class ExpressionEvaluator::Tokenizer
 {
 public:
-    Tokenizer (const std::string & text) : m_text (text), m_pos (0), m_hasPeeked (false), m_lastWasValue (false) { }
+    Tokenizer (const std::string & text, char highAsciiCharDelimiter)
+        : m_text (text), m_pos (0), m_hasPeeked (false), m_lastWasValue (false),
+          m_highAsciiCharDelimiter (highAsciiCharDelimiter) { }
 
     Token Next()
     {
@@ -95,7 +97,7 @@ private:
     Token ReadHexNumber();
     Token ReadBinaryNumber();
     Token ReadOctalNumber();
-    Token ReadCharConstant();
+    Token ReadCharConstant (char delimiter, bool setsHighBit);
     Token ReadDecimalNumber();
     Token ReadIdentifier();
     Token ReadOperator();
@@ -106,6 +108,7 @@ private:
     Token               m_peeked;
     bool                m_hasPeeked;
     bool                m_lastWasValue;
+    char                m_highAsciiCharDelimiter;
 };
 
 
@@ -231,8 +234,15 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadOctalNumber()
 //
 //  ReadCharConstant
 //
-//  Reads a single-quoted character constant. The opening quote has already
-//  been consumed by the caller.
+//  Reads a delimited character constant. The opening delimiter has already
+//  been consumed by the caller, which also says which character closes it and
+//  whether this spelling carries the high bit.
+//
+//  `setsHighBit` is what makes the second delimiter worth having rather than a
+//  synonym. A dialect that offers two spellings offers them because they mean
+//  different bytes -- the apostrophe form is the plain character and the other
+//  is the same character in high ASCII, which is the encoding Apple II text is
+//  stored in.
 //
 //  An UNKNOWN escape yields the literal character rather than an error, so
 //  `'\q'` is `q`. That is the period assembler behavior, and rejecting it
@@ -249,10 +259,12 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadOctalNumber()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadCharConstant()
+ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadCharConstant (char delimiter, bool setsHighBit)
 {
-    char  ch  = 0;
-    char  esc = 0;
+    constexpr int32_t  kHighBit = 0x80;
+    char               ch       = 0;
+    char               esc      = 0;
+    int32_t            value    = 0;
 
 
 
@@ -285,10 +297,17 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadCharConstant()
             }
         }
 
-        if (m_pos < m_text.size() && m_text[m_pos] == '\'')
+        if (m_pos < m_text.size() && m_text[m_pos] == delimiter)
         {
             m_pos++;
-            token = { TokType::Number, (int32_t) (unsigned char) ch, "" };
+            value = (int32_t) (unsigned char) ch;
+
+            if (setsHighBit)
+            {
+                value |= kHighBit;
+            }
+
+            token = { TokType::Number, value, "" };
         }
     }
 
@@ -627,7 +646,16 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadNext()
         if (c == '\'')
         {
             m_pos++;
-            token = ReadCharConstant();
+            token = ReadCharConstant ('\'', false);
+        }
+        else if ((m_highAsciiCharDelimiter != 0) && (c == m_highAsciiCharDelimiter))
+        {
+            // The dialect's high-ASCII spelling of the same thing. Absent
+            // unless a profile named a delimiter, so a dialect without one
+            // still gets "unexpected token" here rather than a second syntax it
+            // does not have.
+            m_pos++;
+            token = ReadCharConstant (m_highAsciiCharDelimiter, true);
         }
         else if (c == '$')
         {
@@ -1197,7 +1225,7 @@ ExprResult ExpressionEvaluator::Evaluate (const std::string & expr, const ExprCo
         end     = trimmed.find_last_not_of (" \t");
         trimmed = trimmed.substr (start, end - start + 1);
 
-        Tokenizer  tok (trimmed);
+        Tokenizer  tok (trimmed, ctx.highAsciiCharDelimiter);
 
         if (!TryParseBinary (tok, ctx, s_kLoosestBinaryLevel, value, error))
         {

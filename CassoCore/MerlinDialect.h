@@ -148,6 +148,24 @@ public:
     // shipped a working object for.
     OperatorBinding     GetOperatorBinding () const override { return OperatorBinding::LeftToRight; }
 
+    // ORG relocates and does not seek. Merlin's output is one contiguous stream
+    // whatever the origin says, and `MAKE DUMP` proves it: three sections at
+    // $9000, $0300 and $0900 in a single 589-byte object loading at $9000, with
+    // the $0300 section beginning at file offset 89 directly after the loader.
+    // An operandless ORG then means "resync the program counter to where output
+    // has actually reached", which the vendor writes twice and comments as
+    // recalling the real load address.
+    OriginSemantic      GetOriginSemantic () const override { return OriginSemantic::ProgramCounterOnly; }
+
+    // A shift or rotate is written with no operand at all for accumulator mode.
+    // `MAKE DUMP.S` has five bare LSRs and never writes the accumulator by name.
+    OperandlessForm     GetOperandlessForm () const override { return OperandlessForm::ImpliedOrAccumulator; }
+
+    // A double-quoted character constant is HIGH ASCII, matching the high-bit
+    // convention Merlin's string directives take from their delimiter. The
+    // apostrophe form stays low, and is what the shared tokenizer already had.
+    char                GetHighAsciiCharDelimiter () const override { return '"'; }
+
     // A leading colon makes a label local to the global label above it, so the
     // same short name can be reused throughout a file. The vendor sources lean
     // on it hard: CLOCK.S defines `:OK` twice under different globals, and
@@ -181,4 +199,6 @@ private:
     static std::string  ReadOperandField    (const std::string & line, size_t & pos, const std::string & mnemonic);
     static std::string  QualifyVariableRefs (const std::string & text);
     static void         SplitCallPrefix     (std::string & mnemonic, std::string & operand);
+    static std::string  RewriteAddressCheck (const std::string & operand);
+    static std::string  RewriteByteSelector (const std::string & operand);
 };

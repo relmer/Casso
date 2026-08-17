@@ -63,6 +63,46 @@ the thing to raise.
    table with a reason class, exposed by an enumerating accessor, with help text
    generated from it.
 
+## Amendment: the emit cursor and the program counter
+
+Guarantee 1 says a profile needing engine changes has found a real gap and that
+the answer is a spec amendment. Merlin found one. This is it.
+
+**The gap.** `AssemblySession` had a single `m_pc` serving as both "where this
+byte goes" and "what address it will run at". Nothing in Casso's assembler could
+express *advance the program counter without advancing the output*, in any
+dialect. That is a missing capability in the ENGINE, not a Merlin quirk: as65
+simply never asked for it, because its origin directive seeks in an
+address-indexed image. Merlin's relocates — `MAKE DUMP.S` assembles three
+sections at `$9000`, `$0300` and `$0900` and ships 589 contiguous bytes loading
+at `$9000`, which no single-cursor model can produce.
+
+**The shape.** `AssemblySession` now carries an output cursor beside `m_pc`.
+Both advance together for every directive that occupies space; only an origin
+directive can separate them, and which it does is **profile data** —
+`DialectProfile::GetOriginSemantic`, following the `cpuSource` precedent that
+T051 requires for the same reason. A new `Directive` token was the other
+sanctioned option and is the wrong one here: guarantee 2 admits a token for an
+operation the assembler cannot already perform, and both dialects perform the
+same operation. They disagree about what it *means*, which is what a profile is
+for.
+
+**What this must not become.** `if (dialect == Merlin)` anywhere in the driver
+is the failure this amendment exists to avoid. The driver reads an enum off the
+profile and is otherwise unaware that dialects differ about origins. Two smaller
+axes landed the same way and under the same rule — `GetOperandlessForm` (whether
+an instruction may leave its operand off for accumulator mode) and
+`GetHighAsciiCharDelimiter` (a second character-constant spelling), the latter
+carried into the shared evaluator through `ExprContext` exactly as `binding`
+already was.
+
+**This is not an SC-009 violation.** The split modifies
+`CassoCore/AssemblySession.cpp`, one of the three files T070 names. T070 is
+evaluated against **T069's own commit**, not against `origin/master` — it says
+so itself, and T013, T018, T033 and others in this same feature modify that file
+too. The `ExpressionEvaluator.cpp` left-to-right change was filed the same way.
+Do not re-file either as a violation later.
+
 ## Verification
 
 SC-009 is proved by a **synthetic, test-only third profile** in the unit tests.

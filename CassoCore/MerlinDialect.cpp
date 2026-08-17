@@ -481,6 +481,100 @@ void MerlinDialect::SplitCallPrefix (std::string & mnemonic, std::string & opera
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MerlinDialect::RewriteByteSelector
+//
+//  In Merlin the byte selector written straight after the immediate sigil picks
+//  a byte out of the WHOLE expression, where the shared evaluator's `<` and `>`
+//  are prefix operators binding to the term beside them. Parenthesizing the
+//  remainder makes the two agree.
+//
+//  Settled by the object rather than by the manual. `MAKE DUMP`'s loader stores
+//  the address of a section it is about to move with `LDA #>HEREMAIN-1`, and
+//  the shipped bytes hold $90 where the prefix reading gives $8F -- the high
+//  byte of a value one less, taken before the subtraction instead of after.
+//  Both readings agree on the low byte, so half of every such pair matches
+//  either way, which is what makes this the kind of defect that survives a
+//  casual comparison.
+//
+//  Confined to the immediate form, because that is where Merlin documents the
+//  selector and where the corpus exercises it. A `>` elsewhere in an expression
+//  is left to bind as it always did.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MerlinDialect::RewriteByteSelector (const std::string & operand)
+{
+    constexpr char  kImmediateSigil = '#';
+    constexpr char  kLowByte        = '<';
+    constexpr char  kHighByte       = '>';
+    std::string     rewritten       = operand;
+    bool            isSelected      = (operand.size() > 2) &&
+                                      (operand[0] == kImmediateSigil) &&
+                                      ((operand[1] == kLowByte) || (operand[1] == kHighByte));
+
+
+
+    if (isSelected)
+    {
+        rewritten = operand.substr (0, 2) + "(" + operand.substr (2) + ")";
+    }
+
+    return rewritten;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinDialect::RewriteAddressCheck
+//
+//  Merlin's second form of the assembly-time assertion. `ERR expr` fails when
+//  the expression is non-zero; `ERR \expr` fails when the assembly has grown
+//  past `expr` -- "does this still fit below here". `MAKE DUMP.S` bounds all
+//  three of its sections that way.
+//
+//  Rewritten into the ordinary form rather than given a token or a flag,
+//  because the assembler can already compute it: the program counter is `*`
+//  and the comparison is `>`. That is the same treatment BLT and BGE get -- a
+//  dialect spelling resolved once at parse time, with nothing downstream
+//  learning that the source said something else.
+//
+//  The expression is PARENTHESIZED, which is not decoration. Merlin folds
+//  strictly left to right, so `ERR \$3D0+1` would otherwise become
+//  `(* > $3D0) + 1` -- a comparison whose result is then added to, which is
+//  neither what was written nor an error. No vendor line has a compound
+//  ceiling, so the corpus cannot report this and a synthetic test carries it.
+//
+//  UNVERIFIED: whether the boundary is exclusive. Merlin documents the check as
+//  firing when the address EXCEEDS the ceiling, and none of the three vendor
+//  uses lands on its own limit -- the closest is $034E against $03D0 -- so the
+//  corpus cannot tell `>` from `>=`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MerlinDialect::RewriteAddressCheck (const std::string & operand)
+{
+    constexpr char  kAddressCheckPrefix = '\\';
+    std::string     rewritten           = operand;
+
+
+
+    if (!operand.empty() && (operand[0] == kAddressCheckPrefix))
+    {
+        rewritten = "*>(" + operand.substr (1) + ")";
+    }
+
+    return rewritten;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MerlinDialect::TakesDelimitedText
 //
 //  Whether this mnemonic's operand is delimiter-quoted rather than
@@ -717,12 +811,20 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
     if (result.directiveToken != Directive::StringData)
     {
         result.operand = QualifyVariableRefs (result.operand);
+        result.operand = RewriteByteSelector (result.operand);
     }
 
     if (result.isDirective)
     {
         result.directive    = MerlinDirectiveTable::GetCanonicalName (result.directiveToken);
         result.directiveArg = result.operand;
+    }
+
+    // The assertion's address-check spelling becomes the expression it stands
+    // for, so the directive itself has one form downstream.
+    if (result.directiveToken == Directive::ErrorIf)
+    {
+        result.directiveArg = RewriteAddressCheck (result.directiveArg);
     }
 
     // Which of the six encodings the spelling selected. Resolved here because
