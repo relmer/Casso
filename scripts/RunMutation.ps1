@@ -63,7 +63,14 @@
 
 .PARAMETER ExpectedTotal
     Test count the unmutated tree produces. Omit and the script measures it
-    first, which costs one extra suite run and is the safer default.
+    first, which costs one extra suite run.
+
+    RECOMMENDED for a battery, and not only to save time: it is a second,
+    independent check that the tally being read is the one this run produced.
+    When two worktrees were sharing a log directory, a crossed read surfaced as
+    RUN DID NOT COMPLETE precisely because the two branches' totals differ. The
+    directory is now per-worktree and per-process, but a stated expectation
+    still turns "the number is wrong" into a verdict instead of a result.
 
 .EXAMPLE
     ./scripts/RunMutation.ps1 -File CassoCore/AssemblySession.cpp `
@@ -95,6 +102,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$started = Get-Date
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot  = Split-Path -Parent $scriptDir
 $buildPs1  = Join-Path $scriptDir 'Build.ps1'
@@ -114,7 +123,17 @@ if (-not (Test-Path $File))
 #  Select-Object -First N closes the pipeline while MSBuild keeps running, and
 #  the next build then collides with it over the PDB and reports a bogus
 #  C1041 "Build FAILED" that looks exactly like a real one.
-$logDir = Join-Path ([System.IO.Path]::GetTempPath()) 'CassoMutation'
+#  Keyed on the WORKTREE and this process, not a fixed name. Two agents running
+#  batteries in two worktrees share %TEMP%, and the verdict here is computed by
+#  writing a log and reading it straight back -- so a fixed name lets one
+#  branch's mutation be scored against another branch's suite. That is not
+#  hypothetical: it was caught in the wild, with 019's baseline log and 020's
+#  mutated log sitting in one directory at the same moment. It surfaced only
+#  because the two branches have different test totals and -ExpectedTotal
+#  turned the crossed read into RUN DID NOT COMPLETE rather than into a
+#  plausible wrong answer.
+$logKey = ([System.IO.Path]::GetFileName($repoRoot)) + '-' + $PID
+$logDir = Join-Path ([System.IO.Path]::GetTempPath()) (Join-Path 'CassoMutation' $logKey)
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 function Invoke-Build
@@ -152,7 +171,15 @@ function Invoke-Suite
     & $testPs1 @suiteArgs *>&1 | Out-File $log -Encoding utf8
 
     $text    = Get-Content $log -Raw
-    $result  = [pscustomobject]@{ Complete = $false; Total = -1; Passed = 0; Failed = 0; Skipped = 0; Log = $log }
+    $result  = [pscustomobject]@{ Complete = $false; Total = -1; Passed = 0; Failed = 0; Skipped = 0; Log = $log; FailedNames = @() }
+
+    #  WHICH tests failed, not just how many. Without this a verdict cannot
+    #  distinguish "the gate I just wrote caught it" from "something written
+    #  months ago caught it", and the only way to find out is to run the whole
+    #  battery a second time under a filter.
+    $result.FailedNames = @([regex]::Matches($text, '(?m)^\s*Failed\s+(\S+)') |
+                            ForEach-Object { $_.Groups[1].Value } |
+                            Select-Object -Unique)
 
     if ($text -match 'Total tests:\s*(\d+)')   { $result.Total   = [int]$Matches[1] }
     if ($text -match '\bPassed:\s*(\d+)')      { $result.Passed  = [int]$Matches[1] }
@@ -259,7 +286,9 @@ try
         }
         elseif ($run.Failed -gt 0)
         {
-            $verdict  = "CAUGHT -- $($run.Failed) of $($run.Total) tests failed."
+            $named    = ($run.FailedNames | Select-Object -First 8) -join ', '
+            $more     = if ($run.FailedNames.Count -gt 8) { ", +$($run.FailedNames.Count - 8) more" } else { '' }
+            $verdict  = "CAUGHT -- $($run.Failed) of $($run.Total) tests failed: $named$more"
             $exitCode = 0
         }
         else
@@ -299,5 +328,9 @@ finally
 $color = if ($exitCode -eq 0) { 'Green' } else { 'Yellow' }
 Write-Host ''
 Write-Host $verdict -ForegroundColor $color
+
+#  Elapsed matters when deciding whether a slow run is contention or a hang --
+#  without it the only way to tell is to go looking at processes.
+Write-Host ("  elapsed {0:mm\:ss}   logs: {1}" -f ((Get-Date) - $started), $logDir)
 
 exit $exitCode
