@@ -890,13 +890,138 @@ public:
         {
             ProDosVolume  volume (vol);
 
+            hr = volume.Write (FilePath::Parse ("1BADNAME"), payload, result);
+        }
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_NAME), hr);
+        Assert::AreEqual (size_t (0), result.size(), L"a refused write produces nothing");
+        Assert::IsTrue (vol == original, L"a refused write must not have touched the source image");
+    }
+
+
+    TEST_METHOD (Volume_Write_OverAnExistingName_ReplacesItRatherThanRefusing)
+    {
+        // The interim refusal this supersedes. What must never appear is a
+        // second directory record of the same name, so the assertion is on the
+        // count as much as on the contents.
+        vector<Byte>   vol     = MakeVolume();
+        vector<Byte>   result;
+        FilePayload    payload = MakeBinaryPayload (1'200, 0x6000);
+        FilePayload    back;
+        VolumeListing  listing;
+
+        AssertSucceeded (ProDosFileWriter::WriteFile (vol, "PROG", 0x06, 0x2000, MakePattern (600)));
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.Write (FilePath::Parse ("PROG"), payload, result));
+        }
+
+        {
+            ProDosVolume  written (result);
+
+            AssertSucceeded (written.Enumerate (listing));
+            AssertSucceeded (written.Read (FilePath::Parse ("PROG"), back));
+        }
+
+        Assert::AreEqual (size_t (1), listing.entries.size(),
+            L"one record of the name, never two");
+        Assert::AreEqual (string ("PROG"), listing.entries[0].name);
+        Assert::AreEqual (uint32_t (1'200), listing.entries[0].eofBytes,
+            L"the replacement's length, not the length of what it replaced");
+        Assert::AreEqual (uint32_t (4), listing.entries[0].sizeUnits,
+            L"three data blocks and the index block above them");
+
+        // Three blocks came back before four went out. Had the old file's space
+        // merely been abandoned this would read kFreeOnBlankVolume - 7.
+        Assert::AreEqual (kFreeOnBlankVolume - 4, listing.freeUnits,
+            L"the replaced file's blocks return to the pool");
+        Assert::AreEqual (Word (0x6000), listing.entries[0].auxType);
+
+        Assert::IsTrue (payload.bytes == back.bytes,
+            L"the bytes read back must be the bytes placed");
+
+        AssertEditLeftTheVolumeConsistent (vol, result);
+    }
+
+
+    TEST_METHOD (Volume_Write_AReplacementThatCannotBeCompleted_LeavesTheOriginalWhereItWas)
+    {
+        // The failure replace exists to prevent. A removal APPLIED to the image
+        // followed by a placement that fails loses the file outright: the record
+        // is gone, its blocks are back in the pool, and nothing was written in
+        // its place.
+        vector<Byte>  vol      = MakeVolume();
+        vector<Byte>  original;
+        vector<Byte>  result;
+        vector<Byte>  existing = MakePattern (600);
+        FilePayload   huge     = MakeBinaryPayload (60'000, 0x2000);
+        FilePayload   back;
+        HRESULT       hr       = S_OK;
+        uint32_t      block    = 0;
+
+        AssertSucceeded (ProDosFileWriter::WriteFile (vol, "PROG", 0x06, 0x2000, existing));
+
+        // Every block spoken for, so the replacement cannot fit even once the
+        // original's three come back.
+        for (block = 0; block < 280; block++)
+        {
+            MarkFree (vol, block, false);
+        }
+
+        original = vol;
+
+        {
+            ProDosVolume  volume (vol);
+
+            hr = volume.Write (FilePath::Parse ("PROG"), huge, result);
+        }
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DISK_FULL), hr);
+        Assert::AreEqual (size_t (0), result.size(),
+            L"a refused replacement must not hand back the half-done removal");
+        Assert::IsTrue (vol == original, L"nor touch the image it was computed from");
+
+        {
+            ProDosVolume  after (vol);
+
+            AssertSucceeded (after.Read (FilePath::Parse ("PROG"), back));
+        }
+
+        Assert::IsTrue (existing == back.bytes,
+            L"the file it would have replaced must still be readable, byte for byte");
+    }
+
+
+    TEST_METHOD (Volume_Write_OverAFileTheAccessByteProtectsFromRemoval_IsRefused)
+    {
+        // A consequence of computing replacement as remove-then-place, recorded
+        // deliberately: ProDOS gates writing and destroying on different bits,
+        // and a replacement here releases the old file's blocks. So a file
+        // marked writable but not destroyable is refused rather than rebuilt --
+        // conservative while this layer cannot rewrite one in place.
+        vector<Byte>  vol      = MakeVolume();
+        vector<Byte>  result;
+        FilePayload   payload  = MakeBinaryPayload (600, 0x2000);
+        size_t        accessAt = 0;
+        HRESULT       hr       = S_OK;
+
+        AssertSucceeded (ProDosFileWriter::WriteFile (vol, "PROG", 0x06, 0x2000, MakePattern (600)));
+
+        accessAt = ProDosSkeleton::BlockByteOffset (2, EntryOffset (1) + kEntOffAccess);
+
+        // Write-enable set, destroy-enable clear.
+        vol[accessAt] = 0x43;
+
+        {
+            ProDosVolume  volume (vol);
+
             hr = volume.Write (FilePath::Parse ("PROG"), payload, result);
         }
 
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS), hr,
-            L"an existing name is refused rather than duplicated; replace is computed whole");
-        Assert::AreEqual (size_t (0), result.size(), L"a refused write produces nothing");
-        Assert::IsTrue (vol == original, L"a refused write must not have touched the source image");
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED), hr);
+        Assert::AreEqual (size_t (0), result.size());
     }
 
 
@@ -1674,6 +1799,109 @@ public:
         Assert::AreEqual (size_t (0), outcome.leakedUnits.size(),
             L"nothing on this disk is cross-linked, so nothing should be left behind");
         Assert::IsTrue (outcome.catalogFullyParsed);
+    }
+
+
+    TEST_METHOD (Volume_PreCommitCheck_AResultClaimingABlockTwice_IsRefusedAsOurOwnDefect)
+    {
+        // Correct code cannot produce a result that fails this, which is what
+        // the check is for -- so the only way to exercise the refusal is to hand
+        // it one on purpose.
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+        vector<Byte>           survivor;
+        Word                   shared = 0;
+        vector<Byte>           input  = MakeVolume();
+        vector<Byte>           result = MakeVolumeWithCrossLinkedFiles (survivor, shared);
+        vector<Byte>           handedBack;
+        ProDosVolume           volume (input);
+        VolumeIntegrityReport  before;
+        HRESULT                hr     = S_OK;
+
+        AssertSucceeded (volume.BuildIntegrityReport (before));
+
+        hr = ProDosVolume::HandBackVerifiedResult (before, result, handedBack);
+
+        Assert::AreEqual (E_UNEXPECTED, hr,
+            L"a bad buffer from our own writer is a defect, not a verdict on input");
+        Assert::AreEqual (size_t (0), handedBack.size(),
+            L"and a refused buffer must not reach the caller at all");
+        expect.RequireCount (1);
+    }
+
+
+    TEST_METHOD (Volume_PreCommitCheck_AResultWhoseBitmapDisagreesWithItsDirectory_IsRefused)
+    {
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+        vector<Byte>           input  = MakeVolume();
+        vector<Byte>           result;
+        vector<Byte>           handedBack;
+        VolumeIntegrityReport  before;
+        Word                   key    = 0;
+        Word                   stolen = 0;
+        HRESULT                hr     = S_OK;
+
+        AssertSucceeded (ProDosFileWriter::WriteFile (input, "PROG", 0x06, 0x2000, MakePattern (600)));
+
+        {
+            ProDosVolume  volume (input);
+
+            AssertSucceeded (volume.BuildIntegrityReport (before));
+        }
+
+        result = input;
+        key    = KeyPointerOf (result, 2, 1);
+        stolen = IndexPointerAt (result, key, 1);
+
+        // A block the directory still references, handed back to the pool.
+        MarkFree (result, stolen, true);
+
+        hr = ProDosVolume::HandBackVerifiedResult (before, result, handedBack);
+
+        Assert::AreEqual (E_UNEXPECTED, hr);
+        Assert::AreEqual (size_t (0), handedBack.size());
+        expect.RequireCount (1);
+    }
+
+
+    TEST_METHOD (Volume_PreCommitCheck_ADeleteThatLeaks_IsAcceptedThoughTheResultIsNotClean)
+    {
+        // The leak rule and a whole-volume IsClean gate are in direct conflict.
+        // Declining to free a cross-linked block is required, and it leaves
+        // space allocated with nothing claiming it -- not clean, and exactly
+        // right. That is why the check compares against the input rather than
+        // asking one yes/no about the result.
+        vector<Byte>           survivor;
+        Word                   shared  = 0;
+        vector<Byte>           vol     = MakeVolumeWithCrossLinkedFiles (survivor, shared);
+        vector<Byte>           result;
+        vector<Byte>           handedBack;
+        VolumeIntegrityReport  before;
+        VolumeIntegrityReport  after;
+        DeleteOutcome          outcome;
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.BuildIntegrityReport (before));
+            AssertSucceeded (volume.Delete (FilePath::Parse ("FILEA"), result, outcome));
+        }
+
+        {
+            ProDosVolume  written (result);
+
+            AssertSucceeded (written.BuildIntegrityReport (after));
+        }
+
+        Assert::AreEqual (size_t (1), outcome.leakedUnits.size(),
+            L"the fixture must actually produce a leak");
+        Assert::IsFalse (after.IsClean(),
+            L"space allocated with nothing claiming it is what the leak rule asks for");
+
+        AssertSucceeded (ProDosVolume::HandBackVerifiedResult (before, result, handedBack));
+
+        Assert::IsTrue (handedBack == result, L"an accepted buffer is handed over unchanged");
     }
 
 

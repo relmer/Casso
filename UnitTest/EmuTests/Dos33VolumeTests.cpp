@@ -546,6 +546,66 @@ public:
         }
     }
 
+    TEST_METHOD (BuildIntegrityReport_AFreshlyFormattedVolume_IsClean)
+    {
+        // For a long time it was not, and the comment above the pass said
+        // otherwise. Tracks 0-2 and track 17 are allocated by every formatter
+        // and named by no catalog entry, so sixty-four sectors came back as
+        // space allocated to nobody -- the exact shape a leaked delete leaves.
+        // A healthy volume that reads as damaged makes damage unreportable.
+        vector<Byte>           buffer = MakeFormattedVolume();
+        Dos33Volume            volume (buffer);
+        VolumeIntegrityReport  report;
+
+        AssertSucceeded (volume.BuildIntegrityReport (report));
+
+        Assert::AreEqual (size_t (0), report.GetAllocatedButUnclaimed().size(),
+            L"a blank volume's own tracks are owned by the volume, not by nobody");
+        Assert::AreEqual (size_t (0), report.GetClaimedButFree().size());
+        Assert::AreEqual (size_t (0), report.GetCrossLinked().size());
+        Assert::IsTrue (report.IsClean(), L"a freshly formatted volume is consistent");
+    }
+
+    TEST_METHOD (BuildIntegrityReport_TheBootAndCatalogTracks_AreCreditedNotMerelyIgnored)
+    {
+        // Attributed, not skipped. Skipping them would also empty the
+        // allocated-but-unclaimed set, and would then let a file's chain reach
+        // into DOS or the catalog without the pass calling it a cross-link.
+        constexpr uint32_t  kReservedUnits = 4 * 16;   // tracks 0, 1, 2 and 17
+
+        vector<Byte>           buffer = MakeFormattedVolume();
+        Dos33Volume            volume (buffer);
+        VolumeIntegrityReport  report;
+        uint32_t               unit     = 0;
+        uint32_t               credited = 0;
+
+        AssertSucceeded (volume.BuildIntegrityReport (report));
+
+        for (unit = 0; unit < Dos33Volume::kUnitCount; unit++)
+        {
+            const vector<uint16_t> &  claimants = report.GetClaimantsOf (unit);
+
+            if (claimants.size() == 1 && claimants[0] == VolumeIntegrityReport::kVolumeOwner)
+            {
+                credited++;
+            }
+        }
+
+        Assert::AreEqual (kReservedUnits, credited,
+            L"three tracks of DOS and the catalog track, and nothing else");
+
+        Assert::AreEqual (size_t (1), report.GetClaimantsOf (0).size(),
+            L"the boot sector is claimed");
+        Assert::IsTrue (report.GetClaimantsOf (0)[0] == VolumeIntegrityReport::kVolumeOwner,
+            L"and claimed by the volume rather than by a file");
+        Assert::AreEqual (size_t (1), report.GetClaimantsOf (17 * 16).size(),
+            L"and so is the VTOC");
+        Assert::AreEqual (size_t (1), report.GetClaimantsOf (17 * 16 + 15).size(),
+            L"and the first catalog sector");
+        Assert::AreEqual (size_t (0), report.GetClaimantsOf (18 * 16).size(),
+            L"a track holding no volume structure is not credited to anyone");
+    }
+
     TEST_METHOD (Enumerate_CatalogChainThatLoops_ReportsDamageAndKeepsWhatItRead)
     {
         // A corrupted next-pointer on the catalog track. The walk must stop and
@@ -638,10 +698,9 @@ public:
         HRESULT        hr       = S_OK;
         size_t         i        = 0;
 
-        hr = volume.Write (FilePath::Parse ("HELLO"), payload, result);
+        hr = volume.Write (FilePath::Parse ("1BADNAME"), payload, result);
 
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS), hr,
-            L"an existing name is refused rather than duplicated; replace is computed whole");
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_NAME), hr);
         Assert::AreEqual (size_t (0), result.size(), L"a refused write produces nothing");
 
         for (i = 0; i < buffer.size(); i++)
@@ -651,6 +710,91 @@ public:
                 Assert::Fail (L"a refused write must not have touched the source image");
             }
         }
+    }
+
+    TEST_METHOD (Write_OverAnExistingName_ReplacesItRatherThanRefusing)
+    {
+        // The interim refusal this supersedes. What must never appear is a
+        // second catalog entry of the same name, so the assertion is on the
+        // count as much as on the contents.
+        vector<Byte>   buffer  = MakeVolumeWithHello();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        Dos33Volume    written (result);
+        FilePayload    payload = MakeBinaryPayload (512, 0x6000);
+        FilePayload    back;
+        VolumeListing  listing;
+
+        AssertSucceeded (volume.Write (FilePath::Parse ("HELLO"), payload, result));
+        AssertSucceeded (written.Enumerate (listing));
+
+        Assert::AreEqual (size_t (1), listing.entries.size(),
+            L"one entry of the name, never two");
+        Assert::AreEqual (string ("HELLO"), listing.entries[0].name);
+        Assert::AreEqual (Dos33Volume::kTypeBinary, listing.entries[0].type,
+            L"the replacement's type, not the type of what it replaced");
+        Assert::AreEqual (uint32_t (4), listing.entries[0].sizeUnits);
+
+        // Two sectors came back before four went out. Had the old file's space
+        // merely been abandoned this would read kFreeOnBlankVolume - 6.
+        Assert::AreEqual (kFreeOnBlankVolume - 4, listing.freeUnits,
+            L"the replaced file's sectors return to the pool");
+
+        AssertSucceeded (written.Read (FilePath::Parse ("HELLO"), back));
+
+        Assert::IsTrue (payload.bytes == back.bytes,
+            L"the bytes read back must be the bytes placed");
+
+        AssertEditLeftTheVolumeConsistent (buffer, result);
+    }
+
+    TEST_METHOD (Write_AReplacementThatCannotBeCompleted_LeavesTheOriginalWhereItWas)
+    {
+        // The failure replace exists to prevent. A removal APPLIED to the image
+        // followed by a placement that fails loses the file outright: the entry
+        // is gone, its sectors are back in the pool, and nothing was written in
+        // its place. The whole computation has to be discardable, and it is only
+        // because the volume never writes through to the buffer it was handed.
+        vector<Byte>   buffer    = MakeFormattedVolume();
+        vector<Byte>   withProg;
+        vector<Byte>   original;
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        Dos33Volume    loaded (withProg);
+        Dos33Volume    after (withProg);
+        FilePayload    placed    = MakeBinaryPayload (16, 0x0300);
+        FilePayload    oversized = MakeBinaryPayload (60'000, 0x0300);
+        FilePayload    back;
+        HRESULT        hr        = S_OK;
+        int            track     = 0;
+        int            sector    = 0;
+
+        AssertSucceeded (volume.Write (FilePath::Parse ("PROG"), placed, withProg));
+
+        // Every sector spoken for, so the replacement cannot fit even once the
+        // original's two come back.
+        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+            {
+                MarkAllocated (withProg, track, sector);
+            }
+        }
+
+        original = withProg;
+
+        hr = loaded.Write (FilePath::Parse ("PROG"), oversized, result);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DISK_FULL), hr);
+        Assert::AreEqual (size_t (0), result.size(),
+            L"a refused replacement must not hand back the half-done removal");
+        Assert::IsTrue (withProg == original,
+            L"nor touch the image it was computed from");
+
+        AssertSucceeded (after.Read (FilePath::Parse ("PROG"), back));
+
+        Assert::IsTrue (placed.bytes == back.bytes,
+            L"the file it would have replaced must still be readable, byte for byte");
     }
 
     TEST_METHOD (Write_OverALockedFile_IsRefusedForBeingLockedNotForExisting)
@@ -1123,6 +1267,257 @@ public:
             L"the new file fits in exactly the space the old one gave back");
 
         AssertEditLeftTheVolumeConsistent (emptied, result);
+    }
+
+    TEST_METHOD (PreCommitCheck_AResultClaimingASectorTwice_IsRefusedAsOurOwnDefect)
+    {
+        // Correct code cannot produce a result that fails this, which is what
+        // the check is for -- so the only way to exercise the refusal is to hand
+        // it one on purpose.
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+        vector<Byte>           input  = MakeFormattedVolume();
+        vector<Byte>           result = MakeVolumeWithCrossLinkedFiles();
+        vector<Byte>           handedBack;
+        Dos33Volume            volume (input);
+        VolumeIntegrityReport  before;
+        HRESULT                hr     = S_OK;
+
+        AssertSucceeded (volume.BuildIntegrityReport (before));
+
+        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+
+        Assert::AreEqual (E_UNEXPECTED, hr,
+            L"a bad buffer from our own writer is a defect, not a verdict on input");
+        Assert::AreEqual (size_t (0), handedBack.size(),
+            L"and a refused buffer must not reach the caller at all");
+        expect.RequireCount (1);
+    }
+
+    TEST_METHOD (PreCommitCheck_AResultWhoseFreeMapDisagreesWithItsCatalog_IsRefused)
+    {
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+        vector<Byte>           input  = MakeVolumeWithHello();
+        vector<Byte>           result = input;
+        vector<Byte>           handedBack;
+        Dos33Volume            volume (input);
+        VolumeIntegrityReport  before;
+        HRESULT                hr     = S_OK;
+
+        AssertSucceeded (volume.BuildIntegrityReport (before));
+
+        // HELLO's data sector still referenced by its list, and handed back to
+        // the pool -- the state that lets the next allocation destroy it.
+        MarkFree (result, 18, 14);
+
+        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+
+        Assert::AreEqual (E_UNEXPECTED, hr);
+        Assert::AreEqual (size_t (0), handedBack.size());
+        expect.RequireCount (1);
+    }
+
+    TEST_METHOD (PreCommitCheck_AResultBreakingAChainTheInputHadWhole_IsRefused)
+    {
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+        vector<Byte>           input  = MakeVolumeWithHello();
+        vector<Byte>           result = input;
+        vector<Byte>           handedBack;
+        Dos33Volume            volume (input);
+        VolumeIntegrityReport  before;
+        size_t                 listAt = Dos33Skeleton::SectorOffset (18, 15);
+        HRESULT                hr     = S_OK;
+
+        AssertSucceeded (volume.BuildIntegrityReport (before));
+
+        // HELLO's track/sector list chained onward to a track the disk lacks.
+        result[listAt + 0x01] = kTrackOffTheVolume;
+
+        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+
+        Assert::AreEqual (E_UNEXPECTED, hr);
+        Assert::AreEqual (size_t (0), handedBack.size());
+        expect.RequireCount (1);
+    }
+
+    TEST_METHOD (PreCommitCheck_AResultThatMovesACrossLinkRatherThanAddingOne_IsRefused)
+    {
+        // The case that separates comparing MEMBERSHIP from comparing counts.
+        // One sector was shared before and one is shared after, so every set in
+        // the report is the same SIZE it was -- and a different file's data is
+        // now at risk. A check that counted would wave this through.
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+        vector<Byte>           input  = MakeVolumeWithCrossLinkedFiles();
+        vector<Byte>           result = input;
+        vector<Byte>           handedBack;
+        Dos33Volume            volume (input);
+        VolumeIntegrityReport  before;
+        VolumeIntegrityReport  after;
+        size_t                 listA  = Dos33Skeleton::SectorOffset (kSharedTrack, 15);
+        HRESULT                hr     = S_OK;
+
+        AssertSucceeded (volume.BuildIntegrityReport (before));
+
+        // FILEA's second data sector moves off the sector it shared with FILEB
+        // and onto the other one FILEB holds.
+        result[listA + 0x0F] = 11;
+
+        {
+            Dos33Volume  moved (result);
+
+            AssertSucceeded (moved.BuildIntegrityReport (after));
+        }
+
+        Assert::AreEqual (size_t (1), before.GetCrossLinked().size());
+        Assert::AreEqual (size_t (1), after.GetCrossLinked().size(),
+            L"the sizes must match, or this proves nothing about membership");
+        Assert::AreEqual (before.GetAllocatedButUnclaimed().size(),
+                          after.GetAllocatedButUnclaimed().size());
+        Assert::AreEqual (before.GetClaimedButFree().size(), after.GetClaimedButFree().size());
+
+        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+
+        Assert::AreEqual (E_UNEXPECTED, hr);
+        Assert::AreEqual (size_t (0), handedBack.size());
+        expect.RequireCount (1);
+    }
+
+    TEST_METHOD (PreCommitCheck_AResultThatMovesADisagreementRatherThanAddingOne_IsRefused)
+    {
+        // The same argument for the other dangerous set. One referenced sector
+        // was marked free before and one is marked free after, so the counts
+        // match and a different sector is now the one the next allocation can
+        // destroy.
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+        vector<Byte>           input  = MakeVolumeWithHello();
+        vector<Byte>           result;
+        vector<Byte>           handedBack;
+        Dos33Volume            volume (input);
+        VolumeIntegrityReport  before;
+        VolumeIntegrityReport  after;
+        HRESULT                hr     = S_OK;
+
+        MarkFree (input, 18, 14);   // HELLO's data sector
+
+        result = input;
+
+        MarkAllocated (result, 18, 14);
+        MarkFree      (result, 18, 15);   // its track/sector list instead
+
+        AssertSucceeded (volume.BuildIntegrityReport (before));
+
+        {
+            Dos33Volume  moved (result);
+
+            AssertSucceeded (moved.BuildIntegrityReport (after));
+        }
+
+        Assert::AreEqual (size_t (1), before.GetClaimedButFree().size());
+        Assert::AreEqual (size_t (1), after.GetClaimedButFree().size(),
+            L"the sizes must match, or this proves nothing about membership");
+        Assert::AreEqual (before.GetAllocatedButUnclaimed().size(),
+                          after.GetAllocatedButUnclaimed().size());
+        Assert::AreEqual (before.GetCrossLinked().size(), after.GetCrossLinked().size());
+
+        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+
+        Assert::AreEqual (E_UNEXPECTED, hr);
+        Assert::AreEqual (size_t (0), handedBack.size());
+        expect.RequireCount (1);
+    }
+
+    TEST_METHOD (PreCommitCheck_AResultThatAbandonsSpaceItStoppedClaiming_IsRefused)
+    {
+        // An edit that removed an entry and forgot to hand its sectors back.
+        // Nothing is cross-linked and nothing referenced is marked free; the
+        // only symptom is space allocated with nothing claiming it.
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+        vector<Byte>           input   = MakeVolumeWithHello();
+        vector<Byte>           result  = input;
+        vector<Byte>           handedBack;
+        Dos33Volume            volume (input);
+        VolumeIntegrityReport  before;
+        size_t                 entryAt = EntryOffset (kCatalogFirstSector, 0);
+        HRESULT                hr      = S_OK;
+
+        AssertSucceeded (volume.BuildIntegrityReport (before));
+
+        result[entryAt + 0x00] = 0xFF;   // tombstoned, bitmap untouched
+
+        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+
+        Assert::AreEqual (E_UNEXPECTED, hr);
+        Assert::AreEqual (size_t (0), handedBack.size());
+        expect.RequireCount (1);
+    }
+
+    TEST_METHOD (PreCommitCheck_AResultWhoseCatalogStopsParsing_IsRefused)
+    {
+        // The bound on every other answer. An entry the pass cannot read claims
+        // nothing observable, so a result that lost half its catalog looks
+        // tidier than the input rather than worse -- which is exactly why this
+        // is asked separately rather than inferred from the sets.
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+        vector<Byte>           input     = MakeVolumeWithHello();
+        vector<Byte>           result    = input;
+        vector<Byte>           handedBack;
+        Dos33Volume            volume (input);
+        VolumeIntegrityReport  before;
+        size_t                 catalogAt = Dos33Skeleton::SectorOffset (17, kCatalogFirstSector);
+        HRESULT                hr        = S_OK;
+
+        AssertSucceeded (volume.BuildIntegrityReport (before));
+
+        Assert::IsTrue (before.IsCatalogFullyParsed());
+
+        result[catalogAt + 0x01] = kTrackOffTheVolume;
+
+        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+
+        Assert::AreEqual (E_UNEXPECTED, hr);
+        Assert::AreEqual (size_t (0), handedBack.size());
+        expect.RequireCount (1);
+    }
+
+    TEST_METHOD (PreCommitCheck_AnEditOnAVolumeThatAlreadyDisagrees_IsNotRefused)
+    {
+        // The reason this is not a whole-volume IsClean gate. Here a catalog
+        // entry references a sector the free map calls free, before anything is
+        // edited -- a real state, left by an earlier bad delete, and the one the
+        // allocator is careful to work around. A check that demanded a clean
+        // result would make such a disk permanently uneditable, which is the
+        // opposite of what a recovery tool owes its user.
+        vector<Byte>           buffer  = MakeVolumeWithHello();
+        vector<Byte>           result;
+        vector<Byte>           handedBack;
+        Dos33Volume            volume (buffer);
+        Dos33Volume            written (result);
+        FilePayload            payload = MakeBinaryPayload (16, 0x0300);
+        VolumeIntegrityReport  before;
+        VolumeIntegrityReport  after;
+
+        MarkFree (buffer, 18, 14);
+
+        AssertSucceeded (volume.BuildIntegrityReport (before));
+
+        Assert::IsFalse (before.IsClean(),
+            L"the fixture must actually carry the disagreement this is about");
+        Assert::AreEqual (size_t (1), before.GetClaimedButFree().size());
+
+        AssertSucceeded (volume.Write (FilePath::Parse ("PROG"), payload, result));
+        AssertSucceeded (written.BuildIntegrityReport (after));
+
+        Assert::IsFalse (after.IsClean(),
+            L"the pre-existing disagreement is still there, and was not the write's to fix");
+        AssertSucceeded (Dos33Volume::HandBackVerifiedResult (before, result, handedBack));
+
+        Assert::IsTrue (handedBack == result, L"an accepted buffer is handed over unchanged");
     }
 
     TEST_METHOD (Write_OntoARealDisk_LeavesEveryDecorativeEntryWhereItWas)

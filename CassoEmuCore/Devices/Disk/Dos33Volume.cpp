@@ -685,12 +685,56 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Dos33Volume::ClaimVolumeStructures
+//
+//  The tracks a formatted volume reserves for itself: 0-2, where DOS lives on a
+//  bootable disk and which every 1980s formatter kept allocated on a data disk
+//  too, and 17, which holds the VTOC and the catalog.
+//
+//  Sixty-four sectors, named by nothing in the catalog. Crediting them to the
+//  volume is what makes the free map and the claim map agree on a healthy disk;
+//  without it every DOS 3.3 volume reports those sixty-four as space allocated
+//  to nobody, which is indistinguishable from the leak a bad delete leaves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dos33Volume::ClaimVolumeStructures (VolumeIntegrityReport & outReport)
+{
+    int  track  = 0;
+    int  sector = 0;
+
+
+
+    for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+    {
+        bool  reserved = track < Dos33Skeleton::kDosImageTracks
+                      || track == Dos33Skeleton::kVtocTrack;
+
+        if (!reserved)
+        {
+            continue;
+        }
+
+        for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+        {
+            outReport.AddClaim (ToUnit (track, sector), VolumeIntegrityReport::kVolumeOwner);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Dos33Volume::BuildIntegrityReport
 //
 //  Every catalog entry's chain walked into the claim map, then compared against
-//  the VTOC's own free bitmap. The catalog track's own sectors are claimed too:
-//  they are as allocated as any file's, and a report that ignored them would
-//  call every volume inconsistent.
+//  the VTOC's own free bitmap. The volume's own tracks -- the boot area and the
+//  catalog track -- are claimed too, under a reserved owner: they are as
+//  allocated as any file's sectors, and a report that ignored them would call
+//  every volume inconsistent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -713,6 +757,8 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
 
     CollectEntries (entries, damage, fullyParsed);
     outReport.SetCatalogFullyParsed (fullyParsed);
+
+    ClaimVolumeStructures (outReport);
 
     for (owner = 0; owner < (uint16_t) entries.size(); owner++)
     {
@@ -1196,73 +1242,85 @@ void Dos33Volume::WriteCatalogEntry (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Dos33Volume::Write
+//  Dos33Volume::HandBackVerifiedResult
 //
-//  Places a file: allocate from the VTOC bitmap, build the track/sector lists,
-//  write the data sectors, create the catalog entry, and leave the bitmap
-//  agreeing with what was allocated.
+//  A write that never inspects what it produced is how a decoder shipped
+//  returning success over a buffer it had partly zeroed. Every computed result
+//  here is read back through the same integrity pass a user's disk goes
+//  through, refused if the edit made the volume worse, and handed over only
+//  once it survives that.
+//
+//  WORSE, not imperfect. Asking whether the result is CLEAN would refuse two
+//  correct outcomes: a delete that declines to free a cross-linked sector
+//  leaves space allocated with nothing claiming it, which is exactly what the
+//  leak rule requires, and a volume that already carried a disagreement would
+//  become permanently uneditable -- on the degraded disks this feature exists
+//  to recover. The comparison is against the input, on the sets that matter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dos33Volume::HandBackVerifiedResult (
+    const VolumeIntegrityReport  & before,
+    const vector<Byte>           & result,
+    vector<Byte>                 & outBuffer)
+{
+    HRESULT                hr   = S_OK;
+    Dos33Volume            volume (result);
+    bool                   safe = false;
+    VolumeIntegrityReport  after;
+
+
+
+    hr = volume.BuildIntegrityReport (after);
+    CHRA (hr);
+
+    safe = after.IsSafeToCommitAfter (before);
+    CBRAEx (safe, E_UNEXPECTED);
+
+    outBuffer = result;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::AddFile
+//
+//  Allocate from the VTOC bitmap, build the track/sector lists, write the data
+//  sectors, create the catalog entry, and leave the bitmap agreeing with what
+//  was allocated.
 //
 //  Nothing is written into the volume this object holds. The complete new buffer
 //  is produced instead, so a refusal at any point leaves the caller with exactly
 //  what it had.
 //
-//  REPLACING AN EXISTING NAME IS REFUSED HERE rather than done, because a
-//  correct replacement has to be computed as one whole -- freeing the old file
-//  and then failing to place the new one loses it outright. Refusing is the
-//  honest interim: the caller sees that the name is taken instead of getting a
-//  duplicate catalog entry, which is the failure this must not have.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Dos33Volume::Write (
-    const FilePath     & path,
-    const FilePayload  & payload,
-    vector<Byte>       & outBuffer) const
+HRESULT Dos33Volume::AddFile (
+    const vector<Byte>  & nameBytes,
+    Byte                  typeByte,
+    const vector<Byte>  & stored,
+    vector<Byte>        & outBuffer) const
 {
-    HRESULT                hr          = S_OK;
-    size_t                 bufferBytes = m_sectors.size();
-    bool                   single      = path.IsSingleComponent();
-    bool                   nameOk      = false;
-    bool                   exists      = false;
-    bool                   isLocked    = false;
-    bool                   slotOk      = false;
-    bool                   allocated   = false;
-    bool                   fullyParsed = true;
-    int                    slotTrack   = 0;
-    int                    slotSector  = 0;
-    size_t                 slotOffset  = 0;
-    size_t                 dataCount   = 0;
-    size_t                 listCount   = 0;
-    uint16_t               owner       = 0;
-    vector<Byte>           nameBytes;
-    vector<Byte>           stored;
+    HRESULT                hr         = S_OK;
+    bool                   slotOk     = false;
+    bool                   allocated  = false;
+    int                    slotTrack  = 0;
+    int                    slotSector = 0;
+    size_t                 slotOffset = 0;
+    size_t                 storedSize = stored.size();
+    size_t                 dataCount  = 0;
+    size_t                 listCount  = 0;
     vector<Byte>           result;
-    vector<RawEntry>       entries;
-    vector<std::string>    damage;
     vector<uint32_t>       units;
     VolumeIntegrityReport  report;
 
 
-
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
-
-    nameOk = single && TryEncodeCatalogName (path.GetLeaf(), nameBytes);
-    CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
-
-    hr = ComposeStoredBytes (payload, stored);
-    CHR (hr);
-
-    CollectEntries (entries, damage, fullyParsed);
-
-    exists = TryFindEntry (entries, path.GetLeaf(), owner);
-
-    if (exists)
-    {
-        isLocked = (entries[owner].typeByte & kLockedBit) != 0;
-    }
-
-    CBREx (!isLocked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
-    CBREx (!exists,   HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
 
     slotOk = TryFindFreeCatalogSlot (slotTrack, slotSector, slotOffset);
     CBREx (slotOk, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
@@ -1270,7 +1328,7 @@ HRESULT Dos33Volume::Write (
     hr = BuildIntegrityReport (report);
     CHRA (hr);
 
-    dataCount = (stored.size() + (size_t) NibblizationLayer::kSectorByteSize - 1)
+    dataCount = (storedSize + (size_t) NibblizationLayer::kSectorByteSize - 1)
               / (size_t) NibblizationLayer::kSectorByteSize;
     listCount = (dataCount + (size_t) kTsPairsPerList - 1) / (size_t) kTsPairsPerList;
 
@@ -1299,11 +1357,101 @@ HRESULT Dos33Volume::Write (
                        slotSector,
                        slotOffset,
                        units[0],
-                       (Byte) (payload.type & ~kLockedBit),
+                       typeByte,
                        (uint16_t) units.size(),
                        nameBytes);
 
-    outBuffer = result;
+    hr = HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::Write
+//
+//  Adds a file, or replaces one of the same name.
+//
+//  REPLACEMENT IS COMPUTED AS ONE WHOLE. The removal is staged into a working
+//  buffer that no caller can see, the new file is placed over that, and only a
+//  finished buffer is ever handed back. What this must never be is a removal
+//  APPLIED to the caller's image followed by a placement: a failure between the
+//  two frees the old file without landing the new one, which loses the file
+//  outright -- strictly worse than refusing.
+//
+//  The distinction is not merely internal ordering. Nothing here mutates the
+//  volume's own buffer, so a refusal at any point, including one raised after
+//  the staged removal, leaves the original image byte-for-byte as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dos33Volume::Write (
+    const FilePath     & path,
+    const FilePayload  & payload,
+    vector<Byte>       & outBuffer) const
+{
+    HRESULT              hr          = S_OK;
+    size_t               bufferBytes = m_sectors.size();
+    bool                 single      = path.IsSingleComponent();
+    bool                 nameOk      = false;
+    bool                 exists      = false;
+    bool                 isLocked    = false;
+    bool                 fullyParsed = true;
+    Byte                 typeByte    = (Byte) (payload.type & ~kLockedBit);
+    uint16_t             owner       = 0;
+    vector<Byte>         nameBytes;
+    vector<Byte>         stored;
+    vector<Byte>         staged;
+    vector<RawEntry>     entries;
+    vector<std::string>  damage;
+    DeleteOutcome        removal;
+
+    //  Binds to `staged` by reference, and is read only once it is filled.
+    Dos33Volume          stagedVolume (staged);
+
+
+
+    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+
+    nameOk = single && TryEncodeCatalogName (path.GetLeaf(), nameBytes);
+    CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    hr = ComposeStoredBytes (payload, stored);
+    CHR (hr);
+
+    CollectEntries (entries, damage, fullyParsed);
+
+    exists = TryFindEntry (entries, path.GetLeaf(), owner);
+
+    if (exists)
+    {
+        isLocked = (entries[owner].typeByte & kLockedBit) != 0;
+    }
+
+    CBREx (!isLocked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+
+    if (!exists)
+    {
+        hr = AddFile (nameBytes, typeByte, stored, outBuffer);
+        CHR (hr);
+    }
+    else
+    {
+        // The removal is answered for by the same rules a bare delete follows,
+        // including its refusal to hand back a sector another entry claims. The
+        // replacement simply does not get that space.
+        hr = Delete (path, staged, removal);
+        CHRA (hr);
+
+        hr = stagedVolume.AddFile (nameBytes, typeByte, stored, outBuffer);
+        CHR (hr);
+    }
 
 Error:
     return hr;
@@ -1483,7 +1631,8 @@ HRESULT Dos33Volume::Delete (
 
     AppendDeleteWarnings (outOutcome);
 
-    outBuffer = result;
+    hr = HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
 
 Error:
     return hr;

@@ -63,6 +63,27 @@ public:
     HRESULT  BuildIntegrityReport (VolumeIntegrityReport & outReport) const override;
     HRESULT  SetStartupProgram    (const FilePath & path, vector<Byte> & outBuffer) const override;
 
+    //  The self-check every computed write and delete runs over its own output,
+    //  and the ONLY way a computed buffer reaches a caller. Refuses a buffer
+    //  that disagrees with itself in a way the buffer it was computed from did
+    //  not, and hands it over otherwise.
+    //
+    //  The check and the hand-off are one operation on purpose. A check sitting
+    //  BESIDE the assignment can be deleted while the assignment stays, and
+    //  nothing observable changes -- the suite cannot catch that, because no
+    //  input makes correct code produce a bad buffer. Routing the hand-off
+    //  through the check means removing it cannot be silent.
+    //
+    //  A refusal means OUR writer produced a bad image, not that the user asked
+    //  for something impossible, so it answers E_UNEXPECTED and asserts -- the
+    //  one condition in this layer that is a defect rather than a verdict.
+    //
+    //  Public because a refusal is only reachable by handing it a result that is
+    //  deliberately wrong.
+    static HRESULT  HandBackVerifiedResult (const VolumeIntegrityReport  & before,
+                                            const vector<Byte>           & result,
+                                            vector<Byte>                 & outBuffer);
+
     //  The ProDOS file types this feature names on the command line. The full
     //  set is 256 values; these are the ones a developer places or extracts.
     static constexpr Byte  kTypeText   = 0x04;
@@ -143,6 +164,16 @@ private:
                              vector<uint32_t>             & outBlocks) const;
 
     static void  ZeroBlocks (vector<Byte> & buffer, const vector<uint32_t> & blocks);
+
+    //  Lays down a file whose name the directory does not already hold, over
+    //  the buffer this volume was constructed with. Replacement stages the
+    //  removal into a working buffer and calls this on a volume over that, so
+    //  one code path places every file and a replacement cannot half-happen.
+    HRESULT  AddFile (const std::string   & name,
+                      Byte                  fileType,
+                      Word                  auxType,
+                      const vector<Byte>  & bytes,
+                      vector<Byte>        & outBuffer) const;
 
     //  Lays the allocated blocks out in the order the allocator handed them
     //  over: master index first when there is one, then each index block

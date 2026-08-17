@@ -37,6 +37,14 @@ public:
     //  No owner. Distinct from owner 0, which is a real entry.
     static constexpr uint16_t  kNoOwner = 0xFFFF;
 
+    //  The volume itself, for the structures no catalog entry names -- the boot
+    //  area, the directory or catalog track, the free map. They are as
+    //  allocated as any file's bytes, so a pass that left them unowned would
+    //  report every healthy volume as carrying space allocated to nobody. Both
+    //  filesystems use this one identifier, so an owner index means the same
+    //  thing whichever report it came from.
+    static constexpr uint16_t  kVolumeOwner = 0xFFFE;
+
     void  Reset (uint32_t unitCount);
 
     //  Records that `owner` references `unit`. Called once per unit per entry
@@ -85,12 +93,30 @@ public:
     bool  IsCatalogFullyParsed () const { return m_catalogFullyParsed; }
 
     //  Nothing cross-linked, nothing unfollowable, and the free map agrees with
-    //  the catalog. A computed write that is not clean must not be committed.
+    //  the catalog. A WHOLE-VOLUME yes/no, and deliberately NOT what the
+    //  pre-commit check asks -- see IsSafeToCommitAfter.
     bool  IsClean () const { return m_isClean; }
+
+    //  Whether this report -- built over a computed result -- may be committed,
+    //  given the report of the buffer it was computed from.
+    //
+    //  The question is comparative rather than absolute, and that is the whole
+    //  point. A correct delete that declines to free a cross-linked unit leaves
+    //  space allocated with nothing claiming it, which is exactly what the leak
+    //  rule requires; a volume already carrying a disagreement must still be
+    //  editable, or a single bad sector strands the disk this feature exists to
+    //  recover. Asking IsClean would refuse both.
+    bool  IsSafeToCommitAfter (const VolumeIntegrityReport & before) const;
 
     uint32_t  GetUnitCount () const { return (uint32_t) m_claimantsByUnit.size(); }
 
 private:
+    //  True when `units` holds anything `permitted` does not. Both are produced
+    //  by Finish in ascending order, which is what lets this stay a search
+    //  rather than a set build.
+    static bool  HasUnitNotIn (const std::vector<uint32_t> & units,
+                               const std::vector<uint32_t> & permitted);
+
     //  Claims are held BOTH ways -- by unit and by owner -- because the
     //  requirement asks both questions and neither slicing derives the other
     //  without re-walking every chain.

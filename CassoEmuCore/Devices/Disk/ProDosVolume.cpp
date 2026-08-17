@@ -461,7 +461,6 @@ Error:
 HRESULT ProDosVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) const
 {
     //  Blocks 0-1 are the boot blocks, 2-5 the volume directory, 6 the bitmap.
-    constexpr uint16_t  kVolumeOwner    = 0xFFFE;
     constexpr uint32_t  kReservedBlocks = 7;
 
     HRESULT              hr          = S_OK;
@@ -485,7 +484,7 @@ HRESULT ProDosVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) c
 
     for (block = 0; block < kReservedBlocks; block++)
     {
-        outReport.AddClaim (block, kVolumeOwner);
+        outReport.AddClaim (block, VolumeIntegrityReport::kVolumeOwner);
     }
 
     for (owner = 0; owner < (uint16_t) entries.size(); owner++)
@@ -1204,11 +1203,58 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProDosVolume::Write
+//  ProDosVolume::HandBackVerifiedResult
 //
-//  Places a file: allocate from the volume bitmap, build whatever index
-//  structure the size calls for, write the data blocks, create the directory
-//  entry, and leave the bitmap agreeing with what was allocated.
+//  A write that never inspects what it produced is how a decoder shipped
+//  returning success over a buffer it had partly zeroed. Every computed result
+//  here is read back through the same integrity pass a user's disk goes
+//  through, refused if the edit made the volume worse, and handed over only
+//  once it survives that.
+//
+//  WORSE, not imperfect. Asking whether the result is CLEAN would refuse two
+//  correct outcomes: a delete that declines to free a cross-linked block leaves
+//  space allocated with nothing claiming it, which is exactly what the leak rule
+//  requires, and a volume that already carried a disagreement would become
+//  permanently uneditable -- on the degraded disks this feature exists to
+//  recover. The comparison is against the input, on the sets that matter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::HandBackVerifiedResult (
+    const VolumeIntegrityReport  & before,
+    const vector<Byte>           & result,
+    vector<Byte>                 & outBuffer)
+{
+    HRESULT                hr   = S_OK;
+    ProDosVolume           volume (result);
+    bool                   safe = false;
+    VolumeIntegrityReport  after;
+
+
+
+    hr = volume.BuildIntegrityReport (after);
+    CHRA (hr);
+
+    safe = after.IsSafeToCommitAfter (before);
+    CBRAEx (safe, E_UNEXPECTED);
+
+    outBuffer = result;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::AddFile
+//
+//  Allocate from the volume bitmap, build whatever index structure the size
+//  calls for, write the data blocks, create the directory entry, and leave the
+//  bitmap agreeing with what was allocated.
 //
 //  Storage type GROWS with the file. A seedling is its own data block, a
 //  sapling adds one index block, and past 256 data blocks a master index of
@@ -1220,65 +1266,29 @@ Error:
 //  buffer is produced instead, so a refusal at any point leaves the caller with
 //  exactly what it had.
 //
-//  REPLACING AN EXISTING NAME IS REFUSED HERE rather than done, matching the
-//  DOS 3.3 side: a correct replacement has to be computed as one whole, and
-//  refusing is the honest interim rather than leaving two entries of one name.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ProDosVolume::Write (
-    const FilePath     & path,
-    const FilePayload  & payload,
-    vector<Byte>       & outBuffer) const
+HRESULT ProDosVolume::AddFile (
+    const std::string   & name,
+    Byte                  fileType,
+    Word                  auxType,
+    const vector<Byte>  & bytes,
+    vector<Byte>        & outBuffer) const
 {
     HRESULT                hr           = S_OK;
-    size_t                 bufferBytes  = m_sectors.size();
-    size_t                 payloadSize  = payload.bytes.size();
-    bool                   single       = path.IsSingleComponent();
-    bool                   fits         = payloadSize <= kMaxFileBytes;
-    bool                   nameOk       = false;
-    bool                   exists       = false;
-    bool                   isLocked     = false;
+    size_t                 payloadSize  = bytes.size();
     bool                   slotOk       = false;
     bool                   allocated    = false;
     bool                   haveKeyBlock = false;
-    bool                   fullyParsed  = true;
     int                    slotBlock    = 0;
     size_t                 slotOffset   = 0;
     size_t                 dataBlocks   = 0;
     size_t                 overhead     = 0;
-    uint16_t               owner        = 0;
-    Word                   auxType      = 0;
-    std::string            name;
     vector<Byte>           result;
-    vector<RawEntry>       entries;
-    vector<std::string>    damage;
     vector<uint32_t>       blocks;
     VolumeIntegrityReport  report;
 
 
-
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
-
-    nameOk = single && TryEncodeDirectoryName (path.GetLeaf(), name);
-
-    CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
-    CBREx (fits,   HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE));
-
-    hr = ResolveAuxType (payload, auxType);
-    CHR (hr);
-
-    CollectEntries (entries, damage, fullyParsed);
-
-    exists = TryFindEntry (entries, name, owner);
-
-    if (exists)
-    {
-        isLocked = (entries[owner].access & kAccessWriteEnable) == 0;
-    }
-
-    CBREx (!isLocked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
-    CBREx (!exists,   HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
 
     slotOk = TryFindFreeDirectorySlot (slotBlock, slotOffset);
     CBREx (slotOk, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
@@ -1308,7 +1318,7 @@ HRESULT ProDosVolume::Write (
 
     ZeroBlocks (result, blocks);
 
-    hr = PlaceFile (result, blocks, dataBlocks, payload.bytes);
+    hr = PlaceFile (result, blocks, dataBlocks, bytes);
     CHRA (hr);
 
     for (uint32_t block : blocks)
@@ -1321,7 +1331,7 @@ HRESULT ProDosVolume::Write (
                          slotOffset,
                          name,
                          StorageTypeFor (dataBlocks),
-                         payload.type,
+                         fileType,
                          (Word) blocks[0],
                          (Word) blocks.size(),
                          (uint32_t) payloadSize,
@@ -1329,7 +1339,103 @@ HRESULT ProDosVolume::Write (
 
     AdjustFileCount (result, 1);
 
-    outBuffer = result;
+    hr = HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::Write
+//
+//  Adds a file, or replaces one of the same name.
+//
+//  REPLACEMENT IS COMPUTED AS ONE WHOLE, matching the DOS 3.3 side. The removal
+//  is staged into a working buffer no caller can see, the new file is placed
+//  over that, and only a finished buffer is handed back. A removal APPLIED to
+//  the caller's image followed by a placement would free the old file and lose
+//  it outright if the placement then failed, which is worse than refusing.
+//
+//  REPLACEMENT NEEDS DESTROY PERMISSION AS WELL AS WRITE PERMISSION, and that
+//  is a consequence worth stating rather than discovering. ProDOS gates the two
+//  operations on different bits of the access byte, and a replacement here
+//  releases the old file's blocks -- a destroy in every way that matters -- so
+//  the staged removal applies its own gate. A file marked writable but not
+//  destroyable is therefore refused, which is the conservative answer while
+//  this layer rebuilds a file rather than rewriting it in place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::Write (
+    const FilePath     & path,
+    const FilePayload  & payload,
+    vector<Byte>       & outBuffer) const
+{
+    HRESULT                hr           = S_OK;
+    size_t                 bufferBytes  = m_sectors.size();
+    size_t                 payloadSize  = payload.bytes.size();
+    bool                   single       = path.IsSingleComponent();
+    bool                   fits         = payloadSize <= kMaxFileBytes;
+    bool                   nameOk       = false;
+    bool                   exists       = false;
+    bool                   isLocked     = false;
+    bool                   fullyParsed  = true;
+    uint16_t               owner        = 0;
+    Word                   auxType      = 0;
+    std::string            name;
+    vector<Byte>           staged;
+    vector<RawEntry>       entries;
+    vector<std::string>    damage;
+    DeleteOutcome          removal;
+
+    //  Binds to `staged` by reference, and is read only once it is filled.
+    ProDosVolume           stagedVolume (staged);
+
+
+
+    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+
+    nameOk = single && TryEncodeDirectoryName (path.GetLeaf(), name);
+
+    CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+    CBREx (fits,   HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE));
+
+    hr = ResolveAuxType (payload, auxType);
+    CHR (hr);
+
+    CollectEntries (entries, damage, fullyParsed);
+
+    exists = TryFindEntry (entries, name, owner);
+
+    if (exists)
+    {
+        isLocked = (entries[owner].access & kAccessWriteEnable) == 0;
+    }
+
+    CBREx (!isLocked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+
+    if (!exists)
+    {
+        hr = AddFile (name, payload.type, auxType, payload.bytes, outBuffer);
+        CHR (hr);
+    }
+    else
+    {
+        // The removal answers to the same rules a bare delete follows,
+        // including its refusal to hand back a block another entry claims. The
+        // replacement simply does not get that space.
+        hr = Delete (path, staged, removal);
+        CHR (hr);
+
+        hr = stagedVolume.AddFile (name, payload.type, auxType, payload.bytes, outBuffer);
+        CHR (hr);
+    }
 
 Error:
     return hr;
@@ -1518,7 +1624,8 @@ HRESULT ProDosVolume::Delete (
     AdjustFileCount (result, -1);
     AppendDeleteWarnings (outOutcome);
 
-    outBuffer = result;
+    hr = HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
 
 Error:
     return hr;

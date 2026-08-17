@@ -177,6 +177,74 @@ void VolumeIntegrityReport::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  VolumeIntegrityReport::HasUnitNotIn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool VolumeIntegrityReport::HasUnitNotIn (
+    const vector<uint32_t>  & units,
+    const vector<uint32_t>  & permitted)
+{
+    for (uint32_t unit : units)
+    {
+        bool  known = std::binary_search (permitted.begin(), permitted.end(), unit);
+
+        if (!known)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeIntegrityReport::IsSafeToCommitAfter
+//
+//  Four questions, each phrased as "did this edit make it worse", because none
+//  of them can be phrased as "is it perfect" without refusing a correct result.
+//
+//  The two dangerous sets -- a unit claimed twice, and a referenced unit the
+//  free map calls free -- are compared by MEMBERSHIP rather than by size. A
+//  volume that already carries one must stay editable, but an edit that
+//  introduces a new one at a different unit while resolving an old one would
+//  slip past a count.
+//
+//  The other two are compared by size. Leaked space is named by unit but the
+//  units legitimately move as files come and go, and an unfollowable chain is
+//  named by OWNER INDEX, which an edit renumbers by construction -- comparing
+//  membership there would flag every correct delete.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool VolumeIntegrityReport::IsSafeToCommitAfter (const VolumeIntegrityReport & before) const
+{
+    bool  newCrossLink    = HasUnitNotIn (m_crossLinked,    before.m_crossLinked);
+    bool  newClaimedFree  = HasUnitNotIn (m_claimedButFree, before.m_claimedButFree);
+    bool  leakedMore      = m_allocatedButUnclaimed.size() > before.m_allocatedButUnclaimed.size();
+    bool  brokeMoreChains = m_unfollowableChains.size() > before.m_unfollowableChains.size();
+    bool  lostTheCatalog  = before.m_catalogFullyParsed && !m_catalogFullyParsed;
+
+
+
+    return !newCrossLink
+        && !newClaimedFree
+        && !leakedMore
+        && !brokeMoreChains
+        && !lostTheCatalog;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  VolumeIntegrityReport::IsUniquelyOwnedBy
 //
 //  The rule delete rests on. "Exactly one claimant, and it is this one" is
