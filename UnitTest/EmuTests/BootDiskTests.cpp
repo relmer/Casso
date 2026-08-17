@@ -4,6 +4,7 @@
 #include "Assembler.h"
 #include "AssemblerTypes.h"
 
+#include "GuestSession.h"
 #include "HeadlessHost.h"
 #include "KeystrokeInjector.h"
 #include "Devices/Disk/DiskImageStore.h"
@@ -44,6 +45,14 @@ namespace fs = std::filesystem;
 //  -> DiskImageStore -> Disk2Controller -> Disk2NibbleEngine ->
 //  Disk2.rom slot 6 boot -> 6502 CPU executing our RWTS -> MMU HGR
 //  page-1 writes -> Apple2eSoftSwitchBank graphics-mode latching.
+//
+//  THE CHEAP QUESTIONS COME FIRST. The demo has no operating system to fall
+//  back on -- the boot ROM reads track 0's first sector and jumps into it, and
+//  a stitched image the drive cannot read makes the 6502 execute the framebuffer
+//  instead. This build writes an instruction look-back for every illegal opcode
+//  it reaches, so that failure is measured in gigabytes rather than in a red
+//  assertion. Both questions below are asked of the mounted container and
+//  before the processor is pointed at the boot ROM.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -347,6 +356,17 @@ public:
             img = core.diskStore->GetImage (6, 0);
             Assert::IsNotNull (img);
             core.diskController->SetExternalDisk (0, img);
+
+            // The cheap questions, asked of the container the drive is
+            // actually holding and before a processor is involved. The demo's
+            // RWTS reads nine tracks by address field and there is no
+            // operating system underneath it to report a bad read, so a
+            // stitched image the drive does not present verbatim is not a
+            // wrong picture -- it is a processor loaded with data.
+            GuestSession::AssertTheDrivePresentsWhatWasMounted (
+                *img, raw, L"the assembled demo disk");
+            GuestSession::AssertTheDriveCanReadTheBootSector (
+                *img, L"the assembled demo disk");
 
             core.bus->WriteByte (0xC006, 0);  // INTCXROM=0
 

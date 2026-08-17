@@ -141,6 +141,165 @@ std::string GuestSession::TrimTrailingBlanks (const std::string & row)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GuestSession::DecodeThroughTheDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::DecodeThroughTheDrive (const std::vector<Byte> & bytes)
+{
+    DiskImage           image;
+    SectorDecodeReport  report;
+
+
+
+    AssertSucceeded (NibblizationLayer::NibblizeDsk (bytes, image),
+        L"the container must nibblize before the drive can be asked what it reads");
+
+    return DecodeThroughTheDrive (image, report);
+}
+
+
+std::vector<Byte> GuestSession::DecodeThroughTheDrive (const DiskImage     & image,
+                                                       SectorDecodeReport  & outReport)
+{
+    std::vector<Byte>  sectors;
+
+    //  The REPORTING overload, and not for the report alone. Its twin fails on
+    //  any data loss, and a copy-protected disk loses data by construction --
+    //  which would turn "this WOZ cannot be pre-checked" into "this WOZ is
+    //  broken" at every game gate on the branch.
+    AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, sectors, outReport),
+        L"and the drive must be able to walk its tracks at all");
+
+    return sectors;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::AssertTheDrivePresentsWhatWasMounted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GuestSession::AssertTheDrivePresentsWhatWasMounted (const DiskImage          & image,
+                                                         const std::vector<Byte>  & mounted,
+                                                         const wchar_t            * what)
+{
+    SectorDecodeReport  report;
+    std::vector<Byte>   seen = DecodeThroughTheDrive (image, report);
+    size_t              at   = 0;
+
+    Assert::AreEqual (mounted.size(), seen.size(), std::format (
+        L"{}: the drive presents {} bytes where {} were mounted",
+        what, seen.size(), mounted.size()).c_str());
+
+    for (at = 0; at < seen.size(); at++)
+    {
+        if (seen[at] != mounted[at])
+        {
+            break;
+        }
+    }
+
+    Assert::IsTrue (at == seen.size(), std::format (
+        L"{}: the drive does not read back what was mounted. First difference at offset "
+        L"{} -- track {}, sector {} -- where ${:02X} was mounted and ${:02X} comes back. "
+        L"A sector out of step still carries a valid header, so the ROM would read it, "
+        L"believe it, and jump into it",
+        what,
+        at,
+        at / ((size_t) NibblizationLayer::kSectorByteSize * NibblizationLayer::kSectorsPerTrack),
+        (at / (size_t) NibblizationLayer::kSectorByteSize) % NibblizationLayer::kSectorsPerTrack,
+        (unsigned) (at < mounted.size() ? mounted[at] : 0),
+        (unsigned) (at < seen.size()    ? seen[at]    : 0)).c_str());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::AssertTheDriveCanReadTheBootSector
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GuestSession::AssertTheDriveCanReadTheBootSector (const DiskImage  & image,
+                                                       const wchar_t    * what)
+{
+    SectorDecodeReport  report;
+    std::vector<Byte>   sectors = DecodeThroughTheDrive (image, report);
+    bool                blank   = true;
+    size_t              i       = 0;
+
+    Assert::IsTrue (report.IsSectorRecovered (kBootTrack, kBootSector), std::format (
+        L"{}: the drive cannot recover track 0's first sector, which is the one the "
+        L"controller ROM reads into $0800 and jumps into. Booting this would put a 6502 "
+        L"into data and write a look-back per illegal opcode until something killed it",
+        what).c_str());
+
+    for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize && blank; i++)
+    {
+        blank = sectors[i] == 0;
+    }
+
+    Assert::IsFalse (blank, std::format (
+        L"{}: track 0's first sector decoded and is entirely zero, so the ROM would hand "
+        L"over to a page of BRKs",
+        what).c_str());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::AssertTheDriveHoldsWrittenTracks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GuestSession::AssertTheDriveHoldsWrittenTracks (const DiskImage  & image,
+                                                     int                leastTracks,
+                                                     const wchar_t    * what)
+{
+    SectorDecodeReport  report;
+    int                 written = 0;
+    int                 slot    = 0;
+
+    DecodeThroughTheDrive (image, report);
+
+    for (slot = 0; slot < image.GetTrackCount(); slot++)
+    {
+        if (image.GetTrackBitCount (slot) > 0)
+        {
+            written++;
+        }
+    }
+
+    Assert::IsTrue (written >= leastTracks, std::format (
+        L"{}: the drive is holding only {} written tracks and this gate is about to "
+        L"require the head to visit {}. Booting it would spend the whole cycle budget "
+        L"with a 6502 in data, writing a look-back per illegal opcode",
+        what, written, leastTracks).c_str());
+
+    Assert::IsTrue (TrackDecodeOutcome::Unformatted != report.GetOutcome (kBootTrack),
+        std::format (
+            L"{}: track 0 carries no address field anywhere in a revolution, so the "
+            L"controller ROM has nothing to recalibrate onto and would hand a page of "
+            L"whatever is in memory to the processor",
+            what).c_str());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GuestSession::IsAtBarePrompt
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -359,6 +518,13 @@ void GuestSession::Mount (HeadlessHost             & host,
     image = core.diskStore->GetImage (kSlot6, kDrive1);
     Assert::IsNotNull (image, L"the mounted image must be present");
     core.diskController->SetExternalDisk (kDrive1, image);
+
+    //  Between mounting and starting the processor, and nowhere else: this is
+    //  the last moment at which a hopeless image costs milliseconds instead of
+    //  a runaway trace. Every caller here hands over a sector buffer, so every
+    //  caller gets the strongest of the three questions asked for it.
+    AssertTheDrivePresentsWhatWasMounted (*image, bytes, L"the image this gate mounts");
+    AssertTheDriveCanReadTheBootSector   (*image,        L"the image this gate mounts");
 
     core.bus->WriteByte (kIntCxRomOff, 0);
     core.cpu->SetPC (kBootRomEntry);

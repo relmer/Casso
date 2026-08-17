@@ -3,6 +3,7 @@
 #include "../../CassoEmuCore/Pch.h"
 
 #include "HeadlessHost.h"
+#include "Devices/Disk/NibblizationLayer.h"
 
 
 
@@ -19,6 +20,15 @@
 //  a file written through a wrong understanding and read back through the same
 //  wrong understanding comes back perfectly. The witnesses here are the guest's
 //  own -- what DOS 3.3 and ProDOS print, and what they leave in memory.
+//
+//  NOTHING HERE STARTS A PROCESSOR BEFORE THE CHEAP QUESTIONS ARE ASKED. A
+//  guest handed an image it cannot make sense of executes whatever it managed
+//  to read, and this build writes a look-back for every illegal opcode it
+//  reaches. The ring bounds what is RETAINED, not what is EMITTED: one boot of
+//  a mis-ordered image has written over three gigabytes and taken the test host
+//  with it. So Mount decodes the container the way the DRIVE will and refuses
+//  to start anything when the boot ROM's own first read is not there, and the
+//  gates above it ask whatever else they can afford to ask first.
 //
 //  ONE COPY OF THE PAGING RULES, ON PURPOSE. DOS 3.3's catalog pager is
 //  indistinguishable from a prompt to everything MachineIdle looks at -- drive
@@ -66,6 +76,78 @@ public:
     static void  BootToPrompt (HeadlessHost             & host,
                                EmulatorCore             & core,
                                const std::vector<Byte>  & bytes);
+
+    //  The container decoded the way the DRIVE reads it: laid down as physical
+    //  nibbles and recovered through the hardware interleave, rather than
+    //  through the path that wrote it.
+    static std::vector<Byte>  DecodeThroughTheDrive (const std::vector<Byte> & bytes);
+
+    //  The same question of a container already loaded into a drive, which is
+    //  the only form a WOZ can be asked in -- its bit streams come off the file
+    //  itself and there is no sector buffer to nibblize.
+    static std::vector<Byte>  DecodeThroughTheDrive (const DiskImage     & image,
+                                                     SectorDecodeReport  & outReport);
+
+    //  THE BOUND ON A FAILING BOOT GATE, in three strengths. All three are the
+    //  same question -- what does the drive read off this? -- asked through the
+    //  one decoder above, and a caller takes the strongest its material lets it
+    //  answer:
+    //
+    //    a sector image mounted from bytes    -> the bytes come back
+    //    a container built as bits (a WOZ)    -> the ROM's own first read works
+    //    a copy-protected container           -> the tracks are there at all
+    //
+    //  Ordered by what INDEPENDENT thing there is to compare against, not by
+    //  taste. The first has the caller's own buffer, which is why it is the one
+    //  to prefer: a decoder checked against its own inverse agrees with itself
+    //  while presenting something no guest would recognize.
+
+
+    //  The drive must present exactly the bytes that were handed to it.
+    //
+    //  THE STRONGEST OF THE THREE AND THE CHEAPEST TO BE SURE OF. A sector one
+    //  place out of step still carries a valid header, so the controller ROM
+    //  reads it, believes it, and jumps into another sector's data -- the exact
+    //  shape that has twice made a guest execute the disk and write an
+    //  instruction look-back per illegal opcode until the run died. Nothing
+    //  weaker than a byte comparison sees it.
+    static void  AssertTheDrivePresentsWhatWasMounted (const DiskImage          & image,
+                                                       const std::vector<Byte>  & mounted,
+                                                       const wchar_t            * what);
+
+    //  The boot ROM's own first read, asked before any processor is started.
+    //
+    //  For a container with no sector buffer behind it to compare against. The
+    //  ROM reads track 0's first sector into $0800 and jumps to $0801 whatever
+    //  that sector holds; an image whose first sector the drive cannot recover,
+    //  or which holds nothing at all, guarantees a 6502 executing data.
+    //
+    //  Deliberately not a filesystem question. A disk built by this tool need
+    //  not carry a volume -- the direct-boot images do not -- and a gate that
+    //  demanded one could not be applied to them.
+    //
+    //  FOR STANDARD MEDIA ONLY, and that is a limit of the reader rather than
+    //  of the idea. Measured on this branch: `Denibblize` recovers ZERO sectors
+    //  from track 0 of Choplifter, Karateka and Lode Runner, all three of which
+    //  the controller ROM boots perfectly. It abandons a track at the first
+    //  sector whose data field it cannot locate, and on a protection that
+    //  rewrites data prologues the first header the scan meets from bit zero is
+    //  usually one of those -- so the whole revolution is spent and the track
+    //  comes back empty. Ask a protected disk the question below instead.
+    static void  AssertTheDriveCanReadTheBootSector (const DiskImage  & image,
+                                                     const wchar_t    * what);
+
+    //  As much of the same question as a COPY-PROTECTED disk can be asked: the
+    //  drive is holding at least as many written tracks as the caller is about
+    //  to require the head to visit, and track 0 -- where the ROM starts -- has
+    //  address fields on it at all.
+    //
+    //  Weaker than its neighbor on purpose. It is answered off the loaded bit
+    //  streams and the per-track outcome rather than off recovered sectors,
+    //  which is the only layer a protected disk and this decoder agree on.
+    static void  AssertTheDriveHoldsWrittenTracks (const DiskImage  & image,
+                                                   int                leastTracks,
+                                                   const wchar_t    * what);
 
     //  Every non-blank row showing now, appended to whatever is already there.
     static void  CollectRows (EmulatorCore & core, std::vector<std::string> & outRows);
@@ -128,6 +210,10 @@ private:
     //  cursor.
     static constexpr size_t  kPromptRowLength = 2;
     static constexpr char    kPromptGlyph     = ']';
+
+    //  What the controller ROM reads, in the decoded buffer's own terms.
+    static constexpr int  kBootTrack  = 0;
+    static constexpr int  kBootSector = 0;
 
     static constexpr Word  kBootRomEntry = 0xC600;
     static constexpr Word  kIntCxRomOff  = 0xC006;
