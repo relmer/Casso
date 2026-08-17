@@ -59,8 +59,18 @@ static constexpr MerlinDirectiveTable::Spelling  s_kMerlinSpellings[] =
     //  Assembly-time assertion. LABELS.S depends on it.
     { "ERR",  Directive::ErrorIf         },   //  17
 
-    //  Listing control, which as65 already has a token for.
+    //  Listing control, which as65 already has tokens for.
+    //
+    //  TR, EXP and AST steer what the LISTING looks like -- truncated lines,
+    //  whether macro expansions are shown, a rule of asterisks -- and change no
+    //  object byte. That is precisely what the option token means, so they reuse
+    //  it rather than each bringing a token whose handler would do nothing. A
+    //  token exists for an operation the assembler cannot already perform, and
+    //  "recognized, affects no output" is an operation it can.
     { "PAG",  Directive::Page            },   //   1
+    { "TR",   Directive::OptNoop         },   //   1
+    { "EXP",  Directive::OptNoop         },   //   4
+    { "AST",  Directive::OptNoop         },   //   4
 
     //  The CPU selector. Merlin takes its target from here and nowhere else.
     { "XC",   Directive::CpuSelect       },
@@ -99,6 +109,12 @@ static const char  s_kCommentIntroducer = ';';
 
 //  Introduces a whole-line comment in column 1.
 static const char  s_kLineCommentIntroducer = '*';
+
+//  The two spellings that make a line an equate. `=` is the only one on the
+//  disk -- 128 uses, and no EQU anywhere -- but EQU is in the language, and a
+//  dialect is judged by what it accepts rather than by what one vendor wrote.
+static const char *  s_kpszEquateSign    = "=";
+static const char *  s_kpszEquateKeyword = "EQU";
 
 
 
@@ -406,8 +422,10 @@ std::string MerlinDialect::ReadOperandField (const std::string & line, size_t & 
 
 ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) const
 {
-    ParsedLine  result = {};
-    size_t      pos    = 0;
+    ParsedLine   result   = {};
+    std::string  opcode;
+    size_t       pos      = 0;
+    bool         isEquate = false;
 
 
 
@@ -447,10 +465,39 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
         }
     }
 
+    opcode = Parser::ToUpper (result.mnemonic);
+
+    // An equate puts its sign in the OPCODE field, with the name beside it in
+    // the label field. It is a field-model fact rather than an expression one:
+    // nothing in `LOADADR = $9000` is an operand containing an operator, so a
+    // parser looking for `=` inside the text would find it in the wrong place
+    // and leave the line looking like an instruction called `=`.
+    isEquate = !result.label.empty() &&
+               ((opcode == s_kpszEquateSign) || (opcode == s_kpszEquateKeyword));
+
+    if (isEquate)
+    {
+        result.isConstant   = true;
+        result.constantName = result.label;
+        result.constantExpr = result.operand;
+        result.constantKind = SymbolKind::Equ;
+        result.isEmpty      = false;
+
+        // The name is the CONSTANT's, not a label binding to the current
+        // address. Leaving it in the label field would bind it twice -- once
+        // here at the program counter and once as the constant -- and the second
+        // definition would be reported as a duplicate of the first.
+        result.label.clear();
+        result.mnemonic.clear();
+        result.operand.clear();
+
+        return result;
+    }
+
     // Resolve the opcode field against Merlin's vocabulary. A word that is not a
     // directive stays a mnemonic -- it is an instruction or a macro invocation,
     // and telling those two apart needs the macro table rather than the parser.
-    result.directiveToken = MerlinDirectiveTable::FromSpelling (Parser::ToUpper (result.mnemonic));
+    result.directiveToken = MerlinDirectiveTable::FromSpelling (opcode);
     result.isDirective    = (result.directiveToken != Directive::None);
 
     if (result.isDirective)

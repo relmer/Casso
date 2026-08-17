@@ -167,17 +167,19 @@ namespace MerlinDirectiveTests
 
 
 
-        //  A trailing byte after the closing delimiter is REFUSED rather than
-        //  dropped. The vendor sources contain the form, but nothing reachable
-        //  today pins what the trailing digits mean, and emitting the string
-        //  without them would be plausible and wrong.
-        TEST_METHOD (TrailingDataAfterAStringIsRefusedRatherThanDropped)
+        //  A trailing byte after the closing delimiter used to be REFUSED,
+        //  because nothing reachable then pinned what the digits meant. `MAKE
+        //  DUMP`'s object settled it -- hexadecimal, emitted verbatim -- and the
+        //  encodings are pinned in MerlinRawDataTests. What survives here is the
+        //  SIZING half: pass 1 must count the trailing bytes too, or the next
+        //  label binds two bytes early.
+        TEST_METHOD (ALabelAfterAStringCountsItsTrailingBytesToo)
         {
-            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" ASC \"AB\"0D\n");
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin ("START ASC \"AB\"0D\nAFTER BRK\n");
 
-            Assert::IsFalse (result.errors.empty(), L"silently dropping the trailing byte would emit short data");
-            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "Trailing data"),
-                            L"and the diagnostic must say what was refused");
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual (0x8003, (int) result.symbols.at ("AFTER"),
+                              L"two characters plus one trailing byte is three");
         }
 
 
@@ -564,6 +566,280 @@ namespace MerlinDirectiveTests
                                          "ahead:  rts\n", DialectId::As65);
 
             Assert::IsFalse (result.errors.empty(), L"BGE likewise");
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinRawDataTests
+    //
+    //  Raw hexadecimal, in the two places Merlin admits it: the HEX directive and
+    //  a run of digits after a string's closing delimiter.
+    //
+    //  Both were settled against `MAKE DUMP`'s shipped object rather than
+    //  reasoned about. Its source carries
+    //  `ASC "This destroys current source."8D8D` and
+    //  `ASC "Do you really want it (Y/N)? "00`, and the object holds the
+    //  high-ASCII text followed by `8D 8D` and then `00`. Two facts fall out: the
+    //  digits are hexadecimal, and the bytes are NOT pushed through the
+    //  delimiter's high-bit convention -- `00` staying `00` is the proof, since a
+    //  high-bit rule would have written `80`.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinRawDataTests)
+    {
+    public:
+
+        TEST_METHOD (TrailingDigitsAfterAStringAreHexadecimalBytes)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" ASC \"AB\"8D8D\n");
+            std::vector<Byte>  expected = { 0xC1, 0xC2, 0x8D, 0x8D };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"two digit pairs are two bytes, appended after the text");
+        }
+
+
+
+        //  The half the corpus settles that no amount of reasoning would: a
+        //  trailing `00` is a zero byte, not a high-bit zero.
+        TEST_METHOD (ATrailingZeroByteIsNotForcedToHighAscii)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" ASC \"A\"00\n");
+            std::vector<Byte>  expected = { 0xC1, 0x00 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the trailing run is verbatim; only the TEXT takes the high bit");
+        }
+
+
+
+        //  Half a byte is refused rather than padded. Both plausible repairs
+        //  change every byte after it, so neither may be guessed at.
+        TEST_METHOD (AnOddDigitRunAfterAStringIsRefused)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" ASC \"A\"8\n");
+
+            Assert::IsFalse (result.errors.empty(), L"an odd digit count is not a whole byte");
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "hexadecimal"),
+                            L"and the diagnostic must say what was wrong with it");
+        }
+
+
+
+        TEST_METHOD (HexEmitsItsDigitsAsRawBytes)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" HEX 8D8D\n");
+            std::vector<Byte>  expected = { 0x8D, 0x8D };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"HEX writes the bytes the digits spell");
+        }
+
+
+
+        //  The two passes have to agree about the length, or every label after a
+        //  HEX line binds to the wrong address. Checked by making a later label's
+        //  value the output rather than by counting bytes.
+        TEST_METHOD (HexReservesTheSameLengthInBothPasses)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              " HEX 010203\n"
+                                              "AFTER RTS\n"
+                                              " DA AFTER\n");
+            std::vector<Byte>  expected = { 0x01, 0x02, 0x03, 0x60, 0x03, 0x80 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"AFTER must land at $8003, which only holds if pass 1 sized HEX");
+        }
+
+
+
+        TEST_METHOD (HexWithAnOddDigitCountIsRefused)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" HEX 8D8\n");
+
+            Assert::IsFalse (result.errors.empty(), L"five digits are not whole bytes");
+        }
+
+
+
+        //  Separators are accepted although the disk never uses one. UNVERIFIED
+        //  against vendor bytes and deliberately so: refusing a documented form
+        //  can only cost a user source that assembles elsewhere.
+        TEST_METHOD (HexAcceptsCommaSeparatedBytes)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" HEX 8D,00,FF\n");
+            std::vector<Byte>  expected = { 0x8D, 0x00, 0xFF };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"commas separate bytes; they are not data");
+        }
+
+
+
+        //  FR-005 again. HEX is Merlin's word and must stay unknown to as65.
+        TEST_METHOD (As65DoesNotAssembleHex)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::Assemble ("        hex 8D8D\n", DialectId::As65);
+
+            Assert::IsFalse (result.errors.empty(), L"HEX is not an as65 directive");
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinEquateTests
+    //
+    //  `NAME = expr` puts the sign in the OPCODE field, with the name beside it
+    //  in the label field. That makes it a field-model fact rather than an
+    //  expression one -- a parser hunting for `=` inside the operand finds it in
+    //  the wrong place and leaves the line looking like an instruction called
+    //  `=`, which is exactly what it did.
+    //
+    //  128 of them across the vendor sources, and no other equate spelling.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinEquateTests)
+    {
+    public:
+
+        TEST_METHOD (AnEquateDefinesTheNameToItsExpression)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              "PORT = $12\n"
+                                              " LDA PORT\n");
+            std::vector<Byte>  expected = { 0xA5, 0x12 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"PORT is $12, and zero page at that");
+        }
+
+
+
+        //  The name must NOT also bind to the program counter. It did, before the
+        //  label field was cleared, and the equate was then reported as a
+        //  duplicate of the label the same line had just defined.
+        TEST_METHOD (AnEquateDoesNotAlsoBindItsNameToTheProgramCounter)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              "MARK = $1234\n"
+                                              " DA MARK\n");
+            std::vector<Byte>  expected = { 0x34, 0x12 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"MARK is $1234, not the address the line sat at");
+        }
+
+
+
+        //  The equate line itself emits nothing, and the line after it starts
+        //  where the origin said.
+        TEST_METHOD (AnEquateOccupiesNoSpace)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              "A = 1\n"
+                                              "B = 2\n"
+                                              "HERE RTS\n"
+                                              " DA HERE\n");
+            std::vector<Byte>  expected = { 0x60, 0x00, 0x80 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"HERE is $8000, so neither equate advanced the counter");
+        }
+
+
+
+        //  A comment after the expression is a comment, not part of it. Every
+        //  equate in MAKE DUMP carries one.
+        TEST_METHOD (AnEquateIgnoresItsTrailingComment)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              "LOADADR = $9000 ;Address of BRUN\n"
+                                              " DA LOADADR\n");
+            std::vector<Byte>  expected = { 0x00, 0x90 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the comment must not reach the expression");
+        }
+
+
+
+        //  EQU is in the language although absent from the disk. Recorded as a
+        //  deliberate acceptance rather than an oracle-backed one.
+        TEST_METHOD (TheEquKeywordIsAcceptedAsWell)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              "PORT EQU $12\n"
+                                              " LDA PORT\n");
+            std::vector<Byte>  expected = { 0xA5, 0x12 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"EQU is the same operation as the sign");
+        }
+
+
+
+        //  An indented `=` has no name to define, and must say so rather than
+        //  quietly defining nothing.
+        TEST_METHOD (AnEquateWithNoNameIsNotAnEquate)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" = $12\n");
+
+            Assert::IsFalse (result.errors.empty(), L"with no label there is nothing to equate");
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinListingDirectiveTests
+    //
+    //  Directives that steer the listing and change no object byte. They reuse
+    //  the assembler-option token rather than each bringing one whose handler
+    //  would do nothing -- a token exists for an operation the assembler cannot
+    //  already perform, and "recognized, affects no output" is one it can.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinListingDirectiveTests)
+    {
+    public:
+
+        TEST_METHOD (ListingDirectivesAreRecognizedAndEmitNothing)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              " TR\n"
+                                              " EXP OFF\n"
+                                              " AST 50\n"
+                                              " RTS\n");
+            std::vector<Byte>  expected = { 0x60 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"three listing directives and one instruction is one byte");
+        }
+
+
+
+        TEST_METHOD (As65DoesNotAcceptMerlinsListingDirectives)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::Assemble ("        ast 50\n", DialectId::As65);
+
+            Assert::IsFalse (result.errors.empty(), L"AST is Merlin's word, not as65's");
         }
     };
 

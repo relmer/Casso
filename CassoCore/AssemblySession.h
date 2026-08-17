@@ -148,6 +148,7 @@ private:
     HRESULT HandlePass1Word    (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1Text    (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1String  (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1Hex     (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1Dd      (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1Ds      (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1Align   (const PendingLine & current, LineInfo & info);
@@ -163,6 +164,7 @@ private:
 
     HRESULT EmitTextDirective     (const LineInfo & info, Word & emitPC);
     HRESULT EmitStringDirective   (const LineInfo & info, Word & emitPC);
+    HRESULT EmitHexDirective      (const LineInfo & info, Word & emitPC);
     HRESULT EmitErrorIfDirective  (const LineInfo & info, Word & emitPC);
     HRESULT EmitMultiNopDirective (const LineInfo & info, Word & emitPC);
 
@@ -171,6 +173,16 @@ private:
     // deriving the size any other way is how a one-byte terminator convention
     // ends up shifting every label after it.
     static bool TryEncodeStringOperand (const ParsedLine & parsed, std::vector<Byte> & outBytes,
+                                        std::string & outError);
+
+    // A run of hexadecimal digit pairs, APPENDED to what the caller already
+    // has. Refuses an odd digit count rather than padding it.
+    static bool TryParseHexBytes       (const std::string & text, std::vector<Byte> & outBytes);
+
+    // The bytes one raw-hexadecimal directive produces. Shared by both passes
+    // for the same reason the string encoder is: a size derived any other way
+    // can disagree with the bytes and move every label after it.
+    static bool TryEncodeHexOperand    (const ParsedLine & parsed, std::vector<Byte> & outBytes,
                                         std::string & outError);
 
     // The separator joining a local label to the global label it belongs to.

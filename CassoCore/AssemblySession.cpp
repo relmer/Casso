@@ -2949,11 +2949,25 @@ HRESULT AssemblySession::HandlePass1Text (const PendingLine & /*current*/, LineI
 //  fixed quote set -- and it also decides whether the text carries the high bit,
 //  so it is read before the payload rather than skipped past.
 //
-//  A trailing byte after the closing delimiter (`ASC "TEXT"8D`) is REFUSED
-//  rather than dropped. The vendor sources do contain the form, but no oracle
-//  reachable today pins whether the trailing digits are hexadecimal, and
-//  guessing would emit plausible bytes that are wrong -- exactly the failure the
-//  corpus exists to catch. A refusal is visible; a dropped byte is not.
+//  Data after the closing delimiter (`ASC "TEXT"8D8D`) is a run of RAW
+//  HEXADECIMAL BYTE PAIRS, appended verbatim after the encoded text.
+//
+//  Settled against the shipped object rather than reasoned about. `MAKE DUMP`
+//  carries `ASC "This destroys current source."8D8D` followed by
+//  `ASC "Do you really want it (Y/N)? "00`, and its object holds the high-ASCII
+//  text with `8D 8D` and then `00` immediately after -- so the digits are
+//  hexadecimal, two per byte, and the bytes are NOT forced to the delimiter's
+//  high-bit convention the way the text is. `00` staying `00` is what proves the
+//  second half; a high-bit rule would have made it `80`.
+//
+//  Every one of the 14 such lines across the vendor sources is a bare digit run
+//  with no separator, so no comma form is accepted here. Adding one would be
+//  guessing at a spelling the corpus does not contain.
+//
+//  UNVERIFIED: whether a trailing run after DCI counts toward the terminator.
+//  Every trailing-run line on the disk is ASC, so nothing pins it. The text is
+//  encoded first and the run appended after, which leaves DCI's inversion on the
+//  last character of the TEXT.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2961,11 +2975,11 @@ bool AssemblySession::TryEncodeStringOperand (const ParsedLine & parsed, std::ve
                                               std::string & outError)
 {
     const std::string &  operand   = parsed.directiveArg;
+    std::string          extra;
     char                 delimiter = 0;
     size_t               closing   = std::string::npos;
     bool                 hasText   = (operand.size() >= 2);
     bool                 closed    = false;
-    bool                 trailing  = false;
     bool                 encoded   = false;
 
 
@@ -2979,27 +2993,190 @@ bool AssemblySession::TryEncodeStringOperand (const ParsedLine & parsed, std::ve
         delimiter = operand[0];
         closing   = operand.find (delimiter, 1);
         closed    = (closing != std::string::npos);
-        trailing  = closed && ((closing + 1) != operand.size());
 
         if (!closed)
         {
             outError = std::string ("Unterminated string: no closing ") + delimiter;
         }
-        else if (trailing)
-        {
-            outError = "Trailing data after a string operand is not supported: " + operand.substr (closing + 1);
-        }
         else
         {
+            extra = operand.substr (closing + 1);
+
             StringEncoding::Encode (operand.substr (1, closing - 1),
                                     parsed.stringMode,
                                     StringEncoding::HighBitFromDelimiter (delimiter),
                                     outBytes);
-            encoded = true;
+
+            encoded = TryParseHexBytes (extra, outBytes);
+
+            if (!encoded)
+            {
+                outError = "Trailing data after a string operand must be whole hexadecimal bytes: " + extra;
+                outBytes.clear();
+            }
         }
     }
 
     return encoded;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::TryParseHexBytes
+//
+//  A run of hexadecimal digit pairs APPENDED to whatever the caller already
+//  has, so one call can extend an encoded string rather than replace it.
+//
+//  An odd number of digits is refused rather than padded. A half byte means the
+//  source says something the reader cannot resolve, and both plausible repairs
+//  -- pad the front, pad the back -- change every byte after it.
+//
+//  Empty text is a success that appends nothing, which is what makes this
+//  usable for the common case of no trailing data at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::TryParseHexBytes (const std::string & text, std::vector<Byte> & outBytes)
+{
+    size_t  pos    = 0;
+    bool    parsed = ((text.size() % 2) == 0);
+
+
+
+    while (parsed && (pos < text.size()))
+    {
+        int  value = HexByte (text, pos);
+
+        if (value < 0)
+        {
+            parsed = false;
+            break;
+        }
+
+        outBytes.push_back ((Byte) value);
+        pos += 2;
+    }
+
+    return parsed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::TryEncodeHexOperand
+//
+//  One raw-hexadecimal directive into bytes.
+//
+//  The digits are the bytes: no expression is evaluated and no value is
+//  range-checked, which is the whole point of the directive -- it is how a
+//  source writes data the assembler has no other way to spell.
+//
+//  Separators are removed before parsing rather than parsed as structure.
+//  Every one of the nine occurrences across the vendor sources is an unbroken
+//  digit run, so the comma form is UNVERIFIED here and accepted only because
+//  the directive documents it and refusing it could only cost a user source
+//  that assembles elsewhere.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::TryEncodeHexOperand (const ParsedLine & parsed, std::vector<Byte> & outBytes,
+                                           std::string & outError)
+{
+    std::string  digits;
+    bool         encoded = false;
+
+
+
+    for (char ch : parsed.directiveArg)
+    {
+        if ((ch != ',') && (ch != ' ') && (ch != '\t'))
+        {
+            digits += ch;
+        }
+    }
+
+    if (digits.empty())
+    {
+        outError = "Hexadecimal data directive needs at least one byte";
+    }
+    else
+    {
+        encoded = TryParseHexBytes (digits, outBytes);
+
+        if (!encoded)
+        {
+            outError = "Hexadecimal data must be whole bytes of hexadecimal digits: " + parsed.directiveArg;
+            outBytes.clear();
+        }
+    }
+
+    return encoded;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Hex
+//
+//  Sized by running the encoder and measuring, so the two passes cannot
+//  disagree about how many bytes the line occupies.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Hex (const PendingLine & current, LineInfo & info)
+{
+    std::vector<Byte>  bytes;
+    std::string        error;
+    bool               encoded = TryEncodeHexOperand (info.parsed, bytes, error);
+
+
+
+    if (!encoded)
+    {
+        RecordError (current.sourceLineNumber, error);
+    }
+
+    m_pc += (Word) bytes.size();
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitHexDirective
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitHexDirective (const LineInfo & info, Word & emitPC)
+{
+    std::vector<Byte>  bytes;
+    std::string        error;
+    bool               encoded = TryEncodeHexOperand (info.parsed, bytes, error);
+
+
+
+    IGNORE_RETURN_VALUE (encoded, false);
+
+    for (Byte value : bytes)
+    {
+        EmitByte (value, emitPC);
+    }
+
+    return S_OK;
 }
 
 
@@ -3337,7 +3514,7 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
     //  can assemble: emitting nothing for a HEX line would be the silent
     //  wrong-bytes failure this feature is built to avoid.
     { Directive::StringData,      &AssemblySession::HandlePass1String,      &AssemblySession::EmitStringDirective    },
-    { Directive::HexData,         nullptr,                                  nullptr                                  },
+    { Directive::HexData,         &AssemblySession::HandlePass1Hex,         &AssemblySession::EmitHexDirective       },
     { Directive::WordHighFirst,   nullptr,                                  nullptr                                  },
 
     //  ERR acts entirely in pass 2, where every symbol is known. Its pass-1 row
