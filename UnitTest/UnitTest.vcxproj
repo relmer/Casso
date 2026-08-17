@@ -232,6 +232,7 @@
     <ClCompile Include="DirectiveTokenTests.cpp" />
     <ClCompile Include="DialectMechanismTests.cpp" />
     <ClCompile Include="MerlinDiagnosticTests.cpp" />
+    <ClCompile Include="MerlinDirectiveTests.cpp" />
     <ClCompile Include="MerlinCorpus\MerlinFixture.cpp" />
     <ClCompile Include="MerlinCorpusTests.cpp" />
     <ClCompile Include="MerlinParserTests.cpp" />

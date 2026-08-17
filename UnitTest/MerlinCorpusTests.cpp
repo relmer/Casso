@@ -3,6 +3,8 @@
 #include "MerlinCorpus/CorpusHarness.h"
 #include "MerlinCorpus/MerlinFixture.h"
 #include "EmuTests/FixtureProvider.h"
+#include "TestHelpers.h"
+#include "Assembler.h"
 
 
 
@@ -412,6 +414,123 @@ namespace MerlinCorpusTests
             AssertSucceeded (MerlinFixture::LoadObject (provider, "anything", file));
             Assert::AreEqual (static_cast<size_t> (2), file.payload.size(), L"the header must not survive into the payload");
             Assert::AreEqual (0x8000, static_cast<int> (file.loadAddress), L"and the address must come off the header");
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinVendorOracleTests
+    //
+    //  Whole vendor sources through the real assembler, compared against the
+    //  objects the vendor shipped beside them.
+    //
+    //  This is a stronger claim than any encoder-level comparison. An encoder test
+    //  can be fed exactly the lines it knows how to handle; here the assembler is
+    //  handed the file as it sits on the disk, and every line has to be understood
+    //  -- the comment conventions, the column-0 label, the string encoding, the
+    //  instruction, and the assembly-time assertion -- for the byte count alone to
+    //  come out right.
+    //
+    //  The LOAD ADDRESS is asserted alongside the bytes. LABELS.S names no origin
+    //  anywhere, so its address comes entirely from the dialect's default; without
+    //  this assertion a wrong default yields 984 perfect bytes in the wrong place.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinVendorOracleTests)
+    {
+    public:
+
+        TEST_METHOD (LabelsSourceAssemblesToItsShippedObjectByteForByte)
+        {
+            FixtureProvider    provider;
+            TestCpu            cpu;
+            std::string        source;
+            MerlinFixtureFile  object;
+            AssemblerOptions   options    = {};
+            AssemblyResult     result;
+            CorpusComparison   comparison = {};
+
+            cpu.InitForTest();
+            options.dialect = DialectId::Merlin;
+
+            AssertSucceeded (MerlinFixture::LoadSource (provider, "Merlin/LABELS.S", source));
+            AssertSucceeded (MerlinFixture::LoadObject (provider, "Merlin/LABELS", object));
+
+            {
+                Assembler  merlin (cpu.GetInstructionSet(), options);
+
+                result = merlin.Assemble (source);
+            }
+
+            Assert::IsTrue (result.errors.empty(), FirstDiagnostic (result).c_str());
+
+            comparison = CorpusHarness::Compare (object.payload, result.bytes);
+
+            {
+                std::string   described = CorpusHarness::Describe ("LABELS.S", comparison);
+                std::wstring  message (described.begin(), described.end());
+
+                Assert::IsTrue (comparison.verdict == CorpusVerdict::Match, message.c_str());
+            }
+
+            Assert::AreEqual (static_cast<int> (object.loadAddress), static_cast<int> (result.startAddress),
+                              L"LABELS.S names no origin, so its load address comes from the dialect default alone");
+        }
+
+
+
+        //  The same source under AS65. This is the discriminating half: labels,
+        //  expressions and the evaluator are shared, so an entry that passes under
+        //  both dialects is not evidence that the Merlin profile was consulted.
+        TEST_METHOD (LabelsSourceUnderAs65DoesNotProduceMerlinsBytes)
+        {
+            FixtureProvider    provider;
+            TestCpu            cpu;
+            std::string        source;
+            MerlinFixtureFile  object;
+            AssemblerOptions   options    = {};
+            AssemblyResult     result;
+            CorpusComparison   comparison = {};
+
+            cpu.InitForTest();
+            options.dialect = DialectId::As65;
+
+            AssertSucceeded (MerlinFixture::LoadSource (provider, "Merlin/LABELS.S", source));
+            AssertSucceeded (MerlinFixture::LoadObject (provider, "Merlin/LABELS", object));
+
+            {
+                Assembler  as65 (cpu.GetInstructionSet(), options);
+
+                result = as65.Assemble (source);
+            }
+
+            comparison = CorpusHarness::Compare (object.payload, result.bytes);
+
+            Assert::IsFalse (comparison.verdict == CorpusVerdict::Match,
+                             L"Merlin source assembling identically under AS65 would mean the profile is not being consulted");
+        }
+
+    private:
+
+        //  The first diagnostic, so a failure names what the assembler objected to
+        //  instead of only that it objected. Empty when the assembly was clean.
+        static std::wstring FirstDiagnostic (const AssemblyResult & result)
+        {
+            std::string   text;
+            std::wstring  wide;
+
+            if (!result.errors.empty())
+            {
+                text = "line " + std::to_string (result.errors[0].lineNumber) + ": " + result.errors[0].message
+                     + " (" + std::to_string (result.errors.size()) + " total)";
+            }
+
+            wide.assign (text.begin(), text.end());
+
+            return wide;
         }
     };
 }
