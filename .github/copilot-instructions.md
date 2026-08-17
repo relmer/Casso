@@ -523,6 +523,17 @@ Two specific practices fall out of this:
   ~2. They also run **different test sets** — assertion-behavior tests verify
   nothing in Release — so Release is not a drop-in substitute for the pre-merge
   gate.
+- **Restoring a file from a backup copy defeats the incremental build.**
+  `Copy-Item` stamps the restored file with the *backup's* mtime, which is older
+  than the object built from the version you are replacing, so MSBuild skips the
+  compile and the binary still contains what you thought you reverted. The
+  timestamp check passes, because it only detects staleness pointing forward.
+  The tell is a build that finishes in under a second when it should take
+  several — treat a suspiciously fast build after a restore as a skipped one.
+  Either touch the file (`(Get-Item p).LastWriteTime = Get-Date`) and rebuild, or
+  make the restore an editor write rather than a filesystem copy. This matters
+  most when deliberately breaking code to check that a test fails without its
+  fix, which is exactly when a silently-unbuilt revert is most misleading.
 
 ### Style Gate (pre-push)
 
@@ -657,6 +668,18 @@ the pre-merge gate.
 
 - **ALL** terminal windows use PowerShell, not CMD
 - **ALWAYS** format commands for PowerShell syntax
+- **When a count or a listing IS the claim, print the total separately from the
+  sample.** `.Count` the unsliced collection first, then show the first N.
+  Truncation and exhaustion look identical in tool output, and the default shape
+  of most tooling is to truncate — so a number read off a cut-off listing becomes
+  a confident false claim. This has produced several: a `Select-Object -First 5`
+  turned six symbols into "four", a `head` on a grep made a file look absent when
+  the real hits were below the cut, and a byte-order bug printed the same wrong
+  header for every file and was reported as nonsense data rather than recognized
+  as a bug in the reader. Before a number goes into a commit message, a spec, or
+  a claim to the user, re-derive it from the whole collection. If output is
+  genuinely truncated, say the total is unknown rather than reporting what is
+  visible.
 
 ## Security Rules
 
