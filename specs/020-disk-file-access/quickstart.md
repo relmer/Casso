@@ -48,7 +48,7 @@ nothing in Release — so Release is not a substitute for the Debug gate.
 
 ```powershell
 # 1. Assemble to a loadable binary (already shipped)
-CassoCli.exe prog.a65 -o prog.bin --dos-bin
+CassoCli.exe prog.a65 -o prog.bin --raw
 
 # 2. Put it on a disk
 CassoCli.exe disk put mydisk.dsk prog.bin --as PROG --type B --addr `$6000
@@ -56,16 +56,45 @@ CassoCli.exe disk put mydisk.dsk prog.bin --as PROG --type B --addr `$6000
 # 3. Confirm it landed, without booting anything
 CassoCli.exe disk list mydisk.dsk
 
-# 4. Make the disk run it on boot
-CassoCli.exe disk boot mydisk.dsk PROG
+# 4. Place a greeting that runs it
+CassoCli.exe disk put mydisk.dsk greet.bas --as STARTUP --basic
 
-# 5. Boot it
+# 5. Make the disk run that on boot
+CassoCli.exe disk boot mydisk.dsk STARTUP
+
+# 6. Boot it
 Casso.exe --disk1 mydisk.dsk
 ```
 
 SC-001 is met when every step is one invocation with no third-party tool.
-SC-006 is met when steps 1-5 complete in under 10 seconds for a few-kilobyte
-program.
+SC-006 is met when the whole sequence reaches a running program in under 10
+seconds for a few-kilobyte program.
+
+**Two of these steps were wrong in this file until T047 ran them**, and both
+mistakes are the ones a reader guesses. They are recorded here rather than
+quietly corrected, because the help text now warns about both and the gate
+checks both.
+
+- **Step 1 said `--dos-bin`.** `put --type B --addr` writes the DOS 3.3
+  four-byte header itself, so a `--dos-bin` file arrives carrying a second one.
+  `BLOAD` then places the stale inner header at the load address and `BRUN`
+  executes it: the first byte is the low half of the load address, which for
+  anything in page `$60` and below is a `BRK`, and the machine lands in the
+  monitor. Measured on a booted //e — the screen shows `6002-` with a register
+  dump, two bytes past `$6000`, which is exactly where `BRK` pushes from.
+- **Step 4 named the binary.** A booting DOS 3.3 RUNs its greeting, which runs
+  an Applesoft or Integer program, so `disk boot mydisk.dsk PROG` sets the name
+  correctly, exits **1**, and says the disk will boot without running it. The
+  loop needs a one-line greeting — `10 PRINT CHR$(4);"BRUN PROG"` — placed with
+  `--basic`, which is why there are six steps rather than five. Direct boot
+  (US5) is the route that skips the operating system entirely, and it has no
+  command-line surface yet.
+
+`scripts/RunBuildLoopGate.ps1` runs this sequence, asserts one invocation per
+step against this repository's own binaries, and reports the elapsed time
+against the budget. Measured on `relmer-desktop`, Release x64: **0.12 s** of
+command-line work, **0.29 s** to the emulator's window, and **6.24 s** of guest
+boot (6,366,505 emulated cycles at 1,020,484 Hz) — **6.65 s** total.
 
 ## Acceptance walkthroughs
 
