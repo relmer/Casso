@@ -939,7 +939,16 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
 
     // The macro's name moved out of the opcode field, so the operand no longer
     // begins where a separate operand field would have. It begins immediately
-    // after the prefix, inside what was read as one word.
+    // after the prefix, inside what was read as one word. Without this the
+    // attached form and the spaced form disagree about where their identical
+    // operands start.
+    //
+    // NO TEST DISCRIMINATES THIS, and it is recorded here rather than left to be
+    // rediscovered. The operand column is read only by diagnostics whose subject
+    // is an operand -- an expression that will not evaluate, an unresolvable
+    // equate -- and none of those can arise on a line whose opcode field is a
+    // macro invocation. Verified by mutation, which nothing caught. It stays
+    // because it is what keeps the two spellings agreeing by construction.
     if (result.mnemonic.size() < opcodeWidth)
     {
         result.operandColumn = result.mnemonicColumn + (int) result.mnemonic.size();

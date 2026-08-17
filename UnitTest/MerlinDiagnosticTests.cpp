@@ -311,6 +311,33 @@ namespace MerlinDiagnosticTests
 
 
 
+        //  The third deferred carrier. A definition that is never closed
+        //  swallows every line after it, so by reporting time the only position
+        //  in hand is whatever the definition itself captured.
+        TEST_METHOD (UnterminatedMacro_KeepsTheColumnItOpenedAt)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  opts;
+            AssemblyResult    result;
+
+            cpu.InitForTest();
+            opts.dialect = DialectId::Merlin;
+
+            {
+                Assembler  merlin (cpu.GetInstructionSet(), opts);
+
+                result = merlin.Assemble ("MYMAC       MAC\n"
+                                          "  LDA #$00\n");
+            }
+
+            Assert::AreEqual ((size_t) 1, result.errors.size());
+            Assert::AreEqual (1, result.errors[0].lineNumber);
+            Assert::AreEqual (13, result.errors[0].column,
+                              L"the definition opened at the opcode field of its own line");
+        }
+
+
+
         //  The additive half. as65 records no columns, so its diagnostics must
         //  keep reporting none -- including the ones this feature rewrote.
         TEST_METHOD (As65Diagnostics_StillCarryNoColumn)

@@ -859,6 +859,28 @@ namespace MerlinCorpusTests
 
 
 
+    //  The macro call punctuated for the other dialect, named once and used
+    //  twice: the sweep's entry reads its diagnostic, and a separate test reads
+    //  the bytes it must not produce. Two literals would let those drift into
+    //  testing different sources, which is the shape where one of them quietly
+    //  stops covering anything.
+    //
+    //  The body assembles CLEANLY under the empty substitution, and that is the
+    //  whole design. `DFB $10,$20` is two data bytes and a bare shift is the
+    //  accumulator form, so an assembler expanding this anyway emits three bytes
+    //  of a different program and says nothing. A body that merely failed one
+    //  step later would leave the byte assertion satisfied either way -- and
+    //  that was measured rather than reasoned: the first version used
+    //  `LDA ]1 / STA ]2`, and the mutation that reported the mismatch and then
+    //  expanded regardless went uncaught by it.
+    static constexpr const char *  s_kpszMisPunctuatedCall = "STORE     MAC\n"
+                                                             "          DFB ]1\n"
+                                                             "          LSR ]2\n"
+                                                             "          <<<\n"
+                                                             "          STORE $10,$20\n";
+
+
+
     //  The negative corpus. Indentation is chosen per entry so that no two
     //  expected columns are the same number.
     static constexpr NegativeEntry  s_kNegativeCorpus[] =
@@ -933,12 +955,9 @@ namespace MerlinCorpusTests
             //  parameter has nothing to take. Refused rather than expanded with
             //  the gap left empty -- see the byte assertion below, which is the
             //  half that says "rather than partially expanded".
+            //
             "macro invoked with as65 argument syntax",
-            "STORE     MAC\n"
-            "          LDA ]1\n"
-            "          STA ]2\n"
-            "          <<<\n"
-            "          STORE $10,$20\n",
+            s_kpszMisPunctuatedCall,
             DiagnosticKind::SourceError, 5, 11,
             "supplies 1 argument", "Invalid mnemonic",
         },
@@ -1018,13 +1037,14 @@ namespace MerlinCorpusTests
         //  rather than partially expanded" is a claim about what was NOT emitted,
         //  and an implementation reporting the mismatch and then expanding the
         //  body anyway satisfies every assertion in the sweep above.
+        //
+        //  The body assembles cleanly under the empty substitution, which is
+        //  what makes this discriminating rather than decorative -- see the note
+        //  on the entry itself. Without the refusal this source produces three
+        //  bytes and no complaint.
         TEST_METHOD (TheMisPunctuatedMacroCallEmitsNothing)
         {
-            AssemblyResult  result = AssembleAsMerlin ("STORE     MAC\n"
-                                                       "          LDA ]1\n"
-                                                       "          STA ]2\n"
-                                                       "          <<<\n"
-                                                       "          STORE $10,$20\n");
+            AssemblyResult  result = AssembleAsMerlin (s_kpszMisPunctuatedCall);
 
             Assert::IsTrue (result.bytes.empty(), L"a refused invocation must emit no part of the body");
         }
@@ -1035,17 +1055,23 @@ namespace MerlinCorpusTests
         //  evidence of nothing -- a macro mechanism too broken to expand anything
         //  would pass it. The same call with Merlin's own separator assembles the
         //  whole body.
+        //
+        //  The BYTES are asserted rather than their count. The partial expansion
+        //  happens to produce three bytes too -- two from a comma-separated data
+        //  directive and one from a bare shift -- so a count would be satisfied
+        //  by the very reading this test exists to distinguish from.
         TEST_METHOD (TheSameCallWithMerlinsSeparatorAssembles)
         {
-            AssemblyResult  result = AssembleAsMerlin ("STORE     MAC\n"
-                                                       "          LDA ]1\n"
-                                                       "          STA ]2\n"
-                                                       "          <<<\n"
-                                                       "          STORE $10;$20\n");
+            AssemblyResult  result   = AssembleAsMerlin ("STORE     MAC\n"
+                                                         "          DFB ]1\n"
+                                                         "          LSR ]2\n"
+                                                         "          <<<\n"
+                                                         "          STORE $10;$20\n");
+            std::vector<Byte>  expected = { 0x10, 0x46, 0x20 };
 
             Assert::IsTrue (result.errors.empty(), FirstError (result).c_str());
-            Assert::AreEqual ((size_t) 4, result.bytes.size(),
-                              L"two zero-page instructions, two bytes each");
+            Assert::IsTrue (result.bytes == expected,
+                            L"one data byte, then a zero-page shift of the second argument");
         }
 
 

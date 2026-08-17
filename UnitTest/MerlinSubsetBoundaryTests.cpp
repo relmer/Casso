@@ -119,6 +119,17 @@ namespace MerlinSubsetBoundaryTests
 
 
 
+        //  One line placing a spelling at a chosen 1-based column, so a sweep can
+        //  expect a DIFFERENT column for every row it visits. A sweep that put
+        //  every construct in the same place would be satisfied by an
+        //  implementation stamping one constant.
+        static std::string LineAt (const char * spelling, int column)
+        {
+            return std::string ((size_t) column - 1, ' ') + spelling + "\n";
+        }
+
+
+
         //  The source that reaches one row's refusal, built from the row rather
         //  than written out per construct -- a hand-written list would cover the
         //  rows somebody remembered rather than the rows that exist.
@@ -719,6 +730,113 @@ namespace MerlinSubsetBoundaryTests
             Assert::IsTrue (help.find ("needs a CPU Casso does not emulate") != std::string::npos, L"cpu");
             Assert::IsTrue (help.find ("owned by another part of Casso")     != std::string::npos, L"another feature");
             Assert::IsTrue (help.find ("undecided")                          != std::string::npos, L"undecided");
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BoundaryDiagnosticQualityTests
+    //
+    //  The two success criteria this phase is judged by, asserted over the table
+    //  rather than over a sample: every dialect-specific diagnostic identifies
+    //  the correct line AND column, and no construct outside the subset fails as
+    //  an unexplained parse error.
+    //
+    //  Both are swept from the accessor. A criterion checked against a list
+    //  written here is a claim about the constructs somebody remembered, and a
+    //  row added later would satisfy it by never being visited -- which is
+    //  precisely the failure the criteria exist to rule out.
+    //
+    //  The named-position half of these criteria is not carried by this class
+    //  alone. The refusals are here because they are enumerable; the diagnostics
+    //  that are NOT refusals -- an indented label, a foreign construct, a
+    //  mis-punctuated macro call -- have no table to sweep and are pinned entry
+    //  by entry in the negative corpus, each with an exact line and column.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (BoundaryDiagnosticQualityTests)
+    {
+    public:
+
+        //  Every refusal reports the line and column the construct was WRITTEN
+        //  at. The indent grows per row, so no two rows expect the same column,
+        //  and a cumulative construct puts its two occurrences in different
+        //  places -- an implementation reporting the first occurrence's position
+        //  for the second one fails here and nowhere else.
+        TEST_METHOD (EveryRefusalIdentifiesItsLineAndColumn)
+        {
+            //  Column 2 is the first that can hold a construct at all: a word in
+            //  column 1 is the LABEL field, so a spelling written there is a
+            //  symbol name and no boundary is crossed. Measured -- the sweep
+            //  started at column 1 and produced no refusal for any row.
+            std::span<const SubsetBoundaryRow>  rows   = MerlinSubsetBoundary::GetAll();
+            int                                 indent = 2;
+
+            Assert::IsFalse (rows.empty(), L"nothing to sweep");
+
+            for (const SubsetBoundaryRow & row : rows)
+            {
+                bool          isCumulative  = (row.trigger == SubsetBoundaryTrigger::SecondOccurrence);
+                int           refusedColumn = isCumulative ? (indent + 5) : indent;
+                int           refusedLine   = isCumulative ? 2 : 1;
+                std::string   source        = Fixture::LineAt (row.spelling, indent);
+                std::wstring  what          = Fixture::Widen (row.spelling);
+
+                if (isCumulative)
+                {
+                    source += Fixture::LineAt (row.spelling, refusedColumn);
+                }
+
+                {
+                    std::vector<AssemblyError>  refusals = Fixture::Refusals (Fixture::Assemble (source));
+
+                    Assert::AreEqual ((size_t) 1, refusals.size(), what.c_str());
+                    Assert::AreEqual (refusedLine,   refusals[0].lineNumber, what.c_str());
+                    Assert::AreEqual (refusedColumn, refusals[0].column,     what.c_str());
+                }
+
+                indent += 3;
+            }
+        }
+
+
+
+        //  No construct outside the subset fails as an unexplained parse error.
+        //  Two halves, and the second is the one that is easy to lose: the
+        //  refusal must be the ONLY thing said about the line. A refusal
+        //  accompanied by "invalid mnemonic" for the same construct still tells
+        //  the developer their source is broken.
+        TEST_METHOD (NoRefusedConstructAlsoFailsAsAParseError)
+        {
+            std::span<const SubsetBoundaryRow>  rows = MerlinSubsetBoundary::GetAll();
+
+            Assert::IsFalse (rows.empty(), L"nothing to sweep");
+
+            for (const SubsetBoundaryRow & row : rows)
+            {
+                AssemblyResult              result   = Fixture::Assemble (Fixture::SourceFor (row));
+                std::vector<AssemblyError>  refusals = Fixture::Refusals (result);
+                std::wstring                what     = Fixture::Widen (row.spelling);
+
+                //  The refusal must EXIST before "and nothing else" means
+                //  anything: a row producing no diagnostic at all satisfies the
+                //  equality below with zero on both sides, which is the vacuous
+                //  reading this guard rules out.
+                Assert::AreEqual ((size_t) 1, refusals.size(), what.c_str());
+                Assert::AreEqual (refusals.size(), result.errors.size(),
+                                  what.c_str());
+
+                for (const AssemblyError & error : result.errors)
+                {
+                    Assert::IsTrue (error.message.find ("Invalid mnemonic") == std::string::npos, what.c_str());
+                    Assert::IsTrue (error.message.find (row.spelling)       != std::string::npos, what.c_str());
+                }
+            }
         }
     };
 }
