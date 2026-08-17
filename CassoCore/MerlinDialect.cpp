@@ -849,6 +849,35 @@ bool MerlinDialect::TakesDelimitedText (const std::string & mnemonic)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MerlinDialect::TakesFileName
+//
+//  Whether this mnemonic's operand is a FILENAME, which runs to the comment
+//  rather than to the next space.
+//
+//  DOS 3.3 names may contain spaces and the distribution disk's own macro
+//  library is called `MACRO LIBRARY`, so ` USE MACRO LIBRARY` asks for one file
+//  and not for `MACRO` with a comment after it. Measured against Merlin Pro
+//  2.23 rather than inferred: that line assembles and defines every macro in
+//  the library, and the same line with ` ;NOTE` appended assembles identically
+//  -- so the space does not end the name and the comment introducer does.
+//
+//  The vendor sources could never have settled this. Both of their inclusions
+//  name a file with no space in it and neither carries a trailing comment, so
+//  a scanner that stops at the first space reproduces every byte on the disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MerlinDialect::TakesFileName (const std::string & mnemonic)
+{
+    return MerlinDirectiveTable::FromSpelling (Parser::ToUpper (mnemonic)) == Directive::Include;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MerlinDialect::SkipFieldSpace
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -990,6 +1019,19 @@ std::string MerlinDialect::ReadOperandField (const std::string & line, size_t & 
     char    delimiter = 0;
 
 
+
+    // A filename runs to the comment, because a space inside one is part of the
+    // name. Trailing field space is left for the caller to trim, so the operand
+    // is the name and nothing else.
+    if (TakesFileName (mnemonic))
+    {
+        while ((pos < line.size()) && (line[pos] != s_kCommentIntroducer))
+        {
+            pos++;
+        }
+
+        return line.substr (start, pos - start);
+    }
 
     if (!TakesDelimitedText (mnemonic))
     {

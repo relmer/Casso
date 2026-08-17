@@ -1579,6 +1579,222 @@ namespace MerlinCorpusTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  MerlinMacroLibraryOracleTests
+    //
+    //  The distribution's general-purpose macro library, `T.MACRO LIBRARY`, as an
+    //  ordinary source/object oracle -- with the difference that its object had to
+    //  be MADE. Nothing on the disk includes the library, so the vendor shipped no
+    //  object to compare against; the source below was authored here, assembled
+    //  under real Merlin Pro 2.23, and the 279 bytes it produced are what the
+    //  assembler must reproduce. Same standard as the five shipped pairs, and the
+    //  same procedure: a work copy of the disk, an object name that had never been
+    //  on it, and the source read BACK off the disk after saving so the text
+    //  committed here is the text Merlin assembled. The round trip was clean.
+    //
+    //  WHY THIS LIBRARY AND NOT A HAND-WRITTEN EQUIVALENT. It is the only evidence
+    //  anywhere that two constructs are ORDINARY Merlin rather than exotic:
+    //
+    //    * `ADDX` has no terminator of its own and falls into `ADDA`, which is
+    //      where the shorthand came from -- one definition written as the prefix
+    //      of the next, sharing its tail and its `<<<`. The first seven bytes
+    //      below are that macro's expansion.
+    //    * `MOVD`, `LDHI`, `ADD` and `SUB` dispatch on addressing mode with the
+    //      first-character conditional, which is absent from most descriptions of
+    //      the dialect. Every branch of `MOVD`'s three-deep nest is invoked here.
+    //
+    //  Both went unimplemented for a long time because no committed fixture used
+    //  them. This entry is what makes that impossible to repeat.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    //  Merlin Pro 2.23, assembled from the source below with the library served as
+    //  `T.MACRO LIBRARY`. Saved as an object name that had never existed on the
+    //  disk, so its presence afterwards proves this assembly wrote it.
+    static constexpr Byte  s_kMacroLibraryBytes[] =
+    {
+        0x8A, 0x18, 0x6D, 0x00, 0x81, 0x8D, 0x02, 0x81, 0xAD, 0x01, 0x81, 0x69, 0x00, 0x8D, 0x03, 0x81,
+        0x18, 0x6D, 0x00, 0x81, 0x8D, 0x02, 0x81, 0xAD, 0x01, 0x81, 0x69, 0x00, 0x8D, 0x03, 0x81, 0x98,
+        0x18, 0x6D, 0x00, 0x81, 0x8D, 0x02, 0x81, 0xAD, 0x01, 0x81, 0x69, 0x00, 0x8D, 0x03, 0x81, 0xB1,
+        0x10, 0x91, 0x12, 0xC8, 0xB1, 0x10, 0x91, 0x12, 0xB1, 0x10, 0x8D, 0x02, 0x81, 0xC8, 0xB1, 0x10,
+        0x8D, 0x03, 0x81, 0xA9, 0x00, 0x91, 0x12, 0xC8, 0xA9, 0x81, 0x91, 0x12, 0xAD, 0x00, 0x81, 0x91,
+        0x12, 0xC8, 0xAD, 0x01, 0x81, 0x91, 0x12, 0xA9, 0x00, 0x8D, 0x02, 0x81, 0xA9, 0x81, 0x8D, 0x03,
+        0x81, 0xAD, 0x00, 0x81, 0x8D, 0x02, 0x81, 0xAD, 0x01, 0x81, 0x8D, 0x03, 0x81, 0xA9, 0x81, 0xAD,
+        0x01, 0x81, 0x18, 0xAD, 0x00, 0x81, 0x6D, 0x02, 0x81, 0x8D, 0x04, 0x81, 0xAD, 0x01, 0x81, 0x6D,
+        0x03, 0x81, 0x8D, 0x05, 0x81, 0x18, 0xAD, 0x00, 0x81, 0x69, 0x02, 0x8D, 0x04, 0x81, 0xAD, 0x01,
+        0x81, 0x69, 0x81, 0x8D, 0x05, 0x81, 0x38, 0xAD, 0x00, 0x81, 0xED, 0x02, 0x81, 0x8D, 0x04, 0x81,
+        0xAD, 0x01, 0x81, 0xED, 0x03, 0x81, 0x8D, 0x05, 0x81, 0x38, 0xAD, 0x00, 0x81, 0xE9, 0x02, 0x8D,
+        0x04, 0x81, 0xAD, 0x01, 0x81, 0xE9, 0x81, 0x8D, 0x05, 0x81, 0xEE, 0x00, 0x81, 0xD0, 0x03, 0xEE,
+        0x01, 0x81, 0xAD, 0x00, 0x81, 0xD0, 0x03, 0xCE, 0x01, 0x81, 0xCE, 0x00, 0x81, 0xAD, 0x00, 0x81,
+        0x8D, 0x02, 0x81, 0xA9, 0x05, 0x18, 0x6D, 0x00, 0x81, 0x8D, 0x00, 0x81, 0x90, 0x03, 0xEE, 0x01,
+        0x81, 0xAD, 0x00, 0x81, 0x48, 0xAD, 0x02, 0x81, 0x8D, 0x00, 0x81, 0x68, 0x8D, 0x02, 0x81, 0xAD,
+        0x00, 0x81, 0xCD, 0x02, 0x81, 0xAD, 0x01, 0x81, 0xED, 0x03, 0x81, 0xA9, 0x42, 0x8D, 0x00, 0x81,
+        0xA9, 0xC1, 0x20, 0xED, 0xFD, 0xAE, 0x00, 0x81, 0xAD, 0x01, 0x81, 0x20, 0x41, 0xF9, 0xA9, 0x05,
+        0x85, 0x24, 0xA9, 0x0A, 0x20, 0x5B, 0xFB,
+    };
+
+
+
+    //  As Merlin's editor stored it, read back off the disk after saving. That is
+    //  the only text guaranteed to correspond to the bytes above.
+    static const char *  s_kpszMacroLibrarySource =
+        "* MACRO LIBRARY ORACLE\n"
+        " ORG $8000\n"
+        "ZP = $10\n"
+        "ZP2 = $12\n"
+        "SRC = $8100\n"
+        "DEST = $8102\n"
+        "RES = $8104\n"
+        " USE MACRO LIBRARY\n"
+        " ADDX SRC;DEST\n"
+        " ADDA SRC;DEST\n"
+        " ADDY SRC;DEST\n"
+        " MOVD (ZP),Y;(ZP2),Y\n"
+        " MOVD (ZP),Y;DEST\n"
+        " MOVD #SRC;(ZP2),Y\n"
+        " MOVD SRC;(ZP2),Y\n"
+        " MOVD #SRC;DEST\n"
+        " MOVD SRC;DEST\n"
+        " LDHI #SRC\n"
+        " LDHI SRC\n"
+        " ADD SRC;DEST;RES\n"
+        " ADD SRC;#DEST;RES\n"
+        " SUB SRC;DEST;RES\n"
+        " SUB SRC;#DEST;RES\n"
+        " INCD SRC\n"
+        " DECD SRC\n"
+        " MOV SRC;DEST\n"
+        " ADDNUM 5;SRC\n"
+        " SWAP SRC;DEST\n"
+        " COMPARE SRC;DEST\n"
+        " POKE SRC;$42\n"
+        " PRCHR \"A\"\n"
+        " PRADRS SRC\n"
+        " GOTOXY 5;10\n";
+
+
+
+    TEST_CLASS (MerlinMacroLibraryOracleTests)
+    {
+    public:
+
+        TEST_METHOD (TheVendorMacroLibraryExpandsToTheBytesMerlinProduced)
+        {
+            MockFileReader     reader;
+            AssemblyResult     result   = Assemble (reader, DialectId::Merlin);
+            std::vector<Byte>  expected (std::begin (s_kMacroLibraryBytes), std::end (s_kMacroLibraryBytes));
+            CorpusComparison   compared = CorpusHarness::Compare (expected, result.bytes);
+
+            Assert::IsTrue (result.errors.empty(), FirstDiagnostic (result).c_str());
+
+            Assert::IsTrue (compared.verdict == CorpusVerdict::Match,
+                            VendorOracle::Widen (CorpusHarness::Describe ("macro library", compared)).c_str());
+
+            Assert::AreEqual (0x8000, (int) result.startAddress,
+                              L"the library entry loads where Merlin put it");
+        }
+
+
+
+        //  The library really is the one being expanded, asked for by the name the
+        //  disk stores. Without this the byte comparison would still pass against
+        //  an assembler that ignored the inclusion and found the macros somewhere
+        //  else -- or, more likely, would fail with no indication that the request
+        //  and the fixture disagreed about a name.
+        TEST_METHOD (TheLibraryIsRequestedUnderTheNameTheDiskStores)
+        {
+            MockFileReader  reader;
+            AssemblyResult  result = Assemble (reader, DialectId::Merlin);
+
+            Assert::IsTrue (result.errors.empty(), FirstDiagnostic (result).c_str());
+
+            Assert::AreEqual (1, reader.CountRequests ("T.MACRO LIBRARY"),
+                              L"the source writes `USE MACRO LIBRARY` and the disk stores `T.MACRO LIBRARY`");
+        }
+
+
+
+        //  THE SPACE IS PART OF THE FILENAME. Measured against Merlin Pro 2.23 and
+        //  not inferred: ` USE MACRO LIBRARY` assembles and defines every macro in
+        //  the library, and appending ` ;NOTE` assembles identically -- so a space
+        //  does not end the name and the comment introducer does.
+        //
+        //  Neither vendor inclusion could have settled this. Both name a file with
+        //  no space in it and neither carries a trailing comment, so a scanner
+        //  stopping at the first space reproduces every byte on the disk and
+        //  requests `T.MACRO` here.
+        TEST_METHOD (ACommentAfterTheFilenameIsNotPartOfIt)
+        {
+            MockFileReader  reader;
+            AssemblyResult  result = Assemble (reader, DialectId::Merlin,
+                                               " USE MACRO LIBRARY ;THE VENDOR LIBRARY\n"
+                                               "SRC = $8100\n"
+                                               " MOV SRC;SRC\n");
+
+            Assert::IsTrue (result.errors.empty(), FirstDiagnostic (result).c_str());
+            Assert::AreEqual (1, reader.CountRequests ("T.MACRO LIBRARY"),
+                              L"the name runs to the comment, and the comment is not part of it");
+        }
+
+
+
+        //  The vacuity guard the captured corpus applies to every entry. The
+        //  library is Merlin source through and through -- positional parameters,
+        //  `MAC`, `<<<`, the first-character conditional -- so an assembler
+        //  reproducing these bytes under the other dialect would mean the profile
+        //  was never consulted.
+        TEST_METHOD (TheSameSourceFailsUnderAs65)
+        {
+            MockFileReader     reader;
+            AssemblyResult     result   = Assemble (reader, DialectId::As65);
+            std::vector<Byte>  expected (std::begin (s_kMacroLibraryBytes), std::end (s_kMacroLibraryBytes));
+            CorpusComparison   compared = CorpusHarness::Compare (expected, result.bytes);
+
+            Assert::IsTrue (!result.errors.empty() || compared.verdict != CorpusVerdict::Match,
+                            L"the library reproduces its bytes under AS65 too, so it tests nothing about the dialect");
+        }
+
+    private:
+
+        static AssemblyResult Assemble (MockFileReader & reader, DialectId dialect, const char * source = nullptr)
+        {
+            FixtureProvider   provider;
+            TestCpu           cpu;
+            std::string       library;
+            AssemblerOptions  options = {};
+
+            AssertSucceeded (MerlinFixture::LoadTextSource (provider, "Merlin/T.MACRO LIBRARY", library));
+
+            reader.files["T.MACRO LIBRARY"] = library;
+
+            cpu.InitForTest();
+            options.dialect    = dialect;
+            options.fileReader = &reader;
+
+            {
+                Assembler  assembler (cpu.GetInstructionSet(), options);
+
+                return assembler.Assemble (source ? source : s_kpszMacroLibrarySource);
+            }
+        }
+
+
+
+        static std::wstring FirstDiagnostic (const AssemblyResult & result)
+        {
+            if (result.errors.empty())
+            {
+                return L"";
+            }
+
+            return VendorOracle::Widen ("line " + std::to_string (result.errors[0].lineNumber)
+                                        + ": " + result.errors[0].message);
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  NegativeEntry
     //
     //  One hand-authored piece of source that must FAIL, and what its failure has
@@ -2212,6 +2428,43 @@ namespace MerlinCorpusTests
             " PMC MOV2 $30;$40\n",
             0x2300, s_kExplicitCallBytes, s_kpszCaptureVersion, true,
         },
+        {
+            //  A COMPOSITE OF TWO CONSTRUCTS, captured as one assembly and kept
+            //  whole. Splitting it would mean counting the byte offsets between
+            //  the two halves by hand, which is exactly how a self-consistent and
+            //  wrong entry gets made.
+            //
+            //  The first half is a definition with no terminator of its own
+            //  falling into the next: `ADDX` runs on into `ADDA`'s body and one
+            //  `<<<` closes both. The second is the first-character conditional
+            //  three macros deep, which is how a Merlin macro dispatches on
+            //  addressing mode.
+            "macro fall-through and first-character conditional",
+            "ADDX MAC\n"
+            " TXA\n"
+            "ADDA MAC\n"
+            " CLC\n"
+            " ADC ]1\n"
+            " <<<\n"
+            "DISP MAC\n"
+            " IF (=]1\n"
+            " NOP\n"
+            " ELSE\n"
+            " IF #=]1\n"
+            " INX\n"
+            " ELSE\n"
+            " INY\n"
+            " FIN\n"
+            " FIN\n"
+            " <<<\n"
+            " ORG $2200\n"
+            " ADDX $10\n"
+            " ADDA $20\n"
+            " DISP (ZZ),Y\n"
+            " DISP #5\n"
+            " DISP QQQ\n",
+            0x2200, s_kMacroBytes, s_kpszCaptureVersion, true,
+        },
     };
 
 
@@ -2246,54 +2499,50 @@ namespace MerlinCorpusTests
 
 
 
+    //  `PRINT "X"` through the vendor macro library. The library is served from
+    //  its committed fixture; see MerlinMacroLibraryOracleTests, whose source this
+    //  is a cut-down copy of and whose 279 bytes DO reproduce.
+    //
+    //  JSR SENDMSG, the message as one high-ASCII byte, BRK, and the RTS the label
+    //  sits on.
+    static constexpr Byte  s_kPrintMacroBytes[] = { 0x20, 0x05, 0x80, 0xD8, 0x00, 0x60 };
+
+
+
     static constexpr PendingCapture  s_kPendingCaptures[] =
     {
         {
-            //  A COMPOSITE OF TWO CONSTRUCTS, and only one of them is now
-            //  implemented -- which is why this row is still here and why the
-            //  divergence it records is no longer the one it was captured for.
+            //  THE FIRST-CHARACTER CONDITIONAL WITH THE PARAMETER WRITTEN FIRST,
+            //  which the vendor's own PRINT macro uses and which the corpus was
+            //  previously recorded as structurally unable to settle. It is settled
+            //  now, and the answer is that Merlin does exactly what Casso does:
+            //  the test is PURELY POSITIONAL, comparing the first and third
+            //  characters of the operand after substitution, and it never learns
+            //  which position held the reference.
             //
-            //  The first-character conditional works: the three dispatch calls at
-            //  the bottom produce their captured bytes on their own, and
-            //  MerlinFirstCharacterConditionalTests asserts it. What this source
-            //  also carries is a macro definition with no terminator of its own
-            //  falling into the next, which the assembler does not do -- an inner
-            //  definition met while a body is being collected is swallowed into
-            //  that body instead of opening one that shares the terminator, so
-            //  the first two sections are refused as an unclosed definition.
+            //  Which means the vendor macro is broken as written, and that is the
+            //  measurement rather than an inference. `IF ]1="` with a one-
+            //  character message substitutes to `"X"="`, whose first and third
+            //  characters are both `"` -- so the quoted branch is taken by
+            //  accident and the six bytes below are produced. The same macro with
+            //  `PRINT "HI"` substitutes to `"HI"="`, whose first and third are `"`
+            //  and `I`, takes the hex branch, and Merlin produces NO OBJECT at all.
             //
-            //  Kept whole rather than split. The two halves were captured as one
-            //  assembly with no marker between them, so separating them would
-            //  mean counting offsets by hand -- which is exactly how a
-            //  self-consistent and wrong entry gets made.
-            "first-character conditional inside a macro",
-            "ADDX MAC\n"
-            " TXA\n"
-            "ADDA MAC\n"
-            " CLC\n"
-            " ADC ]1\n"
-            " <<<\n"
-            "DISP MAC\n"
-            " IF (=]1\n"
-            " NOP\n"
-            " ELSE\n"
-            " IF #=]1\n"
-            " INX\n"
-            " ELSE\n"
-            " INY\n"
-            " FIN\n"
-            " FIN\n"
-            " <<<\n"
-            " ORG $2200\n"
-            " ADDX $10\n"
-            " ADDA $20\n"
-            " DISP (ZZ),Y\n"
-            " DISP #5\n"
-            " DISP QQQ\n",
-            s_kMacroBytes,
+            //  WHAT DIVERGES is not the conditional. Casso refuses the invocation
+            //  before evaluating it, because the branch that is not taken refers to
+            //  `]2` and only one argument was supplied; Merlin binds an unsupplied
+            //  parameter to nothing and assembles. Implementing that moves this row
+            //  up into the corpus.
+            "first-character conditional with the parameter written first",
+            "* PRINT MACRO PROBE\n"
+            " ORG $8000\n"
+            " USE MACRO LIBRARY\n"
+            " PRINT \"X\"\n"
+            "SENDMSG RTS\n",
+            s_kPrintMacroBytes,
             s_kpszCaptureVersion,
-            "an unterminated macro definition does not fall into the next, so the first two"
-            " sections of this composite never assemble",
+            "a macro invocation is refused when a branch that is not taken refers to a"
+            " parameter the call did not supply",
         },
     };
 
@@ -2430,9 +2679,22 @@ namespace MerlinCorpusTests
             {
                 CapturedEntry      entry    = { pending.name, pending.source, 0, pending.expected,
                                                 pending.merlinVersion, true };
-                AssemblyResult     result   = Assemble (entry, DialectId::Merlin);
+                MockFileReader     reader;
+                AssemblyResult     result   = Assemble (entry, DialectId::Merlin, reader);
                 std::vector<Byte>  expected (pending.expected.begin(), pending.expected.end());
                 CorpusComparison   compared = CorpusHarness::Compare (expected, result.bytes);
+
+                //  Diverging because a file the row includes was never served
+                //  would satisfy the assertion below while proving nothing about
+                //  the construct -- and would keep proving nothing after the
+                //  construct was implemented. A row must fail for its own reason.
+                for (const std::string & requested : reader.requests)
+                {
+                    Assert::IsTrue (reader.files.find (requested) != reader.files.end(),
+                                    Widen (std::string (pending.name) + " asked for \"" + requested
+                                           + "\", which was not served -- its divergence says nothing"
+                                             " about the construct").c_str());
+                }
 
                 Assert::IsTrue (!result.errors.empty() || compared.verdict != CorpusVerdict::Match,
                                 Widen (std::string (pending.name)
@@ -2484,14 +2746,35 @@ namespace MerlinCorpusTests
 
     private:
 
+        //  The vendor macro library is OFFERED to every entry rather than pushed:
+        //  an entry that includes nothing never asks for it, and the request log
+        //  is what says which happened. Offering it is what lets an entry whose
+        //  subject is a library macro be assembled through this one path instead
+        //  of growing a second one that could decode or configure differently.
         static AssemblyResult Assemble (const CapturedEntry & entry, DialectId dialect)
         {
+            MockFileReader  reader;
+
+            return Assemble (entry, dialect, reader);
+        }
+
+
+
+        static AssemblyResult Assemble (const CapturedEntry & entry, DialectId dialect, MockFileReader & reader)
+        {
+            FixtureProvider   provider;
             TestCpu           cpu;
+            std::string       library;
             AssemblerOptions  options = {};
             AssemblyResult    result;
 
+            AssertSucceeded (MerlinFixture::LoadTextSource (provider, "Merlin/T.MACRO LIBRARY", library));
+
+            reader.files["T.MACRO LIBRARY"] = library;
+
             cpu.InitForTest();
-            options.dialect = dialect;
+            options.dialect    = dialect;
+            options.fileReader = &reader;
 
             {
                 Assembler  assembler (cpu.GetInstructionSet(), options);

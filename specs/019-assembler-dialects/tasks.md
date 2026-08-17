@@ -24,22 +24,46 @@ its character-constant delimiter, and the CPU-selection handler stops refusing a
 operand — and `MacroSyntax` got NARROWER: `callKeyword` had one user, could not
 represent the case Merlin refuses, and is gone.
 
-**THE FIFTH DIVERGENCE: A MACRO DEFINITION WITH NO TERMINATOR DOES NOT FALL INTO
-THE NEXT.** T025c recorded fall-through as working and blamed the unclosed-
-definition diagnostic on the missing `IF` spelling; both halves are wrong, and
-both were measured on the executable. Casso swallows an inner `MAC` line into the
-body being collected, so the expansion opens a definition that never closes.
-Fixing it means every open definition receiving every following line with one
-terminator closing them all — **an engine change, so a spec amendment rather than
-an implementation detail**, and it is why the first-character-conditional corpus
-row is still pending.
+**THE FIFTH DIVERGENCE IS FIXED AND THE VENDOR MACRO LIBRARY IS COMMITTED
+(T086–T090). Both were user decisions.** Suite is **3402** Debug / **3399**
+Release, both green (from 3391 / 3388). **Ten mutations over this slice, ten
+caught** — one only after the assertion that catches it was added.
 
-**THE VENDOR MACRO LIBRARY WAS NOT COMMITTED, and the reason is the existing
-convention rather than caution.** See T084's own line: `UnitTest/Fixtures/Merlin/
-README.md` covers the license cleanly, but every file it admits is either half of
-an oracle pair or a file a committed source requests — and it names `RWTS DEMO.S`
-as deliberately excluded for shipping no object. `T.MACRO LIBRARY` is neither.
-**It wants the user's answer**, because the case for it is real.
+**Macro fall-through is an ENGINE change and was taken as a SPEC AMENDMENT**, in
+the open — FR-032 in `spec.md` and "Amendment: overlapping macro definitions" in
+`contracts/dialect-profile.md`, which says plainly that it is user-approved and
+why guarantee 1 is relaxed there rather than bypassed. The collector keeps a
+STACK of definitions instead of one: a further opening line pushes rather than
+being collected, every open definition receives every following line, and one
+terminator closes them all. **Every dialect gets it and none opts in** — no
+profile field, no dialect named in the collector, and the as65 half of the tests
+is written in `macro`/`endm` beside the Merlin half so a dialect-shaped special
+case could not hide as the mechanism. One spelling moved the other way, OUT of
+the engine and onto the seam: the operand-form opening keyword was the literal
+`"MACRO"`, which read ` PUT MACRO LIBRARY` as defining a macro called `PUT`.
+
+**THE LIBRARY NEEDED NO EXCEPTION TO THE INCLUSION RULE.** The rule admits half
+of a source/object pair; what was too narrow was reading "ships no object" as
+"has no oracle". **An oracle can be GENERATED** — an authored source that uses
+the library, assembled under real Merlin Pro 2.23, and the 279 bytes it produced.
+Casso reproduces every one. That makes the library an ordinary pair whose other
+half simply did not exist in 1984, and it is now the only fixture covering
+fall-through and the first-character conditional against real vendor code. The
+README records it as a third KIND of file with the old reasoning kept intact.
+
+**Two `PUT`/`USE` facts fell out of the capture, neither settled by any vendor
+line**: a macro library must be reached with `USE` and not `PUT` (a `PUT` file may
+not hold macro definitions, and Merlin defines nothing while saying nothing), and
+a **space inside the operand is part of the filename**, with the comment
+introducer ending it. Both vendor inclusions name a space-free file and carry no
+trailing comment, so the old scanner reproduced every byte on the disk.
+
+**One pending row remains, and it is new.** `PRINT` writes its conditional with
+the parameter first, and real Merlin's test is purely positional — which answers
+the question T084 recorded as structurally unsettleable, in Casso's favor, and
+also means the vendor's own `PRINT` is broken for any message longer than one
+character. What diverges is unrelated: Casso refuses an invocation whose untaken
+branch names a parameter the call did not supply. See T090.
 
 **PHASE 3 IS CLOSED APART FROM THE INTERACTIVE CAPTURES, AND PHASE 6'S
 DOCUMENTATION IS WRITTEN.** T081, T033a, T071, T072 and T073 all landed. The
@@ -904,6 +928,8 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
   *(**Captured, and it does fall through**: `ADDX MAC` / `TXA` / `ADDA MAC` with one shared terminator, invoked as `ADDX $10` and `ADDA $20`, produces `8A 18 65 10` then `18 65 20` -- the first macro's body runs on into the second's. The entry is **pending rather than in the corpus**, and for a reason unrelated to fall-through: the same composite carries the first-character conditional, which has no spelling in the Merlin directive table, so Casso reports the definition as unclosed. That is T084, and it is precisely the diagnostic this task warned must not fire on legitimate source -- it fires on a construct the vendor's own macro library uses thirteen times.)*
 
   *(**CORRECTION, measured on the executable while T084 was implemented: FALL-THROUGH DOES NOT WORK, and the diagnosis above is wrong in both halves.** The two constructs were tested apart. The conditional half alone reports six expression errors and never mentions a definition, because the missing spelling resolved through the OTHER dialect's table rather than going unrecognized. The fall-through half alone -- `ADDX MAC` / `TXA` / `ADDA MAC` / `CLC` / `ADC ]1` / one shared `<<<`, invoked as `ADDX $10` -- is what reports `Unclosed macro definition`, before and after `IF` landed: the inner `MAC` line is swallowed into the outer body, so the expansion opens a definition nothing closes. So this task's capture is genuine and its IMPLICATION was never implemented. It needs an owner; see the block at the top.)*
+
+  *(**RESOLVED by T086. Both halves of the original note are now corrected in place rather than left to be read past.** The capture was always right that Merlin falls through; what it recorded wrongly was that CASSO did, and it attributed the unclosed-definition diagnostic to the missing `IF` spelling. Neither was true, and both were stated in the same sentence -- which is worth remembering as a shape, because a composite entry lets one construct's failure be blamed on the other without anyone noticing. The two halves were tested apart only after the row had been sitting in the pending table for a full slice. The composite now assembles whole and has moved into the corpus proper as `macro fall-through and first-character conditional`.)*
 - [x] T025d [P] [US1] ~~Capture a macro-local label entry~~ — **ANSWERED BY THE DISK; no capture needed or planned.** The premise was that the vendor library "carefully never creates" the case. The library does not, but the vendor **program** does: `MAKE DUMP.S` expands `INCD` twice and `STORE` three times, and each expansion redefines `NI` / `LP`, while `DECD` redefines `ND`. A shipped, working 589-byte object is therefore proof that Merlin makes macro-body labels unique per expansion — the second of the two outcomes this task was written to distinguish, settled from bytes rather than from an experiment. `KEYMAC.S` adds a detail no capture would have thought to try: the label may sit on the terminator line itself (`NI <<<`). Implemented in T038; the corresponding tests are synthetic because the *rule* is now known, so a capture would only re-confirm it
 - [x] T025e [P] [US1] Capture a `>>>` macro-invocation entry as a hand-authored entry in `UnitTest/MerlinCorpusTests.cpp` (vendor oracles live in `UnitTest/Fixtures/Merlin/`; entries authored here stay in the test file). The vendor library invokes macros by bare name only, so the disk can never report whether an explicit invocation prefix is also accepted — and a user's source may well contain one. First instance of the general rule that absence from the disk is not absence from the language
   *(**The construct is IMPLEMENTED and the capture is still open** — those are different things, and conflating them is how an unverified guess becomes a settled fact. Both spellings work, spaced and flush against the name, and both are covered by tests; the macro's name is taken as the first `;`-separated item of the operand. Evidence status: **UNVERIFIED**, marked as such at `s_kpszExplicitCallKeyword` in `CassoCore/MerlinDialect.cpp` and in the test's own comment. The tests prove self-consistency and nothing about real Merlin. What capture must still settle: that the prefix is accepted at all, and whether the name is separated from the arguments by the same character that separates the arguments from each other. `PMC`, its documented word synonym, is deliberately NOT implemented.)*
@@ -1051,19 +1077,18 @@ the pass-1 argument evaluator ask the evaluation context for its character-
 constant delimiter, and the CPU-selection handler simply stops refusing an
 operand. `MacroSyntax` got NARROWER, not wider: `callKeyword` is gone.
 
-**A FIFTH DIVERGENCE WAS FOUND AND IS NOT FIXED, AND IT WANTS AN OWNER.** A
-macro definition with no terminator of its own does **not** fall into the next.
-`ADDX MAC` / `TXA` / `ADDA MAC` / … / one shared `<<<` should define both macros,
-the outer one ending with the inner one's body — real Merlin produces
-`8A 18 65 10` for `ADDX $10` — and Casso swallows the inner `MAC` line into the
-outer body instead, so the expansion opens a definition that never closes and
-reports `Unclosed macro definition`. T025c recorded fall-through as WORKING and
-attributed that diagnostic to the missing `IF` spelling; both halves of that are
-wrong, and the diagnostic was measured on the executable both before and after
-`IF` landed. **Fixing it is an engine change** — every open definition has to
-receive every following line and one terminator has to close them all — so it is
-a spec amendment rather than an implementation detail, and it is left alone here.
-It is why the first-character-conditional row is still pending.
+**A FIFTH DIVERGENCE WAS FOUND HERE AND IS FIXED IN T086.** A macro definition
+with no terminator of its own does **not** fall into the next: `ADDX MAC` / `TXA`
+/ `ADDA MAC` / … / one shared `<<<` should define both macros, the outer one
+ending with the inner one's body — real Merlin produces `8A 18 65 10` for
+`ADDX $10` — and Casso swallowed the inner `MAC` line into the outer body, so the
+expansion opened a definition that never closed and reported `Unclosed macro
+definition`. T025c recorded fall-through as WORKING and attributed that
+diagnostic to the missing `IF` spelling; both halves of that are wrong, and the
+diagnostic was measured on the executable both before and after `IF` landed.
+Fixing it is an ENGINE change and was taken as a spec amendment — see T086 and
+the block at the top. The first-character-conditional row has moved up into the
+corpus.
 
 The bytes for all four were **already committed**, in the pending table in
 `UnitTest/MerlinCorpusTests.cpp` where a sweep asserts each still diverges — so
@@ -1086,7 +1111,9 @@ Nothing here needs a further capture session.
 
   *One thing the corpus structurally cannot settle, recorded at the code: the spelling that puts the PARAMETER first and the literal after it — the vendor's `PRINT` macro writes `IF ]1="` — cannot be distinguished here from an argument that happens to begin with the same character, because substitution has already erased which position held the reference. Every other use on the disk writes the literal first.*
 
-  ***The fixture question was raised rather than decided, and the answer is that the existing convention EXCLUDES this file.** `UnitTest/Fixtures/Merlin/README.md` covers the licensing half cleanly — same disk, same CC BY-NC-ND terms, same hash-pinned extraction script — but its INCLUSION rule is narrower than that: every committed file is either half of a source/object oracle pair, or a file a committed source actually requests (`T.PI.MACS` and `T.SENDMSG` are there because `USE`/`PUT` reach them, and a test asserts each is really requested). `RWTS DEMO.S` is named in the README as deliberately NOT extracted precisely because it ships no object. `T.MACRO LIBRARY` ships no object and no committed source asks for it, so admitting it would be a third category — a vocabulary specimen with no oracle — which is a new convention rather than the existing one. Not committed; `IF` is implemented and tested from authored source instead. **It wants the user's answer**, because the case for it is real: the library is the only evidence anywhere that this construct is ordinary rather than exotic, and it would also have caught the fall-through gap years earlier. It cannot be assembled today in any case.*
+  *(**SETTLED BY T090, and the answer is that Merlin cannot distinguish it either.** The test is purely positional there too, so `PRINT "X"` takes the quoted branch by accident — `"X"="` has `"` in positions one and three — and `PRINT "HI"` takes the hex branch and produces no object at all. The vendor macro is broken for any message longer than one character, and Casso's positional implementation is right. This was NOT structurally unsettleable; it needed the library to be assembled, which needed T086 and T088.)*
+
+  ***The fixture question was raised rather than decided here; T088 decided it, the other way.** The reasoning below is kept because its first half is still right and its second half is the mistake worth remembering. `UnitTest/Fixtures/Merlin/README.md` covers the licensing half cleanly — same disk, same CC BY-NC-ND terms, same hash-pinned extraction script — and its INCLUSION rule is narrower than that: every committed file is either half of a source/object oracle pair, or a file a committed source actually requests (`T.PI.MACS` and `T.SENDMSG` are there because `USE`/`PUT` reach them, and a test asserts each is really requested). Where this went wrong is the next step: `T.MACRO LIBRARY` ships no object, and that was read as "has no oracle" when it only means "the vendor never built one". **An oracle can be generated**, and generating one makes the library an ordinary pair rather than a third category. See T088 and T089.*
 
   *Six mutations, six caught — one of them only after a test was added. That one is worth reading: renaming the table's `IF` row left all 3389 tests green, because the dispatcher's fallback to as65's table supplies the same token and the fold is keyed on the spelling. Every byte comparison passed while the dialect borrowed a spelling it must own, so the claim is now asserted structurally against `MerlinDirectiveTable::FromSpelling`. **That fallback is a pre-existing seam leak and is not fixed here**: a bare `IFDEF` under Merlin still resolves through as65's vocabulary.)*
 - [x] T085 [US1] Correct **explicit macro invocation** in `CassoCore/MerlinDialect.cpp` on three counts, all of them currently marked UNVERIFIED at the code and all three now falsified. Merlin takes the macro NAME from the operand field and its ARGUMENTS from the field after it, so the name is separated from the arguments by a space and only the arguments are separated from each other by the macro separator — Casso takes the name up to the separator instead. The prefix written flush against the name is **refused** by Merlin and accepted by Casso. And `PMC`, left unimplemented on the grounds that adding it would double an unverified surface, is a real spelling that behaves identically. The comment claiming both spacings work must go with the change. Pending row: *explicit macro invocation*
@@ -1101,6 +1128,31 @@ Nothing here needs a further capture session.
   *(Previously half done. `MerlinDirectiveTests.cpp` exists and is registered, covering the string family through both passes, `ERR` in **both** directions, local-label scoping, operator binding, the default origin, the keyboard-input directive in both the answered and unanswered directions, the two renamed operators, unsigned 16-bit division, `?` inside a symbol, and character constants holding a space — each with an AS65 counterpart where the construct is shared, since a test passing under both dialects is no evidence the profile was consulted. The remaining directives get theirs as T036–T042 land.*
 
   *Two of these could only be written as pairs. The vendor corpus contains only the SILENT case of `ERR`, because a source shipping an object necessarily assembled clean — so an `ERR` that never fires passes every oracle on the disk. Same for binding: an evaluator that happened to agree looks identical without the AS65 half.)*
+
+### The fifth divergence, and the library that would have found it
+
+**Both are user-decided and both are done.** The fall-through fix is a **spec
+amendment** — see FR-032 and [contracts/dialect-profile.md](./contracts/dialect-profile.md)
+under "Amendment: overlapping macro definitions" — and the macro library is
+committed as a **generated** oracle pair (FR-033), which is a third kind of
+fixture rather than an exception to the inclusion rule.
+
+- [x] T086 [US1] **Implement macro definition fall-through** in `CassoCore/AssemblySession.h`/`.cpp`: while any definition is open, a further opening line starts another beside it, every following line is appended to all of them, and one terminator closes them all. `ADDX $10` against the captured shape must emit `8A 18 65 10` and `ADDA $10` must emit `18 65 10`. **This is an engine change and therefore a spec amendment, not a task decided here** — amend `spec.md` and `contracts/dialect-profile.md` first, saying plainly that it was user-approved and why the guarantee is relaxed in the open rather than bypassed. Prefer the smallest honest change: mechanism every dialect gets, never `if (dialect == Merlin)` (FR-032)
+  *(**Done as a stack, and the smallest honest shape turned out to be a NARROWING as well as an addition.** `AssemblySession` kept one definition in six scalar fields; it now keeps `std::vector<MacroDefinition>`, and `MacroDefinition` gained the one carrier it was missing — `openColumn`, beside the `lineNumber` and `sourceFile` it already had for exactly this — so the pending record and the finished definition are one type rather than two that could drift. `OpenMacroDefinition` is extracted so the prelude, which opens the first, and the collector, which opens every further one, cannot disagree about what opening a definition means.*
+
+  ***Every dialect gets it and none opts in.*** *There is no profile field for fall-through and no dialect is named in the collector. The engine simply had no way to represent overlapping definitions at ALL — the collector had nowhere to put the second one — which is what makes this a missing capability rather than a Merlin quirk. `MacroTests.cpp` asserts the same shape in as65's `macro`/`endm` spelling beside the Merlin half in `MerlinDirectiveTests.cpp`, because a test in only one dialect leaves a dialect-shaped special case indistinguishable from the mechanism.*
+
+  ***One spelling moved OUT of the engine, and the vendor library is what forced it.*** `IsMacroDefinitionStart` compared the operand against the literal `"MACRO"`, so ` PUT MACRO LIBRARY` — an inclusion naming a real file on the disk — was read as defining a macro called `PUT`, swallowed the rest of the file, and reported it unclosed. The keyword is now `MacroSyntax::defKeyword`, beside `endKeyword` and `localKeyword` which were already there for the same reason, and Merlin answers empty. *This narrows the engine's reach rather than widening the seam*, the direction T085 took `callKeyword`.
+
+  *The unclosed diagnostic is now one error per open level, each at its own opening line — the treatment the conditional stack already had, and newly necessary because two definitions can now be open at once. **Five mutations, five caught.***
+- [x] T087 [US1] Land the pending corpus row this unblocks and correct `T025c`'s note, whose two halves were both wrong *(Done. The composite assembles whole and is in `s_kCapturedCorpus` as `macro fall-through and first-character conditional`, at `$2200` with its ten captured bytes. T025c carries a second correction in place rather than a note pointing elsewhere.)*
+- [x] T088 [US1] **Commit `T.MACRO LIBRARY`** through the hash-pinned `scripts/ExtractMerlinFixtures.ps1` chain, and update `UnitTest/Fixtures/Merlin/README.md`'s inclusion rule to describe what is actually true — without deleting the reasoning behind the old rule, which was sound for oracle fixtures *(**Done, and the old rule needed no exception after all.** The rule admits a file that is half of a source/object pair; what was too narrow was reading "ships no object" as "has no oracle". An oracle can be GENERATED, and generating one makes the library an ordinary pair. The README says so as a third kind of file, with the original reasoning kept intact above it. Extracted by adding one row to `$textFixtures` and re-running the script against the pinned disk, which verified and was not written to — 1615 bytes, SHA-256 `FA37CFB3…`, inventory row pasted from the script's own output. **No top-level notice was created**: constitution 1.9.0 says fixtures are not dependencies and that one `LICENSE` per directory covers every file in it, which this directory already has.)*
+- [x] T089 [US1] **Generate the library's oracle**: author a source that includes it and invokes the macros using the first-character conditional, assemble it under real Merlin Pro 2.23, and pin the bytes (FR-033) *(**Done — 279 bytes, and Casso reproduces every one.** Full capture discipline: a work copy of the disk (the pristine image hashes unchanged afterwards), an object name that had never been on the disk, `-ConfirmAbsent` before assembling, and the source read BACK off the disk after saving — the round trip was CLEAN, so the committed text is the text Merlin assembled. `MerlinMacroLibraryOracleTests` has four tests: the bytes and load address, that the library is requested under the name the disk stores, that a comment after the filename is not part of it, and the vacuity guard that the same source fails under as65.*
+
+  *The composite invokes `ADDX`/`ADDA`/`ADDY` (the fall-through chain, and the first seven bytes ARE that expansion), every branch of `MOVD`'s three-deep first-character nest, both branches of `LDHI`, `ADD` and `SUB`, and the eleven remaining macros. **Two facts about `PUT`/`USE` came out of it, neither settled by any vendor line:** a macro library must be reached with `USE` and not `PUT` — the manual is explicit that a `PUT` file may not hold macro definitions, and Merlin defines nothing while saying nothing — and **a space inside the operand is part of the filename**, with the comment introducer ending it. Both vendor inclusions name a file with no space and carry no trailing comment, so a scanner stopping at the first space reproduces every byte on the disk and asks for `T.MACRO`. Fixed in `MerlinDialect::ReadOperandField` via a new `TakesFileName`, profile-side, next to the delimited-text rule it mirrors.)*
+- [x] T090 [US1] Pin what the library still does NOT assemble, if anything *(**One macro of the nineteen, and the finding is about the LIBRARY rather than about Casso.** `PRINT` writes its conditional with the parameter first — `IF ]1="` — and real Merlin's test is purely positional, comparing the first and third characters of the operand after substitution without ever learning which position held the reference. So `PRINT "X"` substitutes to `"X"="`, whose first and third are both `"`, takes the quoted branch by accident and assembles to six bytes; `PRINT "HI"` substitutes to `"HI"="`, whose first and third are `"` and `I`, takes the hex branch and produces **no object at all**. Both measured on the executable. **This answers the question T084 recorded as structurally unsettleable** — Merlin cannot distinguish the parameter-first spelling either, and Casso's positional implementation is right.*
+
+  *What DIVERGES is unrelated to the conditional: Casso refuses the invocation because the branch that is not taken refers to `]2` and only one argument was supplied, where Merlin binds an unsupplied parameter to nothing. Captured as the pending row `first-character conditional with the parameter written first`, so implementing that behavior turns the pending sweep red and forces the row up. `STADR` is the other macro left uninvoked: it expands through `POKE` to `LDA ##ADDR`, a doubled immediate marker, and whether Merlin accepts that is not captured here.)*
 
 **Checkpoint**: Unmodified Merlin source assembles to Merlin's bytes. This is the MVP.
 

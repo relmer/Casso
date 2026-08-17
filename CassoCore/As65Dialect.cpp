@@ -262,6 +262,7 @@ MacroSyntax As65Dialect::GetMacroSyntax() const
 
 
 
+    syntax.defKeyword   = "MACRO";
     syntax.endKeyword   = "ENDM";
     syntax.localKeyword = "LOCAL";
 

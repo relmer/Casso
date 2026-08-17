@@ -1563,7 +1563,8 @@ Error:
 //
 //    * as65 writes "NAME macro [params]" -- the name is the first word and the
 //      keyword sits in the operand, so there is nothing for a directive table
-//      to resolve and this reads the operand directly.
+//      to resolve and this reads the operand against the keyword the ACTIVE
+//      dialect supplies.
 //    * A dialect whose opening directive IS in its table -- Merlin's MAC --
 //      puts the keyword in the opcode field and the name in the label, where
 //      the token settles it with no string comparison at all.
@@ -1571,14 +1572,23 @@ Error:
 //  Recognizing the token form rather than a spelling is what keeps this a
 //  vocabulary difference: nothing here knows the word MAC.
 //
+//  The operand form is a spelling and so comes from the profile, for the same
+//  reason the terminator and the local declaration do. A dialect answering
+//  empty has no operand form at all, and the difference is not academic: the
+//  vendor macro library is included with `PUT MACRO LIBRARY`, whose operand
+//  begins with as65's keyword, and a fixed spelling reads that as a definition
+//  of a macro named PUT.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AssemblySession::IsMacroDefinitionStart (const ParsedLine & parsed, const std::string & operandUpper)
+bool AssemblySession::IsMacroDefinitionStart (const ParsedLine & parsed, const std::string & operandUpper,
+                                               const std::string & defKeyword)
 {
-    bool  looksLikeMacro = (operandUpper.substr (0, 5) == "MACRO") &&
-                           (operandUpper.size() <= 5 ||
-                            operandUpper[5] == ' '  ||
-                            operandUpper[5] == '\t');
+    bool  looksLikeMacro = !defKeyword.empty() &&
+                           (operandUpper.compare (0, defKeyword.size(), defKeyword) == 0) &&
+                           (operandUpper.size() <= defKeyword.size()   ||
+                            operandUpper[defKeyword.size()] == ' '     ||
+                            operandUpper[defKeyword.size()] == '\t');
 
     bool  namedByLabel   = (parsed.directiveToken == Directive::MacroDef) && !parsed.label.empty();
 
@@ -1677,7 +1687,8 @@ AssemblySession::Pass1Prelude AssemblySession::ClassifyPrelude (
 
 
 
-    if (IsAssembling() && IsMacroDefinitionStart (info.parsed, operandUpper))
+    if (IsAssembling() && IsMacroDefinitionStart (info.parsed, operandUpper,
+                                                  m_dialect.GetMacroSyntax().defKeyword))
     {
         kind = Pass1Prelude::MacroDefinition;
     }
@@ -2291,6 +2302,22 @@ Error:
 //  the arguments substituted, so assembling it here would resolve labels and
 //  expressions against the definition's PC instead of the call site's.
 //
+//  EVERY OPEN DEFINITION RECEIVES EVERY LINE, and one terminator closes them
+//  all. A definition opened here does not become body text of the one already
+//  collecting -- it opens beside it, and from that point the two share a tail.
+//  So a pair written as
+//
+//      ADDX MAC        ADDX is TXA CLC ADC ]1
+//       TXA            ADDA is      CLC ADC ]1
+//      ADDA MAC
+//       CLC
+//       ADC ]1
+//       <<<
+//
+//  makes both, the first ending with the second's body. Collecting the opening
+//  line as text instead makes only the first, containing an opener that nothing
+//  ever closes, and the source reads as one unterminated definition.
+//
 //  The local-label declaration is the one directive read on the way past,
 //  because its names have to be known before expansion can rename them
 //  per-invocation -- otherwise two invocations in the same file would define
@@ -2304,12 +2331,20 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
     HRESULT      hr            = S_OK;
     MacroSyntax  syntax        = m_dialect.GetMacroSyntax();
     std::string  mnemonic      = ToUpperCase (info.parsed.mnemonic);
+    std::string  operandUpper  = ToUpperCase (info.parsed.operand);
     std::string  endKeyword    = syntax.endKeyword;
     std::string  localKeyword  = syntax.localKeyword;
+    bool         opensAnother  = false;
     bool         endsBody      = false;
     bool         declaresLocal = false;
 
 
+
+    // A further definition OPENS rather than being collected, recognized by the
+    // same predicate the prelude opens the first one with -- so nothing decides
+    // twice what an opening line looks like. Tested first because such a line is
+    // never a terminator and never a local declaration.
+    opensAnother = IsMacroDefinitionStart (info.parsed, operandUpper, syntax.defKeyword);
 
     // The macro-end TOKEN closes the body, and so does the active dialect's
     // bare keyword. as65 needs the keyword: it has no token for this, since
@@ -2324,7 +2359,11 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
                 ((mnemonic == endKeyword) ||
                  (info.parsed.isDirective && info.parsed.directive == "." + endKeyword)));
 
-    if (endsBody)
+    if (opensAnother)
+    {
+        OpenMacroDefinition (current, info, operandUpper);
+    }
+    else if (endsBody)
     {
         // The terminator may carry a LABEL, and the vendor sources do it:
         // KEYMAC.S ends a macro with `NI <<<`, so the body's own branch target
@@ -2335,17 +2374,22 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
         // other body label.
         if (syntax.labelsArePerExpansion && !info.parsed.label.empty())
         {
-            m_currentMacroLocals.push_back (info.parsed.label);
-            m_currentMacroBody.push_back (info.parsed.label);
+            for (MacroDefinition & pending : m_pendingMacros)
+            {
+                pending.localLabels.push_back (info.parsed.label);
+                pending.body.push_back (info.parsed.label);
+            }
         }
 
-        MacroDefinition def = {};
-        def.name       = m_currentMacroName;
-        def.body       = m_currentMacroBody;
-        def.paramNames = m_currentMacroParams;
-        def.localLabels = m_currentMacroLocals;
-        def.lineNumber = m_currentMacroLine;
-        m_macros[m_currentMacroName] = def;
+        // One terminator closes every definition that is open, which is what
+        // makes the shorthand work at all -- the shorter definitions were never
+        // going to get a terminator of their own.
+        for (const MacroDefinition & pending : m_pendingMacros)
+        {
+            m_macros[pending.name] = pending;
+        }
+
+        m_pendingMacros.clear();
         m_pass1State = Pass1State::Normal;
     }
     else
@@ -2377,7 +2421,10 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
 
                 if (!name.empty())
                 {
-                    m_currentMacroLocals.push_back (name);
+                    for (MacroDefinition & pending : m_pendingMacros)
+                    {
+                        pending.localLabels.push_back (name);
+                    }
                 }
             }
         }
@@ -2389,10 +2436,16 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
         // can expand one macro three times and still ship a working object.
         if (syntax.labelsArePerExpansion && !info.parsed.label.empty())
         {
-            m_currentMacroLocals.push_back (info.parsed.label);
+            for (MacroDefinition & pending : m_pendingMacros)
+            {
+                pending.localLabels.push_back (info.parsed.label);
+            }
         }
 
-        m_currentMacroBody.push_back (current.text);
+        for (MacroDefinition & pending : m_pendingMacros)
+        {
+            pending.body.push_back (current.text);
+        }
     }
 
 // Error:
@@ -2414,13 +2467,56 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
 //  must not be defined, or a later invocation would silently expand a
 //  definition the author excluded.
 //
+//  `handled` reports whether this line opened a definition; the HRESULT
+//  reports only whether the attempt itself ran.
+//
+//  This is the FIRST definition only. A line opening one while another is
+//  already collecting never reaches the prelude -- the collecting state claims
+//  it first -- and is opened from there, through the same helper.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::DetectMacroDefinition (const PendingLine & current, LineInfo & info,
+                                                 const std::string & operandUpper, bool & handled)
+{
+    HRESULT  hr = S_OK;
+
+    handled = false;
+
+
+
+    // Same predicate ClassifyPass1Line used to route here, so the two cannot
+    // disagree about what opens a definition.
+    BAIL_OUT_IF (!IsAssembling(), S_OK);
+    BAIL_OUT_IF (!IsMacroDefinitionStart (info.parsed, operandUpper,
+                                          m_dialect.GetMacroSyntax().defKeyword), S_OK);
+
+    OpenMacroDefinition (current, info, operandUpper);
+
+    handled = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::OpenMacroDefinition
+//
+//  Pushes one definition onto the collecting stack and puts pass 1 into the
+//  collecting state. Everything that makes a definition -- its name, where it
+//  opened, and any parameter names it declared -- is decided here and nowhere
+//  else, because both the prelude and the collector open definitions and a
+//  second copy of this reasoning is a second answer waiting to disagree.
+//
 //  A name that collides with a real mnemonic is recorded as an error but the
 //  definition still proceeds -- reporting one clear "conflicts with mnemonic"
 //  beats abandoning the definition and then emitting an "unknown macro" at
 //  every call site, which buries the actual cause.
-//
-//  `handled` reports whether this line opened a definition; the HRESULT
-//  reports only whether the attempt itself ran.
 //
 //  WHERE THE NAME IS depends on the shape. In as65's `NAME macro` the keyword
 //  is the operand, so the name is the first word; in the token form the keyword
@@ -2430,47 +2526,34 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AssemblySession::DetectMacroDefinition (const PendingLine & current, LineInfo & info,
-                                                 const std::string & operandUpper, bool & handled)
+void AssemblySession::OpenMacroDefinition (const PendingLine & current, const LineInfo & info,
+                                             const std::string & operandUpper)
 {
-    HRESULT      hr        = S_OK;
-    std::string  macroName;
+    MacroDefinition  opened     = {};
+    std::string      defKeyword = m_dialect.GetMacroSyntax().defKeyword;
 
-    handled = false;
-
-
-
-    // Same predicate ClassifyPass1Line used to route here, so the two cannot
-    // disagree about what opens a definition.
-    BAIL_OUT_IF (!IsAssembling(), S_OK);
-    BAIL_OUT_IF (!IsMacroDefinitionStart (info.parsed, operandUpper), S_OK);
-
-    macroName = (info.parsed.directiveToken == Directive::MacroDef)
-                    ? info.parsed.label
-                    : info.parsed.mnemonic;
+    opened.name = (info.parsed.directiveToken == Directive::MacroDef)
+                      ? info.parsed.label
+                      : info.parsed.mnemonic;
 
     // Name collision check
-    if (m_opcodeTable->IsMnemonic (macroName))
+    if (m_opcodeTable->IsMnemonic (opened.name))
     {
-        RecordError (current.sourceLineNumber, "Macro name conflicts with mnemonic: " + macroName);
+        RecordError (current.sourceLineNumber, "Macro name conflicts with mnemonic: " + opened.name);
     }
 
-    m_pass1State = Pass1State::CollectingMacro;
-    m_currentMacroName = macroName;
-    m_currentMacroLine = current.sourceLineNumber;
-    m_currentMacroFile = current.sourceFile;
-    m_currentMacroColumn = PrimaryColumn (info.parsed);
-    m_currentMacroBody.clear();
-    m_currentMacroParams.clear();
-    m_currentMacroLocals.clear();
+    opened.lineNumber = current.sourceLineNumber;
+    opened.sourceFile = current.sourceFile;
+    opened.openColumn = PrimaryColumn (info.parsed);
 
-    // Parameter names follow the `macro` keyword in the operand, so this reads
-    // the as65 shape only. The token form declares no names at all -- its
+    // Parameter names follow the opening keyword in the operand, so this reads
+    // the operand shape only. The token form declares no names at all -- its
     // parameters are positional -- and taking a substring of its operand would
     // turn whatever the line carried into a parameter list.
-    if ((info.parsed.directiveToken != Directive::MacroDef) && (operandUpper.size() > 5))
+    if ((info.parsed.directiveToken != Directive::MacroDef) &&
+        !defKeyword.empty() && (operandUpper.size() > defKeyword.size()))
     {
-        std::string paramStr = info.parsed.operand.substr (6);
+        std::string paramStr = info.parsed.operand.substr (defKeyword.size() + 1);
 
         if (!paramStr.empty())
         {
@@ -2489,16 +2572,14 @@ HRESULT AssemblySession::DetectMacroDefinition (const PendingLine & current, Lin
 
                 if (!name.empty())
                 {
-                    m_currentMacroParams.push_back (name);
+                    opened.paramNames.push_back (name);
                 }
             }
         }
     }
 
-    handled = true;
-
-Error:
-    return hr;
+    m_pendingMacros.push_back (opened);
+    m_pass1State = Pass1State::CollectingMacro;
 }
 
 
@@ -6277,14 +6358,14 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
 //
 //  Both point at the line the block OPENED on, which is where the fix goes --
 //  never at EOF, which is merely where the pass ran out of source and noticed.
-//  The macro case has m_currentMacroLine; the conditional case has
+//  The macro case has MacroDefinition::lineNumber; the conditional case has
 //  ConditionalState::openLineNumber, carried for exactly this.
 //
-//  Unclosed conditionals get one error per open level rather than a single
-//  "3 level(s) open" summary: each one is separately missing an ENDIF, so
-//  each is separately somewhere to go. Emitted in ascending line order, the
-//  order errors are read in -- which falls out of walking the stack forward,
-//  since it is outermost-first.
+//  Unclosed macros and unclosed conditionals alike get one error per open level
+//  rather than a single "3 level(s) open" summary: each one is separately
+//  missing its own closer, so each is separately somewhere to go. Emitted in
+//  ascending line order, the order errors are read in -- which falls out of
+//  walking each stack forward, since both are outermost-first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -6302,12 +6383,17 @@ HRESULT AssemblySession::ValidateAssemblyCompletion()
     // number already was. Without this an IF opened inside an included file is
     // reported with the right line and the wrong file, which is a stronger
     // version of blaming the end of the file.
-    if (m_pass1State == Pass1State::CollectingMacro)
+    // One error per open definition, each at its own opening line, for the same
+    // reason the conditional stack below gets one per level: several can be open
+    // at once now that a definition may share the terminator of the one after
+    // it, and each is separately missing one. Walking the stack forward gives
+    // ascending line order, which is the order they are read in.
+    for (const MacroDefinition & pending : m_pendingMacros)
     {
-        m_currentSourceFile = m_currentMacroFile;
-        m_diagnosticColumn  = m_currentMacroColumn;
+        m_currentSourceFile = pending.sourceFile;
+        m_diagnosticColumn  = pending.openColumn;
 
-        RecordError (m_currentMacroLine, "Unclosed macro definition: " + m_currentMacroName);
+        RecordError (pending.lineNumber, "Unclosed macro definition: " + pending.name);
     }
 
     if (m_pass1State == Pass1State::CollectingLoop)

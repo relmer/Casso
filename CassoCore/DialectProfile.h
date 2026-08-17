@@ -143,6 +143,18 @@ struct MnemonicAlias
 
 struct MacroSyntax
 {
+    // The keyword that OPENS a definition when it sits in the operand field --
+    // as65's `NAME macro [params]`. Empty for a dialect that opens a definition
+    // with a directive token instead, which is the only other shape.
+    //
+    // Data for exactly the reason the two keywords below are, and the vendor
+    // macro library is what proves it: `PUT MACRO LIBRARY` names a file on the
+    // distribution disk, and a hard-coded spelling reads that line as a
+    // definition of a macro called PUT, swallows the rest of the file into its
+    // body, and reports the definition as unclosed. Merlin answers empty, so the
+    // line is the include it is.
+    const char *  defKeyword            = "";
+
     // The bare keyword that closes a macro body, for a dialect whose directive
     // table carries no macro-end token. Empty when the token is the only route.
     //

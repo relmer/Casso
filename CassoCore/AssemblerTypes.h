@@ -398,6 +398,16 @@ struct MacroDefinition
     // the construct OPENED rather than taken from ambient state. Empty means
     // the top-level input.
     std::string              sourceFile;
+
+    // And the column the keyword sat at, for the same reason once more. 0 where
+    // the dialect records no columns.
+    //
+    // The three carriers above are what let this struct double as the record of
+    // a definition still being COLLECTED, which is what the collector keeps a
+    // stack of. A definition met while another is open shares its terminator,
+    // so several can be in flight at once and each has to be able to report its
+    // own opening position if the source ends before that terminator arrives.
+    int                      openColumn = 0;
 };
 
 

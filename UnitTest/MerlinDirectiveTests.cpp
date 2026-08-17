@@ -1679,6 +1679,146 @@ namespace MerlinDirectiveTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  MerlinOverlappingMacroDefinitionTests
+    //
+    //  A definition with no terminator of its own runs on into the next one, and
+    //  a single `<<<` closes every definition still open. So a family of macros
+    //  ending the same way is written once: the longest first, each shorter one
+    //  opening where its own body starts, and one terminator at the bottom.
+    //
+    //  The vendor macro library is written this way, which is what makes this
+    //  ordinary rather than exotic. The bytes below are Merlin Pro 2.23's own,
+    //  captured against the shape the library uses.
+    //
+    //  This is a property of the collector rather than of the profile -- no
+    //  dialect asks for it and none can decline it -- so the as65 half is in
+    //  `MacroTests`, where it is written in the other dialect's spelling and
+    //  behaves identically.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinOverlappingMacroDefinitionTests)
+    {
+    public:
+
+        //  The captured shape, and both halves of it. Asserting only the outer
+        //  macro would pass against an assembler that collected the opening line
+        //  as body text and never made the inner one at all.
+        TEST_METHOD (ADefinitionWithNoTerminatorFallsIntoTheNext)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "ADDX MAC\n"
+                                              " TXA\n"
+                                              "ADDA MAC\n"
+                                              " CLC\n"
+                                              " ADC ]1\n"
+                                              " <<<\n"
+                                              " ADDX $10\n"
+                                              " ADDA $20\n");
+            std::vector<Byte>  expected = { 0x8A, 0x18, 0x65, 0x10, 0x18, 0x65, 0x20 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected,
+                            L"ADDX must run on into ADDA's body, and ADDA must exist in its own right");
+        }
+
+
+
+        //  The opening line is not body text. If it were, expanding the outer
+        //  macro would open a definition at the call site that nothing closes --
+        //  which is exactly the shape this replaced, and it swallowed every line
+        //  after the call as well.
+        TEST_METHOD (TheSecondOpeningLineIsNotCollectedIntoTheFirstsBody)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "ADDX MAC\n"
+                                              " TXA\n"
+                                              "ADDA MAC\n"
+                                              " CLC\n"
+                                              " <<<\n"
+                                              " ADDX\n"
+                                              " RTS\n");
+            std::vector<Byte>  expected = { 0x8A, 0x18, 0x60 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected,
+                            L"the line after the expansion must still assemble");
+        }
+
+
+
+        //  Three, because two is satisfied by an implementation that remembers
+        //  one previous definition rather than keeping a stack of them.
+        TEST_METHOD (OneTerminatorClosesEveryDefinitionStillOpen)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "THREE MAC\n"
+                                              " TXA\n"
+                                              "TWO MAC\n"
+                                              " CLC\n"
+                                              "ONE MAC\n"
+                                              " INX\n"
+                                              " <<<\n"
+                                              " THREE\n"
+                                              " TWO\n"
+                                              " ONE\n");
+            std::vector<Byte>  expected = { 0x8A, 0x18, 0xE8, 0x18, 0xE8, 0xE8 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected,
+                            L"each definition keeps the lines from its own opener down to the shared terminator");
+        }
+
+
+
+        //  The terminator's own label reaches every definition it closes. One
+        //  that reached only the innermost would leave the outer bodies branching
+        //  to a name nothing defines.
+        TEST_METHOD (ALabelOnTheSharedTerminatorReachesEveryDefinition)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "OUTER MAC\n"
+                                              " CLC\n"
+                                              "INNER MAC\n"
+                                              " BCC NI\n"
+                                              "NI <<<\n"
+                                              " OUTER\n"
+                                              " INNER\n");
+            std::vector<Byte>  expected = { 0x18, 0x90, 0x00, 0x90, 0x00 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected,
+                            L"both expansions branch to their own copy of the terminator's label");
+        }
+
+
+
+        //  Nothing is closed, so both are reported -- each at its own opening
+        //  line, which is where each fix goes. A single error would name one
+        //  definition and silently drop the other.
+        TEST_METHOD (EveryDefinitionLeftOpenIsReportedAtItsOwnLine)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         "ADDX MAC\n"
+                                         " TXA\n"
+                                         "ADDA MAC\n"
+                                         " CLC\n");
+
+            Assert::AreEqual ((size_t) 2, result.errors.size(),
+                              L"two definitions are open, so two are missing a terminator");
+            Assert::AreEqual (1, result.errors[0].lineNumber, L"the outer one opened on line 1");
+            Assert::AreEqual (3, result.errors[1].lineNumber, L"the inner one opened on line 3");
+            Assert::IsTrue (result.errors[0].message.find ("ADDX") != std::string::npos,
+                            L"and each names the definition it is about");
+            Assert::IsTrue (result.errors[1].message.find ("ADDA") != std::string::npos,
+                            L"including the one an outermost-only report would omit");
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  MerlinMacroExpansionTests
     //
     //  What an invocation actually emits: arguments separated by a semicolon,

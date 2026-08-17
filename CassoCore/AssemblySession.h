@@ -139,6 +139,12 @@ private:
     HRESULT CollectLoopBody            (const PendingLine & current, LineInfo & info);
     HRESULT DetectMacroDefinition      (const PendingLine & current, LineInfo & info,
                                         const std::string & operandUpper, bool & handled);
+
+    // Pushes one definition onto the collecting stack. Shared by the prelude,
+    // which opens the first, and by the collector, which opens every further
+    // one -- so the two cannot disagree about what opening a definition means.
+    void    OpenMacroDefinition        (const PendingLine & current, const LineInfo & info,
+                                        const std::string & operandUpper);
     HRESULT HandleConditionalDirective (const PendingLine & current, LineInfo & info, bool & handled);
     HRESULT HandleOrgDirective         (const PendingLine & current, LineInfo & info);
     HRESULT HandleKeyboardInput        (const PendingLine & current, LineInfo & info);
@@ -345,7 +351,8 @@ private:
 
     // Shared by each classifier and the handler it routes to, so the two
     // cannot drift apart about what a line is.
-    static bool        IsMacroDefinitionStart (const ParsedLine & parsed, const std::string & operandUpper);
+    static bool        IsMacroDefinitionStart (const ParsedLine & parsed, const std::string & operandUpper,
+                                               const std::string & defKeyword);
     static bool        IsConditionalLine      (const ParsedLine & parsed);
     static bool        IsConditionalDirective (Directive token);
     static bool        IsSegmentDirective     (Directive token);
@@ -628,13 +635,21 @@ private:
     std::vector<ConditionalState>                      m_condStack;
     std::unordered_map<std::string, MacroDefinition>   m_macros;
     Pass1State                                         m_pass1State         = Pass1State::Normal;
-    std::string                                        m_currentMacroName;
-    int                                                m_currentMacroLine   = 0;
-    std::string                                        m_currentMacroFile;
-    int                                                m_currentMacroColumn = 0;
-    std::vector<std::string>                           m_currentMacroBody;
-    std::vector<std::string>                           m_currentMacroParams;
-    std::vector<std::string>                           m_currentMacroLocals;
+
+    // The definitions being collected, outermost first. A STACK rather than one
+    // set of fields, because a definition opened while another is already open
+    // does not nest inside it -- it OVERLAPS it. From that point every line
+    // belongs to both bodies, and the first terminator closes both.
+    //
+    // That is what a source relying on the shorthand needs: one definition
+    // written as a prefix of the next, sharing its tail and its terminator, so
+    // the pair costs one copy of the common lines instead of two. Collecting
+    // into a single body instead swallows the second opening line as body text,
+    // and the definition it should have started is never made -- the source is
+    // then read as one definition that never ends.
+    //
+    // Non-empty exactly while m_pass1State is CollectingMacro.
+    std::vector<MacroDefinition>                       m_pendingMacros;
     int                                                m_macroUniqueCounter = 0;
 
     // The repeat block being collected. The body is kept as PENDING LINES

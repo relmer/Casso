@@ -252,6 +252,7 @@ private:
     static bool         IsCharConstantDelimiter (char ch);
     static bool         IsExplicitCallSpelling  (const std::string & opcode);
     static bool         TakesDelimitedText      (const std::string & mnemonic);
+    static bool         TakesFileName           (const std::string & mnemonic);
     static void         SkipCharConstant        (const std::string & line, size_t & pos);
     static void         SkipFieldSpace          (const std::string & line, size_t & pos);
     static std::string  ReadPlainField          (const std::string & line, size_t & pos);

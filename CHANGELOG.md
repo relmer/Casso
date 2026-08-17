@@ -59,6 +59,28 @@ Entries before versioning was introduced use dates only.
   dialect defines it instead of reporting an unknown instruction.
 
 ### Fixed
+- **A macro definition with no terminator of its own now falls into the next.**
+  Merlin lets a family of macros that end the same way be written once — the
+  longest first, each shorter one opening where its own body starts, and a
+  single terminator at the bottom closing them all. The assembler collected one
+  definition at a time, so the second opening line was swallowed as body text,
+  the definition it should have started was never made, and the source was
+  reported as one definition that never ends. The distribution disk's own macro
+  library is written that way and could not be assembled at all.
+
+  Every dialect gets the behavior, not just Merlin: the collector had no way to
+  represent overlapping definitions in any dialect, so as65's `macro` / `endm`
+  gains it too. An unterminated definition is now reported once per open level,
+  each at the line it opened on.
+- **An assembler directive whose operand names a file now keeps the spaces in
+  it.** ` USE MACRO LIBRARY` names one file on the Merlin distribution disk; the
+  operand was read to the first space, so the assembler asked for `MACRO` and
+  reported the real file missing. A comment after the name still ends it. The
+  same line was also being read as *defining a macro called `PUT`*, because the
+  keyword that opens a definition from the operand field was a fixed word in the
+  shared engine rather than the active dialect's spelling; it is the dialect's
+  now, and Merlin — which opens definitions with `MAC` in the opcode field — has
+  no operand form at all.
 - **A symbol assigned twice now holds, at each reference, the value assigned
   most recently above it.** `name = expr` defines a *reassignable* symbol, and
   pass 2 resolved every reference against one symbol table built after pass 1

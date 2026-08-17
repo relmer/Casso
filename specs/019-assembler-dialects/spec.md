@@ -337,6 +337,33 @@ references outside this file.
   assigns addresses without emitting bytes.
 - **FR-013**: The assembler MUST accept Merlin's macro definition, invocation, and
   positional parameter syntax.
+- **FR-032**: The assembler MUST accept a macro definition that has no terminator
+  of its own and **falls into the next**: while any definition is open, a further
+  opening line starts another beside it, every following line is appended to all
+  of them, and a single terminator closes them all. An unclosed definition is
+  reported once per open level, at the line each one opened on.
+
+  **This is an ENGINE change and therefore a spec amendment, taken deliberately
+  and with the user's approval rather than as an implementation detail.** The
+  reasoning is in [contracts/dialect-profile.md](./contracts/dialect-profile.md)
+  under "Amendment: overlapping macro definitions". Two things about it matter as
+  much as the behavior. It is expressed as mechanism **every dialect gets** — no
+  profile field selects it and no dialect is named in the collector — because the
+  shared engine had no way to represent overlapping definitions at all, in any
+  dialect. And it is what the distribution disk's own macro library depends on:
+  `ADDX` there has no `<<<` and runs on into `ADDA`, so the library could not be
+  assembled without it (FR-033).
+- **FR-033**: The assembler MUST reproduce the object code real Merlin produces
+  from source that includes the distribution disk's macro library and invokes its
+  macros. The library is committed as a fixture and its object is **generated**
+  rather than shipped — nothing on the disk includes it, so its oracle was made by
+  assembling an authored source under Merlin Pro 2.23 and capturing the result,
+  exactly as the hand-authored corpus entries were.
+
+  It is the only evidence anywhere that macro fall-through (FR-032) and the
+  first-character conditional are ordinary Merlin rather than exotic. Both went
+  unimplemented for the whole of the first pass at this feature precisely because
+  no committed fixture used them.
 - **FR-014**: The assembler MUST accept Merlin's file-inclusion directives and
   resolve included files relative to the source that names them.
 - **FR-015**: The assembler MUST accept the *first* occurrence of Merlin's
@@ -470,6 +497,16 @@ The disk's blind spot is symmetric and easy to miss: **it cannot report what the
 vocabulary contains that this vendor did not use.** Absence from the disk is not
 evidence of absence from the language. Where the manual lists a construct the
 disk never exercises, that MUST become a corpus entry rather than an assumption.
+
+**And a file on the disk that no other file uses has the same blind spot, which
+cost this feature two constructs.** The distribution's macro library ships no
+object, so it was never an oracle and never assembled — and macro fall-through
+(FR-032) and the first-character conditional, which it uses throughout, were both
+missed for the whole of the first pass. The lesson is that "ships no object" is a
+statement about 1984 and not about what can be compared: **an oracle can be
+GENERATED.** Author a source that uses the file, assemble it under real Merlin,
+capture what it produced, and the file becomes half of an ordinary pair. FR-033
+is that, done.
 
 **Vendor source is captured, not read.** Beyond what is needed to fix the field
 model, the macro grammar, and the string family, the remaining source on the disk

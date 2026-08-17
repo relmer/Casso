@@ -103,6 +103,61 @@ so itself, and T013, T018, T033 and others in this same feature modify that file
 too. The `ExpressionEvaluator.cpp` left-to-right change was filed the same way.
 Do not re-file either as a violation later.
 
+## Amendment: overlapping macro definitions
+
+**User-approved, 2026-08-17.** The second engine gap Merlin found, filed the same
+way as the first and for the same reason: guarantee 1 says a profile needing
+engine changes has found a real gap and that the answer is a spec amendment
+rather than a quiet local edit. The guarantee is being relaxed *here*, in the
+open, rather than bypassed.
+
+**The gap.** A macro definition with no terminator of its own runs on into the
+next, and one terminator closes every definition still open. So a family of
+macros ending the same way is written once — the longest first, each shorter one
+opening where its own body starts, and a single `<<<` at the bottom. The
+distribution disk's own macro library is written that way:
+
+```
+ADDX MAC        ADDX is TXA CLC ADC ]1 ...
+ TXA            ADDA is      CLC ADC ]1 ...
+ADDA MAC
+ CLC
+ ADC ]1
+ ...
+ <<<
+```
+
+`AssemblySession` could not express it. Its collector held ONE definition, so a
+second `MAC` met while a body was open was swallowed into that body as text; the
+definition it should have started was never made, and the source read as one
+definition that never ends — reported as `Unclosed macro definition`. That is a
+missing capability in the ENGINE, not a Merlin quirk: no dialect could express
+overlapping definitions, because the collector had nowhere to put the second one.
+
+**The shape.** The collector holds a STACK of definitions instead of one. Every
+open definition receives every following line; a further opening line pushes
+rather than being collected; one terminator closes them all; and an unclosed
+definition is reported once per open level, each at its own opening line — the
+same treatment the conditional stack already gets.
+
+**Every dialect gets it, and none opts in.** There is no profile field for this
+and no dialect is named anywhere in the change. as65 written with `macro` /
+`endm` behaves identically, and `UnitTest/MacroTests.cpp` asserts it in that
+dialect's spelling beside the Merlin half — because a test in only one of the two
+would leave a dialect-shaped special case indistinguishable from the mechanism.
+
+**What did move onto the seam** is a spelling that should never have been in the
+engine: the keyword that opens a definition from the operand field. It was the
+literal string `"MACRO"` in `AssemblySession`, which read ` PUT MACRO LIBRARY` —
+an inclusion naming a real file on the vendor disk — as a definition of a macro
+called `PUT`. It is now `MacroSyntax::defKeyword`, beside the terminator and
+local-declaration keywords that were already there for exactly this reason, and
+Merlin answers empty. **This narrows the seam's reach into the engine rather than
+widening the seam**, in the same direction T085's removal of `callKeyword` went.
+
+**What this must not become.** `if (dialect == Merlin)` in the collector. There
+is none, and the as65 half of the test suite is what keeps it that way.
+
 ## Verification
 
 SC-009 is proved by a **synthetic, test-only third profile** in the unit tests.
