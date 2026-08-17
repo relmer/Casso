@@ -116,6 +116,31 @@ static const char  s_kLineCommentIntroducer = '*';
 static const char *  s_kpszEquateSign    = "=";
 static const char *  s_kpszEquateKeyword = "EQU";
 
+//  Merlin writes a variable symbol and a positional macro parameter with the
+//  same character: `]COUNT` is a reassignable symbol, `]1` a parameter. The
+//  digit is what tells them apart, and nothing else has to.
+static const char  s_kVariableSigil = ']';
+
+//  Separates one macro argument from the next. NOT a comment introducer inside
+//  the operand field, which is the whole reason the field scanner exists.
+static const char  s_kMacroArgumentSeparator = ';';
+
+//  Invokes a macro explicitly, with the macro's name first in the operand.
+//  UNVERIFIED against the corpus and unverifiable there: the vendor library
+//  invokes every macro by bare name, so the disk cannot report whether the
+//  explicit prefix is also accepted. It is implemented because absence from one
+//  vendor's source is not absence from the language.
+static const char *  s_kpszExplicitCallKeyword = ">>>";
+
+//  What a variable symbol binds under, once the sigil is gone.
+//
+//  Two characters of it are load-bearing. The name has to start with a letter
+//  so the expression tokenizer will lex it, and it has to hold TWO periods so
+//  no name a source can spell may collide with it: an ordinary label may hold
+//  none -- ValidateLabel rejects the character outright -- and a scoped local
+//  binds as one label joined to another, so it holds exactly one.
+static const char *  s_kpszVariableNamePrefix = "var..";
+
 
 
 
@@ -273,6 +298,181 @@ StringEncodingMode MerlinDirectiveTable::EncodingModeForSpelling (const std::str
 std::span<const MnemonicAlias> MerlinDialect::GetMnemonicAliases() const
 {
     return std::span<const MnemonicAlias> (s_kMerlinMnemonicAliases);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinDialect::GetMacroSyntax
+//
+//  Merlin's macros in one value.
+//
+//  No end keyword and no local-label keyword: the terminator is a real token in
+//  the spelling table, and there is nothing to declare, because every label a
+//  body defines is made unique per expansion whether the author asked or not.
+//  That last one is the corpus's finding rather than the manual's. `MAKE
+//  DUMP.S` expands `INCD` twice and `STORE` three times; each expansion
+//  redefines a bare label, and the vendor shipped a working object. A dialect
+//  that reused those labels would resolve every branch to the first expansion.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MacroSyntax MerlinDialect::GetMacroSyntax() const
+{
+    MacroSyntax  syntax = {};
+
+
+
+    syntax.callKeyword           = s_kpszExplicitCallKeyword;
+    syntax.parameterSigil        = s_kVariableSigil;
+    syntax.argumentSeparator     = s_kMacroArgumentSeparator;
+    syntax.labelsArePerExpansion = true;
+
+    return syntax;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinDialect::IsVariableNameStart
+//
+//  What may follow the sigil in a VARIABLE, as opposed to in a positional macro
+//  parameter. A digit means `]1`, which the macro expander substitutes long
+//  before any symbol is looked up, so it must never be rewritten here.
+//
+//  No test discriminates the digit today and none can, which is worth stating
+//  rather than leaving to be rediscovered: a macro body is stored as raw text
+//  and re-parsed only AFTER substitution, so a parameter reference never
+//  reaches this function on a line whose parse is used. The guard stays because
+//  it is what keeps that true by construction rather than by luck -- without it,
+//  a stray `]1` outside a macro would become a symbol named for a parameter
+//  instead of drawing an expression error.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MerlinDialect::IsVariableNameStart (char ch)
+{
+    return isalpha ((unsigned char) ch) || (ch == '_');
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinDialect::QualifyVariableName
+//
+//  The stored name for one variable symbol, sigil already removed or not.
+//
+//  Variables are a namespace of their own -- `]COUNT` and `COUNT` are two
+//  symbols and either may exist without the other -- so the stored name cannot
+//  simply drop the sigil. It cannot keep it either: the shared expression
+//  tokenizer lexes identifiers and the sigil is not one of the characters it
+//  accepts. The prefix is the answer to both at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MerlinDialect::QualifyVariableName (const std::string & spelling)
+{
+    bool  hasSigil = !spelling.empty() && (spelling[0] == s_kVariableSigil);
+
+
+
+    return s_kpszVariableNamePrefix + (hasSigil ? spelling.substr (1) : spelling);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinDialect::QualifyVariableRefs
+//
+//  Every variable REFERENCE in one field, rewritten to the name the symbol
+//  binds under.
+//
+//  The reference half is not optional. A dialect answering only "is this a
+//  variable definition" leaves every use of one unresolvable, which is the same
+//  trap the local-label prefix had.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MerlinDialect::QualifyVariableRefs (const std::string & text)
+{
+    std::string  result;
+    size_t       i      = 0;
+
+
+
+    while (i < text.size())
+    {
+        bool  startsName = (text[i] == s_kVariableSigil) &&
+                           (i + 1 < text.size()) &&
+                           IsVariableNameStart (text[i + 1]);
+
+        if (startsName)
+        {
+            result += s_kpszVariableNamePrefix;
+        }
+        else
+        {
+            result += text[i];
+        }
+
+        i++;
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinDialect::SplitCallPrefix
+//
+//  Separates an explicit macro invocation written with no space after the
+//  prefix, so `>>>MYMAC;A` reads the same as `>>> MYMAC;A`.
+//
+//  Both forms have to work because the fixed columns in a Merlin listing are
+//  the editor's doing and a file arriving from anywhere else carries whatever
+//  its author typed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MerlinDialect::SplitCallPrefix (std::string & mnemonic, std::string & operand)
+{
+    std::string  keyword    = s_kpszExplicitCallKeyword;
+    bool         isAttached = (mnemonic.size() > keyword.size()) &&
+                              (mnemonic.compare (0, keyword.size(), keyword) == 0);
+
+
+
+    if (isAttached)
+    {
+        std::string  remainder = mnemonic.substr (keyword.size());
+
+        if (!operand.empty())
+        {
+            remainder += s_kMacroArgumentSeparator;
+            remainder += operand;
+        }
+
+        mnemonic = keyword;
+        operand  = remainder;
+    }
+
+    return;
 }
 
 
@@ -465,6 +665,10 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
         }
     }
 
+    // An explicit invocation may be written flush against the macro's name, so
+    // the prefix is separated before the opcode field is read as a word.
+    SplitCallPrefix (result.mnemonic, result.operand);
+
     opcode = Parser::ToUpper (result.mnemonic);
 
     // An equate puts its sign in the OPCODE field, with the name beside it in
@@ -477,10 +681,16 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
 
     if (isEquate)
     {
+        // A variable is REASSIGNABLE and an ordinary equate is not, which is the
+        // entire difference between the two and the only thing the sigil says.
+        // Recording it as the mutable kind is what lets a later definition
+        // rebind it instead of being reported as a duplicate.
+        bool  isVariable = (result.label[0] == s_kVariableSigil);
+
         result.isConstant   = true;
-        result.constantName = result.label;
-        result.constantExpr = result.operand;
-        result.constantKind = SymbolKind::Equ;
+        result.constantName = isVariable ? QualifyVariableName (result.label) : result.label;
+        result.constantExpr = QualifyVariableRefs (result.operand);
+        result.constantKind = isVariable ? SymbolKind::Set : SymbolKind::Equ;
         result.isEmpty      = false;
 
         // The name is the CONSTANT's, not a label binding to the current
@@ -499,6 +709,15 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
     // and telling those two apart needs the macro table rather than the parser.
     result.directiveToken = MerlinDirectiveTable::FromSpelling (opcode);
     result.isDirective    = (result.directiveToken != Directive::None);
+
+    // Variable references become the names their symbols bind under, before
+    // anything downstream tries to resolve them. String payload is left alone:
+    // the sigil is an ordinary character inside a message, and rewriting there
+    // would change emitted bytes rather than resolve a symbol.
+    if (result.directiveToken != Directive::StringData)
+    {
+        result.operand = QualifyVariableRefs (result.operand);
+    }
 
     if (result.isDirective)
     {

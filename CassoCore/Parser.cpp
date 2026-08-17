@@ -765,6 +765,93 @@ std::vector<std::string> Parser::SplitArgList (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Parser::SplitOnSeparator
+//
+//  An argument list split on a separator the caller names, for macro calls,
+//  where the separator belongs to the dialect rather than to the assembler.
+//  Merlin's is a semicolon -- `ADD SUMSTR;DEFLEN;PL` passes three arguments --
+//  and the character is data precisely so no dialect branch is needed here.
+//
+//  Parenthesis depth and character literals are respected exactly as the comma
+//  splitter does. The bracket depth is CLAMPED at zero, which the comma splitter
+//  does not do, because Merlin spells a variable symbol with a leading `]`: an
+//  unmatched one would otherwise drive the depth negative and hide every
+//  separator after it, collapsing an argument list to its first item.
+//
+//  That is a guard rather than a fix for an observed failure, and the difference
+//  is worth recording. Variable references are rewritten while the line is
+//  parsed, so by the time an argument list reaches here the sigil is gone and no
+//  test can tell the clamp from its absence. It costs one comparison and it is
+//  what keeps a later change to that ordering from silently truncating argument
+//  lists.
+//
+//  Empty items are dropped, matching SplitArgList: every caller counts items,
+//  and none has a use for a positional blank.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> Parser::SplitOnSeparator (const std::string & text, char separator)
+{
+    std::vector<std::string>  args;
+    size_t                    start = 0;
+    size_t                    i     = 0;
+    int                       depth = 0;
+
+
+
+    for (i = 0; i < text.size(); i++)
+    {
+        char  c = text[i];
+
+        if (c == '\'' && i + 2 < text.size() && text[i + 2] == '\'')
+        {
+            i += 2;
+            continue;
+        }
+
+        if (c == '(' || c == '[')
+        {
+            depth++;
+            continue;
+        }
+
+        if (c == ')' || c == ']')
+        {
+            depth = (depth > 0) ? (depth - 1) : 0;
+            continue;
+        }
+
+        if (c == separator && depth == 0)
+        {
+            std::string  arg = Trim (text.substr (start, i - start));
+
+            if (!arg.empty())
+            {
+                args.push_back (arg);
+            }
+
+            start = i + 1;
+        }
+    }
+
+    {
+        std::string  last = Trim (text.substr (start));
+
+        if (!last.empty())
+        {
+            args.push_back (last);
+        }
+    }
+
+    return args;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ParseQuotedString
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -103,12 +103,19 @@ public:
 //  164 of the 166 string lines on the disk use `"`; the two that do not are the
 //  reason this is a rule about delimiters and not about quotes.
 //
-//  What this profile does NOT yet do: assemble. It resolves directives to
-//  tokens and encodes string data, but most directive HANDLERS are still null,
-//  and labels, expressions and macros are not implemented. The profile is
-//  registered but is not reachable from the command line until the `merlin`
-//  subcommand exists, so this is an incomplete profile rather than a broken
-//  advertised feature.
+//  THE SIGIL IS TWO THINGS. `]COUNT` is a variable symbol -- reassignable,
+//  where an ordinary label is not -- and `]1` through `]9` are positional macro
+//  parameters. The digit is the whole distinction, and it has to be, because
+//  the two live in the same source: a macro body may reference a variable and a
+//  variable's expression may hold a parameter. Parameters are substituted
+//  textually at expansion, before any symbol exists; variables are rewritten
+//  here, into names the shared expression tokenizer can lex.
+//
+//  What this profile does NOT yet do: assemble everything. Several directive
+//  HANDLERS are still null -- the loop construct, dummy sections, CPU selection
+//  and the object-file name. The profile is registered but is not reachable
+//  from the command line until the `merlin` subcommand exists, so this is an
+//  incomplete profile rather than a broken advertised feature.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -154,10 +161,24 @@ public:
     // encoder -- four places in shared mechanism, for two spellings.
     std::span<const MnemonicAlias>  GetMnemonicAliases() const override;
 
+    // Merlin's macro syntax: a triple-angle terminator carried as a token,
+    // positional parameters written with the variable sigil, semicolon-separated
+    // arguments, and body labels made unique per expansion without any
+    // declaration to say so.
+    MacroSyntax         GetMacroSyntax () const override;
+
+    // The stored name a variable symbol binds under. Public so a test can state
+    // the expectation in the same terms the profile does rather than repeating
+    // the marker as a literal.
+    static std::string  QualifyVariableName (const std::string & spelling);
+
 private:
-    static bool         IsFieldSpace       (char ch);
-    static bool         TakesDelimitedText (const std::string & mnemonic);
-    static void         SkipFieldSpace     (const std::string & line, size_t & pos);
-    static std::string  ReadPlainField     (const std::string & line, size_t & pos);
-    static std::string  ReadOperandField   (const std::string & line, size_t & pos, const std::string & mnemonic);
+    static bool         IsFieldSpace        (char ch);
+    static bool         IsVariableNameStart (char ch);
+    static bool         TakesDelimitedText  (const std::string & mnemonic);
+    static void         SkipFieldSpace      (const std::string & line, size_t & pos);
+    static std::string  ReadPlainField      (const std::string & line, size_t & pos);
+    static std::string  ReadOperandField    (const std::string & line, size_t & pos, const std::string & mnemonic);
+    static std::string  QualifyVariableRefs (const std::string & text);
+    static void         SplitCallPrefix     (std::string & mnemonic, std::string & operand);
 };

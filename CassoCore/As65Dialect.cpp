@@ -241,3 +241,29 @@ ParsedLine As65Dialect::ParseLine (const std::string & line, int lineNumber) con
 Error:
     return result;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  As65Dialect::GetMacroSyntax
+//
+//  as65 closes a body with `endm`, declares the labels to rename with `local`,
+//  and takes comma-separated arguments substituted by name or by backslash
+//  number. Everything else keeps the default, which is what the default is for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MacroSyntax As65Dialect::GetMacroSyntax() const
+{
+    MacroSyntax  syntax = {};
+
+
+
+    syntax.endKeyword   = "ENDM";
+    syntax.localKeyword = "LOCAL";
+
+    return syntax;
+}

@@ -214,8 +214,9 @@ private:
     // Source order for the final diagnostic lists; recording order is not it.
     void     SortDiagnosticsByLine();
 
-    HRESULT ResolveEquConstants  ();
-    HRESULT ReportUnresolvedEqus ();
+    HRESULT ResolveEquConstants   ();
+    HRESULT ReportUnresolvedEqus  ();
+    HRESULT RebindMutableConstant (const LineInfo & info);
     HRESULT EmitDirectiveBytes   (const LineInfo & info, Word & emitPC);
     HRESULT EmitInstruction      (const LineInfo & info, Word & emitPC);
     HRESULT BuildListingEntry    (const LineInfo & info, Word emitPCStart, Word emitPC, bool lineHasAddress);
@@ -459,5 +460,11 @@ private:
 
     static const int kMaxMacroDepth   = 15;
     static const int kMaxIncludeDepth = 16;
+
+    // How many positional macro parameters a sigil form can name. ONE digit is
+    // the whole form, so this is the highest single digit rather than a limit
+    // anyone chose -- `]12` is `]1` followed by a literal 2, not a twelfth
+    // parameter. The vendor macro library uses 1 through 3.
+    static const int kMaxPositionalParams = 9;
 };
 

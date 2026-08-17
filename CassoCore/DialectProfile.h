@@ -67,6 +67,73 @@ struct MnemonicAlias
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MacroSyntax
+//
+//  Everything a dialect has to say about how macros are WRITTEN, in one value.
+//
+//  One virtual rather than six accessors, and that is the point. Every field
+//  here is a spelling or a separator -- data the expander reads and never a
+//  decision it delegates -- so the alternative was six more entries on a seam
+//  the profile contract asks to keep narrow. Collapsing them also means a new
+//  dialect answers the whole question in one place instead of discovering the
+//  sixth accessor after its macros silently misbehave.
+//
+//  The defaults describe a dialect with keyword-terminated macro bodies and
+//  comma-separated arguments, which is what a profile stating nothing gets.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct MacroSyntax
+{
+    // The bare keyword that closes a macro body, for a dialect whose directive
+    // table carries no macro-end token. Empty when the token is the only route.
+    //
+    // Both routes exist because as65's `endm` is not in its spelling table at
+    // all -- it is a macro-body keyword rather than a directive, and tokenizing
+    // it would cost a lookup on every line of every file to serve lines that
+    // appear only here.
+    const char *  endKeyword            = "";
+
+    // The keyword declaring macro-local labels inside a body, or empty for a
+    // dialect with no such declaration.
+    //
+    // Data for the same reason the local-label prefix is: the expander has to
+    // recognize the declaration and DROP it, so a hard-coded spelling deletes
+    // any line another dialect's source happens to begin with that word. In a
+    // field-based dialect the first word of a line is a label, so `LOCAL LDA #1`
+    // is a labeled instruction and dropping it costs both the label and two
+    // bytes with no diagnostic.
+    const char *  localKeyword          = "";
+
+    // The keyword that invokes a macro explicitly, with the macro's name first
+    // in the operand. Empty for a dialect that invokes by bare name only.
+    const char *  callKeyword           = "";
+
+    // The character introducing a positional parameter inside a body -- `]1`
+    // through `]9` in Merlin -- or 0 for a dialect with no positional form.
+    //
+    // Substitution is textual and deliberately ignores identifier boundaries,
+    // because Merlin's own macro library splices a parameter INTO a name:
+    // `LDX #A]1-ADRTBL` and `LDX #]1END-]1-1` are both on the distribution disk.
+    char          parameterSigil        = 0;
+
+    // What separates one argument from the next at an invocation.
+    char          argumentSeparator     = ',';
+
+    // Whether every label a macro body defines is made unique per expansion
+    // without being declared. as65 requires the declaration; Merlin does not,
+    // and its own sources prove it -- `MAKE DUMP.S` expands `INCD` twice and
+    // `STORE` three times, each redefining a bare label, and ships a working
+    // object.
+    bool          labelsArePerExpansion = false;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DialectProfile
 //
 //  The complete syntactic personality of one assembler: how source is READ.
@@ -142,23 +209,8 @@ public:
     // is why this is a default rather than a pure virtual.
     virtual std::span<const MnemonicAlias>  GetMnemonicAliases () const { return {}; }
 
-    // The bare keyword that closes a macro body, for a dialect whose directive
-    // table does not carry Directive::MacroEnd. Empty when the token is the
-    // only way the body ends.
-    //
-    // Both routes exist because as65's `endm` is not in its spelling table at
-    // all -- it is a macro-body keyword rather than a directive, and tokenizing
-    // it would cost a lookup on every line of every file to serve lines that
-    // appear only here.
-    virtual const char *        GetMacroEndKeyword () const { return ""; }
-
-    // The keyword that declares macro-local labels inside a macro body, or an
-    // empty string for a dialect with no such declaration.
-    //
-    // Data for the same reason the local-label prefix is: the expander has to
-    // recognize the declaration and DROP it, so a hard-coded spelling deletes
-    // any line another dialect's source happens to begin with that word. Merlin
-    // has no such declaration -- its macro locals are ordinary local labels --
-    // so it answers empty and its macro bodies keep every line they were given.
-    virtual const char *        GetMacroLocalKeyword () const { return ""; }
+    // How this dialect writes macros: terminator, parameter form, argument
+    // separator, and whether body labels are unique per expansion. One value
+    // rather than an accessor apiece -- see MacroSyntax above.
+    virtual MacroSyntax         GetMacroSyntax () const { return {}; }
 };

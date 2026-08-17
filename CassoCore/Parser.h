@@ -141,4 +141,8 @@ public:
 
     // Split a comma-separated argument list respecting () [] '' nesting
     static std::vector<std::string>   SplitArgList      (const std::string & text);
+
+    // The same, on a separator the caller names -- macro arguments, whose
+    // separator is the dialect's rather than the assembler's.
+    static std::vector<std::string>   SplitOnSeparator  (const std::string & text, char separator);
 };

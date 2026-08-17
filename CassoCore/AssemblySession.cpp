@@ -1911,9 +1911,10 @@ Error:
 HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo & info)
 {
     HRESULT      hr            = S_OK;
+    MacroSyntax  syntax        = m_dialect.GetMacroSyntax();
     std::string  mnemonic      = ToUpperCase (info.parsed.mnemonic);
-    std::string  endKeyword    = m_dialect.GetMacroEndKeyword();
-    std::string  localKeyword  = m_dialect.GetMacroLocalKeyword();
+    std::string  endKeyword    = syntax.endKeyword;
+    std::string  localKeyword  = syntax.localKeyword;
     bool         endsBody      = false;
     bool         declaresLocal = false;
 
@@ -1934,6 +1935,19 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
 
     if (endsBody)
     {
+        // The terminator may carry a LABEL, and the vendor sources do it:
+        // KEYMAC.S ends a macro with `NI <<<`, so the body's own branch target
+        // sits on the same line that closes the definition. Dropping the line
+        // whole -- which is what closing the body does -- takes that label with
+        // it and leaves every branch to it unresolvable. The label is re-emitted
+        // on a line of its own instead, where expansion renames it like any
+        // other body label.
+        if (syntax.labelsArePerExpansion && !info.parsed.label.empty())
+        {
+            m_currentMacroLocals.push_back (info.parsed.label);
+            m_currentMacroBody.push_back (info.parsed.label);
+        }
+
         MacroDefinition def = {};
         def.name       = m_currentMacroName;
         def.body       = m_currentMacroBody;
@@ -1975,6 +1989,16 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
                     m_currentMacroLocals.push_back (name);
                 }
             }
+        }
+
+        // A dialect whose body labels are unique per expansion declares nothing,
+        // so every label the body defines is collected on the way past. Without
+        // it the second expansion redefines the first's labels and every branch
+        // in it resolves to the wrong copy -- which is why Merlin's own sources
+        // can expand one macro three times and still ship a working object.
+        if (syntax.labelsArePerExpansion && !info.parsed.label.empty())
+        {
+            m_currentMacroLocals.push_back (info.parsed.label);
         }
 
         m_currentMacroBody.push_back (current.text);
@@ -2602,12 +2626,13 @@ std::string AssemblySession::QualifyLocalReferences (const std::string & text, c
 
 HRESULT AssemblySession::ApplyLocalLabelScope (const PendingLine & current, LineInfo & info)
 {
-    HRESULT       hr        = S_OK;
-    ParsedLine &  parsed    = info.parsed;
-    char          prefix    = m_dialect.GetLocalLabelPrefix();
-    bool          isLocal   = false;
-    bool          isPayload = false;
-    bool          sawLocal  = false;
+    HRESULT       hr         = S_OK;
+    ParsedLine &  parsed     = info.parsed;
+    char          prefix     = m_dialect.GetLocalLabelPrefix();
+    bool          isPrivate  = m_dialect.GetMacroSyntax().labelsArePerExpansion && (current.macroDepth > 0);
+    bool          isLocal    = false;
+    bool          isPayload  = false;
+    bool          sawLocal   = false;
 
 
 
@@ -2615,7 +2640,14 @@ HRESULT AssemblySession::ApplyLocalLabelScope (const PendingLine & current, Line
 
     isLocal = !parsed.label.empty() && (parsed.label[0] == prefix);
 
-    if (!isLocal && !parsed.label.empty())
+    // A label a macro expansion produced does NOT open a scope. It is private to
+    // the expansion -- renamed per invocation, so no source can name it -- and
+    // letting it become the enclosing global would re-scope every local after
+    // the call site. The vendor sources prove it matters: `MAKE DUMP.S` calls
+    // macros defining `LP` and `ND` in the middle of a routine whose own locals
+    // belong to a global label further up, and each call would otherwise strand
+    // the locals that follow it.
+    if (!isLocal && !parsed.label.empty() && !isPrivate)
     {
         m_localLabelScope = parsed.label;
     }
@@ -4018,15 +4050,55 @@ Error:
 
 HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & info, bool & handled)
 {
-    HRESULT hr      = S_OK;
-    auto    macroIt = m_macros.find (info.parsed.mnemonic);
+    HRESULT                   hr          = S_OK;
+    MacroSyntax               syntax      = m_dialect.GetMacroSyntax();
+    std::string               callKeyword = syntax.callKeyword;
+    std::string               name        = info.parsed.mnemonic;
+    std::vector<std::string>  args;
+    std::vector<std::string>  expandedLines;
+    std::string               uniqueSuffix;
+    bool                      isExplicit  = false;
+    bool                      isDefined   = false;
+    bool                      hasArgs     = false;
 
 
 
     handled = false;
 
+    // The argument separator is the dialect's. Merlin's is a semicolon, which is
+    // also why the field scanner refuses to treat one inside the operand as a
+    // comment: `ADD SUMSTR;DEFLEN;PL` passes three arguments, and a parser
+    // stripping from the first semicolon would pass one.
+    args       = Parser::SplitOnSeparator (info.parsed.operand, syntax.argumentSeparator);
+    isExplicit = !callKeyword.empty() && (ToUpperCase (name) == callKeyword);
+
+    if (isExplicit)
+    {
+        // An explicit invocation names the macro FIRST IN THE OPERAND, so the
+        // name and the arguments come out of the same list. A prefix with
+        // nothing after it is reported here rather than left to fall through as
+        // an unknown mnemonic, which would describe the symptom and not the
+        // mistake.
+        hasArgs = !args.empty();
+
+        CBRFEx (hasArgs, S_OK,
+                RecordError (current.sourceLineNumber, "Explicit macro invocation names no macro");
+                handled = true);
+
+        name = args.front();
+        args.erase (args.begin());
+    }
+
+    isDefined = (m_macros.find (name) != m_macros.end());
+
+    // An explicit invocation is a macro call whether or not the macro exists, so
+    // an undefined name is reported instead of being handed on.
+    CBRFEx (isDefined || !isExplicit, S_OK,
+            RecordError (current.sourceLineNumber, "Undefined macro: " + name);
+            handled = true);
+
     // Not a macro call; the line belongs to a later stage.
-    BAIL_OUT_IF (macroIt == m_macros.end(), S_OK);
+    BAIL_OUT_IF (!isDefined, S_OK);
 
     // Claimed even though it failed: the line was a macro call, so no later
     // stage should try to reinterpret it.
@@ -4035,33 +4107,25 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
                 "Macro nesting depth exceeded (max " + std::to_string (kMaxMacroDepth) + ")");
             handled = true);
 
+    m_macroUniqueCounter++;
+    uniqueSuffix = std::format ("{:04d}", m_macroUniqueCounter);
+
+    hr = SubstituteMacroParams (m_macros[name], args, uniqueSuffix, expandedLines);
+    CHR (hr);
+
+    // Insert expanded lines at the FRONT of the queue (reverse order)
+    for (int bi = (int) expandedLines.size() - 1; bi >= 0; bi--)
     {
-        std::vector<std::string> args;
-        std::vector<std::string> expandedLines;
+        PendingLine  pl = {};
 
-        if (!info.parsed.operand.empty())
-        {
-            args = Parser::SplitArgList (info.parsed.operand);
-        }
-
-        m_macroUniqueCounter++;
-        std::string uniqueSuffix = std::format ("{:04d}", m_macroUniqueCounter);
-
-        hr = SubstituteMacroParams (macroIt->second, args, uniqueSuffix, expandedLines);
-        CHR (hr);
-
-        // Insert expanded lines at the FRONT of the queue (reverse order)
-        for (int bi = (int) expandedLines.size() - 1; bi >= 0; bi--)
-        {
-            PendingLine pl   = {};
-            pl.text          = expandedLines[bi];
-            pl.sourceLineNumber = current.sourceLineNumber;
-            pl.macroDepth    = current.macroDepth + 1;
-            m_pendingLines.push_front (pl);
-        }
-
-        handled = true;
+        pl.text             = expandedLines[bi];
+        pl.sourceLineNumber = current.sourceLineNumber;
+        pl.sourceFile       = current.sourceFile;
+        pl.macroDepth       = current.macroDepth + 1;
+        m_pendingLines.push_front (pl);
     }
+
+    handled = true;
 
 Error:
     return hr;
@@ -4105,7 +4169,7 @@ HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef
                                                  std::vector<std::string> & expandedLines)
 {
     HRESULT      hr           = S_OK;
-    std::string  localKeyword = m_dialect.GetMacroLocalKeyword();
+    std::string  localKeyword = m_dialect.GetMacroSyntax().localKeyword;
 
     const auto & body = macroDef.body;
 
@@ -4252,9 +4316,32 @@ HRESULT AssemblySession::ApplyMacroSubstitutions (std::string & expanded,
                                                    const std::vector<std::string> & args,
                                                    const std::string & uniqueSuffix)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr    = S_OK;
+    char     sigil = m_dialect.GetMacroSyntax().parameterSigil;
 
 
+
+    // Positional parameters, for a dialect that spells them with a sigil rather
+    // than declaring names. Substitution deliberately ignores identifier
+    // boundaries: Merlin's own library splices a parameter INTO a symbol, and
+    // both directions appear on the distribution disk -- `LDX #A]1-ADRTBL`
+    // pastes the argument after a prefix, `LDX #]1END-]1-1` before a suffix. A
+    // whole-word rule would leave both untouched and every reference undefined.
+    if (sigil != 0)
+    {
+        for (int ai = 1; ai <= kMaxPositionalParams; ai++)
+        {
+            std::string  placeholder = std::string (1, sigil) + std::to_string (ai);
+            std::string  replacement = (ai <= (int) args.size()) ? args[ai - 1] : "";
+            size_t       pos         = 0;
+
+            while ((pos = expanded.find (placeholder, pos)) != std::string::npos)
+            {
+                expanded.replace (pos, placeholder.size(), replacement);
+                pos += replacement.size();
+            }
+        }
+    }
 
     // Replace \0 with argument count
     {
@@ -4998,6 +5085,12 @@ HRESULT AssemblySession::RunPass2()
         m_opcodeTable = info.usedExtendedSet ? &m_instructionSets.GetExtended()
                                              : &m_instructionSets.GetBase();
 
+        // A reassignable symbol takes its value again here, so a reference sees
+        // what was assigned most recently BEFORE it rather than what the file
+        // assigned last.
+        hr = RebindMutableConstant (info);
+        CHR (hr);
+
         if (info.hasError)
         {
             // Nothing to emit
@@ -5122,6 +5215,56 @@ HRESULT AssemblySession::ResolveEquConstants()
     }
 
 // Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RebindMutableConstant
+//
+//  Gives a reassignable symbol its value again at the point pass 2 reaches its
+//  definition, so every reference resolves against the assignment most recently
+//  before it.
+//
+//  Without this the two passes disagree about what the symbol holds. Pass 1
+//  walks the file in order and sees each assignment in turn -- which is exactly
+//  what sizes the lines between them -- while pass 2 reads one table built after
+//  pass 1 finished, so every reference resolves to the LAST value the file ever
+//  assigned. An immutable symbol cannot show the difference, which is why this
+//  went unnoticed; a reassignable one shows it as wrong bytes and no diagnostic.
+//
+//  An expression that will not evaluate leaves the previous value standing
+//  rather than clearing the symbol. The failure is reported where the constant
+//  is defined; blanking it here would add a second, stranger complaint at every
+//  reference.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::RebindMutableConstant (const LineInfo & info)
+{
+    HRESULT     hr        = S_OK;
+    bool        isMutable = info.isConstant && info.parsed.isConstant &&
+                            (info.parsed.constantKind == SymbolKind::Set);
+    ExprResult  er        = {};
+
+
+
+    BAIL_OUT_IF (!isMutable, S_OK);
+
+    m_pass2Ctx.currentPC = (int32_t) info.pc;
+    er                   = ExpressionEvaluator::Evaluate (info.parsed.constantExpr, m_pass2Ctx);
+
+    if (er.success)
+    {
+        m_symbols[info.parsed.constantName]     = (Word) er.value;
+        m_fullSymbols[info.parsed.constantName] = er.value;
+    }
+
+Error:
     return hr;
 }
 

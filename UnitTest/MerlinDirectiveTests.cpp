@@ -943,4 +943,451 @@ namespace MerlinDirectiveTests
                             L"as65's local declaration is still consumed, and its label still renamed per call");
         }
     };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinMacroExpansionTests
+    //
+    //  What an invocation actually emits: arguments separated by a semicolon,
+    //  positional parameters substituted into the body, and body labels made
+    //  unique per expansion.
+    //
+    //  Every shape here is taken from the vendor macro library rather than
+    //  invented, because the shapes that look natural to write are not the ones
+    //  Merlin source contains. `LDX #A]1-ADRTBL` splices a parameter into the
+    //  middle of a symbol, which no whole-word substitution reaches, and the
+    //  semicolon that separates arguments is the same character that introduces
+    //  a comment one field later.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinMacroExpansionTests)
+    {
+    public:
+
+        TEST_METHOD (PositionalParametersTakeTheirArgumentsInOrder)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "MOV MAC\n"
+                                              " LDA ]1\n"
+                                              " STA ]2\n"
+                                              " <<<\n"
+                                              " MOV $10;$11\n");
+            std::vector<Byte>  expected = { 0xA5, 0x10, 0x85, 0x11 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"]1 and ]2 take the first and second arguments");
+        }
+
+
+
+        //  Three arguments, the shape the vendor library's own `ADD SUMSTR;DEFLEN;PL`
+        //  uses. A parser stripping from the first semicolon passes one argument
+        //  and silently drops two, which is why this counts rather than merely
+        //  assembling.
+        TEST_METHOD (SemicolonsSeparateArgumentsRatherThanStartingAComment)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "THREE MAC\n"
+                                              " LDA ]1\n"
+                                              " LDA ]2\n"
+                                              " LDA ]3\n"
+                                              " <<<\n"
+                                              " THREE $10;$11;$12\n");
+            std::vector<Byte>  expected = { 0xA5, 0x10, 0xA5, 0x11, 0xA5, 0x12 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"all three arguments arrive, not just the first");
+        }
+
+
+
+        //  A comment still follows the operand, and the semicolon introducing it
+        //  is the same character that just separated two arguments. The field
+        //  boundary is the whole difference.
+        TEST_METHOD (ACommentMayFollowAnArgumentList)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "MOV MAC\n"
+                                              " LDA ]1\n"
+                                              " STA ]2\n"
+                                              " <<<\n"
+                                              " MOV $10;$11 ;move a byte\n");
+            std::vector<Byte>  expected = { 0xA5, 0x10, 0x85, 0x11 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the trailing field is a comment, the operand's semicolons are not");
+        }
+
+
+
+        //  `LDX #A]1-ADRTBL`, from MAKE DUMP.S. The parameter is pasted after a
+        //  prefix and the result is one symbol, so substitution has to happen
+        //  before anything looks a symbol up -- and it must ignore identifier
+        //  boundaries, which a named-parameter substitution deliberately does not.
+        TEST_METHOD (AParameterPastesIntoTheMiddleOfASymbol)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "ADRTBL = $2000\n"
+                                              "AKEYIN = ADRTBL+4\n"
+                                              "CALL MAC\n"
+                                              " LDX #A]1-ADRTBL\n"
+                                              " <<<\n"
+                                              " CALL KEYIN\n");
+            std::vector<Byte>  expected = { 0xA2, 0x04 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"A + KEYIN names AKEYIN, four past the table");
+        }
+
+
+
+        //  The other direction, from the same file: `LDX #]1END-]1-1` pastes a
+        //  suffix onto the argument. One argument, two different symbols.
+        TEST_METHOD (AParameterTakesASuffixToNameASecondSymbol)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "FRST = $9000\n"
+                                              "FRSTEND = $9004\n"
+                                              "STORE MAC\n"
+                                              " LDX #]1END-]1-1\n"
+                                              " <<<\n"
+                                              " STORE FRST\n");
+            std::vector<Byte>  expected = { 0xA2, 0x03 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"]1END names FRSTEND while ]1 names FRST");
+        }
+
+
+
+        //  A macro body invoking another macro and forwarding its own parameters,
+        //  which is how the vendor library builds MOVD out of MOV. The forwarded
+        //  arguments are re-separated at the inner call, so the separator has to
+        //  survive substitution intact.
+        TEST_METHOD (AMacroBodyMayInvokeAnotherMacroWithItsOwnParameters)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "MOV MAC\n"
+                                              " LDA ]1\n"
+                                              " STA ]2\n"
+                                              " <<<\n"
+                                              "MOVD MAC\n"
+                                              " MOV ]1;]2\n"
+                                              " MOV ]1+1;]2+1\n"
+                                              " <<<\n"
+                                              " MOVD $10;$20\n");
+            std::vector<Byte>  expected = { 0xA5, 0x10, 0x85, 0x20, 0xA5, 0x11, 0x85, 0x21 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the inner call receives the outer call's arguments");
+        }
+
+
+
+        //  The finding the corpus forces. MAKE DUMP.S expands INCD twice and
+        //  STORE three times, each redefining a bare label, and the vendor shipped
+        //  a working object -- so Merlin renames them per expansion. Without that,
+        //  the second expansion is a duplicate-label error, and an assembler that
+        //  merely allowed the redefinition would point both branches at the first
+        //  copy.
+        TEST_METHOD (BodyLabelsAreUniquePerExpansion)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "INCD MAC\n"
+                                              " INC ]1\n"
+                                              " BNE NI\n"
+                                              " INC ]1+1\n"
+                                              "NI\n"
+                                              " <<<\n"
+                                              " INCD $10\n"
+                                              " INCD $12\n");
+            std::vector<Byte>  expected = { 0xE6, 0x10, 0xD0, 0x02, 0xE6, 0x11,
+                                            0xE6, 0x12, 0xD0, 0x02, 0xE6, 0x13 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"each expansion branches to its own copy of NI");
+        }
+
+
+
+        //  The terminator may carry the body's own branch target. KEYMAC.S ends
+        //  its INCD with `NI <<<`, so the line that closes the definition is also
+        //  the line that defines the label the body branches to -- and closing
+        //  the body is exactly the operation that discards the line. Found by the
+        //  vendor source after every synthetic macro test above already passed,
+        //  which is the corpus earning its keep.
+        TEST_METHOD (ALabelOnTheTerminatorLineStillBinds)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "INCD MAC\n"
+                                              " INC ]1\n"
+                                              " BNE NI\n"
+                                              " INC ]1+1\n"
+                                              "NI <<<\n"
+                                              " INCD $10\n"
+                                              " INCD $12\n");
+            std::vector<Byte>  expected = { 0xE6, 0x10, 0xD0, 0x02, 0xE6, 0x11,
+                                            0xE6, 0x12, 0xD0, 0x02, 0xE6, 0x13 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the label on the closing line binds at the end of the body");
+        }
+
+
+
+        //  And the label a macro produced must not become the enclosing global
+        //  for the locals that follow the call. MAKE DUMP.S calls macros defining
+        //  `LP` and `ND` in the middle of routines whose locals belong to a global
+        //  further up, so a macro label opening a scope strands every local after
+        //  it -- which is exactly what the file's first assembly attempt reported.
+        TEST_METHOD (AMacroLabelDoesNotReScopeTheLocalsAroundIt)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "INCD MAC\n"
+                                              " INC ]1\n"
+                                              " BNE NI\n"
+                                              " INC ]1+1\n"
+                                              "NI\n"
+                                              " <<<\n"
+                                              "MAIN LDA #0\n"
+                                              ":BACK NOP\n"
+                                              " INCD $10\n"
+                                              " JMP :BACK\n");
+            std::vector<Byte>  expected = { 0xA9, 0x00, 0xEA,
+                                            0xE6, 0x10, 0xD0, 0x02, 0xE6, 0x11,
+                                            0x4C, 0x02, 0x80 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L":BACK still belongs to MAIN after the expansion");
+        }
+
+
+
+        //  The explicit invocation prefix. UNVERIFIED against the corpus and
+        //  unverifiable there: every macro on the vendor disk is invoked by bare
+        //  name, so the disk can only say the bare form works. This is the first
+        //  instance of the general rule that absence from the disk is not absence
+        //  from the language.
+        TEST_METHOD (TheExplicitPrefixInvokesTheNamedMacro)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "MOV MAC\n"
+                                              " LDA ]1\n"
+                                              " STA ]2\n"
+                                              " <<<\n"
+                                              " >>> MOV;$10;$11\n");
+            std::vector<Byte>  expected = { 0xA5, 0x10, 0x85, 0x11 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the macro name is the first item of the operand");
+        }
+
+
+
+        //  The same, written flush against the name. Both spellings have to work:
+        //  the tidy columns in a Merlin listing are the editor's doing, and a file
+        //  arriving from anywhere else carries whatever its author typed.
+        TEST_METHOD (TheExplicitPrefixMayBeWrittenFlushAgainstTheName)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "MOV MAC\n"
+                                              " LDA ]1\n"
+                                              " STA ]2\n"
+                                              " <<<\n"
+                                              " >>>MOV;$10;$11\n");
+            std::vector<Byte>  expected = { 0xA5, 0x10, 0x85, 0x11 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the prefix separates from the name it is written against");
+        }
+
+
+
+        //  An explicit invocation is a macro call whether the macro exists or not,
+        //  so an unknown name says so. Letting it fall through would report an
+        //  unknown mnemonic named for the prefix, which describes the symptom and
+        //  not the mistake.
+        TEST_METHOD (AnExplicitInvocationOfAnUnknownMacroNamesIt)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" >>> NOSUCH;$10\n");
+
+            Assert::IsFalse (result.errors.empty(), L"an unknown macro must be reported");
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "NOSUCH"),
+                            L"the diagnostic must name the macro that was not found");
+        }
+
+
+
+        //  The discriminating half. Macro expansion, argument splitting and label
+        //  renaming are all shared mechanism, so a test that passes under both
+        //  dialects is no evidence the Merlin profile was consulted at all.
+        TEST_METHOD (TheSameMacroSourceUnderAs65DoesNotProduceThoseBytes)
+        {
+            AssemblyResult     merlin   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "MOV MAC\n"
+                                              " LDA ]1\n"
+                                              " STA ]2\n"
+                                              " <<<\n"
+                                              " MOV $10;$11\n");
+            AssemblyResult     as65     = MerlinAssemblyFixture::Assemble (
+                                              "MOV MAC\n"
+                                              " LDA ]1\n"
+                                              " STA ]2\n"
+                                              " <<<\n"
+                                              " MOV $10;$11\n", DialectId::As65);
+            std::vector<Byte>  expected = { 0xA5, 0x10, 0x85, 0x11 };
+
+            Assert::IsTrue (merlin.bytes == expected, L"the Merlin profile assembles it");
+            Assert::IsFalse (as65.bytes == expected, L"AS65 must not, or the profile is not being consulted");
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinVariableSymbolTests
+    //
+    //  The sigil's other job. `]COUNT` is a symbol that may be assigned again;
+    //  `]1` is a macro parameter, and the digit is the whole distinction.
+    //
+    //  NOTHING HERE HAS AN ORACLE. No variable symbol appears in any of the nine
+    //  committed vendor sources -- the sigil occurs there only as `]1` through
+    //  `]3` inside macro bodies -- so these tests pin the implementation against
+    //  itself and against the documented rule that a variable may be redefined
+    //  where a label may not. They are not evidence about real Merlin the way the
+    //  byte comparisons are, and should not be quoted as if they were.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinVariableSymbolTests)
+    {
+    public:
+
+        TEST_METHOD (AVariableMayBeAssignedAgain)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "]V = 1\n"
+                                              "]V = 2\n"
+                                              " LDA #]V\n");
+            std::vector<Byte>  expected = { 0xA9, 0x02 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the second assignment stands");
+        }
+
+
+
+        //  The other half of the same rule, and the half that gives it meaning: an
+        //  ordinary equate is immutable, so the sigil is doing the work rather
+        //  than Merlin simply permitting redefinition everywhere.
+        TEST_METHOD (AnOrdinaryEquateMayNotBeAssignedAgain)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         "V = 1\n"
+                                         "V = 2\n");
+
+            Assert::IsFalse (result.errors.empty(), L"redefining an ordinary equate is an error");
+        }
+
+
+
+        //  A reference takes the value assigned most recently BEFORE it, which is
+        //  the property that makes a reassignable symbol worth having. Getting
+        //  this wrong is silent: every reference simply reads the file's last
+        //  assignment, and the bytes are plausible.
+        TEST_METHOD (AReferenceTakesTheValueAssignedMostRecentlyBeforeIt)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "]V = 1\n"
+                                              " LDA #]V\n"
+                                              "]V = 2\n"
+                                              " LDA #]V\n");
+            std::vector<Byte>  expected = { 0xA9, 0x01, 0xA9, 0x02 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"each reference reads the assignment above it");
+        }
+
+
+
+        //  The same reassignment, read by a data directive instead of by an
+        //  instruction -- and this is the case that discriminates. An
+        //  instruction's operand is settled in pass 1, which walks the file in
+        //  order and sees each assignment in turn, so it reads the right value
+        //  whether or not anything replays the assignments later. A data
+        //  directive is emitted in pass 2 against the finished symbol table, and
+        //  without the replay it reads whatever the file assigned LAST. The two
+        //  then disagree inside one file: the instruction above reads 1 and this
+        //  reads 2, from the same symbol at the same point.
+        TEST_METHOD (DataEmittedInPassTwoAlsoReadsTheAssignmentAboveIt)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "]V = 1\n"
+                                              " DFB ]V\n"
+                                              "]V = 2\n"
+                                              " DFB ]V\n");
+            std::vector<Byte>  expected = { 0x01, 0x02 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"pass 2 must see the assignments in order too");
+        }
+
+
+
+        //  A variable is a namespace of its own: the sigil is part of the name, so
+        //  `]COUNT` and `COUNT` are two symbols and defining one says nothing
+        //  about the other.
+        TEST_METHOD (AVariableAndALabelOfTheSameNameAreDifferentSymbols)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "]COUNT = 5\n"
+                                              "COUNT = 7\n"
+                                              " LDA #]COUNT\n"
+                                              " LDA #COUNT\n");
+            std::vector<Byte>  expected = { 0xA9, 0x05, 0xA9, 0x07 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the two names do not collide");
+        }
+
+
+
+        //  A variable inside a macro body is a variable, not a parameter: the
+        //  digit is what makes `]1` positional, so a named one survives expansion
+        //  and resolves as an ordinary symbol.
+        TEST_METHOD (AMacroBodyMayReferenceAVariableAlongsideItsParameters)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "]BASE = $30\n"
+                                              "GRAB MAC\n"
+                                              " LDA ]BASE+]1\n"
+                                              " <<<\n"
+                                              " GRAB 2\n");
+            std::vector<Byte>  expected = { 0xA5, 0x32 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"]BASE stays a symbol while ]1 takes the argument");
+        }
+
+
+
+        //  Merlin also lets a variable stand where a label stands, binding to the
+        //  program counter. Casso does NOT, and refuses loudly rather than
+        //  quietly binding one: pass 2 resolves every reference against a single
+        //  symbol table, so a program-counter symbol assigned more than once would
+        //  point every branch at the last copy. A wrong branch target that
+        //  assembles is worse than a refusal.
+        TEST_METHOD (AVariableStandingAsAProgramCounterLabelIsRefused)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         "]LOOP LDA #0\n"
+                                         " BNE ]LOOP\n");
+
+            Assert::IsFalse (result.errors.empty(), L"the unsupported form must not assemble silently");
+        }
+    };
 }
