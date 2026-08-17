@@ -47,7 +47,10 @@ public:
     void  CopyScreenText     (HWND hwnd, const Byte * auxRam) const;
     void  CopyScreenshot     (HWND hwnd);
     void  PasteFromClipboard (HWND hwnd);
-    void  DrainPasteBuffer   ();
+
+    // `cyclesElapsed` is the emulated-cycle budget of the slice about to run
+    // -- the settle pacing below is measured in guest time.
+    void  DrainPasteBuffer   (uint32_t cyclesElapsed);
 
     // Screen-text scrape, factored out of CopyScreenText so it can be unit
     // tested without the Win32 clipboard. Returns CRLF-terminated rows with
@@ -73,4 +76,11 @@ private:
     AppleKeyboard *        * m_pKeyboardSlot     = nullptr;
     int                      m_framebufferWidth  = 0;
     int                      m_framebufferHeight = 0;
+
+    // Emulated cycles the strobe has stayed clear. A character is sent only
+    // once this reaches the settle threshold: the guest clears the strobe
+    // the moment it grabs a key, but may flush the keyboard again while
+    // processing it (screen-wrap and scroll paths do), so a send fired on
+    // the first clear reading races into that window and gets discarded.
+    uint32_t                 m_strobeClearCycles = 0;
 };

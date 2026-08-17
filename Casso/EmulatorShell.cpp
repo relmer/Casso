@@ -5621,15 +5621,16 @@ void EmulatorShell::ExecuteCpuSlices()
 
     for (uint32_t executed = 0; executed < targetCycles; )
     {
-        // Feed next paste character if available
-        m_clipboardManager->DrainPasteBuffer();
-
         sliceTarget = targetCycles - executed;
 
         if (sliceTarget > kSliceCycles)
         {
             sliceTarget = kSliceCycles;
         }
+
+        // Feed the next paste character if available; the slice budget is
+        // the guest-time currency the settle pacing is measured in.
+        m_clipboardManager->DrainPasteBuffer (sliceTarget);
 
         sliceActual = 0;
 
