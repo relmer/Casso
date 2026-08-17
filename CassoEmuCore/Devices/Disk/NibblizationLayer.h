@@ -70,4 +70,15 @@ public:
     //  the layout the drive would actually see -- an image that reads back
     //  perfectly through the same wrong table and is garbage on real hardware.
     static int      PoFileIndexForDosLogicalSector (int logicalSector);
+
+    //  Which sector of a DOS-ordered buffer the drive presents at physical
+    //  position P -- equivalently, which one answers to the address field
+    //  numbered P, since the sixteen address fields are laid down in order.
+    //
+    //  ANYONE READING SECTORS THE WAY THE BOOT ROM DOES NEEDS THIS. The ROM
+    //  asks for consecutive address-field numbers, which is physical order,
+    //  and a buffer is in logical order; the two differ by the skew this file
+    //  owns. Writing that skew down a second time is what the composition
+    //  above exists to prevent, so it is answered here instead.
+    static int      DosFileIndexForPhysicalSector (int physicalSector);
 };

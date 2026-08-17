@@ -482,6 +482,37 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NibblizationLayer::DosFileIndexForPhysicalSector
+//
+//  The same table the nibblizer reads when it decides which of a buffer's
+//  sixteen sectors to encode under each address-field number, answered for
+//  callers that have to lay bytes down in the order a drive will hand them
+//  back rather than in the order a filesystem stores them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int NibblizationLayer::DosFileIndexForPhysicalSector (int physicalSector)
+{
+    HRESULT  hr      = S_OK;
+    int      found   = 0;
+    bool     inRange = physicalSector >= 0 && physicalSector < kSectorsPerTrack;
+
+
+
+    CBRAEx (inRange, E_INVALIDARG);
+
+    found = kDsk_LtoP[physicalSector];
+
+Error:
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  NibblizationLayer::NibblizeDsk / NibblizeDo / NibblizePo
 //
 ////////////////////////////////////////////////////////////////////////////////

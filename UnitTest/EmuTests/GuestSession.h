@@ -42,6 +42,19 @@ public:
     //  while a skip is indistinguishable in the output from a case that ran.
     static std::vector<Byte>  RequireDos33Master();
 
+    //  Mounts the bytes in slot 6 drive 1 and parks the processor on the boot
+    //  ROM's entry, having executed nothing.
+    //
+    //  Separate from MountAndBoot so a caller that wants to COUNT what the
+    //  boot costs can drive the processor itself. Idling to quiet is the
+    //  wrong instrument for that: it stops when the machine settles, which is
+    //  a different moment from when the guest's own code was reached, and it
+    //  is the same call for both sides of a comparison so neither side's
+    //  answer would be about the disk.
+    static void  Mount        (HeadlessHost             & host,
+                               EmulatorCore             & core,
+                               const std::vector<Byte>  & bytes);
+
     //  Mounts the bytes in slot 6 drive 1 and runs the boot ROM until the
     //  machine settles or the ceiling is spent.
     static void  MountAndBoot (HeadlessHost             & host,

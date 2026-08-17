@@ -276,6 +276,8 @@
     <ClCompile Include="EmuTests\CommitPlanTests.cpp" />
     <ClCompile Include="EmuTests\DiskCommandRunnerTests.cpp" />
     <ClCompile Include="EmuTests\DiskFailureModeTests.cpp" />
+    <ClCompile Include="EmuTests\DirectBootTests.cpp" />
+    <ClCompile Include="EmuTests\GuestVisibleDirectBootTests.cpp" />
     <ClCompile Include="EmuTests\GuestSession.cpp" />
     <ClCompile Include="EmuTests\GuestVisibleBootTests.cpp" />
     <ClCompile Include="EmuTests\GuestVisiblePlacementTests.cpp" />

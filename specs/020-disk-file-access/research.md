@@ -548,6 +548,21 @@ answered against real code than in advance.
   settled against a real listing.
 - **Direct-boot loader capacity** (US5, P3) — how many sectors a custom boot
   path can pull before handing off, which sets FR-027's reported capacity.
+
+  **ANSWERED IN PHASE 6: 183 sectors, 46,848 bytes, and it is a MEMORY limit
+  rather than a media one.** The question as posed assumed the disk would run
+  out first; it does not, and by a wide margin. The loader re-enters the Disk II
+  boot ROM's own read routine, which is what DOS 3.3's boot0 does — read out of
+  the stock master at track 0 sector 0, where it builds a `JMP ($3E)` to
+  `$Cs5C`. That routine terminates by comparing against the byte at **$0800**
+  and returns to **$0801**, both absolute addresses inside the ROM, so page $08
+  belongs to the loader for as long as anything is being read. With $0300-$03FF
+  taken by the ROM's decode table and secondary buffer, and $C000 up not being
+  memory, a payload occupies **$0900 to $BFFF**. Capacity is therefore
+  `$C000 - loadAddress` bytes, and 183 sectors is its value at the bottom of
+  that window — against 544 sectors of media still free past the loader's own
+  track. The relationship is a `static_assert` rather than a runtime check,
+  because a check that can never fire is indistinguishable from one that works.
 - **File-type spelling on the command line** — whether types are accepted as
   names (`BIN`, `TXT`), numbers, or both.
 

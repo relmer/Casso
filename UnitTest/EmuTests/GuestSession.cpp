@@ -336,13 +336,13 @@ void GuestSession::AssertTheOnlyRowsMentioning (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GuestSession::MountAndBoot
+//  GuestSession::Mount
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GuestSession::MountAndBoot (HeadlessHost             & host,
-                                 EmulatorCore             & core,
-                                 const std::vector<Byte>  & bytes)
+void GuestSession::Mount (HeadlessHost             & host,
+                          EmulatorCore             & core,
+                          const std::vector<Byte>  & bytes)
 {
     DiskImage *  image = nullptr;
 
@@ -362,6 +362,23 @@ void GuestSession::MountAndBoot (HeadlessHost             & host,
 
     core.bus->WriteByte (kIntCxRomOff, 0);
     core.cpu->SetPC (kBootRomEntry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::MountAndBoot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GuestSession::MountAndBoot (HeadlessHost             & host,
+                                 EmulatorCore             & core,
+                                 const std::vector<Byte>  & bytes)
+{
+    Mount (host, core, bytes);
 
     MachineIdle::RunUntilIdle (core, kBootCycles);
 }

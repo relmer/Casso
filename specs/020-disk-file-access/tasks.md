@@ -55,6 +55,30 @@ whose boot command has been patched by hand is a real thing. **This is what US5
 (direct boot) is actually for** on the assembler-output path — a developer's
 binary is not a DOS 3.3 greeting, and no amount of naming makes it one.
 
+**Phase 6 is done, and the suite is 3261 Debug / 3258 Release.** T040–T042 shipped
+together: `DirectBootBuilder`, its refusals, and a real-CPU gate that boots a disk
+with no filesystem on it at all. **R-010's deferred question is answered: the
+loader's capacity is 183 sectors — 46,848 bytes — and it is a MEMORY limit rather
+than a media one.** The payload has to live between $0900 and $BFFF, so the
+capacity is `$C000 - loadAddress` and 183 is its value at the bottom of that
+window; the disk still has 544 free sectors at that point and never binds. The
+lower edge is not a preference: the boot ROM's read loop terminates against the
+byte at **$0800** and jumps to **$0801**, so page $08 belongs to the loader for as
+long as anything is being read, and $0300–$03FF is the ROM's own decode table.
+(The counts were 3242 / 3239 before this phase added 19.)
+
+**The finding a session picking up SC-007 should carry: the 25% bar cannot be met
+against the whole boot, by any disk, including an empty one.** Measured on this
+machine, deterministically: the controller ROM spends **1,647,741 emulated cycles**
+recalibrating the head and reading track 0 sector 0 before either disk's first
+byte executes — about a second and a half of a real machine, and **more than a
+quarter of the 6,366,505 cycles** a DOS 3.3 boot spends reaching a BRUN'd binary.
+The gate therefore applies SC-007's quarter to what the two DISKS spend, measuring
+that constant on both images and requiring it to be identical before subtracting
+it. Past the hand-off the direct-boot image reached the payload in **209,147**
+cycles against DOS 3.3's **4,718,764** — **4.4%**, a factor of twenty-two. Whole
+boots are 1,856,888 against 6,366,505, which is 29.2%. See the divergences block.
+
 **Next.** Phase 4 has one task left (T035, which is done by hand), and it is the work here where
 a bug **destroys data** rather than failing loudly. Everything through Phase 3
 was reads: wrong output was the worst case. From T023 on, the worst case is a
@@ -376,6 +400,42 @@ discriminating rather than decorative. **And the ProDOS control had to be
 constructed rather than assumed**: see T039's decision 2, where "placed but not
 nominated" turned out not to be a control at all.
 
+And again on T040–T042, where **sixteen mutations were run and all sixteen were
+caught** — but two of them are findings and one is about the harness rather than
+the code.
+
+**The one that matters is that a cheap check has to come before the boot, and it
+had to be ADDED here rather than inherited.** The first pass of the battery moved
+the payload one track further out. The guest tests caught it, correctly and
+loudly — by making a 6502 execute whatever it managed to read, which this build
+traces one line per illegal opcode. It wrote **over three gigabytes** before
+anything noticed, the test host had to be killed by hand, and the mutation
+harness was left mid-run with the source still mutated. T029 recorded exactly
+this hazard and T033 recorded exactly the remedy; the remedy simply was not in
+this file yet. `AssertThePayloadIsWhereTheLoaderWillLookForIt` now decodes every
+image through the DRIVE and compares the first sector the loader will ask for
+against the payload's first page, before any processor starts, and the same
+mutation is caught in **fifty-nine seconds with no trace at all**. The measuring
+ceiling came down from 60M cycles to 20M for the same reason — a generous cap is
+paid for in gigabytes by whoever next breaks this on purpose.
+
+**The second is a blind spot in the guest gate, measured rather than assumed.**
+Starting the loader's stepper from phase 1 instead of phase 0 lands the head on
+quarter-track **6** — half a track past where it should be — and **every guest
+case still passes**. `DiskImage::ResolveQuarterTrack` maps a nibblized sector
+image with `qt / 4`, so quarter-track 6 resolves to track 1 and the read
+succeeds. The mutation is caught only by the structural test that reads the
+byte. Worth knowing before writing any future test that hopes to gate head
+positioning on what a guest sees: on this emulator, a half-track error is
+invisible to one.
+
+The rest behaved as designed and two are worth naming. **Making the interleave
+the identity is invisible to a single-sector payload** — page 0 is logical sector
+0 under either rule — and is caught only by the twenty-page case and by the
+master-anchored oracle, which is why both exist. **And the master-made-unreachable
+mutation again proves the fail-rather-than-skip rule**, leaving eight cases red
+across this phase and the two before it.
+
 **Blocked on nobody; 019 is blocked on this branch.** Spec 019 runs
 concurrently. Measured overlap is three files — `CassoCore/CassoCore.vcxproj`,
 `UnitTest/UnitTest.vcxproj` and `CassoCli/CommandLine.cpp` — and the two sides
@@ -393,6 +453,33 @@ so removing the fallback has to be a decision. **Deleting it is the intended
 outcome — do not defend it at merge.** See `docs/coordination.md`.
 
 **Known divergences from the task text, so they do not read as gaps:**
+
+- **SC-007's "under 25% of the emulated CPU cycles" is UNREACHABLE as written, and
+  the gate measures the two disks' own contributions instead.** Every 5.25-inch
+  disk in this machine is entered the same way: the controller ROM recalibrates
+  the head with eighty half-steps, each waiting through the monitor's own delay
+  routine, then reads track 0 sector 0 into $0800 and jumps to $0801. That costs
+  **1,647,741 emulated cycles** and it is **25.9%** of everything a DOS 3.3 boot
+  spends getting to a BRUN'd binary. No disk can beat a quarter of a DOS boot,
+  including a disk holding nothing at all, so a criterion applied to the whole
+  boot is a statement about the ROM rather than about this feature.
+  `ADirectBoot_ReachesTheProgramInUnderAQuarterOfWhatTheDos33RouteSpends`
+  therefore measures the hand-off cost **on both images**, asserts the two are
+  equal — the subtraction is only legitimate if it is the same constant on both
+  sides — and applies the quarter to what remains. It also **asserts the
+  arithmetic that makes the whole-boot form unreachable**, so if that ever stops
+  holding the case goes red and the gate gets tightened rather than the finding
+  quietly outliving its evidence. Both numbers are printed by the run.
+
+- **Direct boot is NOT reachable from the command line, and no task in this phase
+  asks for it.** FR-029 requires every capability to be reachable from the tool;
+  Phase 6's three tasks are the mechanism and its gates, and `s_kDiskVerbs` has no
+  verb for this. `DirectBootBuilder` is therefore complete, tested and unreachable
+  by a user, and there is **no CHANGELOG entry** for it because nothing a user can
+  type changed. Whoever adds the verb should note that `Build` already produces the
+  refusal sentence, so the runner arm needs no second implementation of the
+  capacity arithmetic — and that the natural spelling collides with nothing, since
+  `boot` already means "set the startup program".
 
 - **T030's own sentence asked for something its stated inputs cannot deliver.**
   It prescribes deriving the temporary name "from the target path and an attempt
@@ -739,9 +826,9 @@ program runs unattended.
 **Independent test**: quickstart §US5 — the payload runs measurably sooner than
 the equivalent OS boot.
 
-- [ ] T040 [US5] Implement direct-boot image generation in `CassoEmuCore/Devices/Disk/DirectBootBuilder.h/.cpp`: a boot-sector loader that pulls the payload's sectors and jumps to it (FR-026). **Resolve the loader's sector capacity before starting** — R-010 deferred it, and FR-027's reported number is undefined until it is settled. Unit tests in `UnitTest/EmuTests/DirectBootTests.cpp` asserting the generated image's structure and the capacity boundary
-- [ ] T041 [US5] Refuse a payload exceeding what the boot path can load, reporting the available capacity (FR-027); support an entry address different from the load address (FR-028), in `CassoEmuCore/Devices/Disk/DirectBootBuilder.cpp`
-- [ ] T042 [US5] Gate (SC-007): real-CPU test — the direct-boot image reaches the payload in **under 25% of the emulated CPU cycles** the equivalent DOS 3.3 boot of the same program takes. Emulated cycles, not wall clock, so the result is deterministic across hosts
+- [x] T040 [US5] Implement direct-boot image generation in `CassoEmuCore/Devices/Disk/DirectBootBuilder.h/.cpp`: a boot-sector loader that pulls the payload's sectors and jumps to it (FR-026). **Resolve the loader's sector capacity before starting** — R-010 deferred it, and FR-027's reported number is undefined until it is settled. Unit tests in `UnitTest/EmuTests/DirectBootTests.cpp` asserting the generated image's structure and the capacity boundary. **R-010 IS SETTLED AND THE ANSWER IS 183 SECTORS — 46,848 bytes — AND IT IS A MEMORY LIMIT, NOT A MEDIA ONE.** The disk holds 544 sectors past the loader's track and none of that is the constraint. What binds is that the payload has to fit between $0900 and $BFFF, so the capacity is `$C000 - loadAddress` bytes and 183 is simply its value at the lowest address a payload may load at. **Five decisions.** (1) **The loader re-enters the boot ROM's own read routine rather than carrying a sector reader.** The Disk II ROM already has one, its loop returns to $0801 after every pass with the sector number, the buffer page and the terminating count all in memory the loader owns, and re-entering it is what DOS 3.3's own boot0 does — measured by reading the stock master's track 0 sector 0, which builds a `JMP ($3E)` to `$Cs5C` exactly this way. What it buys is room in one sector for the part the ROM does not do, which is stepping the head. (2) **THE WINDOW'S LOWER EDGE IS A CONSEQUENCE OF (1), NOT A PREFERENCE.** The ROM's loop terminates by comparing against the byte at **$0800** — an absolute address inside the ROM — and it jumps to **$0801**, so page $08 has to stay the loader's for as long as anything is being read; $0300–$03FF is the ROM's decode table and secondary buffer; $C000 up is not memory. A payload at $0800 would be overwritten by its own load. (3) **The payload begins at track 1 sector 0, leaving track 0's fifteen spare sectors empty.** A first pass that sometimes reads a partial track costs more code than fifteen sectors are worth on a disk where memory is what runs out. (4) **Page N is written to the sector the DRIVE presents Nth, which is not the Nth sector of the buffer.** The loader asks the ROM for consecutive address-field numbers, and those are laid down in physical order; a buffer is in DOS logical order. Writing page N at logical sector N reads back perfectly through our own reader and hands the guest its pages shuffled — the same shape as the `.po` defect. `NibblizationLayer::DosFileIndexForPhysicalSector` answers it from the table that layer already owns rather than restating the skew. (5) **The layout oracle is Apple's.** `DirectBootTests` reads DOS 3.3's own logical-to-physical table out of the master's boot sector at absolute offset `$4D` and requires our mapping to be its inverse — evidence from outside the code, since every round trip through our own reader is an identity whatever the skew says. It also asserts the two orders actually differ, so a builder ignoring the skew cannot satisfy it vacuously
+- [x] T041 [US5] Refuse a payload exceeding what the boot path can load, reporting the available capacity (FR-027); support an entry address different from the load address (FR-028), in `CassoEmuCore/Devices/Disk/DirectBootBuilder.cpp`. **Four decisions.** (1) **The capacity is stated by the thing that computes it.** `Build` takes an out-refusal string and fills it with a sentence naming the number; a caller re-deriving it would be a second implementation of the window arithmetic, which is the shape T032 parked for exactly this reason. (2) **Order matters and is asserted.** Empty payload, then load address, then size, then entry: an address outside the window has a capacity of zero, so asking about size first would blame the payload's length for an address problem. `Build_ARefusalNamesExactlyOneReason` drives a call that is *both* out-of-window and oversized and requires the address sentence, plus that the refusal carries no newline. (3) **A refusal hands back nothing.** The caller's buffer is compared against a sentinel it could not have produced, so "produced no image" is an assertion rather than a vacuous pass over an empty vector. (4) **The entry must lie inside the loaded bytes.** An entry past the payload has the guest execute memory nothing loaded, which is precisely the failure mode this branch spent T029 learning to avoid. Load-address and entry refusals share one Win32 code on purpose — both say the boot path was handed an address it cannot use — and the sentence says which. **Also: an unaligned load address is supported rather than refused.** The ROM reads whole pages into page-aligned buffers, so the payload rides behind a lead-in of the bytes from the start of its page up to it; that costs three lines and avoids an artificial restriction
+- [x] T042 [US5] Gate (SC-007): real-CPU test — the direct-boot image reaches the payload in **under 25% of the emulated CPU cycles** the equivalent DOS 3.3 boot of the same program takes. Emulated cycles, not wall clock, so the result is deterministic across hosts. **THE 25% BAR IS NOT REACHABLE AGAINST THE WHOLE BOOT, AND THE REASON IS MEASURED RATHER THAN ARGUED — see the divergences block.** The gate applies the quarter to what the two DISKS spend, which is each whole boot minus the cycles the controller ROM spends before either disk's first byte executes. **Five decisions.** (1) **The witness is the program counter, not the screen and not a byte in memory.** The payload's last instruction jumps to itself, so the processor sitting there means the guest reached the developer's code. A memory sentinel polled during a boot would be satisfied the moment the ROM's own decode buffer happened to hold those two bytes — and the whole point of a cycle measurement is that it polls continuously. (2) **The shared constant is measured on BOTH images and required to be equal**, because subtracting it is only legitimate if it is the same number on both sides; both disks are entered at $0801 by the same ROM. (3) **The equivalent DOS 3.3 route is the binary placed as a type-B file plus a one-line Applesoft greeting that BRUNs it**, set through the `boot` verb. That is the whole of the alternative, given T038's finding that a booting DOS 3.3 RUNs its greeting. (4) **The payload calls nothing.** A direct boot never runs the monitor's cold start, so zero page holds whatever powering on left, and the monitor's character output masks every character with `INVFLG` at `$32`: measured, `CASSO DIRECT` arrived on screen as `B@RRN`DHRDBT`. The payload sets the video soft switches, clears the text page and stores its banner into screen memory itself. This generalizes T039's lesson — it is not only `COUT`'s hook that is uninitialized, it is everything. (5) **The arithmetic that makes the whole-boot form unreachable is asserted, not written down**: the case requires the ROM's fixed cost to exceed a quarter of a DOS 3.3 boot, so if that ever stops holding the gate goes red and somebody tightens it
 
 ---
 
