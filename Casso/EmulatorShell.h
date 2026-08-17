@@ -844,6 +844,11 @@ private:
     // housing paints the ring around it. Models the Apple Monitor //c.
     MonitorFrame               m_monitorFrame;
 
+    // Set when a Ctrl+letter host-meta shortcut claims a keydown whose
+    // synthesized WM_CHAR must not reach the guest keyboard latch (the ^V
+    // of a paste would land in the input line ahead of the pasted text).
+    bool                       m_swallowMetaChar = false;
+
     // Desk-scene zoom: the monitor's SceneScale from the last layout. The
     // drive widgets and the (scaled part of the) drive band follow it so the
     // whole scene zooms together when the window resizes. 1.0 for compact
