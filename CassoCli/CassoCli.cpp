@@ -45,6 +45,13 @@ int main (int argc, char * argv[])
         PrintUnrecognizedArgument (options.unrecognizedArgument);
         exitCode = 1;
     }
+    else if (!options.cpuFlagRefusal.empty())
+    {
+        // Checked before the usage arm for the same reason the line above is: a
+        // refusal that names the directive to write instead is a strictly better
+        // answer than a wall of usage text, and printing usage would bury it.
+        exitCode = PrintCpuFlagRefusal (options.cpuFlagRefusal);
+    }
     else if (options.showHelp || options.subcommand == CommandLineOptions::Subcommand::None
                              || options.subcommand == CommandLineOptions::Subcommand::Help)
     {
@@ -64,6 +71,10 @@ int main (int argc, char * argv[])
     else if (options.subcommand == CommandLineOptions::Subcommand::As65)
     {
         exitCode = DoAs65 (options);
+    }
+    else if (options.subcommand == CommandLineOptions::Subcommand::Merlin)
+    {
+        exitCode = DoMerlin (options);
     }
     else
     {

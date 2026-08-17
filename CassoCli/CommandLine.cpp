@@ -2,7 +2,10 @@
 
 #include "CommandLine.h"
 #include "Assembler.h"
+#include "AssemblerExitCode.h"
 #include "DiagnosticFormatter.h"
+#include "DialectHelp.h"
+#include "DialectReporting.h"
 #include "Cpu.h"
 #include "Cpu65C02Table.h"
 #include "Microcode.h"
@@ -214,11 +217,23 @@ struct AssembleResult
 //
 //  BuildAssemblerOptions - build AssemblerOptions from CommandLineOptions
 //
+//  The dialect is carried across WITH its provenance. Both, because a dialect
+//  the invocation named needs no report and one the caller merely inherited
+//  does -- and the dialect alone cannot say which happened, since the default
+//  is also a dialect a caller can ask for by name.
+//
+//  The output name goes across as the CALLER's answer, which beats any name the
+//  source gives itself. Empty when no output flag was given, which is how a
+//  dialect whose source names its own object gets to.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static AssemblerOptions BuildAssemblerOptions (const CommandLineOptions & options)
 {
     AssemblerOptions asmOptions   = {};
+    asmOptions.dialect            = options.dialect;
+    asmOptions.dialectSelection   = options.dialectSelection;
+    asmOptions.outputFileName     = options.outputFile;
     asmOptions.fillByte           = options.fillByte;
     asmOptions.generateListing    = options.generateListing;
     asmOptions.warningMode        = options.warningMode;
@@ -256,15 +271,22 @@ static AssemblerOptions BuildAssemblerOptions (const CommandLineOptions & option
 //  the caller has one failure test. They are distinguished for the USER by the
 //  message, which is where the distinction actually matters.
 //
+//  A second instruction table is OPTIONAL and is what a dialect selecting its
+//  CPU in the source switches to. Null means there is nothing to switch to, and
+//  the assembler says so rather than pretending the wider set arrived -- so a
+//  caller passing one table has not quietly promised two.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static AssembleResult AssembleFile (const std::string & inputFile,
                                    const Microcode instructionSet[256],
+                                   const Microcode extendedSet[256],
                                    const AssemblerOptions & asmOptions)
 {
-    HRESULT         hr = S_OK;
-    AssembleResult  ar = {};
+    HRESULT         hr          = S_OK;
+    AssembleResult  ar          = {};
     std::string     source;
+    bool            canSwitch   = extendedSet != nullptr;
 
     ar.inputFile = inputFile;
 
@@ -276,6 +298,13 @@ static AssembleResult AssembleFile (const std::string & inputFile,
     {
         std::cerr << "Error: Cannot read input file: " << inputFile << "\n";
         ar.ok = false;
+    }
+    else if (canSwitch)
+    {
+        Assembler  asm6502 (instructionSet, extendedSet, asmOptions);
+
+        ar.result = asm6502.Assemble (source);
+        ar.ok     = ar.result.success;
     }
     else
     {
@@ -316,6 +345,75 @@ static void ReportAssemblyDiagnostics (const AssembleResult & ar)
     if (!ar.ok)
     {
         std::println (stderr, "Assembly failed with {} error(s)", ar.result.errors.size());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildCpuReport
+//
+//  What to call the instruction set the assembly ran on, and what chose it.
+//
+//  The NAME comes from here because the tables come from here. Core's assembler
+//  receives instruction sets as unnamed tables, so only the caller that handed
+//  them over knows which processors they are.
+//
+//  The source's own selection outranks the flag's absence, and both outrank the
+//  default. That order matters: a run whose source selected the wider set and
+//  whose command line said nothing would otherwise report the narrow default,
+//  which is worse than saying nothing at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static CpuReport BuildCpuReport (const CommandLineOptions & options, const AssemblyResult & result)
+{
+    CpuReport  report;
+    bool       isCmos = options.cpuTarget == CommandLineOptions::CpuTarget::M65C02;
+
+
+
+    report.name      = isCmos ? "65c02" : "6502";
+    report.selection = options.hasCpuTarget ? CpuSelection::StatedOnCommandLine
+                                            : CpuSelection::DialectDefault;
+
+    if (result.extendedSetSelectedInSource)
+    {
+        report.name      = "65c02";
+        report.selection = CpuSelection::SelectedInSource;
+    }
+
+    return report;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReportToStandardError
+//
+//  Prints the reports due on stderr, and only those.
+//
+//  Which sink a report belongs to is decided in core; this walks the list and
+//  prints the ones addressed here. Nothing selects stdout, and nothing may:
+//  stdout carries the listing when no listing file is named, and a line printed
+//  there lands inside the artifact a build script is piping.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void ReportToStandardError (const std::vector<DialectReportLine> & reports)
+{
+    for (const DialectReportLine & report : reports)
+    {
+        if (report.sink == ReportSink::StandardError)
+        {
+            std::cerr << report.text << "\n";
+        }
     }
 }
 
@@ -488,7 +586,8 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 static HRESULT WriteListingOutput (const AssemblyResult & result,
-                                   const CommandLineOptions & options)
+                                   const CommandLineOptions & options,
+                                   const std::vector<DialectReportLine> & reports)
 {
     HRESULT         hr      = S_OK;
     std::ostream *  listOut = &std::cout;
@@ -512,6 +611,18 @@ static HRESULT WriteListingOutput (const AssemblyResult & result,
         CBR (isOpen);
 
         listOut = &listFile;
+    }
+
+    // The dialect and CPU in effect belong INSIDE the listing rather than on a
+    // line beside it, so a reader of the listing finds them where a header
+    // belongs -- which is also what keeps them off stdout when the listing is
+    // being piped from there.
+    for (const DialectReportLine & report : reports)
+    {
+        if (report.sink == ReportSink::ListingHeader)
+        {
+            *listOut << report.text << "\n\n";
+        }
     }
 
     if (!result.listingTitle.empty())
@@ -768,11 +879,24 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
 
 static void PrintUsageHeader (const char * sp, const char * lp)
 {
+    std::string  subcommands;
+
+
+
+    // Swept from the parser's own table rather than listed here. A subcommand
+    // the tool accepts and the usage line omits is unfindable, and the fallback
+    // that used to make the first word optional is gone -- so this line is now
+    // the only place a reader learns that the first word is obligatory.
+    for (const CommandLineParser::SubcommandName & entry : CommandLineParser::GetAllSubcommands())
+    {
+        subcommands += std::string (subcommands.empty() ? "" : " | ") + entry.name + " <file>";
+    }
+
     std::cout << "CassoCli - 6502 Assembler and Emulator  v" VERSION_STRING
               << " (" << arch << ")  " VERSION_BUILD_TIMESTAMP "\n"
               << "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n"
               << "\n"
-              << "Usage: CassoCli <source> [flags] | run <binary | source> [options] | "
+              << "Usage: CassoCli " << subcommands << " [options] | "
               << sp << "? | " << lp << "version\n";
 }
 
@@ -821,13 +945,9 @@ static void PrintUsageGeneral (const char * lp, const char * sp, const char * pa
 static void PrintUsageAssembler (const char * sp)
 {
     std::println ("");
-    std::println ("Assembler flags:");
+    std::println ("as65 flags:");
     std::println ("  <source>               Assembly source file");
     std::println ("                         (will try .a65, .asm, .s if no extension is present)");
-    std::println ("");
-    std::println ("  --cpu <6502|65c02>     Target CPU (default: 6502). 65c02 enables the");
-    std::println ("                         CMOS opcodes (STZ, BRA, RMBn/SMBn, BBRn/BBSn, ...);");
-    std::println ("                         under 6502 those are rejected as invalid.");
     std::println ("");
     std::println ("  --raw                  Write only the assembled bytes, unpadded");
     std::println ("  --dos-bin              Write the assembled bytes behind a 4-byte DOS 3.3");
@@ -920,6 +1040,13 @@ void PrintUsage (char prefix)
 
     PrintUsageHeader    (sp, lp);
     PrintUsageGeneral   (lp, sp, pad);
+
+    // Which dialects there are, what each one's own flags are, where each takes
+    // its CPU from, and where a supported subset ends -- all composed in core
+    // from the registry, the parser's flag tables and the boundary tables, so
+    // none of it can describe a tool that no longer exists.
+    std::cout << DialectHelp::GetAllDialects (prefix);
+
     PrintUsageAssembler (sp);
     PrintUsageRun       (lp, sp, pad);
 }
@@ -957,6 +1084,10 @@ void PrintVersion()
 
 void PrintUnrecognizedArgument (const std::string & word)
 {
+    std::string  expected;
+
+
+
     std::cerr << "CassoCli: '" << word << "' is not a subcommand.\n";
 
     if (CommandLineParser::IsAssemblySource (word))
@@ -966,7 +1097,14 @@ void PrintUnrecognizedArgument (const std::string & word)
     }
     else
     {
-        std::cerr << "  Expected one of: as65, run.\n";
+        // Swept from the table, so a subcommand added to the tool is offered
+        // here without anyone remembering to add it.
+        for (const CommandLineParser::SubcommandName & entry : CommandLineParser::GetAllSubcommands())
+        {
+            expected += std::string (expected.empty() ? "" : ", ") + entry.name;
+        }
+
+        std::cerr << "  Expected one of: " << expected << ".\n";
     }
 }
 
@@ -1036,7 +1174,7 @@ int DoRun (const CommandLineOptions & options)
 
         asmOptions.warningMode = options.warningMode;
 
-        ar = AssembleFile (options.inputFile, SelectInstructionSet (options, cpu), asmOptions);
+        ar = AssembleFile (options.inputFile, SelectInstructionSet (options, cpu), nullptr, asmOptions);
         ReportAssemblyDiagnostics (ar);
 
         wasLoaded = ar.ok;
@@ -1133,19 +1271,20 @@ int DoAs65 (const CommandLineOptions & options)
 
 
 
-    HRESULT                   hr          = S_OK;
-    std::vector<std::string>  status;
-    AssemblerOptions          asmOptions;
-    DefaultFileReader         fileReader;
-    Cpu                       cpu;
-    AssembleResult            ar;
-    Clock::time_point         startTime;
-    Clock::time_point         endTime;
-    size_t                    lastSep     = 0;
-    int                       exitCode    = 0;
-    bool                      hasInput    = !options.inputFile.empty();
-    bool                      hasWarnings = false;
-    bool                      wasWritten  = false;
+    HRESULT                         hr          = S_OK;
+    std::vector<std::string>        status;
+    AssemblerOptions                asmOptions;
+    DefaultFileReader               fileReader;
+    Cpu                             cpu;
+    AssembleResult                  ar;
+    std::vector<DialectReportLine>  reports;
+    Clock::time_point               startTime;
+    Clock::time_point               endTime;
+    size_t                          lastSep     = 0;
+    int                             exitCode    = 0;
+    bool                            hasInput    = !options.inputFile.empty();
+    bool                            hasWarnings = false;
+    bool                            wasWritten  = false;
 
 
 
@@ -1178,7 +1317,7 @@ int DoAs65 (const CommandLineOptions & options)
     cpu.Reset();
 
     startTime = Clock::now();
-    ar        = AssembleFile (options.inputFile, SelectInstructionSet (options, cpu), asmOptions);
+    ar        = AssembleFile (options.inputFile, SelectInstructionSet (options, cpu), nullptr, asmOptions);
     endTime   = Clock::now();
 
     if (options.verbose)
@@ -1190,6 +1329,13 @@ int DoAs65 (const CommandLineOptions & options)
 
     hasWarnings = !ar.result.warnings.empty();
     ReportAssemblyDiagnostics (ar);
+
+    //  What is worth saying about the dialect and the CPU, and where it may be
+    //  said, is decided in core. This prints what comes back and chooses
+    //  nothing: several of those cases report nothing at all, and a caller
+    //  reimplementing the rule is a caller that ends up printing always.
+    reports = DialectReporting::BuildReport (asmOptions, BuildCpuReport (options, ar.result));
+    ReportToStandardError (reports);
 
     exitCode = ar.ok ? 0 : 2;
 
@@ -1205,7 +1351,7 @@ int DoAs65 (const CommandLineOptions & options)
 
     // Each output artifact is optional but fails the run the same way, so the
     // exit code is set once and each step just reports whether it wrote.
-    hr         = options.generateListing ? WriteListingOutput (ar.result, options) : S_OK;
+    hr         = options.generateListing ? WriteListingOutput (ar.result, options, reports) : S_OK;
     wasWritten = SUCCEEDED (hr);
     exitCode   = wasWritten ? 0 : 2;
 
@@ -1257,4 +1403,183 @@ int DoAs65 (const CommandLineOptions & options)
 
 Error:
     return exitCode;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolveMerlinOutputName
+//
+//  What the object is called, once the flag and the source have both had their
+//  say.
+//
+//  The precedence itself is NOT decided here: the assembler was handed the
+//  caller's answer and reports the one in effect, so a name coming back is
+//  already the winner. What is left is the case neither answered -- no flag and
+//  no directive -- where the source's own name is the only thing to derive from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static std::string ResolveMerlinOutputName (const CommandLineOptions & options, const AssemblyResult & result)
+{
+    std::string  name   = result.outputFileName;
+    bool         wasSet = !name.empty();
+
+
+
+    if (!wasSet)
+    {
+        name = CommandLineParser::StripExtension (options.inputFile) + ".bin";
+    }
+
+    return name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DoMerlin
+//
+//  The `merlin` subcommand: assemble one Merlin source and write its object.
+//
+//  Two instruction tables are handed over, because Merlin selects its CPU in the
+//  source and a provider with nothing to switch to would leave such a source
+//  told it had reached the wider processor while the assembler stayed on the
+//  narrow one. It is also why there is no CPU flag: the source decides, and a
+//  flag accepted here would assemble source the real assembler rejects.
+//
+//  The object is the assembled stream and nothing else. Merlin's origin
+//  relocates rather than seeks -- one contiguous object may carry sections
+//  destined for three different addresses -- so the as65 default of a full
+//  address-indexed image would scatter it across memory.
+//
+//  Exit codes are the tool's existing vocabulary, computed in core: 0 clean,
+//  1 assembled with complaints, 2 no output. A construct outside the supported
+//  subset earns the same 2 as a syntax error, because the exit code answers
+//  "did I get a file" and the refusal answers itself in its message.
+//
+//  A clean run says NOTHING, which is why this grammar has no quiet flag to
+//  silence it. The progress line as65 prints and offers a flag against is a
+//  historical courtesy, and a subcommand added today can simply not print it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DoMerlin (const CommandLineOptions & options)
+{
+    HRESULT                         hr         = S_OK;
+    AssemblerOptions                asmOptions;
+    DefaultFileReader               fileReader;
+    Cpu                             cpu;
+    AssembleResult                  ar;
+    std::vector<DialectReportLine>  reports;
+    std::string                     outputName;
+    //  The same request with the resolved object name in it, since the name is
+    //  only known once the source has had its say.
+    CommandLineOptions              writeOptions;
+    size_t                          lastSep    = 0;
+    int                             exitCode   = 0;
+    bool                            hasInput   = !options.inputFile.empty();
+    bool                            wasWritten = false;
+
+
+
+    exitCode = AssemblerExitCode::ToProcessCode (AssemblyExitCode::NoOutput);
+
+    if (!hasInput)
+    {
+        std::cerr << "Error: No input file specified\n";
+    }
+
+    BAIL_OUT_IF (!hasInput, S_OK);
+
+    asmOptions            = BuildAssemblerOptions (options);
+    asmOptions.fileReader = &fileReader;
+
+    // An included file resolves against the source that names it rather than
+    // against the shell's working directory, so a build works from anywhere.
+    lastSep = options.inputFile.find_last_of ("/\\");
+
+    if (lastSep != std::string::npos)
+    {
+        asmOptions.baseDir = options.inputFile.substr (0, lastSep);
+    }
+
+    cpu.Reset();
+
+    ar = AssembleFile (options.inputFile, cpu.GetInstructionSet(), GetCpu65C02InstructionSet(), asmOptions);
+    ReportAssemblyDiagnostics (ar);
+
+    reports = DialectReporting::BuildReport (asmOptions, BuildCpuReport (options, ar.result));
+    ReportToStandardError (reports);
+
+    exitCode = AssemblerExitCode::ToProcessCode (AssemblerExitCode::FromResult (ar.result));
+
+    BAIL_OUT_IF (!ar.ok, S_OK);
+
+    hr         = options.generateListing ? WriteListingOutput (ar.result, options, reports) : S_OK;
+    wasWritten = SUCCEEDED (hr);
+
+    if (!wasWritten)
+    {
+        exitCode = AssemblerExitCode::ToProcessCode (AssemblyExitCode::NoOutput);
+    }
+
+    BAIL_OUT_IF (!wasWritten, S_OK);
+
+    outputName              = ResolveMerlinOutputName (options, ar.result);
+    writeOptions            = options;
+    writeOptions.outputFile = outputName;
+
+    hr         = WriteBinaryOutput (ar.result, writeOptions);
+    wasWritten = SUCCEEDED (hr);
+
+    if (!wasWritten)
+    {
+        exitCode = AssemblerExitCode::ToProcessCode (AssemblyExitCode::NoOutput);
+    }
+
+    BAIL_OUT_IF (!wasWritten, S_OK);
+
+    if (options.verbose)
+    {
+        std::cerr << "Assembly successful\n";
+        std::println (stderr, "  Output:  {}", outputName);
+        std::println (stderr, "  Bytes:   {}", ar.result.bytes.size());
+        std::println (stderr, "  Start:   ${:04X}", ar.result.startAddress);
+        std::println (stderr, "  End:     ${:04X}", ar.result.endAddress);
+        std::println (stderr, "  Symbols: {}", ar.result.symbols.size());
+    }
+
+Error:
+    return exitCode;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintCpuFlagRefusal
+//
+//  A CPU flag the active dialect does not take.
+//
+//  The sentence arrives composed, because naming the in-source directive that
+//  replaces the flag is the dialect's own knowledge and this is the printing
+//  edge. The exit code is the same "no output" every other way of producing
+//  nothing earns: a script asks whether it got a file, and it did not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PrintCpuFlagRefusal (const std::string & refusal)
+{
+    std::cerr << "CassoCli: " << refusal << "\n";
+
+    return AssemblerExitCode::ToProcessCode (AssemblyExitCode::NoOutput);
 }
