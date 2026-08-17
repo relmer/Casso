@@ -120,6 +120,23 @@ Three things learned doing it, each having cost something:
 - **Merge `origin/master` back into your branch immediately afterwards**, or the
   next session to touch the file conflicts with something you wrote.
 
+**Do not land on `master` with raw plumbing** (`mktree` / `commit-tree` /
+`update-ref`), even though it works and is tempting when a worktree is pinned.
+Its failure mode is the inverse of the one above, and far worse.
+
+The worktree route fails *loudly*: if `master` moved, the push is rejected. The
+plumbing route fails *silently*. You set the correct parent — so the push
+fast-forwards cleanly — but the tree you built came from whatever you read
+earlier, so every line that landed in between is reverted by a commit that looks
+entirely normal. Parent correct, push clean, CheckStyle green, tree internally
+consistent. Nothing complains.
+
+This happened (`b877ae91` restoring what `299e6433` had added). It was caught
+only because the author thought to ask whether their own commit had deleted
+anything — no tool volunteered it. **A push succeeding is not evidence that
+nothing was lost.** If you use plumbing anyway, diff your new tree against the
+current remote tip before pushing, not against the base you started from.
+
 **Shared prose on `master` needs more care than shared code.** The fixture
 READMEs, `UnitTest/Fixtures/README.md` and `.github/copilot-instructions.md` are
 all written by both sessions. A conflicting *code* edit usually announces itself;
