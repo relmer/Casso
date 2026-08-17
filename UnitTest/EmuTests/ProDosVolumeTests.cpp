@@ -29,6 +29,10 @@ public:
 
     static constexpr size_t  kKeyBlockEntry = 0x04;
 
+    //  Where the volume directory starts. The skeleton keeps its own copy
+    //  private, and the tests that predate this one spell it as a literal.
+    static constexpr int     kDirKeyBlock   = 2;
+
     //  Directory geometry, restated here because the skeleton keeps its own
     //  copies private and a test that reads bytes has to name offsets.
     static constexpr size_t  kEntryLength      = 0x27;
@@ -1963,5 +1967,257 @@ public:
         }
 
         Assert::IsTrue (payload.bytes == sample.bytes);
+    }
+
+    //
+    //  ------------------------------------------------------------------
+    //  The startup program, which on this filesystem is a POSITION rather than
+    //  a stored name: the kernel launches the first system program its walk of
+    //  the volume directory reaches.
+    //  ------------------------------------------------------------------
+    //
+
+    //  A system program. What the bytes are does not matter here -- which
+    //  record the walk reaches first is the whole subject -- but the type does.
+    static FilePayload MakeSystemPayload (size_t length)
+    {
+        FilePayload  payload = MakeBinaryPayload (length, 0x2000);
+
+        payload.type = ProDosVolume::kTypeSystem;
+
+        return payload;
+    }
+
+    static size_t IndexOfEntry (const VolumeListing & listing, const std::string & name)
+    {
+        size_t  i = 0;
+
+        for (i = 0; i < listing.entries.size(); i++)
+        {
+            if (listing.entries[i].name == name)
+            {
+                return i;
+            }
+        }
+
+        Assert::Fail (L"the listing must carry the entry being located");
+
+        return 0;
+    }
+
+    //  Every buffer byte one directory record occupies. A record is NOT
+    //  contiguous in the image -- a ProDOS block is two 256-byte halves that sit
+    //  apart in a DOS-ordered buffer -- so the range has to be mapped rather
+    //  than assumed.
+    static void AddRecordBytes (std::vector<char>  & inOutAllowed,
+                                int                  dirBlock,
+                                int                  slot)
+    {
+        size_t  i = 0;
+
+        for (i = 0; i < kEntryLength; i++)
+        {
+            inOutAllowed[ProDosSkeleton::BlockByteOffset (dirBlock, EntryOffset (slot) + i)] = 1;
+        }
+    }
+
+    vector<Byte> MakeVolumeWithTwoSystemPrograms()
+    {
+        vector<Byte>  vol = MakeVolume();
+        vector<Byte>  one;
+        vector<Byte>  two;
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.Write (FilePath::Parse ("FIRST.SYSTEM"),
+                                           MakeSystemPayload (600), one));
+        }
+
+        {
+            ProDosVolume  volume (one);
+
+            AssertSucceeded (volume.Write (FilePath::Parse ("SECOND.SYSTEM"),
+                                           MakeSystemPayload (600), two));
+        }
+
+        return two;
+    }
+
+    TEST_METHOD (Volume_SetStartupProgram_PutsTheChosenProgramInFrontOfEveryOtherSystemFile)
+    {
+        // The reorder is the mechanism, so the assertion is about ORDER -- and
+        // about what did not move. Every other record keeps its bytes, which is
+        // checked by requiring every differing byte in the whole image to fall
+        // inside one of the two records that were swapped.
+        vector<Byte>       before = MakeVolumeWithTwoSystemPrograms();
+        ProDosVolume       volume (before);
+        vector<Byte>       after;
+        VolumeListing      listedBefore;
+        VolumeListing      listedAfter;
+        std::vector<char>  allowed (NibblizationLayer::kImageByteSize, 0);
+        size_t             differing = 0;
+        size_t             i         = 0;
+
+        AssertSucceeded (volume.Enumerate (listedBefore));
+
+        Assert::AreEqual (size_t (0), IndexOfEntry (listedBefore, "FIRST.SYSTEM"),
+            L"the volume must start out launching the other one, or nothing is being moved");
+
+        AssertSucceeded (volume.SetStartupProgram (FilePath::Parse ("SECOND.SYSTEM"), after));
+
+        {
+            ProDosVolume  written (after);
+
+            AssertSucceeded (written.Enumerate (listedAfter));
+        }
+
+        Assert::AreEqual (size_t (0), IndexOfEntry (listedAfter, "SECOND.SYSTEM"),
+            L"the chosen program must now be the first record the walk reaches");
+
+        Assert::AreEqual (listedBefore.entries.size(), listedAfter.entries.size(),
+            L"and no entry may be gained or lost by reordering two of them");
+
+        Assert::AreEqual (listedBefore.freeUnits, listedAfter.freeUnits,
+            L"a swap allocates and frees nothing");
+
+        AddRecordBytes (allowed, kDirKeyBlock, 1);
+        AddRecordBytes (allowed, kDirKeyBlock, 2);
+
+        for (i = 0; i < before.size(); i++)
+        {
+            if (before[i] != after[i])
+            {
+                differing++;
+
+                Assert::AreEqual ((char) 1, allowed[i],
+                    L"nothing outside the two swapped records may change -- not a block "
+                    L"pointer, not the bitmap, not another file's entry");
+            }
+        }
+
+        Assert::IsTrue (differing > 0, L"and the records must actually have been swapped");
+    }
+
+    TEST_METHOD (Volume_SetStartupProgram_AProgramAlreadyInFront_LeavesTheVolumeByteForByteAsItWas)
+    {
+        // Nothing to do is a legitimate outcome here, and rewriting the same
+        // arrangement back would make an unnecessary commit look like an edit.
+        vector<Byte>  before = MakeVolumeWithTwoSystemPrograms();
+        ProDosVolume  volume (before);
+        vector<Byte>  after;
+
+        AssertSucceeded (volume.SetStartupProgram (FilePath::Parse ("FIRST.SYSTEM"), after));
+
+        Assert::IsTrue (after == before,
+            L"a program that is already first leaves the volume exactly as it was");
+    }
+
+    TEST_METHOD (Volume_SetStartupProgram_AFileThatIsNotASystemProgram_IsRefused)
+    {
+        // A BIN file cannot be launched by the boot path at any position, so
+        // reordering the directory would produce a disk that looks configured
+        // and boots to whatever the next system program happens to be.
+        vector<Byte>  vol = MakeVolume();
+        vector<Byte>  written;
+        vector<Byte>  after;
+        HRESULT       hr  = S_OK;
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.Write (FilePath::Parse ("PROG"),
+                                           MakeBinaryPayload (600, 0x6000), written));
+        }
+
+        {
+            ProDosVolume  volume (written);
+
+            hr = volume.SetStartupProgram (FilePath::Parse ("PROG"), after);
+        }
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BAD_FILE_TYPE), hr);
+        Assert::AreEqual (size_t (0), after.size(), L"and a refusal produces nothing");
+    }
+
+    TEST_METHOD (Volume_SetStartupProgram_AFileTheVolumeDoesNotHold_IsRefusedAndProducesNothing)
+    {
+        vector<Byte>  before = MakeVolumeWithTwoSystemPrograms();
+        ProDosVolume  volume (before);
+        vector<Byte>  after;
+        HRESULT       hr     = S_OK;
+
+        hr = volume.SetStartupProgram (FilePath::Parse ("NOSUCH.SYSTEM"), after);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), hr);
+        Assert::AreEqual (size_t (0), after.size());
+    }
+
+    TEST_METHOD (Volume_SetStartupProgram_TheKernelItself_IsRefusedRatherThanMovedToTheFront)
+    {
+        // PRODOS is a SYS file like any other and is the one file that must
+        // never be nominated: the boot block loads it by name, and a volume
+        // whose startup program was the kernel would ask a running ProDOS to
+        // load ProDOS. Asserted against a disk that shipped, where the kernel
+        // is the first SYS record on the volume.
+        vector<Byte>   disk = LoadFixture ("Disks/Merlin-proProdos2.33-b.dsk");
+        ProDosVolume   volume (disk);
+        vector<Byte>   after;
+        VolumeListing  listing;
+        HRESULT        hr   = S_OK;
+
+        AssertSucceeded (volume.Enumerate (listing));
+
+        Assert::AreEqual (size_t (0), IndexOfEntry (listing, "PRODOS"),
+            L"the kernel is the first record on this disk, which is what makes it the "
+            L"one a naive rule would leave alone and a wrong rule would move");
+
+        hr = volume.SetStartupProgram (FilePath::Parse ("PRODOS"), after);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BAD_FILE_TYPE), hr);
+        Assert::AreEqual (size_t (0), after.size());
+    }
+
+    TEST_METHOD (Volume_SetStartupProgram_OnARealDisk_OvertakesTheProgramItWouldHaveLaunched)
+    {
+        // /APPLESOFT boots PRODOS and then BASIC.SYSTEM. A newly placed system
+        // program must end up ahead of BASIC.SYSTEM and BEHIND nothing -- while
+        // the kernel keeps the slot it has always had, since the boot block
+        // finds it by name and moving it would be a change nobody asked for.
+        vector<Byte>   disk = LoadFixture ("Disks/Merlin-proProdos2.33-b.dsk");
+        vector<Byte>   written;
+        vector<Byte>   after;
+        VolumeListing  before;
+        VolumeListing  listed;
+
+        {
+            ProDosVolume  volume (disk);
+
+            AssertSucceeded (volume.Enumerate (before));
+            AssertSucceeded (volume.Write (FilePath::Parse ("CASSO.SYSTEM"),
+                                           MakeSystemPayload (60), written));
+        }
+
+        {
+            ProDosVolume  volume (written);
+
+            AssertSucceeded (volume.SetStartupProgram (FilePath::Parse ("CASSO.SYSTEM"), after));
+        }
+
+        {
+            ProDosVolume  volume (after);
+
+            AssertSucceeded (volume.Enumerate (listed));
+        }
+
+        Assert::IsTrue (IndexOfEntry (listed, "CASSO.SYSTEM")
+                      < IndexOfEntry (listed, "BASIC.SYSTEM"),
+            L"the placed program must precede the one the disk used to launch");
+
+        Assert::AreEqual (IndexOfEntry (before, "PRODOS"), IndexOfEntry (listed, "PRODOS"),
+            L"and the kernel must not have been shuffled to make room for it");
+
+        Assert::AreEqual (before.entries.size() + 1, listed.entries.size(),
+            L"with every entry the disk shipped with still on it");
     }
 };

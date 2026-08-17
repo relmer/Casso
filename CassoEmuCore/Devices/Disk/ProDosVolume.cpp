@@ -1637,14 +1637,121 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProDosVolume::IsLaunchableSystemFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProDosVolume::IsLaunchableSystemFile (const RawEntry & entry)
+{
+    bool  isSystem = entry.fileType == kTypeSystem;
+    bool  isKernel = _stricmp (entry.name.c_str(), kpszKernelName) == 0;
+
+
+
+    return isSystem && !isKernel;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProDosVolume::SetStartupProgram
+//
+//  ProDOS stores no startup-program name anywhere. The kernel launches the
+//  first system program it comes to as it walks the volume directory, so the
+//  ORDERING IS THE MECHANISM, and setting the startup program means putting the
+//  chosen record in front of every other one the walk would stop at.
+//
+//  THIS IS DELIBERATELY NOT SHARED WITH THE DOS 3.3 SIDE. The two filesystems do
+//  not spell one idea differently: DOS 3.3 patches a name into its own code and
+//  ProDOS moves a directory record, and no "write the boot name" helper can be
+//  written that is honest about both. One would either patch a name ProDOS never
+//  reads or reorder a catalog DOS pays no attention to.
+//
+//  The two records are SWAPPED rather than the directory being repacked. Every
+//  other record keeps its position, its dates and its pointers, which is what
+//  makes this an edit a user can reason about -- and what keeps the volume's own
+//  tally of entries and every block pointer on it exactly as they were.
+//
+//  The kernel is excluded from the candidates on purpose: it is a system program
+//  too, the boot block finds it by name rather than by position, and nominating
+//  it would ask a booted ProDOS to load ProDOS.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ProDosVolume::SetStartupProgram (const FilePath & path, vector<Byte> & outBuffer) const
 {
-    UNREFERENCED_PARAMETER (path);
-    UNREFERENCED_PARAMETER (outBuffer);
+    HRESULT                hr          = S_OK;
+    size_t                 bufferBytes = m_sectors.size();
+    bool                   single      = path.IsSingleComponent();
+    bool                   found       = false;
+    bool                   launchable  = false;
+    bool                   fullyParsed = true;
+    uint16_t               owner       = 0;
+    uint16_t               first       = 0;
+    uint16_t               index       = 0;
+    size_t                 i           = 0;
+    vector<RawEntry>       entries;
+    vector<std::string>    damage;
+    vector<Byte>           result;
+    VolumeIntegrityReport  report;
 
-    return E_NOTIMPL;
+
+
+    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    CollectEntries (entries, damage, fullyParsed);
+
+    found = TryFindEntry (entries, path.GetLeaf(), owner);
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+    launchable = IsLaunchableSystemFile (entries[owner]);
+    CBREx (launchable, HRESULT_FROM_WIN32 (ERROR_BAD_FILE_TYPE));
+
+    hr = BuildIntegrityReport (report);
+    CHRA (hr);
+
+    // Entries arrive in the order the directory chain yields them, which is the
+    // order the boot path walks, so the first launchable record here is the one
+    // it would launch today.
+    first = owner;
+
+    for (index = 0; index < (uint16_t) entries.size(); index++)
+    {
+        bool  candidate = IsLaunchableSystemFile (entries[index]);
+
+        if (candidate)
+        {
+            first = index;
+            break;
+        }
+    }
+
+    result = m_sectors;
+
+    // A file already in front of every other candidate leaves the volume
+    // exactly as it was, rather than being rewritten to what it already says.
+    if (first != owner)
+    {
+        for (i = 0; i < (size_t) ProDosSkeleton::kEntryLength; i++)
+        {
+            Byte  chosen   = ReadByte (entries[owner].dirBlock, entries[owner].entryOffset + i);
+            Byte  standing = ReadByte (entries[first].dirBlock, entries[first].entryOffset + i);
+
+            WriteByteAt (result, entries[first].dirBlock, entries[first].entryOffset + i, chosen);
+            WriteByteAt (result, entries[owner].dirBlock, entries[owner].entryOffset + i, standing);
+        }
+    }
+
+    // The same self-check every other mutating call runs over its own output.
+    // A swap moves no block and frees nothing, so a disagreement here would mean
+    // the records were not the ones the walk described.
+    hr = HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
 }

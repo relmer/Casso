@@ -119,6 +119,11 @@ private:
     //  bytes wide.
     static constexpr size_t  kMaxFileBytes = 0xFFFFFF;
 
+    //  The kernel. It is a SYS file like any system program, and it is never the
+    //  one a boot launches: the boot block loads it BY NAME, and a volume whose
+    //  startup program was the kernel would only load it a second time.
+    static constexpr const char *  kpszKernelName = "PRODOS";
+
     Byte  ReadByte (int block, size_t offset) const;
     Word  ReadWord (int block, size_t offset) const;
 
@@ -149,6 +154,10 @@ private:
     static bool  TryFindEntry (const vector<RawEntry>  & entries,
                                const std::string       & leaf,
                                uint16_t                & outOwner);
+
+    //  A record the boot path could hand control to: a system program, and not
+    //  the kernel that does the handing.
+    static bool  IsLaunchableSystemFile (const RawEntry & entry);
 
     //  A directory record is reusable exactly when its storage-type nibble is
     //  zero. Unlike the DOS 3.3 catalog there is no decorative-entry practice
