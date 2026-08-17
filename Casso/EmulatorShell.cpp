@@ -5621,15 +5621,16 @@ void EmulatorShell::ExecuteCpuSlices()
 
     for (uint32_t executed = 0; executed < targetCycles; )
     {
-        // Feed next paste character if available
-        m_clipboardManager->DrainPasteBuffer();
-
         sliceTarget = targetCycles - executed;
 
         if (sliceTarget > kSliceCycles)
         {
             sliceTarget = kSliceCycles;
         }
+
+        // Feed the next paste character if available; the slice budget is
+        // the guest-time currency the settle pacing is measured in.
+        m_clipboardManager->DrainPasteBuffer (sliceTarget);
 
         sliceActual = 0;
 
@@ -6982,10 +6983,16 @@ bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHe
     }
     else if (vk == 'V' && ctrlHeld && !altHeld)
     {
+        // Windows has already synthesized this combo's WM_CHAR (^V, 0x16);
+        // without the swallow it lands in the guest keyboard latch AHEAD of
+        // the pasted text, planting an invisible control byte in the input
+        // line (the classic paste-then-SYNTAX-ERROR).
+        m_swallowMetaChar = true;
         m_clipboardManager->PasteFromClipboard (m_hwnd);
     }
     else if (vk == 'R' && ctrlHeld && !(GetKeyState (VK_SHIFT) & 0x8000))
     {
+        m_swallowMetaChar = true;
         PostCommand (IDM_MACHINE_RESET);
     }
     else
@@ -8307,6 +8314,17 @@ void EmulatorShell::PushPaddleButton (int index, bool pressed)
 DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 {
     bool  isRepeat = (lParam & s_kPreviousKeyDownLParamBit) != 0;
+
+
+
+    // A host-meta shortcut (Ctrl+V paste, Ctrl+R reset) claimed the keydown,
+    // but Windows synthesized its control character anyway; swallow exactly
+    // that one char so it never types into the guest.
+    if (m_swallowMetaChar)
+    {
+        m_swallowMetaChar = false;
+        return DxuiMessageResult::Handled;
+    }
 
 
 

@@ -24,6 +24,18 @@ Entries before versioning was introduced use dates only.
   replacement literally, ready to paste back, because the population this
   breaks is build scripts and nobody re-reads one until the day it fails.
 
+### Fixed
+- **Pasting into the guest no longer garbles the text.** A valid Applesoft line
+  pasted at the `]` prompt produced a SYNTAX ERROR while typing the same line
+  by hand worked. Two independent causes, both fixed: Ctrl+V is claimed as a
+  host shortcut but Windows synthesizes its control character anyway, so a
+  `^V` reached the guest keyboard ahead of the pasted text; and characters were
+  fed faster than the guest could take them. Feeding is now paced in emulated
+  cycles and waits for the keyboard strobe to stay clear, because the guest
+  clears it the moment it takes a key but may flush the keyboard again while
+  processing one — so a character sent on the first clear reading races into
+  that window and is dropped.
+
 ### Added
 - **`--raw` and `--dos-bin` assembler output.** The assembler could only write
   a full 64 KB memory image, padded with the fill byte — correct for ROM
