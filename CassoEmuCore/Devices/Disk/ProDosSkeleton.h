@@ -81,9 +81,20 @@ private:
     static constexpr size_t  kEntOffAuxType       = 0x1F;
     static constexpr size_t  kEntOffHeaderPointer = 0x25;
 
+    //  The storage-type nibble of a directory record. Zero means the record is
+    //  INACTIVE -- either never used or deleted -- and a deleted one keeps its
+    //  name so an undelete tool can find it, which is exactly why the name
+    //  cannot be what decides.
+    static constexpr Byte    kStorageInactive = 0x00;
     static constexpr Byte    kStorageSeedling = 0x10;
     static constexpr Byte    kStorageSapling  = 0x20;
     static constexpr Byte    kStorageTree     = 0x30;
+    static constexpr Byte    kStorageSubdir   = 0xD0;
+
+    //  Block pointers in an index block: 256 low bytes, then the 256 matching
+    //  high bytes. Numerically the same as a sector's byte count, which is a
+    //  coincidence worth not relying on.
+    static constexpr size_t  kPointersPerIndex = 256;
 
     friend class ProDosReader;
     friend class ProDosFileWriter;

@@ -206,6 +206,11 @@ Error:
 //  of index blocks). A zero pointer anywhere means a sparse hole and reads
 //  as zeros. Output is truncated to the entry's EOF.
 //
+//  A record whose storage-type nibble is zero is inactive and is skipped even
+//  though its name survives. A deleted file keeps its name on purpose, so
+//  matching on the name alone would hand back a file whose blocks have been
+//  given to somebody else.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ProDosReader::ExtractFile (
@@ -260,7 +265,8 @@ HRESULT ProDosReader::ExtractFile (
                             + (size_t) n * ProDosSkeleton::kEntryLength;
             Byte    typeLen = volume[ProDosSkeleton::BlockByteOffset (dirBlock, at)];
             size_t  len     = (size_t) (typeLen & 0x0F);
-            bool    match   = (typeLen != 0) && (len == nameBytes);
+            bool    match   = ((typeLen & 0xF0) != ProDosSkeleton::kStorageInactive)
+                           && (len == nameBytes);
             size_t  i       = 0;
 
             for (i = 0; match && i < len; i++)
@@ -327,11 +333,12 @@ HRESULT ProDosReader::ExtractFile (
         {
             int  i = 0;
 
-            for (i = 0; gathered && i < (int) NibblizationLayer::kSectorByteSize; i++)
+            for (i = 0; gathered && i < (int) ProDosSkeleton::kPointersPerIndex; i++)
             {
                 Word  indexBlock = (Word)
                     (volume[ProDosSkeleton::BlockByteOffset (keyPointer, (size_t) i)]
-                   | (volume[ProDosSkeleton::BlockByteOffset (keyPointer, (size_t) i + 256)] << 8));
+                   | (volume[ProDosSkeleton::BlockByteOffset (keyPointer,
+                          (size_t) i + ProDosSkeleton::kPointersPerIndex)] << 8));
 
                 if (indexBlock != 0)
                 {
@@ -341,7 +348,7 @@ HRESULT ProDosReader::ExtractFile (
                 {
                     int  hole = 0;
 
-                    for (hole = 0; hole < 256; hole++)
+                    for (hole = 0; hole < (int) ProDosSkeleton::kPointersPerIndex; hole++)
                     {
                         dataBlocks.push_back (0);
                     }
@@ -412,11 +419,12 @@ bool ProDosReader::AppendIndexedBlocks (
         return false;
     }
 
-    for (i = 0; i < (int) NibblizationLayer::kSectorByteSize; i++)
+    for (i = 0; i < (int) ProDosSkeleton::kPointersPerIndex; i++)
     {
         Word  block = (Word)
             (volume[ProDosSkeleton::BlockByteOffset (indexBlock, (size_t) i)]
-           | (volume[ProDosSkeleton::BlockByteOffset (indexBlock, (size_t) i + 256)] << 8));
+           | (volume[ProDosSkeleton::BlockByteOffset (indexBlock,
+                  (size_t) i + ProDosSkeleton::kPointersPerIndex)] << 8));
 
         // Zero is a sparse hole and legitimate; anything past the volume is
         // corruption, and following it would read outside the buffer entirely.
@@ -539,7 +547,8 @@ HRESULT ProDosFileWriter::WriteFile (
 
     seedling = (blockCount == 1);
 
-    // A free directory entry: the first zero type/name byte in the chain.
+    // A free directory entry: the first record in the chain whose storage-type
+    // nibble is zero, meaning never used or deleted.
     for (dirBlock = ProDosSkeleton::kDirKeyBlock;
          !haveSlot && dirBlock <= ProDosSkeleton::kDirLastBlock;
          dirBlock++)
@@ -549,10 +558,11 @@ HRESULT ProDosFileWriter::WriteFile (
 
         for (n = first; !haveSlot && n < (int) ProDosSkeleton::kEntriesPerBlock; n++)
         {
-            size_t  at = ProDosSkeleton::kOffFirstEntry
-                       + (size_t) n * ProDosSkeleton::kEntryLength;
+            size_t  at      = ProDosSkeleton::kOffFirstEntry
+                            + (size_t) n * ProDosSkeleton::kEntryLength;
+            Byte    typeLen = buffer[ProDosSkeleton::BlockByteOffset (dirBlock, at)];
 
-            if (buffer[ProDosSkeleton::BlockByteOffset (dirBlock, at)] == 0)
+            if ((typeLen & 0xF0) == ProDosSkeleton::kStorageInactive)
             {
                 haveSlot = true;
                 entryAt  = at;

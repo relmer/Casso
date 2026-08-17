@@ -6,23 +6,25 @@ Written for whoever picks this up next, including a later session of me after a
 context loss. Current as of the last commit on `020-disk-file-access`.
 
 **Done and on the branch.** Phase 2 (foundational, T002–T013), Phase 3
-(US3 — read, T014–T022), and the first Phase 4 chain (**T023 + T024**, DOS 3.3
-write and delete). That is the whole P1 extraction story — both filesystem
-readers, the decode report, the integrity pass, the `disk` subcommand, the CLI
-edge — plus placement and removal on DOS 3.3. Suite is **3109 Debug / 3106
+(US3 — read, T014–T022), and **both** Phase 4 chains — T023 + T024 (DOS 3.3
+write and delete) and **T025 + T026** (ProDOS write with tree growth, and
+delete). That is the whole P1 extraction story — both filesystem readers, the
+decode report, the integrity pass, the `disk` subcommand, the CLI edge — plus
+placement and removal on both filesystems. Suite is **3134 Debug / 3131
 Release** green; the 3-test delta is the pre-existing GH #113, not this work.
-(It was 3088 / 3085 before T023/T024 added 22 tests and removed the
-now-obsolete `Write_IsNotYetImplemented_AndSaysSoRatherThanSucceeding`.)
+(It was 3109 / 3106 before T025/T026 added 25 tests, and 3088 / 3085 before
+T023/T024 added 22 and removed the now-obsolete
+`Write_IsNotYetImplemented_AndSaysSoRatherThanSucceeding`.)
 
-**Next, and it is still the hard half.** Phase 4 has eleven tasks left
-(T025–T035), and it is the work here where a bug **destroys data** rather than
+**Next, and it is still the hard half.** Phase 4 has nine tasks left
+(T027–T035), and it is the work here where a bug **destroys data** rather than
 failing loudly. Everything through Phase 3 was reads: wrong output was the worst
 case. From T023 on, the worst case is a user's disk image.
 
-**Order within Phase 4.** T023 → T024 and T025 → T026 are independent chains
+**Order within Phase 4.** T023 → T024 and T025 → T026 were independent chains
 (DOS 3.3 and ProDOS), joining at T028. Delete ships with write on both because
-replace depends on it. **The DOS 3.3 chain is done**; the ProDOS one is not, and
-T027 needs both.
+replace depends on it. **Both chains are done**, so T027 (replace) is unblocked
+and is the next thing.
 
 Three things earned during Phase 3 that Phase 4 depends on, so do not treat them
 as background:
@@ -112,6 +114,19 @@ a zero-sector entry whose pointer names *another file's* track/sector list.
 case. **A fixture copied from the real world tests what the real world happens
 to contain, not what the rule says.**
 
+And again on T025/T026, where fourteen mutations were run and all fourteen went
+red — but one of them went red the WRONG WAY, and that is the finding. Making
+`OverheadBlocksFor` forget the tree's master index took the test host down
+rather than failing an assertion: the block list was then one short of what the
+layout consumed, and `PlaceFile` answered by indexing past the end of it. A
+crash in a debug run is a silent overwrite in a release one. **A harness that
+reads "0 failures" out of a run that never finished is the same defect one level
+up**, and the first pass of the mutation script did exactly that, reporting NOT
+CAUGHT for a mutation that had crashed. The fix in production code is a shape
+check at the top of `PlaceFile` whose expected count is derived *there* rather
+than borrowed from the allocator's helper — borrowing it would have made the
+check agree with the mutation.
+
 **Blocked on nobody; 019 is blocked on this branch.** Spec 019 runs
 concurrently. Measured overlap is three files — `CassoCore/CassoCore.vcxproj`,
 `UnitTest/UnitTest.vcxproj` and `CassoCli/CommandLine.cpp` — and the two sides
@@ -145,6 +160,37 @@ outcome — do not defend it at merge.** See `docs/coordination.md`.
   empty; `allocatedButUnclaimed` and `unfollowableChains` not worsened), not ask
   one whole-volume yes/no. `Dos33VolumeTests::AssertEditLeftTheVolumeConsistent`
   is that comparison, written for T023/T024 and reusable.
+- **`IsClean()` is TRUE on a healthy ProDOS volume and FALSE on a healthy
+  DOS 3.3 one, and T028 must still not gate on it.** Measured on both:
+  `ProDosVolume::BuildIntegrityReport` credits blocks 0–6 to a reserved volume
+  owner, so nothing is allocated-but-unclaimed, where the DOS 3.3 pass leaves
+  the boot and catalog tracks unowned. The asymmetry is a trap rather than a
+  convenience — the argument against gating on `IsClean()` never rested on the
+  DOS 3.3 quirk. A correct delete that leaks reports blocks allocated with
+  nothing claiming them on *either* filesystem, which is what FR-011 requires,
+  so the whole-volume yes/no would refuse the outcome the spec demands. Both
+  suites compare result-against-input on the specific sets instead;
+  `ProDosVolumeTests::AssertEditLeftTheVolumeConsistent` is the ProDOS twin of
+  the DOS 3.3 helper.
+- **ProDOS subdirectory entries on Merlin's own disk have destroy-enable
+  clear**, which decided an ordering in `ProDosVolume::Delete`. Testing the lock
+  before the "this layer cannot walk into a directory" refusal reports a
+  permission problem for something that would be refused anyway once unlocked,
+  so the capability refusal goes first. Found by a test against `/MERLIN`, not
+  by reasoning.
+- **`/MERLIN`'s volume directory holds an inactive record BEFORE an active
+  one.** ProDOS reuses slots in place, so a listing is not densely packed and a
+  newly placed file lands in the hole rather than at the end. Any assertion
+  comparing a before-and-after listing on a real ProDOS disk must compare by
+  membership, not by position; the positional version was written first and
+  failed on this disk.
+- **`ProDosVolume::Write` does not extend `ProDosFileWriter`.** The existing
+  writer is the bootable-disk helper: it writes through the caller's buffer,
+  allocates from the bitmap without consulting the integrity report, and asserts
+  on bad arguments — all correct for a caller supplying its own constants and
+  all wrong for one relaying what a user typed. The two are kept from drifting
+  by reading every file the new writer produces back through `ProDosReader`,
+  which neither of them shares.
 - **A multi-list file's second and later list sectors were never claimed**
   (found by T023's three-list write test, fixed with it). `CollectDataSectors`
   returned only data sectors and `BuildIntegrityReport` added the head list
@@ -295,8 +341,8 @@ filesystem can delete today.
 
 - [x] T023 [US2] Generalize DOS 3.3 writing into `Dos33Volume::Write` in `CassoEmuCore/Devices/Disk/Dos33Volume.cpp`: allocate from the VTOC free bitmap, build the track/sector list, write data sectors, create the catalog entry, leave the bitmap consistent. `Dos33FileWriter::WriteHello` is a zero-parameter hardcoded emitter — treat it as a worked example of the structures, not a base to extend. Tests in `UnitTest/EmuTests/Dos33VolumeTests.cpp`. **Four decisions, recorded so they read as choices rather than gaps.** (1) **An existing name is REFUSED** with `ERROR_FILE_EXISTS` rather than replaced. FR-012 requires replacement to be computed as one whole and that is T027; refusing is the honest interim, and it is specifically the failure mode — a duplicate catalog entry — that must not exist in the meantime. (2) **Allocation consults the integrity report, not only the free bitmap.** A sector the bitmap calls free while a catalog entry still points at it is exactly what a bad delete leaves behind, and handing it out destroys the other file silently; those sectors are skipped and left for the report to name. (3) **A name being CREATED is validated** — non-empty, at most 30 characters, first character a letter, no comma, no control characters, and upper-cased on the way in. This is *not* the reverted printable-text check on names being READ: reading still imposes no rule at all, and the twenty backspace-drawn headings on Merlin's disk still list. The direction is what differs — DOS's own SAVE refuses these, so creating one produces a file the guest cannot open. (4) **Illegal input maps to Win32 codes, not `E_INVALIDARG`**, diverging from `contracts/volume-api.md`'s error table: `E_INVALIDARG` marks a coding error and asserts, and a filename is user input. `ERROR_INVALID_NAME` / `ERROR_DISK_FULL` / `ERROR_ACCESS_DENIED` / `ERROR_FILE_EXISTS` carry the same meanings without the assert
 - [x] T024 [US2] Implement `Dos33Volume::Delete` with free-space return in `CassoEmuCore/Devices/Disk/Dos33Volume.cpp`: free **only** sectors the integrity report shows this file uniquely owns, report the rest as leaked, and remain available for a file whose T/S chain is damaged so a bad file cannot strand the volume (FR-011). Warn distinctly when `catalogFullyParsed` is false (FR-040). **Two decisions.** (1) **`IVolume::Delete` keeps its two-argument shape**; the account of what was freed, what leaked, and why lives on a `Dos33Volume`-only three-argument overload taking a `DeleteOutcome` (new, in `VolumeTypes.h`). Widening the interface mid-flight would have broken T025/T026 in another session for no benefit yet — nothing consumes the account until `put`/`delete` reach the runner in T032. **T026 should take the same shape, and T032 is where the pair gets lifted onto `IVolume` if it wants to.** (2) **The entry is tombstoned the way DOS does it** — `$FF` into the track byte, the original track stashed in the last byte of the name — so an undelete tool still finds the file. A zero-sector entry frees nothing because the chain walk returns before it starts; the discriminator is the entry's own sector count and **not** the `$7F/$7F` pointer, which is the one mutation the suite failed to catch until a fixture was built to separate them
-- [ ] T025 [US2] Add **tree growth** to the ProDOS writer (master index block of index blocks) in `CassoEmuCore/Devices/Disk/ProDosSkeleton.cpp` / `ProDosVolume.cpp` — the existing writer handles seedling and sapling only; extend `ProDosVolume::Write` to grow storage type as size requires (FR-008). Block-accounting asserted against `BuildIntegrityReport`, not by inspection
-- [ ] T026 [US2] Implement `ProDosVolume::Delete` with volume-bitmap free-space return in `CassoEmuCore/Devices/Disk/ProDosVolume.cpp`, under the same unique-ownership rule as T024
+- [x] T025 [US2] Add **tree growth** to the ProDOS writer (master index block of index blocks) in `CassoEmuCore/Devices/Disk/ProDosSkeleton.cpp` / `ProDosVolume.cpp` — the existing writer handles seedling and sapling only; extend `ProDosVolume::Write` to grow storage type as size requires (FR-008). Block-accounting asserted against `BuildIntegrityReport`, not by inspection. **Four decisions, recorded so they read as choices rather than gaps.** (1) **Placement is implemented in `ProDosVolume`, not by extending `ProDosFileWriter`** — see the divergences block; the existing writer's argument handling asserts, which is wrong for user input, and its allocator consults the bitmap alone. (2) **A tree is constructible on a 280-block volume after all**, which the task text and `research.md` both imply it is not: 257 data blocks plus two index blocks plus a master is 260 of the 273 free, so the shape is reachable with a payload of 131,073 bytes. What the fixture volumes cannot do is *carry* one, their largest file being 60 blocks — a distinction worth keeping, because it is what makes the tree tests self-consistency checks rather than format evidence. (3) **The one piece of real-format evidence available is the sapling arithmetic**: `/APPLESOFT`'s `WHATSIT.A.Q` is 29,798 bytes in 60 blocks, written in 1985, and a file of that length written here must occupy 60 too. `Volume_Write_ASaplingSizedFile_MatchesTheShapeRealProDosGaveOne` is that check, and it is the only test in the pair that can fail because Apple disagreed with us. (4) **`PlaceFile` validates the block list against the shape before consuming it**, deriving the expected count itself rather than from `OverheadBlocksFor` — mutation testing showed that a wrong overhead count otherwise walks off the end of the list rather than failing
+- [x] T026 [US2] Implement `ProDosVolume::Delete` with volume-bitmap free-space return in `CassoEmuCore/Devices/Disk/ProDosVolume.cpp`, under the same unique-ownership rule as T024. **Four decisions.** (1) **The three-argument `DeleteOutcome` overload matches T024's shape** rather than widening `IVolume`; lifting the pair onto the interface stays T032's call. (2) **The tombstone is ProDOS's own** — the storage-type nibble goes to zero and the name length and name stay, so an undelete tool still finds the file. That forced a correctness fix in the readers: `CollectEntries` and `ProDosReader::ExtractFile` treated only a wholly-zero type/name byte as an unused slot, so a deleted entry would have kept listing and kept resolving by name after its blocks were handed to somebody else. Both now test the nibble. (3) **Removal is gated on destroy-enable (`$80`), not write-enable (`$02`)** — the access byte can express one without the other and ProDOS gates the two operations separately, so `Write` and `Delete` consult different bits. (4) **A subdirectory is refused** with `ERROR_DIRECTORY_NOT_SUPPORTED`, ahead of the lock check: this layer does not traverse into one, so the report credits it with its key block alone and deleting it would free that single block while silently orphaning everything beneath
 - [ ] T027 [US2] Implement replace in both volumes (FR-012): compute the complete post-replacement buffer as a **whole** — never a delete applied to the target followed by a write, which would free the old file and lose it outright if the write then failed. Test that a write failing after the delete step leaves the original file intact
 - [ ] T028 [US2] Wire the pre-commit self-check (FR-039): every `Write` and `Delete` runs `BuildIntegrityReport` over its **computed result** and refuses to return a result that fails it — sector claimed twice, free map disagreeing with the catalog, chain broken by the edit. Feed the path a deliberately corrupted result and confirm refusal (SC-009). **Do not gate on `IsClean()`** — see the divergences block above: it is false on every healthy DOS 3.3 volume and false again after a correct delete that leaks, so it would refuse correct results. Compare the result against the input on the specific sets instead
 
