@@ -256,6 +256,7 @@ HRESULT Win32DiskFileIo::WritePayloadToStandardOutput (const std::vector<Byte> &
 {
     HRESULT  hr       = S_OK;
     int      previous = -1;
+    int      restored = -1;
     size_t   written  = 0;
     size_t   wanted   = bytes.size();
 
@@ -271,12 +272,18 @@ HRESULT Win32DiskFileIo::WritePayloadToStandardOutput (const std::vector<Byte> &
     written = fwrite (bytes.data(), 1, wanted, stdout);
     fflush (stdout);
 
-    // Restore whatever the stream had, so anything printed afterwards -- a
-    // diagnostic, a trailing newline -- is translated the way text should be.
-    IGNORE_RETURN_VALUE (previous, -1);
-    _setmode (_fileno (stdout), _O_TEXT);
+    // Restore the mode the stream actually had, so anything printed afterwards
+    // -- a diagnostic, a trailing newline -- is translated the way text should
+    // be. Putting back a hardcoded _O_TEXT would IMPOSE text mode rather than
+    // restore, which is only indistinguishable while every caller happens to
+    // start in text mode.
+    restored = _setmode (_fileno (stdout), previous);
 
+    // The payload result is the one the caller asked about, so it is checked
+    // first; a stream left in the wrong mode matters, but not more than bytes
+    // that did not arrive.
     CBR (written == wanted);
+    CBR (restored != -1);
 
 Error:
     return hr;

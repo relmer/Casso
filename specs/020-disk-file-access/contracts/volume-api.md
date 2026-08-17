@@ -192,9 +192,19 @@ Positive proof only. Never a protection-scheme heuristic.
 | Path not found | `HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND)` |
 | Volume full | `HRESULT_FROM_WIN32 (ERROR_DISK_FULL)`, naming the shortfall |
 | File locked | `HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED)` |
-| Illegal name for the filesystem | `E_INVALIDARG`, naming why |
-| Track not writable | `E_INVALIDARG`, naming the track and the reason |
+| Illegal name for the filesystem | `HRESULT_FROM_WIN32 (ERROR_INVALID_NAME)`, naming why |
+| Track not writable | `HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED)`, naming the track and the reason |
+| Name already present, on a path that does not replace | `HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS)` |
 | Computed result failed its own integrity check | `E_UNEXPECTED` — this is a bug in the writer, not user error, and asserts accordingly |
+
+**Not `E_INVALIDARG`, and the first two rows above used to say otherwise.**
+`E_INVALIDARG` marks a *coding* error in this codebase and asserts on the spot;
+an illegal name is something a user typed and an unwritable track is a property
+of the disk they handed us. Neither is a bug, so neither may assert — end-user
+input earns a verdict, never an assertion. Only the last row is a defect in our
+own code, which is why it alone keeps an asserting code. Corrected after the
+DOS 3.3 writer followed the rule rather than the table; the ProDOS side should
+match it.
 
 ## Testability
 
