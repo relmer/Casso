@@ -553,21 +553,36 @@ master-anchored oracle, which is why both exist. **And the master-made-unreachab
 mutation again proves the fail-rather-than-skip rule**, leaving eight cases red
 across this phase and the two before it.
 
-And again on T047/T048, where **eighteen mutations were run: sixteen were caught
-first try, one was caught only after the assertion it exposed was replaced, and
-one was not caught and is recorded rather than solved.**
+And again on T047/T048, where **eighteen mutations were run: seventeen were
+caught and one was not, and the interesting result is a mutation that WAS caught
+by the suite while the assertion built for it stayed silent.**
 
-Fourteen went through `RunMutation.ps1` against the help-text tests, and the
-**one that was not caught is the shape this file keeps rediscovering, for the
-fourth time**: renaming the `rm` alias to `del` in `s_kDiskVerbs` left every
-assertion green, because the sweep asked whether the help *contains* each verb
-name and `delete` contains `del`. A verb the grammar accepts and the help never
-mentions was invisible to the sweep built to find exactly that. The fix is
-`ContainsAsWholeToken` — the match has to be delimited, with dashes counted as
+Fourteen went through `RunMutation.ps1`. Thirteen were caught first try by the
+filtered run over the new gate. **The fourteenth is a warning about reading a
+filtered verdict**, and it is the shape this file keeps rediscovering for the
+fourth time. Renaming the `rm` alias to `del` in `s_kDiskVerbs` left all nine
+help-text tests green, because the sweep asked whether the help *contains* each
+verb name and `delete` contains `del` — so the one assertion whose entire
+purpose is "a verb the grammar accepts that the help never mentions" could not
+see it. Run unfiltered it is CAUGHT, by `Disk_TerseAliasesResolveToTheDescriptive
+Verbs`, which has covered the alias since T032; the filtered run is what made
+the gap visible at all. **A verdict of CAUGHT over the whole suite says the tree
+noticed, not that the test you just wrote noticed.** The fix is
+`ContainsAsWholeToken` — the match must be delimited, with dashes counted as
 part of a token so `-o` cannot be answered by the `-o` inside `--out` — and the
-same mutation is caught after it. **Ask of a `find` assertion what else could
-satisfy it**; the answer has now been "a longer word that contains it" four
-times on this branch.
+same mutation now fails the sweep as well as the alias test. **Ask of a `find`
+assertion what else could satisfy it**; the answer has now been "a longer word
+that contains it" four times on this branch.
+
+**A second harness note, and it cost two runs.** The Dormann 65C02 case
+downloads its source from `raw.githubusercontent.com` on every run, and GitHub
+was returning 503s and a `429 Too Many Requests` body during this phase.
+`DownloadFile` treats the error page as a successful download, so the assembler
+is handed HTML and the case fails with `Invalid mnemonic: TOO` and a Terms of
+Service URL among its diagnostics. It is a genuine instance of this file's own
+rule — a degraded state reading as a healthy one — and it is not this feature's
+code. Treat a Dormann failure whose errors quote a web page as an outage, and
+re-run.
 
 The other four ran the T047 script gate against a Release build. Three were
 caught: `boot` no longer complaining about a greeting DOS cannot RUN, `--raw`
