@@ -519,12 +519,21 @@ name. Side A of the same title reports 307 undecodable sectors and exits 1,
 which is correct. Six other protected `.woz` titles are refused outright.
 
 A name-plausibility check was written for this and **reverted**, because it
-rejected 20 of the 63 entries on a disk Merlin shipped. Those heading rows are
-drawn in INVERSE VIDEO, whose character codes are below $20 — indistinguishable
-by byte value from the arbitrary bytes on the protected disk. So name bytes
-cannot separate the two cases, and tightening on them would reject real vendor
-material to catch a disk that is out of scope anyway. Recorded here so the same
-idea is not tried again without new evidence.
+rejected 20 of the 63 entries on a disk Merlin shipped.
+
+The reason is worth stating exactly, because the first guess at it was wrong.
+Those heading rows are not inverse video. Their names are literally
+`C1 88 88 88 88 88 88 88 88` followed by the heading text — a high-ASCII `A`,
+then eight **backspace** characters. DOS prints ` *T 000 ` and then the thirty
+name bytes straight to the screen, so the backspaces walk the cursor back over
+the sector count, the type letter and the lock flag, and the heading lands at
+column zero. Eight of the thirty bytes are therefore below `$20` once the high
+bit is stripped, which is byte-for-byte indistinguishable from arbitrary data.
+
+So name bytes cannot separate the two cases, and tightening on them rejects real
+vendor material to catch a disk that is out of scope anyway. Recorded here, and
+in `UnitTest/Fixtures/Disks/README.md` on `master` where 021 and 022 will look,
+so the same idea is not tried again without new evidence.
 
 ---
 

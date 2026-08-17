@@ -57,6 +57,52 @@ moment to introduce a collision whose only symptom is a confusing help page.
 `--verbatim` also says what it actually does: the other two selectors transform
 the bytes, and this one does not.
 
+## Options nest rather than flatten
+
+`disk` is the first subcommand to break `CommandLineOptions`' stated rationale
+for a flat struct, and the resolution was to nest — `options.disk.verb`,
+`options.disk.imagePath`, and so on, inside a `DiskOptions` member.
+
+The flat shape was chosen when every option belonged to the assembler and the
+question of which subcommand owned a field did not arise. `disk` brings eleven
+fields that mean nothing to `as65` or `run`, three of which (`path`, `hostFile`,
+`loadAddress`) would need disambiguating prefixes at the top level to avoid
+reading as assembler options. Nesting says which subcommand owns a field by
+where it sits, rather than by a naming convention a later field can forget to
+follow. The comment on the flat section was amended rather than deleted, so the
+original rationale and the reason it stopped holding are both readable.
+
+## Encoding is applied to the payload, not to the destination
+
+`get --text` must deliver the same bytes whether they are piped or written to
+`--out`. The conversion therefore happens once, on the payload, before the
+destination is chosen — not at each write site.
+
+**An encoding this build cannot perform is refused, never ignored.** A flag that
+is parsed and then silently dropped is worse than one that does not exist: the
+caller reads "converted to a listing" in the help, receives tokenized bytes, and
+has nothing in the output distinguishing that from a file needing no conversion.
+`--basic` therefore exits `2` with a message naming the flag until the Applesoft
+tokenizer lands.
+
+On the read path the high-bit convention is inert — once bit 7 is ignored, high
+ASCII and plain ASCII differ in nothing — so the choice becomes load-bearing
+only when writing. See research R-011: the `TXT` type does not imply a
+convention, the producer does.
+
+## Listing shape
+
+- **Zero-sector catalog entries are rendered, not filtered.** Real disks use
+  them to draw section headings — twenty of the sixty-three on Merlin Pro's own
+  disk. DOS renders them and so does the vendor's printed catalog; hiding them
+  makes this listing disagree with the machine's, and the disagreement reads as
+  an enumeration bug. Anyone wanting them gone is asking for a filter, which is
+  a different request.
+- **A damage message must say the LISTING is incomplete**, not merely that the
+  disk is damaged. The exit status carries the distinction for a script; the
+  wording has to carry it for whoever reads the log hours later. "The disk was
+  damaged" does not tell them they are holding less than they asked for.
+
 ## Exit statuses
 
 `0`, `1`, and `2` are **reserved and universal** across every subcommand of this

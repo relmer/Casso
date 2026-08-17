@@ -197,6 +197,29 @@ saves `CassoCli` from linking `CassoEmuCore` — `CassoCli.vcxproj` already
 references both projects, so that reasoning is simply false and must not be
 repeated as though it were a constraint.
 
+**Adjustments made during implementation**, recorded because each was a decision
+rather than a detail:
+
+- **`FilePath` is its own header/pair**, not a type inside `VolumeTypes.h`. The
+  style rule is one type per pair, and it has behavior (parsing, rejoining) that
+  the other three plain aggregates do not.
+- **`ChainWalkGuard` and `VolumeImage` were added** and are not in the tree
+  above. The guard is the bounded-traversal mechanism both readers share, split
+  out so the termination guarantee has one implementation; `VolumeImage` is
+  where sector order and filesystem detection are settled once, so no caller has
+  to remember which container it holds.
+- **`CassoCli` gained its own `Pch.h`.** The platform edge needs `<windows.h>`,
+  `<io.h>` and `<filesystem>`; putting those into `CassoCore`'s Pch would drag
+  the platform into the assembler, which is deliberately free of it. The new
+  header adds them and then includes `CassoCore/Pch.h` whole, so a translation
+  unit here sees exactly what one in `CassoCore` sees, plus the platform. This
+  also forced `std::` qualification on the disk headers, since they are now
+  consumed by a project without `using namespace std`.
+- **`ProDosSkeleton` gained a public `IsBlockInRange`** and validation on every
+  block pointer it follows. This was a live out-of-bounds vector read reachable
+  through `InstallBoot`, not hardening: proved by stubbing the check to `true`,
+  which aborts the test host.
+
 ## Phasing
 
 Ordered by dependency, not by story number. Each phase is a commit.

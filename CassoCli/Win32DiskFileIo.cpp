@@ -229,12 +229,22 @@ bool Win32DiskFileIo::IsHeldByAnotherProcess (const std::string & path)
 //  618. Those are the only two possible lengths, which is what makes the check
 //  diagnostic; anything else means something other than the mode is wrong.
 //
-//  NO AUTOMATED TEST COVERS THIS. The translation happens in the runtime below
-//  the seam, so the in-memory substitute the unit tests use does not perform it
-//  and a test written against it would pass whether or not this call is here.
-//  It cannot be verified at a higher level either: unit tests may not inspect
-//  console handles or alter process state, and no test may run this binary. The
-//  check is the manual procedure in specs/020-disk-file-access/quickstart.md.
+//  NO AUTOMATED TEST COVERS THIS, AND NONE CAN. The translation happens in the
+//  runtime below the seam, so the in-memory substitute the unit tests use does
+//  not perform it and a test written against it would pass whether or not this
+//  call is here.
+//
+//  The narrower assertion -- "the handle is in binary mode before the write" --
+//  is not available either, which is worth saying because it looks like the way
+//  out. Querying or changing that mode inspects a console handle and mutates
+//  real process state, both of which the test rules forbid outright. It would be
+//  a bad trade regardless: this test framework runs everything in one process,
+//  so a test flipping the mode would mutate state every other test shares.
+//
+//  The check is therefore the manual procedure in
+//  specs/020-disk-file-access/quickstart.md, which also names the shell -- a
+//  Windows PowerShell 5.1 redirect re-encodes the bytes and reports 1174,
+//  which would read as a defect here rather than in the shell.
 //
 //  The mode is set here rather than once at startup because diagnostics and
 //  listings are TEXT and want the translation -- switching globally would strip

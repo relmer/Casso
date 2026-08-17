@@ -1,5 +1,69 @@
 # Tasks: Disk File Access for the Build Loop
 
+## State of play
+
+Written for whoever picks this up next, including a later session of me after a
+context loss. Current as of the last commit on `020-disk-file-access`.
+
+**Done and on the branch.** Phase 2 (foundational, T002–T013) and Phase 3
+(US3 — read, T014–T022). That is the whole P1 extraction story: both filesystem
+readers, the decode report, the integrity pass, the `disk` subcommand, and the
+CLI edge. Suite is 3088 Debug / 3085 Release green — the 3-test delta is the
+pre-existing GH #113, not this work.
+
+**Next, and it is the hard half.** Phase 4 (US2 — write, T023–T035) is 13
+unstarted tasks and the first work here where a bug **destroys data** rather
+than failing loudly. Everything up to now has been reads: wrong output was the
+worst case. From T023 on, the worst case is a user's disk image.
+
+Three things earned during Phase 3 that Phase 4 depends on, so do not treat them
+as background:
+
+- `SectorDecodeReport` is what makes writing safe at all. `Denibblize` used to
+  zero-fill undecodable sectors and return `S_OK` (GH #115); the three-argument
+  form now **fails** on data loss, and `TrackWritability` refuses any track that
+  is not provably standard. A write path that reaches around either reintroduces
+  the defect it was built to prevent.
+- `VolumeIntegrityReport` carries both slices — claims by owner and claimants by
+  unit. T024/T027 (delete with free-space return) need the second, which is why
+  it exists; do not simplify it back to a count.
+- FR-012 is non-negotiable and unimplemented: **every write is all-or-nothing.**
+  `CommitPlan` (T030) is where that lives. A failed operation must leave the
+  image byte-for-byte unchanged.
+
+**Order within Phase 4.** T023 → T024 and T025 → T026 are independent chains
+(DOS 3.3 and ProDOS), joining at T028. Delete ships with write on both because
+replace depends on it.
+
+**Blocked on nobody.** Spec 019 runs concurrently; the only shared surface is
+the command-line files and two `.vcxproj`s. See `docs/coordination.md` for the
+keep-both rule and the T049 sequencing — 019 holds its fallback removal until
+this branch's command-line work reaches `master`.
+
+**Known divergences from the task text, so they do not read as gaps:**
+
+- **T001 was not done as written and stays unchecked.** It called for
+  EHM-conformant stubs for every file up front; files were instead created and
+  wired as each task reached them, which meant the build never carried a stub
+  that did nothing. Its `.vcxproj.filters` clause was moot — this repository has
+  no `.filters` files.
+- T009 split `FilePath` into its own header/pair rather than folding it into
+  `VolumeTypes.h`, per the one-type-per-pair style rule.
+- `--text` and `--basic` are wired on the **get** path only (T022). The `put`
+  side is T032.
+- `--basic` currently refuses: there is no Applesoft tokenizer until Phase 7.
+
+**Do not retry, with reasons recorded next to the thing they concern:**
+
+- Validating catalog names as printable text — `research.md` R-012 and
+  `UnitTest/Fixtures/Disks/README.md`. It rejects 20 of the 63 entries on a disk
+  Merlin shipped.
+- Automating the binary-output check at any level — `quickstart.md` and the
+  comment at `CassoCli/Win32DiskFileIo.cpp`. Neither the byte assertion nor the
+  narrower "handle is in binary mode" assertion is reachable.
+
+---
+
 **Input**: Design documents from `/specs/020-disk-file-access/`
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md

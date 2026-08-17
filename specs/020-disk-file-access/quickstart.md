@@ -162,33 +162,50 @@ chain, and it runs by design on volumes chosen for being damaged.
 
 ## Binary-output check (manual) — the one no test can reach
 
-**Why it is manual.** This platform opens standard output in text mode, so the
-runtime rewrites every `$0A` byte as `$0D $0A` on the way out. That translation
-happens in the runtime *below* the file seam, so the in-memory substitute the
-unit tests use does not perform it — those tests pass whether or not the edge
-sets binary mode, and a green run there is evidence of nothing. Nor can it be
-automated at a higher level: unit tests may not touch real system state, and
-**no test may run the console binary**.
+**Why it is manual, at every level.** This platform opens standard output in
+text mode, so the runtime rewrites every `$0A` byte as `$0D $0A` on the way out.
+That translation happens in the runtime *below* the file seam, so the in-memory
+substitute the unit tests use does not perform it — those tests pass whether or
+not the edge sets binary mode, and a green run there is evidence of nothing.
 
-So the assertion lives here, and the fixture that exposes it is chosen rather
-than constructed:
+The narrower assertion — "the edge put its handle in binary mode" — is **also**
+unavailable, and that is worth stating because it looks like a way out.
+`.github/copilot-instructions.md:426` forbids inspection of real processes,
+environment variables or console handles, and querying or changing standard
+output's translation mode is both an inspection of a console handle and a
+mutation of real process state. It would be a bad trade even if permitted:
+CppUnitTest runs every test in one process, so a test flipping the mode would be
+mutating state the harness and every other test share.
+
+So there is no automated home for this check at any level, and the assertion
+lives here. The fixture that exposes it is chosen rather than constructed:
 
 ```powershell
 # MAKE DUMP's payload is 589 bytes containing 29 line-feed bytes and NO
 # pre-existing CR/LF pair, so any corruption is purely additive.
-CassoCli.exe disk get <merlin.dsk> "MAKE DUMP" > out.bin
+CassoCli.exe disk get <merlin.dsk> "MAKE DUMP" 2>$null > out.bin
 (Get-Item out.bin).Length      # MUST be 589
 ```
+
+**Run it in PowerShell 7 or `cmd`, not Windows PowerShell 5.1.** Both were
+measured. PowerShell 7 and `cmd` pass a native command's output through to a
+file as bytes and report 589. Windows PowerShell 5.1 decodes and re-encodes it
+as text and reports **1174** — which is neither of the two legitimate answers,
+so it would read as a defect in the code rather than in the shell. Redirect
+stderr to `$null` as shown, or the load-address line lands in the file too.
 
 | Result | Meaning |
 |---|---|
 | **589** | Correct. The edge put its handle in binary mode. |
 | **618** | 589 + 29. Standard output was left in text mode; every line feed was expanded. |
-| anything else | Something other than text mode is wrong — the arithmetic only produces these two. |
+| **1174** | You are in Windows PowerShell 5.1. Re-run under `pwsh` or `cmd`. |
+| anything else | Something other than text mode is wrong — the arithmetic only produces the first two. |
 
 Compare the bytes against `UnitTest/Fixtures/Merlin/MAKE DUMP` from offset 4;
 they must be identical. A length check alone passes under any corruption that
 happens to preserve size.
+
+**Last run**: 589 bytes, `cmd` and PowerShell 7, byte-identical to the oracle.
 
 ## Interrupted-write check (manual)
 
