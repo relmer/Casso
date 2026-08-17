@@ -97,9 +97,21 @@ $fixtures = @(
 #  first $00 rather than at a declared length. That difference is the reason
 #  they are listed separately rather than folded in above.
 #
+#  T.MACRO LIBRARY is the distribution's general-purpose macro library and is
+#  here for a different reason from the other two: nothing on the disk includes
+#  it, so its oracle is GENERATED rather than shipped. A source authored in this
+#  project puts it and invokes its macros, that source is assembled under real
+#  Merlin Pro, and the object it produced is the expectation -- an ordinary
+#  source/object pair whose object simply did not exist in 1984.
+#
+#  It is the only evidence anywhere that the first-character conditional and
+#  definition fall-through are ORDINARY Merlin rather than exotic; between them
+#  those two constructs appear throughout it.
+#
 $textFixtures = @(
-    @{ Name = 'T.PI.MACS';  Role = 'Include target of `USE PI.MACS`' },
-    @{ Name = 'T.SENDMSG';  Role = 'Include target of `PUT SENDMSG`' }
+    @{ Name = 'T.PI.MACS';        Role = 'Include target of `USE PI.MACS`' },
+    @{ Name = 'T.SENDMSG';        Role = 'Include target of `PUT SENDMSG`' },
+    @{ Name = 'T.MACRO LIBRARY';  Role = 'The vendor macro library -- oracle half of a generated pair' }
 )
 
 function Get-SectorOffset([int]$Track, [int]$Sector) {
