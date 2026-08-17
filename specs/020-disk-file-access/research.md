@@ -333,11 +333,64 @@ temporary does **not** get cleaned up, and that is two separate facts:
 So read the decision above as satisfied for uniqueness and for crash safety, and
 **not satisfied for littering after a hard abort**. The "real if minor
 violation" this section names is still open, deliberately rather than by
-oversight: the fix is a sweep of stale siblings at commit time, which is a
-behavior change to the shipping commit path and needs a rule for telling an
-orphan from another live invocation's temporary — the very case the invocation
-tag exists to keep apart. That is its own piece of work with its own tests, and
-whoever picks it up should start here rather than rediscovering the measurement.
+oversight.
+
+### Re-examined, and still not fixed — with the obvious fix ruled out
+
+The obvious candidate is to make the temporary's name **deterministic** — derive
+it from the target alone — so that a later `put` on the same target lands on the
+orphan's name and can reclaim it. **That candidate is rejected, and not on
+grounds of effort: it is the very thing T030 diverged from its own task text to
+avoid.** A deterministic name puts two concurrent invocations against one image
+back on the same name; both check whether it is free, both are told yes in the
+same instant, and the loser's bytes are then committed under the winner's name
+as though they were the winner's. **The existence check is a
+time-of-check/time-of-use race and cannot be made into anything else by
+checking harder.** What that trades away is not comparable to what it buys: the
+current defect leaves a file a person has to delete, and the proposed cure
+silently writes the wrong image over a user's disk. The invocation tag stays.
+
+Nor is the coordination weaker than it looks. Two invocations on *different*
+targets never collide under any scheme here, because the name is derived from
+the whole target path; the only contested case is two invocations on the *same*
+target, which is exactly the case the tag exists for.
+
+**What a real fix needs.** Two shapes are available and neither is small.
+
+- **A sweep of stale siblings at commit time.** Needs (a) directory enumeration
+  added to `IDiskFileIo`, which today has no such method; (b) a Win32
+  implementation of it in `CassoCli`, which the test assembly does not link, so
+  the new platform code arrives uncovered; (c) a rule for telling an orphan from
+  a *live* concurrent invocation's temporary — deleting the latter mid-write is
+  the corruption the whole plan exists to prevent. The tag's high half is a
+  process id, so process liveness is the natural rule, and its failure direction
+  is at least the safe one: a recycled id reads as *live* and the sweep simply
+  declines, where the dangerous verdict — a live owner read as dead — cannot
+  arise. R-008 rejects process ids for *locks* on the recycling argument; that
+  argument does not carry over unchanged here, and anyone reusing it should say
+  which direction they mean. (d) It also contradicts a shipped test:
+  `Commit_WhenTheFirstTemporaryNameIsTaken_StepsOverItRatherThanOverwritingIt`
+  pins that a file parked at the chosen name survives byte for byte, for the
+  same reason the sweep is hard.
+
+- **A temporary the kernel owns**, which needs no orphan-versus-live rule at
+  all: create it with `FILE_FLAG_DELETE_ON_CLOSE`, keep the handle, and commit by
+  renaming through that handle rather than by path, clearing the delete
+  disposition first. A hard kill closes the handle and the file goes with it —
+  the guarantee is made by the operating system rather than by a later run
+  guessing. The cost is a shape change to `IDiskFileIo`: the seam currently
+  exposes `WriteAllBytes` and `ReplaceAtomically` as two independent calls over
+  paths, and a retained handle has to live between them, which every substitute
+  then has to model. And the whole of it lands in `Win32DiskFileIo` — inside
+  `CassoCli`, which `UnitTest` does not link — so **no test in the suite can
+  fail without it**; only the manual armed-abort procedure in `quickstart.md`
+  §US2 can demonstrate it, which is the same evidence standard the measurement
+  above was taken under. Written up from the documentation rather than tried
+  here.
+
+Either way it is its own piece of work with its own tests, and whoever picks it
+up should start here rather than rediscovering the measurement — or the reason
+the easy version of it is a worse bug than the one it fixes.
 
 ---
 

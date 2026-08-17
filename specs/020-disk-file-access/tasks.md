@@ -653,6 +653,52 @@ can see it: T033, T039, T042 and T046 boot a real 6502 over images this same
 runner produced. The script says so in its own header rather than leaving the
 limit to be discovered.
 
+And once more afterwards, on the three boot gates that never got the bound this
+file has now recorded three separate times — `BootDiskTests`,
+`CatalogReproductionTest` and `GameBootTests`. **One mutation, and the finding is
+that the check has to be a comparison against something the decoder does not
+own.** Stepping the nibblizer's sector placement one position — `interleave
+[logical]` becomes `interleave[(logical + 1) % kSectorsPerTrack]` in
+`NibblizeWithMap` — leaves every address field valid and every sector decodable,
+so nothing about "can the drive read this?" notices. It is the exact shape T029
+and T040 measured at over a gigabyte of trace apiece: the controller ROM reads
+track 0's first sector, believes it, and jumps into another sector's data. The
+bound that catches it is `GuestSession::AssertTheDrivePresentsWhatWasMounted` —
+the drive must hand back the bytes it was given — and the mutation is now
+**CAUGHT in 7.2 seconds across the twenty-eight gates in those four classes,
+with a 17 KB log and no trace at all**. The three retrofitted cases fail in 67,
+65 and 110 milliseconds, all of them before a processor is started. The "before"
+figure was deliberately not reproduced: the demo gate alone spends 10M cycles,
+which at two cycles per illegal opcode and a 257-line look-back apiece is tens
+of gigabytes, and this file already records what that costs.
+
+**And the weaker sibling exists because a measurement said it had to.** The
+first draft asked all three for their boot sector, and Choplifter, Karateka and
+Lode Runner all went red — every one of which the controller ROM boots
+perfectly. `Denibblize` recovers **zero** sectors from track 0 of all three: it
+abandons a track at the first sector whose data field it cannot locate, having
+spent the revolution looking, and a protection that rewrites data prologues puts
+one of those in its way inside the first revolution. So a protected disk is
+asked `AssertTheDriveHoldsWrittenTracks` instead — as many written tracks as the
+case is about to require the head to visit, and address fields on track 0 — which
+is the strongest question this decoder and that medium agree on. **A gate whose
+oracle is our own reader cannot be applied to media our own reader is not
+faithful to**, and this is the second time on this branch that reading a WOZ
+through the sector layer has produced a confident wrong answer (see R-013).
+
+**R-007's open half was re-examined and is still open, with the obvious fix now
+ruled out rather than merely undone.** Deriving the temporary's name
+deterministically from the target — so a later `put` finds and reclaims the
+orphan — is exactly what T030 diverged from its own task text to avoid, and the
+trade is not close: the current defect leaves a file a person deletes, and the
+proposed cure lets two concurrent invocations on one image commit each other's
+bytes. Written up in `research.md` R-007 along with what a real fix needs, in
+both of the shapes available — a sweep of stale siblings, which needs directory
+enumeration on `IDiskFileIo`, a Win32 implementation the test assembly cannot
+reach, an orphan-versus-live rule, and reconciliation with a shipped test that
+pins the opposite; or a kernel-owned temporary, which needs none of that and a
+seam that carries a handle instead. Neither is small; neither is forced.
+
 **Phase 8 is done, and the suite is 3306 Debug / 3303 Release.**
 T047–T051 shipped together: `scripts/RunBuildLoopGate.ps1`,
 `DiskCommandRunner::BuildHelpText`, `UnitTest/EmuTests/DiskHelpTextTests.cpp`,
