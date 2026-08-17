@@ -9,6 +9,43 @@ description: "Task list for 019-assembler-dialects"
 *Updated 2026-08-17. Keep this current or delete it — a stale status block is
 read by whoever has no other way to check.*
 
+**PHASE 3 IS CLOSED APART FROM THE INTERACTIVE CAPTURES, AND PHASE 6'S
+DOCUMENTATION IS WRITTEN.** T081, T033a, T071, T072 and T073 all landed. The
+interactive-capture entries (T021–T025f, T043, T044, T045, T045b) and the
+pre-merge gates (T074–T077a) are the only open work left in the feature.
+
+Suite is **3352** Debug / **3349** Release, both green (from 3336 / 3333);
+Dormann and Harte both pass. **Thirteen mutations over this slice, thirteen
+caught** — one of them only after a test was added, because the property it
+broke was not observable until then.
+
+**`VAR` IS IMPLEMENTED AND THE UNEXPLAINED-REJECTION COUNT IS NOW ZERO (T081).**
+The pinned assertion did its job: the fix made it fail at 9-expected-0-actual,
+and it was driven to zero by fixing the cause rather than by relaxing the
+number. The corpus-wide figure is now stated as an exact **0**, so a defect
+appearing in a file whose own row nobody revisited still fails there. The
+parameters bind under names the PROFILE supplies, because a reference is
+rewritten while the line is parsed and the directive must produce the identical
+name; the engine never learns what that name looks like. See T081's own line.
+
+**T033a NEEDED NO RESOLUTION TABLE, AND THAT IS THE FINDING.** No Merlin
+spelling collides with an instruction mnemonic — measured, not assumed, by
+asking every dialect in the registry about every mnemonic in both instruction
+tables. Disjointness IS the property the spec's edge case asks for: with the two
+tables sharing no spelling, either lookup order gives the same answer.
+`MerlinDirectiveTable::FromAmbiguousSpelling` was deliberately NOT added, since
+an always-None lookup is dead machinery standing in for a guarantee. See T033a's
+own line, including the one case the sweep structurally cannot see.
+
+**A DEFECT WAS FOUND WHILE WRITING T073 AND IS NOT FIXED.** The `merlin`
+subcommand has no `-d`, so a source containing `KBD` cannot be assembled from
+the command line — while the assembler's own diagnostic tells the user to pass
+exactly that flag, which the subcommand then rejects as unknown. Verified by
+running the executable, recorded in [docs/merlin-subset.md](../../docs/merlin-subset.md),
+and left alone because the flag table lives in `CassoCore/CommandLineParser.cpp`,
+which spec 020 holds unmerged work in. **It wants an owner before merge**: three
+of the five oracle programs are unreachable from the CLI without it.
+
 **PHASE 3'S EVIDENCE WORK IS CLOSED. T020b, T020c, T020d, T045c, T045e, T045f,
 T046, T046a, T046b and T047 all landed, plus two tasks that did not exist —
 T080, which was implemented, and T081, which was found and left open.** The
@@ -31,16 +68,17 @@ and is refused by as65 — the token has no as65 spelling and must never acquire
 one, so **this is not an as65-visible change and does not belong in T071's
 CHANGELOG.**
 
-**A SECOND UNOWNED GAP WAS FOUND, AND IS NOT FIXED (T081).** `VAR` — Merlin's
-way of binding `]1`..`]n` so an included fragment can be parameterized without a
-macro call — is absent from the directive table. `PI.ADD.S` writes
-`VAR MSGPNT;OUTPUT` immediately before `PUT SENDMSG`, so that line is rejected
-and the eight parameter references inside the included fragment have nothing to
-resolve to: **nine rejections of valid Merlin source with no boundary row behind
-them, which SC-003 defines as a defect.** Nothing had been looking, because the
-existing boundary tests filter to refusals and never counted the rest. It is
-pinned at exactly nine, per file and corpus-wide, so T081 landing fails that
-assertion and forces the count down deliberately.
+**A SECOND UNOWNED GAP WAS FOUND (T081).** *Fixed in the slice above; this
+paragraph records what it was.* `VAR` — Merlin's way of binding `]1`..`]n` so an
+included fragment can be parameterized without a macro call — was absent from the
+directive table. `PI.ADD.S` writes `VAR MSGPNT;OUTPUT` immediately before
+`PUT SENDMSG`, so that line was rejected and the eight parameter references
+inside the included fragment had nothing to resolve to: **nine rejections of
+valid Merlin source with no boundary row behind them, which SC-003 defines as a
+defect.** Nothing had been looking, because the existing boundary tests filter to
+refusals and never counted the rest. It was pinned at exactly nine, per file and
+corpus-wide, so T081 landing failed that assertion and forced the count down
+deliberately.
 
 **THE MACRO LIBRARIES ARE NOT STANDALONE SOURCES, and that was measured rather
 than assumed.** `T.SENDMSG` is a macro BODY: its first line is an instruction and
@@ -121,9 +159,10 @@ change bought for tidiness.
 NAME.** T036, T037, T039, T040, T041 and T042 all landed; see each task's own
 line for what diverged. *(This paragraph previously named `WordHighFirst`
 (`DDB`) as the one exception, silently ignored and owned by no task. It is now
-implemented as T080 — see the block at the top. The gap that remains is not a
-null row but a MISSING one: `VAR` is absent from the directive table entirely,
-which is T081.)*
+implemented as T080 — see the block at the top. It then named a second gap that
+was not a null row but a MISSING one, `VAR` being absent from the directive
+table entirely; that is T081, and it is now implemented too. Every Merlin
+spelling has a row, and every row is either carried out or refused by name.)*
 
 Suite is **3286** Debug / **3283** Release, both green (from 3246 / 3243);
 Dormann and Harte both pass; all six vendor oracle objects still reproduce byte
@@ -650,8 +689,10 @@ is dropped without a word. `StringData`, `ErrorIf`, `HexData`, `Loop`/`LoopEnd`,
 `DummySection`/`DummySectionEnd`, `CpuSelect`, `ObjectFile` and now
 `WordHighFirst` are all filled, and `MacroDef`/`MacroEnd` act through the
 collection state rather than through their rows. *(`WordHighFirst` was the last
-one and is T080; the incompleteness that remains is a directive with no table
-row at all, which is T081.)* **`KeyboardInput`'s rows are null for
+one and is T080; the incompleteness that followed it was a directive with no
+table row at all, which is T081 and is now implemented — `ParameterBinding` has
+both rows, and its pass-2 one acts rather than emits, as the assembly-time
+assertion's already does.)* **`KeyboardInput`'s rows are null for
 the third reason**, the one `Org` already used: it acts entirely in the pass-1
 prelude, before a label can bind, so a row would never be reached. **The five
 refused-by-name tokens are null for a FOURTH reason**: the boundary claims those
@@ -852,7 +893,11 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
   *(The exhaustiveness check is real and fired exactly once, as this task predicted — but it is a `static_assert` on a handler ROW TABLE in `AssemblySession.cpp`, not a switch: "s_kRows must have one row per Directive". All 17 new tokens got rows in the same edit. Their handlers are null, meaning **not implemented yet** rather than "does nothing"; they are unreachable while as65 is the only selectable dialect, and T034-T042 fill them. Emitting nothing for a `HEX` line would be precisely the silent wrong-bytes failure this feature exists to avoid.)*
 
   *(`Directive` stopped being total over as65's spelling table here, which broke `EveryToken_HasACanonicalSpelling` correctly. Merlin tokens must NOT gain an as65 spelling — FR-005 forbids admitting one dialect's constructs into another — so the test's claim was narrowed to as65's own tokens, keeping the RMB regression it was written for. The totality that survives is checked in `DialectMechanismTests`: every token is claimed by **at least one** dialect. A token claimed by none is unreachable, which is the bug the original sweep actually defended against.)*
-- [ ] T033a [US1] Resolve directive spellings that collide with an instruction mnemonic by the active dialect's rule in `CassoCore/MerlinDialect.cpp`, using the `DirectiveTable::FromAmbiguousSpelling` precedent so resolution never depends on which table is consulted first (spec Edge Cases)
+- [x] T033a [US1] Resolve directive spellings that collide with an instruction mnemonic by the active dialect's rule in `CassoCore/MerlinDialect.cpp`, using the `DirectiveTable::FromAmbiguousSpelling` precedent so resolution never depends on which table is consulted first (spec Edge Cases) *(**Done, and it did NOT need a resolution table, which is the finding.** Not one Merlin spelling collides with an instruction mnemonic -- measured rather than assumed, by asking every dialect in the registry about every mnemonic in BOTH instruction tables, `OpcodeTable::GetAllMnemonics` being added so the sweep asks about all of them rather than about the ones somebody listed. Disjointness IS the required property: when the two tables share no spelling, consulting either first gives the same answer, which is exactly what "resolution must not depend on which table is consulted first" asks for. The rule is stated at the resolution site in `MerlinDialect::ParseLine` and enforced by the sweep, so a spelling added later that would shadow an instruction fails before it can ship.*
+
+  *`MerlinDirectiveTable::FromAmbiguousSpelling` was deliberately NOT added. With no member it is a lookup that can only ever answer None, which no mutation can catch and no reader can trust -- dead machinery standing in for a guarantee. The precedent is followed in what it GUARANTEES rather than in its shape: a spelling that is genuinely both stays out of the main table and is resolved from the operand, and `DirectiveTable::FromAmbiguousSpelling` is where Merlin's first one goes when it arrives.*
+
+  *One thing the sweep CANNOT see, and it is worth recording because it looks like a hole: as65's `RMB` is ambiguous with a mnemonic the opcode table does not answer to. The table carries `RMB0`..`RMB7`, and the bit form is normalized into one of those from the operand -- so a bare `RMB` in the main table collides with nothing the sweep can ask about and silently turns every Rockwell RMB into storage. That is the case the ambiguous table exists for, and it is why both mechanisms are needed rather than one. Three mutations, three caught: a directive spelled like a base-set instruction, one spelled like an extended-set instruction, and the mnemonic enumeration returning nothing.*
 - [x] T034 [P] [US1] Create `CassoCore/StringEncoding.h` / `.cpp` implementing high-bit, inverse, flashing, and terminator handling per [contracts/merlin-directives.md](./contracts/merlin-directives.md), and register both in `CassoCore.vcxproj`
 - [x] T035 [US1] Wire the five Merlin string spellings to one `Directive` token carrying a `StringEncodingMode` in `CassoCore/MerlinDialect.cpp`, including delimiter-driven high-bit inference (FR-010)
   *(**First byte-identical result against vendor object code.** `LABELS.S`'s 105 DCI lines reproduce 983 of `LABELS`'s 984 bytes exactly, through the real parser and the real encoder. The 984th is the `$00` of `END BRK`, an instruction rather than string data — and `END` there is a LABEL in column 0, not the END directive, which the parser gets right only because directive lookup reads the mnemonic field.*
@@ -892,7 +937,15 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
 - [x] T042 [US1] Add diagnostics for unterminated dummy sections, loops, and macros at end of file in `CassoCore/AssemblySession.cpp`, naming the construct and its opening line as the existing unclosed-conditional diagnostic does (research.md CHK041) *(**The macro third was already done** and is only newly covered for Merlin's own spelling; the loop and section halves landed with T036 and T037 respectively, since each construct's carrier has to capture its own opening line at the moment it opens. **Each names the construct in the spelling the SOURCE wrote**, captured from `ParsedLine::directive` at the opening line — the engine has no reverse token-to-spelling lookup and adding one to a profile would widen the seam to serve one message, so the terminator is described in words (`no matching terminator`) exactly as the conditional's already says `no matching endif`. **All three are DEFERRED diagnostics and capture their own file and column**, per the rule on `m_currentSourceFile`: by the time they are reported the ambient answer belongs to whatever was processed last. That was initially untested for the two new ones and the mutation went uncaught; both now have an include-file test, and the four mutations over file and column are caught. **Two orphan-terminator diagnostics were added beyond the task**, for a loop terminator and a section terminator with nothing open — each was previously a null row, and a null row is dropped without a word.)*
 
 - [x] T080 [US1] Implement the reversed-order word directive in `CassoCore/AssemblySession.h`/`.cpp` — two bytes per value with the HIGH one first (FR-009). **Found, not planned.** The T036–T042 band was described as filling every remaining null handler row, but no task named `DDB`, and `Directive::WordHighFirst` sat with `{ nullptr, nullptr }` after all seven of them landed. A null pass-1 row drops the line without a word, so a Merlin source writing it was assembled to a program two bytes short at every following address, in silence — the exact failure shape this dialect's vocabulary exists to prevent, left in place by a band that read as complete. *(Pass 1 REUSES `HandlePass1Word`: both reserve two bytes per argument whatever order pass 2 writes them in, and a second sizing function is a copy that can drift from the one the neighboring row uses. Only the emitter differs. **There is NO oracle** — the directive appears in none of the nine committed vendor sources, so every test is the documented rule plus self-consistency and none of it may be quoted as corpus evidence. Every value in those tests is deliberately not a palindrome, since a palindrome satisfies both byte orders and proves only that two bytes came out. **Not visible to as65**: the token has no as65 spelling and must never acquire one, which `As65DoesNotAssembleDdb` pins. Three mutations, three caught: the row reverted to null, the bytes emitted low-first, and pass 1 reserving nothing.)*
-- [ ] T081 [US1] Implement the positional-parameter binding directive (`VAR`) in `CassoCore/MerlinDialect.cpp` and `CassoCore/AssemblySession.cpp`. **Found by T046b's sweep, not planned, and NOT implemented.** `PI.ADD.S` line 123 writes `VAR MSGPNT;OUTPUT` and line 124 writes `PUT SENDMSG`: the directive binds `]1`..`]n` so an included fragment can be parameterized without a macro call, which is how the vendor gives one body to several call sites. The spelling is absent from the Merlin directive table entirely, so the line is rejected and the eight `]1`/`]2` references inside `T.SENDMSG` have nothing to resolve to — nine rejections of valid Merlin source with no boundary row behind them, which SC-003 defines as a defect rather than a limitation. It is pinned at exactly nine, per file and corpus-wide, so this task landing fails that assertion and forces the count to zero deliberately. **No positive oracle**: `PI.ADD.S` ships no object of its own and is refused at the boundary regardless, so the evidence this can produce is that the rejections stop, not that the bytes are right
+- [x] T081 [US1] Implement the positional-parameter binding directive (`VAR`) in `CassoCore/MerlinDialect.cpp` and `CassoCore/AssemblySession.cpp`. **Found by T046b's sweep, not planned, and NOT implemented.** `PI.ADD.S` line 123 writes `VAR MSGPNT;OUTPUT` and line 124 writes `PUT SENDMSG`: the directive binds `]1`..`]n` so an included fragment can be parameterized without a macro call, which is how the vendor gives one body to several call sites. The spelling is absent from the Merlin directive table entirely, so the line is rejected and the eight `]1`/`]2` references inside `T.SENDMSG` have nothing to resolve to — nine rejections of valid Merlin source with no boundary row behind them, which SC-003 defines as a defect rather than a limitation. It is pinned at exactly nine, per file and corpus-wide, so this task landing fails that assertion and forces the count to zero deliberately. **No positive oracle**: `PI.ADD.S` ships no object of its own and is refused at the boundary regardless, so the evidence this can produce is that the rejections stop, not that the bytes are right *(**Done, and the pinned count went 9 -> 0 by fixing the cause.** `Directive::ParameterBinding` is a new token, `VAR` a new row in the Merlin spelling table, and the parameters bind as REASSIGNABLE symbols under names the PROFILE supplies -- `DialectProfile::GetPositionalParameterSymbol`, defaulting to empty, following the `GetLocalLabelPrefix` precedent. The engine never learns what the name looks like, which is the point: a reference is rewritten while the line is parsed and the directive has to produce the identical name, so one rule is spelled once. `QualifyVariableRefs` now rewrites the sigil followed by a DIGIT as well as by a name -- inside a macro body the expander replaces a positional parameter textually long before parsing, so one arriving at the parser is a reference outside any expansion, which is exactly what this directive serves. The old comment saying the digit must never be rewritten is corrected at the code.*
+
+  *Both passes bind, through one helper. Pass 1 so the lines below are SIZED against the values in force -- a parameter naming a zero-page address makes the instruction beside it two bytes rather than three -- and pass 2 so a reference resolves against the binding above it rather than the last one the file made. That second half is RebindMutableConstant's problem in a second shape, and it is NOT redundant with pass 1: where pass 1 can resolve the expression it caches the value on the line, so only a binding pass 1 cannot evaluate shows the difference. A test built from two forward-referenced labels is what discriminates it, and a mutation making the first pass-2 binding win is caught by that test alone.*
+
+  ***An expression pass 1 cannot evaluate is not an error there**, and that is forced by the vendor: VAR MSGPNT;OUTPUT binds OUTPUT, a label defined BELOW the fragment the next line pulls in. Refusing a forward reference would reject the one shape the directive exists for. So each diagnostic belongs to exactly one pass -- how the line is WRITTEN is settled in pass 1, whether its expressions resolve in pass 2 -- because the line is visited by both and anything said in both is said twice. Mutating either gate is caught.*
+
+  *The binding holds a VALUE rather than the text of its expression, which is what Merlin documents VAR as doing and what lets the shared symbol table hold the result. The divergence it implies is recorded at the code: a reference pasted into a longer identifier, which textual substitution inside a macro body would splice, lexes here as one symbol instead. No vendor line does it, so the corpus cannot settle it.*
+
+  *Nine mutations over this task, nine caught -- one of them only after a test was added. Binding the parameters as IMMUTABLE was not caught at first, because this directive overwrites whatever is there and only the assignment form checks the kind; the test that discriminates it is a VAR followed by an ordinary ]1 = expr, which the immutable reading refuses as a redefinition. That is the mutable kind made observable rather than asserted about the symbol table.*
 
 ### Corpus completion
 
@@ -992,9 +1045,13 @@ The **one** sanctioned exception is T049a, removing the fallback heuristic: a de
 - [x] T069 Add a synthetic, test-only third dialect profile to `UnitTest/DialectMechanismTests.cpp` and prove it works end to end — this is what catches a mechanism secretly built for exactly two dialects (SC-009). ~~**Do not pull this forward.**~~ **That hold has EXPIRED and the task was pulled forward deliberately**, rather than being contradicted silently. Its reason was that against a seam shaped by AS65 alone the synthetic profile gets written to fit whatever seam exists; Merlin has since pressed on the seam with the field model, operand-internal semicolons, quoted operands, mnemonic aliases, macro syntax, variable symbols and now the origin semantic — so the seam it is written against is a real one. **The profile must declare the OPPOSITE origin semantic from AS65**, or it never exercises the axis the emit-cursor split added and passes while testing nothing, which is the exact trap this task's own warning describes
 - [x] T070 Verify SC-009 against **T069's commit alone**, not against `origin/master`: `git show --stat HEAD -- CassoCore/AssemblySession.cpp CassoCore/ExpressionEvaluator.cpp CassoCore/OpcodeTable.cpp` must be empty. *(Run against T069's commit and empty: that commit changes exactly one file, `UnitTest/DialectMechanismTests.cpp`. The synthetic profile reaches the engine through `AssemblerOptions::dialectProfile`, an injection point added in the PRECEDING commit for the reason the registry cannot supply: a closed table cannot demonstrate that a dialect outside it would work. Same shape as `fileReader`.)* Diffing against master cannot work — T013, T018, T033, T036, T037, T042, T061, T063, and T064 all modify `AssemblySession.cpp` earlier in this same feature, so that diff is never empty and the criterion 023 gates on would go unverified. The claim is that *adding a dialect* touches none of the three, which is a property of the adding commit
 - [x] T071a [P] Add a **breaking changes** entry to `CHANGELOG.md`, as its own heading rather than inside the feature announcement: `CassoCli input.a65 -o out.bin` no longer works and becomes `CassoCli as65 input.a65 -o out.bin`, and a bare `CassoCli as65` stops resolving `as65` as a source filename (both T049a). **Written as part of T049a's single commit, not afterward** — this entry is the deliberate-act record that 020's tripwire test was protecting. A reader scanning for what will break must not have to find it inside a paragraph about dialect support. State the replacement invocation literally, so the entry is copy-pasteable into a build script
-- [ ] T071 [P] Update `CHANGELOG.md` with the merlin subcommand, the dialect mechanism, and the corrected include-file diagnostic attribution
-- [ ] T072 [P] Update `README.md` with the new dialect, the updated test count, and the roadmap position relative to `023-ca65-dialect`
-- [ ] T073 [P] Document the supported subset and where it ends in the repository docs, deriving the list from `CassoCore/MerlinSubsetBoundary.cpp` (SC-008)
+- [x] T071 [P] Update `CHANGELOG.md` with the merlin subcommand, the dialect mechanism, and the corrected include-file diagnostic attribution *(**Done, and it owed SEVEN items rather than three.** The merlin subcommand and the dialect mechanism were already written; added here are the corrected include-file diagnostic attribution and the four as65-visible changes this feature accumulated one slice at a time: the pass-2 rebind of reassignable constants (`name = expr` is as65's reassignable form, so a file assigning a symbol twice and referring to it between the assignments now emits different and correct bytes), the three shared-engine messages that hard-coded `.org` / `.ds` and now quote the active dialect's canonical spelling so as65 reads `.ORG` / `.DS`, the run that names no `--cpu` reporting the target that stood, and the usage line swept of the removed bare-source form. T071a's breaking-changes entry was left exactly as written.*
+
+  *`DDB` and `VAR` are deliberately absent. Neither has an as65 spelling and neither can, so no as65 source can reach them -- and Merlin itself is NEW in this release, so its individual directives are described by the dialect entry and by [docs/merlin-subset.md](../../docs/merlin-subset.md) rather than each earning a changelog line.*
+- [x] T072 [P] Update `README.md` with the new dialect, the updated test count, and the roadmap position relative to `023-ca65-dialect` *(**Done. The test count was READ, not remembered: 3352 Debug at the time of writing, so the README says 3350+ where it said 2900+.** The assembler bullet's attribution was WRONG and is corrected: as65 is Frank A. Vorstenbosch's, not Frank A. Kingswood's -- the real v1.11 banner is the source. The same misattribution survives in one released `CHANGELOG.md` entry and four documents under `specs/002-as65-assembler-compat`, all left alone as historical record. A Merlin bullet is added naming the mechanism, and the roadmap position is stated there rather than in a roadmap section the README does not have: ca65 is next, gated on this mechanism rather than on more Merlin, absolute subset first because full compatibility needs a linker. The CLI bullet also stopped being true when the bare-source form went -- "runs as an AS65-style assembler by default" is now "an assembler under a named dialect".*
+- [x] T073 [P] Document the supported subset and where it ends in the repository docs, deriving the list from `CassoCore/MerlinSubsetBoundary.cpp` (SC-008) *(**Done: [docs/merlin-subset.md](../../docs/merlin-subset.md).** The boundary section is the GENERATED help text quoted verbatim, with `CassoCore/MerlinSubsetBoundary.cpp` named as the authority for it and for the refusals -- restating six rows in prose is how a document and a tool end up describing two different sets of rules. The doc covers the larger half the boundary table says nothing about: the field-based line model, the directive vocabulary, symbols and expressions, macros, and every place the implementation is documentation-led rather than settled by vendor bytes, so a reader can tell the two apart.*
+
+  *It also records a gap this task FOUND rather than documented around: the `merlin` subcommand has no `-d`, so a source containing `KBD` cannot be assembled from the command line -- and the assembler's own diagnostic tells the user to pass exactly that flag, which the subcommand then rejects as unknown. Verified by running the executable. Not fixed here: the flag table lives in `CassoCore/CommandLineParser.cpp`, which spec 020 holds unmerged work in.*
 - [ ] T074 Run `scripts/RunDormannTest.ps1` — required for assembler changes
 - [ ] T075 Run `scripts/RunHarteTests.ps1 -SkipGenerate` — required for assembler changes
 - [ ] T076 Run `scripts/Build.ps1 -RunCodeAnalysis` and `scripts/CheckStyle.ps1`, and confirm x64 Debug and Release are both green

@@ -41,8 +41,29 @@ Entries before versioning was introduced use dates only.
 
   `CassoCli --help` now lists the dialects, each one's flags, where each takes
   its CPU target from, and where Merlin support ends.
+- **A dialect is a mechanism, not a second assembler.** Merlin arrives as a
+  spelling table and a line model behind one profile seam; the two-pass engine,
+  the expression evaluator and the opcode tables are the same ones `as65` has
+  always used. A source is assembled strictly under the dialect its invocation
+  names — there is no lenient superset that quietly accepts a mixture, so a
+  Merlin construct in an `as65` file is still rejected, and now says which
+  dialect defines it instead of reporting an unknown instruction.
 
 ### Fixed
+- **A symbol assigned twice now holds, at each reference, the value assigned
+  most recently above it.** `name = expr` defines a *reassignable* symbol, and
+  pass 2 resolved every reference against one symbol table built after pass 1
+  had finished — so they all took the last value the file ever assigned, while
+  pass 1 had already sized the lines between the assignments against the values
+  in force at each. A file that assigns a symbol twice and refers to it between
+  the assignments assembled cleanly and emitted the wrong bytes; it now emits
+  the right ones. A file that assigns each symbol once is unaffected.
+- **A diagnostic raised inside an included file now names that file.** Errors
+  and warnings were all attributed to the top-level input, because by the time
+  one is printed that is the only filename in hand — so an include's own line
+  number arrived paired with the wrong file, sending the reader to whatever
+  happened to sit at that line of the outer source. The originating file is now
+  captured where the diagnostic is created and travels with it.
 - **Pasting into the guest no longer garbles the text.** A valid Applesoft line
   pasted at the `]` prompt produced a SYNTAX ERROR while typing the same line
   by hand worked. Two independent causes, both fixed: Ctrl+V is claimed as a
@@ -72,6 +93,12 @@ Entries before versioning was introduced use dates only.
   "nothing selected a CPU, so the default stands" and "the flag I passed was
   quietly dropped" used to look identical, and a dialect that selects its CPU in
   source makes the difference matter.
+- **Three assembler diagnostics now quote the directive the source wrote.** The
+  origin and reserve-space messages named `.org` and `.ds` as literal text,
+  which is a spelling no dialect's table holds and simply wrong at a line that
+  wrote something else. They now quote the active dialect's canonical spelling,
+  so `as65` reads `.ORG` and `.DS` — the same directives, upper-cased. Nothing
+  else about the messages changed, and no output byte moves.
 - **The usage line no longer advertises the removed bare-source form.** It read
   `CassoCli <source> [flags]`, which stopped working when the dialect became
   something the invocation names; it is now built from the subcommand table, as
