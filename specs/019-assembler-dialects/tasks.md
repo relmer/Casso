@@ -12,15 +12,75 @@ read by whoever has no other way to check.*
 **Done.** Phases 1 and 2 complete: the dialect seam, diagnostic file/column
 positions, and the switchable instruction set. In Phase 3, the Merlin profile
 exists with its field-based line model (T027–T029), its directive table
-(T032/T033), and string encoding (T034/T035). Suite is **3030** Release.
+(T032/T033), string encoding (T034/T035), local labels (T030), and the directive
+behaviors `LABELS.S` needs. Suite is **3054** Release / **3057** Debug, both
+green.
 
-**The first real result.** `LABELS.S`'s 105 `DCI` lines reproduce **983 of the
-984 bytes** of the shipped `LABELS` object, byte for byte, through the real
-parser and encoder. The 984th is the `$00` of `END BRK`.
+**`LABELS.S` now assembles WHOLE-FILE to all 984 bytes of `LABELS`, at `$8000`,
+through the real assembler.** Not through the encoder in isolation — the file is
+handed to `Assembler::Assemble` exactly as it sits on the disk, and every line
+has to be understood for the byte count alone to come out right. The comparison
+lives in `UnitTest/MerlinCorpusTests.cpp` (`MerlinVendorOracleTests`), with a
+companion asserting the same source under AS65 does **not** produce those bytes.
 
-**Next: T030**, labels and local labels. `LABELS.S` then needs only `ERR` and
-`/` in expressions to attempt all 984 bytes end to end — it is the only oracle
-requiring neither macros, nor `KBD`, nor `BLT`/`BGE`, which is why it is first.
+**Four things stood between 983 and 984, and only two were the expected ones.**
+
+1. **`AssemblySession` never consulted the dialect at all.** It called the AS65
+   `Parser::ParseLine` overload unconditionally, so `AssemblerOptions::dialect`
+   reached nothing that mattered. The earlier 983-byte result had been measured
+   through a hand-rolled loop over string lines in the test, not through the
+   assembler. The session now resolves the profile once and reads every line
+   through it, takes its origin from it, and evaluates with its operator binding.
+2. **`Directive::StringData` had no handler in either pass** — its row was
+   `{ nullptr, nullptr }` exactly like `ErrorIf`'s, so the 105 `DCI` lines
+   emitted nothing. Pass 1 now sizes a string by *running the encoder and
+   measuring* rather than by counting characters, so a mode carrying a length
+   prefix cannot make the two passes disagree about where the next label binds.
+3. **`ERR` got its behavior**, in **pass 2** so its expression may name a forward
+   label — which is the point of such assertions. Pulled forward from the
+   T036–T042 band deliberately, as planned.
+4. **Merlin has NO operator precedence.** This was on nobody's list and is the
+   sharpest find of the slice. `LABELS.S` ends with `ERR END-LABTBL-1/$700`,
+   bounding its own table at seven pages. Under ordinary precedence the division
+   binds first, the expression collapses to `END-LABTBL` = 983, and the assertion
+   fires on a file the vendor shipped a working object for. Folded left to right
+   it is `(END-LABTBL-1)/$700` = 0. That settles the last of the contract's
+   unsettled questions — "Do Merlin's expression operators and precedence match
+   the shared evaluator?" — from bytes rather than from the manual. The answer is
+   **no**, on binding; the operator set itself is unchallenged so far.
+
+**`/` in expressions was already supported.** Measured before writing anything:
+`TokType::Slash` and `TryApplyDiv` have been in the evaluator all along. The
+state-of-play line naming it as a gap was reading a requirement as a hole.
+
+**`ExpressionEvaluator.cpp` WAS modified, and legitimately.** SC-009 (T070) names
+it as one of three files that adding a dialect must not touch, but that criterion
+is evaluated against **T069's own commit**, not against `origin/master` — T070
+says so itself. The change here is one dialect-neutral branch: when
+`ExprContext::binding` is `LeftToRight`, every operator flattens to the loosest
+level, so the recursion for the right operand can absorb nothing. The operator
+set, the folds and the diagnostics are untouched, and AS65 is unaffected because
+the field defaults to `ByPrecedence`. **This is not an SC-009 violation and must
+not be recorded as one later.**
+
+**One engine bug fixed on the way.** `ClassifyPrelude` recognized the origin
+directive by comparing the canonical *spelling* against `".ORG"`. A dialect
+spelling it without a dot parsed correctly, resolved to `Directive::Org`, and
+then silently did nothing — output at the wrong address with no diagnostic. It
+now compares the token. AS65 is unaffected: both its spellings already reported
+the same canonical name. **Three sibling comparisons remain** in
+`AssemblySession.cpp` — `".END"` (struct closing), `".ENDM"` and `".LOCAL"` —
+all as65-only tokens today, and all the same trap waiting for the next dialect.
+
+**Debug was red before this slice and nobody had said so.** Three
+`MerlinFixtureTests` drive the fixture decoder's asserting EHM rejections, which
+`SetupForUnitTests` routes to `Assert::Fail`; they passed in Release, where the
+assertions compile away. Fixed with `ExpectedEhmAssert`, production code
+untouched. **Report both configurations, not just Release.**
+
+**Next: `MAKE DUMP.S`**, the second oracle reachable without `KBD`. It needs
+`BLT`/`BGE` in the instruction layer, macros (T038), and `HEX` — whose token
+exists but whose handler row is still null.
 
 **Known to be needed, not yet done.** `BLT` and `BGE` are Merlin's aliases for
 `BCC`/`BCS` and belong to the **instruction layer**, not the directive table.
@@ -34,9 +94,20 @@ is **held until spec 020's command-line work reaches `master`** — see
 [docs/coordination.md](../../docs/coordination.md). Nothing else is blocked.
 
 **Carrying a known incompleteness.** Every new `Directive` token has a row in
-`AssemblySession`'s handler table, but most handlers are null. Null means *not
-implemented yet*, not *does nothing*; they are unreachable while as65 is the only
-selectable dialect, and T036–T042 fill them.
+`AssemblySession`'s handler table, but most handlers are still null. Null means
+*not implemented yet*, not *does nothing*; they are unreachable while as65 is the
+only selectable dialect, and T036–T042 fill them. `StringData` and `ErrorIf` are
+now filled; `HexData`, `WordHighFirst`, `Loop`/`LoopEnd`,
+`DummySection`/`DummySectionEnd`, `MacroDef`/`MacroEnd`, `CpuSelect` and
+`ObjectFile` are not.
+
+**One string form is REFUSED rather than guessed.** `ASC "TEXT"8D` — a trailing
+byte after the closing delimiter — appears in `KEYMAC.S`, which ships an object,
+but nothing reachable today pins whether those digits are hexadecimal. Emitting
+the string without them would be plausible and wrong, so it records a diagnostic
+naming what it refused. It is an ordinary error, **not** a subset-boundary
+refusal, so it has no row in `MerlinSubsetBoundary` and T046b's sweep must not
+expect one. Whoever brings `KEYMAC.S` online settles it against those bytes.
 
 **Evidence gaps that capture must close, not reasoning.** Three of the six string
 encodings have no oracle: `INV` appears once in a linker demo that ships no
@@ -149,7 +220,7 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
 - [x] T020f [US1] Add a **type-T** read path to `UnitTest/MerlinCorpus/MerlinFixture.h` / `.cpp`. DOS 3.3 gives a text file **no header at all** — `T.SENDMSG` begins with the literal characters `SE`, and its first four bytes read as a header claiming 50382 bytes of a 149-byte file. Kept as a separate entry point rather than sniffed from the bytes, because guessing the file type is the kind of inference that succeeds on the sample and fails on the next file; the type-B length check turns a wrong choice into a loud failure instead of text quietly missing its first four characters. Arrived with the two vendor macro libraries (`T.PI.MACS`, `T.SENDMSG`) that T045f wants- [x] T020e [US1] Read corpus bytes through `IFixtureProvider::OpenFixture` (e.g. `OpenFixture("Merlin/LABELS.S")`) and add a fixture-decoding helper covering the DOS 3.3 BIN convention once rather than per entry: skip the 4-byte header, read the length from bytes 2–3, mask bit 7 for source text, translate `$8D` to newline, compare objects from offset 4. It must **not** assert bit 7 is set — `DCI` clears it on the terminating character, which is exactly the encoding this corpus exists to pin. *(Landed as `UnitTest/MerlinCorpus/MerlinFixture.h` / `.cpp` with seven tests. Two findings from the fixtures themselves. The high-bit prohibition turned out to have a **second and much earlier** reason than `DCI`: Merlin stores source as high-bit ASCII **except spaces, which are plain `$20`** — 81 of them in `LABELS.S` alone — so a decoder asserting bit 7 would fail on the first space of the first line, long before reaching any `DCI` terminator. And the declared length is **verified** against the payload rather than skipped past, since all 13 committed fixtures carry an exact match, making the strict form free; a truncated or sector-padded extraction otherwise decodes into plausible bytes, which is the failure this corpus exists to catch.)*
 - [ ] T020d [US1] Assert a **non-zero entry count** in the corpus sweep, and assert the count against the corpus floor once the floor is met. This is the half of the absent-corpus guard T020a could not land, since counting needs the entry table T020e introduces; it is not a duplicate of it. Lands with the first real entry rather than now, because asserting it against an empty corpus would leave a permanently red test in the suite — which masks other failures and is its own version of a signal nobody reads
 - [x] T020a [US1] Make the corpus harness **fail when the corpus is absent**, not pass. A loop over an empty entry table reports success while covering nothing, which is the same failure shape as a stale test assembly and as an integration test whose data cannot be reached — success reported, coverage absent. Make an entry with empty expected bytes an error rather than a trivially satisfied comparison, and make two empty vectors comparing equal an error too — that is the worst case, since a naive comparison calls it a match. *(Done, and **only** that half. The entry-**count** assertions this task originally also claimed cannot exist yet: there is no entry table to count until T020e supplies one, so they are T020d's and the checkbox here covers the empty-expectation guards alone.)*
-- [ ] T020b [US1] *(Flag and rationale are in place on `CorpusEntry`; the assertion lands with the first real entry, since it needs an assembly to run.)* Add a `discriminates` flag to `CorpusEntry` and have the harness in `UnitTest/MerlinCorpusTests.cpp` assert every entry carrying it **fails under the AS65 profile** as well as matching under Merlin. This closes the second vacuity shape: labels, origin, literals, and the evaluator are shared, so an entry built from those alone is green whether the Merlin profile works or is never consulted. An entry that passes under both dialects while claiming a Merlin construct is a defect either way — it is not exercising what it claims, or the profile is not being consulted. Shared-construct entries leave the flag clear and stay legitimate engine regression cover
+- [ ] T020b [US1] *(Flag and rationale are in place on `CorpusEntry`; the assertion lands with the first real entry, since it needs an assembly to run. **The shape is now proven** — `LabelsSourceUnderAs65DoesNotProduceMerlinsBytes` assembles the vendor fixture under both dialects and requires the results to differ. What remains is wiring that check into the entry-table sweep, which still needs the entry table.)* Add a `discriminates` flag to `CorpusEntry` and have the harness in `UnitTest/MerlinCorpusTests.cpp` assert every entry carrying it **fails under the AS65 profile** as well as matching under Merlin. This closes the second vacuity shape: labels, origin, literals, and the evaluator are shared, so an entry built from those alone is green whether the Merlin profile works or is never consulted. An entry that passes under both dialects while claiming a Merlin construct is a defect either way — it is not exercising what it claims, or the profile is not being consulted. Shared-construct entries leave the flag clear and stay legitimate engine regression cover
 - [ ] T020c [US1] Set `discriminates` on every settle-by-capture and Merlin-construct entry as it is captured (T022–T025f, T043–T045), so the classification is recorded with the entry rather than reconstructed later
 - [ ] T021 [US1] Implement `scripts/CaptureMerlinCorpus.ps1` to assemble one entry under real Merlin Pro in Casso and emit source, bytes, and Merlin version as a hand-authored entry in `UnitTest/MerlinCorpusTests.cpp` (vendor oracles live in `UnitTest/Fixtures/Merlin/`; entries authored here stay in the test file), reading bytes back with `scripts/ExtractDos33File.ps1`
 - [ ] T021c [US1] Make **delete-before-assemble** a required step of capture: delete the target object from within DOS before every assembly and confirm its absence with `scripts/CaptureMerlinCorpus.ps1 -ConfirmAbsent`. DOS 3.3 catalogs carry no timestamps, so there is no equivalent of the test suite's staleness guard — this is the only freshness check available. Without it, an assembly that errors before saving leaves the *previous* entry's object on the disk, and capturing it records one entry's bytes as another's expectation: self-consistent, plausible, wrong, and it will never fail, because the assembler faithfully reproduces the first entry's bytes from the first entry's constructs. Absence after assembly proves nothing wrote it; presence proves *this* assembly did
@@ -178,7 +249,14 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
   *(T027-T029 landed as one commit, deliberately. The operand scanner cannot be written without the comment rule, and neither is correct without the delimiter rule, so splitting them would have shipped a knowingly-wrong quoting rule for one commit. `DialectId::Merlin` and its registry row land here too, per the enum's own rule that an enumerator arrives WITH its profile — safe because `merlin` is unreachable from the command line until US2. **Directive spellings are NOT included**: `directiveToken` stays `Directive::None` until T032/T033, so this is an incomplete profile, not a broken advertised feature.*
 
   *Two findings from the vendor sources changed the implementation. `;` in column 1 is a whole-line comment — 8 such lines across 3 files — and it is not a special case: with no label, column 1 IS the first field boundary, so the general rule already covers it. And the string delimiter is **any character**, taken from the source: `ASC !" ASC ""!` in `KEYMAC.S` chooses `!` precisely because its text contains quotes, so a `"`-only scanner ends the operand inside the data. 164 of 166 string lines use `"`; the 2 that do not are why this is a rule about delimiters.)*
-- [ ] T030 [US1] Implement label rules and the local-label prefix in `CassoCore/MerlinDialect.cpp`, scoping locals to the enclosing global label (FR-008)
+- [x] T030 [US1] Implement label rules and the local-label prefix in `CassoCore/MerlinDialect.cpp`, scoping locals to the enclosing global label (FR-008)
+  *(**Divergence, deliberate**: the prefix is declared in `MerlinDialect.h` — one character, `':'` — but the SCOPING is in `AssemblySession.cpp`, because it is stateful and profiles are stateless and shared. A definition binds under the global label joined to the local name, and every local REFERENCE inside an operand is rewritten to match. The reference half is not optional: the vendor sources write `LDA :TABLE+5,X`, so a dialect answering only "is this a local definition" leaves every use unresolvable.*
+
+  *The separator is a **period** because `Parser::ValidateLabel` rejects one in a label while the expression tokenizer accepts one inside an identifier. That pair of facts is the whole design: no symbol a source can spell may contain a period, so a scoped name cannot collide with a global however either is written, and the scoped name still resolves through the ordinary expression path rather than a second lookup. A local is validated as the name it SPELLS and stored under the name it BINDS to, since validating the joined form would reject every one of them.*
+
+  *A local before any global label is an error rather than a symbol in an unnamed scope. A colon inside string payload is left alone — `ASC ":::6::6:6:"` is on the vendor disk, and rewriting there would change emitted bytes rather than resolve a symbol.*
+
+  *Still open, and NOT part of this: **`?` is legal in a Merlin label**. `CMD?`, `CORR?`, `ISY?` and `RNGOK?` are in the vendor sources, and `Parser::ValidateLabel` rejects all four today. The corpus therefore already answers half of research's "legal label character set" question, ahead of T023 capturing it — but accepting `?` also needs the expression tokenizer to lex it, and that is a change to `ExpressionEvaluator.cpp` with no oracle forcing it yet. Variable symbols (`]name`) are T031 and were not touched.)*
 - [ ] T031 [US1] Implement variable symbols in `CassoCore/MerlinDialect.cpp` with reassignment semantics (FR-011)
 - [x] T032 [US1] Add the Merlin directive spelling table to `CassoCore/MerlinDialect.cpp`, reusing existing `Directive` tokens wherever the operation is identical
 - [x] T033 [P] [US1] Add **all** new `Directive` tokens this feature introduces in `CassoCore/Directive.h` and `CassoCore/Directive.cpp`, with their pass-1/pass-2 rows in `CassoCore/AssemblySession.cpp`: reversed-order words, raw hexadecimal data, the loop construct and its terminator, the dummy section and its terminator, CPU selection, and the single encoded-string token. Adding them in one task keeps the exhaustiveness-checked `switch` compiling once rather than breaking at each of T035–T040 (research.md D2, FR-009)
@@ -195,6 +273,7 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
   *Three of the six encodings have **no oracle**: `INV` appears once, in a linker demo shipping no object, and `FLS` and `STR` appear nowhere. They follow documentation rather than bytes and are marked UNVERIFIED at each line. Same for the apostrophe half of the delimiter rule — `"` and `!` both give high ASCII, which disproves any ASCII-ordering rule, but no `'`-delimited string exists in the corpus.*
 
   *Also lands `GetDefaultOrigin` on the seam: Merlin defaults to `$8000`, as `LABELS.S` proves by containing no origin directive while its object loads there. as65 keeps 0. A wrong default yields byte-perfect output at the wrong address, which reads as a far deeper problem than it is.)*
+- [x] T035a [US1] Give `Directive::StringData` and `Directive::ErrorIf` their handler rows in `CassoCore/AssemblySession.cpp`. **Recorded after the fact, and pulled forward out of the T036–T042 band on purpose**: `LABELS.S` is 105 string lines and one `ERR`, so the first whole-file oracle cannot exist without both, and leaving them null would have meant claiming an end-to-end result from a hand-rolled loop in a test. `ERR` acts in **pass 2**, where every symbol is known, because the assertions people write bound a table by the distance between its own two ends and one of those ends is always a forward reference. Its pass-1 row is `IgnorePass1Directive` rather than null — a directive with no pass-1 handler is not marked as one, and an unmarked line never reaches pass-2 dispatch, so a pass-2-only directive silently does nothing. The remaining null rows are still T036–T042's
 - [ ] T036 [P] [US1] Implement the loop construct and its terminator in `CassoCore/MerlinDialect.cpp` and `CassoCore/AssemblySession.cpp` (FR-011)
 - [ ] T037 [P] [US1] Implement dummy sections and their terminator in `CassoCore/AssemblySession.cpp` — assign addresses, emit no bytes (FR-012)
 - [ ] T038 [US1] Implement Merlin macro definition, positional parameters, and invocation syntax in `CassoCore/MerlinDialect.cpp`, reusing the existing `kMaxMacroDepth` limit (FR-013)
@@ -208,6 +287,7 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
 - [ ] T043 [P] [US1] Capture one entry per string-encoding spelling as a hand-authored entry in `UnitTest/MerlinCorpusTests.cpp` (vendor oracles live in `UnitTest/Fixtures/Merlin/`; entries authored here stay in the test file) — five entries, not one, because a high-bit or terminator error still looks plausible
 - [ ] T044 [P] [US1] Capture at least one multi-file inclusion entry as a hand-authored entry in `UnitTest/MerlinCorpusTests.cpp` (vendor oracles live in `UnitTest/Fixtures/Merlin/`; entries authored here stay in the test file), served through `UnitTest/MockFileReader.h`
 - [ ] T045 [P] [US1] Capture one entry per remaining construct in FR-007 through FR-015 and FR-027 as a hand-authored entry in `UnitTest/MerlinCorpusTests.cpp` (vendor oracles live in `UnitTest/Fixtures/Merlin/`; entries authored here stay in the test file), completing the corpus floor
+- [ ] T045a-partial — **`LABELS.S` is done**: all 984 bytes at `$8000`, whole-file through `Assembler::Assemble`, in `MerlinCorpusTests.cpp`. The other four sources are still blocked on `BLT`/`BGE`, macros, `KBD` and `HEX`, so the parent task below stays open.
 - [ ] T045a [P] [US1] Validate against the **five** real positive oracles on the Merlin Pro 2.23 disk — source and shipped object both present, absolute mode — not "~40 files". Measured: `LABELS.S`→`LABELS` (984 @ `$8000`, 105× `DCI` plus one `ERR`), `KEYMAC.S`→`KEYMAC` (674 @ `$9000`), `PRINTFILER.S`→`PRINTFILER` (286 @ `$02A0`), `MAKE DUMP.S`→`MAKE DUMP` (589 @ `$9000`), and `CLOCK.S`→**both** `CLOCK.24` and `CLOCK.12` (365 @ `$0240` each). Five sources, six objects. Vendor source and objects **are committed**, under `UnitTest/Fixtures/Merlin/`, and read through `IFixtureProvider::OpenFixture` — the earlier "used, not committed" instruction is superseded
 - [ ] T045d [P] [US1] Prioritize `CLOCK.S`: one source producing two different objects through `DO HOURS-12` / `ELSE` / `FIN`, so a single capture yields conditional-assembly coverage **and** two independent byte-identical checks. The highest-value single entry on the disk
 - [ ] T045e [P] [US1] Use `Merlin/PI.ADD.S` and `Merlin/PI.START.S` as **negative** subset-boundary specimens only, never positive comparisons — they ship no objects, and the APPLE PI group is the linker demo whose own header says "This is just a test source for the linker". `PI.ADD.S` is the export-only shape (`REL` + **6** `ENT`, no `EXT`); `PI.START.S` is the no-workaround shape (`REL` + 3× `EXT` + 1 `ENT`). Between them they exercise **both** refusal messages, which is why exactly these two are committed: `PI.MAIN.S` and `PI.DIV.S` also import and are redundant with `PI.START.S`, and `PI.LOOK.S` is redundant with `PI.ADD.S`
@@ -218,6 +298,9 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
 - [ ] T046a [US1] Verify SC-002 in `UnitTest/MerlinCorpusTests.cpp`: the five vendor sources assemble **exactly as committed**, with no edit to any line. The corpus already proves the bytes match; what this adds is the claim that the *input* was not touched to get there — assert each entry's source is the fixture bytes as `IFixtureProvider::OpenFixture` returns them, not a transcribed or tidied copy. Without it, SC-002 is only inspected, and "unmodified" is precisely the property a passing corpus can be made to fake
 - [ ] T046b [US1] Verify SC-003 in `UnitTest/MerlinSubsetTests.cpp`: assemble every committed vendor source and assert that **each rejection maps to a row in `CassoCore/MerlinSubsetBoundary.cpp`**. SC-003 defines a rejection with no boundary row as a defect, so this is a sweep over rejections rather than a fixed list of expected errors — a new unexplained rejection fails the test by construction. Runs against `PI.ADD.S` and `PI.START.S` too, where rejections are the expected outcome and must still be table-backed
 - [ ] T047 [P] [US1] Add focused parser tests to `UnitTest/MerlinParserTests.cpp` and directive tests to `UnitTest/MerlinDirectiveTests.cpp`, registering both in `UnitTest.vcxproj`
+  *(Half done. `MerlinDirectiveTests.cpp` exists and is registered, covering the string family through both passes, `ERR` in **both** directions, local-label scoping, operator binding, and the default origin — each with an AS65 counterpart where the construct is shared, since a test passing under both dialects is no evidence the profile was consulted. The remaining directives get theirs as T036–T042 land.*
+
+  *Two of these could only be written as pairs. The vendor corpus contains only the SILENT case of `ERR`, because a source shipping an object necessarily assembled clean — so an `ERR` that never fires passes every oracle on the disk. Same for binding: an evaluator that happened to agree looks identical without the AS65 half.)*
 
 **Checkpoint**: Unmodified Merlin source assembles to Merlin's bytes. This is the MVP.
 

@@ -47,7 +47,7 @@ object to compare against:
 | Mode | Lines with an object | Status |
 |---|---|---|
 | `ASC` | 24 | **Verified** |
-| `DCI` | 130 | **Verified** — and 983 of `LABELS`'s 984 bytes |
+| `DCI` | 130 | **Verified** — and all 984 of `LABELS`'s bytes, whole-file through the assembler |
 | `REV` | 1 | **Verified** |
 | `INV` | 0 | **Unverified** — its one use is in `PI.START.S`, a linker demo shipping no object |
 | `FLS` | 0 | **Unverified** — appears nowhere in the corpus |
@@ -240,7 +240,7 @@ gaps in this document, all now in the table:
 | Word | Uses | What it is | Status |
 |---|---|---|---|
 | `REV` | 3 | Sixth string spelling | **Added** to the string family above |
-| `ERR` | 17 | Assembly-time assertion — fails when its expression is non-zero | **Added**; `LABELS.S` cannot assemble without it |
+| `ERR` | 17 | Assembly-time assertion — fails when its expression is non-zero | **Added and implemented**; evaluated in pass 2, so its expression may name a forward label |
 | `PAG` | 1 | Page eject in the listing | **Added**, reusing the existing `Page` token |
 | `AST` | 4 | Asterisk line in the listing | **Open** — listing cosmetics, no byte effect |
 | `EXP` | 4 | Macro-expansion listing control | **Open** — listing cosmetics, no byte effect |
@@ -308,6 +308,33 @@ corpus is the arbiter; the manual is not.
   scope and cheap; if not, nothing to do.
 - Is Merlin's symbol matching case sensitive?
 - What is Merlin's symbol length limit, and its legal label character set?
-- Do Merlin's expression operators and precedence match the shared evaluator? If
-  they diverge, the evaluator gains a dialect-scoped operator table rather than
-  the profile forking it.
+  **Partly answered by the corpus already**: `?` is legal. `CMD?`, `CORR?`,
+  `ISY?` and `RNGOK?` are labels in the vendor sources, and `ValidateLabel`
+  rejects all four today. Accepting them also needs the expression tokenizer to
+  lex `?` inside an identifier, so it is not a one-line change — but it is
+  settled evidence, not a capture question.
+- ~~Do Merlin's expression operators and precedence match the shared
+  evaluator?~~ **ANSWERED, from bytes.** The operators do; the **binding does
+  not**. Merlin folds an expression strictly left to right and parentheses are
+  the only grouping. `LABELS.S` proves it: it ends with
+
+  ```
+   ERR END-LABTBL-1/$700
+  ```
+
+  bounding its own table at seven pages, and its header comment says so in
+  words. Under ordinary precedence the division binds first, the expression
+  collapses to `END-LABTBL` — the table's own length, 983 — and the assertion
+  fires on a file the vendor shipped a working object for. Folded left to right
+  it is `(END-LABTBL-1)/$700`, which is 0 for any table inside seven pages.
+
+  Implemented as the contract predicted — **in the evaluator, not by the profile
+  forking it**. `ExprContext` carries an `OperatorBinding`, the profile answers
+  `GetOperatorBinding`, and `TryParseBinary` flattens every operator to the
+  loosest level when the answer is left-to-right. One branch; the operator set,
+  the folds and the diagnostics are shared.
+
+  Note the shape of this find. It was invisible to every string-level test and
+  to the 983-byte encoder comparison, and surfaced only the first time a whole
+  file went through the assembler — because the only line that depends on it is
+  the last one, and it is an assertion rather than data.

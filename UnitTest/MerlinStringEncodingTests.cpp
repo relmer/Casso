@@ -64,11 +64,17 @@ namespace MerlinStringEncodingTests
     //
     //  MerlinDciOracleTests
     //
-    //  The first real byte-comparison against vendor object code.
+    //  The DCI encoding against vendor object code, through the ENCODER alone.
     //
-    //  LABELS.S is 105 DCI lines, one ERR, and one BRK -- and the DCI lines need
-    //  no labels, no expressions, and no macros. So 983 of its 984 object bytes
-    //  can be checked NOW, before the assembler can process the whole file.
+    //  LABELS.S is 105 DCI lines, one ERR, and one BRK. Those DCI lines account
+    //  for 983 of its 984 object bytes and need no labels, no expressions and no
+    //  macros, so they can be compared without an assembler at all.
+    //
+    //  MerlinVendorOracleTests now assembles the whole file and matches all 984,
+    //  which is the stronger claim -- but this one stays, and is not redundant.
+    //  When the whole-file comparison breaks, it says only that 984 bytes stopped
+    //  matching; this one says whether the ENCODING is what moved. Keeping a
+    //  narrow oracle beneath a broad one is what turns a failure into a location.
     //
     //  This is the encoding the corpus exists to pin. A high-bit or terminator
     //  error here produces output that still reads as text in a hex dump, raises
