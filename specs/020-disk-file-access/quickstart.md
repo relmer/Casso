@@ -72,8 +72,11 @@ program.
 ### US2 — placement (P1)
 
 1. Create a formatted DOS 3.3 image, `put` a 512-byte binary as `PROG` at
-   `$6000`, boot it, and confirm `CATALOG` lists `B 002 PROG` and `BLOAD PROG`
-   places the bytes at `$6000`.
+   `$6000`, boot it, and confirm `CATALOG` lists **`B 004 PROG`** and
+   `BLOAD PROG` places the bytes at `$6000`. The sector count is four, not two:
+   DOS stores the load address and length *inside* the file, so 512 payload
+   bytes occupy 516 stored bytes — three data sectors — and the track/sector
+   list is the fourth. `B 002` is what a payload of 252 bytes or fewer produces.
 2. Same payload onto a ProDOS image; the guest catalog shows type `BIN` with
    auxiliary type `$6000`.
 3. `put` over an existing name: the old file is replaced, its space returned, and

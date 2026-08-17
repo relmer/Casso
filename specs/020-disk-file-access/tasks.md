@@ -5,20 +5,24 @@
 Written for whoever picks this up next, including a later session of me after a
 context loss. Current as of the last commit on `020-disk-file-access`.
 
-**Done and on the branch.** Phase 2 (foundational, T002–T013) and Phase 3
-(US3 — read, T014–T022). That is the whole P1 extraction story: both filesystem
-readers, the decode report, the integrity pass, the `disk` subcommand, and the
-CLI edge. Suite is 3088 Debug / 3085 Release green — the 3-test delta is the
-pre-existing GH #113, not this work.
+**Done and on the branch.** Phase 2 (foundational, T002–T013), Phase 3
+(US3 — read, T014–T022), and the first Phase 4 chain (**T023 + T024**, DOS 3.3
+write and delete). That is the whole P1 extraction story — both filesystem
+readers, the decode report, the integrity pass, the `disk` subcommand, the CLI
+edge — plus placement and removal on DOS 3.3. Suite is **3109 Debug / 3106
+Release** green; the 3-test delta is the pre-existing GH #113, not this work.
+(It was 3088 / 3085 before T023/T024 added 22 tests and removed the
+now-obsolete `Write_IsNotYetImplemented_AndSaysSoRatherThanSucceeding`.)
 
-**Next, and it is the hard half.** Phase 4 (US2 — write, T023–T035) is 13
-unstarted tasks and the first work here where a bug **destroys data** rather
-than failing loudly. Everything up to now has been reads: wrong output was the
-worst case. From T023 on, the worst case is a user's disk image.
+**Next, and it is still the hard half.** Phase 4 has eleven tasks left
+(T025–T035), and it is the work here where a bug **destroys data** rather than
+failing loudly. Everything through Phase 3 was reads: wrong output was the worst
+case. From T023 on, the worst case is a user's disk image.
 
 **Order within Phase 4.** T023 → T024 and T025 → T026 are independent chains
 (DOS 3.3 and ProDOS), joining at T028. Delete ships with write on both because
-replace depends on it.
+replace depends on it. **The DOS 3.3 chain is done**; the ProDOS one is not, and
+T027 needs both.
 
 Three things earned during Phase 3 that Phase 4 depends on, so do not treat them
 as background:
@@ -97,6 +101,17 @@ buggy one because the bug happens to work on the first hop. **When a mutation is
 not caught, suspect fixture depth before suspecting the assertion. Three links
 is the minimum for any chain-walking test.**
 
+It earned its keep again on T023/T024. Ten mutations were run; nine went red
+first try and **one did not**: replacing the "does this entry claim zero
+sectors?" discriminator with "is its pointer `$7F/$7F`?" passed the whole suite.
+Every decorative entry on Merlin's disk carries that sentinel, and so did the
+synthetic fixture built to imitate it, so the wrong rule was right on every
+sample available. The case that separates them had to be constructed on purpose:
+a zero-sector entry whose pointer names *another file's* track/sector list.
+`Delete_AZeroSectorEntryWhosePointerIsNotTheSentinel_StillFreesNothing` is that
+case. **A fixture copied from the real world tests what the real world happens
+to contain, not what the rule says.**
+
 **Blocked on nobody; 019 is blocked on this branch.** Spec 019 runs
 concurrently. Measured overlap is three files — `CassoCore/CassoCore.vcxproj`,
 `UnitTest/UnitTest.vcxproj` and `CassoCli/CommandLine.cpp` — and the two sides
@@ -115,6 +130,29 @@ outcome — do not defend it at merge.** See `docs/coordination.md`.
 
 **Known divergences from the task text, so they do not read as gaps:**
 
+- **`IsClean()` is FALSE on every healthy DOS 3.3 volume, and T028 must not
+  gate on it.** Measured, not inferred: a formatted volume marks tracks 0–2 and
+  track 17 allocated, and no catalog entry claims them, so `BuildIntegrityReport`
+  reports 64 `allocatedButUnclaimed` units on a blank disk and `isClean` is
+  false. The comment at `Dos33Volume::BuildIntegrityReport` says the catalog
+  track's sectors are claimed too; **the code has never done that**, and the
+  existing T013 tests do not assert it, which is how the two disagreed unnoticed.
+  Worse for T028: `IsClean()` is *also* false after a correct delete that leaks —
+  leaked space is by definition allocated with nothing claiming it — so FR-039's
+  "refuse a result that fails the pass" would refuse the very outcome FR-011
+  requires. The pre-commit check must therefore compare **the computed result
+  against the input** on the specific sets (`crossLinked` and `claimedButFree`
+  empty; `allocatedButUnclaimed` and `unfollowableChains` not worsened), not ask
+  one whole-volume yes/no. `Dos33VolumeTests::AssertEditLeftTheVolumeConsistent`
+  is that comparison, written for T023/T024 and reusable.
+- **A multi-list file's second and later list sectors were never claimed**
+  (found by T023's three-list write test, fixed with it). `CollectDataSectors`
+  returned only data sectors and `BuildIntegrityReport` added the head list
+  sector from the catalog entry's own fields, so a file over 122 sectors left
+  every later list sector allocated and unowned. Delete would have leaked those
+  sectors permanently *without even reporting them as leaked*, since nothing knew
+  they belonged to the file. `CollectDataSectors` now returns list sectors in a
+  second out-parameter; `Read` ignores it, the integrity pass claims it.
 - **T001 was not done as written and stays unchecked.** It called for
   EHM-conformant stubs for every file up front; files were instead created and
   wired as each task reached them, which meant the build never carried a stub
@@ -255,17 +293,31 @@ bytes; then run every failure mode and confirm the image hash is unchanged.
 **Note**: delete lands here, not later. Replace is delete + write, and neither
 filesystem can delete today.
 
-- [ ] T023 [US2] Generalize DOS 3.3 writing into `Dos33Volume::Write` in `CassoEmuCore/Devices/Disk/Dos33Volume.cpp`: allocate from the VTOC free bitmap, build the track/sector list, write data sectors, create the catalog entry, leave the bitmap consistent. `Dos33FileWriter::WriteHello` is a zero-parameter hardcoded emitter — treat it as a worked example of the structures, not a base to extend. Tests in `UnitTest/EmuTests/Dos33VolumeTests.cpp`
-- [ ] T024 [US2] Implement `Dos33Volume::Delete` with free-space return in `CassoEmuCore/Devices/Disk/Dos33Volume.cpp`: free **only** sectors the integrity report shows this file uniquely owns, report the rest as leaked, and remain available for a file whose T/S chain is damaged so a bad file cannot strand the volume (FR-011). Warn distinctly when `catalogFullyParsed` is false (FR-040)
+- [x] T023 [US2] Generalize DOS 3.3 writing into `Dos33Volume::Write` in `CassoEmuCore/Devices/Disk/Dos33Volume.cpp`: allocate from the VTOC free bitmap, build the track/sector list, write data sectors, create the catalog entry, leave the bitmap consistent. `Dos33FileWriter::WriteHello` is a zero-parameter hardcoded emitter — treat it as a worked example of the structures, not a base to extend. Tests in `UnitTest/EmuTests/Dos33VolumeTests.cpp`. **Four decisions, recorded so they read as choices rather than gaps.** (1) **An existing name is REFUSED** with `ERROR_FILE_EXISTS` rather than replaced. FR-012 requires replacement to be computed as one whole and that is T027; refusing is the honest interim, and it is specifically the failure mode — a duplicate catalog entry — that must not exist in the meantime. (2) **Allocation consults the integrity report, not only the free bitmap.** A sector the bitmap calls free while a catalog entry still points at it is exactly what a bad delete leaves behind, and handing it out destroys the other file silently; those sectors are skipped and left for the report to name. (3) **A name being CREATED is validated** — non-empty, at most 30 characters, first character a letter, no comma, no control characters, and upper-cased on the way in. This is *not* the reverted printable-text check on names being READ: reading still imposes no rule at all, and the twenty backspace-drawn headings on Merlin's disk still list. The direction is what differs — DOS's own SAVE refuses these, so creating one produces a file the guest cannot open. (4) **Illegal input maps to Win32 codes, not `E_INVALIDARG`**, diverging from `contracts/volume-api.md`'s error table: `E_INVALIDARG` marks a coding error and asserts, and a filename is user input. `ERROR_INVALID_NAME` / `ERROR_DISK_FULL` / `ERROR_ACCESS_DENIED` / `ERROR_FILE_EXISTS` carry the same meanings without the assert
+- [x] T024 [US2] Implement `Dos33Volume::Delete` with free-space return in `CassoEmuCore/Devices/Disk/Dos33Volume.cpp`: free **only** sectors the integrity report shows this file uniquely owns, report the rest as leaked, and remain available for a file whose T/S chain is damaged so a bad file cannot strand the volume (FR-011). Warn distinctly when `catalogFullyParsed` is false (FR-040). **Two decisions.** (1) **`IVolume::Delete` keeps its two-argument shape**; the account of what was freed, what leaked, and why lives on a `Dos33Volume`-only three-argument overload taking a `DeleteOutcome` (new, in `VolumeTypes.h`). Widening the interface mid-flight would have broken T025/T026 in another session for no benefit yet — nothing consumes the account until `put`/`delete` reach the runner in T032. **T026 should take the same shape, and T032 is where the pair gets lifted onto `IVolume` if it wants to.** (2) **The entry is tombstoned the way DOS does it** — `$FF` into the track byte, the original track stashed in the last byte of the name — so an undelete tool still finds the file. A zero-sector entry frees nothing because the chain walk returns before it starts; the discriminator is the entry's own sector count and **not** the `$7F/$7F` pointer, which is the one mutation the suite failed to catch until a fixture was built to separate them
 - [ ] T025 [US2] Add **tree growth** to the ProDOS writer (master index block of index blocks) in `CassoEmuCore/Devices/Disk/ProDosSkeleton.cpp` / `ProDosVolume.cpp` — the existing writer handles seedling and sapling only; extend `ProDosVolume::Write` to grow storage type as size requires (FR-008). Block-accounting asserted against `BuildIntegrityReport`, not by inspection
 - [ ] T026 [US2] Implement `ProDosVolume::Delete` with volume-bitmap free-space return in `CassoEmuCore/Devices/Disk/ProDosVolume.cpp`, under the same unique-ownership rule as T024
 - [ ] T027 [US2] Implement replace in both volumes (FR-012): compute the complete post-replacement buffer as a **whole** — never a delete applied to the target followed by a write, which would free the old file and lose it outright if the write then failed. Test that a write failing after the delete step leaves the original file intact
-- [ ] T028 [US2] Wire the pre-commit self-check (FR-039): every `Write` and `Delete` runs `BuildIntegrityReport` over its **computed result** and refuses to return a result that fails it — sector claimed twice, free map disagreeing with the catalog, chain broken by the edit. Feed the path a deliberately corrupted result and confirm refusal (SC-009)
+- [ ] T028 [US2] Wire the pre-commit self-check (FR-039): every `Write` and `Delete` runs `BuildIntegrityReport` over its **computed result** and refuses to return a result that fails it — sector claimed twice, free map disagreeing with the catalog, chain broken by the edit. Feed the path a deliberately corrupted result and confirm refusal (SC-009). **Do not gate on `IsClean()`** — see the divergences block above: it is false on every healthy DOS 3.3 volume and false again after a correct delete that leaks, so it would refuse correct results. Compare the result against the input on the specific sets instead
+
+  **Open question, recorded because it belongs to T028 and would otherwise be
+  lost.** Reverting the name-plausibility check was right, and R-012 records it
+  correctly. But "we cannot distinguish damage from inverse-video headings using
+  NAME BYTES" is a conclusion about **one signal**, not about the problem.
+  `The Print Shop Color side B.woz` still lists a garbage catalog at exit 0.
+  Free-sector-map agreement and chain reachability might separate those cases
+  where names cannot — and those are precisely the signals this task's
+  pre-commit self-check already computes, so it is the same question approached
+  from the other side. Worth revisiting when T028 is built.
+
+  **This is a note to revisit, not a license to act.** Do not implement it here,
+  and do **not** reinstate the name check under any framing: it rejects 20 of 63
+  entries on a disk Merlin shipped
 - [ ] T029 [US2] Implement the bit-stream write path in `CassoEmuCore/Devices/Disk/`: diff the pre- and post-edit sector buffers, call `RenibblizeTracks` for **only** the changed tracks, and refuse via `TrackWritability` when the write needs a track that is not writable (FR-016, FR-017). Test that writing to a WOZ leaves untouched tracks bit-identical, and that a `Partial` track refuses the write with the image unchanged (SC-008). **Write and re-read across all four formats** — `.dsk`, `.do`, `.po`, `.woz` (FR-015): extraction is covered across formats by T021, but sector ordering differs between DOS and ProDOS order and a mistake there is silent, so the write side needs its own matrix
 - [ ] T030 [US2] Implement the **commit policy** in `CassoEmuCore/Devices/Disk/CommitPlan.h/.cpp` as pure functions over data: temporary-name derivation from the target path and an attempt counter, the staleness comparison (`IsStale (recordedSize, recordedTime, observedSize, observedTime)`), and the ordering rule that the temporary is removed on any failure. Names must not collide between concurrent invocations (FR-013). Tests in `UnitTest/EmuTests/CommitPlanTests.cpp` — these are decisions, not syscalls, and they must be unit-testable
 - [ ] T031 [US2] Wire the staleness re-verify and the best-effort probe into `DiskCommandRunner` (T019): record size and modification time at read via `IDiskFileIo`, re-verify immediately before commit and refuse if either changed (FR-036); best-effort exclusive-open probe refusing when **another** holder has the file open, with help text that does not imply it detects Casso (FR-035). Tested against the fake `IDiskFileIo`, which can report a changed size or time on demand
 - [ ] T032 [US2] Add `put` and `delete` verbs to `ParseDiskOptions` and `DiskCommandRunner` (`--as`, `--type`, `--addr`, `--text`/`--basic`/`--verbatim`), with write-protect and locked-file refusals reported in intelligible terms rather than raw platform codes (FR-014). Use `--verbatim`, **not** `--raw` or `--binary`: both already name assembler output shapes (`OutputFormat::Raw`, `OutputFormat::Binary`) in this same parser, and `--verbatim` says what it does — the other two selectors transform the bytes, this one does not. **`--verbatim` means no CHARACTER conversion — it does NOT mean raw sectors.** Length and header semantics still apply, because those are how a filesystem records where a file ends: they are the file's identity, not a transformation of it. So `get --verbatim` yields the file's logical bytes with high bits and line endings untouched, never trailing sector slack, because "give me this file" must not hand back whatever happened to be in the rest of the last sector. **Gate it on FILE equality, not image equality**: `get --verbatim`, `put --verbatim` unchanged, re-read, and assert the bytes match. Image equality is the wrong assertion — a DOS 3.3 file occupies whole sectors, so slack past the recorded length differs from whatever was there before, and a `put` that reallocates changes the image for reasons having nothing to do with conversion. **Assert sector reuse separately** if image stability is wanted; do not conflate the two. Extract-edit-replace is the workflow US3 exists for, and it must not perturb bytes the user did not touch
-- [ ] T033 [US2] Guest-visible gate (SC-003): real-CPU tests — place a binary on a DOS 3.3 image, boot, `CATALOG` shows `B 002 PROG`, `BLOAD PROG` lands bytes at `$6000`; same payload on ProDOS shows type `BIN` aux `$6000`. Attempt to overwrite the stock master's locked `HELLO` (type `$82`) and confirm refusal
+- [ ] T033 [US2] Guest-visible gate (SC-003): real-CPU tests — place a binary on a DOS 3.3 image, boot, `CATALOG` shows the placed file, `BLOAD PROG` lands bytes at `$6000`; same payload on ProDOS shows type `BIN` aux `$6000`. Attempt to overwrite the stock master's locked `HELLO` (type `$82`) and confirm refusal. **`B 002 PROG` is wrong arithmetic and this task and quickstart §US2 both carried it.** A 512-byte binary stores 516 bytes once DOS's four-byte load/length header is inside the file, which is three data sectors, and the track/sector list is a fourth: `CATALOG` reads **`B 004`**. `002` is what a payload of 252 bytes or fewer produces. Measured against the implementation in T023 (`Write_BinaryOntoAFreshVolume_ReadsBackByteForByte` asserts four sectors); assert what the file actually occupies rather than the number in the prose
 - [ ] T034 [US2] Failure-mode gate (SC-005) as **unit tests against the fake `IDiskFileIo`**, not against real files: for **every** documented failure — volume full, locked file, write-protected image, illegal name, unwritable track, stale target — assert the target's bytes are unchanged, the resulting image still parses as a mountable volume, and no temporary remains in the fake's file table. Test Isolation is NON-NEGOTIABLE, so the seam is what makes this suite legal; the real-file version of the same checks is the single manual pass in T035
 - [ ] T035 [US2] Runtime validation pass over quickstart §US2 plus the **manual** interrupted-write check — the one sanctioned real-file exercise: kill the process mid-commit, confirm the original is intact and bootable and no temporary remains. Crash safety cannot be unit-tested, which is exactly why it is the part done by hand; everything else in T034 runs against the seam
 

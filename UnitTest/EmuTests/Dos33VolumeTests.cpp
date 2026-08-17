@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "FixtureProvider.h"
 #include "Devices/Disk/Dos33Skeleton.h"
 #include "Devices/Disk/Dos33Volume.h"
 #include "Devices/Disk/NibblizationLayer.h"
@@ -37,7 +38,19 @@ public:
     //  a freshly formatted volume, leaving 31 tracks of 16 sectors.
     static constexpr uint32_t  kFreeOnBlankVolume = 31 * 16;
 
-    static constexpr size_t    kNameFieldBytes    = 30;
+    static constexpr size_t    kNameFieldBytes     = 30;
+    static constexpr size_t    kEntryBase          = 0x0B;
+    static constexpr size_t    kEntrySize          = 0x23;
+    static constexpr int       kCatalogFirstSector = 15;
+    static constexpr size_t    kDosBinHeaderBytes  = 4;
+
+    //  The decorative heading rows on Merlin's disk carry eight of them.
+    static constexpr size_t    kDecorativeBackspaces = 8;
+
+    //  Geometry for the hand-built cross-linked and damaged volumes.
+    static constexpr int       kSharedTrack       = 18;
+    static constexpr int       kSharedSector      = 13;
+    static constexpr Byte      kTrackOffTheVolume = 40;
 
     //  Geometry for the hand-built multi-list file.
     static constexpr int       kPairsPerList      = 122;   // one list sector holds this many
@@ -80,6 +93,18 @@ public:
         buffer[byteAt] = (Byte) (buffer[byteAt] & ~(1 << bit));
     }
 
+    //  Sets the free-bitmap bit for a sector, marking it available. The inverse
+    //  of MarkAllocated, and the state a bad delete leaves behind when it hands
+    //  back a sector a catalog entry still points at.
+    static void MarkFree (vector<Byte> & buffer, int track, int sector)
+    {
+        size_t  at     = Dos33Skeleton::SectorOffset (17, 0) + 0x38 + (size_t) track * 4;
+        size_t  byteAt = (sector >= 8) ? at : at + 1;
+        int     bit    = (sector >= 8) ? (sector - 8) : sector;
+
+        buffer[byteAt] = (Byte) (buffer[byteAt] | (1 << bit));
+    }
+
     static void WriteEntryName (vector<Byte> & buffer, size_t entryAt, const string & name)
     {
         size_t  i = 0;
@@ -90,6 +115,182 @@ public:
 
             buffer[entryAt + 0x03 + i] = (Byte) (c | 0x80);
         }
+    }
+
+    static size_t EntryOffset (int catalogSector, int slot)
+    {
+        return Dos33Skeleton::SectorOffset (17, catalogSector) + kEntryBase + (size_t) slot * kEntrySize;
+    }
+
+    static uint32_t FreeSectors (const vector<Byte> & buffer)
+    {
+        Dos33Volume    volume (buffer);
+        VolumeListing  listing;
+
+        AssertSucceeded (volume.Enumerate (listing));
+
+        return listing.freeUnits;
+    }
+
+    //  A binary payload whose every byte records which STORED sector it belongs
+    //  in, so a chain walked in the wrong order shows up as wrong CONTENT rather
+    //  than merely as a wrong length. The four header bytes shift it by four.
+    static FilePayload MakeBinaryPayload (size_t length, Word loadAddress)
+    {
+        FilePayload  payload;
+        size_t       i = 0;
+
+        payload.type           = Dos33Volume::kTypeBinary;
+        payload.loadAddress    = loadAddress;
+        payload.hasLoadAddress = true;
+
+        payload.bytes.resize (length);
+
+        for (i = 0; i < length; i++)
+        {
+            payload.bytes[i] = (Byte) (((i + kDosBinHeaderBytes) / 256) & 0xFF);
+        }
+
+        return payload;
+    }
+
+    //  A catalog entry that occupies no sectors, of the shape twenty of the
+    //  sixty-three entries on Merlin's own disk have: a $7F/$7F pointer never
+    //  meant to be followed, a sector count of zero, and a name whose backspaces
+    //  walk DOS's cursor back so the text lands at column zero.
+    static void WriteDecorativeEntry (vector<Byte> & buffer, int slot)
+    {
+        size_t  entryAt = EntryOffset (kCatalogFirstSector, slot);
+        size_t  i       = 0;
+
+        buffer[entryAt + 0x00] = 0x7F;
+        buffer[entryAt + 0x01] = 0x7F;
+        buffer[entryAt + 0x02] = Dos33Volume::kTypeText;
+        buffer[entryAt + 0x21] = 0;
+        buffer[entryAt + 0x22] = 0;
+
+        buffer[entryAt + 0x03] = 0xC1;   // high-ASCII 'A'
+
+        for (i = 1; i < kDecorativeBackspaces + 1; i++)
+        {
+            buffer[entryAt + 0x03 + i] = 0x88;   // backspace
+        }
+
+        for (i = kDecorativeBackspaces + 1; i < kNameFieldBytes; i++)
+        {
+            buffer[entryAt + 0x03 + i] = 0xA0;
+        }
+    }
+
+    //  Two files that both claim one sector. Deleting either must not hand that
+    //  sector back: the survivor still reads through it, and the corruption from
+    //  freeing it appears only the next time anything allocates.
+    vector<Byte> MakeVolumeWithCrossLinkedFiles()
+    {
+        vector<Byte>  buffer = MakeFormattedVolume();
+        size_t        entryA = EntryOffset (kCatalogFirstSector, 0);
+        size_t        entryB = EntryOffset (kCatalogFirstSector, 1);
+        size_t        listA  = Dos33Skeleton::SectorOffset (kSharedTrack, 15);
+        size_t        listB  = Dos33Skeleton::SectorOffset (kSharedTrack, 12);
+        size_t        dataB  = Dos33Skeleton::SectorOffset (kSharedTrack, 11);
+        size_t        shared = Dos33Skeleton::SectorOffset (kSharedTrack, kSharedSector);
+
+        // FILEA: list at S15, data at S14 and the shared S13.
+        buffer[entryA + 0x00] = (Byte) kSharedTrack;
+        buffer[entryA + 0x01] = 15;
+        buffer[entryA + 0x02] = Dos33Volume::kTypeBinary;
+        buffer[entryA + 0x21] = 3;
+
+        WriteEntryName (buffer, entryA, "FILEA");
+
+        buffer[listA + 0x0C] = (Byte) kSharedTrack;
+        buffer[listA + 0x0D] = 14;
+        buffer[listA + 0x0E] = (Byte) kSharedTrack;
+        buffer[listA + 0x0F] = (Byte) kSharedSector;
+
+        // FILEB: list at S12, data at S11 and the SAME S13.
+        buffer[entryB + 0x00] = (Byte) kSharedTrack;
+        buffer[entryB + 0x01] = 12;
+        buffer[entryB + 0x02] = Dos33Volume::kTypeBinary;
+        buffer[entryB + 0x21] = 3;
+
+        WriteEntryName (buffer, entryB, "FILEB");
+
+        buffer[listB + 0x0C] = (Byte) kSharedTrack;
+        buffer[listB + 0x0D] = 11;
+        buffer[listB + 0x0E] = (Byte) kSharedTrack;
+        buffer[listB + 0x0F] = (Byte) kSharedSector;
+
+        // FILEB's own bytes: a load address, a length of 508, then a pattern
+        // that spans both of its data sectors so a lost sector is visible.
+        buffer[dataB + 0] = 0x00;
+        buffer[dataB + 1] = 0x20;
+        buffer[dataB + 2] = 0xFC;
+        buffer[dataB + 3] = 0x01;
+
+        std::fill (buffer.begin() + (ptrdiff_t) dataB + 4,
+                   buffer.begin() + (ptrdiff_t) dataB + 256, (Byte) 0xAA);
+        std::fill (buffer.begin() + (ptrdiff_t) shared,
+                   buffer.begin() + (ptrdiff_t) shared + 256, (Byte) 0xBB);
+
+        MarkAllocated (buffer, kSharedTrack, 15);
+        MarkAllocated (buffer, kSharedTrack, 14);
+        MarkAllocated (buffer, kSharedTrack, kSharedSector);
+        MarkAllocated (buffer, kSharedTrack, 12);
+        MarkAllocated (buffer, kSharedTrack, 11);
+
+        return buffer;
+    }
+
+    //  A file whose track/sector list chains to a track the volume does not
+    //  have. Refusing to delete it would strand every sector it holds.
+    vector<Byte> MakeVolumeWithDamagedChainFile()
+    {
+        vector<Byte>  buffer  = MakeFormattedVolume();
+        size_t        entryAt = EntryOffset (kCatalogFirstSector, 0);
+        size_t        listAt  = Dos33Skeleton::SectorOffset (kSharedTrack, 15);
+
+        buffer[entryAt + 0x00] = (Byte) kSharedTrack;
+        buffer[entryAt + 0x01] = 15;
+        buffer[entryAt + 0x02] = Dos33Volume::kTypeBinary;
+        buffer[entryAt + 0x21] = 3;
+
+        WriteEntryName (buffer, entryAt, "BROKEN");
+
+        buffer[listAt + 0x01] = kTrackOffTheVolume;
+        buffer[listAt + 0x02] = 0;
+        buffer[listAt + 0x0C] = (Byte) kSharedTrack;
+        buffer[listAt + 0x0D] = 14;
+
+        MarkAllocated (buffer, kSharedTrack, 15);
+        MarkAllocated (buffer, kSharedTrack, 14);
+
+        return buffer;
+    }
+
+    //  What a computed result must not disagree about. The whole-volume IsClean
+    //  is deliberately NOT the assertion: a DOS 3.3 volume's boot tracks and
+    //  catalog track are allocated and claimed by no catalog entry, so every
+    //  real volume carries a standing allocated-but-unclaimed set. What an edit
+    //  must not do is CHANGE it, or introduce a disagreement of its own.
+    static void AssertEditLeftTheVolumeConsistent (const vector<Byte> & before, const vector<Byte> & after)
+    {
+        Dos33Volume            wasVolume (before);
+        Dos33Volume            isVolume (after);
+        VolumeIntegrityReport  was;
+        VolumeIntegrityReport  is;
+
+        AssertSucceeded (wasVolume.BuildIntegrityReport (was));
+        AssertSucceeded (isVolume.BuildIntegrityReport (is));
+
+        Assert::AreEqual (size_t (0), is.GetCrossLinked().size(),
+            L"the edit must not leave a sector claimed by two entries");
+        Assert::AreEqual (size_t (0), is.GetClaimedButFree().size(),
+            L"the edit must not leave a referenced sector marked free");
+        Assert::AreEqual (was.GetUnfollowableChains().size(), is.GetUnfollowableChains().size(),
+            L"the edit must not break a chain that was whole");
+        Assert::AreEqual (was.GetAllocatedButUnclaimed().size(), is.GetAllocatedButUnclaimed().size(),
+            L"the edit must not leak space, nor reclaim space it did not own");
     }
 
     //  A file large enough to need a THIRD track/sector list.
@@ -381,22 +582,628 @@ public:
             L"a pointer outside the volume must be reported rather than followed");
     }
 
-    TEST_METHOD (Write_IsNotYetImplemented_AndSaysSoRatherThanSucceeding)
+    TEST_METHOD (Write_BinaryOntoAFreshVolume_ReadsBackByteForByte)
     {
-        // An absent capability must not be indistinguishable from a completed
-        // one. This is the same rule the decoder follows.
+        vector<Byte>   buffer  = MakeFormattedVolume();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        Dos33Volume    written (result);
+        FilePayload    payload = MakeBinaryPayload (512, 0x6000);
+        FilePayload    back;
+        VolumeListing  listing;
+        size_t         i       = 0;
+
+        AssertSucceeded (volume.Write (FilePath::Parse ("PROG"), payload, result));
+        AssertSucceeded (written.Enumerate (listing));
+
+        Assert::AreEqual (size_t (1), listing.entries.size());
+        Assert::AreEqual (string ("PROG"), listing.entries[0].name);
+        Assert::AreEqual (Dos33Volume::kTypeBinary, listing.entries[0].type);
+        Assert::IsFalse (listing.entries[0].isLocked);
+
+        // 512 payload bytes plus the four-byte header DOS stores inside the
+        // file is 516, which needs three data sectors; the track/sector list is
+        // the fourth. A CATALOG of this disk reads B 004, not B 002.
+        Assert::AreEqual (uint32_t (4), listing.entries[0].sizeUnits);
+        Assert::AreEqual (kFreeOnBlankVolume - 4, listing.freeUnits,
+            L"exactly the sectors the file occupies must leave the free pool");
+
+        AssertSucceeded (written.Read (FilePath::Parse ("PROG"), back));
+
+        Assert::AreEqual (size_t (512), back.bytes.size());
+        Assert::IsTrue (back.hasLoadAddress);
+        Assert::AreEqual (Word (0x6000), back.loadAddress);
+
+        for (i = 0; i < back.bytes.size(); i++)
+        {
+            if (back.bytes[i] != payload.bytes[i])
+            {
+                Assert::Fail (L"the bytes read back must be the bytes placed");
+            }
+        }
+
+        AssertEditLeftTheVolumeConsistent (buffer, result);
+    }
+
+    TEST_METHOD (Write_ProducesNothingWhenItRefuses_AndNeverTouchesTheInput)
+    {
+        // The volume holds its buffer as an immutable input, which is what makes
+        // all-or-nothing structural rather than remembered. A refusal must leave
+        // both the caller's image and the output untouched.
+        vector<Byte>   buffer   = MakeVolumeWithHello();
+        vector<Byte>   original = buffer;
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        FilePayload    payload  = MakeBinaryPayload (16, 0x0300);
+        HRESULT        hr       = S_OK;
+        size_t         i        = 0;
+
+        hr = volume.Write (FilePath::Parse ("HELLO"), payload, result);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS), hr,
+            L"an existing name is refused rather than duplicated; replace is computed whole");
+        Assert::AreEqual (size_t (0), result.size(), L"a refused write produces nothing");
+
+        for (i = 0; i < buffer.size(); i++)
+        {
+            if (buffer[i] != original[i])
+            {
+                Assert::Fail (L"a refused write must not have touched the source image");
+            }
+        }
+    }
+
+    TEST_METHOD (Write_OverALockedFile_IsRefusedForBeingLockedNotForExisting)
+    {
+        // The two refusals differ in what the user must do about them, so they
+        // must not collapse into one message.
+        vector<Byte>   buffer  = MakeVolumeWithHello();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        FilePayload    payload = MakeBinaryPayload (16, 0x0300);
+        size_t         entryAt = EntryOffset (kCatalogFirstSector, 0);
+        HRESULT        hr      = S_OK;
+
+        buffer[entryAt + 0x02] = (Byte) (buffer[entryAt + 0x02] | 0x80);
+
+        hr = volume.Write (FilePath::Parse ("HELLO"), payload, result);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED), hr);
+        Assert::AreEqual (size_t (0), result.size());
+    }
+
+    TEST_METHOD (Write_ToAVolumeWithNoRoom_IsRefusedNamingDiskFull)
+    {
+        vector<Byte>   buffer  = MakeFormattedVolume();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        FilePayload    payload = MakeBinaryPayload (16, 0x0300);
+        int            track   = 0;
+        int            sector  = 0;
+        HRESULT        hr      = S_OK;
+
+        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+            {
+                MarkAllocated (buffer, track, sector);
+            }
+        }
+
+        hr = volume.Write (FilePath::Parse ("PROG"), payload, result);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DISK_FULL), hr);
+        Assert::AreEqual (size_t (0), result.size(),
+            L"a partial allocation must not reach the caller");
+    }
+
+    TEST_METHOD (Write_NamesTheGuestCouldNotOpenAgain_AreRefused)
+    {
+        // Validating a name being CREATED is not the printable-text check on
+        // names being READ that was tried and reverted. Reading imposes no rule
+        // -- twenty entries on Merlin's own disk are drawn with backspaces --
+        // while a name DOS's own SAVE would reject is one nobody can open.
         vector<Byte>   buffer   = MakeFormattedVolume();
         Dos33Volume    volume (buffer);
-        vector<Byte>   out;
-        FilePayload    payload;
-        HRESULT        hrWrite  = S_OK;
-        HRESULT        hrDelete = S_OK;
+        FilePayload    payload  = MakeBinaryPayload (16, 0x0300);
+        vector<string> rejected;
+        size_t         i        = 0;
 
-        hrWrite  = volume.Write (FilePath::Parse ("X"), payload, out);
-        hrDelete = volume.Delete (FilePath::Parse ("X"), out);
+        rejected.push_back ("");
+        rejected.push_back ("1PROG");
+        rejected.push_back (" PROG");
+        rejected.push_back ("PROG,X");
+        rejected.push_back ("PROGRAMPROGRAMPROGRAMPROGRAMPRO1");
+        rejected.push_back ("SUB/PROG");
 
-        Assert::IsTrue (FAILED (hrWrite),  L"an unbuilt write must report failure");
-        Assert::IsTrue (FAILED (hrDelete), L"an unbuilt delete must report failure");
-        Assert::AreEqual (size_t (0), out.size(), L"a refused operation produces nothing");
+        Assert::IsTrue (rejected.size() > 0, L"the case list must not be empty");
+
+        for (i = 0; i < rejected.size(); i++)
+        {
+            vector<Byte>  result;
+            HRESULT       hr = volume.Write (FilePath::Parse (rejected[i]), payload, result);
+
+            Assert::IsTrue (FAILED (hr), L"an unusable name must be refused");
+            Assert::AreEqual (size_t (0), result.size());
+        }
+    }
+
+    TEST_METHOD (Write_LowerCaseName_IsStoredTheWayTheGuestCanTypeIt)
+    {
+        vector<Byte>   buffer = MakeFormattedVolume();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        Dos33Volume    written (result);
+        FilePayload    payload = MakeBinaryPayload (16, 0x0300);
+        VolumeListing  listing;
+
+        AssertSucceeded (volume.Write (FilePath::Parse ("prog"), payload, result));
+        AssertSucceeded (written.Enumerate (listing));
+
+        Assert::AreEqual (size_t (1), listing.entries.size());
+        Assert::AreEqual (string ("PROG"), listing.entries[0].name,
+            L"the catalog is upper case and so is the keyboard that reads it");
+    }
+
+    TEST_METHOD (Write_DoesNotReuseACatalogSlotHoldingAZeroSectorEntry)
+    {
+        // Twenty of the sixty-three entries on Merlin's own disk occupy no
+        // sectors and exist to draw headings. A slot is free when its track byte
+        // says never-used or deleted -- never because the entry claims nothing.
+        vector<Byte>   buffer  = MakeFormattedVolume();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        Dos33Volume    written (result);
+        FilePayload    payload = MakeBinaryPayload (16, 0x0300);
+        VolumeListing  listing;
+        size_t         slotAt  = EntryOffset (kCatalogFirstSector, 0);
+
+        WriteDecorativeEntry (buffer, 0);
+
+        AssertSucceeded (volume.Write (FilePath::Parse ("PROG"), payload, result));
+        AssertSucceeded (written.Enumerate (listing));
+
+        Assert::AreEqual (size_t (2), listing.entries.size(),
+            L"the heading row must survive; the new file needs its own slot");
+        Assert::AreEqual (uint32_t (0), listing.entries[0].sizeUnits,
+            L"the first slot is still the entry that occupies nothing");
+        Assert::AreEqual (string ("PROG"), listing.entries[1].name);
+        Assert::AreEqual (Byte (0x7F), result[slotAt],
+            L"the decoration's own bytes must be untouched");
+    }
+
+    TEST_METHOD (Write_NeverHandsOutASectorTheCatalogStillClaims)
+    {
+        // A free map calling a sector free while an entry still points at it is
+        // exactly what a bad delete leaves behind. Handing that sector to the
+        // next file destroys the first one, and nothing says so until someone
+        // reads it. HELLO's data sector is marked free here and must be skipped.
+        vector<Byte>   buffer  = MakeVolumeWithHello();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        Dos33Volume    written (result);
+        FilePayload    payload = MakeBinaryPayload (16, 0x0300);
+        FilePayload    hello;
+
+        MarkFree (buffer, 18, 14);
+
+        AssertSucceeded (volume.Write (FilePath::Parse ("PROG"), payload, result));
+        AssertSucceeded (written.Read (FilePath::Parse ("HELLO"), hello));
+
+        Assert::AreEqual (size_t (8), hello.bytes.size(),
+            L"the existing file must still be the file it was");
+        Assert::AreEqual (Byte (0xB2), hello.bytes[4], L"its REM token must be intact");
+    }
+
+    TEST_METHOD (Write_FileNeedingThreeTrackSectorLists_ChainsThemInOrder)
+    {
+        // One list holds 122 sectors, so 245 data sectors need three of them.
+        // Three, not two: a next-pointer defect that reads its halves from
+        // different sectors walks the FIRST hop correctly by coincidence, and
+        // only the second hop tells a correct implementation from a broken one.
+        constexpr size_t  kPayloadBytes  = 62700;   // 62704 stored -> 245 sectors
+        constexpr size_t  kLastListStart = 244;
+
+        vector<Byte>   buffer  = MakeFormattedVolume();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        Dos33Volume    written (result);
+        FilePayload    payload = MakeBinaryPayload (kPayloadBytes, 0x0800);
+        FilePayload    back;
+        VolumeListing  listing;
+
+        AssertSucceeded (volume.Write (FilePath::Parse ("BIG"), payload, result));
+        AssertSucceeded (written.Enumerate (listing));
+
+        Assert::AreEqual (uint32_t (248), listing.entries[0].sizeUnits,
+            L"245 data sectors plus the three lists that describe them");
+
+        AssertSucceeded (written.Read (FilePath::Parse ("BIG"), back));
+
+        Assert::AreEqual (kPayloadBytes, back.bytes.size(),
+            L"the whole file must come back, not just the first list's worth");
+
+        // Each byte names the stored sector it belongs to, so these three pin
+        // content from the first, second and third lists respectively.
+        Assert::AreEqual (Byte (121), back.bytes[121 * 256 - kDosBinHeaderBytes],
+            L"the last sector of the first list");
+        Assert::AreEqual (Byte (130), back.bytes[130 * 256 - kDosBinHeaderBytes],
+            L"content past the first list");
+        Assert::AreEqual (Byte ((Byte) kLastListStart), back.bytes[kLastListStart * 256 - kDosBinHeaderBytes],
+            L"content past the SECOND list is what a two-list file cannot prove");
+
+        AssertEditLeftTheVolumeConsistent (buffer, result);
+    }
+
+    TEST_METHOD (Delete_AFileWithNoComplications_ReturnsExactlyItsSectors)
+    {
+        vector<Byte>   buffer  = MakeVolumeWithHello();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        Dos33Volume    written (result);
+        DeleteOutcome  outcome;
+        VolumeListing  listing;
+        size_t         entryAt = EntryOffset (kCatalogFirstSector, 0);
+
+        AssertSucceeded (volume.Delete (FilePath::Parse ("HELLO"), result, outcome));
+        AssertSucceeded (written.Enumerate (listing));
+
+        Assert::AreEqual (size_t (0), listing.entries.size(), L"the entry must be gone");
+        Assert::AreEqual (kFreeOnBlankVolume, listing.freeUnits,
+            L"both of its sectors return to the pool");
+        Assert::AreEqual (size_t (2), outcome.freedUnits.size());
+        Assert::AreEqual (size_t (0), outcome.leakedUnits.size());
+        Assert::AreEqual (size_t (0), outcome.warnings.size(), L"a clean delete warns about nothing");
+        Assert::IsTrue (outcome.catalogFullyParsed);
+
+        // DOS's own tombstone: $FF in the track byte, the original track stashed
+        // in the last byte of the name so an undelete tool can find it.
+        Assert::AreEqual (Byte (0xFF), result[entryAt + 0x00]);
+        Assert::AreEqual (Byte (18), result[entryAt + 0x20]);
+
+        AssertEditLeftTheVolumeConsistent (buffer, result);
+    }
+
+    TEST_METHOD (Delete_FreesOnlyWhatTheFileUniquelyOwns_AndReportsTheRestAsLeaked)
+    {
+        // The one failure in this feature that damages a DIFFERENT file, and
+        // does it silently: freeing a shared sector succeeds, the volume looks
+        // healthy, and the survivor is destroyed by the next allocation. Leaked
+        // space is recoverable; a cross-linked free is not.
+        vector<Byte>   buffer   = MakeVolumeWithCrossLinkedFiles();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        Dos33Volume    written (result);
+        DeleteOutcome  outcome;
+        VolumeListing  listing;
+        FilePayload    survivor;
+        uint32_t       freeBefore = FreeSectors (buffer);
+
+        AssertSucceeded (volume.Delete (FilePath::Parse ("FILEA"), result, outcome));
+        AssertSucceeded (written.Enumerate (listing));
+
+        Assert::AreEqual (size_t (2), outcome.freedUnits.size(),
+            L"only the list sector and the data sector nothing else claims");
+        Assert::AreEqual (size_t (1), outcome.leakedUnits.size(),
+            L"the shared sector is reported, not returned");
+        Assert::AreEqual (uint32_t (kSharedTrack * 16 + kSharedSector), outcome.leakedUnits[0]);
+        Assert::IsTrue (outcome.warnings.size() > 0, L"leaked space must be said out loud");
+
+        Assert::AreEqual (freeBefore + 2, listing.freeUnits,
+            L"three sectors were claimed and exactly two may come back");
+
+        AssertSucceeded (written.Read (FilePath::Parse ("FILEB"), survivor));
+
+        Assert::AreEqual (size_t (508), survivor.bytes.size(),
+            L"the other file must still be whole");
+        Assert::AreEqual (Byte (0xBB), survivor.bytes[300],
+            L"its bytes in the shared sector must still be its bytes");
+
+        AssertEditLeftTheVolumeConsistent (buffer, result);
+    }
+
+    TEST_METHOD (Delete_AFileWhoseChainIsDamaged_StillRemovesIt)
+    {
+        // Refusing would strand the volume: the entry could never be removed and
+        // its sectors never reclaimed, on precisely the degraded disks this
+        // feature exists to serve.
+        vector<Byte>   buffer  = MakeVolumeWithDamagedChainFile();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        Dos33Volume    written (result);
+        DeleteOutcome  outcome;
+        VolumeListing  listing;
+
+        AssertSucceeded (volume.Delete (FilePath::Parse ("BROKEN"), result, outcome));
+        AssertSucceeded (written.Enumerate (listing));
+
+        Assert::AreEqual (size_t (0), listing.entries.size(), L"a bad file must not be permanent");
+        Assert::IsTrue (outcome.chainWasDamaged, L"the damage must be reported, not hidden");
+        Assert::AreEqual (size_t (2), outcome.freedUnits.size(),
+            L"what the walk reached is freed; what it never saw is not touched");
+        Assert::AreEqual (kFreeOnBlankVolume, listing.freeUnits);
+        Assert::IsTrue (outcome.warnings.size() > 0);
+    }
+
+    TEST_METHOD (Delete_FromAVolumeWhoseCatalogDidNotFullyParse_WarnsDistinctly)
+    {
+        // The one case the unique-ownership rule can still lose data: an entry
+        // that could not be read claims nothing observable, so a sector it
+        // shares looks unowned. The system must not claim otherwise.
+        vector<Byte>   buffer    = MakeVolumeWithHello();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        DeleteOutcome  outcome;
+        size_t         catalogAt = Dos33Skeleton::SectorOffset (17, kCatalogFirstSector);
+        size_t         i         = 0;
+        bool           saidSo    = false;
+
+        buffer[catalogAt + 0x01] = kTrackOffTheVolume;
+
+        AssertSucceeded (volume.Delete (FilePath::Parse ("HELLO"), result, outcome));
+
+        Assert::IsFalse (outcome.catalogFullyParsed);
+        Assert::IsTrue (outcome.warnings.size() > 0, L"an unbounded answer must say so");
+
+        for (i = 0; i < outcome.warnings.size(); i++)
+        {
+            if (outcome.warnings[i].find ("catalog did not parse") != string::npos)
+            {
+                saidSo = true;
+            }
+        }
+
+        Assert::IsTrue (saidSo, L"the catalog warning must be its own, not folded into another");
+    }
+
+    TEST_METHOD (Delete_AZeroSectorEntry_RemovesItAndFreesNothing)
+    {
+        // A decorative heading has no chain. Following its $7F/$7F pointer would
+        // be inventing one; the discriminator is the entry's own sector count.
+        vector<Byte>   buffer     = MakeVolumeWithHello();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        Dos33Volume    written (result);
+        DeleteOutcome  outcome;
+        VolumeListing  before;
+        VolumeListing  after;
+
+        WriteDecorativeEntry (buffer, 1);
+
+        AssertSucceeded (volume.Enumerate (before));
+        Assert::AreEqual (size_t (2), before.entries.size());
+
+        AssertSucceeded (volume.Delete (FilePath::Parse (before.entries[1].name), result, outcome));
+        AssertSucceeded (written.Enumerate (after));
+
+        Assert::AreEqual (size_t (1), after.entries.size(), L"the decoration is gone");
+        Assert::AreEqual (before.freeUnits, after.freeUnits,
+            L"an entry that occupies nothing returns nothing");
+        Assert::AreEqual (size_t (0), outcome.freedUnits.size());
+        Assert::AreEqual (size_t (0), outcome.leakedUnits.size());
+
+        // AND it is not damage. Following the $7F/$7F pointer would report a
+        // chain that could not be walked, on an entry that never had one.
+        Assert::IsFalse (outcome.chainWasDamaged);
+        Assert::AreEqual (size_t (0), outcome.warnings.size());
+    }
+
+    TEST_METHOD (Delete_AZeroSectorEntryWhosePointerIsNotTheSentinel_StillFreesNothing)
+    {
+        // The discriminator is the entry's own sector count, NOT a $7F/$7F
+        // pointer. Every decorative entry on Merlin's disk happens to carry that
+        // sentinel, so a reader keyed on the pointer passes every test built
+        // from those disks and is still wrong -- this entry claims no sectors
+        // and points straight at another file's track/sector list.
+        vector<Byte>   buffer  = MakeVolumeWithHello();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        Dos33Volume    written (result);
+        DeleteOutcome  outcome;
+        FilePayload    hello;
+        VolumeListing  listing;
+        size_t         entryAt = EntryOffset (kCatalogFirstSector, 1);
+
+        buffer[entryAt + 0x00] = 18;   // HELLO's track/sector list
+        buffer[entryAt + 0x01] = 15;
+        buffer[entryAt + 0x02] = Dos33Volume::kTypeText;
+        buffer[entryAt + 0x21] = 0;
+        buffer[entryAt + 0x22] = 0;
+
+        WriteEntryName (buffer, entryAt, "GHOST");
+
+        AssertSucceeded (volume.Delete (FilePath::Parse ("GHOST"), result, outcome));
+        AssertSucceeded (written.Enumerate (listing));
+
+        Assert::AreEqual (size_t (0), outcome.freedUnits.size(),
+            L"an entry declaring no sectors owns none, whatever its pointer says");
+        Assert::AreEqual (size_t (0), outcome.leakedUnits.size(),
+            L"it must not have walked another file's chain at all");
+        Assert::AreEqual (size_t (0), outcome.warnings.size());
+
+        AssertSucceeded (written.Read (FilePath::Parse ("HELLO"), hello));
+
+        Assert::AreEqual (size_t (8), hello.bytes.size(), L"the real file is untouched");
+    }
+
+    TEST_METHOD (Write_IntoASectorAPreviousFileUsedAsAList_DoesNotInheritItsPairs)
+    {
+        // A track/sector list still holding the previous occupant's pairs is
+        // read as THIS file's data, so the new file silently claims sectors
+        // another file is using. The symptom is a cross-link, not a bad read,
+        // which is why the assertion is on the integrity pass.
+        vector<Byte>           buffer  = MakeVolumeWithCrossLinkedFiles();
+        vector<Byte>           emptied;
+        vector<Byte>           result;
+        Dos33Volume            volume (buffer);
+        Dos33Volume            afterDelete (emptied);
+        Dos33Volume            written (result);
+        FilePayload            payload = MakeBinaryPayload (16, 0x0300);
+        VolumeIntegrityReport  report;
+
+        AssertSucceeded (volume.Delete (FilePath::Parse ("FILEA"), emptied));
+        AssertSucceeded (afterDelete.Write (FilePath::Parse ("PROG"), payload, result));
+        AssertSucceeded (written.BuildIntegrityReport (report));
+
+        Assert::AreEqual (size_t (0), report.GetCrossLinked().size(),
+            L"the new file must claim only the sectors it was given");
+    }
+
+    TEST_METHOD (Delete_AMultiListFile_ReturnsItsLaterListSectorsToo)
+    {
+        // A file needing three track/sector lists occupies those three sectors
+        // as surely as it occupies its data. An accounting that saw only the
+        // head list left the other two allocated with nothing owning them --
+        // space silently lost on every delete of a file over 31 KB, and not even
+        // reported as leaked, because nothing knew they were the file's.
+        vector<Byte>   buffer = MakeVolumeWithMultiListFile();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        Dos33Volume    written (result);
+        DeleteOutcome  outcome;
+        VolumeListing  listing;
+
+        AssertSucceeded (volume.Delete (FilePath::Parse ("BIG"), result, outcome));
+        AssertSucceeded (written.Enumerate (listing));
+
+        Assert::AreEqual (size_t (kDataSectorCount + 3), outcome.freedUnits.size(),
+            L"250 data sectors and all THREE lists");
+        Assert::AreEqual (size_t (0), outcome.leakedUnits.size());
+        Assert::AreEqual (kFreeOnBlankVolume, listing.freeUnits,
+            L"the volume must be as empty as it started");
+
+        AssertEditLeftTheVolumeConsistent (buffer, result);
+    }
+
+    TEST_METHOD (Delete_ALockedFile_IsRefused)
+    {
+        vector<Byte>   buffer  = MakeVolumeWithHello();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        size_t         entryAt = EntryOffset (kCatalogFirstSector, 0);
+        HRESULT        hr      = S_OK;
+
+        buffer[entryAt + 0x02] = (Byte) (buffer[entryAt + 0x02] | 0x80);
+
+        hr = volume.Delete (FilePath::Parse ("HELLO"), result);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED), hr);
+        Assert::AreEqual (size_t (0), result.size());
+    }
+
+    TEST_METHOD (Delete_AMissingFile_IsNotFound)
+    {
+        vector<Byte>   buffer = MakeVolumeWithHello();
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        HRESULT        hr     = volume.Delete (FilePath::Parse ("NOPE"), result);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), hr);
+        Assert::AreEqual (size_t (0), result.size());
+    }
+
+    TEST_METHOD (Delete_ThenWrite_HandsTheReturnedSectorsBackOut)
+    {
+        // What "returning space to the volume" has to mean in the end.
+        vector<Byte>   buffer  = MakeVolumeWithHello();
+        vector<Byte>   emptied;
+        vector<Byte>   result;
+        Dos33Volume    volume (buffer);
+        Dos33Volume    afterDelete (emptied);
+        Dos33Volume    written (result);
+        FilePayload    payload = MakeBinaryPayload (16, 0x0300);
+        VolumeListing  listing;
+
+        AssertSucceeded (volume.Delete (FilePath::Parse ("HELLO"), emptied));
+        AssertSucceeded (afterDelete.Write (FilePath::Parse ("PROG"), payload, result));
+        AssertSucceeded (written.Enumerate (listing));
+
+        Assert::AreEqual (size_t (1), listing.entries.size());
+        Assert::AreEqual (kFreeOnBlankVolume - 2, listing.freeUnits,
+            L"the new file fits in exactly the space the old one gave back");
+
+        AssertEditLeftTheVolumeConsistent (emptied, result);
+    }
+
+    TEST_METHOD (Write_OntoARealDisk_LeavesEveryDecorativeEntryWhereItWas)
+    {
+        // Merlin's own DOS 3.3 disk, unmodified 1984 material with twenty
+        // zero-sector heading rows among sixty-three entries. A slot-finder that
+        // judged occupancy by sector count would overwrite one of them, and the
+        // user would see a file where a heading used to be.
+        FixtureProvider  fixtures;
+        vector<Byte>     disk;
+        vector<Byte>     result;
+        Dos33Volume      volume (disk);
+        Dos33Volume      written (result);
+        FilePayload      payload      = MakeBinaryPayload (16, 0x0300);
+        VolumeListing    before;
+        VolumeListing    after;
+        size_t           zeroesBefore = 0;
+        size_t           zeroesAfter  = 0;
+        size_t           i            = 0;
+
+        AssertSucceeded (fixtures.OpenFixture ("Disks/Merlin-proDos2.23.dsk", disk));
+
+        AssertSucceeded (volume.Enumerate (before));
+        AssertSucceeded (volume.Write (FilePath::Parse ("CASSOTEST"), payload, result));
+        AssertSucceeded (written.Enumerate (after));
+
+        for (i = 0; i < before.entries.size(); i++)
+        {
+            zeroesBefore += (before.entries[i].sizeUnits == 0) ? 1 : 0;
+        }
+
+        for (i = 0; i < after.entries.size(); i++)
+        {
+            zeroesAfter += (after.entries[i].sizeUnits == 0) ? 1 : 0;
+        }
+
+        Assert::IsTrue (zeroesBefore > 0, L"this disk must carry the entries the case is about");
+        Assert::AreEqual (zeroesBefore, zeroesAfter, L"no heading row may be consumed as free space");
+        Assert::AreEqual (before.entries.size() + 1, after.entries.size());
+        Assert::AreEqual (before.freeUnits - 2, after.freeUnits);
+    }
+
+    TEST_METHOD (Delete_OnARealDisk_ReturnsExactlyWhatItSaysItReturned)
+    {
+        FixtureProvider  fixtures;
+        vector<Byte>     disk;
+        vector<Byte>     result;
+        Dos33Volume      volume (disk);
+        Dos33Volume      written (result);
+        DeleteOutcome    outcome;
+        VolumeListing    before;
+        VolumeListing    after;
+        size_t           chosen   = 0;
+        size_t           i        = 0;
+        bool             haveOne  = false;
+
+        AssertSucceeded (fixtures.OpenFixture ("Disks/Merlin-proDos2.23.dsk", disk));
+
+        AssertSucceeded (volume.Enumerate (before));
+
+        for (i = 0; i < before.entries.size() && !haveOne; i++)
+        {
+            if (before.entries[i].sizeUnits > 0 && !before.entries[i].isLocked)
+            {
+                chosen  = i;
+                haveOne = true;
+            }
+        }
+
+        Assert::IsTrue (haveOne,
+            L"the disk must hold an unlocked file for this to be testing anything");
+
+        AssertSucceeded (volume.Delete (FilePath::Parse (before.entries[chosen].name),
+                                        result, outcome));
+        AssertSucceeded (written.Enumerate (after));
+
+        Assert::AreEqual (before.entries.size() - 1, after.entries.size());
+        Assert::AreEqual (before.freeUnits + (uint32_t) outcome.freedUnits.size(), after.freeUnits,
+            L"the free map must move by exactly what the outcome claims");
+        Assert::AreEqual (size_t (0), outcome.leakedUnits.size(),
+            L"nothing on this disk is cross-linked, so nothing should be left behind");
+        Assert::IsTrue (outcome.catalogFullyParsed);
     }
 };

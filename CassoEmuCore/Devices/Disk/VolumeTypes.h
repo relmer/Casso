@@ -122,3 +122,28 @@ struct FilePayload
     bool               hasAuxType     = false;
     PayloadEncoding    encoding       = PayloadEncoding::Verbatim;
 };
+
+
+
+//
+//  What a delete actually did, as opposed to what it was asked to do.
+//
+//  Removing a file is the one operation here that can quietly damage a
+//  DIFFERENT file, and the damage surfaces only when someone reads that other
+//  file -- possibly weeks later. So the result is not a bare success: a delete
+//  frees only what the deleted file uniquely owned, and everything it declined
+//  to free is named here rather than being silently reclaimed or silently lost.
+//
+//  `leakedUnits` is space that stays allocated with nothing readable owning it.
+//  That is recoverable at any time by a later pass; a unit freed while another
+//  file still references it is not recoverable at all, which is why the
+//  asymmetry runs this way.
+//
+struct DeleteOutcome
+{
+    std::vector<uint32_t>     freedUnits;
+    std::vector<uint32_t>     leakedUnits;
+    std::vector<std::string>  warnings;
+    bool                      catalogFullyParsed = true;
+    bool                      chainWasDamaged    = false;
+};

@@ -43,6 +43,186 @@ uint32_t Dos33Volume::ToUnit (int track, int sector)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Dos33Volume::TrackOf
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int Dos33Volume::TrackOf (uint32_t unit)
+{
+    return (int) (unit / (uint32_t) NibblizationLayer::kSectorsPerTrack);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::SectorOf
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int Dos33Volume::SectorOf (uint32_t unit)
+{
+    return (int) (unit % (uint32_t) NibblizationLayer::kSectorsPerTrack);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::AllocationTrackAt
+//
+//  The order free sectors are handed out in: track 18 outward to the rim, then
+//  track 16 inward to track 0. That is what the VTOC's own allocation hint and
+//  direction byte describe, and it keeps a file's sectors near its catalog.
+//
+//  The catalog track itself is never produced, so it cannot be handed out even
+//  if its free bitmap were wrong.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int Dos33Volume::AllocationTrackAt (int index)
+{
+    constexpr int  kOutwardCount = NibblizationLayer::kTrackCount - Dos33Skeleton::kVtocTrack - 1;
+
+
+
+    if (index < kOutwardCount)
+    {
+        return Dos33Skeleton::kVtocTrack + 1 + index;
+    }
+
+    return Dos33Skeleton::kVtocTrack - 1 - (index - kOutwardCount);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::IsFreeInBitmap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Dos33Volume::IsFreeInBitmap (const vector<Byte> & buffer, int track, int sector)
+{
+    size_t  at     = 0;
+    size_t  byteAt = 0;
+    int     bit    = 0;
+
+
+
+    if (track < 0 || track >= NibblizationLayer::kTrackCount
+     || sector < 0 || sector >= NibblizationLayer::kSectorsPerTrack)
+    {
+        return false;
+    }
+
+    at     = Dos33Skeleton::SectorOffset (Dos33Skeleton::kVtocTrack, 0)
+           + (size_t) Dos33Skeleton::kVtocOffFreeBitmap
+           + (size_t) track * kBitmapBytesPerTrack;
+    byteAt = (sector >= kBitmapSplitSector) ? at : at + 1;
+    bit    = (sector >= kBitmapSplitSector) ? (sector - kBitmapSplitSector) : sector;
+
+    if (byteAt >= buffer.size())
+    {
+        return false;
+    }
+
+    return ((buffer[byteAt] >> bit) & 1) != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::SetFreeInBitmap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dos33Volume::SetFreeInBitmap (vector<Byte> & buffer, int track, int sector, bool isFree)
+{
+    size_t  at     = 0;
+    size_t  byteAt = 0;
+    int     bit    = 0;
+
+
+
+    if (track < 0 || track >= NibblizationLayer::kTrackCount
+     || sector < 0 || sector >= NibblizationLayer::kSectorsPerTrack)
+    {
+        return;
+    }
+
+    at     = Dos33Skeleton::SectorOffset (Dos33Skeleton::kVtocTrack, 0)
+           + (size_t) Dos33Skeleton::kVtocOffFreeBitmap
+           + (size_t) track * kBitmapBytesPerTrack;
+    byteAt = (sector >= kBitmapSplitSector) ? at : at + 1;
+    bit    = (sector >= kBitmapSplitSector) ? (sector - kBitmapSplitSector) : sector;
+
+    if (byteAt >= buffer.size())
+    {
+        return;
+    }
+
+    if (isFree)
+    {
+        buffer[byteAt] = (Byte) (buffer[byteAt] | (1 << bit));
+    }
+    else
+    {
+        buffer[byteAt] = (Byte) (buffer[byteAt] & ~(1 << bit));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::WriteByteAt
+//
+//  Out-of-range writes do nothing, mirroring ReadByte. Nothing here addresses a
+//  sector it did not first obtain from the allocator or the catalog walk, so
+//  this is a backstop rather than a supported way to address the volume.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dos33Volume::WriteByteAt (vector<Byte> & buffer, int track, int sector, size_t offset, Byte value)
+{
+    size_t  at = 0;
+
+
+
+    if (track < 0 || track >= NibblizationLayer::kTrackCount
+     || sector < 0 || sector >= NibblizationLayer::kSectorsPerTrack)
+    {
+        return;
+    }
+
+    at = Dos33Skeleton::SectorOffset (track, sector) + offset;
+
+    if (at >= buffer.size())
+    {
+        return;
+    }
+
+    buffer[at] = value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Dos33Volume::ReadByte
 //
 //  Out-of-range reads answer zero rather than asserting. Every caller here is
@@ -220,6 +400,7 @@ void Dos33Volume::CollectEntries (
 bool Dos33Volume::CollectDataSectors (
     const RawEntry    & entry,
     vector<uint32_t>  & outUnits,
+    vector<uint32_t>  & outListUnits,
     ChainWalkGuard    & guard) const
 {
     int   listTrack  = entry.tsListTrack;
@@ -246,6 +427,12 @@ bool Dos33Volume::CollectDataSectors (
             ok = false;
             break;
         }
+
+        // EVERY list sector, not merely the first. A file large enough to need
+        // a second list occupies that sector as surely as it occupies its data,
+        // and an accounting that saw only the head left the rest allocated with
+        // nothing owning it -- which a delete would then fail to return.
+        outListUnits.push_back (ToUnit (listTrack, listSector));
 
         for (pair = 0; pair < kTsPairsPerList; pair++)
         {
@@ -378,7 +565,7 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
     vector<RawEntry>  entries;
     bool              fullyParsed = true;
     int               track       = 0;
-    int               bit         = 0;
+    int               sector      = 0;
     uint32_t          freeUnits   = 0;
 
 
@@ -407,18 +594,13 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
         outListing.entries.push_back (listed);
     }
 
-    // Free bitmap: 4 bytes per track at VTOC+0x38. Byte 0 holds sectors 15..8
-    // in bits 7..0, byte 1 holds sectors 7..0. A SET bit means free.
     for (track = 0; track < NibblizationLayer::kTrackCount; track++)
     {
-        size_t  at   = Dos33Skeleton::kVtocOffFreeBitmap + (size_t) track * 4;
-        Byte    high = ReadByte (Dos33Skeleton::kVtocTrack, 0, at);
-        Byte    low  = ReadByte (Dos33Skeleton::kVtocTrack, 0, at + 1);
-
-        for (bit = 0; bit < 8; bit++)
+        for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
         {
-            freeUnits += (uint32_t) ((high >> bit) & 1);
-            freeUnits += (uint32_t) ((low  >> bit) & 1);
+            bool  isFree = IsFreeInBitmap (m_sectors, track, sector);
+
+            freeUnits += isFree ? 1u : 0u;
         }
     }
 
@@ -451,10 +633,10 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
     bool                 found       = false;
     bool                 walked      = false;
     bool                 fullyParsed = true;
+    uint16_t             owner       = 0;
     vector<RawEntry>     entries;
     vector<uint32_t>     units;
     vector<std::string>  damage;
-    RawEntry             match;
 
 
 
@@ -463,34 +645,26 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
 
     CollectEntries (entries, damage, fullyParsed);
 
-    for (const RawEntry & entry : entries)
-    {
-        if (_stricmp (entry.name.c_str(), path.GetLeaf().c_str()) == 0)
-        {
-            match = entry;
-            found = true;
-            break;
-        }
-    }
-
+    found = TryFindEntry (entries, path.GetLeaf(), owner);
     CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
     {
-        ChainWalkGuard  guard (kUnitCount);
+        ChainWalkGuard    guard (kUnitCount);
+        vector<uint32_t>  listUnits;
 
-        walked = CollectDataSectors (match, units, guard);
+        walked = CollectDataSectors (entries[owner], units, listUnits, guard);
     }
 
     CBREx (walked, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
 
     outPayload          = FilePayload();
-    outPayload.type     = (Byte) (match.typeByte & ~kLockedBit);
+    outPayload.type     = (Byte) (entries[owner].typeByte & ~kLockedBit);
     outPayload.encoding = PayloadEncoding::Verbatim;
 
     for (uint32_t unit : units)
     {
-        int     track  = (int) (unit / NibblizationLayer::kSectorsPerTrack);
-        int     sector = (int) (unit % NibblizationLayer::kSectorsPerTrack);
+        int     track  = TrackOf (unit);
+        int     sector = SectorOf (unit);
         size_t  i      = 0;
 
         for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize; i++)
@@ -499,7 +673,7 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
         }
     }
 
-    ApplyTypeHeader (match.typeByte, outPayload.bytes, outPayload);
+    ApplyTypeHeader (entries[owner].typeByte, outPayload.bytes, outPayload);
 
 Error:
     return hr;
@@ -529,7 +703,7 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
     bool                 fullyParsed = true;
     uint16_t             owner       = 0;
     int                  track       = 0;
-    int                  bit         = 0;
+    int                  sector      = 0;
 
 
 
@@ -544,14 +718,16 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
     {
         ChainWalkGuard    guard (kUnitCount);
         vector<uint32_t>  units;
-        bool              walked = CollectDataSectors (entries[owner], units, guard);
+        vector<uint32_t>  listUnits;
+        bool              walked = CollectDataSectors (entries[owner], units, listUnits, guard);
 
-        // The list sectors themselves are part of the file's footprint -- but
-        // only for an entry that occupies storage at all. A decorative entry's
-        // pointer names a sector it does not own.
-        if (entries[owner].sectorCount > 0)
+        // The list sectors themselves are part of the file's footprint. An
+        // entry occupying no sectors contributes none of either: the walk
+        // returns before it starts, so a decorative entry's $7F/$7F pointer is
+        // never treated as a sector it owns.
+        for (uint32_t unit : listUnits)
         {
-            outReport.AddClaim (ToUnit (entries[owner].tsListTrack, entries[owner].tsListSector), owner);
+            outReport.AddClaim (unit, owner);
         }
 
         for (uint32_t unit : units)
@@ -568,17 +744,11 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
     // The free bitmap's view. A CLEAR bit means the sector is in use.
     for (track = 0; track < NibblizationLayer::kTrackCount; track++)
     {
-        size_t  at   = Dos33Skeleton::kVtocOffFreeBitmap + (size_t) track * 4;
-        Byte    high = ReadByte (Dos33Skeleton::kVtocTrack, 0, at);
-        Byte    low  = ReadByte (Dos33Skeleton::kVtocTrack, 0, at + 1);
-
-        for (bit = 0; bit < 8; bit++)
+        for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
         {
-            bool  freeHigh = ((high >> bit) & 1) != 0;
-            bool  freeLow  = ((low  >> bit) & 1) != 0;
+            bool  isFree = IsFreeInBitmap (m_sectors, track, sector);
 
-            outReport.SetAllocatedInFreeMap (ToUnit (track, 8 + bit), !freeHigh);
-            outReport.SetAllocatedInFreeMap (ToUnit (track, bit),     !freeLow);
+            outReport.SetAllocatedInFreeMap (ToUnit (track, sector), !isFree);
         }
     }
 
@@ -594,11 +764,453 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Dos33Volume::Write / Delete / SetStartupProgram
+//  Dos33Volume::TryFindEntry
 //
-//  Not yet implemented. They return a failure rather than silently doing
-//  nothing, so a caller cannot mistake an absent capability for a completed
-//  operation -- the same rule the decoder now follows.
+//  Case-insensitive, because the catalog is upper case and the shell the caller
+//  typed into is not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Dos33Volume::TryFindEntry (
+    const vector<RawEntry>  & entries,
+    const std::string       & leaf,
+    uint16_t                & outOwner)
+{
+    uint16_t  index = 0;
+
+
+
+    for (index = 0; index < (uint16_t) entries.size(); index++)
+    {
+        if (_stricmp (entries[index].name.c_str(), leaf.c_str()) == 0)
+        {
+            outOwner = index;
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::TryEncodeCatalogName
+//
+//  Thirty bytes of high ASCII, padded with high-ASCII spaces.
+//
+//  THIS VALIDATES ONLY NAMES BEING CREATED, and that distinction matters. A
+//  printable-text check on names being READ was tried and reverted: it rejects
+//  twenty of the sixty-three entries on a disk Merlin shipped, whose names are a
+//  high-ASCII letter followed by eight backspace characters so that DOS draws a
+//  heading at column zero. Reading imposes no rule at all.
+//
+//  Creating one is the opposite direction. DOS's own SAVE and BSAVE refuse a
+//  name that does not begin with a letter, and a comma ends a filename in every
+//  DOS command line, so a name breaking either is one the guest cannot open
+//  again. Refusing to create it costs nothing and rejects nothing that exists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Dos33Volume::TryEncodeCatalogName (const std::string & name, vector<Byte> & outBytes)
+{
+    size_t  length = name.size();
+    size_t  i      = 0;
+    Byte    first  = 0;
+
+
+
+    if (length == 0 || length > kNameBytes)
+    {
+        return false;
+    }
+
+    first = (Byte) name[0];
+
+    if (!(first >= 'A' && first <= 'Z') && !(first >= 'a' && first <= 'z'))
+    {
+        return false;
+    }
+
+    for (i = 0; i < length; i++)
+    {
+        Byte  c = (Byte) name[i];
+
+        if (c == ',' || c < 0x20 || c >= 0x7F)
+        {
+            return false;
+        }
+    }
+
+    outBytes.assign (kNameBytes, kNamePad);
+
+    for (i = 0; i < length; i++)
+    {
+        Byte  c = (Byte) name[i];
+
+        // The guest's keyboard produces upper case and its catalog stores it,
+        // so a lower-case name would list as something nobody can type.
+        if (c >= 'a' && c <= 'z')
+        {
+            c = (Byte) (c - 'a' + 'A');
+        }
+
+        outBytes[i] = (Byte) (c | 0x80);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::ComposeStoredBytes
+//
+//  The exact inverse of ApplyTypeHeader: DOS 3.3 records a file's length -- and
+//  a binary's load address -- inside the file's own first bytes, so placing a
+//  file means rebuilding that header rather than storing the payload as it came.
+//
+//  A binary with no load address is refused rather than defaulted. $0000 is a
+//  legal load address, so a default would be indistinguishable from an answer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dos33Volume::ComposeStoredBytes (const FilePayload & payload, vector<Byte> & outStored)
+{
+    HRESULT  hr      = S_OK;
+    Byte     type    = (Byte) (payload.type & ~kLockedBit);
+    size_t   length  = payload.bytes.size();
+    bool     fits    = length <= 0xFFFF;
+    bool     hasAddr = payload.hasLoadAddress;
+
+
+
+    outStored.clear();
+
+    if (type == kTypeBinary)
+    {
+        CBREx (hasAddr, HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER));
+        CBREx (fits,    HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE));
+
+        outStored.push_back ((Byte) (payload.loadAddress & 0xFF));
+        outStored.push_back ((Byte) (payload.loadAddress >> 8));
+        outStored.push_back ((Byte) (length & 0xFF));
+        outStored.push_back ((Byte) ((length >> 8) & 0xFF));
+    }
+    else if (type == kTypeApplesoft || type == kTypeInteger)
+    {
+        CBREx (fits, HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE));
+
+        outStored.push_back ((Byte) (length & 0xFF));
+        outStored.push_back ((Byte) ((length >> 8) & 0xFF));
+    }
+
+    outStored.insert (outStored.end(), payload.bytes.begin(), payload.bytes.end());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::TryFindFreeCatalogSlot
+//
+//  The first slot in the catalog chain whose track byte says never-used or
+//  tombstoned.
+//
+//  A SLOT OCCUPYING NO SECTORS IS STILL OCCUPIED. Twenty of the sixty-three
+//  entries on Merlin's own disk claim zero sectors and exist to draw headings in
+//  CATALOG; reusing one would delete a vendor's disk decoration to make room,
+//  and the user would see a file appear where a heading used to be. The sector
+//  count is deliberately not consulted here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Dos33Volume::TryFindFreeCatalogSlot (int & outTrack, int & outSector, size_t & outOffset) const
+{
+    ChainWalkGuard  guard (kUnitCount);
+    int             track  = 0;
+    int             sector = 0;
+    int             slot   = 0;
+    bool            more   = true;
+
+
+
+    track  = ReadByte (Dos33Skeleton::kVtocTrack, 0, Dos33Skeleton::kVtocOffCatalogTrack);
+    sector = ReadByte (Dos33Skeleton::kVtocTrack, 0, Dos33Skeleton::kVtocOffCatalogSector);
+
+    while (more && track != 0)
+    {
+        bool  stepOk = guard.TryVisit (ToUnit (track, sector));
+
+        if (!stepOk || track >= NibblizationLayer::kTrackCount
+                    || sector >= NibblizationLayer::kSectorsPerTrack)
+        {
+            break;
+        }
+
+        for (slot = 0; slot < kEntriesPerSector; slot++)
+        {
+            size_t  entryOffset = kEntryBase + (size_t) slot * kEntrySize;
+            Byte    tsTrack     = ReadByte (track, sector, entryOffset + kEntOffTsTrack);
+
+            if (tsTrack == kEntryUnused || tsTrack == kEntryDeleted)
+            {
+                outTrack  = track;
+                outSector = sector;
+                outOffset = entryOffset;
+
+                return true;
+            }
+        }
+
+        {
+            int  nextTrack  = ReadByte (track, sector, Dos33Skeleton::kCatalogOffNextTrack);
+            int  nextSector = ReadByte (track, sector, Dos33Skeleton::kCatalogOffNextSector);
+
+            more   = nextTrack != 0;
+            track  = nextTrack;
+            sector = nextSector;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::TryAllocateUnits
+//
+//  Hands out exactly `count` sectors or none at all, so a refusal leaves nothing
+//  half-reserved.
+//
+//  A sector must be free in the VTOC bitmap AND unclaimed by the catalog. The
+//  second condition is the one that matters: a bitmap calling a sector free
+//  while a catalog entry still points at it is the disagreement that hands the
+//  next file someone else's live data, and it is exactly the state a previous
+//  bad delete leaves behind. Skipping those sectors costs a little space and
+//  leaves the disagreement for the integrity report to name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Dos33Volume::TryAllocateUnits (
+    const VolumeIntegrityReport  & report,
+    size_t                         count,
+    vector<uint32_t>             & outUnits) const
+{
+    constexpr int  kAllocatableTracks = NibblizationLayer::kTrackCount - 1;
+
+    int     slot   = 0;
+    size_t  taken  = 0;
+
+
+
+    outUnits.clear();
+
+    for (slot = 0; slot < kAllocatableTracks && taken < count; slot++)
+    {
+        int  track  = AllocationTrackAt (slot);
+        int  sector = 0;
+
+        for (sector = NibblizationLayer::kSectorsPerTrack - 1; sector >= 0 && taken < count; sector--)
+        {
+            uint32_t  unit    = ToUnit (track, sector);
+            bool      isFree  = IsFreeInBitmap (m_sectors, track, sector);
+            bool      claimed = report.IsClaimed (unit);
+
+            if (isFree && !claimed)
+            {
+                outUnits.push_back (unit);
+                taken++;
+            }
+        }
+    }
+
+    return taken == count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::ZeroUnits
+//
+//  Every sector a new file occupies is cleared before anything is written into
+//  it. A track/sector list still holding a previous file's pairs would be read
+//  as this file's data, and the tail of a partly filled last sector would hand
+//  back bytes nobody ever wrote.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dos33Volume::ZeroUnits (vector<Byte> & buffer, const vector<uint32_t> & units)
+{
+    for (uint32_t unit : units)
+    {
+        size_t  at = Dos33Skeleton::SectorOffset (TrackOf (unit), SectorOf (unit));
+
+        if (at + (size_t) NibblizationLayer::kSectorByteSize <= buffer.size())
+        {
+            std::fill (buffer.begin() + (ptrdiff_t) at,
+                       buffer.begin() + (ptrdiff_t) (at + NibblizationLayer::kSectorByteSize),
+                       (Byte) 0);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::PlaceFile
+//
+//  Lays the allocated sectors out as DOS does: a track/sector list, then the
+//  data sectors it describes, then the next list, and so on. The allocator hands
+//  the units over in exactly that order, so this walks them straight through.
+//
+//  Each list records the file-relative index of the first data sector it
+//  describes, which is what lets a reader joining the chain partway know where
+//  it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dos33Volume::PlaceFile (
+    vector<Byte>            & buffer,
+    const vector<uint32_t>  & units,
+    size_t                    dataSectorCount,
+    const vector<Byte>      & stored)
+{
+    size_t  unitCount  = units.size();
+    size_t  cursor     = 0;
+    size_t  placed     = 0;
+    size_t  storedSize = stored.size();
+
+
+
+    while (cursor < unitCount)
+    {
+        uint32_t  listUnit   = units[cursor];
+        int       listTrack  = TrackOf (listUnit);
+        int       listSec    = SectorOf (listUnit);
+        size_t    remaining  = dataSectorCount - placed;
+        size_t    inThisList = std::min ((size_t) kTsPairsPerList, remaining);
+        size_t    k          = 0;
+
+        cursor++;
+
+        WriteByteAt (buffer, listTrack, listSec, kTsOffSectorOffsetLo, (Byte) (placed & 0xFF));
+        WriteByteAt (buffer, listTrack, listSec, kTsOffSectorOffsetHi, (Byte) ((placed >> 8) & 0xFF));
+
+        for (k = 0; k < inThisList; k++)
+        {
+            uint32_t  dataUnit = units[cursor + k];
+            size_t    pairAt   = kTsOffFirstPair + k * 2;
+            size_t    from     = (placed + k) * (size_t) NibblizationLayer::kSectorByteSize;
+            size_t    to       = Dos33Skeleton::SectorOffset (TrackOf (dataUnit), SectorOf (dataUnit));
+            size_t    left     = (from < storedSize) ? storedSize - from : 0;
+            size_t    copyable = std::min ((size_t) NibblizationLayer::kSectorByteSize, left);
+
+            WriteByteAt (buffer, listTrack, listSec, pairAt,     (Byte) TrackOf (dataUnit));
+            WriteByteAt (buffer, listTrack, listSec, pairAt + 1, (Byte) SectorOf (dataUnit));
+
+            std::copy (stored.begin() + (ptrdiff_t) from,
+                       stored.begin() + (ptrdiff_t) (from + copyable),
+                       buffer.begin() + (ptrdiff_t) to);
+        }
+
+        cursor += inThisList;
+        placed += inThisList;
+
+        if (cursor < unitCount)
+        {
+            WriteByteAt (buffer, listTrack, listSec, kTsOffNextTrack,  (Byte) TrackOf (units[cursor]));
+            WriteByteAt (buffer, listTrack, listSec, kTsOffNextSector, (Byte) SectorOf (units[cursor]));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::WriteCatalogEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dos33Volume::WriteCatalogEntry (
+    vector<Byte>        & buffer,
+    int                   catalogTrack,
+    int                   catalogSector,
+    size_t                entryOffset,
+    uint32_t              listUnit,
+    Byte                  typeByte,
+    uint16_t              sectorCount,
+    const vector<Byte>  & nameBytes)
+{
+    size_t  i = 0;
+
+
+
+    WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffTsTrack,
+                 (Byte) TrackOf (listUnit));
+    WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffTsSector,
+                 (Byte) SectorOf (listUnit));
+    WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffType, typeByte);
+
+    for (i = 0; i < kNameBytes; i++)
+    {
+        Byte  c = (i < nameBytes.size()) ? nameBytes[i] : kNamePad;
+
+        WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffName + i, c);
+    }
+
+    WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffSectorCount,
+                 (Byte) (sectorCount & 0xFF));
+    WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffSectorCount + 1,
+                 (Byte) (sectorCount >> 8));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::Write
+//
+//  Places a file: allocate from the VTOC bitmap, build the track/sector lists,
+//  write the data sectors, create the catalog entry, and leave the bitmap
+//  agreeing with what was allocated.
+//
+//  Nothing is written into the volume this object holds. The complete new buffer
+//  is produced instead, so a refusal at any point leaves the caller with exactly
+//  what it had.
+//
+//  REPLACING AN EXISTING NAME IS REFUSED HERE rather than done, because a
+//  correct replacement has to be computed as one whole -- freeing the old file
+//  and then failing to place the new one loses it outright. Refusing is the
+//  honest interim: the caller sees that the name is taken instead of getting a
+//  duplicate catalog entry, which is the failure this must not have.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -607,11 +1219,134 @@ HRESULT Dos33Volume::Write (
     const FilePayload  & payload,
     vector<Byte>       & outBuffer) const
 {
-    UNREFERENCED_PARAMETER (path);
-    UNREFERENCED_PARAMETER (payload);
-    UNREFERENCED_PARAMETER (outBuffer);
+    HRESULT                hr          = S_OK;
+    size_t                 bufferBytes = m_sectors.size();
+    bool                   single      = path.IsSingleComponent();
+    bool                   nameOk      = false;
+    bool                   exists      = false;
+    bool                   isLocked    = false;
+    bool                   slotOk      = false;
+    bool                   allocated   = false;
+    bool                   fullyParsed = true;
+    int                    slotTrack   = 0;
+    int                    slotSector  = 0;
+    size_t                 slotOffset  = 0;
+    size_t                 dataCount   = 0;
+    size_t                 listCount   = 0;
+    uint16_t               owner       = 0;
+    vector<Byte>           nameBytes;
+    vector<Byte>           stored;
+    vector<Byte>           result;
+    vector<RawEntry>       entries;
+    vector<std::string>    damage;
+    vector<uint32_t>       units;
+    VolumeIntegrityReport  report;
 
-    return E_NOTIMPL;
+
+
+    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+
+    nameOk = single && TryEncodeCatalogName (path.GetLeaf(), nameBytes);
+    CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    hr = ComposeStoredBytes (payload, stored);
+    CHR (hr);
+
+    CollectEntries (entries, damage, fullyParsed);
+
+    exists = TryFindEntry (entries, path.GetLeaf(), owner);
+
+    if (exists)
+    {
+        isLocked = (entries[owner].typeByte & kLockedBit) != 0;
+    }
+
+    CBREx (!isLocked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+    CBREx (!exists,   HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
+
+    slotOk = TryFindFreeCatalogSlot (slotTrack, slotSector, slotOffset);
+    CBREx (slotOk, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
+
+    hr = BuildIntegrityReport (report);
+    CHRA (hr);
+
+    dataCount = (stored.size() + (size_t) NibblizationLayer::kSectorByteSize - 1)
+              / (size_t) NibblizationLayer::kSectorByteSize;
+    listCount = (dataCount + (size_t) kTsPairsPerList - 1) / (size_t) kTsPairsPerList;
+
+    // Even a file with no data occupies its track/sector list, which is what
+    // makes it a file rather than a name.
+    if (listCount == 0)
+    {
+        listCount = 1;
+    }
+
+    allocated = TryAllocateUnits (report, dataCount + listCount, units);
+    CBREx (allocated, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
+
+    result = m_sectors;
+
+    ZeroUnits (result, units);
+    PlaceFile (result, units, dataCount, stored);
+
+    for (uint32_t unit : units)
+    {
+        SetFreeInBitmap (result, TrackOf (unit), SectorOf (unit), false);
+    }
+
+    WriteCatalogEntry (result,
+                       slotTrack,
+                       slotSector,
+                       slotOffset,
+                       units[0],
+                       (Byte) (payload.type & ~kLockedBit),
+                       (uint16_t) units.size(),
+                       nameBytes);
+
+    outBuffer = result;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::AppendDeleteWarnings
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dos33Volume::AppendDeleteWarnings (DeleteOutcome & inOutOutcome)
+{
+    size_t  leaked = inOutOutcome.leakedUnits.size();
+
+
+
+    if (leaked > 0)
+    {
+        inOutOutcome.warnings.push_back (
+            std::to_string (leaked)
+          + " sector(s) this file referenced are claimed by another catalog entry"
+            " as well, and were left allocated rather than freed");
+    }
+
+    if (inOutOutcome.chainWasDamaged)
+    {
+        inOutOutcome.warnings.push_back (
+            "this file's sector chain could not be followed to its end, so only"
+            " the sectors the walk reached were considered");
+    }
+
+    if (!inOutOutcome.catalogFullyParsed)
+    {
+        inOutOutcome.warnings.push_back (
+            "the catalog did not parse completely, so an entry that could not be"
+            " read claims nothing this pass can see -- a sector it shares with the"
+            " deleted file may have been freed while that entry still uses it");
+    }
 }
 
 
@@ -622,14 +1357,136 @@ HRESULT Dos33Volume::Write (
 //
 //  Dos33Volume::Delete
 //
+//  The interface form. Everything it decided is available from the overload
+//  below; this one discards it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Dos33Volume::Delete (const FilePath & path, vector<Byte> & outBuffer) const
 {
-    UNREFERENCED_PARAMETER (path);
-    UNREFERENCED_PARAMETER (outBuffer);
+    DeleteOutcome  outcome;
 
-    return E_NOTIMPL;
+
+
+    return Delete (path, outBuffer, outcome);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::Delete
+//
+//  Removes a catalog entry and returns ONLY the sectors the integrity report
+//  shows this entry alone claims.
+//
+//  That restriction is the whole point. Freeing a sector a second file also
+//  references does not fail: the delete succeeds, the volume looks healthy, and
+//  the other file is destroyed the next time anything allocates -- possibly
+//  weeks later, with nothing connecting the two events. Space left allocated
+//  with nothing owning it is recoverable at any time; a sector handed out from
+//  under a live file is not. So everything not uniquely owned is reported as
+//  leaked and left exactly where it is.
+//
+//  A FILE WHOSE CHAIN IS DAMAGED IS STILL DELETABLE. Refusing would strand the
+//  volume -- the entry could never be removed and its space never reclaimed --
+//  and the developer this serves is working with precisely those disks. What the
+//  walk reached is freed on the same unique-ownership terms; what it could not
+//  reach was never observed and is not touched.
+//
+//  An entry occupying no sectors claims nothing, so nothing is freed for it. The
+//  discriminator is the entry's own sector count, which is what the chain walk
+//  already uses; twenty of the sixty-three entries on Merlin's own disk are of
+//  that shape and following their $7F/$7F pointer would be inventing a chain.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dos33Volume::Delete (
+    const FilePath  & path,
+    vector<Byte>    & outBuffer,
+    DeleteOutcome   & outOutcome) const
+{
+    HRESULT                hr          = S_OK;
+    size_t                 bufferBytes = m_sectors.size();
+    bool                   single      = path.IsSingleComponent();
+    bool                   found       = false;
+    bool                   isLocked    = false;
+    bool                   fullyParsed = true;
+    uint16_t               owner       = 0;
+    vector<RawEntry>       entries;
+    vector<std::string>    damage;
+    vector<Byte>           result;
+    VolumeIntegrityReport  report;
+
+
+
+    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    CollectEntries (entries, damage, fullyParsed);
+
+    found = TryFindEntry (entries, path.GetLeaf(), owner);
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+    isLocked = (entries[owner].typeByte & kLockedBit) != 0;
+    CBREx (!isLocked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+
+    hr = BuildIntegrityReport (report);
+    CHRA (hr);
+
+    outOutcome                    = DeleteOutcome();
+    outOutcome.catalogFullyParsed = report.IsCatalogFullyParsed();
+
+    result = m_sectors;
+
+    // The report walks the same catalog in the same order over the same buffer,
+    // so an owner index names the same entry on both sides.
+    for (uint32_t unit : report.GetClaimsOf (owner))
+    {
+        bool  mineAlone = report.IsUniquelyOwnedBy (unit, owner);
+
+        if (mineAlone)
+        {
+            SetFreeInBitmap (result, TrackOf (unit), SectorOf (unit), true);
+            outOutcome.freedUnits.push_back (unit);
+        }
+        else
+        {
+            outOutcome.leakedUnits.push_back (unit);
+        }
+    }
+
+    for (uint16_t broken : report.GetUnfollowableChains())
+    {
+        if (broken == owner)
+        {
+            outOutcome.chainWasDamaged = true;
+        }
+    }
+
+    // DOS's own tombstone: the original track byte moves into the last byte of
+    // the name and $FF takes its place, which is how an undelete tool finds the
+    // file again.
+    WriteByteAt (result,
+                 entries[owner].catalogTrack,
+                 entries[owner].catalogSector,
+                 entries[owner].entryOffset + kEntOffLastNameByte,
+                 (Byte) entries[owner].tsListTrack);
+
+    WriteByteAt (result,
+                 entries[owner].catalogTrack,
+                 entries[owner].catalogSector,
+                 entries[owner].entryOffset + kEntOffTsTrack,
+                 kEntryDeleted);
+
+    AppendDeleteWarnings (outOutcome);
+
+    outBuffer = result;
+
+Error:
+    return hr;
 }
 
 
