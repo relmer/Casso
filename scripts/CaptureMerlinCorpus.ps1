@@ -24,6 +24,19 @@
     Path to the Merlin Pro disk image. Defaults to DevDisks/Merlin-proDos2.23.dsk
     relative to the repository root.
 
+    Must be a WORK COPY. The script hashes whatever it is handed and refuses to
+    go on when the bytes are the vendor's own, because capture writes source to
+    the disk, writes objects to it, and deletes files from it -- on commercial
+    software the developer supplied and this repository cannot regenerate. The
+    procedure has always said to copy the disk first; this is that instruction
+    with teeth, so it survives being forgotten at 2am.
+
+    A copy that has not yet been touched hashes the same as the original and is
+    refused too, which is the correct answer rather than a false positive: an
+    untouched copy is interchangeable with the original, so nothing is lost by
+    re-making it, and the first step of the procedure -- deleting the target
+    object from within DOS -- is itself a write that settles the question.
+
 .PARAMETER SourceName
     Name of the source file on the Merlin disk.
 
@@ -132,6 +145,37 @@ if (-not $MerlinImage -or -not (Test-Path -LiteralPath $MerlinImage))
     $where = if ($searched) { "Looked in:`n  " + ($searched -join "`n  ") } else { "Looked for '$MerlinImage'." }
     throw "No Merlin Pro disk image found. $where`n`nIt is commercial software and is never committed -- supply your own copy, the way machine ROMs work. See UnitTest/MerlinCorpus/README.md."
 }
+
+# Must match the pin in FetchMerlin.ps1 and ExtractMerlinFixtures.ps1. Those two
+# use it to prove a disk IS the vendor's before trusting bytes off it; this one
+# uses the same fact for the opposite purpose -- a disk that is still the
+# vendor's is the one thing capture must never write to.
+$kPristineSha256 = 'CB7FD9522A3B90792ACBB00D6C811323DC046DC2920FC05A640858BFE611F0E6'
+
+$imageHash = (Get-FileHash -LiteralPath $MerlinImage -Algorithm SHA256).Hash
+
+if ($imageHash -eq $kPristineSha256)
+{
+    throw @"
+'$MerlinImage' is the PRISTINE Merlin disk -- refusing to touch it.
+
+Capture writes source to the disk, writes objects to it, and deletes files from
+it. This image is byte-for-byte what the vendor shipped in 1984, it is not
+committed, and nothing here can regenerate it.
+
+Work on a copy:
+
+  Copy-Item '$MerlinImage' '<somewhere>\Merlin-work.dsk'
+  ./scripts/CaptureMerlinCorpus.ps1 -Entry $Entry -MerlinImage '<somewhere>\Merlin-work.dsk' ...
+
+A copy you have not written to yet hashes the same and lands here too. Delete
+the target object from within DOS first -- the procedure's own opening step --
+and the copy stops being the vendor's disk.
+"@
+}
+
+Write-Host "Work copy: $MerlinImage" -ForegroundColor DarkGray
+Write-Host "  sha256 $imageHash -- not the pristine image, safe to write" -ForegroundColor DarkGray
 
 if ($ConfirmAbsent)
 {

@@ -59,6 +59,15 @@ regenerated from anything in this repository.
 The copy is also free to throw away and remake between entries, which is the
 cheapest possible reset when an editing session goes wrong.
 
+`CaptureMerlinCorpus.ps1` now enforces this rather than asking you to remember
+it: it hashes whatever image it is handed and refuses to run when the bytes are
+the vendor's, recognized by the same pin `FetchMerlin.ps1` and
+`ExtractMerlinFixtures.ps1` verify against. A copy you have not written to yet
+hashes the same and is refused too — that is the right answer, since an
+untouched copy is interchangeable with the original, and the first thing done to
+a real work copy (step 2's paste-and-save, or step 4's delete) is a write that
+settles it.
+
 Verify the original afterwards, since a hash is cheap and a silent write is not:
 
 ```powershell
