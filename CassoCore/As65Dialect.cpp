@@ -99,8 +99,8 @@ ParsedLine As65Dialect::ParseLine (const std::string & line, int lineNumber) con
             result.directiveArg = Parser::Trim (remainder.substr (spacePos + 1));
         }
 
-        // Unknown dotted spellings resolve to None and stay a string; the
-        // pass-1 dispatch reports them as unhandled exactly as before.
+        // Unknown dotted spellings resolve to None and stay a string, which is
+        // what lets the pass-1 dispatch report the spelling by name.
         result.directiveToken = DirectiveTable::FromSpelling (result.directive);
     }
 

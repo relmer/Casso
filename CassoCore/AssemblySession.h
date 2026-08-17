@@ -481,6 +481,10 @@ private:
     // word, and the plain report.
     std::string  DescribeUnknownOperation (const ParsedLine & parsed) const;
 
+    // What to say about a directive spelling no dialect table resolved. Names
+    // the spelling, and names the dialect that DOES define it where one does.
+    std::string  DescribeUnknownDirective (const ParsedLine & parsed) const;
+
     // Whether the field after the opcode names something this assembler could
     // execute -- an instruction under the active dialect's spellings, or one of
     // its directives. Dialect-NEUTRAL: it consults the active profile's own

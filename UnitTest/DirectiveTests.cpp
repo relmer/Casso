@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Assembler.h"
+#include "MockFileReader.h"
 #include "TestHelpers.h"
 
 
@@ -1350,6 +1351,189 @@ namespace DirectiveTests
             Assert::AreEqual ((Byte) 0xA9, r.bytes[0]);
             Assert::AreEqual ((Byte) 0x42, r.bytes[1]);
             Assert::AreEqual ((Word) 0x3000, r.symbols.at ("start"));
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  UnknownDirectiveTests
+    //
+    //  A dotted word the dialect does not define, which used to be discarded
+    //  without a word: the line produced no bytes, every address below it moved
+    //  up by however many the directive would have emitted, and the run exited
+    //  zero. `.org $0300 / .fill 8, $EA / rts` assembled to a single byte and
+    //  called it a success.
+    //
+    //  Every assertion here compares the WHOLE message rather than looking for a
+    //  substring, because the one thing the report has to do is quote the word
+    //  back -- a diagnostic that merely says a line was not understood leaves the
+    //  reader exactly where the silence did. Two different misspellings are
+    //  asserted for the same reason: a message built from a constant satisfies
+    //  either one alone.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (UnknownDirectiveTests)
+    {
+    public:
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  UnknownDirective_NamesTheSpelling
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (UnknownDirective_NamesTheSpelling)
+        {
+            Assembler       a       = BuildAssembler();
+            Assembler       b       = BuildAssembler();
+            AssemblyResult  filled  = a.Assemble ("        .org $0300\n        .fill 8, $EA\n        rts\n");
+            AssemblyResult  blorted = b.Assemble ("        .org $0300\n        .blort 8, $EA\n        rts\n");
+
+            Assert::AreEqual ((size_t) 1, filled.errors.size(),
+                              L"one mistyped directive is one diagnostic, not a cascade of downstream failures");
+            Assert::AreEqual (std::string ("Unknown directive: .FILL"), filled.errors[0].message);
+
+            Assert::AreEqual ((size_t) 1, blorted.errors.size());
+            Assert::AreEqual (std::string ("Unknown directive: .BLORT"), blorted.errors[0].message,
+                              L"the report must be built from the word on the line, not from a constant");
+        }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  UnknownDirective_FailsTheAssemblyInsteadOfDroppingTheBytes
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (UnknownDirective_FailsTheAssemblyInsteadOfDroppingTheBytes)
+        {
+            Assembler       a      = BuildAssembler();
+            AssemblyResult  result = a.Assemble ("        .org $0300\n        .fill 8, $EA\n        rts\n");
+
+            Assert::IsFalse (result.success,
+                             L"eight missing bytes and a zero exit is the failure this reports");
+            Assert::IsTrue (result.errors[0].kind == DiagnosticKind::SourceError,
+                            L"a word the assembler never recognized is not a construct it understood and declined");
+        }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  UnknownDirective_PointsAtItsOwnLine
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (UnknownDirective_PointsAtItsOwnLine)
+        {
+            Assembler       a      = BuildAssembler();
+            AssemblyResult  result = a.Assemble ("        .org $0300\n"
+                                                 "        nop\n"
+                                                 "        .fill 8, $EA\n"
+                                                 "        rts\n");
+
+            Assert::AreEqual ((size_t) 1, result.errors.size());
+            Assert::AreEqual (3, result.errors[0].lineNumber,
+                              L"neither the first line nor the last would fail a check for 'some line'");
+            Assert::AreEqual (0, result.errors[0].column,
+                              L"as65 records no columns, so this diagnostic must not invent one");
+        }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  UnknownDirective_NamesTheFileItWasWrittenIn
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (UnknownDirective_NamesTheFileItWasWrittenIn)
+        {
+            TestCpu           cpu;
+            MockFileReader    reader;
+            AssemblerOptions  opts   = {};
+            AssemblyResult    result;
+
+            cpu.InitForTest();
+            reader.files["defs.a65"] = "        .fill 8, $EA\n";
+            opts.fileReader          = &reader;
+
+            {
+                Assembler  a (cpu.GetInstructionSet(), opts);
+
+                //  A second offense at top level AFTER the include, so an
+                //  implementation reading ambient state cannot answer both.
+                result = a.Assemble ("        .org $0300\n"
+                                     "        include \"defs.a65\"\n"
+                                     "        .blort\n");
+            }
+
+            Assert::AreEqual ((size_t) 2, result.errors.size());
+            Assert::AreEqual (std::string ("defs.a65"), result.errors[0].file,
+                              L"the include's offense belongs to the include");
+            Assert::AreEqual (std::string (""), result.errors[1].file,
+                              L"and the top-level one to the top level, which is spelled as no file at all");
+        }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  UnknownDirective_NamesTheDialectThatDefinesIt
+        //
+        //  The one case where the word is not a typo at all. `.HEX` is Merlin's,
+        //  and as65 dropping it silently was how a Merlin source could be run
+        //  through the wrong dialect and produce a shorter object without
+        //  complaint.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (UnknownDirective_NamesTheDialectThatDefinesIt)
+        {
+            Assembler       a      = BuildAssembler();
+            AssemblyResult  result = a.Assemble ("        .org $0300\n        .hex 0102\n");
+
+            Assert::AreEqual ((size_t) 1, result.errors.size());
+            Assert::AreEqual (std::string ("Unknown directive: .HEX -- HEX is a directive belonging to "
+                                           "the merlin dialect, not to as65"),
+                              result.errors[0].message);
+        }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  DirectivesThatDoNothing_AreStillRecognized
+        //
+        //  The discriminating half. A directive whose handler deliberately emits
+        //  nothing looks identical from the outside to one that was dropped, so a
+        //  report keyed on "produced no bytes" would fail every one of these.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (DirectivesThatDoNothing_AreStillRecognized)
+        {
+            Assembler       a      = BuildAssembler();
+            AssemblyResult  result = a.Assemble ("        .org $0300\n"
+                                                 "        .page\n"
+                                                 "        .opt_noop\n"
+                                                 "        .list\n"
+                                                 "        rts\n");
+
+            Assert::IsTrue (result.errors.empty(), L"a recognized directive must not be reported as unknown");
+            Assert::AreEqual ((size_t) 1, result.bytes.size(), L"and must still emit exactly what it always did");
         }
     };
 }

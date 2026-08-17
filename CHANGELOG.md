@@ -108,6 +108,17 @@ Entries before versioning was introduced use dates only.
   wrote something else. They now quote the active dialect's canonical spelling,
   so `as65` reads `.ORG` and `.DS` — the same directives, upper-cased. Nothing
   else about the messages changed, and no output byte moves.
+- **A mistyped directive no longer silently drops the bytes it should have
+  produced.** A dotted word the dialect does not define was discarded without a
+  diagnostic: the line vanished from the listing, every address below it moved
+  up by however many bytes the directive would have emitted, and the run exited
+  zero. `.org $0300` / `.fill 8, $EA` / `rts` wrote a one-byte object and called
+  it a success. The spelling is now reported by name, with its line and file, so
+  a typo costs a message instead of an object nobody can explain — and where the
+  word belongs to another dialect, the message says which. This applies to every
+  dialect, since it is the shared engine that reports it. A source that has been
+  quietly losing a line will now fail to assemble; the line was never being
+  assembled, so the bytes have not changed, only the silence.
 - **The usage line no longer advertises the removed bare-source form.** It read
   `CassoCli <source> [flags]`, which stopped working when the dialect became
   something the invocation names; it is now built from the subcommand table, as

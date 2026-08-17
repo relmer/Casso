@@ -1024,6 +1024,54 @@ std::string AssemblySession::DescribeUnknownOperation (const ParsedLine & parsed
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::DescribeUnknownDirective
+//
+//  What to say about a directive spelling the active dialect's table did not
+//  resolve.
+//
+//  The spelling is NAMED, because that is the whole content of the report: a
+//  mistyped directive and a directive belonging to some other assembler are
+//  indistinguishable from the line's shape alone, and the developer can tell
+//  them apart the instant the word is quoted back.
+//
+//  The foreign-construct lookup is the same one the unknown-mnemonic report
+//  uses, asked with the leading dot removed -- a dialect that spells the word
+//  bare would not recognize it dotted, and it is the WORD that belongs to that
+//  dialect rather than this dialect's punctuation of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::DescribeUnknownDirective (const ParsedLine & parsed) const
+{
+    std::string                       message  = "Unknown directive: " + parsed.directive;
+    std::string                       bareWord = parsed.directive;
+    DialectRegistry::ForeignConstruct foreign  = {};
+    bool                              isDotted = !bareWord.empty() && (bareWord[0] == '.');
+
+
+
+    if (isDotted)
+    {
+        bareWord = bareWord.substr (1);
+    }
+
+    foreign = DialectRegistry::FindForeignConstruct (bareWord, m_dialect.GetId());
+
+    if (foreign.dialect != nullptr)
+    {
+        message += std::string (" -- ") + bareWord + " is " + foreign.category + " belonging to the "
+                 + foreign.dialect->GetName() + " dialect, not to " + m_dialect.GetName();
+    }
+
+    return message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::RecordRefusal
 //
 //  A construct Casso understood and declined, as against source it could not
@@ -4842,10 +4890,17 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
 //  directive table and the pass1 column says who handles it.
 //
 //  Unlike pass 2, a null column here means NOT HANDLED rather than "handled,
-//  emits nothing" -- an unknown dotted spelling, or a directive an earlier
-//  phase already claimed -- so `handled` is false and the line falls through
-//  to whatever comes next. Same order-assert as pass 2, protecting the same
-//  index-by-token assumption.
+//  emits nothing" -- a directive an earlier phase already claimed -- so
+//  `handled` is false and the line falls through to whatever comes next. Same
+//  order-assert as pass 2, protecting the same index-by-token assumption.
+//
+//  A spelling that resolved to NO token is the other case, and it fails the
+//  assembly. The line looks like a directive and names nothing the dialect
+//  defines, so nothing can size it: it produces no bytes, every address below
+//  it moves up, and the run would otherwise succeed while quietly building
+//  something other than what was written. It is a SOURCE error rather than a
+//  subset boundary -- a word the assembler never recognized is not a construct
+//  it understood and declined.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4857,6 +4912,11 @@ HRESULT AssemblySession::HandlePass1Directives (const PendingLine & current, Lin
 
 
 
+    if (token == Directive::None)
+    {
+        RecordError (current.sourceLineNumber, DescribeUnknownDirective (info.parsed));
+    }
+
     if (token > Directive::None && token < Directive::Count)
     {
         const DirectiveRow &  row = GetDirectiveRows()[(size_t) token];
@@ -4865,8 +4925,8 @@ HRESULT AssemblySession::HandlePass1Directives (const PendingLine & current, Lin
         handler = row.pass1;
     }
 
-    // A directive with no pass-1 row is not ours: an unknown dotted spelling,
-    // or one an earlier phase already claimed.
+    // A directive with no pass-1 row is not ours: an unrecognized spelling,
+    // reported just above, or one an earlier phase already claimed.
     handled          = (handler != nullptr);
     info.isDirective = handled;
 

@@ -954,4 +954,166 @@ namespace DialectMechanismTests
             }
         }
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  UnrecognizedWordTests
+    //
+    //  What a dialect does with a word it does not define, which is engine
+    //  behavior rather than any one dialect's: whichever field the word arrived
+    //  in, it must produce a diagnostic that quotes it back.
+    //
+    //  Swept over the registry so a dialect added later cannot skip the question.
+    //  The row supplies the whole expected message rather than a fragment to
+    //  search for, because the two shipped dialects answer in different words --
+    //  as65 meets the word in its directive field and Merlin in its opcode field
+    //  -- and a shared substring check would be satisfied by either answer given
+    //  for the other's source.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (UnrecognizedWordTests)
+    {
+    public:
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  NoDialectSilentlyAcceptsAWordItDoesNotDefine
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (NoDialectSilentlyAcceptsAWordItDoesNotDefine)
+        {
+            size_t  swept = 0;
+
+            for (const DialectRegistry::Entry & entry : DialectRegistry::GetAllDialects())
+            {
+                const Specimen *  specimen = FindSpecimen (entry.id);
+                AssemblyResult    result;
+
+                Assert::IsNotNull (specimen, L"a dialect with no specimen here has never been asked this question");
+
+                result = AssembleWith (entry.id, specimen->source);
+
+                Assert::AreEqual ((size_t) 1, result.errors.size(),
+                                  L"one unrecognized word is one diagnostic, and never none");
+                Assert::AreEqual (std::string (specimen->message), result.errors[0].message);
+                Assert::IsTrue (result.errors[0].kind == DiagnosticKind::SourceError,
+                                L"a word never recognized is not a construct understood and declined");
+                Assert::IsFalse (result.success, L"and the assembly does not go on to report success");
+
+                swept++;
+            }
+
+            //  Against the ENUM, not against the table's own size. A sweep of an
+            //  empty registry agrees with itself and reads exactly like a full
+            //  one; the enumerator count is the independent number.
+            Assert::AreEqual ((size_t) DialectId::Count, swept,
+                              L"every dialect that exists must have been asked");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  TheSameSourcesAssembleOnceTheWordIsSpelledRight
+        //
+        //  The discriminating half. Without it every assertion above is satisfied
+        //  by a dialect that rejects its own vocabulary too.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (TheSameSourcesAssembleOnceTheWordIsSpelledRight)
+        {
+            size_t  swept = 0;
+
+            for (const DialectRegistry::Entry & entry : DialectRegistry::GetAllDialects())
+            {
+                const Specimen *  specimen = FindSpecimen (entry.id);
+                AssemblyResult    result;
+
+                Assert::IsNotNull (specimen, L"a dialect with no specimen here has never been asked this question");
+
+                result = AssembleWith (entry.id, specimen->corrected);
+
+                Assert::IsTrue (result.errors.empty(),
+                                L"the corrected source must assemble, or the rejection above says nothing");
+                Assert::AreEqual ((size_t) 2, result.bytes.size(),
+                                  L"and emit the two bytes the misspelled line was silently costing");
+
+                swept++;
+            }
+
+            Assert::AreEqual ((size_t) DialectId::Count, swept,
+                              L"every dialect that exists must have been asked");
+        }
+
+    private:
+
+        //  One dialect's version of the same question: a nonsense word where that
+        //  dialect looks for an operation, the word spelled as something it does
+        //  define, and what it says about the first.
+        struct Specimen
+        {
+            DialectId     dialect;
+            const char *  source;
+            const char *  corrected;
+            const char *  message;
+        };
+
+
+
+        static const Specimen * FindSpecimen (DialectId dialect)
+        {
+            //  ZORKMID rather than a near-miss of a real spelling, so a message
+            //  compared by substring cannot match some ordinary word instead.
+            static constexpr Specimen  kSpecimens[] =
+            {
+                { DialectId::As65,
+                  "        .org $0300\n        .zorkmid $11, $22\n",
+                  "        .org $0300\n        .byte $11, $22\n",
+                  "Unknown directive: .ZORKMID" },
+
+                { DialectId::Merlin,
+                  "         ORG $0300\n         ZORKMID $11,$22\n",
+                  "         ORG $0300\n         DFB $11,$22\n",
+                  "Invalid mnemonic: ZORKMID" },
+            };
+
+            const Specimen *  found = nullptr;
+
+            for (const Specimen & specimen : kSpecimens)
+            {
+                if (specimen.dialect == dialect)
+                {
+                    found = &specimen;
+                    break;
+                }
+            }
+
+            return found;
+        }
+
+
+
+        static AssemblyResult AssembleWith (DialectId dialect, const std::string & source)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+
+            cpu.InitForTest();
+            options.dialect = dialect;
+
+            Assembler  assembler (cpu.GetInstructionSet(), options);
+
+            return assembler.Assemble (source);
+        }
+    };
 }
