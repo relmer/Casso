@@ -51,7 +51,7 @@ public:
     //  and throws the account away; anything reporting to a user wants it.
     HRESULT  Delete    (const FilePath  & path,
                         vector<Byte>    & outBuffer,
-                        DeleteOutcome   & outOutcome) const;
+                        DeleteOutcome   & outOutcome) const override;
 
     HRESULT  BuildIntegrityReport (VolumeIntegrityReport & outReport) const override;
     HRESULT  SetStartupProgram    (const FilePath & path, vector<Byte> & outBuffer) const override;

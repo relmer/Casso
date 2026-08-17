@@ -29,6 +29,12 @@ public:
 
     virtual HRESULT  Delete      (const FilePath & path, vector<Byte> & outBuffer) const = 0;
 
+    //  The same removal, plus what it freed, what it declined to free, and the
+    //  conditions that bound the answer.
+    virtual HRESULT  Delete      (const FilePath  & path,
+                                  vector<Byte>    & outBuffer,
+                                  DeleteOutcome   & outOutcome) const = 0;
+
     virtual HRESULT  BuildIntegrityReport (VolumeIntegrityReport & outReport) const = 0;
 
     //  Mechanism differs entirely per filesystem -- deliberately not unified.
@@ -50,6 +56,12 @@ the existing readers and writers are.
 - **Delete frees only uniquely-owned units** (FR-011), reports the rest as
   leaked, and remains available for a file whose chain is damaged so a bad file
   cannot strand the volume.
+- **The account of what a delete declined to do is part of the seam**, added
+  here after the two implementations had carried it privately for a while. It
+  is what any caller reporting to a user needs, and such a caller holds only an
+  `IVolume &`; leaving the pair concrete makes every one of them re-derive which
+  filesystem it holds, which is the branch this seam exists to remove. The
+  two-argument form remains for callers that genuinely do not want the account.
 - **Every `Write` and `Delete` runs the integrity pass over its own computed
   result and refuses to return a result that fails it** (FR-039).
 - **Buffers are always the flat 143,360-byte sector buffer** in DOS 3.3 logical

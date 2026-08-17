@@ -55,6 +55,20 @@ public:
     //  a bad entry cannot strand the volume.
     virtual HRESULT  Delete (const FilePath & path, std::vector<Byte> & outBuffer) const = 0;
 
+    //  The same removal, plus an account of what it freed, what it declined to
+    //  free, and the conditions that bound the answer.
+    //
+    //  ON THE INTERFACE RATHER THAN ON EACH IMPLEMENTATION, because the account
+    //  is what a caller reporting to a user needs and such a caller has only
+    //  this reference. Leaving the pair concrete would force every one of them
+    //  to re-derive which filesystem it holds and call the matching type
+    //  directly -- reinstating the branch this seam exists to remove, once per
+    //  consumer. The two-argument form stays for callers that genuinely do not
+    //  care, since the leaked-space account is not information to force on one.
+    virtual HRESULT  Delete (const FilePath     & path,
+                             std::vector<Byte>  & outBuffer,
+                             DeleteOutcome      & outOutcome) const = 0;
+
     //  What the catalog actually references. Consumed by delete, by listing,
     //  by allocation, and by the pre-commit check on every write.
     virtual HRESULT  BuildIntegrityReport (VolumeIntegrityReport & outReport) const = 0;
