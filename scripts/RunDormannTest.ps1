@@ -75,7 +75,9 @@ try {
 
     # Assemble with -z (zero fill) to match AS65 default behavior
     Write-Host "Assembling..."
-    $assembleArgs = @($sourceFile, '-z', '-o', $outputFile)
+    # The dialect is named, because assembling no longer guesses: an
+    # unrecognized first argument is refused rather than taken as a source file.
+    $assembleArgs = @('as65', $sourceFile, '-z', '-o', $outputFile)
     $proc = Start-Process -FilePath $cassoCli -ArgumentList $assembleArgs -NoNewWindow -Wait -PassThru -RedirectStandardError $stderrFile
 
     $stderrContent = Get-Content $stderrFile -Raw -ErrorAction SilentlyContinue
