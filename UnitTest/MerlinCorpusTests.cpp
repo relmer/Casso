@@ -2181,6 +2181,16 @@ namespace MerlinCorpusTests
             " LDA #$44 THIS IS A COMMENT\n",
             0x8000, s_kLineModelBytes, s_kpszCaptureVersion, false,
         },
+        {
+            //  Merlin's byte directive takes an EXPRESSION, so a double-quoted
+            //  single character in one is the high-ASCII character constant the
+            //  string directives already spell that way -- not a one-character
+            //  string literal. Names no origin, so the default origin is asserted
+            //  beside the byte.
+            "high-ASCII character constant in a byte directive",
+            " DFB \"A\"\n",
+            0x8000, s_kHighAsciiCharBytes, s_kpszCaptureVersion, true,
+        },
     };
 
 
@@ -2217,17 +2227,6 @@ namespace MerlinCorpusTests
 
     static constexpr PendingCapture  s_kPendingCaptures[] =
     {
-        {
-            //  Merlin's byte directive takes an EXPRESSION, and a double-quoted
-            //  single character in one is a high-ASCII character constant. Casso
-            //  routes a quoted argument to the other dialect's string-literal
-            //  path, so the same line emits low ASCII.
-            "high-ASCII character constant in a byte directive",
-            " DFB \"A\"\n",
-            s_kHighAsciiCharBytes,
-            s_kpszCaptureVersion,
-            "a quoted argument reaches the other dialect's string path and emits low ASCII",
-        },
         {
             //  The first-character conditional. Its spelling is absent from the
             //  Merlin directive table entirely, which is why the macro body's

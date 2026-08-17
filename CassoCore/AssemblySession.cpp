@@ -780,8 +780,13 @@ bool AssemblySession::TryEvaluateDirectiveArgs (
     {
         ExprResult  er;
 
-        // Check for quoted string — emit each character as a value
-        if (arg.size() >= 2 && arg.front() == '"' && arg.back() == '"')
+        // A quoted run is text, UNLESS this dialect spells a character constant
+        // with the quotation mark -- in which case the evaluator owns it, and
+        // sending it here instead would give the two passes different readings
+        // of the same argument. The delimiter comes off the context the
+        // evaluator is about to be handed, so the two cannot disagree.
+        if (arg.size() >= 2 && arg.front() == '"' && arg.back() == '"' &&
+            (arg.front() != ctx.highAsciiCharDelimiter))
         {
             std::string raw       = arg.substr (1, arg.size() - 2);
             std::string processed = ProcessEscapeSequences (raw);
@@ -6960,6 +6965,15 @@ Error:
 //  to expression evaluation rather than erroring, so `"` as a character
 //  literal still works.
 //
+//  A QUOTED RUN IS NOT TEXT IN EVERY DIALECT, and which it is comes off the
+//  evaluation context rather than being decided here. A dialect that spells a
+//  character constant with the quotation mark has already given the evaluator
+//  that delimiter, so `"A"` is one character with bit 7 set and not a
+//  one-character string -- Merlin's byte directive takes an EXPRESSION, and
+//  reading it as text emits the wrong byte while looking entirely reasonable.
+//  A dialect with no such spelling answers 0, which matches no argument, so the
+//  text branches stand exactly as they were.
+//
 //  A failed evaluation records the error and keeps going, so one bad argument
 //  in a long table reports itself without hiding the rest. m_result.success is
 //  cleared once at the end rather than per-failure.
@@ -6972,14 +6986,17 @@ HRESULT AssemblySession::EmitByteDirective (const LineInfo & info, Word & emitPC
 
 
 
-    auto args = Parser::SplitArgList (info.parsed.directiveArg);
-    bool ok   = true;
+    auto args      = Parser::SplitArgList (info.parsed.directiveArg);
+    char charQuote = m_pass2Ctx.highAsciiCharDelimiter;
+    bool ok        = true;
 
 
 
     for (const auto & arg : args)
     {
-        if (arg.size() >= 2 && arg.front() == '"' && arg.back() == '"')
+        bool isText = (arg.size() >= 2) && (arg.front() == '"') && (arg.front() != charQuote);
+
+        if (isText && arg.back() == '"')
         {
             std::string raw       = arg.substr (1, arg.size() - 2);
             std::string processed = ProcessEscapeSequences (raw);
@@ -6989,7 +7006,7 @@ HRESULT AssemblySession::EmitByteDirective (const LineInfo & info, Word & emitPC
                 EmitByte (m_charMap.table[(unsigned char) c], emitPC);
             }
         }
-        else if (arg.size() >= 2 && arg.front() == '"')
+        else if (isText)
         {
             size_t closeQuote = arg.find ('"', 1);
 

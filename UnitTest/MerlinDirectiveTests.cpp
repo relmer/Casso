@@ -922,10 +922,6 @@ namespace MerlinDirectiveTests
         //  what discriminates: its arguments are evaluated where the bytes are
         //  emitted. Confirmed by mutation -- carrying the spelling into pass 1
         //  alone leaves every other test in this class green.
-        //
-        //  The `+1` is load-bearing rather than decoration. An argument that is
-        //  ENTIRELY a quoted run is taken as string data before the evaluator
-        //  ever sees it, so a bare `DA "A"` would exercise the wrong path.
         TEST_METHOD (AQuotedCharacterAlsoResolvesWhereTheBytesAreEmitted)
         {
             AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" DA \"A\"+1\n");
@@ -933,6 +929,64 @@ namespace MerlinDirectiveTests
 
             Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
             Assert::IsTrue (result.bytes == expected, L"both passes must read the same character spelling");
+        }
+
+
+
+        //  AN ARGUMENT THAT IS ENTIRELY A QUOTED RUN, which the `+1` above was
+        //  written to avoid. It used to reach the other dialect's string-literal
+        //  path and emit low ASCII -- so `LDA #"A"` gave $C1 on one line and
+        //  ` DFB "A"` gave $41 on the next, in the same file, under the same
+        //  dialect. Merlin's byte directive takes an EXPRESSION.
+        TEST_METHOD (AQuotedCharacterIsAnExpressionInAByteDirective)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" DFB \"A\"\n");
+            std::vector<Byte>  expected = { 0xC1 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"a quoted argument is a character constant, not a string");
+        }
+
+
+
+        //  The apostrophe form beside it, because the byte directive must make the
+        //  same distinction the instruction operand does rather than reaching one
+        //  answer for both spellings.
+        TEST_METHOD (AnApostropheCharacterInAByteDirectiveStaysLow)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" DFB 'A'\n");
+            std::vector<Byte>  expected = { 0x41 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the two spellings must not collapse into one here either");
+        }
+
+
+
+        //  The word directive reads the same argument the same way, so the two
+        //  data directives cannot disagree about what a quoted run is.
+        TEST_METHOD (AQuotedCharacterIsAnExpressionInAWordDirectiveToo)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" DA \"A\"\n");
+            std::vector<Byte>  expected = { 0xC1, 0x00 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"one rule for a quoted run, not one per directive");
+        }
+
+
+
+        //  The discriminating half, and the one thing this change must not do:
+        //  AS65 spells no character constant with the quotation mark, so its byte
+        //  directive still emits text.
+        TEST_METHOD (As65StillReadsAQuotedByteArgumentAsText)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::Assemble (
+                                              " .byte \"AB\"\n .byte \"A\"\n", DialectId::As65);
+            std::vector<Byte>  expected = { 0x41, 0x42, 0x41 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"AS65's own string behavior must be untouched");
         }
 
 
