@@ -267,3 +267,28 @@ MacroSyntax As65Dialect::GetMacroSyntax() const
 
     return syntax;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  As65Dialect::GetDirectiveForSpelling
+//
+//  Whether as65 claims a word, for the benefit of a diagnostic raised by some
+//  OTHER dialect.
+//
+//  One lookup in the shared table, which holds every accepted spelling -- the
+//  dotted forms and the bare ones alike -- so the answer cannot drift from what
+//  ParseLine would have resolved. The dual-purpose spellings are deliberately
+//  not consulted: whether `rmb` is a directive or the Rockwell instruction turns
+//  on the operand, and a word being attributable to a dialect is a question
+//  about the word alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Directive As65Dialect::GetDirectiveForSpelling (const std::string & upperSpelling) const
+{
+    return DirectiveTable::FromSpelling (upperSpelling);
+}

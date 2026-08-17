@@ -874,14 +874,21 @@ std::string MerlinDialect::ReadOperandField (const std::string & line, size_t & 
 //  first. A line starting in column 0 opens with a label; a line starting with
 //  whitespace has none and begins at the opcode.
 //
+//  Every field's starting column is recorded as it is read, which is the only
+//  moment it is knowable -- the fields become strings and the line's own
+//  geometry is gone. The columns are 1-based, so a diagnostic can hand one to an
+//  editor, and they are recorded even where the field's text is later cleared:
+//  an equate keeps the columns its name and sign were written at.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) const
 {
-    ParsedLine   result   = {};
+    ParsedLine   result      = {};
     std::string  opcode;
-    size_t       pos      = 0;
-    bool         isEquate = false;
+    size_t       pos         = 0;
+    size_t       opcodeWidth = 0;
+    bool         isEquate    = false;
 
 
 
@@ -904,26 +911,39 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
 
     if (result.startsAtColumn0)
     {
-        result.label = ReadPlainField (line, pos);
+        result.labelColumn = (int) pos + 1;
+        result.label       = ReadPlainField (line, pos);
     }
 
     SkipFieldSpace (line, pos);
 
     if ((pos < line.size()) && (line[pos] != s_kCommentIntroducer))
     {
-        result.mnemonic = ReadPlainField (line, pos);
+        result.mnemonicColumn = (int) pos + 1;
+        result.mnemonic       = ReadPlainField (line, pos);
 
         SkipFieldSpace (line, pos);
 
         if ((pos < line.size()) && (line[pos] != s_kCommentIntroducer))
         {
-            result.operand = ReadOperandField (line, pos, result.mnemonic);
+            result.operandColumn = (int) pos + 1;
+            result.operand       = ReadOperandField (line, pos, result.mnemonic);
         }
     }
 
     // An explicit invocation may be written flush against the macro's name, so
     // the prefix is separated before the opcode field is read as a word.
+    opcodeWidth = result.mnemonic.size();
+
     SplitCallPrefix (result.mnemonic, result.operand);
+
+    // The macro's name moved out of the opcode field, so the operand no longer
+    // begins where a separate operand field would have. It begins immediately
+    // after the prefix, inside what was read as one word.
+    if (result.mnemonic.size() < opcodeWidth)
+    {
+        result.operandColumn = result.mnemonicColumn + (int) result.mnemonic.size();
+    }
 
     opcode = Parser::ToUpper (result.mnemonic);
 
@@ -1016,4 +1036,76 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
     result.isEmpty = result.label.empty() && result.mnemonic.empty();
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinDialect::GetDirectiveForSpelling
+//
+//  Whether Merlin claims a word, for the benefit of a diagnostic raised by some
+//  OTHER dialect.
+//
+//  The same table ParseLine resolves against, so the two cannot disagree about
+//  what Merlin's vocabulary is. That includes the refused constructs: `REL`
+//  belongs to Merlin whether or not Casso will assemble it, and a source
+//  reaching as65 with one in it is in the wrong dialect rather than misspelled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Directive MerlinDialect::GetDirectiveForSpelling (const std::string & upperSpelling) const
+{
+    return MerlinDirectiveTable::FromSpelling (upperSpelling);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinDialect::ExplainUnknownOperation
+//
+//  The indented label, which is the first thing a developer coming from a
+//  colon-terminated assembler gets wrong.
+//
+//  Merlin's line model puts the label in the FIRST field and nowhere else, so an
+//  indented one is read as the opcode. The line then fails as an unknown
+//  operation, which is true and useless: the word is not an operation because it
+//  was never meant to be one, and the instruction the developer wrote has
+//  quietly become its operand.
+//
+//  Two conditions, and both are necessary. The line must have begun with
+//  whitespace -- a word in column 1 IS the label, so there is nothing to
+//  explain. And the next field must name something the assembler could execute,
+//  which is what separates a misplaced label from an ordinary misspelling: a
+//  line whose second field is an expression or nothing at all is a bad opcode
+//  and gets the plain answer.
+//
+//  The engine supplies that second fact rather than this profile digging for it.
+//  The instruction tables are shared and unnamed, and a dialect reaching into
+//  them to compose a sentence is the seam leaking in the direction the profile
+//  contract spends most of its words on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MerlinDialect::ExplainUnknownOperation (const ParsedLine & parsed,
+                                                    bool               operandNamesAnOperation) const
+{
+    std::string  explanation;
+    bool         isIndentedLabel = !parsed.startsAtColumn0 && operandNamesAnOperation;
+
+
+
+    if (isIndentedLabel)
+    {
+        explanation = parsed.mnemonic + " is not an instruction, a directive or a macro. A Merlin label must"
+                      " begin in column 1; indented, it is read as the opcode field and " + parsed.operand +
+                      " is read as its operand. Move " + parsed.mnemonic + " to the start of the line.";
+    }
+
+    return explanation;
 }

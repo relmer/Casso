@@ -35,6 +35,16 @@
 //  dialect knows its own spellings. Recording it here keeps the engine free of
 //  a per-dialect table of string names -- it reads the mode and encodes.
 //
+//  The three field COLUMNS are recorded for the same reason startsAtColumn0 is:
+//  only the profile that segmented the line knows where each field began, and by
+//  the time a diagnostic is composed the raw text is gone. A diagnostic then
+//  points at the field it is about rather than at the start of the line.
+//
+//  They are DEFAULTED to 0, which means "this dialect recorded no column". That
+//  is what keeps them additive -- a profile that answers nothing produces exactly
+//  the diagnostics it always did, and the formatter omits a zero column rather
+//  than sending an editor to an arbitrary place.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ParsedLine
@@ -62,6 +72,14 @@ struct ParsedLine
     SymbolKind                           labelKind       = SymbolKind::Label;
     bool                                 startsAtColumn0;                         // true if line had no leading whitespace
     StringEncodingMode                   stringMode      = StringEncodingMode::Plain;  // meaningful only for Directive::StringData
+
+    // Where each field began in the source line, 1-based. 0 means the dialect
+    // recorded none -- see the note above. They survive a profile rewriting the
+    // fields themselves: an equate clears the label and opcode text once it has
+    // read them, and the columns still say where they were written.
+    int                                  labelColumn     = 0;
+    int                                  mnemonicColumn  = 0;
+    int                                  operandColumn   = 0;
 };
 
 

@@ -855,12 +855,167 @@ AssemblySession::AssemblySession (const InstructionSetProvider & instructionSets
 
 void AssemblySession::RecordError (int lineNumber, const std::string & message)
 {
+    RecordErrorAt (lineNumber, m_diagnosticColumn, message);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RecordErrorAt
+//
+//  The one place an ordinary error is built, with the position stated rather
+//  than taken from ambient state.
+//
+//  RecordError is this with the line's own column, which is what the great
+//  majority of diagnostics want. The exceptions are the ones whose subject is a
+//  particular field -- a label that duplicates another, an operand that will not
+//  evaluate -- and those say where they mean instead of moving the ambient
+//  value and hoping the next caller resets it.
+//
+//  A column of 0 says the field was never written, and the line's own column
+//  stands in. That matters most where a diagnostic exists BECAUSE the field is
+//  missing: an equate with no expression has no expression to point at, and
+//  answering "no column at all" would drop the position from exactly the
+//  diagnostics that most need one. The substitution can never invent a position
+//  for a dialect that records none, since its line column is 0 as well.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::RecordErrorAt (int lineNumber, int column, const std::string & message)
+{
     AssemblyError error = {};
     error.lineNumber = lineNumber;
     error.message    = message;
     error.file       = m_currentSourceFile;
+    error.column     = (column != 0) ? column : m_diagnosticColumn;
     m_result.errors.push_back (error);
     m_result.success = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::PrimaryColumn
+//
+//  Which column stands for the line as a whole.
+//
+//  The opcode field, because that is what a line IS -- an instruction, a
+//  directive, or a macro call -- and a diagnostic about the line is nearly
+//  always about that. The label is the fallback for a line that has no opcode at
+//  all, where it is the only thing written.
+//
+//  The COLUMNS are tested rather than the text, and that is not the same check.
+//  A profile clears the text of both fields once it has read an equate, so a
+//  test on emptiness would answer 0 for a line whose fields are perfectly well
+//  known.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int AssemblySession::PrimaryColumn (const ParsedLine & parsed)
+{
+    return (parsed.mnemonicColumn != 0) ? parsed.mnemonicColumn : parsed.labelColumn;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::OperandNamesAnOperation
+//
+//  Whether the field after the opcode names something this assembler could
+//  execute.
+//
+//  Asked on behalf of the active profile, and dialect-NEUTRAL by construction:
+//  the instruction set is the shared one, the alternate spellings are whichever
+//  the active profile declares, and the directive lookup is the active profile's
+//  own. Nothing here names a dialect, and a profile that declares no aliases and
+//  no directives simply gets false.
+//
+//  Only the FIRST WORD is considered. A field-based dialect hands the whole rest
+//  of the operand over, so `LDA #$00` arrives with the instruction and its own
+//  operand together.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::OperandNamesAnOperation (const ParsedLine & parsed) const
+{
+    std::string  word;
+    size_t       end   = parsed.operand.find_first_of (" \t");
+    bool         names = false;
+
+
+
+    word  = Parser::ToUpper ((end == std::string::npos) ? parsed.operand : parsed.operand.substr (0, end));
+    names = !word.empty() &&
+            (m_opcodeTable->IsMnemonic (word) ||
+             (m_dialect.GetDirectiveForSpelling (word) != Directive::None));
+
+    for (const MnemonicAlias & alias : m_dialect.GetMnemonicAliases())
+    {
+        if (word == alias.spelling)
+        {
+            names = true;
+            break;
+        }
+    }
+
+    return names;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::DescribeUnknownOperation
+//
+//  What to say about a word the active dialect cannot execute.
+//
+//  Three answers, in descending order of how much they explain, and the order is
+//  the point. The dialect's own account comes first because only it knows the
+//  mistakes its line model invites -- an indented label reads as an unknown
+//  opcode and nothing about the word itself says so. Failing that, another
+//  dialect may simply define the word, and "your source is written for a
+//  different assembler" is a different problem from "no such instruction". The
+//  plain report is what is left.
+//
+//  The active dialect is NAMED whenever another one is, because the developer's
+//  question at that moment is which of the two they are running.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::DescribeUnknownOperation (const ParsedLine & parsed) const
+{
+    std::string                          message = m_dialect.ExplainUnknownOperation (parsed,
+                                                                                      OperandNamesAnOperation (parsed));
+    DialectRegistry::ForeignConstruct    foreign = {};
+
+
+
+    if (!message.empty())
+    {
+        return message;
+    }
+
+    message = "Invalid mnemonic: " + parsed.mnemonic;
+    foreign = DialectRegistry::FindForeignConstruct (Parser::ToUpper (parsed.mnemonic), m_dialect.GetId());
+
+    if (foreign.dialect != nullptr)
+    {
+        message += std::string (" -- ") + parsed.mnemonic + " is " + foreign.category + " belonging to the "
+                 + foreign.dialect->GetName() + " dialect, not to " + m_dialect.GetName();
+    }
+
+    return message;
 }
 
 
@@ -888,6 +1043,7 @@ void AssemblySession::RecordRefusal (int lineNumber, const std::string & message
     error.lineNumber = lineNumber;
     error.message    = message;
     error.file       = m_currentSourceFile;
+    error.column     = m_diagnosticColumn;
     error.kind       = DiagnosticKind::SubsetBoundary;
     m_result.errors.push_back (error);
     m_result.success = false;
@@ -924,6 +1080,7 @@ void AssemblySession::RecordWarning (int lineNumber, const std::string & message
             warning.lineNumber = lineNumber;
             warning.message    = message;
             warning.file       = m_currentSourceFile;
+            warning.column     = m_diagnosticColumn;
             m_result.warnings.push_back (warning);
             break;
         }
@@ -934,6 +1091,7 @@ void AssemblySession::RecordWarning (int lineNumber, const std::string & message
             error.lineNumber = lineNumber;
             error.message    = message;
             error.file       = m_currentSourceFile;
+            error.column     = m_diagnosticColumn;
             m_result.errors.push_back (error);
             m_result.success = false;
             break;
@@ -1277,6 +1435,11 @@ HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
 
     info.parsed            = Parser::ParseLine (current.text, current.sourceLineNumber, m_dialect);
     info.sourceFile        = current.sourceFile;
+
+    // And where on the line. Only knowable after the parse, since the profile is
+    // what segmented the fields -- but set unconditionally, so a line whose
+    // dialect records no columns leaves 0 rather than the previous line's answer.
+    m_diagnosticColumn     = PrimaryColumn (info.parsed);
 
     // Which instruction set sized this line. Recorded here so pass 2 replays it
     // rather than recomputing -- see LineInfo::usedExtendedSet for why
@@ -2218,6 +2381,7 @@ HRESULT AssemblySession::DetectMacroDefinition (const PendingLine & current, Lin
     m_currentMacroName = macroName;
     m_currentMacroLine = current.sourceLineNumber;
     m_currentMacroFile = current.sourceFile;
+    m_currentMacroColumn = PrimaryColumn (info.parsed);
     m_currentMacroBody.clear();
     m_currentMacroParams.clear();
     m_currentMacroLocals.clear();
@@ -2376,6 +2540,7 @@ HRESULT AssemblySession::HandleIfDirective (const PendingLine & current, const s
     state.seenElse         = false;
     state.openLineNumber   = current.sourceLineNumber;
     state.openFile         = current.sourceFile;
+    state.openColumn       = m_diagnosticColumn;
 
     if (state.parentAssembling)
     {
@@ -2442,6 +2607,7 @@ HRESULT AssemblySession::HandleIfdefDirective (const PendingLine & current,
     state.seenElse         = false;
     state.openLineNumber   = current.sourceLineNumber;
     state.openFile         = current.sourceFile;
+    state.openColumn       = m_diagnosticColumn;
 
     if (state.parentAssembling)
     {
@@ -2617,7 +2783,8 @@ HRESULT AssemblySession::HandleOrgDirective (const PendingLine & current, LineIn
 
     if (!er.success)
     {
-        RecordError (current.sourceLineNumber, ".org expression must be resolvable: " + er.error);
+        RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                       info.parsed.directive + " expression must be resolvable: " + er.error);
     }
     else
     {
@@ -2693,7 +2860,7 @@ HRESULT AssemblySession::HandleKeyboardInput (const PendingLine & current, LineI
     if (!hasName)
     {
         RecordError (current.sourceLineNumber,
-            "KBD needs a symbol name in the label field");
+            info.parsed.directive + " needs a symbol name in the label field");
     }
 
     BAIL_OUT_IF (!hasName, S_OK);
@@ -2768,6 +2935,7 @@ HRESULT AssemblySession::HandleSubsetBoundary (const PendingLine & current, Line
 
     offense.row        = row;
     offense.lineNumber = current.sourceLineNumber;
+    offense.column     = PrimaryColumn (info.parsed);
     offense.file       = current.sourceFile;
 
     m_boundaryOffenses.push_back (offense);
@@ -2817,8 +2985,11 @@ void AssemblySession::ReportSubsetBoundaryRefusals()
     {
         // Deferred, so the ambient file is whichever was processed last. The
         // file the construct was MET in is restored before recording, exactly
-        // as the unclosed-block diagnostics below do.
+        // as the unclosed-block diagnostics below do -- and so is the column,
+        // which would otherwise point at wherever the last line's opcode
+        // happened to sit.
         m_currentSourceFile = offense.file;
+        m_diagnosticColumn  = offense.column;
 
         RecordRefusal (offense.lineNumber,
                        SubsetBoundary::ComposeRefusal (*offense.row, linkage, m_dialect.GetName()));
@@ -3140,11 +3311,12 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
 
         if (FAILED (hrLabel))
         {
-            RecordError (current.sourceLineNumber, labelError);
+            RecordErrorAt (current.sourceLineNumber, info.parsed.labelColumn, labelError);
         }
         else if (m_symbols.count (stored) > 0)
         {
-            RecordError (current.sourceLineNumber, "Duplicate label: " + info.parsed.label);
+            RecordErrorAt (current.sourceLineNumber, info.parsed.labelColumn,
+                           "Duplicate label: " + info.parsed.label);
         }
         else
         {
@@ -3288,7 +3460,8 @@ HRESULT AssemblySession::HandleSetConstant (const PendingLine & current, LineInf
 
         if (!er.success)
         {
-            RecordError (current.sourceLineNumber, "Cannot evaluate constant expression: " + er.error);
+            RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                           "Cannot evaluate constant expression: " + er.error);
         }
         else
         {
@@ -3770,7 +3943,8 @@ HRESULT AssemblySession::HandlePass1Ds (const PendingLine & current, LineInfo & 
 
         if (!er.success)
         {
-            RecordError (current.sourceLineNumber, ".ds size must be resolvable: " + er.error);
+            RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                           info.parsed.directive + " size must be resolvable: " + er.error);
         }
         else
         {
@@ -4532,6 +4706,8 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
     std::vector<std::string>  args;
     std::vector<std::string>  expandedLines;
     std::string               uniqueSuffix;
+    int                       highest     = 0;
+    int                       supplied    = 0;
     bool                      isExplicit  = false;
     bool                      isDefined   = false;
     bool                      hasArgs     = false;
@@ -4582,6 +4758,27 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
                 "Macro nesting depth exceeded (max " + std::to_string (kMaxMacroDepth) + ")");
             handled = true);
 
+    // A parameter the body refers to with no argument to fill it. REJECTED here
+    // rather than expanded with the gap left empty, and the difference is not
+    // cosmetic: an empty substitution turns `LDA ]2` into `LDA `, and a body
+    // whose lines happen to survive that assembles a DIFFERENT program without
+    // complaint.
+    //
+    // The commonest cause is not a typo. What separates one argument from the
+    // next is the dialect's -- Merlin uses a semicolon where others use a comma
+    // -- so a call written in another assembler's punctuation arrives as ONE
+    // argument however many were meant, and every parameter after the first is
+    // unfilled. Claimed on the way out for the same reason the depth limit is.
+    highest = HighestParameterReferenced (m_macros[name], syntax.parameterSigil);
+    supplied = (int) args.size();
+
+    CBRFEx (highest <= supplied, S_OK,
+            RecordError (current.sourceLineNumber,
+                name + " refers to parameter " + std::string (1, syntax.parameterSigil) +
+                std::to_string (highest) + " but the invocation supplies " + std::to_string (supplied) +
+                " argument(s). Arguments are separated by '" + std::string (1, syntax.argumentSeparator) + "'.");
+            handled = true);
+
     m_macroUniqueCounter++;
     uniqueSuffix = std::format ("{:04d}", m_macroUniqueCounter);
 
@@ -4604,6 +4801,62 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HighestParameterReferenced
+//
+//  How many arguments a body actually needs.
+//
+//  Scans the RAW stored body, which is what makes it agree with substitution by
+//  construction rather than by two implementations happening to match.
+//  ApplyMacroSubstitutions replaces the sigil form wherever it occurs, comments
+//  included, so a check that first stripped comments would pass a call whose
+//  expansion then substituted an empty string into one.
+//
+//  A digit is what separates a parameter from a variable symbol -- `]1` is an
+//  argument and `]COUNT` a name -- so anything but a digit after the sigil is
+//  not a parameter at all. Zero is excluded with it: a dialect that spells the
+//  argument COUNT that way is asking a question, not naming a slot.
+//
+//  0 for a dialect with no positional form, so it can never refuse a call.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int AssemblySession::HighestParameterReferenced (const MacroDefinition & macroDef, char sigil)
+{
+    int  highest = 0;
+
+
+
+    if (sigil == 0)
+    {
+        return highest;
+    }
+
+    for (const std::string & line : macroDef.body)
+    {
+        size_t  pos = 0;
+
+        while ((pos = line.find (sigil, pos)) != std::string::npos)
+        {
+            pos++;
+
+            if ((pos < line.size()) && (line[pos] >= '1') && (line[pos] <= '9'))
+            {
+                int  index = line[pos] - '0';
+
+                highest = (index > highest) ? index : highest;
+            }
+        }
+    }
+
+    return highest;
 }
 
 
@@ -5041,11 +5294,12 @@ HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, Line
 
         if (FAILED (hrLabel))
         {
-            RecordError (current.sourceLineNumber, labelError);
+            RecordErrorAt (current.sourceLineNumber, info.parsed.labelColumn, labelError);
         }
         else if (m_symbols.count (labelName) > 0)
         {
-            RecordError (current.sourceLineNumber, "Duplicate label: " + labelName);
+            RecordErrorAt (current.sourceLineNumber, info.parsed.labelColumn,
+                           "Duplicate label: " + labelName);
         }
         else
         {
@@ -5262,7 +5516,8 @@ HRESULT AssemblySession::ClassifyAndResolve (const PendingLine & current, LineIn
         }
         else if (!er.hasUnresolved)
         {
-            RecordError (current.sourceLineNumber, "Expression error: " + er.error);
+            RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                           "Expression error: " + er.error);
             info.hasError = true;
         }
     }
@@ -5348,7 +5603,7 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
             {
                 if (!m_opcodeTable->IsMnemonic (info.parsed.mnemonic))
                 {
-                    RecordError (current.sourceLineNumber, "Invalid mnemonic: " + info.parsed.mnemonic);
+                    RecordError (current.sourceLineNumber, DescribeUnknownOperation (info.parsed));
                 }
                 else if (info.classified.syntax == OperandSyntax::None)
                 {
@@ -5416,6 +5671,7 @@ HRESULT AssemblySession::ValidateAssemblyCompletion()
     if (m_pass1State == Pass1State::CollectingMacro)
     {
         m_currentSourceFile = m_currentMacroFile;
+        m_diagnosticColumn  = m_currentMacroColumn;
 
         RecordError (m_currentMacroLine, "Unclosed macro definition: " + m_currentMacroName);
     }
@@ -5428,6 +5684,7 @@ HRESULT AssemblySession::ValidateAssemblyCompletion()
     for (const ConditionalState & open : m_condStack)
     {
         m_currentSourceFile = open.openFile;
+        m_diagnosticColumn  = open.openColumn;
 
         RecordError (open.openLineNumber, "Unclosed if block (no matching endif)");
     }
@@ -5557,8 +5814,10 @@ HRESULT AssemblySession::RunPass2()
 
         // Pass 2 walks the recorded lines rather than the pending ones, so the
         // originating file has to be re-established here or every diagnostic
-        // raised while emitting would be attributed to the top-level input.
+        // raised while emitting would be attributed to the top-level input. The
+        // column travels with it, for the same reason and from the same record.
         m_currentSourceFile = info.sourceFile;
+        m_diagnosticColumn  = PrimaryColumn (info.parsed);
 
         // Same reasoning for the instruction set: REPLAY what pass 1 recorded
         // for this line rather than re-deriving it. Emitting against a
@@ -5787,11 +6046,14 @@ HRESULT AssemblySession::ReportUnresolvedEqus()
         }
 
         m_currentSourceFile = info.sourceFile;
+        m_diagnosticColumn  = PrimaryColumn (info.parsed);
 
         if (info.parsed.constantKind == SymbolKind::Equ &&
             m_fullSymbols.find (info.parsed.constantName) == m_fullSymbols.end())
         {
-            RecordError (info.parsed.lineNumber,
+            // The expression is the subject, so the diagnostic points at it
+            // rather than at the sign that assigned it.
+            RecordErrorAt (info.parsed.lineNumber, info.parsed.operandColumn,
                 "Cannot resolve equ expression: " + info.parsed.constantExpr);
         }
     }
@@ -5890,7 +6152,8 @@ HRESULT AssemblySession::EmitErrorIfDirective (const LineInfo & info, Word & /*e
 
     if (!er.success)
     {
-        RecordError (info.parsed.lineNumber, "ERR expression must be resolvable: " + er.error);
+        RecordErrorAt (info.parsed.lineNumber, info.parsed.operandColumn,
+                       info.parsed.directive + " expression must be resolvable: " + er.error);
     }
     else
     {
@@ -6777,23 +7040,27 @@ HRESULT AssemblySession::DetectUnusedLabels()
 
         if (m_referencedLabels.find (sym.first) == m_referencedLabels.end())
         {
-            int          defLine = 0;
+            int          defLine   = 0;
+            int          defColumn = 0;
             std::string  defFile;
 
             for (const auto & info : m_lineInfos)
             {
                 if (info.parsed.label == sym.first)
                 {
-                    defLine = info.parsed.lineNumber;
-                    defFile = info.sourceFile;
+                    defLine   = info.parsed.lineNumber;
+                    defColumn = info.parsed.labelColumn;
+                    defFile   = info.sourceFile;
                     break;
                 }
             }
 
             // The warning belongs to where the label was DEFINED, so the file
-            // comes from that line rather than from wherever the sweep happens
-            // to be.
+            // and the column both come from that line rather than from wherever
+            // the sweep happens to be. The label itself is the subject, so the
+            // column is its own rather than the line's.
             m_currentSourceFile = defFile;
+            m_diagnosticColumn  = defColumn;
 
             RecordWarning (defLine, "Unused label: " + sym.first);
         }

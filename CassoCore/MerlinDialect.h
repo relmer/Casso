@@ -210,6 +210,19 @@ public:
     // assembler refuses them without ever naming this dialect.
     std::span<const SubsetBoundaryRow>  GetSubsetBoundary () const override;
 
+    // Merlin's own table, so a word as65 rejects can be attributed here rather
+    // than reported as an unknown instruction.
+    Directive           GetDirectiveForSpelling (const std::string & upperSpelling) const override;
+
+    // The mistake a developer arriving from another assembler makes first: a
+    // label written anywhere but column 1. Merlin's line model has no other way
+    // to read an indented word than as the opcode field, so the label becomes an
+    // operation nobody defined and the instruction beside it becomes its
+    // operand -- and "that is not an instruction" describes the symptom while
+    // saying nothing about the cause.
+    std::string         ExplainUnknownOperation (const ParsedLine & parsed,
+                                                 bool               operandNamesAnOperation) const override;
+
     // The stored name a variable symbol binds under. Public so a test can state
     // the expectation in the same terms the profile does rather than repeating
     // the marker as a literal.

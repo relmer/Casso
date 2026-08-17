@@ -327,4 +327,31 @@ public:
     // splitting them is what lets a second dialect state its own boundary
     // without restating how a refusal is worded.
     virtual std::span<const SubsetBoundaryRow>  GetSubsetBoundary () const { return {}; }
+
+    // The token this dialect gives a spelling, or None where it claims none.
+    // `upperSpelling` is expected upper-cased.
+    //
+    // It exists so a REJECTION can be attributed. A word the active dialect does
+    // not recognize is frequently one another dialect defines, and "that is not
+    // an instruction" is a poor answer to source that is simply written in the
+    // wrong assembler's language. Answering for a foreign dialect needs its
+    // table consulted without its parser running, which is the one thing
+    // ParseLine cannot be asked to do. A profile answering None is simply never
+    // named as the owner of anything, which is the honest answer for a dialect
+    // whose vocabulary is not a table.
+    virtual Directive           GetDirectiveForSpelling (const std::string & /*upperSpelling*/) const
+                                                        { return Directive::None; }
+
+    // A better explanation than "that word is not an operation", where this
+    // dialect can recognize the mistake behind it. Empty when it cannot, and the
+    // engine keeps its own wording -- which is why this is a default rather than
+    // a pure virtual.
+    //
+    // `operandNamesAnOperation` is the one fact the profile cannot establish for
+    // itself: whether the field AFTER the unknown word names something the
+    // assembler could execute. The instruction tables are shared and arrive
+    // unnamed, so having a profile consult them would hand a dialect the
+    // engine's own machinery to serve one message.
+    virtual std::string         ExplainUnknownOperation (const ParsedLine & /*parsed*/,
+                                                         bool /*operandNamesAnOperation*/) const { return {}; }
 };

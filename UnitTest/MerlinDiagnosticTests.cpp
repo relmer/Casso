@@ -151,6 +151,202 @@ namespace MerlinDiagnosticTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  MerlinDiagnosticPositionTests
+    //
+    //  WHERE on the line a Merlin diagnostic points.
+    //
+    //  Every assertion here states an exact column rather than "not zero". A
+    //  non-zero check passes for any implementation that stamps a constant, and
+    //  the constant that would be stamped -- 1 -- is a column real source uses.
+    //  So the sources are deliberately indented by differing amounts and no two
+    //  expected columns in this class are the same number.
+    //
+    //  The AS65 half is asserted alongside, because "additive" is a claim about
+    //  what did NOT change and is otherwise untestable. as65 records no columns,
+    //  so every one of its diagnostics must still report 0 and print without a
+    //  column at all.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinDiagnosticPositionTests)
+    {
+    public:
+
+        //  A refusal is a DEFERRED diagnostic -- it is composed after the last
+        //  line has been read -- so its column has to be captured where the
+        //  construct was met. The trailing lines are what make this
+        //  discriminating: an implementation reading ambient state at reporting
+        //  time gets the LAST line's column, and the last line here is indented
+        //  differently on purpose.
+        TEST_METHOD (BoundaryRefusal_PointsAtTheConstructNotAtTheLastLine)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  opts;
+            AssemblyResult    result;
+
+            cpu.InitForTest();
+            opts.dialect = DialectId::Merlin;
+
+            {
+                Assembler  merlin (cpu.GetInstructionSet(), opts);
+
+                //  REL sits at column 4; the final line's opcode at column 16.
+                result = merlin.Assemble ("   REL\n"
+                                          "               LDA #$00\n");
+            }
+
+            Assert::AreEqual ((size_t) 1, result.errors.size(), L"exactly one construct is outside the subset here");
+            Assert::IsTrue (result.errors[0].kind == DiagnosticKind::SubsetBoundary,
+                            L"a refusal must be structurally distinguishable from a syntax error");
+            Assert::AreEqual (1, result.errors[0].lineNumber);
+            Assert::AreEqual (4, result.errors[0].column,
+                              L"the refusal must point at REL, not at whatever line was processed last");
+        }
+
+
+
+        //  Two refusals at two different columns in one file. A single captured
+        //  column shared by both would satisfy either assertion alone.
+        TEST_METHOD (TwoRefusals_EachKeepItsOwnColumn)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  opts;
+            AssemblyResult    result;
+
+            cpu.InitForTest();
+            opts.dialect = DialectId::Merlin;
+
+            {
+                Assembler  merlin (cpu.GetInstructionSet(), opts);
+
+                result = merlin.Assemble ("  REL\n"
+                                          "         ENT START\n"
+                                          "START    LDA #$00\n");
+            }
+
+            Assert::AreEqual ((size_t) 2, result.errors.size(), L"both constructs are refused, not just the first");
+            Assert::AreEqual (3, result.errors[0].column, L"REL begins in column 3");
+            Assert::AreEqual (10, result.errors[1].column, L"ENT begins in column 10");
+        }
+
+
+
+        //  A diagnostic about the OPERAND points at the operand, not at the
+        //  opcode that owns it. The two differ by a known amount here, so a
+        //  column pinned to the line rather than to the field fails.
+        TEST_METHOD (ExpressionError_PointsAtTheOperand)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  opts;
+            AssemblyResult    result;
+
+            cpu.InitForTest();
+            opts.dialect = DialectId::Merlin;
+
+            {
+                Assembler  merlin (cpu.GetInstructionSet(), opts);
+
+                //  LDA at column 6, its operand at column 10.
+                result = merlin.Assemble ("     LDA #$00+\n");
+            }
+
+            Assert::AreEqual ((size_t) 1, result.errors.size());
+            Assert::AreEqual (10, result.errors[0].column,
+                              L"the operand is the subject, so the position is the operand's");
+        }
+
+
+
+        //  And a diagnostic about the LABEL points at the label, which on a
+        //  Merlin line is a third distinct column.
+        TEST_METHOD (DuplicateLabel_PointsAtTheLabel)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  opts;
+            AssemblyResult    result;
+
+            cpu.InitForTest();
+            opts.dialect = DialectId::Merlin;
+
+            {
+                Assembler  merlin (cpu.GetInstructionSet(), opts);
+
+                result = merlin.Assemble ("SAME     LDA #$00\n"
+                                          "SAME     LDA #$01\n");
+            }
+
+            Assert::AreEqual ((size_t) 1, result.errors.size());
+            Assert::AreEqual (2, result.errors[0].lineNumber);
+            Assert::AreEqual (1, result.errors[0].column, L"the duplicated label begins in column 1");
+        }
+
+
+
+        //  A DEFERRED diagnostic whose construct opened elsewhere. The
+        //  conditional opens on line 1 at column 3 and is never closed; the last
+        //  line processed is indented far further, so ambient state cannot
+        //  answer.
+        TEST_METHOD (UnclosedConditional_KeepsTheColumnItOpenedAt)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  opts;
+            AssemblyResult    result;
+
+            cpu.InitForTest();
+            opts.dialect              = DialectId::Merlin;
+            opts.predefinedSymbols["BUILD"] = 1;
+
+            {
+                Assembler  merlin (cpu.GetInstructionSet(), opts);
+
+                result = merlin.Assemble ("  DO BUILD\n"
+                                          "                    LDA #$00\n");
+            }
+
+            Assert::AreEqual ((size_t) 1, result.errors.size());
+            Assert::AreEqual (1, result.errors[0].lineNumber);
+            Assert::AreEqual (3, result.errors[0].column,
+                              L"the unclosed conditional must report where it OPENED, on the line and across it");
+        }
+
+
+
+        //  The additive half. as65 records no columns, so its diagnostics must
+        //  keep reporting none -- including the ones this feature rewrote.
+        TEST_METHOD (As65Diagnostics_StillCarryNoColumn)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  opts;
+            AssemblyResult    result;
+
+            cpu.InitForTest();
+            opts.dialect = DialectId::As65;
+
+            {
+                Assembler  as65 (cpu.GetInstructionSet(), opts);
+
+                result = as65.Assemble ("  .org $800\n"
+                                        "SAME: LDA #$00\n"
+                                        "SAME: LDA #$01\n"
+                                        "  LDA #$00+\n");
+            }
+
+            Assert::IsFalse (result.errors.empty(), L"both mistakes must still be errors");
+
+            for (const AssemblyError & error : result.errors)
+            {
+                Assert::AreEqual (0, error.column,
+                                  L"as65 records no columns, and every one of its diagnostics must still say so");
+            }
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  DiagnosticFormatterTests
     //
     //  The formatting DECISION, tested in core rather than by running the exe.

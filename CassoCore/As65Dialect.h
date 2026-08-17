@@ -40,4 +40,8 @@ public:
     // arguments are comma-separated, parameters are named rather than
     // positional, and a body label is renamed only when it was declared.
     MacroSyntax         GetMacroSyntax () const override;
+
+    // as65's own table, so a word another dialect rejects can be attributed
+    // here. Every accepted spelling is in it, dotted and bare alike.
+    Directive           GetDirectiveForSpelling (const std::string & upperSpelling) const override;
 };

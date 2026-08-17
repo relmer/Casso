@@ -406,11 +406,39 @@ private:
     void RecordError   (int lineNumber, const std::string & message);
     void RecordWarning (int lineNumber, const std::string & message);
 
+    // The same, pointed at a field other than the line's own. A diagnostic
+    // about the operand or about the label says so, rather than sending the
+    // reader to the opcode -- see m_diagnosticColumn for why that is the
+    // ambient answer and this is the exception.
+    void RecordErrorAt (int lineNumber, int column, const std::string & message);
+
     // A refusal rather than a complaint about the source. Separate from
     // RecordError so the kind cannot be forgotten at a call site: a boundary
     // refusal recorded as an ordinary error is indistinguishable from "your
     // source is wrong", which is the one reading it exists to prevent.
     void RecordRefusal (int lineNumber, const std::string & message);
+
+    // Which column a diagnostic about this line as a whole points at: the
+    // opcode field, or the label where the line has no opcode. 0 where the
+    // dialect recorded no columns at all.
+    static int PrimaryColumn (const ParsedLine & parsed);
+
+    // What to say about a word the active dialect does not recognize as an
+    // operation. Three answers in order of how much they explain: the dialect's
+    // own account of the mistake, the name of the dialect that DOES define the
+    // word, and the plain report.
+    std::string  DescribeUnknownOperation (const ParsedLine & parsed) const;
+
+    // Whether the field after the opcode names something this assembler could
+    // execute -- an instruction under the active dialect's spellings, or one of
+    // its directives. Dialect-NEUTRAL: it consults the active profile's own
+    // tables and the shared instruction set, and names no dialect.
+    bool  OperandNamesAnOperation (const ParsedLine & parsed) const;
+
+    // The highest positional parameter a macro body refers to, or 0 for a body
+    // that refers to none. An invocation supplying fewer arguments than this has
+    // nothing to put in the gap.
+    static int  HighestParameterReferenced (const MacroDefinition & macroDef, char sigil);
 
     // One construct the boundary refused, held until the pass ends.
     //
@@ -424,6 +452,7 @@ private:
     {
         const SubsetBoundaryRow *  row;
         int                        lineNumber;
+        int                        column;
         std::string                file;
     };
 
@@ -453,6 +482,24 @@ private:
     // state there produces the right line and the wrong file, which reads as a
     // correct diagnostic and is the harder bug to see.
     std::string  m_currentSourceFile;
+
+    // The column of the line being processed right now, travelling with the
+    // file above and stamped by the same three recorders. Every caveat on
+    // m_currentSourceFile applies unchanged, including the deferred one: a
+    // construct that opened elsewhere must carry its own column, or it is
+    // reported at the right line and the wrong place on it.
+    //
+    // It answers for the LINE, not for the message -- the opcode field, or the
+    // label where there is no opcode. A diagnostic whose subject is a different
+    // field says so through RecordErrorAt rather than by moving this, because
+    // ambient state left pointing somewhere by one call site and read by the
+    // next is how a plausible wrong column outlives an obviously absent one.
+    //
+    // 0 for a dialect that records no columns, which is every dialect that
+    // predates the profile seam. That is what keeps their diagnostics the
+    // shape they have always had.
+    int          m_diagnosticColumn = 0;
+
     bool IsAssembling  () const;
     void InjectBuiltin (const std::string & name, int32_t value);
     void EmitByte      (Byte b, Word & emitPC);
@@ -528,6 +575,7 @@ private:
     std::string                                        m_currentMacroName;
     int                                                m_currentMacroLine   = 0;
     std::string                                        m_currentMacroFile;
+    int                                                m_currentMacroColumn = 0;
     std::vector<std::string>                           m_currentMacroBody;
     std::vector<std::string>                           m_currentMacroParams;
     std::vector<std::string>                           m_currentMacroLocals;

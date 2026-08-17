@@ -107,6 +107,69 @@ bool DialectRegistry::TryLookUpByName (const std::string & name, DialectId & out
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DialectRegistry::FindForeignConstruct
+//
+//  Which dialect defines a word the active one rejected.
+//
+//  Both ways a dialect can claim a word are checked, because both produce the
+//  same failure and neither is a misspelling. A directive is source written in
+//  the wrong assembler's language. An instruction ALIAS is subtler: the machine
+//  does have that instruction, under a name this dialect happens not to accept,
+//  so "invalid mnemonic" is true of the spelling and false of the operation.
+//
+//  Directives first, since a dialect that spells a directive the way another
+//  spells an instruction has a genuine collision and the directive is the
+//  stronger claim -- it is the word's whole meaning there, where an alias is one
+//  of two names for something the other dialect also has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DialectRegistry::ForeignConstruct DialectRegistry::FindForeignConstruct (const std::string & upperSpelling,
+                                                                        DialectId           active)
+{
+    ForeignConstruct  found = {};
+
+
+
+    for (const Entry & entry : s_kDialects)
+    {
+        if (entry.id == active)
+        {
+            continue;
+        }
+
+        if (entry.profile->GetDirectiveForSpelling (upperSpelling) != Directive::None)
+        {
+            found.dialect  = entry.profile;
+            found.category = "a directive";
+            break;
+        }
+
+        for (const MnemonicAlias & alias : entry.profile->GetMnemonicAliases())
+        {
+            if (upperSpelling == alias.spelling)
+            {
+                found.dialect  = entry.profile;
+                found.category = "an alternate instruction spelling";
+                break;
+            }
+        }
+
+        if (found.dialect != nullptr)
+        {
+            break;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DialectRegistry::GetAllDialects
 //
 ////////////////////////////////////////////////////////////////////////////////

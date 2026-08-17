@@ -814,4 +814,354 @@ namespace MerlinCorpusTests
             return wide;
         }
     };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  NegativeEntry
+    //
+    //  One hand-authored piece of source that must FAIL, and what its failure has
+    //  to say.
+    //
+    //  A separate class from the captured entries, because the two are evidence of
+    //  different things and must not be mistaken for one another. A captured entry
+    //  says "real Merlin produced these bytes from this source" and is only as good
+    //  as the capture. These say "Casso must refuse this and explain why", which no
+    //  capture can establish -- real Merlin ACCEPTS the relocatable constructs here,
+    //  so an oracle would disagree with every one of them.
+    //
+    //  Each row states four things a wrong implementation gets wrong differently,
+    //  which is why all four are stated. The KIND separates a deliberate refusal
+    //  from a failure to parse -- structurally, not by wording, since a message can
+    //  be made to contain any phrase. The LINE and COLUMN are exact, and no two
+    //  entries share a column, so an implementation stamping a constant fails. And
+    //  `mustNotSay` names the diagnostic that would appear if the feature were
+    //  absent, which is the assertion a bare substring check cannot make: `mustSay`
+    //  alone is satisfied by a message that ALSO reports the symptom, and reporting
+    //  both is not what was asked for.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    struct NegativeEntry
+    {
+        const char      *  name;
+        const char      *  source;
+        DiagnosticKind     kind;
+        int                line;
+        int                column;
+
+        // A phrase the diagnostic must carry, and one it must not. Null for an
+        // entry with nothing to rule out.
+        const char      *  mustSay;
+        const char      *  mustNotSay;
+    };
+
+
+
+    //  The negative corpus. Indentation is chosen per entry so that no two
+    //  expected columns are the same number.
+    static constexpr NegativeEntry  s_kNegativeCorpus[] =
+    {
+        {
+            "relocatable mode",
+            "   REL\n"
+            "        LDA #$00\n",
+            DiagnosticKind::SubsetBoundary, 1, 4,
+            "REL", "Invalid mnemonic",
+        },
+        {
+            "entry symbol declaration",
+            "      ENT START\n"
+            "START LDA #$00\n",
+            DiagnosticKind::SubsetBoundary, 1, 7,
+            "ENT", "Invalid mnemonic",
+        },
+        {
+            "external symbol declaration",
+            "     EXT OTHER\n"
+            "     LDA OTHER\n",
+            DiagnosticKind::SubsetBoundary, 1, 6,
+            "EXT", "Invalid mnemonic",
+        },
+        {
+            //  The one refusal that must DENY a dependency rather than omit it:
+            //  disk file access arriving will not settle what this should do.
+            "save-object directive",
+            "        SAV OBJECT\n",
+            DiagnosticKind::SubsetBoundary, 1, 9,
+            "disk file access will not settle", "Invalid mnemonic",
+        },
+        {
+            "output file-type directive",
+            "                  TYP $06\n",
+            DiagnosticKind::SubsetBoundary, 1, 19,
+            "TYP", "Invalid mnemonic",
+        },
+        {
+            //  A LABEL written where another assembler would put it. Merlin's
+            //  line model reads it as the opcode, so without this the developer
+            //  is told their own label is not an instruction -- true, useless,
+            //  and silent about the column rule that caused it.
+            "indented label",
+            "               LOOP LDA #$00\n",
+            DiagnosticKind::SourceError, 1, 16,
+            "must begin in column 1", "Invalid mnemonic",
+        },
+        {
+            //  Source written for the other dialect. The diagnostic has to name
+            //  the dialect that DOES define the construct; "not an instruction"
+            //  sends the reader hunting for a typo that is not there.
+            "an as65 directive under merlin",
+            "             .BYTE $01\n",
+            DiagnosticKind::SourceError, 1, 14,
+            "belonging to the as65 dialect", "belonging to the merlin dialect",
+        },
+        {
+            //  A shared-engine diagnostic about a directive BOTH dialects have.
+            //  It has to quote the spelling the source could actually have
+            //  written: a Merlin file holds no dotted form of anything, so a
+            //  message naming one describes a construct that cannot exist here.
+            "origin directive quoted in Merlin's own spelling",
+            "       ORG $10+\n",
+            DiagnosticKind::SourceError, 1, 12,
+            "ORG expression must be resolvable", ".org",
+        },
+        {
+            //  A macro invoked with the OTHER dialect's argument separator. One
+            //  argument arrives where two were meant, and the body's second
+            //  parameter has nothing to take. Refused rather than expanded with
+            //  the gap left empty -- see the byte assertion below, which is the
+            //  half that says "rather than partially expanded".
+            "macro invoked with as65 argument syntax",
+            "STORE     MAC\n"
+            "          LDA ]1\n"
+            "          STA ]2\n"
+            "          <<<\n"
+            "          STORE $10,$20\n",
+            DiagnosticKind::SourceError, 5, 11,
+            "supplies 1 argument", "Invalid mnemonic",
+        },
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinNegativeCorpusTests
+    //
+    //  The sweep over the negative corpus, plus the claims that need more than a
+    //  diagnostic to state.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinNegativeCorpusTests)
+    {
+    public:
+
+        //  The absent-corpus guard, in the direction a loop cannot check itself.
+        //  A sweep over an empty table reports success having compared nothing,
+        //  and is indistinguishable in the output from a full one.
+        TEST_METHOD (TheNegativeCorpusIsNotEmpty)
+        {
+            Assert::IsTrue (std::size (s_kNegativeCorpus) >= 8,
+                            L"the negative corpus must cover the refused constructs and the diagnostic expectations");
+        }
+
+
+
+        TEST_METHOD (EveryNegativeEntryFailsWhereAndAsItSays)
+        {
+            for (const NegativeEntry & entry : s_kNegativeCorpus)
+            {
+                AssemblyResult  result = AssembleAsMerlin (entry.source);
+                std::wstring    what   = Describe (entry, result);
+
+                Assert::AreEqual ((size_t) 1, result.errors.size(), what.c_str());
+                Assert::IsTrue (result.errors[0].kind == entry.kind, what.c_str());
+                Assert::AreEqual (entry.line, result.errors[0].lineNumber, what.c_str());
+                Assert::AreEqual (entry.column, result.errors[0].column, what.c_str());
+
+                Assert::IsTrue (result.errors[0].message.find (entry.mustSay) != std::string::npos, what.c_str());
+
+                if (entry.mustNotSay != nullptr)
+                {
+                    Assert::IsTrue (result.errors[0].message.find (entry.mustNotSay) == std::string::npos,
+                                    what.c_str());
+                }
+            }
+        }
+
+
+
+        //  Every column in the table is distinct, so an implementation stamping
+        //  one constant everywhere cannot satisfy the sweep. Asserted rather than
+        //  left as a comment, because the property is a fact about the TABLE and a
+        //  row added later would quietly cost it.
+        TEST_METHOD (NoTwoEntriesExpectTheSameColumn)
+        {
+            for (size_t i = 0; i < std::size (s_kNegativeCorpus); i++)
+            {
+                for (size_t j = i + 1; j < std::size (s_kNegativeCorpus); j++)
+                {
+                    Assert::AreNotEqual (s_kNegativeCorpus[i].column, s_kNegativeCorpus[j].column,
+                                         L"two entries sharing a column would let one constant satisfy both");
+                }
+            }
+        }
+
+
+
+        //  The half of the macro entry a diagnostic cannot state. "Rejected
+        //  rather than partially expanded" is a claim about what was NOT emitted,
+        //  and an implementation reporting the mismatch and then expanding the
+        //  body anyway satisfies every assertion in the sweep above.
+        TEST_METHOD (TheMisPunctuatedMacroCallEmitsNothing)
+        {
+            AssemblyResult  result = AssembleAsMerlin ("STORE     MAC\n"
+                                                       "          LDA ]1\n"
+                                                       "          STA ]2\n"
+                                                       "          <<<\n"
+                                                       "          STORE $10,$20\n");
+
+            Assert::IsTrue (result.bytes.empty(), L"a refused invocation must emit no part of the body");
+        }
+
+
+
+        //  The control, and it is not optional. Without it the rejection above is
+        //  evidence of nothing -- a macro mechanism too broken to expand anything
+        //  would pass it. The same call with Merlin's own separator assembles the
+        //  whole body.
+        TEST_METHOD (TheSameCallWithMerlinsSeparatorAssembles)
+        {
+            AssemblyResult  result = AssembleAsMerlin ("STORE     MAC\n"
+                                                       "          LDA ]1\n"
+                                                       "          STA ]2\n"
+                                                       "          <<<\n"
+                                                       "          STORE $10;$20\n");
+
+            Assert::IsTrue (result.errors.empty(), FirstError (result).c_str());
+            Assert::AreEqual ((size_t) 4, result.bytes.size(),
+                              L"two zero-page instructions, two bytes each");
+        }
+
+
+
+        //  The mirror of the as65-directive entry, and the reason it is a test
+        //  rather than a ninth row: it runs under the OTHER dialect, which the
+        //  sweep's fixture cannot do. Both directions are needed, or "names the
+        //  foreign dialect" is satisfied by an implementation that always names
+        //  merlin.
+        TEST_METHOD (AMerlinDirectiveUnderAs65NamesMerlin)
+        {
+            //  A directive with NO operand, deliberately. `DCI "HI"` fails one
+            //  step earlier under as65 -- the quoted text is not an expression it
+            //  can evaluate -- so it never reaches the point where a mnemonic is
+            //  looked up at all, and the attribution would go untested.
+            AssemblyResult  result = AssembleAsAs65 ("  .org $800\n  FIN\n");
+
+            Assert::IsFalse (result.errors.empty(), L"FIN is not an as65 construct and must fail under as65");
+            Assert::IsTrue (result.errors[0].message.find ("belonging to the merlin dialect") != std::string::npos,
+                            FirstError (result).c_str());
+        }
+
+
+
+        //  An instruction SPELLING rather than a directive, which is the other
+        //  way a dialect can claim a word. BLT is a real instruction under
+        //  another name, so "invalid mnemonic" is true of the spelling and false
+        //  of the operation -- and the two categories must not read alike.
+        TEST_METHOD (AMerlinBranchAliasUnderAs65IsNamedAsASpelling)
+        {
+            AssemblyResult  result = AssembleAsAs65 ("  .org $800\nHERE: BLT HERE\n");
+
+            Assert::IsFalse (result.errors.empty(), L"as65 must not accept Merlin's branch spellings");
+            Assert::IsTrue (result.errors[0].message.find ("alternate instruction spelling") != std::string::npos,
+                            FirstError (result).c_str());
+            Assert::IsTrue (result.errors[0].message.find ("belonging to the merlin dialect") != std::string::npos,
+                            FirstError (result).c_str());
+        }
+
+    private:
+
+        static AssemblyResult AssembleAsMerlin (const std::string & source)
+        {
+            return AssembleUnder (DialectId::Merlin, source);
+        }
+
+
+
+        static AssemblyResult AssembleAsAs65 (const std::string & source)
+        {
+            return AssembleUnder (DialectId::As65, source);
+        }
+
+
+
+        static AssemblyResult AssembleUnder (DialectId dialect, const std::string & source)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+            AssemblyResult    result;
+
+            cpu.InitForTest();
+            options.dialect = dialect;
+
+            {
+                Assembler  assembler (cpu.GetInstructionSet(), options);
+
+                result = assembler.Assemble (source);
+            }
+
+            return result;
+        }
+
+
+
+        static std::wstring FirstError (const AssemblyResult & result)
+        {
+            std::string   text = "no diagnostic at all";
+            std::wstring  wide;
+
+            if (!result.errors.empty())
+            {
+                text = "line " + std::to_string (result.errors[0].lineNumber) + " col "
+                     + std::to_string (result.errors[0].column) + ": " + result.errors[0].message
+                     + " (" + std::to_string (result.errors.size()) + " total)";
+            }
+
+            wide.assign (text.begin(), text.end());
+
+            return wide;
+        }
+
+
+
+        static std::wstring Describe (const NegativeEntry & entry, const AssemblyResult & result)
+        {
+            std::string   text;
+            std::wstring  wide;
+
+            text = std::string ("entry \"") + entry.name + "\" expected line " + std::to_string (entry.line)
+                 + " col " + std::to_string (entry.column) + " saying \"" + entry.mustSay + "\"; got ";
+
+            if (result.errors.empty())
+            {
+                text += "no diagnostic at all";
+            }
+            else
+            {
+                text += "line " + std::to_string (result.errors[0].lineNumber) + " col "
+                      + std::to_string (result.errors[0].column) + ": " + result.errors[0].message
+                      + " (" + std::to_string (result.errors.size()) + " total)";
+            }
+
+            wide.assign (text.begin(), text.end());
+
+            return wide;
+        }
+    };
 }

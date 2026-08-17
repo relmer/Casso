@@ -419,6 +419,10 @@ struct ConditionalState
     // reported with the right line and the wrong file, which is a stronger
     // version of blaming the end of the file. Empty means the top-level input.
     std::string  openFile;
+
+    // And the column it opened at, captured for the same reason again. 0 where
+    // the dialect records no columns.
+    int  openColumn       = 0;
 };
 
 
