@@ -814,4 +814,144 @@ namespace DialectMechanismTests
                               L"the bare form reaches it the same way");
         }
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DirectiveInstructionCollisionTests
+    //
+    //  A spelling that names both a directive and an instruction, and the rule
+    //  that keeps the answer from depending on which table is asked first.
+    //
+    //  The rule is DISJOINTNESS, plus one sanctioned escape hatch. A spelling in
+    //  a dialect's directive table is a directive, and that table may not hold a
+    //  spelling the instruction tables answer to -- when the two are disjoint,
+    //  consulting either first gives the same answer, which is exactly the
+    //  property required. A spelling that genuinely is both stays OUT of the main
+    //  table and is resolved from the operand instead, which is what
+    //  `DirectiveTable::FromAmbiguousSpelling` holds and what `RMB` demonstrates
+    //  below.
+    //
+    //  Swept from the registry against the real opcode tables rather than from a
+    //  list written here. A collision arrives as a table edit somebody makes for
+    //  another reason -- a dialect adding a spelling, or an opcode gaining a
+    //  mnemonic -- and neither edit passes near a hand-written list.
+    //
+    //  BOTH instruction sets, because the extended one carries mnemonics the base
+    //  does not and a dialect selecting it in source reaches every one of them.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DirectiveInstructionCollisionTests)
+    {
+    public:
+
+        //  Every spelling either instruction table answers to, asked of every
+        //  dialect in the registry.
+        static void AssertNoDialectClaims (const OpcodeTable & table, const wchar_t * whichSet, size_t & outAsked)
+        {
+            std::vector<std::string>  mnemonics = table.GetAllMnemonics();
+
+            Assert::IsFalse (mnemonics.empty(), whichSet);
+
+            for (const std::string & mnemonic : mnemonics)
+            {
+                for (const DialectRegistry::Entry & entry : DialectRegistry::GetAllDialects())
+                {
+                    const DialectProfile  &  profile = DialectRegistry::Get (entry.id);
+                    Directive                claimed = profile.GetDirectiveForSpelling (mnemonic);
+                    std::wstring             what    = std::wstring (mnemonic.begin(), mnemonic.end())
+                                                       + L" is an instruction and this dialect's directive table"
+                                                         L" claims it, so which one it is depends on lookup order";
+
+                    outAsked++;
+
+                    Assert::IsTrue (claimed == Directive::None, what.c_str());
+                }
+            }
+        }
+
+
+
+        TEST_METHOD (NoDialectSpellsADirectiveTheWayAnInstructionIsSpelled)
+        {
+            TestCpu       cpu;
+            TestCpu65C02  cmos;
+            size_t        asked = 0;
+
+            cpu.InitForTest();
+            cmos.InitForTest();
+
+            {
+                OpcodeTable  base     (cpu.GetInstructionSet());
+                OpcodeTable  extended (cmos.GetInstructionSet());
+
+                AssertNoDialectClaims (base,     L"the base instruction table answered to no mnemonic at all",     asked);
+                AssertNoDialectClaims (extended, L"the extended instruction table answered to no mnemonic at all", asked);
+            }
+
+            //  A sweep over an empty registry passes while asking nothing, and
+            //  reads in the output exactly like a full one.
+            Assert::IsTrue (asked > 0, L"no dialect was asked about any mnemonic");
+        }
+
+
+
+        //  The escape hatch, shown working rather than described. as65 writes
+        //  `rmb <count>` for reserved storage and `rmb <bit>,<zp>` for the
+        //  Rockwell instruction, so the spelling is genuinely both.
+        //
+        //  It is a case the sweep above CANNOT see, which is why both exist. The
+        //  opcode table answers to `RMB0` through `RMB7` and not to the bare
+        //  word; the bit form is normalized into one of those from the operand,
+        //  so a bare `RMB` in the main table collides with nothing the sweep can
+        //  ask about and silently turns every Rockwell RMB into storage.
+        TEST_METHOD (AGenuinelyAmbiguousSpellingLivesOutsideTheMainTable)
+        {
+            TestCpu65C02  cmos;
+
+            cmos.InitForTest();
+
+            {
+                OpcodeTable  extended (cmos.GetInstructionSet());
+
+                Assert::IsTrue (extended.IsMnemonic ("RMB0"), L"the Rockwell bit instruction has to exist for this to mean anything");
+                Assert::IsTrue (DirectiveTable::FromSpelling ("RMB") == Directive::None,
+                                L"the main table must not claim it, or the instruction could never win");
+                Assert::IsTrue (DirectiveTable::FromAmbiguousSpelling ("RMB") == Directive::Ds,
+                                L"and the ambiguous table is where the directive reading lives");
+            }
+        }
+
+
+
+        //  Both readings of that spelling, driven through the assembler, so the
+        //  claim is about what as65 does rather than about which table holds a
+        //  row. The operand is the whole difference.
+        TEST_METHOD (TheOperandDecidesWhichReadingTheAmbiguousSpellingGets)
+        {
+            TestCpu           cpu;
+            TestCpu65C02      cmos;
+            AssemblerOptions  options = {};
+
+            cpu.InitForTest();
+            cmos.InitForTest();
+
+            {
+                Assembler       reserving (cpu.GetInstructionSet(), options);
+                Assembler       rockwell  (cmos.GetInstructionSet(), options);
+                AssemblyResult  storage     = reserving.Assemble ("        .org $2000\n        rmb 4\n        .byte $FF\n");
+                AssemblyResult  instruction = rockwell.Assemble  ("        .org $2000\n        rmb 3,$20\n");
+
+                Assert::IsTrue (storage.errors.empty(), L"one operand reserves storage");
+                Assert::AreEqual ((size_t) 5, storage.bytes.size(), L"four reserved bytes and the one after them");
+
+                Assert::IsTrue (instruction.errors.empty(), L"two operands name the Rockwell instruction");
+                Assert::AreEqual ((size_t) 2, instruction.bytes.size(), L"which is an opcode and a zero-page address");
+            }
+        }
+    };
 }

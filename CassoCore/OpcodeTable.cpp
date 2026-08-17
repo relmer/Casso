@@ -266,6 +266,36 @@ bool OpcodeTable::IsMnemonic (const std::string & name) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetAllMnemonics
+//
+//  Every spelling the table answers to, synonyms included. Unordered, because
+//  the map is: a caller wanting an order sorts, and pretending to one here would
+//  be a promise the container does not keep.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> OpcodeTable::GetAllMnemonics() const
+{
+    std::vector<std::string>  names;
+
+
+
+    names.reserve (m_table.size());
+
+    for (const auto & entry : m_table)
+    {
+        names.push_back (entry.first);
+    }
+
+    return names;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HasMode
 //
 ////////////////////////////////////////////////////////////////////////////////
