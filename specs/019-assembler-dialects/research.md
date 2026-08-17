@@ -592,6 +592,84 @@ the disk stores while a real vendor source asks for them under the short names
 it writes, which is how Merlin's `T.` prefix rule is pinned from vendor lines
 rather than from the manual.
 
+## The directive-table fallback, measured rather than estimated
+
+Found while adding Merlin's first-character conditional, left unfixed, and
+measured here so the decision about it is taken against numbers. **Nothing below
+proposes a fix**; it records how wide the seam is, where else it is open, and
+which kind of work closing it would be, because that last answer is what decides
+whether this is a task or an amendment.
+
+**The mechanism.** `MerlinDialect::ParseLine` resolves the opcode field against
+Merlin's table alone (`MerlinDialect.cpp:1198`), so a word Merlin does not have
+leaves `isDirective` false with the mnemonic intact. The conditional dispatcher
+then resolves that surviving mnemonic through **as65's** table by name:
+
+```
+AssemblySession.cpp:1627   : DirectiveTable::FromSpelling (parsed.mnemonic);
+AssemblySession.cpp:2549   token   = DirectiveTable::FromSpelling (info.parsed.mnemonic);
+```
+
+Neither line mentions `m_dialect`. `FromSpelling` is a whole-table linear scan
+with no dialect argument (`Directive.cpp:116-132`), so all 62 rows of
+`s_kSpellings` are consulted on every Merlin line Merlin's own table declined.
+
+**For as65 the fallback arm is dead code.** `As65Dialect::ParseLine` already sets
+`isDirective` for every table spelling, conditionals included
+(`As65Dialect.cpp:183-227`, and the bare `IF`/`IFDEF`/`IFNDEF`/`ELSE`/`ENDIF`
+rows at `Directive.cpp:81-89`), so under as65 the else arm can only return
+`Directive::None`. It is reachable **only** across dialects — which is why
+renaming the `IF` row to `IFX` left the suite green: no test exercises the arm at
+all.
+
+**The width.** 62 as65 spellings against Merlin's 41. Seven are in both tables —
+`DB DW DS ORG END IF ELSE` — and Merlin claims those first, so they are harmless
+overlap. The other **55 are spellings Merlin does not have and can still reach**,
+including the whole dotted half of as65's vocabulary, which Merlin has none of by
+construction (`MerlinDialect.h:39-41`). Of the 55, the **eight that change
+behavior at this dispatcher** are the ones `IsConditionalDirective`
+(`AssemblySession.cpp:1601-1606`) admits: `.IF .IFDEF .IFNDEF .ELSE .ENDIF
+IFDEF IFNDEF ENDIF`. The remaining 47 are consulted and discarded here — but the
+consultation is the leak, and other sites admit a different subset.
+
+One accidental narrowing, worth recording because it is not a guard and must not
+be mistaken for one: `FromSpelling` compares case-sensitively, as65 stores the
+mnemonic upper-cased (`As65Dialect.cpp:233`) and Merlin stores it raw
+(`MerlinDialect.cpp:1092`), so the leak fires on the upper-case spellings Merlin
+source conventionally uses and not on lower-case ones.
+
+**It is not confined to the conditional dispatcher.** Four sites in
+`AssemblySession.cpp` reach as65's table with no dialect in the call — 1627,
+2549, plus `GetStructMemberSize` at 2161 (`FromStorageSpelling`, which is the
+table *plus* `RMB`) and `CountExitmIfDepth` at 5654. The last is wrong in both
+directions for Merlin: it counts a leaked `IFDEF` and does not count Merlin's own
+`DO`/`FIN`, so `EXITM` synthesizes the wrong number of closers. `GetStructMemberSize`
+is latent rather than live — only an as65 `.STRUCT` body reaches it. Beside those
+sit hard-coded as65 spellings with no table behind them at all: `"EXITM"`/`".EXITM"`
+(`:5607`), `"MACRO"` (`:1578`), `"END"`/`"STRUCT"` (`:2096`, `:2101`) and `"NOP"`
+for the multi-NOP extension (`:6384`). By contrast the main statement dispatch is
+token-indexed and dialect-neutral by construction, and `OperandNamesAnOperation`
+already asks the profile (`:964`), so the correct shape exists in the file.
+
+**Profile work or engine work: engine, and the code says why.** Neither row type
+carries a dialect or availability field — `DirectiveTable::Spelling` and
+`MerlinDirectiveTable::Spelling` are both `{ const char * name; Directive token; }`
+(`Directive.h:120-124`, `MerlinDialect.h:48-52`) — and adding one would answer a
+question nobody asked: the tables are *already* per-dialect and each profile
+already publishes its own through `DialectProfile::GetDirectiveForSpelling`
+(`DialectProfile.h:355-361`). No column, flag or new table changes what lines
+1627 and 2549 call, because what they call is a class name. Two further facts fix
+the size of it: `HandleConditionalDirective` is a non-static member with
+`m_dialect` in scope, so 2549 is a call-site substitution, whereas
+`IsConditionalLine` is declared `static` (`AssemblySession.h:349`) and has no
+profile at all — it would have to stop being static or take one. Its only caller,
+`ClassifyPrelude`, reads `m_dialect` two lines later (`:1675`), so the threading
+is one hop. And `GetDirectiveForSpelling` is specified to take an upper-cased
+spelling, which Merlin's raw mnemonic is not, so case normalization is part of
+any such change rather than incidental to it. The two hard-coded-literal sites
+(`"MACRO"`, `"EXITM"`, `"NOP"`, `"END"`/`"STRUCT"`) have no profile hook to move
+to and are the genuinely larger piece.
+
 ## Open items carried into tasks
 
 These are the requirements-checklist gaps that need a technical answer. Each
