@@ -6,6 +6,7 @@
 #include "ProDosSkeleton.h"
 #include "DiskImageStore.h"
 #include "WozLoader.h"
+#include "TrackWritability.h"
 
 
 
@@ -142,6 +143,212 @@ HRESULT VolumeImage::Load (
     {
         outSectors = fileBytes;
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeImage::ChangedTracks
+//
+//  A whole track is the unit because a bit stream is written a track at a time:
+//  one altered byte costs that track's encoding and nothing else.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void VolumeImage::ChangedTracks (
+    const vector<Byte>  & priorSectors,
+    const vector<Byte>  & editedSectors,
+    vector<int>         & outTracks)
+{
+    const size_t  kTrackBytes = (size_t) NibblizationLayer::kSectorsPerTrack
+                              * (size_t) NibblizationLayer::kSectorByteSize;
+    int           track       = 0;
+    size_t        needed      = (size_t) NibblizationLayer::kImageByteSize;
+
+    outTracks.clear();
+
+    if (priorSectors.size() != needed || editedSectors.size() != needed)
+    {
+        return;
+    }
+
+    for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+    {
+        size_t  base = (size_t) track * kTrackBytes;
+        bool    same = std::equal (priorSectors.begin()  + (ptrdiff_t) base,
+                                   priorSectors.begin()  + (ptrdiff_t) (base + kTrackBytes),
+                                   editedSectors.begin() + (ptrdiff_t) base);
+
+        if (!same)
+        {
+            outTracks.push_back (track);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeImage::DescribeUnwritableTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string VolumeImage::DescribeUnwritableTrack (int track)
+{
+    return "track " + std::to_string (track)
+         + " does not decode to a complete set of standard sectors, so rewriting"
+           " it would destroy what could not be read";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeImage::Save
+//
+//  The inverse of Load, and the only place an edited buffer becomes a file.
+//
+//  Sector-order containers hold nothing but sectors, so there is nothing to
+//  preserve and nothing to judge -- the buffer is written out in the order the
+//  extension names. A .po's reorder comes from the track layer for the reason
+//  recorded on ProDosFileToDosLogical.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT VolumeImage::Save (
+    const vector<Byte>  & originalFileBytes,
+    const std::string   & path,
+    const vector<Byte>  & editedSectors,
+    vector<Byte>        & outFileBytes,
+    std::string         & outRefusalReason)
+{
+    HRESULT     hr     = S_OK;
+    DiskFormat  format = DiskFormat::Dsk;
+    bool        sized  = editedSectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+
+
+
+    outFileBytes.clear();
+    outRefusalReason.clear();
+
+    CBRAEx (sized, E_INVALIDARG);
+
+    hr = DiskImageStore::DetectFormatByExtension (path, format);
+    CHR (hr);
+
+    if (format == DiskFormat::Woz)
+    {
+        hr = SaveBitStream (originalFileBytes, editedSectors, outFileBytes, outRefusalReason);
+        CHR (hr);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    sized = originalFileBytes.size() == (size_t) NibblizationLayer::kImageByteSize;
+    CBRAEx (sized, E_INVALIDARG);
+
+    if (format == DiskFormat::Po)
+    {
+        DosLogicalToProDosFile (editedSectors, outFileBytes);
+    }
+    else
+    {
+        outFileBytes = editedSectors;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeImage::SaveBitStream
+//
+//  EVERY track the edit needs is judged BEFORE any track is re-encoded, and a
+//  single refusal abandons the whole operation. Refusing only the offending
+//  track and re-encoding the others would hand back an image carrying part of
+//  an edit, indistinguishable from a complete one.
+//
+//  The prior buffer is decoded here rather than taken from the caller so the
+//  two sides of the comparison cannot disagree about what the image held. A
+//  track that decoded Partial contributes its zeros to both sides, so it counts
+//  as changed only when the edit genuinely landed on it -- at which point it is
+//  refused.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT VolumeImage::SaveBitStream (
+    const vector<Byte>  & originalFileBytes,
+    const vector<Byte>  & editedSectors,
+    vector<Byte>        & outFileBytes,
+    std::string         & outRefusalReason)
+{
+    HRESULT             hr         = S_OK;
+    DiskImage           image;
+    vector<Byte>        prior;
+    vector<Byte>        serialized;
+    SectorDecodeReport  report;
+    TrackWritability    writability;
+    vector<int>         changed;
+    bool                imageOk    = false;
+    bool                tracksOk   = false;
+    size_t              i          = 0;
+
+
+
+    hr = WozLoader::Load (originalFileBytes, image);
+    CHR (hr);
+
+    hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, prior, report);
+    CHR (hr);
+
+    writability = TrackWritability::Evaluate (image, report);
+    ChangedTracks (prior, editedSectors, changed);
+
+    imageOk = writability.IsImageWritable();
+    CBRFEx (imageOk, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED),
+            outRefusalReason = writability.GetImageRefusalReason());
+
+    tracksOk = writability.AreTracksWritable (changed);
+
+    for (i = 0; !tracksOk && outRefusalReason.empty() && i < changed.size(); i++)
+    {
+        bool  writable = writability.IsTrackWritable (changed[i]);
+
+        if (writable)
+        {
+            continue;
+        }
+
+        outRefusalReason = DescribeUnwritableTrack (changed[i]);
+    }
+
+    CBREx (tracksOk, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+
+    hr = NibblizationLayer::RenibblizeTracks (editedSectors, DiskFormat::Dsk, changed, image);
+    CHR (hr);
+
+    //  Serialized into a local so a failure part-way through cannot leave the
+    //  caller holding a fragment that looks like an image.
+    hr = WozLoader::Serialize (image, serialized);
+    CHR (hr);
+
+    outFileBytes = serialized;
 
 Error:
     return hr;

@@ -64,6 +64,27 @@ public:
                           vector<Byte>         & outSectors,
                           SectorDecodeReport   & outReport);
 
+    //  An edited sector buffer rendered back into the container it came from.
+    //  A bit-stream image keeps every track the edit did not touch VERBATIM,
+    //  so timing, sync patterns and weak bits survive a write elsewhere.
+    //
+    //  Refusal is WHOLE-OPERATION. If any track the edit lands on cannot be
+    //  rewritten as standard sectors, nothing is produced at all -- skipping
+    //  that track and committing the rest is precisely the half-written image
+    //  the all-or-nothing rule exists to forbid, and it would be reported as
+    //  success.
+    static HRESULT  Save (const vector<Byte>  & originalFileBytes,
+                          const std::string   & path,
+                          const vector<Byte>  & editedSectors,
+                          vector<Byte>        & outFileBytes,
+                          std::string         & outRefusalReason);
+
+    //  Tracks whose sectors differ between two buffers of the same volume.
+    //  Ascending, and empty when the two agree.
+    static void     ChangedTracks (const vector<Byte> & priorSectors,
+                                   const vector<Byte> & editedSectors,
+                                   vector<int>        & outTracks);
+
     //  Reorders a ProDOS-ordered file image into DOS logical order. Public
     //  because the inverse is what writing a .po image needs.
     static void     ProDosFileToDosLogical (const vector<Byte> & fileBytes, vector<Byte> & outSectors);
@@ -73,6 +94,14 @@ public:
     static VolumeKind  DetectFilesystem (const vector<Byte> & sectors);
 
 private:
+    //  The bit-stream half of Save: decode, judge, re-encode only what changed.
+    static HRESULT  SaveBitStream (const vector<Byte>  & originalFileBytes,
+                                   const vector<Byte>  & editedSectors,
+                                   vector<Byte>        & outFileBytes,
+                                   std::string         & outRefusalReason);
+
+    static std::string  DescribeUnwritableTrack (int track);
+
     static bool  LooksLikeDos33  (const vector<Byte> & sectors);
     static bool  LooksLikeProDos (const vector<Byte> & sectors);
 
