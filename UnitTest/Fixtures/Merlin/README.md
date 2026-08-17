@@ -89,12 +89,22 @@ nothing to compare against. `PI.MAIN.S` and `PI.DIV.S` are omitted as redundant
 — both import, so `PI.START.S` already covers them. `PI.LOOK.S` is the other
 export-only file and is omitted for the same reason relative to `PI.ADD.S`.
 
-## `KBD` — three of the five oracles cannot be assembled non-interactively
+## `KBD` — a directive that takes its answer from outside the source
 
-The single most important thing to know before planning against this corpus.
-`KBD` assigns a symbol from **an interactive prompt at assembly time**. Merlin
-stops and asks; the answer becomes the symbol's value and can then drive
-conditional assembly. A batch assembler has nobody to ask.
+**This section previously said three of the five oracles could not be assembled
+non-interactively, and that `LABELS.S` and `MAKE DUMP.S` were the only drop-in
+oracles. Both claims are now false, and the belief was expensive: it wrote off
+four of the six objects as permanently unreachable, when what was missing was a
+small directive.** All six now reproduce byte-for-byte.
+
+`KBD` assigns a symbol from a prompt Merlin issues at assembly time. Merlin stops
+and asks a human; the answer becomes the symbol's value and can then drive
+conditional assembly. The mistake was reading "interactive" as a property of the
+*language* rather than of Merlin's own front end. Nothing about the directive
+requires a terminal — it requires an **answer**, and an answer can be supplied.
+Casso binds it from `AssemblerOptions::predefinedSymbols` (the `-d` flag), and
+refuses with a diagnostic naming the symbol and quoting its prompt when no answer
+was given. It never prompts, never defaults, and never hangs.
 
 | Source | `KBD` symbols | Effect on the object |
 |---|---|---|
@@ -104,19 +114,30 @@ conditional assembly. A batch assembler has nobody to ask.
 | `CLOCK.S` | `SAVOBJ`, `VERSION` — "Want 12 or 24 hour version (12/24)?" | `VERSION` selects the object: 24 → `CLOCK.24`, 12 → `CLOCK.12`. |
 | `PRINTFILER.S` | `FORMAT` (1 = format, 0 = pack), `MONITOR` (1 = monitor, 0 = don't) | Both are semantic. Four combinations, one shipped object. |
 
-So `LABELS.S` and `MAKE DUMP.S` are the only drop-in oracles. The other three
-need a way to supply `KBD` values without a terminal — a command-line symbol
-definition, a scripted answer list, or whatever the dialect mechanism settles
-on. That is a design decision, not an oversight to code around.
+**All five sources are drop-in oracles**, given their answers. Supply `VERSION`
+to `CLOCK.S` and one source yields two different shipped objects — the only
+source here that does, and `VERSION` is how.
 
-`PRINTFILER.S` has a useful property while that is unresolved: which of its four
-combinations produced the shipped 286-byte object is not recorded anywhere. Try
-all four and exactly one should match byte-for-byte — that identifies the
-vendor's build configuration and validates the assembler in the same pass. If
-none match, or more than one does, that is itself the finding.
+`PRINTFILER.S` had a useful property recorded here before it was solved, and it
+**held exactly**: which of its four `FORMAT`/`MONITOR` combinations produced the
+shipped 286-byte object is written down nowhere, so assemble all four and require
+exactly one to match. It does, and the answer is **formatting on, monitoring
+off** — the vendor's 1984 build configuration, recovered from the bytes. The
+test asserts the *count* as well as the pair: more than one match would mean an
+answer reaches no byte and the search proves nothing; none would mean the
+assembler is wrong. Either is a finding.
 
-`CLOCK.S` is the reason to solve `KBD` rather than route around it: it is the
-only source here that yields two different objects, and `VERSION` is how.
+Two further facts about the language came out of assembling these three, neither
+of which any artifact had thought to ask, and both settled from shipped objects
+rather than from documentation:
+
+- **The operator SET differs from as65's, not merely the binding.** `!` is
+  exclusive-or and `.` is inclusive-or. `CLOCK.S` forces both: `LDX #HOURS/24!1`
+  must be XOR, and `CMP #HOURS/24+3."0"` must be OR.
+- **Merlin computes in unsigned 16-bit quantities.** `HOURS = VERSION-25/-1*12+12`
+  with `ERR HOURS-VERSION` beneath it is an equality test written as arithmetic;
+  evaluated as signed 32-bit it reads `-13 / -1 = 13` and fails a file the vendor
+  shipped a working object for.
 
 ## `PUT` and `USE` prepend `T.` to the operand
 
