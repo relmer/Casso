@@ -182,6 +182,16 @@ uncaught — or worse, as caught-nothing-to-see. Require a complete tally of the
 expected size, and treat a short one as "run did not complete". A crash in Debug
 is a silent overwrite in Release.
 
+**Use `scripts/RunMutation.ps1` rather than writing that harness again.** Five
+sessions wrote their own, each rediscovering the same failure modes at their own
+cost, and the quality varied: one scored a crashed run as a miss, one silently
+mutated nothing because a multi-line anchor was LF against a CRLF file, and one
+left the mutated binaries in place after restoring the source — so the next
+suite run would have reported a confident green against code that was not on
+disk. The script enforces all five conditions, and reports ANCHOR NOT FOUND,
+DID NOT COMPILE and RUN DID NOT COMPLETE as distinct outcomes rather than
+folding any of them into "not caught". It never passes `-AllowStale`.
+
 ## Two machines
 
 Sessions on this project may run on different physical machines. **Only git
