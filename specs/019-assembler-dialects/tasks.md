@@ -21,7 +21,7 @@ a word, so **`DDB` is silently ignored today** and wants a task of its own.
 Suite is **3286** Debug / **3283** Release, both green (from 3246 / 3243);
 Dormann and Harte both pass; all six vendor oracle objects still reproduce byte
 for byte; `scripts/BuildDemoDisk.ps1` still produces its committed disk image
-unchanged. **Thirty-one mutations over this slice, thirty-one caught** — two of
+unchanged. **Twenty-nine mutations over this slice, twenty-nine caught** — two of
 them only after a test was added, and both of those were vacuous assertions
 rather than missing ones.
 
