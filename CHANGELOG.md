@@ -9,6 +9,23 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Fixed
+- **A damaged track no longer silently truncates your disk image on eject.**
+  The nibble decoder stopped at the first sector it could not read on a track
+  and handed back zeros for that sector and every later one on it, while
+  reporting success. The emulator's flush path is the one place that mattered:
+  a guest that left a track partly written could lose the rest of it the moment
+  the disk was ejected, with nothing said. The decoder now reports what it
+  actually recovered, track by track, and a flush that would write a hole is
+  refused instead. A refusal on its own would strand the session's work, so the
+  writes still in memory are saved beside the target as `<name>.recovered.woz`
+  and the notification names that file — the original image is preserved and
+  nothing the guest wrote is thrown away. (GH #115)
+- **The tool's help offered flags the tool does not accept.** Invoked as `/?`,
+  the `disk` section spelled every option with whichever prefix the reader had
+  typed — `/long`, `/addr`, `/as` — while the disk grammar accepts only the
+  `--` spelling, so an option copied out of the help was silently ignored. The
+  disk help is now one block with one spelling, and a test drives the parser
+  with both forms so the help and the grammar cannot drift apart again.
 - **Pasting into the guest no longer garbles the text.** A valid Applesoft line
   pasted at the `]` prompt produced a SYNTAX ERROR while typing the same line
   by hand worked. Two independent causes, both fixed: Ctrl+V is claimed as a
@@ -35,7 +52,27 @@ Entries before versioning was introduced use dates only.
   write-protected image, a volume with no room, a track that cannot be
   re-encoded, or the image changing under us — leaves the original
   byte-for-byte as it was, with no leftover temporary and a message saying
-  which of those it was rather than a platform error code.
+  which of those it was rather than a platform error code. That guarantee is
+  the command line's alone, deliberately: an image edited by a running guest is
+  written back when the drive flushes, and a flush interrupted partway has no
+  such protection. Neither side can see the other holding the image, either —
+  the command line refuses when some *other* program has the file open, but a
+  mounted image is not held open, so noticing that a disk is in use here is out
+  of scope rather than solved, and the help says so instead of implying a clean
+  check means a mounted disk is safe.
+- **A worked example of the whole loop in the help output.** The `disk` section
+  is no longer a flag list. It carries the commands that take an edited source
+  file to a program running in the emulator, documents the exit statuses — and
+  states that the subcommand defines none above 2, which is what documenting a
+  scoped status set amounts to when there are none — says that `put` and `get`
+  are named from the disk's point of view, and warns about the two steps that
+  are guessed wrong: assemble with `--raw` rather than `--dos-bin`, because
+  `put` writes the DOS 3.3 header itself and a file that already carries one
+  has its own header loaded as code where the program should begin; and set the
+  boot program to an Applesoft greeting that `BRUN`s the binary, because a
+  booting DOS 3.3 RUNs its greeting. The example and the help are checked
+  against each other — every verb the grammar accepts and every option the
+  example types has to appear in the same help output.
 - **`--basic`: an Applesoft listing written as host text becomes a program the
   guest can `LIST` and `RUN`, and back again.** `disk put --basic` tokenizes a
   listing and stores it under the Applesoft type without being asked to;

@@ -22,10 +22,10 @@ The project includes:
 - **Apple II platform emulator** — GUI-based Apple II, II+, //e, //e Enhanced, and //c emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, in-app blank-disk creation (DOS 3.3 / ProDOS / raw across WOZ / DSK / PO, optionally bootable) with per-disk write protection, Mockingboard sound card (dual 6522 VIA + AY-3-8910 PSG), an emulated ImageWriter II printer (parallel card, real-3D live preview with mechanical audio, PNG / clipboard / Windows-print delivery with print preview), analog game I/O (joystick/paddle via the PREAD timer), data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
 - **6502 CPU emulator** — passes [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) for all 151 legal opcodes plus the stable undocumented NMOS opcodes (SAX, LAX, DCP, ISC, SLO, RLA, SRE, RRA and the NOP family). The Harte vectors are recorded from real hardware, so they are an independent oracle rather than a restatement of our own assumptions. 200 vectors per opcode are checked in and run on every build; the full 10,000 per opcode are a download away and are what you run when touching the CPU core — see [docs/testing.md](docs/testing.md).
 - **AS65-compatible assembler** — a from-scratch reimplementation of Frank A. Kingswood's AS65, intended as a drop-in replacement. Supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, ...) including flag concatenation (`-tlfile`).
-- **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
+- **CLI tool** — runs as an AS65-style assembler by default, with the `run` subcommand to load and execute a binary or assembly source, and with a `disk` subcommand that reads files off an Apple II disk image and puts them back: `disk list`, `get`, `put`, `delete`, and `boot` work on DOS 3.3 and ProDOS volumes in `.dsk`, `.do`, `.po` and `.woz` images alike. That closes the build loop — assemble, place, set the boot program, launch — with one invocation per step and no third-party tool. `CassoCli --help` carries a worked example of the whole loop rather than only a flag list.
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **2900+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
+- **3300+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, DOS 3.3 + ProDOS file read/write and the command path over them, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines. Several of them boot a real 6502 over an image the command line just wrote and check what the guest makes of it, because that is the only oracle for "the disk is right" that our own reader cannot satisfy by agreeing with itself.
 
 ## Contents
 
@@ -46,6 +46,41 @@ The project includes:
 See [CHANGELOG.md](CHANGELOG.md) for the granular history, and
 [ARCHITECTURE.md](ARCHITECTURE.md) for a technical overview of the emulator's
 internals (projects, threading, the memory model, and the optimization log).
+
+### Disk file access from the command line (unreleased)
+
+The build loop no longer leaves the machine. `CassoCli disk` reads files off an
+Apple II disk image and puts them back — `list`, `get`, `put`, `delete`, and
+`boot` — on DOS 3.3 and ProDOS volumes, in `.dsk`, `.do`, `.po` and `.woz`
+images alike, with no third-party tool anywhere in the loop:
+
+```powershell
+CassoCli prog.a65 -o prog.bin --raw
+CassoCli disk put mydisk.dsk prog.bin --as PROG --type B --addr $6000
+CassoCli disk put mydisk.dsk greet.bas --as STARTUP --basic
+CassoCli disk boot mydisk.dsk STARTUP
+Casso.exe --disk1 mydisk.dsk
+```
+
+`CassoCli --help` carries that example, so a newcomer needs nothing but the
+tool's own output. `--basic` converts an Applesoft listing to and from the
+tokenized form; `--text` converts the high-bit encoding and line endings;
+`--verbatim`, the default, moves bytes unchanged, so extract-edit-replace
+perturbs nothing the edit did not touch.
+
+**Command-line writes are all-or-nothing.** The complete new image is built and
+checked in memory, written beside the target, and put in place atomically, so a
+locked file, a write-protected image, a volume with no room, a track that cannot
+be re-encoded, or the image changing underneath all leave the original
+byte-for-byte as it was, with no temporary left behind.
+
+**That is deliberately not symmetric with the emulator.** A disk edited by a
+running guest is written back when the drive flushes, and a flush interrupted
+partway carries no such guarantee. Nor does either side detect the other:
+`disk put` refuses when some *other* program holds the image open, but a
+mounted image is not held open, so a disk mounted in Casso is neither noticed
+nor protected. Detecting in-use is out of scope, and the tool says so rather
+than implying a clean check means a mounted disk is safe.
 
 ### Create blank disks in-app + write-protect toggle (v1.16.0)
 
