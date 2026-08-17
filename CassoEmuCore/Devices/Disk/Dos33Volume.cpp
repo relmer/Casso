@@ -1644,14 +1644,110 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Dos33Volume::HasDosImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Dos33Volume::HasDosImage() const
+{
+    int     track  = 0;
+    int     sector = 0;
+    size_t  i      = 0;
+
+
+
+    for (track = 0; track < Dos33Skeleton::kDosImageTracks; track++)
+    {
+        for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+        {
+            for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize; i++)
+            {
+                if (ReadByte (track, sector, i) != 0)
+                {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Dos33Volume::SetStartupProgram
+//
+//  DOS 3.3 keeps the name of the program it runs after booting inside its own
+//  image on track 1, so setting it is a patch of thirty bytes and nothing else:
+//  no catalog entry is added, moved or touched, and no file is written to chain
+//  to another. A greeting that chained would cost a catalog slot and sectors,
+//  change what CATALOG shows, and still not be how DOS does it.
+//
+//  THE NAME WRITTEN IS THE ONE THE CATALOG STORES, byte for byte, rather than
+//  the one the caller spelled. DOS matches the greeting name against catalog
+//  names on the disk, so a lower-case letter -- or one of the control characters
+//  a real disk legitimately carries in a name -- would name a file DOS then
+//  fails to find, with the disk booting to an error instead of to the program.
+//
+//  A VOLUME WITH NO DOS ON IT IS REFUSED. The tracks the image occupies are
+//  reserved by the format whether or not anything was installed in them, so the
+//  patch would land in space nothing reads and the command would report success
+//  for a disk that still cannot boot at all.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Dos33Volume::SetStartupProgram (const FilePath & path, vector<Byte> & outBuffer) const
 {
-    UNREFERENCED_PARAMETER (path);
-    UNREFERENCED_PARAMETER (outBuffer);
+    HRESULT                hr          = S_OK;
+    size_t                 bufferBytes = m_sectors.size();
+    bool                   single      = path.IsSingleComponent();
+    bool                   hasDos      = false;
+    bool                   found       = false;
+    bool                   fullyParsed = true;
+    uint16_t               owner       = 0;
+    size_t                 i           = 0;
+    vector<RawEntry>       entries;
+    vector<std::string>    damage;
+    vector<Byte>           result;
+    VolumeIntegrityReport  report;
 
-    return E_NOTIMPL;
+
+
+    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    hasDos = HasDosImage();
+    CBREx (hasDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+    CollectEntries (entries, damage, fullyParsed);
+
+    found = TryFindEntry (entries, path.GetLeaf(), owner);
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+    hr = BuildIntegrityReport (report);
+    CHRA (hr);
+
+    result = m_sectors;
+
+    for (i = 0; i < kNameBytes; i++)
+    {
+        Byte  stored = ReadByte (entries[owner].catalogTrack,
+                                 entries[owner].catalogSector,
+                                 entries[owner].entryOffset + kEntOffName + i);
+
+        WriteByteAt (result, kGreetingTrack, kGreetingSector, kGreetingOffset + i, stored);
+    }
+
+    // The same self-check every other mutating call runs over its own output.
+    // Nothing here moves a sector, so a difference would mean the patch landed
+    // somewhere it had no business being.
+    hr = HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
 }

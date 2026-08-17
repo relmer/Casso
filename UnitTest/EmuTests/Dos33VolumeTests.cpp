@@ -47,6 +47,19 @@ public:
     //  The decorative heading rows on Merlin's disk carry eight of them.
     static constexpr size_t    kDecorativeBackspaces = 8;
 
+    //  Where a booted DOS reads the name of the program it runs, restated here
+    //  from the published layout rather than borrowed from the implementation:
+    //  a test that took the offset from the code it checks would agree with a
+    //  wrong offset. Scanning the stock System Master for the high-ASCII
+    //  spelling of its greeting name finds this and the catalog entry, and
+    //  nothing else.
+    static constexpr int       kGreetingTrack  = 1;
+    static constexpr int       kGreetingSector = 9;
+    static constexpr size_t    kGreetingOffset = 0x75;
+
+    //  Tracks the DOS image occupies on a bootable volume.
+    static constexpr int       kDosImageTracks = 3;
+
     //  Geometry for the hand-built cross-linked and damaged volumes.
     static constexpr int       kSharedTrack       = 18;
     static constexpr int       kSharedSector      = 13;
@@ -1600,5 +1613,170 @@ public:
         Assert::AreEqual (size_t (0), outcome.leakedUnits.size(),
             L"nothing on this disk is cross-linked, so nothing should be left behind");
         Assert::IsTrue (outcome.catalogFullyParsed);
+    }
+
+    //
+    //  ------------------------------------------------------------------
+    //  The greeting field, which is where a booted DOS reads the name of the
+    //  program it runs. Inside the DOS image on track 1, not in the catalog.
+    //  ------------------------------------------------------------------
+    //
+
+    //  A volume whose DOS tracks hold SOMETHING, which is the only thing that
+    //  separates a bootable disk from a formatted one as far as this patch is
+    //  concerned. The bytes are a pattern rather than real DOS on purpose: a
+    //  write that lands anywhere but the greeting field then shows up as a
+    //  changed pattern byte, which is what the whole-image comparison below
+    //  looks for.
+    vector<Byte> MakeVolumeWithDosImage()
+    {
+        vector<Byte>  buffer = MakeVolumeWithHello();
+        int           track  = 0;
+        int           sector = 0;
+        size_t        i      = 0;
+
+        for (track = 0; track < kDosImageTracks; track++)
+        {
+            for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+            {
+                size_t  at = Dos33Skeleton::SectorOffset (track, sector);
+
+                for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize; i++)
+                {
+                    buffer[at + i] = (Byte) ((at + i) & 0xFF);
+                }
+            }
+        }
+
+        return buffer;
+    }
+
+    static size_t GreetingFieldOffset()
+    {
+        return Dos33Skeleton::SectorOffset (kGreetingTrack, kGreetingSector) + kGreetingOffset;
+    }
+
+    //  Thirty bytes of high ASCII padded with high-ASCII spaces -- the same
+    //  shape a catalog name field has, which is where the width comes from.
+    static vector<Byte> ExpectedGreetingField (const string & name)
+    {
+        vector<Byte>  expected (kNameFieldBytes, 0xA0);
+        size_t        i        = 0;
+
+        for (i = 0; i < name.size(); i++)
+        {
+            expected[i] = (Byte) (name[i] | 0x80);
+        }
+
+        return expected;
+    }
+
+    static vector<Byte> GreetingFieldOf (const vector<Byte> & buffer)
+    {
+        size_t  at = GreetingFieldOffset();
+
+        return vector<Byte> (buffer.begin() + (ptrdiff_t) at,
+                             buffer.begin() + (ptrdiff_t) (at + kNameFieldBytes));
+    }
+
+    //  A volume carrying a DOS image and a placed binary called PROG.
+    vector<Byte> MakeBootableVolumeWithProg()
+    {
+        vector<Byte>  buffer = MakeVolumeWithDosImage();
+        Dos33Volume   volume (buffer);
+        vector<Byte>  written;
+
+        AssertSucceeded (volume.Write (FilePath::Parse ("PROG"),
+                                       MakeBinaryPayload (512, 0x6000), written));
+
+        return written;
+    }
+
+    TEST_METHOD (SetStartupProgram_PatchesTheGreetingFieldInPlace_AndTouchesNOTHINGElse)
+    {
+        // The thirty bytes are the whole edit. No catalog entry is added or
+        // moved and no chaining file is written -- which this asserts by
+        // comparing the WHOLE image and requiring every difference to fall
+        // inside the field, rather than by checking the field and trusting the
+        // rest.
+        vector<Byte>  before  = MakeBootableVolumeWithProg();
+        Dos33Volume   volume (before);
+        vector<Byte>  after;
+        size_t        differing = 0;
+        size_t        i         = 0;
+
+        AssertSucceeded (volume.SetStartupProgram (FilePath::Parse ("PROG"), after));
+
+        Assert::AreEqual (before.size(), after.size());
+
+        Assert::IsTrue (GreetingFieldOf (after) == ExpectedGreetingField ("PROG"),
+            L"the greeting field must hold the name in high ASCII, space-padded to thirty");
+
+        for (i = 0; i < before.size(); i++)
+        {
+            if (before[i] != after[i])
+            {
+                differing++;
+
+                Assert::IsTrue (i >= GreetingFieldOffset()
+                             && i <  GreetingFieldOffset() + kNameFieldBytes,
+                    L"nothing outside the greeting field may change -- a catalog entry, a "
+                    L"free-map bit or a data sector moving means this wrote a file instead "
+                    L"of patching a name");
+            }
+        }
+
+        Assert::IsTrue (differing > 0,
+            L"and something must actually have changed, or the patch did not land");
+    }
+
+    TEST_METHOD (SetStartupProgram_WritesTheNameTheCatalogStores_NotTheOneTheCallerTyped)
+    {
+        // DOS looks the greeting name up in its own catalog, so the bytes have
+        // to be the stored form. Encoding what the caller typed would put a
+        // lower-case name in a field DOS then matches against nothing, and the
+        // disk would boot to FILE NOT FOUND with the field looking plausible.
+        vector<Byte>  before = MakeBootableVolumeWithProg();
+        Dos33Volume   volume (before);
+        vector<Byte>  after;
+
+        AssertSucceeded (volume.SetStartupProgram (FilePath::Parse ("prog"), after));
+
+        Assert::IsTrue (GreetingFieldOf (after) == ExpectedGreetingField ("PROG"),
+            L"the field must carry the catalog's spelling, not the caller's");
+    }
+
+    TEST_METHOD (SetStartupProgram_AFileTheVolumeDoesNotHold_IsRefusedAndProducesNothing)
+    {
+        vector<Byte>  before = MakeBootableVolumeWithProg();
+        Dos33Volume   volume (before);
+        vector<Byte>  after;
+        HRESULT       hr     = S_OK;
+
+        hr = volume.SetStartupProgram (FilePath::Parse ("NOSUCH"), after);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), hr,
+            L"a name that is not on the volume is refused, and refused as not found");
+
+        Assert::AreEqual (size_t (0), after.size(),
+            L"and a refusal produces nothing at all");
+    }
+
+    TEST_METHOD (SetStartupProgram_AVolumeWithNoOperatingSystemOnIt_IsRefusedRatherThanPatchedAnyway)
+    {
+        // The format reserves tracks 0-2 whether or not anything was installed
+        // in them, so the patch would land in space nothing reads and the
+        // command would report success for a disk that still cannot boot.
+        vector<Byte>  before = MakeVolumeWithHello();
+        Dos33Volume   volume (before);
+        vector<Byte>  after;
+        HRESULT       hr     = S_OK;
+
+        hr = volume.SetStartupProgram (FilePath::Parse ("HELLO"), after);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), hr,
+            L"a volume with no DOS on it has nothing to patch");
+
+        Assert::AreEqual (size_t (0), after.size());
     }
 };

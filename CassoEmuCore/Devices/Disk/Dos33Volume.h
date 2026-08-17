@@ -150,6 +150,20 @@ private:
     //  High-ASCII space, which is what a short name is padded out with.
     static constexpr Byte    kNamePad = 0xA0;
 
+    //  Where the name of the program a booted DOS runs is kept: inside the DOS
+    //  image on track 1, NOT in the catalog. Thirty bytes of high ASCII padded
+    //  with high-ASCII spaces, the same width a catalog name field has.
+    //
+    //  Measured rather than recalled. Scanning the stock System Master for the
+    //  high-ASCII spelling of its greeting name finds exactly two occurrences on
+    //  the whole disk: this one and the catalog entry naming the file. The
+    //  field's own end is not visible in the data -- the bytes after it are pad
+    //  bytes too -- so the width comes from the catalog name field, which the
+    //  DOS code reading it shares.
+    static constexpr int     kGreetingTrack  = 1;
+    static constexpr int     kGreetingSector = 9;
+    static constexpr size_t  kGreetingOffset = 0x75;
+
     static uint32_t  ToUnit    (int track, int sector);
     static int       TrackOf   (uint32_t unit);
     static int       SectorOf  (uint32_t unit);
@@ -193,6 +207,12 @@ private:
                                     const vector<Byte>  & nameBytes);
 
     Byte  ReadByte (int track, int sector, size_t offset) const;
+
+    //  Whether the tracks DOS occupies hold anything at all. A volume formatted
+    //  without an operating system reserves them and leaves them blank, and
+    //  patching a greeting name into blank space would report success for
+    //  something no boot could ever read.
+    bool  HasDosImage() const;
 
     //  Case-insensitive, because the catalog is upper case and the caller's
     //  shell is not.
