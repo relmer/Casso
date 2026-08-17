@@ -156,7 +156,11 @@ ground that those three contexts hold the user's data while everywhere else hold
 code Applesoft would reject in lowercase. The guest-anchored oracle therefore
 uses an all-uppercase listing, and case is pinned by unit tests instead.
 
-**Next.** Phase 4 has one task left (T035, which is done by hand), and it is the work here where
+**Next.** Every phase is complete except **T035**, which is done by hand and is
+the last thing standing between this branch and a merge: start a `put`, kill the
+process during the commit, confirm the original image is intact and bootable and
+that no temporary remains. Crash safety cannot be unit-tested, which is why it
+was carved out. Phase 4's write work is the work here where
 a bug **destroys data** rather than failing loudly. Everything through Phase 3
 was reads: wrong output was the worst case. From T023 on, the worst case is a
 user's disk image. The two ranked risks that were still open — the `.po` reorder
@@ -548,6 +552,101 @@ the identity is invisible to a single-sector payload** — page 0 is logical sec
 master-anchored oracle, which is why both exist. **And the master-made-unreachable
 mutation again proves the fail-rather-than-skip rule**, leaving eight cases red
 across this phase and the two before it.
+
+And again on T047/T048, where **eighteen mutations were run: sixteen were caught
+first try, one was caught only after the assertion it exposed was replaced, and
+one was not caught and is recorded rather than solved.**
+
+Fourteen went through `RunMutation.ps1` against the help-text tests, and the
+**one that was not caught is the shape this file keeps rediscovering, for the
+fourth time**: renaming the `rm` alias to `del` in `s_kDiskVerbs` left every
+assertion green, because the sweep asked whether the help *contains* each verb
+name and `delete` contains `del`. A verb the grammar accepts and the help never
+mentions was invisible to the sweep built to find exactly that. The fix is
+`ContainsAsWholeToken` — the match has to be delimited, with dashes counted as
+part of a token so `-o` cannot be answered by the `-o` inside `--out` — and the
+same mutation is caught after it. **Ask of a `find` assertion what else could
+satisfy it**; the answer has now been "a longer word that contains it" four
+times on this branch.
+
+The other four ran the T047 script gate against a Release build. Three were
+caught: `boot` no longer complaining about a greeting DOS cannot RUN, `--raw`
+writing a DOS header after all, and the catalog listing dropping its sector
+count. **The fourth was not, and it marks the boundary of what a launch step
+can witness.** Making the emulator ignore `--disk1` entirely — so it starts with
+no disk at all — leaves the gate green, because the launch step asserts the
+process came up and stayed up and nothing more. Reading the guest's screen from
+a script would be pixel matching, and the mount is already gated where a gate
+can see it: T033, T039, T042 and T046 boot a real 6502 over images this same
+runner produced. The script says so in its own header rather than leaving the
+limit to be discovered.
+
+**Phase 8 is done except T035, and the suite is 3306 Debug / 3303 Release.**
+T047–T051 shipped together: `scripts/RunBuildLoopGate.ps1`,
+`DiskCommandRunner::BuildHelpText`, `UnitTest/EmuTests/DiskHelpTextTests.cpp`,
+the CHANGELOG and README updates, and a comment on GH #115. (The counts were
+3297 / 3294 before this phase added 9.)
+
+**T047 found two defects in this feature's own documented loop, and both are the
+mistake a reader makes rather than a mistake in the code.** The five steps in
+`quickstart.md` did not produce a running program, and nothing had ever run
+them:
+
+- **Step 1 said `--dos-bin`.** `put --type B --addr` writes the DOS 3.3
+  four-byte header itself, so a `--dos-bin` file arrives carrying a second one.
+  `BLOAD` places the stale inner header at the load address and `BRUN` executes
+  it: its first byte is the low half of that address, which for anything in page
+  `$60` and below is a `BRK`. Measured on a booted //e — the screen reads
+  `6002-` with a register dump, two bytes past `$6000`, which is where `BRK`
+  pushes from. The correct flag is `--raw`.
+- **Step 4 named the binary as the boot program.** T038 already recorded that a
+  booting DOS 3.3 RUNs its greeting; what was not noticed is that the quickstart
+  loop depends on it. The step sets the name correctly, exits **1**, says the
+  disk will boot without running it, and the loop ends at a `]` prompt. It takes
+  a sixth step — a one-line greeting placed with `--basic` that `BRUN`s the
+  binary — to close it, and the fix is in `quickstart.md`, in the gate, and in
+  the help output.
+
+Both are now warnings in `BuildHelpText`, both are asserted by
+`DiskHelpTextTests`, and both are exercised by the gate's "documented traps"
+section — because a warning nothing runs is a warning that can quietly stop
+being true.
+
+**SC-006 is met with room: 6.65 s against the 10 s budget**, measured on
+`relmer-desktop`, Release x64. The split is what matters, and only one third of
+it is ours: **0.12 s** of command-line work across five invocations, **0.29 s**
+from launching the emulator to its first window, and **6.24 s** of guest boot —
+the 6,366,505 emulated cycles T042 measured for the DOS 3.3 route, at the
+machine's own 1,020,484 Hz. **The disk's boot is five sixths of the budget and
+nothing in this feature can move it**, which is a second, practical argument for
+the direct-boot route: 209,147 cycles past the hand-off rather than 4,718,764.
+
+**SC-001 is checked mechanically rather than asserted.** Each step names one
+executable and an argument vector; the gate resolves every executable inside
+this repository's own build output and refuses any argument carrying shell
+punctuation. A loop that quietly needed a pipeline, a helper script, or
+something off the PATH could not be written in that table.
+
+**T048's help had a defect of its own, and it is the one SC-002 is actually
+about.** `PrintUsageHeader` substituted the prefix the reader typed into the
+disk options, so `CassoCli /?` documented `/long`, `/addr`, `/as` and
+`/verbatim` — **none of which `ParseDiskOptions` accepts**. A newcomer working
+from the tool's own output got an option silently ignored: `disk list d.dsk
+/long` prints the short listing and exits 0.
+`HelpText_SpellsDiskOptionsWithTwoDashes_WhichIsTheOnlySpellingAccepted` drives
+the parser with both spellings and then checks the help, so the two halves have
+to agree.
+
+**The help text moved into the library, and that is what makes any of this
+checkable.** `PrintUsage` lives in `CassoCli`, which the test assembly does not
+link, so every claim in it was unverifiable by construction — the same reason
+`kInUseHelpText` and `kRoundTripHelpText` already sat in core.
+`DiskCommandRunner::BuildHelpText` composes the whole disk section, quotes both
+of those constants rather than restating them, and the executable prints it
+verbatim. `CommandLineParser::GetAllDiskVerbs` was added for the same reason
+`GetAllSubcommands` exists: the sweep has to run over the grammar's own table,
+because a verb added there and left out of the help is a capability nobody can
+find.
 
 **Blocked on nobody; 019 is blocked on this branch.** Spec 019 runs
 concurrently. Measured overlap is three files — `CassoCore/CassoCore.vcxproj`,
@@ -971,11 +1070,11 @@ the source.
 
 ## Phase 8: Polish & Cross-Cutting
 
-- [ ] T047 Close the loop end to end (SC-001, SC-006): a gate that runs quickstart's five steps — assemble, put, list, boot, launch — as one scripted sequence, asserting each is a single invocation with no third-party tool and recording elapsed time against the 10-second budget. Neither criterion had a task; both were asserted in prose only
-- [ ] T048 Help output (FR-034, SC-002): every capability documented, with a **worked example of the whole loop** — assemble, put, boot — not just a flag list. Assert mechanically that the help text contains that example and that every verb and option it uses also appears in the help output; whether a newcomer succeeds is a review gate, not a test. Document the exit statuses `disk` returns, including that it defines **none above 2** (FR-032) — the requirement is to document the subcommand's scoped codes, and "there are none" is the documentation. Say that `put`/`get` are named from the disk's perspective
-- [ ] T049 Update `CHANGELOG.md` and `README.md` (user-visible feature, test-count change); document the deliberate asymmetry that command-line writes are crash-safe while emulator flushes are not, and that in-use detection is out of scope. **Include a CHANGELOG entry for the T004/T005 flush change**, phrased as what it prevents rather than what it refuses — "a damaged track no longer silently truncates your disk image on eject", not "flush now fails". Read the README's current test count at the time of writing rather than adjusting a remembered figure: the suite baseline is in flux independently of this work (the Dormann data was missing from some worktrees, so recent figures measured a suite doing less work, and a fix is in flight elsewhere)
-- [ ] T050 Pre-merge gates: `scripts/RunTests.ps1 -Build` for x64 Debug **and** Release (different test sets — Release is not a substitute), `scripts/Build.ps1 -RunCodeAnalysis` clean, `scripts/CheckStyle.ps1` clean; merge to master with `--no-ff`. The gate is **all tests passing**, never a particular total — the suite baseline is moving for unrelated reasons, so a changed count is not by itself evidence of anything. The boot-gated tests (T033, T039, T042, T046) fail rather than skip when the cached master image is absent, so a green suite already proves they ran — no separate confirmation needed
-- [ ] T051 Reference GH **#115** — already filed, OPEN, `bug` / `priority: high` / `impact: user` — from the Phase 2 commits: `Refs #115` on T002/T003, `Closes #115` on whichever commit lands T004 + T005 together, since the fix is not complete until the refusal has a recovery path. **Do not file a duplicate**; research R-002's evidence is already on the issue, and a second one splits the discussion
+- [x] T047 Close the loop end to end (SC-001, SC-006): a gate that runs quickstart's five steps — assemble, put, list, boot, launch — as one scripted sequence, asserting each is a single invocation with no third-party tool and recording elapsed time against the 10-second budget. Neither criterion had a task; both were asserted in prose only. **`scripts/RunBuildLoopGate.ps1`, and it runs SIX steps rather than five, because the five in `quickstart.md` did not produce a running program.** Two decisions and one limit. (1) **SC-001 is a property of the step table, not a sentence.** Each step names one executable and an argument vector; the gate resolves every executable inside this repository's own build output and refuses any argument carrying shell punctuation, so a loop that needed a pipeline, a helper or something off the PATH could not be expressed. (2) **The budget is reported in three parts because only one is ours** -- 0.12 s of command-line work, 0.29 s to the emulator's window, and 6.24 s of guest boot, which is T042's measured 6,366,505 cycles at the machine's 1,020,484 Hz rather than a sleep chosen to look right. 6.65 s against 10 s. (3) **The launch step witnesses liveness and nothing more, and the mutation that proves the limit is recorded**: an emulator built to ignore `--disk1` passes it. Reading the guest's screen from a script is pixel matching; the mount is gated where a gate can see it, by T033/T039/T042/T046. A "documented traps" section runs the two mistakes the help now warns about, because a warning nothing exercises can quietly stop being true
+- [x] T048 Help output (FR-034, SC-002): every capability documented, with a **worked example of the whole loop** — assemble, put, boot — not just a flag list. Assert mechanically that the help text contains that example and that every verb and option it uses also appears in the help output; whether a newcomer succeeds is a review gate, not a test. Document the exit statuses `disk` returns, including that it defines **none above 2** (FR-032) — the requirement is to document the subcommand's scoped codes, and "there are none" is the documentation. Say that `put`/`get` are named from the disk's perspective. **Three decisions.** (1) **The help moved into the library.** `PrintUsage` lives in `CassoCli`, which the test assembly does not link, so every claim in it was unverifiable by construction -- the same reason `kInUseHelpText` and `kRoundTripHelpText` already sat in core. `DiskCommandRunner::BuildHelpText` composes the whole disk section and QUOTES those two constants rather than restating them, so the executable printing it verbatim is the only wiring that could drift. (2) **The example's options are gathered from its command lines alone**, not from the block: the prose beneath uses `--` as a dash, and a scanner over the whole block would collect it and then need explaining away. The extracted set is asserted exactly, because a scanner that found nothing would satisfy the loop beneath it. (3) **`CommandLineParser::GetAllDiskVerbs` was added so the sweep runs over the GRAMMAR'S table**, not a list retyped in the test -- a verb added there and left out of the help is a capability nobody can find. Two defects fixed rather than properties confirmed: the header substituted the reader's prefix into disk options, so `/?` documented `/long` and `/addr`, which `ParseDiskOptions` rejects; and the section was a flag list with no example, which is the half a newcomer cannot supply
+- [x] T049 Update `CHANGELOG.md` and `README.md` (user-visible feature, test-count change); document the deliberate asymmetry that command-line writes are crash-safe while emulator flushes are not, and that in-use detection is out of scope. **Include a CHANGELOG entry for the T004/T005 flush change**, phrased as what it prevents rather than what it refuses — "a damaged track no longer silently truncates your disk image on eject", not "flush now fails". Read the README's current test count at the time of writing rather than adjusting a remembered figure: the suite baseline is in flux independently of this work (the Dormann data was missing from some worktrees, so recent figures measured a suite doing less work, and a fix is in flight elsewhere)
+- [x] T050 Pre-merge gates: `scripts/RunTests.ps1 -Build` for x64 Debug **and** Release (different test sets — Release is not a substitute), `scripts/Build.ps1 -RunCodeAnalysis` clean, `scripts/CheckStyle.ps1` clean; merge to master with `--no-ff`. The gate is **all tests passing**, never a particular total — the suite baseline is moving for unrelated reasons, so a changed count is not by itself evidence of anything. The boot-gated tests (T033, T039, T042, T046) fail rather than skip when the cached master image is absent, so a green suite already proves they ran — no separate confirmation needed. **The merge is NOT done here** -- this branch conflicts with 019 in `CassoCore/CommandLineParser.cpp` (additive on both sides, keep-both), and integration belongs to whoever holds both. Gates run and reported: Debug **3306/3306**, Release **3303/3303**, `Build.ps1 -RunCodeAnalysis` clean, `CheckStyle.ps1` clean
+- [x] T051 Reference GH **#115** — already filed, OPEN, `bug` / `priority: high` / `impact: user` — from the Phase 2 commits: `Refs #115` on T002/T003, `Closes #115` on whichever commit lands T004 + T005 together, since the fix is not complete until the refusal has a recovery path. **Do not file a duplicate**; research R-002's evidence is already on the issue, and a second one splits the discussion. **The Phase 2 commits were already made before this task ran, so the trailers could not be added without rewriting pushed history** -- which would be a worse trade than the trailer is worth. The references are on the issue as a comment naming each commit and what shipped instead. **Closing it is the user's call, not this session's**: the defect is fixed and has a recovery path, but the issue is theirs to close
 
 ---
 
