@@ -16,6 +16,11 @@ struct ExprContext
 {
     const std::unordered_map<std::string, int32_t> * symbols;
     int32_t                                          currentPC;
+
+    // Defaulted, so every caller that predates dialect selection keeps the
+    // precedence it has always had and only a dialect that says otherwise
+    // changes.
+    OperatorBinding                                  binding = OperatorBinding::ByPrecedence;
 };
 
 

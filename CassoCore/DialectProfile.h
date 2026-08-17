@@ -86,4 +86,21 @@ public:
     // SC-009 expressly permits; what it forbids is a dialect reaching into how
     // the assembly runs.
     virtual Word                GetDefaultOrigin () const { return 0; }
+
+    // How this dialect's expressions bind their operators. Assemblers of the
+    // period commonly gave operators no precedence at all, and the shared
+    // evaluator honors the answer rather than each profile carrying a private
+    // expression parser -- the operator set and the folds stay one
+    // implementation.
+    virtual OperatorBinding     GetOperatorBinding () const { return OperatorBinding::ByPrecedence; }
+
+    // The character marking a label as local to the enclosing global one, or 0
+    // for a dialect with no such concept.
+    //
+    // A character rather than a predicate because the engine has to do two
+    // different things with it -- recognize a definition, and recognize a
+    // reference inside an operand -- and a dialect that answered only the first
+    // would leave every use of a local label unresolvable. Naming the character
+    // once keeps those two answers from disagreeing.
+    virtual char                GetLocalLabelPrefix () const { return 0; }
 };

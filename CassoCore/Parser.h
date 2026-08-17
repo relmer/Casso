@@ -3,6 +3,7 @@
 #include "Directive.h"
 
 #include "AssemblerTypes.h"
+#include "StringEncoding.h"
 
 
 
@@ -29,6 +30,11 @@
 //  then the leading whitespace is long gone -- so it is recorded here, where
 //  it is still knowable.
 //
+//  stringMode is the same kind of fact one level up: WHICH spelling of a string
+//  directive was written decides how its text becomes bytes, and only the
+//  dialect knows its own spellings. Recording it here keeps the engine free of
+//  a per-dialect table of string names -- it reads the mode and encodes.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ParsedLine
@@ -47,6 +53,7 @@ struct ParsedLine
     std::string                          constantExpr; // raw expression for evaluation
     SymbolKind                           constantKind; // Equ or Set
     bool                                 startsAtColumn0; // true if line had no leading whitespace
+    StringEncodingMode                   stringMode = StringEncodingMode::Plain;  // meaningful only for Directive::StringData
 };
 
 

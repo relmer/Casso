@@ -133,6 +133,21 @@ public:
     // address, which reads as a far deeper problem than it is.
     Word                GetDefaultOrigin () const override { return 0x8000; }
 
+    // Merlin has no operator precedence: an expression folds strictly left to
+    // right and parentheses are the only grouping. LABELS.S is the oracle --
+    // `ERR END-LABTBL-1/$700` bounds its table at seven pages, and under
+    // ordinary precedence the division binds first, the expression collapses to
+    // the table's own length, and the assertion fires on a file the vendor
+    // shipped a working object for.
+    OperatorBinding     GetOperatorBinding () const override { return OperatorBinding::LeftToRight; }
+
+    // A leading colon makes a label local to the global label above it, so the
+    // same short name can be reused throughout a file. The vendor sources lean
+    // on it hard: CLOCK.S defines `:OK` twice under different globals, and
+    // `:RET`, `:EXIT` and `:GK` recur across files. Without scoping, every one
+    // of those is a duplicate-label error.
+    char                GetLocalLabelPrefix () const override { return ':'; }
+
 private:
     static bool         IsFieldSpace       (char ch);
     static bool         TakesDelimitedText (const std::string & mnemonic);

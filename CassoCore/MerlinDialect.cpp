@@ -426,6 +426,14 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
         result.directiveArg = result.operand;
     }
 
+    // Which of the six encodings the spelling selected. Resolved here because
+    // the spellings are Merlin's; what each mode DOES with the text is
+    // dialect-independent and belongs to StringEncoding.
+    if (result.directiveToken == Directive::StringData)
+    {
+        result.stringMode = MerlinDirectiveTable::EncodingModeForSpelling (Parser::ToUpper (result.mnemonic));
+    }
+
     // Everything from here is the comment field, and is discarded: nothing
     // downstream needs it, and a line that is only a comment must look empty.
     result.isEmpty = result.label.empty() && result.mnemonic.empty();

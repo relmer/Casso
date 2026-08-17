@@ -19,6 +19,40 @@ enum class WarningMode
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OperatorBinding
+//
+//  How an expression's binary operators bind to their operands. A DIALECT fact
+//  carried into the shared evaluator, rather than a second evaluator.
+//
+//  Assemblers of the period commonly gave operators no precedence at all: the
+//  expression is folded strictly left to right, and parentheses are the only way
+//  to group. Merlin is one of them, and the vendor corpus proves it rather than
+//  the manual -- LABELS.S ends with
+//
+//      ERR END-LABTBL-1/$700
+//
+//  bounding its own table at seven pages. Under ordinary precedence the division
+//  binds first, the whole expression reduces to the table's length, and the
+//  assertion fires on a file the vendor shipped an object for. Left to right it
+//  is (END-LABTBL-1)/$700, which is 0 for any table inside seven pages.
+//
+//  It is a rule about BINDING, not about the operator set, so both dialects keep
+//  the same operators and the same folds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class OperatorBinding
+{
+    ByPrecedence,   // the usual levels: multiplicative before additive, and so on
+    LeftToRight,    // every operator binds equally; only parentheses group
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SymbolKind
 //
 ////////////////////////////////////////////////////////////////////////////////

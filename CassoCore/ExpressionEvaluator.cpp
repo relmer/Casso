@@ -1104,6 +1104,12 @@ const ExpressionEvaluator::BinaryOp * ExpressionEvaluator::FindBinaryOp (TokType
 //  `minLevel` or tighter, recursing at level + 1 for the right operand so the
 //  fold stays left-associative.
 //
+//  A dialect binding LEFT TO RIGHT flattens every operator to the loosest level
+//  instead of reading its row. That is the whole of the difference: with one
+//  level, the recursion for the right operand can absorb nothing, so the fold
+//  runs strictly left to right and parentheses become the only way to group.
+//  The operator set, the folds, and the diagnostics are untouched.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExpressionEvaluator::TryParseBinary (
@@ -1115,6 +1121,8 @@ bool ExpressionEvaluator::TryParseBinary (
 {
     const BinaryOp *  op    = nullptr;
     int32_t           right = 0;
+    int               level = 0;
+    bool              flat  = (ctx.binding == OperatorBinding::LeftToRight);
     bool              ok    = false;
 
 
@@ -1124,7 +1132,14 @@ bool ExpressionEvaluator::TryParseBinary (
     {
         op = ok ? FindBinaryOp (tok.Peek().type) : nullptr;
 
-        if (op == nullptr || op->level < minLevel)
+        if (op == nullptr)
+        {
+            break;
+        }
+
+        level = flat ? s_kLoosestBinaryLevel : op->level;
+
+        if (level < minLevel)
         {
             break;
         }
@@ -1132,7 +1147,7 @@ bool ExpressionEvaluator::TryParseBinary (
         tok.Next();
 
         right = 0;
-        ok    = TryParseBinary (tok, ctx, op->level + 1, right, error);
+        ok    = TryParseBinary (tok, ctx, level + 1, right, error);
 
         if (ok)
         {
