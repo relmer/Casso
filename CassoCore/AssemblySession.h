@@ -127,8 +127,10 @@ private:
                                         const std::string & operandUpper, bool & handled);
     HRESULT HandleConditionalDirective (const PendingLine & current, LineInfo & info, bool & handled);
     HRESULT HandleOrgDirective         (const PendingLine & current, LineInfo & info);
+    HRESULT HandleKeyboardInput        (const PendingLine & current, LineInfo & info);
     HRESULT HandleSegmentSwitch        (LineInfo & info, bool & handled);
     HRESULT RecordLabel                (const PendingLine & current, LineInfo & info, Word address);
+    HRESULT RecordRebindableLabel      (const PendingLine & current, LineInfo & info, Word address);
     HRESULT ApplyLocalLabelScope       (const PendingLine & current, LineInfo & info);
     HRESULT HandleConstantDefinition   (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1Directives      (const PendingLine & current, LineInfo & info, bool & handled);
@@ -265,6 +267,12 @@ private:
         Skipped,            // inactive block, and not a conditional directive
         Org,                // .ORG
         SegmentSwitch,      // .CODE / .DATA / .BSS / .SEGMENT_*
+
+        // KBD, whose label names a symbol rather than an address. It is claimed
+        // here so the label stage never runs on it -- binding the name to the
+        // program counter would leave the conditional that reads it testing
+        // where the line sat instead of what the answer was.
+        KeyboardInput,
     };
 
     enum class Pass1Content
@@ -362,6 +370,9 @@ private:
     static constexpr int32_t        kSizeFromOperand = -1;
 
     static std::span<const StructMemberType> GetStructMemberTypes();
+    // The text inside a delimited operand, delimiters removed. Merlin takes any
+    // character as the delimiter, so the pair is read off the operand itself.
+    static std::string              StripDelimitedText        (const std::string & operand);
     static std::string              GetLeadingWord            (const std::string & text);
     static std::string              ToUpperCase               (const std::string & text);
     static std::string              StripCommentAndTrim       (const std::string & text);

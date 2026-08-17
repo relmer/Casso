@@ -1059,6 +1059,15 @@ HRESULT AssemblySession::Initialize (const std::string & sourceText)
     m_pass1Ctx.highAsciiCharDelimiter = m_dialect.GetHighAsciiCharDelimiter();
     m_pass2Ctx.highAsciiCharDelimiter = m_dialect.GetHighAsciiCharDelimiter();
 
+    m_pass1Ctx.operatorSpellings      = m_dialect.GetOperatorSpellings();
+    m_pass2Ctx.operatorSpellings      = m_dialect.GetOperatorSpellings();
+
+    m_pass1Ctx.arithmetic             = m_dialect.GetArithmeticWidth();
+    m_pass2Ctx.arithmetic             = m_dialect.GetArithmeticWidth();
+
+    m_pass1Ctx.extraSymbolCharacters  = m_dialect.GetExtraSymbolCharacters();
+    m_pass2Ctx.extraSymbolCharacters  = m_dialect.GetExtraSymbolCharacters();
+
     m_lines = Parser::SplitLines (sourceText);
 
     InjectBuiltin ("ERRORS",     0);
@@ -1411,6 +1420,10 @@ AssemblySession::Pass1Prelude AssemblySession::ClassifyPrelude (
         // already reported the same canonical name.
         kind = Pass1Prelude::Org;
     }
+    else if (info.parsed.isDirective && info.parsed.directiveToken == Directive::KeyboardInput)
+    {
+        kind = Pass1Prelude::KeyboardInput;
+    }
     else if (info.parsed.isDirective && IsSegmentDirective (info.parsed.directiveToken))
     {
         kind = Pass1Prelude::SegmentSwitch;
@@ -1512,6 +1525,10 @@ HRESULT AssemblySession::RunPreludeDirectives (const PendingLine & current, Line
     std::string   operandUpper = ToUpperCase (info.parsed.operand);
     Pass1Prelude  kind         = ClassifyPrelude (info, operandUpper);
 
+    // Where a label on this line binds, captured before any handler can move
+    // the program counter. See the origin case below for why it is read here.
+    Word          entryPC      = m_pc;
+
 
 
     outClaimed = (kind != Pass1Prelude::None);
@@ -1535,10 +1552,17 @@ HRESULT AssemblySession::RunPreludeDirectives (const PendingLine & current, Line
         CHR (hr);
 
         // An origin claims the line before the label stage runs, so a label
-        // sharing it had been dropped without a word. It binds to where output
-        // has reached -- see RecordLabel for why that is not the program
-        // counter.
-        hr = RecordLabel (current, info, m_outputPos);
+        // sharing it had been dropped without a word. It binds to the program
+        // counter AS THE LINE WAS REACHED -- exactly where a label on any other
+        // line binds -- rather than to anything the directive then does.
+        hr = RecordLabel (current, info, entryPC);
+        info.isDirective = true;
+        break;
+
+    case Pass1Prelude::KeyboardInput:
+        hr = HandleKeyboardInput (current, info);
+        CHR (hr);
+
         info.isDirective = true;
         break;
 
@@ -2570,6 +2594,111 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::HandleKeyboardInput
+//
+//  A line that names a symbol and asks for its value from outside the source.
+//
+//  Merlin stops the assembly and prompts the operator at the keyboard; the
+//  answer becomes the symbol's value, and conditional assembly downstream reads
+//  it. A batch assembler has nobody to ask, so the answer comes from the
+//  predefined symbols the caller supplied -- the same channel every other
+//  externally-supplied value arrives on -- and nothing is ever read from a
+//  console.
+//
+//  THE MISSING ANSWER IS AN ERROR, deliberately, and neither of the two easier
+//  outcomes is acceptable. Blocking on a prompt turns an unattended build into a
+//  hang, and defaulting to zero assembles a DIFFERENT PROGRAM in silence: the
+//  vendor sources gate whole sections on these symbols, so a wrong answer
+//  produces a clean assembly of code nobody asked for. The diagnostic carries
+//  the symbol and the prompt, because the prompt is the only place the source
+//  says what the answer means.
+//
+//  The binding is written here rather than left to the blanket predefine so the
+//  directive does its own work: it is the same value from the same map, but a
+//  reader of this function can see what a KBD line results in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandleKeyboardInput (const PendingLine & current, LineInfo & info)
+{
+    HRESULT             hr        = S_OK;
+    const std::string & name      = info.parsed.label;
+    std::string         prompt    = StripDelimitedText (info.parsed.directiveArg);
+    bool                hasName   = !name.empty();
+    auto                answer    = m_options.predefinedSymbols.end();
+    bool                hasAnswer = false;
+
+
+
+    if (!hasName)
+    {
+        RecordError (current.sourceLineNumber,
+            "KBD needs a symbol name in the label field");
+    }
+
+    BAIL_OUT_IF (!hasName, S_OK);
+
+    answer    = m_options.predefinedSymbols.find (name);
+    hasAnswer = (answer != m_options.predefinedSymbols.end());
+
+    if (!hasAnswer)
+    {
+        std::string  message = "No answer supplied for " + name;
+
+        if (!prompt.empty())
+        {
+            message += " (" + prompt + ")";
+        }
+
+        message += " -- define it on the command line, for example -d " + name + "=0";
+
+        RecordError (current.sourceLineNumber, message);
+    }
+
+    BAIL_OUT_IF (!hasAnswer, S_OK);
+
+    m_symbols[name]     = (Word) answer->second;
+    m_symbolKinds[name] = SymbolKind::Equ;
+    m_exprSymbols[name] = answer->second;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::StripDelimitedText
+//
+//  The text inside a delimited operand, with its opening and closing delimiter
+//  removed. Merlin takes ANY character as the delimiter, so the pair is read off
+//  the operand rather than compared against a quote set -- the same rule the
+//  string directives follow, and for the same reason.
+//
+//  An operand that is not delimited comes back unchanged, which is what a
+//  prompt-less line wants: there is nothing to strip and nothing to complain
+//  about.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::StripDelimitedText (const std::string & operand)
+{
+    bool  isDelimited = (operand.size() >= 2) && (operand.front() == operand.back());
+
+
+
+    return isDelimited ? operand.substr (1, operand.size() - 2) : operand;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::HandleSegmentSwitch
 //
 //  Switches between CODE / DATA / BSS. Each segment keeps its own PC in
@@ -2749,7 +2878,12 @@ HRESULT AssemblySession::ApplyLocalLabelScope (const PendingLine & current, Line
     // macros defining `LP` and `ND` in the middle of a routine whose own locals
     // belong to a global label further up, and each call would otherwise strand
     // the locals that follow it.
-    if (!isLocal && !parsed.label.empty() && !isPrivate)
+    // Nor does a REASSIGNABLE one. The same name is defined over and over -- the
+    // whole reason a dialect offers the form -- so treating each as a new scope
+    // would put successive locals under names that differ only by which
+    // definition happened to come last. CLOCK.S has `INCTIME` open a scope,
+    // `]LOOP` follow immediately, and `:OUT` further down belong to `INCTIME`.
+    if (!isLocal && !parsed.label.empty() && !isPrivate && (parsed.labelKind == SymbolKind::Label))
     {
         m_localLabelScope = parsed.label;
     }
@@ -2807,9 +2941,10 @@ Error:
 
 HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & info, Word address)
 {
-    HRESULT      hr      = S_OK;
-    char         prefix  = m_dialect.GetLocalLabelPrefix();
-    bool         isLocal = false;
+    HRESULT      hr           = S_OK;
+    char         prefix       = m_dialect.GetLocalLabelPrefix();
+    bool         isLocal      = false;
+    bool         isRebindable = (info.parsed.labelKind == SymbolKind::Set);
     std::string  spelled;
     std::string  stored;
 
@@ -2817,6 +2952,14 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
 
     // Most lines carry no label; that is not a failure, just nothing to record.
     BAIL_OUT_IF (info.parsed.label.empty(), S_OK);
+
+    if (isRebindable)
+    {
+        hr = RecordRebindableLabel (current, info, address);
+        CHR (hr);
+    }
+
+    BAIL_OUT_IF (isRebindable, S_OK);
 
     // A local label is validated as the name it SPELLS and stored under the name
     // it BINDS to. Validating the joined name instead would reject every one of
@@ -2832,7 +2975,8 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
 
     {
         std::string labelError;
-        HRESULT     hrLabel = Parser::ValidateLabel (spelled, *m_opcodeTable, labelError);
+        HRESULT     hrLabel = Parser::ValidateLabel (spelled, *m_opcodeTable, labelError,
+                                                     m_dialect.GetExtraSymbolCharacters());
 
         if (FAILED (hrLabel))
         {
@@ -2859,6 +3003,63 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
             }
         }
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RecordRebindableLabel
+//
+//  Binds a label whose dialect allows the same name again further down.
+//
+//  Redefinition is the POINT of the form rather than something tolerated, so
+//  there is no duplicate check -- the second definition replaces the first and
+//  every reference between them kept the value it saw. What is still an error is
+//  colliding with a name bound some other way: a label or an equate is immutable,
+//  and rebinding one would move references already resolved against it. That is
+//  the same rule a reassignable constant follows, and it is the same table that
+//  records which kind a name is.
+//
+//  The name is NOT validated the way an ordinary label is. It is the profile's
+//  construction rather than the source's spelling, exactly like a constant's
+//  name -- the source wrote a sigil the shared label rules reject, and the
+//  profile has already turned it into something the expression tokenizer can lex.
+//
+//  THE COLLISION CHECK IS UNREACHABLE TODAY and is recorded rather than removed.
+//  Only a dialect's variable forms produce a name in this namespace, and both of
+//  them -- the assignment and this -- bind it as reassignable, so nothing can
+//  make one immutable first. It stays because it is what keeps that true by
+//  construction: a dialect adding a third form gets the diagnostic rather than a
+//  silent rebind. Verified by mutation, and nothing caught it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::RecordRebindableLabel (const PendingLine & current, LineInfo & info, Word address)
+{
+    HRESULT              hr        = S_OK;
+    const std::string &  name      = info.parsed.label;
+    auto                 kindIt    = m_symbolKinds.find (name);
+    bool                 isTaken   = (kindIt != m_symbolKinds.end()) && (kindIt->second != SymbolKind::Set);
+
+
+
+    if (isTaken)
+    {
+        RecordError (current.sourceLineNumber,
+            "Cannot redefine " + name + " (was defined as immutable)");
+    }
+
+    BAIL_OUT_IF (isTaken, S_OK);
+
+    m_symbols[name]     = address;
+    m_symbolKinds[name] = SymbolKind::Set;
+    m_exprSymbols[name] = (int32_t) address;
 
 Error:
     return hr;
@@ -3670,6 +3871,11 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
     { Directive::MacroEnd,        nullptr,                                  nullptr                                  },
     { Directive::CpuSelect,       nullptr,                                  nullptr                                  },
     { Directive::ObjectFile,      nullptr,                                  nullptr                                  },
+
+    //  KBD acts entirely in the prelude, before a label can bind, so both rows
+    //  are null for the same reason ORG's are rather than because it is
+    //  unimplemented.
+    { Directive::KeyboardInput,   nullptr,                                  nullptr                                  },
 
     //  Refused by name rather than handled. The refusal is a table of its own,
     //  consulted before dispatch, so these rows stay null by design.
@@ -4670,7 +4876,8 @@ HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, Line
         hr = ExtractColonlessLabelName (current, labelName);
         CHR (hr);
 
-        hrLabel = Parser::ValidateLabel (labelName, *m_opcodeTable, labelError);
+        hrLabel = Parser::ValidateLabel (labelName, *m_opcodeTable, labelError,
+                                         m_dialect.GetExtraSymbolCharacters());
 
         if (FAILED (hrLabel))
         {
@@ -5350,6 +5557,11 @@ HRESULT AssemblySession::ResolveEquConstants()
 //  assigned. An immutable symbol cannot show the difference, which is why this
 //  went unnoticed; a reassignable one shows it as wrong bytes and no diagnostic.
 //
+//  A reassignable LABEL is the same problem with the program counter for an
+//  expression, and it is the more damaging half: every one of CLOCK.S's eight
+//  `]LOOP` branches would otherwise be computed against the last of them, which
+//  assembles cleanly into eight wrong branch offsets.
+//
 //  An expression that will not evaluate leaves the previous value standing
 //  rather than clearing the symbol. The failure is reported where the constant
 //  is defined; blanking it here would add a second, stranger complaint at every
@@ -5362,9 +5574,17 @@ HRESULT AssemblySession::RebindMutableConstant (const LineInfo & info)
     HRESULT     hr        = S_OK;
     bool        isMutable = info.isConstant && info.parsed.isConstant &&
                             (info.parsed.constantKind == SymbolKind::Set);
+    bool        isLabel   = !info.parsed.label.empty() &&
+                            (info.parsed.labelKind == SymbolKind::Set);
     ExprResult  er        = {};
 
 
+
+    if (isLabel)
+    {
+        m_symbols[info.parsed.label]     = info.pc;
+        m_fullSymbols[info.parsed.label] = (int32_t) info.pc;
+    }
 
     BAIL_OUT_IF (!isMutable, S_OK);
 

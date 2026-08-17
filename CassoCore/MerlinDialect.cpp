@@ -75,6 +75,13 @@ static constexpr MerlinDirectiveTable::Spelling  s_kMerlinSpellings[] =
     //  The CPU selector. Merlin takes its target from here and nowhere else.
     { "XC",   Directive::CpuSelect       },
 
+    //  Binds the symbol in the label field to an answer supplied to the
+    //  assembly. Merlin asks the operator at the keyboard; a batch assembler
+    //  takes the answer from its predefined symbols and refuses to guess. Seven
+    //  lines across the vendor sources, and three of the five oracle programs
+    //  are unreachable without it.
+    { "KBD",  Directive::KeyboardInput   },   //   7
+
     //  Outside the supported subset. Present so they are refused BY NAME.
     { "REL",  Directive::Relocatable     },   //   2
     { "ENT",  Directive::EntrySymbol     },   //   7
@@ -99,6 +106,32 @@ static constexpr MnemonicAlias  s_kMerlinMnemonicAliases[] =
 {
     { "BLT", "BCC" },   //  branch if less than -- unsigned, so carry clear
     { "BGE", "BCS" },   //  branch if greater or equal -- carry set
+};
+
+
+
+//  Merlin's own spellings for two bitwise operations. The operations are the
+//  evaluator's, unchanged; only the characters differ, which is why this is a
+//  table consulted by the tokenizer rather than a second set of folds.
+//
+//  Settled from CLOCK.S and its two shipped objects, not from the manual. The
+//  file computes `LDX #HOURS/24!1` to place the time editor's cursor: for the
+//  24-hour build that is 1 against 1, which must give 0 -- the tens-of-hours
+//  digit -- and inclusive-or gives 1. The rollover comparison
+//  `CMP #HOURS/24+3."0"` runs the other way: it must read the character "4" for
+//  the 24-hour build and "3" for the 12-hour one, which only inclusive-or with
+//  the high-ASCII zero produces.
+//
+//  A CAVEAT that belongs at the code rather than in a note nobody rereads. The
+//  inclusive-or character is also what joins a local label to its scope, and the
+//  expression tokenizer reads an identifier greedily -- so `LABEL.OTHER` lexes
+//  as one symbol where Merlin would read an operation. Every use on the vendor
+//  disk follows a digit, where no identifier is being scanned, so the corpus
+//  cannot force the other reading; a source that needs it would.
+static constexpr OperatorSpelling  s_kMerlinOperatorSpellings[] =
+{
+    { '!', ExprOperator::BitXor },
+    { '.', ExprOperator::BitOr  },
 };
 
 
@@ -298,6 +331,21 @@ StringEncodingMode MerlinDirectiveTable::EncodingModeForSpelling (const std::str
 std::span<const MnemonicAlias> MerlinDialect::GetMnemonicAliases() const
 {
     return std::span<const MnemonicAlias> (s_kMerlinMnemonicAliases);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinDialect::GetOperatorSpellings
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const OperatorSpelling> MerlinDialect::GetOperatorSpellings() const
+{
+    return std::span<const OperatorSpelling> (s_kMerlinOperatorSpellings);
 }
 
 
@@ -587,11 +635,20 @@ std::string MerlinDialect::RewriteAddressCheck (const std::string & operand)
 //  REV to the table now reaches the scanner by construction instead of needing
 //  a second edit that could be forgotten.
 //
+//  The prompt on a keyboard-input line is delimited for the same reason a
+//  string is: it is a sentence, and every one of them on the vendor disk
+//  contains spaces. A whitespace-delimited read would keep the first word and
+//  hand the rest to the comment field.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MerlinDialect::TakesDelimitedText (const std::string & mnemonic)
 {
-    return MerlinDirectiveTable::FromSpelling (Parser::ToUpper (mnemonic)) == Directive::StringData;
+    Directive  token = MerlinDirectiveTable::FromSpelling (Parser::ToUpper (mnemonic));
+
+
+
+    return (token == Directive::StringData) || (token == Directive::KeyboardInput);
 }
 
 
@@ -644,6 +701,71 @@ std::string MerlinDialect::ReadPlainField (const std::string & line, size_t & po
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MerlinDialect::IsCharConstantDelimiter
+//
+//  The two characters that open a character constant inside an ordinary
+//  operand. The apostrophe gives the plain character and the quotation mark the
+//  same character with bit 7 set, which is the convention Merlin's string
+//  directives take from their own delimiter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MerlinDialect::IsCharConstantDelimiter (char ch)
+{
+    return (ch == '\'') || (ch == '"');
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinDialect::SkipCharConstant
+//
+//  Steps over one character constant, leaving `pos` on whatever follows it.
+//
+//  The form is a delimiter, ONE character, and a closing delimiter. Consuming
+//  exactly one character rather than running to the next matching delimiter is
+//  what keeps an unclosed constant from swallowing the comment field.
+//
+//  THAT LAST PART IS UNCOVERED and cannot be covered today, which is worth
+//  saying here rather than leaving to be rediscovered. Merlin also accepts the
+//  closing delimiter being absent -- `LDA #'A` -- but the shared expression
+//  tokenizer requires it, so a line exercising the difference fails one step
+//  later whichever way this function scans. No vendor line writes the open form.
+//  The rule stays because it is what keeps a comment out of the operand by
+//  construction rather than by every author remembering to close a quote.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MerlinDialect::SkipCharConstant (const std::string & line, size_t & pos)
+{
+    char  delimiter = line[pos];
+
+
+
+    pos++;
+
+    if (pos < line.size())
+    {
+        pos++;
+    }
+
+    if ((pos < line.size()) && (line[pos] == delimiter))
+    {
+        pos++;
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MerlinDialect::ReadOperandField
 //
 //  The operand, which is whitespace-delimited EXCEPT where a string directive
@@ -662,6 +784,12 @@ std::string MerlinDialect::ReadPlainField (const std::string & line, size_t & po
 //  Parsing is purely syntactic; deciding that a string was never closed is a
 //  diagnostic belonging to the pass that knows what the directive means.
 //
+//  An ORDINARY operand is whitespace-delimited, with one exception that is not
+//  optional: a character constant may hold a space. `LDA #" "` blanks the
+//  leading zero of the hour in CLOCK.S, and a scanner breaking on the first
+//  space keeps `#"` and hands ` " ;Blank leading "0"` to the comment field --
+//  an expression error on a line the vendor shipped an object for.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string MerlinDialect::ReadOperandField (const std::string & line, size_t & pos, const std::string & mnemonic)
@@ -673,7 +801,19 @@ std::string MerlinDialect::ReadOperandField (const std::string & line, size_t & 
 
     if (!TakesDelimitedText (mnemonic))
     {
-        return ReadPlainField (line, pos);
+        while ((pos < line.size()) && !IsFieldSpace (line[pos]))
+        {
+            if (IsCharConstantDelimiter (line[pos]))
+            {
+                SkipCharConstant (line, pos);
+            }
+            else
+            {
+                pos++;
+            }
+        }
+
+        return line.substr (start, pos - start);
     }
 
     delimiter = line[pos];
@@ -798,6 +938,19 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
         return result;
     }
 
+    // A variable symbol may also stand where an ordinary label would, taking the
+    // program counter as its value. The whole point is that it may do so REPEATEDLY:
+    // CLOCK.S names eight separate loop targets `]LOOP`, and each branch means
+    // the definition immediately above it. The name is qualified exactly as an
+    // assigned variable is, so the two spellings of one symbol cannot diverge.
+    if ((result.label.size() > 1) &&
+        (result.label[0] == s_kVariableSigil) &&
+        IsVariableNameStart (result.label[1]))
+    {
+        result.label     = QualifyVariableName (result.label);
+        result.labelKind = SymbolKind::Set;
+    }
+
     // Resolve the opcode field against Merlin's vocabulary. A word that is not a
     // directive stays a mnemonic -- it is an instruction or a macro invocation,
     // and telling those two apart needs the macro table rather than the parser.
@@ -805,10 +958,11 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
     result.isDirective    = (result.directiveToken != Directive::None);
 
     // Variable references become the names their symbols bind under, before
-    // anything downstream tries to resolve them. String payload is left alone:
+    // anything downstream tries to resolve them. Literal text is left alone:
     // the sigil is an ordinary character inside a message, and rewriting there
-    // would change emitted bytes rather than resolve a symbol.
-    if (result.directiveToken != Directive::StringData)
+    // would change emitted bytes -- or garble a prompt -- rather than resolve a
+    // symbol.
+    if (!TakesDelimitedText (result.mnemonic))
     {
         result.operand = QualifyVariableRefs (result.operand);
         result.operand = RewriteByteSelector (result.operand);

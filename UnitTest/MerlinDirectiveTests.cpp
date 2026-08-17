@@ -52,6 +52,28 @@ namespace MerlinDirectiveTests
 
 
 
+        //  A Merlin assembly with answers supplied for the symbols its
+        //  keyboard-input lines name. Merlin asks the operator; a batch assembly
+        //  is told, through the same predefined symbols every other externally
+        //  supplied value arrives on.
+        static AssemblyResult AssembleMerlinWithAnswers (
+            const std::string & source,
+            const std::unordered_map<std::string, int32_t> & answers)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+
+            cpu.InitForTest();
+            options.dialect           = DialectId::Merlin;
+            options.predefinedSymbols = answers;
+
+            Assembler  assembler (cpu.GetInstructionSet(), options);
+
+            return assembler.Assemble (source);
+        }
+
+
+
         //  The first diagnostic, so a failing assertion names what the assembler
         //  objected to rather than only that it objected.
         static std::wstring FirstDiagnostic (const AssemblyResult & result)
@@ -618,12 +640,13 @@ namespace MerlinDirectiveTests
 
 
 
-        //  A label sharing a line with an origin binds to the OUTPUT position.
-        //  `MAKE DUMP`'s loader copies its interface section to page 3 and needs
-        //  to know where that section sits in the file it was loaded from, so
-        //  binding the label to the relocated address would be silently wrong --
-        //  and it would still assemble.
-        TEST_METHOD (ALabelOnAnOriginLineBindsToTheOutputPosition)
+        //  A label sharing a line with an origin binds where the line was
+        //  REACHED -- the program counter before the directive acted, which is
+        //  exactly where a label on any other line binds. `MAKE DUMP`'s loader
+        //  copies its interface section to page 3 and needs to know where that
+        //  section sits in the file it was loaded from, so binding the label to
+        //  the relocated address would be silently wrong and still assemble.
+        TEST_METHOD (ALabelOnAnOriginLineBindsWhereTheLineWasReached)
         {
             AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
                                          " ORG $9000\n DFB $11\n"
@@ -632,6 +655,31 @@ namespace MerlinDirectiveTests
             Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
             Assert::AreEqual (0x9001, (int) result.symbols.at ("HERE"),
                               L"HERE is where the relocated section sits in the file, not where it runs");
+        }
+
+
+
+        //  THE case that tells the two candidate rules apart, and the corpus
+        //  settles it. A label on a BARE origin sits where the program counter
+        //  had reached -- the end of the relocated section -- not where output
+        //  had reached, and those are different numbers only here.
+        //
+        //  CLOCK.S is the oracle: `IRQEND ORG` closes a section relocated to
+        //  $BFC8, and `LDY #IRQEND-IRQHAND-1` two dozen lines earlier assembles
+        //  to $12 in the shipped object. Under the output-cursor reading the
+        //  difference spans the relocation and the byte comes out $30.
+        TEST_METHOD (ALabelOnABareOriginBindsToTheProgramCounterNotTheOutput)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $9000\n DFB $11\n"
+                                              " ORG $300\n DFB $22\n"
+                                              "HERE ORG\n DFB $33\n DA HERE\n");
+            std::vector<Byte>  expected = { 0x11, 0x22, 0x33, 0x01, 0x03 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual (0x0301, (int) result.symbols.at ("HERE"),
+                              L"the resync had not happened yet when the label bound");
+            Assert::IsTrue (result.bytes == expected, L"and the value must reach the operand that uses it");
         }
 
 
@@ -654,18 +702,18 @@ namespace MerlinDirectiveTests
 
 
         //  AS65 dropped such a label too, so this is a dialect-neutral fix rather
-        //  than a Merlin one. The VALUE differs only because the dialects differ
-        //  about what the origin did to the output cursor -- one rule, two
-        //  answers, no branch.
-        TEST_METHOD (As65BindsALabelOnAnOriginLineToTheAddressItSeekedTo)
+        //  than a Merlin one -- and the RULE is dialect-neutral as well. A label
+        //  binds where its line was reached in either dialect; the origin acts
+        //  afterwards, so what it does to the cursors cannot move the label.
+        TEST_METHOD (As65BindsALabelOnAnOriginLineWhereTheLineWasReached)
         {
             AssemblyResult  result = MerlinAssemblyFixture::Assemble (
                                          " .org $9000\n .byte $11\n"
                                          "HERE: .org $300\n .byte $22\n", DialectId::As65);
 
             Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
-            Assert::AreEqual (0x0300, (int) result.symbols.at ("HERE"),
-                              L"where the origin seeks, the output cursor IS the new address");
+            Assert::AreEqual (0x9001, (int) result.symbols.at ("HERE"),
+                              L"the label marks where the line sat, not where the origin then went");
         }
     };
 
@@ -1800,19 +1848,367 @@ namespace MerlinDirectiveTests
 
 
 
-        //  Merlin also lets a variable stand where a label stands, binding to the
-        //  program counter. Casso does NOT, and refuses loudly rather than
-        //  quietly binding one: pass 2 resolves every reference against a single
-        //  symbol table, so a program-counter symbol assigned more than once would
-        //  point every branch at the last copy. A wrong branch target that
-        //  assembles is worse than a refusal.
-        TEST_METHOD (AVariableStandingAsAProgramCounterLabelIsRefused)
+        //  A variable may also stand where a label stands, taking the program
+        //  counter -- and the point is that it may do so REPEATEDLY. Each branch
+        //  means the definition immediately above it.
+        //
+        //  The two distances differ deliberately. Equal ones would produce the
+        //  same displacement whichever definition won, which is a test that
+        //  cannot fail. If every reference resolved to the last definition, the
+        //  first branch would come out $00 instead of $FC.
+        TEST_METHOD (AVariableStandingAsAProgramCounterLabelBindsAtEachDefinition)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              "]LOOP NOP\n NOP\n BNE ]LOOP\n"
+                                              "]LOOP NOP\n BNE ]LOOP\n");
+            std::vector<Byte>  expected = { 0xEA, 0xEA, 0xD0, 0xFC, 0xEA, 0xD0, 0xFD };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected,
+                            L"each branch takes the definition above it, not the last one in the file");
+        }
+
+
+
+        //  The same claim through a DATA directive rather than a branch. Three
+        //  times in this feature a data directive has caught what an instruction
+        //  operand hid, because sizing settles instruction operands in pass 1
+        //  while data values are computed in pass 2 against one finished table.
+        TEST_METHOD (DataReadsTheProgramCounterLabelDefinedAboveIt)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              "]MARK NOP\n DA ]MARK\n"
+                                              "]MARK NOP\n DA ]MARK\n");
+            std::vector<Byte>  expected = { 0xEA, 0x00, 0x80, 0xEA, 0x03, 0x80 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected,
+                            L"the second word must be the second definition, and the first the first");
+        }
+
+
+
+        //  A variable label does NOT open a local-label scope. The same name is
+        //  defined over and over, so treating each as a scope would put the
+        //  locals after it under whichever definition came last -- and would
+        //  strand every local defined before it. CLOCK.S depends on this:
+        //  `INCTIME` opens a scope, `]LOOP` follows immediately, and `:OUT`
+        //  further down still belongs to `INCTIME`.
+        TEST_METHOD (AVariableLabelDoesNotOpenALocalScope)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              "GLOBAL NOP\n"
+                                              ":LOC NOP\n"
+                                              "]LOOP NOP\n"
+                                              " DA :LOC\n");
+            std::vector<Byte>  expected = { 0xEA, 0xEA, 0xEA, 0x01, 0x80 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected,
+                            L"the local still belongs to GLOBAL after a variable label has intervened");
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinKeyboardInputTests
+    //
+    //  KBD binds the symbol in its label field to an answer supplied from outside
+    //  the source. Merlin stops the assembly and prompts; a batch assembler is
+    //  told, and refuses when it was not.
+    //
+    //  The refusal is the half worth testing hardest. Both alternatives are silent
+    //  failures of a kind this feature exists to avoid: blocking on a prompt turns
+    //  an unattended build into a hang, and defaulting the answer assembles a
+    //  different program cleanly.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinKeyboardInputTests)
+    {
+    public:
+
+        TEST_METHOD (AnAnsweredSymbolTakesTheValueSupplied)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlinWithAnswers (
+                                              "SIZE KBD \"How many?\"\n DFB SIZE\n",
+                                              { { "SIZE", 7 } });
+            std::vector<Byte>  expected = { 0x07 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the answer is the symbol's value");
+        }
+
+
+
+        //  The bare form -- no prompt, and a trailing comment that begins the very
+        //  next field. Both PI sources on the disk write it with nothing after the
+        //  directive at all, and PRINTFILER.S writes it with a comment.
+        TEST_METHOD (TheBareFormWithATrailingCommentParses)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlinWithAnswers (
+                                              "FORMAT KBD ; 1 = format, 0 = pack\n DFB FORMAT\n",
+                                              { { "FORMAT", 1 } });
+            std::vector<Byte>  expected = { 0x01 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the comment is a comment, not an operand");
+        }
+
+
+
+        //  The prompt holds spaces, so it must be read as delimited text rather
+        //  than as one whitespace-bounded word. Every prompt on the vendor disk is
+        //  a sentence.
+        TEST_METHOD (AMissingAnswerNamesTheSymbolAndTheWholePrompt)
         {
             AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
-                                         "]LOOP LDA #0\n"
-                                         " BNE ]LOOP\n");
+                                         "VERSION KBD \"Want 12 or 24 hour version (12/24)?\"\n DFB VERSION\n");
 
-            Assert::IsFalse (result.errors.empty(), L"the unsupported form must not assemble silently");
+            Assert::IsFalse (result.errors.empty(), L"an unanswered prompt must fail rather than guess");
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "VERSION"),
+                            L"the diagnostic must name the symbol that needs an answer");
+            //  The prompt arrives WITHOUT its delimiters -- the source's choice of
+            //  delimiter is Merlin's syntax, not part of what it asked. Asserting
+            //  the parenthesis directly against the first word is what makes that
+            //  checkable; a bare substring of the prompt matches either way, and
+            //  a mutation leaving the delimiters in went uncaught until this.
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "(Want 12 or 24 hour version (12/24)?)"),
+                            L"and the whole prompt, which is the only place the source says what the answer means");
+        }
+
+
+
+        //  A prompt-less line still has to fail by name, and must not report an
+        //  empty parenthetical where the prompt would have been.
+        TEST_METHOD (AMissingAnswerWithNoPromptStillNamesTheSymbol)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin ("SAVOBJ KBD\n DFB SAVOBJ\n");
+
+            //  Naming the symbol is not enough to assert: the undefined-symbol
+            //  complaint from the line below names it too, so a test settling for
+            //  that passes against an assembler that says nothing about the
+            //  keyboard-input line at all. Verified by mutation.
+            Assert::IsFalse (result.errors.empty(), L"the bare form must fail the same way");
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "No answer supplied for SAVOBJ"),
+                            L"the refusal must come from the directive, not from the undefined symbol below it");
+            Assert::IsFalse (MerlinAssemblyFixture::AnyErrorMentions (result, "()"),
+                             L"and no empty parenthetical where a prompt would have gone");
+        }
+
+
+
+        //  The label names a SYMBOL, not an address. Binding it to the program
+        //  counter as well would leave the conditional that reads it testing where
+        //  the line sat -- which is non-zero for any ordinary origin, so every
+        //  gated block would assemble regardless of the answer.
+        TEST_METHOD (TheLabelDoesNotAlsoBindToTheProgramCounter)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlinWithAnswers (
+                                              " ORG $8000\n"
+                                              "SAVOBJ KBD \"Save object code?\"\n"
+                                              " DO SAVOBJ\n DFB $11\n FIN\n"
+                                              " DFB $22\n",
+                                              { { "SAVOBJ", 0 } });
+            std::vector<Byte>  expected = { 0x22 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected,
+                            L"an answer of 0 must skip the gated block, which a program-counter binding would not");
+        }
+
+
+
+        //  And the answer really drives the conditional in the other direction, or
+        //  the test above would pass against an assembler that skipped everything.
+        TEST_METHOD (TheAnswerDrivesConditionalAssembly)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlinWithAnswers (
+                                              " ORG $8000\n"
+                                              "SAVOBJ KBD \"Save object code?\"\n"
+                                              " DO SAVOBJ\n DFB $11\n FIN\n"
+                                              " DFB $22\n",
+                                              { { "SAVOBJ", 1 } });
+            std::vector<Byte>  expected = { 0x11, 0x22 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"an answer of 1 must take the gated block");
+        }
+
+
+
+        //  KBD is Merlin's alone. AS65 must go on refusing it, or FR-005's
+        //  strictness rule is broken by the very construct that needed a token.
+        TEST_METHOD (As65DoesNotKnowKbd)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::Assemble (
+                                         "SIZE KBD \"How many?\"\n", DialectId::As65);
+
+            Assert::IsFalse (result.errors.empty(), L"a Merlin directive must not become an AS65 one");
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinExpressionDialectTests
+    //
+    //  The three ways Merlin's expressions differ from the shared syntax beyond
+    //  binding: two renamed operators, unsigned 16-bit arithmetic, and a wider
+    //  symbol character set. Each has an AS65 counterpart, because a test passing
+    //  under both dialects is no evidence the profile was consulted.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinExpressionDialectTests)
+    {
+    public:
+
+        //  `!` is exclusive-or. The operands are chosen so inclusive-or and
+        //  exclusive-or DISAGREE -- $FF against $0F gives $F0 one way and $FF the
+        //  other -- since overlapping bits would make either reading pass.
+        TEST_METHOD (TheBangOperatorIsExclusiveOr)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" DFB $FF!$0F\n");
+            std::vector<Byte>  expected = { 0xF0 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"exclusive-or clears the bits both operands share");
+        }
+
+
+
+        //  `.` is inclusive-or. The SAME overlapping pair, so the two tests
+        //  discriminate each other: disjoint operands like $F0 and $0F give $FF
+        //  under either reading, which is a test that cannot fail and was caught
+        //  by mutating the table.
+        TEST_METHOD (ThePeriodOperatorIsInclusiveOr)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" DFB $FF.$0F\n");
+            std::vector<Byte>  expected = { 0xFF };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"inclusive-or keeps every bit either operand has");
+        }
+
+
+
+        //  A renamed character has to STOP meaning what it meant, or the digraph
+        //  it leads would still win. Under the shared syntax `!` is logical-not.
+        TEST_METHOD (As65StillReadsBangAsLogicalNot)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::Assemble (" .byte !0\n", DialectId::As65);
+            std::vector<Byte>  expected = { 0x01 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"AS65 must not acquire Merlin's spelling");
+        }
+
+
+
+        //  Merlin folds in unsigned 16-bit quantities, which changes division and
+        //  nothing else visible. $FFF3 over $FFFF is 0 because the numerator is
+        //  smaller; read as signed 32-bit the same operands are -13 over -1 = 13.
+        TEST_METHOD (DivisionFoldsInUnsignedSixteenBitQuantities)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" DFB 12-25/-1\n");
+            std::vector<Byte>  expected = { 0x00 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the numerator is the smaller unsigned quantity");
+        }
+
+
+
+        //  The other half of the same computation, so the test above is not
+        //  passing on a zero it would have produced anyway.
+        TEST_METHOD (TheSameDivisionIsOneWhenTheOperandsAreEqual)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" DFB 24-25/-1\n");
+            std::vector<Byte>  expected = { 0x01 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"$FFFF over $FFFF is 1");
+        }
+
+
+
+        TEST_METHOD (As65DividesInSignedThirtyTwoBitQuantities)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::Assemble (" .byte (12-25)/-1\n", DialectId::As65);
+            std::vector<Byte>  expected = { 0x0D };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"AS65 keeps the arithmetic it has always had");
+        }
+
+
+
+        //  `?` is legal inside a Merlin symbol. Both halves have to agree: the
+        //  definition must be accepted AND the reference must lex as one
+        //  identifier, or the name binds and then resolves nowhere.
+        TEST_METHOD (AQuestionMarkIsLegalInsideASymbol)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              "CMD? NOP\n"
+                                              " DA CMD?\n");
+            std::vector<Byte>  expected = { 0xEA, 0x00, 0x80 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the name must both bind and resolve");
+        }
+
+
+
+        TEST_METHOD (As65StillRefusesAQuestionMarkInALabel)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::Assemble (
+                                         " .org $8000\nCMD?: nop\n", DialectId::As65);
+
+            Assert::IsFalse (result.errors.empty(), L"AS65 must not acquire Merlin's character set");
+        }
+
+
+
+        //  A character constant may hold a space, and the operand scanner has to
+        //  know it. CLOCK.S blanks the leading zero of the hour with `LDA #" "`
+        //  and follows it with a comment that itself contains quotes.
+        TEST_METHOD (ACharacterConstantMayHoldASpace)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " LDA #\" \" ;Blank leading \"0\"\n");
+            std::vector<Byte>  expected = { 0xA9, 0xA0 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the space is payload and the comment is still a comment");
+        }
+
+
+
+        //  A constant holding a space in a MULTI-ARGUMENT operand, with a comment
+        //  that itself contains quotes. The scanner has to resume after the
+        //  constant rather than treating the delimiter as a toggle -- a toggle
+        //  reads the comma and everything past it as still inside a string, and
+        //  the second byte disappears.
+        //
+        //  Shaped like the vendor's own lines: KEYMAC.S writes
+        //  `DFB $9F&"N",$88,$88` with the character constant inside an
+        //  expression, which is the form that reaches the evaluator at all.
+        TEST_METHOD (ACharacterConstantHoldingASpaceSurvivesInAnArgumentList)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " DFB $FF&\" \",$41 ;the \"space\" one\n");
+            std::vector<Byte>  expected = { 0xA0, 0x41 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"both arguments survive and the comment is still a comment");
         }
     };
 }

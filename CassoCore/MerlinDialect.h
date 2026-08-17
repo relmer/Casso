@@ -179,6 +179,25 @@ public:
     // encoder -- four places in shared mechanism, for two spellings.
     std::span<const MnemonicAlias>  GetMnemonicAliases() const override;
 
+    // Merlin spells exclusive-or `!` and inclusive-or `.`, where the shared
+    // punctuation reads the first as logical-not and does not treat the second
+    // as punctuation at all. Both are settled by CLOCK.S against its two
+    // shipped objects rather than taken from the manual.
+    std::span<const OperatorSpelling>  GetOperatorSpellings() const override;
+
+    // Merlin computes in unsigned 16-bit quantities, operands and intermediates
+    // alike. CLOCK.S turns that into a build switch -- `VERSION-25/-1` is 1 only
+    // because $FFFF divided by $FFFF is, and 0 for any other version because the
+    // numerator is smaller than the divisor. Signed 32-bit arithmetic reads the
+    // same line as -13 / -1 and fails an assembly the vendor shipped.
+    ArithmeticWidth     GetArithmeticWidth () const override { return ArithmeticWidth::Word16; }
+
+    // `?` is legal inside a Merlin symbol. Four occur in the vendor sources --
+    // `CMD?` in KEYMAC.S, and `CORR?`, `ISY?` and `RNGOK?` in the linker demo --
+    // and only the first sits in a file that ships an object, which is what
+    // makes it a byte-comparison failure rather than a matter of taste.
+    const char *        GetExtraSymbolCharacters () const override { return "?"; }
+
     // Merlin's macro syntax: a triple-angle terminator carried as a token,
     // positional parameters written with the variable sigil, semicolon-separated
     // arguments, and body labels made unique per expansion without any
@@ -191,14 +210,16 @@ public:
     static std::string  QualifyVariableName (const std::string & spelling);
 
 private:
-    static bool         IsFieldSpace        (char ch);
-    static bool         IsVariableNameStart (char ch);
-    static bool         TakesDelimitedText  (const std::string & mnemonic);
-    static void         SkipFieldSpace      (const std::string & line, size_t & pos);
-    static std::string  ReadPlainField      (const std::string & line, size_t & pos);
-    static std::string  ReadOperandField    (const std::string & line, size_t & pos, const std::string & mnemonic);
-    static std::string  QualifyVariableRefs (const std::string & text);
-    static void         SplitCallPrefix     (std::string & mnemonic, std::string & operand);
-    static std::string  RewriteAddressCheck (const std::string & operand);
-    static std::string  RewriteByteSelector (const std::string & operand);
+    static bool         IsFieldSpace            (char ch);
+    static bool         IsVariableNameStart     (char ch);
+    static bool         IsCharConstantDelimiter (char ch);
+    static bool         TakesDelimitedText      (const std::string & mnemonic);
+    static void         SkipCharConstant        (const std::string & line, size_t & pos);
+    static void         SkipFieldSpace          (const std::string & line, size_t & pos);
+    static std::string  ReadPlainField          (const std::string & line, size_t & pos);
+    static std::string  ReadOperandField        (const std::string & line, size_t & pos, const std::string & mnemonic);
+    static std::string  QualifyVariableRefs     (const std::string & text);
+    static void         SplitCallPrefix         (std::string & mnemonic, std::string & operand);
+    static std::string  RewriteAddressCheck     (const std::string & operand);
+    static std::string  RewriteByteSelector     (const std::string & operand);
 };
