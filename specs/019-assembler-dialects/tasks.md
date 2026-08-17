@@ -13,15 +13,24 @@ read by whoever has no other way to check.*
 positions, and the switchable instruction set. In Phase 3, the Merlin profile
 exists with its field-based line model (T027–T029), its directive table
 (T032/T033), string encoding (T034/T035), local labels (T030), raw hexadecimal
-data, equates, listing directives, instruction aliases, and the directive
-behaviors `LABELS.S` needs. Suite is **3088** Release / **3091** Debug, both
-green.
+data, equates, listing directives, instruction aliases, the directive behaviors
+`LABELS.S` needs, **macros in full (T038)** and **variable symbols (T031)**.
+Suite is **3108** Release / **3111** Debug, both green.
+
+**Macros and variables landed as ONE commit, deliberately.** Merlin writes a
+positional parameter and a reassignable symbol with the same character — `]1` is
+an argument and `]COUNT` a symbol, and the digit is the entire distinction — so
+the two share one lexing decision and there is no ordering in which either is
+correct alone.
 
 ## `MAKE DUMP.S` — measured, not guessed
 
 The second whole-file oracle is **NOT reached**, and the reason is now measured
 rather than estimated. Assembling the file and reading the distinct diagnostics
-gave eleven failure classes, of which four are done and seven are not:
+gave eleven failure classes; the macro slice closed three of them and **found a
+twelfth the earlier census could not see**, because the macro failures were
+masking it. The file now reports **22 diagnostics in 10 classes, down from 103
+in 11**:
 
 | Needs | Status |
 |---|---|
@@ -29,13 +38,23 @@ gave eleven failure classes, of which four are done and seven are not:
 | `HEX`, whose handler rows were null | **done** |
 | Trailing hexadecimal bytes after a string operand | **done** — settled against the object |
 | `TR` / `EXP` / `AST` listing directives, and `NAME = expr` equates | **done** |
-| Macro parameters `]1`..`]n` with `;`-separated arguments | not started (T038) |
-| A parameter substituted INTO a symbol name — `LDX #A]1-ADRTBL` | not started (T038) |
-| Macro-body labels unique per expansion — `NI`, `ND`, `LP` each recur | not started (T038) |
+| Macro parameters `]1`..`]n` with `;`-separated arguments | **done** (T038) |
+| A parameter substituted INTO a symbol name — `LDX #A]1-ADRTBL` | **done** (T038) |
+| Macro-body labels unique per expansion — `NI`, `ND`, `LP` each recur | **done** (T038) |
 | `ERR \expr`, the "does this fit below" form | not started |
 | Bare `ORG` with no operand | not started |
 | An operandless shift meaning accumulator mode — `LSR` | not started |
+| **A LABEL on an `ORG` line never binds** — `HEREINT ORG INTRFACE` | not started — see below |
 | **`ORG` moves the PC and not the output cursor** | **blocked — engine change** |
+
+**The label-on-`ORG` row is new and was invisible until the macros worked.** The
+origin directive is claimed as a *prelude*, before `RecordLabel` runs, so a label
+sharing the line is dropped without a word — `HEREINT`, `HEREMAIN` and
+`HEREADR` are all defined that way and all report as undefined at their six use
+sites. It is **not** the emit-cursor split and is dialect-neutral: as65 drops
+such a label too. But the VALUE the label should take is the output position
+rather than the program counter, so its answer arrives with the emit-cursor
+decision even though its existence does not. Left alone deliberately.
 
 The last one is the finding of the slice and it is not a dialect matter.
 `MAKE DUMP.S` assembles three sections at `$9000`, `$0300` and `$0900`, and
@@ -142,10 +161,24 @@ outside this slice's brief. It is the last one.
 assertions compile away. Fixed with `ExpectedEhmAssert`, production code
 untouched. **Report both configurations, not just Release.**
 
-**Next: Merlin macros (T038)**, which is three of the seven remaining
-`MAKE DUMP` items and the largest single piece. Then `ERR \`, bare `ORG` and
-operandless shifts, which are small. The emit-cursor split should be raised as
+**Next: `ERR \`, bare `ORG`, operandless shifts, and the label-on-`ORG` drop**,
+all small. `KEYMAC.S` additionally wants `?` accepted in a label and `&` against
+a character literal in an expression. The emit-cursor split should be raised as
 an amendment before anyone starts it.
+
+**What the macro slice measured across all five oracles**, so the next reader
+does not have to re-derive it. `LABELS.S`: 0 diagnostics, 984 bytes at `$8000`,
+unchanged. `MAKE DUMP.S`: 103 → 22. `KEYMAC.S`: 31 → 28 (needs `KBD`).
+`PRINTFILER.S`: 12 (needs `KBD`). `CLOCK.S`: 43 (needs `KBD`). No oracle became
+byte-identical, and none could have: `MAKE DUMP` is held by the emit cursor and
+the other three by interactive input.
+
+**The corpus caught a macro bug every synthetic test had missed.** `KEYMAC.S`
+closes a macro with `NI <<<` — the label the body branches to sits on the line
+that *closes the definition*, which is precisely the line closing a body throws
+away. Twelve hand-written macro tests were green before the vendor source was
+tried. That is the third demonstration in this feature that synthetic tests and
+the corpus cover different sets, and this time it was the corpus's turn.
 
 **`BLT`/`BGE` are done, and are dialect-scoped DATA rather than a branch.** The
 profile supplies a spelling table and `Parser::ParseLine` rewrites the mnemonic
@@ -172,6 +205,23 @@ and `HexData` are now filled, and `MacroDef`/`MacroEnd` act through the
 collection state rather than through their rows; `WordHighFirst`,
 `Loop`/`LoopEnd`, `DummySection`/`DummySectionEnd`, `CpuSelect` and `ObjectFile`
 are not.
+
+**Two guards in the macro work are deliberately uncovered, and are recorded at
+the code rather than left to be rediscovered.** The digit test that separates
+`]1` from `]COUNT` cannot be reached by any test: a macro body is stored as raw
+text and re-parsed only after substitution, so a parameter reference never
+reaches the profile's rewriter on a line whose parse is used. The bracket-depth
+clamp in `Parser::SplitOnSeparator` is the same shape — variable references are
+rewritten before an argument list reaches the splitter, so the clamp and its
+absence are indistinguishable today. Both were mutated and neither was caught;
+both stay, because each is what keeps the property true by construction rather
+than by ordering luck.
+
+**`PMC` is NOT implemented.** It is documented as the word form of the explicit
+invocation prefix, and nothing on the disk uses either. Adding a second
+unverified spelling on the strength of the same absent evidence was not worth
+it; the prefix form covers the construct and the gap is one table row when
+someone has a source that needs it.
 
 **The refused string form is SETTLED, and by the object rather than by
 reasoning.** `ASC "TEXT"8D` — digits after the closing delimiter — is a run of
@@ -312,8 +362,9 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
 - [ ] T025a [P] [US1] Capture the comment-field experiment as a hand-authored entry in `UnitTest/MerlinCorpusTests.cpp` (vendor oracles live in `UnitTest/Fixtures/Merlin/`; entries authored here stay in the test file): one line whose fourth field begins with an ordinary word and would be a syntax error if parsed as anything but a comment. Acceptance confirms comment-by-position; an error proves `;` is required. Keep the entry either way, to pin the answer against regression
 - [ ] T025b [P] [US1] Capture quoted-string entries with **leading, embedded, and trailing spaces inside the quotes** as a hand-authored entry in `UnitTest/MerlinCorpusTests.cpp` (vendor oracles live in `UnitTest/Fixtures/Merlin/`; entries authored here stay in the test file). A whitespace-delimited operand scanner breaks on these, and the disk's own `PI.START.S` is full of them — the spaces are payload bytes, so getting this wrong both truncates the operand and silently changes emitted data
 - [ ] T025c [P] [US1] Capture a macro fall-through entry as a hand-authored entry in `UnitTest/MerlinCorpusTests.cpp` (vendor oracles live in `UnitTest/Fixtures/Merlin/`; entries authored here stay in the test file), modeled on the vendor library's `ADDX MAC` / `TXA` / `ADDA MAC` with one shared `<<<`, to settle whether an unterminated `MAC` falls into the next. Also settles that the unterminated-macro diagnostic must not fire on legitimate vendor source
-- [ ] T025d [P] [US1] Capture a macro-local label entry as a hand-authored entry in `UnitTest/MerlinCorpusTests.cpp` (vendor oracles live in `UnitTest/Fixtures/Merlin/`; entries authored here stay in the test file): expand **two macros that each define the same bare label in a single assembly**, the case the vendor library carefully never creates. Both outcomes are informative — a duplicate-symbol error means Merlin does not scope macro bodies, the vendor library carries an undocumented constraint that those macros are mutually exclusive, and our duplicate-symbol diagnostic is right to fire; a clean assembly means Merlin scopes macro-local labels and we must too, or every multi-use macro breaks. Either way it changes the symbol table
+- [x] T025d [P] [US1] ~~Capture a macro-local label entry~~ — **ANSWERED BY THE DISK; no capture needed or planned.** The premise was that the vendor library "carefully never creates" the case. The library does not, but the vendor **program** does: `MAKE DUMP.S` expands `INCD` twice and `STORE` three times, and each expansion redefines `NI` / `LP`, while `DECD` redefines `ND`. A shipped, working 589-byte object is therefore proof that Merlin makes macro-body labels unique per expansion — the second of the two outcomes this task was written to distinguish, settled from bytes rather than from an experiment. `KEYMAC.S` adds a detail no capture would have thought to try: the label may sit on the terminator line itself (`NI <<<`). Implemented in T038; the corresponding tests are synthetic because the *rule* is now known, so a capture would only re-confirm it
 - [ ] T025e [P] [US1] Capture a `>>>` macro-invocation entry as a hand-authored entry in `UnitTest/MerlinCorpusTests.cpp` (vendor oracles live in `UnitTest/Fixtures/Merlin/`; entries authored here stay in the test file). The vendor library invokes macros by bare name only, so the disk can never report whether an explicit invocation prefix is also accepted — and a user's source may well contain one. First instance of the general rule that absence from the disk is not absence from the language
+  *(**The construct is IMPLEMENTED and the capture is still open** — those are different things, and conflating them is how an unverified guess becomes a settled fact. Both spellings work, spaced and flush against the name, and both are covered by tests; the macro's name is taken as the first `;`-separated item of the operand. Evidence status: **UNVERIFIED**, marked as such at `s_kpszExplicitCallKeyword` in `CassoCore/MerlinDialect.cpp` and in the test's own comment. The tests prove self-consistency and nothing about real Merlin. What capture must still settle: that the prefix is accepted at all, and whether the name is separated from the arguments by the same character that separates the arguments from each other. `PMC`, its documented word synonym, is deliberately NOT implemented.)*
 - [ ] T025f [P] [US1] Capture the vendor library's five-deep nested first-character conditional (`MOVD`) as a hand-authored entry in `UnitTest/MerlinCorpusTests.cpp` (vendor oracles live in `UnitTest/Fixtures/Merlin/`; entries authored here stay in the test file) as a stress entry. This is how Merlin macros dispatch on addressing mode, so any macro library of consequence exercises it
 - [ ] T026 [US1] Cross-check a sample of captured entries against hand-derived expectations from the Merlin manual, and record the answers to all settle-by-capture items in `specs/019-assembler-dialects/research.md`. **If T025 shows a CPU-target reset form exists**, amend FR-015 and the `InstructionSetProvider` state transition in `data-model.md` — both currently describe a one-way `base → extended` change — and add the implementing task before T040 rather than discovering the conflict during it
 
@@ -333,7 +384,16 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
   *A local before any global label is an error rather than a symbol in an unnamed scope. A colon inside string payload is left alone — `ASC ":::6::6:6:"` is on the vendor disk, and rewriting there would change emitted bytes rather than resolve a symbol.*
 
   *Still open, and NOT part of this: **`?` is legal in a Merlin label**. `CMD?`, `CORR?`, `ISY?` and `RNGOK?` are in the vendor sources, and `Parser::ValidateLabel` rejects all four today. The corpus therefore already answers half of research's "legal label character set" question, ahead of T023 capturing it — but accepting `?` also needs the expression tokenizer to lex it, and that is a change to `ExpressionEvaluator.cpp` with no oracle forcing it yet. Variable symbols (`]name`) are T031 and were not touched.)*
-- [ ] T031 [US1] Implement variable symbols in `CassoCore/MerlinDialect.cpp` with reassignment semantics (FR-011)
+- [x] T031 [US1] Implement variable symbols in `CassoCore/MerlinDialect.cpp` with reassignment semantics (FR-011)
+  *(**No oracle exists for any of this.** Not one variable symbol appears in the nine committed vendor sources — the sigil occurs there only as `]1`..`]3` inside macro bodies — so every test is self-consistency plus the documented rule, and must not be quoted as corpus evidence.*
+
+  *A variable binds in a NAMESPACE OF ITS OWN, because the sigil is part of the name: `]COUNT` and `COUNT` are two symbols and either may exist without the other. The stored name cannot keep the sigil, since the shared expression tokenizer will not lex it, so the profile rewrites both definitions and references to a prefixed form carrying TWO periods. That count is the whole design: an ordinary label may hold none — `ValidateLabel` rejects the character — and a scoped local binds as one label joined to another, so it holds exactly one. Nothing a source can spell can therefore collide.*
+
+  *Reassignment reuses the existing mutable symbol kind rather than inventing one, which gives the rule its shape for free: a variable may be redefined, an ordinary equate may not.*
+
+  ***Divergence, deliberate: the form where a variable stands as a program-counter label is REFUSED.** Merlin allows it. Resolving it correctly needs the value each definition had at each point, and pass 2 holds one symbol table, so a repeated program-counter symbol would point every branch at the last copy — a wrong branch target that assembles cleanly. A refusal is the honest answer until per-line label values exist.*
+
+  *One shared-engine fix came with it, and it is a two-pass disagreement rather than a Merlin matter. A mutable constant is now re-evaluated in pass 2 where its definition is reached. Pass 1 walks the file in order and sees each assignment in turn, which is what sizes the lines between them; pass 2 read one table built after pass 1 finished, so **data emitted in pass 2 took the value the file assigned last** while an instruction on the line above took the right one. An immutable symbol cannot show the difference, which is why it went unnoticed. The instruction-shaped test does NOT discriminate it — that was confirmed by mutation, and a data-directive test was added because of it.)*
 - [x] T032 [US1] Add the Merlin directive spelling table to `CassoCore/MerlinDialect.cpp`, reusing existing `Directive` tokens wherever the operation is identical
 - [x] T033 [P] [US1] Add **all** new `Directive` tokens this feature introduces in `CassoCore/Directive.h` and `CassoCore/Directive.cpp`, with their pass-1/pass-2 rows in `CassoCore/AssemblySession.cpp`: reversed-order words, raw hexadecimal data, the loop construct and its terminator, the dummy section and its terminator, CPU selection, and the single encoded-string token. Adding them in one task keeps the exhaustiveness-checked `switch` compiling once rather than breaking at each of T035–T040 (research.md D2, FR-009)
   *(The exhaustiveness check is real and fired exactly once, as this task predicted — but it is a `static_assert` on a handler ROW TABLE in `AssemblySession.cpp`, not a switch: "s_kRows must have one row per Directive". All 17 new tokens got rows in the same edit. Their handlers are null, meaning **not implemented yet** rather than "does nothing"; they are unreachable while as65 is the only selectable dialect, and T034-T042 fill them. Emitting nothing for a `HEX` line would be precisely the silent wrong-bytes failure this feature exists to avoid.)*
@@ -355,8 +415,20 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
 - [x] T035d [US1] Add dialect-scoped instruction aliases to `CassoCore/DialectProfile.h` and `CassoCore/MerlinDialect.cpp` — `BLT`/`BGE` for `BCC`/`BCS` — resolved once in `Parser::ParseLine`. **Recorded after the fact**, and deliberately DATA on the seam rather than a Merlin arm in the instruction machinery: the alternative touches the opcode lookup, the size estimator, the branch-range check and the encoder, which is a per-dialect special case in four places in shared mechanism for two words (`contracts/dialect-profile.md` guarantee 3, SC-009/T069). as65 declares none and is swept to prove it (FR-005)
 - [ ] T036 [P] [US1] Implement the loop construct and its terminator in `CassoCore/MerlinDialect.cpp` and `CassoCore/AssemblySession.cpp` (FR-011)
 - [ ] T037 [P] [US1] Implement dummy sections and their terminator in `CassoCore/AssemblySession.cpp` — assign addresses, emit no bytes (FR-012)
-- [ ] T038 [US1] Implement Merlin macro definition, positional parameters, and invocation syntax in `CassoCore/MerlinDialect.cpp`, reusing the existing `kMaxMacroDepth` limit (FR-013)
-  *(**Partially done, and only the shape.** `MAC` in the opcode field with the name in the label opens a definition and the triple-angle terminator closes it, both recognized by TOKEN — that much arrived with the macro-terminator spelling fix, which is unreachable without it. A parameterless macro defines, expands and emits. What remains is the substance: `]1`..`]n` parameters, `;`-separated arguments, a parameter substituted INTO a symbol name (`LDX #A]1-ADRTBL`), and per-expansion uniqueness for macro-body labels. That last one is not optional and the corpus proves it — `MAKE DUMP.S` invokes `INCD` twice and `STORE` three times, and each expansion redefines `NI` / `LP`, so a shipped object means Merlin makes them unique. That partly answers T025d ahead of capture: the vendor library never creates the case, but the vendor PROGRAM does.)*
+- [x] T038 [US1] Implement Merlin macro definition, positional parameters, and invocation syntax in `CassoCore/MerlinDialect.cpp`, reusing the existing `kMaxMacroDepth` limit (FR-013)
+  *(The definition shape — `MAC` in the opcode field with the name in the label, closed by the triple-angle token — arrived earlier with the terminator spelling fix. This completes the substance.*
+
+  ***Positional substitution ignores identifier boundaries, and that is the requirement rather than an oversight.** The vendor library splices a parameter into the MIDDLE of a name in both directions: `LDX #A]1-ADRTBL` pastes the argument after a prefix, `LDX #]1END-]1-1` before a suffix. A whole-word rule — which is what the named-parameter path correctly uses — leaves both unresolvable. Both directions have their own test, and they earned it: a mutation adding a right-hand boundary check breaks only the suffix one.*
+
+  ***Body labels are unique per expansion with no declaration, and a label an expansion produced no longer opens a local-label scope.** The second half is not a refinement of the first. `MAKE DUMP.S` calls macros defining `LP` and `ND` in the middle of routines whose locals belong to a global further up, so a macro label becoming the enclosing global strands every local after the call — which is exactly what the file's diagnostics said before the fix.*
+
+  ***The terminator line may carry a label.*** `KEYMAC.S` writes `NI <<<`, so the body's own branch target sits on the line that closes the definition — the one line closing a body discards. Twelve synthetic macro tests were green before the vendor source found it.*
+
+  ***Reuses `kMaxMacroDepth` unchanged**, as the task asks; nesting still costs queue entries rather than C++ stack, so a Merlin macro calling another simply re-enters the expander one level deeper. Argument separator and parameter sigil are profile DATA, not a Merlin branch in the expander.*
+
+  ***Divergence, minor: the explicit invocation is spelled only with the prefix form.** `PMC` is documented as its word synonym; neither appears on the disk, so implementing both would double the unverified surface for no evidence. See the state-of-play note.*
+
+  *This answers T025d from the disk rather than from capture — see that task.)*
 - [ ] T039 [US1] Map Merlin's file-inclusion directives to `Directive::Include` in `CassoCore/MerlinDialect.cpp`, resolving relative to the including source and reusing the existing `kMaxIncludeDepth` limit (FR-014)
 - [ ] T040 [US1] Implement the first occurrence of the CPU-selection directive in `CassoCore/MerlinDialect.cpp`, switching `InstructionSetProvider` to the extended table for the remainder of the assembly (FR-003, FR-015)
 - [ ] T041 [US1] Implement the object-file directive as naming the output in `CassoCore/MerlinDialect.cpp`, with the command line taking precedence over it (FR-027)

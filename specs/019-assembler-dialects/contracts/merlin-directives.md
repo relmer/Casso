@@ -83,12 +83,13 @@ therefore requires **one entry per spelling**, not one for the family.
 |---|---|
 | bare word in column 1 | Label — no terminator character |
 | `:name` | Local label, scoped to the enclosing global |
-| `]name` | Variable symbol, reassignable |
+| `]name` | Variable symbol, reassignable. **No oracle** — not one appears in the nine committed sources, where the sigil occurs only as `]1`..`]3`. The form standing as a program-counter label is refused rather than accepted; see tasks.md T031 |
 | `LUP` / `--^` | Loop and its terminator |
 | `DUM` / `DEND` | Dummy section — assigns addresses, emits no bytes |
 | `NAME MAC` … `<<<` | Macro definition. **`<<<` is the terminator, not the invocation** — every macro in the disk's own library ends with it |
 | `NAME arg;arg` | Macro invocation: bare name, arguments separated by `;` |
-| `]1`, `]2`, `]3` | Positional parameters inside a macro body |
+| `>>> NAME;arg` | Explicit macro invocation, name first in the operand. **UNVERIFIED** — every macro on the disk is invoked by bare name, so the corpus cannot report whether the prefix is accepted. Implemented anyway; `PMC`, its documented word synonym, is not |
+| `]1`, `]2`, `]3` | Positional parameters inside a macro body. Substituted **textually, ignoring identifier boundaries** — `LDX #A]1-ADRTBL` and `LDX #]1END-]1-1` both splice a parameter into the middle of a symbol |
 | `IF <char>=]n` | Merlin's first-character conditional, used throughout the vendor macro library to switch on how a parameter was written (`IF #=]1`, `IF (=]2`, `IF "=]1`) |
 | `PUT` / `USE` | File inclusion, resolved relative to the including source |
 | `XC` (first) | Enables the 65C02 instruction set for the rest of the assembly |
@@ -301,9 +302,21 @@ corpus is the arbiter; the manual is not.
   `ADDA`'s body, or it is a one-instruction macro and the idiom means something
   else. This matters twice: for expansion, and because the unterminated-macro
   diagnostic must not fire on legitimate vendor source.
-- How are labels inside a macro body scoped? The vendor library reuses the bare
-  label `NC` in three separate macros, so expanding two of them into one assembly
-  would collide unless Merlin scopes or renames them.
+- ~~How are labels inside a macro body scoped?~~ **ANSWERED, from bytes.** They
+  are made **unique per expansion**, with no declaration and nothing in the
+  source to ask for it. `MAKE DUMP.S` expands `INCD` twice and `STORE` three
+  times; each expansion redefines `NI` or `LP`, and `DECD` redefines `ND`. The
+  vendor shipped a working 589-byte object, so the labels cannot have collided —
+  and an assembler that merely permitted the redefinition would have pointed both
+  branches at the first copy, which is a broken program rather than a shipped one.
+
+  Two consequences the question did not anticipate, both from the same sources.
+  A label an expansion produces must **not** open a local-label scope: `MAKE
+  DUMP.S` calls those macros in the middle of routines whose locals belong to a
+  global label further up, so a macro label becoming the enclosing global strands
+  every local after the call site. And the label may sit on the **terminator
+  line** — `KEYMAC.S` writes `NI <<<`, putting the body's branch target on the
+  one line that closing a body discards.
 - Does Merlin accept a form of `XC` that resets the target to 6502? If so it is in
   scope and cheap; if not, nothing to do.
 - Is Merlin's symbol matching case sensitive?
