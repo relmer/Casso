@@ -129,22 +129,44 @@ public:
     //
     static constexpr const char *  kInUseHelpText =
         "in-use check: a write is refused when another program holds the image open.\n"
-        "         It cannot tell whether the image is mounted here -- a mounted image is\n"
-        "         not held open -- so a mounted disk is neither detected nor protected.";
+        "  It cannot tell whether the image is mounted here -- a mounted image is\n"
+        "  not held open -- so a mounted disk is neither detected nor protected.";
 
     //  The line the worked example starts on, so a reader and a test look for
     //  the same thing.
     static constexpr const char *  kExampleHeading =
-        "Example -- the whole loop, from source to a program running in the emulator:";
+        "Examples -- the whole loop, from source to a program running in the emulator:";
 
-    //  Every verb, every option, the exit statuses, and a worked example of the
-    //  whole loop, as one block the console executable prints verbatim.
+    //  The sentence a listing gives when neither filesystem is there. Named so
+    //  a test asserts on the wording a user reads rather than a paraphrase.
+    static constexpr const char *  kNoFilesystemText =
+        "does not have a DOS or ProDOS file system";
+
     //
-    //  It is assembled here rather than spelled out beside the printing code for
-    //  the reason kInUseHelpText already gives: the test assembly does not link
-    //  the console executable, so help written there is help nothing can check.
-    //  Building it here lets a test read exactly what a user reads.
-    static std::string  BuildHelpText();
+    //  The disk section of the help, in the three pieces the usage text places
+    //  separately: what the subcommand DOES, what its OPTIONS are, and the
+    //  worked EXAMPLE that goes at the end.
+    //
+    //  Split because the surrounding help groups by kind and not by subcommand:
+    //  a reader looking for options wants every subcommand's options together,
+    //  and an example buried among them is one nobody reaches.
+    //
+    //  EVERY SPELLING TAKES THE PREFIX THE READER ASKED FOR. Someone who typed
+    //  `/?` is shown `/long`; someone who typed `--help` is shown `--long`.
+    //  Both are accepted, so neither is a lie -- which is the whole reason the
+    //  parser had to learn `/` before this could be honest.
+    //
+    //  Assembled here rather than beside the printing code for the reason
+    //  kInUseHelpText already gives: the test assembly does not link the console
+    //  executable, so help written there is help nothing can check.
+    //
+    static std::string  BuildSubcommandHelp (char flagPrefix);
+    static std::string  BuildOptionsHelp    (char flagPrefix);
+    static std::string  BuildExampleHelp    (char flagPrefix);
+
+    //  All three together, which is what a test reads when the question is
+    //  about the disk help as a whole rather than about where a piece lands.
+    static std::string  BuildHelpText (char flagPrefix = '-');
 
 private:
     void  RunList   (const CommandLineOptions & options, DiskCommandResult & result);
@@ -207,6 +229,38 @@ private:
     //  What the file is called on the disk: --as when given, otherwise the host
     //  file's own last component, which is the name the caller already chose.
     static std::string  OnDiskNameFor (const CommandLineOptions & options);
+
+    //  The long-flag prefix for a chosen style: `--` or `/`. One place, because
+    //  the help spells flags in a dozen sentences and a style decided in each
+    //  of them is a style that will disagree with itself.
+    static std::string  LongPrefix (char flagPrefix);
+
+    //
+    //  Everything an image still says about itself once neither filesystem
+    //  recognizes it.
+    //
+    //  A FUNCTIONAL, BOOTABLE DISK IS THE COMMON CASE HERE, not an exotic one.
+    //  Most commercial Apple II software never used a filesystem at all: it
+    //  booted its own loader off track 0 and read its data by track and sector.
+    //  Answering only "no filesystem" describes twelve of fourteen real disks
+    //  as though nothing could be learned from them, when the image is holding
+    //  its title, its publisher, how much of its surface is formatted and
+    //  whether it boots.
+    //
+    static std::string  DescribeUnrecognizedImage (const OpenedImage & opened);
+
+    //  What the container itself records: for WOZ, the INFO and META chunks and
+    //  how much of the surface the track map claims.
+    static std::string  DescribeWozChunks (const std::vector<Byte> & fileBytes);
+
+    //  What the decoded surface shows: geometry, how the tracks read, and
+    //  whether the first sector a boot reads carries anything.
+    static std::string  DescribeSurface (const OpenedImage & opened);
+
+    //  One `  label   value` line, or nothing at all when the value is empty --
+    //  so a caller can offer every field it knows about without also deciding
+    //  which ones this image answered.
+    static std::string  DetailLine (const char * label, const std::string & value);
 
     //  Names the image and the reason, sets the no-output status, and returns
     //  nothing -- so a refusal path cannot report one without the other.

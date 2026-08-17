@@ -204,6 +204,7 @@
     <ClCompile Include="Core\Cpu65C02.cpp" />
     <ClCompile Include="Core\Cpu65C02Table.cpp" />
     <ClCompile Include="Core\Prng.cpp" />
+    <ClCompile Include="Core\TextEncoding.cpp" />
     <ClCompile Include="Devices\RamDevice.cpp" />
     <ClCompile Include="Devices\RomDevice.cpp" />
     <ClCompile Include="Devices\AppleGamePort.cpp" />
@@ -300,6 +301,7 @@
     <ClInclude Include="Core\MachineScanner.h" />
     <ClInclude Include="Core\PathResolver.h" />
     <ClInclude Include="Core\Prng.h" />
+    <ClInclude Include="Core\TextEncoding.h" />
     <ClInclude Include="Core\IInterruptController.h" />
     <ClInclude Include="Core\InterruptController.h" />
     <ClInclude Include="Core\IHostShell.h" />

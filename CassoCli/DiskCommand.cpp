@@ -2,6 +2,7 @@
 
 #include "DiskCommand.h"
 #include "Win32DiskFileIo.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 
 
@@ -23,6 +24,21 @@
 //  diagnostics go to the error stream so they never contaminate a pipe, and
 //  listings to the output stream as text.
 //
+//  TEXT IS RE-ENCODED FOR THE CONSOLE ON ITS WAY OUT, and that is a correctness
+//  fix rather than a cosmetic one. The runner's strings are in the process's own
+//  narrow code page -- image paths arrive that way from argv -- and a console
+//  set to UTF-8 reads a CP-1252 byte as a broken sequence and draws a question
+//  mark. A disk named `Space Quarks (1981)(Br<o-slash>derbund).woz` came back
+//  from its own error message as `Br?derbund`, which is a filename nobody can
+//  paste back into a command line.
+//
+//  It belongs HERE rather than in the runner because a code page is a property
+//  of the destination and nothing else: the same string written to a file wants
+//  different bytes from the same string written to a window, and only the layer
+//  holding the stream knows which one it has. The payload deliberately does not
+//  pass through it -- those are a file's bytes, not text, and re-encoding them
+//  would corrupt every extraction.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DiskCommand::Run (const CommandLineOptions & options)
@@ -37,7 +53,7 @@ int DiskCommand::Run (const CommandLineOptions & options)
 
     if (!result.output.empty())
     {
-        std::cout << result.output;
+        std::cout << TextEncoding::NarrowToConsole (result.output);
         std::cout.flush();
     }
 
@@ -54,7 +70,7 @@ int DiskCommand::Run (const CommandLineOptions & options)
 
     if (!result.diagnostics.empty())
     {
-        std::cerr << result.diagnostics;
+        std::cerr << TextEncoding::NarrowToConsole (result.diagnostics);
         std::cerr.flush();
     }
 

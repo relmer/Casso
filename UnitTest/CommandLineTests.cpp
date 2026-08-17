@@ -685,11 +685,24 @@ namespace CommandLineTests
             Assert::IsTrue (rm.disk.verb == CommandLineOptions::DiskOptions::Verb::Delete);
         }
 
-        TEST_METHOD (Disk_CatIsNotAVerb)
+        TEST_METHOD (Disk_CatListsTheDisk_BecauseThatIsWhatCatDoesOnAnAppleII)
         {
-            // Deliberately absent: it collides with the established meaning of
-            // printing a file's contents, which this tool does under `get`.
+            // This pins a reversal. `cat` was left out on the grounds that it
+            // collides with the Unix meaning of printing a file, which weighed
+            // a convention from another platform above the literal command of
+            // the machine this tool exists to serve. On an Apple II, CAT lists
+            // the disk -- and somebody who used one types it first.
             ArgVector           args = { "CassoCli", "disk", "cat", "my.dsk" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::List);
+        }
+
+        TEST_METHOD (Disk_AWordThatIsNoVerbAtAll_StillResolvesToNothing)
+        {
+            // The aliases widened the table; they must not have turned it into
+            // one that accepts anything.
+            ArgVector           args = { "CassoCli", "disk", "frobnicate", "my.dsk" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::None);
@@ -791,6 +804,118 @@ namespace CommandLineTests
             Assert::IsTrue   (opts.outputFile.empty(), L"nor its output");
             Assert::IsFalse  (opts.hasLoadAddress,     L"--addr belongs to the disk options only");
             Assert::AreEqual ((Word) 0x8000, opts.loadAddress, L"the assembler default is untouched");
+        }
+
+        TEST_METHOD (Disk_AcceptsEveryAliasTheHelpOffers_ForTheVerbItAliases)
+        {
+            //  THREE HABITS, ALL OF THEM REAL. `catalog` and `cat` are the
+            //  words the machines themselves answer to, so anyone who used one
+            //  types them before anything else; `dir` and `del` are what the
+            //  host shell trained them to type; `ls` and `rm` are what a Unix
+            //  shell did. A sweep rather than a sample, because an alias in the
+            //  table and not in the grammar is exactly what this catches.
+            struct { const char * word; CommandLineOptions::DiskOptions::Verb verb; }
+            kSpellings[] =
+            {
+                { "list",    CommandLineOptions::DiskOptions::Verb::List   },
+                { "ls",      CommandLineOptions::DiskOptions::Verb::List   },
+                { "dir",     CommandLineOptions::DiskOptions::Verb::List   },
+                { "cat",     CommandLineOptions::DiskOptions::Verb::List   },
+                { "catalog", CommandLineOptions::DiskOptions::Verb::List   },
+                { "get",     CommandLineOptions::DiskOptions::Verb::Get    },
+                { "read",    CommandLineOptions::DiskOptions::Verb::Get    },
+                { "put",     CommandLineOptions::DiskOptions::Verb::Put    },
+                { "write",   CommandLineOptions::DiskOptions::Verb::Put    },
+                { "delete",  CommandLineOptions::DiskOptions::Verb::Delete },
+                { "rm",      CommandLineOptions::DiskOptions::Verb::Delete },
+                { "del",     CommandLineOptions::DiskOptions::Verb::Delete },
+                { "boot",    CommandLineOptions::DiskOptions::Verb::Boot   },
+            };
+
+            for (const auto & spelling : kSpellings)
+            {
+                ArgVector           args = { "CassoCli", "disk", spelling.word, "my.dsk" };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.disk.verb == spelling.verb,
+                    (std::wstring (L"unrecognized spelling: ") +
+                     std::wstring (spelling.word, spelling.word + strlen (spelling.word))).c_str());
+
+                Assert::AreEqual (std::string ("my.dsk"), opts.disk.imagePath,
+                    L"the image is still the first positional after any spelling");
+            }
+
+            Assert::AreEqual (size_t (13), CommandLineParser::GetAllDiskVerbs().size(),
+                L"and the table holds exactly the spellings swept above");
+        }
+
+        TEST_METHOD (Disk_TakesEitherPrefixOnEveryOption_SoTheHelpMaySpellEither)
+        {
+            const char *  kOptions[] = { "long", "text", "basic", "verbatim" };
+
+            for (const char * option : kOptions)
+            {
+                std::string         slash = std::string ("/") + option;
+                std::string         dash  = std::string ("--") + option;
+                ArgVector           slashArgs = { "CassoCli", "disk", "list", "my.dsk", slash.c_str() };
+                ArgVector           dashArgs  = { "CassoCli", "disk", "list", "my.dsk", dash.c_str() };
+                CommandLineOptions  slashed   = CommandLineParser::Parse (slashArgs.Count(), slashArgs.Data(), NoProbe());
+                CommandLineOptions  dashed    = CommandLineParser::Parse (dashArgs.Count(),  dashArgs.Data(),  NoProbe());
+
+                //  Neither spelling may be read as the image path, which is
+                //  what an unrecognized flag would silently become.
+                Assert::AreEqual (std::string ("my.dsk"), slashed.disk.imagePath,
+                    L"the slash spelling is a flag, not a positional");
+                Assert::IsTrue (slashed.disk.encoding == dashed.disk.encoding,
+                    L"and it reaches the same arm as the dash spelling");
+                Assert::IsTrue (slashed.disk.longListing == dashed.disk.longListing);
+            }
+        }
+
+        TEST_METHOD (As65_TakesEitherPrefixOnItsLongOptions_IncludingAnAttachedValue)
+        {
+            //  `/raw` used to be read as the concatenated flags -r -a -w, which
+            //  silently set the column width and never selected a shape.
+            ArgVector           raw    = { "CassoCli", "prog.a65", "/raw" };
+            ArgVector           dosBin = { "CassoCli", "prog.a65", "/dos-bin" };
+            ArgVector           cpu    = { "CassoCli", "prog.a65", "/cpu", "65c02" };
+            ArgVector           glued  = { "CassoCli", "prog.a65", "/cpu=65c02" };
+
+            Assert::IsTrue (CommandLineParser::Parse (raw.Count(), raw.Data(), NoProbe()).outputFormat
+                                == CommandLineOptions::OutputFormat::Raw, L"/raw");
+            Assert::IsTrue (CommandLineParser::Parse (dosBin.Count(), dosBin.Data(), NoProbe()).outputFormat
+                                == CommandLineOptions::OutputFormat::DosBinary, L"/dos-bin");
+            Assert::IsTrue (CommandLineParser::Parse (cpu.Count(), cpu.Data(), NoProbe()).cpuTarget
+                                == CommandLineOptions::CpuTarget::M65C02, L"/cpu 65c02");
+            Assert::IsTrue (CommandLineParser::Parse (glued.Count(), glued.Data(), NoProbe()).cpuTarget
+                                == CommandLineOptions::CpuTarget::M65C02, L"/cpu=65c02");
+        }
+
+        TEST_METHOD (Run_TakesEitherPrefixOnItsLongOptions_TooBecauseTheHelpSpellsThem)
+        {
+            //  `/load` used to normalize to `-load`, match nothing, and be
+            //  reported as an unknown option -- while the usage text under `/?`
+            //  offered exactly that spelling.
+            ArgVector           args = { "CassoCli", "run", "prog.bin",
+                                         "/load", "$2000", "/reset-vector" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue   (opts.hasLoadAddress,  L"/load is recognized");
+            Assert::AreEqual ((Word) 0x2000, opts.loadAddress);
+            Assert::IsTrue   (opts.useResetVector,  L"and so is /reset-vector");
+            Assert::AreEqual (std::string ("prog.bin"), opts.inputFile,
+                L"and neither was mistaken for the input file");
+        }
+
+        TEST_METHOD (Disk_LeavesAProDosPathAlone_EvenThoughItBeginsWithASlash)
+        {
+            //  THIS IS WHY THE SLASH FORM IS A TABLE LOOKUP AND NOT A REWRITE.
+            //  A ProDOS path is spelled with a leading slash; a parser that
+            //  turned every one of them into a flag would lose the operand.
+            ArgVector           args = { "CassoCli", "disk", "get", "my.po", "/VOLUME/STARTUP" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (std::string ("/VOLUME/STARTUP"), opts.disk.path);
         }
 
         TEST_METHOD (BareWordThatIsNotASubcommand_StaysAs65)

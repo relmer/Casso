@@ -105,14 +105,15 @@ public:
     //  What a token byte spells, or nullptr when the byte is not a token.
     static const char *  GetKeyword (Byte token);
 
-    //  One sentence for the help output, so the claim and the code cannot drift.
-    static constexpr const char *  kRoundTripHelpText =
-        "--basic converts an Applesoft listing to and from the tokenized form.\n"
-        "         Extracting a program and placing it back is byte-exact. The reverse --\n"
-        "         a listing placed and extracted again -- is NOT: spacing outside strings,\n"
-        "         REM and DATA is dropped, ? becomes PRINT, lowercase outside those three\n"
-        "         becomes uppercase, and lines are ordered by number. Applesoft normalizes\n"
-        "         all of that itself when a line is typed in.";
+    //  One paragraph for the help output, so the claim and the code cannot
+    //  drift.
+    //
+    //  A FUNCTION RATHER THAN A CONSTANT because the sentence names a flag, and
+    //  which prefix a flag wears is the reader's choice: someone who asked for
+    //  help with `/?` is shown `/basic` throughout, and a paragraph that said
+    //  `--basic` in the middle of it would be describing a spelling they did
+    //  not ask for.
+    static std::string  RoundTripHelpText (char flagPrefix);
 
     static constexpr Word  kProgramBase = 0x0801;
 

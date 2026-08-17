@@ -322,7 +322,10 @@ public:
         result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List));
 
         Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.diagnostics.find ("recognizes") != std::string::npos);
+        Assert::IsTrue (result.output.empty(), L"and nothing is offered as a catalog");
+        Assert::IsTrue (result.diagnostics.find (DiskCommandRunner::kNoFilesystemText)
+                            != std::string::npos,
+            L"in the words a person would use");
     }
 
     TEST_METHOD (UnknownVerb_SuggestsTheOnesThatExist)
@@ -2081,5 +2084,125 @@ public:
 
         Assert::IsTrue (ListCommittedImage (io, kProImage).find ("PARMS") != std::string::npos,
             L"and every other entry is still on the disk");
+    }
+
+
+    //  A 143,360-byte sector image carrying boot code and no filesystem at all,
+    //  which is what a great deal of Apple II software actually is.
+    static vector<Byte> MakeBootableImageWithNoFilesystem()
+    {
+        vector<Byte>  image ((size_t) NibblizationLayer::kImageByteSize, 0);
+        size_t        i     = 0;
+
+        // Track 0 sector 0 is what the drive's ROM reads and jumps into.
+        for (i = 0; i < 64; i++)
+        {
+            image[i] = static_cast<Byte> (0xA9 + (i & 0x0F));
+        }
+
+        return image;
+    }
+
+    TEST_METHOD (List_ImageWithNoFilesystem_SaysSoInPlainWords_AndThenSaysWhatItCanTell)
+    {
+        //  TWELVE OF FOURTEEN REAL IMAGES LAND HERE, this project's own demo
+        //  disk among them, and every one of them boots. Answering with the
+        //  negative alone describes a working disk as though it were unreadable.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        const char *        path = "C:\\disks\\casso-rocks.dsk";
+        vector<Byte>        image = MakeBootableImageWithNoFilesystem();
+
+        io.files[path]  = image;
+        io.stamps[path] = FileStamp { image.size(), 100 };
+
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List, path));
+
+        Assert::IsTrue (result.diagnostics.find (DiskCommandRunner::kNoFilesystemText)
+                            != std::string::npos,
+            L"the sentence a person would say, not a sentence about this tool's tables");
+
+        Assert::IsTrue (result.diagnostics.find ("filesystem this tool recognizes")
+                            == std::string::npos,
+            L"and not the old one");
+
+        Assert::IsTrue (result.diagnostics.find ("35 tracks x 16 sectors x 256 bytes")
+                            != std::string::npos,
+            L"the geometry is still knowable and is still worth stating");
+
+        Assert::IsTrue (result.diagnostics.find ("track 0 sector 0 carries code")
+                            != std::string::npos,
+            L"and so is the fact that it boots");
+
+        //  THE STATUS DOES NOT MOVE. A caller still got no catalog, so a script
+        //  that branches on 2 branches the same way it always did.
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus,
+            L"a survey is not a listing");
+
+        Assert::AreEqual (std::string(), result.output,
+            L"and it goes to the error stream, so nothing appears in a pipe");
+    }
+
+    TEST_METHOD (List_ImageWithNoFilesystemAndNoBootCode_SaysThatInsteadOfClaimingItBoots)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        const char *        path  = "C:\\disks\\blank.dsk";
+        vector<Byte>        image ((size_t) NibblizationLayer::kImageByteSize, 0);
+
+        io.files[path]  = image;
+        io.stamps[path] = FileStamp { image.size(), 100 };
+
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List, path));
+
+        Assert::IsTrue (result.diagnostics.find ("track 0 sector 0 is blank")
+                            != std::string::npos,
+            L"an empty first sector is reported as empty, not as bootable");
+    }
+
+    TEST_METHOD (Failure_EchoesANonAsciiPathByteForByte_BecauseItHasToBePastable)
+    {
+        //  The measured bug. `Space Quarks (1981)(Broderbund)(II-II+)[48K].woz`
+        //  came back as `Br?derbund`, which is a name nobody can paste into a
+        //  command line. The mangling happened at the console, not here -- so
+        //  what this pins is that the RUNNER hands its caller the same bytes it
+        //  was given, leaving exactly one place for the conversion to live.
+        //
+        //  The escape is split because a hex escape in C++ is greedy: "\xF8d"
+        //  would be read as one character numbered $F8D.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        std::string         path  = "C:\\disks\\Space Quarks (1981)(Br\xF8" "derbund).woz";
+        vector<Byte>        image ((size_t) NibblizationLayer::kImageByteSize, 0);
+
+        io.files[path]  = image;
+        io.stamps[path] = FileStamp { image.size(), 100 };
+
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List,
+                                          path.c_str()));
+
+        Assert::IsTrue (result.diagnostics.find (path) != std::string::npos,
+            L"the name comes back exactly as it went in");
+
+        Assert::IsTrue (result.diagnostics.find ('?') == std::string::npos,
+            L"and with no substitution character anywhere in the message");
+    }
+
+    TEST_METHOD (Failure_NamesAnUnreadableImage_WithoutAssertingOnTheUsersInput)
+    {
+        //  A user naming an image that is not there is not a coding error, so
+        //  the path must not be the one that asserts.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List,
+                                          "C:\\disks\\absent.dsk"));
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("cannot be read") != std::string::npos);
     }
 };

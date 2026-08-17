@@ -20,19 +20,85 @@ static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
 
 //
 //  Second-level verbs of the `disk` subcommand. Descriptive words are what help
-//  displays; the terse spellings are accepted because they are what fingers
-//  type. `cat` is deliberately absent -- it collides with the established
-//  meaning of printing a file's contents, which this tool does under `get`.
+//  displays; every other spelling is an alias accepted because somebody will
+//  type it.
+//
+//  THE ALIASES COME FROM THREE DIFFERENT HABITS, and all three are real.
+//  `catalog` and `cat` are the words DOS 3.3 and ProDOS themselves answer to,
+//  so anyone who used these machines types one of them before anything else.
+//  `dir` and `del` are what the host shell trained them to type. `ls` and `rm`
+//  are what a Unix shell did.
+//
+//  `cat` was left out once on the grounds that it collides with the Unix
+//  meaning of printing a file. That reasoning weighed a convention from another
+//  platform above the literal command of the machine this tool exists to serve,
+//  and the machine wins: on an Apple II, CAT lists the disk.
 //
 static constexpr CommandLineParser::DiskVerbName  s_kDiskVerbs[] =
 {
-    { "list",   CommandLineOptions::DiskOptions::Verb::List   },
-    { "ls",     CommandLineOptions::DiskOptions::Verb::List   },
-    { "get",    CommandLineOptions::DiskOptions::Verb::Get    },
-    { "put",    CommandLineOptions::DiskOptions::Verb::Put    },
-    { "delete", CommandLineOptions::DiskOptions::Verb::Delete },
-    { "rm",     CommandLineOptions::DiskOptions::Verb::Delete },
-    { "boot",   CommandLineOptions::DiskOptions::Verb::Boot   },
+    { "list",    CommandLineOptions::DiskOptions::Verb::List   },
+    { "ls",      CommandLineOptions::DiskOptions::Verb::List   },
+    { "dir",     CommandLineOptions::DiskOptions::Verb::List   },
+    { "cat",     CommandLineOptions::DiskOptions::Verb::List   },
+    { "catalog", CommandLineOptions::DiskOptions::Verb::List   },
+    { "get",     CommandLineOptions::DiskOptions::Verb::Get    },
+    { "read",    CommandLineOptions::DiskOptions::Verb::Get    },
+    { "put",     CommandLineOptions::DiskOptions::Verb::Put    },
+    { "write",   CommandLineOptions::DiskOptions::Verb::Put    },
+    { "delete",  CommandLineOptions::DiskOptions::Verb::Delete },
+    { "rm",      CommandLineOptions::DiskOptions::Verb::Delete },
+    { "del",     CommandLineOptions::DiskOptions::Verb::Delete },
+    { "boot",    CommandLineOptions::DiskOptions::Verb::Boot   },
+};
+
+
+//
+//  Every LONG option spelling, without a prefix, in the two grammars that have
+//  any.
+//
+//  THESE TABLES EXIST TO MAKE `/` A REAL PREFIX RATHER THAN A PRINTED ONE. The
+//  usage text spells every flag with whichever prefix the reader asked for, and
+//  a help that offers `/long` while the parser takes only `--long` is worse
+//  than one that never mentioned it. Single-letter flags already worked with
+//  either prefix; only the long ones did not.
+//
+//  Matching against a table rather than rewriting any leading `/` is what keeps
+//  a ProDOS path working: `/MOUSEPAINT/STARTUP` begins with a slash and is an
+//  operand, not a flag, so only an argument that is exactly one of these words
+//  is treated as one.
+//
+static constexpr const char *  s_kpszDiskOptions[] =
+{
+    "long",
+    "text",
+    "basic",
+    "verbatim",
+    "out",
+    "as",
+    "type",
+    "addr",
+};
+
+
+static constexpr const char *  s_kpszAs65LongOptions[] =
+{
+    "cpu",
+    "raw",
+    "dos-bin",
+};
+
+
+static constexpr const char *  s_kpszRunLongOptions[] =
+{
+    "load",
+    "entry",
+    "stop",
+    "max-cycles",
+    "reset-vector",
+    "fill",
+    "warn",
+    "no-warn",
+    "fatal-warnings",
 };
 
 
@@ -79,6 +145,73 @@ CommandLineOptions::DiskOptions::Verb CommandLineParser::LookUpDiskVerb (const s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CanonicalLongFlag
+//
+//  An argument reduced to the one spelling the grammars below test for, so
+//  `/long` and `--long` reach the same arm.
+//
+//  ONLY AN EXACT OPTION NAME IS REWRITTEN. A ProDOS path is `/VOLUME/FILE` and
+//  is an operand; rewriting every leading slash would turn one into a flag and
+//  lose it. Anything not in the table comes back untouched, which is what lets
+//  a caller pass one string through for both flags and positionals.
+//
+//  An attached value is carried across, because `--cpu=65c02` is a spelling the
+//  assembler grammar accepts and `/cpu=65c02` therefore has to be one too. The
+//  name is matched against the part BEFORE the `=` for exactly that reason.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CommandLineParser::CanonicalLongFlag (const std::string             & arg,
+                                                  std::span<const char * const>   names)
+{
+    std::string  canonical = arg;
+    size_t       equals    = 0;
+    std::string  word;
+
+
+
+    if (arg.size() < 2 || arg[0] != '/')
+    {
+        return canonical;
+    }
+
+    equals = arg.find ('=');
+    word   = (equals == std::string::npos) ? arg.substr (1)
+                                           : arg.substr (1, equals - 1);
+
+    for (const char * name : names)
+    {
+        if (word == name)
+        {
+            canonical = "--" + arg.substr (1);
+            break;
+        }
+    }
+
+    return canonical;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CanonicalDiskFlag
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CommandLineParser::CanonicalDiskFlag (const std::string & arg)
+{
+    return CanonicalLongFlag (arg, std::span<const char * const> (s_kpszDiskOptions));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ParseDiskOptions
 //
 //  Grammar, positional then flagged:
@@ -94,6 +227,12 @@ CommandLineOptions::DiskOptions::Verb CommandLineParser::LookUpDiskVerb (const s
 //  optionally renames it with --as, while every other verb names a file already
 //  on the disk. That asymmetry is inherent -- put is the only verb whose second
 //  operand lives on the host -- so it is spelled out rather than smoothed over.
+//
+//  Each option is also accepted with a `/` prefix, because the usage text
+//  spells every flag with whichever prefix the reader asked for and offering a
+//  spelling the parser rejects is worse than never offering it. See
+//  CanonicalDiskFlag for why that is a table lookup and not a rewrite of any
+//  leading slash.
 //
 //  Parsing does not validate that required operands are present. That is the
 //  runner's job, because a missing operand needs a message naming what was
@@ -120,7 +259,7 @@ void CommandLineParser::ParseDiskOptions (
 
     for ( ; i < argc; i++)
     {
-        std::string  arg      = argv[i];
+        std::string  arg      = CanonicalDiskFlag (argv[i]);
         bool         hasValue = (i + 1) < argc;
 
         if (arg == "--long")
@@ -598,7 +737,12 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
 
     while (argIndex < argc && !stop)
     {
-        std::string arg (argv[argIndex]);
+        // A `/` spelling of a long option is canonicalized before anything
+        // tests for one, so `/cpu 65c02` and `/raw` work the way `/l` and `/o`
+        // already did. Without this the single-character normalization further
+        // down reads `/raw` as the concatenated flags -r -a -w.
+        std::string arg = CanonicalLongFlag (argv[argIndex],
+                              std::span<const char * const> (s_kpszAs65LongOptions));
 
         // Check for help requests
         if (arg == "--help" || arg == "-help" || arg == "-?" || arg == "/?" || arg == "/help")
@@ -1006,7 +1150,11 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
 
     while (argIndex < argc)
     {
-        std::string arg (argv[argIndex]);
+        // The long options first, for the reason ParseAs65Flags gives: the
+        // single-character normalization below turns `/load` into `-load`,
+        // which matches nothing and is reported as an unknown option.
+        std::string arg = CanonicalLongFlag (argv[argIndex],
+                              std::span<const char * const> (s_kpszRunLongOptions));
 
         // Normalize / prefix to - on Windows
         if (arg.size() > 1 && arg[0] == '/')

@@ -6,6 +6,36 @@
 #include "Dos33Volume.h"
 #include "ProDosVolume.h"
 #include "NibblizationLayer.h"
+#include "WozLoader.h"
+#include "Core/TextEncoding.h"
+
+
+
+
+//
+//  The META keys worth leading with, each under a label of our own.
+//
+//  A WOZ image's metadata is a bag of key/value pairs in whatever order its
+//  writer emitted them, and the interesting ones are not first: `image_date`
+//  and `contributor` come before `title` on several of the images this was
+//  measured against. So the ones that identify the SOFTWARE are pulled to the
+//  front, and everything else follows in the order the file stores it --
+//  nothing is dropped, because a key nobody anticipated is exactly the sort of
+//  thing somebody is looking for.
+//
+static constexpr const char *  s_kppszMetaHighlights[][2] =
+{
+    { "title",            "title"     },
+    { "subtitle",         "subtitle"  },
+    { "publisher",        "publisher" },
+    { "developer",        "developer" },
+    { "copyright",        "copyright" },
+    { "version",          "version"   },
+    { "language",         "language"  },
+    { "requires_machine", "machine"   },
+    { "requires_ram",     "RAM"       },
+    { "notes",            "notes"     },
+};
 
 
 
@@ -28,11 +58,141 @@ DiskCommandRunner::DiskCommandRunner (IDiskFileIo & fileIo)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskCommandRunner::BuildHelpText
+//  DiskCommandRunner::LongPrefix
 //
-//  Everything a user needs to reach every capability: the verbs, what each one
-//  does, the options, the exit statuses, and a worked example of the whole loop
-//  rather than a flag list.
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::LongPrefix (char flagPrefix)
+{
+    return (flagPrefix == '/') ? std::string ("/") : std::string ("--");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::BuildSubcommandHelp
+//
+//  The grammar, then one line per verb saying what it is for.
+//
+//  EVERY ALIAS IS NAMED BESIDE THE VERB IT ALIASES, not gathered into a
+//  footnote. A person coming from an Apple II reaches for CATALOG, one coming
+//  from the host shell for DIR, one from a Unix shell for LS; all three are
+//  accepted, and each of them has to find their own word where they are already
+//  looking rather than in a list further down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
+{
+    std::string  lp = LongPrefix (flagPrefix);
+
+
+
+    return
+        "  CassoCli disk list   <image> [" + lp + "long]\n"
+        "  CassoCli disk get    <image> <path> [" + lp + "out <file>]"
+                 " [" + lp + "text | " + lp + "basic | " + lp + "verbatim]\n"
+        "  CassoCli disk put    <image> <file> [" + lp + "as <path>] ["
+                 + lp + "type <t>] [" + lp + "addr $XXXX]\n"
+        "                                      [" + lp + "text | " + lp + "basic | "
+                 + lp + "verbatim]\n"
+        "  CassoCli disk delete <image> <path>\n"
+        "  CassoCli disk boot   <image> <path>\n"
+        "\n"
+        "  list    Catalog the volume -- name, type, size, lock state, free space,\n"
+        "          and any damage found. Also spelled ls, dir, cat, catalog.\n"
+        "  get     Copy a file OFF the disk, to " + lp + "out or to standard output.\n"
+        "          Also spelled read.\n"
+        "  put     Copy a host file ON to the disk. Also spelled write.\n"
+        "  delete  Remove a file and return the space it alone claimed.\n"
+        "          Also spelled rm, del.\n"
+        "  boot    Set which program the volume runs when it boots.\n"
+        "\n"
+        "  put and get are named from the DISK's point of view: put places a\n"
+        "  host file on the disk, get takes one off it.\n";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::BuildOptionsHelp
+//
+//  The disk options, then the two things a caller has to know that no single
+//  option states: which exit statuses exist, and what the two conversions can
+//  and cannot promise.
+//
+//  The exit statuses say the subcommand defines none above 2. "There are none"
+//  is documentation -- silence would read as an omission, and a caller would
+//  have no way to tell the two apart.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
+{
+    //  Flag, then what it does. Padded to a fixed description column below
+    //  rather than written into each literal, because `/long` is one character
+    //  narrower than `--long` and a table spaced for one prefix comes out
+    //  ragged in the other.
+    static constexpr const char *  kppszOptions[][2] =
+    {
+        { "long",       "Add the ProDOS columns to a listing" },
+        { "out <file>", "Write an extracted file here, not to standard output" },
+        { "as <path>",  "Name the placed file this on the disk" },
+        { "type <t>",   "File type. DOS 3.3 takes T, I, A, B or R;\n"
+                        "                         ProDOS takes TXT, BIN, BAS or SYS" },
+        { "addr $XXXX", "Load address for a placed binary" },
+        { "verbatim",   "Place bytes unchanged (the default)" },
+        { "text",       "Convert the high-bit encoding and the line endings" },
+        { "basic",      "Convert to and from an Applesoft listing" },
+    };
+
+    const size_t  kDescriptionColumn = 25;
+    std::string   lp                 = LongPrefix (flagPrefix);
+    std::string   text;
+
+
+
+    for (const auto & entry : kppszOptions)
+    {
+        std::string  line = "  " + lp + entry[0];
+
+        while (line.size() < kDescriptionColumn)
+        {
+            line += " ";
+        }
+
+        text += line + entry[1] + "\n";
+    }
+
+    text +=
+        "\n"
+        "  exit: 0 clean, 1 succeeded with complaints, 2 produced no output.\n"
+        "  disk defines no status above 2 -- every outcome it can report is one of\n"
+        "  those three, so a script needs nothing disk-specific.\n"
+        "\n"
+        "  ";
+
+    text += ApplesoftTokenizer::RoundTripHelpText (flagPrefix);
+    text += "\n\n  ";
+    text += kInUseHelpText;
+    text += "\n";
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::BuildExampleHelp
 //
 //  THE EXAMPLE IS THE POINT. A flag reference tells a reader what each switch
 //  spells and leaves them to guess the order and the combination, and the two
@@ -50,72 +210,64 @@ DiskCommandRunner::DiskCommandRunner (IDiskFileIo & fileIo)
 //  sets the name and boots without running it. The example places a one-line
 //  greeting that BRUNs the binary, which is what actually closes the loop.
 //
-//  The exit statuses say the subcommand defines none above 2. "There are none"
-//  is the documentation the requirement asks for -- silence would be read as an
-//  omission, and a caller would have no way to tell the two apart.
+//  It goes LAST in the usage text, after every option group, because it is the
+//  part a reader returns to once they know what the flags are -- and because a
+//  worked loop sitting between two flag tables interrupts both.
 //
-//  Assembled here, in the library, rather than beside the printing code: the
-//  test assembly does not link the console executable, so help written there
-//  could never be checked against the capability it describes.
+//  ONE FLAG HERE KEEPS THE `--` SPELLING WHATEVER THE READER ASKED FOR, and it
+//  is the one belonging to a different program. `--disk1` is the emulator's
+//  flag, not this tool's, and the emulator accepts only that spelling; printing
+//  `/disk1` because the reader typed `/?` would be a promise this executable is
+//  not the one keeping.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DiskCommandRunner::BuildHelpText()
+std::string DiskCommandRunner::BuildExampleHelp (char flagPrefix)
 {
-    std::string  text;
+    std::string  lp = LongPrefix (flagPrefix);
+    std::string  sp = (flagPrefix == '/') ? std::string ("/") : std::string ("-");
 
 
 
-    text =
-        "       CassoCli disk list   <image> [--long]\n"
-        "                disk get    <image> <path> [--out <file>]"
-                       " [--text | --basic | --verbatim]\n"
-        "                disk put    <image> <file> [--as <path>] [--type <t>]"
-                       " [--addr $XXXX]\n"
-        "                                           [--text | --basic | --verbatim]\n"
-        "                disk delete <image> <path>\n"
-        "                disk boot   <image> <path>\n"
-        "         list   catalogs the volume -- name, type, size, lock state, free\n"
-        "                space, and any damage found. --long adds the ProDOS columns.\n"
-        "         get    copies a file OFF the disk, to --out or to standard output.\n"
-        "         put    copies a host file ON to the disk. --as names it there,\n"
-        "                --type sets the file type, --addr the load address.\n"
-        "         delete removes a file and returns the space it alone claimed.\n"
-        "         boot   sets which program the volume runs when it boots.\n"
-        "         aliases: ls = list, rm = delete.\n"
-        "         put and get are named from the DISK's point of view: put places a\n"
-        "         host file on the disk, get takes one off it.\n"
-        "         Disk options always take the -- spelling, whichever prefix the\n"
-        "         assembler flags are given with.\n"
-        "         --verbatim (the default) places bytes unchanged; --text converts\n"
-        "         the high-bit encoding and the line endings.\n"
-        "         exit: 0 clean, 1 succeeded with complaints, 2 produced no output.\n"
-        "         disk defines no status above 2 -- every outcome it can report is\n"
-        "         one of those three, so a script needs nothing disk-specific.\n"
-        "         ";
-
-    text += ApplesoftTokenizer::kRoundTripHelpText;
-    text += "\n         ";
-    text += kInUseHelpText;
-    text += "\n\n";
-    text += kExampleHeading;
-    text +=
-        "\n"
-        "  CassoCli prog.a65 -o prog.bin --raw\n"
-        "  CassoCli disk put mydisk.dsk prog.bin --as PROG --type B --addr $6000\n"
-        "  CassoCli disk put mydisk.dsk greet.bas --as STARTUP --basic\n"
+    return std::string (kExampleHeading) + "\n"
+        "  CassoCli prog.a65 " + sp + "o prog.bin " + lp + "raw\n"
+        "  CassoCli disk put mydisk.dsk prog.bin " + lp + "as PROG "
+                 + lp + "type B " + lp + "addr $6000\n"
+        "  CassoCli disk put mydisk.dsk greet.bas " + lp + "as STARTUP " + lp + "basic\n"
         "  CassoCli disk boot mydisk.dsk STARTUP\n"
         "  Casso.exe --disk1 mydisk.dsk\n"
-        "         -o names the assembled output file; --disk1 mounts an image in\n"
-        "         drive 1 as the emulator starts.\n"
-        "         Assemble with --raw rather than --dos-bin: put writes the DOS 3.3\n"
-        "         header itself from --addr, and a file that already carries one has\n"
-        "         its own header loaded as code where the program should begin.\n"
-        "         greet.bas holds one Applesoft line -- 10 PRINT CHR$(4);\"BRUN PROG\"\n"
-        "         -- because a booting DOS 3.3 volume RUNs its greeting. Naming the\n"
-        "         binary there sets the name and the disk boots without running it.\n";
+        "\n"
+        "  " + sp + "o names the assembled output file; --disk1 mounts an image in\n"
+        "  drive 1 as the emulator starts -- and is the emulator's own flag, which\n"
+        "  is why it keeps the -- spelling here.\n"
+        "  Assemble with " + lp + "raw rather than " + lp + "dos-bin: put writes the DOS 3.3\n"
+        "  header itself from " + lp + "addr, and a file that already carries one has\n"
+        "  its own header loaded as code where the program should begin.\n"
+        "  greet.bas holds one Applesoft line -- 10 PRINT CHR$(4);\"BRUN PROG\"\n"
+        "  -- because a booting DOS 3.3 volume RUNs its greeting. Naming the\n"
+        "  binary there sets the name and the disk boots without running it.\n";
+}
 
-    return text;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::BuildHelpText
+//
+//  The three pieces in the order a reader meets them when nothing else is
+//  interleaved. What the executable prints is the same text with the assembler
+//  and run options between the second and third; this is what a test reads, and
+//  what a caller with no usage text of its own would print.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::BuildHelpText (char flagPrefix)
+{
+    return BuildSubcommandHelp (flagPrefix) + "\n"
+         + BuildOptionsHelp    (flagPrefix) + "\n"
+         + BuildExampleHelp    (flagPrefix);
 }
 
 
@@ -149,6 +301,297 @@ std::string DiskCommandRunner::Failure (
     text += ": " + reason;
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::DetailLine
+//
+//  A value nobody recorded produces NOTHING, rather than a label followed by
+//  empty space. That is what lets the callers below offer every field they know
+//  how to read without also deciding, field by field, whether this particular
+//  image answered -- and it keeps a listing of a sparse image from being mostly
+//  blank labels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::DetailLine (const char * label, const std::string & value)
+{
+    const size_t  kLabelColumn = 16;
+    std::string   text;
+
+
+
+    if (value.empty())
+    {
+        return text;
+    }
+
+    text = std::string ("  ") + label;
+
+    while (text.size() < kLabelColumn)
+    {
+        text += " ";
+    }
+
+    return text + value + "\n";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::DescribeWozChunks
+//
+//  What a WOZ image records about itself: who imaged it, what it is, how much
+//  of the surface carries data, and -- for a commercially pressed disk -- its
+//  title and publisher.
+//
+//  THE QUARTER-TRACK COUNT IS REAL INFORMATION AND NOT TRIVIA. The head steps
+//  in quarter tracks; a disk written on half or quarter tracks is a copy
+//  protection, deliberately unreadable by a drive that only visits whole ones.
+//  When the positions carrying data outnumber the track slots behind them, the
+//  image is telling the reader why an ordinary catalog was never going to work.
+//
+//  META arrives as UTF-8, which the format specifies, and is converted to the
+//  code page the rest of these strings are in -- so the diagnostic reaching the
+//  output boundary is in ONE encoding rather than a mixture the boundary would
+//  then have to guess about.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::DescribeWozChunks (const std::vector<Byte> & fileBytes)
+{
+    WozLoader::Description  woz;
+    std::string             text;
+    std::string             media;
+    char                    note[160] = {};
+
+
+
+    WozLoader::Describe (fileBytes, woz);
+
+    if (!woz.isWoz)
+    {
+        return text;
+    }
+
+    snprintf (note, sizeof (note), "WOZ %d bit-stream image, INFO version %d",
+              woz.wozVersion, woz.infoVersion);
+
+    text += DetailLine ("format",  note);
+    text += DetailLine ("creator", woz.creator);
+
+    media = (woz.diskType == WozLoader::kDiskType525) ? "5.25-inch disk"
+          : (woz.diskType == WozLoader::kDiskType35)  ? "3.5-inch disk"
+                                                      : "disk of an unrecorded size";
+
+    if (woz.writeProtected) { media += ", write-protected"; }
+    if (woz.synchronized)   { media += ", tracks synchronized to each other"; }
+    if (woz.cleaned)        { media += ", cleaned of drive noise"; }
+
+    text += DetailLine ("media", media);
+
+    if (woz.hasBootSectorFormat)
+    {
+        const char *  boot =
+            (woz.bootSectorFormat == WozLoader::kBootSector16)   ? "16-sector"
+          : (woz.bootSectorFormat == WozLoader::kBootSector13)   ? "13-sector"
+          : (woz.bootSectorFormat == WozLoader::kBootSectorBoth) ? "both 13- and 16-sector"
+                                                                 : "not recorded";
+
+        text += DetailLine ("boots as", boot);
+    }
+
+    snprintf (note, sizeof (note),
+              "%d track positions carry data, reached at %d of the 160 quarter-track "
+              "stops the head can make",
+              woz.trackSlotsWithData, woz.quarterTracksWithData);
+
+    text += DetailLine ("surface", note);
+
+    // The named fields first, then whatever else the image chose to record.
+    for (const auto & highlight : s_kppszMetaHighlights)
+    {
+        for (const WozLoader::MetaField & field : woz.meta)
+        {
+            if (field.key == highlight[0])
+            {
+                text += DetailLine (highlight[1], TextEncoding::Utf8ToNarrow (field.value));
+                break;
+            }
+        }
+    }
+
+    for (const WozLoader::MetaField & field : woz.meta)
+    {
+        bool  highlighted = false;
+
+        for (const auto & highlight : s_kppszMetaHighlights)
+        {
+            if (field.key == highlight[0])
+            {
+                highlighted = true;
+                break;
+            }
+        }
+
+        if (!highlighted)
+        {
+            std::string  label = field.key;
+
+            for (char & c : label)
+            {
+                c = (c == '_') ? ' ' : c;
+            }
+
+            text += DetailLine (label.c_str(), TextEncoding::Utf8ToNarrow (field.value));
+        }
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::DescribeSurface
+//
+//  What the decoded sectors show, which is a different question from what the
+//  container claims.
+//
+//  "BOOTABLE, NO FILESYSTEM" IS THE TRUE ANSWER FOR A GREAT MANY DISKS and is
+//  the one worth saying out loud. Track 0 sector 0 is what the drive's ROM
+//  reads and jumps into; a disk whose first sector carries code boots and runs,
+//  whatever it does about files afterwards. This project's own demo disk is
+//  exactly that, and reporting only "no filesystem" describes it as though it
+//  were broken.
+//
+//  The per-track decode outcome comes from the read that already happened, so
+//  it costs nothing and says the thing a copy-protected disk most wants
+//  understood: the tracks are there, they simply are not standard sectors.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::DescribeSurface (const OpenedImage & opened)
+{
+    int          complete    = 0;
+    int          partial     = 0;
+    int          unformatted = 0;
+    int          trackCount  = opened.report.GetTrackCount();
+    int          track       = 0;
+    size_t       i           = 0;
+    bool         bitStream   = trackCount > 0;
+    bool         trackZeroOk = true;
+    bool         bootCode    = false;
+    std::string  text;
+    char         note[512]   = {};
+
+
+
+    // Geometry belongs to a SECTOR-ORDER file and to nothing else. Printing it
+    // for a bit-stream image would describe the buffer this tool decoded into
+    // rather than the disk, and for a disk that decoded into almost none of it
+    // that is an actively misleading thing to say.
+    if (!bitStream)
+    {
+        snprintf (note, sizeof (note), "%d tracks x %d sectors x %d bytes = %d bytes",
+                  NibblizationLayer::kTrackCount,
+                  NibblizationLayer::kSectorsPerTrack,
+                  NibblizationLayer::kSectorByteSize,
+                  NibblizationLayer::kImageByteSize);
+
+        text += DetailLine ("geometry", note);
+    }
+
+    for (track = 0; track < trackCount; track++)
+    {
+        switch (opened.report.GetOutcome (track))
+        {
+            case TrackDecodeOutcome::Complete:    complete++;    break;
+            case TrackDecodeOutcome::Partial:     partial++;     break;
+            case TrackDecodeOutcome::Unformatted: unformatted++; break;
+            default:                                             break;
+        }
+    }
+
+    if (bitStream)
+    {
+        trackZeroOk = opened.report.GetOutcome (0) == TrackDecodeOutcome::Complete;
+
+        // NO CAUSE IS ASSERTED, only the count. A track that will not decode
+        // as standard sectors may be protected, may be a format this tool does
+        // not read, or may be damaged, and nothing available here separates the
+        // three. What IS worth saying is that the first of those is ordinary,
+        // so a reader does not conclude their disk is broken.
+        snprintf (note, sizeof (note),
+                  "of %d tracks, %d read as standard 16-sector data, %d only partly,\n"
+                  "                and %d had no standard address fields at all%s",
+                  trackCount, complete, partial, unformatted,
+                  complete == 0 ? ".\n                A disk that boots and runs can still"
+                                  " read this way: most\n                protected software"
+                                  " wrote a track format of its own"
+                                : "");
+
+        text += DetailLine ("decoded", note);
+    }
+
+    // ZEROS IN THE BUFFER MEAN TWO DIFFERENT THINGS and only one of them is
+    // "blank". A track that decoded cleanly and holds zeros really is empty; a
+    // track that never decoded reads back as zeros too, and calling that one
+    // blank would tell somebody their bootable disk does not boot.
+    if (!trackZeroOk)
+    {
+        return text + DetailLine ("boot sector",
+            "track 0 did not decode as standard sectors, so what it holds\n"
+            "                cannot be judged from here");
+    }
+
+    for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize && i < opened.sectors.size(); i++)
+    {
+        if (opened.sectors[i] != 0)
+        {
+            bootCode = true;
+            break;
+        }
+    }
+
+    text += DetailLine ("boot sector",
+                        bootCode
+                            ? "track 0 sector 0 carries code -- the drive's ROM reads\n"
+                              "                that sector and jumps into it, so this image"
+                              " boots something.\n                It simply keeps its files"
+                              " somewhere this tool does not read"
+                            : "track 0 sector 0 is blank -- nothing here would boot");
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::DescribeUnrecognizedImage
+//
+//  What is left to say once neither filesystem is there, which on real disks is
+//  a great deal.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::DescribeUnrecognizedImage (const OpenedImage & opened)
+{
+    return DescribeWozChunks (opened.fileBytes) + DescribeSurface (opened);
 }
 
 
@@ -334,8 +777,12 @@ HRESULT DiskCommandRunner::OpenImage (
 
     if (outOpened.kind == VolumeKind::Unknown)
     {
-        result.diagnostics += Failure (imagePath, "",
-            "carries no DOS 3.3 or ProDOS filesystem this tool recognizes") + "\n";
+        // THE STATUS AND THE STREAM BOTH STAY WHAT THEY WERE. A caller still
+        // got no catalog, so this is still status 2 and still goes to the error
+        // stream -- a script that pipes a listing must not suddenly find a
+        // survey in the pipe. What changed is only how much the message says.
+        result.diagnostics += Failure (imagePath, "", kNoFilesystemText) + "\n";
+        result.diagnostics += DescribeUnrecognizedImage (outOpened);
         result.exitStatus   = kNoOutput;
         return E_FAIL;
     }

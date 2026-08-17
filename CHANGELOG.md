@@ -21,11 +21,25 @@ Entries before versioning was introduced use dates only.
   and the notification names that file — the original image is preserved and
   nothing the guest wrote is thrown away. (GH #115)
 - **The tool's help offered flags the tool does not accept.** Invoked as `/?`,
-  the `disk` section spelled every option with whichever prefix the reader had
-  typed — `/long`, `/addr`, `/as` — while the disk grammar accepts only the
-  `--` spelling, so an option copied out of the help was silently ignored. The
-  disk help is now one block with one spelling, and a test drives the parser
-  with both forms so the help and the grammar cannot drift apart again.
+  the help spelled options with whichever prefix the reader had typed —
+  `/long`, `/addr`, `/as`, `/raw`, `/cpu` — while the grammar accepted only the
+  `--` spelling, so an option copied out of the help was silently ignored.
+  Rather than take the spelling away, the grammar now accepts both: every long
+  option works with `/` as well as `--`, including one carrying an attached
+  value (`/cpu=65c02`). A ProDOS path such as `/VOLUME/STARTUP` still reads as
+  an operand, because only an exact option name is recognized after the slash.
+  The help's own apology for the inconsistency — *"Disk options always take the
+  `--` spelling, whichever prefix the assembler flags are given with"* — is
+  gone, and tests drive the parser with both forms so the two cannot drift
+  apart again.
+- **A disk image whose name is not plain ASCII came back mangled.**
+  `Space Quarks (1981)(Brøderbund)(II-II+)[48K].woz` echoed out of its own
+  error message as `Br?derbund`, which is not a name anyone can paste back into
+  a command line. The bytes were right the whole way through; they were handed
+  to a console expecting a different character encoding. `disk` output is now
+  converted to whatever encoding the console is actually set to, on its way
+  out. The extracted bytes of `disk get` deliberately do not pass through that
+  conversion — those are a file's contents, not text.
 - **Pasting into the guest no longer garbles the text.** A valid Applesoft line
   pasted at the `]` prompt produced a SYNTAX ERROR while typing the same line
   by hand worked. Two independent causes, both fixed: Ctrl+V is claimed as a
@@ -36,6 +50,36 @@ Entries before versioning was introduced use dates only.
   clears it the moment it takes a key but may flush the keyboard again while
   processing one — so a character sent on the first clear reading races into
   that window and is dropped.
+
+### Changed
+- **`--help` is organized by what things do, not by first letter.** The old
+  page led with the command shapes, then the disk commands, then a worked
+  example, and only then the switches — alphabetically, which put `-c`, `-l`,
+  `-m` and `-p` (all of which shape the same listing) four places apart and
+  sat `-i` next to `-l` with nothing in common. It now reads overview,
+  subcommands, then options under headings that say what the group is for —
+  general, output, listing and diagnostics, assembly, run, disk — with the
+  worked example at the end where a reader returns to it. Every flag that was
+  documented before is still documented; nothing was removed. The whole page,
+  disk section included, is spelled in whichever prefix was used to ask for it.
+- **`disk list` says something useful about an image with no filesystem.** It
+  used to answer only *"carries no DOS 3.3 or ProDOS filesystem this tool
+  recognizes"* — which fired on twelve of fourteen real disk images tested,
+  this project's own demo disk among them, every one of them a working,
+  bootable image. It now says *"does not have a DOS or ProDOS file system"* in
+  plain words and then reports what it can still determine: for a WOZ image,
+  who imaged it, whether the disk is write-protected, which boot-sector format
+  it claims, how many of the 160 quarter-track positions carry data, and its
+  title, publisher, developer, copyright and required machine from the image's
+  own metadata; for any image, how the tracks decoded, and whether track 0
+  sector 0 carries the code a drive boots from. The exit status is unchanged
+  and the survey goes to the error stream, so a script that pipes a listing is
+  unaffected.
+- **`disk` accepts the words the machines themselves used.** `catalog` and
+  `cat` now list a disk, because those are the literal DOS 3.3 and ProDOS
+  commands; `dir` and `del` are there for the habits a host shell teaches, and
+  `read` and `write` alias `get` and `put`. `ls` and `rm` already worked. The
+  primary verbs are unchanged.
 
 ### Added
 - **A `disk` subcommand: read files off an Apple II disk image and put them

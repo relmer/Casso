@@ -34,7 +34,63 @@ public:
     static constexpr size_t  kV2BlockSize       = 512;
     static constexpr size_t  kV2TrkRecordCount  = 160;
 
+    //
+    //  What a WOZ image says about ITSELF, as opposed to what its tracks hold.
+    //
+    //  INFO's fields and META's key/value pairs describe the disk and the
+    //  software on it -- who made the image, which drive it belongs in, whether
+    //  it is write-protected, and, for a commercially pressed disk, its title,
+    //  publisher and the machine it wants. None of that reaches DiskImage,
+    //  which models the surface and not the paperwork, so it is read on demand
+    //  rather than retained.
+    //
+    struct MetaField
+    {
+        std::string  key;
+
+        //  UTF-8, which is what the format stores. A consumer putting this in
+        //  front of a person has to say so at its own output boundary.
+        std::string  value;
+    };
+
+    struct Description
+    {
+        //  False when the bytes are not a WOZ at all, or are too damaged to
+        //  walk. Every other field is meaningless in that case.
+        bool                    isWoz               = false;
+
+        int                     wozVersion          = 0;
+        int                     infoVersion         = 0;
+        Byte                    diskType            = 0;
+        bool                    writeProtected      = false;
+        bool                    synchronized        = false;
+        bool                    cleaned             = false;
+
+        //  INFO version 1 stops before this field, so its absence is recorded
+        //  rather than reported as the "unknown" value -- the two mean
+        //  different things and a reader must not be told the image answered.
+        bool                    hasBootSectorFormat = false;
+        Byte                    bootSectorFormat    = 0;
+
+        std::string             creator;
+        std::vector<MetaField>  meta;
+
+        //  How much of the surface carries data. The head steps in quarter
+        //  tracks, so a disk formatted on half or quarter tracks -- which is a
+        //  copy protection, not a defect -- shows more positions than slots.
+        int                     quarterTracksWithData = 0;
+        int                     trackSlotsWithData    = 0;
+    };
+
     static HRESULT  Load (const vector<Byte> & raw, DiskImage & out);
+
+    //  Reads INFO, TMAP and META without loading any track data.
+    //
+    //  It walks the same chunk table Load does, and stops where Load stops --
+    //  at the first identifier that is not a chunk, which in a v2 file is the
+    //  bit-stream blocks after TRKS. A separate parser would be a second place
+    //  for the layout constants and the version quirks to be got wrong.
+    static void  Describe (const vector<Byte> & raw, Description & out);
 
     // Serialize a DiskImage back to a WOZ v2 byte image (INFO + TMAP +
     // TRKS + block-aligned bit streams, with a valid header CRC32). The
@@ -51,4 +107,35 @@ public:
         const vector<Byte> &  trackZeroBitStream,
         size_t                trackZeroBitCount,
         vector<Byte>       &  outBytes);
+
+    //  INFO chunk field offsets, from the payload's first byte. Named here
+    //  because Describe and Serialize both address them and a second set of
+    //  numbers is a second chance to be wrong.
+    static constexpr size_t  kInfoOffsetVersion          = 0;
+    static constexpr size_t  kInfoOffsetDiskType         = 1;
+    static constexpr size_t  kInfoOffsetWriteProtected   = 2;
+    static constexpr size_t  kInfoOffsetSynchronized     = 3;
+    static constexpr size_t  kInfoOffsetCleaned          = 4;
+    static constexpr size_t  kInfoOffsetCreator          = 5;
+    static constexpr size_t  kInfoCreatorLength          = 32;
+    static constexpr size_t  kInfoOffsetBootSectorFormat = 38;
+
+    static constexpr Byte    kDiskType525 = 1;
+    static constexpr Byte    kDiskType35  = 2;
+
+    static constexpr Byte    kBootSectorUnknown  = 0;
+    static constexpr Byte    kBootSector16       = 1;
+    static constexpr Byte    kBootSector13       = 2;
+    static constexpr Byte    kBootSectorBoth     = 3;
+
+private:
+    //  A fixed-width, space-padded field as a string with the padding removed.
+    //  INFO stores its creator that way.
+    static std::string  ReadPaddedField (const Byte * bytes, size_t length);
+
+    //  META's tab-separated key/value lines. Values are left exactly as stored
+    //  -- what a key MEANS is the caller's business, and this only reads.
+    static void  ParseMetaChunk (const Byte              *  bytes,
+                                 size_t                     length,
+                                 std::vector<MetaField>  &  out);
 };

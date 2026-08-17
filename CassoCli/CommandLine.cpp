@@ -759,19 +759,51 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrintUsageHeader
+//  PrintUsageOverview
+//
+//  What the tool IS and which shapes of command line it takes, before any
+//  individual flag. A reader who does not yet know that `disk` exists cannot
+//  find it in an alphabetical flag list, and an alphabetical list is where the
+//  old help put everything.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintUsageHeader (const char * sp, const char * lp)
+static void PrintUsageOverview (const char * lp)
 {
     std::cout << "CassoCli - 6502 Assembler and Emulator  v" VERSION_STRING
               << " (" << arch << ")  " VERSION_BUILD_TIMESTAMP "\n"
-              << "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n"
-              << "\n"
-              << "Usage: CassoCli <source> [flags] | run <binary | source> [options] | "
-              << sp << "? | " << lp << "version\n"
-              << DiskCommandRunner::BuildHelpText();
+              << "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n";
+
+    std::println ("");
+    std::println ("Usage:");
+    std::println ("  CassoCli <source> [options]                Assemble a source file");
+    std::println ("  CassoCli run <binary | source> [options]   Assemble or load, then execute");
+    std::println ("  CassoCli disk <verb> <image> [...]         Read and write disk images");
+    std::println ("  CassoCli {0}help | {0}version", lp);
+    std::println ("");
+    std::println ("  <source>   An assembly source file. Given no extension, .a65, .asm");
+    std::println ("             and .s are tried in that order.");
+    std::println ("  <binary>   An assembled image to load and execute.");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintUsageSubcommands
+//
+//  The disk grammar, printed from the library that implements it. See
+//  DiskCommandRunner::BuildSubcommandHelp for why it is assembled there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void PrintUsageSubcommands (char prefix)
+{
+    std::println ("");
+    std::println ("Disk subcommands:");
+    std::print   ("{}", DiskCommandRunner::BuildSubcommandHelp (prefix));
 }
 
 
@@ -789,7 +821,8 @@ static void PrintUsageGeneral (const char * lp, const char * sp, const char * pa
     // "--help, -?" = 10 chars, "--version" = 9 chars => +1 space for version
     // "/help, /?"  =  9 chars, "/version"  = 8 chars => +1 space for version
     // pad compensates: -- (2 chars) vs / (1 char) in long prefix
-    std::println ("\nGeneral:");
+    std::println ("");
+    std::println ("General options:");
     std::println ("  {0}help, {1}?{2}             Show this help", lp, sp, pad);
     std::println ("  {0}version{1}              Show version information", lp, pad);
 }
@@ -800,66 +833,129 @@ static void PrintUsageGeneral (const char * lp, const char * sp, const char * pa
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrintUsageAssembler
+//  PrintUsageOutput
 //
-//  Prints the AS65-mode flag reference, spelled with whichever prefix the user
-//  typed.
+//  The first of the assembler's option groups, and the place the grouping is
+//  explained once for all of them.
+//
+//  ALPHABETICAL ORDER WAS THE PREVIOUS ARRANGEMENT and it is the one ordering
+//  guaranteed to separate related things: `-l`, `-p`, `-c` and `-m` all shape
+//  the same listing and landed four places apart, while `-i` and `-l` sat
+//  adjacent with nothing in common. A reader arrives with a goal -- "how do I
+//  get a symbol table", "how do I control the output file" -- and a grouping by
+//  goal answers it in one place.
 //
 //  The prefix is substituted rather than hard-coded because both `/` and `-`
 //  are accepted, and usage text showing the form the reader did NOT type reads
-//  as though their invocation was wrong. The flag table is a format-string
-//  array for exactly that reason: one placeholder per flag, filled at print
-//  time, so neither spelling can be forgotten when a flag is added.
+//  as though their invocation was wrong. The tables are format strings for
+//  exactly that reason: one placeholder per flag, filled at print time, so
+//  neither spelling can be forgotten when a flag is added.
 //
-//  The `--cpu` and source lines sit outside the table because they take a
-//  long-form or positional argument and carry no prefix to substitute.
+//  This group is what the assembler PRODUCES: where the bytes go and in which
+//  shape. The default -- a padded 64 KB image when no shape is named -- is
+//  stated beneath the table rather than against any one flag, because it is the
+//  absence of all of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintUsageAssembler (const char * sp)
+static void PrintUsageOutput (const char * sp, const char * lp, const char * pad)
 {
-    std::println ("");
-    std::println ("Assembler flags:");
-    std::println ("  <source>               Assembly source file");
-    std::println ("                         (will try .a65, .asm, .s if no extension is present)");
-    std::println ("");
-    std::println ("  --cpu <6502|65c02>     Target CPU (default: 6502). 65c02 enables the");
-    std::println ("                         CMOS opcodes (STZ, BRA, RMBn/SMBn, BBRn/BBSn, ...);");
-    std::println ("                         under 6502 those are rejected as invalid.");
-    std::println ("");
-    std::println ("  --raw                  Write only the assembled bytes, unpadded");
-    std::println ("  --dos-bin              Write the assembled bytes behind a 4-byte DOS 3.3");
-    std::println ("                         header (load address + length), ready to BLOAD");
-    std::println ("                         (default: a full 64 KB image, padded with the fill byte)");
-
     const char * lines[] =
     {
-        "  {0}c                     Show cycle counts in listing",
-        "  {0}d <name>[=<value>]    Pre-define symbol",
-        "  {0}g                     Generate debug information file",
-        "  {0}h <lines>             Page height for listing (0 = no pagination)",
-        "  {0}i                     Case-insensitive (default, no-op)",
-        "  {0}l [<file>]            Generate listing ({0}l = stdout, {0}l file = to file)",
-        "  {0}m                     Show macro expansions in listing",
-        "  {0}n                     Disable optimizations (no-op)",
-        "  {0}o <file>              Output file (default: input with .bin extension)",
-        "  {0}p                     Generate pass 1 listing",
-        "  {0}q                     Quiet mode (suppress progress)",
+        "  {0}o <file>              Output file (default: the input, with a .bin extension)",
+        "  {1}raw{2}                  Write only the assembled bytes, unpadded",
+        "  {1}dos-bin{2}              Write the assembled bytes behind a 4-byte DOS 3.3",
+        "                         header (load address + length), ready to BLOAD",
         "  {0}s                     Output S-record format (.s19)",
         "  {0}s2                    Output Intel HEX format (.hex)",
-        "  {0}t                     Generate symbol table",
-        "  {0}v                     Verbose mode",
-        "  {0}w [<width>]           Column width (default: 79, {0}w alone = 133)",
         "  {0}z                     Fill unused space with $00 (default: $FF)",
+        "",
+        "  Naming none of the shapes writes a full 64 KB image, padded with the fill byte.",
     };
+
+    std::println ("");
+    std::println ("Output options:");
+
+    for (const char * fmt : lines)
+    {
+        std::println ("{}", std::vformat (fmt, std::make_format_args (sp, lp, pad)));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintUsageListing
+//
+//  Everything that shapes what the assembler REPORTS, as opposed to what it
+//  produces. The listing flags, the symbol table, the debug file and the two
+//  verbosity switches all answer the same question and are read together.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void PrintUsageListing (const char * sp)
+{
+    const char * lines[] =
+    {
+        "  {0}l [<file>]            Generate listing ({0}l = stdout, {0}l file = to file)",
+        "  {0}p                     Generate pass 1 listing",
+        "  {0}c                     Show cycle counts in listing",
+        "  {0}m                     Show macro expansions in listing",
+        "  {0}h <lines>             Page height for listing (0 = no pagination)",
+        "  {0}w [<width>]           Column width (default: 79, {0}w alone = 133)",
+        "  {0}t                     Generate symbol table",
+        "  {0}g                     Generate debug information file",
+        "  {0}v                     Verbose mode",
+        "  {0}q                     Quiet mode (suppress progress)",
+    };
+
+    std::println ("");
+    std::println ("Listing and diagnostic options:");
 
     for (const char * fmt : lines)
     {
         std::println ("{}", std::vformat (fmt, std::make_format_args (sp)));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintUsageAssembly
+//
+//  What the assembler is allowed to assemble, rather than what it writes or
+//  reports: which instruction set is legal, what is defined before the first
+//  line is read, and the two switches that no longer do anything.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void PrintUsageAssembly (const char * sp, const char * lp, const char * pad)
+{
+    const char * lines[] =
+    {
+        "  {1}cpu <6502|65c02>{2}     Target CPU (default: 6502). 65c02 enables the CMOS",
+        "                         opcodes (STZ, BRA, RMBn/SMBn, BBRn/BBSn, ...); under",
+        "                         6502 those are rejected as invalid.",
+        "  {0}d <name>[=<value>]    Pre-define symbol",
+        "  {0}i                     Case-insensitive (default, no-op)",
+        "  {0}n                     Disable optimizations (no-op)",
+        "",
+        "  Flags can be concatenated: {0}tlfile = {0}t {0}lfile",
+    };
 
     std::println ("");
-    std::println ("  Flags can be concatenated: {0}tlfile = {0}t {0}lfile", sp);
+    std::println ("Assembly options:");
+
+    for (const char * fmt : lines)
+    {
+        std::println ("{}", std::vformat (fmt, std::make_format_args (sp, lp, pad)));
+    }
 }
 
 
@@ -874,13 +970,6 @@ static void PrintUsageAssembler (const char * sp)
 
 static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
 {
-    std::println ("");
-    std::println ("Run options:");
-    std::println ("  <binary>               A binary file to load and execute");
-    std::println ("  <source>               An assembly source file to assemble and run");
-    std::println ("                         (will try .a65, .asm, .s if no extension is present)");
-    std::println ("");
-
     const char * lines[] =
     {
         "  {0}load <addr>{1}          Load address (default: $8000)",
@@ -889,6 +978,9 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
         "  {0}stop <addr>{1}          Stop when PC reaches address",
         "  {0}max-cycles <n>{1}       Maximum cycles before stopping",
     };
+
+    std::println ("");
+    std::println ("Run options:");
 
     for (const char * fmt : lines)
     {
@@ -904,7 +996,43 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PrintUsageDisk / PrintUsageExamples
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void PrintUsageDisk (char prefix)
+{
+    std::println ("");
+    std::println ("Disk options:");
+    std::print   ("{}", DiskCommandRunner::BuildOptionsHelp (prefix));
+}
+
+
+static void PrintUsageExamples (char prefix)
+{
+    std::println ("");
+    std::print   ("{}", DiskCommandRunner::BuildExampleHelp (prefix));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PrintUsage
+//
+//  Overview, then subcommands, then options grouped by what they do, then the
+//  worked example -- in that order, because that is the order a reader needs
+//  them in. The example goes LAST rather than in the middle: it is what someone
+//  returns to once they know the vocabulary, and a five-line worked loop sitting
+//  between two option tables interrupts both of them.
+//
+//  EVERY SECTION IS SPELLED WITH THE PREFIX THE READER CHOSE. `/?` means the
+//  whole page reads `/flag`, and `--help` means it reads `-`/`--`. The disk
+//  options used to be the one exception -- documented as such, in the help
+//  itself -- because the grammar accepted only `--`. The grammar accepts both
+//  now, so the exception is gone rather than explained.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -916,10 +1044,15 @@ void PrintUsage (char prefix)
 
 
 
-    PrintUsageHeader    (sp, lp);
-    PrintUsageGeneral   (lp, sp, pad);
-    PrintUsageAssembler (sp);
-    PrintUsageRun       (lp, sp, pad);
+    PrintUsageOverview     (lp);
+    PrintUsageSubcommands  (prefix);
+    PrintUsageGeneral      (lp, sp, pad);
+    PrintUsageOutput       (sp, lp, pad);
+    PrintUsageListing      (sp);
+    PrintUsageAssembly     (sp, lp, pad);
+    PrintUsageRun          (lp, sp, pad);
+    PrintUsageDisk         (prefix);
+    PrintUsageExamples     (prefix);
 }
 
 

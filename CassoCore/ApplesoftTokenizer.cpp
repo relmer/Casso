@@ -1061,3 +1061,37 @@ Error:
 
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplesoftTokenizer::RoundTripHelpText
+//
+//  What --basic does and does not preserve, spelled with the prefix the reader
+//  asked for.
+//
+//  It says the asymmetry out loud because the two directions genuinely differ
+//  and only one of them is exact. Someone who extracts a program, edits it and
+//  places it back has not lost anything they typed; someone who writes a
+//  listing, places it and extracts it again gets Applesoft's own normalization
+//  handed back, which looks like the tool damaged their file unless the help
+//  said so first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ApplesoftTokenizer::RoundTripHelpText (char flagPrefix)
+{
+    std::string  lp = (flagPrefix == '/') ? "/" : "--";
+
+
+
+    return lp + "basic converts an Applesoft listing to and from the tokenized form.\n"
+           "  Extracting a program and placing it back is byte-exact. The reverse --\n"
+           "  a listing placed and extracted again -- is NOT: spacing outside strings,\n"
+           "  REM and DATA is dropped, ? becomes PRINT, lowercase outside those three\n"
+           "  becomes uppercase, and lines are ordered by number. Applesoft normalizes\n"
+           "  all of that itself when a line is typed in.";
+}

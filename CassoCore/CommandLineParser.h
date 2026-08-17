@@ -85,4 +85,13 @@ private:
     static void  ParseDiskOptions  (int argc, char * argv[], int argIndex, CommandLineOptions & options);
 
     static CommandLineOptions::DiskOptions::Verb  LookUpDiskVerb (const std::string & word);
+
+    //  An argument reduced to the `--` spelling the grammars test for, so
+    //  `/long` and `--long` reach the same arm. Only an exact option name from
+    //  the supplied table is rewritten -- a ProDOS path starts with a slash and
+    //  must stay an operand.
+    static std::string  CanonicalLongFlag (const std::string             & arg,
+                                           std::span<const char * const>   names);
+
+    static std::string  CanonicalDiskFlag (const std::string & arg);
 };

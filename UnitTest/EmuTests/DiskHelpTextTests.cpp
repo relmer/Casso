@@ -22,11 +22,16 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  assertion here reads exactly the string a user reads.
 //
 //  Two of these pin defects the help had rather than properties it always
-//  satisfied. It documented the disk options with whichever prefix the reader
-//  typed -- `/long`, `/addr` -- and the grammar accepts only the `--` spelling,
-//  so a reader who typed `/?` was shown flags that silently do nothing. And it
-//  was a flag list with no example, which is the half a newcomer cannot supply
-//  for themselves.
+//  satisfied. It was a flag list with no example, which is the half a newcomer
+//  cannot supply for themselves. And it printed the disk options as `--long`
+//  and `--addr` no matter which prefix the reader typed, then documented the
+//  inconsistency in a sentence of its own -- a reader who asked for help with
+//  `/?` was shown one page in two spellings and told to live with it.
+//
+//  THAT ONE IS NOW ASSERTED IN BOTH DIRECTIONS, and the parser is asked first.
+//  A help that offers `/long` is only correct because `/long` is accepted;
+//  checking the text alone would let the two drift apart again in the other
+//  direction, with the help right and the grammar wrong.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -218,7 +223,7 @@ public:
         //  A sweep of the parser's own table rather than a list retyped here:
         //  a verb added to the grammar and left out of the help is a capability
         //  the user cannot find, and only this direction notices.
-        Assert::AreEqual (size_t (7), verbs.size(), L"five verbs and two aliases");
+        Assert::AreEqual (size_t (13), verbs.size(), L"five verbs and eight aliases");
 
         for (const auto & verb : verbs)
         {
@@ -261,7 +266,7 @@ public:
         //  Both sentences live beside the code that has to keep them true. What
         //  this asserts is that they reach the user -- a claim kept accurate in
         //  a header nobody prints is worth nothing.
-        Assert::IsTrue (help.find (ApplesoftTokenizer::kRoundTripHelpText) != std::string::npos,
+        Assert::IsTrue (help.find (ApplesoftTokenizer::RoundTripHelpText ('-')) != std::string::npos,
                         L"what --basic does and does not round-trip");
         Assert::IsTrue (help.find (DiskCommandRunner::kInUseHelpText) != std::string::npos,
                         L"what the in-use probe can and cannot see");
@@ -287,7 +292,7 @@ public:
                         L"and what naming a binary there actually gets you");
     }
 
-    TEST_METHOD (HelpText_SpellsDiskOptionsWithTwoDashes_WhichIsTheOnlySpellingAccepted)
+    TEST_METHOD (DiskGrammar_AcceptsEitherPrefix_SoTheHelpMaySpellEitherOne)
     {
         char *              slashArgv[] = { (char *) "CassoCli", (char *) "disk",
                                             (char *) "list", (char *) "d.dsk",
@@ -295,24 +300,95 @@ public:
         char *              dashArgv[]  = { (char *) "CassoCli", (char *) "disk",
                                             (char *) "list", (char *) "d.dsk",
                                             (char *) "--long" };
+        char *              valueArgv[] = { (char *) "CassoCli", (char *) "disk",
+                                            (char *) "get", (char *) "d.dsk",
+                                            (char *) "F", (char *) "/out",
+                                            (char *) "host.bin" };
         CommandLineOptions  slashed     = CommandLineParser::Parse (5, slashArgv,
                                               [] (const std::string &) { return false; });
         CommandLineOptions  dashed      = CommandLineParser::Parse (5, dashArgv,
                                               [] (const std::string &) { return false; });
-        std::string         help        = DiskCommandRunner::BuildHelpText();
-        const char *        slashForms[] = { "/long", "/out", "/as", "/type",
-                                             "/addr", "/text", "/basic", "/verbatim" };
+        CommandLineOptions  valued      = CommandLineParser::Parse (7, valueArgv,
+                                              [] (const std::string &) { return false; });
 
-        //  The grammar's answer first, because it is what makes the help's
-        //  spelling right or wrong rather than merely a house style.
-        Assert::IsFalse (slashed.disk.longListing, L"the slash spelling is not accepted");
-        Assert::IsTrue  (dashed.disk.longListing,  L"the dash spelling is");
+        //  The grammar's answer, because it is what makes the help's spelling
+        //  right or wrong rather than merely a house style.
+        Assert::IsTrue (slashed.disk.longListing, L"the slash spelling is accepted");
+        Assert::IsTrue (dashed.disk.longListing,  L"and so is the dash spelling");
 
-        for (const char * form : slashForms)
+        //  An option that takes a value has to work too, or `/out` would be
+        //  swallowed as a positional and the file written somewhere else.
+        Assert::AreEqual (std::string ("host.bin"), valued.disk.hostFile,
+                          L"a slash-spelled option still consumes its value");
+    }
+
+    TEST_METHOD (DiskGrammar_LeavesAProDosPathAlone_EvenThoughItStartsWithASlash)
+    {
+        char *              argv[]  = { (char *) "CassoCli", (char *) "disk",
+                                        (char *) "get", (char *) "d.po",
+                                        (char *) "/VOLUME/STARTUP" };
+        CommandLineOptions  parsed  = CommandLineParser::Parse (5, argv,
+                                          [] (const std::string &) { return false; });
+
+        //  THIS IS WHY THE SLASH FORM IS A TABLE LOOKUP AND NOT A REWRITE. A
+        //  ProDOS path is spelled with a leading slash, and a parser that turned
+        //  every one of them into a flag would lose the operand entirely.
+        Assert::AreEqual (std::string ("/VOLUME/STARTUP"), parsed.disk.path,
+                          L"a path that begins with a slash stays an operand");
+    }
+
+    TEST_METHOD (HelpText_SpellsEveryDiskOptionWithThePrefixTheReaderAsked_AndNeverTheOther)
+    {
+        std::string   slashHelp = DiskCommandRunner::BuildHelpText ('/');
+        std::string   dashHelp  = DiskCommandRunner::BuildHelpText ('-');
+        const char *  options[] = { "long", "out", "as", "type",
+                                    "addr", "text", "basic", "verbatim" };
+
+        for (const char * option : options)
         {
-            Assert::IsTrue (help.find (form) == std::string::npos,
-                            (L"help offers a spelling the parser rejects: " +
-                             Widen (form)).c_str());
+            std::string  slashForm = std::string ("/")  + option;
+            std::string  dashForm  = std::string ("--") + option;
+
+            Assert::IsTrue (ContainsAsWholeToken (slashHelp, slashForm),
+                            (L"slash help omits: " + Widen (slashForm)).c_str());
+            Assert::IsTrue (slashHelp.find (dashForm) == std::string::npos,
+                            (L"slash help still shows: " + Widen (dashForm)).c_str());
+
+            Assert::IsTrue (ContainsAsWholeToken (dashHelp, dashForm),
+                            (L"dash help omits: " + Widen (dashForm)).c_str());
+            Assert::IsTrue (dashHelp.find (slashForm) == std::string::npos,
+                            (L"dash help still shows: " + Widen (slashForm)).c_str());
         }
+    }
+
+    TEST_METHOD (HelpText_NoLongerExcusesTheMixedSpelling_BecauseThereIsNoLongerOne)
+    {
+        std::string  help = DiskCommandRunner::BuildHelpText();
+
+        //  The old help carried a sentence conceding that disk options took the
+        //  `--` spelling whichever prefix the assembler flags were given with.
+        //  A concession is what a rule looks like when it is not being kept.
+        Assert::IsTrue (help.find ("always take the") == std::string::npos,
+                        L"the mixed-spelling excuse is gone");
+        Assert::IsTrue (help.find ("whichever prefix") == std::string::npos,
+                        L"and so is the sentence that explained it away");
+    }
+
+    TEST_METHOD (HelpText_PutsTheExampleAfterTheOptions_NotBetweenThem)
+    {
+        std::string  help     = DiskCommandRunner::BuildHelpText();
+        size_t       verbs    = help.find ("CassoCli disk list");
+        size_t       options  = help.find ("exit: 0 clean");
+        size_t       example  = help.find (DiskCommandRunner::kExampleHeading);
+
+        //  Overview, then options, then the worked loop. The old order put the
+        //  example in the middle, where a reader scanning for a flag walks over
+        //  it and a reader who wants it has to scroll back.
+        Assert::IsTrue (verbs   != std::string::npos, L"the grammar is there");
+        Assert::IsTrue (options != std::string::npos, L"so are the options");
+        Assert::IsTrue (example != std::string::npos, L"so is the example");
+
+        Assert::IsTrue (verbs < options, L"the grammar comes before the options");
+        Assert::IsTrue (options < example, L"and the example comes after both");
     }
 };
