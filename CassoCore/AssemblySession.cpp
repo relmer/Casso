@@ -1,8 +1,11 @@
 #include "Pch.h"
 
 #include "AssemblySession.h"
+#include "DialectProfile.h"
+#include "DialectRegistry.h"
 #include "ExpressionEvaluator.h"
 #include "Parser.h"
+#include "StringEncoding.h"
 
 
 
@@ -815,6 +818,7 @@ AssemblySession::AssemblySession (const InstructionSetProvider & instructionSets
     m_instructionSets (instructionSets),
     m_opcodeTable     (&instructionSets.GetBase()),
     m_options         (options),
+    m_dialect         (DialectRegistry::Get (options.dialect)),
     m_listingLevel    (options.generateListing ? 1 : 0)
 {
 }
@@ -982,8 +986,20 @@ HRESULT AssemblySession::Initialize (const std::string & sourceText)
 
     m_result             = {};
     m_result.success     = true;
-    m_result.startAddress = 0;
+
+    // The dialect's own starting address, not a hard zero. Merlin assembles to
+    // $8000 when the source names no origin, and a source that names one
+    // overwrites this at its first ORG -- so the default is only ever visible
+    // where the source said nothing. Getting it wrong yields byte-perfect
+    // output at the wrong address, which reads as a far deeper problem.
+    m_result.startAddress = m_dialect.GetDefaultOrigin();
     m_pc                 = m_result.startAddress;
+
+    // Both passes evaluate with the dialect's binding rule, or an expression
+    // would fold one way while sizing a line and the other way while emitting
+    // it.
+    m_pass1Ctx.binding   = m_dialect.GetOperatorBinding();
+    m_pass2Ctx.binding   = m_dialect.GetOperatorBinding();
 
     m_lines = Parser::SplitLines (sourceText);
 
@@ -1153,7 +1169,7 @@ HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
     // which that is known.
     m_currentSourceFile    = current.sourceFile;
 
-    info.parsed            = Parser::ParseLine (current.text, current.sourceLineNumber);
+    info.parsed            = Parser::ParseLine (current.text, current.sourceLineNumber, m_dialect);
     info.sourceFile        = current.sourceFile;
 
     // Which instruction set sized this line. Recorded here so pass 2 replays it
@@ -1172,6 +1188,11 @@ HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
     info.macroDepth        = current.macroDepth;
     info.conditionalSkip   = false;
     info.listingSuppressed = (m_listingLevel <= 0);
+
+    // Before any stage reads the line: local labels and local references become
+    // the scoped names everything downstream will look up.
+    hr = ApplyLocalLabelScope (current, info);
+    CHR (hr);
 
     hr = RunPass1Stages (current, info);
     CHR (hr);
@@ -1310,8 +1331,13 @@ AssemblySession::Pass1Prelude AssemblySession::ClassifyPrelude (
     {
         kind = Pass1Prelude::Skipped;
     }
-    else if (info.parsed.isDirective && info.parsed.directive == ".ORG")
+    else if (info.parsed.isDirective && info.parsed.directiveToken == Directive::Org)
     {
+        // The TOKEN, not the canonical spelling. Matching ".ORG" made the origin
+        // directive reachable only from a dialect that spells it with a dot, so
+        // a second dialect's ORG parsed correctly, resolved to the right token,
+        // and then silently did nothing. AS65 is unaffected: both its spellings
+        // already reported the same canonical name.
         kind = Pass1Prelude::Org;
     }
     else if (info.parsed.isDirective && IsSegmentDirective (info.parsed.directiveToken))
@@ -2428,6 +2454,143 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::QualifyLocalName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::QualifyLocalName (const std::string & scope, const std::string & name)
+{
+    return scope + kLocalScopeSeparator + name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::QualifyLocalReferences
+//
+//  Rewrites every local-label reference in one operand to the scoped name its
+//  definition was recorded under.
+//
+//  Done as a TEXT rewrite rather than as a second symbol-lookup path, because a
+//  local label is referenced from inside an expression -- `LDA :TABLE+5,X` --
+//  and every consumer downstream reads that expression as text. Qualifying it
+//  once here means the operand classifier, the evaluator, and the unused-label
+//  sweep all see the same name without any of them learning what a local label
+//  is.
+//
+//  The prefix is only taken as one where an identifier follows it, so a colon
+//  used for anything else is left alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::QualifyLocalReferences (const std::string & text, char prefix,
+                                                     const std::string & scope, bool & outSawLocal)
+{
+    std::string  result;
+    size_t       i          = 0;
+    bool         startsName = false;
+
+
+
+    while (i < text.size())
+    {
+        startsName = (text[i] == prefix) && ((i + 1) < text.size()) &&
+                     (isalpha ((unsigned char) text[i + 1]) || (text[i + 1] == '_'));
+
+        if (startsName)
+        {
+            outSawLocal = true;
+        }
+
+        if (startsName && !scope.empty())
+        {
+            result += scope;
+            result += kLocalScopeSeparator;
+        }
+        else
+        {
+            result += text[i];
+        }
+
+        i++;
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::ApplyLocalLabelScope
+//
+//  Binds this line to the local-label scope it sits in, before any stage reads
+//  it.
+//
+//  Two things happen and their ORDER is the rule. A label that is not local
+//  OPENS a new scope, and every local label and local reference after it belongs
+//  to that one; references on this same line then resolve against it. Reversing
+//  the two would attach a line's own references to the previous scope.
+//
+//  A string operand is skipped outright. Its text is payload, and one of the
+//  vendor sources contains `ASC ":::6::6:6:"` -- rewriting inside it would emit
+//  different bytes rather than resolve a symbol.
+//
+//  Does nothing at all for a dialect with no local-label prefix, which is what
+//  keeps AS65 byte-identical.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::ApplyLocalLabelScope (const PendingLine & current, LineInfo & info)
+{
+    HRESULT       hr        = S_OK;
+    ParsedLine &  parsed    = info.parsed;
+    char          prefix    = m_dialect.GetLocalLabelPrefix();
+    bool          isLocal   = false;
+    bool          isPayload = false;
+    bool          sawLocal  = false;
+
+
+
+    BAIL_OUT_IF (prefix == 0, S_OK);
+
+    isLocal = !parsed.label.empty() && (parsed.label[0] == prefix);
+
+    if (!isLocal && !parsed.label.empty())
+    {
+        m_localLabelScope = parsed.label;
+    }
+
+    isPayload = (parsed.directiveToken == Directive::StringData);
+
+    if (!isPayload)
+    {
+        parsed.operand      = QualifyLocalReferences (parsed.operand,      prefix, m_localLabelScope, sawLocal);
+        parsed.directiveArg = QualifyLocalReferences (parsed.directiveArg, prefix, m_localLabelScope, sawLocal);
+        parsed.constantExpr = QualifyLocalReferences (parsed.constantExpr, prefix, m_localLabelScope, sawLocal);
+    }
+
+    if ((isLocal || sawLocal) && m_localLabelScope.empty())
+    {
+        RecordError (current.sourceLineNumber,
+                     "Local label used before any global label: " + (isLocal ? parsed.label : parsed.operand));
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::RecordLabel
 //
 //  Binds a label to the current PC in pass 1, so pass 2 can resolve forward
@@ -2449,22 +2612,38 @@ Error:
 
 HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & info)
 {
-    HRESULT hr = S_OK;
+    HRESULT      hr      = S_OK;
+    char         prefix  = m_dialect.GetLocalLabelPrefix();
+    bool         isLocal = false;
+    std::string  spelled;
+    std::string  stored;
 
 
 
     // Most lines carry no label; that is not a failure, just nothing to record.
     BAIL_OUT_IF (info.parsed.label.empty(), S_OK);
 
+    // A local label is validated as the name it SPELLS and stored under the name
+    // it BINDS to. Validating the joined name instead would reject every one of
+    // them, since the separator is deliberately a character no label may hold.
+    isLocal = (prefix != 0) && (info.parsed.label[0] == prefix);
+    spelled = isLocal ? info.parsed.label.substr (1) : info.parsed.label;
+    stored  = isLocal ? QualifyLocalName (m_localLabelScope, spelled) : info.parsed.label;
+
+    // A local with no scope to belong to was already reported where the scope is
+    // known; binding it to a name beginning with the separator would only
+    // produce a second, stranger diagnostic later.
+    BAIL_OUT_IF (isLocal && m_localLabelScope.empty(), S_OK);
+
     {
         std::string labelError;
-        HRESULT     hrLabel = Parser::ValidateLabel (info.parsed.label, *m_opcodeTable, labelError);
+        HRESULT     hrLabel = Parser::ValidateLabel (spelled, *m_opcodeTable, labelError);
 
         if (FAILED (hrLabel))
         {
             RecordError (current.sourceLineNumber, labelError);
         }
-        else if (m_symbols.count (info.parsed.label) > 0)
+        else if (m_symbols.count (stored) > 0)
         {
             RecordError (current.sourceLineNumber, "Duplicate label: " + info.parsed.label);
         }
@@ -2472,14 +2651,14 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
         {
             std::string  upper;
 
-            m_symbols[info.parsed.label]     = m_pc;
-            m_symbolKinds[info.parsed.label] = SymbolKind::Label;
-            m_exprSymbols[info.parsed.label] = (int32_t) m_pc;
+            m_symbols[stored]     = m_pc;
+            m_symbolKinds[stored] = SymbolKind::Label;
+            m_exprSymbols[stored] = (int32_t) m_pc;
 
             // Warn if label resembles mnemonic by case
-            upper = ToUpperCase (info.parsed.label);
+            upper = ToUpperCase (spelled);
 
-            if (upper != info.parsed.label && m_opcodeTable->IsMnemonic (upper))
+            if (upper != spelled && m_opcodeTable->IsMnemonic (upper))
             {
                 RecordWarning (current.sourceLineNumber, "Label name resembles mnemonic: " + info.parsed.label);
             }
@@ -2698,6 +2877,109 @@ HRESULT AssemblySession::HandlePass1Text (const PendingLine & /*current*/, LineI
 
 
     m_pc += (Word) text.size();
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::TryEncodeStringOperand
+//
+//  One encoded-string operand into bytes.
+//
+//  The delimiter is whatever character opens the text -- ANY character, not a
+//  fixed quote set -- and it also decides whether the text carries the high bit,
+//  so it is read before the payload rather than skipped past.
+//
+//  A trailing byte after the closing delimiter (`ASC "TEXT"8D`) is REFUSED
+//  rather than dropped. The vendor sources do contain the form, but no oracle
+//  reachable today pins whether the trailing digits are hexadecimal, and
+//  guessing would emit plausible bytes that are wrong -- exactly the failure the
+//  corpus exists to catch. A refusal is visible; a dropped byte is not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::TryEncodeStringOperand (const ParsedLine & parsed, std::vector<Byte> & outBytes,
+                                              std::string & outError)
+{
+    const std::string &  operand   = parsed.directiveArg;
+    char                 delimiter = 0;
+    size_t               closing   = std::string::npos;
+    bool                 hasText   = (operand.size() >= 2);
+    bool                 closed    = false;
+    bool                 trailing  = false;
+    bool                 encoded   = false;
+
+
+
+    if (!hasText)
+    {
+        outError = "String directive needs delimited text";
+    }
+    else
+    {
+        delimiter = operand[0];
+        closing   = operand.find (delimiter, 1);
+        closed    = (closing != std::string::npos);
+        trailing  = closed && ((closing + 1) != operand.size());
+
+        if (!closed)
+        {
+            outError = std::string ("Unterminated string: no closing ") + delimiter;
+        }
+        else if (trailing)
+        {
+            outError = "Trailing data after a string operand is not supported: " + operand.substr (closing + 1);
+        }
+        else
+        {
+            StringEncoding::Encode (operand.substr (1, closing - 1),
+                                    parsed.stringMode,
+                                    StringEncoding::HighBitFromDelimiter (delimiter),
+                                    outBytes);
+            encoded = true;
+        }
+    }
+
+    return encoded;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1String
+//
+//  Sizes an encoded-string directive by ENCODING it and measuring the result,
+//  rather than by counting characters. The encodings differ in what they add at
+//  the ends -- a length prefix, or nothing -- so a character count is right for
+//  some modes and quietly wrong for others.
+//
+//  The operand text is all the encoding depends on, so this cannot disagree with
+//  pass 2 over a forward reference: there are none to have.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1String (const PendingLine & current, LineInfo & info)
+{
+    std::vector<Byte>  bytes;
+    std::string        error;
+    bool               encoded = TryEncodeStringOperand (info.parsed, bytes, error);
+
+
+
+    if (!encoded)
+    {
+        RecordError (current.sourceLineNumber, error);
+    }
+
+    m_pc += (Word) bytes.size();
 
     return S_OK;
 }
@@ -3000,10 +3282,14 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
     //  but as65 can be selected, and each must be filled before Merlin source
     //  can assemble: emitting nothing for a HEX line would be the silent
     //  wrong-bytes failure this feature is built to avoid.
-    { Directive::StringData,      nullptr,                                  nullptr                                  },
+    { Directive::StringData,      &AssemblySession::HandlePass1String,      &AssemblySession::EmitStringDirective    },
     { Directive::HexData,         nullptr,                                  nullptr                                  },
     { Directive::WordHighFirst,   nullptr,                                  nullptr                                  },
-    { Directive::ErrorIf,         nullptr,                                  nullptr                                  },
+
+    //  ERR acts entirely in pass 2, where every symbol is known. Its pass-1 row
+    //  is the recognizer rather than a no-op: a directive with no pass-1 handler
+    //  is not marked as one, and an unmarked line never reaches pass-2 dispatch.
+    { Directive::ErrorIf,         &AssemblySession::IgnorePass1Directive,    &AssemblySession::EmitErrorIfDirective   },
     { Directive::Loop,            nullptr,                                  nullptr                                  },
     { Directive::LoopEnd,         nullptr,                                  nullptr                                  },
     { Directive::DummySection,    nullptr,                                  nullptr                                  },
@@ -4661,6 +4947,89 @@ HRESULT AssemblySession::EmitTextDirective (const LineInfo & info, Word & emitPC
     for (char c : text)
     {
         EmitByte (m_charMap.table[(unsigned char) c], emitPC);
+    }
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitStringDirective
+//
+//  The bytes an encoded-string directive produces, from exactly the encoder pass
+//  1 sized the line with.
+//
+//  A failure here is silent on purpose: pass 1 already reported it against the
+//  same operand text, and reporting again would print every malformed string
+//  twice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitStringDirective (const LineInfo & info, Word & emitPC)
+{
+    std::vector<Byte>  bytes;
+    std::string        error;
+    bool               encoded = TryEncodeStringOperand (info.parsed, bytes, error);
+
+
+
+    IGNORE_RETURN_VALUE (encoded, false);
+
+    for (Byte value : bytes)
+    {
+        EmitByte (value, emitPC);
+    }
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitErrorIfDirective
+//
+//  Merlin's assembly-time assertion: the expression is evaluated, and a NON-ZERO
+//  result fails the assembly.
+//
+//  In pass 2 rather than pass 1, because the expressions worth asserting on are
+//  about what was assembled -- `ERR END-LABTBL-1/$700` bounds a table by the
+//  distance between its own two labels -- and one of those labels is a forward
+//  reference at the point the directive is read.
+//
+//  It emits no bytes. It rides the pass-2 emitter table anyway because that is
+//  the pass in which every symbol is known, and the table is what says which
+//  pass a directive acts in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitErrorIfDirective (const LineInfo & info, Word & /*emitPC*/)
+{
+    ExprResult  er      = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass2Ctx);
+    bool        asserts = false;
+
+
+
+    if (!er.success)
+    {
+        RecordError (info.parsed.lineNumber, "ERR expression must be resolvable: " + er.error);
+    }
+    else
+    {
+        asserts = (er.value != 0);
+
+        if (asserts)
+        {
+            RecordError (info.parsed.lineNumber,
+                         "Assembly-time assertion failed: " + info.parsed.directiveArg
+                         + " evaluated to " + std::to_string (er.value));
+        }
     }
 
     return S_OK;

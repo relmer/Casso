@@ -11,6 +11,10 @@
 
 
 
+class DialectProfile;
+
+
+
 enum class Segment { Code, Data, Bss };
 
 
@@ -114,6 +118,7 @@ private:
     HRESULT HandleOrgDirective         (const PendingLine & current, LineInfo & info);
     HRESULT HandleSegmentSwitch        (LineInfo & info, bool & handled);
     HRESULT RecordLabel                (const PendingLine & current, LineInfo & info);
+    HRESULT ApplyLocalLabelScope       (const PendingLine & current, LineInfo & info);
     HRESULT HandleConstantDefinition   (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1Directives      (const PendingLine & current, LineInfo & info, bool & handled);
     HRESULT HandlePass1DataDirectives  (const PendingLine & current, LineInfo & info);
@@ -142,6 +147,7 @@ private:
 
     HRESULT HandlePass1Word    (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1Text    (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1String  (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1Dd      (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1Ds      (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1Align   (const PendingLine & current, LineInfo & info);
@@ -156,7 +162,33 @@ private:
     HRESULT IgnorePass1Directive (const PendingLine & current, LineInfo & info);
 
     HRESULT EmitTextDirective     (const LineInfo & info, Word & emitPC);
+    HRESULT EmitStringDirective   (const LineInfo & info, Word & emitPC);
+    HRESULT EmitErrorIfDirective  (const LineInfo & info, Word & emitPC);
     HRESULT EmitMultiNopDirective (const LineInfo & info, Word & emitPC);
+
+    // The bytes one encoded-string directive produces. Shared by both passes so
+    // the size pass 1 reserves and the bytes pass 2 writes cannot disagree --
+    // deriving the size any other way is how a one-byte terminator convention
+    // ends up shifting every label after it.
+    static bool TryEncodeStringOperand (const ParsedLine & parsed, std::vector<Byte> & outBytes,
+                                        std::string & outError);
+
+    // The separator joining a local label to the global label it belongs to.
+    //
+    // A period BECAUSE Parser::ValidateLabel rejects one in a label: no symbol a
+    // source can spell may contain it, so a scoped name cannot collide with a
+    // global however the two are spelled. The expression tokenizer does accept
+    // it inside an identifier, which is what lets a scoped name be resolved from
+    // an operand the ordinary way rather than through a second lookup path.
+    static constexpr char  kLocalScopeSeparator = '.';
+
+    // A local name joined to its scope, and one operand's local references
+    // rewritten the same way, so a definition and a use cannot disagree about
+    // what the name became. An empty scope leaves the text alone -- the caller
+    // reports that, since a rewrite there would only hide it.
+    static std::string  QualifyLocalName       (const std::string & scope, const std::string & name);
+    static std::string  QualifyLocalReferences (const std::string & text, char prefix,
+                                                const std::string & scope, bool & outSawLocal);
     HRESULT ExpandMacro                (const PendingLine & current, LineInfo & info, bool & handled);
     HRESULT SubstituteMacroParams      (const MacroDefinition & macroDef,
                                         const std::vector<std::string> & args,
@@ -366,6 +398,13 @@ private:
     bool                            m_extendedActive = false;
 
     const AssemblerOptions & m_options;
+
+    // The grammar every line is read with, and the source of the origin an
+    // assembly starts at when nothing in the source names one. Resolved once
+    // from the options rather than looked up per line: profiles are stateless
+    // and shared, so the reference is stable for the whole run.
+    const DialectProfile   & m_dialect;
+
     AssemblyResult           m_result             = {};
 
     std::vector<std::string>                           m_lines;
@@ -379,6 +418,11 @@ private:
     bool                                               m_endAssembly        = false;
     Segment                                            m_currentSegment     = Segment::Code;
     Word                                               m_segmentPC[3]       = { 0, 0, 0 };
+    // The global label every local label since it belongs to. Empty until the
+    // first global one, which is why a local before it is an error rather than
+    // a symbol in an unnamed scope.
+    std::string                                        m_localLabelScope;
+
     std::vector<ConditionalState>                      m_condStack;
     std::unordered_map<std::string, MacroDefinition>   m_macros;
     Pass1State                                         m_pass1State         = Pass1State::Normal;
