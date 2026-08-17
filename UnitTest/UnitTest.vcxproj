@@ -276,6 +276,8 @@
     <ClCompile Include="EmuTests\CommitPlanTests.cpp" />
     <ClCompile Include="EmuTests\DiskCommandRunnerTests.cpp" />
     <ClCompile Include="EmuTests\DiskFailureModeTests.cpp" />
+    <ClCompile Include="EmuTests\GuestSession.cpp" />
+    <ClCompile Include="EmuTests\GuestVisibleBootTests.cpp" />
     <ClCompile Include="EmuTests\GuestVisiblePlacementTests.cpp" />
     <ClCompile Include="EmuTests\ProDosSyntheticShapeTests.cpp" />
     <ClCompile Include="EmuTests\VolumeOracleTests.cpp" />
@@ -557,6 +559,7 @@
     <ClInclude Include="EmuTests\HeadlessHost.h" />
     <ClInclude Include="EmuTests\TextScreenScraper.h" />
     <ClInclude Include="EmuTests\KeystrokeInjector.h" />
+    <ClInclude Include="EmuTests\GuestSession.h" />
     <ClInclude Include="EmuTests\MachineIdle.h" />
     <ClInclude Include="EmuTests\MemoryProbeHelpers.h" />
     <ClInclude Include="Dxui\MockDxuiControl.h" />

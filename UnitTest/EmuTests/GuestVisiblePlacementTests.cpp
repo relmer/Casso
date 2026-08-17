@@ -2,10 +2,8 @@
 #include "../EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "FixtureProvider.h"
+#include "GuestSession.h"
 #include "HeadlessHost.h"
-#include "KeystrokeInjector.h"
-#include "MachineIdle.h"
-#include "TextScreenScraper.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/Dos33Volume.h"
 #include "Devices/Disk/NibblizationLayer.h"
@@ -32,12 +30,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  ProDOS's CAT and BLOAD -- run by the emulated processor off the image the
 //  command line produced, through the whole path a user travels.
 //
-//  THE DATA IS REQUIRED, NOT OPTIONAL. The stock DOS 3.3 master is fetched
-//  rather than committed and does not travel between machines, so a case
-//  needing it can find it absent. The answer to that is to FAIL. A test that
-//  cannot reach its data and passes anyway makes "N passed" stop meaning N
-//  things were checked, and a guest-visible gate that never started a guest is
-//  the emptiest version of that.
+//  THE DATA IS REQUIRED, NOT OPTIONAL, and `GuestSession` enforces that: a case
+//  that cannot reach the stock master FAILS rather than skipping, because "N
+//  passed" must mean N things were checked and a guest-visible gate that never
+//  started a guest is the emptiest version of that.
 //
 //  A WRONG IMAGE MAKES THE PROCESSOR EXECUTE GARBAGE, which is slow, noisy and
 //  says nothing useful about what went wrong. Every case therefore asks the
@@ -53,11 +49,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 TEST_CLASS (GuestVisiblePlacementTests)
 {
 public:
-
-    //  Where the stock master lives on a developer machine. It is fetched by
-    //  the GUI rather than committed, so this is a cache path, not a fixture.
-    static constexpr const wchar_t *  kMasterCacheName = L"DOS 3.3 System Master.dsk";
-    static constexpr const char *     kMasterRepoPath  = "Disks/Apple/dos33-master.dsk";
 
     //  The ProDOS half runs against a committed fixture and so has no cache
     //  dependency. /APPLESOFT is the one that boots PRODOS into BASIC.SYSTEM,
@@ -101,35 +92,11 @@ public:
     static constexpr const char *  kMasterHeading = "DISK VOLUME 254";
     static constexpr const char *  kProDosHeading = "/APPLESOFT";
 
-    static constexpr size_t  kImageBytes = 143360;
-
     static constexpr size_t  kPayloadBytes  = 512;
     static constexpr Word    kLoadAddress   = 0x6000;
     static constexpr size_t  kPayloadStride = 7;
     static constexpr size_t  kPayloadSeed   = 0x21;
     static constexpr size_t  kByteMask      = 0xFF;
-
-    //  Ceilings, not targets. Both are spent through MachineIdle, which stops
-    //  as soon as the guest settles; they bound how long a machine reading an
-    //  image it cannot make sense of is allowed to spin.
-    static constexpr uint64_t  kBootCycles = 40'000'000ULL;
-    static constexpr uint64_t  kLineCycles = 20'000'000ULL;
-
-    //  How many screenfuls a command is allowed to print before this gives up.
-    //  DOS 3.3's catalog pager needs one press on the master; the ProDOS
-    //  fixture's startup program is a five-page slideshow.
-    static constexpr int  kMaxPages = 12;
-
-    //  A bare prompt row is the prompt glyph plus, on the frames it is lit, the
-    //  cursor.
-    static constexpr size_t  kPromptRowLength = 2;
-    static constexpr char    kPromptGlyph     = ']';
-
-    static constexpr Word  kBootRomEntry = 0xC600;
-    static constexpr Word  kIntCxRomOff  = 0xC006;
-
-    static constexpr int  kSlot6  = 6;
-    static constexpr int  kDrive1 = 0;
 
 
     //
@@ -138,90 +105,6 @@ public:
     //  ------------------------------------------------------------------
     //
 
-    static std::vector<Byte> ReadFileOrEmpty (const std::filesystem::path & full)
-    {
-        std::error_code    ec;
-        std::vector<Byte>  bytes;
-        bool               present = std::filesystem::exists (full, ec);
-
-        if (present)
-        {
-            std::ifstream  file (full, std::ios::binary);
-            bool           opened = file.good();
-
-            if (opened)
-            {
-                bytes.assign ((std::istreambuf_iterator<char> (file)),
-                              std::istreambuf_iterator<char> ());
-            }
-        }
-
-        return bytes;
-    }
-
-
-    //  The stock DOS 3.3 master, or a failed test.
-    //
-    //  NOT A SKIP, deliberately. The existing boot harness beside this one does
-    //  skip, because it predates the rule; a case whose whole subject is what a
-    //  guest does cannot borrow that, since skipping leaves the suite reporting
-    //  a pass for a machine that was never started.
-    static std::vector<Byte> RequireDos33Master()
-    {
-        std::error_code        ec;
-        std::filesystem::path  cursor    = std::filesystem::current_path (ec);
-        std::vector<Byte>      bytes;
-        wchar_t              * cacheRoot = nullptr;
-        size_t                 len       = 0;
-        bool                   walking   = !ec;
-        bool                   hasCache  = false;
-        int                    level     = 0;
-
-        for (level = 0; walking && bytes.empty() && level < 10; level++)
-        {
-            bytes = ReadFileOrEmpty (cursor / kMasterRepoPath);
-
-            if (bytes.empty())
-            {
-                bool  atRoot = !cursor.has_parent_path() || cursor == cursor.parent_path();
-
-                if (atRoot)
-                {
-                    walking = false;
-                }
-                else
-                {
-                    cursor = cursor.parent_path();
-                }
-            }
-        }
-
-        if (bytes.empty())
-        {
-            hasCache = _wdupenv_s (&cacheRoot, &len, L"LOCALAPPDATA") == 0 && cacheRoot != nullptr;
-        }
-
-        if (hasCache)
-        {
-            bytes = ReadFileOrEmpty (std::filesystem::path (cacheRoot) /
-                                     L"Casso" / L"Disks" / kMasterCacheName);
-            free (cacheRoot);
-        }
-
-        Assert::IsFalse (bytes.empty(),
-            L"the stock DOS 3.3 master is REQUIRED by this gate and was not found, either as "
-            L"Disks/Apple/dos33-master.dsk in a parent of the working directory or as "
-            L"%LOCALAPPDATA%\\Casso\\Disks\\DOS 3.3 System Master.dsk. This case fails rather "
-            L"than skipping: a guest-visible gate that never started a guest has checked "
-            L"nothing, and a skip is indistinguishable in the output from a case that ran");
-
-        Assert::AreEqual (kImageBytes, bytes.size(),
-            L"and it must be a whole 5.25-inch sector image");
-
-        return bytes;
-    }
-
-
     static std::vector<Byte> ProDosFixtureBytes()
     {
         FixtureProvider    fixtures;
@@ -229,7 +112,7 @@ public:
 
         AssertSucceeded (fixtures.OpenFixture (kProDosFixture, bytes));
 
-        Assert::AreEqual (kImageBytes, bytes.size(),
+        Assert::AreEqual (GuestSession::kImageBytes, bytes.size(),
             L"the ProDOS fixture must be a whole 5.25-inch sector image");
 
         return bytes;
@@ -390,239 +273,11 @@ public:
 
     //
     //  ------------------------------------------------------------------
-    //  Driving a real 6502.
+    //  Driving a real 6502. The harness itself is GuestSession, shared with
+    //  the boot gate beside this one: the paging rules below its surface are
+    //  the ones a second copy would get subtly wrong.
     //  ------------------------------------------------------------------
     //
-
-    static std::string TrimTrailingBlanks (const std::string & row)
-    {
-        std::string  trimmed = row;
-        size_t       end     = trimmed.find_last_not_of (' ');
-
-        if (end == std::string::npos)
-        {
-            return std::string();
-        }
-
-        trimmed.erase (end + 1);
-
-        return trimmed;
-    }
-
-
-    //  True when the bottom-most non-blank row is a bare BASIC prompt.
-    //
-    //  THE PROMPT GLYPH IS THE LOAD-BEARING PART. DOS 3.3's catalog pager also
-    //  parks the machine on a one-glyph row -- the cursor by itself -- with the
-    //  drive stopped and the screen still, which is everything MachineIdle
-    //  looks at. A caller that stops there takes a half-printed listing for a
-    //  finished one and types its next command into the pager, where it is
-    //  swallowed as the keypress the pager was waiting for. Measured: BLOAD
-    //  typed at that point never runs, and the test still sees a plausible
-    //  screen.
-    //
-    //  The two clauses are not equally load-bearing on the disks reachable
-    //  here, and that was measured rather than assumed. Where the pager stops
-    //  on this master the bottom row is the last catalog entry, which the
-    //  length clause rejects on its own -- so dropping the glyph clause changes
-    //  no verdict in this suite. It is kept because the glyph is the RULE and
-    //  the shortness is a proxy for it: a listing whose last visible line is
-    //  the cursor alone is a state the same pager reaches, and one the length
-    //  clause would call a prompt.
-    static bool IsAtBarePrompt (EmulatorCore & core)
-    {
-        std::vector<std::string>  rows  = TextScreenScraper::Scrape (core);
-        std::string               row;
-        size_t                    index = 0;
-
-        for (index = rows.size(); index > 0; index--)
-        {
-            row = TrimTrailingBlanks (rows[index - 1]);
-
-            if (!row.empty())
-            {
-                return row.size() <= kPromptRowLength && row[0] == kPromptGlyph;
-            }
-        }
-
-        return false;
-    }
-
-
-    static void CollectRows (EmulatorCore & core, std::vector<std::string> & outRows)
-    {
-        std::vector<std::string>  rows = TextScreenScraper::Scrape (core);
-
-        for (const std::string & row : rows)
-        {
-            std::string  trimmed = TrimTrailingBlanks (row);
-
-            if (!trimmed.empty())
-            {
-                outRows.push_back (trimmed);
-            }
-        }
-    }
-
-
-    //  Presses Return until the guest is back at a bare prompt, collecting
-    //  every row it displayed on the way. Rows can repeat across screenfuls,
-    //  which is why callers ask what a matching row SAYS rather than how many
-    //  there are.
-    static bool TryPageToPrompt (EmulatorCore & core, std::vector<std::string> & outRows)
-    {
-        bool  atPrompt = false;
-        int   page     = 0;
-
-        for (page = 0; page < kMaxPages && !atPrompt; page++)
-        {
-            CollectRows (core, outRows);
-
-            atPrompt = IsAtBarePrompt (core);
-
-            if (!atPrompt)
-            {
-                KeystrokeInjector::InjectLine (core, "", kLineCycles);
-            }
-        }
-
-        return atPrompt;
-    }
-
-
-    //  Types a line and hands back everything the guest printed in answer.
-    static std::vector<std::string> TypeAndCollect (EmulatorCore & core, const std::string & line)
-    {
-        std::vector<std::string>  rows;
-        bool                      atPrompt = false;
-
-        KeystrokeInjector::InjectLine (core, line, kLineCycles);
-
-        atPrompt = TryPageToPrompt (core, rows);
-
-        Assert::IsTrue (atPrompt,
-            L"the guest must come back to its prompt after the typed line");
-
-        Assert::IsTrue (rows.size() > 0,
-            L"and must have printed something, or the assertions below compare nothing");
-
-        return rows;
-    }
-
-
-    static bool AnyRowIs (const std::vector<std::string> & rows, const std::string & wanted)
-    {
-        return std::find (rows.begin(), rows.end(), wanted) != rows.end();
-    }
-
-
-    static bool AnyRowContains (const std::vector<std::string> & rows, const std::string & needle)
-    {
-        for (const std::string & row : rows)
-        {
-            if (row.find (needle) != std::string::npos)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-
-    //  Every row mentioning `needle` must be `expected`, and there must be one.
-    //
-    //  ASKING ONLY WHETHER THE SCREEN CONTAINS THE NAME IS NOT ENOUGH, and this
-    //  feature has already shipped three weak tests of exactly that shape. A
-    //  bare search for PROG is satisfied by the echo of the command that placed
-    //  it, by a neighboring file whose name merely begins the same way, and --
-    //  the case this gate exists for -- by a catalog line carrying the wrong
-    //  type or the wrong size. Demanding the whole rendered row, and that no
-    //  OTHER row mentions the name, answers all three.
-    static void AssertTheOnlyRowsMentioning (const std::vector<std::string>  & rows,
-                                             const std::string               & needle,
-                                             const std::string               & expected)
-    {
-        size_t  matching = 0;
-
-        for (const std::string & row : rows)
-        {
-            if (row.find (needle) == std::string::npos)
-            {
-                continue;
-            }
-
-            Assert::AreEqual (expected, row,
-                L"every row the guest printed about this file must be the row expected");
-
-            matching++;
-        }
-
-        Assert::IsTrue (matching > 0,
-            L"and the guest must have printed at least one -- a listing that never mentions "
-            L"the file satisfies a per-row rule vacuously");
-    }
-
-
-    static void MountAndBoot (HeadlessHost             & host,
-                              EmulatorCore             & core,
-                              const std::vector<Byte>  & bytes)
-    {
-        DiskImage *  image = nullptr;
-
-        AssertSucceeded (host.BuildApple2eWithDisk2 (core), L"BuildApple2eWithDisk2 must succeed");
-
-        core.PowerCycle();
-
-        AssertSucceeded (core.diskStore->MountFromBytes (kSlot6, kDrive1, "gate.dsk",
-                                                         DiskFormat::Dsk, bytes),
-            L"MountFromBytes must succeed");
-
-        image = core.diskStore->GetImage (kSlot6, kDrive1);
-        Assert::IsNotNull (image, L"the mounted image must be present");
-        core.diskController->SetExternalDisk (kDrive1, image);
-
-        core.bus->WriteByte (kIntCxRomOff, 0);
-        core.cpu->SetPC (kBootRomEntry);
-
-        MachineIdle::RunUntilIdle (core, kBootCycles);
-    }
-
-
-    //  Boots and pages through whatever the disk's own startup program prints,
-    //  leaving the guest at a prompt that will accept a command.
-    static void BootToPrompt (HeadlessHost             & host,
-                              EmulatorCore             & core,
-                              const std::vector<Byte>  & bytes)
-    {
-        std::vector<std::string>  rows;
-        bool                      atPrompt = false;
-
-        MountAndBoot (host, core, bytes);
-
-        atPrompt = TryPageToPrompt (core, rows);
-
-        Assert::IsTrue (atPrompt,
-            L"the image must boot its operating system through to a BASIC prompt");
-
-        Assert::IsFalse (AnyRowContains (rows, "I/O ERROR"),
-            L"and must not have hit a read error on the way");
-    }
-
-
-    //  What the guest holds where the placement said the file loads.
-    static std::vector<Byte> GuestBytesAt (EmulatorCore & core, Word address, size_t count)
-    {
-        std::vector<Byte>  bytes (count, 0);
-        size_t             i = 0;
-
-        for (i = 0; i < count; i++)
-        {
-            bytes[i] = core.bus->ReadByte ((Word) (address + i));
-        }
-
-        return bytes;
-    }
 
 
     //  Types the load command and asserts the bytes arrived where they were
@@ -634,17 +289,17 @@ public:
     //  there" is not a remote possibility.
     static void AssertBloadLandsThePayload (EmulatorCore & core, const std::string & command)
     {
-        std::vector<Byte>         before = GuestBytesAt (core, kLoadAddress, kPayloadBytes);
+        std::vector<Byte>         before = GuestSession::GuestBytesAt (core, kLoadAddress, kPayloadBytes);
         std::vector<std::string>  rows;
         std::vector<Byte>         after;
 
         Assert::IsFalse (before == MakePayload(),
             L"the payload must not already be at the load address, or the load proves nothing");
 
-        rows  = TypeAndCollect (core, command);
-        after = GuestBytesAt (core, kLoadAddress, kPayloadBytes);
+        rows  = GuestSession::TypeAndCollect (core, command);
+        after = GuestSession::GuestBytesAt (core, kLoadAddress, kPayloadBytes);
 
-        Assert::IsFalse (AnyRowContains (rows, "ERROR"),
+        Assert::IsFalse (GuestSession::AnyRowContains (rows, "ERROR"),
             L"the guest must not report an error loading the file it just listed");
 
         Assert::IsTrue (after == MakePayload(),
@@ -663,7 +318,7 @@ public:
         HeadlessHost              host;
         EmulatorCore              core;
         DiskCommandResult         put;
-        std::vector<Byte>         master  = RequireDos33Master();
+        std::vector<Byte>         master  = GuestSession::RequireDos33Master();
         std::vector<Byte>         written = PutBinaryOnto (master, "B", put);
         std::vector<std::string>  rows;
 
@@ -676,14 +331,14 @@ public:
 
         AssertTheWrittenImageIsStillADisk (written, master, kMasterCarries, false);
 
-        BootToPrompt (host, core, written);
+        GuestSession::BootToPrompt (host, core, written);
 
-        rows = TypeAndCollect (core, "CATALOG");
+        rows = GuestSession::TypeAndCollect (core, "CATALOG");
 
-        Assert::IsTrue (AnyRowIs (rows, kMasterHeading),
+        Assert::IsTrue (GuestSession::AnyRowIs (rows, kMasterHeading),
             L"the guest must have printed its own catalog heading, or nothing was cataloged");
 
-        AssertTheOnlyRowsMentioning (rows, kPlacedName, kDos33Row);
+        GuestSession::AssertTheOnlyRowsMentioning (rows, kPlacedName, kDos33Row);
 
         AssertBloadLandsThePayload (core, "BLOAD PROG");
     }
@@ -706,21 +361,21 @@ public:
 
         AssertTheWrittenImageIsStillADisk (written, fixture, kProDosCarries, true);
 
-        BootToPrompt (host, core, written);
+        GuestSession::BootToPrompt (host, core, written);
 
         //  EIGHTY COLUMNS FIRST, and it is not cosmetic. BASIC.SYSTEM's short
         //  listing stops at the block count, so the auxiliary type -- the whole
         //  ProDOS half of this gate -- is simply not on the screen at forty
         //  columns. The long listing carries it, and needs the width to print
         //  it. Measured: at forty columns the row ends at `1  <NO DATE>`.
-        TypeAndCollect (core, "PR#3");
+        GuestSession::TypeAndCollect (core, "PR#3");
 
-        rows = TypeAndCollect (core, "CATALOG");
+        rows = GuestSession::TypeAndCollect (core, "CATALOG");
 
-        Assert::IsTrue (AnyRowContains (rows, kProDosHeading),
+        Assert::IsTrue (GuestSession::AnyRowContains (rows, kProDosHeading),
             L"the guest must have named the volume it is listing");
 
-        AssertTheOnlyRowsMentioning (rows, kPlacedName, kProDosRow);
+        GuestSession::AssertTheOnlyRowsMentioning (rows, kPlacedName, kProDosRow);
 
         //  BLOAD with no address deliberately: ProDOS then loads the file where
         //  its AUXILIARY TYPE says, which is the field a binary's load address
@@ -735,7 +390,7 @@ public:
         EmulatorCore              core;
         FakeDiskFileIo            io;
         DiskCommandResult         put;
-        std::vector<Byte>         master   = RequireDos33Master();
+        std::vector<Byte>         master   = GuestSession::RequireDos33Master();
         std::vector<std::string>  rows;
         size_t                    newlines = 0;
         size_t                    at       = 0;
@@ -745,11 +400,11 @@ public:
         //  The guest's own account of the file first. Our reader would only
         //  restate the type byte it parsed; DOS drawing a lock marker beside
         //  its own greeting is independent evidence that $82 means locked.
-        BootToPrompt (host, core, master);
+        GuestSession::BootToPrompt (host, core, master);
 
-        rows = TypeAndCollect (core, "CATALOG");
+        rows = GuestSession::TypeAndCollect (core, "CATALOG");
 
-        AssertTheOnlyRowsMentioning (rows, kLockedFile, kLockedRow);
+        GuestSession::AssertTheOnlyRowsMentioning (rows, kLockedFile, kLockedRow);
 
         //  And now the refusal, over the same bytes.
         SeedForPut (io, master);
