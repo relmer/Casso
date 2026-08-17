@@ -9,11 +9,32 @@ description: "Task list for 019-assembler-dialects"
 *Updated 2026-08-17. Keep this current or delete it — a stale status block is
 read by whoever has no other way to check.*
 
+**EVERY MERLIN DIRECTIVE IS NOW EITHER CARRIED OUT OR REFUSED BY NAME, WITH ONE
+EXCEPTION.** T036, T037, T039, T040, T041 and T042 all landed; see each task's
+own line for what diverged. The exception is `WordHighFirst` (`DDB`), whose
+handler rows are still null — **no task owns it**. The T036–T042 band was
+described as filling every remaining null row, but no individual task names the
+reversed-order word directive, and it appears nowhere in the nine committed
+vendor sources, so it has no oracle either. A null pass-1 row is dropped without
+a word, so **`DDB` is silently ignored today** and wants a task of its own.
+
+Suite is **3286** Debug / **3283** Release, both green (from 3246 / 3243);
+Dormann and Harte both pass; all six vendor oracle objects still reproduce byte
+for byte; `scripts/BuildDemoDisk.ps1` still produces its committed disk image
+unchanged. **Thirty-one mutations over this slice, thirty-one caught** — two of
+them only after a test was added, and both of those were vacuous assertions
+rather than missing ones.
+
+**No as65-visible behavior or message changed.** Checked rather than assumed:
+as65's spelling table (`Directive.cpp`) claims none of the tokens whose handlers
+were filled, so no as65 source can reach any of them, and the two new fields on
+`AssemblerOptions` / `AssemblyResult` are additive and default to empty. Nothing
+here belongs in T071's CHANGELOG entry.
+
 **PHASE 5 IS COMPLETE.** T063–T068 all landed; see each task's own line for what
-diverged. Suite is **3246** Debug / **3243** Release, both green; Dormann and
-Harte both pass; `scripts/BuildDemoDisk.ps1` reproduces its committed disk image
-byte for byte, which is how the message changes below were checked against a real
-caller rather than only against tests.
+diverged. Dormann and Harte both pass; `scripts/BuildDemoDisk.ps1` reproduces its
+committed disk image byte for byte, which is how the message changes below were
+checked against a real caller rather than only against tests.
 
 **ALL SIX ORACLE OBJECTS NOW REPRODUCE BYTE FOR BYTE.** Five vendor sources,
 handed to `Assembler::Assemble` exactly as they sit in the fixtures, zero
@@ -118,11 +139,16 @@ stopping at the first offender, dropping the widening from the help text,
 dropping a row from the help text, refusing constructs inside a skipped
 conditional, and the profile returning an empty boundary.
 
-**`XC`'s first occurrence is still unimplemented, and that is T040's.** The
-second and every later occurrence is refused; the first is left exactly as it
-was — recognized, unclaimed, doing nothing — because switching the instruction
-set is Phase 3 work with its own unsettled question about a reset form. Nothing
-about the refusal path assumes it stays that way.
+**`XC`'s first occurrence is now implemented (T040), and the refusal path was
+right that nothing about it assumed otherwise.** The second and every later
+occurrence is still refused, by the same table and the same count. One thing did
+change: because the first occurrence now really does select the wider table, an
+assembly given only ONE instruction table is told so — which meant the boundary
+fixture had to supply a second one, since `NoRefusedConstructAlsoFailsAsAParseError`
+requires the refusal to be the only thing said about a refused line. That is the
+configuration the `XC` row describes anyway. The unsettled question about a reset
+form is **untouched**: an operand is refused rather than interpreted, so nothing
+here answers T025.
 
 **Two validation scripts were stale and one could not run at all.** T049a
 removed the unrecognized-first-argument fallback without updating
@@ -505,18 +531,18 @@ fails twelve of them.
 is **held until spec 020's command-line work reaches `master`** — see
 [docs/coordination.md](../../docs/coordination.md). Nothing else is blocked.
 
-**Carrying a known incompleteness.** Every new `Directive` token has a row in
-`AssemblySession`'s handler table, but several handlers are still null. Null
-means *not implemented yet*, not *does nothing*; they are unreachable while as65
-is the only selectable dialect, and T036–T042 fill them. `StringData`, `ErrorIf`
-and `HexData` are now filled, and `MacroDef`/`MacroEnd` act through the
-collection state rather than through their rows; `WordHighFirst`,
-`Loop`/`LoopEnd`, `DummySection`/`DummySectionEnd`, `CpuSelect` and `ObjectFile`
-are not. **`KeyboardInput`'s rows are null for the third reason**, the one `Org`
-already used: it acts entirely in the pass-1 prelude, before a label can bind,
-so a row would never be reached. **The five refused-by-name tokens are null for a
-FOURTH reason**, and it is now real rather than anticipated: the boundary claims
-those lines in the prelude, so their rows are unreachable by construction. Four
+**Carrying ONE known incompleteness, down from six.** Every new `Directive` token
+has a row in `AssemblySession`'s handler table, and a null pass-1 row means *not
+implemented yet* rather than *does nothing* — such a line is dropped without a
+word. `StringData`, `ErrorIf`, `HexData`, `Loop`/`LoopEnd`,
+`DummySection`/`DummySectionEnd`, `CpuSelect` and `ObjectFile` are now filled,
+and `MacroDef`/`MacroEnd` act through the collection state rather than through
+their rows. **`WordHighFirst` (`DDB`) is the one left, and no task owns it** —
+see the state-of-play block at the top. **`KeyboardInput`'s rows are null for
+the third reason**, the one `Org` already used: it acts entirely in the pass-1
+prelude, before a label can bind, so a row would never be reached. **The five
+refused-by-name tokens are null for a FOURTH reason**: the boundary claims those
+lines in the prelude, so their rows are unreachable by construction. Four
 meanings for one null is worth watching, and each is stated at its own rows.
 
 **Two guards in the macro work are deliberately uncovered, and are recorded at
@@ -730,8 +756,8 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
 - [x] T035f [US1] Bind a label sharing a line with an origin directive, in `CassoCore/AssemblySession.cpp`. It never bound, because the origin claims the line as a prelude before `RecordLabel` runs — dialect-neutral, as65 dropped it too. ~~**The value is the OUTPUT CURSOR**~~ — **CORRECTED: the value is the PROGRAM COUNTER as the line was reached.** The cursor reading agrees everywhere the two cursors are in step, which is everywhere `MAKE DUMP` looks, and disagrees on a **bare** origin closing a relocated section. `CLOCK.S` has one: `IRQEND ORG`, with `LDY #IRQEND-IRQHAND-1` reading `$12` in the shipped object where the cursor reading gives `$30`. The corrected rule takes no dialect input at all — a label binds where its line was reached, exactly like a label on any other line — and as65's expectation was rewritten with it rather than special-cased
 - [x] T035g [US1] The four remaining `MAKE DUMP` diagnostic classes, in `CassoCore/MerlinDialect.cpp` and `CassoCore/AssemblySession.cpp`. `ERR \expr` and the immediate byte selectors are parse-time operand rewrites in the profile — the assembler can already compute both, so guarantee 2 admits no new token; the operandless accumulator form and the double-quoted high-ASCII character constant are profile data, the latter carried into the shared evaluator through `ExprContext` exactly as `binding` already was. **Divergence, deliberate at the time and now CLOSED**: `?` in a label and `&` against a character literal were left undone, since nothing forced either while `KEYMAC.S` could not be an oracle. Both are settled in T035h. `?` needed the label rule and the identifier lexer together; `&` needed **nothing** — it was already bitwise-and and the high-ASCII delimiter already landed, and what actually failed on those lines was the operand scanner breaking on a space inside a character constant. Naming it as an unbuilt construct was a wrong diagnosis, not a wrong decision
 - [x] T035h [US1] The keyboard-input directive and the four expression facts the remaining three oracles need, in `CassoCore/Directive.h`, `CassoCore/MerlinDialect.h`/`.cpp`, `CassoCore/AssemblySession.h`/`.cpp`, `CassoCore/AssemblerTypes.h`, `CassoCore/ExpressionEvaluator.h`/`.cpp` and `CassoCore/Parser.h`/`.cpp`. **Recorded after the fact**, in the T035 band because that is where it executes. `KBD` binds a symbol from `AssemblerOptions::predefinedSymbols` and refuses by name when no answer was supplied; it gets a `Directive` token, because requiring a value from outside the source and saying which one is missing is an operation the assembler could not already perform. Beside it: Merlin's own spellings for exclusive-or and inclusive-or, unsigned 16-bit arithmetic, `?` inside a symbol, and a variable symbol standing as a repeated program-counter label. The three expression facts are carried through `ExprContext` as profile DATA, exactly as the operator binding and the high-ASCII delimiter already were, so the evaluator gains no dialect branch. **Divergence:** T031's refusal of the program-counter variable is lifted, and T035f's label-on-origin rule is corrected — see both
-- [ ] T036 [P] [US1] Implement the loop construct and its terminator in `CassoCore/MerlinDialect.cpp` and `CassoCore/AssemblySession.cpp` (FR-011)
-- [ ] T037 [P] [US1] Implement dummy sections and their terminator in `CassoCore/AssemblySession.cpp` — assign addresses, emit no bytes (FR-012)
+- [x] T036 [P] [US1] Implement the loop construct and its terminator in `CassoCore/MerlinDialect.cpp` and `CassoCore/AssemblySession.cpp` (FR-011) *(**No `MerlinDialect.cpp` change was needed** — both spellings were already in the profile's table from T032, so the whole of this landed as a collecting state and two handler rows in `AssemblySession`. The body is collected as **`PendingLine` records, not text**, so every copy carries the line number and file its original was written at and a diagnostic in the third iteration still points at the one line the author wrote; a mutation flattening the line number is caught by exactly that. **Nesting costs a counter rather than a stack**: an inner block is body text to the outer one and is expanded afresh inside every copy of it. **The count is settled in pass 1**, because that is when the block becomes lines — a forward reference is reported rather than silently expanded zero times, which is a property of what expansion IS rather than a limitation worth working around. **A new bound, `kMaxLoopIterations` (32768), is Casso's guard on the pending queue rather than a claim about the dialect**, and is stated as such at the code: expansion is lines pushed onto a deque, so a mistyped count would otherwise be answered with memory instead of a diagnostic. No vendor source uses the construct, so there is **no oracle** for any of it.)*
+- [x] T037 [P] [US1] Implement dummy sections and their terminator in `CassoCore/AssemblySession.cpp` — assign addresses, emit no bytes (FR-012) *(**The emit-cursor split T035e built is what made this small.** A section advances the program counter and leaves the output cursor alone, which is the second thing besides a relocating origin that can part them — so `ReserveBytes` stays the single place they move together and gains one branch. `LineInfo::emitsNoBytes` is recorded per line for the reason `usedExtendedSet` is: pass 2 walks the record rather than the source and cannot otherwise see which section a line sat in. **Nesting is refused rather than supported** — there is one place to return to, and a second entry would overwrite it, so the first terminator would restore the second section's origin and place every byte after it somewhere nobody asked for, in silence. **Two of the first assertions written here were vacuous**, both for the same reason and both found by mutation: closing a section restores the output cursor, so a section that wrongly emitted writes exactly where the next real line is about to, and the real line covers it. Only a section LONGER than what follows shows it, and only the first origin shows a section that wrongly claimed to have started the output. No vendor source uses the construct, so there is **no oracle**.)*
 - [x] T038 [US1] Implement Merlin macro definition, positional parameters, and invocation syntax in `CassoCore/MerlinDialect.cpp`, reusing the existing `kMaxMacroDepth` limit (FR-013)
   *(The definition shape — `MAC` in the opcode field with the name in the label, closed by the triple-angle token — arrived earlier with the terminator spelling fix. This completes the substance.*
 
@@ -746,10 +772,10 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
   ***Divergence, minor: the explicit invocation is spelled only with the prefix form.** `PMC` is documented as its word synonym; neither appears on the disk, so implementing both would double the unverified surface for no evidence. See the state-of-play note.*
 
   *This answers T025d from the disk rather than from capture — see that task.)*
-- [ ] T039 [US1] Map Merlin's file-inclusion directives to `Directive::Include` in `CassoCore/MerlinDialect.cpp`, resolving relative to the including source and reusing the existing `kMaxIncludeDepth` limit (FR-014)
-- [ ] T040 [US1] Implement the first occurrence of the CPU-selection directive in `CassoCore/MerlinDialect.cpp`, switching `InstructionSetProvider` to the extended table for the remainder of the assembly (FR-003, FR-015)
-- [ ] T041 [US1] Implement the object-file directive as naming the output in `CassoCore/MerlinDialect.cpp`, with the command line taking precedence over it (FR-027)
-- [ ] T042 [US1] Add diagnostics for unterminated dummy sections, loops, and macros at end of file in `CassoCore/AssemblySession.cpp`, naming the construct and its opening line as the existing unclosed-conditional diagnostic does (research.md CHK041)
+- [x] T039 [US1] Map Merlin's file-inclusion directives to `Directive::Include` in `CassoCore/MerlinDialect.cpp`, resolving relative to the including source and reusing the existing `kMaxIncludeDepth` limit (FR-014) *(**The mapping was already there from T032; what was missing is that the operand is NOT the filename.** `MerlinDialect::ResolveIncludeName` prepends `T.` at parse time, the same shape `RewriteAddressCheck` and `RewriteByteSelector` already use, so the assembler resolves an ordinary name and never learns this dialect writes them short. Measured, not assumed: `PI.START.S` says `USE PI.MACS` and `PI.ADD.S` says `PUT SENDMSG` for files stored as `T.PI.MACS` and `T.SENDMSG`, which is why both are committed. **Applied unconditionally, including to an operand that already begins with the prefix** — softening it to "prefix unless it looks prefixed" would invent a second rule on a case the corpus contains nowhere. Tested end to end against BOTH committed libraries: `T.PI.MACS` is resolved, read, and its `STADR` macro expanded to the eight bytes it produces, and `T.SENDMSG` is resolved under its type-T on-disk name with its own label binding as proof the file was walked rather than merely requested. **Divergence: "relative to the including source" is left as the existing `baseDir` behavior and NOT changed.** DOS 3.3 is a flat catalog with no directories at all, so every Merlin include sits beside the top-level source and the existing resolution already satisfies it; deepening it to the including file's own directory is an as65-visible change to nested includes that nothing here requires. `kMaxIncludeDepth` is reused untouched.)*
+- [x] T040 [US1] Implement the first occurrence of the CPU-selection directive in `CassoCore/MerlinDialect.cpp`, switching `InstructionSetProvider` to the extended table for the remainder of the assembly (FR-003, FR-015) *(**Landed in `AssemblySession.cpp`, not `MerlinDialect.cpp`** — the spelling was already profile data, and the switch is engine work the profile must not reach into. The second and later occurrences are untouched: the boundary still counts and refuses them, and a test asserts the first taking effect did not disturb that. **`HasExtended` is asked first, and an assembly given only one table is TOLD.** A provider with nothing to switch to answers with the table it already had, so saying nothing would leave the source told it had reached a wider processor while the assembler stayed narrow — the exact degraded-reads-as-healthy shape. This made `MerlinSubsetBoundaryTests`'s fixture supply a second table, which is the configuration that row describes anyway. **An operand is REFUSED, and this deliberately settles nothing about whether a reset form exists** — that is T025's, to be answered by capture. Refusing says only that Casso implements the plain form; ignoring the operand would answer the question silently and wrongly, with "no such form exists, and writing one selects the wider processor anyway". A test asserts the refused line did not select anything on the way past. No vendor source uses the directive, so there is **no oracle**.)*
+- [x] T041 [US1] Implement the object-file directive as naming the output in `CassoCore/MerlinDialect.cpp`, with the command line taking precedence over it (FR-027) *(**Landed in `AssemblySession.cpp` and `AssemblerTypes.h`.** `AssemblerOptions::outputFileName` carries the caller's answer and `AssemblyResult::outputFileName` reports the one in effect; the precedence is settled ONCE, in `Initialize`, which seeds the result from the caller so the directive has only to not overwrite a name that is already there. Carried on the options struct rather than left to the command-line layer for the reason `dialect` is: every entry point that assembles source resolves the same rule, and one resolving it differently would be a difference nobody finds until a build writes the wrong file. **Nothing sets `outputFileName` yet**, exactly as T078 and T053 are reachable only from tests until T052 wires the CLI — and `CommandLineParser`/`CommandLineOptions`/`CassoCli` were deliberately not touched, since spec 020 holds unmerged work there. The directive **names** an output; it does not write one, and a test pins that it takes no space. A later directive replaces an earlier one, the way a later origin does.)*
+- [x] T042 [US1] Add diagnostics for unterminated dummy sections, loops, and macros at end of file in `CassoCore/AssemblySession.cpp`, naming the construct and its opening line as the existing unclosed-conditional diagnostic does (research.md CHK041) *(**The macro third was already done** and is only newly covered for Merlin's own spelling; the loop and section halves landed with T036 and T037 respectively, since each construct's carrier has to capture its own opening line at the moment it opens. **Each names the construct in the spelling the SOURCE wrote**, captured from `ParsedLine::directive` at the opening line — the engine has no reverse token-to-spelling lookup and adding one to a profile would widen the seam to serve one message, so the terminator is described in words (`no matching terminator`) exactly as the conditional's already says `no matching endif`. **All three are DEFERRED diagnostics and capture their own file and column**, per the rule on `m_currentSourceFile`: by the time they are reported the ambient answer belongs to whatever was processed last. That was initially untested for the two new ones and the mutation went uncaught; both now have an include-file test, and the four mutations over file and column are caught. **Two orphan-terminator diagnostics were added beyond the task**, for a loop terminator and a section terminator with nothing open — each was previously a null row, and a null row is dropped without a word.)*
 
 ### Corpus completion
 
