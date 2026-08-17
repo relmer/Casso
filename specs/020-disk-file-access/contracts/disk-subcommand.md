@@ -133,7 +133,7 @@ subcommands that are otherwise independent.
 
 ## Shell responsibilities
 
-The CLI shell owns only the irreducible platform edge:
+The commit is these five steps, in this order:
 
 1. Read the image file; record its size and modification time (FR-036).
 2. Call core to compute a complete new image, or fail.
@@ -142,9 +142,24 @@ The CLI shell owns only the irreducible platform edge:
    replace; remove the temporary on any failure (FR-013).
 5. Print what core returned.
 
+**This list originally said the CLI shell OWNS all five, and that reading was
+wrong** — it would have put the entire commit policy in the one project the test
+assembly does not link, which is Principle VI's litmus failing in the place
+where a bug destroys a user's disk image. What is irreducibly the shell's is the
+*syscalls*: read bytes, write bytes, stat, exists, remove, atomic replace,
+exclusive-open probe. Every **decision** in the sequence — what the temporary is
+called, whether the stamps agree, whether a temporary may still be sitting there
+once the sequence stopped, and what to say when it is refused — is core's, in
+`CommitPlan` and `DiskCommandRunner::CommitImage`, above `IDiskFileIo`. The
+sequence above is what the shell *causes to happen* by calling one method; it is
+not a list of things the shell implements.
+
 Best-effort exclusive-open probe refuses when *another* holder has the file
 open. It cannot detect Casso, which holds no handle on a mounted image, and the
-help text does not imply otherwise (FR-035).
+help text does not imply otherwise (FR-035). The wording that carries FR-035
+lives on `DiskCommandRunner::kInUseHelpText`, beside the code that performs the
+probe, so a test can read it — a claim written only into the executable's help
+block is a claim nothing can check.
 
 ## Help output
 
