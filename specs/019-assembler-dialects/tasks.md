@@ -9,16 +9,29 @@ description: "Task list for 019-assembler-dialects"
 *Updated 2026-08-16. Keep this current or delete it — a stale status block is
 read by whoever has no other way to check.*
 
+**ALL SIX ORACLE OBJECTS NOW REPRODUCE BYTE FOR BYTE.** Five vendor sources,
+handed to `Assembler::Assemble` exactly as they sit in the fixtures, zero
+diagnostics each:
+
+| Source | Object | Bytes | Load |
+|---|---|---:|---|
+| `LABELS.S` | `LABELS` | 984 | `$8000` |
+| `MAKE DUMP.S` | `MAKE DUMP` | 589 | `$9000` |
+| `KEYMAC.S` | `KEYMAC` | 674 | `$9000` |
+| `PRINTFILER.S` | `PRINTFILER` | 286 | `$02A0` |
+| `CLOCK.S` | `CLOCK.24` | 365 | `$0240` |
+| `CLOCK.S` | `CLOCK.12` | 365 | `$0240` |
+
 **Done.** Phases 1 and 2 complete: the dialect seam, diagnostic file/column
 positions, and the switchable instruction set. In Phase 3, the Merlin profile
 exists with its field-based line model (T027–T029), its directive table
 (T032/T033), string encoding (T034/T035), local labels (T030), raw hexadecimal
 data, equates, listing directives, instruction aliases, the directive behaviors
-`LABELS.S` needs, **macros in full (T038)**, **variable symbols (T031)**, and the
-**emit-cursor split (T035e–T035g)**. **T069 and T070 are also done** — see the
-note on T069 for why its hold expired. Suite is **3143** Release / **3146**
-Debug, both green; Dormann and Harte (30,600 6502 + 51,200 Rockwell 65C02
-vectors) both pass.
+`LABELS.S` needs, **macros in full (T038)**, **variable symbols (T031)**, the
+**emit-cursor split (T035e–T035g)**, and **the keyboard-input directive and the
+four expression facts the last three oracles needed (T035h)**. **T069 and T070
+are also done** — see the note on T069 for why its hold expired. Suite is
+**3169** Release / **3172** Debug, both green; Dormann and Harte both pass.
 
 **Macros and variables landed as ONE commit, deliberately.** Merlin writes a
 positional parameter and a reassignable symbol with the same character — `]1` is
@@ -105,7 +118,10 @@ companion asserting the same source under AS65 does **not** produce those bytes.
    it is `(END-LABTBL-1)/$700` = 0. That settles the last of the contract's
    unsettled questions — "Do Merlin's expression operators and precedence match
    the shared evaluator?" — from bytes rather than from the manual. The answer is
-   **no**, on binding; the operator set itself is unchallenged so far.
+   **no**, on binding. *(The clause that followed — "the operator set itself is
+   unchallenged so far" — was true of `LABELS.S` and false of the disk. `CLOCK.S`
+   challenges it: `!` is exclusive-or and `.` is inclusive-or. See the `KBD`
+   section above.)*
 
 **`/` in expressions was already supported.** Measured before writing anything:
 `TokType::Slash` and `TryApplyDiv` have been in the evaluator all along. The
@@ -164,19 +180,76 @@ outside this slice's brief. It is the last one.
 assertions compile away. Fixed with `ExpectedEhmAssert`, production code
 untouched. **Report both configurations, not just Release.**
 
-**Next: `KBD`.** It is the only thing between the corpus and its remaining three
-oracles, and it is a design decision rather than a parser gap — a symbol assigned
-from an interactive prompt at assembly time, needing a command-line definition, a
-scripted answer list, or whatever the mechanism settles on. `KEYMAC.S`
-additionally wants `?` accepted in a label and `&` against a character literal;
-both were left out of the emit-cursor slice on purpose, since `KEYMAC` cannot be
-an oracle until `KBD` is answered and nothing else forces either.
+## `KBD` — DONE, and it was never interactive input
 
-**Where the five oracles stand.** `LABELS.S`: 0 diagnostics, 984 bytes at
-`$8000`. `MAKE DUMP.S`: 0 diagnostics, 589 bytes at `$9000`. Both byte-identical
-to their shipped objects. `KEYMAC.S`, `PRINTFILER.S` and `CLOCK.S` are held by
-`KBD` alone — the two drop-in oracles are both done, which is exactly the split
-`UnitTest/Fixtures/Merlin/README.md` predicted.
+**`KBD` is a DIRECTIVE, not a terminal read.** It binds the symbol in its label
+field to an answer given to the assembly, and every artifact that described it as
+"interactive keyboard input" or as a permanent barrier was wrong. The answer path
+already existed: `AssemblerOptions::predefinedSymbols`, the map behind `-d`. It
+had no implementation at all — zero matches for the spelling anywhere in
+`CassoCore` — so what looked like a design problem was an unwritten table row and
+a handler.
+
+**No answer supplied is an ERROR**, naming the symbol and quoting the prompt. The
+two easier outcomes are both silent failures of exactly the kind this feature
+exists to avoid: blocking on a prompt hangs an unattended build, and defaulting
+the answer assembles a *different program* cleanly, since the vendor sources gate
+whole sections on these symbols.
+
+**It DID get a `Directive` token**, and guarantee 2 admits it. The assembler
+could not already require a value from outside the source and say which value was
+missing — `-d` binds whatever it is handed and can say nothing about what a source
+*needs*. The alternative considered and rejected was reusing the equate path with
+a self-referential expression, which produces "undefined symbol" and loses the
+prompt, i.e. exactly the information the source went to the trouble of writing.
+
+**The label must NOT also bind to the program counter**, which is why the line is
+claimed in the pass-1 prelude beside the origin directive rather than in content
+dispatch. A `SAVOBJ` bound to `$0240` makes `DO SAVOBJ` true for any ordinary
+origin, so every gated block assembles regardless of the answer.
+
+**Four more things the three sources needed**, none of them `KBD` and every one
+settled from shipped bytes rather than from the manual:
+
+1. **Merlin's operator SET differs, not just its binding.** `!` is exclusive-or
+   and `.` is inclusive-or. `LDX #HOURS/24!1` in `CLOCK.S` places the time
+   editor's cursor and must be exclusive-or; `CMP #HOURS/24+3."0"` must be
+   inclusive-or. The contract's line saying "the operator set itself is
+   unchallenged so far" was true of `LABELS.S` and false of the disk.
+2. **Merlin computes in unsigned 16-bit quantities.** `HOURS = VERSION-25/-1*12+12`
+   with `ERR HOURS-VERSION` beneath it is an equality test written as arithmetic,
+   and it only holds because `$FFF3 / $FFFF` is 0 while `$FFFF / $FFFF` is 1.
+   Signed 32-bit reads the same line as -13 / -1 = 13 and fails the assembly.
+3. **A variable symbol may stand as a program-counter label, repeatedly.** T031
+   refused this deliberately; the refusal is lifted. `CLOCK.S` names eight
+   separate `]LOOP` targets. Pass 2 rebinds as it walks, which the reassignable
+   constant already needed for the same reason — and only a DATA test caught the
+   pass-2 half, for the fourth time in this feature.
+4. **`?` inside a symbol**, in both the label rule and the identifier lexer.
+
+**A fifth is an engine correction rather than a Merlin fact.** T035f bound a
+label sharing a line with an origin to the OUTPUT CURSOR. That agrees with the
+right answer everywhere the two cursors are in step, which is everywhere `MAKE
+DUMP` looks — and disagrees on a **bare** origin closing a relocated section,
+which `CLOCK.S` has. `IRQEND ORG` closes a section relocated to `$BFC8`, and
+`LDY #IRQEND-IRQHAND-1` is `$12` in the shipped object where the cursor reading
+gives `$30`. The rule is now the plainest one available and has no dialect input
+at all: **a label binds to the program counter as its line was reached**, exactly
+like a label on any other line. as65's answer changed with it, and its test was
+rewritten rather than special-cased.
+
+**`&` against a character literal turned out not to be a gap.** The emit-cursor
+slice listed it beside `?` as unbuilt. Measured: `#"Q"&$9F` and `$9F&"N"` already
+worked — `&` was always bitwise-and and the high-ASCII delimiter already landed.
+What actually broke on those lines was the OPERAND SCANNER: a character constant
+may hold a space (`LDA #" "`), and a whitespace-delimited scan kept `#"` and
+handed the rest to the comment field.
+
+**`PRINTFILER.S` identified the vendor's own build configuration.** Its two
+answers are semantic and which pair produced the shipped 286 bytes is recorded
+nowhere; all four were tried and exactly one matches — **formatting on,
+monitoring off**. The test asserts the COUNT as well as the pair, because more
+than one match would mean an answer reaches no byte.
 
 **The corpus caught a macro bug every synthetic test had missed.** `KEYMAC.S`
 closes a macro with `NI <<<` — the label the body branches to sits on the line
@@ -194,9 +267,10 @@ case in four places in shared mechanism for two words, which is what
 `contracts/dialect-profile.md` guarantee 3 forbids and what SC-009/T069 exists
 to catch. as65 declares no aliases and is swept to prove it.
 
-**The other three oracle objects did NOT come along with them.** `PRINTFILER`
-and `CLOCK` need `KBD`, which is unsolved; both also use macros. So the aliases
-unblock those objects without delivering any of them.
+**The other three oracle objects did not come along with them** at the time, but
+they have since: `PRINTFILER` and `CLOCK` also needed the keyboard-input
+directive, and both use macros. The aliases unblocked those objects without
+delivering any of them.
 
 **SC-004 re-verified after the engine change.** `AssemblerTests`,
 `RegressionTests`, `IntegrationTests` and `OutputFormatTests` — 180 tests
@@ -215,7 +289,10 @@ is the only selectable dialect, and T036–T042 fill them. `StringData`, `ErrorI
 and `HexData` are now filled, and `MacroDef`/`MacroEnd` act through the
 collection state rather than through their rows; `WordHighFirst`,
 `Loop`/`LoopEnd`, `DummySection`/`DummySectionEnd`, `CpuSelect` and `ObjectFile`
-are not.
+are not. **`KeyboardInput`'s rows are null for the third reason**, the one `Org`
+already used: it acts entirely in the pass-1 prelude, before a label can bind,
+so a row would never be reached. Three meanings for one null is worth watching,
+and each is stated at its own rows.
 
 **Two guards in the macro work are deliberately uncovered, and are recorded at
 the code rather than left to be rediscovered.** The digit test that separates
@@ -362,7 +439,7 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
 - [ ] T021 [US1] Implement `scripts/CaptureMerlinCorpus.ps1` to assemble one entry under real Merlin Pro in Casso and emit source, bytes, and Merlin version as a hand-authored entry in `UnitTest/MerlinCorpusTests.cpp` (vendor oracles live in `UnitTest/Fixtures/Merlin/`; entries authored here stay in the test file), reading bytes back with `scripts/ExtractDos33File.ps1`
 - [ ] T021c [US1] Make **delete-before-assemble** a required step of capture: delete the target object from within DOS before every assembly and confirm its absence with `scripts/CaptureMerlinCorpus.ps1 -ConfirmAbsent`. DOS 3.3 catalogs carry no timestamps, so there is no equivalent of the test suite's staleness guard — this is the only freshness check available. Without it, an assembly that errors before saving leaves the *previous* entry's object on the disk, and capturing it records one entry's bytes as another's expectation: self-consistent, plausible, wrong, and it will never fail, because the assembler faithfully reproduces the first entry's bytes from the first entry's constructs. Absence after assembly proves nothing wrote it; presence proves *this* assembly did
 - [ ] T021a [US1] Read the source back off the disk and **commit that copy**, not the text that was pasted. The disk copy is what Merlin assembled, so it is the only text guaranteed to correspond to the captured bytes, and the entry becomes self-consistent by construction. This matters because Merlin's editor may normalize whitespace or column positions on save — it is column-oriented over a high-bit, CR-terminated format — which would otherwise fail every entry's verification and invite loosening the comparison until it guarded nothing. Keep the comparison and keep it loud, but treat a mismatch as information about the editor rather than a failed capture (issue #110)
-- [ ] T021d [US1] **Settle on entry one**: does Merlin's editor store pasted source byte-for-byte, or normalize it? Record the answer in `specs/019-assembler-dialects/research.md`. *(Partially settled: the editor demonstrably tabs fields to fixed display columns, so the screen is not what was typed. Whether STORED bytes are normalized is still open — stalled on how to exit the editor's Add mode, since `ESC` in both message forms, a bare `RETURN`, and `Ctrl-C` are all appended as source lines rather than exiting. Needs the manual's editor command list.)* **The fixtures pivot demoted this.** It was written when every entry came through the editor, so an editor that silently normalized would have invalidated the whole corpus. The five vendor oracles are committed and never passed through the editor, so this now gates only the first **entry authored here** — T022 onward — and nothing in the byte-comparison path.
+- [ ] T021d [US1] **Settle on entry one**: does Merlin's editor store pasted source byte-for-byte, or normalize it? Record the answer in `specs/019-assembler-dialects/research.md`. *(Partially settled: the editor demonstrably tabs fields to fixed display columns, so the screen is not what was typed. Whether STORED bytes are normalized is still open.)* **The "how do you exit Add mode" blocker is CLOSED and this note was stale.** [quickstart.md](./quickstart.md), section "Driving Merlin under emulation", records the answer: `RETURN` as the very first character of a line exits; `ESC`, a bare `RETURN` mid-line, and `Ctrl-C` are all appended as text, which is what made it look unexitable. Read the quickstart before estimating this task — the stale note here has already produced one wrong estimate. **The fixtures pivot demoted it further.** It was written when every entry came through the editor, so an editor that silently normalized would have invalidated the whole corpus. The five vendor oracles are committed and never passed through the editor, so this now gates only the first **entry authored here** — T022 onward — and nothing in the byte-comparison path.
 - [ ] T021f [US1] Add the disk **work-copy** discipline to `scripts/CaptureMerlinCorpus.ps1` so it refuses to operate on the pristine image: capture writes source, writes objects, and deletes targets, all on irreplaceable commercial software the developer supplied and this repository cannot regenerate. The procedure now mandates a copy; the tooling should enforce it rather than rely on remembering
 - [ ] T021e [US1] Record in `UnitTest/MerlinCorpus/README.md` the residual gap automation cannot close: if the paste garbled *and* Merlin assembled the garbled source, the entry is self-consistent and simply tests a construct nobody intended. The `discriminates` flag catches the worst version — a garble that destroys the Merlin construct stops the entry failing under AS65 — but not one that merely changes an operand. Read the first few entries by eye; nothing downstream will report it. **This guard has a demonstrated near-miss, not a theoretical one**: the first version of `SendCassoKeys.ps1` corrupted every shifted character, and it surfaced only because the garbled text happened to be a BASIC syntax error. Had the first thing typed been valid either way, subtly wrong source would have been assembled faithfully and its bytes captured — self-consistent, wrong, and caught by none of the five automated axes
 - [ ] T021b [US1] Batch constructs into a few **composite** source files rather than one file per construct: assemble once with the listing on, save the object, extract, and split by known offsets. A handful of composites covers the FR-007..FR-015 floor at a fraction of the typing
@@ -402,7 +479,7 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
 
   *Reassignment reuses the existing mutable symbol kind rather than inventing one, which gives the rule its shape for free: a variable may be redefined, an ordinary equate may not.*
 
-  ***Divergence, deliberate: the form where a variable stands as a program-counter label is REFUSED.** Merlin allows it. Resolving it correctly needs the value each definition had at each point, and pass 2 holds one symbol table, so a repeated program-counter symbol would point every branch at the last copy — a wrong branch target that assembles cleanly. A refusal is the honest answer until per-line label values exist.*
+  ***Divergence, deliberate at the time and now LIFTED: the form where a variable stands as a program-counter label was REFUSED.** The reasoning was sound — pass 2 holds one symbol table, so a repeated program-counter symbol would point every branch at the last copy — but the fix already existed a few lines above it. `RebindMutableConstant` gives a reassignable symbol its value again where pass 2 reaches its definition, and a reassignable LABEL is the same problem with the program counter for an expression. `CLOCK.S` forced it: eight `]LOOP` targets, each branch meaning the one above it. It also opens no local-label scope, which no oracle can discriminate and a synthetic test does. See the `KBD` section in the state of play.*
 
   *One shared-engine fix came with it, and it is a two-pass disagreement rather than a Merlin matter. A mutable constant is now re-evaluated in pass 2 where its definition is reached. Pass 1 walks the file in order and sees each assignment in turn, which is what sizes the lines between them; pass 2 read one table built after pass 1 finished, so **data emitted in pass 2 took the value the file assigned last** while an instruction on the line above took the right one. An immutable symbol cannot show the difference, which is why it went unnoticed. The instruction-shaped test does NOT discriminate it — that was confirmed by mutation, and a data-directive test was added because of it.)*
 - [x] T032 [US1] Add the Merlin directive spelling table to `CassoCore/MerlinDialect.cpp`, reusing existing `Directive` tokens wherever the operation is identical
@@ -425,8 +502,9 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
 - [x] T035c [US1] Add Merlin equates and the listing directives to `CassoCore/MerlinDialect.cpp`. **Recorded after the fact.** An equate puts its sign in the OPCODE field with the name beside it in the label field, so it is a field-model fact rather than an expression one — a parser hunting for the sign inside the operand finds it in the wrong place and leaves the line looking like an instruction named for it. The name must NOT also bind to the program counter, or the equate is reported as a duplicate of the label its own line just defined. 128 uses across the vendor sources and no other equate spelling; `EQU` is accepted as language rather than as oracle. `TR`/`EXP`/`AST` reuse `Directive::OptNoop` rather than each bringing a token whose handler would do nothing
 - [x] T035d [US1] Add dialect-scoped instruction aliases to `CassoCore/DialectProfile.h` and `CassoCore/MerlinDialect.cpp` — `BLT`/`BGE` for `BCC`/`BCS` — resolved once in `Parser::ParseLine`. **Recorded after the fact**, and deliberately DATA on the seam rather than a Merlin arm in the instruction machinery: the alternative touches the opcode lookup, the size estimator, the branch-range check and the encoder, which is a per-dialect special case in four places in shared mechanism for two words (`contracts/dialect-profile.md` guarantee 3, SC-009/T069). as65 declares none and is swept to prove it (FR-005)
 - [x] T035e [US1] **Separate the emit cursor from the program counter** in `CassoCore/AssemblySession.h` / `.cpp`. `AssemblySession` gains an output cursor beside `m_pc`; `ReserveBytes` is the one place both advance, and only an origin directive can part them. Which it does is profile data — `DialectProfile::GetOriginSemantic` — following T051's `cpuSource` precedent rather than a Merlin arm in the driver. A bare origin resyncs the program counter to the cursor, and is refused as a missing operand where the two cannot differ. **This is the spec amendment guarantee 1 asks for**, recorded in [contracts/dialect-profile.md](./contracts/dialect-profile.md) — the gap is in the ENGINE, which had no way to express "advance the PC without advancing output" in any dialect. Editing `AssemblySession.cpp` is **not** an SC-009 violation: T070 is judged against T069's own commit, exactly as the `ExpressionEvaluator` binding change was
-- [x] T035f [US1] Bind a label sharing a line with an origin directive, in `CassoCore/AssemblySession.cpp`. It never bound, because the origin claims the line as a prelude before `RecordLabel` runs — dialect-neutral, as65 dropped it too. **The value is the OUTPUT CURSOR**, which is one rule giving each dialect the right answer without a branch: as65's origin moved the cursor, so its label takes the new address, while Merlin's did not, so `HEREINT` names where the relocated section sits in the file. Binding it to the relocated PC would assemble cleanly and be wrong
-- [x] T035g [US1] The four remaining `MAKE DUMP` diagnostic classes, in `CassoCore/MerlinDialect.cpp` and `CassoCore/AssemblySession.cpp`. `ERR \expr` and the immediate byte selectors are parse-time operand rewrites in the profile — the assembler can already compute both, so guarantee 2 admits no new token; the operandless accumulator form and the double-quoted high-ASCII character constant are profile data, the latter carried into the shared evaluator through `ExprContext` exactly as `binding` already was. **Divergence, deliberate**: `?` in a label and `&` against a character literal are NOT done. Both belong to `KEYMAC.S`, which cannot be an oracle until `KBD` is solved, so nothing forces either and implementing them would add unverifiable surface
+- [x] T035f [US1] Bind a label sharing a line with an origin directive, in `CassoCore/AssemblySession.cpp`. It never bound, because the origin claims the line as a prelude before `RecordLabel` runs — dialect-neutral, as65 dropped it too. ~~**The value is the OUTPUT CURSOR**~~ — **CORRECTED: the value is the PROGRAM COUNTER as the line was reached.** The cursor reading agrees everywhere the two cursors are in step, which is everywhere `MAKE DUMP` looks, and disagrees on a **bare** origin closing a relocated section. `CLOCK.S` has one: `IRQEND ORG`, with `LDY #IRQEND-IRQHAND-1` reading `$12` in the shipped object where the cursor reading gives `$30`. The corrected rule takes no dialect input at all — a label binds where its line was reached, exactly like a label on any other line — and as65's expectation was rewritten with it rather than special-cased
+- [x] T035g [US1] The four remaining `MAKE DUMP` diagnostic classes, in `CassoCore/MerlinDialect.cpp` and `CassoCore/AssemblySession.cpp`. `ERR \expr` and the immediate byte selectors are parse-time operand rewrites in the profile — the assembler can already compute both, so guarantee 2 admits no new token; the operandless accumulator form and the double-quoted high-ASCII character constant are profile data, the latter carried into the shared evaluator through `ExprContext` exactly as `binding` already was. **Divergence, deliberate at the time and now CLOSED**: `?` in a label and `&` against a character literal were left undone, since nothing forced either while `KEYMAC.S` could not be an oracle. Both are settled in T035h. `?` needed the label rule and the identifier lexer together; `&` needed **nothing** — it was already bitwise-and and the high-ASCII delimiter already landed, and what actually failed on those lines was the operand scanner breaking on a space inside a character constant. Naming it as an unbuilt construct was a wrong diagnosis, not a wrong decision
+- [x] T035h [US1] The keyboard-input directive and the four expression facts the remaining three oracles need, in `CassoCore/Directive.h`, `CassoCore/MerlinDialect.h`/`.cpp`, `CassoCore/AssemblySession.h`/`.cpp`, `CassoCore/AssemblerTypes.h`, `CassoCore/ExpressionEvaluator.h`/`.cpp` and `CassoCore/Parser.h`/`.cpp`. **Recorded after the fact**, in the T035 band because that is where it executes. `KBD` binds a symbol from `AssemblerOptions::predefinedSymbols` and refuses by name when no answer was supplied; it gets a `Directive` token, because requiring a value from outside the source and saying which one is missing is an operation the assembler could not already perform. Beside it: Merlin's own spellings for exclusive-or and inclusive-or, unsigned 16-bit arithmetic, `?` inside a symbol, and a variable symbol standing as a repeated program-counter label. The three expression facts are carried through `ExprContext` as profile DATA, exactly as the operator binding and the high-ASCII delimiter already were, so the evaluator gains no dialect branch. **Divergence:** T031's refusal of the program-counter variable is lifted, and T035f's label-on-origin rule is corrected — see both
 - [ ] T036 [P] [US1] Implement the loop construct and its terminator in `CassoCore/MerlinDialect.cpp` and `CassoCore/AssemblySession.cpp` (FR-011)
 - [ ] T037 [P] [US1] Implement dummy sections and their terminator in `CassoCore/AssemblySession.cpp` — assign addresses, emit no bytes (FR-012)
 - [x] T038 [US1] Implement Merlin macro definition, positional parameters, and invocation syntax in `CassoCore/MerlinDialect.cpp`, reusing the existing `kMaxMacroDepth` limit (FR-013)
@@ -453,9 +531,9 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
 - [ ] T043 [P] [US1] Capture one entry per string-encoding spelling as a hand-authored entry in `UnitTest/MerlinCorpusTests.cpp` (vendor oracles live in `UnitTest/Fixtures/Merlin/`; entries authored here stay in the test file) — five entries, not one, because a high-bit or terminator error still looks plausible
 - [ ] T044 [P] [US1] Capture at least one multi-file inclusion entry as a hand-authored entry in `UnitTest/MerlinCorpusTests.cpp` (vendor oracles live in `UnitTest/Fixtures/Merlin/`; entries authored here stay in the test file), served through `UnitTest/MockFileReader.h`
 - [ ] T045 [P] [US1] Capture one entry per remaining construct in FR-007 through FR-015 and FR-027 as a hand-authored entry in `UnitTest/MerlinCorpusTests.cpp` (vendor oracles live in `UnitTest/Fixtures/Merlin/`; entries authored here stay in the test file), completing the corpus floor
-- [ ] T045a-partial — **`LABELS.S` and `MAKE DUMP.S` are both done.** `LABELS`: all 984 bytes at `$8000`. `MAKE DUMP`: all **589** bytes at `$9000`, whole-file through `Assembler::Assemble`, zero diagnostics, with an AS65 counterpart proving the comparison discriminates. Both live in `MerlinCorpusTests.cpp`. `KEYMAC.S`, `PRINTFILER.S` and `CLOCK.S` still need `KBD`, so the parent task below stays open. Those are the only three left, and none of them is blocked on the assembler.
-- [ ] T045a [P] [US1] Validate against the **five** real positive oracles on the Merlin Pro 2.23 disk — source and shipped object both present, absolute mode — not "~40 files". Measured: `LABELS.S`→`LABELS` (984 @ `$8000`, 105× `DCI` plus one `ERR`), `KEYMAC.S`→`KEYMAC` (674 @ `$9000`), `PRINTFILER.S`→`PRINTFILER` (286 @ `$02A0`), `MAKE DUMP.S`→`MAKE DUMP` (589 @ `$9000`), and `CLOCK.S`→**both** `CLOCK.24` and `CLOCK.12` (365 @ `$0240` each). Five sources, six objects. Vendor source and objects **are committed**, under `UnitTest/Fixtures/Merlin/`, and read through `IFixtureProvider::OpenFixture` — the earlier "used, not committed" instruction is superseded
-- [ ] T045d [P] [US1] Prioritize `CLOCK.S`: one source producing two different objects through `DO HOURS-12` / `ELSE` / `FIN`, so a single capture yields conditional-assembly coverage **and** two independent byte-identical checks. The highest-value single entry on the disk
+- [x] T045a-partial — **superseded: all five sources and all six objects are done.** See T045a.
+- [x] T045a [P] [US1] Validate against the **five** real positive oracles on the Merlin Pro 2.23 disk — source and shipped object both present, absolute mode — not "~40 files". Measured: `LABELS.S`→`LABELS` (984 @ `$8000`, 105× `DCI` plus one `ERR`), `KEYMAC.S`→`KEYMAC` (674 @ `$9000`), `PRINTFILER.S`→`PRINTFILER` (286 @ `$02A0`), `MAKE DUMP.S`→`MAKE DUMP` (589 @ `$9000`), and `CLOCK.S`→**both** `CLOCK.24` and `CLOCK.12` (365 @ `$0240` each). Five sources, six objects. Vendor source and objects **are committed**, under `UnitTest/Fixtures/Merlin/`, and read through `IFixtureProvider::OpenFixture` — the earlier "used, not committed" instruction is superseded
+- [x] T045d [P] [US1] Prioritize `CLOCK.S`: one source producing two different objects through `DO HOURS-12` / `ELSE` / `FIN`, so a single capture yields conditional-assembly coverage **and** two independent byte-identical checks. The highest-value single entry on the disk *(Done, and it was every bit of that: it forced the operator set, the arithmetic width, the program-counter variable label, and the correction to T035f's label-on-origin rule, none of which any other source could discriminate. **Divergence from the task's own framing:** the two objects are selected by `VERSION`, an answer supplied to the assembly, NOT by `DO HOURS-12` alone — that inner conditional gates only which `SAV` line is reached, and `SAV` is out of subset. `HOURS` is derived from `VERSION` by arithmetic and is what the emitted bytes actually depend on. A third test requires the two results to differ, or the pair would be two copies of one check.)*
 - [ ] T045e [P] [US1] Use `Merlin/PI.ADD.S` and `Merlin/PI.START.S` as **negative** subset-boundary specimens only, never positive comparisons — they ship no objects, and the APPLE PI group is the linker demo whose own header says "This is just a test source for the linker". `PI.ADD.S` is the export-only shape (`REL` + **6** `ENT`, no `EXT`); `PI.START.S` is the no-workaround shape (`REL` + 3× `EXT` + 1 `ENT`). Between them they exercise **both** refusal messages, which is why exactly these two are committed: `PI.MAIN.S` and `PI.DIV.S` also import and are redundant with `PI.START.S`, and `PI.LOOK.S` is redundant with `PI.ADD.S`
 - [ ] T045f [P] [US1] Use the type-T macro libraries (`T.MACRO LIBRARY`, `T.SENDMSG`, `T.PRDEC`, `T.OUTPUT`, `T.FPMACROS`, `T.ROCKWELL MACROS`, `T.PI.MACS`, `PI.NAMES`) as the `PUT`/`USE` inclusion corpus. They are the only type-T files on the disk — every `.S` source is type B loading at `$0901` — so they also settle the DOS 3.3 text convention from real vendor files. `RWTS DEMO.S` ships **no** object, so it is a parse/assemble case only, never a comparison
 - [ ] T045c [P] [US1] Record the vendor-source validation *result* — that re-assembling a vendor file reproduces its shipped object byte-for-byte — as evidence in `research.md` rather than as a committed corpus entry, which is licensing-safe and is the part that actually carries information
@@ -464,7 +542,7 @@ That reorders this phase: the byte-comparison work (T045-series) is unblocked
 - [ ] T046a [US1] Verify SC-002 in `UnitTest/MerlinCorpusTests.cpp`: the five vendor sources assemble **exactly as committed**, with no edit to any line. The corpus already proves the bytes match; what this adds is the claim that the *input* was not touched to get there — assert each entry's source is the fixture bytes as `IFixtureProvider::OpenFixture` returns them, not a transcribed or tidied copy. Without it, SC-002 is only inspected, and "unmodified" is precisely the property a passing corpus can be made to fake
 - [ ] T046b [US1] Verify SC-003 in `UnitTest/MerlinSubsetTests.cpp`: assemble every committed vendor source and assert that **each rejection maps to a row in `CassoCore/MerlinSubsetBoundary.cpp`**. SC-003 defines a rejection with no boundary row as a defect, so this is a sweep over rejections rather than a fixed list of expected errors — a new unexplained rejection fails the test by construction. Runs against `PI.ADD.S` and `PI.START.S` too, where rejections are the expected outcome and must still be table-backed
 - [ ] T047 [P] [US1] Add focused parser tests to `UnitTest/MerlinParserTests.cpp` and directive tests to `UnitTest/MerlinDirectiveTests.cpp`, registering both in `UnitTest.vcxproj`
-  *(Half done. `MerlinDirectiveTests.cpp` exists and is registered, covering the string family through both passes, `ERR` in **both** directions, local-label scoping, operator binding, and the default origin — each with an AS65 counterpart where the construct is shared, since a test passing under both dialects is no evidence the profile was consulted. The remaining directives get theirs as T036–T042 land.*
+  *(Half done. `MerlinDirectiveTests.cpp` exists and is registered, covering the string family through both passes, `ERR` in **both** directions, local-label scoping, operator binding, the default origin, the keyboard-input directive in both the answered and unanswered directions, the two renamed operators, unsigned 16-bit division, `?` inside a symbol, and character constants holding a space — each with an AS65 counterpart where the construct is shared, since a test passing under both dialects is no evidence the profile was consulted. The remaining directives get theirs as T036–T042 land.*
 
   *Two of these could only be written as pairs. The vendor corpus contains only the SILENT case of `ERR`, because a source shipping an object necessarily assembled clean — so an `ERR` that never fires passes every oracle on the disk. Same for binding: an evaluator that happened to agree looks identical without the AS65 half.)*
 

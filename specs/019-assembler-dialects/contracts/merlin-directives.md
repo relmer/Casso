@@ -94,6 +94,7 @@ therefore requires **one entry per spelling**, not one for the family.
 | `PUT` / `USE` | File inclusion, resolved relative to the including source |
 | `XC` (first) | Enables the 65C02 instruction set for the rest of the assembly |
 | `DSK` | Names the assembly's output — **the command line takes precedence** |
+| `NAME KBD` / `NAME KBD "prompt"` | Binds `NAME` to an answer supplied to the assembly. Merlin prompts the operator; Casso takes the answer from `AssemblerOptions::predefinedSymbols` and **refuses, naming the symbol and the prompt, when none was supplied**. Both operand forms parse; the quoted text is a prompt, not data |
 
 ### Comments and line structure
 
@@ -235,13 +236,14 @@ decided.
 
 Extracting every opcode-field word from the nine committed sources and removing
 the 6502/65C02 mnemonics left 43 distinct words. Most are macro invocations from
-the vendor library (`STADR` 21, `KBD` 7, `TR` 5, `MOV` 5 …). The rest exposed
+the vendor library (`STADR` 21, `TR` 5, `MOV` 5 …). The rest exposed
 gaps in this document, all now in the table:
 
 | Word | Uses | What it is | Status |
 |---|---|---|---|
 | `REV` | 3 | Sixth string spelling | **Added** to the string family above |
 | `ERR` | 17 | Assembly-time assertion — fails when its expression is non-zero | **Added and implemented**; evaluated in pass 2, so its expression may name a forward label |
+| `KBD` | 7 | Binds a symbol to an answer supplied to the assembly | **Added and implemented.** This row was originally read as a macro invocation from the vendor library and the count filed under that heading; it is a directive, and it gated three of the five oracle sources |
 | `PAG` | 1 | Page eject in the listing | **Added**, reusing the existing `Page` token |
 | `AST` | 4 | Asterisk line in the listing | **Open** — listing cosmetics, no byte effect |
 | `EXP` | 4 | Macro-expansion listing control | **Open** — listing cosmetics, no byte effect |
@@ -255,22 +257,28 @@ where they are fixed.
 The use count understates the impact, because what matters is which *oracles*
 they gate:
 
-| Source | `BLT`/`BGE` | `KBD` | Macros | First-attemptable |
+| Source | `BLT`/`BGE` | `KBD` | Macros | Status |
 |---|---|---|---|---|
-| `LABELS.S` | — | — | — | **yes** |
-| `MAKE DUMP.S` | 2 | — | 9 | needs aliases + macros |
-| `KEYMAC.S` | — | 1 | yes | needs `KBD` |
-| `PRINTFILER.S` | 1 | 2 | yes | needs both |
-| `CLOCK.S` | 6 | 2 | yes | needs both |
+| `LABELS.S` | — | — | — | **byte-identical**, 984 @ `$8000` |
+| `MAKE DUMP.S` | 2 | — | 9 | **byte-identical**, 589 @ `$9000` |
+| `KEYMAC.S` | — | 1 | yes | **byte-identical**, 674 @ `$9000` |
+| `PRINTFILER.S` | 1 | 2 | yes | **byte-identical**, 286 @ `$02A0` |
+| `CLOCK.S` | 6 | 2 | yes | **byte-identical twice**, 365 @ `$0240` each |
 
 Three of five sources — and **four of the six objects**, since `CLOCK.S` yields
-two — cannot assemble until the mnemonic layer knows the aliases.
+two — could not assemble until the mnemonic layer knew the aliases.
 
-Two consequences for sequencing. `LABELS.S` is the only oracle needing neither
-aliases, nor `KBD`, nor macros, which makes it the first target on evidence
-rather than on impression. And `MAKE DUMP.S` is the only other source free of
-`KBD`, so **two byte-identical oracles are reachable without ever solving
-interactive input** — that decision can wait until the corpus forces it.
+**`KBD` was never interactive input in the sense that sentence implied.** It is
+a directive that binds a symbol from an answer given to the assembly, and the
+answer path — `AssemblerOptions::predefinedSymbols` — already existed. The
+sequencing note that said only two oracles were reachable "without ever solving
+interactive input" was reading a prompt as a barrier. All six objects now
+reproduce byte for byte, from all five sources.
+
+What the three `KBD` sources cost beyond the directive itself was four other
+things, every one of them settled from the shipped bytes: exclusive-or and
+inclusive-or spelled `!` and `.`, unsigned 16-bit arithmetic, a variable symbol
+standing as a program-counter label, and `?` inside a symbol.
 
 `AST`, `EXP` and `VAR` are left open deliberately. The first two affect only the
 listing and cannot change a byte; `VAR`'s semantics are not confirmed by anything
@@ -320,16 +328,34 @@ corpus is the arbiter; the manual is not.
 - Does Merlin accept a form of `XC` that resets the target to 6502? If so it is in
   scope and cheap; if not, nothing to do.
 - Is Merlin's symbol matching case sensitive?
-- What is Merlin's symbol length limit, and its legal label character set?
-  **Partly answered by the corpus already**: `?` is legal. `CMD?`, `CORR?`,
-  `ISY?` and `RNGOK?` are labels in the vendor sources, and `ValidateLabel`
-  rejects all four today. Accepting them also needs the expression tokenizer to
-  lex `?` inside an identifier, so it is not a one-line change — but it is
-  settled evidence, not a capture question.
+- What is Merlin's symbol **length limit**? Still open. Its legal character set
+  is not: `?` is legal and is now **implemented**. `CMD?`, `CORR?`, `ISY?` and
+  `RNGOK?` are labels in the vendor sources, and `KEYMAC.S`'s `CMD?` is the one
+  of the four sitting in a file that ships an object — so it fails a byte
+  comparison rather than a matter of taste. Both halves were needed: the label
+  rule and the expression tokenizer, or the name binds and then resolves
+  nowhere. Supplied as profile DATA (`GetExtraSymbolCharacters`), so as65 goes
+  on rejecting it.
+- ~~Does Merlin's arithmetic match the evaluator's?~~ **ANSWERED, from bytes,
+  and nothing in this document had thought to ask.** Merlin computes in
+  **unsigned 16-bit quantities**, operands and intermediates alike. `CLOCK.S`
+  turns that into a build switch: `HOURS = VERSION-25/-1*12+12` followed by
+  `ERR HOURS-VERSION` is an equality test written as arithmetic, and it works
+  only because `$FFF3` divided by `$FFFF` is 0 while `$FFFF` divided by `$FFFF`
+  is 1. Read as signed 32-bit the same line is -13 / -1 = 13 and the assertion
+  fires on a file the vendor shipped an object for.
+- ~~May a variable symbol stand as a program-counter label?~~ **ANSWERED, from
+  bytes.** Yes, and repeatedly: `CLOCK.S` names eight separate loop targets
+  `]LOOP`, each branch meaning the definition immediately above it. It opens no
+  local-label scope. The earlier refusal (tasks.md T031) is lifted; what made it
+  safe is that pass 2 rebinds the symbol as it walks, which the reassignable
+  constant already needed for the same reason.
 - ~~Do Merlin's expression operators and precedence match the shared
-  evaluator?~~ **ANSWERED, from bytes.** The operators do; the **binding does
-  not**. Merlin folds an expression strictly left to right and parentheses are
-  the only grouping. `LABELS.S` proves it: it ends with
+  evaluator?~~ **ANSWERED, from bytes — in two instalments, and the first was
+  half wrong.**
+
+  **The binding does not match.** Merlin folds an expression strictly left to
+  right and parentheses are the only grouping. `LABELS.S` proves it: it ends with
 
   ```
    ERR END-LABTBL-1/$700
@@ -351,3 +377,20 @@ corpus is the arbiter; the manual is not.
   to the 983-byte encoder comparison, and surfaced only the first time a whole
   file went through the assembler — because the only line that depends on it is
   the last one, and it is an assertion rather than data.
+
+  **The operator SET does not match either**, which the sentence "the operators
+  do" above got wrong when it was written on `LABELS.S` alone. `!` is
+  exclusive-or and `.` is inclusive-or, where the shared punctuation reads the
+  first as logical-not and does not treat the second as punctuation at all.
+  `CLOCK.S` settles both against its two shipped objects: `LDX #HOURS/24!1`
+  places the time editor's cursor and must be exclusive-or, while
+  `CMP #HOURS/24+3."0"` must be inclusive-or for the rollover comparison to read
+  "24" and "13". Carried into the shared tokenizer as a table on `ExprContext`,
+  the same way the binding is — one lookup on the way in, no second set of folds.
+
+  One consequence to know before writing Merlin source for Casso: the
+  inclusive-or character is also what joins a local label to its scope, and the
+  tokenizer reads an identifier greedily, so `LABEL.OTHER` lexes as one symbol
+  where Merlin would read an operation. Every use on the disk follows a digit,
+  where no identifier is being scanned, so the corpus cannot force the other
+  reading; a source that needs it would.
