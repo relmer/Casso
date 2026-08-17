@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Assembler.h"
 #include "Dialect.h"
 #include "Directive.h"
 #include "MerlinDialect.h"
@@ -24,6 +25,305 @@ namespace DialectMechanismTests
 {
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  PipeDialect
+    //
+    //  A THIRD dialect, invented here, existing only to fail if the mechanism has
+    //  quietly been built for exactly the two that ship.
+    //
+    //  It is deliberately not a copy of either. Its fields are separated by a
+    //  literal character rather than by whitespace or by column, so neither
+    //  existing line model can read it; its comment introducer is a third
+    //  character; its directive spellings share nothing with either vocabulary;
+    //  its default origin is a third address; and its local-label sigil is a
+    //  character neither dialect uses.
+    //
+    //  MOST IMPORTANTLY it declares the OPPOSITE origin semantic from AS65. That
+    //  is the whole point of adding it now rather than earlier: a synthetic
+    //  profile gets written to fit whatever seam exists, so one that happened to
+    //  agree with AS65 on every axis would pass while exercising none of them.
+    //  The axis the emit-cursor split introduced is the newest and the easiest to
+    //  build a two-dialect assumption into, so this profile takes the far side of
+    //  it and the tests below assert that it does.
+    //
+    //  It is NOT in the registry, and a test below checks that it never quietly
+    //  becomes so. It reaches the engine through AssemblerOptions::dialectProfile,
+    //  which exists precisely because a closed table cannot demonstrate that a
+    //  dialect outside it would work.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class PipeDialect : public DialectProfile
+    {
+    public:
+
+        //  Claims no enumerator, because it is not one. The registry sweeps walk
+        //  DialectId and the registry table; a profile that belongs to neither
+        //  must not answer to a value either sweep will visit, or it would be
+        //  found by a test that has no business finding it.
+        DialectId           GetId() const override { return DialectId::Count; }
+        const char *        GetName() const override { return "pipe"; }
+
+        CpuSelectionSource  GetCpuSelectionSource() const override { return CpuSelectionSource::CommandLine; }
+        const char *        GetCpuDirectiveName() const override { return ""; }
+
+        //  A third default origin, so a test asserting this one cannot be
+        //  satisfied by either shipped dialect's.
+        Word                GetDefaultOrigin() const override { return 0x0400; }
+
+        //  The far side of the axis the emit-cursor split added.
+        OriginSemantic      GetOriginSemantic() const override { return OriginSemantic::ProgramCounterOnly; }
+
+        //  ...and the near side of the other two new axes, so this profile is a
+        //  genuine third point rather than a second copy of Merlin.
+        OperandlessForm     GetOperandlessForm() const override { return OperandlessForm::ImpliedOnly; }
+        char                GetHighAsciiCharDelimiter() const override { return 0; }
+
+        char                GetLocalLabelPrefix() const override { return '%'; }
+
+        //  Fields separated by a literal pipe: `label|mnemonic|operand`. Neither
+        //  shipped line model can read this, which is the point -- if the engine
+        //  could still assemble it by accident, the seam would not be where it
+        //  claims to be.
+        ParsedLine ParseLine (const std::string & line, int lineNumber) const override
+        {
+            ParsedLine  result = {};
+            size_t      first  = 0;
+            size_t      second = 0;
+
+            result.lineNumber      = lineNumber;
+            result.isEmpty         = true;
+            result.startsAtColumn0 = true;
+
+            if (line.empty() || (line[0] == kCommentIntroducer))
+            {
+                return result;
+            }
+
+            first  = line.find (kFieldSeparator);
+            second = (first == std::string::npos) ? std::string::npos
+                                                  : line.find (kFieldSeparator, first + 1);
+
+            if (first == std::string::npos)
+            {
+                return result;
+            }
+
+            result.label    = line.substr (0, first);
+            result.mnemonic = (second == std::string::npos)
+                                  ? Parser::ToUpper (line.substr (first + 1))
+                                  : Parser::ToUpper (line.substr (first + 1, second - first - 1));
+            result.operand  = (second == std::string::npos) ? "" : line.substr (second + 1);
+
+            result.directiveToken = TokenForSpelling (result.mnemonic);
+            result.isDirective    = (result.directiveToken != Directive::None);
+
+            if (result.isDirective)
+            {
+                result.directive    = result.mnemonic;
+                result.directiveArg = result.operand;
+            }
+
+            result.isEmpty = result.label.empty() && result.mnemonic.empty();
+
+            return result;
+        }
+
+    private:
+
+        static constexpr char  kFieldSeparator    = '|';
+        static constexpr char  kCommentIntroducer = '!';
+
+        //  Two directives, spelled like nothing in either shipped vocabulary, so
+        //  a table consulted by spelling instead of by token finds neither.
+        static Directive TokenForSpelling (const std::string & word)
+        {
+            Directive  token = Directive::None;
+
+            if (word == "SEEK")
+            {
+                token = Directive::Org;
+            }
+            else if (word == "EMIT")
+            {
+                token = Directive::Byte;
+            }
+
+            return token;
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  SyntheticDialectTests
+    //
+    //  SC-009, proved rather than asserted: a dialect the mechanism has never
+    //  heard of assembles through the shared engine, the shared evaluator and the
+    //  shared opcode tables, with no edit to any of them.
+    //
+    //  The companion to this class is a git check, not a test. T070 requires that
+    //  the commit adding this file's synthetic profile touch none of
+    //  AssemblySession.cpp, ExpressionEvaluator.cpp or OpcodeTable.cpp -- which is
+    //  a property of the commit and cannot be expressed here.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (SyntheticDialectTests)
+    {
+    public:
+
+        //  The claim that makes every test below worth running. A synthetic
+        //  profile agreeing with AS65 on this axis would exercise none of the
+        //  emit-cursor machinery while looking exactly as green.
+        TEST_METHOD (TheSyntheticProfileDeclaresTheOppositeOriginSemanticFromAs65)
+        {
+            PipeDialect             pipe;
+            const DialectProfile &  as65 = DialectRegistry::Get (DialectId::As65);
+
+            Assert::IsTrue (as65.GetOriginSemantic() == OriginSemantic::MovesOutputCursor,
+                            L"AS65 seeks, and this test is meaningless if that ever stops being true");
+            Assert::IsTrue (pipe.GetOriginSemantic() == OriginSemantic::ProgramCounterOnly,
+                            L"the synthetic profile must take the FAR side of the axis, or it tests nothing");
+            Assert::IsFalse (pipe.GetOriginSemantic() == as65.GetOriginSemantic(),
+                             L"same semantic as AS65 would leave the newest axis unexercised");
+        }
+
+
+
+        //  End to end: a grammar neither shipped dialect can read, assembled by
+        //  the shared engine into the bytes the shared opcode table encodes.
+        TEST_METHOD (ASyntheticProfileAssemblesThroughTheSharedEngine)
+        {
+            std::vector<Byte>  expected = { 0xA9, 0x41, 0x8D, 0x00, 0x03, 0x60 };
+            AssemblyResult     result   = AssemblePipe ("!a comment in a third character\n"
+                                                        "START|LDA|#$41\n"
+                                                        "|STA|$0300\n"
+                                                        "|RTS\n");
+
+            Assert::IsTrue (result.errors.empty(), FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"a third grammar must reach the same encoder");
+            Assert::AreEqual (0x0400, (int) result.startAddress,
+                              L"and take its own default origin, which is neither shipped dialect's");
+            Assert::AreEqual (0x0400, (int) result.symbols.at ("START"), L"with its labels bound where it says");
+        }
+
+
+
+        //  The axis itself, end to end. Two sections at two addresses arriving as
+        //  four consecutive bytes is something no seeking dialect can produce.
+        TEST_METHOD (TheSyntheticProfilesOriginRelocatesWithoutMovingTheOutput)
+        {
+            std::vector<Byte>  expected = { 0x11, 0x22, 0x33, 0x44 };
+            AssemblyResult     result   = AssemblePipe ("|SEEK|$0400\n"
+                                                        "|EMIT|$11,$22\n"
+                                                        "HERE|SEEK|$8000\n"
+                                                        "|EMIT|$33,$44\n");
+
+            Assert::IsTrue (result.errors.empty(), FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the output must stay contiguous across the origin");
+            Assert::AreEqual (0x0400, (int) result.startAddress, L"and load where the first origin put it");
+            Assert::AreEqual (0x0402, (int) result.symbols.at ("HERE"),
+                              L"a label on the origin line takes the output position, as it does for any dialect");
+        }
+
+
+
+        //  A label local to the one above it, through a sigil neither shipped
+        //  dialect uses. The local-label seam is stateful engine behavior driven
+        //  by one character of profile data, which is exactly the shape most
+        //  likely to have been written for the dialect that needed it.
+        TEST_METHOD (TheSyntheticProfilesLocalLabelSigilScopesThroughTheSharedEngine)
+        {
+            AssemblyResult  result = AssemblePipe ("ONE|EMIT|$11\n"
+                                                   "%SPOT|EMIT|$22\n"
+                                                   "TWO|EMIT|$33\n"
+                                                   "%SPOT|EMIT|$44\n");
+
+            Assert::IsTrue (result.errors.empty(), FirstDiagnostic (result).c_str());
+            Assert::AreEqual ((size_t) 4, result.bytes.size(),
+                              L"the same local name under two globals is two symbols, not a duplicate");
+        }
+
+
+
+        //  The discriminating half. The engine must not be able to read this
+        //  grammar without the profile, or none of the above is evidence.
+        TEST_METHOD (TheSameSourceUnderAs65DoesNotAssemble)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+            AssemblyResult    result;
+
+            cpu.InitForTest();
+
+            {
+                Assembler  as65 (cpu.GetInstructionSet(), options);
+
+                result = as65.Assemble ("START|LDA|#$41\n|STA|$0300\n|RTS\n");
+            }
+
+            Assert::IsFalse (result.success,
+                             L"AS65 reading a pipe-separated grammar would mean the seam is decoration");
+        }
+
+
+
+        //  The guard on the guard. A synthetic profile smuggled into the registry
+        //  stops being synthetic, and the registry sweeps would then be covering
+        //  a dialect nothing ships.
+        TEST_METHOD (TheSyntheticProfileIsNotInTheRegistry)
+        {
+            DialectId  found    = DialectId::As65;
+            bool       wasFound = DialectRegistry::TryLookUpByName ("pipe", found);
+
+            Assert::IsFalse (wasFound, L"the third profile must stay outside the shipped table");
+
+            for (const DialectRegistry::Entry & entry : DialectRegistry::GetAllDialects())
+            {
+                Assert::IsFalse (entry.id == DialectId::Count,
+                                 L"and no registry row may claim the sentinel it answers to");
+            }
+        }
+
+    private:
+
+        static AssemblyResult AssemblePipe (const std::string & source)
+        {
+            PipeDialect       pipe;
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+
+            cpu.InitForTest();
+            options.dialectProfile = &pipe;
+
+            Assembler  assembler (cpu.GetInstructionSet(), options);
+
+            return assembler.Assemble (source);
+        }
+
+
+
+        static std::wstring FirstDiagnostic (const AssemblyResult & result)
+        {
+            std::string   text;
+            std::wstring  wide;
+
+            if (!result.errors.empty())
+            {
+                text = "line " + std::to_string (result.errors[0].lineNumber) + ": " + result.errors[0].message;
+            }
+
+            wide.assign (text.begin(), text.end());
+
+            return wide;
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  DialectRegistryTests
     //
     //  The mechanism itself, tested apart from any one dialect.
@@ -33,10 +333,12 @@ namespace DialectMechanismTests
     //  reason DirectiveTokenTests sweeps DirectiveTable::GetAllSpellings and
     //  CommandLineTests sweeps CommandLineParser::GetAllSubcommands.
     //
-    //  The synthetic third profile that proves SC-009 belongs here too, but
-    //  deliberately does NOT land yet. Against a seam shaped by one dialect it
-    //  would pass trivially, because it would be written to fit the seam that
-    //  exists; it only carries weight once Merlin has pressed on the seam.
+    //  The synthetic third profile that proves SC-009 is above, and it landed
+    //  only once Merlin had pressed on the seam with its field model, its
+    //  operand-internal separators, its quoted operands, its mnemonic aliases,
+    //  its macro syntax and its origin semantic. Written earlier it would have
+    //  passed trivially, because a synthetic profile gets written to fit
+    //  whatever seam exists.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
