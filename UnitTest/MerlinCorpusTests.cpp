@@ -444,6 +444,243 @@ namespace MerlinCorpusTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  VendorOracleAnswer
+    //
+    //  One symbol a source's keyboard-input line names, and the answer given to
+    //  it. Merlin asks the operator; a batch assembly is told.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    struct VendorOracleAnswer
+    {
+        const char *  symbol;
+        int32_t       value;
+    };
+
+
+
+    //  The answer sets, named rather than written inline, because two of them are
+    //  FINDINGS rather than configuration. PRINTFILER's pair is the vendor's own
+    //  1984 build configuration, recovered from the shipped bytes by trying all
+    //  four; CLOCK's two select which of two shipped objects the one source
+    //  produces.
+    static constexpr VendorOracleAnswer  s_kSaveObjectOff[]    = { { "SAVOBJ", 0 } };
+    static constexpr VendorOracleAnswer  s_kTwentyFourHour[]   = { { "SAVOBJ", 0 }, { "VERSION", 24 } };
+    static constexpr VendorOracleAnswer  s_kTwelveHour[]       = { { "SAVOBJ", 0 }, { "VERSION", 12 } };
+    static constexpr VendorOracleAnswer  s_kVendorBuild[]      = { { "FORMAT", 1 }, { "MONITOR", 0 } };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  VendorOracleEntry
+    //
+    //  One unit of correctness evidence taken from the distribution disk: a
+    //  vendor source, the object the vendor shipped beside it, and the answers
+    //  the source asks for.
+    //
+    //  The source is a PATH and never text. That is the whole of the
+    //  unmodified-source claim: an entry cannot carry a transcribed or tidied
+    //  copy, because it carries no copy at all, and the sweep re-derives the
+    //  assembled text from the fixture bytes on every run.
+    //
+    //  `rawBytes` is the complete stored file including its four-byte header, as
+    //  recorded in the fixture inventory. It pins the fixture at the size the
+    //  extraction produced, so a truncated, padded or re-saved file is a failure
+    //  here rather than a comparison against different evidence.
+    //
+    //  `discriminates` is what stops the corpus being vacuous. Labels, origin,
+    //  literals and the expression evaluator are SHARED between dialects, so an
+    //  entry built only from those assembles identically whether the Merlin
+    //  profile works or is never consulted. An entry claiming a Merlin construct
+    //  must also FAIL under AS65.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    struct VendorOracleEntry
+    {
+        const char                          *  name;
+        const char                          *  sourcePath;
+        const char                          *  objectPath;
+        size_t                                 sourceRawBytes;
+        size_t                                 objectRawBytes;
+        std::span<const VendorOracleAnswer>    answers;
+        bool                                   discriminates;
+    };
+
+
+
+    //  The positive corpus: five vendor sources, six shipped objects. Every one
+    //  is absolute-mode Merlin with both halves present on the disk, which is
+    //  what makes it an oracle rather than a specimen.
+    //
+    //  The two linker-demo sources are deliberately absent. They ship no object,
+    //  and the objects sitting beside them on the disk are POST-LINK, so a
+    //  positive comparison against either would be comparing Casso's output
+    //  against bytes no assembler produced. They are negative specimens and a
+    //  sweep asserts they never appear here.
+    static constexpr VendorOracleEntry  s_kVendorOracles[] =
+    {
+        //  105 string directives and almost nothing else -- a purpose-built probe
+        //  for the encoding area. It names no origin anywhere, so its load
+        //  address comes entirely from the dialect default.
+        { "LABELS",     "Merlin/LABELS.S",     "Merlin/LABELS",     2082, 988, {},                true },
+
+        //  The largest source, and the broadest. Three sections at three
+        //  addresses collapse into one contiguous object, which is only true
+        //  because the origin directive relocates rather than seeks.
+        { "MAKE DUMP",  "Merlin/MAKE DUMP.S",  "Merlin/MAKE DUMP",  6663, 593, {},                true },
+
+        //  Its own save-object answer gates only the save directive, so the bytes
+        //  are the same either way and the answer avoiding the out-of-subset
+        //  construct is the one to give.
+        { "KEYMAC",     "Merlin/KEYMAC.S",     "Merlin/KEYMAC",     5967, 678, s_kSaveObjectOff,  true },
+
+        //  One source, two shipped objects, differing in exactly four bytes of
+        //  365 -- so a conditional-assembly defect shows up as a small specific
+        //  delta rather than a wall of noise.
+        { "CLOCK.24",   "Merlin/CLOCK.S",      "Merlin/CLOCK.24",   6026, 369, s_kTwentyFourHour, true },
+        { "CLOCK.12",   "Merlin/CLOCK.S",      "Merlin/CLOCK.12",   6026, 369, s_kTwelveHour,     true },
+
+        //  Assembled at the configuration recovered from its own bytes.
+        { "PRINTFILER", "Merlin/PRINTFILER.S", "Merlin/PRINTFILER", 4426, 290, s_kVendorBuild,    true },
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  VendorOracle
+    //
+    //  Assembling one entry, and the checks every sweep below shares.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class VendorOracle
+    {
+    public:
+
+        //  The result AND the exact text it was produced from. Both, because the
+        //  unmodified-source claim is about the input rather than the output, and
+        //  checking a string the caller re-read separately would be checking a
+        //  different string from the one that assembled.
+        struct Assembly
+        {
+            std::string     source;
+            AssemblyResult  result;
+        };
+
+
+
+        static Assembly Assemble (const VendorOracleEntry & entry, DialectId dialect)
+        {
+            FixtureProvider   provider;
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+            Assembly          out;
+
+            cpu.InitForTest();
+            options.dialect = dialect;
+
+            for (const VendorOracleAnswer & answer : entry.answers)
+            {
+                options.predefinedSymbols[answer.symbol] = answer.value;
+            }
+
+            AssertSucceeded (MerlinFixture::LoadSource (provider, entry.sourcePath, out.source));
+
+            {
+                Assembler  assembler (cpu.GetInstructionSet(), options);
+
+                out.result = assembler.Assemble (out.source);
+            }
+
+            return out;
+        }
+
+
+
+        //  The entry with a given name. By name rather than by index, because an
+        //  index into the table above is a second place the table's ORDER is
+        //  recorded, and a row inserted anywhere silently repoints it at a
+        //  different oracle.
+        static const VendorOracleEntry & Named (const char * name)
+        {
+            const VendorOracleEntry *  found = nullptr;
+
+            for (const VendorOracleEntry & entry : s_kVendorOracles)
+            {
+                if (std::string (entry.name) == name)
+                {
+                    found = &entry;
+                    break;
+                }
+            }
+
+            Assert::IsNotNull (found, L"the named entry has left the vendor corpus");
+
+            return *found;
+        }
+
+
+
+        static MerlinFixtureFile LoadObject (const VendorOracleEntry & entry)
+        {
+            FixtureProvider    provider;
+            MerlinFixtureFile  object;
+
+            AssertSucceeded (MerlinFixture::LoadObject (provider, entry.objectPath, object));
+
+            return object;
+        }
+
+
+
+        //  The raw stored bytes, straight from the provider with no decoding at
+        //  all. The unmodified-source check needs the file as committed rather
+        //  than as any helper chose to present it.
+        static std::vector<Byte> LoadRaw (const char * path)
+        {
+            FixtureProvider    provider;
+            std::vector<Byte>  raw;
+
+            AssertSucceeded (provider.OpenFixture (path, raw));
+
+            return raw;
+        }
+
+
+
+        //  The first diagnostic, so a failure names what the assembler objected
+        //  to instead of only that it objected.
+        static std::wstring FirstDiagnostic (const char * name, const AssemblyResult & result)
+        {
+            std::string   text = std::string (name) + ": assembled clean";
+            std::wstring  wide;
+
+            if (!result.errors.empty())
+            {
+                text = std::string (name) + " line " + std::to_string (result.errors[0].lineNumber) + ": "
+                     + result.errors[0].message + " (" + std::to_string (result.errors.size()) + " total)";
+            }
+
+            wide.assign (text.begin(), text.end());
+
+            return wide;
+        }
+
+
+
+        static std::wstring Widen (const std::string & text)
+        {
+            return std::wstring (text.begin(), text.end());
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  MerlinVendorOracleTests
     //
     //  Whole vendor sources through the real assembler, compared against the
@@ -466,206 +703,180 @@ namespace MerlinCorpusTests
     {
     public:
 
-        TEST_METHOD (LabelsSourceAssemblesToItsShippedObjectByteForByte)
-        {
-            FixtureProvider    provider;
-            TestCpu            cpu;
-            std::string        source;
-            MerlinFixtureFile  object;
-            AssemblerOptions   options    = {};
-            AssemblyResult     result;
-            CorpusComparison   comparison = {};
-
-            cpu.InitForTest();
-            options.dialect = DialectId::Merlin;
-
-            AssertSucceeded (MerlinFixture::LoadSource (provider, "Merlin/LABELS.S", source));
-            AssertSucceeded (MerlinFixture::LoadObject (provider, "Merlin/LABELS", object));
-
-            {
-                Assembler  merlin (cpu.GetInstructionSet(), options);
-
-                result = merlin.Assemble (source);
-            }
-
-            Assert::IsTrue (result.errors.empty(), FirstDiagnostic (result).c_str());
-
-            comparison = CorpusHarness::Compare (object.payload, result.bytes);
-
-            {
-                std::string   described = CorpusHarness::Describe ("LABELS.S", comparison);
-                std::wstring  message (described.begin(), described.end());
-
-                Assert::IsTrue (comparison.verdict == CorpusVerdict::Match, message.c_str());
-            }
-
-            Assert::AreEqual (static_cast<int> (object.loadAddress), static_cast<int> (result.startAddress),
-                              L"LABELS.S names no origin, so its load address comes from the dialect default alone");
-        }
-
-
-
-        //  The same source under AS65. This is the discriminating half: labels,
-        //  expressions and the evaluator are shared, so an entry that passes under
-        //  both dialects is not evidence that the Merlin profile was consulted.
-        TEST_METHOD (LabelsSourceUnderAs65DoesNotProduceMerlinsBytes)
-        {
-            FixtureProvider    provider;
-            TestCpu            cpu;
-            std::string        source;
-            MerlinFixtureFile  object;
-            AssemblerOptions   options    = {};
-            AssemblyResult     result;
-            CorpusComparison   comparison = {};
-
-            cpu.InitForTest();
-            options.dialect = DialectId::As65;
-
-            AssertSucceeded (MerlinFixture::LoadSource (provider, "Merlin/LABELS.S", source));
-            AssertSucceeded (MerlinFixture::LoadObject (provider, "Merlin/LABELS", object));
-
-            {
-                Assembler  as65 (cpu.GetInstructionSet(), options);
-
-                result = as65.Assemble (source);
-            }
-
-            comparison = CorpusHarness::Compare (object.payload, result.bytes);
-
-            Assert::IsFalse (comparison.verdict == CorpusVerdict::Match,
-                             L"Merlin source assembling identically under AS65 would mean the profile is not being consulted");
-        }
-
-        //  The second whole-file oracle, and a far broader one than LABELS.S. It
-        //  is the largest source on the disk, it assembles THREE sections at
-        //  three different addresses into one contiguous object, and it exercises
-        //  macros, per-expansion body labels, local labels, raw hexadecimal, the
-        //  string family with trailing hexadecimal runs, branch aliases,
-        //  assembly-time assertions in both forms, and the byte selectors.
+        //  The absent-corpus guard, and it comes FIRST because every sweep below
+        //  is a loop: over an empty table each one reports success having
+        //  compared nothing, and the output is indistinguishable from a full run.
         //
-        //  The 589 bytes are what makes it worth having. Nothing was relaxed to
-        //  reach them: the comparison is whole-file, byte-for-byte, against the
-        //  object the vendor shipped beside the source.
-        TEST_METHOD (MakeDumpSourceAssemblesToItsShippedObjectByteForByte)
+        //  The floor is stated as an equality rather than a minimum. Five sources
+        //  and six objects is what the disk holds in absolute mode with both
+        //  halves present -- a measured figure, not a target -- so a table that
+        //  grew or shrank is a change to the evidence and should be seen.
+        TEST_METHOD (TheVendorCorpusMeetsItsFloor)
         {
-            FixtureProvider    provider;
-            TestCpu            cpu;
-            std::string        source;
-            MerlinFixtureFile  object;
-            AssemblerOptions   options    = {};
-            AssemblyResult     result;
-            CorpusComparison   comparison = {};
+            std::vector<std::string>  sources;
+            size_t                    distinct = 0;
 
-            cpu.InitForTest();
-            options.dialect = DialectId::Merlin;
 
-            AssertSucceeded (MerlinFixture::LoadSource (provider, "Merlin/MAKE DUMP.S", source));
-            AssertSucceeded (MerlinFixture::LoadObject (provider, "Merlin/MAKE DUMP", object));
 
+            Assert::IsTrue (std::size (s_kVendorOracles) > 0, L"a sweep over an empty corpus compares nothing");
+
+            for (const VendorOracleEntry & entry : s_kVendorOracles)
             {
-                Assembler  merlin (cpu.GetInstructionSet(), options);
-
-                result = merlin.Assemble (source);
+                if (std::find (sources.begin(), sources.end(), entry.sourcePath) == sources.end())
+                {
+                    sources.push_back (entry.sourcePath);
+                }
             }
 
-            Assert::IsTrue (result.errors.empty(), FirstDiagnostic (result).c_str());
+            distinct = sources.size();
 
-            comparison = CorpusHarness::Compare (object.payload, result.bytes);
-
-            {
-                std::string   described = CorpusHarness::Describe ("MAKE DUMP.S", comparison);
-                std::wstring  message (described.begin(), described.end());
-
-                Assert::IsTrue (comparison.verdict == CorpusVerdict::Match, message.c_str());
-            }
-
-            //  The load address is half the claim. Three sections at $9000,
-            //  $0300 and $0900 collapse to ONE object loading at $9000, which is
-            //  only true because the origin directive relocates rather than
-            //  seeking -- and 589 contiguous bytes cannot span that range.
-            Assert::AreEqual (static_cast<int> (object.loadAddress), static_cast<int> (result.startAddress),
-                              L"the object loads where its first origin put it, not where its lowest section runs");
+            Assert::AreEqual ((size_t) 6, std::size (s_kVendorOracles),
+                              L"six shipped objects on the Merlin Pro 2.23 disk have a source beside them");
+            Assert::AreEqual ((size_t) 5, distinct,
+                              L"from five sources -- CLOCK.S is the one that ships two objects");
         }
 
 
 
-        //  The discriminating half. Every construct above is Merlin's, so a
-        //  result identical under AS65 would mean the profile was never consulted.
-        TEST_METHOD (MakeDumpSourceUnderAs65DoesNotProduceMerlinsBytes)
+        //  The linker demo ships no object of its own, and the objects beside it
+        //  on the disk are POST-LINK. Comparing against either would be comparing
+        //  Casso's output with bytes no assembler produced, so the exclusion is
+        //  asserted rather than merely observed -- it is one careless row away
+        //  from being lost, and the entry would look entirely reasonable.
+        TEST_METHOD (NoLinkerDemoSourceIsUsedAsAPositiveOracle)
         {
-            FixtureProvider    provider;
-            TestCpu            cpu;
-            std::string        source;
-            MerlinFixtureFile  object;
-            AssemblerOptions   options    = {};
-            AssemblyResult     result;
-            CorpusComparison   comparison = {};
-
-            cpu.InitForTest();
-            options.dialect = DialectId::As65;
-
-            AssertSucceeded (MerlinFixture::LoadSource (provider, "Merlin/MAKE DUMP.S", source));
-            AssertSucceeded (MerlinFixture::LoadObject (provider, "Merlin/MAKE DUMP", object));
-
+            for (const VendorOracleEntry & entry : s_kVendorOracles)
             {
-                Assembler  as65 (cpu.GetInstructionSet(), options);
+                std::string  path = entry.sourcePath;
 
-                result = as65.Assemble (source);
+                Assert::IsTrue (path.find ("PI.") == std::string::npos,
+                                VendorOracle::Widen (path + " ships no object of its own").c_str());
             }
-
-            comparison = CorpusHarness::Compare (object.payload, result.bytes);
-
-            Assert::IsFalse (comparison.verdict == CorpusVerdict::Match,
-                             L"Merlin source assembling identically under AS65 would mean the profile is not being consulted");
         }
 
-        //  CLOCK.S -- ONE source, TWO shipped objects, and the whole reason the
-        //  keyboard-input directive was worth solving rather than routing around.
-        //  `VERSION` selects which build assembles, so a single 6022-byte file
-        //  yields two independent byte-identical checks and the corpus's only
-        //  coverage of conditional assembly deciding an object's contents.
+
+
+        //  SC-001. Every entry, whole file through the real assembler, against the
+        //  bytes the vendor shipped -- plus the load address, which is half the
+        //  claim: a wrong origin yields byte-perfect output in the wrong place.
+        TEST_METHOD (EveryVendorEntryAssemblesToItsShippedObjectByteForByte)
+        {
+            for (const VendorOracleEntry & entry : s_kVendorOracles)
+            {
+                VendorOracle::Assembly  assembly   = VendorOracle::Assemble (entry, DialectId::Merlin);
+                MerlinFixtureFile       object     = VendorOracle::LoadObject (entry);
+                CorpusComparison        comparison = {};
+
+                Assert::IsTrue (assembly.result.errors.empty(),
+                                VendorOracle::FirstDiagnostic (entry.name, assembly.result).c_str());
+
+                comparison = CorpusHarness::Compare (object.payload, assembly.result.bytes);
+
+                Assert::IsTrue (comparison.verdict == CorpusVerdict::Match,
+                                VendorOracle::Widen (CorpusHarness::Describe (entry.name, comparison)).c_str());
+
+                Assert::AreEqual (static_cast<int> (object.loadAddress),
+                                  static_cast<int> (assembly.result.startAddress),
+                                  VendorOracle::Widen (std::string (entry.name) + " must load where it was shipped").c_str());
+            }
+        }
+
+
+
+        //  Every entry carrying the flag must FAIL under AS65 as well as matching
+        //  under Merlin. This closes the vacuity shape the flag exists for:
+        //  labels, origin, literals and the evaluator are shared, so an entry
+        //  built from those alone is green whether the Merlin profile works or is
+        //  never consulted at all.
         //
-        //  The two objects differ in exactly four bytes of 365, which is the
-        //  useful part: a conditional-assembly defect shows up as a specific
-        //  small delta rather than a wall of noise.
-        TEST_METHOD (ClockSourceAssemblesToItsTwentyFourHourObjectByteForByte)
+        //  Today every vendor entry discriminates, which is asserted rather than
+        //  left implicit -- an entry added later with the flag clear is a claim
+        //  that it exercises only shared constructs, and that claim should have to
+        //  be made deliberately.
+        TEST_METHOD (EveryDiscriminatingEntryFailsUnderAs65)
         {
-            AssertOracleMatches ("Merlin/CLOCK.S", "Merlin/CLOCK.24",
-                                 { { "SAVOBJ", 0 }, { "VERSION", 24 } }, L"CLOCK.S at VERSION 24");
+            size_t  discriminating = 0;
+
+            for (const VendorOracleEntry & entry : s_kVendorOracles)
+            {
+                if (entry.discriminates)
+                {
+                    VendorOracle::Assembly  assembly   = VendorOracle::Assemble (entry, DialectId::As65);
+                    MerlinFixtureFile       object     = VendorOracle::LoadObject (entry);
+                    CorpusComparison        comparison = CorpusHarness::Compare (object.payload, assembly.result.bytes);
+
+                    discriminating++;
+
+                    Assert::IsFalse (comparison.verdict == CorpusVerdict::Match,
+                                     VendorOracle::Widen (std::string (entry.name)
+                                         + " produced Merlin's bytes under AS65, so the profile was not consulted").c_str());
+                }
+            }
+
+            Assert::AreEqual (std::size (s_kVendorOracles), discriminating,
+                              L"every vendor entry is full of Merlin constructs, so every one must discriminate");
         }
 
 
 
-        TEST_METHOD (ClockSourceAssemblesToItsTwelveHourObjectByteForByte)
+        //  SC-002, and the assertion without which "unmodified" is only inspected.
+        //  The corpus already proves the BYTES match; this proves the INPUT was
+        //  not touched to get there.
+        //
+        //  The correspondence asserted is total and order-preserving: one
+        //  character of assembled text per stored byte, in order, with only the
+        //  documented decoding between them. So a tidied source fails whatever
+        //  was tidied -- a re-indented line, a stripped trailing space, a deleted
+        //  comment and an inserted origin each move or change a character, and a
+        //  transcription would have to be byte-identical to the file to survive,
+        //  at which point it is not a transcription.
+        //
+        //  Everything here is re-derived from the provider rather than taken from
+        //  the decoder the sweep above uses. A decoder that normalized whitespace
+        //  would otherwise satisfy this test with the same wrong text it handed
+        //  the assembler.
+        TEST_METHOD (EveryVendorEntryAssemblesTheFixtureBytesUnmodified)
         {
-            AssertOracleMatches ("Merlin/CLOCK.S", "Merlin/CLOCK.12",
-                                 { { "SAVOBJ", 0 }, { "VERSION", 12 } }, L"CLOCK.S at VERSION 12");
+            for (const VendorOracleEntry & entry : s_kVendorOracles)
+            {
+                VendorOracle::Assembly  assembly = VendorOracle::Assemble (entry, DialectId::Merlin);
+                std::vector<Byte>       raw      = VendorOracle::LoadRaw (entry.sourcePath);
+
+                AssertTextIsTheStoredBytes (entry, assembly.source, raw);
+            }
         }
 
 
 
-        //  And the two answers must not produce the same bytes, or the pair above
+        //  And the fixtures themselves are the ones the extraction produced.
+        //  The check above compares text against bytes and cannot see a file
+        //  that was edited and re-saved consistently; the recorded sizes can.
+        TEST_METHOD (EveryVendorFixtureIsTheSizeTheInventoryRecords)
+        {
+            for (const VendorOracleEntry & entry : s_kVendorOracles)
+            {
+                std::vector<Byte>  source = VendorOracle::LoadRaw (entry.sourcePath);
+                std::vector<Byte>  object = VendorOracle::LoadRaw (entry.objectPath);
+
+                Assert::AreEqual (entry.sourceRawBytes, source.size(),
+                                  VendorOracle::Widen (std::string (entry.sourcePath) + " is not the size it was extracted at").c_str());
+                Assert::AreEqual (entry.objectRawBytes, object.size(),
+                                  VendorOracle::Widen (std::string (entry.objectPath) + " is not the size it was extracted at").c_str());
+            }
+        }
+
+
+
+        //  And the two answers must not produce the same bytes, or the CLOCK pair
         //  is two copies of one check. This is the assertion that makes CLOCK.S
         //  worth two entries rather than one.
         TEST_METHOD (TheTwoClockBuildsDifferFromEachOther)
         {
-            AssemblyResult  twentyFour = AssembleOracle ("Merlin/CLOCK.S", { { "SAVOBJ", 0 }, { "VERSION", 24 } });
-            AssemblyResult  twelve     = AssembleOracle ("Merlin/CLOCK.S", { { "SAVOBJ", 0 }, { "VERSION", 12 } });
+            VendorOracle::Assembly  twentyFour = VendorOracle::Assemble (VendorOracle::Named ("CLOCK.24"), DialectId::Merlin);
+            VendorOracle::Assembly  twelve     = VendorOracle::Assemble (VendorOracle::Named ("CLOCK.12"), DialectId::Merlin);
 
-            Assert::IsFalse (twentyFour.bytes == twelve.bytes,
+            Assert::IsFalse (twentyFour.result.bytes == twelve.result.bytes,
                              L"the version answer must reach the object, or both entries prove the same thing");
-        }
-
-
-
-        //  KEYMAC.S -- general-purpose, and the source that needs `?` accepted
-        //  inside a symbol. Its own `SAVOBJ` gates only the save directive, so the
-        //  bytes are the same either way and the answer that avoids the
-        //  out-of-subset construct is the one to give.
-        TEST_METHOD (KeymacSourceAssemblesToItsShippedObjectByteForByte)
-        {
-            AssertOracleMatches ("Merlin/KEYMAC.S", "Merlin/KEYMAC",
-                                 { { "SAVOBJ", 0 } }, L"KEYMAC.S");
         }
 
 
@@ -680,20 +891,25 @@ namespace MerlinCorpusTests
         //  source says they are. Either is a finding.
         TEST_METHOD (ExactlyOneAnswerPairReproducesPrintfilersShippedObject)
         {
+            constexpr int      kCombinations = 4;
             MerlinFixtureFile  object;
             FixtureProvider    provider;
-            int                matches = 0;
-            int                matched = -1;
+            int                matches       = 0;
+            int                matched       = -1;
 
             AssertSucceeded (MerlinFixture::LoadObject (provider, "Merlin/PRINTFILER", object));
 
-            for (int combination = 0; combination < 4; combination++)
+            for (int combination = 0; combination < kCombinations; combination++)
             {
-                AssemblyResult  result = AssembleOracle ("Merlin/PRINTFILER.S",
-                                                         { { "FORMAT",  combination & 1 },
-                                                           { "MONITOR", (combination >> 1) & 1 } });
+                VendorOracleAnswer      answers[] = { { "FORMAT",  combination & 1 },
+                                                      { "MONITOR", (combination >> 1) & 1 } };
+                VendorOracleEntry       trial     = VendorOracle::Named ("PRINTFILER");
 
-                if (result.errors.empty() && result.bytes == object.payload)
+                trial.answers = std::span<const VendorOracleAnswer> (answers, std::size (answers));
+
+                VendorOracle::Assembly  assembly  = VendorOracle::Assemble (trial, DialectId::Merlin);
+
+                if (assembly.result.errors.empty() && assembly.result.bytes == object.payload)
                 {
                     matches++;
                     matched = combination;
@@ -704,114 +920,48 @@ namespace MerlinCorpusTests
             Assert::AreEqual (1, matched, L"and it is the pair with formatting on and monitoring off");
         }
 
-
-
-        //  The discriminating half for the three sources added here, in one test
-        //  rather than three: each is full of Merlin constructs, so a result
-        //  identical under AS65 would mean the profile was never consulted. AS65
-        //  does not even know the directive that supplies the answers, so these
-        //  cannot assemble at all there -- which is itself the evidence.
-        TEST_METHOD (TheKeyboardInputSourcesDoNotAssembleUnderAs65)
-        {
-            const char *  sources[] = { "Merlin/CLOCK.S", "Merlin/KEYMAC.S", "Merlin/PRINTFILER.S" };
-
-            Assert::AreEqual ((size_t) 3, std::size (sources), L"three sources, or this sweep covers less than it claims");
-
-            for (const char * path : sources)
-            {
-                FixtureProvider   provider;
-                TestCpu           cpu;
-                std::string       source;
-                AssemblerOptions  options = {};
-                AssemblyResult    result;
-
-                cpu.InitForTest();
-                options.dialect = DialectId::As65;
-
-                AssertSucceeded (MerlinFixture::LoadSource (provider, path, source));
-
-                {
-                    Assembler  as65 (cpu.GetInstructionSet(), options);
-
-                    result = as65.Assemble (source);
-                }
-
-                Assert::IsFalse (result.errors.empty(),
-                                 L"Merlin source assembling cleanly under AS65 would mean the profile is not consulted");
-            }
-        }
-
     private:
 
-        //  One vendor source through the real assembler, with the answers its
-        //  keyboard-input lines name.
-        static AssemblyResult AssembleOracle (const char * sourcePath,
-                                              const std::unordered_map<std::string, int32_t> & answers)
+        //  The stored file as text, one character per byte: the four-byte header
+        //  removed, the declared length honored, bit 7 masked, and Merlin's CR
+        //  line terminators translated. Written out here rather than called,
+        //  because this is the independent half of the comparison.
+        static void AssertTextIsTheStoredBytes (const VendorOracleEntry & entry,
+                                                const std::string       & assembled,
+                                                const std::vector<Byte> & raw)
         {
-            FixtureProvider   provider;
-            TestCpu           cpu;
-            std::string       source;
-            AssemblerOptions  options = {};
+            constexpr size_t  kHeaderBytes    = 4;
+            constexpr size_t  kLengthOffset   = 2;
+            constexpr Byte    kLowSevenBits   = 0x7F;
+            constexpr Byte    kCarriageReturn = 0x0D;
+            size_t            declared        = 0;
 
-            cpu.InitForTest();
-            options.dialect           = DialectId::Merlin;
-            options.predefinedSymbols = answers;
+            Assert::IsTrue (raw.size() > kHeaderBytes,
+                            VendorOracle::Widen (std::string (entry.sourcePath) + " is too short to hold a header").c_str());
 
-            AssertSucceeded (MerlinFixture::LoadSource (provider, sourcePath, source));
+            declared = (size_t) raw[kLengthOffset] | ((size_t) raw[kLengthOffset + 1] << 8);
 
-            Assembler  merlin (cpu.GetInstructionSet(), options);
+            Assert::AreEqual (raw.size() - kHeaderBytes, declared,
+                              VendorOracle::Widen (std::string (entry.sourcePath)
+                                  + " declares a length its payload does not match").c_str());
 
-            return merlin.Assemble (source);
-        }
+            Assert::AreEqual (declared, assembled.size(),
+                              VendorOracle::Widen (std::string (entry.name)
+                                  + ": the assembled text is not one character per stored byte, so a line was added,"
+                                    " removed or reflowed").c_str());
 
-
-
-        //  The whole comparison for one oracle: no diagnostics, the shipped bytes
-        //  exactly, and the shipped load address. The address is half the claim --
-        //  a wrong origin yields byte-perfect output in the wrong place.
-        static void AssertOracleMatches (const char * sourcePath,
-                                         const char * objectPath,
-                                         const std::unordered_map<std::string, int32_t> & answers,
-                                         const wchar_t * what)
-        {
-            FixtureProvider    provider;
-            MerlinFixtureFile  object;
-            AssemblyResult     result     = AssembleOracle (sourcePath, answers);
-            CorpusComparison   comparison = {};
-
-            AssertSucceeded (MerlinFixture::LoadObject (provider, objectPath, object));
-
-            Assert::IsTrue (result.errors.empty(), FirstDiagnostic (result).c_str());
-
-            comparison = CorpusHarness::Compare (object.payload, result.bytes);
-
+            for (size_t i = 0; i < declared; i++)
             {
-                std::string   described = CorpusHarness::Describe (objectPath, comparison);
-                std::wstring  message (described.begin(), described.end());
+                Byte  masked   = raw[kHeaderBytes + i] & kLowSevenBits;
+                char  expected = (masked == kCarriageReturn) ? '\n' : (char) masked;
 
-                Assert::IsTrue (comparison.verdict == CorpusVerdict::Match, message.c_str());
+                if (assembled[i] != expected)
+                {
+                    Assert::Fail (VendorOracle::Widen (std::string (entry.name) + ": the assembled text differs from the"
+                                      " stored bytes at offset " + std::to_string (i)
+                                      + " -- the source was edited, not assembled as committed").c_str());
+                }
             }
-
-            Assert::AreEqual (static_cast<int> (object.loadAddress), static_cast<int> (result.startAddress), what);
-        }
-
-
-        //  The first diagnostic, so a failure names what the assembler objected to
-        //  instead of only that it objected. Empty when the assembly was clean.
-        static std::wstring FirstDiagnostic (const AssemblyResult & result)
-        {
-            std::string   text;
-            std::wstring  wide;
-
-            if (!result.errors.empty())
-            {
-                text = "line " + std::to_string (result.errors[0].lineNumber) + ": " + result.errors[0].message
-                     + " (" + std::to_string (result.errors.size()) + " total)";
-            }
-
-            wide.assign (text.begin(), text.end());
-
-            return wide;
         }
     };
 
