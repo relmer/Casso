@@ -91,6 +91,7 @@ flag parser — the additive shape the table was made data for.
 | `-o <file>` | Output path. **Takes precedence over an in-source object-file directive**, so a build script can override the source. |
 | `-l[<file>]` | Listing. With no filename, goes to stdout, as today. The listing header states the active dialect. |
 | `-v` | Verbose. The active dialect is reported on **stderr**. |
+| `-d <symbol>[=<value>]` | Answers a symbol the source asks for at the keyboard. Repeatable; a bare symbol answers 1. Same spelling as `as65`, because the value means the same thing in both. Without it a source using `KBD` cannot be assembled at all, while the diagnostic names this flag. |
 | `--cpu <target>` | **Refused.** Merlin selects its CPU in source; the message names that directive. |
 
 `--cpu` is refused rather than ignored because a flag that is accepted and does

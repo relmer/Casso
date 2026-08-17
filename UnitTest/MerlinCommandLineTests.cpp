@@ -124,7 +124,34 @@ namespace MerlinCommandLineTests
             return options.outputFile + "|" + options.listingFile + "|"
                  + (options.generateListing ? "L" : "-")
                  + (options.listingToStdout ? "S" : "-")
-                 + (options.verbose         ? "V" : "-");
+                 + (options.verbose         ? "V" : "-")
+                 + "|" + Definitions (options);
+        }
+
+
+
+        //  The answers map rendered in a fixed order, because the map itself has
+        //  none: a fingerprint carrying the hash order would differ from itself
+        //  between runs, and the sweep that compares two fingerprints would be
+        //  reporting the container rather than the parse.
+        static std::string Definitions (const CommandLineOptions & options)
+        {
+            std::vector<std::string>  pairs;
+            std::string               text;
+
+            for (const auto & definition : options.predefinedSymbols)
+            {
+                pairs.push_back (definition.first + "=" + std::to_string (definition.second));
+            }
+
+            std::sort (pairs.begin(), pairs.end());
+
+            for (const std::string & pair : pairs)
+            {
+                text += pair + ",";
+            }
+
+            return text;
         }
 
 
@@ -234,6 +261,78 @@ namespace MerlinCommandLineTests
             CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", "-v" });
 
             Assert::IsTrue (opts.verbose);
+        }
+
+        //  Merlin stops and asks the operator for a keyboard-input symbol. A
+        //  batch assembly has nobody to ask, so the answer arrives here or the
+        //  source cannot be assembled at all -- which is what the three vendor
+        //  sources that ask questions were, before this flag existed.
+        TEST_METHOD (DefineFlag_TakesAnAttachedAnswer)
+        {
+            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", "-dVERSION=24" });
+
+            Assert::AreEqual (std::string ("VERSION=24,"), Fixture::Definitions (opts));
+        }
+
+        TEST_METHOD (DefineFlag_TakesASeparatedAnswer)
+        {
+            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "-d", "VERSION=24", "demo.s" });
+
+            Assert::AreEqual (std::string ("VERSION=24,"), Fixture::Definitions (opts));
+            Assert::AreEqual (std::string ("demo.s"), opts.inputFile,
+                              L"the answer after -d must not also be taken for the source");
+        }
+
+        //  Zero is an ANSWER in these sources, not an absence, so it has to
+        //  survive the parse as itself. A parser treating an unset value and a
+        //  zero value alike assembles the other build of the file.
+        TEST_METHOD (DefineFlag_KeepsZeroApartFromNoAnswerAtAll)
+        {
+            CommandLineOptions  answered   = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", "-dSAVOBJ=0" });
+            CommandLineOptions  unanswered = Fixture::Parse ({ "CassoCli", "merlin", "demo.s" });
+
+            Assert::AreEqual (std::string ("SAVOBJ=0,"), Fixture::Definitions (answered));
+            Assert::AreEqual (std::string(),             Fixture::Definitions (unanswered));
+        }
+
+        TEST_METHOD (DefineFlag_AnswersABareSymbolWithOne)
+        {
+            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", "-dSAVOBJ" });
+
+            Assert::AreEqual (std::string ("SAVOBJ=1,"), Fixture::Definitions (opts));
+        }
+
+        //  Sources ask more than one question. A flag that kept only the last
+        //  answer would satisfy every single-answer test above and still fail
+        //  every source that asks twice.
+        TEST_METHOD (DefineFlag_KeepsEveryAnswerGiven)
+        {
+            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s",
+                                                         "-dSAVOBJ=0", "-dVERSION=24" });
+
+            Assert::AreEqual (std::string ("SAVOBJ=0,VERSION=24,"), Fixture::Definitions (opts));
+        }
+
+        //  The two grammars parse an answer with separate code, deliberately --
+        //  they are separate walks over incompatible command lines. What must
+        //  NOT differ is what an answer MEANS, so the spellings that carry a
+        //  value, omit one, or spell one unreadably are swept through both and
+        //  required to land on the same map.
+        TEST_METHOD (BothGrammarsReadAnAnswerTheSameWay)
+        {
+            const char *  spellings[] = { "SYM=7", "SYM", "SYM=0", "SYM=0x10", "SYM=-3", "SYM=zzz" };
+
+            for (const char * spelling : spellings)
+            {
+                std::string         typed  = std::string ("-d") + spelling;
+                CommandLineOptions  merlin = Fixture::Parse ({ "CassoCli", "merlin", "demo.s",   typed });
+                CommandLineOptions  as65   = Fixture::Parse ({ "CassoCli", "as65",   "demo.a65", typed });
+
+                Assert::AreEqual (Fixture::Definitions (as65), Fixture::Definitions (merlin),
+                                  Fixture::Widen (typed).c_str());
+                Assert::IsFalse  (Fixture::Definitions (merlin).empty(),
+                                  Fixture::Widen (typed + " reached neither grammar").c_str());
+            }
         }
 
         TEST_METHOD (ConcatenatedFlags_SplitIntoIndividualFlags)

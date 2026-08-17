@@ -111,6 +111,8 @@ private:
 
     static bool  RefuseCpuFlagWhereSelectedInSource (CommandLineOptions & options);
 
+    static void  AddSymbolDefinition (const std::string & definition, CommandLineOptions & options);
+
     static const DialectFlag *  FindMerlinFlag  (char letter);
     static bool                 ApplyMerlinFlag (char                 letter,
                                                  const std::string  & value,

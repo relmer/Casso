@@ -139,11 +139,16 @@ Neither easier outcome is acceptable — blocking on a prompt hangs an unattende
 build, and defaulting to zero cleanly assembles code nobody asked for, because
 these symbols gate whole sections.
 
-> **Known gap.** The `merlin` subcommand has no flag for supplying that answer
-> yet: its flags are `-o`, `-l` and `-v`, and `-d` is rejected as unknown — even
-> though the diagnostic suggests it. A source containing `KBD` therefore cannot
-> be assembled from the command line today. The answer channel itself works and
-> is exercised by the test suite; only the flag is missing.
+The flag is `-d`, spelled as it is for `as65`:
+
+```
+CassoCli merlin CLOCK.S -d SAVOBJ=0 -d VERSION=24 -o CLOCK24
+CassoCli merlin CLOCK.S -d SAVOBJ=0 -d VERSION=12 -o CLOCK12
+```
+
+Repeat it once per question. A bare `-d SAVOBJ` answers 1, for a source that
+tests only whether a symbol was given; `-d SAVOBJ=0` answers zero, which is a
+different answer and not an absent one.
 
 ## Deliberate divergences and unverified corners
 

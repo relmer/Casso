@@ -7,6 +7,7 @@
 #include "TestHelpers.h"
 #include "MockFileReader.h"
 #include "Assembler.h"
+#include "CommandLineParser.h"
 #include "DialectRegistry.h"
 #include "DialectProfile.h"
 #include "MerlinSubsetBoundary.h"
@@ -966,6 +967,247 @@ namespace MerlinCorpusTests
                                       + " -- the source was edited, not assembled as committed").c_str());
                 }
             }
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinInvocationOracleTests
+    //
+    //  The same six objects, reproduced from an ARGV.
+    //
+    //  The sweep above hands the assembler an answer map built in C++. That proves
+    //  the assembler, and proves nothing about whether an operator can get an
+    //  answer to it: three of these five sources ask questions, and until the
+    //  grammar carried an answer they were unreachable from a command line while
+    //  the tool printed advice on how to answer them.
+    //
+    //  So every entry here is spelled as words, parsed by the real grammar, and the
+    //  answers the assembler receives are the ones the parse produced. Nothing is
+    //  read back from the entry except the file to assemble and the object to
+    //  compare against.
+    //
+    //  What this cannot cover is the executable's own wiring, which is not linked
+    //  into this project. That link is checked by running the tool.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinInvocationOracleTests)
+    {
+    public:
+
+        //  Every entry, driven from words. A flag that is accepted and discarded
+        //  fails four of these six with the very diagnostic that named it.
+        TEST_METHOD (EveryVendorEntryReproducesItsShippedObjectFromAnArgv)
+        {
+            size_t  answered = 0;
+
+            for (const VendorOracleEntry & entry : s_kVendorOracles)
+            {
+                CommandLineOptions  options    = ParseInvocation (entry.sourcePath, entry.answers);
+                AssemblyResult      result     = AssembleAsInvoked (entry.sourcePath, options);
+                MerlinFixtureFile   object     = VendorOracle::LoadObject (entry);
+                CorpusComparison    comparison = {};
+
+                if (!entry.answers.empty())
+                {
+                    answered++;
+                }
+
+                Assert::IsTrue (options.dialect == DialectId::Merlin,
+                                L"the invocation must have selected Merlin, or this sweep tests the default");
+
+                Assert::IsTrue (result.errors.empty(),
+                                VendorOracle::FirstDiagnostic (entry.name, result).c_str());
+
+                comparison = CorpusHarness::Compare (object.payload, result.bytes);
+
+                Assert::IsTrue (comparison.verdict == CorpusVerdict::Match,
+                                VendorOracle::Widen (CorpusHarness::Describe (entry.name, comparison)).c_str());
+
+                Assert::AreEqual (static_cast<int> (object.loadAddress),
+                                  static_cast<int> (result.startAddress),
+                                  VendorOracle::Widen (std::string (entry.name)
+                                      + " must load where it was shipped").c_str());
+            }
+
+            Assert::AreEqual ((size_t) 4, answered,
+                              L"four of the six objects need an answer typed, and they are the reason the flag exists");
+        }
+
+
+
+        //  And the answers are LOAD-BEARING. Without this, the sweep above is
+        //  equally green against a grammar that drops every answer on the floor
+        //  for any source that turns out not to need one -- so each answering
+        //  entry is run again with the answers withheld and required to refuse.
+        //
+        //  Each refusal is required to NAME the question it is about. "The
+        //  assembly failed" is satisfied by any failure whatever, including one
+        //  arising downstream from an answer that was never asked for, and a
+        //  vendor source this size fails for a dozen consequential reasons once
+        //  its first symbol is undefined.
+        TEST_METHOD (EveryAnsweringEntryRefusesByNameWhenNoAnswerIsTyped)
+        {
+            size_t  refused   = 0;
+            size_t  questions = 0;
+
+            for (const VendorOracleEntry & entry : s_kVendorOracles)
+            {
+                if (!entry.answers.empty())
+                {
+                    CommandLineOptions  options = ParseInvocation (entry.sourcePath, {});
+                    AssemblyResult      result  = AssembleAsInvoked (entry.sourcePath, options);
+
+                    refused++;
+
+                    Assert::IsTrue (options.predefinedSymbols.empty(),
+                                    L"no answer was typed, so none may arrive");
+
+                    for (const VendorOracleAnswer & answer : entry.answers)
+                    {
+                        questions++;
+
+                        Assert::IsTrue (RefusalNames (result, answer.symbol),
+                                        VendorOracle::Widen (std::string (entry.name) + " never refused "
+                                            + answer.symbol + ", so that answer reaches no byte").c_str());
+                    }
+                }
+            }
+
+            Assert::AreEqual ((size_t) 4, refused,   L"four entries carry answers");
+            Assert::AreEqual ((size_t) 7, questions,
+                              L"seven questions between them -- CLOCK asks its two once per shipped object");
+        }
+
+
+
+        //  The headline claim, stated as one assertion: ONE source, TWO command
+        //  lines, the two different objects the vendor shipped. Neither half of a
+        //  matching pair can be produced by ignoring what was typed.
+        TEST_METHOD (OneSourceProducesBothShippedClockObjectsFromTwoCommandLines)
+        {
+            const VendorOracleEntry &  twentyFour = VendorOracle::Named ("CLOCK.24");
+            const VendorOracleEntry &  twelve     = VendorOracle::Named ("CLOCK.12");
+            AssemblyResult             builtLate  = AssembleAsInvoked (twentyFour.sourcePath,
+                                                        ParseInvocation (twentyFour.sourcePath, twentyFour.answers));
+            AssemblyResult             builtEarly = AssembleAsInvoked (twelve.sourcePath,
+                                                        ParseInvocation (twelve.sourcePath, twelve.answers));
+
+            Assert::AreEqual (std::string (twentyFour.sourcePath), std::string (twelve.sourcePath),
+                              L"the pair is only interesting because it is one file");
+
+            Assert::IsFalse (builtLate.bytes == builtEarly.bytes,
+                             L"two command lines produced one object, so the answer never reached the bytes");
+
+            AssertMatchesShippedObject (twentyFour, builtLate);
+            AssertMatchesShippedObject (twelve,     builtEarly);
+        }
+
+    private:
+
+        //  Owns the storage behind a synthetic argv. The parser takes `char *[]`
+        //  the way main does, so the strings must be mutable and outlive the call.
+        class ArgVector
+        {
+        public:
+            explicit ArgVector (const std::vector<std::string> & words)
+                : m_storage (words)
+            {
+                for (std::string & word : m_storage)
+                {
+                    m_pointers.push_back (word.data());
+                }
+            }
+
+            int      Count() const { return (int) m_pointers.size(); }
+            char * * Data()        { return m_pointers.data(); }
+
+        private:
+            std::vector<std::string>  m_storage;
+            std::vector<char *>       m_pointers;
+        };
+
+
+
+        //  The invocation an operator would type, parsed by the real grammar.
+        static CommandLineOptions ParseInvocation (const char                          *  sourcePath,
+                                                   std::span<const VendorOracleAnswer>    answers)
+        {
+            std::vector<std::string>  words = { "CassoCli", "merlin", sourcePath };
+
+            for (const VendorOracleAnswer & answer : answers)
+            {
+                words.push_back ("-d");
+                words.push_back (std::string (answer.symbol) + "=" + std::to_string (answer.value));
+            }
+
+            ArgVector  argv (words);
+
+            return CommandLineParser::Parse (argv.Count(), argv.Data(),
+                                             [] (const std::string &) { return false; });
+        }
+
+
+
+        //  Assembled from what the PARSE decided, so an answer the grammar dropped
+        //  is an answer the assembler never sees.
+        static AssemblyResult AssembleAsInvoked (const char * sourcePath, const CommandLineOptions & options)
+        {
+            FixtureProvider   provider;
+            TestCpu           cpu;
+            AssemblerOptions  asmOptions = {};
+            std::string       source;
+
+            cpu.InitForTest();
+
+            asmOptions.dialect           = options.dialect;
+            asmOptions.dialectSelection  = options.dialectSelection;
+            asmOptions.outputFileName    = options.outputFile;
+            asmOptions.predefinedSymbols = options.predefinedSymbols;
+
+            AssertSucceeded (MerlinFixture::LoadSource (provider, sourcePath, source));
+
+            Assembler  assembler (cpu.GetInstructionSet(), asmOptions);
+
+            return assembler.Assemble (source);
+        }
+
+
+
+        //  Whether some diagnostic refused the named question, rather than
+        //  merely whether the assembly failed.
+        static bool RefusalNames (const AssemblyResult & result, const char * symbol)
+        {
+            std::string  wanted = std::string ("No answer supplied for ") + symbol;
+            bool         found  = false;
+
+            for (const AssemblyError & error : result.errors)
+            {
+                if (error.message.find (wanted) != std::string::npos)
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            return found;
+        }
+
+
+
+        static void AssertMatchesShippedObject (const VendorOracleEntry & entry, const AssemblyResult & result)
+        {
+            MerlinFixtureFile  object     = VendorOracle::LoadObject (entry);
+            CorpusComparison   comparison = CorpusHarness::Compare (object.payload, result.bytes);
+
+            Assert::IsTrue (result.errors.empty(),
+                            VendorOracle::FirstDiagnostic (entry.name, result).c_str());
+
+            Assert::IsTrue (comparison.verdict == CorpusVerdict::Match,
+                            VendorOracle::Widen (CorpusHarness::Describe (entry.name, comparison)).c_str());
         }
     };
 

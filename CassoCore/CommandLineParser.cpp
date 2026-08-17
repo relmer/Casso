@@ -35,6 +35,13 @@ static constexpr CommandLineParser::DialectFlag  s_kMerlinFlags[] =
            "Generate listing; with no filename attached it goes to stdout" },
     { 'v', CommandLineParser::FlagArgument::None,     "",
            "Verbose mode" },
+
+    //  Merlin asks the operator for a keyboard-input symbol and waits. A batch
+    //  assembly has nobody to ask, so the answer has to arrive with the
+    //  invocation -- and without this row the three vendor sources that ask
+    //  questions cannot be assembled from a command line at all.
+    { 'd', CommandLineParser::FlagArgument::Required, "<symbol>[=<value>]",
+           "Answer a symbol the source asks for; a bare symbol answers 1" },
 };
 
 
@@ -947,6 +954,53 @@ const CommandLineParser::DialectFlag * CommandLineParser::FindMerlinFlag (char l
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AddSymbolDefinition
+//
+//  Records one `NAME=VALUE` definition, which is how an answer the source asks
+//  for arrives when there is no operator to ask.
+//
+//  A bare name answers 1, so a source testing only whether a symbol was given
+//  needs no value typed. A value that will not convert leaves that 1 in place
+//  rather than becoming zero, because zero is a meaningful answer in these
+//  sources and inventing it from a typo would assemble a different object
+//  silently.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::AddSymbolDefinition (const std::string & definition, CommandLineOptions & options)
+{
+    size_t       equals = definition.find ('=');
+    std::string  name   = definition;
+    int32_t      value  = 1;
+
+
+
+    if (equals != std::string::npos)
+    {
+        std::string    text = definition.substr (equals + 1);
+        char         * end  = nullptr;
+        long           read = strtol (text.c_str(), &end, 0);
+
+        name = definition.substr (0, equals);
+
+        if (end != text.c_str())
+        {
+            value = (int32_t) read;
+        }
+    }
+
+    if (!name.empty())
+    {
+        options.predefinedSymbols[name] = value;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ApplyMerlinFlag
 //
 //  What one flag DOES, once the walk above has taken whatever value it carries.
@@ -981,6 +1035,10 @@ bool CommandLineParser::ApplyMerlinFlag (char                 letter,
 
     case 'v':
         options.verbose = true;
+        break;
+
+    case 'd':
+        AddSymbolDefinition (value, options);
         break;
 
     default:

@@ -27,10 +27,19 @@ Entries before versioning was introduced use dates only.
 ### Added
 - **`CassoCli merlin <source>` assembles Merlin source.** The dialect is named
   by a subcommand, the way `as65` is. Its flags are `-o <file>` (which beats any
-  name the source gives itself), `-l[<file>]` for a listing, and `-v`. The object
-  written is the assembled stream: Merlin's origin relocates rather than seeks,
-  so one contiguous object may carry sections destined for several addresses,
-  and the padded 64 KB image `as65` writes by default would scatter it.
+  name the source gives itself), `-l[<file>]` for a listing, `-v`, and
+  `-d <symbol>[=<value>]`. The object written is the assembled stream: Merlin's
+  origin relocates rather than seeks, so one contiguous object may carry sections
+  destined for several addresses, and the padded 64 KB image `as65` writes by
+  default would scatter it.
+
+  `-d` answers the questions a source asks. Merlin stops and prompts the operator
+  for a keyboard-input symbol; a batch assembly has nobody to ask, so the answer
+  is typed with the invocation, once per question, and a bare `-d SYMBOL` answers
+  1. It is the same flag and the same spelling `as65` uses. Three of the five
+  vendor sources Casso is verified against ask questions, and one of them —
+  `CLOCK.S` — produces either of the two objects Merlin shipped depending on the
+  answer, from one file and two command lines.
 
   There is no `--cpu` flag, and passing one is refused rather than ignored:
   Merlin selects its CPU in the source, and the refusal names the directive that
