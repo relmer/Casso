@@ -134,22 +134,49 @@ and a nested macro call.
 Both are type **T**: no 4-byte header, and the file ends at the first `$00`
 rather than at a declared length.
 
+That makes `T.SENDMSG` the best available trap for a reader that mis-dispatches
+on type. It begins with the literal characters `SE`, so stripping four bytes as
+though it were a binary header loses `SE` and two more and returns 145 bytes of
+entirely plausible Merlin source — no crash, no absurd length, nothing a
+round-trip or a sanity check would notice. The binaries all declare a length
+that would look wrong under the same mistake; a type-T file has nothing to check
+against but the real bytes, which is why the oracle comparison here has to be
+byte-for-byte rather than by size.
+
 ## Encoding, and how to read these
 
 Files are stored exactly as DOS 3.3 held them, which means they are **not**
 directly usable as host text. To get source text:
 
-1. Skip the 4-byte BIN header.
+1. Skip the 4-byte BIN header — **type B only**, see below.
 2. Read `Length` bytes (bytes 2-3 of the header, little-endian).
 3. Mask off bit 7 of every byte.
 4. Translate `$8D` (`$0D` once masked) to a newline.
 
+**Step 1 does not apply to the type-T files.** DOS 3.3 gives a text file no
+header at all: `T.SENDMSG` and `T.PI.MACS` begin directly with their content, and
+`T.SENDMSG`'s first two characters are literally `SE`. Running the type-B path
+over one costs it four characters of real text.
+
+Do not sniff the type from the bytes — that is the inference that works on the
+sample and fails on the next file. Take it from the inventory above, where a
+type-T row shows `Length` equal to the whole file and no load address.
+
+Checking the declared length against what was actually read catches the mistake
+for free: `T.SENDMSG`'s first four bytes read as a header claiming 50382 bytes of
+a 149-byte file, so the wrong reader fails loudly instead of quietly returning
+text with its first four characters missing. Every type-B fixture here has a
+declared length matching its payload exactly, so the check costs nothing when it
+passes — and it also catches a truncated or sector-padded extraction, which
+otherwise decodes into entirely plausible bytes.
+
 **Strip bit 7; never assert it.** The rule is worth stating precisely, because
 the obvious sanity check on high-bit ASCII is wrong here and fails immediately.
 
-Measured across all seven sources, the only bytes with bit 7 clear are spaces —
-there is not one non-space byte below `$80` in any of them. But spaces appear
-*both* ways, and which one depends on where the space sits:
+Measured across all nine sources — the seven type-B `.S` files and both type-T
+macro libraries — the only bytes with bit 7 clear are spaces; there is not one
+non-space byte below `$80` in any of them. But spaces appear *both* ways, and
+which one depends on where the space sits:
 
 ```
 END BRK ;table end
@@ -164,10 +191,82 @@ Field-separating spaces carry bit 7; spaces inside comment text do not.
 asserts bit 7 dies on the first comment line of the first file, long before
 reaching anything subtle.
 
+**Do not build a parser on that distinction.** It is real in these bytes and
+absent everywhere else — source arriving from a host editor, from a disk read, or
+from a file Casso itself writes carries no such marking, so a lexer leaning on it
+would work only on files authored on a Merlin disk. `T.SENDMSG` settles it from
+inside the corpus: all 26 of its spaces are `$A0` and none are `$20`, so the
+distinction is not even uniform across vendor files. Collapse both forms to an
+ordinary space before anything parses them.
+
 Objects are raw 6502 object code behind the same 4-byte header; compare against
 assembler output starting at offset 4. Bit 7 matters there too but for an
-unrelated reason: `DCI` marks its terminating character by *clearing* bit 7, so
-low-ASCII in an object is meaningful data rather than an encoding artifact.
+unrelated reason: `DCI` marks its terminating character by **inverting** bit 7,
+so low-ASCII in an object is meaningful data rather than an encoding artifact.
+
+**Inverting, not clearing — and this corpus cannot tell the difference.** Every
+`DCI` on the disk is high-ASCII, so the terminator always ends up with bit 7
+clear and an implementation that *clears* rather than inverts reproduces all 983
+`DCI` bytes of `LABELS` exactly. It is wrong only for a low-ASCII string, which
+is the case nobody here wrote down. Verified by deliberately introducing that
+bug: the 983-byte comparison still passed.
+
+Worth stating plainly, because it is the general shape rather than a detail about
+one directive: **these fixtures can only test what Bredon happened to write.**
+Byte-identity against them is the strongest available evidence for the cases they
+contain and says nothing about the cases they do not. Synthetic tests are not a
+lesser supplement to a corpus like this — they cover a different set.
+
+## String encodings — what these fixtures can and cannot settle
+
+Merlin's string family is six spellings, not five: **`REV` is in the sources and
+missing from most descriptions of the dialect.** It emits its text back to front —
+`REV "CALL-151"` in `MAKE DUMP.S` produces `151-LLAC` in high ASCII, which is why
+searching that object for the forward spelling finds nothing at all.
+
+Counting only the five sources that ship an object to compare against:
+
+| Spelling | Lines with an object | Status |
+|---|---:|---|
+| `DCI` | 130 | **Verified** — and 983 of `LABELS`'s 984 bytes |
+| `ASC` | 24 | **Verified** |
+| `REV` | 1 | **Verified** |
+| `INV` | 0 | **No oracle** — its one use is in `PI.START.S`, which ships no object |
+| `FLS` | 0 | **No oracle** — appears nowhere in the corpus |
+| `STR` | 0 | **No oracle** — appears nowhere in the corpus |
+
+Half the family cannot be checked here at all. Anything implementing `INV`, `FLS`
+or `STR` is following documentation rather than bytes, and should say so at the
+code.
+
+**The delimiter is any character, not a quote.** Merlin takes the first character
+after the directive as the delimiter and runs to its next occurrence. `KEYMAC.S`
+depends on it exactly where a fixed quote set fails:
+
+```
+ ASC !7" "&$9F!
+ ASC !" ASC ""!
+```
+
+Both choose `!` *because* their text contains `"`. Of the 166 string-directive
+lines on the disk, 164 use `"` and these 2 do not — the distribution that lets a
+`"`-only scanner look correct on almost every line while ending the second
+operand after two characters. A consequence for any parser: the operand scanner
+must know the mnemonic, since which rule applies depends on the directive.
+
+Both delimiters present give **high** ASCII, which rules out any rule ordering
+delimiters by ASCII value — `!` (`$21`) sorts below `'` (`$27`) and would have to
+give low ASCII under one. No `'`-delimited string appears anywhere in the corpus,
+so the low-ASCII case is unverifiable here too.
+
+## Default origin
+
+`LABELS.S` contains no `ORG` and no object-file directive, and `LABELS` loads at
+`$8000`. So **Merlin's default origin is `$8000`** where as65's is 0.
+
+Worth knowing before the first comparison attempt: with the wrong default, an
+assembler can emit 984 byte-perfect bytes and still fail, which reads as a much
+deeper problem than it is.
 
 ## Rules
 
