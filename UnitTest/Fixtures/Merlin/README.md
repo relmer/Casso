@@ -228,7 +228,7 @@ Counting only the five sources that ship an object to compare against:
 
 | Spelling | Lines with an object | Status |
 |---|---:|---|
-| `DCI` | 130 | **Verified** — and 983 of `LABELS`'s 984 bytes |
+| `DCI` | 130 | **Verified** — and all 984 of `LABELS`'s bytes (see below) |
 | `ASC` | 24 | **Verified** |
 | `REV` | 1 | **Verified** |
 | `INV` | 0 | **No oracle** — its one use is in `PI.START.S`, which ships no object |
@@ -267,6 +267,37 @@ so the low-ASCII case is unverifiable here too.
 Worth knowing before the first comparison attempt: with the wrong default, an
 assembler can emit 984 byte-perfect bytes and still fail, which reads as a much
 deeper problem than it is.
+
+## What the first whole-file comparison settled
+
+`LABELS.S` now assembles to all **984** bytes of `LABELS`, byte for byte, at
+`$8000`. It is the first whole-file result against this corpus; the earlier
+figure of 983 was the `DCI` lines alone, compared through a harness loop rather
+than through an assembler, and is superseded. Two things fell out of getting the
+remaining byte, both properties of the dialect rather than of the fixture:
+
+**Merlin has no operator precedence — expressions evaluate strictly left to
+right.** The evidence is one line of `LABELS.S`:
+
+```
+ ERR END-LABTBL-1/$700
+```
+
+`ERR` fails the assembly when its expression is non-zero, so a shipped object is
+proof the expression evaluated to zero. Left to right that is
+`(END-LABTBL-1)/$700` = `983/1792` = 0. Under ordinary precedence the division
+binds first, `1/$700` folds to 0, and the whole expression collapses to
+`END-LABTBL` = 983 — non-zero, so a precedence-respecting assembler *fails to
+assemble a file the vendor shipped a working object for*. The line is a guard
+asserting the label table fits in seven pages; it doubles as the corpus's answer
+to a question the manual states and the bytes confirm.
+
+**`?` is legal in a Merlin label.** Four occur in the vendor sources: `CMD?` in
+`KEYMAC.S`, and `CORR?`, `ISY?` and `RNGOK?` in `PI.START.S`. Note where they
+sit — only `CMD?` is in a source that ships an object and is ever byte-compared;
+the other three are in a linker demo used solely as a negative specimen. So the
+corpus establishes that the character is legal, and only one of the four sits on
+a path where a rejection would surface as a failed comparison.
 
 ## Rules
 
