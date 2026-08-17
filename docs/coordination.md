@@ -19,21 +19,35 @@ between the two branches** — no cherry-picks, no cross-branch merges. Shared
 artifacts are landed on `master` and picked up by a normal merge. That is why
 the command-line parser was moved into `CassoCore` before either started.
 
-## The conflict surface is two files, and neither is source
+## The conflict surface is three files, and only one is source
 
-Measured, not assumed. Across their whole diffs the branches overlap on:
+Measured, not assumed — re-measured after 020 landed its CLI edge, which added
+the third. Across their whole diffs the branches overlap on:
 
     CassoCore/CassoCore.vcxproj
     UnitTest/UnitTest.vcxproj
+    CassoCli/CommandLine.cpp
 
-Both additive — each session adds its own `<ClCompile>` / `<ClInclude>` rows.
+The two project files are additive — each session adds its own `<ClCompile>` /
+`<ClInclude>` rows.
 
 **Resolve by keeping both sides. Never take one side.** Accepting one drops the
 other session's files from the build, and the failure is quiet: the `.cpp` still
 sits on disk so nothing looks missing, the suite still compiles, and it still
-passes — with fewer tests in it. Both sessions report exact test counts, so the
-check after merging is that the count matches the sum of both sides, not merely
-that the run is green.
+passes — with fewer tests in it. Both sessions report exact test counts (020's
+is at the top of its `tasks.md`), so the check after merging is that the count
+matches the sum of both sides, not merely that the run is green.
+
+`CassoCli/CommandLine.cpp` **merges cleanly as things stand**, because the two
+sides are in different regions of it: 019 replaced the diagnostic-printing
+loops with `DiagnosticFormatter`, 020 added lines to `PrintUsage`. The
+one-line collision predicted below arrives only when 019 registers `as65` in
+that same usage text. Same keep-both rule when it does.
+
+Nothing else is shared. 019 touches none of `CommandLineOptions.h`,
+`CommandLineParser.h/.cpp`, `UnitTest/CommandLineTests.cpp` or
+`CassoCli/CassoCli.vcxproj`, all of which 020 has edited — which is the
+measurement behind the sequencing rule in the next section.
 
 ## Sequencing: the `as65` fallback removal (019 T049)
 
