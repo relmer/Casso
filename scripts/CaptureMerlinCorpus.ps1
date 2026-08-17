@@ -233,10 +233,25 @@ if ($Verify)
     $actualBytes   = [System.IO.File]::ReadAllBytes($roundTripped)
     $expectedBytes = [System.IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $Expected).Path)
 
-    # Merlin stores source with CR line endings; normalize both sides so the
-    # comparison reports real corruption rather than a line-ending difference.
-    $actualText   = ([System.Text.Encoding]::ASCII.GetString($actualBytes)   -replace "`r`n", "`n") -replace "`r", "`n"
-    $expectedText = ([System.Text.Encoding]::ASCII.GetString($expectedBytes) -replace "`r`n", "`n") -replace "`r", "`n"
+    # Merlin source is a type-B file in HIGH-BIT ascii, and the extractor strips
+    # only the four-byte header from one. Every byte therefore still carries bit
+    # 7, and reading it as plain ascii turns the whole file into question marks
+    # -- which compares unequal to everything, so the check reports DIFFERS for a
+    # perfect round trip and for a total garble in exactly the same words. A
+    # comparison that cannot pass is not a loose guard, it is no guard at all,
+    # and this one shipped that way. Mask bit 7 first.
+    $actualText   = -join ($actualBytes | ForEach-Object { [char]($_ -band 0x7F) })
+    $expectedText = [System.Text.Encoding]::ASCII.GetString($expectedBytes)
+
+    # Merlin terminates lines with CR; normalize both sides so the comparison
+    # reports real corruption rather than a line-ending difference.
+    $actualText   = ($actualText   -replace "`r`n", "`n") -replace "`r", "`n"
+    $expectedText = ($expectedText -replace "`r`n", "`n") -replace "`r", "`n"
+
+    # The canonical copy is what gets COMMITTED, so it is written decoded rather
+    # than as the disk's high-bit bytes: a corpus entry is a C++ string literal,
+    # and bytes nothing on this side can read are not a source file.
+    [System.IO.File]::WriteAllText($roundTripped, $actualText)
 
     if ($actualText -ceq $expectedText)
     {
