@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/NibblizationLayer.h"
+#include "Devices/Disk/ProDosSkeleton.h"
 #include "Devices/Disk/TrackWritability.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -696,6 +697,52 @@ public:
         Assert::IsFalse (report.HasDataLoss(), L"a re-encoded image must still decode cleanly");
         Assert::IsTrue (TrackDecodeOutcome::Complete == report.GetOutcome (kTouched),
             L"the rewritten track must read back Complete");
+    }
+
+    TEST_METHOD (PoFileIndexForDosLogicalSector_AgreesWithTheBlockMapTheProDosReaderUses)
+    {
+        // Two separately derived statements of one fact, which is the whole
+        // reason this mapping is COMPOSED from the two interleaves rather than
+        // written down again. ProDosSkeleton owns the block-to-sector map the
+        // readers address real ProDOS volumes through, and those volumes are
+        // stored in DOS sector order, so that table has been corroborated
+        // against disks written in 1985. A ProDOS-ordered file stores block N
+        // at byte N * 512, so where a DOS logical sector sits in such a file
+        // follows from that map and nothing else.
+        //
+        // A hand-written third table is how the two came to disagree once: the
+        // wrong one wrote and read a .po through ITSELF, so no round trip could
+        // see it and the file was unreadable only on a real machine.
+        constexpr int     kBlocksPerTrack = 8;
+        constexpr int     kHalvesPerBlock = 2;
+        constexpr size_t  kHalfBytes      = (size_t) NibblizationLayer::kSectorByteSize;
+        int               block           = 0;
+        int               half            = 0;
+        int               seen            = 0;
+        vector<bool>      claimed (NibblizationLayer::kSectorsPerTrack, false);
+
+
+
+        for (block = 0; block < kBlocksPerTrack; block++)
+        {
+            for (half = 0; half < kHalvesPerBlock; half++)
+            {
+                size_t  offset   = ProDosSkeleton::BlockByteOffset (block, (size_t) half * kHalfBytes);
+                int     logical  = (int) (offset / kHalfBytes);
+                int     expected = block * kHalvesPerBlock + half;
+
+                Assert::AreEqual (expected, NibblizationLayer::PoFileIndexForDosLogicalSector (logical),
+                    L"a ProDOS-ordered file must hold this sector where block order puts it");
+
+                Assert::IsFalse (claimed[(size_t) logical], L"and no logical sector twice");
+
+                claimed[(size_t) logical] = true;
+                seen++;
+            }
+        }
+
+        Assert::AreEqual (NibblizationLayer::kSectorsPerTrack, seen,
+            L"all sixteen sectors of a track must be accounted for, or this compared nothing");
     }
 
     TEST_METHOD (TrackWritability_CleanImage_EveryTrackWritable)

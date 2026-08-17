@@ -61,4 +61,13 @@ public:
                                       DiskFormat              fmt,
                                       std::span<const int>    tracks,
                                       DiskImage             & inOutImage);
+
+    //  Where DOS logical sector L sits within a ProDOS-ordered file's track.
+    //
+    //  COMPOSED from the two interleave tables above rather than restated. Both
+    //  of those are indexed by PHYSICAL sector, and a hand-written third table
+    //  indexed by logical sector is how a file reorder comes to disagree with
+    //  the layout the drive would actually see -- an image that reads back
+    //  perfectly through the same wrong table and is garbage on real hardware.
+    static int      PoFileIndexForDosLogicalSector (int logicalSector);
 };

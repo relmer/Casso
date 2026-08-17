@@ -9,23 +9,17 @@
 
 
 
-//
-//  ProDOS-ordered file position for each DOS logical sector. A .po file stores
-//  its sixteen sectors per track in ProDOS block order, so DOS logical sector L
-//  lives at file index kProDosFileIndex[L] within the track.
-//
-static constexpr int  s_kProDosFileIndex[16] =
-{
-    0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15
-};
-
-
-
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  VolumeImage::ProDosFileToDosLogical
+//
+//  The position each DOS logical sector occupies in the file comes from the
+//  track layer, which owns both interleaves. Restating it here as a table of
+//  its own is the mistake this function used to carry: the wrong table read
+//  back perfectly through itself, so nothing that wrote a file and read it
+//  again could tell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +38,7 @@ void VolumeImage::ProDosFileToDosLogical (const vector<Byte> & fileBytes, vector
         for (logical = 0; logical < NibblizationLayer::kSectorsPerTrack; logical++)
         {
             size_t  from = ((size_t) track * NibblizationLayer::kSectorsPerTrack
-                         + (size_t) s_kProDosFileIndex[logical]) * kSectorBytes;
+                         + (size_t) NibblizationLayer::PoFileIndexForDosLogicalSector (logical)) * kSectorBytes;
             size_t  to   = ((size_t) track * NibblizationLayer::kSectorsPerTrack
                          + (size_t) logical) * kSectorBytes;
 
@@ -82,7 +76,7 @@ void VolumeImage::DosLogicalToProDosFile (const vector<Byte> & sectors, vector<B
             size_t  from = ((size_t) track * NibblizationLayer::kSectorsPerTrack
                          + (size_t) logical) * kSectorBytes;
             size_t  to   = ((size_t) track * NibblizationLayer::kSectorsPerTrack
-                         + (size_t) s_kProDosFileIndex[logical]) * kSectorBytes;
+                         + (size_t) NibblizationLayer::PoFileIndexForDosLogicalSector (logical)) * kSectorBytes;
 
             std::copy (sectors.begin() + (ptrdiff_t) from,
                        sectors.begin() + (ptrdiff_t) (from + kSectorBytes),

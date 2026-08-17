@@ -439,6 +439,49 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NibblizationLayer::PoFileIndexForDosLogicalSector
+//
+//  Both interleave tables answer the same question -- which file offset holds
+//  the sector the drive will see at physical position P -- so the mapping
+//  between the two FILE layouts is their composition, and is derived here
+//  rather than written down a third time.
+//
+//  Writing it down again is the specific hazard. A reorder table restated by
+//  hand can be wrong in a way nothing notices: the file is written through it
+//  and read back through it, so every round trip agrees with itself and the
+//  image is unreadable only on a real machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int NibblizationLayer::PoFileIndexForDosLogicalSector (int logicalSector)
+{
+    HRESULT  hr       = S_OK;
+    int      physical = 0;
+    int      found    = 0;
+    bool     inRange  = logicalSector >= 0 && logicalSector < kSectorsPerTrack;
+
+
+
+    CBRAEx (inRange, E_INVALIDARG);
+
+    for (physical = 0; physical < kSectorsPerTrack; physical++)
+    {
+        if (kDsk_LtoP[physical] == logicalSector)
+        {
+            found = kPo_DosLogicalToFile[physical];
+        }
+    }
+
+Error:
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  NibblizationLayer::NibblizeDsk / NibblizeDo / NibblizePo
 //
 ////////////////////////////////////////////////////////////////////////////////
