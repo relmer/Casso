@@ -35,7 +35,4 @@ public:
 
     // The boundary as help output, one line per row above.
     static std::string                         GetHelpText();
-
-private:
-    static const char *                        ReasonLabel (SubsetBoundaryReason reason);
 };

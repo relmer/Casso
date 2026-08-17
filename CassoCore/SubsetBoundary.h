@@ -162,4 +162,12 @@ public:
     static std::string                ComposeRefusal (const SubsetBoundaryRow & row,
                                                       ModuleLinkage             linkage,
                                                       const char              * dialectName);
+
+    // Any dialect's rows as help output, one line each. Shared for the reason
+    // the refusal wording is: where a boundary sits is a dialect's own fact, and
+    // how it is worded is not.
+    static std::string                ComposeHelpText (std::span<const SubsetBoundaryRow> rows);
+
+private:
+    static const char *               ReasonLabel (SubsetBoundaryReason reason);
 };

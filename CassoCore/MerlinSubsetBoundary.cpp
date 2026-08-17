@@ -152,77 +152,18 @@ std::span<const SubsetBoundaryRow> MerlinSubsetBoundary::GetAll()
 //
 //  MerlinSubsetBoundary::GetHelpText
 //
-//  The boundary as help output, generated from the rows above rather than
-//  written beside them.
+//  The boundary as help output: this dialect's own heading over the rows,
+//  worded by the shared composer.
 //
-//  One line per row, carrying the same four facts a refusal carries: the
-//  spelling, what the construct is, why it is refused, and what would widen the
-//  boundary. A reader who has met a refusal recognizes the row, and a reader who
-//  has not can see the shape of the gap before writing any source at all.
-//
-//  Nothing here enumerates the rows by hand. Adding a row to the table
-//  documents it, and a test asserts that every row reaches this text -- so the
-//  help cannot fall behind the implementation even for one commit.
+//  The per-row wording is NOT here, because it is not Merlin's. Where the
+//  boundary sits is this table's fact; how a row reads is mechanism every
+//  dialect's boundary shares, and duplicating it here is how the tool's own help
+//  ends up describing two different sets of rules.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string MerlinSubsetBoundary::GetHelpText()
 {
-    std::string  text = "Merlin constructs recognized and refused by name, and why:\n";
-
-
-
-    for (const SubsetBoundaryRow & row : s_kMerlinBoundary)
-    {
-        text += std::string ("  ") + row.spelling + " -- " + row.construct
-              + " [" + ReasonLabel (row.reason) + "]. " + row.explanation
-              + ". Widens with " + row.widensWith + ".\n";
-    }
-
-    return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MerlinSubsetBoundary::ReasonLabel
-//
-//  The reason class as the few words a help listing shows.
-//
-//  A switch rather than a table indexed by the enum, so adding a reason fails
-//  the build here instead of printing an empty bracket -- the reason class is
-//  the part of a row a reader scans for, and a blank one reads as "no reason
-//  given" rather than as a missing case.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const char * MerlinSubsetBoundary::ReasonLabel (SubsetBoundaryReason reason)
-{
-    const char *  label = "";
-
-
-
-    switch (reason)
-    {
-    case SubsetBoundaryReason::NeedsLinker:
-        label = "needs a linker";
-        break;
-
-    case SubsetBoundaryReason::NeedsUnemulatedCpu:
-        label = "needs a CPU Casso does not emulate";
-        break;
-
-    case SubsetBoundaryReason::OwnedByAnotherFeature:
-        label = "owned by another part of Casso";
-        break;
-
-    case SubsetBoundaryReason::NeedsItsOwnDecision:
-        label = "undecided";
-        break;
-    }
-
-    return label;
+    return "Merlin constructs recognized and refused by name, and why:\n"
+         + SubsetBoundary::ComposeHelpText (s_kMerlinBoundary);
 }

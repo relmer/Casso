@@ -190,6 +190,7 @@
     <ClCompile Include="SubsetBoundary.cpp" />
     <ClCompile Include="MerlinSubsetBoundary.cpp" />
     <ClCompile Include="StringEncoding.cpp" />
+    <ClCompile Include="DialectHelp.cpp" />
     <ClCompile Include="DialectRegistry.cpp" />
     <ClCompile Include="DialectReporting.cpp" />
     <ClCompile Include="AssemblerExitCode.cpp" />
@@ -238,6 +239,7 @@
     <ClInclude Include="StringEncoding.h" />
     <ClInclude Include="Dialect.h" />
     <ClInclude Include="DialectProfile.h" />
+    <ClInclude Include="DialectHelp.h" />
     <ClInclude Include="DialectRegistry.h" />
     <ClInclude Include="DialectReporting.h" />
     <ClInclude Include="AssemblerExitCode.h" />

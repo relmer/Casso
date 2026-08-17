@@ -35,7 +35,7 @@
 
 struct CommandLineOptions
 {
-    enum class Subcommand    { None, Run, Help, Version, As65 };
+    enum class Subcommand    { None, Run, Help, Version, As65, Merlin };
     enum class CpuTarget     { M6502, M65C02 };
 
     //  Binary is the as65 full-64-KB image and stays the default, so an
@@ -72,6 +72,24 @@ struct CommandLineOptions
     bool          hasStopAddress  = false;
     bool          hasEntryAddress = false;
     char          flagPrefix      = '-';                // '-' for Unix-style, '/' for Windows-style
+
+    //  Which dialect the invocation named, and whether it named one at all.
+    //  Two fields rather than one, because the default dialect is also a dialect
+    //  a caller can ask for by name: the value alone cannot say which happened,
+    //  and what gets reported back to the developer turns on exactly that.
+    DialectId         dialect          = DialectId::As65;
+    DialectSelection  dialectSelection = DialectSelection::Defaulted;
+
+    //  Whether a CPU flag was given at all, since an explicitly requested target
+    //  and the one nothing asked for are the same value.
+    bool              hasCpuTarget     = false;
+
+    //  Why a CPU flag could not be honored, already worded. Empty when none was
+    //  given, or when the active dialect takes its CPU from the command line.
+    //  Composed where the dialect's own data is rather than at the printing
+    //  edge, so the sentence naming the in-source directive is reachable from a
+    //  test -- and so no caller has to know which dialects have one.
+    std::string       cpuFlagRefusal;
 
     // AS65-compatible options
     bool                                      cycleCounts       = false;   // -c
