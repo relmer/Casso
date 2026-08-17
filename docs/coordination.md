@@ -157,6 +157,31 @@ entire obligation for a fixture — no per-file accounting, and adding one is
 never an amendment. Material whose license forbids modification must be
 read-only to its tests.
 
+## Quote both configurations, always
+
+A status block that reports one test count is reporting half a result. Release
+compiles EHM assertions away, so a test that drives an asserting rejection passes
+there and fails in Debug — and the reverse shape exists too, since the two
+configurations do not run the same set.
+
+This is not hypothetical. Spec 019's status block quoted a Release figure alone,
+and Debug had been **red** underneath it for an unknown stretch: three fixture
+tests were driving the decoder's asserting rejections, which `SetupForUnitTests`
+routes to `Assert::Fail`. Nothing said so, because nothing was looking. The fix
+was `ExpectedEhmAssert` and no production change at all — the tests were wrong,
+not the code, which is exactly why it went unnoticed for so long.
+
+So: run both, quote both, and quote them as a pair (`3131 Release / 3134 Debug`),
+never one with the other implied. A single number invites the reader to assume
+the other matches, and the case where it does not is the case worth catching.
+
+The same reasoning applies to a mutation harness. If breaking the code under
+test **crashes** the run rather than failing an assertion, a harness that scores
+by looking for a `Failed:` line sees no failures and reports the mutation as
+uncaught — or worse, as caught-nothing-to-see. Require a complete tally of the
+expected size, and treat a short one as "run did not complete". A crash in Debug
+is a silent overwrite in Release.
+
 ## Two machines
 
 Sessions on this project may run on different physical machines. **Only git
