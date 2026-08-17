@@ -182,20 +182,32 @@ namespace MerlinSubsetBoundaryTests
 
 
 
+        //  Present AND non-empty, in one short-circuiting test per field.
+        //
+        //  Split across two assertions it reads the same to a human and does
+        //  not to the analyzer: `Assert::IsTrue` is an ordinary call, so a
+        //  null check in one statement establishes nothing for a `strlen` in
+        //  the next, and every such pair raised C6387. Asking the first
+        //  character rather than the length also stops walking a string to
+        //  learn whether it is empty.
+        static void AssertSaysSomething (const char * text, const wchar_t * field)
+        {
+            Assert::IsTrue (text != nullptr && text[0] != '\0', field);
+        }
+
+
+
+
         TEST_METHOD (EveryRowIsFullyPopulated)
         {
             for (const SubsetBoundaryRow & row : MerlinSubsetBoundary::GetAll())
             {
-                Assert::IsTrue (row.token != Directive::None,           L"a row with no token can never be reached");
-                Assert::IsTrue (row.spelling != nullptr,                L"spelling");
-                Assert::IsTrue (row.construct != nullptr,               L"construct");
-                Assert::IsTrue (row.explanation != nullptr,             L"explanation");
-                Assert::IsTrue (row.widensWith != nullptr,              L"what would widen the boundary");
+                Assert::IsTrue (row.token != Directive::None, L"a row with no token can never be reached");
 
-                Assert::IsTrue (std::strlen (row.spelling) > 0,         L"spelling");
-                Assert::IsTrue (std::strlen (row.construct) > 0,        L"construct");
-                Assert::IsTrue (std::strlen (row.explanation) > 0,      L"explanation");
-                Assert::IsTrue (std::strlen (row.widensWith) > 0,       L"what would widen the boundary");
+                AssertSaysSomething (row.spelling,    L"spelling");
+                AssertSaysSomething (row.construct,   L"construct");
+                AssertSaysSomething (row.explanation, L"explanation");
+                AssertSaysSomething (row.widensWith,  L"what would widen the boundary");
             }
         }
 
