@@ -163,9 +163,16 @@ struct MacroSyntax
     // bytes with no diagnostic.
     const char *  localKeyword          = "";
 
-    // The keyword that invokes a macro explicitly, with the macro's name first
-    // in the operand. Empty for a dialect that invokes by bare name only.
-    const char *  callKeyword           = "";
+    // An explicit invocation keyword is deliberately NOT here, and the reason is
+    // worth stating so it is not added back. Merlin writes `>>> NAME args` and
+    // `PMC NAME args`, taking the macro's name from the operand field and its
+    // arguments from the field after it -- so the prefix is a way of SPELLING an
+    // ordinary invocation, not a second call mechanism. The profile resolves it
+    // at parse time, exactly as it resolves an alternate mnemonic spelling, and
+    // nothing downstream learns that the source said anything else. The expander
+    // that once knew the keyword had to normalize the two fields back into one,
+    // which cannot represent the case the real assembler refuses: a name written
+    // against its arguments with the argument separator.
 
     // The character introducing a positional parameter inside a body -- `]1`
     // through `]9` in Merlin -- or 0 for a dialect with no positional form.

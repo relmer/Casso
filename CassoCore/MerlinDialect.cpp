@@ -47,6 +47,20 @@ static constexpr MerlinDirectiveTable::Spelling  s_kMerlinSpellings[] =
     { "ELSE", Directive::Else             },   //   1
     { "FIN",  Directive::Endif            },   //   5
 
+    //  The first-character conditional, which is how a macro dispatches on
+    //  addressing mode. It opens and closes the same block the expression form
+    //  does and shares its token, because it is a second way of writing the
+    //  CONDITION and not a second operation -- the assembler can already
+    //  assemble a block when a value is non-zero, and a token exists only for
+    //  work it cannot already do. What differs is settled where every other
+    //  dialect spelling is: at parse time, in this profile.
+    //
+    //  Absent from the nine committed vendor sources and emphatically not
+    //  absent from the language: the distribution disk's own macro library
+    //  writes it a dozen times over, in MOVD, LDHI, ADD, SUB and PRINT, and
+    //  every macro of consequence dispatches with it.
+    { "IF",   Directive::If               },   //   0
+
     //  Macros. `<<<` is the TERMINATOR of a definition, not an invocation --
     //  every macro in the vendor library ends with it.
     { "MAC",  Directive::MacroDef         },   //  18
@@ -169,12 +183,24 @@ static const char  s_kVariableSigil = ']';
 //  the operand field, which is the whole reason the field scanner exists.
 static const char  s_kMacroArgumentSeparator = ';';
 
-//  Invokes a macro explicitly, with the macro's name first in the operand.
-//  UNVERIFIED against the corpus and unverifiable there: the vendor library
-//  invokes every macro by bare name, so the disk cannot report whether the
-//  explicit prefix is also accepted. It is implemented because absence from one
-//  vendor's source is not absence from the language.
-static const char *  s_kpszExplicitCallKeyword = ">>>";
+//  The two spellings that invoke a macro explicitly. Both put the macro's name
+//  in the OPERAND field and its arguments in the field after it, so the name is
+//  separated from the arguments by a space and only the arguments are separated
+//  from each other by the macro separator.
+//
+//  MEASURED, against Merlin Pro 2.23, one form per assembly because the first
+//  diagnostic ends the run. `>>> NOPS` is accepted and `PMC NOPS` behaves
+//  identically; `>>>NOPS` written flush against the name is refused, as is
+//  `PMC ADDA;$30` with the name joined to its argument by the separator. All
+//  three of those facts contradict what this file assumed while the answer was
+//  unverifiable, and the assumption was wrong in every direction it could be:
+//  it accepted the flush form, it took the name up to the separator, and it
+//  left the word form out on the grounds that it doubled an unverified surface.
+static constexpr const char *  s_kExplicitCallSpellings[] = { ">>>", "PMC" };
+
+//  Merlin's first-character conditional, which compares the leading character
+//  of a macro argument against a literal.
+static const char *  s_kpszFirstCharConditional = "IF";
 
 //  What an inclusion directive's operand becomes on the way to a filename.
 //  Merlin's own sources name a shorter file than the one on the disk -- `USE
@@ -395,9 +421,11 @@ std::span<const SubsetBoundaryRow> MerlinDialect::GetSubsetBoundary() const
 //
 //  Merlin's macros in one value.
 //
-//  No end keyword and no local-label keyword: the terminator is a real token in
-//  the spelling table, and there is nothing to declare, because every label a
-//  body defines is made unique per expansion whether the author asked or not.
+//  No end keyword, no local-label keyword and no explicit-call keyword: the
+//  terminator is a real token in the spelling table, there is nothing to
+//  declare because every label a body defines is made unique per expansion
+//  whether the author asked or not, and an explicit invocation is resolved into
+//  an ordinary one while the line is parsed.
 //  That last one is the corpus's finding rather than the manual's. `MAKE
 //  DUMP.S` expands `INCD` twice and `STORE` three times; each expansion
 //  redefines a bare label, and the vendor shipped a working object. A dialect
@@ -411,7 +439,6 @@ MacroSyntax MerlinDialect::GetMacroSyntax() const
 
 
 
-    syntax.callKeyword           = s_kpszExplicitCallKeyword;
     syntax.parameterSigil        = s_kVariableSigil;
     syntax.argumentSeparator     = s_kMacroArgumentSeparator;
     syntax.labelsArePerExpansion = true;
@@ -574,40 +601,75 @@ std::string MerlinDialect::QualifyVariableRefs (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MerlinDialect::SplitCallPrefix
+//  MerlinDialect::IsExplicitCallSpelling
 //
-//  Separates an explicit macro invocation written with no space after the
-//  prefix, so `>>>MYMAC;A` reads the same as `>>> MYMAC;A`.
-//
-//  Both forms have to work because the fixed columns in a Merlin listing are
-//  the editor's doing and a file arriving from anywhere else carries whatever
-//  its author typed.
+//  Whether this opcode field is one of the two explicit macro-invocation
+//  prefixes. Matched WHOLE, which is the flush form's answer: `>>>NOPS` is one
+//  word, not a prefix wearing a name, and the real assembler refuses it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MerlinDialect::SplitCallPrefix (std::string & mnemonic, std::string & operand)
+bool MerlinDialect::IsExplicitCallSpelling (const std::string & opcode)
 {
-    std::string  keyword    = s_kpszExplicitCallKeyword;
-    bool         isAttached = (mnemonic.size() > keyword.size()) &&
-                              (mnemonic.compare (0, keyword.size(), keyword) == 0);
+    bool  isCall = false;
 
 
 
-    if (isAttached)
+    for (const char * spelling : s_kExplicitCallSpellings)
     {
-        std::string  remainder = mnemonic.substr (keyword.size());
-
-        if (!operand.empty())
+        if (opcode == spelling)
         {
-            remainder += s_kMacroArgumentSeparator;
-            remainder += operand;
+            isCall = true;
+            break;
         }
-
-        mnemonic = keyword;
-        operand  = remainder;
     }
 
-    return;
+    return isCall;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinDialect::FoldFirstCharacterTest
+//
+//  The first-character conditional's operand, folded to the value the ordinary
+//  conditional evaluates.
+//
+//  The rule is POSITIONAL and the manual states it exactly: the first and third
+//  characters of the operand are compared, and the character between them is
+//  never examined -- `IF (=]1` and `IF (,]1` are the same test, and the vendor
+//  library writes both. A parameter reference is one character wide in that
+//  count because the argument has already been substituted for it by the time
+//  the line is read, so `IF (=]1` invoked with `(ADR),Y` arrives here as
+//  `(=(ADR),Y` and the third character is the argument's first.
+//
+//  Folded here rather than given a token of its own, for the same reason the
+//  address-check assertion is rewritten into an ordinary comparison: the
+//  assembler can already assemble a block when a value is non-zero, and both
+//  characters are known the moment the line is read. Nothing downstream learns
+//  that the condition was written this way.
+//
+//  UNVERIFIED, and the corpus structurally cannot settle it: the spelling that
+//  puts the PARAMETER first and the literal after it -- the vendor's PRINT
+//  macro writes one -- cannot be told apart here from an argument that happens
+//  to begin with the same character, because substitution is textual and has
+//  already erased which position held the reference. Every other use on the
+//  distribution disk writes the literal first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MerlinDialect::FoldFirstCharacterTest (const std::string & operand)
+{
+    constexpr size_t  kComparedCharacter = 2;
+    bool              matched            = (operand.size() > kComparedCharacter) &&
+                                           (operand[0] == operand[kComparedCharacter]);
+
+
+
+    return matched ? "1" : "0";
 }
 
 
@@ -992,11 +1054,10 @@ std::string MerlinDialect::ReadOperandField (const std::string & line, size_t & 
 
 ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) const
 {
-    ParsedLine   result      = {};
+    ParsedLine   result   = {};
     std::string  opcode;
-    size_t       pos         = 0;
-    size_t       opcodeWidth = 0;
-    bool         isEquate    = false;
+    size_t       pos      = 0;
+    bool         isEquate = false;
 
 
 
@@ -1039,30 +1100,38 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
         }
     }
 
-    // An explicit invocation may be written flush against the macro's name, so
-    // the prefix is separated before the opcode field is read as a word.
-    opcodeWidth = result.mnemonic.size();
-
-    SplitCallPrefix (result.mnemonic, result.operand);
-
-    // The macro's name moved out of the opcode field, so the operand no longer
-    // begins where a separate operand field would have. It begins immediately
-    // after the prefix, inside what was read as one word. Without this the
-    // attached form and the spaced form disagree about where their identical
-    // operands start.
-    //
-    // NO TEST DISCRIMINATES THIS, and it is recorded here rather than left to be
-    // rediscovered. The operand column is read only by diagnostics whose subject
-    // is an operand -- an expression that will not evaluate, an unresolvable
-    // equate -- and none of those can arise on a line whose opcode field is a
-    // macro invocation. Verified by mutation, which nothing caught. It stays
-    // because it is what keeps the two spellings agreeing by construction.
-    if (result.mnemonic.size() < opcodeWidth)
-    {
-        result.operandColumn = result.mnemonicColumn + (int) result.mnemonic.size();
-    }
-
     opcode = Parser::ToUpper (result.mnemonic);
+
+    // An explicit macro invocation names the macro in the OPERAND field and
+    // carries its arguments in the field after it. Resolved into the ordinary
+    // invocation the two fields already describe -- the name becomes the opcode
+    // and the arguments become the operand -- which is the same treatment the
+    // alternate branch mnemonics get, and it is what makes the three refusals
+    // fall out rather than needing to be written: the flush spelling is one
+    // word and matches no prefix, a name joined to its argument by the macro
+    // separator is one word that names no macro, and the word form differs from
+    // the punctuation form in nothing but its spelling.
+    //
+    // A prefix with an empty operand field is left exactly as it was read, so
+    // it fails as the unknown operation it is instead of vanishing into a line
+    // with no opcode at all.
+    if (IsExplicitCallSpelling (opcode) && !result.operand.empty())
+    {
+        result.mnemonic       = result.operand;
+        result.mnemonicColumn = result.operandColumn;
+        result.operand.clear();
+        result.operandColumn  = 0;
+
+        SkipFieldSpace (line, pos);
+
+        if ((pos < line.size()) && (line[pos] != s_kCommentIntroducer))
+        {
+            result.operandColumn = (int) pos + 1;
+            result.operand       = ReadOperandField (line, pos, result.mnemonic);
+        }
+
+        opcode = Parser::ToUpper (result.mnemonic);
+    }
 
     // An equate puts its sign in the OPCODE field, with the name beside it in
     // the label field. It is a field-model fact rather than an expression one:
@@ -1128,6 +1197,16 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
     // always-empty lookup would be an answer nothing could ever exercise.
     result.directiveToken = MerlinDirectiveTable::FromSpelling (opcode);
     result.isDirective    = (result.directiveToken != Directive::None);
+
+    // The first-character conditional becomes the value the ordinary
+    // conditional tests. Folded BEFORE the variable rewriting below, because a
+    // reference that reached this line unsubstituted is not an argument's first
+    // character and must not be turned into a symbol that would be evaluated as
+    // one.
+    if (opcode == s_kpszFirstCharConditional)
+    {
+        result.operand = FoldFirstCharacterTest (result.operand);
+    }
 
     // Variable references become the names their symbols bind under, before
     // anything downstream tries to resolve them. Literal text is left alone:

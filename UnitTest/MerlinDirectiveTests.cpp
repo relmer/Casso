@@ -1897,11 +1897,12 @@ namespace MerlinDirectiveTests
 
 
 
-        //  The explicit invocation prefix. UNVERIFIED against the corpus and
-        //  unverifiable there: every macro on the vendor disk is invoked by bare
-        //  name, so the disk can only say the bare form works. This is the first
-        //  instance of the general rule that absence from the disk is not absence
-        //  from the language.
+        //  The explicit invocation prefix. The macro's NAME is the operand field
+        //  and its arguments are the field after it, so the name is separated
+        //  from them by a space and only they are separated from each other by
+        //  the macro separator. Measured against the real assembler; the file
+        //  previously carried the opposite reading, marked unverified, and it was
+        //  wrong.
         TEST_METHOD (TheExplicitPrefixInvokesTheNamedMacro)
         {
             AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
@@ -1909,41 +1910,91 @@ namespace MerlinDirectiveTests
                                               " LDA ]1\n"
                                               " STA ]2\n"
                                               " <<<\n"
-                                              " >>> MOV;$10;$11\n");
+                                              " >>> MOV $10;$11\n");
             std::vector<Byte>  expected = { 0xA5, 0x10, 0x85, 0x11 };
 
             Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
-            Assert::IsTrue (result.bytes == expected, L"the macro name is the first item of the operand");
+            Assert::IsTrue (result.bytes == expected, L"the macro name is the whole operand field");
         }
 
 
 
-        //  The same, written flush against the name. Both spellings have to work:
-        //  the tidy columns in a Merlin listing are the editor's doing, and a file
-        //  arriving from anywhere else carries whatever its author typed.
-        TEST_METHOD (TheExplicitPrefixMayBeWrittenFlushAgainstTheName)
+        //  The word form of the same prefix, which was left unimplemented on the
+        //  grounds that adding it would double an unverified surface. It is a real
+        //  spelling and it behaves identically -- asserted against the SAME bytes
+        //  as the punctuation form, since "it works too" is the whole claim.
+        TEST_METHOD (TheWordFormOfThePrefixBehavesIdentically)
         {
-            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
-                                              "MOV MAC\n"
-                                              " LDA ]1\n"
-                                              " STA ]2\n"
-                                              " <<<\n"
-                                              " >>>MOV;$10;$11\n");
-            std::vector<Byte>  expected = { 0xA5, 0x10, 0x85, 0x11 };
+            AssemblyResult     punctuation = MerlinAssemblyFixture::AssembleMerlin (
+                                                 "MOV MAC\n"
+                                                 " LDA ]1\n"
+                                                 " STA ]2\n"
+                                                 " <<<\n"
+                                                 " >>> MOV $10;$11\n");
+            AssemblyResult     word        = MerlinAssemblyFixture::AssembleMerlin (
+                                                 "MOV MAC\n"
+                                                 " LDA ]1\n"
+                                                 " STA ]2\n"
+                                                 " <<<\n"
+                                                 " PMC MOV $10;$11\n");
+            std::vector<Byte>  expected    = { 0xA5, 0x10, 0x85, 0x11 };
 
-            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
-            Assert::IsTrue (result.bytes == expected, L"the prefix separates from the name it is written against");
+            Assert::IsTrue (word.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (word).c_str());
+            Assert::IsTrue (word.bytes == expected, L"the word form invokes the macro");
+            Assert::IsTrue (word.bytes == punctuation.bytes, L"and the two spellings are one construct");
         }
 
 
 
-        //  An explicit invocation is a macro call whether the macro exists or not,
-        //  so an unknown name says so. Letting it fall through would report an
-        //  unknown mnemonic named for the prefix, which describes the symptom and
-        //  not the mistake.
+        //  Written FLUSH against the name, which the real assembler refuses. The
+        //  implementation used to accept it, on the reasoning that a file arriving
+        //  from outside the Merlin editor carries whatever its author typed --
+        //  true, and not evidence about the language.
+        TEST_METHOD (ThePrefixWrittenFlushAgainstTheNameIsRefused)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         "NOPS MAC\n"
+                                         " NOP\n"
+                                         " <<<\n"
+                                         " >>>NOPS\n");
+
+            Assert::IsFalse (result.success, L"the prefix and the name are two fields, not one word");
+            Assert::IsTrue (result.bytes.empty(),
+                            L"a refused invocation must not have expanded the macro on the way past");
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, ">>>NOPS"),
+                            L"the diagnostic must quote the word that was not understood");
+        }
+
+
+
+        //  The name joined to its argument by the MACRO SEPARATOR, which is the
+        //  spelling the implementation used to require and the real assembler
+        //  refuses. This is the negative half of the test above it: without it,
+        //  an implementation that accepts both punctuations passes everything.
+        TEST_METHOD (ANameJoinedToItsArgumentBySeparatorIsRefused)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         "MOV MAC\n"
+                                         " LDA ]1\n"
+                                         " STA ]2\n"
+                                         " <<<\n"
+                                         " PMC MOV;$10;$11\n");
+
+            Assert::IsFalse (result.success,
+                             L"only the arguments are separated from each other by the macro separator");
+            Assert::IsTrue (result.bytes.empty(),
+                            L"and the macro must not have been expanded on the way past");
+        }
+
+
+
+        //  An unknown name is reported and NAMED. It reaches the ordinary
+        //  unknown-operation path, because by the time the prefix is resolved the
+        //  line is an ordinary invocation -- which is also why the message quotes
+        //  the macro rather than the prefix.
         TEST_METHOD (AnExplicitInvocationOfAnUnknownMacroNamesIt)
         {
-            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" >>> NOSUCH;$10\n");
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" >>> NOSUCH $10\n");
 
             Assert::IsFalse (result.errors.empty(), L"an unknown macro must be reported");
             Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "NOSUCH"),
@@ -1973,6 +2024,178 @@ namespace MerlinDirectiveTests
 
             Assert::IsTrue (merlin.bytes == expected, L"the Merlin profile assembles it");
             Assert::IsFalse (as65.bytes == expected, L"AS65 must not, or the profile is not being consulted");
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinFirstCharacterConditionalTests
+    //
+    //  `IF <char><any><]n>` — the conditional that compares the leading character
+    //  of a macro argument against a literal, and how every Merlin macro of
+    //  consequence dispatches on addressing mode.
+    //
+    //  The rule is positional and the character between the two compared ones is
+    //  never examined, which is why the comma and the equals sign are both here:
+    //  the distribution disk's macro library writes both, and an implementation
+    //  reading the middle character as an operator passes on one and fails on the
+    //  other.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinFirstCharacterConditionalTests)
+    {
+    public:
+
+        //  Three-way dispatch on addressing mode, which is the construct as it is
+        //  actually used. All three arms in one assembly, because an
+        //  implementation that answered "matched" to everything satisfies any one
+        //  of them alone.
+        TEST_METHOD (AMacroDispatchesOnItsArgumentsFirstCharacter)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "DISP MAC\n"
+                                              " IF (=]1\n"
+                                              " NOP\n"
+                                              " ELSE\n"
+                                              " IF #=]1\n"
+                                              " INX\n"
+                                              " ELSE\n"
+                                              " INY\n"
+                                              " FIN\n"
+                                              " FIN\n"
+                                              " <<<\n"
+                                              " ORG $2200\n"
+                                              " DISP (ZZ),Y\n"
+                                              " DISP #5\n"
+                                              " DISP QQQ\n");
+            std::vector<Byte>  expected = { 0xEA, 0xE8, 0xC8 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"each argument selects its own arm");
+        }
+
+
+
+        //  The character between the two compared ones is not examined, so the
+        //  comma form the vendor library also writes is the same test. Both
+        //  outcomes, or an implementation that always matched would pass.
+        TEST_METHOD (TheSeparatingCharacterIsNotExamined)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "D2 MAC\n"
+                                              " IF (,]1\n"
+                                              " NOP\n"
+                                              " ELSE\n"
+                                              " INY\n"
+                                              " FIN\n"
+                                              " <<<\n"
+                                              " ORG $2200\n"
+                                              " D2 (ZZ),Y\n"
+                                              " D2 QQQ\n");
+            std::vector<Byte>  expected = { 0xEA, 0xC8 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"a comma and an equals sign are the same separator here");
+        }
+
+
+
+        //  It is the FIRST character of the argument and not a substring search.
+        //  Without this, an implementation looking for the literal anywhere in the
+        //  argument passes every test above.
+        TEST_METHOD (OnlyTheLeadingCharacterOfTheArgumentCounts)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "D3 MAC\n"
+                                              " IF #=]1\n"
+                                              " NOP\n"
+                                              " ELSE\n"
+                                              " INY\n"
+                                              " FIN\n"
+                                              " <<<\n"
+                                              " ORG $2200\n"
+                                              " D3 Q#Q\n");
+            std::vector<Byte>  expected = { 0xC8 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the literal appears in the argument and still must not match");
+        }
+
+
+
+        //  The block really is a conditional and not a line filter: the arm that
+        //  is not taken contributes no bytes and no diagnostics, so a macro whose
+        //  losing arm holds an instruction only the wider processor has still
+        //  assembles.
+        TEST_METHOD (TheArmThatIsNotTakenIsNotAssembledAtAll)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "D4 MAC\n"
+                                              " IF #=]1\n"
+                                              " PHX\n"
+                                              " ELSE\n"
+                                              " INY\n"
+                                              " FIN\n"
+                                              " <<<\n"
+                                              " ORG $2200\n"
+                                              " D4 QQQ\n");
+            std::vector<Byte>  expected = { 0xC8 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the losing arm is skipped rather than assembled and discarded");
+        }
+
+
+
+        //  The discriminating half. Conditional assembly, macro expansion and
+        //  parameter substitution are all shared mechanism, so the same source
+        //  under the other dialect must not produce these bytes -- otherwise the
+        //  tests above say nothing about whether this profile was consulted.
+        TEST_METHOD (TheSameSourceUnderAs65DoesNotProduceThoseBytes)
+        {
+            const char *       kSource  = "D2 MAC\n"
+                                          " IF (,]1\n"
+                                          " NOP\n"
+                                          " ELSE\n"
+                                          " INY\n"
+                                          " FIN\n"
+                                          " <<<\n"
+                                          " ORG $2200\n"
+                                          " D2 (ZZ),Y\n"
+                                          " D2 QQQ\n";
+            AssemblyResult     merlin   = MerlinAssemblyFixture::AssembleMerlin (kSource);
+            AssemblyResult     as65     = MerlinAssemblyFixture::Assemble (kSource, DialectId::As65);
+            std::vector<Byte>  expected = { 0xEA, 0xC8 };
+
+            Assert::IsTrue  (merlin.bytes == expected, L"the Merlin profile assembles it");
+            Assert::IsFalse (as65.bytes == expected, L"AS65 must not, or the profile is not being consulted");
+        }
+
+
+
+        //  The expression form of the conditional is a separate spelling and keeps
+        //  its own meaning. They share a token, so an implementation that folded
+        //  every conditional operand to a character comparison would break the
+        //  spelling five vendor lines depend on and nothing here would say so.
+        TEST_METHOD (TheExpressionConditionalStillEvaluatesItsExpression)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "V = 3\n"
+                                              " DO V-3\n"
+                                              " NOP\n"
+                                              " ELSE\n"
+                                              " INY\n"
+                                              " FIN\n"
+                                              " DO V-2\n"
+                                              " INX\n"
+                                              " FIN\n");
+            std::vector<Byte>  expected = { 0xC8, 0xE8 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the two spellings are not one rule");
         }
     };
 

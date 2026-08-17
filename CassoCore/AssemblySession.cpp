@@ -5361,18 +5361,15 @@ Error:
 
 HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & info, bool & handled)
 {
-    HRESULT                   hr          = S_OK;
-    MacroSyntax               syntax      = m_dialect.GetMacroSyntax();
-    std::string               callKeyword = syntax.callKeyword;
-    std::string               name        = info.parsed.mnemonic;
+    HRESULT                   hr        = S_OK;
+    MacroSyntax               syntax    = m_dialect.GetMacroSyntax();
+    std::string               name      = info.parsed.mnemonic;
     std::vector<std::string>  args;
     std::vector<std::string>  expandedLines;
     std::string               uniqueSuffix;
-    int                       highest     = 0;
-    int                       supplied    = 0;
-    bool                      isExplicit  = false;
-    bool                      isDefined   = false;
-    bool                      hasArgs     = false;
+    int                       highest   = 0;
+    int                       supplied  = 0;
+    bool                      isDefined = false;
 
 
 
@@ -5382,33 +5379,8 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
     // also why the field scanner refuses to treat one inside the operand as a
     // comment: `ADD SUMSTR;DEFLEN;PL` passes three arguments, and a parser
     // stripping from the first semicolon would pass one.
-    args       = Parser::SplitOnSeparator (info.parsed.operand, syntax.argumentSeparator);
-    isExplicit = !callKeyword.empty() && (ToUpperCase (name) == callKeyword);
-
-    if (isExplicit)
-    {
-        // An explicit invocation names the macro FIRST IN THE OPERAND, so the
-        // name and the arguments come out of the same list. A prefix with
-        // nothing after it is reported here rather than left to fall through as
-        // an unknown mnemonic, which would describe the symptom and not the
-        // mistake.
-        hasArgs = !args.empty();
-
-        CBRFEx (hasArgs, S_OK,
-                RecordError (current.sourceLineNumber, "Explicit macro invocation names no macro");
-                handled = true);
-
-        name = args.front();
-        args.erase (args.begin());
-    }
-
+    args      = Parser::SplitOnSeparator (info.parsed.operand, syntax.argumentSeparator);
     isDefined = (m_macros.find (name) != m_macros.end());
-
-    // An explicit invocation is a macro call whether or not the macro exists, so
-    // an undefined name is reported instead of being handed on.
-    CBRFEx (isDefined || !isExplicit, S_OK,
-            RecordError (current.sourceLineNumber, "Undefined macro: " + name);
-            handled = true);
 
     // Not a macro call; the line belongs to a later stage.
     BAIL_OUT_IF (!isDefined, S_OK);

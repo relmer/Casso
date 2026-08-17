@@ -2191,6 +2191,27 @@ namespace MerlinCorpusTests
             " DFB \"A\"\n",
             0x8000, s_kHighAsciiCharBytes, s_kpszCaptureVersion, true,
         },
+        {
+            //  Explicit invocation, in both of its spellings and with and without
+            //  arguments. The macro NAME sits in the operand field and the
+            //  arguments in the field after it, so the name is separated from
+            //  them by a space and only they are separated from each other by the
+            //  macro separator.
+            "explicit macro invocation",
+            "NOPS MAC\n"
+            " NOP\n"
+            " <<<\n"
+            "MOV2 MAC\n"
+            " LDA ]1\n"
+            " STA ]2\n"
+            " <<<\n"
+            " ORG $2300\n"
+            " >>> NOPS\n"
+            " PMC NOPS\n"
+            " >>> MOV2 $10;$20\n"
+            " PMC MOV2 $30;$40\n",
+            0x2300, s_kExplicitCallBytes, s_kpszCaptureVersion, true,
+        },
     };
 
 
@@ -2228,14 +2249,23 @@ namespace MerlinCorpusTests
     static constexpr PendingCapture  s_kPendingCaptures[] =
     {
         {
-            //  The first-character conditional. Its spelling is absent from the
-            //  Merlin directive table entirely, which is why the macro body's
-            //  terminator is never reached and the definition reads as unclosed.
+            //  A COMPOSITE OF TWO CONSTRUCTS, and only one of them is now
+            //  implemented -- which is why this row is still here and why the
+            //  divergence it records is no longer the one it was captured for.
             //
-            //  Not a rarity: the distribution disk's own macro library uses it
-            //  thirteen times, and it is how a Merlin macro dispatches on
-            //  addressing mode. It went unnoticed because that library is not one
-            //  of the two committed as fixtures.
+            //  The first-character conditional works: the three dispatch calls at
+            //  the bottom produce their captured bytes on their own, and
+            //  MerlinFirstCharacterConditionalTests asserts it. What this source
+            //  also carries is a macro definition with no terminator of its own
+            //  falling into the next, which the assembler does not do -- an inner
+            //  definition met while a body is being collected is swallowed into
+            //  that body instead of opening one that shares the terminator, so
+            //  the first two sections are refused as an unclosed definition.
+            //
+            //  Kept whole rather than split. The two halves were captured as one
+            //  assembly with no marker between them, so separating them would
+            //  mean counting offsets by hand -- which is exactly how a
+            //  self-consistent and wrong entry gets made.
             "first-character conditional inside a macro",
             "ADDX MAC\n"
             " TXA\n"
@@ -2262,32 +2292,8 @@ namespace MerlinCorpusTests
             " DISP QQQ\n",
             s_kMacroBytes,
             s_kpszCaptureVersion,
-            "the first-character conditional has no spelling in the Merlin directive table",
-        },
-        {
-            //  Three separate facts, all measured, and all three contradict what
-            //  the implementation currently assumes. Merlin takes the macro NAME
-            //  from the operand field and its arguments from the field after it,
-            //  so the name is separated from the arguments by a SPACE and only the
-            //  arguments are separated from each other by the macro separator.
-            //  The prefix written flush against the name is refused outright, and
-            //  the word form of the prefix is accepted and behaves identically.
-            "explicit macro invocation",
-            "NOPS MAC\n"
-            " NOP\n"
-            " <<<\n"
-            "MOV2 MAC\n"
-            " LDA ]1\n"
-            " STA ]2\n"
-            " <<<\n"
-            " ORG $2300\n"
-            " >>> NOPS\n"
-            " PMC NOPS\n"
-            " >>> MOV2 $10;$20\n"
-            " PMC MOV2 $30;$40\n",
-            s_kExplicitCallBytes,
-            s_kpszCaptureVersion,
-            "the name is taken up to the macro separator rather than up to the field break, and the word form is unimplemented",
+            "an unterminated macro definition does not fall into the next, so the first two"
+            " sections of this composite never assemble",
         },
     };
 

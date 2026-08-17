@@ -15,14 +15,26 @@
 //  second assembler, which is what `Directive.h` says the token enum exists for.
 //
 //  Every spelling here was taken from the committed vendor sources rather than
-//  transcribed from the manual, with one deliberate exception noted below. The
+//  transcribed from the manual, with two deliberate exceptions noted below. The
 //  corpus supplies its own frequencies -- DCI appears 130 times, ASC 35, ERR 17,
 //  HEX 13 -- so the table reflects what Merlin source actually contains.
 //
-//  DDB is the exception: it appears nowhere on the disk. It is included anyway,
-//  because absence from one vendor's source is not absence from the language,
-//  and DDB is the one data directive whose byte order the existing Word token
-//  cannot express.
+//  DDB is the first exception: it appears nowhere on the disk. It is included
+//  anyway, because absence from one vendor's source is not absence from the
+//  language, and DDB is the one data directive whose byte order the existing
+//  Word token cannot express.
+//
+//  IF is the second, and it is the sharper lesson. It appears in none of the
+//  committed sources either -- and the distribution disk's own macro library
+//  uses it a dozen times over, because it is how a Merlin macro dispatches on
+//  addressing mode. A vocabulary derived from the files that happened to be
+//  committed is a vocabulary with holes in it.
+//
+//  This hole did not read as one, which is the part worth remembering. The
+//  conditional dispatcher falls back to the OTHER dialect's table for a bare
+//  mnemonic, so the missing spelling resolved there instead and every use was
+//  reported as an expression that would not evaluate -- a message about the
+//  operand, on a directive this table did not claim.
 //
 //  Merlin has NO dotted spellings, so these tokens have no canonical name in
 //  DirectiveTable, which is as65's. Diagnostics quoting a Merlin directive must
@@ -238,13 +250,14 @@ private:
     static bool         IsVariableNameStart     (char ch);
     static bool         IsParameterIndex        (char ch);
     static bool         IsCharConstantDelimiter (char ch);
+    static bool         IsExplicitCallSpelling  (const std::string & opcode);
     static bool         TakesDelimitedText      (const std::string & mnemonic);
     static void         SkipCharConstant        (const std::string & line, size_t & pos);
     static void         SkipFieldSpace          (const std::string & line, size_t & pos);
     static std::string  ReadPlainField          (const std::string & line, size_t & pos);
     static std::string  ReadOperandField        (const std::string & line, size_t & pos, const std::string & mnemonic);
     static std::string  QualifyVariableRefs     (const std::string & text);
-    static void         SplitCallPrefix         (std::string & mnemonic, std::string & operand);
+    static std::string  FoldFirstCharacterTest  (const std::string & operand);
     static std::string  RewriteAddressCheck     (const std::string & operand);
     static std::string  RewriteByteSelector     (const std::string & operand);
     static std::string  ResolveIncludeName      (const std::string & operand);
