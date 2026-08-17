@@ -352,6 +352,81 @@ Everything either side of this transition is proven: Merlin boots, the editor
 accepts typed source with correct shifted characters, control characters reach
 it, and extraction works.
 
+## Vendor-source validation — the result, recorded here rather than committed
+
+The oracle is **Merlin Pro 2.23**, archive.org item `MerlinProMacroAssembler`,
+CC BY-NC-ND 3.0, Glen Bredon / Roger Wagner Publishing 1984, obtained via
+`scripts/FetchMerlin.ps1` and extracted by `scripts/ExtractMerlinFixtures.ps1`
+from a disk pinned at SHA-256
+`CB7FD9522A3B90792ACBB00D6C811323DC046DC2920FC05A640858BFE611F0E6`. Every count
+below is measured against that release; a different Merlin ships different
+source files, so a figure from one is not comparable to another.
+
+**The result is recorded here and the sources are not re-committed as corpus
+entries.** The bytes already live under `UnitTest/Fixtures/Merlin/` under their
+own license; copying a vendor source a second time into a test file would add
+redistribution without adding evidence. What carries information is the
+*outcome* of re-assembling them, which is this:
+
+**All five absolute-mode vendor sources reproduce all six shipped objects, byte
+for byte, with zero diagnostics each.** The sources are handed to
+`Assembler::Assemble` exactly as the fixtures hold them — no line edited, no
+whitespace tidied, no construct removed.
+
+| Source | Object | Bytes | Load | Answers supplied |
+|---|---|---:|---|---|
+| `LABELS.S` | `LABELS` | 984 | `$8000` | *(none)* |
+| `MAKE DUMP.S` | `MAKE DUMP` | 589 | `$9000` | *(none)* |
+| `KEYMAC.S` | `KEYMAC` | 674 | `$9000` | `SAVOBJ`=0 |
+| `PRINTFILER.S` | `PRINTFILER` | 286 | `$02A0` | `FORMAT`=1, `MONITOR`=0 |
+| `CLOCK.S` | `CLOCK.24` | 365 | `$0240` | `SAVOBJ`=0, `VERSION`=24 |
+| `CLOCK.S` | `CLOCK.12` | 365 | `$0240` | `SAVOBJ`=0, `VERSION`=12 |
+
+Four properties are asserted beside the bytes, because bytes alone do not
+establish them:
+
+1. **The load address**, per object. `LABELS.S` names no origin anywhere, so a
+   wrong dialect default yields 984 byte-perfect bytes in the wrong place —
+   which reads as a far deeper problem than it is.
+2. **The input was not touched.** Each entry holds a fixture *path* and never
+   text, and the comparison re-derives the stored bytes straight from
+   `IFixtureProvider::OpenFixture` and requires one character of assembled text
+   per stored byte, in order. A re-indented line, a stripped trailing space or a
+   deleted comment fails even where the emitted bytes are identical.
+3. **Every entry discriminates.** The same source under AS65 must NOT reproduce
+   the object. Labels, origin, literals and the evaluator are shared, so an
+   entry passing under both dialects is no evidence the Merlin profile was
+   consulted at all.
+4. **`PRINTFILER`'s answer pair was recovered rather than assumed.** Which of
+   its four `FORMAT`/`MONITOR` combinations the vendor built with is recorded
+   nowhere; all four are assembled and *exactly one* is required to match. More
+   than one would mean an answer reaches no byte and the search proves nothing.
+
+The two `PI.*` sources are **negative specimens only** and are never compared
+positively. They ship no object of their own, and the `PI.*` objects sitting
+beside them on the disk are post-link. `PI.ADD.S` draws 7 boundary refusals
+(one `REL`, six `ENT`), `PI.START.S` draws 5 (one `REL`, three `EXT`, one
+`ENT`), and the two must not carry the same message — an export-only module can
+be made to assemble absolutely, an importing one cannot.
+
+**One gap is open and is measured, not estimated.** `PI.ADD.S` also draws nine
+diagnostics with no boundary row behind them, which SC-003 defines as a defect.
+They are one cause: line 123 is `VAR MSGPNT;OUTPUT`, Merlin's way of binding the
+positional parameters `]1`..`]n` for a fragment pulled in by the `PUT` on the
+next line. `VAR` is absent from Casso's Merlin directive table, so that line is
+rejected and the eight `]1`/`]2` references inside `T.SENDMSG` have nothing to
+resolve to. The count is asserted exactly, per file and corpus-wide, so it can
+only change deliberately.
+
+**The two macro libraries are not standalone sources**, which was measured
+rather than assumed. `T.SENDMSG` is a macro *body*: its first line is an
+instruction and its second writes to a positional parameter, so assembling it on
+its own produces seven expression errors and means nothing. Both libraries are
+exercised as the `PUT`/`USE` inclusion corpus instead — served under the names
+the disk stores while a real vendor source asks for them under the short names
+it writes, which is how Merlin's `T.` prefix rule is pinned from vendor lines
+rather than from the manual.
+
 ## Open items carried into tasks
 
 These are the requirements-checklist gaps that need a technical answer. Each
