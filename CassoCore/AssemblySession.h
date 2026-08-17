@@ -367,6 +367,11 @@ private:
     HRESULT StripForcedSubstitution   (std::string & expanded);
     HRESULT EmitByteDirective         (const LineInfo & info, Word & emitPC);
     HRESULT EmitWordDirective         (const LineInfo & info, Word & emitPC);
+
+    // The same two bytes in the reverse order. Its own run because the name is
+    // too long to sit in the column beside its neighbors.
+    HRESULT EmitWordHighFirstDirective (const LineInfo & info, Word & emitPC);
+
     HRESULT EmitDdDirective           (const LineInfo & info, Word & emitPC);
     HRESULT EmitDsDirective           (const LineInfo & info, Word & emitPC);
     HRESULT EmitAlignDirective        (const LineInfo & info, Word & emitPC);

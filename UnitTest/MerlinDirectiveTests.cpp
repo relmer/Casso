@@ -1250,6 +1250,126 @@ namespace MerlinDirectiveTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  MerlinReversedWordTests
+    //
+    //  `DDB` -- two bytes per value with the HIGH one first.
+    //
+    //  It has NO ORACLE. Not one of the nine committed vendor sources writes it,
+    //  so everything here is the documented rule plus self-consistency, and none
+    //  of it may be quoted as corpus evidence. The reason it is implemented at
+    //  all is the other half: the token existed with a null handler row, and a
+    //  null pass-1 row drops the line without a word. A source writing `DDB` was
+    //  therefore assembled to a program two bytes short at every following
+    //  address, silently -- the exact degraded-reads-as-healthy shape this
+    //  dialect's vocabulary exists to prevent.
+    //
+    //  Every value used below is deliberately NOT a palindrome. `$4242` reversed
+    //  is `$4242`, so a test built on one passes whichever order the emitter
+    //  writes and proves only that two bytes came out.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinReversedWordTests)
+    {
+    public:
+
+        //  The whole directive in one line, and the regression the null row
+        //  caused: before this was implemented the result was zero bytes and no
+        //  diagnostic.
+        TEST_METHOD (DdbEmitsTheHighByteFirst)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" DDB $1234\n");
+            std::vector<Byte>  expected = { 0x12, 0x34 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the high byte leads, and the line is not dropped");
+        }
+
+
+
+        //  Stated against the ordinary word directive rather than against a
+        //  literal, because "reversed" is a claim about the PAIR. A single
+        //  expectation is satisfied by an emitter that happens to agree on one
+        //  value; this fails unless the two directives genuinely disagree.
+        TEST_METHOD (DdbIsTheReverseOfTheOrdinaryWordDirective)
+        {
+            AssemblyResult  reversed = MerlinAssemblyFixture::AssembleMerlin (" DDB $1234\n");
+            AssemblyResult  ordinary = MerlinAssemblyFixture::AssembleMerlin (" DA $1234\n");
+
+            Assert::IsTrue (reversed.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (reversed).c_str());
+            Assert::IsTrue (ordinary.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (ordinary).c_str());
+
+            Assert::AreEqual ((size_t) 2, reversed.bytes.size(), L"two bytes either way");
+            Assert::AreEqual ((size_t) 2, ordinary.bytes.size(), L"two bytes either way");
+
+            Assert::AreEqual ((int) ordinary.bytes[1], (int) reversed.bytes[0], L"DDB leads with what DA trails");
+            Assert::AreEqual ((int) ordinary.bytes[0], (int) reversed.bytes[1], L"and trails with what DA leads");
+            Assert::AreNotEqual ((int) reversed.bytes[0], (int) reversed.bytes[1],
+                                 L"a palindrome would satisfy both orders and prove nothing");
+        }
+
+
+
+        //  A list, because the reversal is per VALUE and not per line. An
+        //  implementation reversing the whole run would pass a one-argument test
+        //  and produce `56 78 12 34` here.
+        TEST_METHOD (DdbReversesEachValueSeparatelyAcrossAList)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (" DDB $1234,$5678\n");
+            std::vector<Byte>  expected = { 0x12, 0x34, 0x56, 0x78 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"values keep their order; only the bytes within one are swapped");
+        }
+
+
+
+        //  Pass 1 has to reserve the space or every label after the line binds
+        //  two bytes early. Checked through a later label's VALUE rather than by
+        //  counting bytes, because a byte count is satisfied by an emitter that
+        //  sized nothing and simply wrote what it was given.
+        TEST_METHOD (DdbReservesItsSpaceInPassOne)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              " DDB $1234\n"
+                                              "AFTER RTS\n"
+                                              " DA AFTER\n");
+            std::vector<Byte>  expected = { 0x12, 0x34, 0x60, 0x02, 0x80 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"AFTER must land at $8002, which only holds if pass 1 sized DDB");
+        }
+
+
+
+        //  An operand that cannot be evaluated must fail rather than emit
+        //  nothing. Emitting nothing is the failure the null row already had, and
+        //  it would be reintroduced one level down by an emitter that skipped
+        //  quietly.
+        TEST_METHOD (DdbWithAnUnevaluableOperandFailsRatherThanEmittingNothing)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" DDB NOWHERE\n");
+
+            Assert::IsFalse (result.errors.empty(), L"an undefined symbol must be reported");
+        }
+
+
+
+        //  FR-005. `DDB` is Merlin's word and must stay unknown to as65 -- the
+        //  token has no as65 spelling and must never acquire one.
+        TEST_METHOD (As65DoesNotAssembleDdb)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::Assemble ("        ddb $1234\n", DialectId::As65);
+
+            Assert::IsFalse (result.errors.empty(), L"DDB is not an as65 directive");
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  MerlinEquateTests
     //
     //  `NAME = expr` puts the sign in the OPCODE field, with the name beside it

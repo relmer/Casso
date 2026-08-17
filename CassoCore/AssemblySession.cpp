@@ -4616,12 +4616,14 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
     //  own rows below: an earlier phase claims the line, or the boundary
     //  refuses it by name.
     //
-    //  WordHighFirst is the one remaining unimplemented row and is deliberately
-    //  left as such: no vendor source writes it, so it has no oracle, and the
-    //  directive tasks that filled its neighbors did not name it.
+    //  WordHighFirst shares its pass-1 handler with the ordinary word directive
+    //  because the two reserve identically -- two bytes per argument, whatever
+    //  order pass 2 writes them in. Only the emitter differs, and a second
+    //  sizing function would be a copy that could drift from the one the
+    //  neighboring row uses.
     { Directive::StringData,      &AssemblySession::HandlePass1String,      &AssemblySession::EmitStringDirective    },
     { Directive::HexData,         &AssemblySession::HandlePass1Hex,         &AssemblySession::EmitHexDirective       },
-    { Directive::WordHighFirst,   nullptr,                                  nullptr                                  },
+    { Directive::WordHighFirst,   &AssemblySession::HandlePass1Word,        &AssemblySession::EmitWordHighFirstDirective },
 
     //  ERR acts entirely in pass 2, where every symbol is known. Its pass-1 row
     //  is the recognizer rather than a no-op: a directive with no pass-1 handler
@@ -6874,6 +6876,58 @@ HRESULT AssemblySession::EmitWordDirective (const LineInfo & info, Word & emitPC
         {
             EmitByte ((Byte) (v & 0xFF), emitPC);
             EmitByte ((Byte) ((v >> 8) & 0xFF), emitPC);
+        }
+    }
+    else
+    {
+        m_result.success = false;
+    }
+
+// Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitWordHighFirstDirective
+//
+//  Two bytes per value, HIGH byte first -- the reverse of the processor's own
+//  order, and the entire reason the directive exists beside the ordinary one.
+//
+//  It is not a 6502 address layout. The order is what a jump table read by
+//  pushing an address onto the stack wants, and what data shared with a
+//  big-endian format wants, so a dialect offering both spellings is offering two
+//  different data layouts rather than a synonym.
+//
+//  Everything else matches the ordinary word directive exactly, including the
+//  "no arguments" versus "arguments that all failed" distinction: without it an
+//  unevaluable line would silently emit nothing and every following address
+//  would be two bytes early.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitWordHighFirstDirective (const LineInfo & info, Word & emitPC)
+{
+    HRESULT hr = S_OK;
+
+
+
+    std::vector<int32_t> values;
+
+
+
+    TryEvaluateDirectiveArgs (info.parsed.directiveArg, m_pass2Ctx, values, info.parsed.lineNumber, m_result.errors);
+
+    if (values.size() != 0 || info.parsed.directiveArg.empty())
+    {
+        for (int32_t v : values)
+        {
+            EmitByte ((Byte) ((v >> 8) & 0xFF), emitPC);
+            EmitByte ((Byte) (v & 0xFF), emitPC);
         }
     }
     else
