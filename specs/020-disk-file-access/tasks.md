@@ -8,27 +8,34 @@ context loss. Current as of the last commit on `020-disk-file-access`.
 **Done and on the branch.** Phase 2 (foundational, T002–T013), Phase 3
 (US3 — read, T014–T022), **both** Phase 4 chains — T023 + T024 (DOS 3.3 write
 and delete) and **T025 + T026** (ProDOS write with tree growth, and delete) —
-and now **T027 + T028** (replace on both filesystems, and the pre-commit
-self-check). That is the whole P1 extraction story — both filesystem readers,
-the decode report, the integrity pass, the `disk` subcommand, the CLI edge —
-plus placement, replacement and removal on both filesystems, each verifying its
-own output. Suite is **3152 Debug / 3149 Release** green; the 3-test delta is
-the pre-existing GH #113, not this work. (It was 3134 / 3131 before T027/T028
-added 18 tests, 3109 / 3106 before T025/T026 added 25, and 3088 / 3085 before
+T027 + T028 (replace on both filesystems, and the pre-commit self-check), and
+now **T029** (the bit-stream write path, its four-format matrix, and
+whole-operation refusal). That is the whole P1 extraction story — both
+filesystem readers, the decode report, the integrity pass, the `disk`
+subcommand, the CLI edge — plus placement, replacement and removal on both
+filesystems, each verifying its own output, and an edited volume rendered back
+into any of the four containers it came from. Suite is **3163 Debug / 3160
+Release** green; the 3-test delta is the pre-existing GH #113, not this work.
+(It was 3152 / 3149 before T029 added 11 tests, 3134 / 3131 before T027/T028
+added 18, 3109 / 3106 before T025/T026 added 25, and 3088 / 3085 before
 T023/T024 added 22 and removed the now-obsolete
 `Write_IsNotYetImplemented_AndSaysSoRatherThanSucceeding`.)
 
-**Next, and it is still the hard half.** Phase 4 has seven tasks left
-(T029–T035), and it is the work here where a bug **destroys data** rather than
+**T029 found a live defect, which is what it was ranked first for.** The `.po`
+reorder shipped in Phase 3 was wrong and had been silent ever since — see the
+divergences block. Read that before assuming the sector-order question is
+settled anywhere else in the tree.
+
+**Next, and it is still the hard half.** Phase 4 has six tasks left
+(T030–T035), and it is the work here where a bug **destroys data** rather than
 failing loudly. Everything through Phase 3 was reads: wrong output was the worst
-case. From T023 on, the worst case is a user's disk image. T029 — the bit-stream
-write path and its four-format matrix — is the top-ranked risk below and has not
-been started.
+case. From T023 on, the worst case is a user's disk image. The remaining top
+risk is item 2 below — the FILE-level commit, which is T030 and T031.
 
 **Order within Phase 4.** T023 → T024 and T025 → T026 were independent chains
 (DOS 3.3 and ProDOS), joining at T028. Delete ships with write on both because
-replace depends on it. Both chains, T027 and T028 are done; **T029 is the next
-thing, and T030 → T031 can run beside it.**
+replace depends on it. Both chains, T027, T028 and T029 are done; **T030 → T031
+is the next thing**, and T032 needs it.
 
 Three things earned during Phase 3 that Phase 4 depends on, so do not treat them
 as background:
@@ -60,6 +67,19 @@ fails, because that is what decides whether it reaches a user.
    the point is that a round-trip is not the check, it is the thing that hides
    the bug.
 
+   **This was not hypothetical. The defect was already there**, in the read
+   path, since Phase 3, and it read back perfectly — see the divergences block.
+   The gates that found it are the two that consult evidence the code does not
+   own: the published on-disk layout read at an absolute file offset, and
+   `ProDosSkeleton`'s block map, which is a separately derived table corroborated
+   against real ProDOS volumes. Everything else — every round trip, every
+   nibblize-and-decode, the real-CPU boot — passed against the defect *until the
+   mapping was made a composition rather than a restatement*, at which point
+   they became identities and can no longer fail. **That is the general lesson:
+   downstream checks turn tautological the moment the duplication they guard
+   against is removed, so the standing gate has to be the one anchored outside
+   the code.**
+
 2. **The commit path's failure modes are untested by construction** (T030,
    T031). *(Still open — T027/T028 dealt with the volume layer's own
    all-or-nothing guarantee, which is structural: nothing writes through to the
@@ -78,6 +98,14 @@ fails, because that is what decides whether it reaches a user.
    refusal has to be whole-operation, before anything is committed —
    `TrackWritability` already refuses the whole image for quarter-track data for
    the same reason, and per-track refusal must not become the looser sibling.
+
+   *(Closed by T029. `VolumeImage::Save` judges every track the edit needs
+   before re-encoding any of them and produces nothing at all when one is
+   refused. The assertion that carries it is `written.size() == 0`, not the
+   error code: three separate mutations — filter the bad track out and commit
+   the rest, note the refusal and write anyway, and serialize before judging —
+   all return a plausible-looking failure or success while leaving a file
+   behind, and only the emptiness check separates them.)*
 
 4. **Delete's free-space return breaks a different file, later** (T024, T027).
    Freeing a sector a second file also claims corrupts that file, and nothing
@@ -151,6 +179,23 @@ only after a test was added for it: comparing `claimedButFree` by size instead o
 membership passed the whole suite until a case was built where one referenced
 sector is marked free before and a *different* one after.
 
+And again on T029, where fourteen mutations were run: thirteen were caught first
+try and **one was not** — deleting the whole-image writability refusal, which
+changes the message and not the outcome, because the per-track answer inherits
+the image verdict. A test asserting that a reason was *given* could not see it;
+one asserting **which** reason can, and does. Two things about the harness are
+worth carrying forward. **A mutation that makes the emulated 6502 execute
+garbage floods the log**: the illegal-opcode trace is one line per bad opcode,
+and a single forty-megacycle boot of a mis-ordered image wrote over a gigabyte,
+which killed the first harness while it tried to read the file to score the run.
+The harness now streams rather than slurps and drops that line as it goes; the
+boot test itself runs in slices, stops the moment the guest reaches a known
+screen, and checks the cheap surface comparison *first* so a wrong image never
+gets booted at all. **And the fix that removes a duplicated constant removes the
+mutation with it** — once the `.po` mapping became a composition, every
+downstream check of it became an identity, and only the two gates anchored
+outside the code can still fail.
+
 **Blocked on nobody; 019 is blocked on this branch.** Spec 019 runs
 concurrently. Measured overlap is three files — `CassoCore/CassoCore.vcxproj`,
 `UnitTest/UnitTest.vcxproj` and `CassoCli/CommandLine.cpp` — and the two sides
@@ -168,6 +213,25 @@ so removing the fallback has to be a decision. **Deleting it is the intended
 outcome — do not defend it at merge.** See `docs/coordination.md`.
 
 **Known divergences from the task text, so they do not read as gaps:**
+
+- **The `.po` sector reorder was WRONG from Phase 3 until T029, in both
+  directions, and no test could see it.** `VolumeImage` held its own
+  DOS-logical-to-ProDOS-file table. Both interleave tables the track layer owns
+  are indexed by **physical** sector; that copy was applied to **logical**
+  sectors, which is a different table. A `.po` written through it put the ProDOS
+  volume directory nine sectors from byte 1024, where ProDOS looks, and a
+  genuine `.po` was misread on the way in — `DetectFilesystem` would have called
+  it Unknown. The emulator was never affected: `DiskImageStore` mounts a `.po`
+  through `NibblizationLayer::NibblizePo`, which uses the correct table, so this
+  never reached a released build and needs no CHANGELOG entry. **Why nothing
+  caught it**: the reorder and its inverse shared the one table, so a round trip
+  is the identity whatever the table says, and the only `.po` any test held was
+  produced by the same function that read it back. All eight cross-format
+  extraction tests pass against the defect, measured under mutation. **The fix
+  is structural**: `NibblizationLayer::PoFileIndexForDosLogicalSector` composes
+  the two interleaves in the file that owns them, so a file reorder cannot
+  disagree with the layout the drive sees. Do not "simplify" it back to a
+  literal table.
 
 - **The DOS 3.3 `IsClean()` asymmetry is FIXED, and it was a code defect rather
   than a property of the filesystem.** `ProDosVolume::BuildIntegrityReport`
@@ -427,7 +491,7 @@ filesystem can delete today.
   in the "do not retry" block above. Nothing was implemented from it: both
   signals are magnitudes, acting on either is copy-protection detection under
   another name, and the name check stays reverted
-- [ ] T029 [US2] Implement the bit-stream write path in `CassoEmuCore/Devices/Disk/`: diff the pre- and post-edit sector buffers, call `RenibblizeTracks` for **only** the changed tracks, and refuse via `TrackWritability` when the write needs a track that is not writable (FR-016, FR-017). Test that writing to a WOZ leaves untouched tracks bit-identical, and that a `Partial` track refuses the write with the image unchanged (SC-008). **Write and re-read across all four formats** — `.dsk`, `.do`, `.po`, `.woz` (FR-015): extraction is covered across formats by T021, but sector ordering differs between DOS and ProDOS order and a mistake there is silent, so the write side needs its own matrix
+- [x] T029 [US2] Implement the bit-stream write path in `CassoEmuCore/Devices/Disk/`: diff the pre- and post-edit sector buffers, call `RenibblizeTracks` for **only** the changed tracks, and refuse via `TrackWritability` when the write needs a track that is not writable (FR-016, FR-017). Test that writing to a WOZ leaves untouched tracks bit-identical, and that a `Partial` track refuses the write with the image unchanged (SC-008). **Write and re-read across all four formats** — `.dsk`, `.do`, `.po`, `.woz` (FR-015): extraction is covered across formats by T021, but sector ordering differs between DOS and ProDOS order and a mistake there is silent, so the write side needs its own matrix. **One defect found and six decisions.** (1) **The `.po` reorder was already wrong** — see the divergences block; the fix shipped as its own commit ahead of this one, because it is a read-path bug as much as a write-path one. (2) **The write path is `VolumeImage::Save`**, the mirror of `Load` and in the same pair, because the question "which container is this and what does its layout mean" is one question and had one answer already. It derives the pre-edit sector buffer itself from the original file bytes rather than taking it from the caller, so the two sides of the diff cannot disagree about what the image held. (3) **`ChangedTracks` is public and diffs whole tracks**, since a bit stream is written a track at a time; a mutation that compared only each track's first sector is caught by the four-format matrix. (4) **A sector-order container is never judged for writability.** There are no tracks to be unwritable — `.dsk`/`.do`/`.po` hold sectors and nothing else — so `TrackWritability` is consulted on the `.woz` arm only. (5) **The refusal reason is an out-parameter, and it matters which one is used.** Asserting only that *something* was said passes when the whole-image check is deleted: `AreTracksWritable` inherits the image verdict, so the write is still refused and only the explanation degrades, from "the image holds data between tracks" to blaming a track for it. Measured by mutation; the test now pins the wording. (6) **The FR-017 test blanks a track first.** A WOZ produced by nibblizing a sector image re-encodes to itself, so an implementation rewriting all thirty-five tracks passes a bit-comparison against it. The sentinel track is one whose bits a re-encode could not reproduce, and the test asserts it is not in the changed set before asserting its bits survived
 - [ ] T030 [US2] Implement the **commit policy** in `CassoEmuCore/Devices/Disk/CommitPlan.h/.cpp` as pure functions over data: temporary-name derivation from the target path and an attempt counter, the staleness comparison (`IsStale (recordedSize, recordedTime, observedSize, observedTime)`), and the ordering rule that the temporary is removed on any failure. Names must not collide between concurrent invocations (FR-013). Tests in `UnitTest/EmuTests/CommitPlanTests.cpp` — these are decisions, not syscalls, and they must be unit-testable
 - [ ] T031 [US2] Wire the staleness re-verify and the best-effort probe into `DiskCommandRunner` (T019): record size and modification time at read via `IDiskFileIo`, re-verify immediately before commit and refuse if either changed (FR-036); best-effort exclusive-open probe refusing when **another** holder has the file open, with help text that does not imply it detects Casso (FR-035). Tested against the fake `IDiskFileIo`, which can report a changed size or time on demand
 - [ ] T032 [US2] Add `put` and `delete` verbs to `ParseDiskOptions` and `DiskCommandRunner` (`--as`, `--type`, `--addr`, `--text`/`--basic`/`--verbatim`), with write-protect and locked-file refusals reported in intelligible terms rather than raw platform codes (FR-014). Use `--verbatim`, **not** `--raw` or `--binary`: both already name assembler output shapes (`OutputFormat::Raw`, `OutputFormat::Binary`) in this same parser, and `--verbatim` says what it does — the other two selectors transform the bytes, this one does not. **`--verbatim` means no CHARACTER conversion — it does NOT mean raw sectors.** Length and header semantics still apply, because those are how a filesystem records where a file ends: they are the file's identity, not a transformation of it. So `get --verbatim` yields the file's logical bytes with high bits and line endings untouched, never trailing sector slack, because "give me this file" must not hand back whatever happened to be in the rest of the last sector. **Gate it on FILE equality, not image equality**: `get --verbatim`, `put --verbatim` unchanged, re-read, and assert the bytes match. Image equality is the wrong assertion — a DOS 3.3 file occupies whole sectors, so slack past the recorded length differs from whatever was there before, and a `put` that reallocates changes the image for reasons having nothing to do with conversion. **Assert sector reuse separately** if image stability is wanted; do not conflate the two. Extract-edit-replace is the workflow US3 exists for, and it must not perturb bytes the user did not touch
