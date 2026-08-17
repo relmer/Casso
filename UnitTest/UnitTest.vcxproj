@@ -237,6 +237,7 @@
     <ClCompile Include="MerlinDirectiveTests.cpp" />
     <ClCompile Include="MerlinCorpus\MerlinFixture.cpp" />
     <ClCompile Include="MerlinCorpusTests.cpp" />
+    <ClCompile Include="MerlinSubsetBoundaryTests.cpp" />
     <ClCompile Include="MerlinParserTests.cpp" />
     <ClCompile Include="MerlinStringEncodingTests.cpp" />
     <ClCompile Include="IncludeTests.cpp" />

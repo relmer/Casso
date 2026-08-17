@@ -2,6 +2,8 @@
 
 #include "MerlinDialect.h"
 
+#include "MerlinSubsetBoundary.h"
+
 
 
 //  Merlin's directive vocabulary. Frequencies in the comments are counts across
@@ -346,6 +348,26 @@ std::span<const MnemonicAlias> MerlinDialect::GetMnemonicAliases() const
 std::span<const OperatorSpelling> MerlinDialect::GetOperatorSpellings() const
 {
     return std::span<const OperatorSpelling> (s_kMerlinOperatorSpellings);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinDialect::GetSubsetBoundary
+//
+//  Handed straight through from the boundary table, which is the whole point:
+//  the profile names WHAT it refuses and nothing else. What each refusal says,
+//  and when a construct accepted once becomes one refused twice, are the
+//  mechanism's to decide from the rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const SubsetBoundaryRow> MerlinDialect::GetSubsetBoundary() const
+{
+    return MerlinSubsetBoundary::GetAll();
 }
 
 

@@ -190,6 +190,30 @@ enum class SymbolKind
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiagnosticKind
+//
+//  Whether a diagnostic says "your source is wrong" or "Casso does not do this".
+//
+//  A developer reading a failure has to be able to tell those apart, and the
+//  message alone cannot carry the distinction to anything but a human -- a build
+//  script, an editor, or a test asserting the difference all need a field. It is
+//  additive, defaulting to the reading every diagnostic that predates it had, so
+//  nothing already recorded changes shape or meaning.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class DiagnosticKind
+{
+    SourceError,      // the source is wrong, or the assembler cannot make sense of it
+    SubsetBoundary,   // the construct is understood and deliberately not supported
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblyError
 //
 //  One diagnostic. Position is carried so an editor can jump to it.
@@ -210,10 +234,11 @@ enum class SymbolKind
 
 struct AssemblyError
 {
-    int          lineNumber;
-    std::string  message;
-    std::string  file;
-    int          column = 0;
+    int             lineNumber;
+    std::string     message;
+    std::string     file;
+    int             column = 0;
+    DiagnosticKind  kind   = DiagnosticKind::SourceError;
 };
 
 

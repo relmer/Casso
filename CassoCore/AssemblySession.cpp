@@ -869,6 +869,36 @@ void AssemblySession::RecordError (int lineNumber, const std::string & message)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::RecordRefusal
+//
+//  A construct Casso understood and declined, as against source it could not
+//  make sense of.
+//
+//  Its own function rather than a flag on RecordError, so the kind is decided
+//  by which call is written instead of by remembering an argument. There is one
+//  call site, and a refusal that reached the other one would be indistinguishable
+//  from a syntax error -- which is the single thing this distinction exists to
+//  prevent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::RecordRefusal (int lineNumber, const std::string & message)
+{
+    AssemblyError error = {};
+    error.lineNumber = lineNumber;
+    error.message    = message;
+    error.file       = m_currentSourceFile;
+    error.kind       = DiagnosticKind::SubsetBoundary;
+    m_result.errors.push_back (error);
+    m_result.success = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::RecordWarning
 //
 //  The single place -Wxxx policy is applied, so callers report a concern once
@@ -1145,7 +1175,8 @@ void AssemblySession::SortDiagnosticsByLine()
 
 AssemblyResult AssemblySession::Run (const std::string & sourceText)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr                 = S_OK;
+    bool     crossedTheBoundary = false;
 
 
 
@@ -1154,6 +1185,14 @@ AssemblyResult AssemblySession::Run (const std::string & sourceText)
 
     hr = RunPass1();
     CHR (hr);
+
+    // A source using a construct Casso deliberately does not support has been
+    // read in full and every offender named. Emitting bytes for the rest of it
+    // would answer a question nobody asked, and pass 2 would bury the refusals
+    // under the cascade an unsupported construct always produces -- the entry
+    // symbols a linker would have resolved are simply undefined here.
+    crossedTheBoundary = !m_boundaryOffenses.empty();
+    BAIL_OUT_IF (crossedTheBoundary, S_OK);
 
     hr = RunPass2();
     CHR (hr);
@@ -1395,7 +1434,9 @@ AssemblySession::Pass1Prelude AssemblySession::ClassifyPrelude (
     const LineInfo    & info,
     const std::string & operandUpper) const
 {
-    Pass1Prelude  kind = Pass1Prelude::None;
+    Pass1Prelude               kind        = Pass1Prelude::None;
+    const SubsetBoundaryRow *  boundaryRow = SubsetBoundary::Find (m_dialect.GetSubsetBoundary(),
+                                                                   info.parsed.directiveToken);
 
 
 
@@ -1423,6 +1464,15 @@ AssemblySession::Pass1Prelude AssemblySession::ClassifyPrelude (
     else if (info.parsed.isDirective && info.parsed.directiveToken == Directive::KeyboardInput)
     {
         kind = Pass1Prelude::KeyboardInput;
+    }
+    else if (info.parsed.isDirective && boundaryRow != nullptr)
+    {
+        // Classified, not yet refused: a row whose trigger is the second
+        // occurrence answers for a construct whose first occurrence is
+        // accepted, and only the handler counts. Tested AFTER the skip arm on
+        // purpose -- a construct inside a false conditional is not assembled,
+        // so refusing it would report a boundary the source never crossed.
+        kind = Pass1Prelude::SubsetBoundary;
     }
     else if (info.parsed.isDirective && IsSegmentDirective (info.parsed.directiveToken))
     {
@@ -1565,6 +1615,15 @@ HRESULT AssemblySession::RunPreludeDirectives (const PendingLine & current, Line
         CHR (hr);
 
         info.isDirective = true;
+        break;
+
+    // A refused construct is claimed and nothing else happens to the line --
+    // deliberately including its label, which is how an entry symbol is
+    // written. The refusal is the whole answer for that line, and binding a
+    // label there could only add a second complaint about a construct already
+    // declined.
+    case Pass1Prelude::SubsetBoundary:
+        hr = HandleSubsetBoundary (current, info, outClaimed);
         break;
 
     case Pass1Prelude::SegmentSwitch:
@@ -2664,6 +2723,106 @@ HRESULT AssemblySession::HandleKeyboardInput (const PendingLine & current, LineI
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandleSubsetBoundary
+//
+//  One construct the active profile refuses, recorded rather than reported.
+//
+//  Nothing is said here, and that is the design. The advice a relocatable
+//  module gets turns on whether ANY line of it declares an external symbol, so
+//  the earliest moment the message can be right is after the last line has been
+//  read. Reporting at the point of the construct would mean choosing between
+//  offering a fix that may not work and offering none at all.
+//
+//  The claim is conditional because a construct can be inside the subset once
+//  and outside it twice. An occurrence that the row does not refuse is left
+//  entirely alone -- unclaimed, so whatever handles it ordinarily still does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandleSubsetBoundary (const PendingLine & current, LineInfo & info, bool & outClaimed)
+{
+    HRESULT                    hr         = S_OK;
+    const SubsetBoundaryRow *  row        = SubsetBoundary::Find (m_dialect.GetSubsetBoundary(),
+                                                                  info.parsed.directiveToken);
+    int                        occurrence = 0;
+    BoundaryOffense            offense    = {};
+
+
+
+    // The classifier found a row for this token a moment ago, so its absence
+    // now would mean the boundary table changed mid-line.
+    CBRA (row);
+
+    occurrence = ++m_boundaryOccurrences[(int) info.parsed.directiveToken];
+    outClaimed = (row->trigger == SubsetBoundaryTrigger::EveryOccurrence) || (occurrence > 1);
+
+    BAIL_OUT_IF (!outClaimed, S_OK);
+
+    offense.row        = row;
+    offense.lineNumber = current.sourceLineNumber;
+    offense.file       = current.sourceFile;
+
+    m_boundaryOffenses.push_back (offense);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::ReportSubsetBoundaryRefusals
+//
+//  Every construct the boundary refused, reported once the whole source has
+//  been read.
+//
+//  Every one of them, not the first. A developer meeting this boundary is
+//  deciding whether to port a file at all, and that decision needs the size of
+//  the gap; stopping at the first refusal turns one answer into as many
+//  assembly runs as there are constructs.
+//
+//  The module's linkage is settled before anything is composed, because it is a
+//  property of the file rather than of a line: one external declaration
+//  anywhere rules out the workaround for every refusal in the file, including
+//  those above it in the source.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::ReportSubsetBoundaryRefusals()
+{
+    ModuleLinkage  linkage = ModuleLinkage::SelfContained;
+
+
+
+    for (const BoundaryOffense & offense : m_boundaryOffenses)
+    {
+        if (offense.row->makesModuleDependOnAnother)
+        {
+            linkage = ModuleLinkage::DependsOnOther;
+        }
+    }
+
+    for (const BoundaryOffense & offense : m_boundaryOffenses)
+    {
+        // Deferred, so the ambient file is whichever was processed last. The
+        // file the construct was MET in is restored before recording, exactly
+        // as the unclosed-block diagnostics below do.
+        m_currentSourceFile = offense.file;
+
+        RecordRefusal (offense.lineNumber,
+                       SubsetBoundary::ComposeRefusal (*offense.row, linkage, m_dialect.GetName()));
+    }
 }
 
 
@@ -5245,6 +5404,8 @@ HRESULT AssemblySession::ValidateAssemblyCompletion()
     HRESULT hr = S_OK;
 
 
+
+    ReportSubsetBoundaryRefusals();
 
     // These diagnostics are DEFERRED: the construct opened arbitrarily far back,
     // and by now the ambient source file is whichever was processed last. So the

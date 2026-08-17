@@ -187,6 +187,8 @@
     <ClCompile Include="OutputFormats.cpp" />
     <ClCompile Include="As65Dialect.cpp" />
     <ClCompile Include="MerlinDialect.cpp" />
+    <ClCompile Include="SubsetBoundary.cpp" />
+    <ClCompile Include="MerlinSubsetBoundary.cpp" />
     <ClCompile Include="StringEncoding.cpp" />
     <ClCompile Include="DialectRegistry.cpp" />
     <ClCompile Include="DialectReporting.cpp" />
@@ -231,6 +233,8 @@
     <ClInclude Include="OutputFormats.h" />
     <ClInclude Include="As65Dialect.h" />
     <ClInclude Include="MerlinDialect.h" />
+    <ClInclude Include="SubsetBoundary.h" />
+    <ClInclude Include="MerlinSubsetBoundary.h" />
     <ClInclude Include="StringEncoding.h" />
     <ClInclude Include="Dialect.h" />
     <ClInclude Include="DialectProfile.h" />

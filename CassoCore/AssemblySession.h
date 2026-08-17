@@ -12,6 +12,7 @@
 
 
 class DialectProfile;
+struct SubsetBoundaryRow;
 
 
 
@@ -128,6 +129,7 @@ private:
     HRESULT HandleConditionalDirective (const PendingLine & current, LineInfo & info, bool & handled);
     HRESULT HandleOrgDirective         (const PendingLine & current, LineInfo & info);
     HRESULT HandleKeyboardInput        (const PendingLine & current, LineInfo & info);
+    HRESULT HandleSubsetBoundary       (const PendingLine & current, LineInfo & info, bool & outClaimed);
     HRESULT HandleSegmentSwitch        (LineInfo & info, bool & handled);
     HRESULT RecordLabel                (const PendingLine & current, LineInfo & info, Word address);
     HRESULT RecordRebindableLabel      (const PendingLine & current, LineInfo & info, Word address);
@@ -273,6 +275,12 @@ private:
         // program counter would leave the conditional that reads it testing
         // where the line sat instead of what the answer was.
         KeyboardInput,
+
+        // A construct the active profile's boundary table refuses. Claimed in
+        // the prelude so it never reaches content dispatch and fails as an
+        // unknown directive -- "Merlin support is broken" is the wrong reading
+        // of a construct that was recognized and deliberately declined.
+        SubsetBoundary,
     };
 
     enum class Pass1Content
@@ -398,6 +406,30 @@ private:
     void RecordError   (int lineNumber, const std::string & message);
     void RecordWarning (int lineNumber, const std::string & message);
 
+    // A refusal rather than a complaint about the source. Separate from
+    // RecordError so the kind cannot be forgotten at a call site: a boundary
+    // refusal recorded as an ordinary error is indistinguishable from "your
+    // source is wrong", which is the one reading it exists to prevent.
+    void RecordRefusal (int lineNumber, const std::string & message);
+
+    // One construct the boundary refused, held until the pass ends.
+    //
+    // DEFERRED, and not for tidiness. The advice a relocatable module gets
+    // depends on whether ANY line of it declares an external symbol, which is
+    // not known until the last line has been read -- so composing the message
+    // where the construct was met would have to guess, and guessing wrong
+    // offers a fix that cannot work. The file is captured here for the reason
+    // every deferred diagnostic captures one; see m_currentSourceFile.
+    struct BoundaryOffense
+    {
+        const SubsetBoundaryRow *  row;
+        int                        lineNumber;
+        std::string                file;
+    };
+
+    // Every refusal, composed and recorded once the whole source has been seen.
+    void ReportSubsetBoundaryRefusals();
+
     // The file whose line is being processed right now. Stamped onto every
     // diagnostic AT THE POINT IT IS RECORDED, which is the only moment the
     // originating file is still known -- by the time a diagnostic is reported,
@@ -511,6 +543,13 @@ private:
     std::unordered_map<std::string, int>               m_referencedLabels;
     std::unordered_map<std::string, int32_t>           m_fullSymbols;
     ExprContext                                        m_pass2Ctx           = { &m_fullSymbols, 0 };
+
+    // Every construct the boundary refused, in the order they were met, and how
+    // many times each one has been reached. The count is what separates a
+    // construct accepted once from the same construct refused twice; without it
+    // the first occurrence of a cumulative directive would be refused too.
+    std::vector<BoundaryOffense>                       m_boundaryOffenses;
+    std::unordered_map<int, int>                       m_boundaryOccurrences;
 
     static const int kMaxMacroDepth   = 15;
     static const int kMaxIncludeDepth = 16;

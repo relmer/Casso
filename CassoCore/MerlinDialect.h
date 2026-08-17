@@ -204,6 +204,12 @@ public:
     // declaration to say so.
     MacroSyntax         GetMacroSyntax () const override;
 
+    // Where Merlin support ends: relocatable mode and its entry and external
+    // declarations, a second CPU selection, the output file-type directive and
+    // the save-object directive. Supplied as the profile's own data so the
+    // assembler refuses them without ever naming this dialect.
+    std::span<const SubsetBoundaryRow>  GetSubsetBoundary () const override;
+
     // The stored name a variable symbol binds under. Public so a test can state
     // the expectation in the same terms the profile does rather than repeating
     // the marker as a literal.

@@ -2,6 +2,7 @@
 
 #include "Dialect.h"
 #include "Parser.h"
+#include "SubsetBoundary.h"
 
 
 
@@ -313,4 +314,17 @@ public:
     // separator, and whether body labels are unique per expansion. One value
     // rather than an accessor apiece -- see MacroSyntax above.
     virtual MacroSyntax         GetMacroSyntax () const { return {}; }
+
+    // The constructs this dialect recognizes and refuses, with the reason for
+    // each. Empty for a dialect that refuses nothing, which is why this is a
+    // default rather than a pure virtual -- and which is also what keeps the
+    // two-pass driver free of any dialect's name: a profile with no rows can
+    // never reach the refusal path, so the check costs an empty span.
+    //
+    // DATA rather than a decision the profile makes, for the reason the origin
+    // semantic and the mnemonic aliases are. Where the boundary sits is a
+    // dialect fact; composing the sentence a developer reads is mechanism, and
+    // splitting them is what lets a second dialect state its own boundary
+    // without restating how a refusal is worded.
+    virtual std::span<const SubsetBoundaryRow>  GetSubsetBoundary () const { return {}; }
 };
