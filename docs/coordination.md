@@ -88,7 +88,37 @@ are consumed by both sessions, so adding to either is a shared-surface change.
   against an image whose SHA-256 does not match the pin.
 - Update the directory's own `README.md` inventory **and** the matrix row in
   `UnitTest/Fixtures/README.md`.
-- Land it on `master`, not on a feature branch.
+- Land it on `master`, not on a feature branch. See below for how, from a
+  session whose worktree is pinned to a feature branch.
+
+## Landing something on `master` from a feature-branch worktree
+
+Both sessions work in a locked worktree on their own branch, and the primary
+checkout is on `master` and may be in use. So neither can simply switch. A
+throwaway detached worktree does it and disturbs nothing:
+
+```powershell
+git fetch origin
+git worktree add --detach <temp-path> origin/master
+# edit, then:
+git -C <temp-path> commit ...
+git -C <temp-path> push origin HEAD:master   # fast-forward
+git worktree remove <temp-path>
+git merge origin/master                       # bring it back to your branch
+```
+
+Three things learned doing it, each having cost something:
+
+- **Check that the push succeeded before removing the worktree.** A rejected
+  non-fast-forward leaves the commit reachable only from that worktree's HEAD,
+  and removing it orphans the work — the edit has to be redone from scratch
+  against current `master`. This happened; the section you are reading is the
+  second writing of it.
+- **Put `<temp-path>` outside the repository**, in a temp directory rather than
+  a sibling folder. A worktree removed from under an editor's file watcher can
+  spin it at 100% CPU indefinitely.
+- **Merge `origin/master` back into your branch immediately afterwards**, or the
+  next session to touch the file conflicts with something you wrote.
 
 **Shared prose on `master` needs more care than shared code.** The fixture
 READMEs, `UnitTest/Fixtures/README.md` and `.github/copilot-instructions.md` are
