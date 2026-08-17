@@ -19,21 +19,35 @@ between the two branches** — no cherry-picks, no cross-branch merges. Shared
 artifacts are landed on `master` and picked up by a normal merge. That is why
 the command-line parser was moved into `CassoCore` before either started.
 
-## The conflict surface is two files, and neither is source
+## The conflict surface is three files, and only one is source
 
-Measured, not assumed. Across their whole diffs the branches overlap on:
+Measured, not assumed — re-measured after 020 landed its CLI edge, which added
+the third. Across their whole diffs the branches overlap on:
 
     CassoCore/CassoCore.vcxproj
     UnitTest/UnitTest.vcxproj
+    CassoCli/CommandLine.cpp
 
-Both additive — each session adds its own `<ClCompile>` / `<ClInclude>` rows.
+The two project files are additive — each session adds its own `<ClCompile>` /
+`<ClInclude>` rows.
 
 **Resolve by keeping both sides. Never take one side.** Accepting one drops the
 other session's files from the build, and the failure is quiet: the `.cpp` still
 sits on disk so nothing looks missing, the suite still compiles, and it still
-passes — with fewer tests in it. Both sessions report exact test counts, so the
-check after merging is that the count matches the sum of both sides, not merely
-that the run is green.
+passes — with fewer tests in it. Both sessions report exact test counts (020's
+is at the top of its `tasks.md`), so the check after merging is that the count
+matches the sum of both sides, not merely that the run is green.
+
+`CassoCli/CommandLine.cpp` **merges cleanly as things stand**, because the two
+sides are in different regions of it: 019 replaced the diagnostic-printing
+loops with `DiagnosticFormatter`, 020 added lines to `PrintUsage`. The
+one-line collision predicted below arrives only when 019 registers `as65` in
+that same usage text. Same keep-both rule when it does.
+
+Nothing else is shared. 019 touches none of `CommandLineOptions.h`,
+`CommandLineParser.h/.cpp`, `UnitTest/CommandLineTests.cpp` or
+`CassoCli/CassoCli.vcxproj`, all of which 020 has edited — which is the
+measurement behind the sequencing rule in the next section.
 
 ## Sequencing: the `as65` fallback removal (019 T049)
 
@@ -74,7 +88,68 @@ are consumed by both sessions, so adding to either is a shared-surface change.
   against an image whose SHA-256 does not match the pin.
 - Update the directory's own `README.md` inventory **and** the matrix row in
   `UnitTest/Fixtures/README.md`.
-- Land it on `master`, not on a feature branch.
+- Land it on `master`, not on a feature branch. See below for how, from a
+  session whose worktree is pinned to a feature branch.
+
+## Landing something on `master` from a feature-branch worktree
+
+Both sessions work in a locked worktree on their own branch, and the primary
+checkout is on `master` and may be in use. So neither can simply switch. A
+throwaway detached worktree does it and disturbs nothing:
+
+```powershell
+git fetch origin
+git worktree add --detach <temp-path> origin/master
+# edit, then:
+git -C <temp-path> commit ...
+git -C <temp-path> push origin HEAD:master   # fast-forward
+git worktree remove <temp-path>
+git merge origin/master                       # bring it back to your branch
+```
+
+Three things learned doing it, each having cost something:
+
+- **Check that the push succeeded before removing the worktree.** A rejected
+  non-fast-forward leaves the commit reachable only from that worktree's HEAD,
+  and removing it orphans the work — the edit has to be redone from scratch
+  against current `master`. This happened; the section you are reading is the
+  second writing of it.
+- **Put `<temp-path>` outside the repository**, in a temp directory rather than
+  a sibling folder. A worktree removed from under an editor's file watcher can
+  spin it at 100% CPU indefinitely.
+- **Merge `origin/master` back into your branch immediately afterwards**, or the
+  next session to touch the file conflicts with something you wrote.
+
+**Do not land on `master` with raw plumbing** (`mktree` / `commit-tree` /
+`update-ref`), even though it works and is tempting when a worktree is pinned.
+Its failure mode is the inverse of the one above, and far worse.
+
+The worktree route fails *loudly*: if `master` moved, the push is rejected. The
+plumbing route fails *silently*. You set the correct parent — so the push
+fast-forwards cleanly — but the tree you built came from whatever you read
+earlier, so every line that landed in between is reverted by a commit that looks
+entirely normal. Parent correct, push clean, CheckStyle green, tree internally
+consistent. Nothing complains.
+
+This happened (`b877ae91` restoring what `299e6433` had added). It was caught
+only because the author thought to ask whether their own commit had deleted
+anything — no tool volunteered it. **A push succeeding is not evidence that
+nothing was lost.** If you use plumbing anyway, diff your new tree against the
+current remote tip before pushing, not against the base you started from.
+
+**Shared prose on `master` needs more care than shared code.** The fixture
+READMEs, `UnitTest/Fixtures/README.md` and `.github/copilot-instructions.md` are
+all written by both sessions. A conflicting *code* edit usually announces itself;
+a prose edit does not. Rewriting a section wholesale from a copy fetched twenty
+minutes ago silently deletes whatever landed in between, and the result still
+reads like a coherent document — which is why it survives review.
+
+This has already happened once: commit `b877ae91`, "restore the type-T trap
+paragraph I clobbered." So: pull immediately before editing a shared prose file,
+keep edits additive and scoped to the section you are adding, push immediately
+after, and never replace a whole file you did not read at current `HEAD`. If a
+section needs restructuring rather than appending, say so in the commit message
+so the other session can check nothing of theirs went with it.
 
 Both directories are CC BY-NC-ND 3.0 and carry a `LICENSE` covering the whole
 directory. Per constitution 1.9.0 a sidecar `LICENSE` per directory is the
