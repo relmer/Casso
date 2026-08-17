@@ -90,6 +90,20 @@ are consumed by both sessions, so adding to either is a shared-surface change.
   `UnitTest/Fixtures/README.md`.
 - Land it on `master`, not on a feature branch.
 
+**Shared prose on `master` needs more care than shared code.** The fixture
+READMEs, `UnitTest/Fixtures/README.md` and `.github/copilot-instructions.md` are
+all written by both sessions. A conflicting *code* edit usually announces itself;
+a prose edit does not. Rewriting a section wholesale from a copy fetched twenty
+minutes ago silently deletes whatever landed in between, and the result still
+reads like a coherent document — which is why it survives review.
+
+This has already happened once: commit `b877ae91`, "restore the type-T trap
+paragraph I clobbered." So: pull immediately before editing a shared prose file,
+keep edits additive and scoped to the section you are adding, push immediately
+after, and never replace a whole file you did not read at current `HEAD`. If a
+section needs restructuring rather than appending, say so in the commit message
+so the other session can check nothing of theirs went with it.
+
 Both directories are CC BY-NC-ND 3.0 and carry a `LICENSE` covering the whole
 directory. Per constitution 1.9.0 a sidecar `LICENSE` per directory is the
 entire obligation for a fixture — no per-file accounting, and adding one is
