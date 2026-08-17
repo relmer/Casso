@@ -31,7 +31,62 @@ data, equates, listing directives, instruction aliases, the directive behaviors
 **emit-cursor split (T035e–T035g)**, and **the keyboard-input directive and the
 four expression facts the last three oracles needed (T035h)**. **T069 and T070
 are also done** — see the note on T069 for why its hold expired. Suite is
-**3169** Release / **3172** Debug, both green; Dormann and Harte both pass.
+**3194** Release / **3197** Debug, both green; Dormann and Harte both pass. In
+Phase 4, the conflict-free core subset is done: the **exit-code mapping (T078)**
+and the **dialect-and-CPU reporting decision (T053/T053a/T053c)**.
+
+## Reporting and exit codes — done in core, with nothing wired to the CLI yet
+
+**T078 and T053/T053a/T053c were taken as a deliberately conflict-free slice.**
+All four are new files: `CassoCore/AssemblerExitCode.{h,cpp}`,
+`CassoCore/DialectReporting.{h,cpp}`, `UnitTest/AssemblerExitCodeTests.cpp` and
+`UnitTest/DialectReportingTests.cpp`. Nothing under `CommandLineParser`,
+`CommandLineOptions` or `CassoCli/CommandLine` was touched, because spec 020
+holds unmerged work in exactly those files. The consequence is that **nothing
+calls either of these yet** — T052 and T053b are the wiring, and until they land
+the reporting and the exit-code vocabulary are reachable only from the tests.
+That is the intended state, not an oversight.
+
+**Provenance is a field on `AssemblerOptions`, not something derived.**
+`DialectSelection` (`Stated` / `Defaulted`) lives in `CassoCore/AssemblerTypes.h`
+beside `dialect` and defaults to `Defaulted`. Deriving it was not an option: AS65
+is both a dialect a caller can state and the value a caller that stated nothing
+ends up with, so the dialect alone cannot say which happened. The default is the
+safe direction — a stated dialect that forgot to say so is merely over-reported,
+where the reverse suppresses exactly the report the "defaulted" rows exist for.
+A test constructs `AssemblerOptions` and touches nothing, so the default itself
+is covered rather than assumed.
+
+**`ReportSink::StandardOutput` exists and is never produced.** That is the point
+of it. "A report never reaches stdout" is otherwise a property of code that can
+be inspected but not asserted; with the enumerator present, a sweep over every
+combination of dialect, provenance, CPU provenance, verbosity and listing asserts
+that no report ever claims it. Routing either sink to stdout fails that sweep.
+The listing header is deliberately NOT stdout even when the listing itself lands
+there, because the header is part of the listing rather than a line beside it.
+
+**The CPU target's NAME is supplied by the caller.** `CpuReport` carries a string
+and a provenance; `DialectReporting` decides whether and where to say it and
+composes the line. Core's assembler has no CPU-target vocabulary of its own —
+instruction sets arrive as unnamed `Microcode` tables — so the alternatives were
+inventing a second CPU enumeration in core to serve one report, or depending on
+`CommandLineOptions::CpuTarget`, which would couple the assembler layer to the
+command-line parse struct in a file spec 020 is editing. Asking for the CPU to be
+reported without naming it is a caller bug and is rejected as one.
+
+**A contradiction in [contracts/cli.md](./contracts/cli.md), resolved in favor of
+the reading that can fire.** The reporting table's last row says a CPU left at
+the dialect's default is "reported wherever the dialect is". Read literally --
+only where the dialect itself is reported -- the row is unreachable: via the
+command line the dialect is now always stated, so it would be reported nowhere,
+and the row's own stated purpose ("so 'no directive was seen' is not read as 'the
+flag was ignored'") could never be served. The row two above it settles the
+question: a CPU selected in source is reported under `-v` even though the dialect
+was stated, which only makes sense if the two axes are decided independently. So
+"wherever the dialect is" means the same SINKS -- stderr under `-v`, the listing
+header when a listing is produced, never stdout -- and not "only when the dialect
+is also reported". Both halves are tested separately, so the choice is visible
+rather than buried in an implementation.
 
 **Macros and variables landed as ONE commit, deliberately.** Merlin writes a
 positional parameter and a reassignable symbol with the same character — `]1` is
@@ -574,13 +629,13 @@ The **one** sanctioned exception is T049a, removing the fallback heuristic: a de
 - [ ] T050 [US2] Add `ParseMerlinFlags` to `CassoCore/CommandLineParser.h` and `CassoCore/CommandLineParser.cpp` per [contracts/cli.md](./contracts/cli.md)
 - [ ] T051 [US2] Refuse `--cpu` **when the active profile's `cpuSource` is in-source**, driven by profile data rather than by a merlin-specific branch, in `CassoCore/CommandLineParser.cpp`; the message names the directive supplied by the profile. A hard-coded merlin arm here would put a per-dialect branch in the shared mechanism, which is what `contracts/dialect-profile.md` guarantee 3 forbids and what SC-009 exists to catch (FR-026)
 - [ ] T052 [US2] Set `AssemblerOptions::dialect` from `CommandLineOptions::dialect` in `CassoCli/CommandLine.cpp`, carrying **provenance** and not just the dialect. With the fallback gone the command line always states a dialect, but `AssemblerOptions` still defaults to AS65 for callers that set none — FR-006 makes the assembler reachable from entry points that are not the CLI — and the reporting table in [contracts/cli.md](./contracts/cli.md) keys off exactly that distinction: stated is reported nowhere, defaulted is reported under `-v` or in the listing header
-- [ ] T053 [US2] Create `CassoCore/DialectReporting.h` / `.cpp` deciding **what** dialect-and-CPU line to emit and **when**, per the reporting table in [contracts/cli.md](./contracts/cli.md), and register both in `CassoCore.vcxproj`. `CassoCli/CommandLine.cpp` only prints what it returns — never unconditionally on stdout, which carries the listing when no listing file is named. The decision lives in core so `UnitTest` can exercise it (FR-004, SC-005)
-- [ ] T053a [P] [US2] Report the **CPU target** alongside the dialect through the same path — including when it was left at the dialect's default, so "no directive was seen" is not misread as "the flag was ignored" — in `CassoCore/DialectReporting.cpp` (SC-005)
-- [ ] T053c [US2] Verify SC-005 in `UnitTest/DialectReportingTests.cpp`: walk **every row** of the reporting table in [contracts/cli.md](./contracts/cli.md) and assert `DialectReporting` produces what that row says — including the two negative rows, that nothing is emitted when a selection was stated, and that nothing reaches stdout in any case. The negatives are the half worth having: an implementation that reports unconditionally satisfies "the developer can determine it" while breaking the piped-listing guarantee FR-004 spends most of its words on
+- [x] T053 [US2] Create `CassoCore/DialectReporting.h` / `.cpp` deciding **what** dialect-and-CPU line to emit and **when**, per the reporting table in [contracts/cli.md](./contracts/cli.md), and register both in `CassoCore.vcxproj`. `CassoCli/CommandLine.cpp` only prints what it returns — never unconditionally on stdout, which carries the listing when no listing file is named. The decision lives in core so `UnitTest` can exercise it (FR-004, SC-005). *(Decision: the sink is an enum with a `StandardOutput` value that is never produced, so "never on stdout" becomes an assertion a sweep can make rather than a property only a reader can check. Provenance arrives as `AssemblerOptions::dialectSelection` — see the state-of-play note. Nothing calls this yet; T052/T053b are the wiring and they touch files spec 020 holds.)*
+- [x] T053a [P] [US2] Report the **CPU target** alongside the dialect through the same path — including when it was left at the dialect's default, so "no directive was seen" is not misread as "the flag was ignored" — in `CassoCore/DialectReporting.cpp` (SC-005). *(Decision: the CPU's NAME is supplied by the caller in `CpuReport` rather than derived. Core's assembler has no CPU-target vocabulary — instruction tables arrive unnamed — and the two alternatives were a second CPU enumeration in core or a dependency on `CommandLineOptions::CpuTarget`, which sits in a file 020 is editing. Second decision: the CPU's reporting is decided INDEPENDENTLY of the dialect's provenance; the contract's wording admits a reading under which this row can never fire, and the state-of-play note records why that reading was rejected.)*
+- [x] T053c [US2] Verify SC-005 in `UnitTest/DialectReportingTests.cpp`: walk **every row** of the reporting table in [contracts/cli.md](./contracts/cli.md) and assert `DialectReporting` produces what that row says — including the two negative rows, that nothing is emitted when a selection was stated, and that nothing reaches stdout in any case. The negatives are the half worth having: an implementation that reports unconditionally satisfies "the developer can determine it" while breaking the piped-listing guarantee FR-004 spends most of its words on. *(Every row has a test, both negatives included, plus one for the `AssemblerOptions` default itself. Nine mutations of the reporting code were caught, among them "report the dialect unconditionally", "report the CPU unconditionally", "drop the dialect-default CPU row", both sinks pointed at stdout, and the dialect name hard-coded.)*
 - [ ] T053b [P] [US2] Register the `as65` and `merlin` subcommands and their flag tables in the tool's usage and help output via `CassoCli/CommandLine.h` and `CassoCli/CommandLine.cpp`, deriving the flag list from core so help cannot drift from the parser, with a test (FR-024, US2 acceptance 4)
 - [ ] T054 [P] [US2] Add merlin grammar tests to a **new** `UnitTest/MerlinCommandLineTests.cpp` rather than editing `UnitTest/CommandLineTests.cpp`, and register it in `UnitTest.vcxproj`
 - [ ] T055 [US2] Verify `UnitTest/CommandLineTests.cpp` passes with zero modifications, confirming spec 020's pinned behavior is intact
-- [ ] T078 [US2] Create `CassoCore/AssemblerExitCode.h` / `.cpp` mapping an `AssemblyResult` to the shared vocabulary — 0 clean, 1 succeeded with complaints, 2 no output — and register both in `CassoCore.vcxproj`; `CassoCli/CommandLine.cpp` returns what it computes. A subset-boundary refusal maps to 2 and is distinguished by its message, not by a distinct code. In core so the mapping is unit-testable rather than reachable only by running the exe (FR-030)
+- [x] T078 [US2] Create `CassoCore/AssemblerExitCode.h` / `.cpp` mapping an `AssemblyResult` to the shared vocabulary — 0 clean, 1 succeeded with complaints, 2 no output — and register both in `CassoCore.vcxproj`; `CassoCli/CommandLine.cpp` returns what it computes. A subset-boundary refusal maps to 2 and is distinguished by its message, not by a distinct code. In core so the mapping is unit-testable rather than reachable only by running the exe (FR-030). *(Decision: tests live in a new `UnitTest/AssemblerExitCodeTests.cpp`, which the task did not name. `CassoCli/CommandLine.cpp` does NOT yet return what it computes — that edit belongs with T052's wiring and the file is shared with spec 020. The failure test reads `success` rather than the error list, since every recorded error clears the flag and warnings-as-errors clears it while filing the diagnostic as an error; the refusal case is pinned by asserting it earns the SAME code as a syntax error rather than by asserting each is 2.)*
 - [ ] T079 [P] [US2] Add a cross-dialect strictness test to `UnitTest/MerlinCommandLineTests.cpp`: a Merlin-only construct assembled under AS65 is rejected naming the construct and the active dialect, and an AS65-only construct under Merlin likewise. This is US2's independent test and FR-005's direct evidence — no other task exercises the accept/reject matrix
 
 **Checkpoint**: Dialect selection is explicit, strict, and additive to the shared command-line surface.
