@@ -111,11 +111,11 @@ public:
 //  textually at expansion, before any symbol exists; variables are rewritten
 //  here, into names the shared expression tokenizer can lex.
 //
-//  What this profile does NOT yet do: assemble everything. Several directive
-//  HANDLERS are still null -- the loop construct, dummy sections, CPU selection
-//  and the object-file name. The profile is registered but is not reachable
-//  from the command line until the `merlin` subcommand exists, so this is an
-//  incomplete profile rather than a broken advertised feature.
+//  What this profile does NOT yet do: reach a user. Every directive it claims
+//  is now either carried out or refused by name, but the profile is not
+//  selectable from the command line until the `merlin` subcommand exists -- so
+//  this is a dialect nothing outside the tests can ask for yet, rather than a
+//  broken advertised feature.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -241,4 +241,5 @@ private:
     static void         SplitCallPrefix         (std::string & mnemonic, std::string & operand);
     static std::string  RewriteAddressCheck     (const std::string & operand);
     static std::string  RewriteByteSelector     (const std::string & operand);
+    static std::string  ResolveIncludeName      (const std::string & operand);
 };

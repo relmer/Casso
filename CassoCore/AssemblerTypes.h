@@ -282,6 +282,15 @@ struct AssemblyResult
     //  its size is zero on an ordinary assembly and says nothing about the
     //  work done.
     size_t                                      linesAssembled = 0;
+
+    //  What the assembly's object should be called, once the caller's answer
+    //  and the source's have been reconciled. Empty when neither named one.
+    //
+    //  REPORTED rather than acted on. Nothing here writes a file, so this says
+    //  what the name is and leaves the writing to whoever asked for the
+    //  assembly -- which keeps the precedence rule in one place instead of
+    //  repeated at every entry point that produces output.
+    std::string                                 outputFileName;
 };
 
 
@@ -322,6 +331,16 @@ struct AssemblerOptions
     WarningMode                                 warningMode       = WarningMode::Warn;
     FileReader                                * fileReader        = nullptr;
     std::string                                 baseDir;
+
+    // What the CALLER wants the object called, which beats anything the source
+    // names. Empty means the caller has no opinion and a dialect whose source
+    // can name its own output gets to.
+    //
+    // Carried here rather than left to the command-line layer for the reason
+    // `dialect` is: every entry point that assembles source has to resolve the
+    // same precedence, and one that resolved it differently would be a
+    // difference nobody would find until a build wrote the wrong file.
+    std::string                                 outputFileName;
     bool                                        cycleCounts       = false;   // -c flag
     bool                                        macroExpansion    = false;   // -m flag (show macro expansion in listing)
     int                                         pageHeight        = 0;   // -h flag (0 = no pagination)

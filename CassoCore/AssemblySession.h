@@ -41,6 +41,18 @@ struct LineInfo
     bool              isConstant;
     bool              hasError;
 
+    // Whether this line was sized and addressed but must produce no bytes at
+    // all. A dummy section is the only thing that asks for it: labels inside one
+    // bind to real addresses so the rest of the file can name them, while the
+    // output cursor never moves, so anything emitted would land on top of the
+    // bytes a previous line already placed.
+    //
+    // RECORDED per line for the reason `outputPos` is. Pass 2 walks this list
+    // rather than the source, so it cannot see which section a line sat in
+    // without being told, and re-deriving it would mean replaying every dummy
+    // section that conditional assembly may have entered differently.
+    bool              emitsNoBytes = false;
+
     GlobalAddressingMode::AddressingMode resolvedMode;
     int32_t                              resolvedValue;
     bool                                 valueResolved;
@@ -124,6 +136,7 @@ private:
 
     HRESULT HandleStructCollection     (const PendingLine & current, LineInfo & info);
     HRESULT CollectMacroBody           (const PendingLine & current, LineInfo & info);
+    HRESULT CollectLoopBody            (const PendingLine & current, LineInfo & info);
     HRESULT DetectMacroDefinition      (const PendingLine & current, LineInfo & info,
                                         const std::string & operandUpper, bool & handled);
     HRESULT HandleConditionalDirective (const PendingLine & current, LineInfo & info, bool & handled);
@@ -172,6 +185,23 @@ private:
     HRESULT HandlePass1List    (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1Nolist  (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1Title   (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1Loop    (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1LoopEnd (const PendingLine & current, LineInfo & info);
+
+    // The address-only section and its terminator, the in-source CPU selection,
+    // and the directive naming the output. Declared apart from the run above
+    // only because these names are wider than it.
+    HRESULT HandlePass1DummySection    (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1DummySectionEnd (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1CpuSelect       (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1ObjectFile      (const PendingLine & current, LineInfo & info);
+
+    // Every collected line requeued as many times as the count asked for, and
+    // the collecting state left behind. A separate step from the terminator's
+    // handler because it is the whole of what the terminator MEANS, and a
+    // reader looking for where a loop turns into lines should not have to read
+    // a nesting check first.
+    void    ExpandCollectedLoop();
 
     // Recognized, and deliberately does nothing in pass 1 (.OPT_NOOP is
     // accepted for as65 source compatibility; .PAGE acts at listing time).
@@ -259,6 +289,13 @@ private:
         Normal,
         CollectingStruct,   // inside .STRUCT ... .ENDSTRUCT
         CollectingMacro,    // inside NAME macro ... .ENDM
+
+        // Inside a repeat block, whose lines are collected and then requeued
+        // once per iteration. The same shape a macro body uses, and for the
+        // same reason: expansion is lines going back through pass 1, so the
+        // pass needs no recursion and the expanded lines are read exactly as
+        // written ones are.
+        CollectingLoop,
     };
 
     enum class Pass1Prelude
@@ -580,6 +617,43 @@ private:
     std::vector<std::string>                           m_currentMacroParams;
     std::vector<std::string>                           m_currentMacroLocals;
     int                                                m_macroUniqueCounter = 0;
+
+    // The repeat block being collected. The body is kept as PENDING LINES
+    // rather than as text, because every copy has to carry the line number and
+    // the file its original was written in -- a diagnostic inside the third
+    // iteration still belongs to the line the author wrote once.
+    std::vector<PendingLine>                           m_loopBody;
+    int                                                m_loopCount          = 0;
+
+    // How many repeat blocks were opened INSIDE the one being collected. A
+    // terminator only closes the outer block at zero; deeper ones are body text
+    // and are expanded again, freshly, in every copy of it.
+    int                                                m_loopNesting        = 0;
+    int                                                m_loopLine           = 0;
+    int                                                m_loopColumn         = 0;
+    std::string                                        m_loopFile;
+
+    // The spelling the source opened the block with, so an unterminated one is
+    // named in the dialect's own words rather than in a canonical spelling the
+    // author never wrote.
+    std::string                                        m_loopDirective;
+
+    // Whether lines are currently being ADDRESSED WITHOUT BEING PLACED. Inside
+    // a dummy section the program counter advances so labels describe a real
+    // memory layout, and the output cursor does not, so nothing the section
+    // contains occupies a byte of the object.
+    bool                                               m_inDummySection     = false;
+
+    // Where the section was entered from, restored when it closes. Both cursors
+    // are saved, not just the program counter: the output one never moved, and
+    // restoring it from the program counter would be right only for a dialect
+    // whose two cursors cannot part in the first place.
+    Word                                               m_dummyReturnPC      = 0;
+    Word                                               m_dummyReturnOutput  = 0;
+    int                                                m_dummyLine          = 0;
+    int                                                m_dummyColumn        = 0;
+    std::string                                        m_dummyFile;
+    std::string                                        m_dummyDirective;
     int                                                m_listingLevel;
     std::unordered_map<std::string, StructDefinition>  m_structs;
     StructDefinition                                   m_currentStruct      = {};
@@ -601,6 +675,14 @@ private:
 
     static const int kMaxMacroDepth   = 15;
     static const int kMaxIncludeDepth = 16;
+
+    // How many times one repeat block may be expanded. CASSO's guard on the
+    // pending queue rather than a claim about the dialect: expansion is lines
+    // pushed onto a deque, so a count arriving as a mistyped expression would
+    // otherwise be answered with memory rather than with a diagnostic. A block
+    // repeated more times than a 16-bit address space has bytes cannot be what
+    // the source meant, which is what makes this a safe place to draw the line.
+    static const int kMaxLoopIterations = 32768;
 
     // How many positional macro parameters a sigil form can name. ONE digit is
     // the whole form, so this is the highest single digit rather than a limit

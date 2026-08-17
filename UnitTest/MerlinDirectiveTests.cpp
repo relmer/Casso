@@ -1,6 +1,11 @@
 #include "Pch.h"
 
 #include "TestHelpers.h"
+#include "TestCpu65C02.h"
+#include "MockFileReader.h"
+#include "MerlinCorpus/MerlinFixture.h"
+#include "EmuTests/FixtureProvider.h"
+#include "EhmTestHelper.h"
 #include "Assembler.h"
 
 
@@ -70,6 +75,83 @@ namespace MerlinDirectiveTests
             Assembler  assembler (cpu.GetInstructionSet(), options);
 
             return assembler.Assemble (source);
+        }
+
+
+
+        //  A Merlin assembly with a second instruction table to switch to, for
+        //  the in-source CPU selection. Two tables is the whole point: with one,
+        //  the provider honestly answers the base table for both and the
+        //  directive has nothing to select.
+        static AssemblyResult AssembleMerlinWithExtendedSet (const std::string & source)
+        {
+            TestCpu           cpu;
+            TestCpu65C02      cmos;
+            AssemblerOptions  options = {};
+
+            cpu.InitForTest();
+            options.dialect = DialectId::Merlin;
+
+            Assembler  assembler (cpu.GetInstructionSet(), cmos.GetInstructionSet(), options);
+
+            return assembler.Assemble (source);
+        }
+
+
+
+        //  A Merlin assembly reading its included files from memory, so an
+        //  inclusion test states which NAME was asked for rather than arranging
+        //  files on a disk.
+        static AssemblyResult AssembleMerlinWithReader (const std::string & source,
+                                                        MockFileReader    & reader,
+                                                        DialectId           dialect = DialectId::Merlin)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+
+            cpu.InitForTest();
+            options.dialect    = dialect;
+            options.fileReader = &reader;
+
+            Assembler  assembler (cpu.GetInstructionSet(), options);
+
+            return assembler.Assemble (source);
+        }
+
+
+
+        //  A Merlin assembly whose caller has already named the output, which is
+        //  the half of the precedence rule no source can express.
+        static AssemblyResult AssembleMerlinWithOutputName (const std::string & source,
+                                                            const std::string & outputFileName)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+
+            cpu.InitForTest();
+            options.dialect        = DialectId::Merlin;
+            options.outputFileName = outputFileName;
+
+            Assembler  assembler (cpu.GetInstructionSet(), options);
+
+            return assembler.Assemble (source);
+        }
+
+
+
+        //  One committed vendor macro library as source text, decoded from the
+        //  bytes the distribution disk holds. Both libraries are stored as type-T
+        //  files, which DOS 3.3 gives no header at all -- so the type-B path would
+        //  eat four characters of real text, and the entry point is chosen rather
+        //  than sniffed for that reason.
+        static std::string LoadFixtureTextSource (const char * path)
+        {
+            FixtureProvider  provider;
+            std::string      source;
+
+            AssertSucceeded (MerlinFixture::LoadTextSource (provider, path, source));
+
+            return source;
         }
 
 
@@ -2209,6 +2291,634 @@ namespace MerlinDirectiveTests
 
             Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
             Assert::IsTrue (result.bytes == expected, L"both arguments survive and the comment is still a comment");
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinLoopTests
+    //
+    //  The repeat block, which turns one written line into several assembled ones.
+    //
+    //  Almost every assertion below ends in a DATA directive naming a label
+    //  defined after the block. That is deliberate: an instruction's operand is
+    //  settled in pass 1, which walks the file in order, while a data directive is
+    //  emitted in pass 2 against the finished symbol table -- so a block that
+    //  expanded to the wrong SIZE shows up as a wrong address rather than only as
+    //  a wrong byte count, and the two failures are told apart in the message.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinLoopTests)
+    {
+    public:
+
+        TEST_METHOD (ALoopEmitsItsBodyOncePerIteration)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " LUP 3\n DFB $EA\n --^\n");
+            std::vector<Byte>  expected = { 0xEA, 0xEA, 0xEA };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"three iterations of a one-byte body");
+        }
+
+
+
+        //  A block of no iterations is the count doing its job, not a failure --
+        //  but the bytes around it must be untouched, which is the half that
+        //  distinguishes "expanded zero times" from "swallowed the rest of the
+        //  file".
+        TEST_METHOD (ALoopOfNoIterationsEmitsNothingAndTheFileCarriesOn)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " DFB $11\n LUP 0\n DFB $EA\n --^\n DFB $22\n");
+            std::vector<Byte>  expected = { 0x11, 0x22 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"no iterations, and the lines either side still assemble");
+        }
+
+
+
+        //  The expansion has to move the program counter, or every label after the
+        //  block binds where the block's FIRST iteration ended. Read through a data
+        //  directive against the finished symbol table.
+        TEST_METHOD (ALoopAdvancesTheAddressesOfWhatFollowsIt)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " LUP 4\n DFB $00\n --^\n"
+                                              "HERE DFB $12\n DA HERE\n");
+            std::vector<Byte>  expected = { 0x00, 0x00, 0x00, 0x00, 0x12, 0x04, 0x80 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"HERE binds past all four iterations, at $8004");
+        }
+
+
+
+        //  A block inside a block is body text to the outer one, counted only so
+        //  the right terminator closes it. Every outer copy then expands the inner
+        //  block afresh, which is the only reading that gives six of the inner byte.
+        TEST_METHOD (ALoopMayHoldAnotherLoop)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " LUP 2\n LUP 3\n DFB $EA\n --^\n DFB $FF\n --^\n");
+            std::vector<Byte>  expected = { 0xEA, 0xEA, 0xEA, 0xFF, 0xEA, 0xEA, 0xEA, 0xFF };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the inner block runs three times inside each of two outer ones");
+        }
+
+
+
+        //  Every copy of a body line has to carry the line number the author wrote
+        //  it at. A body kept as bare text has no line number to carry, and the
+        //  second iteration's diagnostic would then land wherever the expansion
+        //  happened to be spliced.
+        TEST_METHOD (ADiagnosticInsideALoopPointsAtTheLineThatWasWritten)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         " LUP 2\n LDA NOSUCHLABEL\n --^\n");
+
+            Assert::AreEqual ((size_t) 2, result.errors.size(),
+                              L"one diagnostic per iteration, since each is a line that was assembled");
+            Assert::AreEqual (2, result.errors[0].lineNumber, L"the line the body was written on");
+            Assert::AreEqual (2, result.errors[1].lineNumber, L"and the same line for the second iteration");
+        }
+
+
+
+        //  The count is settled while pass 1 is still walking, because that is when
+        //  the block becomes lines. A label defined below it therefore cannot
+        //  answer, and saying so beats expanding zero times in silence.
+        TEST_METHOD (ALoopCountThatCannotBeSettledYetIsReported)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         " LUP LATER\n DFB $EA\n --^\nLATER EQU 3\n");
+
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "repeat count must be resolvable"),
+                            L"a forward count has no answer at the moment the block is expanded");
+        }
+
+
+
+        TEST_METHOD (ALoopCountBeyondTheGuardIsReported)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         " LUP $FFFF\n DFB $EA\n --^\n");
+
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "repeat count must be 0 to"),
+                            L"a count no source can have meant is refused rather than answered with memory");
+        }
+
+
+
+        //  A terminator with nothing open used to be dropped without a word, which
+        //  is the shape every directive in this dialect exists to avoid.
+        TEST_METHOD (ALoopTerminatorWithNothingOpenIsReported)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" DFB $11\n --^\n");
+
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "has no loop to close"),
+                            MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+        }
+
+
+
+        TEST_METHOD (AnUnclosedLoopIsReportedAtTheLineItOpenedOn)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         " DFB $11\n LUP 2\n DFB $EA\n");
+
+            Assert::AreEqual ((size_t) 1, result.errors.size(), L"one diagnostic, about the block that never closed");
+            Assert::AreEqual (2, result.errors[0].lineNumber, L"reported where the block opened, not at the end of file");
+
+            Assert::IsTrue (result.errors[0].message.find ("LUP") != std::string::npos,
+                            L"named in the spelling the source actually wrote");
+        }
+
+
+
+        //  The construct must not have leaked into the other dialect. AS65 knows no
+        //  such spelling and has to go on rejecting it.
+        TEST_METHOD (AS65DoesNotAcquireTheLoopConstruct)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::Assemble (
+                                         " LUP 3\n DFB $EA\n --^\n", DialectId::As65);
+
+            Assert::IsFalse (result.errors.empty(), L"AS65 must not gain a Merlin spelling");
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinDummySectionTests
+    //
+    //  The section that assigns addresses and emits nothing.
+    //
+    //  Every positive assertion here reads its labels back through a data
+    //  directive, which is the only way to see BOTH halves at once: that the
+    //  addresses inside the section are what the section said, and that not one
+    //  byte of it reached the object.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinDummySectionTests)
+    {
+    public:
+
+        TEST_METHOD (ADummySectionBindsLabelsAndEmitsNothing)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " DUM $20\nPTR DS 2\nFLAG DS 1\n DEND\n"
+                                              " DA PTR\n DA FLAG\n");
+            std::vector<Byte>  expected = { 0x20, 0x00, 0x22, 0x00 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected,
+                            L"the layout is described at $20 and only the two words are emitted");
+        }
+
+
+
+        //  The program counter has to come back to where the section was entered
+        //  from, or every address after it belongs to the layout instead of to the
+        //  program.
+        TEST_METHOD (TheAddressesAfterASectionResumeWhereItStarted)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " DFB $01\n DUM $30\nSLOT DS 4\n DEND\n"
+                                              "HERE DFB $02\n DA HERE\n");
+            std::vector<Byte>  expected = { 0x01, 0x02, 0x01, 0x80 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"HERE binds at $8001, immediately after the byte before the section");
+        }
+
+
+
+        //  Instructions inside a section are sized and addressed like any others
+        //  and still emit nothing. Sizing is what makes the label after them right;
+        //  emitting would put them on top of bytes a previous line already placed,
+        //  because the output cursor never moved.
+        TEST_METHOD (AnInstructionInsideASectionIsAddressedAndNotEmitted)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " DUM $300\nGO LDA $1234\nAFTER DS 0\n DEND\n"
+                                              " DA GO\n DA AFTER\n DFB $99\n");
+            std::vector<Byte>  expected = { 0x00, 0x03, 0x03, 0x03, 0x99 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected,
+                            L"GO is $0300, the three-byte instruction moved AFTER to $0303, and neither emitted");
+        }
+
+
+
+        TEST_METHOD (ASectionTerminatorWithNothingOpenIsReported)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" DFB $11\n DEND\n");
+
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "has no dummy section to close"),
+                            MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+        }
+
+
+
+        //  There is one place to return to, so a second entry would overwrite it
+        //  and the first terminator would restore the second section's origin --
+        //  putting every byte after it somewhere nobody asked for, in silence.
+        TEST_METHOD (ASectionInsideASectionIsRefused)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         " DUM $20\n DUM $30\n DEND\n");
+
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "is already open, from line 1"),
+                            MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+        }
+
+
+
+        TEST_METHOD (AnUnclosedSectionIsReportedAtTheLineItOpenedOn)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         " DFB $11\n DUM $20\nPTR DS 2\n");
+
+            Assert::AreEqual ((size_t) 1, result.errors.size(), L"one diagnostic, about the section that never closed");
+            Assert::AreEqual (2, result.errors[0].lineNumber, L"reported where the section opened");
+
+            Assert::IsTrue (result.errors[0].message.find ("DUM") != std::string::npos,
+                            L"named in the spelling the source actually wrote");
+        }
+
+
+
+        TEST_METHOD (AS65DoesNotAcquireTheDummySection)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::Assemble (
+                                         " DUM $20\nPTR DS 2\n DEND\n", DialectId::As65);
+
+            Assert::IsFalse (result.errors.empty(), L"AS65 must not gain a Merlin spelling");
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinInclusionTests
+    //
+    //  File inclusion, whose operand is NOT the filename.
+    //
+    //  Merlin prepends a fixed prefix on the way from operand to name, and the
+    //  distribution disk is what says so: `USE PI.MACS` and `PUT SENDMSG` name
+    //  files stored as `T.PI.MACS` and `T.SENDMSG`. Both are committed here, so
+    //  the rule is checked against the vendor's own libraries rather than against
+    //  a filename invented to suit it.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinInclusionTests)
+    {
+    public:
+
+        TEST_METHOD (AnInclusionAsksForThePrefixedName)
+        {
+            MockFileReader  reader;
+            AssemblyResult  result;
+
+            reader.files["T.MACS"] = " DFB $EA\n";
+
+            result = MerlinAssemblyFixture::AssembleMerlinWithReader (" PUT MACS\n", reader);
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual (1, reader.CountRequests ("T.MACS"), L"the name the disk stores the file under");
+            Assert::AreEqual (0, reader.CountRequests ("MACS"), L"and never the operand as written");
+        }
+
+
+
+        //  Two spellings, one operation. A prefix applied to only one of them
+        //  would look right everywhere the other is not used.
+        TEST_METHOD (TheOtherInclusionSpellingResolvesTheSameWay)
+        {
+            MockFileReader  reader;
+            AssemblyResult  result;
+
+            reader.files["T.MACS"] = " DFB $EA\n";
+
+            result = MerlinAssemblyFixture::AssembleMerlinWithReader (" USE MACS\n", reader);
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual (1, reader.CountRequests ("T.MACS"), L"both spellings resolve identically");
+        }
+
+
+
+        //  The committed macro library, end to end: resolved under its on-disk
+        //  name, read, and its macros expanded into bytes. The byte assertion is
+        //  what separates "the file was requested" from "the file was assembled" --
+        //  a request alone is satisfied by a reader that returns nothing.
+        TEST_METHOD (TheVendorMacroLibraryResolvesAndItsMacrosExpand)
+        {
+            MockFileReader     reader;
+            AssemblyResult     result;
+            std::vector<Byte>  expected = { 0xA9, 0x00, 0x85, 0x00, 0xA9, 0x0E, 0x85, 0x01 };
+
+            reader.files["T.PI.MACS"] = MerlinAssemblyFixture::LoadFixtureTextSource ("Merlin/T.PI.MACS");
+
+            result = MerlinAssemblyFixture::AssembleMerlinWithReader (" USE PI.MACS\n STADR SUMSTR;PL\n", reader);
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual (1, reader.CountRequests ("T.PI.MACS"), L"resolved under the name the disk stores");
+            Assert::AreEqual (0, reader.CountRequests ("PI.MACS"), L"and not under the operand as written");
+
+            Assert::IsTrue (result.bytes == expected,
+                            L"the library's STADR macro stores $0E00 into the zero-page pointer it defines");
+        }
+
+
+
+        //  The second committed library, which is stored as a type-T file and is a
+        //  FRAGMENT: it expects its caller to bind the two variables it uses, so a
+        //  clean assembly is not what is being claimed. Its label binding is, and
+        //  that only happens if the file was found, read and walked.
+        TEST_METHOD (TheVendorSubroutineLibraryResolvesUnderItsOnDiskName)
+        {
+            MockFileReader  reader;
+            AssemblyResult  result;
+
+            reader.files["T.PI.MACS"]  = MerlinAssemblyFixture::LoadFixtureTextSource ("Merlin/T.PI.MACS");
+            reader.files["T.SENDMSG"]  = MerlinAssemblyFixture::LoadFixtureTextSource ("Merlin/T.SENDMSG");
+
+            result = MerlinAssemblyFixture::AssembleMerlinWithReader (" USE PI.MACS\n PUT SENDMSG\n", reader);
+
+            Assert::AreEqual (1, reader.CountRequests ("T.SENDMSG"), L"resolved under the name the disk stores");
+            Assert::AreEqual (0, reader.CountRequests ("SENDMSG"), L"and not under the operand as written");
+
+            Assert::AreEqual ((size_t) 1, result.symbols.count ("SENDMSG"),
+                              L"the file's own label bound, so its lines really were assembled");
+        }
+
+
+
+        //  The prefix belongs to ONE dialect. AS65 resolves the name its source
+        //  wrote, and a prefix leaking into the shared include path would send
+        //  every AS65 build looking for a file that does not exist.
+        TEST_METHOD (AS65InclusionKeepsTheNameItsSourceWrote)
+        {
+            MockFileReader  reader;
+            AssemblyResult  result;
+
+            reader.files["shared.a65"] = ".byte $EA\n";
+
+            result = MerlinAssemblyFixture::AssembleMerlinWithReader (".include \"shared.a65\"\n",
+                                                                      reader, DialectId::As65);
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual (1, reader.CountRequests ("shared.a65"), L"AS65 asks for exactly what it was told");
+            Assert::AreEqual (0, reader.CountRequests ("T.shared.a65"), L"and never for a prefixed one");
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinCpuSelectionTests
+    //
+    //  The in-source CPU directive, which is the only way this dialect reaches the
+    //  wider instruction set.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinCpuSelectionTests)
+    {
+    public:
+
+        //  The negative half first, because without it "the wider set is active"
+        //  is satisfied by an assembler that had it active all along.
+        TEST_METHOD (WithoutTheDirectiveAWiderInstructionIsNotAccepted)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlinWithExtendedSet (" PHX\n");
+
+            Assert::IsFalse (result.errors.empty(),
+                             L"the wider set must not be reachable without the directive");
+        }
+
+
+
+        //  The bytes AND the address after them. A directive that selected the
+        //  wider table but also occupied space would satisfy the encoding half on
+        //  its own; the trailing data directive is what refuses that reading.
+        TEST_METHOD (TheDirectiveEnablesTheWiderSetAndEmitsNothingItself)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlinWithExtendedSet (
+                                              " XC\n PHX\nHERE DFB $77\n DA HERE\n");
+            std::vector<Byte>  expected = { 0xDA, 0x77, 0x01, 0x80 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected,
+                            L"PHX encodes at $8000 and HERE binds at $8001, so the directive itself took no space");
+        }
+
+
+
+        //  "For the remainder of the assembly", read through lines that are not
+        //  next to the directive.
+        TEST_METHOD (TheSelectionLastsForTheRestOfTheAssembly)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlinWithExtendedSet (
+                                              " XC\n NOP\n DFB $11\n PHY\n");
+            std::vector<Byte>  expected = { 0xEA, 0x11, 0x5A };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"a wider instruction still encodes three lines later");
+        }
+
+
+
+        //  An assembly handed one instruction table cannot honor the directive, and
+        //  a provider with nothing to switch to answers with the table it already
+        //  had -- so saying nothing would leave the source told it had reached a
+        //  wider processor while the assembler stayed on the narrow one.
+        TEST_METHOD (TheDirectiveSaysSoWhenThereIsNothingToSelect)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" XC\n");
+
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "only one instruction set"),
+                            MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+        }
+
+
+
+        //  Whether this directive has a form that puts the CPU BACK is an open
+        //  question about the language, to be answered by assembling one under the
+        //  real assembler. Refusing the operand answers nothing about Merlin; it
+        //  says only that Casso implements the plain form. Ignoring the operand
+        //  would answer it -- with "no such form exists, and writing one selects
+        //  the wider processor anyway", silently.
+        TEST_METHOD (AnOperandIsRefusedAndDoesNotSelectAnything)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlinWithExtendedSet (" XC OFF\n PHX\n");
+
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "takes no operand here"),
+                            MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+
+            Assert::IsFalse (result.bytes.size() == 1,
+                             L"a refused line must not have selected the wider set on the way past");
+        }
+
+
+
+        //  The first occurrence taking effect must not disturb the boundary, which
+        //  refuses the second and every later one.
+        TEST_METHOD (TheSecondOccurrenceIsStillRefused)
+        {
+            AssemblyResult  result   = MerlinAssemblyFixture::AssembleMerlinWithExtendedSet (" XC\n XC\n");
+            int             refusals = 0;
+
+            for (const AssemblyError & error : result.errors)
+            {
+                if (error.kind == DiagnosticKind::SubsetBoundary)
+                {
+                    refusals++;
+                }
+            }
+
+            Assert::AreEqual (1, refusals, L"the second occurrence, and only the second");
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinObjectFileTests
+    //
+    //  The source naming its own output, and the caller overruling it.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinObjectFileTests)
+    {
+    public:
+
+        TEST_METHOD (TheSourceNamesTheOutput)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" DSK CLOCK.24\n DFB $01\n");
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual (std::string ("CLOCK.24"), result.outputFileName,
+                              L"the name the source asked for");
+        }
+
+
+
+        //  The directive names an output; it does not produce one. A line that
+        //  emitted anything would shift every byte after it.
+        TEST_METHOD (TheDirectiveEmitsNoBytes)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " DSK CLOCK.24\nHERE DFB $01\n DA HERE\n");
+            std::vector<Byte>  expected = { 0x01, 0x00, 0x80 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"HERE binds at $8000, so the directive took no space");
+        }
+
+
+
+        TEST_METHOD (TheCallersNameBeatsTheSources)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlinWithOutputName (
+                                         " DSK CLOCK.24\n DFB $01\n", "build/out.bin");
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual (std::string ("build/out.bin"), result.outputFileName,
+                              L"a build script overrides what the source asks for");
+        }
+
+
+
+        //  The other half of the precedence, without which "the caller wins" is
+        //  satisfied by an assembler that ignores the directive entirely.
+        TEST_METHOD (TheCallersNameStandsWhenTheSourceNamesNothing)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlinWithOutputName (" DFB $01\n",
+                                                                                          "build/out.bin");
+
+            Assert::AreEqual (std::string ("build/out.bin"), result.outputFileName,
+                              L"nothing in the source to override it with");
+        }
+
+
+
+        TEST_METHOD (NeitherNamingAnOutputLeavesNoName)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" DFB $01\n");
+
+            Assert::IsTrue (result.outputFileName.empty(), L"nobody named an output");
+        }
+
+
+
+        TEST_METHOD (TheLastDirectiveInTheSourceWins)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         " DSK FIRST\n DFB $01\n DSK SECOND\n");
+
+            Assert::AreEqual (std::string ("SECOND"), result.outputFileName,
+                              L"the name in effect is the last one stated");
+        }
+
+
+
+        TEST_METHOD (AnObjectFileDirectiveWithNoNameIsReported)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" DSK\n");
+
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "names no output file"),
+                            MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinUnterminatedConstructTests
+    //
+    //  The third construct that can be left open at end of file, beside the loop
+    //  and the dummy section each of which is covered above.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinUnterminatedConstructTests)
+    {
+    public:
+
+        TEST_METHOD (AnUnclosedMacroIsReportedAtTheLineItOpenedOn)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (
+                                         " DFB $11\nSHIFT MAC\n ASL\n");
+
+            Assert::AreEqual ((size_t) 1, result.errors.size(), L"one diagnostic, about the definition that never closed");
+            Assert::AreEqual (2, result.errors[0].lineNumber, L"reported where the definition opened");
+
+            Assert::IsTrue (result.errors[0].message.find ("SHIFT") != std::string::npos,
+                            L"named by the macro the source was defining");
         }
     };
 }

@@ -167,6 +167,12 @@ static const char  s_kMacroArgumentSeparator = ';';
 //  vendor's source is not absence from the language.
 static const char *  s_kpszExplicitCallKeyword = ">>>";
 
+//  What an inclusion directive's operand becomes on the way to a filename.
+//  Merlin's own sources name a shorter file than the one on the disk -- `USE
+//  PI.MACS` reaches `T.PI.MACS` -- so the prefix is part of resolving the name
+//  rather than part of what the author typed.
+static const char *  s_kpszIncludeNamePrefix = "T.";
+
 //  What a variable symbol binds under, once the sigil is gone.
 //
 //  Two characters of it are load-bearing. The name has to start with a letter
@@ -645,6 +651,49 @@ std::string MerlinDialect::RewriteAddressCheck (const std::string & operand)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MerlinDialect::ResolveIncludeName
+//
+//  The filename an inclusion directive's operand names.
+//
+//  IT IS NOT THE OPERAND. Merlin prepends a fixed prefix when it turns the
+//  operand into a filename, and the vendor disk proves it twice: `PI.START.S`
+//  says `USE PI.MACS` and `PI.ADD.S` says `PUT SENDMSG`, while the files on the
+//  disk are `T.PI.MACS` and `T.SENDMSG`. Both are committed under their on-disk
+//  names for exactly this reason, so the rule is measured rather than assumed.
+//
+//  Applied UNCONDITIONALLY, including to an operand that already begins with the
+//  prefix. That is the rule as the sources state it, and softening it -- "prefix
+//  unless it looks prefixed" -- would be inventing a second rule the corpus says
+//  nothing about, on the strength of a case that appears in it nowhere.
+//
+//  Done here rather than in the assembler because it is a fact about how ONE
+//  dialect spells a filename. The engine resolves whatever name it is handed,
+//  the same way it does for every other dialect, and never learns that this one
+//  writes them short.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MerlinDialect::ResolveIncludeName (const std::string & operand)
+{
+    size_t  start = operand.find_first_not_of (" \t");
+    size_t  end   = operand.find_last_not_of (" \t");
+
+
+
+    if (start == std::string::npos)
+    {
+        return operand;
+    }
+
+    return s_kpszIncludeNamePrefix + operand.substr (start, end - start + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MerlinDialect::TakesDelimitedText
 //
 //  Whether this mnemonic's operand is delimiter-quoted rather than
@@ -1030,6 +1079,13 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
     if (result.directiveToken == Directive::ErrorIf)
     {
         result.directiveArg = RewriteAddressCheck (result.directiveArg);
+    }
+
+    // An inclusion operand becomes the filename it stands for, so the assembler
+    // resolves an ordinary name and never learns this dialect writes them short.
+    if (result.directiveToken == Directive::Include)
+    {
+        result.directiveArg = ResolveIncludeName (result.directiveArg);
     }
 
     // Which of the six encodings the spelling selected. Resolved here because

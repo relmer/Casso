@@ -1171,19 +1171,29 @@ void AssemblySession::EmitByte (Byte b, Word & emitPC)
 //
 //  Pass 1's only way to occupy space, and the reason the two cursors cannot
 //  drift by accident. Sizing a line moves the program counter and the output
-//  cursor by the same amount every time; the sole thing that separates them is
-//  an origin directive, and only in a dialect whose origin relocates.
+//  cursor by the same amount every time; the two things that separate them are
+//  an origin directive in a dialect whose origin relocates, and a dummy
+//  section -- where the addresses advance and the output does not, because
+//  nothing inside one is ever placed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void AssemblySession::ReserveBytes (Word count)
 {
-    m_pc        += count;
-    m_outputPos += count;
+    // How much of what was reserved is actually PLACED. Inside a dummy section
+    // the space is described rather than occupied, so none of it is: moving the
+    // output cursor there would leave a hole in the object exactly the size of
+    // a layout the source asked not to emit.
+    Word  placed = m_inDummySection ? 0 : count;
 
-    // A directive that reserved nothing has produced no output, so it must not
+
+
+    m_pc        += count;
+    m_outputPos += placed;
+
+    // A directive that placed nothing has produced no output, so it must not
     // be what stops the first origin from placing the image.
-    if (count > 0)
+    if (placed > 0)
     {
         m_outputStarted = true;
     }
@@ -1224,6 +1234,11 @@ HRESULT AssemblySession::Initialize (const std::string & sourceText)
 
     m_result             = {};
     m_result.success     = true;
+
+    // The caller's answer first, so an in-source directive can see one is
+    // already there and leave it alone. Precedence settled in one place beats a
+    // comparison at every site that could name an output.
+    m_result.outputFileName = m_options.outputFileName;
 
     // The dialect's own starting address, not a hard zero. Merlin assembles to
     // $8000 when the source names no origin, and a source that names one
@@ -1448,6 +1463,12 @@ HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
 
     info.pc                = m_pc;
     info.outputPos         = m_outputPos;
+
+    // Recorded before any stage runs, for the reason usedExtendedSet is: pass 2
+    // walks this record rather than the source, so it cannot see which section
+    // the line sat in unless pass 1 says so.
+    info.emitsNoBytes      = m_inDummySection;
+
     info.isInstruction     = false;
     info.isDirective       = false;
     info.isConstant        = false;
@@ -1707,6 +1728,10 @@ HRESULT AssemblySession::RunCollectingState (const PendingLine & current, LineIn
 
     case Pass1State::CollectingMacro:
         hr = CollectMacroBody (current, info);
+        break;
+
+    case Pass1State::CollectingLoop:
+        hr = CollectLoopBody (current, info);
         break;
 
     case Pass1State::Normal:
@@ -4119,6 +4144,399 @@ HRESULT AssemblySession::HandlePass1Title (const PendingLine & /*current*/, Line
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::HandlePass1Loop
+//
+//  Opens a repeat block: everything up to the terminator is collected, and the
+//  terminator requeues the collection once per iteration.
+//
+//  The count is settled HERE, in pass 1, and it has to be: the block becomes
+//  lines while pass 1 is still walking, so an expression naming a label defined
+//  further down has no answer yet and never will. That is a property of what
+//  expansion is rather than a limitation worth working around -- pass 2 sees the
+//  expanded lines, not the block.
+//
+//  The collecting state is entered even when the count is refused, so the
+//  terminator still closes something. Bailing out instead would leave the body
+//  assembling once as ordinary lines and the terminator reported as an orphan,
+//  which buries one clear diagnostic under two misleading ones.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Loop (const PendingLine & current, LineInfo & info)
+{
+    HRESULT     hr        = S_OK;
+    bool        inRange   = false;
+    ExprResult  er;
+
+
+
+    m_pass1Ctx.currentPC = (int32_t) m_pc;
+    er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass1Ctx);
+
+    m_loopBody.clear();
+    m_loopCount     = 0;
+    m_loopNesting   = 0;
+    m_loopLine      = current.sourceLineNumber;
+    m_loopColumn    = m_diagnosticColumn;
+    m_loopFile      = current.sourceFile;
+    m_loopDirective = info.parsed.directive;
+    m_pass1State    = Pass1State::CollectingLoop;
+
+    inRange = er.success && (er.value >= 0) && (er.value <= kMaxLoopIterations);
+
+    if (!er.success)
+    {
+        RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                       info.parsed.directive + " repeat count must be resolvable: " + er.error);
+    }
+    else if (!inRange)
+    {
+        RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                       info.parsed.directive + " repeat count must be 0 to "
+                       + std::to_string (kMaxLoopIterations));
+    }
+    else
+    {
+        m_loopCount = er.value;
+    }
+
+// Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::CollectLoopBody
+//
+//  One line swallowed by an open repeat block.
+//
+//  A nested block is collected as ORDINARY BODY TEXT, counted only so the right
+//  terminator closes the outer one. Every copy of the outer body then meets the
+//  inner opening directive again and expands it afresh, which is what makes
+//  nesting cost a counter rather than a stack.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::CollectLoopBody (const PendingLine & current, LineInfo & info)
+{
+    HRESULT  hr     = S_OK;
+    bool     opens  = (info.parsed.directiveToken == Directive::Loop);
+    bool     closes = (info.parsed.directiveToken == Directive::LoopEnd);
+
+
+
+    if (closes && (m_loopNesting == 0))
+    {
+        ExpandCollectedLoop();
+    }
+    else
+    {
+        if (opens)
+        {
+            m_loopNesting++;
+        }
+
+        if (closes)
+        {
+            m_loopNesting--;
+        }
+
+        m_loopBody.push_back (current);
+    }
+
+// Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::ExpandCollectedLoop
+//
+//  The collected body, requeued once per iteration.
+//
+//  Lines go to the FRONT of the pending queue in reverse, which is how macro
+//  expansion already puts generated lines back in source order -- the queue is
+//  consumed from the front. Each copy carries the line number and file its
+//  original was written in, so a diagnostic raised in the last iteration points
+//  at the one line the author actually wrote.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::ExpandCollectedLoop()
+{
+    m_pass1State = Pass1State::Normal;
+
+    for (int iteration = 0; iteration < m_loopCount; iteration++)
+    {
+        for (size_t index = m_loopBody.size(); index > 0; index--)
+        {
+            m_pendingLines.push_front (m_loopBody[index - 1]);
+        }
+    }
+
+    m_loopBody.clear();
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1LoopEnd
+//
+//  A loop terminator that closes nothing.
+//
+//  Reachable only OUTSIDE a repeat block: while one is open the collecting
+//  state claims the line before dispatch ever runs. So there is exactly one
+//  thing this can mean, and saying it is the whole job -- a terminator with no
+//  opening directive was previously dropped without a word, which is the
+//  silently-ignored shape this dialect's directives were built to avoid.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1LoopEnd (const PendingLine & current, LineInfo & info)
+{
+    RecordError (current.sourceLineNumber,
+                 info.parsed.directive + " has no loop to close");
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1DummySection
+//
+//  Opens a section that assigns addresses and emits nothing.
+//
+//  This is how a source describes a memory layout it does not own -- a page of
+//  zero-page variables, a block of scratch -- and gets names for every field
+//  without a byte of it appearing in the object. Every line inside is sized
+//  exactly as it would be anywhere else, so a label lands where the layout says;
+//  what changes is only that the output cursor stays where it was.
+//
+//  A section inside a section is refused rather than nested. There is one place
+//  to return to, and a second entry would overwrite it -- so the first section's
+//  end would restore the second's origin and every byte after it would be placed
+//  somewhere nobody asked for, silently.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1DummySection (const PendingLine & current, LineInfo & info)
+{
+    HRESULT     hr       = S_OK;
+    bool        isNested = m_inDummySection;
+    ExprResult  er;
+
+
+
+    if (isNested)
+    {
+        RecordError (current.sourceLineNumber,
+                     info.parsed.directive + " is already open, from line " + std::to_string (m_dummyLine));
+    }
+
+    BAIL_OUT_IF (isNested, S_OK);
+
+    m_pass1Ctx.currentPC = (int32_t) m_pc;
+    er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass1Ctx);
+
+    if (!er.success)
+    {
+        RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                       info.parsed.directive + " expression must be resolvable: " + er.error);
+    }
+
+    BAIL_OUT_IF (!er.success, S_OK);
+
+    m_dummyReturnPC     = m_pc;
+    m_dummyReturnOutput = m_outputPos;
+    m_dummyLine         = current.sourceLineNumber;
+    m_dummyColumn       = m_diagnosticColumn;
+    m_dummyFile         = current.sourceFile;
+    m_dummyDirective    = info.parsed.directive;
+    m_inDummySection    = true;
+
+    m_pc                = (Word) er.value;
+    info.pc             = m_pc;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1DummySectionEnd
+//
+//  Closes a dummy section, putting both cursors back where the section was
+//  entered from.
+//
+//  A terminator with no section open is reported rather than ignored: it means
+//  either an opening directive that never assembled -- inside a conditional the
+//  author did not expect to be false, typically -- or a stray line, and both
+//  leave the reader with a file whose addresses are not what they look like.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1DummySectionEnd (const PendingLine & current, LineInfo & info)
+{
+    HRESULT  hr     = S_OK;
+    bool     isOpen = m_inDummySection;
+
+
+
+    if (!isOpen)
+    {
+        RecordError (current.sourceLineNumber,
+                     info.parsed.directive + " has no dummy section to close");
+    }
+
+    BAIL_OUT_IF (!isOpen, S_OK);
+
+    m_pc             = m_dummyReturnPC;
+    m_outputPos      = m_dummyReturnOutput;
+    m_inDummySection = false;
+
+    info.pc          = m_pc;
+    info.outputPos   = m_outputPos;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1CpuSelect
+//
+//  A dialect that selects its CPU in the source, doing it.
+//
+//  From here to the end of the assembly the wider instruction table answers
+//  every lookup. Recorded per line as it goes -- see LineInfo::usedExtendedSet
+//  -- rather than replayed by pass 2, because conditional assembly can put this
+//  line inside a block the two passes need not agree about.
+//
+//  ASKING FIRST is obligatory, and this is the caller InstructionSetProvider's
+//  comment names. A provider with nothing to switch to answers with the base
+//  table, so switching against it would leave the source told it had reached a
+//  wider processor and the assembler quietly on the narrow one. Saying so is
+//  the only honest answer available: the tables are injected, so this layer
+//  cannot go and find one.
+//
+//  AN OPERAND IS REFUSED rather than ignored or interpreted. Whether this
+//  directive accepts a form that puts the CPU back is an open question about the
+//  language, and it must be answered by assembling one under the real assembler
+//  rather than decided here. Ignoring the operand would answer it too -- with
+//  "there is no such form, and writing one selects the wider processor
+//  anyway", silently, which is the worst of the three available answers.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1CpuSelect (const PendingLine & current, LineInfo & info)
+{
+    HRESULT  hr           = S_OK;
+    bool     hasOperand   = !info.parsed.directiveArg.empty();
+    bool     canSelect    = m_instructionSets.HasExtended();
+
+
+
+    if (hasOperand)
+    {
+        RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                       info.parsed.directive + " takes no operand here -- only the plain form,"
+                       " which selects the wider instruction set, is supported");
+    }
+
+    BAIL_OUT_IF (hasOperand, S_OK);
+
+    if (!canSelect)
+    {
+        RecordError (current.sourceLineNumber,
+                     info.parsed.directive + " selects a wider instruction set, and this assembly was"
+                     " given only one instruction set to work from");
+    }
+
+    BAIL_OUT_IF (!canSelect, S_OK);
+
+    m_extendedActive = true;
+    m_opcodeTable    = &m_instructionSets.GetExtended();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1ObjectFile
+//
+//  The source naming its own output.
+//
+//  THE CALLER WINS. A name supplied from outside the source is honored and this
+//  directive is then recorded only as what the source would have asked for, so
+//  a build script can point one source at several outputs without editing it.
+//  The precedence is settled in Initialize, which seeds the result with the
+//  caller's name; all this has to do is not overwrite one.
+//
+//  A later directive replaces an earlier one, the way a later origin does. The
+//  name in effect is the last one the source stated, which is the only reading
+//  that does not require knowing how many are above it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1ObjectFile (const PendingLine & current, LineInfo & info)
+{
+    HRESULT      hr        = S_OK;
+    std::string  name      = StripCommentAndTrim (info.parsed.directiveArg);
+    bool         hasName   = !name.empty();
+    bool         callerSet = !m_options.outputFileName.empty();
+
+
+
+    if (!hasName)
+    {
+        RecordError (current.sourceLineNumber, info.parsed.directive + " names no output file");
+    }
+
+    BAIL_OUT_IF (!hasName, S_OK);
+    BAIL_OUT_IF (callerSet, S_OK);
+
+    m_result.outputFileName = name;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::IgnorePass1Directive
 //
 //  Recognized and deliberately does nothing: .OPT_NOOP is accepted only for
@@ -4182,13 +4600,18 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
 
     //  Merlin's directives. The TOKENS exist so the vocabulary is complete in
     //  one place and this static_assert fires once rather than once per
-    //  directive task; the BEHAVIORS land task by task after this.
+    //  directive added.
     //
-    //  A null pair means "no handler", which for these means not implemented
-    //  YET -- not "does nothing". They are unreachable today because no dialect
-    //  but as65 can be selected, and each must be filled before Merlin source
-    //  can assemble: emitting nothing for a HEX line would be the silent
-    //  wrong-bytes failure this feature is built to avoid.
+    //  A null pass-1 column means NOT IMPLEMENTED YET, and the line is then
+    //  dropped without a word -- which is the silent wrong-bytes failure this
+    //  dialect's vocabulary exists to prevent, not a way of saying "emits
+    //  nothing". The tokens whose rows are legitimately null say so at their
+    //  own rows below: an earlier phase claims the line, or the boundary
+    //  refuses it by name.
+    //
+    //  WordHighFirst is the one remaining unimplemented row and is deliberately
+    //  left as such: no vendor source writes it, so it has no oracle, and the
+    //  directive tasks that filled its neighbors did not name it.
     { Directive::StringData,      &AssemblySession::HandlePass1String,      &AssemblySession::EmitStringDirective    },
     { Directive::HexData,         &AssemblySession::HandlePass1Hex,         &AssemblySession::EmitHexDirective       },
     { Directive::WordHighFirst,   nullptr,                                  nullptr                                  },
@@ -4197,14 +4620,14 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
     //  is the recognizer rather than a no-op: a directive with no pass-1 handler
     //  is not marked as one, and an unmarked line never reaches pass-2 dispatch.
     { Directive::ErrorIf,         &AssemblySession::IgnorePass1Directive,    &AssemblySession::EmitErrorIfDirective   },
-    { Directive::Loop,            nullptr,                                  nullptr                                  },
-    { Directive::LoopEnd,         nullptr,                                  nullptr                                  },
-    { Directive::DummySection,    nullptr,                                  nullptr                                  },
-    { Directive::DummySectionEnd, nullptr,                                  nullptr                                  },
+    { Directive::Loop,            &AssemblySession::HandlePass1Loop,        nullptr                                  },
+    { Directive::LoopEnd,         &AssemblySession::HandlePass1LoopEnd,     nullptr                                  },
+    { Directive::DummySection,    &AssemblySession::HandlePass1DummySection,    nullptr                              },
+    { Directive::DummySectionEnd, &AssemblySession::HandlePass1DummySectionEnd, nullptr                              },
     { Directive::MacroDef,        nullptr,                                  nullptr                                  },
     { Directive::MacroEnd,        nullptr,                                  nullptr                                  },
-    { Directive::CpuSelect,       nullptr,                                  nullptr                                  },
-    { Directive::ObjectFile,      nullptr,                                  nullptr                                  },
+    { Directive::CpuSelect,       &AssemblySession::HandlePass1CpuSelect,   nullptr                                  },
+    { Directive::ObjectFile,      &AssemblySession::HandlePass1ObjectFile,  nullptr                                  },
 
     //  KBD acts entirely in the prelude, before a label can bind, so both rows
     //  are null for the same reason ORG's are rather than because it is
@@ -5676,6 +6099,22 @@ HRESULT AssemblySession::ValidateAssemblyCompletion()
         RecordError (m_currentMacroLine, "Unclosed macro definition: " + m_currentMacroName);
     }
 
+    if (m_pass1State == Pass1State::CollectingLoop)
+    {
+        m_currentSourceFile = m_loopFile;
+        m_diagnosticColumn  = m_loopColumn;
+
+        RecordError (m_loopLine, "Unclosed " + m_loopDirective + " block (no matching terminator)");
+    }
+
+    if (m_inDummySection)
+    {
+        m_currentSourceFile = m_dummyFile;
+        m_diagnosticColumn  = m_dummyColumn;
+
+        RecordError (m_dummyLine, "Unclosed " + m_dummyDirective + " section (no matching terminator)");
+    }
+
     // One error per unclosed level, each at the line its own IF opened on --
     // every one of them is missing an ENDIF, so every one is a place to go.
     //
@@ -5835,6 +6274,16 @@ HRESULT AssemblySession::RunPass2()
         if (info.hasError)
         {
             // Nothing to emit
+        }
+        else if (info.emitsNoBytes)
+        {
+            // A dummy section's lines were sized and addressed and must produce
+            // no bytes. The output cursor never advanced across them, so every
+            // one of them would emit on top of whatever the previous real line
+            // placed -- which is silent wrong output rather than a diagnostic.
+            // They still carry an address, because that is the whole point of
+            // having assembled them.
+            lineHasAddress = info.isDirective || info.isInstruction || !info.parsed.label.empty();
         }
         else if (info.isDirective)
         {

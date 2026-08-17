@@ -4,6 +4,7 @@
 #include "EmuTests/FixtureProvider.h"
 #include "EhmTestHelper.h"
 #include "TestHelpers.h"
+#include "TestCpu65C02.h"
 #include "Assembler.h"
 #include "DialectRegistry.h"
 #include "DialectProfile.h"
@@ -34,16 +35,24 @@ namespace MerlinSubsetBoundaryTests
     {
     public:
 
+        //  Assembled with a SECOND instruction table available, because one row
+        //  of the boundary is a construct that is inside the subset once: its
+        //  first occurrence really does select the wider set, and an assembly
+        //  with nothing to select says so rather than silently staying narrow.
+        //  Without the second table that row would draw an ordinary diagnostic
+        //  beside its refusal, and the sweep below requires the refusal to be the
+        //  only thing said.
         static AssemblyResult Assemble (const std::string & source,
                                         DialectId           dialect = DialectId::Merlin)
         {
             TestCpu           cpu;
+            TestCpu65C02      cmos;
             AssemblerOptions  options = {};
 
             cpu.InitForTest();
             options.dialect = dialect;
 
-            Assembler  assembler (cpu.GetInstructionSet(), options);
+            Assembler  assembler (cpu.GetInstructionSet(), cmos.GetInstructionSet(), options);
 
             return assembler.Assemble (source);
         }
