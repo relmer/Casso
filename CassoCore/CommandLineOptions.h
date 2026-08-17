@@ -63,6 +63,11 @@ struct CommandLineOptions
     WarningMode   warningMode     = WarningMode::Warn;
     bool          showVersion     = false;
     bool          showHelp        = false;
+
+    //  The first word, when it named no subcommand. Empty otherwise. Carried
+    //  rather than turned into a message here so the wording lives with the
+    //  other user-facing text, and so a test can assert WHICH word was rejected.
+    std::string   unrecognizedArgument;
     bool          hasLoadAddress  = false;
     bool          hasStopAddress  = false;
     bool          hasEntryAddress = false;

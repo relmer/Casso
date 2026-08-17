@@ -13,7 +13,8 @@
 //
 static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
 {
-    { "run", CommandLineOptions::Subcommand::Run },
+    { "as65", CommandLineOptions::Subcommand::As65 },
+    { "run",  CommandLineOptions::Subcommand::Run  },
 };
 
 
@@ -331,8 +332,12 @@ bool CommandLineParser::IsAssemblySource (const std::string & path)
 //
 //  LookUpSubcommand
 //
-//  Resolves a bare word to a subcommand, or None when the word is not one --
-//  which is the signal that it is a source filename and AS65 mode applies.
+//  Resolves a bare word to a subcommand, or None when the word is not one.
+//
+//  None used to mean "a source filename, so assemble it" -- the fallback that
+//  let `CassoCli input.a65` work. It now means exactly what it says, and the
+//  caller reports it, because inferring a dialect from the absence of a word
+//  is the guess this feature exists to remove.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -384,9 +389,9 @@ CommandLineOptions::Subcommand CommandLineParser::LookUpSubcommand (const std::s
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOptions & options)
+void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex, CommandLineOptions & options)
 {
-    int   argIndex = 1;
+    int   argIndex = startIndex;
     // Set when an argument ends parsing outright -- a help request, or a bad
     // --cpu target. Both leave showHelp set, so the caller prints usage.
     bool  stop     = false;
@@ -984,15 +989,27 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
     BAIL_OUT_IF (isHelp || isVer, S_OK);
 
     named  = LookUpSubcommand (first);
-    isAs65 = named == CommandLineOptions::Subcommand::None;
+    isAs65 = named == CommandLineOptions::Subcommand::As65;
+
+    // An unrecognized first word is now an error rather than an assumed source
+    // filename. The word is carried out so the caller can name the replacement
+    // instead of printing usage: the population this breaks is build scripts,
+    // which nobody re-reads until they fail, and "unknown argument" turns a
+    // one-line fix into a bisect.
+    if (named == CommandLineOptions::Subcommand::None)
+    {
+        options.unrecognizedArgument = first;
+    }
 
     if (isAs65)
     {
-        ParseAs65Flags    (argc, argv, options);
+        // From argv[2] -- argv[1] is the `as65` word itself. Every other
+        // subcommand's parser already starts there.
+        ParseAs65Flags    (argc, argv, 2, options);
         ApplyAs65Defaults (options, fileExists);
     }
 
-    // AS65 mode consumed the whole command line above; only a named
+    // AS65 mode consumed the rest of the command line above; only another named
     // subcommand continues into its own option parser.
     BAIL_OUT_IF (isAs65, S_OK);
 

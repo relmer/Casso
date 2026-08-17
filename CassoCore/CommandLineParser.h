@@ -66,7 +66,7 @@ private:
 
     static CommandLineOptions::Subcommand  LookUpSubcommand (const std::string & word);
 
-    static void  ParseAs65Flags    (int argc, char * argv[], CommandLineOptions & options);
+    static void  ParseAs65Flags    (int argc, char * argv[], int startIndex, CommandLineOptions & options);
     static void  ApplyAs65Defaults (CommandLineOptions & options, const FileExistsFn & fileExists);
     static void  ParseRunOptions   (int argc, char * argv[], int argIndex, CommandLineOptions & options);
 };

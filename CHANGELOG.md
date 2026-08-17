@@ -8,6 +8,22 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Breaking changes
+- **Assembling now names its dialect: `CassoCli as65 input.a65 -o out.bin`.**
+  The old form, `CassoCli input.a65 -o out.bin`, no longer works. An
+  unrecognized first argument used to be assumed to be an as65 source file;
+  that guess is gone, because a dialect the tool inferred is a dialect nobody
+  stated, and this release adds a second one.
+
+  Update build scripts by inserting the word `as65` after the executable —
+  nothing else about the invocation changes, and the output bytes are identical
+  (verified byte-for-byte against the previous binary). A bare `CassoCli as65`
+  also stops resolving `as65` as a source filename.
+
+  The tool does not print usage when it hits the old form. It names the
+  replacement literally, ready to paste back, because the population this
+  breaks is build scripts and nobody re-reads one until the day it fails.
+
 ### Added
 - **`--raw` and `--dos-bin` assembler output.** The assembler could only write
   a full 64 KB memory image, padded with the fill byte — correct for ROM

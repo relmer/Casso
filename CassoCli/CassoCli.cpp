@@ -37,11 +37,19 @@ int main (int argc, char * argv[])
 
 
 
-    // No subcommand is a usage ERROR (exit 1); an explicit --help or `help`
-    // is the user asking, and succeeds.
-    if (options.showHelp || options.subcommand == CommandLineOptions::Subcommand::None
-                        || options.subcommand == CommandLineOptions::Subcommand::Help)
+    // A first word that named nothing gets a targeted message, not the usage
+    // block -- see PrintUnrecognizedArgument. Checked before the usage arm
+    // because it is a strictly better answer for the same condition.
+    if (!options.unrecognizedArgument.empty())
     {
+        PrintUnrecognizedArgument (options.unrecognizedArgument);
+        exitCode = 1;
+    }
+    else if (options.showHelp || options.subcommand == CommandLineOptions::Subcommand::None
+                             || options.subcommand == CommandLineOptions::Subcommand::Help)
+    {
+        // No subcommand is a usage ERROR (exit 1); an explicit --help or
+        // `help` is the user asking, and succeeds.
         PrintUsage (options.flagPrefix);
         exitCode = options.showHelp ? 0 : 1;
     }

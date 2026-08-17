@@ -945,6 +945,37 @@ void PrintVersion()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PrintUnrecognizedArgument
+//
+//  Deliberately NOT the usage block. `CassoCli input.a65` used to assemble, and
+//  the people it stops are build scripts -- which nobody reads again until the
+//  day they fail. A wall of usage text makes that day start with a bisect,
+//  where one line naming the replacement ends it. So the replacement is spelled
+//  out literally, ready to paste back into the script that broke.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintUnrecognizedArgument (const std::string & word)
+{
+    std::cerr << "CassoCli: '" << word << "' is not a subcommand.\n";
+
+    if (CommandLineParser::IsAssemblySource (word))
+    {
+        std::cerr << "  It looks like a source file. Assembling now names its dialect:\n"
+                  << "      CassoCli as65 " << word << "\n";
+    }
+    else
+    {
+        std::cerr << "  Expected one of: as65, run.\n";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DoRun
 //
 //  The `run` subcommand: get an image into memory -- assembling it first if
