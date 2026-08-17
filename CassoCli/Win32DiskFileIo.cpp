@@ -57,9 +57,10 @@ HRESULT Win32DiskFileIo::WriteAllBytes (const std::string & path, const std::vec
     isOpen = file.is_open();
     CBR (isOpen);
 
-#ifdef _DEBUG
-    // One of the two chosen interruption points. Does nothing unless the
-    // environment asks for it, and does not exist at all in a shipping build.
+#if defined(_DEBUG) && defined(CASSO_DIAG_DISK_ABORT)
+    // One of the two chosen interruption points, and it is absent from every
+    // binary anyone builds without asking for it. See Win32DiskFileIo.h for the
+    // command that asks.
     AbortWithPartialFileIfRequested (file, bytes);
 #endif
 
@@ -171,10 +172,11 @@ HRESULT Win32DiskFileIo::ReplaceAtomically (const std::string & tempPath, const 
 
 
 
-#ifdef _DEBUG
+#if defined(_DEBUG) && defined(CASSO_DIAG_DISK_ABORT)
     // The other interruption point, and the valuable one: the temporary is
     // whole, the target has not been touched, and nothing else has ever
-    // exercised this instant in the real code.
+    // exercised this instant in the real code. Absent unless deliberately
+    // armed; see Win32DiskFileIo.h.
     AbortBeforeReplaceIfRequested();
 #endif
 
@@ -310,7 +312,8 @@ Error:
 //
 //  Win32DiskFileIo::IsAbortStageRequested
 //
-//  THE INTERRUPTION SWITCH FOR THE COMMIT PATH. Debug builds only.
+//  THE INTERRUPTION SWITCH FOR THE COMMIT PATH. Not in any binary that was not
+//  deliberately built to carry it -- see Win32DiskFileIo.h for the command.
 //
 //  The guarantee this edge makes is that stopping the process partway through a
 //  write leaves the image wholly old or wholly new and never a mixture. Proving
@@ -336,15 +339,18 @@ Error:
 //  stopped existing. A substitute that recorded the right intentions in memory
 //  would pass either way.
 //
-//  IT CANNOT EXIST IN A SHIPPING BUILD. The declarations, these definitions and
-//  both call sites are inside #ifdef _DEBUG, so a release binary holds no code
-//  to reach -- the switch is a compile-time absence, not a runtime flag that
-//  happens to be off. Naming the variable in a release build does nothing
-//  because there is nothing there to name.
+//  IT CANNOT EXIST UNLESS SOMEBODY ASKED FOR IT. The declarations, these
+//  definitions and both call sites are gated on a define no project
+//  configuration sets, so a stock build holds no code to reach and not even the
+//  strings that name the stages -- the switch is a compile-time absence, not a
+//  runtime flag that happens to be off. Setting the environment variable
+//  against such a binary does nothing, because there is nothing there to read
+//  it, and that is what stops a forgotten setx from quietly aborting every
+//  write on somebody's machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _DEBUG
+#if defined(_DEBUG) && defined(CASSO_DIAG_DISK_ABORT)
 
 bool Win32DiskFileIo::IsAbortStageRequested (const wchar_t * stage)
 {

@@ -316,6 +316,29 @@ so insurance on this specific path is not hypothetical.
 every documented failure mode but not interruption); a `.bak` copy (manual
 recovery, litters the tree).
 
+**MEASURED AFTERWARDS, AND ONE HALF OF "must not litter" IS NOT MET.** The
+interrupted-write pass in `quickstart.md` §US2 stops the process from inside the
+commit at a chosen instant, which is the only way this instant has ever been
+reached — every attempt to kill the process from outside landed after the
+replace. The image survives both stages byte-identical and still boots. The
+temporary does **not** get cleaned up, and that is two separate facts:
+
+- A hard stop cannot run cleanup. Expected, and not the problem.
+- **No later run reclaims it either.** `CommitPlan::TemporaryPathFor` stamps
+  each invocation's own tag into the name, so an orphan sits at a name no future
+  invocation will ever choose, examine, or sweep. Recovery is unaffected — the
+  next `put` succeeds and produces the right bytes — but the file stays until a
+  person deletes it.
+
+So read the decision above as satisfied for uniqueness and for crash safety, and
+**not satisfied for littering after a hard abort**. The "real if minor
+violation" this section names is still open, deliberately rather than by
+oversight: the fix is a sweep of stale siblings at commit time, which is a
+behavior change to the shipping commit path and needs a rule for telling an
+orphan from another live invocation's temporary — the very case the invocation
+tag exists to keep apart. That is its own piece of work with its own tests, and
+whoever picks it up should start here rather than rediscovering the measurement.
+
 ---
 
 ## R-008 — In-use detection is out of scope, and the requirement said otherwise
@@ -534,6 +557,43 @@ So name bytes cannot separate the two cases, and tightening on them rejects real
 vendor material to catch a disk that is out of scope anyway. Recorded here, and
 in `UnitTest/Fixtures/Disks/README.md` on `master` where 021 and 022 will look,
 so the same idea is not tried again without new evidence.
+
+---
+
+## R-013 — A stepper-sensitive gate has to run against a WOZ
+
+**Finding**: a sector image cannot fail a head-positioning test, so a gate that
+means to check head positioning must not use one.
+
+**Half and quarter tracks work.** `WozLoader` reads the WOZ **TMAP** chunk and
+calls `DiskImage::SetQuarterTrackSlot` for every one of the 160 quarter-track
+phases, so a WOZ carries a real per-quarter-track map: distinct quarter-tracks
+address distinct flux, an unmapped phase resolves to nothing, and copy-protected
+disks that format between tracks are read correctly. The `qt / 4` mapping in
+`DiskImage::InitWholeTrackMap` is only the synthetic default installed for
+**sector images**, which is the only thing it could be — a `.dsk` or `.po` file
+is 35 whole tracks of decoded sectors and physically cannot carry half-track
+data. **This is a property of the sector formats, not a defect.**
+
+**What it costs is test sensitivity.** Against a sector image, a head left at
+quarter-track 6 instead of 4 resolves to the neighboring whole track and reads it
+perfectly; a real drive at that position would be off-track and read nothing. So
+every stepper defect that shows up as "the head ends somewhere near, but not on,
+the intended track" is invisible to the guest when the guest is booting a `.dsk`.
+
+Measured, not reasoned: a mutation to the stepper survived a direct-boot
+guest-visible gate running on a sector image and was caught only by a structural
+assertion elsewhere. The guest booted anyway.
+
+**Rule for whoever writes the next guest test**: if the property under test is
+where the head ends up — seek, recalibration, phase ordering, anything that
+walks the stepper — point the gate at a WOZ. A sector image is the right fixture
+for filesystem and payload properties and the wrong one for mechanism.
+
+This belongs in `UnitTest/Fixtures/Disks/README.md`, which is where the on-disk
+format findings live; it is recorded here because that file is on `master` and
+`master` was frozen while this branch was open. Move it there when the branch
+lands.
 
 ---
 

@@ -290,9 +290,45 @@ the rename is shorter than the time Windows takes to stop a process from
 another one. Reassuring about how exposed the path is; no evidence at all about
 the instant in question, which was never reached.
 
-So the interruption is raised from inside the code, at a chosen point. A
-**debug-only** environment switch, `CASSO_DIAG_DISK_ABORT`, is read by
-`Win32DiskFileIo` and takes one of two stage names:
+So the interruption is raised from inside the code, at a chosen point — and the
+code that raises it is in no binary anybody builds without asking for it.
+
+### Arming it is a compile-time act
+
+The switch is gated on **`CASSO_DIAG_DISK_ABORT`, a define that no project
+configuration sets**. A stock `scripts\Build.ps1 -Configuration Debug` therefore
+produces a binary with no hook code and none of the strings that name it, which
+is what Release has always produced. Build an armed one deliberately:
+
+```powershell
+$env:CL = '/DCASSO_DIAG_DISK_ABORT'
+scripts\Build.ps1 -Configuration Debug -Target Rebuild
+$env:CL = $null
+```
+
+`-Target Rebuild` is not optional. MSBuild does not see a define arriving
+through `CL` and will otherwise decide nothing changed and skip the recompile,
+leaving you testing a stock binary while believing it is armed. **Build a stock
+one back the same way** — the same command with `CL` unset — before running
+anything else, or every later Debug run carries the hook.
+
+`_DEBUG` is still part of the condition, so the same define against a Release
+build produces nothing: a shipping binary is out of reach even if `CL` is set in
+an environment nobody audited.
+
+**Why not an environment variable alone**, which is what this was first: a
+switch armed by the environment stays armed. One `setx` in a profile, a
+copy-pasted line in a task runner, and every Debug `put` aborts until somebody
+works out why — and nothing in the code would be wrong. Requiring a rebuild
+makes the armed state something you have to have done on purpose and cannot
+inherit.
+
+### Aiming it
+
+An **armed** binary reads `CASSO_DIAG_DISK_ABORT` from the environment — the
+same name, doing the other half of the job — and takes one of two stage names.
+Against a stock binary the variable does nothing at all, because there is
+nothing there to read it:
 
 | Value | Where it stops | What should be on disk afterwards |
 |---|---|---|
@@ -305,12 +341,44 @@ exactly the tidying a crash does not. It prints one line to standard error and
 exits with `0xDEAD` (57005), so both a human and a script can tell the switch
 firing from the tool falling over.
 
-**The switch does not exist in a Release build.** The declarations, the
-definitions and both call sites are inside `#ifdef _DEBUG`, so it is a
-compile-time absence rather than a runtime flag that happens to be off. Setting
-the variable and running the Release binary commits normally, and none of
-`CASSO_DIAG_DISK_ABORT`, `during-write` or `before-replace` appears anywhere in
-`x64\Release\CassoCli.exe`.
+### Proving a stock build carries none of it
+
+The declarations, the definitions and both call sites are inside the define's
+guard, so absence is a compile-time fact rather than a runtime flag that happens
+to be off — but say it in bytes rather than in prose. Search each built binary
+for the identifying strings in both encodings; the stage names are wide
+literals, so an eight-bit scan alone would report a clean binary either way:
+
+```powershell
+$needles = 'CASSO_DIAG_DISK_ABORT', 'during-write', 'before-replace', 'stopping hard at'
+
+foreach ($exe in '.\x64\Debug\CassoCli.exe', '.\x64\Release\CassoCli.exe')
+{
+    $bytes = [IO.File]::ReadAllBytes ($exe)
+    $eight = [Text.Encoding]::Latin1.GetString ($bytes)
+    $wide  = [Text.Encoding]::Unicode.GetString ($bytes)
+    $odd   = [Text.Encoding]::Unicode.GetString ($bytes, 1, $bytes.Length - 1)
+
+    foreach ($needle in $needles)
+    {
+        $found = $eight.Contains ($needle) -or $wide.Contains ($needle) -or $odd.Contains ($needle)
+        '{0,-28} {1} {2}' -f $needle, $exe, $(if ($found) { 'PRESENT' } else { 'absent' })
+    }
+}
+```
+
+**Last run** (2026-08-17, stock `-Target Rebuild` of both configurations): all
+four strings **absent** from `x64\Debug\CassoCli.exe` and from
+`x64\Release\CassoCli.exe`. Re-run against a binary built with the define and
+every one of them is `PRESENT` in Debug — which is what makes the clean result
+mean something rather than being a search that never finds anything. The two
+Debug binaries differ in size by 3,584 bytes, the armed one being the larger.
+
+Two behavioral checks say the same thing from the other side. Setting
+`CASSO_DIAG_DISK_ABORT` and running the **stock** Debug binary commits normally
+— exit 0, the image byte-identical to one from an uninterrupted run, no
+temporary left — and the same is true of Release. There is nothing there to read
+the variable.
 
 This does **not** replace the substitute file interface. That covers every
 decision above the seam — ordering, each refusal, the cleanup rule —
@@ -320,6 +388,9 @@ the property here is what a real file looks like once the process has stopped
 existing.
 
 ```powershell
+# CassoCli.exe here must be the ARMED build from the command further up. Against
+# a stock one this runs to completion and replaces the image, which looks like
+# the switch failing to fire and is really the switch not being there.
 Copy-Item "$env:LOCALAPPDATA\Casso\Disks\DOS 3.3 System Master.dsk" .\target.dsk
 $before = (Get-FileHash .\target.dsk).Hash
 
@@ -334,20 +405,33 @@ Get-ChildItem .\target.dsk.casso-*.tmp         # see below
 Then mount `target.dsk` in the emulator and confirm it still boots — a
 `disk list` only proves our own reader can still read it.
 
-**Last run** (2026-08-17, x64 Debug, DOS 3.3 System Master as the target):
+**Last run** (2026-08-17, x64 Debug **built armed by the command above**, DOS
+3.3 System Master as the target — the same measurements as the first pass, taken
+again through the new gating):
 
-- `before-replace` — exit `57005`, target byte-identical (SHA-256 unchanged),
-  and it boots: the guest reaches `DOS VERSION 3.3 SYSTEM MASTER` and a `]`
-  prompt in the emulator.
+- `before-replace` — exit `57005`, target byte-identical (SHA-256
+  `CACA9199…46A9` before and after), temporary 143,360 bytes, the whole image.
 - `during-write` — exit `57005`, target byte-identical, temporary 71,680 bytes,
   exactly half the image.
-- Re-running the same `put` afterwards succeeds and lands an image byte-identical
-  to one produced by an uninterrupted run.
+- **It boots.** `target.dsk` after both aborts, mounted with `Casso.exe --disk1`,
+  reaches `APPLE II` / `DOS VERSION 3.3 SYSTEM MASTER` / `JANUARY 1, 1983` and a
+  `]` prompt on a real 6502. A `disk list` would only have proved that our own
+  reader can still read it.
+- Re-running the same `put` afterwards succeeds (exit 0) and lands an image
+  byte-identical to one produced by an uninterrupted `put` onto a pristine copy
+  — SHA-256 `7EF288F2…1CDF` on both.
 
 **The temporary DOES survive, and nothing ever removes it.** A hard stop cannot
 run cleanup, so that much is expected; what is not is that no later run reclaims
 it either. Each invocation stamps its own tag into the temporary's name, so an
-orphan sits at a name no future invocation will ever choose or examine. Recovery
-is unaffected — the next `put` succeeds and produces the right bytes — but the
-file stays until somebody deletes it. Read "no temporary remains" as **not
-satisfied** for a hard abort.
+orphan sits at a name no future invocation will ever choose or examine.
+
+This run measured that directly rather than inferring it. After the two aborts
+and then **two successful puts** — the recovery run and the control — the work
+directory still held both orphans, `target.dsk.casso-000113D800000000-0.tmp` at
+71,680 bytes and `target.dsk.casso-00013FBC00000000-0.tmp` at 143,360, and no
+others: the successful runs cleaned up after themselves perfectly and swept
+nothing. Recovery is unaffected — the next `put` succeeds and produces the right
+bytes — but the files stay until somebody deletes them. Read "no temporary
+remains" as **not satisfied** for a hard abort, and see `research.md` R-007 for
+why the fix is deferred rather than forgotten.

@@ -66,6 +66,21 @@ void DiskImage::InitWholeTrackMap()
 //  when the position holds no data (unformatted: an out-of-range slot or a
 //  zero-length stream). Callers treat -1 as no flux under the head.
 //
+//  WORTH KNOWING BEFORE WRITING A TEST THAT MOVES THE HEAD. On a WOZ the map
+//  comes from the image's own TMAP, so distinct quarter-tracks address distinct
+//  flux and a head parked between tracks reads what a real drive would. On a
+//  sector image it is the synthetic qt / 4 default, because .dsk and .po
+//  physically cannot carry half-track data -- there is nothing else it could
+//  be, and this is a property of the format rather than a defect here.
+//
+//  The consequence lands on tests, not on the product: against a sector image
+//  an off-track head resolves to the neighboring whole track and reads it
+//  perfectly, so a stepper that leaves the head in the wrong place stays
+//  invisible to the guest, where a real drive would be off-track and read
+//  nothing. A stepper mutation survived a direct-boot gate for exactly this
+//  reason and was caught only by a structural assertion. Gates that are meant
+//  to be sensitive to head positioning belong on a WOZ.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DiskImage::ResolveQuarterTrack (int quarterTrack) const
