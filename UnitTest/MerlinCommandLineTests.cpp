@@ -341,6 +341,8 @@ namespace MerlinCommandLineTests
         //  ask for.
         TEST_METHOD (EveryDialectIsSelectableUnderItsOwnName)
         {
+            Assert::IsFalse (DialectRegistry::GetAllDialects().empty(), L"nothing to sweep");
+
             for (const DialectRegistry::Entry & entry : DialectRegistry::GetAllDialects())
             {
                 CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", entry.name, "source.s" });
@@ -423,6 +425,8 @@ namespace MerlinCommandLineTests
         //  hard-coded name does not.
         TEST_METHOD (EveryDialectAnswersTheCpuFlagAsItsProfileSaysItShould)
         {
+            Assert::IsFalse (DialectRegistry::GetAllDialects().empty(), L"nothing to sweep");
+
             for (const DialectRegistry::Entry & entry : DialectRegistry::GetAllDialects())
             {
                 CommandLineOptions  opts       = Fixture::Parse ({ "CassoCli", entry.name, "source.s",
@@ -480,6 +484,11 @@ namespace MerlinCommandLineTests
         TEST_METHOD (EveryMerlinFlagReachesTheHelpWithItsDescription)
         {
             std::string  help = DialectHelp::GetAllDialects ('-');
+
+            //  A table that came back empty would satisfy every assertion below
+            //  by never reaching one, which is how a sweep quietly stops being a
+            //  test. Mutating the table's dialect away is what found this.
+            Assert::IsFalse (CommandLineParser::GetFlags (DialectId::Merlin).empty(), L"nothing to sweep");
 
             for (const CommandLineParser::DialectFlag & flag : CommandLineParser::GetFlags (DialectId::Merlin))
             {

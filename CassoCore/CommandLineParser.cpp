@@ -513,6 +513,14 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
 
             // Recognized by every grammar; honored only where the active
             // dialect's profile says the CPU comes from the command line.
+            //
+            // This call can never refuse anything TODAY -- the only dialect
+            // reaching it says its CPU comes from the command line -- and
+            // deleting it is a mutation no test catches. It stays because it is
+            // what makes the refusal a property of the mechanism rather than of
+            // one grammar: flip this dialect's profile and the refusal happens
+            // here too, which is the registry sweep's whole claim. Without the
+            // call, that sweep would be true of a parser with a per-dialect arm.
             refused = RefuseCpuFlagWhereSelectedInSource (options);
             stop    = refused;
 
