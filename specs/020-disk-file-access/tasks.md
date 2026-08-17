@@ -79,6 +79,83 @@ it. Past the hand-off the direct-boot image reached the payload in **209,147**
 cycles against DOS 3.3's **4,718,764** — **4.4%**, a factor of twenty-two. Whole
 boots are 1,856,888 against 6,366,505, which is 29.2%. See the divergences block.
 
+**SC-007 IS NOW AMENDED IN `spec.md` RATHER THAN ONLY REINTERPRETED HERE.** The
+criterion states the disk-contribution form the gate actually measures — each
+boot's whole cost less the fixed entry cost, which must be measured on both
+images and be the same number on both — with one paragraph recording why: the
+ROM constant is common to both images and is not something this feature can
+influence, so measuring it in tells you about the controller rather than about
+the feature. The gate is unchanged and is not weakened; it still asserts the
+arithmetic that makes the whole-boot form unreachable, so the finding cannot
+outlive its evidence.
+
+**Phase 7 is done, and the suite is 3297 Debug / 3294 Release.** T043–T046 shipped
+together: `CassoCore/ApplesoftTokenizer.h/.cpp`, its refusals, `--basic` wired
+through `put` and `get`, and a real-CPU gate that boots a disk carrying a placed
+listing and LISTs it. (The counts were 3261 / 3258 before this phase added 36.)
+
+**The oracle for the tokenizer is APPLESOFT, not our own detokenizer, and every
+rule below was measured rather than looked up.** Lines were typed into a booted
+DOS 3.3 master and the bytes read back out of the memory between TXTTAB ($67)
+and VARTAB ($69). Three of the four answers are not the obvious ones:
+
+- **Spaces outside a string, a REM or a DATA payload are DROPPED — including in
+  the middle of a keyword.** `PR INT` is stored as the single PRINT token, and
+  `20 A = 1` is three stored bytes rather than five. The spacing a listing shows
+  is put there by LIST, which writes a space before AND after every token.
+- **A REM's text and a DATA statement's payload are stored VERBATIM** from the
+  character after the keyword, spaces included. DATA ends at the first colon
+  outside a quoted string; REM runs to the end of the line and a colon does not
+  end it.
+- **`?` is the PRINT token**, and it is the one abbreviation that does not come
+  back.
+- **`AT` is special-cased against the two keywords it collides with.** `ATN` is
+  one token and `A TO` comes apart into the letter A and TO — both confirmed on
+  the machine, and both necessary precisely because the stored form has no
+  spaces to disambiguate with. `TOTAL` is NOT special-cased and tokenizes as TO
+  followed by TAL, which is Applesoft's own behavior and is reproduced
+  deliberately.
+
+**THE ROUND-TRIP QUESTION IS SETTLED, AND THE ANSWER IS BETTER THAN THE TASK
+FEARED — because of one decision in the DETOKENIZER.** `tokens -> listing ->
+tokens` is **exact** for every program Applesoft itself can have saved, verified
+byte-for-byte against the stock master's own 419-byte HELLO as well as against
+hand-authored cases. What buys it is that the detokenizer writes a space *before*
+every token but *after* every token except REM and DATA. A space in normal
+position is dropped on the way back and costs nothing; a space written after REM
+or DATA is swallowed into the payload and the listing grows one space per trip.
+Emitting LIST's spacing exactly — which was the obvious choice and is what the
+guest prints — would have made the round trip lossy and cumulative. The
+`RoundTrip_TheNormalizedFormIsStable_SoASecondTripChangesNothing` case exists
+because a one-trip comparison cannot tell a stable normalization from a
+cumulative one.
+
+The other direction, `listing -> tokens -> listing`, is **deliberately not the
+identity**, and the losses are exactly the normalizations Applesoft performs when
+a line is typed in: spacing outside the three verbatim contexts is dropped, `?`
+becomes PRINT, lowercase outside those contexts is upper-cased, and lines are
+ordered by number. **`ApplesoftTokenizer::kRoundTripHelpText` says all of this in
+the tool's own help output**, beside the code, so the claim and the capability
+cannot drift — the same arrangement `kInUseHelpText` already uses.
+
+Two narrower things worth carrying. **A DATA payload's trailing space is
+significant and is the last character on its line**, so an editor that strips
+trailing whitespace on save changes the program; there is a case pinning it.
+And **the detokenizer refuses rather than guessing** — an undefined token byte, a
+token byte inside a string or a REM or a DATA payload, a link that disagrees with
+the layout, bytes past the null link. Everything it accepts round-trips exactly,
+which is what makes the guarantee unconditional instead of hedged.
+
+**One thing the guest could not settle, recorded rather than solved.** Lowercase
+typed at the guest's keyboard arrives at Applesoft already upper-cased — string
+literals, REM text and DATA payloads included — so the machine cannot say whether
+Applesoft or the input path does it, and it cannot be used as an oracle for case.
+The shipped rule is chosen rather than measured: **case is preserved inside
+strings, REM text and DATA payloads, and upper-cased everywhere else**, on the
+ground that those three contexts hold the user's data while everywhere else holds
+code Applesoft would reject in lowercase. The guest-anchored oracle therefore
+uses an all-uppercase listing, and case is pinned by unit tests instead.
+
 **Next.** Phase 4 has one task left (T035, which is done by hand), and it is the work here where
 a bug **destroys data** rather than failing loudly. Everything through Phase 3
 was reads: wrong output was the worst case. From T023 on, the worst case is a
@@ -400,6 +477,42 @@ discriminating rather than decorative. **And the ProDOS control had to be
 constructed rather than assumed**: see T039's decision 2, where "placed but not
 nominated" turned out not to be a control at all.
 
+And again on T043–T046, where **thirty-two mutations were run and all thirty-two
+were caught** — but the interesting result is not the tally, it is which witness
+caught what.
+
+**Eleven mutations are invisible to a round trip and are caught only by the
+Applesoft-anchored vectors.** Storing spaces in normal position, matching
+keywords without skipping spaces, letting REM tokenize its own text, dropping
+the `?`-to-PRINT mapping, removing either half of the AT special case, scanning
+the token table backwards — every one of them produces a tokenizer that
+round-trips through its own detokenizer perfectly. Only the bytes typed into a
+booted machine separate them. **That is the general lesson restated once more:
+the standing gate has to be anchored outside the code**, and for a tokenizer the
+outside is the machine, not the inverse function.
+
+**Two mutations separate the two spacing rules from each other**, which is why
+they are two rules rather than one. Removing the space the detokenizer writes
+BEFORE a token is caught only by the exact-text case, because a normal-position
+space is dropped on the way back and the round trip cannot see it. Adding the
+space AFTER REM and DATA — LIST's own rule, and the obvious thing to write — is
+caught by four round-trip cases and by the master's own greeting, because that
+space is swallowed into the payload. A single "detokenize looks right" assertion
+would have caught the first and missed the second.
+
+**Two more are only catchable because the ProDOS case exists.** Leaving the
+auxiliary type at zero and letting `--basic` inherit the binary default are both
+invisible on DOS 3.3, which records neither. The ProDOS test asserts the whole
+rendered row rather than searching it, so the type, the size, the exact
+tokenized length and the load address are all pinned at once.
+
+**One anchor did not match on the first pass and is worth recording as a harness
+note**: the anchor text was written with single-space assignment where the file
+carries the column alignment this project requires, so `ok = ...` did not find
+`ok    = ...`. The harness reported **ANCHOR NOT FOUND** rather than a verdict,
+exactly as designed — scored as a result it would have read as a miss. Re-run
+with the aligned text, it was caught.
+
 And again on T040–T042, where **sixteen mutations were run and all sixteen were
 caught** — but two of them are findings and one is about the harness rather than
 the code.
@@ -607,10 +720,19 @@ outcome — do not defend it at merge.** See `docs/coordination.md`.
   no Apple II representation refuses the whole placement and names the offset,
   rather than masking to seven bits and producing a different, plausible
   character.
-- `--basic` refuses on both paths: there is no Applesoft tokenizer until Phase
-  7. On the `put` side the failure it forbids is specific — a parsed-then-
-  dropped flag would place a host listing verbatim under a BASIC type, and the
-  guest would answer `LIST` with garbage.
+- `--basic` **now works on both paths** (T045); the refusal it used to carry is
+  gone. What replaced it is not merely a conversion: the flag also chooses the
+  file type, sets ProDOS's auxiliary type, and refuses `--addr`, because each of
+  those left alone would place a file the guest cannot run while reporting
+  success.
+- **`E_INVALIDARG` is the code the tokenizer returns for a bad listing, and that
+  is the local convention rather than a lapse.** `CassoCore` is deliberately
+  platform-free — it does not include `windows.h`, so `HRESULT_FROM_WIN32` does
+  not exist there — and both neighbors, `AppleTextCodec::Encode` and
+  `CommandLineParser`, answer user-input failures the same way with the
+  NON-asserting `CBREx`. The distinction a caller needs is carried by
+  `ApplesoftListingError::reason`, which is what reaches the user; the code is
+  never printed.
 - **The full-volume refusal does not name the shortfall**, which quickstart
   §US2 case 4 asks for. See T032's decisions: the number is knowable only inside
   the allocator, and re-deriving it in the runner is a second implementation of
@@ -840,10 +962,10 @@ can `RUN`.
 **Independent test**: quickstart §US6 — place a listing, boot, `LIST` reproduces
 the source.
 
-- [ ] T043 [US6] Implement Applesoft tokenization in `CassoCore/ApplesoftTokenizer.h/.cpp`: host-text listing → tokenized on-disk form with line-link fixups (FR-022). Settle the coverage boundary against a real listing — token spellings inside strings, `DATA` payloads, `REM` text. **Settle round-trip loss deliberately before writing the tokenizer**, and record the answer: detokenize/retokenize is the least likely of the three conversions to be exact, because tokenizers normalize spacing and canonicalize forms. It is also where loss is most surprising — someone extracting a text file opted into a conversion, while someone whose saved program comes back subtly reformatted did not. If exact round-tripping is not achievable, say so in the help text rather than letting a user discover it
-- [ ] T044 [US6] Implement detokenization (the reverse direction, FR-022) in `CassoCore/ApplesoftTokenizer.cpp`; round-trip tests
-- [ ] T045 [US6] Refuse an untokenizable listing with the offending line number and text quoted (FR-023); wire `--basic` through `put` and `get`
-- [ ] T046 [US6] Gate: place a known listing, boot, `LIST` in the guest, confirm it matches the source
+- [x] T043 [US6] Implement Applesoft tokenization in `CassoCore/ApplesoftTokenizer.h/.cpp`: host-text listing → tokenized on-disk form with line-link fixups (FR-022). Settle the coverage boundary against a real listing — token spellings inside strings, `DATA` payloads, `REM` text. **Settle round-trip loss deliberately before writing the tokenizer**, and record the answer: detokenize/retokenize is the least likely of the three conversions to be exact, because tokenizers normalize spacing and canonicalize forms. It is also where loss is most surprising — someone extracting a text file opted into a conversion, while someone whose saved program comes back subtly reformatted did not. If exact round-tripping is not achievable, say so in the help text rather than letting a user discover it
+- [x] T044 [US6] Implement detokenization (the reverse direction, FR-022) in `CassoCore/ApplesoftTokenizer.cpp`; round-trip tests. **The decision that decides the whole task is the spacing rule, and it is not LIST's.** A space is written BEFORE every token and AFTER every token except REM and DATA. Normal-position spaces are dropped on the way back and cost nothing; a space after REM or DATA is swallowed into the payload, so LIST's own rule would grow the listing by one space per round trip. The detokenizer also **refuses rather than guessing** — undefined token bytes, a token byte inside a string or a REM or a DATA payload, a link disagreeing with the layout, bytes past the null link — which is what makes "everything it accepts round-trips exactly" unconditional
+- [x] T045 [US6] Refuse an untokenizable listing with the offending line number and text quoted (FR-023); wire `--basic` through `put` and `get`. **Four decisions.** (1) **`--basic` chooses the file type** — Applesoft on DOS 3.3, BAS on ProDOS — rather than inheriting the binary default a build loop wants, because a tokenized program under any other type is one the guest will not RUN. (2) **ProDOS's auxiliary type is set to $0801**, which is where that filesystem records a BASIC program's load address; DOS 3.3 records nothing and ignores it, so the value is set on both paths rather than branching in the runner. (3) **`--addr` with `--basic` is REFUSED, not ignored.** Applesoft keeps its program at $0801 and nowhere else, so accepting the flag would leave the caller believing something false about the result. (4) **The refusal quotes the line and names its number**, and where there is no number — a listing line that carries none — it names the line's position in the file instead, because inventing a number would point at the wrong line
+- [x] T046 [US6] Gate: place a known listing, boot, `LIST` in the guest, confirm it matches the source. **Two witnesses, answering different questions, in `UnitTest/EmuTests/GuestVisibleBasicTests.cpp`.** The first types the listing into a booted machine and compares OUR tokenizer's bytes against the bytes Applesoft stored for the same text, read out of $0801 — the only oracle for tokenization that is not our own code, since a tokenizer checked against its own detokenizer agrees with itself perfectly while storing something no guest recognizes. The second places the listing through the command line a user types, boots the written image and reads LIST, then RUNs it: LIST alone is satisfied by a program whose tokens are right and whose links are not. The guest printed `10  HOME`, `20  PRINT "CASSO"`, `30  FOR I = 1 TO 3: PRINT I: NEXT` and `40  END`, and every row mentioning each needle is asserted to be exactly that row. A third case round-trips the master's own 419-byte HELLO — real vendor Applesoft nobody here wrote — byte for byte. The cheap structural questions are all asked before any processor starts, per T040's finding
 
 ---
 

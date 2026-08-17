@@ -35,9 +35,18 @@ Entries before versioning was introduced use dates only.
   write-protected image, a volume with no room, a track that cannot be
   re-encoded, or the image changing under us — leaves the original
   byte-for-byte as it was, with no leftover temporary and a message saying
-  which of those it was rather than a platform error code. Placing an
-  Applesoft listing (`--basic`) is not in this build and is refused rather
-  than silently doing something else.
+  which of those it was rather than a platform error code.
+- **`--basic`: an Applesoft listing written as host text becomes a program the
+  guest can `LIST` and `RUN`, and back again.** `disk put --basic` tokenizes a
+  listing and stores it under the Applesoft type without being asked to;
+  `disk get --basic` turns a stored program back into a listing. A listing that
+  cannot be tokenized is refused with the offending line number and the line
+  itself quoted, and the disk is left untouched. Extracting a program and
+  placing it back is byte-exact; the reverse — a listing placed and extracted
+  again — is not, because Applesoft itself normalizes a line when it is typed:
+  spacing outside strings, `REM` and `DATA` is dropped, `?` becomes `PRINT`,
+  lowercase outside those three becomes uppercase, and lines are ordered by
+  number. The help output says so rather than leaving it to be discovered.
 - **`disk boot <image> <program>`: the disk runs your program at boot, with
   nothing typed.** The two filesystems do this by entirely different means and
   both are handled: DOS 3.3 keeps the name of the program it runs inside its

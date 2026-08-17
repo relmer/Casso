@@ -269,6 +269,7 @@
     <ClCompile Include="EmuTests\DiskImageTests.cpp" />
     <ClCompile Include="EmuTests\NibblizationTests.cpp" />
     <ClCompile Include="AppleTextCodecTests.cpp" />
+    <ClCompile Include="ApplesoftTokenizerTests.cpp" />
     <ClCompile Include="EmuTests\Dos33VolumeTests.cpp" />
     <ClCompile Include="EmuTests\VolumeIntegrityTests.cpp" />
     <ClCompile Include="EmuTests\CrossFormatExtractionTests.cpp" />
@@ -281,6 +282,7 @@
     <ClCompile Include="EmuTests\GuestSession.cpp" />
     <ClCompile Include="EmuTests\GuestVisibleBootTests.cpp" />
     <ClCompile Include="EmuTests\GuestVisiblePlacementTests.cpp" />
+    <ClCompile Include="EmuTests\GuestVisibleBasicTests.cpp" />
     <ClCompile Include="EmuTests\ProDosSyntheticShapeTests.cpp" />
     <ClCompile Include="EmuTests\VolumeOracleTests.cpp" />
     <ClCompile Include="EmuTests\BlankDiskBuilderTests.cpp" />

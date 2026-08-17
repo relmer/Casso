@@ -385,12 +385,13 @@ public:
             L"the two encodings must not deliver the same bytes -- otherwise the flag did nothing");
     }
 
-    TEST_METHOD (Get_WithBasic_IsRefusedRatherThanQuietlyIgnored)
+    TEST_METHOD (Get_WithBasicOnAFileThatIsNoProgram_IsRefusedRatherThanRenderingGarbage)
     {
-        // The failure this forbids is specific: --basic parsed and then dropped
-        // would hand back tokenized bytes while the help promises a listing, and
-        // nothing in the output would distinguish that from a file needing no
-        // conversion. A refusal is the honest answer until the tokenizer exists.
+        // A source file is not a tokenized program, and the failure this forbids
+        // is a listing rendered out of bytes that are not one: it would look
+        // like a successful conversion and tokenize back to something else
+        // entirely. Refusing needs the structural checks to be real -- walking
+        // by the terminator alone would happily produce a listing here.
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
         CommandLineOptions options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Get);
@@ -406,6 +407,8 @@ public:
         Assert::IsFalse (result.hasPayload, L"nothing may be delivered under a conversion not performed");
         Assert::IsTrue (result.diagnostics.find ("--basic") != std::string::npos,
             L"and the refusal must name the flag it is refusing");
+
+        AssertNamesNoPlatformCode (result.diagnostics);
     }
 
     //
@@ -1173,11 +1176,193 @@ public:
         AssertImageMatches (io, kBlankImage, blank);
     }
 
-    TEST_METHOD (Put_WithBasic_IsRefusedRatherThanQuietlyPlacingUntokenizedText)
+    //  A listing whose every interesting rule is exercised: a token spelling
+    //  inside a string, a DATA payload with a colon in a quoted item, a REM that
+    //  swallows one, and spacing that has to survive the trip unchanged.
+    static std::string BasicListing()
     {
-        // The failure this forbids is put's version of get's: --basic parsed
-        // and dropped would place a host listing verbatim under a BASIC type,
-        // and the guest would answer a LIST with garbage.
+        return "10 REM  A SPACED REM\n"
+               "20 PRINT \"PRINT AT TO\"\n"
+               "30 DATA \"A:B\",C: PRINT 1\n"
+               "40 FOR I = 1 TO 9: NEXT\n";
+    }
+
+    static vector<Byte> BasicListingBytes()
+    {
+        std::string  listing = BasicListing();
+
+        return vector<Byte> (listing.begin(), listing.end());
+    }
+
+    TEST_METHOD (Put_ABasicListing_LandsTokenizedAndComesBackAsTheSameListing)
+    {
+        // The property that matters to a user is that the file they placed and
+        // the file they get back are the same file. Asserting only that the
+        // placement succeeded would pass against a tokenizer that stored the
+        // listing verbatim under a BASIC type, which is exactly what the
+        // refusal this replaces existed to prevent.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options  = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult   result;
+        DiskCommandResult   readBack;
+        std::string         returned;
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   BasicListingBytes());
+
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (std::string(), result.diagnostics);
+
+        Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" A 002 PROG") != std::string::npos,
+            L"a listing placed with --basic lands under the Applesoft type without "
+            L"anybody naming one, and the whole rendered row says so");
+
+        readBack = GetFromCommittedImage (io, kBlankImage, "PROG",
+                                         CommandLineOptions::DiskOptions::Encoding::Basic);
+
+        Assert::AreEqual (DiskCommandRunner::kClean, readBack.exitStatus);
+        Assert::IsTrue (readBack.hasPayload, L"and must hand back the listing");
+
+        returned.assign (readBack.payload.begin(), readBack.payload.end());
+
+        Assert::AreEqual (std::string ("10  REM  A SPACED REM\n"
+                                       "20  PRINT \"PRINT AT TO\"\n"
+                                       "30  DATA \"A:B\",C: PRINT 1\n"
+                                       "40  FOR I = 1 TO 9: NEXT\n"),
+                          returned,
+            L"the listing must come back with the same statements and the same payload "
+            L"spacing -- the leading spaces are the ones LIST puts in front of a token");
+    }
+
+    TEST_METHOD (Put_ABasicListing_StoresTheTOKENIZEDForm_NotTheTextItWasGiven)
+    {
+        // The companion assertion to the round trip above, and the one it
+        // cannot make: a tokenizer that did nothing at all would round-trip
+        // perfectly through its own inverse.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options  = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult   result;
+        DiskCommandResult   raw;
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   BasicListingBytes());
+
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+
+        raw = GetFromCommittedImage (io, kBlankImage, "PROG",
+                                    CommandLineOptions::DiskOptions::Encoding::Verbatim);
+
+        Assert::IsTrue (raw.payload.size() > 4, L"the stored file has a body");
+
+        Assert::AreEqual ((int) 0xB2, (int) raw.payload[4],
+            L"the first body byte of line 10 is the REM TOKEN, not the letter R");
+
+        Assert::AreEqual ((int) 0x0801 + 20, (int) (raw.payload[0] | (raw.payload[1] << 8)),
+            L"and the link is the absolute address of the next line, which is what a "
+            L"guest follows and what a length-only tokenizer would get wrong");
+
+        Assert::IsTrue (raw.payload.size() < BasicListingBytes().size(),
+            L"tokenized is shorter than the text it came from, or nothing was tokenized");
+    }
+
+    TEST_METHOD (Put_AnUntokenizableListing_IsRefusedNamingTheLineAndQuotingIt)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult   result;
+        vector<Byte>        blank   = MakeBlankDos33Image();
+        std::string         listing = "10 PRINT 1\n20 PRINT 2\n20 PRINT 3\n";
+
+        SeedFile (io, kBlankImage, blank);
+        SeedFile (io, kHostFile,   vector<Byte> (listing.begin(), listing.end()));
+
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+
+        Assert::IsTrue (result.diagnostics.find ("line 20 ") != std::string::npos,
+            L"the refusal names the offending line number");
+
+        Assert::IsTrue (result.diagnostics.find ("20 PRINT 3") != std::string::npos,
+            L"and quotes the line itself, because a number alone points at nothing in a "
+            L"file numbered by tens");
+
+        AssertNamesNoPlatformCode (result.diagnostics);
+        AssertImageMatches (io, kBlankImage, blank);
+        Assert::AreEqual (0, io.writeCount);
+    }
+
+    TEST_METHOD (Put_ABasicListingOntoProDos_RecordsWhereAnApplesoftProgramLoads)
+    {
+        // The two filesystems record this in entirely different places: DOS 3.3
+        // keeps a length inside the file and nothing else, while ProDOS puts the
+        // load address in the directory entry's auxiliary type. A placement that
+        // left the auxiliary type at zero would read back through our own reader
+        // perfectly and tell the machine the program loads at $0000.
+        static constexpr const char *  kProDosImage = "C:\\disks\\pro.dsk";
+
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kProDosImage, kHostFile, "PROG");
+        DiskCommandResult   result;
+        DiskCommandResult   readBack;
+        std::string         listing;
+        std::string         returned;
+
+        SeedRealDisk (io, "Disks/Merlin-proProdos2.33-b.dsk", kProDosImage);
+        SeedFile (io, kHostFile, BasicListingBytes());
+
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (std::string(), result.diagnostics);
+
+        {
+            DiskCommandRunner   reader (io);
+            CommandLineOptions  listOptions = MakeOptions (CommandLineOptions::DiskOptions::Verb::List,
+                                                           kProDosImage);
+
+            listOptions.disk.longListing = true;
+            listing = reader.Run (listOptions).output;
+        }
+
+        Assert::IsTrue (listing.find (" PROG                 $FC     1  eof=71 aux=$0801") != std::string::npos,
+            L"the whole rendered row: the BASIC type nobody named, the size, the exact "
+            L"length of the tokenized program, and the address it loads at");
+
+        readBack = GetFromCommittedImage (io, kProDosImage, "PROG",
+                                          CommandLineOptions::DiskOptions::Encoding::Basic);
+
+        returned.assign (readBack.payload.begin(), readBack.payload.end());
+
+        Assert::AreEqual (std::string ("10  REM  A SPACED REM\n"
+                                       "20  PRINT \"PRINT AT TO\"\n"
+                                       "30  DATA \"A:B\",C: PRINT 1\n"
+                                       "40  FOR I = 1 TO 9: NEXT\n"),
+                          returned,
+            L"and the listing comes back off ProDOS exactly as it comes back off DOS 3.3");
+    }
+
+    TEST_METHOD (Put_BasicWithALoadAddress_IsRefusedRatherThanIgnoringTheFlag)
+    {
+        // Applesoft keeps its program at $0801 and nowhere else, so an address
+        // here cannot be honored. Accepting it and placing the file anyway
+        // leaves the caller believing something about the result that is false.
         FakeDiskFileIo      io;
         DiskCommandRunner   runner (io);
         CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
@@ -1185,15 +1370,17 @@ public:
         vector<Byte>        blank   = MakeBlankDos33Image();
 
         SeedFile (io, kBlankImage, blank);
-        SeedFile (io, kHostFile,   MakePayload (16));
+        SeedFile (io, kHostFile,   BasicListingBytes());
 
-        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+        options.disk.encoding       = CommandLineOptions::DiskOptions::Encoding::Basic;
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
 
         result = runner.Run (options);
 
         Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.diagnostics.find ("--basic") != std::string::npos,
-            L"the refusal names the flag it is refusing");
+        Assert::IsTrue (result.diagnostics.find ("$0801") != std::string::npos,
+            L"and says where an Applesoft program does load");
 
         AssertImageMatches (io, kBlankImage, blank);
         Assert::AreEqual (0, io.writeCount);

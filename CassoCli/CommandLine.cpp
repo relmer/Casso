@@ -781,6 +781,7 @@ static void PrintUsageHeader (const char * sp, const char * lp)
               << "         aliases: ls = list, rm = delete."
                  "  put/get are named from the DISK's point of view.\n"
               << "         exit: 0 clean, 1 succeeded with complaints, 2 produced no output\n"
+              << "         " << ApplesoftTokenizer::kRoundTripHelpText << "\n"
               << "         " << DiskCommandRunner::kInUseHelpText << "\n";
 }
 

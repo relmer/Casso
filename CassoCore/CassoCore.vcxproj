@@ -185,6 +185,7 @@
     <ClCompile Include="Microcode.cpp" />
     <ClCompile Include="OpcodeTable.cpp" />
     <ClCompile Include="AppleTextCodec.cpp" />
+    <ClCompile Include="ApplesoftTokenizer.cpp" />
     <ClCompile Include="OutputFormats.cpp" />
     <ClCompile Include="Directive.cpp" />
     <ClCompile Include="Parser.cpp" />
@@ -222,6 +223,7 @@
     <ClInclude Include="Microcode.h" />
     <ClInclude Include="OpcodeTable.h" />
     <ClInclude Include="AppleTextCodec.h" />
+    <ClInclude Include="ApplesoftTokenizer.h" />
     <ClInclude Include="OutputFormats.h" />
     <ClInclude Include="Directive.h" />
     <ClInclude Include="Parser.h" />

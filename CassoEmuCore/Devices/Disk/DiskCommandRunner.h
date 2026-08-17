@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "ApplesoftTokenizer.h"
 #include "CommandLineOptions.h"
 #include "CommitPlan.h"
 #include "IDiskFileIo.h"
@@ -154,6 +155,12 @@ private:
     //  reading it wants to know that their file is locked, not that something
     //  returned 0x80070005.
     static std::string  DescribeVolumeRefusal (HRESULT hr);
+
+    //  Turns a tokenizer refusal into something a user can act on: which line,
+    //  the line itself, and what is wrong with it. The line's own text is quoted
+    //  because a number alone points at nothing in a file a person is reading.
+    static std::string  DescribeListingRefusal (const char                   * leadIn,
+                                                const ApplesoftListingError  & error);
 
     //  The same job for the atomic replace, which is where write protection
     //  enforced by the HOST file's read-only attribute finally surfaces -- the

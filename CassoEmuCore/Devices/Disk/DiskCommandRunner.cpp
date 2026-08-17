@@ -278,6 +278,58 @@ void DiskCommandRunner::RefuseCommit (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::DescribeListingRefusal
+//
+//  WHICH LINE, AND THE LINE ITSELF. A number on its own is useless against a
+//  file numbered by tens, and useless in the other direction too: a program
+//  read off a disk has line numbers the host file does not have. So the number
+//  is given when there is one, the file's own position when there is not, and
+//  the offending text is quoted underneath whenever it is known.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::DescribeListingRefusal (
+    const char                   *  leadIn,
+    const ApplesoftListingError  &  error)
+{
+    char         note[96] = {};
+    std::string  message  = leadIn;
+
+
+
+    message += " -- ";
+
+    if (error.hasLineNumber)
+    {
+        snprintf (note, sizeof (note), "line %u ", (unsigned) error.lineNumber);
+        message += note;
+    }
+    else if (error.sourceLineIndex > 0)
+    {
+        snprintf (note, sizeof (note), "the line at file position %u ",
+                  (unsigned) error.sourceLineIndex);
+        message += note;
+    }
+
+    message += error.reason;
+    message += "\n";
+
+    if (!error.sourceLine.empty())
+    {
+        message += "    ";
+        message += error.sourceLine;
+        message += "\n";
+    }
+
+    return message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::DescribeVolumeRefusal
 //
 //  A verdict from the filesystem layer, in words.
@@ -634,8 +686,9 @@ HRESULT DiskCommandRunner::ApplyEncoding (
     FilePayload              &  payload,
     DiskCommandResult        &  result)
 {
-    HRESULT      hr = S_OK;
-    std::string  hostText;
+    HRESULT                hr = S_OK;
+    std::string            hostText;
+    ApplesoftListingError  listingError;
 
 
 
@@ -661,10 +714,19 @@ HRESULT DiskCommandRunner::ApplyEncoding (
             break;
 
         case CommandLineOptions::DiskOptions::Encoding::Basic:
-            result.diagnostics += "--basic is not available in this build: "
-                                  "no Applesoft tokenizer yet\n";
-            result.exitStatus   = kNoOutput;
-            hr                  = E_NOTIMPL;
+            hr = ApplesoftTokenizer::Detokenize (payload.bytes, hostText, listingError);
+
+            if (FAILED (hr))
+            {
+                result.diagnostics += DescribeListingRefusal (
+                    "--basic cannot read this file as an Applesoft program", listingError);
+
+                result.exitStatus   = kNoOutput;
+                break;
+            }
+
+            payload.bytes.assign (hostText.begin(), hostText.end());
+            payload.encoding = PayloadEncoding::ApplesoftListing;
             break;
 
         default:
@@ -846,6 +908,7 @@ HRESULT DiskCommandRunner::ResolveFileType (
     HRESULT      hr         = S_OK;
     bool         isDos      = kind == VolumeKind::Dos33;
     bool         isText     = options.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Text;
+    bool         isBasic    = options.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Basic;
     bool         named      = !options.disk.typeName.empty();
     bool         recognized = true;
     size_t       i          = 0;
@@ -853,8 +916,18 @@ HRESULT DiskCommandRunner::ResolveFileType (
 
 
 
-    outType = isDos ? (isText ? Dos33Volume::kTypeText  : Dos33Volume::kTypeBinary)
-                    : (isText ? ProDosVolume::kTypeText : ProDosVolume::kTypeBinary);
+    if (isBasic)
+    {
+        // A tokenized program stored under any other type is a file the guest
+        // will not RUN, so the conversion picks the type rather than leaving it
+        // to a default meant for a build loop's binaries.
+        outType = isDos ? Dos33Volume::kTypeApplesoft : ProDosVolume::kTypeBasic;
+    }
+    else
+    {
+        outType = isDos ? (isText ? Dos33Volume::kTypeText  : Dos33Volume::kTypeBinary)
+                        : (isText ? ProDosVolume::kTypeText : ProDosVolume::kTypeBinary);
+    }
 
     BAIL_OUT_IF (!named, S_OK);
 
@@ -930,11 +1003,12 @@ HRESULT DiskCommandRunner::BuildPutPayload (
     FilePayload               & outPayload,
     DiskCommandResult         & result)
 {
-    HRESULT      hr        = S_OK;
-    Byte         type      = 0;
-    size_t       badOffset = 0;
-    char         note[160] = {};
-    std::string  hostText;
+    HRESULT                hr        = S_OK;
+    Byte                   type      = 0;
+    size_t                 badOffset = 0;
+    char                   note[160] = {};
+    std::string            hostText;
+    ApplesoftListingError  listingError;
 
 
 
@@ -977,10 +1051,40 @@ HRESULT DiskCommandRunner::BuildPutPayload (
             break;
 
         case CommandLineOptions::DiskOptions::Encoding::Basic:
-            result.diagnostics += "--basic is not available in this build: "
-                                  "no Applesoft tokenizer yet\n";
-            result.exitStatus   = kNoOutput;
-            hr                  = E_NOTIMPL;
+            if (options.disk.hasLoadAddress)
+            {
+                // An Applesoft program loads where Applesoft keeps its program
+                // and nowhere else, so an address here is a request that cannot
+                // be honored. Accepting and ignoring it would place the program
+                // and leave the caller believing it loads somewhere it does not.
+                result.diagnostics += "--addr means nothing with --basic: "
+                                      "an Applesoft program always loads at $0801\n";
+                result.exitStatus   = kNoOutput;
+                hr                  = HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER);
+                break;
+            }
+
+            hostText.assign (hostBytes.begin(), hostBytes.end());
+
+            hr = ApplesoftTokenizer::Tokenize (hostText, outPayload.bytes, listingError);
+
+            if (FAILED (hr))
+            {
+                result.diagnostics += DescribeListingRefusal (
+                    "--basic cannot make an Applesoft program of this listing", listingError);
+
+                result.exitStatus   = kNoOutput;
+                break;
+            }
+
+            // ProDOS records where a BASIC program loads in the auxiliary type;
+            // DOS 3.3 records nothing and ignores this. Setting it on both keeps
+            // the branch out of here, where it would be a second statement of
+            // which filesystem stores what.
+            outPayload.auxType        = ApplesoftTokenizer::kProgramBase;
+            outPayload.hasAuxType     = true;
+            outPayload.hasLoadAddress = false;
+            outPayload.encoding       = PayloadEncoding::ApplesoftListing;
             break;
 
         default:
