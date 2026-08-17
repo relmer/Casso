@@ -2443,6 +2443,31 @@ namespace MerlinDirectiveTests
 
 
 
+        //  A DEFERRED diagnostic, so the file and the column have to be captured
+        //  where the block opened. By the time this is reported the ambient answer
+        //  is whatever was processed last -- here the top-level line after the
+        //  include -- and using it would give the right line number in the wrong
+        //  file, which reads as a correct diagnostic and is the harder mistake to
+        //  see.
+        TEST_METHOD (AnUnclosedLoopInsideAnIncludedFileNamesThatFileAndColumn)
+        {
+            MockFileReader  reader;
+            AssemblyResult  result;
+
+            reader.files["T.PART"] = " LUP 2\n DFB $EA\n";
+
+            result = MerlinAssemblyFixture::AssembleMerlinWithReader (" PUT PART\n DFB $11\n", reader);
+
+            Assert::AreEqual ((size_t) 1, result.errors.size(),
+                              MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual (std::string ("T.PART"), result.errors[0].file,
+                              L"attributed to the file the block opened in");
+            Assert::AreEqual (1, result.errors[0].lineNumber, L"and to the line inside that file");
+            Assert::AreEqual (2, result.errors[0].column, L"and to the column the opening directive sits at");
+        }
+
+
+
         //  The construct must not have leaked into the other dialect. AS65 knows no
         //  such spelling and has to go on rejecting it.
         TEST_METHOD (AS65DoesNotAcquireTheLoopConstruct)
@@ -2504,11 +2529,11 @@ namespace MerlinDirectiveTests
 
 
 
-        //  Instructions inside a section are sized and addressed like any others
-        //  and still emit nothing. Sizing is what makes the label after them right;
-        //  emitting would put them on top of bytes a previous line already placed,
-        //  because the output cursor never moved.
-        TEST_METHOD (AnInstructionInsideASectionIsAddressedAndNotEmitted)
+        //  Instructions inside a section are SIZED like any others, which is what
+        //  makes the label after them right. That is all this one claims -- see
+        //  the next test for the other half, and the note there for why the two
+        //  cannot be claimed by one assertion.
+        TEST_METHOD (AnInstructionInsideASectionStillMovesTheAddressesAfterIt)
         {
             AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
                                               " DUM $300\nGO LDA $1234\nAFTER DS 0\n DEND\n"
@@ -2517,7 +2542,52 @@ namespace MerlinDirectiveTests
 
             Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
             Assert::IsTrue (result.bytes == expected,
-                            L"GO is $0300, the three-byte instruction moved AFTER to $0303, and neither emitted");
+                            L"GO is $0300 and the three-byte instruction moved AFTER to $0303");
+        }
+
+
+
+        //  Nothing inside a section reaches the object, and the section has to be
+        //  LONGER than what follows it for that to be observable at all.
+        //
+        //  This was found by mutation rather than by reading, and it is worth the
+        //  space: a section whose contents are shorter than the lines after it is
+        //  vacuous however carefully it is written, because the output cursor never
+        //  advanced across the section -- so every byte the section wrongly emitted
+        //  sits exactly where the next real line is about to write, and the real
+        //  line overwrites all of it. Three instructions against one byte is what
+        //  leaves eight bytes with nothing to cover them.
+        TEST_METHOD (NothingInsideASectionReachesTheObject)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " DUM $300\n LDA $1234\n LDX $5678\n LDY $9ABC\n DEND\n"
+                                              " DFB $99\n");
+            std::vector<Byte>  expected = { 0x99 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"nine bytes of layout, and one byte of object");
+        }
+
+
+
+        //  A section that emits nothing must not be what STARTS the output, and
+        //  this is the only place it shows. Closing a section puts the output
+        //  cursor back where it was, so a section that wrongly advanced it is
+        //  invisible everywhere else -- but the first origin only places the image
+        //  while nothing has been output yet, and a section that claimed to have
+        //  output something takes that away. The origin then merely relocates, the
+        //  byte lands where the section left the cursor, and the image loads at an
+        //  address nobody wrote.
+        TEST_METHOD (ASectionBeforeTheFirstOriginDoesNotStartTheOutput)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " DUM $300\n DS 4\n DEND\n ORG $2000\n DFB $99\n");
+            std::vector<Byte>  expected = { 0x99 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual ((int) 0x2000, (int) result.startAddress,
+                              L"the origin still places the image, because the section produced nothing");
+            Assert::IsTrue (result.bytes == expected, L"and the one byte written is the whole object");
         }
 
 
@@ -2556,6 +2626,28 @@ namespace MerlinDirectiveTests
 
             Assert::IsTrue (result.errors[0].message.find ("DUM") != std::string::npos,
                             L"named in the spelling the source actually wrote");
+        }
+
+
+
+        //  Deferred exactly as the unclosed loop is, and captured for the same
+        //  reason: the ambient file and column belong to whatever was processed
+        //  last, which by then is a line in another file entirely.
+        TEST_METHOD (AnUnclosedSectionInsideAnIncludedFileNamesThatFileAndColumn)
+        {
+            MockFileReader  reader;
+            AssemblyResult  result;
+
+            reader.files["T.PART"] = "* layout\n DUM $20\nPTR DS 2\n";
+
+            result = MerlinAssemblyFixture::AssembleMerlinWithReader (" PUT PART\n DFB $11\n", reader);
+
+            Assert::AreEqual ((size_t) 1, result.errors.size(),
+                              MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::AreEqual (std::string ("T.PART"), result.errors[0].file,
+                              L"attributed to the file the section opened in");
+            Assert::AreEqual (2, result.errors[0].lineNumber, L"and to the line inside that file");
+            Assert::AreEqual (2, result.errors[0].column, L"and to the column the opening directive sits at");
         }
 
 
