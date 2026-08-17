@@ -78,9 +78,36 @@ Get-FileHash DevDisks\Merlin-proDos2.23.dsk -Algorithm SHA256
 
 Batch aggressively. Put **many constructs in one composite source file** rather
 than one file per construct: assemble once, save the object once, extract once,
-and split by known offsets. A handful of composites covers the whole
-FR-007..FR-015 floor; one file per construct multiplies the slowest step by
-twenty.
+and split by known offsets. A handful of composites covers the whole floor; one
+file per construct multiplies the slowest step by twenty.
+
+**Split by a MARKER, not by counting.** Put a distinctive run between the
+sections — `HEX DEADBEEF` is four bytes that no ASCII payload produces — and the
+object splits programmatically. Counting bytes by hand is where a
+self-consistent-and-wrong entry gets made, and the marker costs one line per
+section.
+
+Splitting is only sound where the sections are **position independent**. Data
+directives with no labels and no branches assemble to identical bytes wherever
+they sit, so each split segment can be committed as a standalone source. A
+section containing a branch, a program-counter reference, or a label another
+section uses cannot be split out; keep those together as one entry.
+
+The composites that were actually used, and what each one bought:
+
+| Composite | Lines | Yielded |
+|---|---:|---|
+| strings | 21 | 11 entries — all six encodings, both delimiters, quoted spaces, a trailing hex run |
+| expressions | 14 | 3 entries — the operator set, character constants, both word orders |
+| structure | 19 | 1 entry — loop, dummy section, conditional, assembly-time assertion |
+| symbols | 16 | 1 entry — locals under two globals, a reassigned variable, `?` in a name |
+| macros | 23 | 1 entry — definition fall-through and the first-character conditional |
+| explicit calls | 12 | 1 entry — both invocation spellings, with and without arguments |
+| inclusion | 4 + 4 | 1 entry — plus the text file it reads |
+| line model | 4 | 1 entry — and the answer to whether the editor normalizes |
+
+Eight typing sessions for twenty entries, and four of the eight also settled a
+question that was open in the artifacts.
 
 ### 2. Get it onto the disk
 
@@ -168,6 +195,52 @@ typed been valid under either spelling, subtly wrong source would have been
 entered, assembled faithfully, and its bytes captured. The entry would have been
 perfectly self-consistent and tested the wrong thing, and **none of the five
 automated axes would have caught it**.
+
+#### A second gap, and this one automation cannot even see
+
+The residual gap above is about a paste that garbled. There is another, and it is
+narrower and more certain: **Merlin's editor uppercases symbol text as it is
+typed.** `Mixed = $22` is stored on the disk as `MIXED = $22`.
+
+So symbol **case sensitivity cannot be settled through the editor at all**. The
+case is destroyed before the assembler ever sees the line, and every capture that
+goes in this way will agree with every other one regardless of what the assembler
+does. Answering it needs a source file placed on the disk by some route other
+than the editor, which is disk write support this project does not have yet.
+
+Recorded here rather than left as an open question, because a capture that
+*cannot* discriminate looks exactly like one that discriminated and agreed.
+
+### What driving the editor actually costs
+
+Learned by doing it, and each of these cost a wasted cycle.
+
+- **The source name gets `.S` appended and the text name gets `T.` prepended.**
+  Saving as `PROBE.S` produces `PROBE.S.S`; writing a text file as `T.MYMAC`
+  produces `T.T.MYMAC`. Give the bare name both times.
+- **The distribution disk has very little free space.** Fifteen or so small
+  captures fill it, and the failure arrives as `DISK FULL` at the object-save
+  prompt — *after* an assembly whose bytes are then unreachable. Delete as you
+  go. Merlin's own Quit drops to BASIC where `DELETE <name>` works, and
+  `BRUN MERLIN` comes back to the menu with an empty buffer.
+- **Give every object a name that has never been on the disk.** It is strictly
+  stronger than deleting the target first and costs nothing: absence beforehand
+  is then guaranteed rather than checked, and presence afterwards still proves
+  *this* assembly wrote it. Run the absence check anyway — it is what turns "did
+  Merlin succeed?" into something the extraction step asserts.
+- **Know which prompt Merlin is at before driving it.** `%` is the main menu,
+  `:` is the editor's command level. At the editor prompt `E` is the line-edit
+  command, not "enter the editor", so a script that assumes the menu appends its
+  lines to whatever was already in the buffer. That assembles clean and captures
+  one composite's bytes under the next composite's name — the exact
+  self-consistent-and-wrong failure the freshness rule exists to prevent, arriving
+  by a different door.
+- **An assembly error does not always continue.** Some diagnostics end the
+  assembly on the spot, so only the FIRST bad line is ever reported. Put anything
+  you are unsure of last, or in a composite of its own.
+- **Answer the update-source prompt `N` if the source is already saved.** `Y`
+  re-saves and the listing does not appear, which reads exactly like an assembly
+  that produced nothing.
 
 ### 4. Delete the target object file — required, not advice
 

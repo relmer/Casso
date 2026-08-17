@@ -1950,4 +1950,619 @@ namespace MerlinCorpusTests
             return wide;
         }
     };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  CapturedEntry
+    //
+    //  Source authored HERE, paired with the bytes real Merlin produced from it.
+    //
+    //  The vendor oracles above can only test what Bredon happened to write. These
+    //  cover what he did not: the three string encodings his disk never uses, the
+    //  low-ASCII delimiter, the reversed-word directive, the loop and the dummy
+    //  section, and every construct whose only evidence would otherwise be the
+    //  manual.
+    //
+    //  How they were captured, because it decides what a failure here means. Each
+    //  group was typed into Merlin's own editor under emulation, saved to a WORK
+    //  COPY of the disk, assembled with the listing on, and the object read back
+    //  off the disk. The source committed here is the copy read BACK, not the text
+    //  that was typed -- the disk copy is what Merlin assembled, so it is the only
+    //  text guaranteed to correspond to the bytes beside it. Every one of them
+    //  round-tripped clean, which also settles a question that had been open: the
+    //  editor stores what is typed byte for byte and normalizes nothing.
+    //
+    //  The string rows were split from ONE assembly. A single composite carried all
+    //  eleven forms separated by a four-byte marker, so one typing session and one
+    //  object yielded eleven independently named expectations. That is sound here
+    //  and only here: the rows are pure data directives with no labels and no
+    //  branches, so a segment assembled on its own produces the identical bytes.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    struct CapturedEntry
+    {
+        const char             *  name;
+        const char             *  source;
+        int                       loadAddress;
+        std::span<const Byte>     expected;
+        const char             *  merlinVersion;
+        bool                      discriminates;
+    };
+
+
+
+    //  One machine, one session, one version. Recorded per row rather than once,
+    //  because edge semantics differ across Merlin revisions and a row captured
+    //  later on another disk has to be able to say so.
+    static constexpr const char *  s_kpszCaptureVersion = "Merlin Pro 2.23";
+
+
+
+    //  The six string encodings. Only three of them have any vendor oracle at all:
+    //  the disk uses DCI, ASC and one REV, and contains no INV with an object, no
+    //  FLS and no STR anywhere.
+    static constexpr Byte  s_kAscHighBytes[]  = { 0xC1, 0xC2, 0xC3 };
+    static constexpr Byte  s_kInverseBytes[]  = { 0x01, 0x02, 0x03 };
+    static constexpr Byte  s_kFlashingBytes[] = { 0x41, 0x42, 0x43 };
+    static constexpr Byte  s_kLengthBytes[]   = { 0x03, 0xC1, 0xC2, 0xC3 };
+    static constexpr Byte  s_kReversedBytes[] = { 0xC3, 0xC2, 0xC1 };
+    static constexpr Byte  s_kAscLowBytes[]   = { 0x41, 0x42, 0x43 };
+
+    //  The pair the vendor corpus provably CANNOT settle. Every DCI on the disk is
+    //  high-ASCII, so its terminator always ends up with bit 7 clear and an
+    //  implementation that CLEARS rather than inverts reproduces all 984 bytes of
+    //  LABELS exactly. Only a low-ASCII string tells the two apart, and the disk
+    //  holds none -- so these two rows are the whole of the evidence.
+    static constexpr Byte  s_kDciHighBytes[]  = { 0xC1, 0xC2, 0x43 };
+    static constexpr Byte  s_kDciLowBytes[]   = { 0x41, 0x42, 0xC3 };
+
+    //  Spaces inside the quotes are payload, not separators -- a whitespace-ended
+    //  operand scanner truncates this and changes emitted data without a word.
+    static constexpr Byte  s_kQuotedSpaceBytes[] = { 0xA0, 0xC1, 0xC2, 0xA0, 0xC3, 0xA0 };
+
+    //  The delimiter is whatever character follows the directive, chosen here so
+    //  the text can contain a quote.
+    static constexpr Byte  s_kOwnDelimiterBytes[] = { 0xC1, 0xC2, 0xA2, 0xC3, 0xC4 };
+
+    //  Hexadecimal digits after the closing delimiter, emitted verbatim -- the
+    //  trailing run does NOT go through the delimiter's high-bit convention, which
+    //  the 00 staying 00 is what proves.
+    static constexpr Byte  s_kTrailingHexBytes[] = { 0xC1, 0xC2, 0x8D, 0x00 };
+
+    //  Every value here is hand-derivable from the manual, and was derived before
+    //  the capture rather than read off it: 2+3*4 is 20 because evaluation is
+    //  strictly left to right, 1+2!3 is 0 because ! is exclusive-or, 4.1 is 5
+    //  because . is inclusive-or, and the reversed-order word puts its HIGH byte
+    //  first. Agreement is what discharges the "did the emulator run Merlin
+    //  correctly on the day" question rather than leaving it assumed.
+    static constexpr Byte  s_kExpressionBytes[] = { 0x14, 0x05, 0x00, 0x05, 0x30, 0x05, 0x10, 0x07, 0x0A };
+
+    //  A character constant, in both of Merlin's spellings. The double-quoted form
+    //  is HIGH ascii and the apostrophe form is low -- the same convention the
+    //  string directives take from their delimiter, applied to one character.
+    static constexpr Byte  s_kHighAsciiCharBytes[] = { 0xC1 };
+    static constexpr Byte  s_kLowAsciiCharBytes[]  = { 0x41 };
+
+    //  A negative literal, and the two word directives side by side so the byte
+    //  order of each is stated against the other. Neither value is a palindrome,
+    //  since a palindrome satisfies both orders and proves only that two bytes
+    //  came out.
+    static constexpr Byte  s_kWordDataBytes[] = { 0xFF, 0x34, 0x12, 0x12, 0x34 };
+
+    //  The loop, the dummy section, the conditional and the assembly-time
+    //  assertion. No vendor source uses the loop or the dummy section at all, so
+    //  before this row there was no oracle for either.
+    static constexpr Byte  s_kStructureBytes[] =
+    {
+        0xEA, 0xEA, 0xEA, 0xA5, 0x50, 0xA5, 0x52, 0x60,
+        0x00, 0x00, 0x00, 0x00, 0x01, 0x02,
+    };
+
+    //  Local labels reused under two different globals, a variable symbol
+    //  reassigned between two references, a question mark inside a label, and a
+    //  symbol at the longest length Merlin accepts.
+    static constexpr Byte  s_kSymbolBytes[] =
+    {
+        0xA9, 0x00, 0x85, 0x00, 0xD0, 0xFC, 0xA9, 0x01,
+        0x85, 0x01, 0xD0, 0xFC, 0xA9, 0x10, 0xA9, 0x20,
+        0xA9, 0x7F, 0xA9, 0x11, 0x06,
+    };
+
+    //  A macro definition with no terminator of its own falling into the next, and
+    //  the first-character conditional macros dispatch addressing modes with.
+    static constexpr Byte  s_kMacroBytes[] = { 0x8A, 0x18, 0x65, 0x10, 0x18, 0x65, 0x20, 0xEA, 0xE8, 0xC8 };
+
+    //  Both explicit invocation spellings, with and without arguments.
+    static constexpr Byte  s_kExplicitCallBytes[] = { 0xEA, 0xEA, 0xA5, 0x10, 0x85, 0x20, 0xA5, 0x30, 0x85, 0x40 };
+
+    //  The line model, settled empirically rather than from the manual. A run of
+    //  whitespace is ONE separator however long it is, and a fourth field is a
+    //  comment whatever character starts it -- the semicolon is not required.
+    static constexpr Byte  s_kLineModelBytes[] = { 0xA9, 0x41, 0xA9, 0x42, 0xA9, 0x43, 0xA9, 0x44 };
+
+    //  One inclusion, served through the mock reader rather than from the table --
+    //  see the test below, which also asserts the name that was REQUESTED.
+    static constexpr Byte  s_kInclusionBytes[] = { 0x18, 0x65, 0x11, 0x18, 0x65, 0x22 };
+
+
+
+    static constexpr CapturedEntry  s_kCapturedCorpus[] =
+    {
+        { "ASC high ASCII",        " ASC \"ABC\"\n",      0x8000, s_kAscHighBytes,      s_kpszCaptureVersion, true  },
+        { "DCI high ASCII",        " DCI \"ABC\"\n",      0x8000, s_kDciHighBytes,      s_kpszCaptureVersion, true  },
+        { "INV",                   " INV \"ABC\"\n",      0x8000, s_kInverseBytes,      s_kpszCaptureVersion, true  },
+        { "FLS",                   " FLS \"ABC\"\n",      0x8000, s_kFlashingBytes,     s_kpszCaptureVersion, true  },
+        { "STR",                   " STR \"ABC\"\n",      0x8000, s_kLengthBytes,       s_kpszCaptureVersion, true  },
+        { "REV",                   " REV \"ABC\"\n",      0x8000, s_kReversedBytes,     s_kpszCaptureVersion, true  },
+        { "ASC low ASCII",         " ASC 'ABC'\n",        0x8000, s_kAscLowBytes,       s_kpszCaptureVersion, true  },
+        { "DCI low ASCII",         " DCI 'ABC'\n",        0x8000, s_kDciLowBytes,       s_kpszCaptureVersion, true  },
+        { "quoted spaces",         " ASC \" AB C \"\n",   0x8000, s_kQuotedSpaceBytes,  s_kpszCaptureVersion, true  },
+        { "source-chosen delimiter", " ASC !AB\"CD!\n",   0x8000, s_kOwnDelimiterBytes, s_kpszCaptureVersion, true  },
+        { "trailing hexadecimal",  " ASC \"AB\"8D00\n",   0x8000, s_kTrailingHexBytes,  s_kpszCaptureVersion, true  },
+
+        {
+            "expression operators",
+            " ORG $1000\n"
+            " DFB 2+3*4\n"
+            " DFB 8/2+1\n"
+            " DFB 1+2!3\n"
+            " DFB 4.1\n"
+            " DFB $F0&$3C\n"
+            " DA *\n"
+            " DFB *-$1000\n"
+            " DFB %1010\n",
+            0x1000, s_kExpressionBytes, s_kpszCaptureVersion, true,
+        },
+        { "low-ASCII character constant", " DFB 'A'\n", 0x8000, s_kLowAsciiCharBytes, s_kpszCaptureVersion, true },
+        {
+            "negative literal and both word orders",
+            " DFB -1\n"
+            " DA $1234\n"
+            " DDB $1234\n",
+            0x8000, s_kWordDataBytes, s_kpszCaptureVersion, true,
+        },
+        {
+            "structure",
+            " ORG $2000\n"
+            "COUNT = 3\n"
+            " LUP 3\n"
+            " NOP\n"
+            " --^\n"
+            " DUM $50\n"
+            "DPTR DS 2\n"
+            "DFLG DS 1\n"
+            " DEND\n"
+            " LDA DPTR\n"
+            " LDA DFLG\n"
+            " DO COUNT-3\n"
+            " BRK\n"
+            " ELSE\n"
+            " RTS\n"
+            " FIN\n"
+            " ERR *-*\n"
+            " DS 4\n"
+            " HEX 0102\n",
+            0x2000, s_kStructureBytes, s_kpszCaptureVersion, true,
+        },
+        {
+            "symbols",
+            " ORG $2100\n"
+            "GLOB LDA #$00\n"
+            ":LOC STA $00\n"
+            " BNE :LOC\n"
+            "GLOB2 LDA #$01\n"
+            ":LOC STA $01\n"
+            " BNE :LOC\n"
+            "]V = $10\n"
+            " LDA #]V\n"
+            "]V = $20\n"
+            " LDA #]V\n"
+            "CMD? = $7F\n"
+            " LDA #CMD?\n"
+            "A234567890123 = $11\n"
+            " LDA #A234567890123\n"
+            " DFB GLOB2-GLOB\n",
+            0x2100, s_kSymbolBytes, s_kpszCaptureVersion, true,
+        },
+        {
+            //  The only row whose constructs are shared with the other dialect --
+            //  an immediate load and a label. It carries the flag CLEAR
+            //  deliberately, so the sweep below has a row that exercises the
+            //  conditional's other branch rather than being a loop with a
+            //  condition nothing ever fails.
+            "line model",
+            " LDA #$41\n"
+            "  LDA #$42\n"
+            "LBL   LDA #$43\n"
+            " LDA #$44 THIS IS A COMMENT\n",
+            0x8000, s_kLineModelBytes, s_kpszCaptureVersion, false,
+        },
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  PendingCapture
+    //
+    //  Bytes captured from real Merlin for a construct Casso does not yet
+    //  reproduce. The evidence is committed HERE rather than held outside the
+    //  suite, because a capture living in a document is a capture nobody re-runs.
+    //
+    //  The sweep over these asserts each one still DIVERGES, and that is the whole
+    //  design: implementing the construct makes this table's test fail, which
+    //  forces the row to be moved up into the corpus proper rather than left
+    //  behind as a stale note claiming a gap that has been closed. It is the same
+    //  shape as pinning a known rejection count at its measured value.
+    //
+    //  Every row was captured the same way as the corpus above, so none of them is
+    //  a guess about what Merlin would do.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    struct PendingCapture
+    {
+        const char             *  name;
+        const char             *  source;
+        std::span<const Byte>     expected;
+        const char             *  merlinVersion;
+        const char             *  divergence;
+    };
+
+
+
+    static constexpr PendingCapture  s_kPendingCaptures[] =
+    {
+        {
+            //  Merlin's byte directive takes an EXPRESSION, and a double-quoted
+            //  single character in one is a high-ASCII character constant. Casso
+            //  routes a quoted argument to the other dialect's string-literal
+            //  path, so the same line emits low ASCII.
+            "high-ASCII character constant in a byte directive",
+            " DFB \"A\"\n",
+            s_kHighAsciiCharBytes,
+            s_kpszCaptureVersion,
+            "a quoted argument reaches the other dialect's string path and emits low ASCII",
+        },
+        {
+            //  The first-character conditional. Its spelling is absent from the
+            //  Merlin directive table entirely, which is why the macro body's
+            //  terminator is never reached and the definition reads as unclosed.
+            //
+            //  Not a rarity: the distribution disk's own macro library uses it
+            //  thirteen times, and it is how a Merlin macro dispatches on
+            //  addressing mode. It went unnoticed because that library is not one
+            //  of the two committed as fixtures.
+            "first-character conditional inside a macro",
+            "ADDX MAC\n"
+            " TXA\n"
+            "ADDA MAC\n"
+            " CLC\n"
+            " ADC ]1\n"
+            " <<<\n"
+            "DISP MAC\n"
+            " IF (=]1\n"
+            " NOP\n"
+            " ELSE\n"
+            " IF #=]1\n"
+            " INX\n"
+            " ELSE\n"
+            " INY\n"
+            " FIN\n"
+            " FIN\n"
+            " <<<\n"
+            " ORG $2200\n"
+            " ADDX $10\n"
+            " ADDA $20\n"
+            " DISP (ZZ),Y\n"
+            " DISP #5\n"
+            " DISP QQQ\n",
+            s_kMacroBytes,
+            s_kpszCaptureVersion,
+            "the first-character conditional has no spelling in the Merlin directive table",
+        },
+        {
+            //  Three separate facts, all measured, and all three contradict what
+            //  the implementation currently assumes. Merlin takes the macro NAME
+            //  from the operand field and its arguments from the field after it,
+            //  so the name is separated from the arguments by a SPACE and only the
+            //  arguments are separated from each other by the macro separator.
+            //  The prefix written flush against the name is refused outright, and
+            //  the word form of the prefix is accepted and behaves identically.
+            "explicit macro invocation",
+            "NOPS MAC\n"
+            " NOP\n"
+            " <<<\n"
+            "MOV2 MAC\n"
+            " LDA ]1\n"
+            " STA ]2\n"
+            " <<<\n"
+            " ORG $2300\n"
+            " >>> NOPS\n"
+            " PMC NOPS\n"
+            " >>> MOV2 $10;$20\n"
+            " PMC MOV2 $30;$40\n",
+            s_kExplicitCallBytes,
+            s_kpszCaptureVersion,
+            "the name is taken up to the macro separator rather than up to the field break, and the word form is unimplemented",
+        },
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinCapturedCorpusTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinCapturedCorpusTests)
+    {
+    public:
+
+        //  The absent-corpus guard, first, because every sweep below is a loop and
+        //  a loop over an empty table reports success having compared nothing.
+        TEST_METHOD (TheCapturedCorpusIsNotEmpty)
+        {
+            Assert::IsTrue (std::size (s_kCapturedCorpus) >= 15,
+                            L"the captured corpus must cover the constructs the vendor disk never uses");
+
+            for (const CapturedEntry & entry : s_kCapturedCorpus)
+            {
+                Assert::IsFalse (entry.expected.empty(),
+                                 Widen (std::string (entry.name) + ": an empty expectation compares nothing").c_str());
+                Assert::IsNotNull (entry.merlinVersion,
+                                   L"a captured entry without a version stamp cannot say what produced it");
+            }
+        }
+
+
+
+        //  Every string encoding is present exactly once, asserted rather than
+        //  eyeballed. Three of the six have no vendor oracle at all, so a row
+        //  quietly dropped here would take the only evidence for that spelling
+        //  with it and every remaining test would stay green.
+        TEST_METHOD (EveryStringEncodingHasACapturedEntry)
+        {
+            for (const char * spelling : { "ASC", "DCI", "INV", "FLS", "STR", "REV" })
+            {
+                size_t  found = 0;
+
+                for (const CapturedEntry & entry : s_kCapturedCorpus)
+                {
+                    if (std::string (entry.source).find (std::string (" ") + spelling + " ") != std::string::npos)
+                    {
+                        found++;
+                    }
+                }
+
+                Assert::IsTrue (found > 0,
+                                Widen (std::string (spelling) + " has no captured entry, and half the family has no vendor oracle either").c_str());
+            }
+        }
+
+
+
+        TEST_METHOD (EveryCapturedEntryAssemblesToTheBytesMerlinProduced)
+        {
+            for (const CapturedEntry & entry : s_kCapturedCorpus)
+            {
+                AssemblyResult     result   = Assemble (entry, DialectId::Merlin);
+                std::vector<Byte>  expected (entry.expected.begin(), entry.expected.end());
+                CorpusComparison   compared = CorpusHarness::Compare (expected, result.bytes);
+
+                Assert::IsTrue (result.errors.empty(), Diagnose (entry, result).c_str());
+
+                Assert::IsTrue (compared.verdict == CorpusVerdict::Match,
+                                Widen (CorpusHarness::Describe (entry.name, compared)
+                                       + At (compared, expected, result.bytes)).c_str());
+
+                //  Half the claim. A wrong default origin yields byte-perfect
+                //  output in the wrong place, which reads as a far deeper problem
+                //  than it is -- and eleven of these rows name no origin at all.
+                Assert::AreEqual (entry.loadAddress, static_cast<int> (result.startAddress),
+                                  Widen (std::string (entry.name) + " must load where Merlin put it").c_str());
+            }
+        }
+
+
+
+        //  The vacuity guard. Labels, origin, literals and the evaluator are SHARED
+        //  between the dialects, so an entry built from those alone is green
+        //  whether the Merlin profile works or is never consulted at all.
+        TEST_METHOD (EveryDiscriminatingCapturedEntryFailsUnderAs65)
+        {
+            size_t  discriminating = 0;
+            size_t  shared         = 0;
+
+            for (const CapturedEntry & entry : s_kCapturedCorpus)
+            {
+                if (!entry.discriminates)
+                {
+                    shared++;
+                    continue;
+                }
+
+                AssemblyResult     result   = Assemble (entry, DialectId::As65);
+                std::vector<Byte>  expected (entry.expected.begin(), entry.expected.end());
+                CorpusComparison   compared = CorpusHarness::Compare (expected, result.bytes);
+
+                discriminating++;
+
+                Assert::IsTrue (!result.errors.empty() || compared.verdict != CorpusVerdict::Match,
+                                Widen (std::string (entry.name)
+                                       + " reproduces its bytes under AS65 too, so it tests nothing about the dialect").c_str());
+            }
+
+            //  Both counts, because the conditional above is only a conditional if
+            //  each branch is reached. A table where every row discriminates makes
+            //  this an unconditional sweep and nothing says so.
+            Assert::IsTrue (discriminating > 0, L"no captured entry claims a Merlin construct");
+            Assert::IsTrue (shared > 0, L"no captured entry leaves the flag clear, so the false branch is never taken");
+        }
+
+
+
+        //  Every pending row must still DIVERGE. The assertion runs in that
+        //  direction on purpose: implementing one of these constructs turns this
+        //  test red, which is what forces the row to be moved into the corpus
+        //  above instead of being left behind claiming a gap that is closed.
+        //
+        //  Divergence means the bytes differ or the source is refused. Both count,
+        //  because a construct that is not implemented can fail either way and the
+        //  claim being pinned is "Casso does not yet reproduce this", not "Casso
+        //  produces this particular wrong answer".
+        TEST_METHOD (EveryPendingCaptureStillDiverges)
+        {
+            Assert::IsTrue (std::size (s_kPendingCaptures) > 0,
+                            L"an empty pending table is not evidence that nothing is pending");
+
+            for (const PendingCapture & pending : s_kPendingCaptures)
+            {
+                CapturedEntry      entry    = { pending.name, pending.source, 0, pending.expected,
+                                                pending.merlinVersion, true };
+                AssemblyResult     result   = Assemble (entry, DialectId::Merlin);
+                std::vector<Byte>  expected (pending.expected.begin(), pending.expected.end());
+                CorpusComparison   compared = CorpusHarness::Compare (expected, result.bytes);
+
+                Assert::IsTrue (!result.errors.empty() || compared.verdict != CorpusVerdict::Match,
+                                Widen (std::string (pending.name)
+                                       + " now reproduces its captured bytes -- move it into the corpus. Recorded divergence: "
+                                       + pending.divergence).c_str());
+            }
+        }
+
+
+
+        //  Inclusion, which the table cannot hold because it needs two sources.
+        //  The name REQUESTED is asserted beside the bytes: Merlin resolves the
+        //  operand by prepending a prefix, so an assembler asking for the name as
+        //  written would find nothing and the mock would report a missing file
+        //  rather than the wrong include.
+        TEST_METHOD (AnIncludedMacroLibraryExpandsToTheBytesMerlinProduced)
+        {
+            MockFileReader     reader;
+            TestCpu            cpu;
+            AssemblerOptions   options  = {};
+            std::vector<Byte>  expected (std::begin (s_kInclusionBytes), std::end (s_kInclusionBytes));
+
+            reader.files["T.MYMAC"] = "MYADD MAC\n"
+                                      " CLC\n"
+                                      " ADC ]1\n"
+                                      " <<<\n";
+
+            cpu.InitForTest();
+            options.dialect    = DialectId::Merlin;
+            options.fileReader = &reader;
+
+            {
+                Assembler       assembler (cpu.GetInstructionSet(), options);
+                AssemblyResult  result   = assembler.Assemble (" ORG $2400\n"
+                                                               " USE MYMAC\n"
+                                                               " MYADD $11\n"
+                                                               " MYADD $22\n");
+                CorpusComparison  compared = CorpusHarness::Compare (expected, result.bytes);
+
+                Assert::IsTrue (result.errors.empty(), FirstDiagnostic (result).c_str());
+                Assert::IsTrue (compared.verdict == CorpusVerdict::Match,
+                                Widen (CorpusHarness::Describe ("inclusion", compared)).c_str());
+                Assert::AreEqual (1, reader.CountRequests ("T.MYMAC"),
+                                  L"the operand names MYMAC and the file is T.MYMAC -- the prefix is the dialect's, not the caller's");
+            }
+        }
+
+
+
+    private:
+
+        static AssemblyResult Assemble (const CapturedEntry & entry, DialectId dialect)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+            AssemblyResult    result;
+
+            cpu.InitForTest();
+            options.dialect = dialect;
+
+            {
+                Assembler  assembler (cpu.GetInstructionSet(), options);
+
+                result = assembler.Assemble (entry.source);
+            }
+
+            return result;
+        }
+
+
+
+        static std::wstring Widen (const std::string & text)
+        {
+            return std::wstring (text.begin(), text.end());
+        }
+
+
+
+        //  The two bytes that disagree, which is what turns "offset 9" into a
+        //  statement about the construct on that line. An offset alone sends the
+        //  reader counting bytes in the source by hand.
+        static std::string At (const CorpusComparison & compared,
+                               const std::vector<Byte> & expected,
+                               const std::vector<Byte> & actual)
+        {
+            std::string  text;
+            char         line[64] = {};
+
+            if (!compared.hasFirstDifference)
+            {
+                return text;
+            }
+
+            if (compared.firstDifference < expected.size() && compared.firstDifference < actual.size())
+            {
+                sprintf_s (line, " -- Merlin wrote $%02X, Casso wrote $%02X",
+                           expected[compared.firstDifference], actual[compared.firstDifference]);
+                text = line;
+            }
+
+            return text;
+        }
+
+
+
+        static std::wstring FirstDiagnostic (const AssemblyResult & result)
+        {
+            std::string  text = "assembled clean";
+
+            if (!result.errors.empty())
+            {
+                text = "line " + std::to_string (result.errors[0].lineNumber) + ": " + result.errors[0].message
+                     + " (" + std::to_string (result.errors.size()) + " total)";
+            }
+
+            return Widen (text);
+        }
+
+
+
+        static std::wstring Diagnose (const CapturedEntry & entry, const AssemblyResult & result)
+        {
+            std::string  text = std::string (entry.name) + " (" + entry.merlinVersion + "): ";
+
+            if (result.errors.empty())
+            {
+                text += "assembled clean";
+            }
+            else
+            {
+                text += "line " + std::to_string (result.errors[0].lineNumber) + ": " + result.errors[0].message
+                      + " (" + std::to_string (result.errors.size()) + " total)";
+            }
+
+            return Widen (text);
+        }
+    };
 }

@@ -295,7 +295,46 @@ signal — a bare `RETURN` both adds a line and exits, so an incrementing counte
 proves nothing. Several wrong state inferences earlier came from reading the
 counter; the prompt was visible in the same screenshots all along.
 
-## T021d, partially settled: does Merlin's editor normalize?
+## Settled by capture: does Merlin's editor normalize what it stores?
+
+**No. The editor stores what was typed, byte for byte.** Settled on the first
+entry, as the procedure asks, and the loop was closed rather than inferred: four
+lines were typed into the editor, saved to the disk, extracted, and compared
+against the text that was sent.
+
+```
+ LDA #$41        A0 CC C4 C1 A0 A3 A4 B4 B1 8D
+  LDA #$42       A0 A0 CC C4 C1 A0 A3 A4 B4 B2 8D
+LBL   LDA #$43   CC C2 CC A0 A0 A0 CC C4 C1 A0 A3 A4 B4 B3 8D
+```
+
+Two leading spaces are stored as two spaces; three spaces after a label are
+stored as three. There is no column padding, no whitespace collapsing, and no
+tab expansion — the display's tab stops are the editor's rendering and nothing
+more. High-bit ASCII with `$8D` terminators, type B at `$0901`, exactly as the
+vendor sources are stored.
+
+Every composite captured afterwards round-tripped clean, so this is nine
+independent confirmations rather than one.
+
+**One exception, and it is the editor rather than the language: symbol text is
+UPPERCASED on entry.** `Mixed = $22` is stored as `MIXED = $22`. The consequence
+is that **symbol case sensitivity cannot be settled through the editor at all** —
+the case is destroyed before the assembler sees the line. Answering it needs a
+source file placed on the disk by another route, which is disk write support this
+project does not yet have. Recorded as the one gap capture cannot close by
+itself.
+
+**A defect in the checking tool was found doing this, and it mattered.** The
+round-trip comparison in `scripts/CaptureMerlinCorpus.ps1` read the extracted
+type-B source as plain ASCII. Every byte carries bit 7, so the whole file decoded
+to question marks, and a file of question marks compares unequal to everything —
+the check reported DIFFERS for a perfect round trip in exactly the words it used
+for a total garble. A comparison that cannot pass is not a loose guard; it is no
+guard at all, and it had been in place since the script was written. Fixed by
+masking bit 7 before comparing.
+
+### The earlier state of this question, kept because the reasoning was sound
 
 **Established.** Merlin's editor **tabs fields to fixed display columns**. Typing
 `LABEL   LDA #$41` with three spaces renders `LDA` far beyond three spaces out,
@@ -351,6 +390,132 @@ interactively and report the exact working sequence.
 Everything either side of this transition is proven: Merlin boots, the editor
 accepts typed source with correct shifted characters, control characters reach
 it, and extraction works.
+
+## The settle-by-capture answers
+
+Every answer below was measured against Merlin Pro 2.23 running under Casso, on a
+work copy of the distribution disk. Each composite was typed into Merlin's own
+editor, saved, assembled with the listing on, and its object read back off the
+disk; the source committed beside the bytes is the copy read back. Where a byte
+count could be derived by hand from the manual before the capture, it was, and it
+agreed — which is what discharges the "did the emulator run Merlin correctly on
+the day" question rather than leaving it assumed.
+
+### The line model: a whitespace RUN is one separator
+
+Merlin **collapses** a run of whitespace. `  LDA #$42` with two leading spaces
+assembles as an ordinary instruction, and `LBL   LDA #$43` with three spaces
+after the label assembles as a label plus an instruction. Neither pushes the
+mnemonic into a later field, though the editor's display shows it at a later
+tab stop — which is exactly the trap: the screen says one thing and the bytes say
+another.
+
+### A fourth field is a comment whatever starts it
+
+` LDA #$44 THIS IS A COMMENT` assembles clean, with the four ordinary words in
+the fourth field taken as a comment. The semicolon is **not** required; it is
+comment-by-position. Pinned as a corpus entry either way, so a later change that
+starts requiring the semicolon is a failure rather than a surprise.
+
+### There is NO CPU-target reset form
+
+The question was whether a reset spelling exists, because one would make the
+target a two-way state rather than the one-way widening the design assumes.
+
+```
+ XC            selects the wider processor
+ PHX           assembles -- $DA
+ XC OFF        accepted, no diagnostic
+ PHX           still assembles -- $DA
+```
+
+`XC OFF` draws no error and changes nothing: the wider set stays selected. So the
+one-way transition stands and **no amendment to the state model is needed**.
+
+What it does settle is a divergence in the other direction: Casso **refuses** an
+operand on this directive, and real Merlin accepts and ignores one. That is
+source real Merlin assembles and Casso rejects.
+
+### Symbols are significant to 13 characters, and a 14th is an error
+
+Not truncation — a hard `Bad label`. Measured by defining names of 13, 14, 15 and
+16 characters: the 13-character name lands in the symbol table, the other three
+draw `Bad label` and every reference to them then draws `Unknown label`.
+
+### The delimiter's high-bit rule, and the case the vendor disk cannot reach
+
+`ASC 'ABC'` produces `41 42 43` — the apostrophe gives **low** ASCII, which no
+file on the distribution disk uses anywhere, so the rule had been implemented
+from documentation.
+
+More importantly `DCI 'ABC'` produces `41 42 C3`. That is the pair the vendor
+corpus provably cannot settle: every `DCI` on the disk is high-ASCII, so its
+terminator always ends up with bit 7 clear and an implementation that CLEARS
+rather than INVERTS reproduces all 984 bytes of `LABELS` exactly. The low-ASCII
+case is the only thing that tells them apart, and it now exists.
+
+### The three string encodings with no vendor oracle
+
+| Spelling | Captured | Bytes for `"ABC"` |
+|---|---|---|
+| `INV` | yes | `01 02 03` |
+| `FLS` | yes | `41 42 43` |
+| `STR` | yes | `03 C1 C2 C3` — a length byte, then high ASCII |
+
+### Explicit macro invocation — three facts, all contradicting the guess
+
+The implementation carried this as UNVERIFIED, and every part of it is now
+measured and wrong:
+
+| Written | Result |
+|---|---|
+| `>>>NOPS` flush against the name | **refused** — `Not macro` |
+| `>>> NOPS` with the name in the operand field | accepted |
+| `PMC NOPS` | accepted, identical behavior |
+| `PMC ADDA;$30`, name and argument joined by the separator | **refused** — `Not macro` |
+| `>>> MOV2 $10;$20` | accepted, both arguments bound |
+
+So Merlin takes the macro **name from the operand field** and its **arguments
+from the field after it**: the name is separated from the arguments by a space,
+and only the arguments are separated from each other by the macro separator. The
+flush form is refused outright, and the word form of the prefix is a real
+spelling rather than documentation.
+
+### `PUT` and `USE` are not one operation
+
+`USE MYMAC` reads `T.MYMAC` and its macro definitions take effect. `PUT MYMAC`
+against the identical file **silently does nothing** — no diagnostic, and the
+macro is then undefined at its first call. Both spellings resolve the same
+filename; what differs is what the included text is allowed to contribute.
+
+### The first-character conditional exists and is absent from the implementation
+
+Merlin's macros dispatch on addressing mode with `IF <char>=]n`, and it works:
+
+```
+DISP MAC
+ IF (=]1
+ NOP
+ ELSE
+ IF #=]1
+ INX
+ ...
+```
+
+The spelling is **missing from the Merlin directive table entirely**. It is not a
+rarity — the distribution disk's own `T.MACRO LIBRARY` uses it thirteen times, in
+`MOVD`, `LDHI`, `ADD`, `SUB` and `PRINT`. It went unnoticed because that library
+is not one of the two committed as fixtures, and because no committed source
+reaches it.
+
+The same file also corrects a detail the task list had wrong: `MOVD`'s nesting is
+**three** deep, not five.
+
+### Merlin's byte directive takes an expression, not a string
+
+` DFB "A"` produces `C1`: a double-quoted single character is a high-ASCII
+character constant. Casso routes a quoted argument to the other dialect's
+string-literal path and emits `41`.
 
 ## Vendor-source validation — the result, recorded here rather than committed
 
