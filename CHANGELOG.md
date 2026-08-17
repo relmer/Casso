@@ -9,6 +9,23 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Added
+- **A `disk` subcommand: read files off an Apple II disk image and put them
+  back.** `CassoCli disk list <image>` catalogs a volume, `disk get` extracts a
+  file, `disk put` places one, and `disk delete` removes one — on DOS 3.3 and
+  ProDOS, in `.dsk`, `.do`, `.po` and `.woz` images alike, without a
+  third-party tool in the loop. `put` takes `--as` to name the file on the
+  disk, `--type` and `--addr` for what the catalog records, and `--text` to
+  convert host text to the disk's own character convention; `--verbatim`, the
+  default, moves the bytes unchanged, so extract-edit-replace does not perturb
+  anything the edit did not touch. Writes are all-or-nothing and crash-safe:
+  the complete new image is built and checked in memory, written beside the
+  target and put in place atomically, so any failure — a locked file, a
+  write-protected image, a volume with no room, a track that cannot be
+  re-encoded, or the image changing under us — leaves the original
+  byte-for-byte as it was, with no leftover temporary and a message saying
+  which of those it was rather than a platform error code. Placing an
+  Applesoft listing (`--basic`) and setting a boot program are not in this
+  build and are refused rather than silently doing something else.
 - **`--raw` and `--dos-bin` assembler output.** The assembler could only write
   a full 64 KB memory image, padded with the fill byte — correct for ROM
   burning and reference comparison, useless for loading a 2 KB routine, which
