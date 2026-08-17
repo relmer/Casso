@@ -373,6 +373,24 @@ namespace MerlinParserTests
 
 
 
+        //  The first-character conditional's spelling, asserted STRUCTURALLY
+        //  rather than only through the bytes it produces -- and that distinction
+        //  is the whole reason this test exists.
+        //
+        //  The conditional dispatcher falls back to the OTHER dialect's table for
+        //  a bare mnemonic, and that dialect spells this token `IF` too. So a
+        //  Merlin source using the construct assembles correctly whether or not
+        //  Merlin's own vocabulary claims the word: every byte comparison passes
+        //  either way, and the dialect quietly borrows a spelling it must own.
+        //  Measured by mutation, which nothing else caught.
+        TEST_METHOD (TheFirstCharacterConditionalIsClaimedByThisDialectsOwnTable)
+        {
+            Assert::IsTrue (MerlinDirectiveTable::FromSpelling ("IF") == Directive::If,
+                            L"the vocabulary must claim IF rather than leaning on the other dialect's table");
+        }
+
+
+
         //  `<<<` ends a macro DEFINITION. Reading it as an invocation would be a
         //  silent misparse of every macro in the vendor library, all 18 of which
         //  end with it.

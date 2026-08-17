@@ -1967,6 +1967,49 @@ namespace MerlinDirectiveTests
 
 
 
+        //  A PREFIX WITH NOTHING AFTER IT names no macro, and has to say so. The
+        //  line is left exactly as it was read for that reason: promoting an
+        //  empty operand into the opcode field leaves a line with no opcode at
+        //  all, which reads as blank and is dropped without a word. Both
+        //  spellings, because the guard is one rule and either could lose it.
+        //  Measured by mutation, which nothing else caught.
+        TEST_METHOD (APrefixNamingNoMacroIsRefusedRatherThanDropped)
+        {
+            AssemblyResult  punctuation = MerlinAssemblyFixture::AssembleMerlin (" >>>\n");
+            AssemblyResult  word        = MerlinAssemblyFixture::AssembleMerlin (" PMC\n");
+
+            Assert::IsFalse (punctuation.success, L"a prefix naming no macro is not an empty line");
+            Assert::IsTrue  (MerlinAssemblyFixture::AnyErrorMentions (punctuation, ">>>"),
+                             L"and the diagnostic must quote what was written");
+            Assert::IsFalse (word.success, L"the word form must not be droppable either");
+            Assert::IsTrue  (MerlinAssemblyFixture::AnyErrorMentions (word, "PMC"),
+                             L"and it must quote what was written too");
+        }
+
+
+
+        //  The prefix is matched as a WHOLE opcode field, which is the same rule
+        //  that refuses the flush spelling -- stated here because this is where it
+        //  is observable. A macro whose name merely begins with the word form is
+        //  an ordinary invocation; a prefix-matching implementation reads the
+        //  name as its own arguments and loses the call. Measured by mutation,
+        //  which the flush-form test above does not catch: with no argument field
+        //  to promote, both readings refuse that line for the same reason.
+        TEST_METHOD (AMacroWhoseNameBeginsWithThePrefixIsAnOrdinaryInvocation)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              "PMCX MAC\n"
+                                              " LDA ]1\n"
+                                              " <<<\n"
+                                              " PMCX $10\n");
+            std::vector<Byte>  expected = { 0xA5, 0x10 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"the prefix is a whole field, not a leading substring");
+        }
+
+
+
         //  The name joined to its argument by the MACRO SEPARATOR, which is the
         //  spelling the implementation used to require and the real assembler
         //  refuses. This is the negative half of the test above it: without it,
