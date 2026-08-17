@@ -158,6 +158,53 @@ widening the seam**, in the same direction T085's removal of `callKeyword` went.
 **What this must not become.** `if (dialect == Merlin)` in the collector. There
 is none, and the as65 half of the test suite is what keeps it that way.
 
+## NOT an amendment: the directive-table fallback
+
+Filed here so it is not mistaken for one later, and so the three seam additions
+it made are on the record beside the two amendments above.
+
+**The defect.** Four sites in `AssemblySession` resolved a word the ACTIVE
+profile had declined through a second, fixed spelling table, and beside them sat
+directive spellings written as literals with no table at all. Measured in
+[research.md](../research.md): 62 AS65 spellings against Merlin's 41, seven
+shared, so **55 spellings Merlin does not have could still resolve** and eight of
+them steered conditional assembly. It survived because under AS65 the fallback
+arm is dead code — that profile resolves every one of its own spellings first —
+so it was reachable only across dialects, and no test crossed them.
+
+**Why this is not an amendment.** Guarantee 1 relaxes for a MISSING ENGINE
+CAPABILITY; nothing was missing. Every one of these sites was already supposed to
+ask the profile, and `GetDirectiveForSpelling` was already there to ask. Four of
+them asked a class name instead. Guarantee 2 was not touched either: **no
+`Directive` token was added**, because a token is admitted only for an operation
+the assembler cannot already perform and every construct here is one it already
+performs under another dialect's name.
+
+**Three virtuals were added, and all three are spellings.** The test the seam
+sets is whether the behavior is genuinely per-dialect SYNTAX rather than a reach
+into how the assembly runs, and each of these is a word:
+
+- `GetSpellingForDirective` — the inverse of `GetDirectiveForSpelling`, for the
+  one thing tokens cannot do: WRITE a line. The assembler synthesizes source in
+  exactly one place, the closers an early macro exit owes the conditionals it
+  abandoned, and a fixed `ENDIF` there puts a word Merlin does not have into a
+  Merlin stream, where it is an unknown operation on a line no source wrote.
+- `GetAmbiguousDirectiveForSpelling` — the dual-purpose spellings
+  (`RMB`), kept apart from the ordinary accessor because resolving one is only
+  sound where the CONTEXT has ruled the instruction out. That is a fact about
+  the caller, not about the table.
+- `GetMultiNopMnemonic` — which instruction reads its operand as a repeat count.
+  The engine keeps the decision, which the table cannot express because it turns
+  on the operand's value; only the spelling moved.
+
+`MacroSyntax::exitKeyword` joins `endKeyword` and `localKeyword` as the last of
+that family, and Merlin answers empty — no vendor source writes an early exit,
+and inventing a spelling for one is the admission guarantee 5 forbids.
+`DirectiveTable::FromStorageSpelling` was **deleted**: its only caller was the
+dialect-blind one, and a shared-table convenience left standing is what the next
+site reaches for. This narrows the engine's reach rather than widening the seam,
+the direction T085 and T086 both went.
+
 ## Verification
 
 SC-009 is proved by a **synthetic, test-only third profile** in the unit tests.

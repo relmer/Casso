@@ -1325,6 +1325,25 @@ Directive MerlinDialect::GetDirectiveForSpelling (const std::string & upperSpell
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MerlinDialect::GetSpellingForDirective
+//
+//  The same table again, read the other way. Merlin has no dotted forms, so a
+//  synthesized line reading `.ENDIF` is not a stricter spelling of `FIN` -- it
+//  is an unknown operation, on a line the source never wrote and cannot see.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * MerlinDialect::GetSpellingForDirective (Directive token) const
+{
+    return MerlinDirectiveTable::GetCanonicalName (token);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MerlinDialect::ExplainUnknownOperation
 //
 //  The indented label, which is the first thing a developer coming from a

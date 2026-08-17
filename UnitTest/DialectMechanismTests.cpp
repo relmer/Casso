@@ -1116,4 +1116,311 @@ namespace DialectMechanismTests
             return assembler.Assemble (source);
         }
     };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinWithEarlyMacroExit
+    //
+    //  Merlin, plus the one macro keyword it does not have.
+    //
+    //  The synthesized closers an early exit owes its abandoned conditionals can
+    //  only be observed in a dialect that HAS an early exit, and Merlin has none
+    //  -- no vendor source on the distribution disk writes one, and inventing a
+    //  spelling for it in the shipped profile is exactly the admission of another
+    //  dialect's construct FR-005 forbids. So the keyword is added HERE, in a
+    //  test, and nothing else about the dialect changes: the conditional
+    //  spellings, the line model, the closer and the vocabulary are all Merlin's.
+    //
+    //  What that buys is the only test that can fail in both directions at once.
+    //  Counting the abandoned levels through a foreign table misses `DO` and
+    //  closes nothing; spelling the closer with a foreign word writes `ENDIF`
+    //  into a stream where it is not an operation at all.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class MerlinWithEarlyMacroExit : public MerlinDialect
+    {
+    public:
+        MacroSyntax GetMacroSyntax() const override
+        {
+            MacroSyntax  syntax = MerlinDialect::GetMacroSyntax();
+
+            syntax.exitKeyword = "EXITM";
+
+            return syntax;
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  VocabularyIsolationTests
+    //
+    //  A dialect declining a word is the ANSWER, not the start of a search.
+    //
+    //  The engine used to resolve a declined word through a fixed table, so 55
+    //  spellings Merlin does not have still resolved and eight of them steered
+    //  conditional assembly. Nothing caught it, because under AS65 the same code
+    //  is unreachable -- the profile resolves every one of its own spellings
+    //  first, so the fallback could only ever fire across dialects, and no test
+    //  crossed them. That is why these tests assemble rather than inspect tables:
+    //  both tables were always right, and it was the engine between them that
+    //  admitted one dialect's words into the other.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (VocabularyIsolationTests)
+    {
+    public:
+
+        //  The whole of the other dialect's vocabulary, swept rather than
+        //  sampled, so a spelling added to either table is covered without
+        //  anyone editing this test. The seven words both dialects genuinely
+        //  share are skipped by asking Merlin, not by listing them here.
+        TEST_METHOD (NoAs65OnlySpellingIsAnOperationInMerlin)
+        {
+            int  swept = 0;
+
+            for (const DirectiveTable::Spelling & entry : DirectiveTable::GetAllSpellings())
+            {
+                std::string  spelling = entry.name;
+
+                if (MerlinDirectiveTable::FromSpelling (spelling) != Directive::None)
+                {
+                    continue;
+                }
+
+                {
+                    AssemblyResult  result  = AssembleWith (DialectId::Merlin,
+                                                            "         ORG $0300\n         " + spelling + " 1\n");
+                    std::wstring    message = L"Merlin resolved the AS65-only spelling "
+                                            + std::wstring (spelling.begin(), spelling.end());
+
+                    Assert::IsFalse (result.success, message.c_str());
+                    Assert::IsTrue (DiagnosticsMention (result, spelling), message.c_str());
+                }
+
+                swept++;
+            }
+
+            Assert::IsTrue (swept > 40, L"the sweep must cover the whole foreign vocabulary, not a handful");
+        }
+
+
+
+        //  The eight that CHANGED BEHAVIOR rather than merely being consulted.
+        //  Each is written as a real block around an emitted byte, because that
+        //  is what the leak did: the conditional was honored, so the byte was
+        //  suppressed or kept by a directive Merlin never had. A one-line
+        //  specimen cannot tell that apart from an unopened block being refused.
+        TEST_METHOD (AnAs65ConditionalDoesNotOpenABlockInMerlin)
+        {
+            struct Specimen
+            {
+                const char *  opener;
+                const char *  source;
+            };
+
+            static constexpr Specimen  kSpecimens[] =
+            {
+                { "IFDEF",   "         ORG $0300\n         IFDEF NOSUCH\n         DFB $11\n         ENDIF\n"    },
+                { "IFNDEF",  "         ORG $0300\n         IFNDEF NOSUCH\n         DFB $11\n         ENDIF\n"   },
+                //  The closers open a REAL Merlin block, and open it TRUE. A
+                //  false block would skip the line under test unread, which
+                //  refuses the source for the right reason by accident.
+                { "ENDIF",   "         ORG $0300\n         DO 1\n         DFB $11\n         ENDIF\n"            },
+                { ".IF",     "         ORG $0300\n         .IF 0\n         DFB $11\n         .ENDIF\n"          },
+                { ".IFDEF",  "         ORG $0300\n         .IFDEF NOSUCH\n         DFB $11\n         .ENDIF\n"  },
+                { ".IFNDEF", "         ORG $0300\n         .IFNDEF NOSUCH\n         DFB $11\n         .ENDIF\n" },
+                { ".ELSE",   "         ORG $0300\n         DO 1\n         .ELSE\n         DFB $11\n         FIN\n" },
+                { ".ENDIF",  "         ORG $0300\n         DO 1\n         DFB $11\n         .ENDIF\n"           },
+            };
+
+            for (const Specimen & specimen : kSpecimens)
+            {
+                AssemblyResult  result  = AssembleWith (DialectId::Merlin, specimen.source);
+                std::string     opener  = specimen.opener;
+                std::wstring    message = L"Merlin steered conditional assembly with "
+                                        + std::wstring (opener.begin(), opener.end());
+
+                Assert::IsFalse (result.success, message.c_str());
+                Assert::IsTrue (DiagnosticsMention (result, opener), message.c_str());
+            }
+        }
+
+
+
+        //  CLOSED, not narrowed -- and the difference is the whole reason this
+        //  test exists rather than being folded into the one above.
+        //
+        //  The old leak compared case-sensitively while one dialect stored its
+        //  mnemonic raw, so it fired on the upper-case spellings source
+        //  conventionally uses and not on lower-case ones. That reads like a
+        //  guard and is not one: normalizing the case without also asking the
+        //  right table would have made the leak WIDER, admitting the lower-case
+        //  half it used to miss. The lookup is normalized now, so this is the
+        //  specimen that distinguishes the two fixes.
+        TEST_METHOD (AnAs65ConditionalIsRefusedInMerlinInEitherCase)
+        {
+            AssemblyResult  upper = AssembleWith (DialectId::Merlin,
+                                                  "         ORG $0300\n"
+                                                  "         IFDEF NOSUCH\n"
+                                                  "         DFB $11\n"
+                                                  "         ENDIF\n");
+            AssemblyResult  lower = AssembleWith (DialectId::Merlin,
+                                                  "         ORG $0300\n"
+                                                  "         ifdef nosuch\n"
+                                                  "         dfb $11\n"
+                                                  "         endif\n");
+
+            Assert::IsFalse (upper.success, L"the upper-case spelling is the one the old leak admitted");
+            Assert::IsFalse (lower.success, L"and the lower-case one must not become admitted in its place");
+            Assert::IsTrue (DiagnosticsMention (lower, "ifdef"), L"refused by name, in the case it was written");
+        }
+
+
+
+        //  The instruction-side half of the same leak. `NOP <count>` is AS65's
+        //  repeat form and Merlin has none, so a Merlin source writing it was
+        //  quietly given three bytes it never asked for.
+        TEST_METHOD (TheRepeatNopFormIsNotAvailableInMerlin)
+        {
+            AssemblyResult  merlin = AssembleWith (DialectId::Merlin,
+                                                   "         ORG $0300\n         NOP 3\n");
+            AssemblyResult  as65   = AssembleWith (DialectId::As65,
+                                                   "    .org $0300\n    nop 3\n");
+
+            Assert::IsFalse (merlin.success, L"Merlin has no repeat form, so an operand on NOP is an error");
+
+            Assert::IsTrue (as65.success, L"and AS65 must be unchanged, or this proves nothing");
+            Assert::AreEqual ((size_t) 3, as65.bytes.size(), L"AS65 still emits one NOP per count");
+        }
+
+
+
+        //  The closers an early exit owes, counted from the active dialect's own
+        //  conditional and written in the active dialect's own word.
+        //
+        //  Fails in both directions. Counted through a foreign table, `DO` is
+        //  not a conditional and nothing is closed, so the block stays open past
+        //  the expansion and the file ends unbalanced. Spelled with a foreign
+        //  word, the closer is `ENDIF` -- which Merlin does not have, so the
+        //  synthesized line is an unknown operation on a line no source wrote.
+        TEST_METHOD (AnEarlyMacroExitClosesTheActiveDialectsOwnConditionals)
+        {
+            MerlinWithEarlyMacroExit  profile;
+            TestCpu                   cpu;
+            AssemblerOptions          options = {};
+            AssemblyResult            result;
+
+            cpu.InitForTest();
+            options.dialectProfile = &profile;
+
+            {
+                Assembler  assembler (cpu.GetInstructionSet(), options);
+
+                result = assembler.Assemble ("         ORG $0300\n"
+                                             "LEAVER   MAC\n"
+                                             "         DO 1\n"
+                                             "         NOP\n"
+                                             "         EXITM\n"
+                                             "         FIN\n"
+                                             "         BRK\n"
+                                             "         <<<\n"
+                                             "         LEAVER\n"
+                                             "         LDA #$42\n");
+            }
+
+            Assert::IsTrue (result.success, FirstError (result).c_str());
+            Assert::AreEqual ((size_t) 3, result.bytes.size(), L"the NOP, then the LDA after the expansion");
+            Assert::AreEqual ((Byte) 0xEA, result.bytes[0], L"NOP from inside the abandoned conditional");
+            Assert::AreEqual ((Byte) 0xA9, result.bytes[1], L"LDA immediate follows the expansion");
+            Assert::AreEqual ((Byte) 0x42, result.bytes[2]);
+        }
+
+
+
+        //  The other half of the exit keyword: a dialect that does NOT have one
+        //  must not lose a body line merely because it spells another dialect's.
+        //
+        //  The specimen is a body line, not an ordinary source line, because an
+        //  early exit is only ever looked for inside an expansion -- so a macro
+        //  merely NAMED after the foreign keyword proves nothing. Here one macro
+        //  is named for it and another INVOKES it from its body, which is the
+        //  line the fixed comparison read. And the failure is silent: truncating
+        //  an expansion emits nothing and reports nothing, so the bytes the
+        //  macro owed simply do not appear.
+        TEST_METHOD (AForeignExitKeywordDoesNotTruncateAMerlinMacro)
+        {
+            AssemblyResult  result = AssembleWith (DialectId::Merlin,
+                                                   "         ORG $0300\n"
+                                                   "EXITM    MAC\n"
+                                                   "         NOP\n"
+                                                   "         <<<\n"
+                                                   "OUTER    MAC\n"
+                                                   "         EXITM\n"
+                                                   "         BRK\n"
+                                                   "         <<<\n"
+                                                   "         OUTER\n");
+
+            Assert::IsTrue (result.success, FirstError (result).c_str());
+            Assert::AreEqual ((size_t) 2, result.bytes.size(),
+                              L"a body line spelling another dialect's exit keyword must not truncate the body");
+            Assert::AreEqual ((Byte) 0xEA, result.bytes[0], L"the inner macro's NOP");
+            Assert::AreEqual ((Byte) 0x00, result.bytes[1], L"and the BRK that followed the line it read as an exit");
+        }
+
+    private:
+
+        static AssemblyResult AssembleWith (DialectId dialect, const std::string & source)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+
+            cpu.InitForTest();
+            options.dialect = dialect;
+
+            Assembler  assembler (cpu.GetInstructionSet(), options);
+
+            return assembler.Assemble (source);
+        }
+
+
+
+        static bool DiagnosticsMention (const AssemblyResult & result, const std::string & spelling)
+        {
+            bool  found = false;
+
+            for (const AssemblyError & error : result.errors)
+            {
+                if (error.message.find (spelling) != std::string::npos)
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            return found;
+        }
+
+
+
+        static std::wstring FirstError (const AssemblyResult & result)
+        {
+            std::string   text = "assembly succeeded";
+            std::wstring  wide;
+
+            if (!result.errors.empty())
+            {
+                text = "line " + std::to_string (result.errors[0].lineNumber) + ": " + result.errors[0].message;
+            }
+
+            wide.assign (text.begin(), text.end());
+
+            return wide;
+        }
+    };
 }

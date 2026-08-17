@@ -44,4 +44,18 @@ public:
     // as65's own table, so a word another dialect rejects can be attributed
     // here. Every accepted spelling is in it, dotted and bare alike.
     Directive           GetDirectiveForSpelling (const std::string & upperSpelling) const override;
+
+    // `RMB`, which is reserved storage given one operand and the Rockwell bit
+    // instruction given two. Answered separately from the table above for the
+    // reason stated on the seam: it is only sound where the context has ruled
+    // the instruction out.
+    Directive           GetAmbiguousDirectiveForSpelling (const std::string & upperSpelling) const override;
+
+    // as65's own name for a token, dotted, so a line the assembler writes for
+    // itself reads back through as65's own parser.
+    const char *        GetSpellingForDirective (Directive token) const override;
+
+    // `NOP <count>` emits that many, which is as65's alone. Merlin has no such
+    // form, and a fixed spelling in the engine gave it one.
+    const char *        GetMultiNopMnemonic () const override { return "NOP"; }
 };

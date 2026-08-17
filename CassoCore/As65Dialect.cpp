@@ -250,9 +250,10 @@ Error:
 //
 //  As65Dialect::GetMacroSyntax
 //
-//  as65 closes a body with `endm`, declares the labels to rename with `local`,
-//  and takes comma-separated arguments substituted by name or by backslash
-//  number. Everything else keeps the default, which is what the default is for.
+//  as65 closes a body with `endm`, leaves one early with `exitm`, declares the
+//  labels to rename with `local`, and takes comma-separated arguments
+//  substituted by name or by backslash number. Everything else keeps the
+//  default, which is what the default is for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -264,6 +265,7 @@ MacroSyntax As65Dialect::GetMacroSyntax() const
 
     syntax.defKeyword   = "MACRO";
     syntax.endKeyword   = "ENDM";
+    syntax.exitKeyword  = "EXITM";
     syntax.localKeyword = "LOCAL";
 
     return syntax;
@@ -292,4 +294,42 @@ MacroSyntax As65Dialect::GetMacroSyntax() const
 Directive As65Dialect::GetDirectiveForSpelling (const std::string & upperSpelling) const
 {
     return DirectiveTable::FromSpelling (upperSpelling);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  As65Dialect::GetAmbiguousDirectiveForSpelling
+//
+//  The dual-purpose spellings the table above deliberately leaves out, for a
+//  caller whose context has already ruled the instruction out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Directive As65Dialect::GetAmbiguousDirectiveForSpelling (const std::string & upperSpelling) const
+{
+    return DirectiveTable::FromAmbiguousSpelling (upperSpelling);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  As65Dialect::GetSpellingForDirective
+//
+//  The dotted canonical name, which is the same answer diagnostics and listings
+//  already take from the table -- so a line the assembler writes for itself and
+//  a line it quotes back to a developer cannot spell the same directive two
+//  different ways.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * As65Dialect::GetSpellingForDirective (Directive token) const
+{
+    return DirectiveTable::GetCanonicalName (token);
 }

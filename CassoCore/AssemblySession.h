@@ -353,9 +353,14 @@ private:
     // cannot drift apart about what a line is.
     static bool        IsMacroDefinitionStart (const ParsedLine & parsed, const std::string & operandUpper,
                                                const std::string & defKeyword);
-    static bool        IsConditionalLine      (const ParsedLine & parsed);
     static bool        IsConditionalDirective (Directive token);
     static bool        IsSegmentDirective     (Directive token);
+
+    // Not static, and cannot be: both read the ACTIVE profile's vocabulary, and
+    // a spelling one dialect does not claim must not be resolved through
+    // another's table.
+    Directive          TokenForLine           (const ParsedLine & parsed) const;
+    bool               IsConditionalLine      (const ParsedLine & parsed) const;
 
     HRESULT RunPass1Stages         (const PendingLine & current, LineInfo & info);
     HRESULT RunCollectingState     (const PendingLine & current, LineInfo & info, bool & outClaimed);

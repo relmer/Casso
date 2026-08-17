@@ -164,6 +164,17 @@ struct MacroSyntax
     // appear only here.
     const char *  endKeyword            = "";
 
+    // The keyword abandoning the rest of a body mid-expansion, or empty for a
+    // dialect that cannot leave a macro early.
+    //
+    // Data for the reason the two keywords around it are, and the reason is
+    // sharper here than for either: this one is compared against a line of an
+    // EXPANDED body, where a dialect that has no such keyword would silently
+    // lose any line whose first field happens to spell another dialect's.
+    // Truncating an expansion emits nothing and reports nothing, so the bytes a
+    // macro was supposed to contribute simply do not appear.
+    const char *  exitKeyword           = "";
+
     // The keyword declaring macro-local labels inside a body, or empty for a
     // dialect with no such declaration.
     //
@@ -371,6 +382,43 @@ public:
     // whose vocabulary is not a table.
     virtual Directive           GetDirectiveForSpelling (const std::string & /*upperSpelling*/) const
                                                         { return Directive::None; }
+
+    // The token this dialect gives a spelling that ALSO names an instruction --
+    // as65's RMB -- or None where it claims none. `upperSpelling` is expected
+    // upper-cased.
+    //
+    // Separate from the accessor above rather than folded into it, because the
+    // two answer different questions and only one of them is safe everywhere. A
+    // word being attributable to a dialect is a question about the word alone,
+    // so the accessor above must not consult these; resolving one is only sound
+    // where the CONTEXT has already ruled the instruction out, which is a fact
+    // about the caller and not about the table. A member declaration inside a
+    // structure body is such a context, and is the only one today.
+    virtual Directive           GetAmbiguousDirectiveForSpelling (const std::string & /*upperSpelling*/) const
+                                                        { return Directive::None; }
+
+    // This dialect's own spelling for a token, or empty for a token it does not
+    // have. The inverse of GetDirectiveForSpelling, and here for the one thing
+    // tokens alone cannot do: WRITE a line.
+    //
+    // The assembler synthesizes source in exactly one place -- the closers an
+    // early macro exit owes the conditionals it abandoned -- and a fixed
+    // spelling there emits another dialect's word into this dialect's stream,
+    // where it is an unknown operation rather than the block terminator it was
+    // meant to be.
+    virtual const char *        GetSpellingForDirective (Directive /*token*/) const { return ""; }
+
+    // The instruction whose operand is a REPEAT COUNT rather than an address --
+    // as65's `NOP <count>`, which emits that many of them -- or empty for a
+    // dialect with no such form.
+    //
+    // A spelling rather than behavior, for the reason the mnemonic aliases are:
+    // the assembler already reserves and emits a run of one byte, and what
+    // differs between dialects is only which mnemonic asks for it. The engine
+    // still owns the decision the table cannot express, since this form is told
+    // from the ordinary instruction by the operand's VALUE and so needs the
+    // evaluator and the pass-1 symbol table.
+    virtual const char *        GetMultiNopMnemonic () const { return ""; }
 
     // A better explanation than "that word is not an operation", where this
     // dialect can recognize the mistake behind it. Empty when it cannot, and the

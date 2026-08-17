@@ -137,11 +137,6 @@ public:
     // the instruction out would turn `rmb 3,$20` into storage.
     static Directive  FromAmbiguousSpelling (const std::string & word);
 
-    // FromSpelling, falling back to FromAmbiguousSpelling. For callers whose
-    // context rules the instruction out outright -- inside a .STRUCT body every
-    // member declaration names a storage directive, so nothing is ambiguous.
-    static Directive  FromStorageSpelling (const std::string & word);
-
     // The canonical dotted spelling, for diagnostics and listings.
     static const char * GetCanonicalName (Directive directive);
 

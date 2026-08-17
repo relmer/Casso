@@ -670,6 +670,18 @@ any such change rather than incidental to it. The two hard-coded-literal sites
 (`"MACRO"`, `"EXITM"`, `"NOP"`, `"END"`/`"STRUCT"`) have no profile hook to move
 to and are the genuinely larger piece.
 
+**CLOSED, by T091–T094.** The measurement above stands as written and is left
+intact — it is what the decision was taken against. What it asked for turned out
+to be engine work exactly as it predicted, and NOT an amendment: no engine
+capability was missing and no `Directive` token was added. All four sites now go
+through the active profile via one `TokenForLine`, the literals beside them moved
+onto the seam as three spelling accessors and one `MacroSyntax` field, and
+`FromStorageSpelling` is gone. `DirectiveTable` is now named in `As65Dialect.cpp`
+and its own file and nowhere else. The `IF`-rename mutation that once left the
+suite green now fails nine tests. Details in
+[contracts/dialect-profile.md](./contracts/dialect-profile.md) under "NOT an
+amendment: the directive-table fallback".
+
 ## Open items carried into tasks
 
 These are the requirements-checklist gaps that need a technical answer. Each

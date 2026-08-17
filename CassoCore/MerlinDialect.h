@@ -226,6 +226,11 @@ public:
     // than reported as an unknown instruction.
     Directive           GetDirectiveForSpelling (const std::string & upperSpelling) const override;
 
+    // Merlin's own name for a token, so a closer the assembler writes for itself
+    // is `FIN` and not another dialect's word. Merlin has no dotted spellings,
+    // so this is the only place such a line can come from.
+    const char *        GetSpellingForDirective (Directive token) const override;
+
     // The mistake a developer arriving from another assembler makes first: a
     // label written anywhere but column 1. Merlin's line model has no other way
     // to read an indented word than as the opcode field, so the label becomes an

@@ -1621,24 +1621,55 @@ bool AssemblySession::IsConditionalDirective (Directive token)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssemblySession::IsConditionalLine
+//  AssemblySession::TokenForLine
 //
-//  Both spellings are accepted: the dotted directive form, and the bare
-//  mnemonic form as65 also allows. The bare form never takes the parser's
-//  directive path and so carries no token, which is why it is resolved from
-//  the spelling table here rather than read off ParsedLine.
+//  Which directive, if any, a parsed line names -- through the ACTIVE PROFILE
+//  and nothing else.
+//
+//  A dialect whose parser already resolved the word says so on the line, and
+//  that answer is taken as it stands. A dialect that spells a directive where a
+//  mnemonic would go leaves the word unresolved instead, so it is offered back
+//  to the profile that produced the line.
+//
+//  Reading a fixed table here was a leak between dialects, and a wide one: the
+//  word a profile DECLINED was then offered to another vocabulary, so 55
+//  spellings one dialect does not have still resolved, eight of them steering
+//  conditional assembly. A profile declining a word is the answer, not the
+//  beginning of a search.
+//
+//  Upper-casing is part of that and not a nicety. Profiles are asked in upper
+//  case by contract, one shipped dialect stores its mnemonic raw, and the
+//  mismatch made the old leak fire on conventional upper-case source and not on
+//  lower-case -- which reads like a guard and is not one. Normalizing in ONE
+//  place is what keeps the three callers from disagreeing about it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AssemblySession::IsConditionalLine (const ParsedLine & parsed)
+Directive AssemblySession::TokenForLine (const ParsedLine & parsed) const
 {
-    Directive  token = parsed.isDirective
-                           ? parsed.directiveToken
-                           : DirectiveTable::FromSpelling (parsed.mnemonic);
+    return parsed.isDirective
+               ? parsed.directiveToken
+               : m_dialect.GetDirectiveForSpelling (ToUpperCase (parsed.mnemonic));
+}
 
 
 
-    return IsConditionalDirective (token);
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::IsConditionalLine
+//
+//  Both spellings are accepted: the directive form the parser resolved, and the
+//  bare mnemonic form a dialect may also allow. The bare form never takes the
+//  parser's directive path and so carries no token, which is why the line is
+//  resolved rather than read straight off ParsedLine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::IsConditionalLine (const ParsedLine & parsed) const
+{
+    return IsConditionalDirective (TokenForLine (parsed));
 }
 
 
@@ -2097,19 +2128,20 @@ HRESULT AssemblySession::CheckEndStruct (const PendingLine & current, LineInfo &
     // close the block -- every following line swallowed into the struct with no
     // diagnostic. Same trap the origin directive was caught in.
     //
-    // The mnemonic arm survives for a dialect whose end directive is not in its
-    // spelling table at all; both spellings name what they close in the first
-    // word of what follows.
-    if (info.parsed.isDirective && info.parsed.directiveToken == Directive::End)
+    // The mnemonic arm survives for a dialect that spells its end directive
+    // where a mnemonic would go; both spellings name what they close in the
+    // first word of what follows.
+    //
+    // WHICH WORD spells either of them is the active profile's business and not
+    // this function's. Comparing against fixed text let one dialect's source be
+    // closed by another dialect's word, and it did so in both halves at once:
+    // the opening word and the name of the thing it closes.
+    if (TokenForLine (info.parsed) == Directive::End)
     {
-        endsWhat = info.parsed.directiveArg;
-    }
-    else if (info.parsed.mnemonic == "END")
-    {
-        endsWhat = info.parsed.operand;
+        endsWhat = info.parsed.isDirective ? info.parsed.directiveArg : info.parsed.operand;
     }
 
-    isEnd = (GetLeadingWord (ToUpperCase (endsWhat)) == "STRUCT");
+    isEnd = (m_dialect.GetDirectiveForSpelling (GetLeadingWord (ToUpperCase (endsWhat))) == Directive::Struct);
 
 // Error:
     return hr;
@@ -2157,9 +2189,11 @@ std::span<const AssemblySession::StructMemberType> AssemblySession::GetStructMem
 //  returns the number of bytes it reserves, or 0 when the leading word is not a
 //  storage directive at all.
 //
-//  FromStorageSpelling rather than FromSpelling: inside a .STRUCT body there is
-//  no instruction to be ambiguous with, so `count rmb 4` is unambiguously four
-//  reserved bytes.
+//  The ambiguous vocabulary is consulted as well as the ordinary one, and this
+//  is the only place that is sound: inside a structure body there is no
+//  instruction to be ambiguous with, so `count rmb 4` is unambiguously four
+//  reserved bytes. Both answers come from the ACTIVE profile -- a dialect with
+//  no structures claims neither spelling and reserves nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2169,7 +2203,7 @@ HRESULT AssemblySession::GetStructMemberSize (const std::string & operand, int32
     const StructMemberType  * match = nullptr;
     Directive                 token = {};
     size_t                    split     = operand.find_first_of (" \t");
-    token = DirectiveTable::FromStorageSpelling (ToUpperCase (operand.substr (0, split)));
+    std::string               spelling  = ToUpperCase (operand.substr (0, split));
     std::string               countExpr = (split == std::string::npos) ? "" : operand.substr (split);
     size_t                    exprStart = countExpr.find_first_not_of (" \t");
 
@@ -2177,6 +2211,12 @@ HRESULT AssemblySession::GetStructMemberSize (const std::string & operand, int32
 
     outSize   = 0;
     countExpr = (exprStart == std::string::npos) ? countExpr : countExpr.substr (exprStart);
+    token     = m_dialect.GetDirectiveForSpelling (spelling);
+
+    if (token == Directive::None)
+    {
+        token = m_dialect.GetAmbiguousDirectiveForSpelling (spelling);
+    }
 
 
 
@@ -2617,19 +2657,11 @@ HRESULT AssemblySession::HandleConditionalDirective (const PendingLine & current
 
 
 
-    // The dotted form carries its token from the parser; the bare mnemonic
-    // form does not take the directive path, so it resolves here. Either way
-    // the argument comes from wherever that spelling puts it.
-    if (info.parsed.isDirective)
-    {
-        token   = info.parsed.directiveToken;
-        condArg = info.parsed.directiveArg;
-    }
-    else if (!info.parsed.mnemonic.empty())
-    {
-        token   = DirectiveTable::FromSpelling (info.parsed.mnemonic);
-        condArg = info.parsed.operand;
-    }
+    // The token comes from the active profile either way -- see TokenForLine.
+    // Only the ARGUMENT differs, because the two spellings put it in different
+    // fields.
+    token   = TokenForLine (info.parsed);
+    condArg = info.parsed.isDirective ? info.parsed.directiveArg : info.parsed.operand;
 
     BAIL_OUT_IF (!IsConditionalDirective (token), S_OK);
 
@@ -5630,13 +5662,21 @@ HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef
 
         if (isExitm)
         {
-            int ifDepth = 0;
+            int          ifDepth = 0;
+            std::string  closer  = m_dialect.GetSpellingForDirective (Directive::Endif);
+
             hr = CountExitmIfDepth (expandedLines, ifDepth);
             CHR (hr);
 
+            // Spelled by the ACTIVE PROFILE. This is the one line the assembler
+            // writes for itself, and a fixed word here put another dialect's
+            // spelling into this dialect's stream -- where it is an unknown
+            // operation on a line the source never wrote and cannot see. Indented
+            // because a dialect whose first column is the label field would read
+            // it as one.
             for (int ed = 0; ed < ifDepth; ed++)
             {
-                expandedLines.push_back ("                ENDIF");
+                expandedLines.push_back ("                " + closer);
             }
 
             break;
@@ -5673,19 +5713,32 @@ Error:
 //
 //  AssemblySession::CheckForExitm
 //
+//  Does this body line abandon the rest of the expansion?
+//
+//  The keyword stays a string compare rather than joining a spelling table: a
+//  table feeds the parser, so a row there would cost a lookup on every line of
+//  every file to serve lines that appear only inside a macro body. What it must
+//  NOT stay is a fixed word -- the profile supplies it, beside the terminator
+//  and the local declaration, and a dialect with no early exit answers empty and
+//  claims no line at all. A fixed word truncated a body silently in any dialect
+//  whose source happened to contain it.
+//
+//  The dotted form is admitted the way the local declaration's is, for the same
+//  reason: a dialect writing its keywords with a leading dot spells this one
+//  that way too, and stating it twice in the profile would be one spelling that
+//  could disagree with itself.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::CheckForExitm (const std::string & line, bool & isExitm)
 {
-    HRESULT      hr   = S_OK;
-    std::string  code = ToUpperCase (StripCommentAndTrim (line));
+    HRESULT      hr          = S_OK;
+    std::string  exitKeyword = m_dialect.GetMacroSyntax().exitKeyword;
+    std::string  code        = ToUpperCase (StripCommentAndTrim (line));
 
 
 
-    // EXITM stays a string compare rather than joining DirectiveTable: the
-    // table feeds Parser::ParseLine, so adding it there would tokenize EXITM on
-    // every line in the file, not just inside a macro body being expanded.
-    isExitm = (code == "EXITM" || code == ".EXITM");
+    isExitm = !exitKeyword.empty() && ((code == exitKeyword) || (code == "." + exitKeyword));
 
 // Error:
     return hr;
@@ -5708,10 +5761,16 @@ HRESULT AssemblySession::CheckForExitm (const std::string & line, bool & isExitm
 //  so an IF/ENDIF pair inside the abandoned region cancels out and only the
 //  genuinely unclosed ones are counted.
 //
-//  Recognized through DirectiveTable rather than by comparing spellings here.
-//  That list used to be written out by hand, a third copy of the vocabulary
-//  that a dialect adding a synonym would not have reached -- the synonym would
-//  open a block that this loop never counted, and EXITM would under-close.
+//  Each line is READ BY THE ACTIVE PROFILE rather than scanned for a leading
+//  word here. The spellings were once written out in this loop, then read from
+//  a fixed table, and both were wrong in both directions for any dialect but the
+//  one the table belonged to: a foreign word that dialect never wrote was
+//  counted, and its own conditional was not. An EXITM then synthesized the wrong
+//  number of closers, which either leaves a block open past the expansion or
+//  closes one the source is still inside.
+//
+//  Parsing rather than word-splitting also settles a labeled conditional, which
+//  no leading-word scan can: the first field of such a line is the label.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -5725,15 +5784,9 @@ HRESULT AssemblySession::CountExitmIfDepth (const std::vector<std::string> & exp
 
 
 
-    // The spellings were written out here -- IF/.IF/IFDEF/.IFDEF/IFNDEF/
-    // .IFNDEF and ENDIF/.ENDIF -- which made this the third place in the
-    // assembler holding a copy of the vocabulary. DirectiveTable owns all
-    // eight, so this only has to know which tokens open a block and which
-    // closes one.
     for (const std::string & line : expandedLines)
     {
-        Directive  token = DirectiveTable::FromSpelling (
-                               GetLeadingWord (ToUpperCase (StripCommentAndTrim (line))));
+        Directive  token = TokenForLine (m_dialect.ParseLine (line, 0));
 
         if (token == Directive::If || token == Directive::Ifdef || token == Directive::Ifndef)
         {
@@ -6450,7 +6503,8 @@ HRESULT AssemblySession::ValidateAssemblyCompletion()
 
 HRESULT AssemblySession::HandleMultiNop (const PendingLine & current, LineInfo & info, bool & handled)
 {
-    HRESULT hr = S_OK;
+    HRESULT      hr       = S_OK;
+    std::string  multiNop = m_dialect.GetMultiNopMnemonic();
 
 
 
@@ -6458,16 +6512,19 @@ HRESULT AssemblySession::HandleMultiNop (const PendingLine & current, LineInfo &
 
 
 
-    // Only "nop <count>" is a multi-NOP; a bare NOP is an ordinary opcode.
+    // Only the repeat form is a multi-NOP; the bare mnemonic is an ordinary
+    // opcode, and a dialect with no such form claims no line at all.
     //
-    // This is the second dual-purpose as65 mnemonic, the other being the RMB
-    // branch in Parser::ParseLine. They stay apart rather than sharing a table
-    // because the table could not hold what separates them: RMB splits on the
-    // operand's *shape* (a comma means the Rockwell instruction), which the
-    // parser can see, while NOP splits on the operand's *value*, which needs the
-    // expression evaluator and the pass-1 symbol table. Both spellings are
-    // dialect facts -- a second dialect replaces this pair.
-    BAIL_OUT_IF (info.parsed.mnemonic != "NOP" || info.parsed.operand.empty(), S_OK);
+    // This is the second dual-purpose spelling, the other being the RMB branch
+    // in the AS65 profile. They stay apart rather than sharing a table because
+    // the table could not hold what separates them: RMB splits on the operand's
+    // *shape* (a comma means the Rockwell instruction), which the parser can
+    // see, while this one splits on the operand's *value*, which needs the
+    // expression evaluator and the pass-1 symbol table. Both are dialect facts,
+    // which is why the SPELLINGS come from the profile and only the decision
+    // stays here.
+    BAIL_OUT_IF (multiNop.empty() || ToUpperCase (info.parsed.mnemonic) != multiNop ||
+                 info.parsed.operand.empty(), S_OK);
 
     {
         ExprResult  er;
@@ -6479,7 +6536,7 @@ HRESULT AssemblySession::HandleMultiNop (const PendingLine & current, LineInfo &
         {
             info.isDirective           = true;
             info.parsed.isDirective    = true;
-            info.parsed.directive      = ".MULTINOP";
+            info.parsed.directive      = m_dialect.GetSpellingForDirective (Directive::MultiNop);
             info.parsed.directiveToken = Directive::MultiNop;
             info.parsed.directiveArg   = info.parsed.operand;
             ReserveBytes ((Word) er.value);

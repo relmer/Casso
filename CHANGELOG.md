@@ -59,6 +59,20 @@ Entries before versioning was introduced use dates only.
   dialect defines it instead of reporting an unknown instruction.
 
 ### Fixed
+- **A dialect no longer borrows the other dialect's vocabulary.** A word the
+  active dialect declined was offered to a second, fixed spelling table, so 55
+  spellings Merlin does not have still resolved — and eight of them steered
+  conditional assembly. A Merlin source writing `IFDEF` or `.ENDIF` had its
+  blocks honored by a directive Merlin has never had, so lines were included or
+  skipped by a construct the real assembler would have rejected. The same table
+  ran the other way too: the closers an early macro exit owes the conditionals
+  it abandons were counted from the wrong vocabulary and written in the wrong
+  word, and `NOP 3` — as65's way of asking for three of them — silently emitted
+  three bytes in a dialect with no such form.
+
+  Every one of those spellings is now refused by name in the dialect that does
+  not define it. Nothing changes for `as65`, whose own words were never in
+  question; what changes is that Merlin source is read only as Merlin.
 - **A macro definition with no terminator of its own now falls into the next.**
   Merlin lets a family of macros that end the same way be written once — the
   longest first, each shorter one opening where its own body starts, and a
