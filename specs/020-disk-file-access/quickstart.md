@@ -123,6 +123,42 @@ valid image, then patch one address field's 4-and-4 encoded sector value.
 Run 1-3 against `.dsk`, `.do`, `.po`, and `.woz` of the same content — SC-004
 requires byte-exact extraction across every mountable format.
 
+#### Making the damaged images these cases need
+
+None of them exist as fixtures, and none should — a deliberately broken disk is
+a constructed shape, and the real volumes are read-only evidence. Build them
+from a copy at the point of use.
+
+A broken catalog chain, from the host, needs no code. A DOS-logical sector sits
+at `(track * 16 + sector) * 256`, and the catalog's forward pointer is the two
+bytes at `+1` and `+2`. Merlin's catalog runs T17 S15 down to S1, so pointing
+one hop out of range truncates it mid-walk:
+
+```powershell
+$b = [IO.File]::ReadAllBytes('<merlin.dsk>')
+$b[(17*16 + 13)*256 + 1] = 40          # a track this volume does not have
+[IO.File]::WriteAllBytes('broken.dsk', $b)
+```
+
+`CassoCli disk list broken.dsk` then delivers 25 stdout lines, one stderr
+complaint naming the listing as incomplete, and **exit 1** — which is scenario 4
+end to end.
+
+Track damage cannot be done this way, because a sector image has no bit stream
+to corrupt. It needs `NibblizeDsk` → patch a track's bits → `WozLoader::Serialize`,
+so it lives in the test assembly; see `CrossFormatExtractionTests.cpp` for the
+address-field patching helpers and `NibblizationTests.cpp` for the decoder-level
+cases.
+
+**There is no real `.woz` in this repository that serves as a clean read
+fixture.** All eleven under `Apple2/Demos/` were tried. Nine are copy-protected
+and correctly refused as carrying no filesystem this tool recognizes. `The Print
+Shop Color side A.woz` reports 307 undecodable sectors and exits 1, which is
+right. Side B is the only one that lists — as DOS 3.3, volume 0, with a catalog
+of one type-`I` entry and rows with no visible name, at exit 0. Treat that as a
+detection false positive on out-of-scope material, not as a fixture; a
+`.woz` built from a real `.dsk` in the test is the clean path.
+
 ### US4 — boot configuration (P2)
 
 1. DOS 3.3: `disk boot` a binary, boot the image, confirm it runs with no typing.

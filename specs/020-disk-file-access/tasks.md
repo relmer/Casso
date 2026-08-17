@@ -16,6 +16,10 @@ unstarted tasks and the first work here where a bug **destroys data** rather
 than failing loudly. Everything up to now has been reads: wrong output was the
 worst case. From T023 on, the worst case is a user's disk image.
 
+**Order within Phase 4.** T023 → T024 and T025 → T026 are independent chains
+(DOS 3.3 and ProDOS), joining at T028. Delete ships with write on both because
+replace depends on it.
+
 Three things earned during Phase 3 that Phase 4 depends on, so do not treat them
 as background:
 
@@ -31,14 +35,83 @@ as background:
   `CommitPlan` (T030) is where that lives. A failed operation must leave the
   image byte-for-byte unchanged.
 
-**Order within Phase 4.** T023 → T024 and T025 → T026 are independent chains
-(DOS 3.3 and ProDOS), joining at T028. Delete ships with write on both because
-replace depends on it.
+### Where Phase 4 is riskiest
 
-**Blocked on nobody.** Spec 019 runs concurrently; the only shared surface is
-the command-line files and two `.vcxproj`s. See `docs/coordination.md` for the
-keep-both rule and the T049 sequencing — 019 holds its fallback removal until
-this branch's command-line work reaches `master`.
+One view, formed while building the read half. Ranked by how quietly each one
+fails, because that is what decides whether it reaches a user.
+
+1. **A `.po` write that reverses the sector order wrong is self-consistent and
+   wrong** (T029, and the write half of SC-004). This is the worst of the set.
+   If the reorder is applied inconsistently, the image reads back *correctly
+   through our own reader* — same transform on the way out and the way in — and
+   is garbage on a real Apple II. Every round-trip test passes. The gate has to
+   be **guest-visible**: boot it, or at minimum re-read through a path that does
+   not share the reorder. T029 already calls for the four-format write matrix;
+   the point is that a round-trip is not the check, it is the thing that hides
+   the bug.
+
+2. **The commit path's failure modes are untested by construction** (T030,
+   T031). The happy path runs on every invocation; "the write failed halfway"
+   runs only when something has already gone wrong — and FR-012's whole
+   guarantee is about that path. `FakeDiskFileIo` has `failNextWrite`,
+   `failNextReplace` and `mutateStampOnNextStat` for exactly this; they exist to
+   be used. The assertion that matters is **the target file is byte-identical to
+   what it was**, plus `HasNoTemporaryFiles()`. Asserting only that an error was
+   returned would pass against a half-written image.
+
+3. **Skipping an unwritable track is worse than refusing the operation** (T029).
+   When a write needs a track whose outcome is `Partial`, refusing *that track*
+   and proceeding produces exactly the half-written image FR-012 forbids. The
+   refusal has to be whole-operation, before anything is committed —
+   `TrackWritability` already refuses the whole image for quarter-track data for
+   the same reason, and per-track refusal must not become the looser sibling.
+
+4. **Delete's free-space return breaks a different file, later** (T024, T027).
+   Freeing a sector a second file also claims corrupts that file, and nothing
+   says so until someone reads it — possibly weeks on. `IsUniquelyOwnedBy` is
+   the guard and the reason both slices are kept. Free only what the report
+   shows this file uniquely owns; report the rest as leaked. Leaked space is
+   recoverable, a cross-linked free is not.
+
+5. **DOS 3.3 sector slack will fail the wrong assertion** (T032). A file occupies
+   whole sectors and the bytes past its recorded length are whatever was there
+   before. Gate `--verbatim` on **file** equality, never image equality — an
+   image comparison fails for sector slack and for reallocation, neither of
+   which has anything to do with character conversion. Assert sector reuse
+   separately if image stability is what is wanted. I got this wrong once and
+   was corrected; the task text carries the ruling.
+
+6. **Zero-sector catalog entries are a write hazard too.** Twenty of the sixty-
+   three on Merlin's own disk. They have no chain, so delete must not try to
+   free sectors for one, and write must not treat the slot as reusable free
+   space on the assumption that an entry occupying nothing is not really an
+   entry. The read half already discriminates on the entry's own sector count;
+   the write half needs the same discriminator, not the `$7F/$7F` pointer.
+
+**Method that actually caught things this phase**, offered because three of the
+above are only findable this way: after writing a test, break the thing it
+covers and confirm it fails. Two real saves came from it — a corruption helper
+that XOR-ed a 4-and-4 checksum was a no-op for half the sectors on a track, and
+a two-list chain fixture could not distinguish a correct pointer read from a
+buggy one because the bug happens to work on the first hop. **When a mutation is
+not caught, suspect fixture depth before suspecting the assertion. Three links
+is the minimum for any chain-walking test.**
+
+**Blocked on nobody; 019 is blocked on this branch.** Spec 019 runs
+concurrently. Measured overlap is three files — `CassoCore/CassoCore.vcxproj`,
+`UnitTest/UnitTest.vcxproj` and `CassoCli/CommandLine.cpp` — and the two sides
+of `CommandLine.cpp` are in different regions today, so it merges cleanly until
+019 registers `as65` in the usage text. Keep both sides everywhere; taking one
+drops the other session's files from the build and still passes, with fewer
+tests in it. Check the merged count against the sum, not merely that it is
+green: this branch is **3088 Debug / 3085 Release**.
+
+019 holds its T049 (`as65` fallback removal) until this branch's command-line
+work reaches `master`, so landing that is the thing another session is waiting
+on. `UnitTest/CommandLineTests.cpp` carries
+`BareWordThatIsNotASubcommand_StaysAs65`, placed here deliberately as a tripwire
+so removing the fallback has to be a decision. **Deleting it is the intended
+outcome — do not defend it at merge.** See `docs/coordination.md`.
 
 **Known divergences from the task text, so they do not read as gaps:**
 
@@ -55,12 +128,28 @@ this branch's command-line work reaches `master`.
 
 **Do not retry, with reasons recorded next to the thing they concern:**
 
-- Validating catalog names as printable text — `research.md` R-012 and
+- **Validating catalog names as printable text** — `research.md` R-012 and
   `UnitTest/Fixtures/Disks/README.md`. It rejects 20 of the 63 entries on a disk
-  Merlin shipped.
-- Automating the binary-output check at any level — `quickstart.md` and the
+  Merlin shipped. Their names are a high-ASCII `A` then eight backspace
+  characters, which is how DOS draws a heading at column zero, so eight of
+  thirty bytes are below `$20` and byte-for-byte indistinguishable from garbage.
+- **Automating the binary-output check at any level** — `quickstart.md` and the
   comment at `CassoCli/Win32DiskFileIo.cpp`. Neither the byte assertion nor the
-  narrower "handle is in binary mode" assertion is reachable.
+  narrower "handle is in binary mode" assertion is reachable: the translation
+  happens below the seam, and inspecting or changing the mode touches a console
+  handle and mutates process state, which the test rules forbid.
+- **Tightening filesystem detection to reject copy-protected disks.** `The Print
+  Shop Color side B.woz` lists as clean DOS 3.3 at exit 0 with a garbage
+  catalog. It is out of scope, the corroboration already rejects nine of the
+  eleven demo `.woz` files, and the one tightening attempted for it is the first
+  item above.
+
+**Two artifacts worth reading before starting, not after:** `quickstart.md`
+§US3 now carries the recipe for constructing a damaged image from the host, and
+`UnitTest/Fixtures/Disks/README.md` on `master` carries the on-disk format
+findings measured against these volumes — including the load-address asymmetry
+between the two filesystems, which is the shape most likely to produce a
+four-byte bug on one of them only.
 
 ---
 
