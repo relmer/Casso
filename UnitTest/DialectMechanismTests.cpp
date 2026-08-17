@@ -320,4 +320,196 @@ namespace DialectMechanismTests
             Assert::IsTrue (DirectiveTable::FromSpelling (".HEX") == Directive::None, L"and no dotted form exists either");
         }
     };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MnemonicAliasTests
+    //
+    //  The instruction-layer twin of the directive spelling table.
+    //
+    //  Swept rather than sampled, and swept over the ENUM of dialects rather than
+    //  over one profile's rows: an alias whose target is not a real instruction
+    //  is not an alias at all. It silently becomes an unknown mnemonic on every
+    //  line that uses it, which reads as the dialect not supporting the construct
+    //  rather than as a one-character typo in a table.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MnemonicAliasTests)
+    {
+    public:
+
+        TEST_METHOD (EveryAliasTargetsAnInstructionTheOpcodeTableCarries)
+        {
+            TestCpu  cpu;
+            size_t   aliasCount = 0;
+
+            cpu.InitForTest();
+
+            {
+                OpcodeTable  table (cpu.GetInstructionSet());
+
+                for (const DialectRegistry::Entry & entry : DialectRegistry::GetAllDialects())
+                {
+                    const DialectProfile & profile = DialectRegistry::Get (entry.id);
+
+                    for (const MnemonicAlias & alias : profile.GetMnemonicAliases())
+                    {
+                        std::string   spelling = alias.spelling;
+                        std::string   target   = alias.instruction;
+                        std::wstring  message  = L"an alias must name an instruction the base table carries";
+
+                        aliasCount++;
+
+                        Assert::IsTrue (table.IsMnemonic (target), message.c_str());
+                        Assert::IsFalse (table.IsMnemonic (spelling),
+                                         L"an alias spelled the same as a real instruction would shadow it");
+                    }
+                }
+            }
+
+            //  A loop over an empty table passes while checking nothing, and is
+            //  indistinguishable in the output from a full one.
+            Assert::IsTrue (aliasCount > 0, L"no dialect declared an alias, so this swept nothing");
+        }
+
+
+
+        //  FR-005's guard at the table level. as65 must not acquire Merlin's
+        //  instruction spellings any more than it acquires Merlin's directives.
+        TEST_METHOD (As65DeclaresNoInstructionAliases)
+        {
+            const DialectProfile & as65 = DialectRegistry::Get (DialectId::As65);
+
+            Assert::AreEqual (static_cast<size_t> (0), as65.GetMnemonicAliases().size(),
+                              L"as65 spells every instruction the way the opcode table does");
+        }
+
+
+
+        //  Merlin's two, named rather than swept: the sweep above proves the
+        //  rows are well formed and would pass over an empty-but-for-one table.
+        TEST_METHOD (MerlinDeclaresTheTwoCarryBranchAliases)
+        {
+            const DialectProfile & merlin  = DialectRegistry::Get (DialectId::Merlin);
+            bool                   sawBlt  = false;
+            bool                   sawBge  = false;
+
+            for (const MnemonicAlias & alias : merlin.GetMnemonicAliases())
+            {
+                std::string  spelling = alias.spelling;
+                std::string  target   = alias.instruction;
+
+                sawBlt = sawBlt || ((spelling == "BLT") && (target == "BCC"));
+                sawBge = sawBge || ((spelling == "BGE") && (target == "BCS"));
+            }
+
+            Assert::IsTrue (sawBlt, L"BLT is Merlin's name for BCC");
+            Assert::IsTrue (sawBge, L"BGE is Merlin's name for BCS");
+        }
+
+
+
+        //  Resolution happens at parse time, so nothing downstream ever sees the
+        //  alternate name. Asserted on the ParsedLine rather than on emitted
+        //  bytes, because this is the property the rest of the engine relies on.
+        TEST_METHOD (ParsingRewritesTheAliasToItsInstruction)
+        {
+            const DialectProfile & merlin = DialectRegistry::Get (DialectId::Merlin);
+            ParsedLine             parsed = Parser::ParseLine (" BLT AHEAD", 1, merlin);
+
+            Assert::AreEqual (std::string ("BCC"), parsed.mnemonic,
+                              L"the mnemonic reaching the engine must be the opcode table's name");
+            Assert::AreEqual (std::string ("AHEAD"), parsed.operand, L"and the operand must be untouched");
+        }
+
+
+
+        //  The AS65 half. Its parse must not rewrite anything, or the alias
+        //  mechanism has leaked into the dialect that does not declare one.
+        TEST_METHOD (As65LeavesTheSameSpellingAlone)
+        {
+            const DialectProfile & as65   = DialectRegistry::Get (DialectId::As65);
+            ParsedLine             parsed = Parser::ParseLine ("        blt ahead", 1, as65);
+
+            Assert::AreEqual (std::string ("BLT"), parsed.mnemonic,
+                              L"as65 has no alias table, so the word stays what the source wrote");
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DirectiveTokenComparisonTests
+    //
+    //  The class of bug this feature exists to avoid, at the three sites where it
+    //  was still latent: a directive recognized by its CANONICAL SPELLING rather
+    //  than by its token.
+    //
+    //  The failure mode is silent. A dialect spelling the directive its own way
+    //  parses correctly and resolves to exactly the right token, then falls
+    //  through every comparison and does nothing at all -- no bytes, no
+    //  diagnostic, and an assembly that reports success.
+    //
+    //  These pin the parse-level FACT that makes the trap real. The behavior each
+    //  site drives is exercised where that behavior lives: Merlin's macro
+    //  terminator in MerlinDirectiveTests, and the struct terminator below, which
+    //  no second dialect can reach today because opening a struct is an as65-only
+    //  token.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DirectiveTokenComparisonTests)
+    {
+    public:
+
+        //  Merlin's END is the same token as as65's .END and shares none of its
+        //  spelling. Any site comparing the string sees nothing here.
+        TEST_METHOD (MerlinsEndCarriesTheTokenAndNotTheDottedSpelling)
+        {
+            const DialectProfile & merlin = DialectRegistry::Get (DialectId::Merlin);
+            ParsedLine             parsed = Parser::ParseLine (" END", 1, merlin);
+
+            Assert::IsTrue (parsed.directiveToken == Directive::End, L"END resolves to the end token");
+            Assert::AreNotEqual (std::string (".END"), parsed.directive,
+                                 L"and carries Merlin's spelling, which is what makes a string compare miss it");
+        }
+
+
+
+        //  Same shape for the macro terminator, which IS reachable from Merlin
+        //  and is driven end to end in MerlinDirectiveTests.
+        TEST_METHOD (MerlinsMacroTerminatorCarriesTheTokenAndNotTheDottedSpelling)
+        {
+            const DialectProfile & merlin = DialectRegistry::Get (DialectId::Merlin);
+            ParsedLine             parsed = Parser::ParseLine (" <<<", 1, merlin);
+
+            Assert::IsTrue (parsed.directiveToken == Directive::MacroEnd, L"<<< resolves to the macro-end token");
+            Assert::AreNotEqual (std::string (".ENDM"), parsed.directive, L"and is spelled nothing like as65's");
+        }
+
+
+
+        //  as65's own two spellings of the struct terminator, kept as the
+        //  regression pin for converting that site to the token. Both reach the
+        //  same token, which is why the conversion is invisible to as65 -- and
+        //  why no test can discriminate it: Directive::Struct is as65-only, so
+        //  no second dialect can be inside a struct body to be affected.
+        TEST_METHOD (BothAs65SpellingsOfTheStructTerminatorReachTheSameToken)
+        {
+            const DialectProfile & as65   = DialectRegistry::Get (DialectId::As65);
+            ParsedLine             dotted = Parser::ParseLine ("        .end struct", 1, as65);
+            ParsedLine             bare   = Parser::ParseLine ("        end struct", 1, as65);
+
+            Assert::IsTrue (dotted.directiveToken == Directive::End, L".end resolves to the end token");
+            Assert::IsTrue (bare.directiveToken   == Directive::End, L"and so does the bare spelling");
+            Assert::AreEqual (std::string ("STRUCT"), Parser::ToUpper (dotted.directiveArg),
+                              L"what it closes is the argument, not part of the directive");
+            Assert::AreEqual (std::string ("STRUCT"), Parser::ToUpper (bare.directiveArg),
+                              L"the bare form reaches it the same way");
+        }
+    };
 }

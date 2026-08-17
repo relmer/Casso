@@ -197,11 +197,43 @@ std::string Parser::ToUpper (const std::string & s)
 //  which is what lets the two-pass engine, the expression evaluator, and the
 //  opcode tables stay shared.
 //
+//  Instruction aliases are applied HERE, once, on the way out. A dialect that
+//  spells an existing instruction its own way -- Merlin's BLT and BGE for BCC
+//  and BCS -- supplies a table, and the mnemonic is rewritten before anything
+//  looks it up. Doing it any later means the opcode lookup, the size estimate,
+//  the branch-range check and the encoder each need to know about the second
+//  name, and a per-dialect special case lands in four places in the shared
+//  engine to serve two spellings.
+//
+//  A directive line is left alone. Its mnemonic field carries the directive's
+//  own spelling, and an alias table has nothing to say about that.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 ParsedLine Parser::ParseLine (const std::string & line, int lineNumber, const DialectProfile & dialect)
 {
-    return dialect.ParseLine (line, lineNumber);
+    ParsedLine   result = dialect.ParseLine (line, lineNumber);
+    std::string  spelled;
+
+
+
+    if (result.isDirective || result.mnemonic.empty())
+    {
+        return result;
+    }
+
+    spelled = ToUpper (result.mnemonic);
+
+    for (const MnemonicAlias & alias : dialect.GetMnemonicAliases())
+    {
+        if (spelled == alias.spelling)
+        {
+            result.mnemonic = alias.instruction;
+            break;
+        }
+    }
+
+    return result;
 }
 
 

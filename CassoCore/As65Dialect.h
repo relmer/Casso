@@ -31,4 +31,12 @@ public:
     const char *        GetCpuDirectiveName   () const override { return ""; }
 
     ParsedLine          ParseLine (const std::string & line, int lineNumber) const override;
+
+    // `endm` closes a macro body and `local a,b` declares the labels the
+    // expander renames per invocation. Both are macro-body keywords rather than
+    // directives, so neither is in the spelling table -- and stating them here
+    // rather than comparing against literals in the expander keeps them special
+    // only in the dialect that defines them.
+    const char *        GetMacroEndKeyword   () const override { return "ENDM";  }
+    const char *        GetMacroLocalKeyword () const override { return "LOCAL"; }
 };

@@ -148,6 +148,12 @@ public:
     // of those is a duplicate-label error.
     char                GetLocalLabelPrefix () const override { return ':'; }
 
+    // BLT and BGE, Merlin's names for BCC and BCS. Supplied as data so the
+    // resolution happens once at parse time rather than as a Merlin branch in
+    // the opcode lookup, the size estimator, the branch-range check and the
+    // encoder -- four places in shared mechanism, for two spellings.
+    std::span<const MnemonicAlias>  GetMnemonicAliases() const override;
+
 private:
     static bool         IsFieldSpace       (char ch);
     static bool         TakesDelimitedText (const std::string & mnemonic);

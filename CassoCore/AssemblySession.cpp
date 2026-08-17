@@ -1214,8 +1214,18 @@ Error:
 //
 //  AssemblySession::IsMacroDefinitionStart
 //
-//  "NAME macro [params]" -- the operand, upper-cased, is MACRO followed by
-//  end-of-operand or whitespace.
+//  Two shapes open a definition, and which one a dialect uses is grammar rather
+//  than vocabulary.
+//
+//    * as65 writes "NAME macro [params]" -- the name is the first word and the
+//      keyword sits in the operand, so there is nothing for a directive table
+//      to resolve and this reads the operand directly.
+//    * A dialect whose opening directive IS in its table -- Merlin's MAC --
+//      puts the keyword in the opcode field and the name in the label, where
+//      the token settles it with no string comparison at all.
+//
+//  Recognizing the token form rather than a spelling is what keeps this a
+//  vocabulary difference: nothing here knows the word MAC.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1226,7 +1236,9 @@ bool AssemblySession::IsMacroDefinitionStart (const ParsedLine & parsed, const s
                             operandUpper[5] == ' '  ||
                             operandUpper[5] == '\t');
 
-    return !parsed.mnemonic.empty() && !parsed.isEmpty && looksLikeMacro;
+    bool  namedByLabel   = (parsed.directiveToken == Directive::MacroDef) && !parsed.label.empty();
+
+    return namedByLabel || (!parsed.mnemonic.empty() && !parsed.isEmpty && looksLikeMacro);
 }
 
 
@@ -1677,10 +1689,16 @@ HRESULT AssemblySession::CheckEndStruct (const PendingLine & current, LineInfo &
 
 
 
-    // `.END STRUCT` reaches this as a directive with an argument; bare
-    // `end struct` reaches it as a mnemonic with an operand. Both name what
-    // they close in the first word of what follows.
-    if (info.parsed.isDirective && info.parsed.directive == ".END")
+    // The TOKEN, not the canonical spelling. Comparing ".END" recognized the
+    // end directive only in a dialect that spells it with a dot, so a dialect
+    // spelling it otherwise would resolve to the right token and then fail to
+    // close the block -- every following line swallowed into the struct with no
+    // diagnostic. Same trap the origin directive was caught in.
+    //
+    // The mnemonic arm survives for a dialect whose end directive is not in its
+    // spelling table at all; both spellings name what they close in the first
+    // word of what follows.
+    if (info.parsed.isDirective && info.parsed.directiveToken == Directive::End)
     {
         endsWhat = info.parsed.directiveArg;
     }
@@ -1882,24 +1900,39 @@ Error:
 //  the arguments substituted, so assembling it here would resolve labels and
 //  expressions against the definition's PC instead of the call site's.
 //
-//  LOCAL is the one directive read on the way past, because its names have to
-//  be known before expansion can rename them per-invocation -- otherwise two
-//  invocations in the same file would define the same label twice. It is still
-//  pushed into the body as well, since expansion re-reads it.
+//  The local-label declaration is the one directive read on the way past,
+//  because its names have to be known before expansion can rename them
+//  per-invocation -- otherwise two invocations in the same file would define
+//  the same label twice. It is still pushed into the body as well, since
+//  expansion re-reads it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo & info)
 {
-    HRESULT hr = S_OK;
+    HRESULT      hr            = S_OK;
+    std::string  mnemonic      = ToUpperCase (info.parsed.mnemonic);
+    std::string  endKeyword    = m_dialect.GetMacroEndKeyword();
+    std::string  localKeyword  = m_dialect.GetMacroLocalKeyword();
+    bool         endsBody      = false;
+    bool         declaresLocal = false;
 
 
 
-    std::string mnUpper = info.parsed.mnemonic;
+    // The macro-end TOKEN closes the body, and so does the active dialect's
+    // bare keyword. as65 needs the keyword: it has no token for this, since
+    // `.ENDM` is absent from its spelling table and parses as an unrecognized
+    // dotted directive that merely keeps its text. A dialect that DOES carry
+    // the token was the one being lost -- it would spell its terminator,
+    // resolve it to exactly the right token, and then have it swallowed into
+    // the body it was meant to close, leaving the remainder of the file inside
+    // a macro nobody calls.
+    endsBody = (info.parsed.directiveToken == Directive::MacroEnd) ||
+               (!endKeyword.empty() &&
+                ((mnemonic == endKeyword) ||
+                 (info.parsed.isDirective && info.parsed.directive == "." + endKeyword)));
 
-
-
-    if (mnUpper == "ENDM" || (info.parsed.isDirective && info.parsed.directive == ".ENDM"))
+    if (endsBody)
     {
         MacroDefinition def = {};
         def.name       = m_currentMacroName;
@@ -1912,12 +1945,19 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
     }
     else
     {
-        std::string bodyMn = info.parsed.mnemonic;
+        // The declaring keyword comes from the ACTIVE dialect rather than being
+        // compared against a fixed word. A dialect without one answers empty and
+        // no line is claimed -- which matters, because in a field-based dialect a
+        // line beginning with that word is a LABEL in column 1, and treating it
+        // as a declaration deletes the line's instruction and its label together.
+        declaresLocal = !localKeyword.empty() &&
+                        ((mnemonic == localKeyword) ||
+                         (info.parsed.isDirective && info.parsed.directive == "." + localKeyword));
 
-        if (bodyMn == "LOCAL" || (info.parsed.isDirective && info.parsed.directive == ".LOCAL"))
+        if (declaresLocal)
         {
-            std::string localArg = bodyMn == "LOCAL" ? info.parsed.operand : info.parsed.directiveArg;
-            auto localNames = Parser::SplitArgList (localArg);
+            std::string  localArg   = (mnemonic == localKeyword) ? info.parsed.operand : info.parsed.directiveArg;
+            auto         localNames = Parser::SplitArgList (localArg);
 
             for (const auto & ln : localNames)
             {
@@ -1967,12 +2007,19 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
 //  `handled` reports whether this line opened a definition; the HRESULT
 //  reports only whether the attempt itself ran.
 //
+//  WHERE THE NAME IS depends on the shape. In as65's `NAME macro` the keyword
+//  is the operand, so the name is the first word; in the token form the keyword
+//  occupies the opcode field and the name is the label beside it. Reading the
+//  wrong field would name the macro after its own opening directive, and every
+//  call site would then fail to find it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::DetectMacroDefinition (const PendingLine & current, LineInfo & info,
                                                  const std::string & operandUpper, bool & handled)
 {
-    HRESULT hr = S_OK;
+    HRESULT      hr        = S_OK;
+    std::string  macroName;
 
     handled = false;
 
@@ -1983,22 +2030,29 @@ HRESULT AssemblySession::DetectMacroDefinition (const PendingLine & current, Lin
     BAIL_OUT_IF (!IsAssembling(), S_OK);
     BAIL_OUT_IF (!IsMacroDefinitionStart (info.parsed, operandUpper), S_OK);
 
+    macroName = (info.parsed.directiveToken == Directive::MacroDef)
+                    ? info.parsed.label
+                    : info.parsed.mnemonic;
+
     // Name collision check
-    if (m_opcodeTable->IsMnemonic (info.parsed.mnemonic))
+    if (m_opcodeTable->IsMnemonic (macroName))
     {
-        RecordError (current.sourceLineNumber, "Macro name conflicts with mnemonic: " + info.parsed.mnemonic);
+        RecordError (current.sourceLineNumber, "Macro name conflicts with mnemonic: " + macroName);
     }
 
     m_pass1State = Pass1State::CollectingMacro;
-    m_currentMacroName = info.parsed.mnemonic;
+    m_currentMacroName = macroName;
     m_currentMacroLine = current.sourceLineNumber;
     m_currentMacroFile = current.sourceFile;
     m_currentMacroBody.clear();
     m_currentMacroParams.clear();
     m_currentMacroLocals.clear();
 
-    // Parse parameter names (after "macro" keyword)
-    if (operandUpper.size() > 5)
+    // Parameter names follow the `macro` keyword in the operand, so this reads
+    // the as65 shape only. The token form declares no names at all -- its
+    // parameters are positional -- and taking a substring of its operand would
+    // turn whatever the line carried into a parameter list.
+    if ((info.parsed.directiveToken != Directive::MacroDef) && (operandUpper.size() > 5))
     {
         std::string paramStr = info.parsed.operand.substr (6);
 
@@ -3854,13 +3908,17 @@ Error:
 //  the expansion and the file would end with an unclosed-block error pointing
 //  at the macro rather than at whatever is wrong.
 //
-//  LOCAL declarations are dropped rather than emitted: uniqueSuffix has
+//  Local-label declarations are dropped rather than emitted: uniqueSuffix has
 //  already done their work, so passing them through would leave a directive
 //  the assembler would have to ignore anyway.
 //
-//  EXITM and LOCAL stay string comparisons rather than DirectiveTable tokens
-//  on purpose -- they are macro-body keywords, and tokenizing them would cost
-//  a lookup on every line of every file to serve lines that only appear here.
+//  The keyword is the ACTIVE DIALECT'S, not a literal. It stays out of the
+//  spelling tables on purpose -- it is a macro-body keyword, and tokenizing it
+//  would cost a lookup on every line of every file to serve lines that appear
+//  only here -- but comparing a fixed word instead means a dialect whose source
+//  merely CONTAINS that word loses the line. In a field-based dialect the first
+//  word of a line is a label, so `LOCAL LDA #1` is a labeled instruction, and
+//  dropping it deletes both the label and two bytes with no diagnostic.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3869,7 +3927,8 @@ HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef
                                                  const std::string & uniqueSuffix,
                                                  std::vector<std::string> & expandedLines)
 {
-    HRESULT hr = S_OK;
+    HRESULT      hr           = S_OK;
+    std::string  localKeyword = m_dialect.GetMacroLocalKeyword();
 
     const auto & body = macroDef.body;
 
@@ -3899,14 +3958,12 @@ HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef
             break;
         }
 
-        // `local` declares macro-local labels, which uniqueSuffix has already
-        // taken care of, so the declaration itself never reaches the output.
-        // Left as a string compare for the same reason as EXITM: it is a
-        // macro-body keyword, and putting it in DirectiveTable would tokenize
-        // it on every line in the file.
+        // The local-label declaration, which uniqueSuffix has already taken care
+        // of, so it never reaches the output. Recognized by the active dialect's
+        // keyword: a dialect with none answers empty and no line is claimed.
         firstWord = GetLeadingWord (ToUpperCase (expanded));
 
-        if (firstWord == "LOCAL" || firstWord == ".LOCAL")
+        if (!localKeyword.empty() && ((firstWord == localKeyword) || (firstWord == "." + localKeyword)))
         {
             continue;
         }

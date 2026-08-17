@@ -458,4 +458,213 @@ namespace MerlinDirectiveTests
             Assert::AreEqual (0x0300, (int) result.startAddress, L"a source naming an origin decides its own");
         }
     };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinBranchAliasTests
+    //
+    //  BLT and BGE, Merlin's names for BCC and BCS.
+    //
+    //  These are not decoration. Three of the five vendor oracle sources use
+    //  them, so four of the six shipped objects are unreachable without them --
+    //  and they are the only construct standing between a source and its object
+    //  that is a MNEMONIC rather than a directive.
+    //
+    //  The AS65 counterparts are the discriminating half. Branch encoding is
+    //  shared, so a test that only proved $90 comes out would pass whether or not
+    //  the dialect was consulted.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinBranchAliasTests)
+    {
+    public:
+
+        TEST_METHOD (BltAssemblesAsBranchOnCarryClear)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              " BLT AHEAD\n"
+                                              "AHEAD RTS\n");
+            std::vector<Byte>  expected = { 0x90, 0x00, 0x60 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"BLT is BCC, opcode $90");
+        }
+
+
+
+        TEST_METHOD (BgeAssemblesAsBranchOnCarrySet)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              " BGE AHEAD\n"
+                                              "AHEAD RTS\n");
+            std::vector<Byte>  expected = { 0xB0, 0x00, 0x60 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"BGE is BCS, opcode $B0");
+        }
+
+
+
+        //  A backward branch, so the alias is proved to reach the displacement
+        //  arithmetic rather than only the opcode lookup.
+        TEST_METHOD (AnAliasedBranchComputesItsDisplacementLikeTheRealMnemonic)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              "BACK NOP\n"
+                                              " BLT BACK\n");
+            std::vector<Byte>  expected = { 0xEA, 0x90, 0xFD };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"a backward alias branch needs the same relative arithmetic");
+        }
+
+
+
+        //  The real spellings must still work. An alias table consulted in the
+        //  wrong order, or one that replaced rather than added, would break these.
+        TEST_METHOD (TheUnaliasedSpellingsStillAssemble)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              " BCC AHEAD\n"
+                                              " BCS AHEAD\n"
+                                              "AHEAD RTS\n");
+            std::vector<Byte>  expected = { 0x90, 0x02, 0xB0, 0x00, 0x60 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"BCC and BCS are unaffected by their aliases");
+        }
+
+
+
+        //  FR-005: one dialect's constructs must not be admitted into another.
+        TEST_METHOD (As65RejectsBlt)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::Assemble (
+                                         "        .org $8000\n"
+                                         "        blt ahead\n"
+                                         "ahead:  rts\n", DialectId::As65);
+
+            Assert::IsFalse (result.errors.empty(), L"BLT is Merlin's spelling and is not an as65 instruction");
+        }
+
+
+
+        TEST_METHOD (As65RejectsBge)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::Assemble (
+                                         "        .org $8000\n"
+                                         "        bge ahead\n"
+                                         "ahead:  rts\n", DialectId::As65);
+
+            Assert::IsFalse (result.errors.empty(), L"BGE likewise");
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinMacroDefinitionTests
+    //
+    //  Merlin opens a macro with MAC in the opcode field and the name in the
+    //  label, and closes it with `<<<`. Both resolve to tokens the shared engine
+    //  already has, so the dialect difference is vocabulary rather than behavior.
+    //
+    //  The terminator is the interesting one. It resolved to exactly the right
+    //  token and was then compared against as65's SPELLING, so it was swallowed
+    //  into the body it was meant to close and the rest of the file went with
+    //  it -- lines simply stopped producing bytes.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinMacroDefinitionTests)
+    {
+    public:
+
+        TEST_METHOD (AMacroClosedByAngleBracketsExpandsAtItsCallSite)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              "SETONE MAC\n"
+                                              " LDA #$01\n"
+                                              " <<<\n"
+                                              " SETONE\n"
+                                              " RTS\n");
+            std::vector<Byte>  expected = { 0xA9, 0x01, 0x60 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected,
+                            L"the body must expand and the line after the terminator must survive");
+        }
+
+
+
+        //  The definition emits nothing where it stands. A body assembled in
+        //  place would put its bytes at the definition's address as well as at
+        //  every call site.
+        TEST_METHOD (AMacroBodyEmitsNothingWhereItIsDefined)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              "NEVER MAC\n"
+                                              " LDA #$01\n"
+                                              " <<<\n"
+                                              " RTS\n");
+            std::vector<Byte>  expected = { 0x60 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"a macro that is never called contributes no bytes");
+        }
+
+
+
+        //  Merlin has no macro-local DECLARATION -- its macro locals are ordinary
+        //  local labels -- so a body line beginning with the word another dialect
+        //  uses for one is just a labeled instruction. Dropping it took the label
+        //  and its two bytes with it, with nothing said.
+        TEST_METHOD (ABodyLineBeginningWithAnotherDialectsLocalKeywordSurvives)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlin (
+                                              " ORG $8000\n"
+                                              "SETUP MAC\n"
+                                              "LOCAL LDA #$42\n"
+                                              " <<<\n"
+                                              " SETUP\n"
+                                              " RTS\n");
+            std::vector<Byte>  expected = { 0xA9, 0x42, 0x60 };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"LOCAL is not a Merlin keyword, so the line is a labeled LDA");
+        }
+
+
+
+        //  The same word, in the dialect that DOES declare it. as65 must keep
+        //  dropping the declaration, or every macro using one emits a line the
+        //  assembler cannot read.
+        TEST_METHOD (As65StillDropsItsOwnLocalDeclaration)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::Assemble (
+                                              "        .org $8000\n"
+                                              "twice   macro\n"
+                                              "        local skip\n"
+                                              "        bne skip\n"
+                                              "skip:   nop\n"
+                                              "        endm\n"
+                                              "        twice\n"
+                                              "        twice\n", DialectId::As65);
+            std::vector<Byte>  expected = { 0xD0, 0x00, 0xEA, 0xD0, 0x00, 0xEA };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected,
+                            L"as65's local declaration is still consumed, and its label still renamed per call");
+        }
+    };
 }

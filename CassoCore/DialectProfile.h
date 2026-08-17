@@ -34,6 +34,39 @@ enum class CpuSelectionSource
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MnemonicAlias
+//
+//  One extra spelling a dialect accepts for an instruction the shared opcode
+//  tables already hold. Merlin writes the carry branches BLT and BGE; the
+//  machine has no such opcodes and never will, because they ARE BCC and BCS.
+//
+//  This is the instruction-layer twin of the directive spelling table, and it
+//  exists for the same reason. A dialect is a second TABLE, not a second
+//  assembler: the alias is resolved once, at parse time, and nothing downstream
+//  ever learns that the source said something else. The alternative -- teaching
+//  the lookup, the size estimator, the branch-range check and the encoder each
+//  to consider a second name -- puts a per-dialect special case in five places
+//  in shared mechanism, which is what the profile seam exists to prevent.
+//
+//  An alias must name an instruction the base table already carries. One that
+//  does not is not an alias at all; it silently becomes an unknown mnemonic on
+//  every line that uses it, so the registry sweep checks the whole table rather
+//  than trusting the rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct MnemonicAlias
+{
+    const char *  spelling;      // what this dialect's source may write
+    const char *  instruction;   // the opcode table's name for the same instruction
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DialectProfile
 //
 //  The complete syntactic personality of one assembler: how source is READ.
@@ -103,4 +136,29 @@ public:
     // would leave every use of a local label unresolvable. Naming the character
     // once keeps those two answers from disagreeing.
     virtual char                GetLocalLabelPrefix () const { return 0; }
+
+    // Extra instruction spellings, as DATA rather than as behavior. Empty for a
+    // dialect that spells every instruction the way the opcode table does, which
+    // is why this is a default rather than a pure virtual.
+    virtual std::span<const MnemonicAlias>  GetMnemonicAliases () const { return {}; }
+
+    // The bare keyword that closes a macro body, for a dialect whose directive
+    // table does not carry Directive::MacroEnd. Empty when the token is the
+    // only way the body ends.
+    //
+    // Both routes exist because as65's `endm` is not in its spelling table at
+    // all -- it is a macro-body keyword rather than a directive, and tokenizing
+    // it would cost a lookup on every line of every file to serve lines that
+    // appear only here.
+    virtual const char *        GetMacroEndKeyword () const { return ""; }
+
+    // The keyword that declares macro-local labels inside a macro body, or an
+    // empty string for a dialect with no such declaration.
+    //
+    // Data for the same reason the local-label prefix is: the expander has to
+    // recognize the declaration and DROP it, so a hard-coded spelling deletes
+    // any line another dialect's source happens to begin with that word. Merlin
+    // has no such declaration -- its macro locals are ordinary local labels --
+    // so it answers empty and its macro bodies keep every line they were given.
+    virtual const char *        GetMacroLocalKeyword () const { return ""; }
 };

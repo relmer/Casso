@@ -75,6 +75,24 @@ static constexpr MerlinDirectiveTable::Spelling  s_kMerlinSpellings[] =
 
 
 
+//  Merlin's own names for the two carry branches. They are MNEMONICS, not
+//  directives: the machine has one opcode each and Merlin simply spells it
+//  differently, so they resolve to BCC and BCS at parse time and nothing
+//  downstream ever sees the alternate name.
+//
+//  Not optional flavor. Three of the five oracle sources -- PRINTFILER, MAKE
+//  DUMP and CLOCK -- use them, so four of the six shipped objects are
+//  unreachable without this table. as65 must NOT gain these spellings: admitting
+//  one dialect's constructs into another is exactly what the strictness rule
+//  forbids.
+static constexpr MnemonicAlias  s_kMerlinMnemonicAliases[] =
+{
+    { "BLT", "BCC" },   //  branch if less than -- unsigned, so carry clear
+    { "BGE", "BCS" },   //  branch if greater or equal -- carry set
+};
+
+
+
 //  Introduces a comment when it BEGINS a field. Inside the operand it is data --
 //  Merlin's macro-argument separator.
 static const char  s_kCommentIntroducer = ';';
@@ -224,6 +242,21 @@ StringEncodingMode MerlinDirectiveTable::EncodingModeForSpelling (const std::str
     }
 
     return mode;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinDialect::GetMnemonicAliases
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const MnemonicAlias> MerlinDialect::GetMnemonicAliases() const
+{
+    return std::span<const MnemonicAlias> (s_kMerlinMnemonicAliases);
 }
 
 
