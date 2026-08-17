@@ -26,7 +26,7 @@ static constexpr const char *  s_kpszExportOnlyFix =
 //  amount of editing this file supplies a definition that lives in another one.
 static constexpr const char *  s_kpszImportingHasNoFix =
     "This module declares external symbols, so it references definitions that live in other modules; "
-    "there is no workaround, because resolving those is what the linker Casso does not have would do.";
+    "there is no workaround, because resolving them needs the linker Casso does not have.";
 
 
 
