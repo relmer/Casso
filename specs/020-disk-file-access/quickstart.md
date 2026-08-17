@@ -277,6 +277,77 @@ happens to preserve size.
 
 ## Interrupted-write check (manual)
 
-Crash safety is hard to unit-test and worth one manual pass. Start a `put`,
-kill the process during the commit, then confirm the original image is intact and
-bootable and that no temporary file remains.
+Crash safety is hard to unit-test and worth one manual pass: interrupt a `put`
+during the commit, then confirm the original image is intact and bootable, and
+see what became of the temporary.
+
+**Killing the process from outside does not work, and that is a measured
+result, not an excuse.** Seventy attempts across two methods — polling, and a
+`FileSystemWatcher` armed on the temporary's creation, which fired on 39 of 40
+tries — never once ended with the original still in place. Every kill landed
+*after* the replace, because the window between the temporary's last byte and
+the rename is shorter than the time Windows takes to stop a process from
+another one. Reassuring about how exposed the path is; no evidence at all about
+the instant in question, which was never reached.
+
+So the interruption is raised from inside the code, at a chosen point. A
+**debug-only** environment switch, `CASSO_DIAG_DISK_ABORT`, is read by
+`Win32DiskFileIo` and takes one of two stage names:
+
+| Value | Where it stops | What should be on disk afterwards |
+|---|---|---|
+| `during-write` | half the temporary written and flushed | original untouched, a **short** temporary beside it |
+| `before-replace` | temporary complete, target not yet touched | original untouched, a **full-length** temporary beside it |
+
+The process stops via `TerminateProcess` on itself: no unwinding, no
+destructors, no cleanup — which is the point, since a clean `exit()` would run
+exactly the tidying a crash does not. It prints one line to standard error and
+exits with `0xDEAD` (57005), so both a human and a script can tell the switch
+firing from the tool falling over.
+
+**The switch does not exist in a Release build.** The declarations, the
+definitions and both call sites are inside `#ifdef _DEBUG`, so it is a
+compile-time absence rather than a runtime flag that happens to be off. Setting
+the variable and running the Release binary commits normally, and none of
+`CASSO_DIAG_DISK_ABORT`, `during-write` or `before-replace` appears anywhere in
+`x64\Release\CassoCli.exe`.
+
+This does **not** replace the substitute file interface. That covers every
+decision above the seam — ordering, each refusal, the cleanup rule —
+deterministically, over nothing real. What it structurally cannot cover is
+`Win32DiskFileIo`: the test project does not link the console executable, and
+the property here is what a real file looks like once the process has stopped
+existing.
+
+```powershell
+Copy-Item "$env:LOCALAPPDATA\Casso\Disks\DOS 3.3 System Master.dsk" .\target.dsk
+$before = (Get-FileHash .\target.dsk).Hash
+
+$env:CASSO_DIAG_DISK_ABORT = 'before-replace'
+.\x64\Debug\CassoCli.exe disk put .\target.dsk .\prog.bin --as PROG --type B --addr '$6000'
+$env:CASSO_DIAG_DISK_ABORT = $null
+
+(Get-FileHash .\target.dsk).Hash -eq $before   # must be True
+Get-ChildItem .\target.dsk.casso-*.tmp         # see below
+```
+
+Then mount `target.dsk` in the emulator and confirm it still boots — a
+`disk list` only proves our own reader can still read it.
+
+**Last run** (2026-08-17, x64 Debug, DOS 3.3 System Master as the target):
+
+- `before-replace` — exit `57005`, target byte-identical (SHA-256 unchanged),
+  and it boots: the guest reaches `DOS VERSION 3.3 SYSTEM MASTER` and a `]`
+  prompt in the emulator.
+- `during-write` — exit `57005`, target byte-identical, temporary 71,680 bytes,
+  exactly half the image.
+- Re-running the same `put` afterwards succeeds and lands an image byte-identical
+  to one produced by an uninterrupted run.
+
+**The temporary DOES survive, and nothing ever removes it.** A hard stop cannot
+run cleanup, so that much is expected; what is not is that no later run reclaims
+it either. Each invocation stamps its own tag into the temporary's name, so an
+orphan sits at a name no future invocation will ever choose or examine. Recovery
+is unaffected — the next `put` succeeds and produces the right bytes — but the
+file stays until somebody deletes it. Read "no temporary remains" as **not
+satisfied** for a hard abort.

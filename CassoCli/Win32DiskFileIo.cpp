@@ -57,6 +57,12 @@ HRESULT Win32DiskFileIo::WriteAllBytes (const std::string & path, const std::vec
     isOpen = file.is_open();
     CBR (isOpen);
 
+#ifdef _DEBUG
+    // One of the two chosen interruption points. Does nothing unless the
+    // environment asks for it, and does not exist at all in a shipping build.
+    AbortWithPartialFileIfRequested (file, bytes);
+#endif
+
     file.write (reinterpret_cast<const char *> (bytes.data()), (std::streamsize) bytes.size());
 
     wrote = file.good();
@@ -164,6 +170,13 @@ HRESULT Win32DiskFileIo::ReplaceAtomically (const std::string & tempPath, const 
     BOOL          ok       = FALSE;
 
 
+
+#ifdef _DEBUG
+    // The other interruption point, and the valuable one: the temporary is
+    // whole, the target has not been touched, and nothing else has ever
+    // exercised this instant in the real code.
+    AbortBeforeReplaceIfRequested();
+#endif
 
     ok = MoveFileExW (wideTemp.c_str(), wideDest.c_str(),
                       MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
@@ -288,3 +301,177 @@ HRESULT Win32DiskFileIo::WritePayloadToStandardOutput (const std::vector<Byte> &
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32DiskFileIo::IsAbortStageRequested
+//
+//  THE INTERRUPTION SWITCH FOR THE COMMIT PATH. Debug builds only.
+//
+//  The guarantee this edge makes is that stopping the process partway through a
+//  write leaves the image wholly old or wholly new and never a mixture. Proving
+//  it from OUTSIDE was tried and does not work. Seventy attempts across two
+//  methods -- polling, and a change watcher armed on the temporary's creation,
+//  which fired on thirty-nine of forty tries -- never once ended with the
+//  original still in place. Every kill landed after the replace, because the
+//  window between the temporary's last byte and the rename is shorter than the
+//  time this platform takes to stop a process from another one. That is
+//  reassuring about how exposed the path is, and it demonstrates nothing
+//  whatsoever about the instant in question, since the instant was never
+//  reached.
+//
+//  So the interruption is raised from INSIDE the code under test, at a point
+//  chosen rather than raced for.
+//
+//  THIS DOES NOT OVERLAP THE SUBSTITUTE FILE INTERFACE, and both are needed.
+//  The substitute covers every DECISION above the seam -- the ordering, each
+//  refusal, the cleanup rule -- deterministically, in the test assembly, over
+//  nothing real. What it structurally cannot cover is this class: the test
+//  project does not link the console executable, and the property at stake is
+//  what a REAL file on a REAL filesystem looks like once the process has
+//  stopped existing. A substitute that recorded the right intentions in memory
+//  would pass either way.
+//
+//  IT CANNOT EXIST IN A SHIPPING BUILD. The declarations, these definitions and
+//  both call sites are inside #ifdef _DEBUG, so a release binary holds no code
+//  to reach -- the switch is a compile-time absence, not a runtime flag that
+//  happens to be off. Naming the variable in a release build does nothing
+//  because there is nothing there to name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+#ifdef _DEBUG
+
+bool Win32DiskFileIo::IsAbortStageRequested (const wchar_t * stage)
+{
+    constexpr DWORD  kMaxStageLength         = 32;
+    wchar_t          buffer[kMaxStageLength] = {};
+    DWORD            length                  = 0;
+    std::wstring     requested;
+    bool             matches                 = false;
+
+
+
+    length = GetEnvironmentVariableW (kpszAbortVariable, buffer, kMaxStageLength);
+
+    // Absent yields zero, and a value too long for the buffer yields the size
+    // it would need while leaving the buffer empty. Neither names a stage, and
+    // treating the second as a match would fire on a truncation.
+    if (length > 0 && length < kMaxStageLength)
+    {
+        requested.assign (buffer, length);
+    }
+
+    matches = !requested.empty() && requested == stage;
+
+    return matches;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32DiskFileIo::AbortWithPartialFileIfRequested
+//
+//  The lesser of the two points: stop with a half-written temporary sitting
+//  beside the image. Half the bytes are pushed to the filesystem rather than
+//  left in the stream's buffer, because a buffer that never drains would leave
+//  an EMPTY file behind and that is a different case -- a reader can tell a
+//  zero-length file is unfinished, and a short one it cannot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32DiskFileIo::AbortWithPartialFileIfRequested (
+    std::ofstream            & file,
+    const std::vector<Byte>  & bytes)
+{
+    constexpr size_t  kPartDivisor = 2;
+
+    bool              requested    = false;
+    size_t            partial      = 0;
+
+
+
+    requested = IsAbortStageRequested (kpszStageDuringWrite);
+
+    if (!requested)
+    {
+        return;
+    }
+
+    partial = bytes.size() / kPartDivisor;
+
+    file.write (reinterpret_cast<const char *> (bytes.data()), (std::streamsize) partial);
+    file.flush();
+
+    AbortProcessNow (kpszStageDuringWrite);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32DiskFileIo::AbortBeforeReplaceIfRequested
+//
+//  The point worth having. The temporary is complete and flushed -- the stream
+//  that wrote it was destroyed when the write returned -- and the target has
+//  not been touched. Everything the guarantee claims is riding on the single
+//  step that has not happened yet.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32DiskFileIo::AbortBeforeReplaceIfRequested()
+{
+    bool  requested = false;
+
+
+
+    requested = IsAbortStageRequested (kpszStageBeforeSwap);
+
+    if (requested)
+    {
+        AbortProcessNow (kpszStageBeforeSwap);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32DiskFileIo::AbortProcessNow
+//
+//  A HARD STOP, DELIBERATELY. No unwinding, no destructors, no atexit, no
+//  stream flushed on the way out -- because that is what a crash is, and a
+//  tidier exit would let exactly the cleanup this exercise is meant to do
+//  without run anyway and prove nothing.
+//
+//  The line on standard error is written and flushed FIRST, since after this
+//  call there is no process to write it. It is what tells an operator the stop
+//  was the switch firing rather than the tool falling over on its own; the exit
+//  code says the same thing to a script.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32DiskFileIo::AbortProcessNow (const wchar_t * stage)
+{
+    constexpr UINT  kAbortExitCode = 0xDEAD;
+
+
+
+    fprintf (stderr, "disk: stopping hard at '%ls' -- debug interruption switch\n", stage);
+    fflush (stderr);
+
+    TerminateProcess (GetCurrentProcess(), kAbortExitCode);
+}
+
+#endif
