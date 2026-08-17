@@ -332,30 +332,32 @@ Casso.sln
 ### Assemble and Run
 
 ```powershell
-# Assemble a source file to a flat binary (AS65 mode — no subcommand)
-CassoCli input.a65 -o output.bin
+# Assemble a source file to a flat binary. The dialect is NAMED: `as65` is a
+# subcommand, not an assumption. `CassoCli input.a65` used to work and no
+# longer does -- see the breaking-changes entry in CHANGELOG.md.
+CassoCli as65 input.a65 -o output.bin
 
 # Assemble with a listing file and a symbol table
-CassoCli input.a65 -o output.bin -l listing.txt -t
+CassoCli as65 input.a65 -o output.bin -l listing.txt -t
 
 # Output Motorola S-record (.s19) or Intel HEX (.hex)
-CassoCli input.a65 -s   -o output.s19
-CassoCli input.a65 -s2  -o output.hex
+CassoCli as65 input.a65 -s   -o output.s19
+CassoCli as65 input.a65 -s2  -o output.hex
 
 # Write only the assembled bytes, or a BLOAD-ready DOS 3.3 binary
 # (the default is a full 64 KB image padded with the fill byte)
-CassoCli input.a65 --raw      -o output.bin
-CassoCli input.a65 --dos-bin  -o output.bin
+CassoCli as65 input.a65 --raw      -o output.bin
+CassoCli as65 input.a65 --dos-bin  -o output.bin
 
 # Pre-define a symbol on the command line
-CassoCli input.a65 -d DEBUG=1 -o output.bin
+CassoCli as65 input.a65 -d DEBUG=1 -o output.bin
 
 # Generate a listing with cycle counts
-CassoCli input.a65 -c -l listing.txt
+CassoCli as65 input.a65 -c -l listing.txt
 
 # Assemble 65C02 source (CMOS opcodes: STZ, BRA, RMB/SMB/BBR/BBS, ...)
 # The default is a strict 6502; 65C02-only opcodes are rejected without --cpu.
-CassoCli input.a65c --cpu 65c02 -o output.bin
+CassoCli as65 input.a65c --cpu 65c02 -o output.bin
 
 # Assemble and run an assembly source directly
 CassoCli run input.a65
