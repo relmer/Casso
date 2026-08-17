@@ -14,12 +14,14 @@ refusal), T030 + T031 (the file-level commit policy and its wiring into the
 runner), and now **T032** — `put` and `delete`, which is what makes any of it
 reachable by a user. That is the whole P1 extraction story — both filesystem
 readers, the decode report, the integrity pass, the `disk` subcommand, the CLI
-edge — plus placement, replacement and removal on both filesystems, each
+edge — plus **T034**'s uniform failure-mode gate over the whole of it, plus
+placement, replacement and removal on both filesystems, each
 verifying its own output, an edited volume rendered back into any of the four
 containers it came from, a crash-safe commit that leaves the target
 byte-identical after every failure it can be made to suffer, and a command line
-that reaches all of it. Suite is **3212 Debug / 3209 Release** green; the 3-test
-delta is the pre-existing GH #113, not this work. (It was 3191 / 3188 before
+that reaches all of it. Suite is **3220 Debug / 3217 Release** green; the 3-test
+delta is the pre-existing GH #113, not this work. (It was 3212 / 3209 before
+T034 added 8, 3191 / 3188 before
 T032 added 21 tests, 3163 / 3160 before T030/T031 added 28, 3152 / 3149
 before T029 added 11, 3134 / 3131 before T027/T028 added 18, 3109 / 3106 before
 T025/T026 added 25, and 3088 / 3085 before T023/T024 added 22 and removed the
@@ -30,7 +32,7 @@ reorder shipped in Phase 3 was wrong and had been silent ever since — see the
 divergences block. Read that before assuming the sector-order question is
 settled anywhere else in the tree.
 
-**Next.** Phase 4 has three tasks left (T033–T035), and it is the work here where
+**Next.** Phase 4 has two tasks left (T033 and T035), and it is the work here where
 a bug **destroys data** rather than failing loudly. Everything through Phase 3
 was reads: wrong output was the worst case. From T023 on, the worst case is a
 user's disk image. The two ranked risks that were still open — the `.po` reorder
@@ -40,12 +42,13 @@ not mechanism.
 **Order within Phase 4.** T023 → T024 and T025 → T026 were independent chains
 (DOS 3.3 and ProDOS), joining at T028. Delete ships with write on both because
 replace depends on it. Both chains, T027, T028, T029, T030, T031 and T032 are
-done; what remains is **verification, not mechanism** — T033's real-CPU gate,
-T034's failure matrix against the fake, and T035's manual interrupted-write
-pass. The write path a user actually travels is `RunPut` / `RunDelete` →
-`OpenImage` → `IVolume::Write` or `IVolume::Delete` → `SaveAndCommit` →
-`VolumeImage::Save` → `CommitImage`, all in `DiskCommandRunner`, and T034
-extends it rather than building anything new.
+done, and so is **T034**'s failure matrix against the fake; what remains is
+**verification, not mechanism** — T033's real-CPU gate and T035's manual
+interrupted-write pass. The write path a user actually travels is `RunPut` /
+`RunDelete` → `OpenImage` → `IVolume::Write` or `IVolume::Delete` →
+`SaveAndCommit` → `VolumeImage::Save` → `CommitImage`, all in
+`DiskCommandRunner`, and T034 exercised it end to end rather than building
+anything new.
 
 Three things earned during Phase 3 that Phase 4 depends on, so do not treat them
 as background:
@@ -263,6 +266,46 @@ One other thing worth carrying: the harness restores the source but does not
 rebuild, so the binaries left behind after a mutation run contain the last
 mutation. Running the suite at that point reports a confident green against code
 that is not on disk — rebuild before any gate that follows a mutation pass.
+*(That is now fixed rather than merely recorded: `scripts/RunMutation.ps1`
+restores, verifies the restore by hash, and rebuilds. Every mutation from T034
+onward should go through it rather than through a hand-rolled harness.)*
+
+And again on T034, where **twenty mutations were run — the same ten twice, once
+against the whole suite and once filtered to the new gate — and all twenty were
+caught first try.** Three findings.
+
+**The one that matters is that byte equality against a rebuilt oracle is blind
+to the material.** Where a case's image is synthetic, the same pure builder
+produces both the seed and the oracle, so a defect in the builder corrupts them
+identically and the comparison passes over two piles of garbage. That is not
+hypothetical either: stamping a different volume number in `Dos33Skeleton::Write`
+leaves every byte assertion in the gate satisfied, and only the "does it still
+mount and still list what it listed" check goes red. **The second of the three
+questions is not a courtesy restatement of the first; it is the one that fails
+when the fixture stops being a disk.**
+
+**The second is that three invariants about the IMAGE cannot see a refusal that
+did not stop.** Deleting `RunPut`'s or `RunDelete`'s bail-out after a volume
+refusal leaves the image untouched regardless, because `VolumeImage::Save`
+refuses the zero-length buffer that reaches it — so bytes, mountability and the
+absence of a temporary are all still satisfied while the command has quietly
+travelled two more layers than it should have. The tell is a **second diagnostic
+line**: one naming the real cause and one blaming the render. Asserting that a
+refusal names exactly ONE reason is what catches it, and it is a property worth
+holding anyway, since two candidate explanations for one refusal is precisely
+what FR-014 exists to prevent.
+
+**The third is a hazard in the shared harness, not in the code.**
+`RunMutation.ps1` writes its build and test logs to a FIXED path
+(`%TEMP%\CassoMutation`) with fixed file names, and 019 was running its own
+mutation battery from another worktree at the same time. The two runs overwrite
+each other's logs, and the verdict is computed by reading a log back immediately
+after writing it — so a sufficiently unlucky interleave scores one branch's
+mutation against the other branch's suite. What made it detectable here was
+passing `-ExpectedTotal`: 019's suite reports a different total, so a crossed
+read surfaces as **RUN DID NOT COMPLETE** rather than as a plausible verdict.
+**Always pass `-ExpectedTotal`**, and treat the log paths the harness prints as
+unreliable when another session may be running.
 
 **Blocked on nobody; 019 is blocked on this branch.** Spec 019 runs
 concurrently. Measured overlap is three files — `CassoCore/CassoCore.vcxproj`,
@@ -598,7 +641,7 @@ filesystem can delete today.
 - [x] T031 [US2] Wire the staleness re-verify and the best-effort probe into `DiskCommandRunner` (T019): record size and modification time at read via `IDiskFileIo`, re-verify immediately before commit and refuse if either changed (FR-036); best-effort exclusive-open probe refusing when **another** holder has the file open, with help text that does not imply it detects Casso (FR-035). Tested against the fake `IDiskFileIo`, which can report a changed size or time on demand. **Four decisions.** (1) **`OpenImage` and `CommitImage` are PUBLIC on the runner**, and `OpenVolume`'s five out-parameters are folded into one `OpenedImage`. `put`/`delete` do not reach the runner until T032, so without a public entry point the entire commit path would have shipped untested — and the stamp only means something if it is taken at READ time, so keeping the two in one object makes it awkward to write a commit that forgot to record one. **T032's `put` is `OpenImage` → `IVolume::Write` → `VolumeImage::Save` → `CommitImage`**, and needs no new seam. (2) **A stamp the platform declined to give is recorded as ABSENT and refuses the commit**, rather than defaulting to zero and comparing two zeros — a guarantee quietly not applied is indistinguishable from one applied. Reading does not need it and is unaffected, which is its own test. (3) **Staleness returns `STG_E_NOTCURRENT`**, which means precisely "the object changed since it was last read". The Win32 table has no code for it and a near-miss from that table reads as a different problem in a log. Not `E_INVALIDARG` — this is external state, not a coding error. (4) **The in-use help text is a constant on `DiskCommandRunner` that the console executable prints.** `UnitTest` does not link `CassoCli`, so a claim written in the help block there is a claim nothing can check — and FR-035's actual demand is about the *wording*. The test pins the disclaiming clause, not merely that something was said
 - [x] T032 [US2] Add `put` and `delete` verbs to `ParseDiskOptions` and `DiskCommandRunner` (`--as`, `--type`, `--addr`, `--text`/`--basic`/`--verbatim`), with write-protect and locked-file refusals reported in intelligible terms rather than raw platform codes (FR-014). Use `--verbatim`, **not** `--raw` or `--binary`: both already name assembler output shapes (`OutputFormat::Raw`, `OutputFormat::Binary`) in this same parser, and `--verbatim` says what it does — the other two selectors transform the bytes, this one does not. **`--verbatim` means no CHARACTER conversion — it does NOT mean raw sectors.** Length and header semantics still apply, because those are how a filesystem records where a file ends: they are the file's identity, not a transformation of it. So `get --verbatim` yields the file's logical bytes with high bits and line endings untouched, never trailing sector slack, because "give me this file" must not hand back whatever happened to be in the rest of the last sector. **Gate it on FILE equality, not image equality**: `get --verbatim`, `put --verbatim` unchanged, re-read, and assert the bytes match. Image equality is the wrong assertion — a DOS 3.3 file occupies whole sectors, so slack past the recorded length differs from whatever was there before, and a `put` that reallocates changes the image for reasons having nothing to do with conversion. **Assert sector reuse separately** if image stability is wanted; do not conflate the two. Extract-edit-replace is the workflow US3 exists for, and it must not perturb bytes the user did not touch. **Five decisions.** (1) **The three-argument `Delete`/`DeleteOutcome` pair is now ON `IVolume`**, the call both T024 and T026 deferred here. The runner holds only an `IVolume &`, and the account is exactly what a caller reporting to a user needs; leaving the pair concrete would force every such caller to re-derive which filesystem it holds and call the type directly, reinstating the branch this seam exists to remove — once per consumer, with spec 021's disk manager the next one. The two-argument form stays, because leaked-space accounting is not information to force on a caller that does not want it. Measured by mutation: swapping the three-argument call for the two-argument one leaves a delete over a damaged chain reporting a clean success. (2) **The grammar was already complete.** T017 landed `put`, `delete`, `--as`, `--type`, `--addr` and all three encoding selectors in `ParseDiskOptions`, so this task added no parser rows — only the one case the grammar lacked a test for: `--verbatim` overriding an earlier `--text`, rather than being merely the default and therefore indistinguishable from a flag that was parsed and dropped. (3) **`--type` takes each filesystem's OWN spellings and refuses anything else**, naming what that filesystem does take. `A` is Applesoft on DOS 3.3 and means nothing on ProDOS, so one shared table would resolve one filesystem's letter against the other's numbering. With no `--type`, the type follows the conversion asked for — text for `--text`, a binary otherwise — because defaulting to a binary would refuse a text placement for want of the load address a binary needs, which is a confusing way to be told the type was wrong. (4) **Write protection is described at the REPLACE, not by the volume layer.** Nothing about an image's contents says it may not be written, so the volume computes a perfectly good result and the platform denies access at the last step; the message has to come from there or the user is left with two candidate causes. `FakeDiskFileIo::nextReplaceError` exists so that refusal can be driven — a fake answering one code for every replace failure would let a message naming the wrong cause pass. (5) **The full-volume refusal does NOT name the shortfall**, which quickstart §US2 case 4 asks for, and this is a deferral rather than an omission. How many units a placement needs is known only inside the allocator — data sectors plus track/sector lists on one filesystem, index and master-index blocks on the other — and computing it in the runner is a second implementation of that arithmetic, which is precisely the shape that produced the `.po` interleave defect. Reporting it honestly means the allocator returning a shortfall, which changes `IVolume::Write`'s signature; left for T034/T048 rather than guessed at here
 - [ ] T033 [US2] Guest-visible gate (SC-003): real-CPU tests — place a binary on a DOS 3.3 image, boot, `CATALOG` shows the placed file, `BLOAD PROG` lands bytes at `$6000`; same payload on ProDOS shows type `BIN` aux `$6000`. Attempt to overwrite the stock master's locked `HELLO` (type `$82`) and confirm refusal. **`B 002 PROG` is wrong arithmetic and this task and quickstart §US2 both carried it.** A 512-byte binary stores 516 bytes once DOS's four-byte load/length header is inside the file, which is three data sectors, and the track/sector list is a fourth: `CATALOG` reads **`B 004`**. `002` is what a payload of 252 bytes or fewer produces. Measured against the implementation in T023 (`Write_BinaryOntoAFreshVolume_ReadsBackByteForByte` asserts four sectors); assert what the file actually occupies rather than the number in the prose
-- [ ] T034 [US2] Failure-mode gate (SC-005) as **unit tests against the fake `IDiskFileIo`**, not against real files: for **every** documented failure — volume full, locked file, write-protected image, illegal name, unwritable track, stale target — assert the target's bytes are unchanged, the resulting image still parses as a mountable volume, and no temporary remains in the fake's file table. Test Isolation is NON-NEGOTIABLE, so the seam is what makes this suite legal; the real-file version of the same checks is the single manual pass in T035
+- [x] T034 [US2] Failure-mode gate (SC-005) as **unit tests against the fake `IDiskFileIo`**, not against real files: for **every** documented failure — volume full, locked file, write-protected image, illegal name, unwritable track, stale target — assert the target's bytes are unchanged, the resulting image still parses as a mountable volume, and no temporary remains in the fake's file table. Test Isolation is NON-NEGOTIABLE, so the seam is what makes this suite legal; the real-file version of the same checks is the single manual pass in T035. **Eight decisions.** (1) **The gate is its own file** — `UnitTest/EmuTests/DiskFailureModeTests.cpp`, eight cases, one per mode plus a delete-side locked case. The per-mode tests already in `DiskCommandRunnerTests.cpp` stay and are not duplicated away: those pin the **wording** a user reads, this pins the **image** left behind, and the three invariants are asked as **one call** so a case cannot answer two of the three and still look complete. (2) **The in-use case is the seventh mode** and belongs here even though the task text lists six: it is documented, `FakeDiskFileIo::reportHeldByOther` exists for it, and until now nothing exercised it through a verb. (3) **Mountability is NOT redundant with byte equality — it guards the MATERIAL.** For the synthetic volumes the oracle is a re-derivation rather than a fixture read, so a builder that stopped producing a volume would corrupt the seed and the oracle identically and every byte comparison would stay green. Measured: mutating `Dos33Skeleton::Write` to stamp a different volume number leaves byte equality satisfied and is caught only by the mount check. (4) **A refusal must name ONE reason**, asserted in every case, and this is the assertion that carries the deleted-bail-out mutations. Removing `RunPut`'s or `RunDelete`'s bail after a volume refusal leaves the image untouched anyway — `VolumeImage::Save` refuses a zero-length buffer — so the three invariants cannot see it; the tell is a **second** diagnostic line, one naming the real cause and one blaming the render. (5) **The full-volume case must be placed as TEXT, not as a binary.** A DOS 3.3 binary records its length in two bytes, so an oversized binary is refused for being longer than the filesystem can record *before* the volume's room is consulted — a perfectly good refusal, and not the one this case is asking about. Written as a binary first, and the mode was wrong until the assertion said so. (6) **The stray-file check is exact membership, not only `HasNoTemporaryFiles()`.** The sweep answers for the name this tool derives; comparing the whole file table answers for anything left under a name it does not. (7) **The unwritable-track case runs two passes** for T029's reason — the track it damages has to be one the write genuinely needs, and damaging one first moves the allocation. It erases half a track's bit stream rather than patching a checksum, which needs no 4-and-4 knowledge and still leaves address fields standing in the surviving half, so the outcome is `Partial` and the case asserts that before using it. (8) **The stale case perturbs the RECORDED stamp, not the observed one.** A whole verb runs in one call and the read is the first stat it makes, so the fake's one-shot switch lands there; `IsStale` is an inequality, so the comparison reached is the same one either way. The observed-side version stays in `DiskCommandRunnerTests`. **What this task did NOT do**: T032 parked the full-volume shortfall here, and it stays parked — reporting it honestly changes `IVolume::Write`'s signature, which is mechanism rather than verification and does not belong in a task whose whole definition is "unit tests against the fake". T048 is its home
 - [ ] T035 [US2] Runtime validation pass over quickstart §US2 plus the **manual** interrupted-write check — the one sanctioned real-file exercise: kill the process mid-commit, confirm the original is intact and bootable and no temporary remains. Crash safety cannot be unit-tested, which is exactly why it is the part done by hand; everything else in T034 runs against the seam
 
 **Checkpoint**: the minimum viable loop is closed — assemble, place, boot, run.
