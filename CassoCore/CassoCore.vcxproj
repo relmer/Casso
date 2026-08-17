@@ -189,6 +189,7 @@
     <ClCompile Include="MerlinDialect.cpp" />
     <ClCompile Include="StringEncoding.cpp" />
     <ClCompile Include="DialectRegistry.cpp" />
+    <ClCompile Include="DialectReporting.cpp" />
     <ClCompile Include="AssemblerExitCode.cpp" />
     <ClCompile Include="DiagnosticFormatter.cpp" />
     <ClCompile Include="InstructionSetProvider.cpp" />
@@ -234,6 +235,7 @@
     <ClInclude Include="Dialect.h" />
     <ClInclude Include="DialectProfile.h" />
     <ClInclude Include="DialectRegistry.h" />
+    <ClInclude Include="DialectReporting.h" />
     <ClInclude Include="AssemblerExitCode.h" />
     <ClInclude Include="DiagnosticFormatter.h" />
     <ClInclude Include="InstructionSetProvider.h" />

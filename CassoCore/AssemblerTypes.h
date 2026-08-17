@@ -143,6 +143,36 @@ struct OperatorSpelling
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DialectSelection
+//
+//  Whether the dialect below was CHOSEN or merely inherited.
+//
+//  The distinction is not decoration: it decides whether the active dialect is
+//  worth telling anyone about. A caller that named one already knows -- saying
+//  it back adds a line to every build and informs nobody. A caller that named
+//  none is assembling under a dialect it never asked for, and that is the one
+//  case where the answer is worth having.
+//
+//  It defaults to Defaulted for the same reason `dialect` defaults to AS65:
+//  a caller written before dialect selection existed named nothing, and that is
+//  exactly what this records. Setting the dialect without setting this leaves
+//  the pair honest as well -- a stated dialect that forgot to say so is merely
+//  over-reported, where the reverse would suppress the report that matters.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class DialectSelection
+{
+    Stated,      // the caller named a dialect; the invocation itself is the record
+    Defaulted,   // the caller named none and took whatever the default is
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SymbolKind
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,6 +268,13 @@ struct AssemblerOptions
     // the CLI, the tests, and anything later that assembles source. Defaults to
     // AS65, so callers that predate dialect selection are unaffected.
     DialectId                                   dialect           = DialectId::As65;
+
+    // Whether the field above was chosen or inherited. Carried beside the
+    // dialect rather than derived from it, because the two are independent
+    // facts: AS65 is both a dialect a caller can state and the value a caller
+    // that stated nothing ends up with, so the dialect alone cannot say which
+    // happened.
+    DialectSelection                            dialectSelection  = DialectSelection::Defaulted;
 
     // A profile that is not in the registry, for a caller that has one. Null --
     // which is every production caller -- means the registry answers for
