@@ -4492,31 +4492,27 @@ Error:
 //  the only honest answer available: the tables are injected, so this layer
 //  cannot go and find one.
 //
-//  AN OPERAND IS REFUSED rather than ignored or interpreted. Whether this
-//  directive accepts a form that puts the CPU back is an open question about the
-//  language, and it must be answered by assembling one under the real assembler
-//  rather than decided here. Ignoring the operand would answer it too -- with
-//  "there is no such form, and writing one selects the wider processor
-//  anyway", silently, which is the worst of the three available answers.
+//  AN OPERAND IS ACCEPTED AND IGNORED, and the reasoning that once refused one
+//  is kept here because it was right for as long as the answer was unknown.
+//  Whether this directive has a form that puts the CPU BACK was an open question
+//  about the language, and refusing the operand was the only reading that
+//  answered nothing: ignoring it would have said "there is no such form, and
+//  writing one selects the wider processor anyway", silently.
+//
+//  It is no longer open. Assembled under the real assembler, an operand draws no
+//  diagnostic and selects nothing -- the wider set stays selected, proven by an
+//  instruction only the wider processor has still assembling on the line after
+//  it. So the transition really is one-way, and the refusal became the thing
+//  rejecting source the real assembler accepts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::HandlePass1CpuSelect (const PendingLine & current, LineInfo & info)
 {
     HRESULT  hr           = S_OK;
-    bool     hasOperand   = !info.parsed.directiveArg.empty();
     bool     canSelect    = m_instructionSets.HasExtended();
 
 
-
-    if (hasOperand)
-    {
-        RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
-                       info.parsed.directive + " takes no operand here -- only the plain form,"
-                       " which selects the wider instruction set, is supported");
-    }
-
-    BAIL_OUT_IF (hasOperand, S_OK);
 
     if (!canSelect)
     {

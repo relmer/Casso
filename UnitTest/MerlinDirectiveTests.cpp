@@ -3007,21 +3007,41 @@ namespace MerlinDirectiveTests
 
 
 
-        //  Whether this directive has a form that puts the CPU BACK is an open
-        //  question about the language, to be answered by assembling one under the
-        //  real assembler. Refusing the operand answers nothing about Merlin; it
-        //  says only that Casso implements the plain form. Ignoring the operand
-        //  would answer it -- with "no such form exists, and writing one selects
-        //  the wider processor anyway", silently.
-        TEST_METHOD (AnOperandIsRefusedAndDoesNotSelectAnything)
+        //  Whether this directive has a form that puts the CPU BACK was an open
+        //  question about the language, and while it was open the operand was
+        //  REFUSED -- the only reading that answered nothing. It is settled now,
+        //  by assembling one under the real assembler: an operand draws no
+        //  diagnostic and selects nothing.
+        //
+        //  Both halves are asserted, because either alone is satisfied by the
+        //  wrong implementation. Silence alone is what an assembler that dropped
+        //  the whole line produces, and the wider instruction alone is what one
+        //  that reported the operand and selected anyway produces.
+        TEST_METHOD (AnOperandIsAcceptedAndChangesNothing)
         {
-            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlinWithExtendedSet (" XC OFF\n PHX\n");
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlinWithExtendedSet (
+                                              " XC OFF\n PHX\n");
+            std::vector<Byte>  expected = { 0xDA };
 
-            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "takes no operand here"),
-                            MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected,
+                            L"the wider set stays selected, which is what makes the transition one-way");
+        }
 
-            Assert::IsFalse (result.bytes.size() == 1,
-                             L"a refused line must not have selected the wider set on the way past");
+
+
+        //  The operand is IGNORED rather than interpreted, so a word that looks
+        //  like nothing in particular is accepted exactly as the documented one
+        //  is. Without this the test above is also passed by an implementation
+        //  that grew a table of accepted operands.
+        TEST_METHOD (AnyOperandIsIgnored)
+        {
+            AssemblyResult     result   = MerlinAssemblyFixture::AssembleMerlinWithExtendedSet (
+                                              " XC WHATEVER\n PHX\n");
+            std::vector<Byte>  expected = { 0xDA };
+
+            Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
+            Assert::IsTrue (result.bytes == expected, L"nothing about the operand is read");
         }
 
 
