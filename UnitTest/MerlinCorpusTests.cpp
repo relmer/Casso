@@ -5,7 +5,11 @@
 #include "EmuTests/FixtureProvider.h"
 #include "EhmTestHelper.h"
 #include "TestHelpers.h"
+#include "MockFileReader.h"
 #include "Assembler.h"
+#include "DialectRegistry.h"
+#include "DialectProfile.h"
+#include "MerlinSubsetBoundary.h"
 
 
 
@@ -962,6 +966,369 @@ namespace MerlinCorpusTests
                                       + " -- the source was edited, not assembled as committed").c_str());
                 }
             }
+        }
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  VendorLibrary
+    //
+    //  One committed macro library, and the name a source asks for it by.
+    //
+    //  These are the only type-T files on the disk, and they are NOT standalone
+    //  sources -- measured, not assumed. `T.SENDMSG` is a macro BODY: its first
+    //  line is an instruction and its second writes to a positional parameter, so
+    //  assembling it on its own produces seven expression errors and means
+    //  nothing. It only has a reading inside the file that includes it.
+    //
+    //  So they enter the sweep the way the vendor used them: served to the
+    //  assembler under the name the disk stores, for a real vendor source to ask
+    //  for. Merlin prepends `T.` when resolving a request, which is why the
+    //  operand and the stored name differ.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    struct VendorLibrary
+    {
+        const char *  fixturePath;
+        const char *  requestedAs;
+    };
+
+
+
+    static constexpr VendorLibrary  s_kVendorLibraries[] =
+    {
+        { "Merlin/T.PI.MACS", "T.PI.MACS" },   // equates and five macros, asked for as `USE PI.MACS`
+        { "Merlin/T.SENDMSG", "T.SENDMSG" },   // a macro body, asked for as `PUT SENDMSG`
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  VendorSourceEntry
+    //
+    //  One committed vendor source that Casso can be pointed AT: the five that
+    //  ship an object and the two linker-demo specimens that ship none.
+    //
+    //  Broader than the oracle table on purpose. "Valid Merlin source is rejected
+    //  only where the boundary table says so" is a claim about every vendor file
+    //  Casso can be pointed at, and a list restricted to the ones that already
+    //  assemble cleanly would be a sweep over the files chosen for producing no
+    //  rejections. The two specimens that DO reject are what makes the mapping
+    //  loop run at all.
+    //
+    //  `expectedRefusals` is stated per file rather than derived, so a file that
+    //  stops reaching the boundary fails here instead of quietly reducing this to
+    //  a sweep over nothing.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    struct VendorSourceEntry
+    {
+        const char                          *  path;
+        std::span<const VendorOracleAnswer>    answers;
+        size_t                                 expectedRefusals;
+
+        //  Diagnostics this file draws that are NOT boundary refusals. Every one
+        //  of these is an SC-003 defect by definition, so the number is stated
+        //  exactly rather than tolerated: a new one fails the sweep, and fixing
+        //  the known gap fails it too and forces the count down deliberately.
+        size_t                                 unexplainedRejections;
+    };
+
+
+
+    //  Every vendor file committed under UnitTest/Fixtures/Merlin/ that is a
+    //  source in its own right. The objects are not here -- they are compared
+    //  against, not assembled -- and neither are the macro libraries, which are
+    //  reached through the two sources that include them.
+    static constexpr VendorSourceEntry  s_kCommittedVendorSources[] =
+    {
+        { "Merlin/LABELS.S",     {},                0, 0 },
+        { "Merlin/MAKE DUMP.S",  {},                0, 0 },
+        { "Merlin/KEYMAC.S",     s_kSaveObjectOff,  0, 0 },
+        { "Merlin/CLOCK.S",      s_kTwentyFourHour, 0, 0 },
+        { "Merlin/PRINTFILER.S", s_kVendorBuild,    0, 0 },
+
+        //  The linker demo. Both sides of the boundary: one exports only, one
+        //  also imports, and the counts are what the two shapes cost.
+        //
+        //  PI.ADD.S carries the ONE gap in the corpus, and it is one directive
+        //  rather than nine problems. Line 123 is `VAR MSGPNT;OUTPUT`, which
+        //  binds the positional parameters for the fragment the next line pulls
+        //  in with `PUT SENDMSG` -- Merlin's way of parameterizing an included
+        //  body without a macro call. `VAR` is not in Casso's directive table at
+        //  all, so the line itself draws a diagnostic and the eight `]1`/`]2`
+        //  references in the included fragment have nothing to resolve to. That
+        //  is nine rejections of valid Merlin source with no boundary row behind
+        //  them, which is exactly what SC-003 calls a defect.
+        { "Merlin/PI.ADD.S",     s_kSaveObjectOff,  7, 9 },
+        { "Merlin/PI.START.S",   s_kSaveObjectOff,  5, 0 },
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinVendorRejectionTests
+    //
+    //  SC-003, swept rather than listed: a rejection with no boundary row is a
+    //  defect rather than a limitation, so the assertion is over the rejections
+    //  that HAPPEN and not over a fixed set somebody expected.
+    //
+    //  A refusal is attributed to a row by recomposing the row's own sentence and
+    //  requiring EQUALITY. Not a substring -- this feature has been caught by a
+    //  bare-substring assertion once already, and a spelling is three characters
+    //  that match inside ordinary words. Equality also means a row whose wording
+    //  changed cannot keep passing against a message built some other way.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinVendorRejectionTests)
+    {
+    public:
+
+        //  The corpus this sweeps, counted before it is walked, and related to the
+        //  oracle table so the two lists cannot drift apart: every source with an
+        //  object must also be a source this sweep visits.
+        TEST_METHOD (TheCommittedSourceListCoversEveryOracleSource)
+        {
+            Assert::AreEqual ((size_t) 7, std::size (s_kCommittedVendorSources),
+                              L"five oracle sources and the two linker-demo specimens");
+            Assert::AreEqual ((size_t) 2, std::size (s_kVendorLibraries),
+                              L"and both committed macro libraries, which are included rather than assembled");
+
+            for (const VendorOracleEntry & oracle : s_kVendorOracles)
+            {
+                bool  covered = false;
+
+                for (const VendorSourceEntry & source : s_kCommittedVendorSources)
+                {
+                    if (std::string (source.path) == oracle.sourcePath)
+                    {
+                        covered = true;
+                        break;
+                    }
+                }
+
+                Assert::IsTrue (covered, VendorOracle::Widen (std::string (oracle.sourcePath)
+                                    + " ships an object but is not swept for rejections").c_str());
+            }
+        }
+
+
+
+        //  SC-003. Every boundary refusal must be one the table composed, and
+        //  every OTHER diagnostic is a defect -- counted exactly, never tolerated.
+        TEST_METHOD (EveryRejectionOfAVendorSourceMapsToABoundaryRow)
+        {
+            size_t  attributed  = 0;
+            size_t  unexplained = 0;
+
+            for (const VendorSourceEntry & entry : s_kCommittedVendorSources)
+            {
+                MockFileReader  reader;
+                AssemblyResult  result  = Assemble (entry, reader);
+                size_t          refused = 0;
+                size_t          other   = 0;
+
+                for (const AssemblyError & error : result.errors)
+                {
+                    if (error.kind == DiagnosticKind::SubsetBoundary)
+                    {
+                        AssertComposedByExactlyOneRow (entry, error);
+                        refused++;
+                    }
+                    else
+                    {
+                        other++;
+                    }
+                }
+
+                Assert::AreEqual (entry.expectedRefusals, refused, Describe (entry, result).c_str());
+                Assert::AreEqual (entry.unexplainedRejections, other, Describe (entry, result).c_str());
+
+                attributed  += refused;
+                unexplained += other;
+            }
+
+            //  Without this the loop above is satisfied by an assembler that
+            //  refuses nothing at all, which is the shape a sweep over rejections
+            //  fails in.
+            Assert::IsTrue (attributed > 0, L"no vendor source reached the boundary, so nothing was attributed");
+
+            //  The corpus-wide count of rejections SC-003 does not account for.
+            //  Stated once so it can only change deliberately, in either
+            //  direction: a tenth appearing is a new defect, and it dropping to
+            //  zero means the parameter-binding directive landed.
+            Assert::AreEqual ((size_t) 9, unexplained,
+                              L"the only rejections without a boundary row are PI.ADD.S's parameter-binding directive"
+                              L" and the eight references in the fragment it parameterizes");
+        }
+
+
+
+        //  The linker demo is a NEGATIVE specimen and nothing else. Its objects on
+        //  the disk are post-link, so a positive comparison would be against bytes
+        //  no assembler produced -- and the two files must reach the boundary, or
+        //  the sweep above has nothing to attribute.
+        TEST_METHOD (TheLinkerDemoSourcesAreTheOnlyOnesThatReject)
+        {
+            for (const VendorSourceEntry & entry : s_kCommittedVendorSources)
+            {
+                std::string  path      = entry.path;
+                bool         isDemo    = path.find ("PI.") != std::string::npos;
+                bool         rejects   = entry.expectedRefusals > 0;
+
+                Assert::AreEqual (isDemo, rejects, VendorOracle::Widen (path
+                                      + ": only the linker demo may be expected to reject").c_str());
+            }
+        }
+
+
+
+        //  Both committed macro libraries are REACHED, by the vendor sources that
+        //  ask for them and under the names the disk stores. Serving a file the
+        //  assembler never requests would make the sweep above look like it
+        //  covered inclusion when it covered a table entry.
+        //
+        //  It also pins the resolution rule from real vendor lines: the sources
+        //  write `USE PI.MACS` and `PUT SENDMSG`, and the disk stores `T.PI.MACS`
+        //  and `T.SENDMSG`.
+        TEST_METHOD (BothMacroLibrariesAreRequestedByAVendorSource)
+        {
+            for (const VendorLibrary & library : s_kVendorLibraries)
+            {
+                int  requests = 0;
+
+                for (const VendorSourceEntry & entry : s_kCommittedVendorSources)
+                {
+                    MockFileReader  reader;
+                    AssemblyResult  result = Assemble (entry, reader);
+
+                    Assert::AreEqual (entry.expectedRefusals + entry.unexplainedRejections, result.errors.size(),
+                                      Describe (entry, result).c_str());
+
+                    requests += reader.CountRequests (library.requestedAs);
+                }
+
+                Assert::IsTrue (requests > 0, VendorOracle::Widen (std::string (library.requestedAs)
+                                    + " is committed as an inclusion specimen and no vendor source asks for it").c_str());
+            }
+        }
+
+
+
+        //  And a request that missed must be visible as one. Without this the
+        //  sweep passes while every include silently fails, because the two
+        //  linker-demo sources are refused at the boundary either way.
+        TEST_METHOD (TheServedLibrariesAreTheOnesTheSourcesAskFor)
+        {
+            for (const VendorSourceEntry & entry : s_kCommittedVendorSources)
+            {
+                MockFileReader  reader;
+                AssemblyResult  result = Assemble (entry, reader);
+
+                for (const std::string & requested : reader.requests)
+                {
+                    bool  served = reader.files.find (requested) != reader.files.end();
+
+                    Assert::IsTrue (served, VendorOracle::Widen (std::string (entry.path)
+                                        + " asked for \"" + requested + "\", which is not a committed fixture -- "
+                                        + std::to_string (result.errors.size()) + " diagnostics followed").c_str());
+                }
+            }
+        }
+
+    private:
+
+        //  One vendor source with both macro libraries available to it. They are
+        //  offered rather than pushed: a source that includes neither simply never
+        //  asks, and the request log is what says which happened.
+        static AssemblyResult Assemble (const VendorSourceEntry & entry, MockFileReader & reader)
+        {
+            FixtureProvider   provider;
+            TestCpu           cpu;
+            std::string       source;
+            AssemblerOptions  options = {};
+
+            cpu.InitForTest();
+            options.dialect    = DialectId::Merlin;
+            options.fileReader = &reader;
+
+            for (const VendorOracleAnswer & answer : entry.answers)
+            {
+                options.predefinedSymbols[answer.symbol] = answer.value;
+            }
+
+            for (const VendorLibrary & library : s_kVendorLibraries)
+            {
+                std::string  text;
+
+                AssertSucceeded (MerlinFixture::LoadTextSource (provider, library.fixturePath, text));
+
+                reader.files[library.requestedAs] = text;
+            }
+
+            AssertSucceeded (MerlinFixture::LoadSource (provider, entry.path, source));
+
+            {
+                Assembler  assembler (cpu.GetInstructionSet(), options);
+
+                return assembler.Assemble (source);
+            }
+        }
+
+
+
+        //  A refusal belongs to exactly one row. Both linkage wordings are
+        //  admitted because which one a module gets is a property of the whole
+        //  file, and requiring one of them would be asserting the linkage rather
+        //  than the attribution -- that is RelocatableWorkaroundTests' claim, made
+        //  against counts, and duplicating it loosely here would weaken both.
+        static void AssertComposedByExactlyOneRow (const VendorSourceEntry & entry, const AssemblyError & error)
+        {
+            const DialectProfile  &  merlin  = DialectRegistry::Get (DialectId::Merlin);
+            size_t                   matches = 0;
+
+
+
+            for (const SubsetBoundaryRow & row : MerlinSubsetBoundary::GetAll())
+            {
+                std::string  selfContained = SubsetBoundary::ComposeRefusal (row, ModuleLinkage::SelfContained,
+                                                                             merlin.GetName());
+                std::string  dependent     = SubsetBoundary::ComposeRefusal (row, ModuleLinkage::DependsOnOther,
+                                                                             merlin.GetName());
+
+                if (error.message == selfContained || error.message == dependent)
+                {
+                    matches++;
+                }
+            }
+
+            Assert::AreEqual ((size_t) 1, matches, VendorOracle::Widen (std::string (entry.path)
+                                  + " line " + std::to_string (error.lineNumber)
+                                  + ": a rejection with no boundary row behind it is a defect, not a limitation -- "
+                                  + error.message).c_str());
+        }
+
+
+
+        static std::wstring Describe (const VendorSourceEntry & entry, const AssemblyResult & result)
+        {
+            std::string  text = std::string (entry.path) + ": expected " + std::to_string (entry.expectedRefusals)
+                              + " refusals and " + std::to_string (entry.unexplainedRejections)
+                              + " other diagnostics, got " + std::to_string (result.errors.size()) + " in all";
+
+            for (const AssemblyError & error : result.errors)
+            {
+                text += " | " + std::to_string (error.lineNumber) + ": " + error.message.substr (0, 60);
+            }
+
+            return VendorOracle::Widen (text);
         }
     };
 
