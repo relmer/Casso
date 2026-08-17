@@ -52,6 +52,14 @@ struct ParsedLine
     std::string                          constantName;
     std::string                          constantExpr; // raw expression for evaluation
     SymbolKind                           constantKind; // Equ or Set
+
+    // What kind of symbol the LABEL binds as. Label for every ordinary one, and
+    // Set where a dialect lets the same name be redefined further down -- Merlin
+    // writes a loop target as a variable symbol and reuses it throughout a file,
+    // so `]LOOP` binds eight times in CLOCK.S and each branch means the nearest
+    // definition above it. The profile answers, because whether a spelling is
+    // reassignable is a dialect fact rather than an engine one.
+    SymbolKind                           labelKind = SymbolKind::Label;
     bool                                 startsAtColumn0; // true if line had no leading whitespace
     StringEncodingMode                   stringMode = StringEncodingMode::Plain;  // meaningful only for Directive::StringData
 };
@@ -136,7 +144,11 @@ public:
 
     static ClassifiedOperand          ClassifyOperand   (const std::string & operand);
     static HRESULT                    ParseValue        (const std::string & text, int & value);
-    static HRESULT                    ValidateLabel     (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage);
+    // `extraCharacters` names characters the active dialect additionally allows
+    // INSIDE a label. Empty by default, so a caller that never heard of dialects
+    // keeps exactly the character set it had.
+    static HRESULT                    ValidateLabel     (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage,
+                                                         const char * extraCharacters = "");
     static std::string                ParseQuotedString (const std::string & text);
 
     // Split a comma-separated argument list respecting () [] '' nesting

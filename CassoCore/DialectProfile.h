@@ -287,6 +287,28 @@ public:
     // is why this is a default rather than a pure virtual.
     virtual std::span<const MnemonicAlias>  GetMnemonicAliases () const { return {}; }
 
+    // Characters this dialect uses for bitwise operations where they differ
+    // from the shared punctuation. DATA for the same reason the mnemonic
+    // aliases are: the evaluator already performs every one of these
+    // operations, so a dialect renaming one must not cost a second set of
+    // folds or a branch in the parser.
+    virtual std::span<const OperatorSpelling>  GetOperatorSpellings () const { return {}; }
+
+    // How wide this dialect's expression arithmetic is. A default rather than a
+    // pure virtual, because the evaluator's own width is what every dialect
+    // Casso had before Merlin computed in.
+    virtual ArithmeticWidth     GetArithmeticWidth () const { return ArithmeticWidth::Native; }
+
+    // Characters this dialect allows INSIDE a symbol beyond letters, digits and
+    // underscore. Empty for a dialect that allows none, which is why this is a
+    // default rather than a pure virtual.
+    //
+    // One answer serves two places that must not disagree: whether a definition
+    // is a legal label, and whether a reference lexes as one identifier. A
+    // dialect answering only the first accepts `CMD?` on its definition line and
+    // then cannot resolve a single use of it.
+    virtual const char *        GetExtraSymbolCharacters () const { return ""; }
+
     // How this dialect writes macros: terminator, parameter form, argument
     // separator, and whether body labels are unique per expansion. One value
     // rather than an accessor apiece -- see MacroSyntax above.

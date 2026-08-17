@@ -57,6 +57,90 @@ enum class OperatorBinding
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ArithmeticWidth
+//
+//  How wide the values an expression folds are.
+//
+//  Native is the evaluator's own 32-bit signed arithmetic, which is what every
+//  caller had before dialect selection. Word16 makes every operand and every
+//  result an unsigned 16-bit quantity, which is what a 6502-era assembler
+//  actually computes in.
+//
+//  It is not cosmetic, and CLOCK.S is why. The file selects between a 12-hour
+//  and a 24-hour build with
+//
+//      HOURS = VERSION-25/-1*12+12
+//       ERR HOURS-VERSION
+//
+//  which is an equality test written as arithmetic: only when VERSION is 24 does
+//  `VERSION-25` become $FFFF, which divided by $FFFF is 1. For 12 the numerator
+//  is $FFF3, which is SMALLER than the divisor, so the quotient is 0 and the
+//  expression folds to 12. In 32-bit signed arithmetic the same line gives
+//  -13 / -1 = 13 and the assertion on the next line fails an assembly the vendor
+//  shipped a working object for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class ArithmeticWidth
+{
+    Native,   // 32-bit signed, as every caller predating dialect selection had
+    Word16,   // unsigned 16-bit, operands and results alike
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExprOperator
+//
+//  A bitwise operation an expression can name, independent of which character
+//  names it. The shared evaluator already performs all three; what differs
+//  between dialects is only the spelling, which is why this is a lookup on the
+//  way IN to the tokenizer rather than a second set of folds.
+//
+//  Merlin needs it because two of its spellings collide with the shared
+//  syntax outright: `!` reads as logical-not there and `.` is not punctuation
+//  at all. CLOCK.S settles both from its two shipped objects -- `HOURS/24!1`
+//  has to be exclusive-or (inclusive-or puts the edit cursor on the wrong digit
+//  for the 24-hour build) and `HOURS/24+3."0"` has to be inclusive-or to make
+//  the hour-rollover comparison read "24" and "13".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class ExprOperator
+{
+    BitOr,
+    BitXor,
+    BitAnd,
+};
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OperatorSpelling
+//
+//  One character a dialect uses for one bitwise operation. A profile supplies a
+//  table of these and the tokenizer consults it before its own punctuation, so
+//  a dialect can rename an operator without the evaluator gaining a dialect
+//  branch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct OperatorSpelling
+{
+    char          character;
+    ExprOperator  operation;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SymbolKind
 //
 ////////////////////////////////////////////////////////////////////////////////

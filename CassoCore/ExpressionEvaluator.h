@@ -28,6 +28,25 @@ struct ExprContext
     // exactly as it always did, and the apostrophe form is unaffected either
     // way.
     char                                             highAsciiCharDelimiter = 0;
+
+    // Characters this dialect uses for bitwise operations, where they differ
+    // from the shared punctuation. Empty for a dialect that spells them the
+    // usual way, which is every caller that predates dialect selection.
+    //
+    // Consulted BEFORE the shared tables, so a dialect renaming a character can
+    // take it away from whatever it meant before -- Merlin's `!` is exclusive-or
+    // and must not first match the inequality digraph it is the lead of.
+    std::span<const OperatorSpelling>                operatorSpellings;
+
+    // How wide the values folded here are. Defaulted for the same reason as
+    // everything above it: a caller that never heard of dialects computes
+    // exactly as it always did.
+    ArithmeticWidth                                  arithmetic = ArithmeticWidth::Native;
+
+    // Characters the dialect allows inside a symbol beyond the usual set, so a
+    // name a dialect accepts as a label also lexes as one identifier here. Null
+    // or empty leaves the identifier rule exactly as it was.
+    const char *                                     extraSymbolCharacters = nullptr;
 };
 
 
@@ -177,6 +196,11 @@ private:
     static const Digraph *    FindDigraph   (char lead, char follow);
     static const Monograph *  FindMonograph (char lead);
 
+    // The token a dialect's own spelling stands for, or End when the character
+    // is not one of them. End rather than Error because "not a dialect operator"
+    // is the ordinary case and must fall through to the shared tables.
+    static TokType            FindDialectOperator (char lead, std::span<const OperatorSpelling> spellings);
+
     // Prefix operators, same shape as BinaryOp. None of them can fail --
     // there is no unary equivalent of divide-by-zero -- so unlike
     // BinaryOp::Apply there is no error out-parameter and no bool.
@@ -205,6 +229,11 @@ private:
     static bool         TryParseBinary     (Tokenizer & tok, const ExprContext & ctx, int minLevel, int32_t & result, std::string & error);
     static bool         TryParseUnary      (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
     static bool         TryParsePrimary    (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
+
+    // One value reduced to the dialect's arithmetic width. Applied at every
+    // point a value is produced or folded, so a narrow dialect cannot see a
+    // 32-bit intermediate the machine it targets could not hold.
+    static int32_t      Narrow          (int32_t value, const ExprContext & ctx);
 
     static std::string  ToUpperIdent    (const std::string & s);
 };

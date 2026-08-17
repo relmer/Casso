@@ -655,11 +655,19 @@ static std::string ToUpperValidate (const std::string & s)
 //  errorMessage is left untouched on success, so a caller may reuse one string
 //  across many labels without clearing it.
 //
+//  `extraCharacters` widens the legal character set by exactly what the active
+//  dialect names and nothing else -- Merlin allows `?`, and `CMD?` is a label in
+//  the vendor sources. It is a parameter rather than a relaxation of the rule
+//  because admitting one dialect's spellings into another is precisely what the
+//  strictness requirement forbids: as65 must go on rejecting `CMD?`.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage)
+HRESULT Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage,
+                               const char * extraCharacters)
 {
     HRESULT      hr         = S_OK;
+    std::string  extra      = (extraCharacters != nullptr) ? extraCharacters : "";
     std::string  upper;
     char         first      = label.empty() ? '\0' : label[0];
     bool         isEmpty    = label.empty();
@@ -673,13 +681,18 @@ HRESULT Parser::ValidateLabel (const std::string & label, const OpcodeTable & op
 
     if (!isEmpty)
     {
-        // Must start with letter or underscore.
+        // Must start with letter or underscore. A dialect's extra characters do
+        // NOT widen this: they are legal inside a name, not at the front of one,
+        // or a label could open with punctuation another field model has already
+        // claimed.
         badFirst = !isalpha ((unsigned char) first) && first != '_';
 
-        // Must contain only alphanumeric + underscore.
+        // Must contain only alphanumeric + underscore, plus whatever the
+        // dialect adds.
         for (char c : label)
         {
-            badChar = badChar || (!isalnum ((unsigned char) c) && c != '_');
+            badChar = badChar || (!isalnum ((unsigned char) c) && c != '_' &&
+                                  extra.find (c) == std::string::npos);
         }
 
         // Must not be a register name (case-insensitive), nor an exact
