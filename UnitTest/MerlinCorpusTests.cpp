@@ -619,7 +619,182 @@ namespace MerlinCorpusTests
                              L"Merlin source assembling identically under AS65 would mean the profile is not being consulted");
         }
 
+        //  CLOCK.S -- ONE source, TWO shipped objects, and the whole reason the
+        //  keyboard-input directive was worth solving rather than routing around.
+        //  `VERSION` selects which build assembles, so a single 6022-byte file
+        //  yields two independent byte-identical checks and the corpus's only
+        //  coverage of conditional assembly deciding an object's contents.
+        //
+        //  The two objects differ in exactly four bytes of 365, which is the
+        //  useful part: a conditional-assembly defect shows up as a specific
+        //  small delta rather than a wall of noise.
+        TEST_METHOD (ClockSourceAssemblesToItsTwentyFourHourObjectByteForByte)
+        {
+            AssertOracleMatches ("Merlin/CLOCK.S", "Merlin/CLOCK.24",
+                                 { { "SAVOBJ", 0 }, { "VERSION", 24 } }, L"CLOCK.S at VERSION 24");
+        }
+
+
+
+        TEST_METHOD (ClockSourceAssemblesToItsTwelveHourObjectByteForByte)
+        {
+            AssertOracleMatches ("Merlin/CLOCK.S", "Merlin/CLOCK.12",
+                                 { { "SAVOBJ", 0 }, { "VERSION", 12 } }, L"CLOCK.S at VERSION 12");
+        }
+
+
+
+        //  And the two answers must not produce the same bytes, or the pair above
+        //  is two copies of one check. This is the assertion that makes CLOCK.S
+        //  worth two entries rather than one.
+        TEST_METHOD (TheTwoClockBuildsDifferFromEachOther)
+        {
+            AssemblyResult  twentyFour = AssembleOracle ("Merlin/CLOCK.S", { { "SAVOBJ", 0 }, { "VERSION", 24 } });
+            AssemblyResult  twelve     = AssembleOracle ("Merlin/CLOCK.S", { { "SAVOBJ", 0 }, { "VERSION", 12 } });
+
+            Assert::IsFalse (twentyFour.bytes == twelve.bytes,
+                             L"the version answer must reach the object, or both entries prove the same thing");
+        }
+
+
+
+        //  KEYMAC.S -- general-purpose, and the source that needs `?` accepted
+        //  inside a symbol. Its own `SAVOBJ` gates only the save directive, so the
+        //  bytes are the same either way and the answer that avoids the
+        //  out-of-subset construct is the one to give.
+        TEST_METHOD (KeymacSourceAssemblesToItsShippedObjectByteForByte)
+        {
+            AssertOracleMatches ("Merlin/KEYMAC.S", "Merlin/KEYMAC",
+                                 { { "SAVOBJ", 0 } }, L"KEYMAC.S");
+        }
+
+
+
+        //  PRINTFILER.S -- both of its answers are SEMANTIC, and which pair the
+        //  vendor used to build the shipped object is recorded nowhere. So the
+        //  test searches: assemble all four and require exactly one match.
+        //
+        //  Exactly one is the claim worth making. More than one would mean an
+        //  answer reaches no byte, which would make the search meaningless; none
+        //  would mean the assembler is wrong or the combinations are not what the
+        //  source says they are. Either is a finding.
+        TEST_METHOD (ExactlyOneAnswerPairReproducesPrintfilersShippedObject)
+        {
+            MerlinFixtureFile  object;
+            FixtureProvider    provider;
+            int                matches = 0;
+            int                matched = -1;
+
+            AssertSucceeded (MerlinFixture::LoadObject (provider, "Merlin/PRINTFILER", object));
+
+            for (int combination = 0; combination < 4; combination++)
+            {
+                AssemblyResult  result = AssembleOracle ("Merlin/PRINTFILER.S",
+                                                         { { "FORMAT",  combination & 1 },
+                                                           { "MONITOR", (combination >> 1) & 1 } });
+
+                if (result.errors.empty() && result.bytes == object.payload)
+                {
+                    matches++;
+                    matched = combination;
+                }
+            }
+
+            Assert::AreEqual (1, matches, L"exactly one of the four answer pairs must reproduce the shipped object");
+            Assert::AreEqual (1, matched, L"and it is the pair with formatting on and monitoring off");
+        }
+
+
+
+        //  The discriminating half for the three sources added here, in one test
+        //  rather than three: each is full of Merlin constructs, so a result
+        //  identical under AS65 would mean the profile was never consulted. AS65
+        //  does not even know the directive that supplies the answers, so these
+        //  cannot assemble at all there -- which is itself the evidence.
+        TEST_METHOD (TheKeyboardInputSourcesDoNotAssembleUnderAs65)
+        {
+            const char *  sources[] = { "Merlin/CLOCK.S", "Merlin/KEYMAC.S", "Merlin/PRINTFILER.S" };
+
+            Assert::AreEqual ((size_t) 3, std::size (sources), L"three sources, or this sweep covers less than it claims");
+
+            for (const char * path : sources)
+            {
+                FixtureProvider   provider;
+                TestCpu           cpu;
+                std::string       source;
+                AssemblerOptions  options = {};
+                AssemblyResult    result;
+
+                cpu.InitForTest();
+                options.dialect = DialectId::As65;
+
+                AssertSucceeded (MerlinFixture::LoadSource (provider, path, source));
+
+                {
+                    Assembler  as65 (cpu.GetInstructionSet(), options);
+
+                    result = as65.Assemble (source);
+                }
+
+                Assert::IsFalse (result.errors.empty(),
+                                 L"Merlin source assembling cleanly under AS65 would mean the profile is not consulted");
+            }
+        }
+
     private:
+
+        //  One vendor source through the real assembler, with the answers its
+        //  keyboard-input lines name.
+        static AssemblyResult AssembleOracle (const char * sourcePath,
+                                              const std::unordered_map<std::string, int32_t> & answers)
+        {
+            FixtureProvider   provider;
+            TestCpu           cpu;
+            std::string       source;
+            AssemblerOptions  options = {};
+
+            cpu.InitForTest();
+            options.dialect           = DialectId::Merlin;
+            options.predefinedSymbols = answers;
+
+            AssertSucceeded (MerlinFixture::LoadSource (provider, sourcePath, source));
+
+            Assembler  merlin (cpu.GetInstructionSet(), options);
+
+            return merlin.Assemble (source);
+        }
+
+
+
+        //  The whole comparison for one oracle: no diagnostics, the shipped bytes
+        //  exactly, and the shipped load address. The address is half the claim --
+        //  a wrong origin yields byte-perfect output in the wrong place.
+        static void AssertOracleMatches (const char * sourcePath,
+                                         const char * objectPath,
+                                         const std::unordered_map<std::string, int32_t> & answers,
+                                         const wchar_t * what)
+        {
+            FixtureProvider    provider;
+            MerlinFixtureFile  object;
+            AssemblyResult     result     = AssembleOracle (sourcePath, answers);
+            CorpusComparison   comparison = {};
+
+            AssertSucceeded (MerlinFixture::LoadObject (provider, objectPath, object));
+
+            Assert::IsTrue (result.errors.empty(), FirstDiagnostic (result).c_str());
+
+            comparison = CorpusHarness::Compare (object.payload, result.bytes);
+
+            {
+                std::string   described = CorpusHarness::Describe (objectPath, comparison);
+                std::wstring  message (described.begin(), described.end());
+
+                Assert::IsTrue (comparison.verdict == CorpusVerdict::Match, message.c_str());
+            }
+
+            Assert::AreEqual (static_cast<int> (object.loadAddress), static_cast<int> (result.startAddress), what);
+        }
+
 
         //  The first diagnostic, so a failure names what the assembler objected to
         //  instead of only that it objected. Empty when the assembly was clean.
