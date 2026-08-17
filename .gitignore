@@ -410,3 +410,12 @@ build/
 
 # Copyrighted machine ROMs provisioned on demand; tests skip when absent
 UnitTest/Fixtures/*.rom
+
+# Working area for third-party disks and manuals fetched by scripts/FetchMerlin.ps1.
+# The disks the tests need are committed under UnitTest/Fixtures/Disks/; what lands
+# here is the scratch copy plus the manual and extras, which are reference reading
+# rather than test input and are not redistributed. Ignored in-repo rather than in
+# a personal .git/info/exclude, because that is per-clone: the second machine to
+# fetch these would otherwise see 400+ KB of vendor material as untracked and one
+# `git add -A` away from being committed by accident.
+/DevDisks/
