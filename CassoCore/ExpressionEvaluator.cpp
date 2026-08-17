@@ -822,6 +822,8 @@ int32_t ExpressionEvaluator::Narrow (int32_t value, const ExprContext & ctx)
 {
     constexpr int32_t  kWordMask = 0xFFFF;
 
+
+
     return (ctx.arithmetic == ArithmeticWidth::Word16) ? (value & kWordMask) : value;
 }
 

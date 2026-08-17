@@ -1517,6 +1517,10 @@ Error:
 //  Phase 2. Everything that decides whether the line assembles at all, or
 //  that moves the PC. Runs before a label can bind.
 //
+//  `entryPC` is the program counter as the line was REACHED, read before any
+//  handler can move it. That is where a label on this line binds -- see the
+//  origin case for why nothing the directive then does may change it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::RunPreludeDirectives (const PendingLine & current, LineInfo & info, bool & outClaimed)
@@ -1524,9 +1528,6 @@ HRESULT AssemblySession::RunPreludeDirectives (const PendingLine & current, Line
     HRESULT       hr           = S_OK;
     std::string   operandUpper = ToUpperCase (info.parsed.operand);
     Pass1Prelude  kind         = ClassifyPrelude (info, operandUpper);
-
-    // Where a label on this line binds, captured before any handler can move
-    // the program counter. See the origin case below for why it is read here.
     Word          entryPC      = m_pc;
 
 

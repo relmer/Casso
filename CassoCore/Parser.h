@@ -59,9 +59,9 @@ struct ParsedLine
     // so `]LOOP` binds eight times in CLOCK.S and each branch means the nearest
     // definition above it. The profile answers, because whether a spelling is
     // reassignable is a dialect fact rather than an engine one.
-    SymbolKind                           labelKind = SymbolKind::Label;
-    bool                                 startsAtColumn0; // true if line had no leading whitespace
-    StringEncodingMode                   stringMode = StringEncodingMode::Plain;  // meaningful only for Directive::StringData
+    SymbolKind                           labelKind       = SymbolKind::Label;
+    bool                                 startsAtColumn0;                         // true if line had no leading whitespace
+    StringEncodingMode                   stringMode      = StringEncodingMode::Plain;  // meaningful only for Directive::StringData
 };
 
 
