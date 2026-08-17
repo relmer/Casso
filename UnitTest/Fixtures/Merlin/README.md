@@ -134,6 +134,15 @@ and a nested macro call.
 Both are type **T**: no 4-byte header, and the file ends at the first `$00`
 rather than at a declared length.
 
+That makes `T.SENDMSG` the best available trap for a reader that mis-dispatches
+on type. It begins with the literal characters `SE`, so stripping four bytes as
+though it were a binary header loses `SE` and two more and returns 145 bytes of
+entirely plausible Merlin source — no crash, no absurd length, nothing a
+round-trip or a sanity check would notice. The binaries all declare a length
+that would look wrong under the same mistake; a type-T file has nothing to check
+against but the real bytes, which is why the oracle comparison here has to be
+byte-for-byte rather than by size.
+
 ## Encoding, and how to read these
 
 Files are stored exactly as DOS 3.3 held them, which means they are **not**
