@@ -151,10 +151,10 @@ private:
     // handed to CHRN/CBRN in FlushEntry on a genuine persist failure.
     static wstring FormatFlushLossMessage (const string & path);
 
-    // Told once, before the first flush that overwrites an image whose stored
-    // checksum did not validate at load: the rewrite stamps a fresh, correct
-    // CRC, so whatever damage the file carried stops being detectable.
-    static wstring FormatCrcLaunderMessage (const string & path);
+    // Why a damaged image will not be written to. A checksum mismatch
+    // write-protects the image for the session, so the file is never
+    // rewritten and the damage it carries stays detectable.
+    static wstring FormatDamagedImageMessage (const string & path);
 
     Entry        m_entries[kSlotCount][kDriveCount];
     FlushSink    m_flushSink;

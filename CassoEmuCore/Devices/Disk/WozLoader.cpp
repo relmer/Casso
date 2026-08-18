@@ -487,9 +487,12 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
         EhmNotifyUser (L"This disk image's stored checksum does not match its "
                        L"contents, so the file is damaged or was written by a "
                        L"tool that miscomputed it.\n\nCasso has loaded it anyway "
-                       L"so you can read it. Saving the disk will replace the "
-                       L"file with a newly checksummed copy, after which the "
-                       L"damage can no longer be detected.");
+                       L"so you can read it, and has write-protected it for this "
+                       L"session: rewriting the file would give it a newly "
+                       L"computed checksum and leave nothing able to detect the "
+                       L"damage. The emulated machine will see the disk as "
+                       L"write-protected. Work on a copy if you need to write "
+                       L"to it.");
     }
 
     pos = kSigLen + kCrcLen;

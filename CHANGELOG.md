@@ -72,6 +72,33 @@ Entries before versioning was introduced use dates only.
   cannot be damaged. The store no longer offers any way to force a flush past
   its dirty and write-protect gates, because changing this flag was the only
   thing that ever wanted one.
+- **A damaged disk image is now held read-only instead of being quietly
+  repaired-looking.** Casso has detected a WOZ whose stored checksum does not
+  match its contents since 1.16.2, but it went on to treat the file as
+  writable — and rewriting it stamps a freshly computed, correct checksum over
+  the same damage, so nothing afterwards can tell the file is wrong. The image
+  now becomes write-protected for the session, as a fifth and separate cause
+  alongside the in-file flag, the user preference and the two file-state
+  causes, so the interface can say *why* rather than just refusing. The disk
+  still loads and still reads: being able to open a damaged preservation dump
+  is the point.
+
+  Deliberately session state and not the image's own flag, because that flag
+  lives inside the file — setting it would mean writing the very file being
+  protected from writes. The write-protect toggle also now refuses a damaged
+  image outright, since patching its flag byte recomputes the header checksum,
+  and that checksum failing to match *is* the damage report.
+
+  The emulated machine sees the disk as write-protected too. That is the
+  intended trade: telling the guest the truth beats accepting its writes and
+  discarding them later.
+- **A damaged image gets its own badge, not the padlock.** An ordinary
+  write-protect is something the user chose and can undo; a damaged file is
+  neither, and showing the same brass padlock for both invited a hunt for the
+  toggle that would now refuse them. Damaged disks show an amber warning
+  triangle in the padlock's place, on the drive faceplate and in the compact
+  drive row alike, and the hover text leads with what is wrong and why Casso
+  will not write to it.
 - **A disk image that cannot be serialized is no longer "saved" by reverting
   it.** `DiskImage::Flush` — reached on eject and on //e soft reset — fell back
   to writing the file's pre-session bytes over the user's disk when

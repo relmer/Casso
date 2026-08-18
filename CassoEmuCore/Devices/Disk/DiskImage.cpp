@@ -324,7 +324,8 @@ bool DiskImage::IsWriteProtected() const
     return m_imageWriteProtected
         || m_userWriteProtected
         || m_fileReadOnly
-        || m_fileNoPermission;
+        || m_fileNoPermission
+        || m_sourceCrcMismatch;
 }
 
 
@@ -343,10 +344,11 @@ WriteProtectInfo DiskImage::GetWriteProtectInfo() const
 
 
 
-    info.imageFlag    = m_imageWriteProtected;
-    info.userSetting  = m_userWriteProtected;
-    info.readOnlyFile = m_fileReadOnly;
-    info.noPermission = m_fileNoPermission;
+    info.imageFlag        = m_imageWriteProtected;
+    info.userSetting      = m_userWriteProtected;
+    info.readOnlyFile     = m_fileReadOnly;
+    info.noPermission     = m_fileNoPermission;
+    info.checksumMismatch = m_sourceCrcMismatch;
 
     return info;
 }

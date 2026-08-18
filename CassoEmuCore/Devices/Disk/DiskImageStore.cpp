@@ -201,7 +201,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-wstring DiskImageStore::FormatCrcLaunderMessage (const string & path)
+wstring DiskImageStore::FormatDamagedImageMessage (const string & path)
 {
     wstring  widePath = fs::path (path).wstring();
 
@@ -212,11 +212,11 @@ wstring DiskImageStore::FormatCrcLaunderMessage (const string & path)
         widePath = L"(unknown path)";
     }
 
-    return L"Casso is about to save a disk image whose stored checksum did not "
-           L"match its contents when it was loaded:\n\n" + widePath +
-           L"\n\nThe saved file gets a newly computed checksum, so after this "
-           L"save the existing damage can no longer be detected. Keep a copy of "
-           L"the original first if its condition matters.";
+    return L"This disk is damaged, so Casso will not write to it:\n\n" + widePath +
+           L"\n\nRewriting it would give the file a newly computed checksum, "
+           L"leaving nothing able to detect the damage it already carries. The "
+           L"disk stays readable and the emulated machine sees it as "
+           L"write-protected. Work on a copy if you need to write to it.";
 }
 
 
@@ -293,13 +293,13 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
     // here through the shared EHM notifier rather than a return nobody
     // checks. The image keeps its dirty bit on failure so a later flush
     // can retry.
-    // Said before the write, not after: once the file is replaced its stored
-    // CRC is valid again, so this is the last moment the mismatch is true.
-    if (entry.image->HasSourceCrcMismatch())
-    {
-        EhmNotifyUser (FormatCrcLaunderMessage (entry.path).c_str());
-    }
-
+    //
+    // There is deliberately no warning here about overwriting an image whose
+    // stored checksum did not validate at load. There used to be, and it is
+    // no longer reachable: a checksum mismatch now write-protects the image,
+    // so the gate above returns before this point and the file is never
+    // rewritten. The user is told at mount instead, which is earlier and is
+    // where the decision actually gets made.
     hr = entry.image->Serialize (bytes);
     CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
 
@@ -449,6 +449,7 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
     bool          isWoz     = false;
     bool          hasPath   = false;
     bool          hasImage  = false;
+    bool          isDamaged = false;
     vector<Byte>  bytes;
 
 
@@ -467,6 +468,13 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
 
         hasPath = !entry.path.empty();
         CBR (hasPath);
+
+        // A damaged image is refused outright. Patching the flag byte
+        // recomputes the header checksum, and that checksum failing to match
+        // IS the damage report -- so the one write that is otherwise harmless
+        // is the one write that would destroy the evidence.
+        isDamaged = entry.image->HasSourceCrcMismatch();
+        CBRN (!isDamaged, FormatDamagedImageMessage (entry.path).c_str());
 
         // Guest writes go out FIRST, while the image still accepts a flush.
         // Patching the flag byte afterwards edits a file that already holds

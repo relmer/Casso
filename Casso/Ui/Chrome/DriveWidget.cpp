@@ -138,6 +138,54 @@ void DriveWidget::DrawPadlock (IDxuiPainter & painter,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DriveWidget::DrawDamageBadge
+//
+//  A warning triangle with an exclamation mark, drawn where the padlock would
+//  go when the mounted image is damaged. The shape carries the distinction:
+//  a padlock says "you cannot write to this", which is true but sounds like a
+//  setting, and this state is the file being wrong rather than a choice
+//  anyone made.
+//
+//  The triangle is a degenerate convex quad (the apex given twice) rather
+//  than a stack of scanlines, so it gets the painter's own edge handling.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DriveWidget::DrawDamageBadge (IDxuiPainter & painter,
+                                   float left, float top, float w, float h,
+                                   uint32_t fill, uint32_t edge, uint32_t mark)
+{
+    float  apexX  = left + w * 0.5f;
+    float  baseY  = top + h;
+    float  barW   = std::max (1.0f, w * 0.15f);
+    float  barX   = apexX - barW * 0.5f;
+    float  barTop = top + h * 0.34f;
+    float  barH   = h * 0.32f;
+    float  dotY   = top + h * 0.75f;
+
+    painter.FillConvexQuad (apexX,      top,
+                            left + w,   baseY,
+                            left,       baseY,
+                            apexX,      top,
+                            fill);
+
+    // Outline the two slanted sides and the base so the mark keeps its shape
+    // against a light faceplate as well as a dark one.
+    painter.DrawLineApprox (apexX, top,   left + w, baseY, 1.0f, edge);
+    painter.DrawLineApprox (apexX, top,   left,     baseY, 1.0f, edge);
+    painter.DrawLineApprox (left,  baseY, left + w, baseY, 1.0f, edge);
+
+    // Exclamation mark: a bar, a gap, then a dot.
+    painter.FillRect (barX, barTop, barW, barH, mark);
+    painter.FillRect (barX, dotY,   barW, barW, mark);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Initialize
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -459,16 +507,28 @@ void DriveWidget::Paint (
             UNREFERENCED_PARAMETER (inUseFontDip);
             UNREFERENCED_PARAMETER (doorOffset);
 
-            // Write-protect padlock, just left of the status LED.
+            // Write-protect padlock, just left of the status LED -- or the
+            // damage badge in its place, since a damaged image is already
+            // write-protected and showing both would say the milder thing
+            // twice.
             if (m_state.writeProtect.Any())
             {
-                int    badgeW = Scale (kWpBadgeWidthPx,  dpi);
-                int    badgeH = Scale (kWpBadgeHeightPx, dpi);
-                float  badgeX = (float) (m_bodyRect.right - pad - Scale (10, dpi) - badgeW - Scale (6, dpi));
-                float  badgeY = (float) (m_bodyRect.top + (bodyHcompact - badgeH) / 2);
+                bool   damaged = m_state.writeProtect.checksumMismatch;
+                int    badgeW  = Scale (damaged ? kDamageBadgeWidthPx  : kWpBadgeWidthPx,  dpi);
+                int    badgeH  = Scale (damaged ? kDamageBadgeHeightPx : kWpBadgeHeightPx, dpi);
+                float  badgeX  = (float) (m_bodyRect.right - pad - Scale (10, dpi) - badgeW - Scale (6, dpi));
+                float  badgeY  = (float) (m_bodyRect.top + (bodyHcompact - badgeH) / 2);
 
-                DrawPadlock (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
-                             kWpBadgeFillArgb, kWpBadgeShadeArgb, kWpBadgeHoleArgb);
+                if (damaged)
+                {
+                    DrawDamageBadge (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
+                                     kDamageFillArgb, kDamageEdgeArgb, kDamageMarkArgb);
+                }
+                else
+                {
+                    DrawPadlock (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
+                                 kWpBadgeFillArgb, kWpBadgeShadeArgb, kWpBadgeHoleArgb);
+                }
             }
 
             m_led.Paint (painter, text, theme);
@@ -876,21 +936,32 @@ void DriveWidget::Paint (
         // Write-protect padlock, top-right of the faceplate. Occupies a cell
         // the same size and horizontal position as the Cassowary logo below,
         // mirrored to the top edge, with the (smaller) padlock centered inside
-        // it so the two marks read as a balanced pair.
+        // it so the two marks read as a balanced pair. A damaged image shows
+        // the warning triangle in that same cell instead: it is already
+        // write-protected, and the padlock would only restate the milder half.
         if (m_state.writeProtect.Any())
         {
-            int    cellW  = Scale (kCassowaryWidthPx,  dpi);
-            int    cellH  = Scale (kCassowaryHeightPx, dpi);
-            int    margin = Scale (kCassowaryMarginPx, dpi);
-            int    badgeW = Scale (kWpBadgeWidthPx,    dpi);
-            int    badgeH = Scale (kWpBadgeHeightPx,   dpi);
-            float  cellX  = (float) (m_faceRect.right - cellW - margin);
-            float  cellY  = (float) (m_faceRect.top + margin);
-            float  badgeX = cellX + (float) (cellW - badgeW) / 2.0f;
-            float  badgeY = cellY + (float) (cellH - badgeH) / 2.0f;
+            bool   damaged = m_state.writeProtect.checksumMismatch;
+            int    cellW   = Scale (kCassowaryWidthPx,  dpi);
+            int    cellH   = Scale (kCassowaryHeightPx, dpi);
+            int    margin  = Scale (kCassowaryMarginPx, dpi);
+            int    badgeW  = Scale (damaged ? kDamageBadgeWidthPx  : kWpBadgeWidthPx,  dpi);
+            int    badgeH  = Scale (damaged ? kDamageBadgeHeightPx : kWpBadgeHeightPx, dpi);
+            float  cellX   = (float) (m_faceRect.right - cellW - margin);
+            float  cellY   = (float) (m_faceRect.top + margin);
+            float  badgeX  = cellX + (float) (cellW - badgeW) / 2.0f;
+            float  badgeY  = cellY + (float) (cellH - badgeH) / 2.0f;
 
-            DrawPadlock (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
-                         kWpBadgeFillArgb, kWpBadgeShadeArgb, kWpBadgeHoleArgb);
+            if (damaged)
+            {
+                DrawDamageBadge (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
+                                 kDamageFillArgb, kDamageEdgeArgb, kDamageMarkArgb);
+            }
+            else
+            {
+                DrawPadlock (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
+                             kWpBadgeFillArgb, kWpBadgeShadeArgb, kWpBadgeHoleArgb);
+            }
         }
 
         PaintBasenameLabel (text, theme, dpi);

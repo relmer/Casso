@@ -212,6 +212,11 @@ inline bool IsSupportedDiskImageExtension (const std::wstring & path)
 //  where to change it. Returns an empty string when nothing is protected
 //  (no tooltip shown).
 //
+//  A damaged image (its stored checksum did not match at load) takes
+//  precedence over the cause list and explains itself: it is not a setting
+//  the user can clear, so reporting it as plain write-protection would send
+//  them hunting for a toggle that will refuse them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 inline std::wstring ComposeWriteProtectTooltip (
@@ -233,9 +238,26 @@ inline std::wstring ComposeWriteProtectTooltip (
     if (wp.readOnlyFile) { causes.push_back (L"file is read-only"); }
     if (wp.noPermission) { causes.push_back (L"no write permission"); }
 
+    // A damaged image is a different and more worrying state than an ordinary
+    // write-protect, so it leads with its own sentence instead of joining the
+    // parenthetical list -- and it says why, because "write-protected" alone
+    // invites the user to go looking for the toggle that would clear it.
+    if (wp.checksumMismatch)
+    {
+        msg = imageName.empty() ? L"This disk image" : (L"\"" + imageName + L"\"");
+        msg += L" is damaged: its stored checksum does not match its contents. "
+               L"Casso will not write to it, because rewriting the file would "
+               L"hide the damage.";
+    }
+
     if (!causes.empty())
     {
-        msg = imageName.empty() ? L"Disk image" : (L"\"" + imageName + L"\"");
+        if (!msg.empty())
+        {
+            msg += L" ";
+        }
+
+        msg += imageName.empty() ? L"Disk image" : (L"\"" + imageName + L"\"");
         msg += L" is write-protected (";
 
         for (i = 0; i < causes.size(); ++i)
@@ -259,8 +281,9 @@ inline std::wstring ComposeWriteProtectTooltip (
         }
 
         msg += L"Drive " + std::to_wstring (driveNumber)
-             + (causes.empty() ? L" is write-protected in Settings > Disk."
-                               : L" is also write-protected in Settings > Disk.");
+             + ((causes.empty() && !wp.checksumMismatch)
+                    ? L" is write-protected in Settings > Disk."
+                    : L" is also write-protected in Settings > Disk.");
     }
 
     return msg;

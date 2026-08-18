@@ -206,6 +206,71 @@ public:
                           ComposeWriteProtectTooltip (1, L"foo.dsk", wpNoPerm));
     }
 
+    TEST_METHOD (WriteProtectTooltip_DamagedImageLeadsWithItsOwnSentence)
+    {
+        // A damaged image is not a setting anyone chose, so reporting it as
+        // plain write-protection would send the user hunting for a toggle that
+        // will refuse them. It says what is wrong and that Casso will not
+        // write, and it leads.
+        WriteProtectInfo  wp;
+
+        wp.checksumMismatch = true;
+
+        Assert::AreEqual (
+            std::wstring (L"\"suspect.woz\" is damaged: its stored checksum does not match "
+                          L"its contents. Casso will not write to it, because rewriting the "
+                          L"file would hide the damage."),
+            ComposeWriteProtectTooltip (1, L"suspect.woz", wp));
+
+        Assert::AreEqual (
+            std::wstring (L"This disk image is damaged: its stored checksum does not match "
+                          L"its contents. Casso will not write to it, because rewriting the "
+                          L"file would hide the damage."),
+            ComposeWriteProtectTooltip (1, std::wstring(), wp),
+            L"and it still reads as a sentence without an image name");
+    }
+
+    TEST_METHOD (WriteProtectTooltip_DamageDoesNotSwallowTheOtherCauses)
+    {
+        // The damage sentence is additional, not a replacement -- an image can
+        // be damaged AND carry its own write-protect flag AND sit behind the
+        // drive preference, and the tooltip has to survive saying all three.
+        WriteProtectInfo  wp;
+
+        wp.checksumMismatch = true;
+        wp.imageFlag        = true;
+
+        Assert::AreEqual (
+            std::wstring (L"\"a.woz\" is damaged: its stored checksum does not match its "
+                          L"contents. Casso will not write to it, because rewriting the file "
+                          L"would hide the damage. \"a.woz\" is write-protected (WOZ "
+                          L"write-protect flag)."),
+            ComposeWriteProtectTooltip (1, L"a.woz", wp),
+            L"the cause list must append to the damage sentence, not overwrite it");
+
+        wp.userSetting = true;
+
+        Assert::IsTrue (
+            ComposeWriteProtectTooltip (1, L"a.woz", wp).find (
+                L"Drive 1 is also write-protected in Settings > Disk.") != std::wstring::npos,
+            L"the drive preference still appends, and still says 'also'");
+    }
+
+    TEST_METHOD (WriteProtectTooltip_DamageAloneStillSaysAlsoForTheDrivePreference)
+    {
+        // "also" is chosen from whether anything preceded it, and a damage
+        // sentence counts even though it is not in the cause list.
+        WriteProtectInfo  wp;
+
+        wp.checksumMismatch = true;
+        wp.userSetting      = true;
+
+        Assert::IsTrue (
+            ComposeWriteProtectTooltip (2, L"a.woz", wp).find (
+                L"Drive 2 is also write-protected") != std::wstring::npos,
+            L"a preceding damage sentence must make the drive clause say 'also'");
+    }
+
     TEST_METHOD (WriteProtectTooltip_FallsBackWithoutAName)
     {
         WriteProtectInfo  wp;

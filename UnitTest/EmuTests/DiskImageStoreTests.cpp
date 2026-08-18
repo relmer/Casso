@@ -729,67 +729,109 @@ public:
     }
 
 
-    TEST_METHOD (Flush_CrcMismatchedImage_WarnsBeforeRewritingIt)
+    TEST_METHOD (Mount_CrcMismatchedImage_IsWriteProtected)
     {
-        // Saving replaces the file with a correctly checksummed copy of the
-        // same damage, so the mismatch stops being detectable. The user is
-        // told at the last moment it is still true -- before the write.
-        ScopedFlushNotifyCapture  capture;
-        DiskImageStore            store;
-        vector<Byte>              damaged = MakeCrcDamagedWoz();
-
-        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return S_OK; });
+        // A damaged image used to be rewritten, with a warning first. That
+        // traded a detectable problem for an undetectable one: the rewrite
+        // stamps a freshly computed checksum over the same damage, so nothing
+        // afterwards can tell the file is wrong. It is now held read-only for
+        // the session instead, and never rewritten at all.
+        DiskImageStore  store;
+        vector<Byte>    damaged = MakeCrcDamagedWoz();
+        DiskImage *     img     = nullptr;
 
         AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "suspect.woz",
                                                DiskFormat::Woz, damaged));
-        Assert::IsTrue (store.GetImage (kSlot, kDrive)->HasSourceCrcMismatch(),
+
+        img = store.GetImage (kSlot, kDrive);
+        Assert::IsNotNull (img);
+        Assert::IsTrue (img->HasSourceCrcMismatch(),
             L"precondition: the mount must have seen the bad checksum");
 
-        s_flushNotifyCount = 0;
-        s_flushNotifyLast.clear();
+        Assert::IsTrue (img->IsWriteProtected(),
+            L"a damaged image must be write-protected");
+        Assert::IsTrue (img->GetWriteProtectInfo().checksumMismatch,
+            L"and it must say WHY, so the UI can explain a state the user did not choose");
 
-        store.GetImage (kSlot, kDrive)->WriteBit (0, 0,
-            static_cast<uint8_t> (store.GetImage (kSlot, kDrive)->ReadBit (0, 0) ^ 1));
-        AssertSucceeded (store.Flush (kSlot, kDrive));
-
-        Assert::AreEqual (1, s_flushNotifyCount,
-            L"overwriting a CRC-mismatched image must be reported once");
-        Assert::IsTrue (s_flushNotifyLast.find (L"suspect.woz") != wstring::npos,
-            L"the warning must name the image being rewritten");
+        // Not the image flag: that lives in the WOZ's INFO chunk, so setting
+        // it would mean writing the very file being protected from writes.
+        Assert::IsFalse (img->GetWriteProtectInfo().imageFlag,
+            L"the damaged state must not be recorded as the in-file flag");
+        Assert::IsFalse (img->GetWriteProtectInfo().userSetting,
+            L"nor confused with the user's own toggle");
     }
 
 
-    TEST_METHOD (Flush_CrcMismatchedImage_DoesNotWarnAgainOnceRewritten)
+    TEST_METHOD (Flush_CrcMismatchedImage_NeverRewritesTheFile)
     {
-        // After the first save the file on disk carries a freshly computed,
-        // correct CRC -- the mismatch is no longer true of it, so repeating
-        // the warning on every later eject or power cycle would be noise.
-        ScopedFlushNotifyCapture  capture;
-        DiskImageStore            store;
-        vector<Byte>              damaged = MakeCrcDamagedWoz();
-        DiskImage *               img     = nullptr;
+        // The gate that makes the protection real. A guest cannot dirty a
+        // write-protected image, so this reaches past the emulation to set the
+        // bit directly -- the point is that the flush path itself refuses.
+        DiskImageStore  store;
+        vector<Byte>    damaged   = MakeCrcDamagedWoz();
+        DiskImage *     img       = nullptr;
+        int             sinkCalls = 0;
 
-        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return S_OK; });
+        store.SetFlushSink ([&sinkCalls] (const string &, const vector<Byte> &)
+        {
+            sinkCalls++;
+            return S_OK;
+        });
 
         AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "suspect.woz",
                                                DiskFormat::Woz, damaged));
-        img = store.GetImage (kSlot, kDrive);
 
-        Assert::IsTrue (img->HasSourceCrcMismatch(),
-            L"precondition: the mount must have seen the bad checksum");
+        img = store.GetImage (kSlot, kDrive);
+        Assert::IsNotNull (img);
 
         img->WriteBit (0, 0, static_cast<uint8_t> (img->ReadBit (0, 0) ^ 1));
         AssertSucceeded (store.Flush (kSlot, kDrive));
 
-        s_flushNotifyCount = 0;
-
-        img->WriteBit (0, 1, static_cast<uint8_t> (img->ReadBit (0, 1) ^ 1));
-        AssertSucceeded (store.Flush (kSlot, kDrive));
-
-        Assert::AreEqual (0, s_flushNotifyCount,
-            L"the checksum warning must not repeat after the file was rewritten");
-        Assert::IsFalse (img->HasSourceCrcMismatch(),
-            L"the rewritten file's stored CRC is valid, so the flag must clear");
+        Assert::AreEqual (0, sinkCalls,
+            L"a damaged image must never be written back -- the rewrite is what "
+            L"would make its damage undetectable");
+        Assert::IsTrue (img->HasSourceCrcMismatch(),
+            L"and the file is still damaged, so the flag must stay set");
     }
+
+
+    TEST_METHOD (SetImageWriteProtect_OnADamagedImage_IsRefused)
+    {
+        // The one remaining route that would have rewritten a damaged file.
+        // Patching the write-protect flag recomputes the header checksum, and
+        // that checksum failing to match IS the damage report -- so the write
+        // that is otherwise harmless is precisely the one that would destroy
+        // the evidence.
+        DiskImageStore  store;
+        vector<Byte>    file      = MakeCrcDamagedWoz();
+        vector<Byte>    original;
+        int             sinkCalls = 0;
+        HRESULT         hr        = S_OK;
+
+        original = file;
+
+        store.SetImageReader ([&file] (const string &, vector<Byte> & out)
+        {
+            out = file;
+            return S_OK;
+        });
+
+        store.SetFlushSink ([&sinkCalls, &file] (const string &, const vector<Byte> & bytes)
+        {
+            sinkCalls++;
+            file = bytes;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "suspect.woz",
+                                               DiskFormat::Woz, file));
+
+        hr = store.SetImageWriteProtect (kSlot, kDrive, true);
+
+        Assert::IsTrue (FAILED (hr), L"the toggle must refuse a damaged image");
+        Assert::AreEqual (0, sinkCalls, L"and must not write anything on the way to refusing");
+        Assert::IsTrue (file == original, L"so the file is byte-for-byte untouched");
+    }
+
 };
 
