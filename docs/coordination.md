@@ -1,0 +1,223 @@
+# Coordination — concurrent spec sessions
+
+State that belongs to no single spec, and would otherwise live only in one
+session's conversation. Written down because it survives neither compaction nor
+a move to another machine.
+
+Keep this current or delete it. A stale coordination note is worse than none —
+it is read by exactly the people who have no other way to check it.
+
+## Active work
+
+| Spec | Branch | Focus |
+|---|---|---|
+| 019 | `019-assembler-dialects` | Dialect mechanism + Merlin. Seeded by GH #92. |
+| 020 | `020-disk-file-access` | Disk file read/write, `disk` subcommand, boot config. |
+
+Both branch from `master` and integrate through it. **Nothing flows directly
+between the two branches** — no cherry-picks, no cross-branch merges. Shared
+artifacts are landed on `master` and picked up by a normal merge. That is why
+the command-line parser was moved into `CassoCore` before either started.
+
+## The conflict surface is three files, and only one is source
+
+Measured, not assumed — re-measured after 020 landed its CLI edge, which added
+the third. Across their whole diffs the branches overlap on:
+
+    CassoCore/CassoCore.vcxproj
+    UnitTest/UnitTest.vcxproj
+    CassoCli/CommandLine.cpp
+
+The two project files are additive — each session adds its own `<ClCompile>` /
+`<ClInclude>` rows.
+
+**Resolve by keeping both sides. Never take one side.** Accepting one drops the
+other session's files from the build, and the failure is quiet: the `.cpp` still
+sits on disk so nothing looks missing, the suite still compiles, and it still
+passes — with fewer tests in it. Both sessions report exact test counts (020's
+is at the top of its `tasks.md`), so the check after merging is that the count
+matches the sum of both sides, not merely that the run is green.
+
+`CassoCli/CommandLine.cpp` **merges cleanly as things stand**, because the two
+sides are in different regions of it: 019 replaced the diagnostic-printing
+loops with `DiagnosticFormatter`, 020 added lines to `PrintUsage`. The
+one-line collision predicted below arrives only when 019 registers `as65` in
+that same usage text. Same keep-both rule when it does.
+
+Nothing else is shared. 019 touches none of `CommandLineOptions.h`,
+`CommandLineParser.h/.cpp`, `UnitTest/CommandLineTests.cpp` or
+`CassoCli/CassoCli.vcxproj`, all of which 020 has edited — which is the
+measurement behind the sequencing rule in the next section.
+
+## Sequencing: the `as65` fallback removal (019 T049)
+
+**019 holds T049 until 020's command-line work reaches `master`.**
+
+Two reasons, in order of weight:
+
+1. 020 has ~384 lines in flight across `CommandLineParser.cpp`,
+   `CommandLineParser.h`, `CommandLineOptions.h` and `CommandLineTests.cpp`.
+   019 has touched none of them. Whoever holds unmerged work in a file should
+   not be the one made to resolve around someone else's edit.
+2. 020 is adding `disk` to `s_kSubcommands`, and that table is what decides
+   which bare words reach the fallback. Removing the fallback first means
+   writing tests against a table that is about to change shape.
+
+When it does happen it is **one commit**, not three. `s_kSubcommands` currently
+holds only `{ "run", … }`; the `As65` enum value is reachable *only* through the
+fallback. So any commit that removes the fallback without adding an explicit
+`as65` row in the same change leaves AS65 unreachable and breaks the tree at
+that point in history.
+
+`UnitTest/CommandLineTests.cpp` contains `BareWordThatIsNotASubcommand_StaysAs65`,
+placed by 020 as a deliberate tripwire so that removing the fallback has to be a
+decision rather than an accident. Deleting it is the intended outcome. Say so in
+the commit message, or it reads later as someone removing an inconvenient test.
+
+Both sessions also touch `PrintUsage` by one line each — 020 registering `disk`,
+019 registering `as65`. Same keep-both rule.
+
+## Extending the fixtures
+
+`UnitTest/Fixtures/Merlin/` and `UnitTest/Fixtures/Disks/` live on `master` and
+are consumed by both sessions, so adding to either is a shared-surface change.
+
+- Pull `master` first. Both sessions have been behind at least once.
+- Re-derive rather than hand-place: `scripts/ExtractMerlinFixtures.ps1` for the
+  Merlin corpus, `scripts/FetchMerlin.ps1` for the disks. Both refuse to run
+  against an image whose SHA-256 does not match the pin.
+- Update the directory's own `README.md` inventory **and** the matrix row in
+  `UnitTest/Fixtures/README.md`.
+- Land it on `master`, not on a feature branch. See below for how, from a
+  session whose worktree is pinned to a feature branch.
+
+## Landing something on `master` from a feature-branch worktree
+
+Both sessions work in a locked worktree on their own branch, and the primary
+checkout is on `master` and may be in use. So neither can simply switch. A
+throwaway detached worktree does it and disturbs nothing:
+
+```powershell
+git fetch origin
+git worktree add --detach <temp-path> origin/master
+# edit, then:
+git -C <temp-path> commit ...
+git -C <temp-path> push origin HEAD:master   # fast-forward
+git worktree remove <temp-path>
+git merge origin/master                       # bring it back to your branch
+```
+
+Three things learned doing it, each having cost something:
+
+- **Check that the push succeeded before removing the worktree.** A rejected
+  non-fast-forward leaves the commit reachable only from that worktree's HEAD,
+  and removing it orphans the work — the edit has to be redone from scratch
+  against current `master`. This happened; the section you are reading is the
+  second writing of it.
+- **Put `<temp-path>` outside the repository**, in a temp directory rather than
+  a sibling folder. A worktree removed from under an editor's file watcher can
+  spin it at 100% CPU indefinitely.
+- **Merge `origin/master` back into your branch immediately afterwards**, or the
+  next session to touch the file conflicts with something you wrote.
+
+**Do not land on `master` with raw plumbing** (`mktree` / `commit-tree` /
+`update-ref`), even though it works and is tempting when a worktree is pinned.
+Its failure mode is the inverse of the one above, and far worse.
+
+The worktree route fails *loudly*: if `master` moved, the push is rejected. The
+plumbing route fails *silently*. You set the correct parent — so the push
+fast-forwards cleanly — but the tree you built came from whatever you read
+earlier, so every line that landed in between is reverted by a commit that looks
+entirely normal. Parent correct, push clean, CheckStyle green, tree internally
+consistent. Nothing complains.
+
+This happened (`b877ae91` restoring what `299e6433` had added). It was caught
+only because the author thought to ask whether their own commit had deleted
+anything — no tool volunteered it. **A push succeeding is not evidence that
+nothing was lost.** If you use plumbing anyway, diff your new tree against the
+current remote tip before pushing, not against the base you started from.
+
+**Shared prose on `master` needs more care than shared code.** The fixture
+READMEs, `UnitTest/Fixtures/README.md` and `.github/copilot-instructions.md` are
+all written by both sessions. A conflicting *code* edit usually announces itself;
+a prose edit does not. Rewriting a section wholesale from a copy fetched twenty
+minutes ago silently deletes whatever landed in between, and the result still
+reads like a coherent document — which is why it survives review.
+
+This has already happened once: commit `b877ae91`, "restore the type-T trap
+paragraph I clobbered." So: pull immediately before editing a shared prose file,
+keep edits additive and scoped to the section you are adding, push immediately
+after, and never replace a whole file you did not read at current `HEAD`. If a
+section needs restructuring rather than appending, say so in the commit message
+so the other session can check nothing of theirs went with it.
+
+Both directories are CC BY-NC-ND 3.0 and carry a `LICENSE` covering the whole
+directory. Per constitution 1.9.0 a sidecar `LICENSE` per directory is the
+entire obligation for a fixture — no per-file accounting, and adding one is
+never an amendment. Material whose license forbids modification must be
+read-only to its tests.
+
+## Quote both configurations, always
+
+A status block that reports one test count is reporting half a result. Release
+compiles EHM assertions away, so a test that drives an asserting rejection passes
+there and fails in Debug — and the reverse shape exists too, since the two
+configurations do not run the same set.
+
+This is not hypothetical. Spec 019's status block quoted a Release figure alone,
+and Debug had been **red** underneath it for an unknown stretch: three fixture
+tests were driving the decoder's asserting rejections, which `SetupForUnitTests`
+routes to `Assert::Fail`. Nothing said so, because nothing was looking. The fix
+was `ExpectedEhmAssert` and no production change at all — the tests were wrong,
+not the code, which is exactly why it went unnoticed for so long.
+
+So: run both, quote both, and quote them as a pair (`3131 Release / 3134 Debug`),
+never one with the other implied. A single number invites the reader to assume
+the other matches, and the case where it does not is the case worth catching.
+
+The same reasoning applies to a mutation harness. If breaking the code under
+test **crashes** the run rather than failing an assertion, a harness that scores
+by looking for a `Failed:` line sees no failures and reports the mutation as
+uncaught — or worse, as caught-nothing-to-see. Require a complete tally of the
+expected size, and treat a short one as "run did not complete". A crash in Debug
+is a silent overwrite in Release.
+
+**Use `scripts/RunMutation.ps1` rather than writing that harness again.** Five
+sessions wrote their own, each rediscovering the same failure modes at their own
+cost, and the quality varied: one scored a crashed run as a miss, one silently
+mutated nothing because a multi-line anchor was LF against a CRLF file, and one
+left the mutated binaries in place after restoring the source — so the next
+suite run would have reported a confident green against code that was not on
+disk. The script enforces all five conditions, and reports ANCHOR NOT FOUND,
+DID NOT COMPILE and RUN DID NOT COMPLETE as distinct outcomes rather than
+folding any of them into "not caught". It never passes `-AllowStale`.
+
+## Two machines
+
+Sessions on this project may run on different physical machines. **Only git
+crosses.** Not the working tree, not `%LOCALAPPDATA%`, not Claude Code memory
+files, and not per-clone git config such as `core.hooksPath` or
+`.git/info/exclude` — which is why `/DevDisks/` is ignored in `.gitignore`
+rather than locally.
+
+Practical consequence: before reporting that you are blocked on something from
+`master`, pull. A file described as "landed" is only landed once it is pushed,
+and a session on the other machine cannot see your working tree at all.
+
+## Where knowledge goes
+
+Prefer an existing artifact over a new document; a second description of the
+same thing is a second thing to go stale.
+
+| Kind | Home |
+|---|---|
+| Operational how-to (driving Merlin, manual procedures) | that spec's `quickstart.md` |
+| Corpus and on-disk format findings | the fixture `README.md` on `master` |
+| Decisions and their rationale | `plan.md`, `contracts/` |
+| Settled and open questions | `tasks.md` |
+| Rules every session needs | `.github/copilot-instructions.md` |
+| Cross-session state | this file |
+
+Claude Code memory is the least portable form of any of these — it is keyed per
+directory and per machine, so a worktree gets its own and none of it survives a
+move. Anything worth keeping belongs in the repo as well.

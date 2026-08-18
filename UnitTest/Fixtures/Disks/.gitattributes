@@ -1,0 +1,23 @@
+###############################################################################
+#  Byte-verbatim vendor disk images and their catalog listings. Nothing here
+#  may be transformed on checkout.
+#
+#  The disks are obvious enough. The catalog listings are the trap: they are
+#  plain LF-only text, so under the root's `* text=auto` and core.autocrlf
+#  git would hand a Windows clone CRLF copies. The bytes would then no longer
+#  match the SHA-256 values pinned in README.md and in scripts/FetchMerlin.ps1,
+#  and the provenance chain back to archive.org -- the entire reason to trust
+#  these files -- would report a mismatch on a clean checkout with nothing
+#  actually wrong.
+#
+#  So the listings are pinned alongside the images rather than treated as the
+#  ordinary text they otherwise resemble.
+###############################################################################
+* binary
+
+# The documentation and the license note are ordinary text and should behave
+# that way. `binary` is a macro for `-diff -merge -text`, so restoring diff and
+# merge takes saying so.
+README.md      text=auto diff merge
+LICENSE        text=auto diff merge
+.gitattributes text=auto diff merge
