@@ -756,7 +756,7 @@ static void PrintUsageOverview (const char * lp)
     std::println ("");
     std::println ("Usage:");
     std::println ("  CassoCli <source> [options]                Assemble a source file");
-    std::println ("  CassoCli run <binary | source> [options]   Assemble or load, then execute");
+    std::println ("  CassoCli run <binary | source> [options]   Load <binary> or assemble <source>, then execute");
     std::println ("  CassoCli disk <verb> <image> [...]         Read and write disk images");
     std::println ("  CassoCli {0}help | {0}version", lp);
     std::println ("");
