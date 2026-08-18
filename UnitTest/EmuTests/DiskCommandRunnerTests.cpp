@@ -764,25 +764,11 @@ public:
             L"two invocations against one image must not reach for one name");
     }
 
-    TEST_METHOD (InUseHelpText_SaysWhatTheProbeCannotSee)
-    {
-        // FR-035's actual demand is about the WORDING: the probe catches other
-        // tools and cannot catch this emulator, so the help must not let a
-        // reader conclude that a clean probe means their mounted disk is safe.
-        // The claim lives beside the code that makes it, which is also what
-        // lets this test read it -- the console executable is not linked here.
-        std::string  text = DiskCommandRunner::kInUseHelpText;
-
-        Assert::IsTrue (text.find ("another program holds the image open") != std::string::npos,
-            L"it must say what the probe DOES catch");
-
-        Assert::IsTrue (text.find ("cannot tell whether the image is mounted here")
-                        != std::string::npos,
-            L"and disclaim the one it cannot");
-
-        Assert::IsTrue (text.find ("neither detected nor protected") != std::string::npos,
-            L"in terms that leave no room for a reader to assume protection");
-    }
+    //  The in-use probe used to be described by a paragraph of help text, and a
+    //  test here read that paragraph. Both are gone: a user meets the probe by
+    //  having a write refused, so the refusal is the whole explanation, and
+    //  DiskFailureModeTests already drives the refusal end to end against the
+    //  wording it now shares with the runner.
 
     TEST_METHOD (Get_WithText_ToANamedFile_ConvertsThereToo)
     {

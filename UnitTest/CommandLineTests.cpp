@@ -526,6 +526,27 @@ namespace CommandLineTests
             Assert::AreEqual (std::string ("custom.out"), opts.outputFile);
         }
 
+        //  A TRAILING `-o` USED TO HANG THE TOOL FOREVER. With nothing glued to
+        //  the flag and nothing after it, neither branch of `case 'o'` ran and
+        //  neither advanced the concatenation walk, so the loop reread the same
+        //  character until the process was killed: `casso demo.a65 -o` printed
+        //  nothing and never returned. Every other value-taking flag already
+        //  had the missing `pos++`.
+        //
+        //  A regression here HANGS this test rather than failing it, which is
+        //  the honest cost of pinning the fix at the seam where the defect
+        //  lives; the alternative is not pinning it at all.
+        TEST_METHOD (TrailingOutputFlag_WithNothingAfterIt_ReturnsInsteadOfSpinning)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-o" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (std::string ("demo.a65"), opts.inputFile,
+                L"the input survives");
+            Assert::AreEqual (std::string ("demo.bin"), opts.outputFile,
+                L"and the name falls back to the inferred one, as though -o were absent");
+        }
+
         TEST_METHOD (SRecordFlag_InfersS19Extension)
         {
             ArgVector           args = { "CassoCli", "demo.a65", "-s" };
@@ -723,29 +744,77 @@ namespace CommandLineTests
     //
     //  OutputShapeTests
     //
-    //  Selecting a binary shape. The default must stay the as65 full image, or
-    //  every existing invocation quietly changes what it produces.
+    //  Selecting a binary shape.
+    //
+    //  THE DEFAULT IS THE ASSEMBLED BYTES. It was the as65 full 64 KB padded
+    //  image, which is what somebody burning a ROM or diffing against a
+    //  reference wants and is not what somebody assembling a routine wants --
+    //  they got 64 KB and sliced it down by hand, or found `--raw` after the
+    //  fact. `--flat` asks for the old shape now, and `--raw` is kept as a
+    //  spelling of the new default so command lines that already carry it keep
+    //  working.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
     TEST_CLASS (OutputShapeTests)
     {
     public:
-        TEST_METHOD (Default_IsTheFullImage)
+        TEST_METHOD (Default_IsTheAssembledBytes_NotAPaddedFullImage)
         {
             ArgVector           args = { "CassoCli", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Binary);
+            Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Raw,
+                L"naming no shape writes only what was assembled");
+            Assert::IsFalse (opts.outputFormatNamed,
+                L"and nothing was named, which is a separate fact from which shape it is");
         }
 
-        TEST_METHOD (RawFlag_SelectsRaw)
+        TEST_METHOD (FlatFlag_SelectsTheFullPaddedImage)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "--raw" };
+            ArgVector           args = { "CassoCli", "demo.a65", "--flat" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Binary,
+                L"--flat is how the old default is asked for");
+            Assert::IsTrue (opts.outputFormatNamed);
+            Assert::AreEqual (std::string ("demo.bin"), opts.outputFile);
+        }
+
+        TEST_METHOD (RawFlag_SelectsRaw_AndIsThereforeASpellingOfTheDefault)
+        {
+            ArgVector           bare  = { "CassoCli", "demo.a65" };
+            ArgVector           args  = { "CassoCli", "demo.a65", "--raw" };
+            CommandLineOptions  plain = CommandLineParser::Parse (bare.Count(), bare.Data(), NoProbe());
+            CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Raw);
             Assert::AreEqual (std::string ("demo.bin"), opts.outputFile);
+
+            //  An existing command line spelling it must produce exactly what
+            //  the bare one now does -- that is what "kept working" means.
+            Assert::IsTrue (opts.outputFormat == plain.outputFormat,
+                L"--raw and no flag at all select the same shape");
+
+            //  But the tool still knows it was TYPED, which is what keeps a
+            //  `.s19` output filename from overriding a flag the caller gave.
+            Assert::IsTrue (opts.outputFormatNamed);
+        }
+
+        //  The extension fallback used to key off the shape equalling Binary,
+        //  which stopped meaning "nobody said" the moment the default moved.
+        TEST_METHOD (ExtensionFallback_StillAppliesOnlyWhenNoShapeWasNamed)
+        {
+            ArgVector           silent = { "CassoCli", "demo.a65", "-o", "out.s19" };
+            ArgVector           spoken = { "CassoCli", "demo.a65", "--raw", "-o", "out.s19" };
+            CommandLineOptions  quiet  = CommandLineParser::Parse (silent.Count(), silent.Data(), NoProbe());
+            CommandLineOptions  loud   = CommandLineParser::Parse (spoken.Count(), spoken.Data(), NoProbe());
+
+            Assert::IsFalse (quiet.outputFormatNamed,
+                L"a .s19 filename with no flag leaves the shape unclaimed, so the "
+                L"executable may infer an S-record from it");
+            Assert::IsTrue (loud.outputFormatNamed,
+                L"and an explicit --raw claims it, so the filename may not");
         }
 
         TEST_METHOD (DosBinFlag_SelectsDosBinary)
@@ -1099,12 +1168,20 @@ namespace CommandLineTests
             //  `/raw` used to be read as the concatenated flags -r -a -w, which
             //  silently set the column width and never selected a shape.
             ArgVector           raw    = { "CassoCli", "prog.a65", "/raw" };
+            ArgVector           flat   = { "CassoCli", "prog.a65", "/flat" };
             ArgVector           dosBin = { "CassoCli", "prog.a65", "/dos-bin" };
             ArgVector           cpu    = { "CassoCli", "prog.a65", "/cpu", "65c02" };
             ArgVector           glued  = { "CassoCli", "prog.a65", "/cpu=65c02" };
 
             Assert::IsTrue (CommandLineParser::Parse (raw.Count(), raw.Data(), NoProbe()).outputFormat
                                 == CommandLineOptions::OutputFormat::Raw, L"/raw");
+
+            //  `/flat` is the newest long option and would be read as the
+            //  concatenated flags -f -l -a -t without the table -- which sets a
+            //  listing file named `at` and complains about two flags that do
+            //  not exist, all while writing the shape it was told not to.
+            Assert::IsTrue (CommandLineParser::Parse (flat.Count(), flat.Data(), NoProbe()).outputFormat
+                                == CommandLineOptions::OutputFormat::Binary, L"/flat");
             Assert::IsTrue (CommandLineParser::Parse (dosBin.Count(), dosBin.Data(), NoProbe()).outputFormat
                                 == CommandLineOptions::OutputFormat::DosBinary, L"/dos-bin");
             Assert::IsTrue (CommandLineParser::Parse (cpu.Count(), cpu.Data(), NoProbe()).cpuTarget

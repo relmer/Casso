@@ -58,6 +58,30 @@ public:
     //  different one from the parser is worse than one that quotes none.
     static constexpr int  kWideListingColumns = 133;
 
+    //
+    //  What every exit status means, for every mode, in one place.
+    //
+    //  STATED ONCE BECAUSE IT IS ONE VOCABULARY. The three statuses were
+    //  documented under `disk` alone, which read as though the subcommand had
+    //  invented them -- and left a reader assembling a file with no idea what
+    //  the tool would return. The assembler, `run` and `disk` have always
+    //  agreed on 0, 1 and 2; only `run` adds a fourth, and it is named here
+    //  rather than left for a script to discover.
+    //
+    //  Lives beside the grammar so the test assembly can read it. The console
+    //  executable is not linked there, so a claim written next to the printing
+    //  code is a claim nothing can check.
+    //
+    static constexpr const char *  kExitStatusHelpText =
+        "  0  succeeded.\n"
+        "  1  succeeded with complaints -- an assembler warning, a flag that was not\n"
+        "     recognized and was dropped, or a disk edit that landed with something\n"
+        "     worth saying about it. The output was still written.\n"
+        "  2  produced no output -- a command line that was refused, no input file, a\n"
+        "     file that could not be read or written, an assembly error, or a disk\n"
+        "     operation the volume refused. Nothing was written.\n"
+        "  3  run only -- the program reached an illegal opcode.";
+
     static CommandLineOptions  Parse (int argc, char * argv[], const FileExistsFn & fileExists);
 
     // Whether one argument is the user asking for usage text, in any spelling

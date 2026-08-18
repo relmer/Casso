@@ -84,6 +84,7 @@ static constexpr const char *  s_kpszAs65LongOptions[] =
 {
     "cpu",
     "raw",
+    "flat",
     "dos-bin",
 };
 
@@ -858,19 +859,34 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
             continue;
         }
 
-        // Long options selecting a binary output SHAPE. The default stays the
-        // as65 full-64-KB image, so an invocation that names neither is
-        // unaffected.
+        // Long options selecting a binary output SHAPE.
+        //
+        // THE DEFAULT IS NOW THE ASSEMBLED BYTES, and --flat is how the old
+        // full-64-KB padded image is asked for. `--raw` is kept as a spelling
+        // of that default rather than retired, because it is written into
+        // command lines and makefiles that already exist and there is nothing
+        // to gain by breaking them; it selects the shape it always selected,
+        // which simply happens to be what naming nothing selects too.
         if (arg == "--raw")
         {
-            options.outputFormat = CommandLineOptions::OutputFormat::Raw;
+            options.outputFormat      = CommandLineOptions::OutputFormat::Raw;
+            options.outputFormatNamed = true;
+            argIndex++;
+            continue;
+        }
+
+        if (arg == "--flat")
+        {
+            options.outputFormat      = CommandLineOptions::OutputFormat::Binary;
+            options.outputFormatNamed = true;
             argIndex++;
             continue;
         }
 
         if (arg == "--dos-bin")
         {
-            options.outputFormat = CommandLineOptions::OutputFormat::DosBinary;
+            options.outputFormat      = CommandLineOptions::OutputFormat::DosBinary;
+            options.outputFormatNamed = true;
             argIndex++;
             continue;
         }
@@ -935,6 +951,12 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                 break;
 
             case 'o':
+                //  The final `pos++` is what keeps a trailing `-o` from
+                //  hanging the tool. With nothing glued to the flag and
+                //  nothing after it, neither branch below used to run and
+                //  neither advanced the walk, so the enclosing loop reread
+                //  the same character forever: `casso demo.a65 -o` never
+                //  returned, printed nothing and could only be killed.
                 if (!rest.empty())
                 {
                     options.outputFile = rest;
@@ -944,6 +966,10 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                 {
                     options.outputFile = argv[++argIndex];
                     pos = arg.size();
+                }
+                else
+                {
+                    pos++;
                 }
 
                 break;
@@ -1089,6 +1115,8 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
 
             case 's':
                 // -s = S-record output (.s19), -s2 = Intel HEX output (.hex)
+                options.outputFormatNamed = true;
+
                 if (!rest.empty() && rest[0] == '2')
                 {
                     options.outputFormat = CommandLineOptions::OutputFormat::IntelHex;

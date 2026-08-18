@@ -182,7 +182,9 @@ public:
         //  assertion below iterates, and a loop over nothing passes.
         Assert::AreEqual (size_t (5), lines.size(), L"the example runs the loop end to end");
 
-        Assert::AreEqual (std::string ("  CassoCli prog.a65 -o prog.bin --raw"),
+        //  No shape flag: the assembled bytes are what a bare invocation writes
+        //  now, so the example that used to spell `--raw` spells nothing.
+        Assert::AreEqual (std::string ("  CassoCli prog.a65 -o prog.bin"),
                           lines[0], L"assemble");
         Assert::AreEqual (std::string ("  CassoCli disk put mydisk.dsk prog.bin"
                                        " --as PROG --type B --addr $6000"),
@@ -201,7 +203,7 @@ public:
         std::string               help    = DiskCommandRunner::BuildHelpText();
         std::string               rest    = HelpWithoutExampleCommands (help);
         std::vector<std::string>  options = OptionsUsedByExample (help);
-        std::vector<std::string>  expected { "-o", "--raw", "--as", "--type",
+        std::vector<std::string>  expected { "-o", "--as", "--type",
                                              "--addr", "--basic", "--disk1" };
 
         //  The exact set, not merely a non-empty one. A scanner that found
@@ -233,51 +235,135 @@ public:
         }
     }
 
-    TEST_METHOD (HelpText_DocumentsTheThreeExitStatuses_AndThatNoneAreDefinedAboveTwo)
+    //  The three statuses were documented under `disk` alone, which read as
+    //  though the subcommand had invented them and left anyone assembling a
+    //  file with no answer. They are stated once now, in the overview, from a
+    //  constant every mode shares -- so the assertion moves with them rather
+    //  than being dropped.
+    TEST_METHOD (ExitStatusHelpText_DocumentsEveryStatusTheToolCanReturn_ForEveryMode)
     {
-        std::string  help = DiskCommandRunner::BuildHelpText();
+        std::string  shared = CommandLineParser::kExitStatusHelpText;
+        std::string  disk   = DiskCommandRunner::BuildHelpText();
 
-        Assert::IsTrue (help.find ("0 clean, 1 succeeded with complaints,"
-                                   " 2 produced no output") != std::string::npos,
-                        L"the three shared statuses");
+        Assert::IsTrue (shared.find ("0  succeeded") != std::string::npos,
+                        L"clean");
+        Assert::IsTrue (shared.find ("1  succeeded with complaints") != std::string::npos,
+                        L"ran, and had something to say");
+        Assert::IsTrue (shared.find ("2  produced no output") != std::string::npos,
+                        L"refused, or failed");
 
-        //  "There are none" IS the documentation. Saying nothing would read as
-        //  an omission, and a caller has no way to tell the two apart.
-        Assert::IsTrue (help.find ("defines no status above 2") != std::string::npos,
-                        L"the subcommand's scoped statuses, of which there are none");
+        //  3 is the one status that is not shared, and naming the mode it
+        //  belongs to is the whole point of listing it here: a script that
+        //  branches on 2 must not meet an undocumented 3 from `run`.
+        Assert::IsTrue (shared.find ("3  run only") != std::string::npos,
+                        L"the illegal-opcode status, scoped to the mode that returns it");
+
+        //  And the disk section no longer carries its own copy. Two statements
+        //  of one vocabulary are two statements that can disagree.
+        Assert::IsTrue (disk.find ("exit:") == std::string::npos,
+                        L"the disk section states the statuses no more");
+        Assert::IsTrue (disk.find ("defines no status above 2") == std::string::npos,
+                        L"nor the sentence that scoped them to itself");
     }
 
-    TEST_METHOD (HelpText_SaysPutAndGetAreNamedFromTheDisksPointOfView)
+    //  The old help carried a paragraph explaining that `put` and `get` are
+    //  named from the disk's point of view. It was there to rescue two verb
+    //  names the descriptions did not state the direction of; the descriptions
+    //  state it now, so the paragraph is redundant rather than merely wordy.
+    TEST_METHOD (HelpText_PutsTheDirectionInTheVerbDescriptions_NotInAParagraphExcusingTheNames)
     {
         std::string  help = DiskCommandRunner::BuildHelpText();
 
-        Assert::IsTrue (help.find ("put and get are named from the DISK's point of view")
-                            != std::string::npos,
-                        L"the direction of the two verbs that have one");
-        Assert::IsTrue (help.find ("put places a") != std::string::npos &&
-                        help.find ("host file on the disk, get takes one off it")
-                            != std::string::npos,
-                        L"and which way each one goes");
+        Assert::IsTrue (help.find ("point of view") == std::string::npos,
+                        L"the paragraph excusing the two verb names is gone");
+
+        Assert::IsTrue (help.find ("Read a file from the disk") != std::string::npos,
+                        L"get says which way it goes, on its own line");
+        Assert::IsTrue (help.find ("Write a host file to the disk") != std::string::npos,
+                        L"and so does put");
     }
 
-    TEST_METHOD (HelpText_QuotesTheRoundTripAndInUseSentences_SoNeitherClaimCanDrift)
+    //  Every spelling of a verb leads the line that describes it, so a reader
+    //  scanning the left margin for the word they already have in mind finds it
+    //  there rather than in an "also spelled" clause at the end of a sentence
+    //  about a word they do not use.
+    TEST_METHOD (HelpText_LeadsEachVerbLineWithEverySpelling_NotWithAnAlsoSpelledFootnote)
+    {
+        std::string   help    = DiskCommandRunner::BuildHelpText();
+        const char *  leads[] =
+        {
+            "  cat | catalog | dir | list | ls   ",
+            "  read | get                        ",
+            "  write | put                       ",
+            "  del | delete | rm                 ",
+            "  boot                              ",
+        };
+
+        for (const char * lead : leads)
+        {
+            Assert::IsTrue (help.find (lead) != std::string::npos,
+                            (L"verb line missing or misaligned: " + Widen (lead)).c_str());
+        }
+
+        Assert::IsTrue (help.find ("Also spelled") == std::string::npos,
+                        L"and no alias is left trailing in a footnote");
+    }
+
+    TEST_METHOD (HelpText_QuotesTheRoundTripSentence_SoTheClaimCannotDrift)
     {
         std::string  help = DiskCommandRunner::BuildHelpText();
 
-        //  Both sentences live beside the code that has to keep them true. What
-        //  this asserts is that they reach the user -- a claim kept accurate in
+        //  The sentence lives beside the code that has to keep it true. What
+        //  this asserts is that it reaches the user -- a claim kept accurate in
         //  a header nobody prints is worth nothing.
         Assert::IsTrue (help.find (ApplesoftTokenizer::RoundTripHelpText ('-')) != std::string::npos,
                         L"what --basic does and does not round-trip");
-        Assert::IsTrue (help.find (DiskCommandRunner::kInUseHelpText) != std::string::npos,
-                        L"what the in-use probe can and cannot see");
+
+        //  It sits under its own flag rather than closing the section. A reader
+        //  who has just read the --basic row has stopped looking two paragraphs
+        //  down, which is where this used to be.
+        Assert::IsTrue (help.find ("--basic                Convert to and from an Applesoft listing\n"
+                                   "\n  --basic is real tokenization") != std::string::npos,
+                        L"and it follows the row it explains");
+
+        //  The in-use paragraph is gone: a locked image is refused by name where
+        //  it happens, and the help does not document error messages.
+        Assert::IsTrue (help.find ("in-use check") == std::string::npos,
+                        L"the in-use paragraph is gone");
+    }
+
+    TEST_METHOD (HelpText_SaysWhatBootWillRefuse_BecauseNothingInAListingShowsThatSettingAtAll)
+    {
+        std::string  help = DiskCommandRunner::BuildHelpText();
+
+        Assert::IsTrue (help.find ("has to be on the volume already") != std::string::npos,
+                        L"the program must exist");
+        Assert::IsTrue (help.find ("operating system on the tracks a") != std::string::npos,
+                        L"the image must be bootable at all");
+        Assert::IsTrue (help.find ("type SYS, and not the kernel") != std::string::npos,
+                        L"what ProDOS will launch");
+    }
+
+    TEST_METHOD (HelpText_SaysWhatPutsThreeNamingOptionsDefaultTo)
+    {
+        std::string  help = DiskCommandRunner::BuildHelpText();
+
+        Assert::IsTrue (help.find ("defaults\n  to the host file's own name") != std::string::npos,
+                        L"--as has a default and the help states it");
+        Assert::IsTrue (help.find ("only\n  type the guest will RUN") != std::string::npos,
+                        L"--type has one too, and --basic overrides it");
+        Assert::IsTrue (help.find ("refused without one") != std::string::npos,
+                        L"and --addr is required for exactly one kind of file");
     }
 
     TEST_METHOD (HelpText_WarnsAgainstDosBinIntoPut_BecauseTheDoubledHeaderRunsAsCode)
     {
         std::string  help = DiskCommandRunner::BuildHelpText();
 
-        Assert::IsTrue (help.find ("--raw rather than --dos-bin") != std::string::npos,
+        //  `--raw` used to be named here as the shape to assemble with. It is
+        //  the default now, so the warning names the default -- and would read
+        //  as advice to type a flag that does nothing if it still said --raw.
+        Assert::IsTrue (help.find ("the default shape rather than --dos-bin") != std::string::npos,
                         L"which assembler shape the placement path wants");
         Assert::IsTrue (help.find ("its own header loaded as code") != std::string::npos,
                         L"and what goes wrong when the other one is used");
@@ -430,7 +516,7 @@ public:
     {
         std::string  help     = DiskCommandRunner::BuildHelpText();
         size_t       verbs    = help.find ("CassoCli disk list");
-        size_t       options  = help.find ("exit: 0 clean");
+        size_t       options  = help.find ("Add the ProDOS columns");
         size_t       example  = help.find (DiskCommandRunner::kExampleHeading);
 
         //  Overview, then options, then the worked loop. The old order put the

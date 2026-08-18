@@ -1254,6 +1254,123 @@ MEANS, only whether it does anything and whether the tool says so.
 
 ---
 
+## Phase 11: Owner-directed help restructure and the output default
+
+The owner read the Phase 9 help end to end and returned a list of structural
+changes, plus one option-semantics decision they had held twice. The option
+review itself is still theirs; what is here is the restructure they asked for,
+the one default they settled, and two defects the restructure surfaced.
+
+- [x] T063 Verb lines lead with every spelling, then one short description
+      (`cat | catalog | dir | list | ls`), in place of a primary verb with its
+      aliases trailing in an "also spelled" clause. A reader coming from an
+      Apple II types CATALOG, one from the host shell DIR, one from a Unix
+      shell LS -- all three are accepted, and each of them scans the left
+      margin for their own word rather than reading to the end of a sentence
+      about somebody else's. The grammar block still shows where the operands
+      go; only the descriptions moved
+- [x] T064 The "put and get are named from the DISK's point of view" paragraph
+      is deleted. It existed to rescue two verb names the descriptions did not
+      state the direction of; "Read a file from the disk" and "Write a host
+      file to the disk" state it outright, so the paragraph was explaining
+      wording it had already been made unnecessary by. The test is inverted
+      rather than dropped -- it now asserts the paragraph is absent AND that
+      both directions are stated on their own verb lines
+- [x] T065 Disk options sit with the disk subcommands. They were three sections
+      away, so the one subcommand was split across the top and the bottom of
+      the page with the assembler's flags in between, and a reader assembling
+      the two halves walked over those flags twice
+- [x] T066 Output and Listing fold into Assembly as sub-groups. **A top-level
+      section is a claim about scope.** "Output options" sitting between the
+      disk commands and the run flags gives a reader every reason to read `-o`
+      as naming a disk extraction or a run's artifact; neither is true, both
+      groups exist only while a source file is being assembled, and an indent
+      says so without spending a sentence
+- [x] T067 One help entry, `-h, --help, -?`, rather than three. **The `-h`
+      collision is NOT resolved here -- it is a held decision** -- but the entry
+      does not get to imply there is none: it says `-h` is help only as the
+      FIRST argument and is the listing page height everywhere else, which is
+      exactly what the grammar does (`CommandLineParser::Parse` matches the
+      literal two-character `-h` at `argv[1]`; the as65 walk reads every other
+      occurrence as a page height)
+- [x] T068 `--cpu` drops the opcode list. Anyone writing 6502 knows what 65c02
+      means, and three lines naming STZ/BRA/RMBn were three lines a reader
+      scanned past to reach the flags they came for. Target and default only
+- [x] T069 Exit statuses are stated once, for every mode, in the overview --
+      `CommandLineParser::kExitStatusHelpText`, beside the grammar so the test
+      assembly can read the same sentence the user does. They were under `disk`
+      alone, which read as though that subcommand had invented them and left
+      anyone assembling a file with no answer. **Measured against the code
+      before being written down**, and it is four statuses rather than three:
+      0 clean, 1 succeeded with complaints, 2 produced no output, and 3 for an
+      illegal opcode, which only `run` returns. The disk section's own copy and
+      its "defines no status above 2" sentence are gone -- two statements of
+      one vocabulary are two statements that can disagree
+- [x] T070 The `--basic` paragraph moves up to its own flag and is rewritten.
+      It sat below the exit statuses, two paragraphs from the row it explains,
+      and it read as a list of damage: **`--basic` IS real tokenization**, and
+      `CassoCore/ApplesoftTokenizer.cpp` emits the binary token stream the
+      machine itself stores. The substitutions listed are what a LISTING loses
+      on the way through that form and back, not anything the conversion
+      invents, and the text now leads with which of the two it is describing.
+      `basic` is deliberately the last row of the option table so the paragraph
+      is adjacent to it
+- [x] T071 The in-use paragraph is dropped, having first confirmed that a
+      locked image IS reported intelligibly: `CommitImage` refuses at the probe
+      and `RefuseCommit` names the image and says what to do -- *"is open in
+      another program -- close it and try again"* -- and a host read-only
+      attribute surfaces separately as *"is write-protected -- clear its
+      read-only attribute and try again. Nothing was written"*. The wording is
+      now a named constant (`kInUseRefusalText`) that `DiskFailureModeTests`
+      asserts against end to end, so the claim did not lose its test when it
+      lost its paragraph. **One thing IS lost and is recorded rather than
+      buried**: the paragraph's second sentence said the probe cannot see a
+      MOUNTED image, which no error message says because a mounted image
+      produces no refusal at all. FR-035 asked for that sentence in the help;
+      it is in the CHANGELOG and in this task, and the requirement needs the
+      owner's amendment rather than a silent reinterpretation
+- [x] T072 Examples move into the sections whose flags they use -- one in the
+      output group, one in listing, one in run. The worked disk loop stays
+      whole and stays with `disk`: it is the only example that spans more than
+      one group, and splitting a five-step loop across three sections destroys
+      the thing that makes it worth having
+- [x] T073 **`--raw` becomes the default and `--flat` asks for the old shape.**
+      Naming no shape wrote a 65,536-byte padded image, so a 200-byte routine
+      came out as 64 KB to be sliced down by hand. **The name is `--flat`, not
+      `--image`**: `--image` collides with `<image>` on the same help page,
+      where it means a disk image and nothing like a memory image, and the
+      writer this selects is already called `WriteFlatImage`. `--raw` is kept
+      as an accepted spelling of the default so existing command lines and
+      makefiles are untouched. **The load-bearing change is not the default.**
+      `ResolveOutputFormat` decided whether a `.s19` filename could pick the
+      format by testing `shape == Binary`, which meant "nobody named a shape"
+      only while nothing on the command line could spell Binary; with Raw as
+      the default and `--raw` spelling it, that test would have read an
+      explicit flag as silence. `outputFormatNamed` is now its own bit, set by
+      every shape flag, so the extension fallback still applies exactly when no
+      flag was given
+- [x] T074 A trailing `-o` hung the tool forever, found while writing down what
+      `-o` actually defaults to. With nothing glued to the flag and nothing
+      after it, neither branch of `case 'o'` ran and neither advanced `pos`, so
+      the walk over concatenated flags reread the same character until the
+      process was killed -- no output, no diagnostic, no exit. Every other
+      value-taking flag already had the missing `pos++`. **Verified by running
+      the shipped binary before the fix and killing it at five seconds**, not
+      inferred from the code. The regression test hangs rather than fails if
+      the fix is reverted, which is the honest cost of pinning it where the
+      defect lives
+- [x] T075 The real `-o` default, written down after measuring it: the source
+      file's own name with its extension REPLACED -- `.bin`, or `.s19` under
+      `-s` and `.hex` under `-s2` -- and derived from the auto-extended input,
+      so `casso build` yields `build.bin` by way of `build.a65`. The help said
+      "the input, with a .bin extension", which is wrong twice over. **The
+      owner's `-o [<file>]` spelling is NOT adopted**: `-o` is not
+      optional-valued the way `-l`, `-g` and `-w` are -- it takes the next
+      argument unconditionally, flag or not -- so the help keeps `-o <file>`
+      and the discrepancy is reported rather than documented as a feature
+
+---
+
 ## Dependencies
 
 ```text

@@ -1073,6 +1073,14 @@ Error:
 //  What --basic does and does not preserve, spelled with the prefix the reader
 //  asked for.
 //
+//  IT LEADS WITH WHAT THE CONVERSION IS, because the paragraph that followed
+//  read as a list of damage. `--basic` emits the binary token stream Applesoft
+//  itself stores -- the same bytes the machine writes when the line is typed at
+//  its own prompt -- and the substitutions below are what a LISTING loses when
+//  it is normalized into that form and read back out. They are not things the
+//  conversion invents, and a reader who met the list first had no way to tell
+//  the two apart.
+//
 //  It says the asymmetry out loud because the two directions genuinely differ
 //  and only one of them is exact. Someone who extracts a program, edits it and
 //  places it back has not lost anything they typed; someone who writes a
@@ -1088,10 +1096,13 @@ std::string ApplesoftTokenizer::RoundTripHelpText (char flagPrefix)
 
 
 
-    return lp + "basic converts an Applesoft listing to and from the tokenized form.\n"
-           "  Extracting a program and placing it back is byte-exact. The reverse --\n"
-           "  a listing placed and extracted again -- is NOT: spacing outside strings,\n"
-           "  REM and DATA is dropped, ? becomes PRINT, lowercase outside those three\n"
-           "  becomes uppercase, and lines are ordered by number. Applesoft normalizes\n"
-           "  all of that itself when a line is typed in.";
+    return lp + "basic is real tokenization: it writes the binary token stream\n"
+           "  Applesoft itself stores, and reads one back. Extracting a program and\n"
+           "  placing it back is byte-exact. A listing placed and extracted again is\n"
+           "  NOT -- and what is LOST there belongs to the listing's formatting, not\n"
+           "  to the program: spacing outside strings, REM and DATA is dropped, ?\n"
+           "  becomes PRINT, lowercase outside those three becomes uppercase, and\n"
+           "  lines are ordered by number. Applesoft normalizes every one of those\n"
+           "  itself when a line is typed at its own prompt, so the program on the\n"
+           "  disk is the one you meant either way.";
 }

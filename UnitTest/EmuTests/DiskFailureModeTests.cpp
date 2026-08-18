@@ -687,8 +687,15 @@ public:
         result = runner.Run (MakePutOptions (kRealImage, "PROG"));
 
         Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.diagnostics.find ("open in another program") != std::string::npos,
-            L"the reason must name the other holder");
+
+        //  Against the runner's own constant rather than a retyped fragment.
+        //  The help no longer carries a paragraph about the probe, so this
+        //  refusal is the only place a user is told what happened -- and a
+        //  reworded refusal that stopped saying what to do would otherwise
+        //  still satisfy a substring of the old sentence.
+        Assert::IsTrue (result.diagnostics.find (DiskCommandRunner::kInUseRefusalText)
+                        != std::string::npos,
+            L"the reason must name the other holder, and what to do about it");
 
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertNamesOneReason      (result.diagnostics);

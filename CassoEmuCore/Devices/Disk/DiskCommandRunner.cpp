@@ -76,13 +76,21 @@ std::string DiskCommandRunner::LongPrefix (char flagPrefix)
 //
 //  DiskCommandRunner::BuildSubcommandHelp
 //
-//  The grammar, then one line per verb saying what it is for.
+//  One line per verb -- every spelling of it, then what it does -- and then the
+//  grammar showing where the operands go.
 //
-//  EVERY ALIAS IS NAMED BESIDE THE VERB IT ALIASES, not gathered into a
-//  footnote. A person coming from an Apple II reaches for CATALOG, one coming
-//  from the host shell for DIR, one from a Unix shell for LS; all three are
-//  accepted, and each of them has to find their own word where they are already
-//  looking rather than in a list further down.
+//  EVERY ALIAS LEADS THE LINE IT BELONGS TO rather than trailing it in an "also
+//  spelled" clause. A person coming from an Apple II reaches for CATALOG, one
+//  coming from the host shell for DIR, one from a Unix shell for LS; all three
+//  are accepted, and a reader scanning the left margin for the word they already
+//  have in mind finds it there instead of at the end of a sentence about a word
+//  they do not use.
+//
+//  THE DESCRIPTIONS CARRY THE DIRECTION, which is why nothing here explains that
+//  put and get are named from the disk's point of view. "Read a file FROM the
+//  disk" and "Write a host file TO the disk" leave nothing for that sentence to
+//  add; it existed to rescue two verb names that the descriptions now state
+//  outright.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,6 +101,17 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
 
 
     return
+        "  cat | catalog | dir | list | ls   Show files on the disk -- name, type,\n"
+        "                                    size, lock state, free space, and any\n"
+        "                                    damage found\n"
+        "  read | get                        Read a file from the disk, to standard\n"
+        "                                    output or to " + lp + "out <file>\n"
+        "  write | put                       Write a host file to the disk\n"
+        "  del | delete | rm                 Delete a file from the disk and return\n"
+        "                                    the space it alone claimed\n"
+        "  boot                              Set the program that runs when the disk\n"
+        "                                    is booted\n"
+        "\n"
         "  CassoCli disk " + lp + "help\n"
         "  CassoCli disk list   <image> [" + lp + "long]\n"
         "  CassoCli disk get    <image> <path> [" + lp + "out <file>]"
@@ -102,19 +121,7 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
         "                                      [" + lp + "text | " + lp + "basic | "
                  + lp + "verbatim]\n"
         "  CassoCli disk delete <image> <path>\n"
-        "  CassoCli disk boot   <image> <path>\n"
-        "\n"
-        "  list    Catalog the volume -- name, type, size, lock state, free space,\n"
-        "          and any damage found. Also spelled ls, dir, cat, catalog.\n"
-        "  get     Copy a file OFF the disk, to " + lp + "out or to standard output.\n"
-        "          Also spelled read.\n"
-        "  put     Copy a host file ON to the disk. Also spelled write.\n"
-        "  delete  Remove a file and return the space it alone claimed.\n"
-        "          Also spelled rm, del.\n"
-        "  boot    Set which program the volume runs when it boots.\n"
-        "\n"
-        "  put and get are named from the DISK's point of view: put places a\n"
-        "  host file on the disk, get takes one off it.\n";
+        "  CassoCli disk boot   <image> <path>\n";
 }
 
 
@@ -125,13 +132,25 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
 //
 //  DiskCommandRunner::BuildOptionsHelp
 //
-//  The disk options, then the two things a caller has to know that no single
-//  option states: which exit statuses exist, and what the two conversions can
-//  and cannot promise.
+//  The disk options, each beside the verb that uses it, and then the three
+//  things no single option row can state: what --basic promises, what put's
+//  three naming options default to, and what boot will refuse.
 //
-//  The exit statuses say the subcommand defines none above 2. "There are none"
-//  is documentation -- silence would read as an omission, and a caller would
-//  have no way to tell the two apart.
+//  THE --basic PARAGRAPH FOLLOWS ITS OWN FLAG rather than closing the section.
+//  It used to sit under the exit statuses, two paragraphs below the row it
+//  explains, which is where a reader who has just read `Convert to and from an
+//  Applesoft listing` has already stopped looking. `basic` is deliberately the
+//  last row of the table so the two are adjacent.
+//
+//  EXIT STATUSES ARE NOT HERE ANY MORE. They were never disk-specific -- the
+//  assembler and `run` return the same three -- and stating them under one
+//  subcommand implied the other two had their own. They are stated once, in the
+//  overview, from CommandLineParser::kExitStatusHelpText.
+//
+//  NEITHER IS THE IN-USE PROBE. A locked image is refused by name where it
+//  happens ("is open in another program -- close it and try again"), which is
+//  the report a user acts on; a paragraph restating that in the help was
+//  documentation of an error message.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,7 +162,8 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
     //  ragged in the other.
     static constexpr const char *  kppszOptions[][2] =
     {
-        { "long",       "Add the ProDOS columns to a listing" },
+        { "long",       "Add the ProDOS columns -- eof= and aux= -- to a listing.\n"
+                        "                         A DOS 3.3 volume records neither, and ignores it" },
         { "out <file>", "Write an extracted file here, not to standard output" },
         { "as <path>",  "Name the placed file this on the disk" },
         { "type <t>",   "File type. DOS 3.3 takes T, I, A, B or R;\n"
@@ -172,18 +192,26 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
         text += line + entry[1] + "\n";
     }
 
+    text += "\n  ";
+    text += ApplesoftTokenizer::RoundTripHelpText (flagPrefix);
+    text += "\n";
+
     text +=
         "\n"
-        "  exit: 0 clean, 1 succeeded with complaints, 2 produced no output.\n"
-        "  disk defines no status above 2 -- every outcome it can report is one of\n"
-        "  those three, so a script needs nothing disk-specific.\n"
+        "  write | put: " + lp + "as is the name the file takes on the disk, and defaults\n"
+        "  to the host file's own name. " + lp + "type is what the catalog records, and\n"
+        "  defaults to a binary -- or to Applesoft under " + lp + "basic, which is the only\n"
+        "  type the guest will RUN. " + lp + "addr is the load address a binary carries: a\n"
+        "  DOS 3.3 B or a ProDOS BIN is refused without one, every other type ignores\n"
+        "  it, and " + lp + "basic refuses it outright because Applesoft keeps its program\n"
+        "  at $0801 and nowhere else.\n"
         "\n"
-        "  ";
-
-    text += ApplesoftTokenizer::RoundTripHelpText (flagPrefix);
-    text += "\n\n  ";
-    text += kInUseHelpText;
-    text += "\n";
+        "  boot: the program has to be on the volume already, named as the catalog\n"
+        "  spells it, and the image has to carry an operating system on the tracks a\n"
+        "  boot reads. On ProDOS it must be a file of type SYS, and not the kernel\n"
+        "  itself. On DOS 3.3 the boot command is RUN, so an Applesoft or Integer\n"
+        "  program runs -- anything else is set, reported, and the disk boots without\n"
+        "  running it.\n";
 
     return text;
 }
@@ -232,7 +260,7 @@ std::string DiskCommandRunner::BuildExampleHelp (char flagPrefix)
 
 
     return std::string (kExampleHeading) + "\n"
-        "  CassoCli prog.a65 " + sp + "o prog.bin " + lp + "raw\n"
+        "  CassoCli prog.a65 " + sp + "o prog.bin\n"
         "  CassoCli disk put mydisk.dsk prog.bin " + lp + "as PROG "
                  + lp + "type B " + lp + "addr $6000\n"
         "  CassoCli disk put mydisk.dsk greet.bas " + lp + "as STARTUP " + lp + "basic\n"
@@ -242,9 +270,9 @@ std::string DiskCommandRunner::BuildExampleHelp (char flagPrefix)
         "  " + sp + "o names the assembled output file; --disk1 mounts an image in\n"
         "  drive 1 as the emulator starts -- and is the emulator's own flag, which\n"
         "  is why it keeps the -- spelling here.\n"
-        "  Assemble with " + lp + "raw rather than " + lp + "dos-bin: put writes the DOS 3.3\n"
-        "  header itself from " + lp + "addr, and a file that already carries one has\n"
-        "  its own header loaded as code where the program should begin.\n"
+        "  Assemble with the default shape rather than " + lp + "dos-bin: put writes the\n"
+        "  DOS 3.3 header itself from " + lp + "addr, and a file that already carries one\n"
+        "  has its own header loaded as code where the program should begin.\n"
         "  greet.bas holds one Applesoft line -- 10 PRINT CHR$(4);\"BRUN PROG\"\n"
         "  -- because a booting DOS 3.3 volume RUNs its greeting. Naming the\n"
         "  binary there sets the name and the disk boots without running it.\n";
@@ -1067,8 +1095,7 @@ HRESULT DiskCommandRunner::CommitImage (
 
     held = m_fileIo.IsHeldByAnotherProcess (opened.imagePath);
     CBRFEx (!held, HRESULT_FROM_WIN32 (ERROR_SHARING_VIOLATION),
-            RefuseCommit (opened.imagePath,
-                          "is open in another program -- close it and try again", result));
+            RefuseCommit (opened.imagePath, kInUseRefusalText, result));
 
     progress.furthestAttempted = CommitPlan::Step::Reverify;
 

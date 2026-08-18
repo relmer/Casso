@@ -97,14 +97,26 @@ struct CommandLineOptions
         bool         longListing    = false;           // --long
     };
 
-    //  Binary is the as65 full-64-KB image and stays the default, so an
-    //  existing invocation keeps producing exactly what it always did. Raw and
-    //  DosBinary are the shapes a modern toolchain wants -- see OutputFormats.
+    //  Raw -- the assembled bytes and nothing else -- is the default, because
+    //  it is what somebody assembling a routine actually wants and what every
+    //  other step in the build loop takes. Binary is the as65 full-64-KB padded
+    //  image, which a ROM burner or a reference comparison wants and which now
+    //  needs --flat to ask for. DosBinary carries the Apple DOS 3.3 header.
+    //  See OutputFormats for what each one writes.
     enum class OutputFormat  { Binary, SRecord, IntelHex, Raw, DosBinary };
 
     Subcommand    subcommand      = Subcommand::None;
     ParseVerdict  parseVerdict    = ParseVerdict::Clean;
-    OutputFormat  outputFormat    = OutputFormat::Binary;
+    OutputFormat  outputFormat    = OutputFormat::Raw;
+
+    //  Whether a shape flag was TYPED, as opposed to the default standing.
+    //
+    //  Separate from outputFormat because the value alone can no longer answer
+    //  it. The default used to be Binary and nothing spelled Binary, so "equals
+    //  Binary" meant "nobody said" -- which is what let a `.s19` output file
+    //  select an S-record when no flag was given. With Raw as the default and
+    //  --raw spelling it, that test would read an explicit --raw as silence.
+    bool          outputFormatNamed = false;
     CpuTarget     cpuTarget       = CpuTarget::M6502;   // --cpu (default: strict 6502)
     std::string   inputFile;
     std::string   outputFile;

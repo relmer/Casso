@@ -335,12 +335,19 @@ static void ReportAssemblyDiagnostics (const AssembleResult & ar)
 //  anyway. It also leaves the two new shapes unreachable, since neither raw
 //  nor DOS-binary output has an extension of its own to be recognized by.
 //
+//  "NO FLAG WAS GIVEN" IS NOW ITS OWN BIT rather than a value of the shape.
+//  This used to ask whether the shape equalled Binary, which worked only while
+//  the default was Binary and nothing on the command line could spell it. With
+//  the assembled bytes as the default and `--raw` spelling them, that test
+//  would have read an explicit `--raw` as silence and let a `.s19` filename
+//  override the flag the caller typed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static CommandLineOptions::OutputFormat ResolveOutputFormat (const CommandLineOptions & options)
 {
     CommandLineOptions::OutputFormat  shape      = options.outputFormat;
-    bool                              isDefault  = shape == CommandLineOptions::OutputFormat::Binary;
+    bool                              isDefault  = !options.outputFormatNamed;
     bool                              isSRec     = CommandLineParser::EndsWith (options.outputFile, ".s19");
     bool                              isHex      = CommandLineParser::EndsWith (options.outputFile, ".hex");
 
@@ -771,6 +778,30 @@ static void PrintUsageOverview (const char * lp)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PrintUsageExitStatus
+//
+//  The statuses every mode returns, printed once and near the top.
+//
+//  They used to appear only under `disk`, which put them where a reader who
+//  never types that subcommand would not look and implied the other two modes
+//  had statuses of their own. The wording lives in the core library so a test
+//  can read the same sentence the user does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void PrintUsageExitStatus()
+{
+    std::println ("");
+    std::println ("Exit status, in every mode:");
+    std::println ("{}", CommandLineParser::kExitStatusHelpText);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PrintUsageSubcommands
 //
 //  The disk grammar, printed from the library that implements it. See
@@ -795,110 +826,22 @@ static void PrintUsageSubcommands (char prefix)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+//  EVERY SPELLING OF HELP IS ONE LINE, and the line says where one of them
+//  stops being help. `-h` is both the help request and the listing page height,
+//  which is a collision the grammar keeps deliberately; what it must not do is
+//  print two confident entries and let the reader discover the overlap by
+//  having a page height print the usage text at them.
 static void PrintUsageGeneral (const char * lp, const char * sp, const char * pad)
 {
-    // "--help, -?" = 10 chars, "--version" = 9 chars => +1 space for version
-    // "/help, /?"  =  9 chars, "/version"  = 8 chars => +1 space for version
+    // "-h, --help, -?" = 14 chars, "--version" = 9 chars => +1 space for version
+    // "/h, /help, /?"  = 13 chars, "/version"  = 8 chars => +1 space for version
     // pad compensates: -- (2 chars) vs / (1 char) in long prefix
     std::println ("");
     std::println ("General options:");
-    std::println ("  {0}help, {1}?{2}             Show this help", lp, sp, pad);
+    std::println ("  {1}h, {0}help, {1}?{2}         Show this help -- but {1}h only as the FIRST", lp, sp, pad);
+    std::println ("                         argument. Anywhere else {0}h is the listing page", sp);
+    std::println ("                         height below.");
     std::println ("  {0}version{1}              Show version information", lp, pad);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PrintUsageOutput
-//
-//  The first of the assembler's option groups, and the place the grouping is
-//  explained once for all of them.
-//
-//  ALPHABETICAL ORDER WAS THE PREVIOUS ARRANGEMENT and it is the one ordering
-//  guaranteed to separate related things: `-l`, `-p`, `-c` and `-m` all shape
-//  the same listing and landed four places apart, while `-i` and `-l` sat
-//  adjacent with nothing in common. A reader arrives with a goal -- "how do I
-//  get a symbol table", "how do I control the output file" -- and a grouping by
-//  goal answers it in one place.
-//
-//  The prefix is substituted rather than hard-coded because both `/` and `-`
-//  are accepted, and usage text showing the form the reader did NOT type reads
-//  as though their invocation was wrong. The tables are format strings for
-//  exactly that reason: one placeholder per flag, filled at print time, so
-//  neither spelling can be forgotten when a flag is added.
-//
-//  This group is what the assembler PRODUCES: where the bytes go and in which
-//  shape. The default -- a padded 64 KB image when no shape is named -- is
-//  stated beneath the table rather than against any one flag, because it is the
-//  absence of all of them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static void PrintUsageOutput (const char * sp, const char * lp, const char * pad)
-{
-    const char * lines[] =
-    {
-        "  {0}o <file>              Output file (default: the input, with a .bin extension)",
-        "  {1}raw{2}                  Write only the assembled bytes, unpadded",
-        "  {1}dos-bin{2}              Write the assembled bytes behind a 4-byte DOS 3.3",
-        "                         header (load address + length), ready to BLOAD",
-        "  {0}s                     Output S-record format (.s19)",
-        "  {0}s2                    Output Intel HEX format (.hex)",
-        "  {0}z                     Fill unused space with $00 (default: $FF)",
-        "",
-        "  Naming none of the shapes writes a full 64 KB image, padded with the fill byte.",
-    };
-
-    std::println ("");
-    std::println ("Output options:");
-
-    for (const char * fmt : lines)
-    {
-        std::println ("{}", std::vformat (fmt, std::make_format_args (sp, lp, pad)));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PrintUsageListing
-//
-//  Everything that shapes what the assembler REPORTS, as opposed to what it
-//  produces. The listing flags, the symbol table, the debug file and the two
-//  verbosity switches all answer the same question and are read together.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static void PrintUsageListing (const char * sp)
-{
-    const char * lines[] =
-    {
-        "  {0}l [<file>]            Generate listing ({0}l = stdout, {0}l file = to file)",
-        "  {0}p                     Generate pass 1 listing",
-        "  {0}c                     Show cycle counts in listing",
-        "  {0}m                     Show macro expansions in listing",
-        "  {0}h <lines>             Page height for listing (default: no pagination)",
-        "  {0}w [<width>]           Column width (default: 80, {0}w alone = 133)",
-        "  {0}t                     Generate symbol table",
-        "  {0}g [<file>]            Generate debug information file",
-        "                         ({0}g = the input, with a .dbg extension)",
-        "  {0}v                     Verbose mode",
-        "  {0}q                     Quiet mode (suppress progress)",
-    };
-
-    std::println ("");
-    std::println ("Listing and diagnostic options:");
-
-    for (const char * fmt : lines)
-    {
-        std::println ("{}", std::vformat (fmt, std::make_format_args (sp)));
-    }
 }
 
 
@@ -909,9 +852,37 @@ static void PrintUsageListing (const char * sp)
 //
 //  PrintUsageAssembly
 //
-//  What the assembler is allowed to assemble, rather than what it writes or
-//  reports: which instruction set is legal, what is defined before the first
-//  line is read, and the two switches that no longer do anything.
+//  Everything that applies while a source file is being assembled, in three
+//  tiers: what the assembler is allowed to assemble, where the bytes go, and
+//  what it reports about the run.
+//
+//  ALPHABETICAL ORDER WAS THE ORIGINAL ARRANGEMENT and it is the one ordering
+//  guaranteed to separate related things: `-l`, `-p`, `-c` and `-m` all shape
+//  the same listing and landed four places apart, while `-i` and `-l` sat
+//  adjacent with nothing in common. A reader arrives with a goal -- "how do I
+//  get a symbol table", "how do I control the output file" -- and a grouping by
+//  goal answers it in one place.
+//
+//  OUTPUT AND LISTING ARE NESTED HERE RATHER THAN STANDING BESIDE IT. They were
+//  top-level sections, and a top-level section is a claim about scope: a reader
+//  meeting "Output options" between the disk commands and the run flags has
+//  every reason to read `-o` as naming a disk extraction or a run's artifact.
+//  Neither is true -- both groups exist only while a source file is being
+//  assembled -- and an indent says so without spending a sentence on it.
+//
+//  The prefix is substituted rather than hard-coded because both `/` and `-`
+//  are accepted, and usage text showing the form the reader did NOT type reads
+//  as though their invocation was wrong. The tables are format strings for
+//  exactly that reason: one placeholder per flag, filled at print time, so
+//  neither spelling can be forgotten when a flag is added.
+//
+//  THE OUTPUT DEFAULT IS STATED AGAINST THE ABSENCE OF THE FLAGS, beneath the
+//  table, because that is what it is a property of. It is the assembled bytes
+//  now; the padded 64 KB image it used to be is asked for with --flat.
+//
+//  EXAMPLES SIT IN THE GROUP THEY DEMONSTRATE. One block of them at the end of
+//  the page is one a reader has to hold two option tables in mind to follow,
+//  and the disk loop is the only example that genuinely spans sections.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -919,14 +890,49 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
 {
     const char * lines[] =
     {
-        "  {1}cpu <6502|65c02>{2}     Target CPU (default: 6502). 65c02 enables the CMOS",
-        "                         opcodes (STZ, BRA, RMBn/SMBn, BBRn/BBSn, ...); under",
-        "                         6502 those are rejected as invalid.",
+        "  {1}cpu <6502|65c02>{2}     Target CPU (default: 6502)",
         "  {0}d <name>[=<value>]    Pre-define symbol",
         "  {0}i                     Case-insensitive (default, no-op)",
         "  {0}n                     Disable optimizations (no-op)",
         "",
         "  Flags can be concatenated: {0}tlfile = {0}t {0}lfile",
+        "",
+        "  CassoCli prog.a65 {1}cpu 65c02 {0}d DEBUG=1",
+        "",
+        "  Output:",
+        "    {0}o <file>            Where the assembled bytes go. Defaults to the source",
+        "                         file's own name with its extension replaced -- .bin,",
+        "                         or .s19 under {0}s and .hex under {0}s2",
+        "    {1}flat{2}               Write a full 64 KB memory image, padded with the fill",
+        "                         byte -- what a ROM burner or a byte-for-byte reference",
+        "                         comparison wants",
+        "    {1}dos-bin{2}            Write the assembled bytes behind a 4-byte DOS 3.3",
+        "                         header (load address + length), ready to BLOAD",
+        "    {0}s                   Output S-record format (.s19)",
+        "    {0}s2                  Output Intel HEX format (.hex)",
+        "    {0}z                   Fill unused space with $00 (default: $FF)",
+        "    {1}raw{2}                Accepted, and selects the default -- kept so command",
+        "                         lines that already spell it keep working",
+        "",
+        "    Naming no shape writes ONLY the assembled bytes, unpadded.",
+        "",
+        "    CassoCli prog.a65 {0}o prog.bin",
+        "    CassoCli rom.a65 {0}o rom.bin {1}flat {0}z",
+        "",
+        "  Listing and diagnostics:",
+        "    {0}l [<file>]          Generate listing ({0}l = stdout, {0}l file = to file)",
+        "    {0}p                   Generate pass 1 listing",
+        "    {0}c                   Show cycle counts in listing",
+        "    {0}m                   Show macro expansions in listing",
+        "    {0}h <lines>           Page height for listing (default: no pagination)",
+        "    {0}w [<width>]         Column width (default: 80, {0}w alone = 133)",
+        "    {0}t                   Generate symbol table",
+        "    {0}g [<file>]          Generate debug information file",
+        "                         ({0}g = the input, with a .dbg extension)",
+        "    {0}v                   Verbose mode",
+        "    {0}q                   Quiet mode (suppress progress)",
+        "",
+        "    CassoCli prog.a65 {0}l prog.lst {0}c {0}t",
     };
 
     std::println ("");
@@ -968,6 +974,8 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
     }
 
     std::println ("  {0}v                     Verbose output", sp);
+    std::println ("");
+    std::println ("  CassoCli run prog.a65 {0}stop $6010 {0}max-cycles 10000", lp);
 }
 
 
@@ -1002,11 +1010,23 @@ static void PrintUsageExamples (char prefix)
 //
 //  PrintUsage
 //
-//  Overview, then subcommands, then options grouped by what they do, then the
-//  worked example -- in that order, because that is the order a reader needs
-//  them in. The example goes LAST rather than in the middle: it is what someone
-//  returns to once they know the vocabulary, and a five-line worked loop sitting
-//  between two option tables interrupts both of them.
+//  What the tool is, what every exit status means, then one section per mode in
+//  the order the usage lines name them: assemble, run, disk.
+//
+//  THE ORDER FOLLOWS THE USAGE LINES rather than crossing them. The page used
+//  to open with the disk subcommands, put three option groups between them and
+//  the disk options that fill them in, and close with the disk example -- so
+//  the one subcommand was split across three places and the reader walked over
+//  the assembler's flags twice to assemble the two halves.
+//
+//  EACH SECTION CARRIES ITS OWN EXAMPLE. The worked loop stays whole and stays
+//  with `disk`, because that is the mode it demonstrates and it is the only
+//  example that spans more than one; the short ones sit inside the group whose
+//  flags they use.
+//
+//  EXIT STATUSES ARE STATED ONCE, near the top, for every mode. They were under
+//  `disk` alone, which implied the assembler and `run` had statuses of their
+//  own -- and left anyone who never types `disk` with no answer at all.
 //
 //  EVERY SECTION IS SPELLED WITH THE PREFIX THE READER CHOSE. `/?` means the
 //  whole page reads `/flag`, and `--help` means it reads `-`/`--`. The disk
@@ -1025,12 +1045,11 @@ void PrintUsage (char prefix)
 
 
     PrintUsageOverview     (lp);
-    PrintUsageSubcommands  (prefix);
+    PrintUsageExitStatus   ();
     PrintUsageGeneral      (lp, sp, pad);
-    PrintUsageOutput       (sp, lp, pad);
-    PrintUsageListing      (sp);
     PrintUsageAssembly     (sp, lp, pad);
     PrintUsageRun          (lp, sp, pad);
+    PrintUsageSubcommands  (prefix);
     PrintUsageDisk         (prefix);
     PrintUsageExamples     (prefix);
 }

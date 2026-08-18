@@ -9,6 +9,12 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Fixed
+- **A trailing `-o` no longer hangs the assembler forever.** `CassoCli
+  demo.a65 -o`, with no filename after the flag, printed nothing and never
+  returned — it had to be killed. Neither branch of the flag's parsing ran and
+  neither advanced the walk over the concatenated flags, so the same character
+  was read for as long as the process lived. It now falls back to the inferred
+  output name, exactly as though `-o` had not been typed.
 - **A mistyped option no longer reports success.** `CassoCli run prog.a65 --cpu
   65c02` printed `Error: Unknown option` and then exited 0 — the complaint
   reached your screen and never reached your build script. Seven paths did
@@ -87,6 +93,36 @@ Entries before versioning was introduced use dates only.
   that window and is dropped.
 
 ### Changed
+- **BREAKING: assembling now writes the assembled bytes, not a 64 KB image.**
+  Naming no output shape used to write a full 64 KB memory image padded with
+  the fill byte, so a 200-byte routine came out as a 65,536-byte file that had
+  to be sliced down by hand or rescued with `--raw` once you found it. The
+  padded image is what a ROM burner or a byte-for-byte reference comparison
+  wants and it is still available — it is now spelled **`--flat`**. `--raw` is
+  still accepted and still selects the assembled bytes, so every command line
+  and makefile that already spells it keeps working unchanged; it is simply a
+  spelling of the default now. **If you relied on the padded image, add
+  `--flat`.** One consequence worth naming: the "no shape was named" test that
+  lets a `.s19` or `.hex` output filename select its format is now a fact of
+  its own rather than a value of the shape, so `--raw -o out.s19` writes raw
+  bytes where it would previously have been read as silence.
+- **The help is reorganized around what you are doing, not what the tool has.**
+  `--help` now opens with the usage shapes and **every exit status, for every
+  mode, stated once** — they used to appear under `disk` alone, which read as
+  though that subcommand had invented them and left anyone assembling a file
+  with no answer at all. Output and listing options are nested under assembly
+  options rather than standing beside them as top-level sections, because
+  neither applies to `disk` or `run`. The disk verbs lead with every spelling
+  they accept (`cat | catalog | dir | list | ls`) instead of trailing aliases
+  in an "also spelled" clause, the disk options sit with the disk commands
+  instead of three sections away, `put`'s `--as`/`--type`/`--addr` defaults and
+  `boot`'s restrictions are stated, and each group carries its own example
+  rather than one block at the end. Three things came out: the paragraph
+  explaining that `put` and `get` are named from the disk's point of view (the
+  verb descriptions say which way each one goes), the `--cpu` opcode list, and
+  the in-use paragraph — a locked image is refused by name where it happens.
+  `-h`, `--help` and `-?` are one entry, which says that `-h` means help only
+  as the first argument and is the listing page height everywhere else.
 - **`--help` is organized by what things do, not by first letter.** The old
   page led with the command shapes, then the disk commands, then a worked
   example, and only then the switches — alphabetically, which put `-c`, `-l`,
@@ -145,7 +181,8 @@ Entries before versioning was introduced use dates only.
   states that the subcommand defines none above 2, which is what documenting a
   scoped status set amounts to when there are none — says that `put` and `get`
   are named from the disk's point of view, and warns about the two steps that
-  are guessed wrong: assemble with `--raw` rather than `--dos-bin`, because
+  are guessed wrong: assemble with the default shape rather than `--dos-bin`,
+  because
   `put` writes the DOS 3.3 header itself and a file that already carries one
   has its own header loaded as code where the program should begin; and set the
   boot program to an Applesoft greeting that `BRUN`s the binary, because a
@@ -181,7 +218,8 @@ Entries before versioning was introduced use dates only.
   meant slicing 64 KB down by hand. `--raw` writes only the assembled span;
   `--dos-bin` writes that span behind the 4-byte load-address/length header an
   Apple DOS 3.3 binary file carries, so the result is ready to `BLOAD` once
-  placed on a disk. The default is unchanged.
+  placed on a disk. (The assembled span has since become the default, under
+  Changed above; `--raw` remains an accepted spelling of it.)
 
 ### Changed
 - **An explicit output-format flag now wins over the filename's extension.**

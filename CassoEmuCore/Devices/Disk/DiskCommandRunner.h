@@ -117,20 +117,20 @@ public:
     static constexpr int  kNoOutput       = 2;
 
     //
-    //  What the help says about the in-use probe.
+    //  What a commit says when another program is holding the image.
     //
     //  It lives here, beside the code that performs the probe, so the claim and
     //  the capability cannot drift apart -- and so a test can read it, since the
     //  console executable is not linked by the test assembly.
     //
-    //  The second sentence is the load-bearing one. A probe that catches other
-    //  tools and cannot catch this emulator must not be described in a way that
-    //  lets a reader conclude a clean probe means their mounted disk is safe.
+    //  IT IS A DIAGNOSTIC RATHER THAN HELP TEXT, which is the whole change. The
+    //  help used to carry a paragraph describing the probe; a user meets the
+    //  probe by having a write refused, and the refusal names the image and
+    //  says what to do about it. Documenting an error message in the usage text
+    //  is documenting the wrong surface.
     //
-    static constexpr const char *  kInUseHelpText =
-        "in-use check: a write is refused when another program holds the image open.\n"
-        "  It cannot tell whether the image is mounted here -- a mounted image is\n"
-        "  not held open -- so a mounted disk is neither detected nor protected.";
+    static constexpr const char *  kInUseRefusalText =
+        "is open in another program -- close it and try again";
 
     //  The line the worked example starts on, so a reader and a test look for
     //  the same thing.
