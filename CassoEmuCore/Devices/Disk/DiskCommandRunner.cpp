@@ -59,6 +59,21 @@ DiskCommandRunner::DiskCommandRunner (IDiskFileIo & fileIo)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::SetBanner
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::SetBanner (const std::string & banner)
+{
+    m_banner = banner;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::BuildSubcommandHelp
 //
 //  One line per verb -- every spelling of it, then what it does -- and then the
@@ -295,9 +310,10 @@ std::string DiskCommandRunner::BuildExampleHelp (char flagPrefix)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DiskCommandRunner::BuildHelpText (char flagPrefix)
+std::string DiskCommandRunner::BuildHelpText (char flagPrefix, const std::string & banner)
 {
-    return "Usage:\n"
+    return (banner.empty() ? std::string() : banner + "\n")
+         + "Usage:\n"
          + CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::Disk) + "\n"
            "\n"
            "Disk subcommands:\n"
@@ -2124,7 +2140,7 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             break;
 
         case CommandLineOptions::DiskOptions::Verb::Help:
-            result.output     += BuildHelpText (options.flagPrefix);
+            result.output     += BuildHelpText (options.flagPrefix, m_banner);
             result.exitStatus  = kClean;
             break;
 

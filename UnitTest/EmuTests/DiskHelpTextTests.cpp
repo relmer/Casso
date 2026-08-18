@@ -645,4 +645,31 @@ public:
         Assert::IsTrue (general.find ("Exit status") == std::string::npos,
                         L"nor does it claim an exit status any mode would disagree with");
     }
+
+    //  The banner heads every help page, and this page is the one assembled in
+    //  the library, where the build's version is not known. So it arrives as an
+    //  argument, the way the general page already takes one -- and a page
+    //  reached directly by `disk --help`, without ever passing the general
+    //  page, still says which build is answering.
+    //
+    //  ASSERTED AT POSITION 0, not merely present: a banner anywhere in the
+    //  page is a banner that could be under the exit statuses. And the empty
+    //  default is asserted too, because every caller that is not the console
+    //  executable relies on it -- including the other tests in this file, which
+    //  would otherwise have to supply a version to ask a question about wording.
+    TEST_METHOD (TheDiskPage_TakesItsBannerFromTheCaller_AndPutsItFirst)
+    {
+        const char   kBanner[] = "CassoCli - 6502 Assembler and Emulator  v0.0.0\n"
+                                 "Copyright (c) 2025-2026 by Robert Elmer\n";
+        std::string  withBanner = DiskCommandRunner::BuildHelpText ('-', kBanner);
+        std::string  bare       = DiskCommandRunner::BuildHelpText ('-');
+
+        Assert::IsTrue (withBanner.starts_with (kBanner),
+                        L"the banner heads the page");
+        Assert::IsTrue (withBanner.find ("Usage:") != std::string::npos,
+                        L"and the page itself is still under it");
+
+        Assert::IsTrue (bare.starts_with ("Usage:"),
+                        L"no banner asked for, none printed and nothing left in its place");
+    }
 };

@@ -9,6 +9,38 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Added
+- **Every help page now opens with the banner.** The tool's name, the version,
+  the architecture and the copyright headed the general page only, and a mode's
+  page is reached directly -- `CassoCli ?`, `CassoCli run --help`, `CassoCli
+  disk --help` -- so a reader could meet the whole of the help without ever
+  being told which build was answering. The disk page is assembled in the
+  library, which does not know the build's version, so it takes the banner as an
+  argument the way the general page already did.
+- **The assembly page leads with the as65 compatibility promise.** A reader
+  arriving from as65 had to infer it from a footnote under one flag. It is now
+  the first thing on the page, together with the list of flags -- `-o` today --
+  that additionally accept a space before their value, which is what makes these
+  command lines typable in PowerShell.
+- **`-i` and `-n` name the issue that tracks them.** Both are accepted and do
+  nothing; the page said "not implemented" and "no-op", which is a status a
+  reader cannot check from a help page. It now points at
+  https://github.com/relmer/Casso/issues/118.
+
+### Changed
+- **The assembly page explains its examples.** Each of the four command lines
+  now says what it assembles, what file it writes and what is in it. A bare
+  command line is an example only to a reader who already knows what it
+  produces, which is not the reader who came to the page.
+- **The default output shape is stated as a behavior rather than as an
+  absence.** "Naming no shape writes ONLY the assembled bytes" described a hole
+  in the option table and asked the reader to infer a behavior from it; the page
+  now says that only the assembled bytes are written, with no header and no
+  padding, and then names `--flat`, `--dos-bin`, `-s` and `-s2` as the shapes
+  that change that.
+- **The flag-concatenation paragraph says where concatenation applies without
+  describing the other two grammars.** It reached for `run` and `disk` to make
+  its point on a page that documents neither.
+
 - **`-o` takes a separated filename as well as an attached one.** `-o prog.bin`
   now means what `-oprog.bin` means. That accepts MORE than as65 does and never
   less, so every as65 command line still reads exactly as as65 reads it. What

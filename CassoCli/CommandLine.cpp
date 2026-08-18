@@ -768,9 +768,17 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
 //  general page has a size promise on it that only holds if the whole page --
 //  banner included -- is one thing a test can measure.
 //
+//  IT HEADS EVERY PAGE, NOT ONLY THE GENERAL ONE. A mode's page is reached
+//  directly -- `CassoCli ?`, `CassoCli run --help` -- so a reader can meet the
+//  whole of the help without ever passing the general page, and the version and
+//  architecture are exactly what a bug report or a "which build is this"
+//  question needs. It is not built here for the disk page, which is assembled in
+//  the library where the build's version is not known; that page gets it from
+//  the executable at print time, which is why this is no longer static.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::string BuildBanner()
+std::string BuildBanner()
 {
     return std::string ("CassoCli - 6502 Assembler and Emulator  v" VERSION_STRING " (")
          + arch
@@ -844,11 +852,31 @@ static void PrintUsageExitStatus (const char * statuses)
 //
 //  THE OUTPUT DEFAULT IS STATED AGAINST THE ABSENCE OF THE FLAGS, beneath the
 //  table, because that is what it is a property of. It is the assembled bytes
-//  now; the padded 64 KB image it used to be is asked for with --flat.
+//  now; the padded 64 KB image it used to be is asked for with --flat. It is
+//  stated as what the tool does rather than as what the reader did not ask
+//  for: "naming no shape writes only the assembled bytes" describes a hole in
+//  the table, and a reader looking for the plain-bytes output was being asked
+//  to notice an absence and infer a behavior from it.
 //
-//  EXAMPLES SIT IN THE GROUP THEY DEMONSTRATE. One block of them at the end of
-//  the page is one a reader has to hold two option tables in mind to follow,
-//  and the disk loop is the only example that genuinely spans sections.
+//  EXAMPLES SIT IN THE GROUP THEY DEMONSTRATE, AND EACH SAYS WHAT IT DOES.
+//  One block of them at the end of the page is one a reader has to hold two
+//  option tables in mind to follow, and the disk loop is the only example that
+//  genuinely spans sections. A bare command line is only an example to somebody
+//  who already knows what it produces -- which is not the reader who came to
+//  this page -- so each one names the file it writes and what is in it.
+//
+//  THE as65 COMPATIBILITY PROMISE LEADS THE PAGE. It is the first thing a
+//  reader arriving from as65 needs to know and the last thing they should have
+//  to infer from a per-flag footnote; the one place this grammar accepts MORE
+//  than as65 does -- a separated value, for the flags listed there -- belongs
+//  in the same breath, because it is what makes these command lines typable in
+//  PowerShell. The list is a list, not a sentence naming one flag, so a second
+//  flag earning the same treatment is a list entry rather than a rewrite.
+//
+//  THE ISSUE NUMBER IS PRINTED FOR THE TWO ACCEPTED NO-OPS. `-i` and `-n` are
+//  taken and do nothing, which is a promise a reader cannot check from here;
+//  naming GH #118 is what turns "not implemented" from a dead end into
+//  something they can read the status of.
 //
 //  IT IS A PAGE OF ITS OWN NOW, reached by a lone `?` and by an option this
 //  grammar does not have, so it opens with the invocation it describes and with
@@ -868,29 +896,45 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
 {
     const char * lines[] =
     {
+        "",
+        "  Every option below is compatible with the standard as65 switch of the same",
+        "  name, so an as65 command line assembles here unchanged. These flags also",
+        "  accept a space before their value, so that they survive PowerShell's own",
+        "  argument parsing:",
+        "",
+        "      {0}o",
+        "",
         "  {0}x                     Use the 65SC02 extensions. Without it the CMOS",
         "                         opcodes are rejected, which is the default",
         "  {0}d[<name>[=<value>]]   Pre-define symbol ({0}d alone defines DEBUG as 1).",
         "                         The name is ATTACHED: {0}d NAME defines DEBUG and",
         "                         leaves NAME to be read as the source file",
-        "  {0}i                     Ignore case in opcodes (not implemented)",
-        "  {0}n                     Disable optimizations (no-op)",
+        "  {0}i                     Ignore case in opcodes. Accepted and does",
+        "                         nothing; tracked as issue #118 at",
+        "                         https://github.com/relmer/Casso/issues/118",
+        "  {0}n                     Disable optimizations. Accepted and does",
+        "                         nothing; tracked as issue #118 at",
+        "                         https://github.com/relmer/Casso/issues/118",
         "",
-        "  EVERY VALUE ATTACHES TO ITS FLAG -- {0}dDEBUG, not {0}d DEBUG. That is as65's",
+        "  EVERY VALUE ATTACHES TO ITS FLAG:  {0}dDEBUG, not {0}d DEBUG. That is as65's",
         "  grammar, which this mode exists to accept unchanged.",
         "",
-        "  {0}o IS THE ONE EXCEPTION: {0}o prog.bin is taken as well as {0}oprog.bin.",
+        "  {0}o IS THE ONE EXCEPTION: {0}o prog.bin is allowed as well as {0}oprog.bin.",
         "  PowerShell cuts an unquoted {0}oprog.bin into {0}oprog and .bin, because a",
-        "  parameter name cannot contain a dot. {0}o has no bare form, so what",
-        "  follows it can only be its filename; every other flag here has one, and",
-        "  a separated value would be ambiguous with it.",
+        "  parameter name cannot contain a dot. {0}o has no bare form, so what follows",
+        "  it can only be its filename; every other flag here has one, and a separated",
+        "  value would be ambiguous with it.",
         "",
-        "  Flags concatenate in THIS grammar only: {0}tlfile = {0}t {0}lfile. It is what",
-        "  as65 did, and `run` and `disk` take their options one to an argument.",
-        "  A flag taking a NUMBER may be followed inside the group -- {0}h80t is",
-        "  {0}h80 {0}t -- and one taking a NAME may not, because the name would eat it.",
+        "  Flags may also be run together into a single argument, so that {0}tlfile",
+        "  means {0}t {0}lfile. This is supported in assembly command lines only, as an",
+        "  accommodation to as65 compatibility. A flag taking a NUMBER may be followed",
+        "  inside the group -- {0}h80t means {0}h80 {0}t -- but one taking a NAME may not,",
+        "  because the name would swallow whatever came after it.",
         "",
         "  CassoCli prog.a65 {0}x {0}dDEBUG=1",
+        "      Assembles prog.a65 with the 65SC02 opcodes available and the symbol",
+        "      DEBUG defined as 1, then writes the assembled bytes to prog.bin beside",
+        "      the source.",
         "",
         "  Output:",
         "    {0}o<file>             Where the assembled bytes go, attached or separated",
@@ -906,11 +950,23 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
         "    {0}s2                  Output Intel HEX format (.hex)",
         "    {0}z                   Fill unused space with $00 (default: $FF)",
         "",
-        "    Naming no shape writes ONLY the assembled bytes, unpadded. There is no",
-        "    flag for that -- it is what you get by not asking for another one.",
+        "    By default, only the assembled bytes are written to the output file,",
+        "    with no header and no padding -- which is the shape the disk put verb",
+        "    expects. Use {1}flat for a full 64 KB memory image, {1}dos-bin for those",
+        "    bytes behind a DOS 3.3 load-address-and-length header, {0}s for S-record",
+        "    text, or {0}s2 for Intel HEX.",
         "",
         "    CassoCli prog.a65 {0}oprog.bin",
+        "        Assembles prog.a65 and writes the assembled bytes, and nothing else,",
+        "        to prog.bin. Naming the file is all {0}o does here: the default shape",
+        "        is what a program being placed on a disk wants, because the disk",
+        "        records its own load address.",
+        "",
         "    CassoCli rom.a65 {0}orom.bin {1}flat {0}z",
+        "        Writes rom.bin as a full 64 KB image, with the assembled bytes at",
+        "        the addresses the source gave them and every byte the source did not",
+        "        fill set to $00 instead of $FF -- what a ROM burner takes, and what a",
+        "        byte-for-byte comparison against a reference image needs.",
         "",
         "  Listing and diagnostics:",
         "    {0}l[<file>]           Generate listing ({0}l alone = stdout, {0}lprog.lst = to",
@@ -929,8 +985,13 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
         "    {0}q                   Quiet mode (suppress progress)",
         "",
         "    CassoCli prog.a65 {0}lprog.lst {0}c {0}t",
+        "        Assembles prog.a65 to prog.bin as usual, and writes prog.lst alongside",
+        "        it: each source line with the bytes it generated and the cycles it",
+        "        costs, then the symbol table at the end.",
     };
 
+    std::print   ("{}", BuildBanner());
+    std::println ("");
     std::println ("Usage:");
     std::println ("{}", CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::As65));
     std::println ("");
@@ -979,6 +1040,8 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
         "  {0}max-cycles <n>{1}       Maximum cycles before stopping",
     };
 
+    std::print   ("{}", BuildBanner());
+    std::println ("");
     std::println ("Usage:");
     std::println ("{}", CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::Run));
     std::println ("");

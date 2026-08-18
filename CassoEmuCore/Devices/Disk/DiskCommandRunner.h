@@ -186,7 +186,20 @@ public:
 
     //  All three together, which is what a test reads when the question is
     //  about the disk help as a whole rather than about where a piece lands.
-    static std::string  BuildHelpText (char flagPrefix = '-');
+    //
+    //  THE BANNER IS AN ARGUMENT for the reason CommandLineHelp::BuildGeneralHelp
+    //  takes one: what the tool is called, which version this is and who holds
+    //  the copyright are the EXECUTABLE's knowledge -- the version and the
+    //  architecture come from its build -- and this page is assembled in the
+    //  library. It heads every other help page, so it heads this one; it
+    //  defaults to empty so a test asking what the disk page SAYS is not made to
+    //  supply a version first.
+    static std::string  BuildHelpText (char flagPrefix = '-', const std::string & banner = "");
+
+    //  The banner the Help verb prints above the page, handed over by whoever
+    //  built the runner. Empty means no banner, which is what every caller that
+    //  is not the console executable wants.
+    void  SetBanner (const std::string & banner);
 
     //  Every verb the grammar accepts, aliases included and comma-separated,
     //  for the refusal a word that is none of them earns.
@@ -314,6 +327,7 @@ private:
                                  const std::string & reason);
 
     IDiskFileIo &  m_fileIo;
+    std::string    m_banner;
 
     //  What separates this runner's temporaries from any other invocation's.
     //  Taken once, at construction, so every commit this runner performs is

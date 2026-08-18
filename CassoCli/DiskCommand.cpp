@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "CommandLine.h"
 #include "DiskCommand.h"
 #include "Win32DiskFileIo.h"
 #include "Core/TextEncoding.h"
@@ -45,6 +46,7 @@ int DiskCommand::Run (const CommandLineOptions & options)
 {
     Win32DiskFileIo    fileIo;
     DiskCommandRunner  runner (fileIo);
+    runner.SetBanner (BuildBanner());
     DiskCommandResult  result   = runner.Run (options);
     HRESULT            hr       = S_OK;
     int                exitCode = result.exitStatus;
