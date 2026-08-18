@@ -228,6 +228,8 @@ private:
     void     AssignGlassUvs     ();
     void     BuildBrandStamp    (float leftMm, float topZMm, float heightMm, float frontY,
                                  float thicknessMm = 0.0f);
+    void     BuildBrandSolid    (float leftMm, float topZMm, float heightMm, float frontY,
+                                 float thicknessMm, int firstRow, int lastRow);
     void     BuildPadlockStamp  ();
     void     AddRegionBoxes     ();
     void     ComputeBounds         ();

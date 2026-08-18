@@ -641,6 +641,12 @@ void DeskSceneModel::BuildBrandStamp (float leftMm, float topZMm, float heightMm
         return;
     }
 
+    if (thicknessMm > 0.0f)
+    {
+        BuildBrandSolid (leftMm, topZMm, heightMm, frontY, thicknessMm, firstRow, lastRow);
+        return;
+    }
+
     for (int row = firstRow; row <= lastRow; row++)
     {
         uint64_t  bits   = CassoBranding::SilhouetteRow (row);
@@ -689,76 +695,271 @@ void DeskSceneModel::BuildBrandStamp (float leftMm, float topZMm, float heightMm
             }
         }
     }
+}
 
-    if (thicknessMm <= 0.0f)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneModel::BuildBrandSolid
+//
+//  The cassowary as a solid with a smoothed outline and a rounded top edge.
+//
+//  The mark's own resolution is the problem this works around. It is a 36x54
+//  bitmask, so one cell lands about two screen pixels wide, and both the
+//  staircase edges and any round-over are the same order as a cell -- rounding
+//  the raw silhouette by the case's own 0.35 mm would erase a one-cell feature
+//  outright, taking the beak serrations and the leg with it.
+//
+//  So the mask is resampled instead of offset. Coverage is measured over a
+//  disc a little wider than a cell and thresholded at half, which rounds the
+//  staircase off while holding the mark's area and its concavities, and the
+//  same field then gives a distance to the outline: cap height ramps from the
+//  full face down over the last fraction of a millimeter, so the top edge
+//  rolls over rather than breaking square. Erosion never enters it, which is
+//  why thin features survive.
+//
+//  The flat interior stays UNLIT and merged into row runs -- it is most of the
+//  mark, and the brand's colors have to come out exact. Only the rolled band
+//  and the side walls carry normals and shade, which is the whole of what
+//  reads as depth.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::BuildBrandSolid (float leftMm, float topZMm, float heightMm, float frontY,
+                                      float thicknessMm, int firstRow, int lastRow)
+{
+    constexpr int    kSuper   = 4;        // fine cells per silhouette cell
+    constexpr float  kSmoothR = 1.15f;    // coverage disc radius, in silhouette cells
+    constexpr float  kRollMm  = 0.14f;    // how far down the top edge rolls
+
+    const int    fw     = CassoBranding::kGridW * kSuper;
+    const int    fh     = CassoBranding::kGridH * kSuper;
+    const int    vw     = fw + 1;
+    const float  cell   = heightMm / (float) CassoBranding::kGridH;
+    const float  fcell  = cell / (float) kSuper;
+    const float  scale  = 2.0f * kSmoothR * cell;   // coverage units -> mm
+    const float  backY  = frontY + thicknessMm;
+    const int    span   = (int) std::ceil (kSmoothR) + 1;
+
+    std::vector<float>    height ((size_t) vw * (fh + 1), 0.0f);
+    std::vector<uint8_t>  inside ((size_t) fw * fh, 0);
+
+    // Vertex pass: coverage -> signed distance to the outline -> cap height.
+    for (int vy = 0; vy <= fh; vy++)
     {
-        return;
+        float  oy = (float) vy / (float) kSuper;
+
+        for (int vx = 0; vx <= fw; vx++)
+        {
+            float  ox   = (float) vx / (float) kSuper;
+            int    hits = 0;
+            int    seen = 0;
+
+            for (int dy = -span; dy <= span; dy++)
+            {
+                for (int dx = -span; dx <= span; dx++)
+                {
+                    int    sy = (int) std::floor (oy) + dy;
+                    int    sx = (int) std::floor (ox) + dx;
+                    float  ax = (float) sx + 0.5f - ox;
+                    float  az = (float) sy + 0.5f - oy;
+
+                    if (ax * ax + az * az > kSmoothR * kSmoothR)
+                    {
+                        continue;
+                    }
+
+                    seen++;
+
+                    if (sy >= 0 && sy < CassoBranding::kGridH &&
+                        sx >= 0 && sx < CassoBranding::kGridW &&
+                        (CassoBranding::SilhouetteRow (sy) & (1ULL << sx)) != 0)
+                    {
+                        hits++;
+                    }
+                }
+            }
+
+            {
+                float  cov  = (seen > 0) ? (float) hits / (float) seen : 0.0f;
+                float  dist = (cov - 0.5f) * scale;
+                float  t    = (std::min) (1.0f, (std::max) (0.0f, dist / kRollMm));
+
+                height[(size_t) vy * vw + vx] = frontY + kRollMm * (1.0f - t);
+            }
+        }
+    }
+
+    for (int fy = 0; fy < fh; fy++)
+    {
+        for (int fx = 0; fx < fw; fx++)
+        {
+            // A cell belongs to the mark when its own corners sit at or inside
+            // the outline -- the height field is already the smoothed shape, so
+            // "not fully rolled out" is the test.
+            float  h00 = height[(size_t) fy       * vw + fx];
+            float  h10 = height[(size_t) fy       * vw + fx + 1];
+            float  h01 = height[(size_t) (fy + 1) * vw + fx];
+            float  h11 = height[(size_t) (fy + 1) * vw + fx + 1];
+            float  avg = (h00 + h10 + h01 + h11) * 0.25f;
+
+            inside[(size_t) fy * fw + fx] = (avg < frontY + kRollMm) ? 1 : 0;
+        }
     }
 
     {
-        float  backY = frontY + thicknessMm;
-
-        // One wall, spanning (ax,az)-(bx,bz) across the face and frontY..backY
-        // into it. Lit, so it shades: that is the whole point of the walls.
-        auto  pushWall = [this, frontY, backY] (float ax, float az, float bx, float bz,
-                                                float nx, float nz,
-                                                float r,  float g,  float b)
+        auto  stripeRgb = [firstRow, lastRow] (int fineRow, float rgb[3])
         {
-            Dxui3DRenderer::Vertex   quad[6] = {};
-
-            quad[0] = { ax, frontY, az, 0, 0, r, g, b, 1.0f, nx, 0.0f, nz };
-            quad[1] = { bx, frontY, bz, 0, 0, r, g, b, 1.0f, nx, 0.0f, nz };
-            quad[2] = { bx, backY,  bz, 0, 0, r, g, b, 1.0f, nx, 0.0f, nz };
-            quad[3] = { ax, frontY, az, 0, 0, r, g, b, 1.0f, nx, 0.0f, nz };
-            quad[4] = { bx, backY,  bz, 0, 0, r, g, b, 1.0f, nx, 0.0f, nz };
-            quad[5] = { ax, backY,  az, 0, 0, r, g, b, 1.0f, nx, 0.0f, nz };
-
-            m_opaque.insert (m_opaque.end(), quad, quad + 6);
-        };
-
-        for (int row = firstRow; row <= lastRow; row++)
-        {
-            uint64_t  bits   = CassoBranding::SilhouetteRow (row);
-            uint64_t  above  = CassoBranding::SilhouetteRow (row - 1);
-            uint64_t  below  = CassoBranding::SilhouetteRow (row + 1);
+            int       row    = (std::min) (lastRow, (std::max) (firstRow, fineRow / kSuper));
             int       stripe = ((row - firstRow) * CassoBranding::kStripeCount) / (lastRow - firstRow + 1);
             uint32_t  argb   = CassoBranding::StripeColor (stripe);
-            float     zTop   = topZMm - (float) row * rowH;
-            float     zBot   = zTop - rowH;
-            float     r      = (float) ((argb >> 16) & 0xFF) / 255.0f;
-            float     g      = (float) ((argb >> 8) & 0xFF) / 255.0f;
-            float     b      = (float) (argb & 0xFF) / 255.0f;
 
-            for (int col = 0; col < CassoBranding::kGridW; col++)
+            rgb[0] = (float) ((argb >> 16) & 0xFF) / 255.0f;
+            rgb[1] = (float) ((argb >> 8) & 0xFF) / 255.0f;
+            rgb[2] = (float) (argb & 0xFF) / 255.0f;
+        };
+
+        auto  pushTri = [this] (const float a[3], const float b[3], const float c[3],
+                                const float n[3], const float rgb[3])
+        {
+            Dxui3DRenderer::Vertex   tri[3] = {};
+
+            tri[0] = { a[0], a[1], a[2], 0, 0, rgb[0], rgb[1], rgb[2], 1.0f, n[0], n[1], n[2] };
+            tri[1] = { b[0], b[1], b[2], 0, 0, rgb[0], rgb[1], rgb[2], 1.0f, n[0], n[1], n[2] };
+            tri[2] = { c[0], c[1], c[2], 0, 0, rgb[0], rgb[1], rgb[2], 1.0f, n[0], n[1], n[2] };
+
+            m_opaque.insert (m_opaque.end(), tri, tri + 3);
+        };
+
+        auto  pushQuad = [&pushTri] (const float p00[3], const float p10[3],
+                                     const float p11[3], const float p01[3],
+                                     const float n[3], const float rgb[3])
+        {
+            pushTri (p00, p10, p11, n, rgb);
+            pushTri (p00, p11, p01, n, rgb);
+        };
+
+        const float  kFlatN[3] = { 0.0f, 0.0f, 0.0f };   // zero normal == unlit
+
+        for (int fy = 0; fy < fh; fy++)
+        {
+            float  rgb[3] = {};
+            float  zTop   = topZMm - (float) fy * fcell;
+            float  zBot   = zTop - fcell;
+            int    fx     = 0;
+
+            stripeRgb (fy, rgb);
+
+            // Flat interior, merged into runs: unlit, so the stripes are exact.
+            while (fx < fw)
             {
-                float  x0 = leftMm + (float) col * colW;
-                float  x1 = x0 + colW;
+                int  runStart = fx;
 
-                if ((bits & (1ULL << col)) == 0)
+                while (fx < fw && inside[(size_t) fy * fw + fx] != 0 &&
+                       height[(size_t) fy       * vw + fx]     <= frontY + 1e-4f &&
+                       height[(size_t) fy       * vw + fx + 1] <= frontY + 1e-4f &&
+                       height[(size_t) (fy + 1) * vw + fx]     <= frontY + 1e-4f &&
+                       height[(size_t) (fy + 1) * vw + fx + 1] <= frontY + 1e-4f)
+                {
+                    fx++;
+                }
+
+                if (fx > runStart)
+                {
+                    float  x0     = leftMm + (float) runStart * fcell;
+                    float  x1     = leftMm + (float) fx * fcell;
+                    float  p00[3] = { x0, frontY, zTop };
+                    float  p10[3] = { x1, frontY, zTop };
+                    float  p11[3] = { x1, frontY, zBot };
+                    float  p01[3] = { x0, frontY, zBot };
+
+                    pushQuad (p00, p10, p11, p01, kFlatN, rgb);
+                    continue;
+                }
+
+                fx++;
+            }
+
+            // The rolled band and the walls, cell by cell.
+            for (fx = 0; fx < fw; fx++)
+            {
+                float  h00 = height[(size_t) fy       * vw + fx];
+                float  h10 = height[(size_t) fy       * vw + fx + 1];
+                float  h01 = height[(size_t) (fy + 1) * vw + fx];
+                float  h11 = height[(size_t) (fy + 1) * vw + fx + 1];
+                float  x0  = leftMm + (float) fx * fcell;
+                float  x1  = x0 + fcell;
+
+                if (inside[(size_t) fy * fw + fx] == 0)
                 {
                     continue;
                 }
 
-                // Left and right walls land on run edges by construction:
-                // the neighbor bit is clear exactly where a run begins or ends.
-                if (col == 0 || (bits & (1ULL << (col - 1))) == 0)
+                if (h00 > frontY + 1e-4f || h10 > frontY + 1e-4f ||
+                    h01 > frontY + 1e-4f || h11 > frontY + 1e-4f)
                 {
-                    pushWall (x0, zBot, x0, zTop, -1.0f, 0.0f, r, g, b);
+                    float  p00[3] = { x0, h00, zTop };
+                    float  p10[3] = { x1, h10, zTop };
+                    float  p11[3] = { x1, h11, zBot };
+                    float  p01[3] = { x0, h01, zBot };
+                    float  n[3]   = { (h10 - h00) * fcell, -fcell * fcell, -(h01 - h00) * fcell };
+                    float  len    = std::sqrt (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+
+                    if (len > 1e-6f)
+                    {
+                        n[0] /= len;
+                        n[1] /= len;
+                        n[2] /= len;
+                        pushQuad (p00, p10, p11, p01, n, rgb);
+                    }
                 }
 
-                if (col == CassoBranding::kGridW - 1 || (bits & (1ULL << (col + 1))) == 0)
+                // Side walls, wherever the neighbor is not part of the mark.
+                if (fx == 0 || inside[(size_t) fy * fw + fx - 1] == 0)
                 {
-                    pushWall (x1, zTop, x1, zBot, 1.0f, 0.0f, r, g, b);
+                    float  a[3] = { x0, h00,   zTop };
+                    float  b[3] = { x0, h01,   zBot };
+                    float  c[3] = { x0, backY, zBot };
+                    float  d[3] = { x0, backY, zTop };
+                    float  n[3] = { -1.0f, 0.0f, 0.0f };
+
+                    pushQuad (a, b, c, d, n, rgb);
                 }
 
-                if ((above & (1ULL << col)) == 0)
+                if (fx == fw - 1 || inside[(size_t) fy * fw + fx + 1] == 0)
                 {
-                    pushWall (x0, zTop, x1, zTop, 0.0f, 1.0f, r, g, b);
+                    float  a[3] = { x1, h10,   zTop };
+                    float  b[3] = { x1, h11,   zBot };
+                    float  c[3] = { x1, backY, zBot };
+                    float  d[3] = { x1, backY, zTop };
+                    float  n[3] = { 1.0f, 0.0f, 0.0f };
+
+                    pushQuad (a, b, c, d, n, rgb);
                 }
 
-                if ((below & (1ULL << col)) == 0)
+                if (fy == 0 || inside[(size_t) (fy - 1) * fw + fx] == 0)
                 {
-                    pushWall (x1, zBot, x0, zBot, 0.0f, -1.0f, r, g, b);
+                    float  a[3] = { x0, h00,   zTop };
+                    float  b[3] = { x1, h10,   zTop };
+                    float  c[3] = { x1, backY, zTop };
+                    float  d[3] = { x0, backY, zTop };
+                    float  n[3] = { 0.0f, 0.0f, 1.0f };
+
+                    pushQuad (a, b, c, d, n, rgb);
+                }
+
+                if (fy == fh - 1 || inside[(size_t) (fy + 1) * fw + fx] == 0)
+                {
+                    float  a[3] = { x0, h01,   zBot };
+                    float  b[3] = { x1, h11,   zBot };
+                    float  c[3] = { x1, backY, zBot };
+                    float  d[3] = { x0, backY, zBot };
+                    float  n[3] = { 0.0f, 0.0f, -1.0f };
+
+                    pushQuad (a, b, c, d, n, rgb);
                 }
             }
         }
