@@ -162,6 +162,106 @@ public:
         out[trk + 6649] = static_cast<Byte> ((bitCount >> 8) & 0xFF);
     }
 
+    // Walk the chunk table the way a CONFORMANT parser does: each chunk's
+    // declared size must land exactly on the next chunk id, and the last must
+    // land exactly on end-of-file. Casso's own Load stops at the first thing
+    // that is not a chunk instead, and that tolerance is what hid a malformed
+    // TRKS size -- so these guards must not lean on it.
+    //
+    // Returns the ids reached in order; a step that lands anywhere other than
+    // a chunk id or EOF appends "!!" and stops.
+    vector<string> StrictChunkWalk (const vector<Byte> & woz)
+    {
+        vector<string>   ids;
+        size_t           pos = WozLoader::kHeaderSize;
+
+        while (pos < woz.size())
+        {
+            uint32_t   size = 0;
+            bool       isId = (pos + 8 <= woz.size());
+
+            for (size_t i = 0; isId && i < 4; i++)
+            {
+                isId = (woz[pos + i] >= 'A' && woz[pos + i] <= 'Z');
+            }
+
+            if (!isId)
+            {
+                ids.push_back ("!!");
+                break;
+            }
+
+            size = static_cast<uint32_t> (woz[pos + 4])
+                 | (static_cast<uint32_t> (woz[pos + 5]) << 8)
+                 | (static_cast<uint32_t> (woz[pos + 6]) << 16)
+                 | (static_cast<uint32_t> (woz[pos + 7]) << 24);
+
+            if (pos + 8 + size > woz.size())
+            {
+                ids.push_back ("!!");
+                break;
+            }
+
+            ids.push_back (string (reinterpret_cast<const char *> (woz.data() + pos), 4));
+            pos += 8 + size;
+        }
+
+        return ids;
+    }
+
+
+    // Locate a chunk by stepping the table from the header. Returns its
+    // declared size and, via dataOffsetOut, where its payload starts.
+    uint32_t FindChunk (const vector<Byte> & woz, const char * wanted, size_t & dataOffsetOut)
+    {
+        size_t   pos = WozLoader::kHeaderSize;
+
+        dataOffsetOut = 0;
+
+        while (pos + 8 <= woz.size())
+        {
+            uint32_t   size = static_cast<uint32_t> (woz[pos + 4])
+                            | (static_cast<uint32_t> (woz[pos + 5]) << 8)
+                            | (static_cast<uint32_t> (woz[pos + 6]) << 16)
+                            | (static_cast<uint32_t> (woz[pos + 7]) << 24);
+
+            if (memcmp (woz.data() + pos, wanted, 4) == 0)
+            {
+                dataOffsetOut = pos + 8;
+                return size;
+            }
+
+            pos += 8 + size;
+        }
+
+        return 0;
+    }
+
+
+    // The byte span the TRK records themselves describe: the record table
+    // plus every block the records claim, derived from the records rather
+    // than from the file size, so it is an independent expectation.
+    size_t TrksSpanFromRecords (const vector<Byte> & woz, size_t recordsOffset)
+    {
+        size_t   endBlock = WozLoader::kV2FirstDataBlock;
+
+        for (size_t slot = 0; slot < WozLoader::kV2TrkRecordCount; slot++)
+        {
+            const Byte *  rec        = woz.data() + recordsOffset + slot * WozLoader::kV2TrkRecordSize;
+            size_t        startBlock = static_cast<size_t> (rec[0]) | (static_cast<size_t> (rec[1]) << 8);
+            size_t        blockCount = static_cast<size_t> (rec[2]) | (static_cast<size_t> (rec[3]) << 8);
+
+            if (blockCount != 0 && startBlock + blockCount > endBlock)
+            {
+                endBlock = startBlock + blockCount;
+            }
+        }
+
+        return WozLoader::kV2TrkRecordCount * WozLoader::kV2TrkRecordSize
+             + (endBlock - WozLoader::kV2FirstDataBlock) * WozLoader::kV2BlockSize;
+    }
+
+
     TEST_METHOD (LoadRejectsTruncatedFile)
     {
         DiskImage  img;
@@ -575,6 +675,119 @@ public:
         Assert::AreEqual (kTestBitCount, reloaded.GetTrackBitCount (0));
         Assert::AreEqual (size_t (0), TrackByteDiff (src, reloaded, 0, kTestBitCount),
             L"v1 -> v2 serialize must preserve the track bit stream");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  TRKS chunk size. Both writers sized TRKS to the 160-record table
+    //  alone (1280 bytes), leaving the block-aligned bit streams outside the
+    //  chunk they belong to. A conformant parser then adds 1280 to the chunk
+    //  start, lands in the middle of track data, sees no valid id and stops
+    //  -- so every chunk after TRKS was unreachable to every tool but ours.
+    //  Casso read its own output back only because Load stops at the first
+    //  non-chunk, which is exactly the state a short TRKS size produces.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Serialize_TrksChunkSizeSpansRecordsAndPayload)
+    {
+        DiskImage     src;
+        vector<Byte>  out;
+        const size_t  bits          = 4096;
+        size_t        recordsOffset = 0;
+        uint32_t      declared      = 0;
+
+        src.SetSourceFormat  (DiskFormat::Woz);
+        src.ClearQuarterTrackMap();
+        src.EnsureTrackSlots (3);
+        FillTrack (src, 0, bits, 0x10);
+        FillTrack (src, 1, bits, 0x40);
+        FillTrack (src, 2, bits, 0x90);
+
+        AssertSucceeded (WozLoader::Serialize (src, out));
+
+        declared = FindChunk (out, "TRKS", recordsOffset);
+
+        Assert::AreEqual (static_cast<uint32_t> (TrksSpanFromRecords (out, recordsOffset)), declared,
+            L"TRKS size must span the record table plus the payload its records claim");
+        Assert::AreEqual (out.size(), recordsOffset + declared,
+            L"TRKS is the last chunk, so its span must reach exactly end-of-file");
+        Assert::IsTrue (declared > WozLoader::kV2TrkRecordCount * WozLoader::kV2TrkRecordSize,
+            L"A populated image's TRKS must be larger than the bare record table");
+    }
+
+
+    TEST_METHOD (Serialize_StrictChunkWalkReachesEndOfFile)
+    {
+        DiskImage       src;
+        vector<Byte>    out;
+        vector<string>  ids;
+
+        src.SetSourceFormat  (DiskFormat::Woz);
+        src.ClearQuarterTrackMap();
+        src.EnsureTrackSlots (2);
+        FillTrack (src, 0, 4096, 0x10);
+        FillTrack (src, 1, 4096, 0x40);
+
+        AssertSucceeded (WozLoader::Serialize (src, out));
+
+        ids = StrictChunkWalk (out);
+
+        Assert::AreEqual (size_t (3), ids.size(), L"A strict walk must reach INFO, TMAP, TRKS and stop at EOF");
+        Assert::AreEqual (string ("INFO"), ids[0]);
+        Assert::AreEqual (string ("TMAP"), ids[1]);
+        Assert::AreEqual (string ("TRKS"), ids[2]);
+    }
+
+
+    TEST_METHOD (Serialize_ChunkAfterTrksIsReachable)
+    {
+        // The point of the size fix: a chunk written after TRKS -- META is
+        // the one that matters -- must be reachable by walking the table,
+        // not just by scanning for its magic.
+        DiskImage       src;
+        vector<Byte>    out;
+        vector<string>  ids;
+        const Byte      meta[] = { 'M', 'E', 'T', 'A', 0, 0, 0, 0 };
+
+        src.SetSourceFormat  (DiskFormat::Woz);
+        src.ClearQuarterTrackMap();
+        src.EnsureTrackSlots (1);
+        FillTrack (src, 0, 4096, 0x10);
+
+        AssertSucceeded (WozLoader::Serialize (src, out));
+        out.insert (out.end(), meta, meta + sizeof (meta));
+
+        ids = StrictChunkWalk (out);
+
+        Assert::AreEqual (size_t (4), ids.size(), L"A strict walk must reach the chunk after TRKS");
+        Assert::AreEqual (string ("META"), ids[3],
+            L"TRKS must not swallow or orphan the chunk that follows it");
+    }
+
+
+    TEST_METHOD (BuildSyntheticV2_TrksChunkSizeSpansRecordsAndPayload)
+    {
+        vector<Byte>    woz;
+        vector<string>  ids;
+        size_t          recordsOffset = 0;
+        uint32_t        declared      = 0;
+
+        AssertSucceeded (WozLoader::BuildSyntheticV2 (
+            1, false, MakeBitStream(), kTestBitCount, woz));
+
+        declared = FindChunk (woz, "TRKS", recordsOffset);
+
+        Assert::AreEqual (static_cast<uint32_t> (TrksSpanFromRecords (woz, recordsOffset)), declared,
+            L"The synthetic builder must size TRKS the same way the real writer does");
+        Assert::AreEqual (woz.size(), recordsOffset + declared,
+            L"TRKS must span the synthetic image's payload to end-of-file");
+
+        ids = StrictChunkWalk (woz);
+
+        Assert::AreEqual (size_t (3), ids.size());
+        Assert::AreEqual (string ("TRKS"), ids[2]);
     }
 };
 

@@ -9,6 +9,22 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Fixed
+- **WOZ images Casso writes can now be read by other tools.** Every WOZ Casso
+  saved -- a mounted disk flushed after a guest write, or a blank disk it
+  created -- declared a `TRKS` chunk size covering only the 160-entry track
+  record table, leaving the track data that follows it outside the chunk it
+  belongs to. Casso read its own files back correctly, so the damage was
+  invisible from inside the emulator: a conformant parser adds that size to the
+  chunk start, lands in the middle of track data, finds no valid chunk id and
+  stops, making every chunk after `TRKS` unreachable to every tool but ours.
+  The size now spans the record table plus the block-aligned bit streams, which
+  is byte-for-byte what Applesauce writes for the same disk. No track data
+  changes -- only the size field and the header CRC.
+
+  A round trip still drops the `META` chunk and most of `INFO` (creator,
+  synchronized, boot sector format, compatible hardware, required RAM). Those
+  are separate defects in the same writer and are not fixed here, so a
+  preservation dump still loses its provenance on flush.
 - **Pasting into the guest no longer garbles the text.** A valid Applesoft line
   pasted at the `]` prompt produced a SYNTAX ERROR while typing the same line
   by hand worked. Two independent causes, both fixed: Ctrl+V is claimed as a
