@@ -4,7 +4,7 @@
 
 Everything the 2026-08-18 handoff listed as outstanding is now on
 `claude/disk-write-integrity-b99179` and pushed, unreleased. What remains is
-one decided-but-unbuilt item (§6) and the follow-ups in §7.
+the follow-ups in §6.
 
 The reference material at the end — WOZ field offsets, the repro drivers, the
 build traps — is kept because it is what made the work possible and will make
@@ -158,6 +158,13 @@ A re-scan finds no remaining WOZ in the tree with `creator = Casso`.
 - Damaged images are write-protected rather than silently non-persisting.
 - The damaged badge is distinct from the padlock, not a variant of it.
 - 020 merges master rather than rebasing.
+- **No modification audit trail in META.** The previous handoff proposed a
+  private `casso_modified` key recording that Casso had edited a disk. Rejected
+  by the owner 2026-08-18: Casso stamps the disks it creates and does not
+  annotate disks it merely edits. It also would have cost the property
+  retention just bought — that a WOZ can pass through Casso completely
+  unchanged, which is verifiable and is the stronger guarantee for a
+  preservation dump. Do not re-propose it.
 
 ---
 
@@ -193,37 +200,7 @@ without a filesystem seam in `DiskImageStore`. Said so in
 
 ---
 
-## 6. The one decided item not built
-
-**`casso_modified` custom META key.** The old handoff decided that a disk Casso
-edits should record the edit in a custom META key:
-
-```
-casso_modified	2026-08-18T07:18:45Z Casso 1.16.2
-```
-
-Not implemented, for two reasons worth a decision before it is:
-
-1. **It needs a clock**, and `Serialize` is currently pure and deterministic.
-   The seam should be a stamp string set on the image by the flush path, so
-   tests stay deterministic (empty string → no stamp).
-2. **It costs the byte-identical-flush property.** Retention made a flush of an
-   unmodified disk a byte-level no-op, which is now pinned by
-   `Serialize_WholeFileRoundTripsByteForByte` and is arguably worth more than
-   the provenance note — it means opening and closing a preservation dump
-   cannot change it at all. A modification stamp deliberately breaks that.
-
-Recommendation: stamp only when the image is actually dirty, so a read-only
-session still round-trips byte-for-byte. That keeps both properties. It needs
-the owner's call because the original decision predates the property.
-
-Two prohibitions from the original decision still stand: never write into
-`notes` (it holds the curator's notes), and never touch `image_date` (it is the
-flux imaging date, not a modification time).
-
----
-
-## 7. Follow-ups
+## 6. Follow-ups
 
 - **GH #115** can be closed when this branch merges.
 - **The write-protect menu item is still enabled for a damaged image.** Clicking
