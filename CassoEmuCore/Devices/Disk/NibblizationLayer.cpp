@@ -729,16 +729,75 @@ Error:
 
 HRESULT NibblizationLayer::Denibblize (const DiskImage & img, DiskFormat fmt, vector<Byte> & out)
 {
+    DenibblizeReport  ignored;
+
+
+
+    return Denibblize (img, fmt, out, ignored);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Denibblize
+//
+//  Decode every track's bit stream back to a plain 143,360-byte sector image.
+//
+//  What used to lose data was the SILENCE, not the early stop. This returned
+//  S_OK over a track it had only partly decoded, and the flush path wrote that
+//  buffer over the user's file -- so a damaged track was saved as a mixture of
+//  real sectors, zeroed sectors and wrong sectors, reported as a clean save.
+//
+//  Measured, on an image with one sector's data field destroyed: that sector
+//  comes back as zeros, AND a second sector comes back holding the wrong data,
+//  because the scan for the missing data field runs on and finds the NEXT
+//  sector's, storing it under the sector number the address field gave. Two
+//  sectors wrong from one point of damage, and nothing said so.
+//
+//  So the fix that matters is the report, and a partial track failing the whole
+//  operation: the zeros and the misfiled sectors are lost data rather than
+//  blank media, and refusing to save is the only answer that destroys nothing.
+//  The caller keeps the image dirty and the existing file intact.
+//
+//  A track that decodes nothing at all is a different case and still succeeds:
+//  an unformatted track in a sector image legitimately IS zeros.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT NibblizationLayer::Denibblize (
+    const DiskImage   &  img,
+    DiskFormat           fmt,
+    vector<Byte>      &  out,
+    DenibblizeReport  &  report)
+{
+    // Enough attempts to still find all sixteen good sectors when several
+    // reads fail or repeat, without letting a hostile track spin forever.
+    constexpr int  kMaxAttemptsPerTrack = kSectorsPerTrack * 2;
+    constexpr int  kAllSectorsMask      = (1 << kSectorsPerTrack) - 1;
+
     HRESULT       hr                    = S_OK;
     const int *   interleave            = nullptr;
     int           track                 = 0;
-    int           sec                   = 0;
+    int           attempt               = 0;
+    int           decoded               = 0;
+    int           bit                   = 0;
+    uint16_t      mask                  = 0;
     Byte          outSector             = 0;
     Byte          data[kSectorByteSize] = {};
     size_t        bitPos                = 0;
     size_t        offset                = 0;
+    size_t        trackBits             = 0;
+    int           trackLimit            = img.GetTrackCount();
+    bool          lostSectors           = false;
+
+
 
     out.assign (kImageByteSize, 0);
+
+    report = DenibblizeReport();
 
     switch (fmt)
     {
@@ -750,22 +809,34 @@ HRESULT NibblizationLayer::Denibblize (const DiskImage & img, DiskFormat fmt, ve
 
     CHR (hr);
 
-    for (track = 0; track < kTrackCount; track++)
+    if (trackLimit > kTrackCount)
     {
-        if (track >= img.GetTrackCount())
-        {
-            break;
-        }
+        trackLimit = kTrackCount;
+    }
 
-        bitPos = 0;
+    report.decodedSectorMask.assign (static_cast<size_t> (trackLimit), 0);
 
-        for (sec = 0; sec < kSectorsPerTrack; sec++)
+    for (track = 0; track < trackLimit; track++)
+    {
+        bitPos    = 0;
+        mask      = 0;
+        trackBits = img.GetTrackBitCount (track);
+
+        for (attempt = 0; attempt < kMaxAttemptsPerTrack && mask != kAllSectorsMask; attempt++)
         {
             HRESULT   hrSector = DecodeOneSector (img, track, bitPos, outSector, data);
 
+            // Keep scanning rather than abandoning the track. This changes
+            // nothing today -- DecodeOneSector only fails after sweeping the
+            // whole track without finding a prolog, and from that position
+            // every later attempt fails identically, which is why the `break`
+            // this replaces was never the mechanism of loss. It matters the
+            // moment the decoder gains a per-sector failure mode (a checksum
+            // check, say), when abandoning the track really would cost the
+            // sectors after the damaged one.
             if (FAILED (hrSector))
             {
-                break;
+                continue;
             }
 
             if (outSector >= kSectorsPerTrack)
@@ -777,8 +848,50 @@ HRESULT NibblizationLayer::Denibblize (const DiskImage & img, DiskFormat fmt, ve
                    * kSectorByteSize;
 
             memcpy (&out[offset], data, kSectorByteSize);
+            mask = static_cast<uint16_t> (mask | (1 << outSector));
+        }
+
+        report.decodedSectorMask[static_cast<size_t> (track)] = mask;
+
+        if (trackBits == 0)
+        {
+            continue;
+        }
+
+        decoded = 0;
+
+        for (bit = 0; bit < kSectorsPerTrack; bit++)
+        {
+            if ((mask & (1 << bit)) != 0)
+            {
+                decoded++;
+            }
+        }
+
+        report.tracksPresent++;
+        report.sectorsDecoded += decoded;
+
+        if (decoded == 0)
+        {
+            report.tracksUnformatted++;
+        }
+        else if (decoded < kSectorsPerTrack)
+        {
+            report.tracksPartial++;
+            report.sectorsMissing += kSectorsPerTrack - decoded;
+        }
+        else
+        {
+            report.tracksComplete++;
         }
     }
+
+    // A half-decoded track means the output holds zeros and misfiled sectors
+    // where the user's data should be. Saying so is the whole point: the
+    // caller writes this buffer over their file, and once it lands nothing
+    // distinguishes it from a clean save.
+    lostSectors = report.HasPartialTrack();
+    CBR (!lostSectors);
 
 Error:
     return hr;

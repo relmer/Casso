@@ -72,6 +72,28 @@ Entries before versioning was introduced use dates only.
   cannot be damaged. The store no longer offers any way to force a flush past
   its dirty and write-protect gates, because changing this flag was the only
   thing that ever wanted one.
+- **A sector image that cannot be fully decoded is no longer saved as if it
+  were** ([#115](https://github.com/relmer/Casso/issues/115)). Writing a
+  `.dsk`, `.do` or `.po` back out decodes every track's nibble stream to
+  sectors, and it reported success no matter how much of that failed — so a
+  track Casso could only partly read was written over the user's file as a
+  mixture of real sectors, zeroed sectors and wrong ones, reported as a clean
+  save. Measured on an image with a single sector's data field destroyed: that
+  sector comes back as zeros, *and* a second one comes back holding the
+  following sector's data, because the search for the missing data field runs
+  on and finds the next one, filing it under the sector number the address
+  field gave. Two sectors wrong from one point of damage, silently.
+
+  Denibblizing now reports what it decoded, per track and per sector, and a
+  track that decoded some of its sectors but not all fails the whole
+  operation. The flush path already handles that correctly: it reports the
+  loss and keeps the image dirty, leaving the existing file untouched. A track
+  that decodes nothing at all still succeeds — an unformatted track in a
+  sector image legitimately is zeros, and treating that as damage would make
+  every blank disk refuse to save.
+
+  WOZ images are unaffected: they are written by the WOZ serializer and never
+  go through this path.
 - **A damaged disk image is now held read-only instead of being quietly
   repaired-looking.** Casso has detected a WOZ whose stored checksum does not
   match its contents since 1.16.2, but it went on to treat the file as
