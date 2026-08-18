@@ -50,7 +50,12 @@ GLASS_H = DIAG_MM / math.hypot(EMU_ASPECT, 1.0)
 MARGIN    = 19.0                  # case face to its screen opening, all sides
 GAP       = 6.0                   # even gap, case opening to bezel, all round
 GROOVE_W  = 2.0                   # the groove dividing the reveal off
-GROOVE_D  = 1.2
+GROOVE_R  = GROOVE_W * 0.5        # ...cut as a HALF-ROUND channel, so its
+                                  # depth is its half-width and not a free
+                                  # parameter. Anything deeper than this
+                                  # would put the channel's widest point
+                                  # below the surface -- an undercut, which
+                                  # is not a shape that comes out of a tool.
 
 # ------------------------------------------------------------------ the bezel
 #
@@ -202,10 +207,20 @@ case = case.cut(
       .edges("|Y").fillet(OPEN_FILLET)
       .translate((OX0, -1.0, OZ0)))
 
-# The stylistic divider groove down the front of the right strip.
+# The stylistic divider groove down the front of the right strip, cut as a
+# half-round channel rather than a square trench.
+#
+# A square trench on a face lit from above shows one thin dark line where the
+# floor meets the far wall, and nothing else -- both of its walls are parallel
+# to the light and neither takes a highlight, so the divider was nearly
+# invisible. A round channel turns some of its surface toward the light all
+# the way down, so it carries a highlight along one flank and shade along the
+# other. Same reasoning as the mold relief on the icons, inverted: proud
+# there, sunk here.
 case = case.cut(
-    cq.Workplane("XY").box(GROOVE_W, GROOVE_D, H, centered=(False, False, False))
-      .translate((DX, 0.0, 0.0)))
+    cq.Workplane("XY")
+      .cylinder(H + 2.0, GROOVE_R, direct=(0, 0, 1), centered=(True, True, False))
+      .translate((DX + GROOVE_R, 0.0, -1.0)))
 
 # The power notch: cut from the FRONT and through the TOP, which is what lets
 # the button be pressed from above.
@@ -432,6 +447,53 @@ icon_bar = (cq.Workplane("XY")
 m.add("icon_sq",   round_front(icon_sq,   name="icon_sq"),   BEIGE)
 m.add("icon_ring", round_front(icon_ring, name="icon_ring"), BEIGE)
 m.add("icon_bar",  round_front(icon_bar,  name="icon_bar"),  BEIGE)
+
+# -------------------------------------------------- molded brightness icon
+#
+# Half way up the case on the power icon's center line: the standard
+# brightness mark, a circle with its RIGHT half filled solid. Same bounding
+# square and same circle as the power icon, so the two read as one family of
+# controls rather than two unrelated marks.
+#
+# The ring and the filled half are separate solids, each rounded on its own.
+# Rounding their union is what fails (see the tilt icons), and keeping them
+# apart is also truer: the straight edge down the circle's diameter, where
+# the filled half meets the open one, is a real molded edge and should carry
+# its own round-over.
+
+BRT_CZ = H * 0.5                           # the case's vertical midpoint
+BRT_X0 = ICON_CX - ICON_S * 0.5
+BRT_Z0 = BRT_CZ - ICON_S * 0.5
+
+brt_sq = (cq.Workplane("XY")
+          .box(ICON_S, RIDGE_H, ICON_S, centered=(False, False, False))
+          .translate((BRT_X0, -RIDGE_H, BRT_Z0)))
+brt_sq = brt_sq.cut(
+    cq.Workplane("XY")
+      .box(ICON_S - RIDGE_W * 2.0, RIDGE_H + 1.0, ICON_S - RIDGE_W * 2.0,
+           centered=(False, False, False))
+      .translate((BRT_X0 + RIDGE_W, -RIDGE_H - 0.5, BRT_Z0 + RIDGE_W)))
+
+brt_ring = (cq.Workplane("XY")
+            .cylinder(RIDGE_H, ICON_R, direct=(0, 1, 0), centered=(True, True, False))
+            .translate((ICON_CX, -RIDGE_H, BRT_CZ)))
+brt_ring = brt_ring.cut(
+    cq.Workplane("XY")
+      .cylinder(RIDGE_H + 1.0, ICON_R - RIDGE_W, direct=(0, 1, 0), centered=(True, True, False))
+      .translate((ICON_CX, -RIDGE_H - 0.5, BRT_CZ)))
+
+# The filled half: the whole disc with everything LEFT of center taken away.
+brt_half = (cq.Workplane("XY")
+            .cylinder(RIDGE_H, ICON_R, direct=(0, 1, 0), centered=(True, True, False))
+            .translate((ICON_CX, -RIDGE_H, BRT_CZ)))
+brt_half = brt_half.cut(
+    cq.Workplane("XY")
+      .box(ICON_R + 1.0, RIDGE_H + 1.0, ICON_R * 2.0 + 2.0, centered=(False, False, False))
+      .translate((ICON_CX - ICON_R - 1.0, -RIDGE_H - 0.5, BRT_CZ - ICON_R - 1.0)))
+
+m.add("brt_sq",   round_front(brt_sq,   name="brt_sq"),   BEIGE)
+m.add("brt_ring", round_front(brt_ring, name="brt_ring"), BEIGE)
+m.add("brt_half", round_front(brt_half, name="brt_half"), BEIGE)
 
 # --------------------------------------------------- bezel tilt icons
 #
