@@ -55,9 +55,16 @@ static constexpr float   s_kBrandFrontY   = -10.6f;
 // stamp's box mis-centers the visual weight, and the silhouette's mass
 // centroid gives the exact correction. The //c chin and drive placements
 // bake their bias into tuned constants instead.
+//
+// COUPLED TO THE GENERATOR. cad_monitor2.py cuts a rounded-corner pocket
+// RIDGE_H deep for this mark (see its BRAND_* block, which quotes the
+// silhouette's drawn bounds). The stamp stands in that pocket at the same
+// thickness, so its face finishes FLUSH with the frame -- front at y = 0,
+// back on the pocket floor. Change either side and the other has to follow.
 static constexpr float   s_kMon2BrandTopZMm   = 46.0f;
 static constexpr float   s_kMon2BrandHeightMm = 24.0f;
-static constexpr float   s_kMon2BrandFrontY   = -0.8f;
+static constexpr float   s_kMon2BrandFrontY   = 0.0f;
+static constexpr float   s_kMon2BrandThickMm  = 2.5f;    // == the CAD's RIDGE_H
 
 // The drive's cassowary, lower-right of the faceplate like the 2D widget,
 // proud of the black plate (front y = -1).
@@ -404,7 +411,8 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
                 float  leftMm       = m_brandAxisX - centroidCols * cell;
 
                 BuildBrandStamp (leftMm, s_kMon2BrandTopZMm,
-                                 s_kMon2BrandHeightMm, s_kMon2BrandFrontY);
+                                 s_kMon2BrandHeightMm, s_kMon2BrandFrontY,
+                                 s_kMon2BrandThickMm);
             }
         }
         else
@@ -592,15 +600,25 @@ void DeskSceneModel::AssignGlassUvs()
 //
 //  DeskSceneModel::BuildBrandStamp
 //
-//  Stamps the rainbow cassowary as flat geometry, built from CassoBranding's
-//  own silhouette bitmask -- the same mark, same stripes, same concavities
-//  as the 2D chrome, with no image asset. One proud quad per contiguous bit
-//  run, unlit so the brand colors stay exact. Placement is the caller's:
-//  the monitor chin and the drive faceplate both carry it.
+//  Stamps the rainbow cassowary as geometry, built from CassoBranding's own
+//  silhouette bitmask -- the same mark, same stripes, same concavities as the
+//  2D chrome, with no image asset. One quad per contiguous bit run for the
+//  face, unlit so the brand colors stay exact. Placement is the caller's: the
+//  monitor chin and the drive faceplate both carry it.
+//
+//  With a thickness the mark also gets SIDE WALLS and becomes a solid standing
+//  in the generator's recess rather than a decal lying on the surface. Those
+//  walls are lit -- they carry normals, so they shade with the room and are
+//  what actually reads as depth; the face stays unlit so the stripes keep
+//  their exact values. Walls go on the silhouette BOUNDARY only, found by
+//  masking each row against its neighbors, so nothing is emitted inside the
+//  mark where it would never be seen. No back face: it would land coplanar
+//  with the pocket floor, and the scene draws with culling off.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskSceneModel::BuildBrandStamp (float leftMm, float topZMm, float heightMm, float frontY)
+void DeskSceneModel::BuildBrandStamp (float leftMm, float topZMm, float heightMm, float frontY,
+                                      float thicknessMm)
 {
     float  rowH     = heightMm / (float) CassoBranding::kGridH;
     float  colW     = rowH;   // the silhouette grid is square-celled
@@ -668,6 +686,80 @@ void DeskSceneModel::BuildBrandStamp (float leftMm, float topZMm, float heightMm
                 quad[5] = { x0, frontY, z1,   0, 0, r, g, b, 1.0f };
 
                 m_opaque.insert (m_opaque.end(), quad, quad + 6);
+            }
+        }
+    }
+
+    if (thicknessMm <= 0.0f)
+    {
+        return;
+    }
+
+    {
+        float  backY = frontY + thicknessMm;
+
+        // One wall, spanning (ax,az)-(bx,bz) across the face and frontY..backY
+        // into it. Lit, so it shades: that is the whole point of the walls.
+        auto  pushWall = [this, frontY, backY] (float ax, float az, float bx, float bz,
+                                                float nx, float nz,
+                                                float r,  float g,  float b)
+        {
+            Dxui3DRenderer::Vertex   quad[6] = {};
+
+            quad[0] = { ax, frontY, az, 0, 0, r, g, b, 1.0f, nx, 0.0f, nz };
+            quad[1] = { bx, frontY, bz, 0, 0, r, g, b, 1.0f, nx, 0.0f, nz };
+            quad[2] = { bx, backY,  bz, 0, 0, r, g, b, 1.0f, nx, 0.0f, nz };
+            quad[3] = { ax, frontY, az, 0, 0, r, g, b, 1.0f, nx, 0.0f, nz };
+            quad[4] = { bx, backY,  bz, 0, 0, r, g, b, 1.0f, nx, 0.0f, nz };
+            quad[5] = { ax, backY,  az, 0, 0, r, g, b, 1.0f, nx, 0.0f, nz };
+
+            m_opaque.insert (m_opaque.end(), quad, quad + 6);
+        };
+
+        for (int row = firstRow; row <= lastRow; row++)
+        {
+            uint64_t  bits   = CassoBranding::SilhouetteRow (row);
+            uint64_t  above  = CassoBranding::SilhouetteRow (row - 1);
+            uint64_t  below  = CassoBranding::SilhouetteRow (row + 1);
+            int       stripe = ((row - firstRow) * CassoBranding::kStripeCount) / (lastRow - firstRow + 1);
+            uint32_t  argb   = CassoBranding::StripeColor (stripe);
+            float     zTop   = topZMm - (float) row * rowH;
+            float     zBot   = zTop - rowH;
+            float     r      = (float) ((argb >> 16) & 0xFF) / 255.0f;
+            float     g      = (float) ((argb >> 8) & 0xFF) / 255.0f;
+            float     b      = (float) (argb & 0xFF) / 255.0f;
+
+            for (int col = 0; col < CassoBranding::kGridW; col++)
+            {
+                float  x0 = leftMm + (float) col * colW;
+                float  x1 = x0 + colW;
+
+                if ((bits & (1ULL << col)) == 0)
+                {
+                    continue;
+                }
+
+                // Left and right walls land on run edges by construction:
+                // the neighbor bit is clear exactly where a run begins or ends.
+                if (col == 0 || (bits & (1ULL << (col - 1))) == 0)
+                {
+                    pushWall (x0, zBot, x0, zTop, -1.0f, 0.0f, r, g, b);
+                }
+
+                if (col == CassoBranding::kGridW - 1 || (bits & (1ULL << (col + 1))) == 0)
+                {
+                    pushWall (x1, zTop, x1, zBot, 1.0f, 0.0f, r, g, b);
+                }
+
+                if ((above & (1ULL << col)) == 0)
+                {
+                    pushWall (x0, zTop, x1, zTop, 0.0f, 1.0f, r, g, b);
+                }
+
+                if ((below & (1ULL << col)) == 0)
+                {
+                    pushWall (x1, zBot, x0, zBot, 0.0f, -1.0f, r, g, b);
+                }
             }
         }
     }

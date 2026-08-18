@@ -226,7 +226,8 @@ private:
 
     HRESULT  BuildGlassSurface  ();
     void     AssignGlassUvs     ();
-    void     BuildBrandStamp    (float leftMm, float topZMm, float heightMm, float frontY);
+    void     BuildBrandStamp    (float leftMm, float topZMm, float heightMm, float frontY,
+                                 float thicknessMm = 0.0f);
     void     BuildPadlockStamp  ();
     void     AddRegionBoxes     ();
     void     ComputeBounds         ();

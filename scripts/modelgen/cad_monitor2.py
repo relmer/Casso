@@ -155,6 +155,23 @@ NOTCH_D   = 25.4                  # 1 in front to back
 NOTCH_OVERCUT = 0.5
 NOTCH_REAR_Y  = NOTCH_D - NOTCH_OVERCUT
 
+# ------------------------------------------------------------ mold relief
+#
+# Shared by every molded mark on the case, and by the brand recess, which is
+# why they live up here with the dimensions rather than beside the first icon
+# that happens to use them.
+RIDGE_W  = 1.0                             # stroke width of the relief
+RIDGE_H  = 2.5                             # proud of the face. At 0.45 the
+                                           # relief barely read; at 1.0 a
+                                           # filled glyph still did not, since
+                                           # its top face takes the same light
+                                           # as the plastic around it and only
+                                           # the side walls show. Depth is the
+                                           # only lever on a filled shape.
+RELIEF_ROUND = 0.35                        # front-edge round-over on all
+                                           # mold relief; must stay under
+                                           # half the stroke width
+
 # The button's face sits this far behind the case face, with clearance left
 # behind it inside the notch. Its thickness is what is LEFT of the notch's
 # depth once both are taken, so deepening the notch thickens the button and
@@ -227,6 +244,46 @@ case = case.cut(
 case = case.cut(
     cq.Workplane("XY").box(NOTCH_W, NOTCH_D, NOTCH_H + 2.0, centered=(False, False, False))
       .translate((NX0, -NOTCH_OVERCUT, NZ0)))
+
+# The brand recess, down the strip below the icons: a shallow rounded-corner
+# pocket exactly RIDGE_H deep. The scene stands the cassowary in it at the
+# same RIDGE_H thickness, so the mark's face finishes FLUSH with the frame
+# around it -- an inlaid badge rather than a decal lying on the surface.
+#
+# COUPLED TO THE SCENE. DeskSceneModel's s_kMon2Brand* constants decide where
+# the mark is drawn; these decide where the hole is. They have to agree, so
+# both sides carry a pointer to the other. The extent below is the silhouette's
+# own drawn bounds (cols 3..33 and rows 5..53 of a 36x54 grid at 24 mm tall,
+# which is 13.78 x 21.78 mm) plus a margin, centered on the reveal axis --
+# the mark is centroid-centered on that same axis, so its visual mass sits in
+# the middle of the pocket even though its bounding box does not.
+BRAND_MGN  = 2.2
+BRAND_HALF = 8.412 + BRAND_MGN             # the silhouette's wider side
+BRAND_Z0   = 22.000 - BRAND_MGN
+BRAND_Z1   = 43.778 + BRAND_MGN
+
+case = case.cut(
+    cq.Workplane("XY")
+      .box(BRAND_HALF * 2.0, RIDGE_H + 1.0, BRAND_Z1 - BRAND_Z0,
+           centered=(False, False, False))
+      .translate((REVEAL_CX - BRAND_HALF, -1.0, BRAND_Z0))
+      .edges("|Y").fillet(RELIEF_ROUND))
+
+# ...and break the rim where the pocket meets the face, so the recess reads
+# as molded rather than milled. The cutter's own fillet rounds the four
+# CORNERS in plan; this rounds the LIP, which is a different edge loop and
+# has to be taken on the case after the cut. Selected by bounding box: the
+# only edges sitting on the face plane inside the pocket's footprint are the
+# four sides of its mouth and the corner arcs joining them.
+try:
+    case = case.edges(
+        cq.selectors.BoxSelector(
+            (REVEAL_CX - BRAND_HALF - 0.5, -0.4, BRAND_Z0 - 0.5),
+            (REVEAL_CX + BRAND_HALF + 0.5,  0.4, BRAND_Z1 + 0.5))).fillet(RELIEF_ROUND)
+except Exception as exc:
+    print(f"WARNING: brand recess: lip round-over FAILED "
+          f"({type(exc).__name__}: {exc}) -- the pocket keeps a sharp rim",
+          file=sys.stderr)
 
 # Finer than the default, and note it is the ANGULAR tolerance doing the
 # work: at 3 mm the chords never sag far enough for the linear one to bite,
@@ -359,10 +416,6 @@ led = (cq.Workplane("XY")
 
 m.add("led", led, KD["monitor_lamp"])
 
-RELIEF_ROUND = 0.35                        # front-edge round-over on all
-                                           # mold relief; must stay under
-                                           # half the stroke width
-
 # Rounds the front edge of a piece of mold relief.
 #
 # A square-edged ridge shows the light only on the wall that happens to face
@@ -407,15 +460,6 @@ ICON_S   = (NOTCH_W - 3.0) * 0.75          # square side: 75% of the button widt
 ICON_CX  = NX0 + NOTCH_W * 0.5            # centered under the button
 ICON_TOP = NZ0 - 2.0                       # 2 mm below the notch
 ICON_CZ  = ICON_TOP - ICON_S * 0.5
-RIDGE_W  = 1.0                             # stroke width of the relief
-RIDGE_H  = 2.5                             # proud of the face. At 0.45 the
-                                           # relief barely read; at 1.0 a
-                                           # filled glyph still did not, since
-                                           # its top face takes the same light
-                                           # as the plastic around it and only
-                                           # the side walls show. Depth is the
-                                           # only lever on a filled shape.
-
 IX0 = ICON_CX - ICON_S * 0.5
 IZ0 = ICON_TOP - ICON_S
 
