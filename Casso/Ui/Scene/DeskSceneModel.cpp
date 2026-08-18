@@ -63,8 +63,24 @@ static constexpr float   s_kBrandFrontY   = -10.6f;
 // back on the pocket floor. Change either side and the other has to follow.
 static constexpr float   s_kMon2BrandTopZMm   = 46.0f;
 static constexpr float   s_kMon2BrandHeightMm = 24.0f;
-static constexpr float   s_kMon2BrandFrontY   = 0.0f;
+
+// Standing IN the pocket at its full depth, so the mark's face finishes flush
+// with the frame. BuildBrandSolid gives it the smoothed outline and rolled top
+// edge; laid flat on the pocket floor instead, it read as artwork in a tray
+// rather than a badge set into the case.
 static constexpr float   s_kMon2BrandThickMm  = 2.5f;    // == the CAD's RIDGE_H
+static constexpr float   s_kMon2BrandFrontY   = 0.0f;
+
+// How the mark sits left-to-right inside its recess. 0 puts its drawn MASS on
+// the pocket's center line, 1 centers its bounding BOX there instead. The two
+// differ by about 1.5 mm, because the cassowary carries its weight left of its
+// own box -- the tail reaches right while the body sits left.
+//
+// Mass wins. The eye centers a shape on where its weight is, not on the empty
+// rectangle that circumscribes it, and box-centering visibly pushed the bird
+// right in its panel. This is the same reasoning that put the mark on the
+// strip axis by centroid before there was a panel around it at all.
+static constexpr float   s_kMon2BrandBoxCenter = 0.0f;
 
 // The drive's cassowary, lower-right of the faceplate like the 2D widget,
 // proud of the black plate (front y = -1).
@@ -390,6 +406,8 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
             float   cell   = s_kMon2BrandHeightMm / (float) CassoBranding::kGridH;
             double  sumCol = 0.0;
             int     count  = 0;
+            int     minCol = CassoBranding::kGridW;
+            int     maxCol = -1;
 
             for (int row = 0; row < CassoBranding::kGridH; row++)
             {
@@ -401,6 +419,8 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
                     {
                         sumCol += (double) col + 0.5;
                         count++;
+                        minCol = std::min (minCol, col);
+                        maxCol = std::max (maxCol, col);
                     }
                 }
             }
@@ -408,7 +428,10 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
             {
                 float  centroidCols = (count > 0) ? (float) (sumCol / count)
                                                   : (float) CassoBranding::kGridW * 0.5f;
-                float  leftMm       = m_brandAxisX - centroidCols * cell;
+                float  boxCols      = (maxCol >= minCol) ? (float) (minCol + maxCol + 1) * 0.5f
+                                                         : centroidCols;
+                float  centerCols   = centroidCols + (boxCols - centroidCols) * s_kMon2BrandBoxCenter;
+                float  leftMm       = m_brandAxisX - centerCols * cell;
 
                 BuildBrandStamp (leftMm, s_kMon2BrandTopZMm,
                                  s_kMon2BrandHeightMm, s_kMon2BrandFrontY,
