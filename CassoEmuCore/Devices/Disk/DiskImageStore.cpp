@@ -219,6 +219,38 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+wstring DiskImageStore::FormatCrcLaunderMessage (const string & path)
+{
+    wstring  widePath = fs::path (path).wstring();
+
+
+
+    if (widePath.empty())
+    {
+        widePath = L"(unknown path)";
+    }
+
+    return L"Casso is about to save a disk image whose stored checksum did not "
+           L"match its contents when it was loaded:\n\n" + widePath +
+           L"\n\nThe saved file gets a newly computed checksum, so after this "
+           L"save the existing damage can no longer be detected. Keep a copy of "
+           L"the original first if its condition matters.";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatFlushLossMessage
+//
+//  User-facing message for a flush that failed to persist a dirty image,
+//  built from the mount path (widened) the store already holds. Handed to
+//  the CHRN/CBRN notifications in FlushEntry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 wstring DiskImageStore::FormatFlushLossMessage (const string & path)
 {
     wstring  widePath = fs::path (path).wstring();
@@ -278,6 +310,13 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, bool force)
     // here through the shared EHM notifier rather than a return nobody
     // checks. The image keeps its dirty bit on failure so a later flush
     // can retry.
+    // Said before the write, not after: once the file is replaced its stored
+    // CRC is valid again, so this is the last moment the mismatch is true.
+    if (entry.image->HasSourceCrcMismatch())
+    {
+        EhmNotifyUser (FormatCrcLaunderMessage (entry.path).c_str());
+    }
+
     hr = entry.image->Serialize (bytes);
     CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
 
@@ -296,6 +335,10 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, bool force)
         CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
     }
 
+    // The file now carries a freshly computed CRC that matches it, so the
+    // mismatch is no longer true of what is on disk -- and the warning above
+    // must not repeat on every later eject or power cycle.
+    entry.image->SetSourceCrcMismatch (false);
     entry.image->ClearDirty();
 
 Error:

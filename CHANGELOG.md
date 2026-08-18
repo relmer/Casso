@@ -9,6 +9,16 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Fixed
+- **A damaged WOZ is now reported instead of quietly repaired-looking.** The
+  loader never checked the checksum stored in a WOZ header, while the writer
+  always stamped a freshly computed one -- so a corrupt image opened silently,
+  and the first save replaced it with a correctly checksummed copy of the same
+  damage, after which nothing could tell it had ever been wrong. Casso now
+  validates the stored checksum at load and says so when it does not match. The
+  image still loads, because being able to open a damaged preservation dump is
+  the point, and a checksum of zero still means "none computed" as the format
+  specifies. Saving such an image warns first, since that save is what makes the
+  damage undetectable.
 - **A failed disk save no longer destroys the disk.** Flushing a mounted image
   opened its own file for writing, which truncates it before the first byte is
   written, and then never checked whether the write actually succeeded -- so a

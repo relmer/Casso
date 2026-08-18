@@ -65,6 +65,15 @@ public:
         m_fileNoPermission = noPermission;
     }
 
+    // A WOZ whose stored CRC did not match its contents at load. The image
+    // still loads -- a damaged preservation dump is exactly what a user needs
+    // to be able to open -- but re-serializing it stamps a freshly computed
+    // CRC, which would leave the damage undetectable. The flag rides along so
+    // a flush can say so before it does that, and clears once the file has
+    // been rewritten and its stored CRC is valid again.
+    void             SetSourceCrcMismatch   (bool bad) { m_sourceCrcMismatch = bad; }
+    bool             HasSourceCrcMismatch   () const { return m_sourceCrcMismatch; }
+
     bool             IsImageWriteProtected  () const { return m_imageWriteProtected; }
     bool             IsUserWriteProtected   () const { return m_userWriteProtected;  }
     WriteProtectInfo GetWriteProtectInfo    () const;
@@ -124,5 +133,6 @@ private:
     bool                  m_userWriteProtected  = false;
     bool                  m_fileReadOnly        = false;
     bool                  m_fileNoPermission    = false;
+    bool                  m_sourceCrcMismatch   = false;
     vector<Byte>          m_rawSourceBytes;
 };

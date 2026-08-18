@@ -294,6 +294,8 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
     bool           sigV2                = false;
     bool           sigV1                = false;
     size_t         rawSize              = 0;
+    uint32_t       storedCrc            = 0;
+    bool           crcOk                = true;
 
     rawSize = raw.size();
     CBR (rawSize >= kHeaderSize);
@@ -306,6 +308,31 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
     CBR (sigV2 || sigV1);
 
     isV2 = sigV2;
+
+    // A stored CRC of zero means the writer computed none, which the format
+    // defines as "skip validation". Any other value must match, and a
+    // mismatch is REPORTED rather than fatal: a damaged preservation dump is
+    // precisely the file a user needs to be able to open and inspect. The
+    // image carries the fact so a later flush can warn before replacing the
+    // file with a freshly checksummed copy of the same damage.
+    storedCrc = Read32LE (raw.data() + kSigLen);
+
+    if (storedCrc != 0)
+    {
+        crcOk = (storedCrc == Crc32 (raw.data() + kHeaderSize, rawSize - kHeaderSize));
+    }
+
+    out.SetSourceCrcMismatch (!crcOk);
+
+    if (!crcOk)
+    {
+        EhmNotifyUser (L"This disk image's stored checksum does not match its "
+                       L"contents, so the file is damaged or was written by a "
+                       L"tool that miscomputed it.\n\nCasso has loaded it anyway "
+                       L"so you can read it. Saving the disk will replace the "
+                       L"file with a newly checksummed copy, after which the "
+                       L"damage can no longer be detected.");
+    }
 
     pos = kSigLen + kCrcLen;
 

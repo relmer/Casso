@@ -666,6 +666,7 @@ void DiskImage::Eject()
     m_userWriteProtected  = false;
     m_fileReadOnly        = false;
     m_fileNoPermission    = false;
+    m_sourceCrcMismatch   = false;
 }
 
 

@@ -704,5 +704,92 @@ public:
 
         fs::remove (target, ec);
     }
+
+
+    // A WOZ carrying a valid CRC, then damaged -- the stored checksum now
+    // describes what the file used to be.
+    vector<Byte> MakeCrcDamagedWoz()
+    {
+        DiskImage     src;
+        vector<Byte>  bits (6400, 0xFF);
+        vector<Byte>  woz;
+        vector<Byte>  out;
+
+        bits[20] = 0xD5;
+        bits[21] = 0xAA;
+        bits[22] = 0x96;
+
+        AssertSucceeded (WozLoader::BuildSyntheticV2 (1, false, bits, 51200, woz));
+        AssertSucceeded (WozLoader::Load (woz, src));
+        AssertSucceeded (WozLoader::Serialize (src, out));
+
+        out[out.size() - 1] = static_cast<Byte> (out[out.size() - 1] ^ 0xFF);
+
+        return out;
+    }
+
+
+    TEST_METHOD (Flush_CrcMismatchedImage_WarnsBeforeRewritingIt)
+    {
+        // Saving replaces the file with a correctly checksummed copy of the
+        // same damage, so the mismatch stops being detectable. The user is
+        // told at the last moment it is still true -- before the write.
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<Byte>              damaged = MakeCrcDamagedWoz();
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return S_OK; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "suspect.woz",
+                                               DiskFormat::Woz, damaged));
+        Assert::IsTrue (store.GetImage (kSlot, kDrive)->HasSourceCrcMismatch(),
+            L"precondition: the mount must have seen the bad checksum");
+
+        s_flushNotifyCount = 0;
+        s_flushNotifyLast.clear();
+
+        store.GetImage (kSlot, kDrive)->WriteBit (0, 0,
+            static_cast<uint8_t> (store.GetImage (kSlot, kDrive)->ReadBit (0, 0) ^ 1));
+        AssertSucceeded (store.Flush (kSlot, kDrive));
+
+        Assert::AreEqual (1, s_flushNotifyCount,
+            L"overwriting a CRC-mismatched image must be reported once");
+        Assert::IsTrue (s_flushNotifyLast.find (L"suspect.woz") != wstring::npos,
+            L"the warning must name the image being rewritten");
+    }
+
+
+    TEST_METHOD (Flush_CrcMismatchedImage_DoesNotWarnAgainOnceRewritten)
+    {
+        // After the first save the file on disk carries a freshly computed,
+        // correct CRC -- the mismatch is no longer true of it, so repeating
+        // the warning on every later eject or power cycle would be noise.
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<Byte>              damaged = MakeCrcDamagedWoz();
+        DiskImage *               img     = nullptr;
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return S_OK; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "suspect.woz",
+                                               DiskFormat::Woz, damaged));
+        img = store.GetImage (kSlot, kDrive);
+
+        Assert::IsTrue (img->HasSourceCrcMismatch(),
+            L"precondition: the mount must have seen the bad checksum");
+
+        img->WriteBit (0, 0, static_cast<uint8_t> (img->ReadBit (0, 0) ^ 1));
+        AssertSucceeded (store.Flush (kSlot, kDrive));
+
+        s_flushNotifyCount = 0;
+
+        img->WriteBit (0, 1, static_cast<uint8_t> (img->ReadBit (0, 1) ^ 1));
+        AssertSucceeded (store.Flush (kSlot, kDrive));
+
+        Assert::AreEqual (0, s_flushNotifyCount,
+            L"the checksum warning must not repeat after the file was rewritten");
+        Assert::IsFalse (img->HasSourceCrcMismatch(),
+            L"the rewritten file's stored CRC is valid, so the flag must clear");
+    }
 };
 

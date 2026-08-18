@@ -789,5 +789,81 @@ public:
         Assert::AreEqual (size_t (3), ids.size());
         Assert::AreEqual (string ("TRKS"), ids[2]);
     }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  Header CRC on load. Serialize always stamps a freshly computed CRC
+    //  and Load never checked the stored one, so a damaged image opened
+    //  silently and was written back correctly checksummed -- laundering the
+    //  damage into a file nothing could flag. Load now validates and records
+    //  the result WITHOUT refusing the image: being able to open a damaged
+    //  preservation dump is the point of the tool.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Load_CrcMismatch_LoadsAnywayAndFlagsTheImage)
+    {
+        DiskImage     src;
+        DiskImage     damaged;
+        vector<Byte>  woz;
+        vector<Byte>  out;
+
+        AssertSucceeded (WozLoader::BuildSyntheticV2 (
+            1, false, MakeBitStream(), kTestBitCount, woz));
+        AssertSucceeded (WozLoader::Load (woz, src));
+        AssertSucceeded (WozLoader::Serialize (src, out));   // stamps a real CRC
+
+        // Corrupt one byte of track data, leaving the stored CRC describing
+        // what the file USED to be -- exactly what a damaged dump looks like.
+        out[out.size() - 1] = static_cast<Byte> (out[out.size() - 1] ^ 0xFF);
+
+        AssertSucceeded (WozLoader::Load (out, damaged),
+            L"a CRC mismatch must not refuse the image");
+        Assert::IsTrue (damaged.HasSourceCrcMismatch(),
+            L"the mismatch must be recorded so a later flush can warn about it");
+        Assert::AreEqual (kTestBitCount, damaged.GetTrackBitCount (0),
+            L"the readable content must still load");
+    }
+
+
+    TEST_METHOD (Load_ValidCrc_LeavesTheImageUnflagged)
+    {
+        DiskImage     src;
+        DiskImage     reloaded;
+        vector<Byte>  woz;
+        vector<Byte>  out;
+
+        AssertSucceeded (WozLoader::BuildSyntheticV2 (
+            1, false, MakeBitStream(), kTestBitCount, woz));
+        AssertSucceeded (WozLoader::Load (woz, src));
+        AssertSucceeded (WozLoader::Serialize (src, out));
+        AssertSucceeded (WozLoader::Load (out, reloaded));
+
+        Assert::IsFalse (reloaded.HasSourceCrcMismatch(),
+            L"our own writer's output must validate against its own stored CRC");
+    }
+
+
+    TEST_METHOD (Load_ZeroCrc_SkipsValidationPerTheFormat)
+    {
+        // A stored CRC of zero means "none computed" and must not be read as
+        // a mismatch -- BuildSyntheticV2 writes zero, as do real tools that
+        // decline to checksum.
+        DiskImage     img;
+        vector<Byte>  woz;
+
+        AssertSucceeded (WozLoader::BuildSyntheticV2 (
+            1, false, MakeBitStream(), kTestBitCount, woz));
+        Assert::AreEqual (uint32_t (0),
+            static_cast<uint32_t> (woz[8]) | (static_cast<uint32_t> (woz[9]) << 8)
+            | (static_cast<uint32_t> (woz[10]) << 16) | (static_cast<uint32_t> (woz[11]) << 24),
+            L"precondition: the synthetic builder stores no CRC");
+
+        AssertSucceeded (WozLoader::Load (woz, img));
+
+        Assert::IsFalse (img.HasSourceCrcMismatch(),
+            L"a zero CRC is 'not computed', not 'does not match'");
+    }
 };
 
