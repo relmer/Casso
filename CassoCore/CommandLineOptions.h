@@ -158,7 +158,21 @@ struct CommandLineOptions
     bool                                      macroExpansion    = false;   // -m
     int                                       pageHeight        = 0;   // -h<N>
     int                                       pageWidth         = 80;   // -w<N>
-    bool                                      caseSensitive     = false;   // -i (no-op)
+    //  -i, and NOT YET IMPLEMENTED -- the flag parses and changes nothing.
+    //
+    //  The name is what matters until it is. as65's -i means "Ignore case in
+    //  opcodes", and this field was called caseSensitive and set to TRUE when
+    //  the flag was given, which states the opposite of the flag's meaning.
+    //  Whoever implements it would have inherited a name arguing against the
+    //  behavior they were writing.
+    //
+    //  THE ASYMMETRY IS THE HARD PART OF IMPLEMENTING IT. as65's own wording:
+    //  "Ignore case in opcodes. In this way, the assembler does not
+    //  differentiate between 'adc' and 'ADC', for example. Labels are still
+    //  case sensitive." So it is not one comparison mode for the assembler --
+    //  the mnemonic table is folded and the symbol table is not, in the same
+    //  pass over the same line.
+    bool                                      ignoreOpcodeCase  = false;
     bool                                      pass1Listing      = false;   // -p
     bool                                      symbolTable       = false;   // -t
     bool                                      debugInfo         = false;   // -g

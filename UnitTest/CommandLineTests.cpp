@@ -145,6 +145,32 @@ namespace CommandLineTests
             Assert::AreEqual ('/', opts.flagPrefix, L"the prefix the user typed must come back in usage text");
         }
 
+        //  as65's DIAGNOSTICS section: "Help message if only parameter is a
+        //  question mark". The prefixed spellings were already accepted; the
+        //  bare one was read as a source filename, so `CassoCli ?` went looking
+        //  for a file called `?` and exited saying it could not open one.
+        TEST_METHOD (BareQuestionMarkAlone_SelectsHelp)
+        {
+            ArgVector           args = { "CassoCli", "?" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.showHelp);
+            Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::Help);
+            Assert::IsTrue (opts.inputFile.empty(), L"and it is not a source file to assemble");
+        }
+
+        //  "ONLY parameter" is as65's condition and is kept literally. A second
+        //  argument means the question mark is somebody's operand -- and on a
+        //  host that allows the character, somebody's filename.
+        TEST_METHOD (QuestionMarkWithAnotherArgument_IsNotAHelpRequest)
+        {
+            ArgVector           args = { "CassoCli", "?", "-q" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsFalse (opts.showHelp, L"two parameters is not the documented case");
+            Assert::AreEqual (std::string ("?"), opts.inputFile);
+        }
+
         TEST_METHOD (Version_SelectsVersion)
         {
             ArgVector           args = { "CassoCli", "--version" };
@@ -240,6 +266,27 @@ namespace CommandLineTests
             Assert::IsTrue (opts.symbolTable, L"/t must mean what -t means");
         }
 
+        //  -i IS STILL A NO-OP, and this test is about its NAME rather than its
+        //  effect. as65's -i means "Ignore case in opcodes"; the field it sets
+        //  was called caseSensitive and was set to TRUE, so the record of the
+        //  flag stated the opposite of the flag. Whoever implements it reads
+        //  this field first, and an inverted name is how a no-op becomes a bug.
+        TEST_METHOD (IgnoreCaseFlag_RecordsThatCaseIsToBeIgnored)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-i" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.ignoreOpcodeCase);
+        }
+
+        TEST_METHOD (WithoutTheIgnoreCaseFlag_CaseIsNotToBeIgnored)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsFalse (opts.ignoreOpcodeCase);
+        }
+
         TEST_METHOD (FillZeroFlag_SetsZeroFill)
         {
             ArgVector           args = { "CassoCli", "demo.a65", "-z" };
@@ -279,6 +326,54 @@ namespace CommandLineTests
 
             Assert::IsTrue (isSet);
             Assert::AreEqual ((int32_t) 1, found->second);
+        }
+
+        //  as65: "If no name is specified, DEBUG is defined. The label is
+        //  EQUated to be 1." A bare -d used to define nothing at all when it
+        //  ended the command line, which is the one place the default was
+        //  unambiguously being asked for.
+        TEST_METHOD (PredefineWithNoNameAtAll_DefinesDebugAsOne)
+        {
+            ArgVector           args  = { "CassoCli", "demo.a65", "-d" };
+            CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+            auto                found = opts.predefinedSymbols.find ("DEBUG");
+            bool                isSet = found != opts.predefinedSymbols.end();
+
+            Assert::IsTrue (isSet, L"a bare -d defines DEBUG");
+            Assert::AreEqual ((int32_t) 1, found->second);
+        }
+
+        //  A bare -d took whatever stood next to it, and what usually stands
+        //  next to it is the source file. `-d demo.a65` defined a label called
+        //  `demo.a65` and left the run with no input, which then failed saying
+        //  no input file was given -- a diagnostic about the argument the flag
+        //  had eaten.
+        TEST_METHOD (PredefineBeforeTheSourceFile_LeavesTheSourceFileAlone)
+        {
+            ArgVector           args  = { "CassoCli", "-d", "demo.a65" };
+            CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+            bool                named = opts.predefinedSymbols.find ("demo.a65") != opts.predefinedSymbols.end();
+
+            Assert::AreEqual (std::string ("demo.a65"), opts.inputFile, L"the source is still the source");
+            Assert::IsFalse (named, L"and is not a symbol name");
+            Assert::IsTrue (opts.predefinedSymbols.find ("DEBUG") != opts.predefinedSymbols.end(),
+                            L"the bare flag still means DEBUG");
+        }
+
+        //  The other thing that follows a bare -d is the next flag, and eating
+        //  one costs the argument BEHIND it too: `-d -o out.bin` defined a
+        //  label called `-o`, so `out.bin` was never read as an output name and
+        //  the derived name was written instead -- a file the caller did not
+        //  ask for, under a name they did not choose, reported as success.
+        TEST_METHOD (PredefineBeforeAnotherFlag_LeavesThatFlagAlone)
+        {
+            ArgVector           args  = { "CassoCli", "demo.a65", "-d", "-o", "out.bin" };
+            CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (std::string ("out.bin"), opts.outputFile, L"-o kept its value");
+            Assert::IsTrue (opts.predefinedSymbols.find ("DEBUG") != opts.predefinedSymbols.end());
+            Assert::IsTrue (opts.predefinedSymbols.find ("-o") == opts.predefinedSymbols.end(),
+                            L"a flag is not a symbol name");
         }
 
         TEST_METHOD (PageWidthFlag_TakesAttachedValue)
@@ -509,6 +604,52 @@ namespace CommandLineTests
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.showHelp, L"a bad target must stop parsing and print usage");
+        }
+
+        //  as65: "Use 65SC02 extensions. This CPU has several additional
+        //  instructions." It was not accepted at all -- the flag fell through
+        //  to the unknown-flag warning, was dropped, and the source then failed
+        //  to assemble on a strict 6502 with a diagnostic about the opcode
+        //  rather than about the flag.
+        TEST_METHOD (As65ExtensionFlag_Selects65C02)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-x" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M65C02);
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
+                            L"and is no longer complained about as unknown");
+        }
+
+        //  It is an as65 flag, so it packs with the others the way they do.
+        TEST_METHOD (As65ExtensionFlag_Concatenates)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-xq" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M65C02);
+            Assert::IsTrue (opts.quiet, L"the flag after it is still read");
+        }
+
+        TEST_METHOD (As65ExtensionFlag_AcceptsTheSlashPrefix)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "/x" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M65C02);
+        }
+
+        //  BOTH NAMES REACH THE SAME TIER, and both keep working. -x is as65's
+        //  name for it and --cpu is this tool's; retiring either would break a
+        //  caller for no capability gained.
+        TEST_METHOD (BothSpellingsOfTheCmosTier_SelectTheSameTarget)
+        {
+            ArgVector           as65   = { "CassoCli", "demo.a65", "-x" };
+            ArgVector           modern = { "CassoCli", "demo.a65", "--cpu", "65c02" };
+            CommandLineOptions  a      = CommandLineParser::Parse (as65.Count(), as65.Data(), NoProbe());
+            CommandLineOptions  m      = CommandLineParser::Parse (modern.Count(), modern.Data(), NoProbe());
+
+            Assert::IsTrue (a.cpuTarget == m.cpuTarget);
         }
     };
 

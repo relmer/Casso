@@ -128,6 +128,12 @@ static constexpr const char *  s_kpszSourceExtensions[] =
 //  it. `/HELP` is a legal volume path and stays an operand; only the lowercase
 //  flag spelling a person types at a shell is read as a request.
 //
+//  THE ONE TOP-LEVEL SPELLING MISSING HERE IS A BARE `?`, and it is missing
+//  because the condition that makes it a request cannot hold inside a
+//  subcommand. as65 asks for a question mark that is the ONLY parameter; every
+//  argument this function judges has a verb in front of it, so a `?` reaching
+//  here is somebody's operand -- a file on a disk is allowed to be called that.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CommandLineParser::IsHelpRequest (const std::string & arg)
@@ -1111,7 +1117,23 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                 break;
 
             case 'i':
-                options.caseSensitive = true;
+                options.ignoreOpcodeCase = true;
+                pos++;
+                break;
+
+            //  as65: "Use 65SC02 extensions. This CPU has several additional
+            //  instructions. When this option is not specified the assembler
+            //  rejects the 65SC02 extensions." That is the same tier `--cpu
+            //  65c02` already selects, so this selects it and nothing else --
+            //  one instruction set, reachable by the name as65 gave it and by
+            //  the name this tool gave it.
+            //
+            //  BOTH SPELLINGS STAY. `--cpu` is the one another feature builds
+            //  on, and withdrawing it to leave a single as65-shaped switch
+            //  would break work in flight for the sake of a tidiness nobody
+            //  asked for.
+            case 'x':
+                options.cpuTarget = CommandLineOptions::CpuTarget::M65C02;
                 pos++;
                 break;
 
@@ -1150,42 +1172,66 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
 
                 break;
 
+            //  as65: "Define a label before the first source line is read. If
+            //  no name is specified, DEBUG is defined. The label is EQUated to
+            //  be 1."
+            //
+            //  A BARE -d IS THAT DEFAULT, not an invitation to eat the next
+            //  argument. It used to take whatever followed unconditionally, and
+            //  the two things that usually follow are the source file and
+            //  another flag: `casso -d demo.a65` defined a label called
+            //  `demo.a65`, left no input file, and exited saying none was
+            //  given, while `casso demo.a65 -d -o out.bin` defined a label
+            //  called `-o`, dropped the output name and wrote the derived one.
+            //  Neither defined DEBUG, which is the only thing a bare -d was
+            //  ever asking for.
+            //
+            //  A separated name still works, because it always has here and a
+            //  caller relying on it is not wrong. What it may not be is a
+            //  source file: that test is the one the glued-only form of as65
+            //  never needed, and it is the same test ApplyAs65Defaults uses to
+            //  recognize an input.
             case 'd':
             {
-                std::string def = rest;
+                std::string  def   = rest;
+                size_t       eqPos = 0;
+                std::string  name;
+                int32_t      value = 1;
 
-                if (def.empty() && argIndex + 1 < argc)
+
+
+                if (def.empty() && TakesSeparatedSymbolName (argc, argv, argIndex))
                 {
                     def = argv[++argIndex];
                 }
 
-                if (!def.empty())
+                if (def.empty())
                 {
-                    size_t       eqPos = def.find ('=');
-                    std::string  name;
-                    int32_t      value = 1;
+                    def = "DEBUG";
+                }
 
-                    if (eqPos != std::string::npos)
-                    {
-                        name = def.substr (0, eqPos);
-                        std::string    valStr = def.substr (eqPos + 1);
-                        char         * end    = nullptr;
-                        long           v      = strtol (valStr.c_str(), &end, 0);
+                eqPos = def.find ('=');
 
-                        if (end != valStr.c_str())
-                        {
-                            value = (int32_t) v;
-                        }
-                    }
-                    else
-                    {
-                        name = def;
-                    }
+                if (eqPos != std::string::npos)
+                {
+                    name = def.substr (0, eqPos);
+                    std::string    valStr = def.substr (eqPos + 1);
+                    char         * end    = nullptr;
+                    long           v      = strtol (valStr.c_str(), &end, 0);
 
-                    if (!name.empty())
+                    if (end != valStr.c_str())
                     {
-                        options.predefinedSymbols[name] = value;
+                        value = (int32_t) v;
                     }
+                }
+                else
+                {
+                    name = def;
+                }
+
+                if (!name.empty())
+                {
+                    options.predefinedSymbols[name] = value;
                 }
 
                 pos = arg.size();
@@ -1301,6 +1347,48 @@ bool CommandLineParser::TakeCountValue (int                   argc,
     }
 
     return wasTaken;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TakesSeparatedSymbolName
+//
+//  Whether the argument standing after a bare -d is a name for it to define.
+//
+//  TWO THINGS IT IS NOT, and a bare -d used to take both. A flag is not a
+//  symbol name -- `demo.a65 -d -o out.bin` defined a label called `-o` and then
+//  lost the output name, because the argument that should have been -o's had
+//  already been spent. And a source file is not one either: `-d demo.a65`
+//  defined `demo.a65` and left the run with no input at all.
+//
+//  The source-file test is by extension rather than by asking the filesystem,
+//  which is the same test that recognizes an input everywhere else here, and it
+//  is deliberately the weaker of the two. A file that exists is not the
+//  question -- a build script naming a source that has not been generated yet
+//  is still naming a source -- and a parser that consults the disk gives a
+//  different reading of the same command line on two machines.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::TakesSeparatedSymbolName (int argc, char * argv[], int argIndex)
+{
+    const char *  next     = nullptr;
+    bool          hasNext  = (argIndex + 1) < argc;
+    bool          isTaken  = false;
+
+
+
+    if (hasNext)
+    {
+        next    = argv[argIndex + 1];
+        isTaken = next[0] != '-' && next[0] != '/' && !IsAssemblySource (next);
+    }
+
+    return isTaken;
 }
 
 
@@ -1564,7 +1652,18 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
         first[0] = '-';
     }
 
-    isHelp = first == "--help" || first == "-help" || first == "-h" || first == "-?";
+    //  A BARE `?`, AND ONLY WHEN IT IS THE WHOLE COMMAND LINE, is the usage
+    //  request as65 documents: "Help message if only parameter is a question
+    //  mark". The prefixed `-?` and `/?` were already accepted; the unadorned
+    //  one was read as a source filename, so `casso ?` tried to open a file
+    //  called `?` and exited 2 complaining it could not.
+    //
+    //  The "only parameter" condition is as65's own and is kept literally. A
+    //  `?` further along a command line is an argument to whatever precedes it,
+    //  and a filename is a perfectly legal thing to have called `?` on a host
+    //  that allows it -- so nothing but the one-argument case changes meaning.
+    isHelp = first == "--help" || first == "-help" || first == "-h" || first == "-?" ||
+             (argc == 2 && first == "?");
     isVer  = first == "--version" || first == "-version";
 
     if (isHelp)

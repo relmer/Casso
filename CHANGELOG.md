@@ -9,6 +9,17 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Fixed
+- **A bare `-d` defines `DEBUG`, and stops eating the argument next to it.**
+  as65 documents `-d` with no name as defining `DEBUG`, equated to 1. It
+  defined nothing at all, because it took whatever followed unconditionally —
+  and the two things that follow a flag are the source file and the next flag.
+  `CassoCli -d prog.a65` defined a label called `prog.a65` and then reported
+  `No input file specified`, a complaint about the argument it had just
+  swallowed; `CassoCli prog.a65 -d -o out.bin` defined a label called `-o`,
+  dropped `out.bin`, wrote `prog.bin` instead, and exited 0. A bare `-d` now
+  means `DEBUG`, wherever it appears. A separated name still works — `-d
+  DEBUG` is unchanged — but a source filename standing next to the flag is
+  read as the source, not as a symbol.
 - **A trailing `-o` no longer hangs the assembler forever.** `CassoCli
   demo.a65 -o`, with no filename after the flag, printed nothing and never
   returned — it had to be killed. Neither branch of the flag's parsing ran and
@@ -115,16 +126,28 @@ Entries before versioning was introduced use dates only.
   unaffected — that filesystem records neither field.
 
 ### Changed
+- **BREAKING: an assembly error now exits 3, where it used to exit 2.** as65
+  spends 2 on "unable to open input or output file" and 3 on "assembly gave
+  errors", and this assembler collapsed both into 2 — a source that could not
+  be opened and a source full of errors each leave nothing to write, so one
+  code covered both. The difference is exactly the one a build script acts on:
+  fix the path, or fix the code. **If a script tests for 2 to mean "the
+  assembly failed", change it to 3**; 2 now means only that a file could not be
+  opened, read, or written. The neighbors are unchanged — 0 clean, 1 assembled
+  with a warning or a dropped flag, 2 no file — and `run` and `disk` are
+  untouched, since their statuses were never the assembler's.
 - **BREAKING: exit statuses are documented per mode, because they differ.** The
   help stated one set of meanings and claimed it held everywhere. It did not:
-  an assembly error exits **2** when a source file is assembled and **1** when
+  an assembly error exits **3** when a source file is assembled and **1** when
   `run` assembles the same file, and status 1 means "the output was written
   anyway" under the assembler and "nothing ran" under `run`. A script that read
   the shared block and branched on 1 learned the opposite of the truth in
   whichever mode its author was not picturing. Each mode's section now ends
   with its own list, and every line was measured by running the tool rather
-  than carried over from the text it replaces. No status changed — only what
-  the help claims about them.
+  than carried over from the text it replaces. The assembler's list also names
+  as65's status 4, no memory could be allocated, and says outright that this
+  assembler does not produce it — so a script ported from as65 does not have to
+  work out by experiment which status replaced it.
 - **`--out` typed at the assembler is refused instead of half-obeyed.** It
   warned `Unknown flag: --`, wrote the output to a file called `ut` in the
   working directory, and consumed the next argument as the input file — then
@@ -200,6 +223,20 @@ Entries before versioning was introduced use dates only.
   primary verbs are unchanged.
 
 ### Added
+- **`-x` selects the 65SC02 extensions, the name as65 gives that switch.** It
+  was not accepted: the flag fell through to the unknown-flag warning and was
+  dropped, so the source then failed to assemble on a strict 6502 and the
+  diagnostic named the opcode rather than the flag that would have allowed it.
+  It selects the same instruction set `--cpu 65c02` selects — the two produce
+  byte-identical output — and it packs with the other as65 flags (`-xq`) and
+  takes either prefix. **`--cpu` is unchanged and keeps working**; neither
+  spelling replaces the other.
+- **A bare `?` shows the usage text.** as65 prints its help when the only
+  parameter is a question mark. `-?` and `/?` already worked; the unadorned one
+  was read as a source filename, so `CassoCli ?` went looking for a file called
+  `?` and exited saying it could not open one. Only the single-argument case
+  changed — `?` alongside anything else is still an ordinary argument, because
+  a question mark further along a command line is somebody's operand.
 - **A `disk` subcommand: read files off an Apple II disk image and put them
   back.** `CassoCli disk list <image>` catalogs a volume, `disk get` extracts a
   file, `disk put` places one, and `disk delete` removes one — on DOS 3.3 and

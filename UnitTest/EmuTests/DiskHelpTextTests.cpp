@@ -240,7 +240,7 @@ public:
     //
     //  They were documented under `disk` alone, then moved to one shared block
     //  at the top of the page on the belief that the three modes agreed. They
-    //  do not, and this test is what says so: an assembly error exits 2 under
+    //  do not, and this test is what says so: an assembly error exits 3 under
     //  the assembler and 1 under `run`, and status 1 means "the output was
     //  written anyway" in one mode and "nothing ran" in the other. A shared
     //  block cannot be true of both.
@@ -266,17 +266,24 @@ public:
         Assert::IsTrue (run.find ("did not assemble. Nothing ran") != std::string::npos,
                         L"1 under run produced none -- the opposite claim");
 
-        //  2 means "nothing was produced" in all three, which is the only part
-        //  of the old shared block that was ever true everywhere.
-        Assert::IsTrue (assemble.find ("2  wrote nothing")       != std::string::npos);
+        //  2 is a failure to produce anything in all three, which is the only
+        //  part of the old shared block that was ever true everywhere. The
+        //  assembler states it as a FILE that could not be opened rather than
+        //  as nothing written, because since 3 was split out of it "wrote
+        //  nothing" describes both statuses and distinguishes neither.
+        Assert::IsTrue (assemble.find ("2  no file was opened")  != std::string::npos);
         Assert::IsTrue (run.find      ("2  nothing could be started") != std::string::npos);
         Assert::IsTrue (disk.find     ("2  nothing was done")    != std::string::npos);
 
-        //  3 belongs to `run` and appears nowhere else, so a script branching
-        //  on the assembler's statuses cannot meet it.
+        //  3 IS SPENT ON A DIFFERENT THING IN THE TWO MODES THAT HAVE ONE, so
+        //  it belongs in this test rather than beside either of them. The
+        //  assembler reached it by splitting an assembly error out of "could
+        //  not open a file", which is as65's own division; `run` had it
+        //  already, for an illegal opcode, because under `run` an assembly
+        //  error stops at 1 and nothing executes. `disk` has no 3 at all.
         Assert::IsTrue (run.find      ("3  the program reached an illegal opcode") != std::string::npos);
-        Assert::IsTrue (assemble.find ("3  ") == std::string::npos, L"the assembler has no 3");
-        Assert::IsTrue (disk.find     ("3  ") == std::string::npos, L"neither has disk");
+        Assert::IsTrue (assemble.find ("3  the source was read and did not assemble") != std::string::npos);
+        Assert::IsTrue (disk.find     ("3  ") == std::string::npos, L"disk has no 3");
 
         //  Disk's block reaches the disk help, which is the section it belongs
         //  under -- a status described in a header nobody prints is worth

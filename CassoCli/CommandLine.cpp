@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CommandLine.h"
+#include "As65ExitStatus.h"
 #include "Assembler.h"
 #include "Cpu.h"
 #include "Devices/Disk/DiskCommandRunner.h"
@@ -202,7 +203,8 @@ static const Microcode * SelectInstructionSet (const CommandLineOptions & option
 struct AssembleResult
 {
     AssemblyResult result;
-    bool           ok = false;      // default: treat an unfilled result as failure
+    bool           ok        = false;   // default: treat an unfilled result as failure
+    bool           wasRead   = false;   // whether the source ever reached the assembler
     std::string    inputFile;
 };
 
@@ -254,7 +256,12 @@ static AssemblerOptions BuildAssemblerOptions (const CommandLineOptions & option
 //
 //  An unreadable file and a failed assembly both come back as ok == false, so
 //  the caller has one failure test. They are distinguished for the USER by the
-//  message, which is where the distinction actually matters.
+//  message, and for the SHELL by wasRead: as65 spends a different status on
+//  each -- "unable to open input or output file" against "assembly gave
+//  errors" -- and a script reading the status is choosing between "your path is
+//  wrong" and "your code is wrong". One flag carries the difference the message
+//  already made, rather than a second read of the file to ask whether the first
+//  one worked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -275,14 +282,16 @@ static AssembleResult AssembleFile (const std::string & inputFile,
     if (FAILED (hr))
     {
         std::cerr << "Error: Cannot read input file: " << inputFile << "\n";
-        ar.ok = false;
+        ar.ok      = false;
+        ar.wasRead = false;
     }
     else
     {
         Assembler  asm6502 (instructionSet, asmOptions);
 
-        ar.result = asm6502.Assemble (source);
-        ar.ok     = ar.result.success;
+        ar.result  = asm6502.Assemble (source);
+        ar.ok      = ar.result.success;
+        ar.wasRead = true;
     }
 
     return ar;
@@ -849,6 +858,7 @@ static void PrintUsageGeneral (const char * lp, const char * sp, const char * pa
     std::println ("  {1}h, {0}help, {1}?{2}         Show this help -- but {1}h only as the FIRST", lp, sp, pad);
     std::println ("                         argument. Anywhere else {0}h is the listing page", sp);
     std::println ("                         height below.");
+    std::println ("                         A bare ? as the ONLY argument shows it too.");
     std::println ("  {0}version{1}              Show version information", lp, pad);
 }
 
@@ -899,8 +909,10 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
     const char * lines[] =
     {
         "  {1}cpu <6502|65c02>{2}     Target CPU (default: 6502)",
-        "  {0}d <name>[=<value>]    Pre-define symbol",
-        "  {0}i                     Case-insensitive (default, no-op)",
+        "  {0}x                     Use the 65SC02 extensions -- the same set",
+        "                         {1}cpu 65c02 selects, under the name as65 gave it",
+        "  {0}d [<name>[=<value>]]  Pre-define symbol ({0}d alone defines DEBUG as 1)",
+        "  {0}i                     Ignore case in opcodes (not implemented)",
         "  {0}n                     Disable optimizations (no-op)",
         "",
         "  Flags concatenate in THIS grammar only: {0}tlfile = {0}t {0}lfile. It is what",
@@ -1232,7 +1244,16 @@ Error:
 //
 //    0  clean
 //    1  assembled, but warned
-//    2  produced no output (no input, assembly errors, or a failed write)
+//    2  produced no output (no input, an input that could not be read, or a
+//       failed write)
+//    3  the source was read and did not assemble
+//
+//  2 AND 3 USED TO BE THE SAME CODE, and the tool was the poorer for it. as65
+//  separates "unable to open input or output file" from "assembly gave errors"
+//  precisely because a script does something different about each -- fix the
+//  path, or fix the code -- and collapsing them sent every syntax error down
+//  the first branch. As65ExitStatus holds the decision, in the core library,
+//  where the test assembly can reach it.
 //
 //  The warning code is applied LAST, after every write has succeeded, so a
 //  warning never masks a real output failure.
@@ -1252,9 +1273,10 @@ Error:
 //
 //  Each artifact is optional but fails identically, so each step reduces to a
 //  "not requested, or written successfully" test with a single shared exit
-//  code. The alternative -- a distinct code per artifact -- would tell a script
-//  which file failed while breaking every script that already knows 2 means
-//  "no output".
+//  code. A failed WRITE keeps status 2 alongside a failed read, which is what
+//  as65 says -- its 2 covers "input or output file" -- and the alternative, a
+//  distinct code per artifact, would tell a script which file failed while
+//  breaking every script that already knows 2 means "no output".
 //
 //  The two verbose Pass 1 / Pass 2 lines are cosmetic. Assemble runs both
 //  passes internally, so they bracket the single call rather than marking real
@@ -1285,8 +1307,9 @@ int DoAs65 (const CommandLineOptions & options)
 
 
 
-    // 2 is the AS65 "could not produce output" code, used by every failure
-    // below; 1 means it assembled but warned.
+    // kNoOutput is the AS65 "could not open input or output file" code, used by
+    // every failure below except the assembly itself, which has kAssemblyErrors
+    // of its own; kWarned means it assembled but warned.
     //
     // A REFUSED COMMAND LINE ASSEMBLES NOTHING and says nothing further. The
     // parser already named the argument it could not take, in that argument's
@@ -1299,7 +1322,7 @@ int DoAs65 (const CommandLineOptions & options)
 
     if (!hasInput)
     {
-        exitCode = 2;
+        exitCode = As65ExitStatus::kNoOutput;
     }
 
     BAIL_OUT_IF (!hasInput, S_OK);
@@ -1337,7 +1360,7 @@ int DoAs65 (const CommandLineOptions & options)
                   options.parseVerdict == CommandLineOptions::ParseVerdict::Complaint;
     ReportAssemblyDiagnostics (ar);
 
-    exitCode = ar.ok ? 0 : 2;
+    exitCode = As65ExitStatus::ForAssembly (ar.wasRead, ar.ok);
 
     BAIL_OUT_IF (!ar.ok, S_OK);
 
@@ -1350,13 +1373,13 @@ int DoAs65 (const CommandLineOptions & options)
     // exit code is set once and each step just reports whether it wrote.
     hr         = options.generateListing ? WriteListingOutput (ar.result, options) : S_OK;
     wasWritten = SUCCEEDED (hr);
-    exitCode   = wasWritten ? 0 : 2;
+    exitCode   = wasWritten ? As65ExitStatus::kClean : As65ExitStatus::kNoOutput;
 
     BAIL_OUT_IF (!wasWritten, S_OK);
 
     hr         = WriteBinaryOutput (ar.result, options);
     wasWritten = SUCCEEDED (hr);
-    exitCode   = wasWritten ? 0 : 2;
+    exitCode   = wasWritten ? As65ExitStatus::kClean : As65ExitStatus::kNoOutput;
 
     BAIL_OUT_IF (!wasWritten, S_OK);
 
@@ -1369,7 +1392,7 @@ int DoAs65 (const CommandLineOptions & options)
                      ? S_OK
                      : WriteDebugInfoOutput (ar.result, options.debugFile);
     wasWritten = SUCCEEDED (hr);
-    exitCode   = wasWritten ? 0 : 2;
+    exitCode   = wasWritten ? As65ExitStatus::kClean : As65ExitStatus::kNoOutput;
 
     BAIL_OUT_IF (!wasWritten, S_OK);
 
@@ -1377,7 +1400,7 @@ int DoAs65 (const CommandLineOptions & options)
                      ? S_OK
                      : WriteSymbolFile (options.symbolFile, ar.result.symbols);
     wasWritten = SUCCEEDED (hr);
-    exitCode   = wasWritten ? 0 : 2;
+    exitCode   = wasWritten ? As65ExitStatus::kClean : As65ExitStatus::kNoOutput;
 
     if (!wasWritten)
     {
@@ -1396,7 +1419,7 @@ int DoAs65 (const CommandLineOptions & options)
         std::println (stderr, "  Symbols: {}", ar.result.symbols.size());
     }
 
-    exitCode = hasWarnings ? 1 : 0;
+    exitCode = hasWarnings ? As65ExitStatus::kWarned : As65ExitStatus::kClean;
 
 Error:
     return exitCode;

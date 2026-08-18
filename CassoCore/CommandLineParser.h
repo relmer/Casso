@@ -63,13 +63,19 @@ public:
     //  DIFFER.
     //
     //  One combined block used to stand near the top of the help and claim to
-    //  hold for every mode. It did not. An assembly error exits 2 when a source
+    //  hold for every mode. It did not. An assembly error exits 3 when a source
     //  file is assembled and 1 when `run` assembles the same file, and status 1
     //  means "the output was written anyway" in one mode and "nothing ran" in
     //  the other -- so a script that read the shared block and branched on 1
     //  learned the opposite of the truth in whichever mode it was not thinking
     //  of. Three statements that are each true beat one statement that is true
     //  of nothing.
+    //
+    //  THE ASSEMBLER'S BLOCK NAMES A STATUS IT DOES NOT PRODUCE, once, on
+    //  purpose. as65 documents 4 for a failed allocation, and this assembler
+    //  cannot reach that condition -- a 64 KB image on a virtual-memory host.
+    //  Saying so costs two lines and answers the question a script ported from
+    //  as65 would otherwise have to answer by experiment.
     //
     //  Every line below was measured by running the built binary, not carried
     //  over from the text it replaces.
@@ -84,9 +90,12 @@ public:
         "    1  assembled, and had something to say -- an assembler warning, or a\n"
         "       flag that was not recognized and was dropped. The output was still\n"
         "       written.\n"
-        "    2  wrote nothing -- no input file, an input that could not be read, an\n"
-        "       assembly error, a command line that was refused, or an output file\n"
-        "       that could not be written.";
+        "    2  no file was opened -- no input file, an input that could not be\n"
+        "       read, a command line that was refused, or an output file that\n"
+        "       could not be written.\n"
+        "    3  the source was read and did not assemble.\n"
+        "       as65 also defines 4, no memory could be allocated. This assembler\n"
+        "       does not produce it.";
 
     static constexpr const char *  kRunExitStatusHelpText =
         "    0  the program ran to a stop -- the stop address, or the cycle limit.\n"
@@ -139,6 +148,10 @@ private:
                                  int                &  argIndex,
                                  const std::string  &  attached,
                                  int                &  value);
+
+    //  Whether the argument after a bare -d is a symbol name for it to take,
+    //  rather than the source file or the next flag.
+    static bool  TakesSeparatedSymbolName (int argc, char * argv[], int argIndex);
 
     static std::string  TryAutoExtend  (const std::string & path, const FileExistsFn & fileExists);
     static std::string  StripExtension (const std::string & path);

@@ -1468,6 +1468,100 @@ conflict, as65 wins.
 
 ---
 
+## Phase 13: as65 command-line compatibility gaps
+
+Five differences from the as65 1.42 manual, found by reading its OPTIONS,
+RETURNS and DIAGNOSTICS sections against the built binary. Every claim below
+was measured by running `CassoCli`, before and after.
+
+**Nothing here withdraws a spelling.** `--cpu` keeps working beside the `-x`
+this phase adds, and `-i` and `-n` stay accepted no-ops, because another
+feature pins all three. Implementing `-i` and `-n` for real is deferred.
+
+- [x] T085 **A bare `?` shows the usage text.** as65's DIAGNOSTICS section:
+      "Help message if only parameter is a question mark, or if an illegal
+      option has been specified." The prefixed `-?` and `/?` were already
+      accepted; the unadorned one was read as a source filename, so `CassoCli
+      ?` went looking for a file called `?` and exited 2 saying it could not
+      open one. **The "only parameter" condition is as65's own and is kept
+      literally** -- `? -q` leaves the question mark as the input file, because
+      a `?` further along a command line is somebody's operand and a host that
+      allows the character allows it in a filename
+- [x] T086 **The "illegal option" half of that sentence is NOT implemented, and
+      the reason is that this branch already settled the opposite.** as65 prints
+      usage and assembles nothing when it meets a flag it does not know. T072
+      settled the other behavior for this tool -- an unrecognized assembler flag
+      is dropped, the assembly runs, the output is written, and the status is 1
+      -- and the CHANGELOG entry for it is already written. Adopting as65 here
+      would reverse a shipped decision to gain a usage dump nobody asked for.
+      **Half of it already exists in any case**: an unknown `--long` option and
+      an unreadable `--cpu` target both print usage and refuse, because those
+      cannot be dropped safely the way a single letter can
+- [x] T087 **An assembly error exits 3, not 2.** as65's RETURNS list: "2 -
+      Unable to open input or output file. 3 - Assembly gave errors." Both
+      failures left the assembler with nothing to write, so both returned 2,
+      and a build script branching on the status sent every syntax error down
+      the "your path is wrong" arm. The two are now distinguished by whether
+      the source was ever read. **The neighbors were re-measured and hold**: 0
+      clean, 1 an unknown flag or a warning, 2 an unreadable or unnamed input
+      and every failed write. **`run` and `disk` are untouched** -- `run`
+      spends 3 on an illegal opcode and 1 on an assembly error, `disk` has no
+      3, and the help states each mode's statuses under that mode
+- [x] T088 **The decision moved into `CassoCore/As65ExitStatus`.** It sat in
+      `DoAs65`, which the test assembly does not link, so the status the tool
+      returns was a claim nothing could check -- which is how "assembly error"
+      answered "could not open a file" for as long as it did. The four statuses
+      are named constants and `DoAs65` reads them rather than spelling out
+      integers
+- [x] T089 **Exit status 4 is named in the help as as65's, and stated not to be
+      produced.** as65 defines "4 - No memory could be allocated" for a 16-bit
+      tool allocating a symbol table out of a real-mode heap. A 64 KB image on
+      a virtual-memory host does not reach that condition, and an allocation
+      that did fail would take the process down before a status could be
+      returned. Naming it costs two lines and saves a script porting from as65
+      from wondering which status replaced it
+- [x] T090 **`-x` selects the 65SC02 extensions.** as65: "Use 65SC02
+      extensions. This CPU has several additional instructions. When this
+      option is not specified the assembler rejects the 65SC02 extensions." It
+      was not accepted at all -- it fell through to the unknown-flag warning
+      and was dropped, so the source then failed on a strict 6502 with a
+      diagnostic about the opcode rather than about the flag. It selects the
+      same tier `--cpu 65c02` does, concatenates the way as65's flags do, and
+      takes either prefix; the two spellings were checked to produce
+      byte-identical output
+- [x] T091 **`--cpu` is NOT withdrawn in favor of `-x`.** The tidier reading --
+      one as65-shaped switch -- would break the assembler-dialects work in
+      flight, which pins `--cpu` in as65 mode with its own tests and whose
+      Merlin path refuses `--cpu` **by name**. Withdrawing it would leave that
+      refusal naming a flag no other mode had. Both spellings stand; unifying
+      them is somebody's later decision, not this phase's
+- [x] T092 **A bare `-d` defines `DEBUG` as 1.** as65: "Define a label before
+      the first source line is read. If no name is specified, DEBUG is defined.
+      The label is EQUated to be 1." It defined nothing at all, because it took
+      whatever followed unconditionally -- and the two things that follow are
+      the source file and the next flag. `-d demo.a65` defined a label called
+      `demo.a65` and then reported "no input file specified", a diagnostic
+      about the argument the flag had eaten; `demo.a65 -d -o out.bin` defined a
+      label called `-o`, lost the output name, and wrote the derived one while
+      reporting success. Both were reproduced against the binary before the
+      fix. A separated name still works, tested against the same extension list
+      that recognizes an input everywhere else, because a caller relying on it
+      is not wrong
+- [x] T093 **`caseSensitive` is renamed `ignoreOpcodeCase`, in both
+      `CommandLineOptions` and `AssemblerOptions`.** `-i` means *ignore* case in
+      opcodes and set a field called `caseSensitive` to **true**, so the record
+      of the flag stated the reverse of the flag. **The flag stays a no-op** --
+      implementing it is deferred -- and the rename exists so whoever picks that
+      up does not inherit a name arguing against the behavior they are writing.
+      The comment where the field lives records the asymmetry that makes it
+      non-trivial: as65 folds case in the **mnemonic table only**, and "Labels
+      are still case sensitive", so it is two comparison rules in one pass over
+      one line, not a mode
+- [x] T094 **`-h` is untouched, again.** Its help/page-height collision stays
+      where the previous phase left it
+
+---
+
 ## Dependencies
 
 ```text
