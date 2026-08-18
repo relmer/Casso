@@ -76,6 +76,18 @@ Entries before versioning was introduced use dates only.
   around them. Every device also casts a contact shadow on the ground
   plane, so the scene reads as objects standing on a desk rather than
   artwork pasted on the backdrop.
+- **The scene is lit per pixel, and the Monitor II wears its tilt
+  controls.** Shading was a single value baked into each vertex, which let
+  a flat face and the shallow relief molded into it come out the same
+  brightness; it is now evaluated per fragment from two lights, a sky and
+  ground ambient, and a specular highlight, with the monitor's power lamp
+  acting as a real light in that same pass instead of a glow the CPU
+  ray-traced onto nearby triangles. Relief catches light the way relief
+  should, so the inner bezel now carries the embossed up and down tilt
+  icons — the ones you press to pivot the bezel and tube on their
+  horizontal axis — alongside the power icon. The frame, bezel, and power
+  button also take their colors from a photograph of a well lit A2M2010
+  rather than from judgment by eye.
 - **`--raw` and `--dos-bin` assembler output.** The assembler could only write
   a full 64 KB memory image, padded with the fill byte — correct for ROM
   burning and reference comparison, useless for loading a 2 KB routine, which

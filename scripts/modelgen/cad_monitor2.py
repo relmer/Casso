@@ -159,10 +159,18 @@ NZ0       = H - NOTCH_H
 
 # NOTE: sub-mesh identity is by Kd VALUE (DeskSceneModel::kKdEpsilon = 0.02).
 # Case colors must stay clear of the palette in cadkit.KD.
-BEIGE     = (0.833, 0.784, 0.659)     # the //e case color
-BEIGE_DK  = (0.700, 0.652, 0.540)
-BEZEL     = (0.548, 0.494, 0.396)     # the darker brown bezel
-BEZEL_DK  = (0.430, 0.386, 0.306)
+BEIGE     = (0.845, 0.796, 0.670)     # the //e case color
+BEIGE_DK  = (0.735, 0.692, 0.582)
+# Sampled off a photo of a well lit A2M2010, comparing only surfaces that
+# face the camera under the same light: the frame's top strip against the
+# bezel's top band, and the frame's right strip against the power button
+# beside it. Both parts land ~0.82 of the frame, so the button is the same
+# value as the bezel rather than a step below it. The part that is easy to
+# get backwards is the hue -- these get WARMER as they darken (B/R falls
+# 0.894 -> 0.832 -> 0.781), and a beige that desaturates on the way down
+# is exactly what reads as //c platinum instead of a classic //e.
+BEZEL     = (0.720, 0.644, 0.531)     # 0.82 of the frame, a touch warmer
+BEZEL_DK  = (0.726, 0.654, 0.507)     # the power button: warmer still
 CAVITY    = (0.105, 0.098, 0.086)
 
 m = Model()
@@ -316,6 +324,32 @@ led = (cq.Workplane("XY")
 
 m.add("led", led, KD["monitor_lamp"])
 
+RELIEF_ROUND = 0.35                        # front-edge round-over on all
+                                           # mold relief; must stay under
+                                           # half the stroke width
+
+# Rounds the front edge of a piece of mold relief.
+#
+# A square-edged ridge shows the light only on the wall that happens to face
+# it: the up triangle's walls rake toward the lamp and read, the down one's
+# rake away and vanish, so the two glyphs did not look like the same mark. A
+# rounded-over edge always turns SOME of its surface toward the light, so it
+# carries a highlight along its whole length whichever way it runs -- which
+# is also how a molded part actually comes out of a tool, since a sharp
+# outside corner in plastic is the exception, not the rule.
+#
+# Only the front edges are rounded. The side walls stay square where they
+# meet the face, which is what keeps the relief looking seated in the panel
+# rather than glued on. Returns the solid untouched if the kernel cannot
+# take the radius -- a fillet that fails on one glyph should not take the
+# whole model down with it.
+def round_front(solid, radius=RELIEF_ROUND):
+    try:
+        return solid.edges("<Y").fillet(radius)
+    except Exception:
+        return solid
+
+
 # ------------------------------------------------------- molded power icon
 #
 # Below the button on the reveal strip: the power symbol as MOLD RELIEF, not
@@ -329,9 +363,14 @@ ICON_S   = (NOTCH_W - 3.0) * 0.75          # square side: 75% of the button widt
 ICON_CX  = NX0 + NOTCH_W * 0.5            # centered under the button
 ICON_TOP = NZ0 - 2.0                       # 2 mm below the notch
 ICON_CZ  = ICON_TOP - ICON_S * 0.5
-RIDGE_W  = 1.5                             # stroke width of the relief
-RIDGE_H  = 1.0                             # a full millimeter proud: at 0.45
-                                           # the relief barely read at all
+RIDGE_W  = 1.0                             # stroke width of the relief
+RIDGE_H  = 2.5                             # proud of the face. At 0.45 the
+                                           # relief barely read; at 1.0 a
+                                           # filled glyph still did not, since
+                                           # its top face takes the same light
+                                           # as the plastic around it and only
+                                           # the side walls show. Depth is the
+                                           # only lever on a filled shape.
 
 IX0 = ICON_CX - ICON_S * 0.5
 IZ0 = ICON_TOP - ICON_S
@@ -361,9 +400,104 @@ icon_bar = (cq.Workplane("XY")
             .box(RIDGE_W, RIDGE_H, BAR_H, centered=(False, False, False))
             .translate((ICON_CX - RIDGE_W * 0.5, -RIDGE_H, ICON_CZ - BAR_H * 0.5)))
 
-m.add("icon_sq",   icon_sq,   BEIGE)
-m.add("icon_ring", icon_ring, BEIGE)
-m.add("icon_bar",  icon_bar,  BEIGE)
+m.add("icon_sq",   round_front(icon_sq),   BEIGE)
+m.add("icon_ring", round_front(icon_ring), BEIGE)
+m.add("icon_bar",  round_front(icon_bar),  BEIGE)
+
+# --------------------------------------------------- bezel tilt icons
+#
+# The bezel assembly pivots a few degrees about a horizontal axis through
+# the tube's center, and you tilt it by pushing the band itself. These mark
+# which way: an up glyph on the top band, a down glyph on the bottom one,
+# both on the flat face pointing at the user. Same mold-relief treatment as
+# the power icon -- an outline with the glyph inside, raised in the bezel's
+# own plastic and read entirely through the shading of its side walls.
+#
+# WIDE, NOT SQUARE, which is what the real monitor carries. The width is the
+# power icon's, so the two match across the front; the height is whatever
+# the flat band leaves once a margin is taken off each edge. The band is
+# 12.7 mm and the power square is 16.8 mm, so a square at that size cannot
+# fit -- the rest of the bezel's width is the raked funnel angling back to
+# the tube, which is not a face a glyph can sit on. Constraining only the
+# height squats the triangle, and that squat triangle is what the real one
+# looks like.
+
+TILT_MGN = 1.5                             # band edge to the icon
+TILT_W   = ICON_S                          # the power icon's width, matched
+TILT_H   = BAND - TILT_MGN * 2.0           # all the height the band leaves
+TILT_RW  = RIDGE_W                         # and the power icon's stroke
+TILT_RH  = RIDGE_H                         # and its depth
+TILT_CX  = (BX0 + BX1) * 0.5               # centered on the bezel
+TILT_FY  = -PROTRUDE                       # the band's front plane
+TILT_GAP = TILT_RW                         # inner margin == the bar's own
+                                           # thickness, so the glyph sits in
+                                           # the outline by exactly the
+                                           # weight of the line it touches
+
+
+def tilt_icon(z_bottom, pointing_up):
+    """Outlined rectangle with a triangle whose tip touches a bar, in relief.
+
+    z_bottom is the icon's lower edge; pointing_up picks which way the
+    triangle points and so which end of the rectangle the bar sits against.
+    The two are exact mirrors about the icon's horizontal center line.
+    """
+    x0 = TILT_CX - TILT_W * 0.5
+    z0 = z_bottom
+
+    ring = (cq.Workplane("XY")
+            .box(TILT_W, TILT_RH, TILT_H, centered=(False, False, False))
+            .translate((x0, TILT_FY - TILT_RH, z0)))
+    ring = ring.cut(
+        cq.Workplane("XY")
+          .box(TILT_W - TILT_RW * 2.0, TILT_RH + 1.0, TILT_H - TILT_RW * 2.0,
+               centered=(False, False, False))
+          .translate((x0 + TILT_RW, TILT_FY - TILT_RH - 0.5, z0 + TILT_RW)))
+
+    # The glyph's box, inset from the outline's inner edge by TILT_GAP.
+    gx0 = x0 + TILT_RW + TILT_GAP
+    gx1 = x0 + TILT_W - TILT_RW - TILT_GAP
+    gz0 = z0 + TILT_RW + TILT_GAP
+    gz1 = z0 + TILT_H - TILT_RW - TILT_GAP
+
+    # Mirror the SAME layout rather than writing each case out: measure the
+    # bar and the triangle from the pointing end, then flip about the
+    # glyph's center if we are pointing down. Written as two branches the
+    # pair drifted -- the down triangle ended a stroke shorter than the up
+    # one, which is half of why they did not read as the same mark.
+    bar_lo = gz1 - TILT_RW                 # bar hugs the pointing end
+    apex   = bar_lo                        # tip lands ON the bar
+    base   = gz0
+
+    def flip(z):
+        return gz0 + gz1 - z
+
+    if pointing_up:
+        bar_z0, apex_z, base_z = bar_lo, apex, base
+    else:
+        bar_z0, apex_z, base_z = flip(bar_lo) - TILT_RW, flip(apex), flip(base)
+
+    bar = (cq.Workplane("XY")
+           .box(gx1 - gx0, TILT_RH, TILT_RW, centered=(False, False, False))
+           .translate((gx0, TILT_FY - TILT_RH, bar_z0)))
+
+    tri = (cq.Workplane("XZ")
+           .polyline([(gx0, base_z),
+                      (gx1, base_z),
+                      (TILT_CX, apex_z)])
+           .close()
+           .extrude(TILT_RH)
+           .translate((0.0, TILT_FY, 0.0)))
+
+    return round_front(ring.union(bar).union(tri))
+
+
+m.add("tilt_up",
+      tilt_icon((BAND_Z1 + BZ1) * 0.5 - TILT_H * 0.5, True),
+      BEZEL)
+m.add("tilt_down",
+      tilt_icon((BZ0 + BAND_Z0) * 0.5 - TILT_H * 0.5, False),
+      BEZEL)
 
 # ------------------------------------------------------------ brand anchor
 #
