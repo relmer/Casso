@@ -256,7 +256,6 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, bool force)
 {
     HRESULT       hr     = S_OK;
     vector<Byte>  bytes;
-    bool          fileOk = false;
 
 
 
@@ -289,18 +288,84 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, bool force)
     }
     else if (!entry.path.empty())
     {
-        ofstream  file (entry.path, ios::binary);
-
-        fileOk = file.good();
-        CBRN (fileOk, FormatFlushLossMessage (entry.path).c_str());
-
-        file.write (reinterpret_cast<const char *> (bytes.data()),
-                    static_cast<streamsize> (bytes.size()));
+        // Never write in place: a flush that fails midway would otherwise
+        // have already truncated the user's image, trading a stale file for
+        // no file at all. The dirty bit survives a failure, so a later flush
+        // retries.
+        hr = WriteFileAtomically (entry.path, bytes);
+        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
     }
 
     entry.image->ClearDirty();
 
 Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteFileAtomically
+//
+//  Write to a sibling temp file, verify every step, then rename it over the
+//  target. The verification matters as much as the temp file: an ofstream
+//  reports a short or failed write only through its stream state, so a full
+//  volume otherwise completes a flush that wrote nothing and looks identical
+//  to success. The state is read after close, since bytes can still be
+//  buffered when write() returns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::WriteFileAtomically (const string & path, const vector<Byte> & bytes)
+{
+    constexpr const char *  kTempSuffix = ".casso-tmp";
+    HRESULT                 hr          = S_OK;
+    string                  tempPath    = path + kTempSuffix;
+    bool                    hasPath     = !path.empty();
+    bool                    wroteOk     = false;
+    std::error_code         ec;
+
+
+
+    CBRAEx (hasPath, E_INVALIDARG);
+
+    {
+        ofstream  file (tempPath, ios::binary | ios::trunc);
+
+        wroteOk = file.good();
+
+        if (wroteOk && !bytes.empty())
+        {
+            file.write (reinterpret_cast<const char *> (bytes.data()),
+                        static_cast<streamsize> (bytes.size()));
+        }
+
+        file.close();
+
+        wroteOk = wroteOk && file.good();
+    }
+
+    CBR (wroteOk);
+
+    // Rename replaces an existing target, so the swap is one filesystem
+    // operation: readers see either the old file or the new one.
+    fs::rename (tempPath, path, ec);
+    CBR (!ec);
+
+Error:
+    if (FAILED (hr))
+    {
+        std::error_code  cleanupEc;
+
+        // Best effort -- the guarantee is that the TARGET is untouched, not
+        // that the temp never lingers, and a temp we cannot remove must not
+        // turn into a second error report.
+        fs::remove (tempPath, cleanupEc);
+    }
+
     return hr;
 }
 

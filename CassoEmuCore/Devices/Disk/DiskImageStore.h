@@ -86,6 +86,18 @@ public:
 
     static HRESULT  DetectFormatByExtension (const string & path, DiskFormat & outFmt);
 
+    //  Replaces `path` with `bytes` without ever leaving the target in a
+    //  partially written state: the bytes land in a sibling temporary file
+    //  that is verified in full, then renamed over the target. A failure at
+    //  any step leaves the ORIGINAL file exactly as it was and reports it,
+    //  which is what a flush needs -- opening the target directly truncates
+    //  it before the first byte is written, so a write that then fails
+    //  (a full volume, a disconnected share) destroys the only copy.
+    //
+    //  Public because it is the unit of behavior worth testing on its own:
+    //  the failure paths are filesystem states, not emulator states.
+    static HRESULT  WriteFileAtomically (const string & path, const vector<Byte> & bytes);
+
 private:
     struct Entry
     {

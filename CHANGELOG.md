@@ -9,6 +9,15 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Fixed
+- **A failed disk save no longer destroys the disk.** Flushing a mounted image
+  opened its own file for writing, which truncates it before the first byte is
+  written, and then never checked whether the write actually succeeded -- so a
+  full volume or a disconnected share replaced a working image with a truncated
+  one, or with nothing at all, and the image was marked saved either way. The
+  bytes now land in a temporary file beside the target, are verified in full,
+  and only then replace it. A failure at any point leaves the original file
+  exactly as it was, reports the loss, and keeps the image dirty so a later
+  flush retries.
 - **WOZ images Casso writes can now be read by other tools.** Every WOZ Casso
   saved -- a mounted disk flushed after a guest write, or a blank disk it
   created -- declared a `TRKS` chunk size covering only the 160-entry track
