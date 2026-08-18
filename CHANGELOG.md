@@ -8,17 +8,30 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+- **`--raw` and `--dos-bin` assembler output.** The assembler could only write
+  a full 64 KB memory image, padded with the fill byte — correct for ROM
+  burning and reference comparison, useless for loading a 2 KB routine, which
+  meant slicing 64 KB down by hand. `--raw` writes only the assembled span;
+  `--dos-bin` writes that span behind the 4-byte load-address/length header an
+  Apple DOS 3.3 binary file carries, so the result is ready to `BLOAD` once
+  placed on a disk. The default is unchanged.
+
+### Changed
+- **An explicit output-format flag now wins over the filename's extension.**
+  Extension matching remains as the fallback when no flag is given, so as65-era
+  scripts naming a `.s19` or `.hex` output keep working. Previously the
+  extension always won, which meant `-s -o out.dat` silently wrote a flat
+  binary despite the flag asking for an S-record.
+- Command-line option modelling and parsing moved from the `CassoCli`
+  executable into `CassoCore`, where the test project can link it. Parsing was
+  previously unreachable from any test. Behavior is unchanged and now pinned by
+  tests; the grammar's one filesystem question — does `build` name a real
+  `build.a65`? — is injected rather than probed directly.
+
+## [1.16.2] — safer disk image writes
+
 ### Fixed
-- **A damaged WOZ is now reported instead of quietly repaired-looking.** The
-  loader never checked the checksum stored in a WOZ header, while the writer
-  always stamped a freshly computed one -- so a corrupt image opened silently,
-  and the first save replaced it with a correctly checksummed copy of the same
-  damage, after which nothing could tell it had ever been wrong. Casso now
-  validates the stored checksum at load and says so when it does not match. The
-  image still loads, because being able to open a damaged preservation dump is
-  the point, and a checksum of zero still means "none computed" as the format
-  specifies. Saving such an image warns first, since that save is what makes the
-  damage undetectable.
 - **A failed disk save no longer destroys the disk.** Flushing a mounted image
   opened its own file for writing, which truncates it before the first byte is
   written, and then never checked whether the write actually succeeded -- so a
@@ -44,6 +57,16 @@ Entries before versioning was introduced use dates only.
   synchronized, boot sector format, compatible hardware, required RAM). Those
   are separate defects in the same writer and are not fixed here, so a
   preservation dump still loses its provenance on flush.
+- **A damaged WOZ is now reported instead of quietly repaired-looking.** The
+  loader never checked the checksum stored in a WOZ header, while the writer
+  always stamped a freshly computed one -- so a corrupt image opened silently,
+  and the first save replaced it with a correctly checksummed copy of the same
+  damage, after which nothing could tell it had ever been wrong. Casso now
+  validates the stored checksum at load and says so when it does not match. The
+  image still loads, because being able to open a damaged preservation dump is
+  the point, and a checksum of zero still means "none computed" as the format
+  specifies. Saving such an image warns first, since that save is what makes the
+  damage undetectable.
 - **Pasting into the guest no longer garbles the text.** A valid Applesoft line
   pasted at the `]` prompt produced a SYNTAX ERROR while typing the same line
   by hand worked. Two independent causes, both fixed: Ctrl+V is claimed as a
@@ -54,27 +77,6 @@ Entries before versioning was introduced use dates only.
   clears it the moment it takes a key but may flush the keyboard again while
   processing one — so a character sent on the first clear reading races into
   that window and is dropped.
-
-### Added
-- **`--raw` and `--dos-bin` assembler output.** The assembler could only write
-  a full 64 KB memory image, padded with the fill byte — correct for ROM
-  burning and reference comparison, useless for loading a 2 KB routine, which
-  meant slicing 64 KB down by hand. `--raw` writes only the assembled span;
-  `--dos-bin` writes that span behind the 4-byte load-address/length header an
-  Apple DOS 3.3 binary file carries, so the result is ready to `BLOAD` once
-  placed on a disk. The default is unchanged.
-
-### Changed
-- **An explicit output-format flag now wins over the filename's extension.**
-  Extension matching remains as the fallback when no flag is given, so as65-era
-  scripts naming a `.s19` or `.hex` output keep working. Previously the
-  extension always won, which meant `-s -o out.dat` silently wrote a flat
-  binary despite the flag asking for an S-record.
-- Command-line option modelling and parsing moved from the `CassoCli`
-  executable into `CassoCore`, where the test project can link it. Parsing was
-  previously unreachable from any test. Behavior is unchanged and now pinned by
-  tests; the grammar's one filesystem question — does `build` name a real
-  `build.a65`? — is injected rather than probed directly.
 
 ## [1.16.1] — the //c mouse works with VBL-interrupt software
 
