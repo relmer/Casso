@@ -494,7 +494,14 @@ def tilt_icon(z_bottom, pointing_up):
            .extrude(TILT_RH)
            .translate((0.0, TILT_FY, 0.0)))
 
-    return round_front(ring.union(bar).union(tri))
+    # Round each stroke BEFORE unioning, the way the power icon does with its
+    # three separate solids. Filleting the union instead fails outright -- OCC
+    # raises "ChFi3d_Builder: only 2 faces" where the triangle's apex runs into
+    # the bar -- and round_front's fallback then handed back the whole glyph
+    # square-edged without saying so. That is why these read as flat bright
+    # lines next to a power icon that reads as relief: the round-over written
+    # to fix exactly this had never once been applied to them.
+    return round_front(ring).union(round_front(bar)).union(round_front(tri))
 
 
 m.add("tilt_up",
