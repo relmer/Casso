@@ -1890,7 +1890,75 @@ Each grammar refuses under **its own** documented status: the assembler's 2
 
 ---
 
+## Phase 16: The shell that cuts a glued flag in half
+
+Measured before anything was written, by handing each argument to a native
+executable that prints its argv -- under PowerShell 7.6.5 and Windows PowerShell
+5.1, with cmd.exe as the control:
+
+```text
+-oprog.bin        ->  -oprog     .bin        (cut at the FIRST dot)
+-oprog.bin.x      ->  -oprog     .bin.x
+-osub\x.bin       ->  -osub\x    .bin        (a separator does not cut)
+-o.bin            ->  -o         .bin
+-oC:\out\prog.bin ->  arrives whole          (a colon suppresses the cut)
+/oprog.bin        ->  arrives whole
+--flat.x          ->  arrives whole
+cmd.exe           ->  everything arrives whole
+```
+
+PowerShell parses a token beginning with a single `-` as a parameter name, and a
+parameter name may not contain a dot. **Nearly every output name has an
+extension, so the glued form as65 documents does not survive being typed
+unquoted in the shell this tool is typed into most.** It does not fail
+consistently either, which is worse than failing: an absolute path glues fine
+because its colon suppresses the cut.
+
+- [x] T123 **`-o` accepts a separated filename as well as an attached one**, by
+      owner decision. It accepts MORE than as65 does and never less, so no as65
+      command line changes meaning and the glued form is untouched. **`-o`
+      only.** `-l`, `-d`, `-w` and `-g` each have a bare form as65 documents --
+      a listing to standard output, a DEBUG definition, 133 columns, and no
+      parameter at all -- so for any of them the following word is genuinely
+      ambiguous with the bare reading, and separating the two takes a guess
+      about what that word looks like. That guess was here for `-d`, defined a
+      label called `demo.a65`, and was deleted this session for being
+      unprincipled; it is not coming back through this door. `-o` has NO bare
+      form, which is exactly what leaves nothing to guess about, and the
+      asymmetry is recorded at the flag rather than left to read as an
+      oversight. The value is taken VERBATIM -- skipping one that looks like a
+      flag would be the same guess arriving another way. An `-o` with nothing
+      after it at all is still refused
+- [x] T124 **A surplus argument the shell cut off a flag explains itself.**
+      `Error: surplus argument: .bin` is true and useless: `.bin` is not on the
+      command line the reader remembers writing, so the message reads as a
+      defect in the tool. It now names both halves and the whole they came from,
+      says why the cut was made, and offers the two spellings that survive it --
+      quoting, and (for `-o`) the separated form. **The shell is not detected**;
+      the signature is a shape in argv -- a surplus argument beginning with a
+      dot, standing behind a single-dash flag group that attached a NAME and
+      carries no dot or colon of its own. Reading the parent process would be
+      fragile, untestable, and wrong the moment the command line came from a
+      script. The last condition is what keeps ordinary command lines out:
+      `./prog.a65` behind `-oout.bin` has the shape and is not a fragment, and
+      the front half proves it, because it still carries the dot the shell would
+      have cut at. **The whole command line is searched, not the pair at hand**,
+      because which argument ends up surplus depends on the typing order:
+      `prog.a65 -oprog.bin` leaves `.bin` surplus, while `-oprog.bin prog.a65`
+      lets `.bin` fill the source slot and makes `prog.a65` surplus
+- [x] T125 **`run` and `disk` were checked for the same signature and do not
+      carry it.** Every value in both grammars is SEPARATED, so a value is its
+      own token, never begins with `-`, and is never a parameter name to be cut;
+      no valid command line in either can be mangled. The only way to reach the
+      shape there is a glued spelling neither grammar accepts, where the right
+      answer is "that flag takes its value separately" rather than "quote it" --
+      which is what both already say. Wiring the recognition in would have been
+      an arm nothing reaches, so it is recorded at the predicate instead
+
+---
+
 ## Dependencies
+
 
 ```text
 Phase 1 (Setup)

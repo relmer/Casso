@@ -1114,6 +1114,84 @@ namespace CommandLineTests
                               L"and a filename is not a flag at all");
         }
 
+        //
+        //  THE SHELL-SPLIT SIGNATURE, which is the other cause a surplus
+        //  argument can have and by far the commonest one on this project's own
+        //  machines.
+        //
+        //  PowerShell parses a token beginning with a single `-` as a parameter
+        //  name and a parameter name may not contain a `.`, so it cuts
+        //  `-oprog.bin` into `-oprog` and `.bin` before this program starts.
+        //  Both halves reach the parser, the second has nowhere to go, and
+        //  "surplus argument: .bin" describes nothing the reader typed.
+        //
+        //  EVERY CASE BELOW WAS MEASURED by handing the argument to a native
+        //  executable that prints its argv, under PowerShell 7.6.5 and Windows
+        //  PowerShell 5.1. None of it is inferred from documentation.
+        //
+        //  These pin the RULE rather than the sentence. The message goes to the
+        //  error stream, which the parser writes and does not keep, so the only
+        //  place a test can hold the decision is the predicate that makes it --
+        //  the same reason IsPlainDecimal and TrailingParameterFlag are public.
+        //
+        TEST_METHOD (TheShellSplitSignature_IsTheHalvesAndNotTheShell)
+        {
+            Assert::IsTrue (CommandLineParser::IsShellSplitFragment ("-oprog", ".bin"),
+                L"the first dot is where PowerShell ends a parameter name");
+            Assert::IsTrue (CommandLineParser::IsShellSplitFragment ("-lprog", ".lst"),
+                L"every flag that attaches a NAME can be cut, not just -o");
+            Assert::IsTrue (CommandLineParser::IsShellSplitFragment ("-osub\\x", ".bin"),
+                L"a path separator does not cut, so the front half can hold one");
+
+            Assert::IsFalse (CommandLineParser::IsShellSplitFragment ("-t", ".bin"),
+                L"-t attaches no value, so nothing of it could have been cut off");
+            Assert::IsFalse (CommandLineParser::IsShellSplitFragment ("-h60", ".bin"),
+                L"a numeric parameter is digits, and digits carry no dot");
+            Assert::IsFalse (CommandLineParser::IsShellSplitFragment ("-oprog", "extra.a65"),
+                L"a whole word is a second filename, not the back half of one");
+            Assert::IsFalse (CommandLineParser::IsShellSplitFragment ("--flat", ".bin"),
+                L"a `--` option is not a parameter name and arrives whole");
+            Assert::IsFalse (CommandLineParser::IsShellSplitFragment ("/oprog", ".bin"),
+                L"nor is a `/` option -- /oprog.bin was measured arriving whole");
+
+            //  TWO CONDITIONS KEEP ORDINARY COMMAND LINES OUT, and both read
+            //  the FRONT half, because the front half is what shows whether a
+            //  cut was made. `-oout.bin` still carries the dot the shell would
+            //  have cut at, and `-oC:` carries a colon, which suppresses the
+            //  cut outright -- `-oC:\out\prog.bin` was measured arriving whole.
+            Assert::IsFalse (CommandLineParser::IsShellSplitFragment ("-oout.bin", "./prog.a65"),
+                L"a front half still holding its own dot was never cut");
+            Assert::IsFalse (CommandLineParser::IsShellSplitFragment ("-oC:", "\\out\\prog.bin"),
+                L"and a colon before the first dot means nothing was cut at all");
+        }
+
+        //  The mangling as it actually arrives, in the order that leaves the
+        //  back half surplus.
+        TEST_METHOD (Assembly_AMangledOutputName_IsStillRefused)
+        {
+            ArgVector           args = { "CassoCli", "prog.a65", "-oprog", ".bin" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                L"half a filename is not silently written to `prog`");
+            Assert::AreEqual (std::string ("prog"), opts.outputFile,
+                L"and the half that was read is not repaired behind the caller's back");
+        }
+
+        //  THE SAME MISTAKE TYPED THE OTHER WAY ROUND, where the back half
+        //  lands in the source-file slot and the real source file is what ends
+        //  up surplus. It is why the signature is looked for across the whole
+        //  command line rather than at the pair that tripped the refusal.
+        TEST_METHOD (Assembly_AMangledOutputNameBeforeTheSource_IsRefused)
+        {
+            ArgVector           args = { "CassoCli", "-oprog", ".bin", "prog.a65" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
+            Assert::AreEqual (std::string (".bin"), opts.inputFile,
+                L"the back half filled the source slot, which is what displaced prog.a65");
+        }
+
         TEST_METHOD (Run_ASecondInputFile_IsRefused)
         {
             ArgVector           args = { "CassoCli", "run", "prog.a65", "extra" };
@@ -1465,18 +1543,83 @@ namespace CommandLineTests
                 L"a bare -o names no file, which as65 has no form for");
         }
 
-        //  THE SEPARATED `-o <file>` IS THE ONE CALLERS MEET FIRST, because
-        //  this project's own examples were written with it. It must not
-        //  quietly write the derived name and report success, and it must not
-        //  read the filename as the source file either.
-        TEST_METHOD (SeparatedOutputName_IsRefused_RatherThanWritingTheDerivedName)
+        //  THE SEPARATED `-o <file>` IS TAKEN, by owner decision, and it is the
+        //  one form that survives PowerShell: that shell cuts an unquoted
+        //  `-oprog.bin` into `-oprog` and `.bin`, because a parameter name
+        //  cannot hold a `.`. Accepting it takes MORE than as65 does and never
+        //  less, so no as65 command line changes meaning.
+        TEST_METHOD (SeparatedOutputName_IsTaken_AndDoesNotBecomeTheSourceFile)
         {
             ArgVector           args = { "CassoCli", "demo.a65", "-o", "custom.out" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
-            Assert::AreNotEqual (std::string ("custom.out"), opts.outputFile,
-                L"the separated form is not silently honored");
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
+            Assert::AreEqual (std::string ("custom.out"), opts.outputFile);
+            Assert::AreEqual (std::string ("demo.a65"), opts.inputFile,
+                L"and the filename beside it is not read as the source");
+        }
+
+        //  The flag may stand before the source file as well as after it, which
+        //  is where a caller who reaches for the separated form usually puts it.
+        TEST_METHOD (SeparatedOutputName_WorksBeforeTheSourceFile)
+        {
+            ArgVector           args = { "CassoCli", "-o", "custom.out", "demo.a65" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
+            Assert::AreEqual (std::string ("custom.out"), opts.outputFile);
+            Assert::AreEqual (std::string ("demo.a65"), opts.inputFile);
+        }
+
+        //  AN ABSOLUTE PATH, ATTACHED AND SEPARATED, because a caller reaching
+        //  for the separated form is usually naming a directory. Both are
+        //  checked together: whatever the separated form gains, the glued one
+        //  as65 documents has to keep working unchanged.
+        TEST_METHOD (OutputName_TakesAnAbsolutePathAttachedOrSeparated)
+        {
+            ArgVector           separated = { "CassoCli", "demo.a65", "-o", "C:\\tmp\\prog.bin" };
+            CommandLineOptions  apart     = CommandLineParser::Parse (separated.Count(), separated.Data(), NoProbe());
+
+            Assert::IsTrue (apart.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
+            Assert::AreEqual (std::string ("C:\\tmp\\prog.bin"), apart.outputFile);
+
+            ArgVector           glued  = { "CassoCli", "demo.a65", "-oC:\\tmp\\prog.bin" };
+            CommandLineOptions  joined = CommandLineParser::Parse (glued.Count(), glued.Data(), NoProbe());
+
+            Assert::IsTrue (joined.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
+            Assert::AreEqual (std::string ("C:\\tmp\\prog.bin"), joined.outputFile,
+                L"the glued form as65 documents is untouched");
+        }
+
+        //  THE SEPARATED VALUE IS TAKEN VERBATIM. Skipping one that "looks like
+        //  a flag" would be a guess about what the caller meant, and a file may
+        //  legitimately be named that way.
+        TEST_METHOD (SeparatedOutputName_IsTakenWhateverItLooksLike)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-o", "-t" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (std::string ("-t"), opts.outputFile);
+            Assert::IsFalse (opts.symbolTable, L"and it is a filename, not the flag it resembles");
+        }
+
+        //  NO OTHER FLAG GAINS A SEPARATED FORM, and the reason is ambiguity
+        //  rather than caution: -l, -d, -w and -g each have a bare form as65
+        //  documents, so the word after one of them is genuinely ambiguous with
+        //  that bare reading and telling the two apart takes a guess. -o has no
+        //  bare form, which is what leaves nothing to guess about.
+        TEST_METHOD (TheSeparatedForm_ReachesNoOtherFlag)
+        {
+            const char *  kGluedOnly[] = { "-l", "-d", "-w", "-g" };
+
+            for (const char * flag : kGluedOnly)
+            {
+                ArgVector           args = { "CassoCli", "demo.a65", flag, "value" };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                    (std::wstring (L"the word after this flag is still surplus: ") + Widen (flag)).c_str());
+            }
         }
 
         TEST_METHOD (SRecordFlag_InfersS19Extension)

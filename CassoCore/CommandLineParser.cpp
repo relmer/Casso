@@ -231,9 +231,10 @@ bool CommandLineParser::IsPlainDecimal (const std::string & text)
 //  is surplus but that `-llisting.txt` is the spelling that would have worked.
 //
 //  ONLY THE LETTERS WHOSE BARE FORM IS LEGAL ARE HERE. `-h` and `-o` also take
-//  parameters, and both are refused outright when they are given none, so
-//  neither can ever be the argument standing in front of a surplus one. Listing
-//  them would be an arm nothing reaches.
+//  parameters and neither can ever be the argument standing in front of a
+//  surplus one: a bare `-h` is refused outright, and a bare `-o` CONSUMES the
+//  argument after it, so nothing is left over to be surplus. Listing them would
+//  be an arm nothing reaches.
 //
 //  A `--` long option is excluded because none of this grammar's long options
 //  take a value at all, so its last letter says nothing about what follows it.
@@ -257,6 +258,184 @@ char CommandLineParser::TrailingParameterFlag (const std::string & previous)
     }
 
     return flag;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsShellSplitFragment
+//
+//  Whether `arg` is the back half of an argument a SHELL cut in two, with
+//  `previous` as the front half.
+//
+//  PowerShell parses a token beginning with a single `-` as a parameter name,
+//  and a parameter name may not contain a `.`. The token therefore ENDS at the
+//  first dot and the remainder arrives as an argument of its own. MEASURED by
+//  passing each of these to a native executable that prints its argv, under
+//  PowerShell 7.6.5 and Windows PowerShell 5.1 alike:
+//
+//      -oprog.bin        ->  -oprog     .bin
+//      -oprog.bin.x      ->  -oprog     .bin.x     (the FIRST dot, not the last)
+//      -osub\x.bin       ->  -osub\x    .bin       (a separator does not cut)
+//      -dVER=1.0         ->  -dVER=1    .0
+//      -o.bin            ->  -o         .bin
+//      -oC:\out\prog.bin ->  arrives whole
+//      /oprog.bin        ->  arrives whole
+//      --flat.x          ->  arrives whole
+//      -h60  -oa_b  -oa-b  -oa1        ->  each arrives whole
+//
+//  THREE OF THOSE ARE IMMUNE AND IT IS WORTH KNOWING WHY. A `:` anywhere before
+//  the first dot suppresses the split outright -- that is the `-name:value`
+//  syntax -- so an absolute path glues fine while the relative name beside it
+//  does not, which is what makes the failure look random to whoever meets it. A
+//  `/` prefix and a `--` prefix are not parameter names at all and are handed
+//  over untouched.
+//
+//  No other shell does any of this: cmd.exe, bash, make and any argument array
+//  pass the whole token, which is why as65 parity is untouched by all of it.
+//
+//  THE SHELL IS NOT DETECTED, THE SHAPE IS. Reading the parent process would be
+//  fragile, untestable, and wrong the moment the command line arrives from a
+//  script. Every condition below is visible in argv itself:
+//
+//    the back half   begins with the `.` the cut was made at
+//    the front half  is a single-dash flag group ENDING IN AN ATTACHED NAME.
+//                    Only -o, -l, -d and -s take a string parameter; -h and -w
+//                    take digits, and digits hold no dot
+//    uncut           the front half itself contains neither a `.` nor a `:`.
+//                    The cut is made at the FIRST dot and a colon prevents it
+//                    entirely, so a front half carrying either was never cut
+//
+//  THAT LAST CONDITION IS WHAT KEEPS AN ORDINARY COMMAND LINE OUT. A relative
+//  path written `./prog.a65` standing behind `-oout.bin` satisfies the first
+//  two and is not a fragment at all -- and the front half says so, because
+//  `-oout.bin` still carries the dot the shell would have cut at.
+//
+//  A FRONT HALF OF EXACTLY `-o` IS NOT ONE EITHER, and needs no diagnostic: the
+//  flag now takes a separated value, so `-o.bin` and `-o..\out\p.bin` arrive as
+//  two arguments and mean precisely what was typed.
+//
+//  NEITHER `run` NOR `disk` CAN PRODUCE THIS SHAPE, which is why neither of
+//  them asks. Every value in those grammars is SEPARATED -- `--out prog.bin`,
+//  `-o prog.bin` -- so a value is its own token, does not begin with `-`, and
+//  is never a parameter name to be cut. The one way to reach the shape there is
+//  to type a glued spelling neither grammar accepts, where the answer is not
+//  "quote it" but "that flag takes its value separately" -- which is what those
+//  grammars already say.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsShellSplitFragment (const std::string & previous,
+                                              const std::string & arg)
+{
+    //  The as65 flags whose parameter is a STRING, which is to say a name or a
+    //  path -- the only values that can carry a dot at all.
+    std::string_view  kAttachesAName = "odls";
+    bool              isBackHalf     = !arg.empty() && arg[0] == '.';
+    bool              isFlagGroup    = previous.size() >= 3 &&
+                                       previous[0] == '-' &&
+                                       previous[1] != '-';
+    size_t            attached       = std::string::npos;
+    bool              attachesAName  = false;
+    bool              isUncut        = false;
+
+
+
+    if (isBackHalf && isFlagGroup)
+    {
+        attached      = previous.find_first_of (kAttachesAName, 1);
+        attachesAName = attached != std::string::npos && attached + 1 < previous.size();
+        isUncut       = previous.find_first_of (".:") == std::string::npos;
+    }
+
+    return isBackHalf && isFlagGroup && attachesAName && isUncut;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindShellSplitFragment
+//
+//  The index of the first argument a shell cut off its flag, or 0.
+//
+//  THE WHOLE COMMAND LINE IS SEARCHED RATHER THAN THE PAIR AT HAND, because
+//  which argument ends up with nowhere to go depends on the order the user
+//  typed. `casso prog.a65 -oprog.bin` leaves the back half `.bin` surplus and it
+//  is the fragment itself; `casso -oprog.bin prog.a65` lets `.bin` fill the
+//  source-file slot instead and makes `prog.a65` the surplus one. One mistake,
+//  reported at two different arguments -- so the diagnostic names the halves it
+//  found rather than whichever argument happened to trip the refusal.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CommandLineParser::FindShellSplitFragment (int argc, char * argv[])
+{
+    int  found = 0;
+
+
+
+    for (int i = 1; (i < argc) && (found == 0); i++)
+    {
+        if (IsShellSplitFragment (argv[i - 1], argv[i]))
+        {
+            found = i;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReportShellSplitFragment
+//
+//  Says what cut the argument in half, and gives the spellings that survive it.
+//
+//  BOTH HALVES ARE NAMED, AND SO IS THE WHOLE THEY CAME FROM, because the
+//  reader typed the whole and has never seen either half. "surplus argument:
+//  .bin" is true and answers nothing on its own -- `.bin` is not on the command
+//  line the reader remembers writing, so the message reads as a bug in the tool
+//  rather than as something the shell did on the way in.
+//
+//  THE SEPARATED FORM IS OFFERED ONLY FOR -o, because -o is the only flag that
+//  takes one -- see the flag's own arm for why the others cannot. Quoting works
+//  for every one of them and is always offered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::ReportShellSplitFragment (const std::string & head,
+                                                  const std::string & fragment)
+{
+    std::string  whole      = head + fragment;
+    bool         isOutputTo = head.size() > 2 && head[1] == 'o';
+
+
+
+    std::cerr << "       PowerShell cut " << whole << " in two, into " << head
+              << " and " << fragment << ": a token\n"
+              << "       starting with `-` is a parameter name, and a parameter name\n"
+              << "       cannot contain a dot.\n"
+              << "       Quote it -- '" << whole << "' -- ";
+
+    if (isOutputTo)
+    {
+        std::cerr << "or write it separated: " << head.substr (0, 2) << " "
+                  << whole.substr (2) << "\n";
+    }
+    else
+    {
+        std::cerr << "and it arrives whole.\n";
+    }
 }
 
 
@@ -1110,16 +1289,22 @@ CommandLineOptions::Subcommand CommandLineParser::LookUpSubcommand (const std::s
 //
 //  CONCATENATION IS CONFINED TO THIS FUNCTION and belongs to as65 alone. It is
 //  the reason `-lsc` is three flags rather than one unknown one, and it is also
-//  the reason `-o` swallows whatever follows it -- neither is a property anyone
-//  would design in today. `run` and `disk` are modern grammars parsed
-//  elsewhere; neither packs, and the help says so under Assembly options rather
-//  than as a claim about the tool.
+//  the reason `-o` swallows the rest of its own argument -- neither is a
+//  property anyone would design in today. `run` and `disk` are modern grammars
+//  parsed elsewhere; neither packs, and the help says so under Assembly options
+//  rather than as a claim about the tool.
+//
+//  ONE FLAG ALSO READS THE ARGUMENT AFTER ITS OWN, and exactly one: `-o` takes
+//  a separated filename as well as a glued one. That is more than as65 accepts
+//  and never less, and it is confined to the flag with no bare form to be
+//  ambiguous with -- the arm says why at length.
 //
 //  The stop flag ends parsing outright for a help request, a withdrawn or
-//  unknown `--` option, a bare -o, or a single letter this grammar does not
-//  have, so no later argument can quietly undo the decision. Only the last of
-//  those sets showHelp, which is what puts the usage page on the screen; the
-//  others answer by name instead -- see each refusal for why.
+//  unknown `--` option, an -o with nothing at all after it, or a single letter
+//  this grammar does not have, so no later argument can quietly undo the
+//  decision. Only the last of those sets showHelp, which is what puts the usage
+//  page on the screen; the others answer by name instead -- see each refusal
+//  for why.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1270,10 +1455,19 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
         //  so -- a surplus argument that is all digits, and an option standing
         //  in front of it that takes a parameter -- and when either holds the
         //  glued spelling is offered by name.
+        //
+        //  THE SHELL IS ASKED ABOUT FIRST, because when it cut the command line
+        //  the "surplus" argument was never typed. `casso prog.a65 -oprog.bin`
+        //  in PowerShell arrives as `-oprog` and `.bin`, and "surplus argument:
+        //  .bin -- assembling takes one source file" is true of nothing the
+        //  reader wrote. It is asked of the whole command line rather than of
+        //  this pair, because which half lands where depends on the typing
+        //  order -- see FindShellSplitFragment.
         if (arg[0] != '-' && arg[0] != '/')
         {
             std::string  previous   = (argIndex > 1) ? argv[argIndex - 1] : "";
             char         wantsValue = TrailingParameterFlag (previous);
+            int          cutHere    = 0;
 
             if (options.inputFile.empty())
             {
@@ -1282,19 +1476,29 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                 continue;
             }
 
-            std::cerr << "Error: surplus argument: " << arg << "\n"
-                      << "       Assembling takes one source file, and "
-                      << options.inputFile << " is already it.\n";
+            cutHere = FindShellSplitFragment (argc, argv);
 
-            if (wantsValue != 0)
+            std::cerr << "Error: surplus argument: " << arg << "\n";
+
+            if (cutHere != 0)
             {
-                std::cerr << "       If " << arg << " was meant as a value, as65 glues it to its option:\n"
-                          << "       " << previous << arg << ", not " << previous << " " << arg << ".\n";
+                ReportShellSplitFragment (argv[cutHere - 1], argv[cutHere]);
             }
-            else if (IsPlainDecimal (arg))
+            else
             {
-                std::cerr << "       If " << arg << " was meant as a value, as65 glues every value to its\n"
-                          << "       option, with no space between them.\n";
+                std::cerr << "       Assembling takes one source file, and "
+                          << options.inputFile << " is already it.\n";
+
+                if (wantsValue != 0)
+                {
+                    std::cerr << "       If " << arg << " was meant as a value, as65 glues it to its option:\n"
+                              << "       " << previous << arg << ", not " << previous << " " << arg << ".\n";
+                }
+                else if (IsPlainDecimal (arg))
+                {
+                    std::cerr << "       If " << arg << " was meant as a value, as65 glues every value to its\n"
+                              << "       option, with no space between them.\n";
+                }
             }
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
@@ -1344,23 +1548,52 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                 break;
 
             //  as65: `-o<filename>`. A STRING parameter, glued, with nothing
-            //  following it in the group.
+            //  following it in the group -- and that form is untouched.
             //
-            //  THE SEPARATED `-o <file>` IS GONE AND IT IS THE ONE CALLERS MEET
-            //  FIRST -- this project's own examples were written with it -- so
-            //  a bare -o is answered with the form to type rather than with a
-            //  bare complaint. Left as an unknown option it would be actively
-            //  misleading: `-o prog.bin` would refuse while pointing at nothing,
-            //  and the filename standing next to it would have been read as the
-            //  source file.
+            //  THE SEPARATED `-o <file>` IS ACCEPTED AS WELL, by owner
+            //  decision. It takes MORE than as65 does and never less, so every
+            //  as65 command line still reads exactly as as65 reads it, and
+            //  nothing that used to assemble stops assembling.
             //
-            //  Refusing it also retires a hang for good. A trailing `-o` used to
-            //  match no branch and advance nothing, so the walk reread the same
-            //  character forever and the process had to be killed.
+            //  WHAT EARNS IT IS A SHELL, NOT A PREFERENCE. PowerShell parses a
+            //  token beginning with a single `-` as a parameter name, and a
+            //  parameter name may not contain a `.`, so it cuts `-oprog.bin`
+            //  into `-oprog` and `.bin` before this program is even started.
+            //  Nearly every output name has an extension, so in that shell --
+            //  the one this tool is typed into most -- the glued form does not
+            //  survive being typed unquoted.
+            //
+            //  IT DOES NOT EVEN FAIL CONSISTENTLY, which is the other half of
+            //  the case for accepting a separated value. A colon before the
+            //  first dot suppresses the cut, so `-oC:\out\prog.bin` arrives
+            //  whole and works while `-oprog.bin` beside it does not. See
+            //  IsShellSplitFragment for the measurement behind both.
+            //
+            //  ONLY -o TAKES A SEPARATED VALUE, AND THE ASYMMETRY IS THE POINT
+            //  RATHER THAN AN OVERSIGHT. -l, -d, -w and -g each have a bare
+            //  form as65 documents -- a listing to standard output, a DEBUG
+            //  definition, 133 columns, and no parameter at all -- so for any
+            //  of them the word that follows is genuinely ambiguous with the
+            //  bare reading, and telling the two apart takes a GUESS about what
+            //  that word looks like. That guess was here for -d, where it
+            //  defined a label called `demo.a65`, and it was deleted for being
+            //  unprincipled. -o has NO bare form -- one is refused below -- so
+            //  the argument after it can only be its filename, and no guess is
+            //  involved. Ambiguity is what separates the two cases, and -o is
+            //  the only flag that has none.
+            //
+            //  It is taken VERBATIM, whatever it looks like. Skipping a value
+            //  that "looks like a flag" would be the same guess arriving by a
+            //  different door, and a file may legitimately be named one.
+            //
+            //  AN -o WITH NOTHING AFTER IT AT ALL IS STILL REFUSED, which also
+            //  retires a hang for good: it used to match no branch and advance
+            //  nothing, so the walk reread the same character forever and the
+            //  process had to be killed.
             //
             //  showHelp IS NOT SET, which parts this from the unknown-option
             //  refusal below on the same rule the `--out` refusal already uses:
-            //  these three lines ARE the answer, and the usage page would bury
+            //  these two lines ARE the answer, and the usage page would bury
             //  them. An option that does not exist is the case with nothing
             //  specific to say, and that one gets the page.
             case 'o':
@@ -1368,13 +1601,17 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                 {
                     options.outputFile = rest;
                 }
+                else if (argIndex + 1 < argc)
+                {
+                    options.outputFile = argv[argIndex + 1];
+                    argIndex++;
+                }
                 else
                 {
-                    std::cerr << "Error: " << options.flagPrefix << "o takes its filename ATTACHED: "
-                              << options.flagPrefix << "oprog.bin\n"
-                              << "       as65 glues every filename to its option, so a separated\n"
-                              << "       " << options.flagPrefix
-                              << "o prog.bin would read prog.bin as the source file.\n";
+                    std::cerr << "Error: " << options.flagPrefix
+                              << "o needs a filename after it, attached or separated:\n"
+                              << "       " << options.flagPrefix << "oprog.bin, or "
+                              << options.flagPrefix << "o prog.bin\n";
 
                     options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
                     stop                 = true;

@@ -8,7 +8,37 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+- **`-o` takes a separated filename as well as an attached one.** `-o prog.bin`
+  now means what `-oprog.bin` means. That accepts MORE than as65 does and never
+  less, so every as65 command line still reads exactly as as65 reads it. What
+  earns it is a shell rather than a preference: PowerShell parses a token
+  beginning with a single `-` as a parameter name, a parameter name may not
+  contain a dot, and so it cuts `-oprog.bin` into `-oprog` and `.bin` before
+  Casso is started — measured against a native executable that prints its argv,
+  under PowerShell 7.6.5 and Windows PowerShell 5.1 alike. It does not even fail
+  consistently: a colon before the first dot suppresses the cut, so
+  `-oC:\out\prog.bin` arrives whole and works while the relative name beside it
+  does not. No other shell does any of this — cmd.exe, bash, make and any
+  argument array pass the token whole. **`-o` only.** `-l`, `-d`, `-w` and `-g`
+  each have a bare form as65 documents, so for them a following word is
+  genuinely ambiguous with that bare reading and telling the two apart would
+  take a guess; `-o` has no bare form, which is what leaves nothing to guess
+  about. An `-o` with nothing at all after it is still refused.
+
 ### Fixed
+- **An argument the shell cut off a flag now says that is what happened.**
+  `casso prog.a65 -oprog.bin`, typed unquoted in PowerShell, answered `Error:
+  surplus argument: .bin` — true, and about nothing the reader had typed, since
+  `.bin` never appeared on the command line they wrote. It now names both halves
+  and the whole they came from, says why the cut was made, and gives the two
+  spellings that survive it: quote the argument, or write it separated. The
+  recognition is a SHAPE in argv — a surplus argument beginning with a dot,
+  behind a single-dash flag group that attached a name and carries no dot or
+  colon of its own — not a check on which shell is running, which would be
+  fragile and untestable. It reaches the assembler grammar alone: every value in
+  `run` and `disk` is separated, so a value there is its own token, never begins
+  with `-`, and is never a parameter name to be cut.
 - **An argument with nowhere to go is now an error instead of being thrown
   away.** `CassoCli pg.a65 -opg.bin -h 60` assembled, wrote the binary, exited
   0, and never said that `60` had gone nowhere — so a build script asking for

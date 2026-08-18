@@ -150,6 +150,13 @@ public:
     static bool  IsPlainDecimal        (const std::string & text);
     static char  TrailingParameterFlag (const std::string & previous);
 
+    //  Whether an argument is the BACK HALF of one a shell cut in two, with the
+    //  argument in front of it as the front half. Public for the same reason:
+    //  what it decides is only ever seen as text on the error stream, so a test
+    //  can pin the rule here or nowhere.
+    static bool  IsShellSplitFragment (const std::string & previous,
+                                       const std::string & arg);
+
     //  Whether an argument is an option that grammar HAS and which takes a
     //  value, so an option that merely ran out of command line is not reported
     //  as one that does not exist.
@@ -166,6 +173,12 @@ private:
     //  occupied -- which is where the flag ends and the next one in the group
     //  begins.
     static size_t  TakeGluedCount (const std::string & rest, int & value);
+
+    //  The index of the first argument a shell cut off its flag, or 0 when the
+    //  command line carries none -- and the two lines that explain one.
+    static int   FindShellSplitFragment   (int argc, char * argv[]);
+    static void  ReportShellSplitFragment (const std::string & head,
+                                           const std::string & fragment);
 
     static std::string  TryAutoExtend  (const std::string & path, const FileExistsFn & fileExists);
     static std::string  StripExtension (const std::string & path);
