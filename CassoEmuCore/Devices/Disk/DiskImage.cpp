@@ -540,6 +540,7 @@ void DiskImage::LoadFromBytes (DiskFormat fmt, const vector<Byte> & raw, const s
     m_loaded         = false;
     m_dirty          = false;
     m_rawSourceBytes = raw;
+    m_wozMetadata.Clear();
     InitWholeTrackMap();
 
     switch (fmt)
@@ -609,6 +610,7 @@ HRESULT DiskImage::Load (const string & filePath)
     m_dirty          = false;
     m_format         = DiskFormat::Dsk;
     m_rawSourceBytes = move (raw);
+    m_wozMetadata.Clear();
     InitWholeTrackMap();
 
 Error:
@@ -656,6 +658,7 @@ void DiskImage::Eject()
 
     m_filePath.clear();
     m_rawSourceBytes.clear();
+    m_wozMetadata.Clear();
     m_trackBits.assign      (kDefaultTrackCount, vector<Byte> ());
     m_trackBitCounts.assign (kDefaultTrackCount, 0);
     m_trackDirty.assign     (kDefaultTrackCount, false);

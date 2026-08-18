@@ -29,6 +29,32 @@ Entries before versioning was introduced use dates only.
   tests; the grammar's one filesystem question — does `build` name a real
   `build.a65`? — is injected rather than probed directly.
 
+### Fixed
+- **Saving a WOZ no longer strips its metadata.** A round trip through Casso
+  deleted the `META` chunk outright and overwrote most of `INFO`, so every WOZ
+  that passed through a flush came back degraded: a preservation dump lost its
+  title, publisher, developer, copyright, language and imaging provenance, and
+  its creator field was replaced with `Casso`. The cause was the write-back
+  path itself — it rebuilds the file from the live per-track buffers, which is
+  what makes guest writes survive, and a writer that reconstructs from the
+  track model can only emit what that model holds. The image now retains the
+  source `INFO` chunk and every chunk Casso does not parse, and re-emits them
+  unchanged, so a flush preserves them byte for byte while still writing guest
+  writes out. Verified across the demo library: all six intact WOZ 2 dumps now
+  round-trip byte for byte.
+
+  Two consequences worth knowing. Casso stamps its own name into `creator`
+  only on a disk it authored itself and preserves whoever imaged the disk
+  otherwise — overwriting that field destroys the one record of where a dump
+  came from. And a chunk Casso has never heard of no longer ends the chunk
+  walk: it is stepped over and kept, where before it stopped the scan and took
+  every chunk after it down with it.
+- **A WOZ 1 image upgraded to WOZ 2 keeps what version 1 recorded.** Casso
+  always writes version 2. The fields version 1 never had are now filled for
+  the two with no legal zero — disk sides and optimal bit timing — while the
+  three Casso cannot derive stay `unknown` rather than being guessed at.
+  Creator, synchronized and cleaned carry across.
+
 ## [1.16.2] — safer disk image writes
 
 ### Fixed
