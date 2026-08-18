@@ -38,6 +38,7 @@ from cadkit import KD, Model, round_rect_wire, sag_sheet
 # giant square with the picture letterboxed inside it.
 
 import math
+import sys
 
 EMU_ASPECT = 280.0 / 192.0        # the emulator display's own aspect
 DIAG_MM    = 11.0 * 25.4          # visible diagonal; the 12-in figure is the
@@ -142,6 +143,13 @@ GZ0, GZ1  = BZ0 + BEZEL_FW, BZ1 - BEZEL_FW
 NOTCH_H   = 15.0                  # shallow: just enough throw for the button
 NOTCH_D   = 25.4                  # 1 in front to back
 
+# The cutter starts slightly proud of the face so the boolean never has to
+# resolve coincident faces. What that leaves at the far end is the notch's
+# REAR WALL, and anything mounted inside the pocket hangs off it -- so name
+# it once here rather than letting each part guess its own depth.
+NOTCH_OVERCUT = 0.5
+NOTCH_REAR_Y  = NOTCH_D - NOTCH_OVERCUT
+
 # The button's face sits this far behind the case face, with clearance left
 # behind it inside the notch. Its thickness is what is LEFT of the notch's
 # depth once both are taken, so deepening the notch thickens the button and
@@ -203,7 +211,7 @@ case = case.cut(
 # the button be pressed from above.
 case = case.cut(
     cq.Workplane("XY").box(NOTCH_W, NOTCH_D, NOTCH_H + 2.0, centered=(False, False, False))
-      .translate((NX0, -0.5, NZ0)))
+      .translate((NX0, -NOTCH_OVERCUT, NZ0)))
 
 # Finer than the default, and note it is the ANGULAR tolerance doing the
 # work: at 3 mm the chords never sag far enough for the linear one to bite,
@@ -323,9 +331,16 @@ m.add("button", button, BEZEL_DK)
 # short -- long axis left to right.
 # Trimmed twice on review against the reference: 5% off the first pass,
 # then another 20% -- a power LED is a sliver, not a light bar.
+#
+# Mounted ON the notch's rear wall. It used to start 1.6 mm behind the case
+# face, which left it floating 21.9 mm clear of the wall it is supposed to
+# be attached to -- a lamp hanging in the mouth of the pocket rather than
+# fixed at the back of it.
+LED_T = 1.4
 led = (cq.Workplane("XY")
-       .box(14.4, 1.4, 3.5, centered=(False, False, False))
-       .translate((NX0 + (NOTCH_W - 14.4) * 0.5, 1.6, NZ0 + NOTCH_H - 5.7)))
+       .box(14.4, LED_T, 3.5, centered=(False, False, False))
+       .translate((NX0 + (NOTCH_W - 14.4) * 0.5, NOTCH_REAR_Y - LED_T,
+                   NZ0 + NOTCH_H - 5.7)))
 
 m.add("led", led, KD["monitor_lamp"])
 
@@ -345,13 +360,22 @@ RELIEF_ROUND = 0.35                        # front-edge round-over on all
 #
 # Only the front edges are rounded. The side walls stay square where they
 # meet the face, which is what keeps the relief looking seated in the panel
-# rather than glued on. Returns the solid untouched if the kernel cannot
-# take the radius -- a fillet that fails on one glyph should not take the
-# whole model down with it.
-def round_front(solid, radius=RELIEF_ROUND):
+# rather than glued on.
+#
+# A failed fillet still returns the solid rather than taking the whole model
+# down -- but it SAYS SO, loudly. This used to fall back in silence, and the
+# tilt icons shipped square-edged for it: the only symptom was that they
+# looked flat, which got diagnosed as a lighting fault twice before anyone
+# asked whether the round-over had actually been applied. A fallback nobody
+# can see is worse than a crash.
+def round_front(solid, radius=RELIEF_ROUND, name="relief"):
     try:
         return solid.edges("<Y").fillet(radius)
-    except Exception:
+    except Exception as exc:
+        print(f"WARNING: {name}: front-edge round-over FAILED "
+              f"({type(exc).__name__}: {exc}) -- shipping it SQUARE-EDGED, "
+              f"which will read as flat rather than molded",
+              file=sys.stderr)
         return solid
 
 
@@ -405,9 +429,9 @@ icon_bar = (cq.Workplane("XY")
             .box(RIDGE_W, RIDGE_H, BAR_H, centered=(False, False, False))
             .translate((ICON_CX - RIDGE_W * 0.5, -RIDGE_H, ICON_CZ - BAR_H * 0.5)))
 
-m.add("icon_sq",   round_front(icon_sq),   BEIGE)
-m.add("icon_ring", round_front(icon_ring), BEIGE)
-m.add("icon_bar",  round_front(icon_bar),  BEIGE)
+m.add("icon_sq",   round_front(icon_sq,   name="icon_sq"),   BEIGE)
+m.add("icon_ring", round_front(icon_ring, name="icon_ring"), BEIGE)
+m.add("icon_bar",  round_front(icon_bar,  name="icon_bar"),  BEIGE)
 
 # --------------------------------------------------- bezel tilt icons
 #
@@ -501,7 +525,10 @@ def tilt_icon(z_bottom, pointing_up):
     # square-edged without saying so. That is why these read as flat bright
     # lines next to a power icon that reads as relief: the round-over written
     # to fix exactly this had never once been applied to them.
-    return round_front(ring).union(round_front(bar)).union(round_front(tri))
+    tag = "tilt_up" if pointing_up else "tilt_down"
+    return (round_front(ring, name=f"{tag} ring")
+            .union(round_front(bar, name=f"{tag} bar"))
+            .union(round_front(tri, name=f"{tag} triangle")))
 
 
 m.add("tilt_up",
