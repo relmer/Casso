@@ -178,12 +178,15 @@ void DiskManager::ApplyExternalWriteProtect (
 //
 //  ToggleImageWriteProtect
 //
-//  WOZ carries its own write-protect flag (INFO byte 2), so the toggle
-//  flips the image flag and persists it -- pending guest writes are
-//  flushed FIRST because a protected image drops dirty content at flush,
-//  and the flag itself lands via ForceFlush, which persists regardless of
-//  the (now-set) gate. Sector-image formats have no in-image flag, so the
-//  toggle sets or clears the backing file's read-only attribute instead.
+//  WOZ carries its own write-protect flag (INFO byte 2), so the toggle has
+//  to reach the file. SetImageWriteProtect does the whole operation --
+//  flush pending guest writes, patch the one flag byte, recompute the
+//  header CRC, write it back atomically, then move the live image's flag to
+//  match. That ordering used to live here, split across a Flush, a flag
+//  assignment and a ForceFlush, and getting it wrong lost data; it belongs
+//  with the operation, not with the menu handler. Sector-image formats have
+//  no in-image flag, so the toggle sets or clears the backing file's
+//  read-only attribute instead.
 //
 //  Either way the function ends by re-probing the backing file and
 //  re-applying the external state: the padlock, tooltip, and menu check
@@ -217,20 +220,8 @@ HRESULT DiskManager::ToggleImageWriteProtect (int drive)
     {
         protecting = !image->GetWriteProtectInfo().imageFlag;
 
-        if (protecting)
-        {
-            // Persist pending guest writes while the image still accepts a
-            // flush -- protecting first would drop them.
-            hr = m_diskStore.Flush (6, drive);
-            CHR (hr);
-        }
-
-        image->SetImageWriteProtected (protecting);
-
-        // The flag travels in the file's INFO chunk; ForceFlush persists it
-        // past the write gate the flag itself just closed.
-        hr = m_diskStore.ForceFlush (6, drive);
-        CHRF (hr, image->SetImageWriteProtected (!protecting));
+        hr = m_diskStore.SetImageWriteProtect (6, drive, protecting);
+        CHR (hr);
     }
     else
     {

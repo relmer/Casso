@@ -345,79 +345,177 @@ public:
     }
 
 
-    TEST_METHOD (WozWpFlag_RoundTripsThroughForceFlush)
+    // Casso's writer always lays INFO down first, so its payload starts at
+    // offset 20 and the write-protect flag sits two bytes into it. The tests
+    // below assert that layout before relying on the offset.
+    static constexpr size_t  kInfoPayloadOffset = 20;
+    static constexpr size_t  kWpFlagOffset      = kInfoPayloadOffset + 2;
+    static constexpr size_t  kHeaderCrcOffset   = 8;
+    static constexpr size_t  kHeaderCrcSize     = 4;
+
+    void AssertInfoIsFirstChunk (const vector<Byte> & woz)
     {
-        DiskImageStore  store;
-        DiskImage     * img = nullptr;
-        DiskImage       reloaded;
-        vector<Byte>    flushed;
-
-
-
-        store.SetFlushSink ([&flushed] (const string &, const vector<Byte> & bytes)
-        {
-            flushed = bytes;
-            return S_OK;
-        });
-
-        AssertSucceeded (store.MountFromBytes (6, 0, "t.woz", DiskFormat::Woz, BuildBlankWoz()));
-
-        img = store.GetImage (6, 0);
-        Assert::IsNotNull (img);
-
-        img->SetImageWriteProtected (true);
-        AssertSucceeded (store.ForceFlush (6, 0));
-
-        AssertSucceeded (WozLoader::Load (flushed, reloaded));
-        Assert::IsTrue (reloaded.GetWriteProtectInfo().imageFlag,
-            L"the WP flag must land in the serialized INFO chunk");
-
-        img->SetImageWriteProtected (false);
-        AssertSucceeded (store.ForceFlush (6, 0));
-
-        AssertSucceeded (WozLoader::Load (flushed, reloaded));
-        Assert::IsFalse (reloaded.GetWriteProtectInfo().imageFlag,
-            L"clearing the flag must round-trip too");
+        Assert::IsTrue (woz.size() > kInfoPayloadOffset, L"too small to hold an INFO chunk");
+        Assert::AreEqual (string ("INFO"),
+            string (reinterpret_cast<const char *> (woz.data() + 12), 4),
+            L"precondition: INFO is the first chunk, so its flag byte is at a known offset");
     }
 
 
-    TEST_METHOD (FlushBeforeProtect_LosesNoDirtySectors)
+    TEST_METHOD (WozWpFlag_RoundTripsThroughTheFileItPatches)
     {
         DiskImageStore  store;
         DiskImage     * img  = nullptr;
         DiskImage       reloaded;
-        vector<Byte>    flushed;
-        uint8_t         bit0 = 0;
+        vector<Byte>    file = BuildBlankWoz();
 
 
 
-        store.SetFlushSink ([&flushed] (const string &, const vector<Byte> & bytes)
+        // Paired read and write seams: one in-memory buffer standing in for
+        // the backing file, so the patch is a real read-modify-write.
+        store.SetImageReader ([&file] (const string &, vector<Byte> & out)
         {
-            flushed = bytes;
+            out = file;
             return S_OK;
         });
 
-        AssertSucceeded (store.MountFromBytes (6, 0, "t.woz", DiskFormat::Woz, BuildBlankWoz()));
+        store.SetFlushSink ([&file] (const string &, const vector<Byte> & bytes)
+        {
+            file = bytes;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "t.woz", DiskFormat::Woz, file));
 
         img = store.GetImage (6, 0);
         Assert::IsNotNull (img);
 
-        // Guest-style write: flip the first bit of track 0.
+        AssertSucceeded (store.SetImageWriteProtect (6, 0, true));
+
+        AssertSucceeded (WozLoader::Load (file, reloaded));
+        Assert::IsTrue (reloaded.GetWriteProtectInfo().imageFlag,
+            L"the flag must land in the file's INFO chunk");
+        Assert::IsTrue (img->GetWriteProtectInfo().imageFlag,
+            L"and the live image must agree with the file");
+
+        AssertSucceeded (store.SetImageWriteProtect (6, 0, false));
+
+        AssertSucceeded (WozLoader::Load (file, reloaded));
+        Assert::IsFalse (reloaded.GetWriteProtectInfo().imageFlag,
+            L"clearing the flag must round-trip too -- un-protecting is what a "
+            L"user does to a preservation dump before writing to it");
+        Assert::IsFalse (img->GetWriteProtectInfo().imageFlag);
+    }
+
+
+    TEST_METHOD (WriteProtectToggle_TouchesOnlyTheFlagByteAndTheChecksum)
+    {
+        // The whole point of the operation. Flipping this flag must not be an
+        // excuse to rewrite the file: a preservation dump carries chunks and
+        // INFO fields Casso cannot reproduce, and a click on a menu item is
+        // not a reason to put any of them at risk.
+        DiskImageStore  store;
+        vector<Byte>    file     = BuildBlankWoz();
+        vector<Byte>    original;
+        size_t          i        = 0;
+        size_t          diffs    = 0;
+        bool            crcMoved = false;
+
+
+
+        AssertInfoIsFirstChunk (file);
+        original = file;
+
+        store.SetImageReader ([&file] (const string &, vector<Byte> & out)
+        {
+            out = file;
+            return S_OK;
+        });
+
+        store.SetFlushSink ([&file] (const string &, const vector<Byte> & bytes)
+        {
+            file = bytes;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "t.woz", DiskFormat::Woz, file));
+        AssertSucceeded (store.SetImageWriteProtect (6, 0, true));
+
+        Assert::AreEqual (original.size(), file.size(),
+            L"patching one flag must not resize the file");
+
+        for (i = 0; i < original.size(); i++)
+        {
+            if (original[i] == file[i])
+            {
+                continue;
+            }
+
+            diffs++;
+
+            if (i >= kHeaderCrcOffset && i < kHeaderCrcOffset + kHeaderCrcSize)
+            {
+                crcMoved = true;
+                continue;
+            }
+
+            Assert::AreEqual (kWpFlagOffset, i,
+                L"the only byte outside the header checksum that may change is "
+                L"the write-protect flag itself");
+        }
+
+        Assert::IsTrue (crcMoved,
+            L"the stored checksum must be recomputed, or the file now fails its own check");
+        Assert::AreEqual (Byte (1), file[kWpFlagOffset], L"the flag must actually be set");
+        Assert::IsTrue (diffs >= 2 && diffs <= 1 + kHeaderCrcSize,
+            L"exactly the flag byte plus some or all of the four checksum bytes");
+    }
+
+
+    TEST_METHOD (WriteProtectToggle_PersistsPendingGuestWritesFirst)
+    {
+        // Protecting a disk closes the gate that guest writes go through, so
+        // anything still dirty has to be written before the flag is set. The
+        // ordering used to live in the menu handler; it now lives inside the
+        // operation, which is why this test no longer performs it by hand.
+        DiskImageStore  store;
+        DiskImage     * img  = nullptr;
+        DiskImage       reloaded;
+        vector<Byte>    file = BuildBlankWoz();
+        uint8_t         bit0 = 0;
+
+
+
+        store.SetImageReader ([&file] (const string &, vector<Byte> & out)
+        {
+            out = file;
+            return S_OK;
+        });
+
+        store.SetFlushSink ([&file] (const string &, const vector<Byte> & bytes)
+        {
+            file = bytes;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "t.woz", DiskFormat::Woz, file));
+
+        img = store.GetImage (6, 0);
+        Assert::IsNotNull (img);
+
         bit0 = img->ReadBit (0, 0);
         img->WriteBit (0, 0, (uint8_t) (bit0 ^ 1));
-        Assert::IsTrue (img->IsDirty());
+        Assert::IsTrue (img->IsDirty(), L"precondition: there is a pending guest write");
 
-        // The toggle's ordering: flush while writable, protect, force-flush.
-        AssertSucceeded (store.Flush (6, 0));
-        img->SetImageWriteProtected (true);
-        AssertSucceeded (store.ForceFlush (6, 0));
+        AssertSucceeded (store.SetImageWriteProtect (6, 0, true));
 
-        AssertSucceeded (WozLoader::Load (flushed, reloaded));
+        AssertSucceeded (WozLoader::Load (file, reloaded));
 
         Assert::IsTrue (reloaded.GetWriteProtectInfo().imageFlag,
             L"the flag must be set in the final file");
         Assert::AreEqual ((int) (bit0 ^ 1), (int) reloaded.ReadBit (0, 0),
-            L"the pre-toggle write must survive in the final file");
+            L"and the guest write must survive -- the caller no longer has to "
+            L"remember to flush before protecting");
     }
 
 

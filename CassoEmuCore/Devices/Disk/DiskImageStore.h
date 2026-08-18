@@ -26,9 +26,15 @@
 //      SoftReset()        — keep mounts; flush dirty (Phase 4 contract).
 //      PowerCycle()       — unmount everything (auto-flush each).
 //
-//  Test hook: SetFlushSink lets tests redirect serialized bytes to an
-//  in-memory capture buffer instead of the host filesystem so the
-//  IFixtureProvider isolation contract is preserved.
+//  Test hooks: SetFlushSink redirects serialized bytes to an in-memory
+//  capture buffer instead of the host filesystem, and SetImageReader does
+//  the same for reads, so the IFixtureProvider isolation contract is
+//  preserved even for a read-modify-write.
+//
+//  There is no way to force a flush past the dirty and write-protect gates.
+//  The one caller that wanted that was changing a WOZ's write-protect flag,
+//  which lives inside the file; it now goes through SetImageWriteProtect,
+//  which patches the single byte instead of rebuilding the image around it.
 //
 //  Flush-error reporting: a flush that was supposed to persist a dirty
 //  image but couldn't (serialize failure, or the file/sink write failed)
@@ -45,7 +51,8 @@
 class DiskImageStore
 {
 public:
-    using FlushSink = std::function<HRESULT (const string &, const vector<Byte> &)>;
+    using FlushSink   = std::function<HRESULT (const string &, const vector<Byte> &)>;
+    using ImageReader = std::function<HRESULT (const string &, vector<Byte> &)>;
 
     static constexpr int   kSlotCount  = 8;
     static constexpr int   kDriveCount = 2;
@@ -59,11 +66,22 @@ public:
     HRESULT       Flush             (int slot, int drive);
     HRESULT       FlushAll          ();
 
-    //  Serializer-level persist of the image's CURRENT state, regardless of
-    //  the dirty bit or the image's write-protect flag (that flag gates
-    //  guest writes, not host persistence). The write-protect toggle uses
-    //  this to land the flipped WOZ INFO flag in the backing file.
-    HRESULT       ForceFlush        (int slot, int drive);
+    //  Sets a mounted WOZ's write-protect flag in its backing file by patching
+    //  the single byte that carries it -- read the file, set INFO's flag byte,
+    //  recompute the header CRC, write it back atomically -- rather than
+    //  re-serializing the image.
+    //
+    //  This replaced a ForceFlush that pushed the flag through the full
+    //  rebuild-from-model writer. That writer is correct for a flush, where
+    //  the track model IS the newer truth, and wrong for this, where the file
+    //  is: one menu click relaid out an entire image to carry one bit, and on
+    //  a preservation dump that was pure loss. Patching one byte cannot lose
+    //  what it never reads, which is a guarantee by construction rather than
+    //  one that depends on the writer retaining every field correctly.
+    //
+    //  Flushes pending guest writes first, so the patch lands on a file that
+    //  already holds them. That ordering used to be the caller's to get right.
+    HRESULT       SetImageWriteProtect (int slot, int drive, bool writeProtected);
     void          SoftReset         ();
     void          PowerCycle        ();
 
@@ -84,6 +102,12 @@ public:
 
     void          SetFlushSink      (FlushSink sink) { m_flushSink = std::move (sink); }
 
+    //  Read counterpart to SetFlushSink: redirects every backing-file read
+    //  (Mount, and the write-protect patch's read-modify-write) to the
+    //  caller's buffer, so a test can pair the two and exercise a genuine
+    //  read-modify-write cycle without a real file.
+    void          SetImageReader    (ImageReader reader) { m_imageReader = std::move (reader); }
+
     static HRESULT  DetectFormatByExtension (const string & path, DiskFormat & outFmt);
 
     //  Replaces `path` with `bytes` without ever leaving the target in a
@@ -97,6 +121,10 @@ public:
     //  Public because it is the unit of behavior worth testing on its own:
     //  the failure paths are filesystem states, not emulator states.
     static HRESULT  WriteFileAtomically (const string & path, const vector<Byte> & bytes);
+
+    //  Reads a whole file into `bytes`. The read counterpart of the write
+    //  above, and public for the same reason.
+    static HRESULT  ReadFileBytes (const string & path, vector<Byte> & bytes);
 
 private:
     struct Entry
@@ -113,7 +141,11 @@ private:
 
     Entry &       At                (int slot, int drive);
     const Entry & At                (int slot, int drive) const;
-    HRESULT       FlushEntry        (Entry & entry, bool force = false);
+    HRESULT       FlushEntry        (Entry & entry);
+
+    // Routes through m_imageReader when a test has installed one, so the
+    // read and write seams stay symmetric.
+    HRESULT       ReadImageFile     (const string & path, vector<Byte> & bytes) const;
 
     // Builds the user-facing "could not save" message from the mount path;
     // handed to CHRN/CBRN in FlushEntry on a genuine persist failure.
@@ -124,7 +156,8 @@ private:
     // CRC, so whatever damage the file carried stops being detectable.
     static wstring FormatCrcLaunderMessage (const string & path);
 
-    Entry      m_entries[kSlotCount][kDriveCount];
-    FlushSink  m_flushSink;
-    string     m_emptyPath;
+    Entry        m_entries[kSlotCount][kDriveCount];
+    FlushSink    m_flushSink;
+    ImageReader  m_imageReader;
+    string       m_emptyPath;
 };

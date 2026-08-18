@@ -1637,5 +1637,170 @@ public:
             string (reinterpret_cast<const char *> (ChunkPayload (out, "INFO").data() + 5), 17),
             L"so must the creator of an image the writer did not lay out");
     }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  SetWriteProtectFlag -- the write-protect flag as a one-byte edit.
+    //
+    //  The flag lives in the file (INFO byte 2), so changing it has to write.
+    //  The only writer available used to be Serialize, the full
+    //  rebuild-from-model path, so a menu click relaid out an entire image to
+    //  carry one bit -- and on a preservation dump that was pure loss. These
+    //  tests pin the narrower guarantee: the bytes this function never reads
+    //  are bytes it cannot damage, which holds whether or not the rebuild
+    //  path retains every field correctly.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (SetWriteProtectFlag_ChangesOnlyTheFlagAndTheChecksum)
+    {
+        vector<Byte>  woz;
+        vector<Byte>  original;
+        size_t        infoOffset = 0;
+        size_t        i          = 0;
+        size_t        flagAt     = 0;
+        size_t        diffs      = 0;
+        bool          crcMoved   = false;
+
+        // An image shaped like a real preservation dump: rich INFO fields and
+        // a META chunk, both of which the rebuild path had to be taught to
+        // keep and which this path must not depend on having been taught.
+        BuildSyntheticV2WithChunks (MakeBitStream(), kTestBitCount,
+                                    "Passport.py by 4am (2019-02-17)",
+                                    { { "META", SampleMeta() } }, woz);
+
+        FindChunk (woz, "INFO", infoOffset);
+        Assert::IsTrue (infoOffset != 0, L"precondition: the image has an INFO chunk");
+        flagAt   = infoOffset + 2;
+        original = woz;
+
+        AssertSucceeded (WozLoader::SetWriteProtectFlag (woz, false));
+
+        Assert::AreEqual (original.size(), woz.size(), L"a one-byte edit must not resize the file");
+
+        for (i = 0; i < original.size(); i++)
+        {
+            if (original[i] == woz[i])
+            {
+                continue;
+            }
+
+            diffs++;
+
+            if (i >= 8 && i < 12)
+            {
+                crcMoved = true;
+                continue;
+            }
+
+            Assert::AreEqual (flagAt, i,
+                L"the only byte outside the header checksum that may change is the flag");
+        }
+
+        Assert::IsTrue (crcMoved, L"the stored checksum must be recomputed");
+        Assert::AreEqual (Byte (0), woz[flagAt], L"the flag must actually be cleared");
+
+        // Said explicitly, because it is the thing that used to break:
+        Assert::IsTrue (ChunkPayload (woz, "META") == AsBytes (SampleMeta()),
+            L"META must be untouched -- this path never reads it");
+        Assert::AreEqual (string ("Passport.py by 4am (2019-02-17)"),
+            string (reinterpret_cast<const char *> (woz.data() + infoOffset + 5), 31),
+            L"and so must the creator field");
+    }
+
+
+    TEST_METHOD (SetWriteProtectFlag_LeavesTheFileValidatingAgainstItsOwnChecksum)
+    {
+        vector<Byte>  woz;
+        DiskImage     reloaded;
+        uint32_t      stored = 0;
+
+        BuildSyntheticV2WithChunks (MakeBitStream(), kTestBitCount, "Applesauce v1.0.6",
+                                    { { "META", SampleMeta() } }, woz);
+
+        AssertSucceeded (WozLoader::SetWriteProtectFlag (woz, true));
+
+        stored = static_cast<uint32_t> (woz[8])
+               | (static_cast<uint32_t> (woz[9]) << 8)
+               | (static_cast<uint32_t> (woz[10]) << 16)
+               | (static_cast<uint32_t> (woz[11]) << 24);
+
+        Assert::AreNotEqual (uint32_t (0), stored,
+            L"the checksum must be recomputed, not zeroed -- zero means 'not computed', "
+            L"which would silently retire the file's own damage check");
+        Assert::AreEqual (Crc32Ref (woz.data() + WozLoader::kHeaderSize,
+                                    woz.size() - WozLoader::kHeaderSize), stored,
+            L"and it must match the patched contents");
+
+        AssertSucceeded (WozLoader::Load (woz, reloaded));
+        Assert::IsFalse (reloaded.HasSourceCrcMismatch(),
+            L"so loading the patched file must not report damage");
+        Assert::IsTrue (reloaded.GetWriteProtectInfo().imageFlag,
+            L"and the flag must read back as set");
+    }
+
+
+    TEST_METHOD (SetWriteProtectFlag_OnAV1File_DoesNotUpgradeTheContainer)
+    {
+        // An edit of one field is not a reason to rewrite the file in a newer
+        // format. Serialize converts v1 to v2 by design; this must not.
+        vector<Byte>  woz;
+
+        BuildSyntheticV1 (MakeBitStream(), kTestBitCount, woz);
+
+        AssertSucceeded (WozLoader::SetWriteProtectFlag (woz, true));
+
+        Assert::AreEqual (string ("WOZ1"),
+            string (reinterpret_cast<const char *> (woz.data()), 4),
+            L"a v1 file must stay v1 -- this edits a byte, it does not convert");
+        Assert::AreEqual (Byte (1), woz[WozLoader::kHeaderSize + kChunkHeader + 2],
+            L"and the flag must still be set");
+        Assert::AreEqual (Byte (1), woz[WozLoader::kHeaderSize + kChunkHeader + 0],
+            L"INFO must still say version 1");
+    }
+
+
+    TEST_METHOD (SetWriteProtectFlag_RejectsBytesThatAreNotAWoz)
+    {
+        vector<Byte>  notAWoz (600, 0x42);
+        vector<Byte>  original;
+        vector<Byte>  truncated (4, 0);
+        HRESULT       hr = S_OK;
+
+        original = notAWoz;
+
+        hr = WozLoader::SetWriteProtectFlag (notAWoz, true);
+
+        Assert::IsTrue (FAILED (hr), L"a file with no WOZ signature must be refused");
+        Assert::IsTrue (notAWoz == original,
+            L"and refusing must leave every byte alone rather than half-patching it");
+
+        hr = WozLoader::SetWriteProtectFlag (truncated, true);
+        Assert::IsTrue (FAILED (hr), L"bytes too short to hold a header must be refused");
+    }
+
+
+    TEST_METHOD (SetWriteProtectFlag_RejectsAWozWithNoInfoChunk)
+    {
+        // Degraded input must fail rather than patch a guessed offset. A
+        // fixed offset would "work" on every well-formed file and quietly
+        // corrupt a malformed one.
+        vector<Byte>  woz;
+        vector<Byte>  original;
+        HRESULT       hr = S_OK;
+
+        BuildSyntheticV2WithChunks (MakeBitStream(), kTestBitCount, "Applesauce v1.0.6", {}, woz);
+
+        // Rename INFO so the walk cannot find it, leaving the chunk sizes and
+        // everything else intact.
+        memcpy (woz.data() + WozLoader::kHeaderSize, "XXXX", 4);
+        original = woz;
+
+        hr = WozLoader::SetWriteProtectFlag (woz, true);
+
+        Assert::IsTrue (FAILED (hr), L"no INFO chunk means there is no flag to set");
+        Assert::IsTrue (woz == original, L"and nothing may be written on the way to failing");
+    }
 };
 

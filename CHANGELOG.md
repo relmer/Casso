@@ -54,6 +54,35 @@ Entries before versioning was introduced use dates only.
   the two with no legal zero — disk sides and optimal bit timing — while the
   three Casso cannot derive stay `unknown` rather than being guessed at.
   Creator, synchronized and cleaned carry across.
+- **Toggling a WOZ's write-protect no longer rewrites the disk.** The flag
+  lives inside the file (`INFO` byte 2), so changing it has to write — and the
+  only writer available was the one that rebuilds the whole image from the
+  track model. One menu click therefore relaid out an entire disk to carry one
+  bit, with no guest write and no emulation involved, and it fired in both
+  directions: un-protecting a preservation dump before writing to it rewrote
+  it too, which is the one thing a user does to those files. Seven of the
+  eleven demo images ship write-protected. The toggle now patches the single
+  flag byte, recomputes the header checksum and writes the result back
+  atomically. Measured across the demo library: un-protecting an image changes
+  five bytes — the flag and the four checksum bytes — where the old path
+  changed up to 223,700 and dropped the `META` chunk.
+
+  This is deliberately a guarantee by construction rather than one that
+  depends on the rebuild path being complete: bytes that are never parsed
+  cannot be damaged. The store no longer offers any way to force a flush past
+  its dirty and write-protect gates, because changing this flag was the only
+  thing that ever wanted one.
+- **A disk image that cannot be serialized is no longer "saved" by reverting
+  it.** `DiskImage::Flush` — reached on eject and on //e soft reset — fell back
+  to writing the file's pre-session bytes over the user's disk when
+  serialization failed, and returned success: every guest write of that
+  session vanished silently. It also opened the target directly, truncating it
+  before the first byte landed, and never checked the stream afterwards, so a
+  full volume or a disconnected share destroyed the image and reported nothing
+  — the same defect fixed in the store's flush path in 1.16.2, in a second
+  write path that fix did not cover. Both are gone: the bytes go through the
+  atomic write, and a failed serialize now fails loudly and leaves the image
+  dirty so a later flush retries.
 
 ## [1.16.2] — safer disk image writes
 

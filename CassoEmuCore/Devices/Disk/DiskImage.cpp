@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskImage.h"
+#include "DiskImageStore.h"
 #include "NibblizationLayer.h"
 #include "WozLoader.h"
 
@@ -681,41 +682,43 @@ void DiskImage::Eject()
 //  Flush
 //
 //  Serializes dirty track state back to the original file using the
-//  appropriate inverse path. WOZ and any source without a known on-disk
-//  path no-op (cached raw bytes are written verbatim if present).
+//  appropriate inverse path. A synthesized image with no backing file has
+//  nothing to write and simply stops being dirty.
+//
+//  Two behaviors here used to lose data. The write opened the target
+//  directly, which truncates it before the first byte lands, and never
+//  checked the stream afterwards -- so a full volume replaced a working
+//  image with a truncated one and reported success. And a failed Serialize
+//  fell back to writing the file's PRE-SESSION bytes over the user's disk,
+//  returning S_OK: every guest write of that session silently reverted.
+//
+//  Both are gone. The bytes go through WriteFileAtomically, and a failed
+//  serialize fails loudly and leaves the image dirty so a later flush
+//  retries. A WOZ whose Serialize fails now refuses to save and says so,
+//  where it used to quietly revert the file -- which is the point: writing
+//  stale bytes and calling it success is never the right answer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImage::Flush()
 {
-    HRESULT       hr      = S_OK;
-    bool          fileOk  = false;
+    HRESULT       hr       = S_OK;
+    bool          hasPath  = false;
     vector<Byte>  bytes;
 
 
 
     BAIL_OUT_IF (!m_dirty, S_OK);
 
-    // A synthesized image with no backing file has nothing to write, so it
-    // skips straight to the shared "no longer dirty" tail below rather than
-    // repeating it on its own exit path.
-    if (!m_filePath.empty())
+    hasPath = !m_filePath.empty();
+
+    if (hasPath)
     {
         hr = Serialize (bytes);
+        CHR (hr);
 
-        if (FAILED (hr))
-        {
-            BAIL_OUT_IF (m_rawSourceBytes.empty(), S_OK);
-            bytes = m_rawSourceBytes;
-            hr    = S_OK;
-        }
-
-        ofstream file (m_filePath, ios::binary);
-        fileOk = file.good();
-        CBR (fileOk);
-
-        file.write (reinterpret_cast<const char *> (bytes.data()),
-                    static_cast<streamsize> (bytes.size()));
+        hr = DiskImageStore::WriteFileAtomically (m_filePath, bytes);
+        CHR (hr);
     }
 
     m_dirty = false;

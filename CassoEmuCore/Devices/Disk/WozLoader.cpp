@@ -301,6 +301,125 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FindChunkPayload
+//
+//  Locate one chunk by walking the table from the header, the same way Load
+//  does: a chunk id is four uppercase letters, and a chunk that overruns the
+//  file ends the walk. Reports the payload's offset and declared size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT FindChunkPayload (
+    const vector<Byte>  &  raw,
+    const Byte          *  magic,
+    size_t              &  outOffset,
+    uint32_t            &  outSize)
+{
+    HRESULT   hr      = E_FAIL;
+    size_t    pos     = WozLoader::kHeaderSize;
+    size_t    rawSize = raw.size();
+    bool      found   = false;
+
+    outOffset = 0;
+    outSize   = 0;
+
+    while (!found && pos + kChunkHeaderSize <= rawSize)
+    {
+        const Byte *  id        = raw.data() + pos;
+        uint32_t      chunkSize = 0;
+        bool          isChunkId = true;
+        int           idByte    = 0;
+
+        for (idByte = 0; isChunkId && idByte < 4; idByte++)
+        {
+            isChunkId = (id[idByte] >= 'A' && id[idByte] <= 'Z');
+        }
+
+        if (!isChunkId)
+        {
+            break;
+        }
+
+        chunkSize = Read32LE (raw.data() + pos + 4);
+
+        if (pos + kChunkHeaderSize + chunkSize > rawSize)
+        {
+            break;
+        }
+
+        if (MatchMagic (id, magic))
+        {
+            outOffset = pos + kChunkHeaderSize;
+            outSize   = chunkSize;
+            found     = true;
+            hr        = S_OK;
+        }
+
+        pos += kChunkHeaderSize + chunkSize;
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::SetWriteProtectFlag
+//
+//  Patch the write-protect flag into a WOZ file's bytes without rebuilding
+//  the file. Only the INFO flag byte and the header CRC change.
+//
+//  This exists because the flag lives inside the file, so changing it has to
+//  write -- and the only writer available was the full rebuild-from-model
+//  serializer. Sending a one-bit edit through that meant a menu click could
+//  relayout an entire image, which is a lot of blast radius for one bit.
+//  Bytes that are never parsed here are bytes that cannot be damaged here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WozLoader::SetWriteProtectFlag (vector<Byte> & fileBytes, bool writeProtected)
+{
+    HRESULT    hr         = S_OK;
+    size_t     rawSize    = fileBytes.size();
+    size_t     infoOffset = 0;
+    uint32_t   infoSize   = 0;
+    bool       sigOk      = false;
+    bool       infoUsable = false;
+
+
+
+    CBR (rawSize >= kHeaderSize);
+
+    sigOk = MatchSig (fileBytes.data(), kSigV2) || MatchSig (fileBytes.data(), kSigV1);
+    CBR (sigOk);
+
+    hr = FindChunkPayload (fileBytes, kInfoMagic, infoOffset, infoSize);
+    CHR (hr);
+
+    infoUsable = (infoSize >= kInfoChunkSize);
+    CBR (infoUsable);
+
+    fileBytes[infoOffset + kInfoWriteProtectOff] = static_cast<Byte> (writeProtected ? 1 : 0);
+
+    // The stored CRC covers everything after the 12-byte header, so the one
+    // changed byte invalidates it. Recompute rather than zero it: zero means
+    // "not computed", which would quietly drop the file's own damage check.
+    Write32LE (fileBytes.data() + kSigLen,
+               Crc32 (fileBytes.data() + kHeaderSize, rawSize - kHeaderSize));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WozLoader::Load
 //
 //  Parse a WOZ v1 or v2 image. Validates the signature, walks chunks,

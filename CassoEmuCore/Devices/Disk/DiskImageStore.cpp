@@ -169,35 +169,17 @@ Error:
 
 HRESULT DiskImageStore::Mount (int slot, int drive, const string & path)
 {
-    HRESULT       hr        = S_OK;
-    DiskFormat    fmt       = DiskFormat::Dsk;
+    HRESULT       hr   = S_OK;
+    DiskFormat    fmt  = DiskFormat::Dsk;
     vector<Byte>  bytes;
-    bool          fileOk    = false;
 
 
 
     hr = DetectFormatByExtension (path, fmt);
     CHR (hr);
 
-    {
-        streamsize  size = 0;
-
-        ifstream  file (path, ios::binary | ios::ate);
-
-        fileOk = file.good();
-        CBR (fileOk);
-
-        size = file.tellg();
-        file.seekg (0, ios::beg);
-
-        bytes.resize (static_cast<size_t> (size));
-
-        if (size > 0)
-        {
-            file.read (reinterpret_cast<char *> (bytes.data()),
-                       static_cast<streamsize> (size));
-        }
-    }
+    hr = ReadImageFile (path, bytes);
+    CHR (hr);
 
     hr = MountFromBytes (slot, drive, path, fmt, bytes);
 
@@ -284,21 +266,22 @@ wstring DiskImageStore::FormatFlushLossMessage (const string & path)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::FlushEntry (Entry & entry, bool force)
+HRESULT DiskImageStore::FlushEntry (Entry & entry)
 {
     HRESULT       hr     = S_OK;
     vector<Byte>  bytes;
 
 
 
-    // No-op cases -- nothing dirty to persist -- succeed silently. A
-    // forced flush persists the current state regardless: the dirty bit
-    // and the write-protect gate govern guest writes, not a host-side
-    // persist of (say) a flipped write-protect flag.
+    // No-op cases -- nothing dirty to persist -- succeed silently. There is
+    // deliberately no way to force a flush past these gates: the only caller
+    // that wanted one was changing a write-protect flag, and rebuilding a
+    // whole image to carry one bit is what SetImageWriteProtect exists to
+    // avoid. An API that cannot be asked to do that cannot be misused into it.
     BAIL_OUT_IF (!entry.mounted || entry.image == nullptr, S_OK);
-    BAIL_OUT_IF (!force && !entry.image->IsDirty(), S_OK);
+    BAIL_OUT_IF (!entry.image->IsDirty(), S_OK);
 
-    if (!force && entry.image->IsWriteProtected())
+    if (entry.image->IsWriteProtected())
     {
         entry.image->ClearDirty();
         BAIL_OUT_IF (true, S_OK);
@@ -442,19 +425,162 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ForceFlush
+//  SetImageWriteProtect
+//
+//  Change a mounted WOZ's write-protect flag in its backing file, by patching
+//  the one byte that holds it. The flag lives inside the file, so the change
+//  has to be written; the question is how much of the file gets rewritten to
+//  carry it. The answer here is one byte plus the header CRC.
+//
+//  The path this replaces sent the flag through DiskImage::Serialize, the full
+//  rebuild-from-model writer. Everything that writer could not reproduce was
+//  lost on a menu click -- no guest write, no emulation, just a click -- and
+//  it fired in both directions, so un-protecting a preservation dump before
+//  writing to it rewrote it too. Now the guarantee does not depend on the
+//  writer reproducing every field: the bytes are never parsed, so they cannot
+//  be damaged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::ForceFlush (int slot, int drive)
+HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writeProtected)
+{
+    HRESULT       hr        = S_OK;
+    bool          bayOk     = false;
+    bool          isWoz     = false;
+    bool          hasPath   = false;
+    bool          hasImage  = false;
+    vector<Byte>  bytes;
+
+
+
+    bayOk = IsValidBay (slot, drive);
+    CBRAEx (bayOk, E_INVALIDARG);
+
+    {
+        Entry &  entry = At (slot, drive);
+
+        hasImage = (entry.mounted && entry.image != nullptr);
+        CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+
+        isWoz = (entry.format == DiskFormat::Woz);
+        CBRAEx (isWoz, E_INVALIDARG);
+
+        hasPath = !entry.path.empty();
+        CBR (hasPath);
+
+        // Guest writes go out FIRST, while the image still accepts a flush.
+        // Patching the flag byte afterwards edits a file that already holds
+        // them; doing it the other way round would strand them behind the
+        // gate this call is about to close.
+        hr = FlushEntry (entry);
+        CHR (hr);
+
+        hr = ReadImageFile (entry.path, bytes);
+        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
+
+        hr = WozLoader::SetWriteProtectFlag (bytes, writeProtected);
+        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
+
+        if (m_flushSink)
+        {
+            hr = m_flushSink (entry.path, bytes);
+        }
+        else
+        {
+            hr = WriteFileAtomically (entry.path, bytes);
+        }
+
+        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
+
+        // The live image follows the file, and only once the file has
+        // actually changed -- so a failed write leaves the two agreeing.
+        entry.image->SetImageWriteProtected (writeProtected);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadImageFile
+//
+//  Whole-file read for a mounted image's backing file, through the test
+//  reader hook when one is installed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::ReadImageFile (const string & path, vector<Byte> & bytes) const
 {
     HRESULT   hr = S_OK;
 
 
 
-    CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
+    if (m_imageReader)
+    {
+        hr = m_imageReader (path, bytes);
+        CHR (hr);
+        BAIL_OUT_IF (true, S_OK);
+    }
 
-    hr = FlushEntry (At (slot, drive), true);
+    hr = ReadFileBytes (path, bytes);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadFileBytes
+//
+//  Reads a whole file. Reports failure rather than returning a short buffer:
+//  a caller that cannot tell a truncated read from a small file will happily
+//  write the truncation back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::ReadFileBytes (const string & path, vector<Byte> & bytes)
+{
+    HRESULT     hr      = S_OK;
+    bool        hasPath = !path.empty();
+    bool        fileOk  = false;
+    bool        readOk  = false;
+    streamsize  size    = 0;
+
+
+
+    CBRAEx (hasPath, E_INVALIDARG);
+
+    {
+        ifstream  file (path, ios::binary | ios::ate);
+
+        fileOk = file.good();
+        CBR (fileOk);
+
+        size = file.tellg();
+        CBR (size >= 0);
+
+        file.seekg (0, ios::beg);
+        bytes.resize (static_cast<size_t> (size));
+
+        if (size > 0)
+        {
+            file.read (reinterpret_cast<char *> (bytes.data()),
+                       static_cast<streamsize> (size));
+
+            readOk = (file.gcount() == size);
+            CBR (readOk);
+        }
+    }
 
 Error:
     return hr;
