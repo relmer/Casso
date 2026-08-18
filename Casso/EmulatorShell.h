@@ -900,11 +900,6 @@ private:
     // The 3D desk scene (spec 018): Monitor //c + drives rendered from the
     // before-present hook on the host device, with the CRT chain's offscreen
     // output on the curved glass. Gated by the deskScene opt-out pref.
-    // Set when a Ctrl+letter host-meta shortcut claims a keydown whose
-    // synthesized WM_CHAR must not reach the guest keyboard latch (the ^V
-    // of a paste would land in the input line ahead of the pasted text).
-    bool                       m_swallowMetaChar = false;
-
     DeskScene                  m_deskScene;
     bool                       m_deskSceneReady = false;
 
