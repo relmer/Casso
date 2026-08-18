@@ -89,6 +89,13 @@ public:
 
     //  Every flag the example actually types, deduplicated and in the order the
     //  reader meets them.
+    //
+    //  A SINGLE-DASH FLAG IS REDUCED TO THE FLAG ITSELF, because the assembler
+    //  grammar glues values to flags and the example now types `-oprog.bin` as
+    //  one word. Taking the word whole would ask the help to document an option
+    //  called `-oprog.bin`, which is the filename's fault rather than the
+    //  help's. Long options keep their whole word -- `--as` takes its value as
+    //  a separate argument and is a complete token already.
     static std::vector<std::string> OptionsUsedByExample (const std::string & help)
     {
         std::vector<std::string>  options;
@@ -101,12 +108,14 @@ public:
 
             while (words >> word)
             {
-                bool  isFlag  = word.size() > 1 && word[0] == '-';
-                bool  isNamed = isFlag && (isalnum ((unsigned char) word.back()) != 0);
+                bool         isFlag  = word.size() > 1 && word[0] == '-';
+                bool         isLong  = isFlag && word[1] == '-';
+                bool         isNamed = isFlag && (isalnum ((unsigned char) word.back()) != 0);
+                std::string  flag    = isLong ? word : word.substr (0, 2);
 
-                if (isNamed && std::find (options.begin(), options.end(), word) == options.end())
+                if (isNamed && std::find (options.begin(), options.end(), flag) == options.end())
                 {
-                    options.push_back (word);
+                    options.push_back (flag);
                 }
             }
         }
@@ -185,7 +194,9 @@ public:
 
         //  No shape flag: the assembled bytes are what a bare invocation writes
         //  now, so the example that used to spell `--raw` spells nothing.
-        Assert::AreEqual (std::string ("  CassoCli prog.a65 -o prog.bin"),
+        //  The output name is ATTACHED, which is as65's grammar and now this
+        //  mode's only form.
+        Assert::AreEqual (std::string ("  CassoCli prog.a65 -oprog.bin"),
                           lines[0], L"assemble");
         Assert::AreEqual (std::string ("  CassoCli disk put mydisk.dsk prog.bin"
                                        " --as PROG --type B --addr $6000"),

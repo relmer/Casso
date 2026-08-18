@@ -78,9 +78,12 @@ static constexpr const char *  s_kpszDiskOptions[] =
 };
 
 
+//  TWO ENTRIES, AND THE TABLE STILL EARNS ITS KEEP. `cpu` left it when `-x`
+//  replaced `--cpu`, and what remains is not scaffolding around a pair: the
+//  table is what stops the single-character normalization from reading `/flat`
+//  as the concatenated flags -f -l -a -t. One entry would still need it.
 static constexpr const char *  s_kpszAs65LongOptions[] =
 {
-    "cpu",
     "flat",
     "dos-bin",
 };
@@ -193,9 +196,9 @@ CommandLineOptions::DiskOptions::Verb CommandLineParser::LookUpDiskVerb (const s
 //  lose it. Anything not in the table comes back untouched, which is what lets
 //  a caller pass one string through for both flags and positionals.
 //
-//  An attached value is carried across, because `--cpu=65c02` is a spelling the
-//  assembler grammar accepts and `/cpu=65c02` therefore has to be one too. The
-//  name is matched against the part BEFORE the `=` for exactly that reason.
+//  An attached value is carried across, because a long option may be spelled
+//  `--name=value` and `/name=value` therefore has to be one too. The name is
+//  matched against the part BEFORE the `=` for exactly that reason.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -825,7 +828,13 @@ CommandLineOptions::Subcommand CommandLineParser::LookUpSubcommand (const std::s
 //    prefix parity   `/` and `-` both introduce a flag. The prefix the user
 //                    chose is REMEMBERED in flagPrefix so the usage text comes
 //                    back spelled the way they type
-//    attached values a flag's argument may be glued to it or separated
+//    attached values a flag's argument is GLUED to it, and how much of the
+//                    argument it takes depends on the KIND of parameter. as65:
+//                    "no other option can follow one that may have a string
+//                    parameter. Other options can follow one that has a numeric
+//                    parameter." So -d and -o take the rest of the argument,
+//                    while -h and -w take only their digits and hand back what
+//                    follows -- `-h80t` is `-h80 -t`
 //
 //  Which is why this is a hand-rolled walk rather than a table: a table-driven
 //  parser would have to encode all three exceptions anyway, and every one of
@@ -838,19 +847,20 @@ CommandLineOptions::Subcommand CommandLineParser::LookUpSubcommand (const std::s
 //  elsewhere; neither packs, and the help says so under Assembly options rather
 //  than as a claim about the tool.
 //
-//  The stop flag ends parsing outright for a help request, a bad --cpu target,
-//  or a `--` option this grammar does not have, so no later argument can
-//  quietly undo the decision. The first two also set showHelp, which is what
-//  puts the usage page on the screen; the third deliberately does not -- see
-//  the refusal itself for why.
+//  The stop flag ends parsing outright for a help request, a withdrawn or
+//  unknown `--` option, a bare -o, or a single letter this grammar does not
+//  have, so no later argument can quietly undo the decision. Only the last of
+//  those sets showHelp, which is what puts the usage page on the screen; the
+//  others answer by name instead -- see each refusal for why.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOptions & options)
 {
     int   argIndex = 1;
-    // Set when an argument ends parsing outright -- a help request, or a bad
-    // --cpu target. Both leave showHelp set, so the caller prints usage.
+    // Set when an argument ends parsing outright -- a help request, or an
+    // option this grammar does not have (or no longer has). Only the
+    // unknown-single-letter case leaves showHelp set; the rest answer by name.
     bool  stop     = false;
 
     options.subcommand = CommandLineOptions::Subcommand::As65;
@@ -879,52 +889,39 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
             continue;
         }
 
-        // Long option: --cpu <target> / --cpu=<target> selects the target
-        // instruction set. Default stays 6502 so 65C02-only opcodes never assemble
-        // by accident; only an explicit --cpu 65c02 unlocks the CMOS tier.
-        if (arg == "--cpu" || arg.rfind ("--cpu=", 0) == 0)
+        //  `--cpu` IS WITHDRAWN AND `-x` REPLACES IT. The two selected the same
+        //  instruction set, and `-x` is as65's own name for that switch --
+        //  "Use 65SC02 extensions" -- so the tool kept two spellings of one
+        //  capability, one of which no as65 user would reach for.
+        //
+        //  It is answered by NAME rather than falling into the generic `--`
+        //  refusal below, because command lines and makefiles carrying it
+        //  already exist and "unknown option: --cpu" tells their author nothing
+        //  about what to type instead. Same reasoning as the bare `-o`.
+        //  BOTH PREFIXES ARE MATCHED HERE EXPLICITLY, because `cpu` has left
+        //  the long-option table and so `/cpu` is no longer canonicalized into
+        //  `--cpu` on its way past. Without this the slash spelling would fall
+        //  into the concatenation walk and be read as -c -p -u -- cycle counts,
+        //  a pass 1 listing, and an unknown flag -- which is a true reading of
+        //  as65's grammar and a useless answer to somebody migrating.
+        if (arg == "--cpu" || arg.rfind ("--cpu=", 0) == 0 ||
+            arg == "/cpu"  || arg.rfind ("/cpu=",  0) == 0)
         {
-            std::string val;
+            const char *  longPrefix = (arg[0] == '/') ? "/" : "--";
 
-            if (arg == "--cpu")
+            if (arg[0] == '/')
             {
-                if (argIndex + 1 < argc)
-                {
-                    val = argv[++argIndex];
-                }
-            }
-            else
-            {
-                val = arg.substr (6);   // after "--cpu="
+                options.flagPrefix = '/';
             }
 
-            for (char & c : val)
-            {
-                c = (char) tolower ((unsigned char) c);
-            }
+            std::cerr << "Error: " << longPrefix << "cpu is gone -- use "
+                      << options.flagPrefix << "x for the 65C02.\n"
+                      << "       " << options.flagPrefix
+                      << "x is as65's own name for the switch, and selects the same\n"
+                      << "       instruction set. The default is still a strict 6502.\n";
 
-            if (val == "6502")
-            {
-                options.cpuTarget = CommandLineOptions::CpuTarget::M6502;
-            }
-            else if (val == "65c02")
-            {
-                options.cpuTarget = CommandLineOptions::CpuTarget::M65C02;
-            }
-            else
-            {
-                std::cerr << "Error: unknown --cpu target '" << val
-                          << "' (expected 6502 or 65c02)\n";
-                options.showHelp     = true;
-                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
-                stop                 = true;
-            }
-
-            if (!stop)
-            {
-                argIndex++;
-            }
-
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            stop                 = true;
             continue;
         }
 
@@ -966,16 +963,17 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
         //  keep meaning it.
         //
         //  showHelp IS DELIBERATELY NOT SET, which is where this parts company
-        //  with the bad-`--cpu` refusal below it. That one prints the whole
-        //  usage page, and the usage page is 180 lines: the sentence explaining
-        //  the mistake scrolls away above it, so the reader is answered by
-        //  being buried. The two lines here say what was wrong and what to type
-        //  instead, which is the entire content that page would have added.
+        //  with the unknown-single-letter refusal further down. That one prints
+        //  the whole usage page, and the usage page is long: the sentence
+        //  explaining the mistake scrolls away above it, so the reader is
+        //  answered by being buried. The lines here say what was wrong and what
+        //  to type instead, which is the entire content that page would add.
         if (arg.rfind ("--", 0) == 0)
         {
             std::cerr << "Error: unknown option: " << arg << "\n"
-                      << "       Assembling takes single-letter flags -- the output file\n"
-                      << "       is -o <file>, and --out belongs to `disk`.\n";
+                      << "       Assembling takes single-letter flags with their values\n"
+                      << "       attached -- the output file is -oFILE, and --out belongs\n"
+                      << "       to `disk`.\n";
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             stop                 = true;
@@ -1020,49 +1018,65 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                 pos++;
                 break;
 
+            //  as65 documents BOTH forms of this one, which is why a bare -l
+            //  stays legal where a bare -o does not: "-l  Generate pass 2
+            //  listing" and "-l<filename>  Listing file name". The parameter is
+            //  a STRING either way, so the flag takes the rest of its argument
+            //  and nothing may follow it in the group -- `-lt` names a listing
+            //  file called `t`, it is not `-l -t`.
             case 'l':
                 options.generateListing = true;
 
                 if (!rest.empty())
                 {
                     options.listingFile = rest;
-                    pos = arg.size();
-                }
-                else if (argIndex + 1 < argc && argv[argIndex + 1][0] != '-' && argv[argIndex + 1][0] != '/')
-                {
-                    options.listingFile = argv[++argIndex];
-                    pos = arg.size();
                 }
                 else
                 {
                     options.listingToStdout = true;
-                    pos++;
                 }
 
+                pos = arg.size();
                 break;
 
+            //  as65: `-o<filename>`. A STRING parameter, glued, with nothing
+            //  following it in the group.
+            //
+            //  THE SEPARATED `-o <file>` IS GONE AND IT IS THE ONE CALLERS MEET
+            //  FIRST -- this project's own examples were written with it -- so
+            //  a bare -o is answered with the form to type rather than with a
+            //  bare complaint. Left as an unknown option it would be actively
+            //  misleading: `-o prog.bin` would refuse while pointing at nothing,
+            //  and the filename standing next to it would have been read as the
+            //  source file.
+            //
+            //  Refusing it also retires a hang for good. A trailing `-o` used to
+            //  match no branch and advance nothing, so the walk reread the same
+            //  character forever and the process had to be killed.
+            //
+            //  showHelp IS NOT SET, which parts this from the unknown-option
+            //  refusal below on the same rule the `--out` refusal already uses:
+            //  these three lines ARE the answer, and the usage page would bury
+            //  them. An option that does not exist is the case with nothing
+            //  specific to say, and that one gets the page.
             case 'o':
-                //  The final `pos++` is what keeps a trailing `-o` from
-                //  hanging the tool. With nothing glued to the flag and
-                //  nothing after it, neither branch below used to run and
-                //  neither advanced the walk, so the enclosing loop reread
-                //  the same character forever: `casso demo.a65 -o` never
-                //  returned, printed nothing and could only be killed.
                 if (!rest.empty())
                 {
                     options.outputFile = rest;
-                    pos = arg.size();
-                }
-                else if (argIndex + 1 < argc)
-                {
-                    options.outputFile = argv[++argIndex];
-                    pos = arg.size();
                 }
                 else
                 {
-                    pos++;
+                    std::cerr << "Error: " << options.flagPrefix << "o takes its filename ATTACHED: "
+                              << options.flagPrefix << "oprog.bin\n"
+                              << "       as65 glues every filename to its option, so a separated\n"
+                              << "       " << options.flagPrefix
+                              << "o prog.bin would read prog.bin as the source file.\n";
+
+                    options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+                    stop                 = true;
                 }
 
+                pos = arg.size();
                 break;
 
             case 'm':
@@ -1070,39 +1084,44 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                 pos++;
                 break;
 
+            //  as65: "-h<lines> ... The special case -h0 indicates an infinite
+            //  page length."
+            //
+            //  ITS PARAMETER IS NUMERIC, WHICH IS WHAT DECIDES HOW MUCH OF THE
+            //  ARGUMENT IT MAY TAKE. as65's rule: "no other option can follow
+            //  one that may have a string parameter. Other options can follow
+            //  one that has a numeric parameter" -- and its own worked example
+            //  is `-h80t`, "which specifies 80 lines per page and a symbol
+            //  table". This ran `pos` to the end of the argument instead, so
+            //  `-h80t` set the height and threw the `t` away without a word.
+            //
+            //  The separated `-h 60` this used to accept was never as65's. It
+            //  was added on the strength of this tool's own help text, which
+            //  documented a form the parser did not read, and it is gone: the
+            //  number after a bare -h is the next argument, not the height.
             case 'h':
             {
                 int  height = options.pageHeight;
 
-                if (TakeCountValue (argc, argv, argIndex, rest, height))
-                {
-                    options.pageHeight = height;
-                    pos = arg.size();
-                }
-                else
-                {
-                    pos++;
-                }
-
+                pos               += 1 + TakeGluedCount (rest, height);
+                options.pageHeight = height;
                 break;
             }
 
+            //  as65: "-w<width>  Specify column width... If the -w option is
+            //  given without a number following it, then the listing will be
+            //  133 columns wide, otherwise it will be the number of colulmns
+            //  specified (between 60 and 200)."
+            //
+            //  A BARE -w MEANING 133 IS as65's OWN FORM, not this project's --
+            //  which is why it survives where the separated `-w 100` does not.
+            //  Numeric like -h, so `-w100t` is `-w100 -t`.
             case 'w':
             {
-                //  A bare -w is not "no width given" the way a bare -h is "no
-                //  pagination": it selects the wide listing, which is the only
-                //  reason to type the flag without a number.
-                int  width = kWideListingColumns;
+                int     width  = kWideListingColumns;
+                size_t  digits = TakeGluedCount (rest, width);
 
-                if (TakeCountValue (argc, argv, argIndex, rest, width))
-                {
-                    pos = arg.size();
-                }
-                else
-                {
-                    pos++;
-                }
-
+                pos             += 1 + digits;
                 options.pageWidth = width;
                 break;
             }
@@ -1129,15 +1148,14 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
 
             //  as65: "Use 65SC02 extensions. This CPU has several additional
             //  instructions. When this option is not specified the assembler
-            //  rejects the 65SC02 extensions." That is the same tier `--cpu
-            //  65c02` already selects, so this selects it and nothing else --
-            //  one instruction set, reachable by the name as65 gave it and by
-            //  the name this tool gave it.
+            //  rejects the 65SC02 extensions." One instruction set, reachable
+            //  by the name as65 gave it.
             //
-            //  BOTH SPELLINGS STAY. `--cpu` is the one another feature builds
-            //  on, and withdrawing it to leave a single as65-shaped switch
-            //  would break work in flight for the sake of a tidiness nobody
-            //  asked for.
+            //  IT IS THE ONLY SPELLING NOW. `--cpu` selected the same
+            //  instruction set under a name as65 never had, so the tool carried
+            //  two ways to ask for one thing and the as65-shaped one was the
+            //  one an as65 user would reach for. `--cpu` is answered by name
+            //  above rather than left to the generic refusal.
             case 'x':
                 options.cpuTarget = CommandLineOptions::CpuTarget::M65C02;
                 pos++;
@@ -1154,49 +1172,42 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                 pos++;
                 break;
 
+            //  as65: "-g   Generate source-level debug information file. This
+            //  file can then be used in in-system debugging or a software
+            //  simulator." THAT IS THE WHOLE ENTRY -- the flag takes NO
+            //  parameter, and the filename, its extension and its format are
+            //  all undocumented. So it names nothing, takes nothing, and other
+            //  options may follow it in a group exactly as they follow -t.
+            //
+            //  BOTH `-g <file>` AND `-g<file>` ARE GONE. They were added here,
+            //  and removing them takes away a capability as65 never had rather
+            //  than matching one it did; naming the debug file will need a
+            //  spelling of this project's own if it is wanted back. The derived
+            //  name -- the source with a .dbg extension -- is what remains, and
+            //  it is what a bare -g always produced.
             case 'g':
                 options.debugInfo = true;
-
-                //  Named either way, on the same rule -l already uses: glued
-                //  to the flag, or the next argument when that is not itself a
-                //  flag. Accepting only the glued form meant `-g out.dbg`
-                //  wrote the derived name and dropped `out.dbg` without a word.
-                if (!rest.empty())
-                {
-                    options.debugFile = rest;
-                    pos = arg.size();
-                }
-                else if (argIndex + 1 < argc && argv[argIndex + 1][0] != '-' && argv[argIndex + 1][0] != '/')
-                {
-                    options.debugFile = argv[++argIndex];
-                    pos = arg.size();
-                }
-                else
-                {
-                    pos++;
-                }
-
+                pos++;
                 break;
 
             //  as65: "Define a label before the first source line is read. If
             //  no name is specified, DEBUG is defined. The label is EQUated to
             //  be 1."
             //
-            //  A BARE -d IS THAT DEFAULT, not an invitation to eat the next
-            //  argument. It used to take whatever followed unconditionally, and
-            //  the two things that usually follow are the source file and
-            //  another flag: `casso -d demo.a65` defined a label called
-            //  `demo.a65`, left no input file, and exited saying none was
-            //  given, while `casso demo.a65 -d -o out.bin` defined a label
-            //  called `-o`, dropped the output name and wrote the derived one.
-            //  Neither defined DEBUG, which is the only thing a bare -d was
-            //  ever asking for.
+            //  THE NAME IS GLUED, AND -d NEVER CONSUMES THE ARGUMENT AFTER IT.
+            //  as65 notates it `-d<name>`, and its parameter is a STRING, which
+            //  is the case its concatenation rule singles out: "no other option
+            //  can follow one that may have a string parameter". So the flag
+            //  takes the rest of its own argument and stops there -- a bare -d
+            //  is the DEBUG default and nothing else.
             //
-            //  A separated name still works, because it always has here and a
-            //  caller relying on it is not wrong. What it may not be is a
-            //  source file: that test is the one the glued-only form of as65
-            //  never needed, and it is the same test ApplyAs65Defaults uses to
-            //  recognize an input.
+            //  A SEPARATED `-d NAME` WAS THIS TOOL'S INVENTION AND IS GONE. It
+            //  took whatever followed, which meant `casso -d demo.a65` defined
+            //  a label called `demo.a65` and left no input file; the repair
+            //  was a heuristic -- take the next argument unless it looks like a
+            //  flag or like a source file -- and as65 has no such rule because
+            //  the glued form never needs one. `casso -d prog.a65` defines
+            //  DEBUG and assembles prog.a65 on the plain reading.
             case 'd':
             {
                 std::string  def   = rest;
@@ -1205,11 +1216,6 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                 int32_t      value = 1;
 
 
-
-                if (def.empty() && TakesSeparatedSymbolName (argc, argv, argIndex))
-                {
-                    def = argv[++argIndex];
-                }
 
                 if (def.empty())
                 {
@@ -1270,13 +1276,30 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                 pos = arg.size();
                 break;
 
+            //  AN ILLEGAL OPTION ENDS THE COMMAND LINE. as65's DIAGNOSTICS:
+            //  "Help message if only parameter is a question mark, or if an
+            //  illegal option has been specified." Usage is printed and
+            //  nothing is assembled.
+            //
+            //  THIS REVERSES A SHIPPED DECISION, by owner ruling, choosing
+            //  parity over the behavior that was here: the flag was dropped
+            //  with a warning, the assembly ran, the output was written, and
+            //  the status was 1. The cost of that was a build whose makefile
+            //  passed a flag this assembler does not have and got a binary
+            //  shaped by the flags that were left -- reported under the same
+            //  status an ordinary assembler warning earns.
+            //
+            //  THE ASSEMBLER'S PAGE IS THE ONE PRINTED, because the assembler's
+            //  grammar is the one that was violated. The complaint goes to
+            //  stderr and the page to stdout, so a caller redirecting either
+            //  one keeps the sentence rather than losing it above the page.
             default:
-                //  A complaint rather than a refusal: the flag is dropped and
-                //  the assembly still runs and still writes its output, which
-                //  is exactly what exit status 1 means here.
-                std::cerr << "Warning: Unknown flag: -" << flag << "\n";
-                options.parseVerdict = CommandLineOptions::ParseVerdict::Complaint;
-                pos++;
+                std::cerr << "Error: unknown option: " << options.flagPrefix << flag << "\n";
+                options.showHelp     = true;
+                options.helpPage     = CommandLineOptions::HelpPage::Assemble;
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+                pos                  = arg.size();
+                stop                 = true;
                 break;
             }
         }
@@ -1291,110 +1314,48 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TakeCountValue
+//  TakeGluedCount
 //
-//  Reads the numeric argument of a concatenable AS65 flag, glued to the flag or
-//  standing next to it, and says whether one was there.
+//  Reads the digits glued to a numeric AS65 flag and says how many characters
+//  they occupied, so the walk resumes at the first character that is not one.
 //
-//  BOTH SPELLINGS, because the usage text has always documented the separated
-//  one -- `-h <lines>` -- and only the glued one was ever read. `-h 10` set
-//  nothing and reported nothing, so the number went to the assembler's input
-//  path resolution and the listing came out exactly as it would have with no
-//  flag at all.
+//  THE DIGIT COUNT IS THE WHOLE POINT. as65 lets other options follow a flag
+//  whose parameter is numeric -- `-h80t` is 80 lines per page AND a symbol
+//  table -- and the only thing that can say where the number stops and the next
+//  flag starts is where the digits stop. The flag used to take the rest of its
+//  argument whatever it held, which read `-h80t` as a height of 80 and threw
+//  the `t` away.
 //
-//  A separated value is taken only when it PARSES AS A NUMBER, which is what
-//  distinguishes it from the next thing on the command line. `-h` before a
-//  source file must not eat the source file, and `-w -v` must not eat the -v;
-//  neither is a count, so neither is taken.
-//
-//  A glued value is consumed whether or not it parses, matching what the flag
-//  did before: the characters after the flag are its argument by position, and
-//  handing an unreadable one back to the concatenation walk would read it as
-//  more flags.
+//  Nothing is written to `value` when there are no digits, so a bare flag keeps
+//  whatever default its own case chose -- which differs: no pagination for -h,
+//  the wide listing for -w.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CommandLineParser::TakeCountValue (int                   argc,
-                                        char               *  argv[],
-                                        int                &  argIndex,
-                                        const std::string  &  attached,
-                                        int                &  value)
+size_t CommandLineParser::TakeGluedCount (const std::string & rest, int & value)
 {
-    HRESULT   hr        = S_OK;
-    uint32_t  parsed    = 0;
-    bool      hasNext   = (argIndex + 1) < argc;
-    bool      isNumeric = false;
-    bool      wasTaken  = false;
+    HRESULT   hr     = S_OK;
+    size_t    digits = 0;
+    uint32_t  parsed = 0;
 
 
 
-    if (!attached.empty())
+    while (digits < rest.size() && isdigit ((unsigned char) rest[digits]) != 0)
     {
-        hr = ParseDecimal (attached.c_str(), parsed);
+        digits++;
+    }
+
+    if (digits > 0)
+    {
+        hr = ParseDecimal (rest.substr (0, digits).c_str(), parsed);
 
         if (SUCCEEDED (hr))
         {
             value = (int) parsed;
         }
-
-        wasTaken = true;
-    }
-    else if (hasNext)
-    {
-        hr        = ParseDecimal (argv[argIndex + 1], parsed);
-        isNumeric = SUCCEEDED (hr);
-
-        if (isNumeric)
-        {
-            value    = (int) parsed;
-            wasTaken = true;
-            argIndex++;
-        }
     }
 
-    return wasTaken;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TakesSeparatedSymbolName
-//
-//  Whether the argument standing after a bare -d is a name for it to define.
-//
-//  TWO THINGS IT IS NOT, and a bare -d used to take both. A flag is not a
-//  symbol name -- `demo.a65 -d -o out.bin` defined a label called `-o` and then
-//  lost the output name, because the argument that should have been -o's had
-//  already been spent. And a source file is not one either: `-d demo.a65`
-//  defined `demo.a65` and left the run with no input at all.
-//
-//  The source-file test is by extension rather than by asking the filesystem,
-//  which is the same test that recognizes an input everywhere else here, and it
-//  is deliberately the weaker of the two. A file that exists is not the
-//  question -- a build script naming a source that has not been generated yet
-//  is still naming a source -- and a parser that consults the disk gives a
-//  different reading of the same command line on two machines.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CommandLineParser::TakesSeparatedSymbolName (int argc, char * argv[], int argIndex)
-{
-    const char *  next     = nullptr;
-    bool          hasNext  = (argIndex + 1) < argc;
-    bool          isTaken  = false;
-
-
-
-    if (hasNext)
-    {
-        next    = argv[argIndex + 1];
-        isTaken = next[0] != '-' && next[0] != '/' && !IsAssemblySource (next);
-    }
-
-    return isTaken;
+    return digits;
 }
 
 
@@ -1410,11 +1371,13 @@ bool CommandLineParser::TakesSeparatedSymbolName (int argc, char * argv[], int a
 //  The input name is auto-extended FIRST, so both derived names come from the
 //  resolved source path rather than the possibly extensionless one the user
 //  typed. The output extension follows the selected FORMAT, so `-s file.a65`
-//  writes an S-record without a second flag, and `-g` alone yields a .dbg
-//  beside the source.
+//  writes an S-record without a second flag, and `-g` yields a .dbg beside the
+//  source.
 //
-//  Each name is only inferred when the user did not supply it, so an explicit
-//  -o or -g always wins.
+//  THE DEBUG NAME IS ALWAYS THE DERIVED ONE, because as65's -g takes no
+//  parameter -- its entry is one sentence and names no file, extension or
+//  format. The output name is inferred only when -o did not supply it, so an
+//  explicit -oFILE always wins.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1671,9 +1634,23 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
 
 
 
+    //  NO COMMAND LINE AT ALL PRINTS THE GENERAL PAGE AND PRODUCES NOTHING,
+    //  and the status has to say the second half. It exited 0, so a script that
+    //  invoked the tool with an argument variable that happened to be empty was
+    //  told the run had worked.
+    //
+    //  THIS IS NOT AN as65 PARITY QUESTION. Nothing here has entered the
+    //  assembler's grammar -- there is no source file, no `run`, no `disk` --
+    //  so as65's statuses do not govern it. The value comes from this tool's
+    //  own table instead, where 2 is "no file was opened -- no input file".
+    //
+    //  The verdict carries it because the verdict is what the exit code is
+    //  read from, and because a bare invocation is not the user ASKING for the
+    //  page: `--help` still exits 0 and still prints the same text.
     if (argc < 2)
     {
-        options.showHelp = true;
+        options.showHelp     = true;
+        options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
     }
 
     BAIL_OUT_IF (argc < 2, S_OK);

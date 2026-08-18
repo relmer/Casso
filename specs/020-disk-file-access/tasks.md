@@ -1487,16 +1487,19 @@ feature pins all three. Implementing `-i` and `-n` for real is deferred.
       literally** -- `? -q` leaves the question mark as the input file, because
       a `?` further along a command line is somebody's operand and a host that
       allows the character allows it in a filename
-- [x] T086 **The "illegal option" half of that sentence is NOT implemented, and
-      the reason is that this branch already settled the opposite.** as65 prints
-      usage and assembles nothing when it meets a flag it does not know. T072
-      settled the other behavior for this tool -- an unrecognized assembler flag
-      is dropped, the assembly runs, the output is written, and the status is 1
-      -- and the CHANGELOG entry for it is already written. Adopting as65 here
-      would reverse a shipped decision to gain a usage dump nobody asked for.
-      **Half of it already exists in any case**: an unknown `--long` option and
-      an unreadable `--cpu` target both print usage and refuse, because those
-      cannot be dropped safely the way a single letter can
+- [x] T086 **REVERSED BY OWNER DECISION -- see T103. The "illegal option" half
+      of that sentence IS implemented now.** This task originally recorded the
+      opposite, and the reasoning it gave was that the branch had already
+      settled the other behavior: an unrecognized assembler flag dropped, the
+      assembly run, the output written, status 1. The owner's ruling was to
+      "choose parity over an incorrect shipped decision", and the reason the
+      shipped one was incorrect is that a dropped flag is one that may have
+      shaped the output -- so a makefile passing a flag this assembler does not
+      have got a binary shaped by the flags that survived, reported under the
+      same status an ordinary assembler warning earns.
+      **Its citation was also wrong**: it credited the earlier decision to
+      T072, which is the task about moving examples into their sections. The
+      decision was T062's
 - [x] T087 **An assembly error exits 3, not 2.** as65's RETURNS list: "2 -
       Unable to open input or output file. 3 - Assembly gave errors." Both
       failures left the assembler with nothing to write, so both returned 2,
@@ -1544,9 +1547,10 @@ feature pins all three. Implementing `-i` and `-n` for real is deferred.
       about the argument the flag had eaten; `demo.a65 -d -o out.bin` defined a
       label called `-o`, lost the output name, and wrote the derived one while
       reporting success. Both were reproduced against the binary before the
-      fix. A separated name still works, tested against the same extension list
-      that recognizes an input everywhere else, because a caller relying on it
-      is not wrong
+      fix. **The separated-name half of this task was reversed -- see T104.**
+      It kept `-d NAME` working via a heuristic (take the next argument unless
+      it looks like a flag or like a source file); as65 has no such rule, its
+      `-d<name>` is glued, and the heuristic went with it
 - [x] T093 **`caseSensitive` is renamed `ignoreOpcodeCase`, in both
       `CommandLineOptions` and `AssemblerOptions`.** `-i` means *ignore* case in
       opcodes and set a field called `caseSensitive` to **true**, so the record
@@ -1635,6 +1639,151 @@ Anything two pages both need is one function called twice.
       for help must leave the parse verdict clean. The general page is asserted
       to be under thirty lines including its banner -- it is twenty -- so it
       cannot grow back into four screens a reasonable addition at a time
+
+### Phase: exact as65 argument parity
+
+The governing sentence, quoted from the as65 1.42 manual and the rule every
+task below is measured against:
+
+> Commandline options can be catenated, but no other option can follow one that
+> may have a string parameter. Other options can follow one that has a numeric
+> parameter.
+
+**EVERY as65 PARAMETER IS GLUED.** There is no separated form anywhere in the
+manual's notation -- `-d<name>`, `-h<lines>`, `-w<width>`, `-l<filename>`,
+`-o<filename>` -- and `-g` and `-s` take no parameter at all. Every separated
+form this tool accepted was its own invention, and by owner ruling they are all
+withdrawn: "where we invented something as65 does not have, remove it."
+
+The boundary that did NOT move: `--flat`, `--dos-bin` and `-s2` are this
+project's and stay. They name output shapes as65 has no equivalent for, and
+matching as65's lack of long options would delete features rather than fix
+compatibility. Parity means as65's grammar works unchanged, not that ours is
+reduced to only what as65 had.
+
+`--cpu` is the one long option that DID go, and for the opposite reason: it was
+not a capability as65 lacked, it was a second spelling of one as65 already had.
+See T114.
+
+- [x] T103 **An illegal option prints usage and assembles nothing.** as65's
+      DIAGNOSTICS: "Help message if only parameter is a question mark, or if an
+      illegal option has been specified." Reverses T086/T062 by owner decision;
+      see T086 for why the shipped behavior was wrong. **The ASSEMBLER's page is
+      the one printed**, because the assembler's grammar is the one violated,
+      and the complaint goes to stderr while the page goes to stdout so a caller
+      redirecting either keeps the sentence instead of losing it above the page.
+      The walk STOPS, so a flag packed behind the illegal one is not obeyed and
+      the argument after it is not consumed. **`ParseVerdict::Complaint` was
+      removed with the behavior** -- it existed for this one case, nothing else
+      produced it, and leaving it would have been an arm nothing reaches
+- [x] T104 **`-d`'s name is glued and the flag never reads past its own
+      argument.** as65 notates `-d<name>`, a STRING parameter, which the
+      catenation rule singles out as the case nothing may follow. Reverses the
+      separated half of T092: `-d NAME` was this tool's invention and its
+      supporting heuristic is deleted. `CassoCli -d prog.a65` defines DEBUG and
+      assembles prog.a65 on the plain reading, with no rule needed to get there
+- [x] T105 **`-h` is glued AND lets other options follow it.** Its parameter is
+      NUMERIC, and the manual's own worked example is "`-h80t` which specifies
+      80 lines per page and a symbol table". `case 'h'` ran `pos` to the end of
+      the argument and discarded the trailing letters silently, so `-h80t`
+      produced a listing with no symbol table at status 0 -- measured against
+      the binary before and after. The separated `-h 60` is gone; it was added
+      on the strength of this tool's own help text, which documented a form the
+      parser did not read, and the help was the thing that was wrong.
+      `TakeGluedCount` consumes exactly the leading digits and returns how many,
+      which is what says where the value ends and the next flag begins
+- [x] T106 **`-w` follows the same numeric rule, and its bare form STAYS.** The
+      manual is explicit that the bare form is as65's own: "If the -w option is
+      given without a number following it, then the listing will be 133 columns
+      wide, otherwise it will be the number of colulmns specified (between 60
+      and 200)." So `-w` alone = 133 is parity, not invention, and only the
+      separated `-w 100` was withdrawn. **The DEFAULT was also wrong**: as65
+      says "Normally, the listing is printed using 79 columns for output to a 80
+      column screen or printer", and this was 80 -- the screen's width rather
+      than the listing's, the one column that does not fit. This project's own
+      002 contract said 79 too, so the 80 was drift from both authorities at
+      once. **Not implemented, and reported rather than invented**: the manual
+      states a valid range of 60..200 and does not say what as65 does outside
+      it, so no refusal was fabricated for a case the authority is silent on
+- [x] T107 **`-o`'s filename is glued, and a bare `-o` is refused with the form
+      to type.** as65 notates `-o<filename>`; a bare `-o` names nothing and
+      there is no such form. It is the option callers meet first -- this
+      project's own examples were written separated -- so the refusal names
+      `-oprog.bin` rather than reporting an unknown option, the way the `--out`
+      refusal already does. It does NOT set `showHelp`, on that same rule: those
+      three lines ARE the answer and the usage page would bury them. Refusing
+      also retires the trailing-`-o` hang permanently instead of falling back to
+      the derived name and reporting success
+- [x] T108 **`-l`'s filename is glued, and its bare form STAYS.** The manual
+      lists the flag twice -- "-l  Generate pass 2 listing" and "-l<filename>
+      Listing file name" -- so a bare `-l` is a real as65 form rather than a
+      missing argument, unlike a bare `-o`. Its parameter is a string, so
+      nothing follows it in a group: `-lt` names a listing file called `t`.
+      **Reported, not implemented**: as65 also documents "The filename - can be
+      used to direct the listing to standard output", where this tool spells
+      that with a bare `-l`
+- [x] T109 **`-g` takes NO parameter at all, so both filename forms go.** Its
+      entire as65 entry is "Generate source-level debug information file. This
+      file can then be used in in-system debugging or a software simulator" --
+      no filename, no extension, no format. Both `-g <file>` and `-g<file>` were
+      added by an earlier slice, so **this removes a capability as65 never had
+      rather than matching one**; naming the debug file will need a spelling of
+      this project's own if the owner wants it back. Taking no parameter also
+      means other options follow it in a group, so `-gt` is `-g -t`, and
+      `-gout.dbg` now reads as `-g -out.dbg` -- pinned by a test, because that
+      is surprising enough to be worth saying out loud
+- [x] T110 **A bare `CassoCli` returns 2.** It printed the general page and
+      exited 0 while `main`'s own comment claimed a missing subcommand exits 1
+      -- an arm made unreachable because the parser sets `showHelp` for an empty
+      command line, so the "user asked" branch claimed it. **Decided on this
+      tool's own exit table, NOT as65 parity**: nothing has entered the
+      assembler's grammar, so as65's statuses do not govern, and 2 is what this
+      table already spends on "no file was opened". The verdict carries it, so a
+      parser test can read the decision the executable acts on; `main`'s wrong
+      comment is replaced by the rule it now follows -- asking for the page exits
+      0, being shown it exits 2
+- [x] T111 **`run` with an unreadable input returns 2, not 1.** `run` documents
+      2 for "an input that could not be read" and returned 1, because `DoRun`
+      treated an unreadable source as an assembly failure. Nothing was
+      assembled, so nothing failed to assemble; `AssembleResult::wasRead`
+      already carried the distinction and the binary path beside it already
+      returned 2 for the identical mistake. **The same false claim was in the
+      message channel** -- "Assembly failed with 0 error(s)" printed under
+      "Cannot read input file", naming a count of zero because there was nothing
+      to count -- and is gated on the same flag
+- [x] T112 **`<binary>` moves to the run page.** It was on the assembler's page,
+      where an assembled image is not something the assembler can be given; it
+      is `run`'s operand. It is not repeated on both, because an operand
+      documented twice is one whose scope a reader has to guess
+- [x] T113 **The assembler's exit-status block now says which authority each
+      code comes from.** After this phase the statuses are as65's inside the
+      assembler grammar and this tool's own everywhere else, and the block
+      listed both without distinguishing them. 0, 2 and 3 carry as65's meanings;
+      1 does not -- as65 spends it on a bad command line and this assembler
+      spends it on an assembly that warned, refusing the bad command line under
+      2. Status 1 no longer covers a dropped flag, because there is no longer a
+      command line that assembles and complains at the same time
+- [x] T114 **`--cpu` is withdrawn and `-x` replaces it.** REVERSES T091, which
+      kept both spellings, by owner decision: `-x` is as65's own name for the
+      switch and selects the same instruction set, so the tool carried two ways
+      to ask for one capability. Both `--cpu` and `/cpu` are matched BY NAME and
+      answered with a message pointing at `-x`, rather than left to the generic
+      `--` refusal -- command lines carrying the flag already exist, and `/cpu`
+      would otherwise reach the concatenation walk and be read as `-c -p -u`,
+      which is a true reading of as65's grammar and a useless answer to somebody
+      migrating.
+      **The long-option table stays at two entries and is NOT scaffolding.** It
+      is what stops the single-character normalization from reading `/flat` as
+      -f -l -a -t; one entry would still need it. Neither `--flat` nor
+      `--dos-bin` changed spelling.
+      **KNOWN COST ON SPEC 019, recorded here because it cannot be fixed from
+      this branch.** 019 pins `--cpu` in as65 mode with its own tests, and its
+      Merlin path refuses `--cpu` **by name** so the user is pointed at Merlin's
+      `XC` directive. With the flag gone from as65 mode those tests need
+      retargeting at `-x`, and that refusal needs rewording or its guidance
+      degrades to a bare "unknown option". **Whoever merges the two branches
+      owns this**; it was not touched from here because 019's worktree is not
+      visible to this one. Closes the deferred half of GH #118
 
 ---
 

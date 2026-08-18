@@ -101,7 +101,7 @@ std::string CommandLineHelp::BuildExampleCommands (char flagPrefix)
 
 
     return std::string (kExampleHeading) + "\n"
-        "  CassoCli prog.a65 " + sp + "o prog.bin\n"
+        "  CassoCli prog.a65 " + sp + "oprog.bin\n"
         "  CassoCli disk put mydisk.dsk prog.bin " + lp + "as PROG "
                  + lp + "type B " + lp + "addr $6000\n"
         "  CassoCli disk put mydisk.dsk greet.bas " + lp + "as STARTUP " + lp + "basic\n"

@@ -55,7 +55,7 @@ Apple II disk image and puts them back — `list`, `get`, `put`, `delete`, and
 images alike, with no third-party tool anywhere in the loop:
 
 ```powershell
-CassoCli prog.a65 -o prog.bin
+CassoCli prog.a65 -oprog.bin
 CassoCli disk put mydisk.dsk prog.bin --as PROG --type B --addr $6000
 CassoCli disk put mydisk.dsk greet.bas --as STARTUP --basic
 CassoCli disk boot mydisk.dsk STARTUP
@@ -368,30 +368,31 @@ Casso.sln
 
 ```powershell
 # Assemble a source file to its assembled bytes (AS65 mode — no subcommand)
-CassoCli input.a65 -o output.bin
+# Every value attaches to its flag, which is as65's grammar: -ooutput.bin
+CassoCli input.a65 -ooutput.bin
 
 # Assemble with a listing file and a symbol table
-CassoCli input.a65 -o output.bin -l listing.txt -t
+CassoCli input.a65 -ooutput.bin -llisting.txt -t
 
 # Output Motorola S-record (.s19) or Intel HEX (.hex)
-CassoCli input.a65 -s   -o output.s19
-CassoCli input.a65 -s2  -o output.hex
+CassoCli input.a65 -s   -ooutput.s19
+CassoCli input.a65 -s2  -ooutput.hex
 
 # The assembled bytes are the default. --flat pads them out to a full 64 KB
 # memory image; --dos-bin puts a BLOAD-ready DOS 3.3 header in front of them.
-CassoCli input.a65            -o output.bin
-CassoCli input.a65 --flat     -o output.bin
-CassoCli input.a65 --dos-bin  -o output.bin
+CassoCli input.a65            -ooutput.bin
+CassoCli input.a65 --flat     -ooutput.bin
+CassoCli input.a65 --dos-bin  -ooutput.bin
 
 # Pre-define a symbol on the command line
-CassoCli input.a65 -d DEBUG=1 -o output.bin
+CassoCli input.a65 -dDEBUG=1  -ooutput.bin
 
 # Generate a listing with cycle counts
-CassoCli input.a65 -c -l listing.txt
+CassoCli input.a65 -c -llisting.txt
 
 # Assemble 65C02 source (CMOS opcodes: STZ, BRA, RMB/SMB/BBR/BBS, ...)
-# The default is a strict 6502; 65C02-only opcodes are rejected without --cpu.
-CassoCli input.a65c --cpu 65c02 -o output.bin
+# The default is a strict 6502; 65C02-only opcodes are rejected without -x.
+CassoCli input.a65c -x -ooutput.bin
 
 # Assemble and run an assembly source directly
 CassoCli run input.a65
@@ -433,7 +434,7 @@ Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
 |---------|---------------|
 | All 56 mnemonics | `LDA`, `STA`, `ADC`, `BNE`, etc. |
 | All addressing modes | `#$42`, `$30`, `$1234,X`, `($20),Y`, `A` |
-| CPU target | `--cpu 6502` (default, strict) or `--cpu 65c02` for CMOS opcodes (`STZ`, `BRA`, `TSB`/`TRB`, `RMB`/`SMB`/`BBR`/`BBS`, `(zp)`, `(abs,X)`); Rockwell bit ops take `<bit>,<zp>[,<target>]` or the suffixed `RMB0`/`BBR3` form |
+| CPU target | strict 6502 by default, or `-x` for CMOS opcodes (`STZ`, `BRA`, `TSB`/`TRB`, `RMB`/`SMB`/`BBR`/`BBS`, `(zp)`, `(abs,X)`); Rockwell bit ops take `<bit>,<zp>[,<target>]` or the suffixed `RMB0`/`BBR3` form |
 | Labels | `loop: DEX` / `BNE loop` |
 | Directives | `.org $8000`, `.byte $FF`, `.word $1234`, `.text "hello"`, `code`/`data`/`bss` |
 | Constants | `value = $42`, `carry equ %00000001` (chains and forward refs supported) |
@@ -447,11 +448,11 @@ Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
 | Symbol table | `-t` |
 | Output formats | the assembled span (the default, with no flag to name it), `--flat` (full 64 KB image padded with the fill byte), `--dos-bin` (span behind a DOS 3.3 load-address/length header), `-s` (S-record), `-s2` (Intel HEX) |
 | Fill control | `-z` for `$00` fill (default `$FF`) |
-| Pre-defined symbols | `-d NAME` or `-d NAME=VALUE` |
-| Debug info | `-g [file]` |
+| Pre-defined symbols | `-dNAME` or `-dNAME=VALUE` (attached, as65-style) |
+| Debug info | `-g` (named for the source, `.dbg`) |
 | Warning control | `--warn`, `--no-warn`, `--fatal-warnings` |
 | Verbose / quiet | `-v` / `-q` |
-| Flag concatenation | `-tlfile` ≡ `-t -l file` (AS65 style) |
+| Flag concatenation | `-tlfile` ≡ `-t -lfile` (AS65 style); a numeric value lets more flags follow, so `-h80t` is `-h80 -t` |
 
 ## CPU Emulation Status
 

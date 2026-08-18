@@ -59,15 +59,23 @@ struct CommandLineOptions
     //  What the parser made of the command line itself, apart from anything
     //  the assembler, the emulator or a disk found afterwards.
     //
-    //  The three values are the three exit statuses this tool already
-    //  documents -- 0 clean, 1 succeeded with complaints, 2 produced no output
-    //  -- so a verdict maps onto one without a second table deciding what a
-    //  complaint is worth.
+    //  Clean means the command line was taken as written. Refused means nothing
+    //  was attempted -- an option no grammar here has, a value that could not be
+    //  read, or the EMPTY command line, where nothing was attempted because
+    //  nothing was asked for. They map onto the two exit statuses a command line
+    //  alone can decide: 0, and the 2 this tool documents as "produced no
+    //  output".
     //
-    //  Complaint means the command line was understood well enough to run:
-    //  an unrecognized as65 flag is ignored and the assembly still produces
-    //  its output. Refused means it was not, and nothing was attempted.
-    enum class ParseVerdict  { Clean, Complaint, Refused };
+    //  THERE WAS A THIRD, `Complaint`, AND NOTHING PRODUCES IT NOW. It existed
+    //  for one case -- an unrecognized assembler flag, dropped so the assembly
+    //  could run on without it, reported as status 1. as65 prints usage and
+    //  assembles nothing instead ("Help message if only parameter is a question
+    //  mark, or if an illegal option has been specified"), parity won that by
+    //  owner ruling, and the value was removed with the behavior rather than
+    //  left as an arm nothing reaches. Status 1 is still spent, by
+    //  As65ExitStatus, on an assembly that warned -- which is a fact about the
+    //  SOURCE and was never a verdict on the command line.
+    enum class ParseVerdict  { Clean, Refused };
 
     //  Which page a help request asks for.
     //
@@ -177,7 +185,12 @@ struct CommandLineOptions
     bool                                      cycleCounts       = false;   // -c
     bool                                      macroExpansion    = false;   // -m
     int                                       pageHeight        = 0;   // -h<N>
-    int                                       pageWidth         = 80;   // -w<N>
+    //  79, which is as65's: "Normally, the listing is printed using 79 columns
+    //  for output to a 80-column screen or printer." It was 80 -- the width of
+    //  the SCREEN rather than of the listing, which is the one column that does
+    //  not fit on it. This project's own 002 contract said 79 as well, so the
+    //  80 was drift from both authorities at once.
+    int                                       pageWidth         = 79;   // -w<N>
     //  -i, and NOT YET IMPLEMENTED -- the flag parses and changes nothing.
     //
     //  The name is what matters until it is. as65's -i means "Ignore case in

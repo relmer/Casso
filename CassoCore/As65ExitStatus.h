@@ -29,11 +29,15 @@
 //  quietly omitted, so a script porting from as65 can see the difference was
 //  noticed instead of wondering which status replaced it.
 //
-//  Status 1 also diverges, deliberately and visibly: as65 spends it on a bad
-//  command line, and this tool spends it on "assembled, and had something to
-//  say" -- an assembler warning, or a flag that was dropped. The help states
-//  that under the assemble mode rather than leaving the as65 wording to imply
-//  otherwise.
+//  STATUS 1 IS THE ONE DIVERGENCE LEFT, and it is stated in the help rather
+//  than left for the as65 wording to imply. as65 spends 1 on "Incorrect
+//  parameter specified on the commandline"; this tool spends it on "assembled,
+//  and the assembler had something to say", and puts the bad command line under
+//  2 alongside every other case that opened no file.
+//
+//  It used to cover a dropped flag as well. It does not: an option this grammar
+//  does not have now prints usage and assembles nothing, which is as65's own
+//  behavior, so that case reaches 2 as a refusal instead of 1 as a warning.
 //
 //  This lives in the core library rather than beside the console executable's
 //  main because the test assembly does not link that executable. A status

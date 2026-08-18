@@ -87,15 +87,18 @@ public:
     //
     static constexpr const char *  kAssembleExitStatusHelpText =
         "    0  assembled cleanly, and every artifact asked for was written.\n"
-        "    1  assembled, and had something to say -- an assembler warning, or a\n"
-        "       flag that was not recognized and was dropped. The output was still\n"
+        "    1  assembled, and the assembler had something to say. The output was still\n"
         "       written.\n"
         "    2  no file was opened -- no input file, an input that could not be\n"
         "       read, a command line that was refused, or an output file that\n"
         "       could not be written.\n"
         "    3  the source was read and did not assemble.\n"
         "       as65 also defines 4, no memory could be allocated. This assembler\n"
-        "       does not produce it.";
+        "       does not produce it.\n"
+        "       TWO AUTHORITIES MEET IN THIS LIST. 0, 2 and 3 carry as65's own\n"
+        "       meanings. 1 does not: as65 spends it on a bad command line, and\n"
+        "       this assembler spends it on an assembly that warned, refusing the\n"
+        "       bad command line under 2 with the other cases that opened no file.";
 
     static constexpr const char *  kRunExitStatusHelpText =
         "    0  the program ran to a stop -- the stop address, or the cycle limit.\n"
@@ -141,17 +144,10 @@ private:
     static HRESULT  ParseDecimal    (const char * text, uint32_t & value);
     static HRESULT  ParseFillByte   (const char * text, Byte & fillByte);
 
-    //  The numeric argument of a concatenable AS65 flag, glued to it or
-    //  standing next to it, and whether one was there at all.
-    static bool  TakeCountValue (int                   argc,
-                                 char               *  argv[],
-                                 int                &  argIndex,
-                                 const std::string  &  attached,
-                                 int                &  value);
-
-    //  Whether the argument after a bare -d is a symbol name for it to take,
-    //  rather than the source file or the next flag.
-    static bool  TakesSeparatedSymbolName (int argc, char * argv[], int argIndex);
+    //  The digits glued to a numeric AS65 flag, and how many characters they
+    //  occupied -- which is where the flag ends and the next one in the group
+    //  begins.
+    static size_t  TakeGluedCount (const std::string & rest, int & value);
 
     static std::string  TryAutoExtend  (const std::string & path, const FileExistsFn & fileExists);
     static std::string  StripExtension (const std::string & path);

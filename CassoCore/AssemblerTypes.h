@@ -93,7 +93,7 @@ struct AssemblerOptions
     bool                                        cycleCounts       = false;   // -c flag
     bool                                        macroExpansion    = false;   // -m flag (show macro expansion in listing)
     int                                         pageHeight        = 0;   // -h flag (0 = no pagination)
-    int                                         pageWidth         = 80;   // -w flag
+    int                                         pageWidth         = 79;   // -w flag
     //  -i, not yet implemented. Named for what the flag MEANS -- ignore case
     //  in opcodes -- because the previous name said the reverse. Labels stay
     //  case sensitive when it is honored; see CommandLineOptions.

@@ -166,9 +166,9 @@ static bool FileExists (const std::string & path)
 //
 //  SelectInstructionSet
 //
-//  Picks the assembler's target instruction table from --cpu. The default is the
+//  Picks the assembler's target instruction table from -x. The default is the
 //  strict 6502 table (`cpu`), so 65C02-only opcodes never assemble by accident;
-//  --cpu 65c02 substitutes the CMOS 65C02 (Rockwell R65C02) table.
+//  -x substitutes the CMOS 65C02 (Rockwell R65C02) table.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -305,6 +305,12 @@ static AssembleResult AssembleFile (const std::string & inputFile,
 //
 //  ReportAssemblyDiagnostics
 //
+//  THE FAILURE LINE IS GATED ON THE SOURCE HAVING BEEN READ, for the reason the
+//  exit status is. An unreadable input printed "Cannot read input file" and then
+//  "Assembly failed with 0 error(s)" underneath it -- a second, contradicting
+//  account of the same event, naming a count of zero because there was nothing
+//  to count. Nothing was assembled, so nothing failed to assemble.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static void ReportAssemblyDiagnostics (const AssembleResult & ar)
@@ -319,7 +325,7 @@ static void ReportAssemblyDiagnostics (const AssembleResult & ar)
         std::println (stderr, "{}:{}: error: {}", ar.inputFile, e.lineNumber, e.message);
     }
 
-    if (!ar.ok)
+    if (!ar.ok && ar.wasRead)
     {
         std::println (stderr, "Assembly failed with {} error(s)", ar.result.errors.size());
     }
@@ -844,11 +850,17 @@ static void PrintUsageExitStatus (const char * statuses)
 //  the page is one a reader has to hold two option tables in mind to follow,
 //  and the disk loop is the only example that genuinely spans sections.
 //
-//  IT IS A PAGE OF ITS OWN NOW, reached by a lone `?` and by nothing else, so
-//  it opens with the invocation it describes and with what the two operands
-//  mean. The usage line comes from CommandLineHelp rather than being written
-//  here, because the general page lists the same modes and two descriptions of
-//  one invocation are two descriptions that can disagree.
+//  IT IS A PAGE OF ITS OWN NOW, reached by a lone `?` and by an option this
+//  grammar does not have, so it opens with the invocation it describes and with
+//  what its operand means. The usage line comes from CommandLineHelp rather
+//  than being written here, because the general page lists the same modes and
+//  two descriptions of one invocation are two descriptions that can disagree.
+//
+//  IT DESCRIBES ONE OPERAND, `<source>`. It carried `<binary>` as well, which
+//  is `run`'s operand and nothing this page can be given: an assembler is not
+//  handed an assembled image. It moved to the run page rather than being
+//  repeated on both, because an operand documented in two places is one a
+//  reader has to guess the scope of.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -856,20 +868,26 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
 {
     const char * lines[] =
     {
-        "  {1}cpu <6502|65c02>{2}     Target CPU (default: 6502)",
-        "  {0}x                     Use the 65SC02 extensions -- the same set",
-        "                         {1}cpu 65c02 selects, under the name as65 gave it",
-        "  {0}d [<name>[=<value>]]  Pre-define symbol ({0}d alone defines DEBUG as 1)",
+        "  {0}x                     Use the 65SC02 extensions. Without it the CMOS",
+        "                         opcodes are rejected, which is the default",
+        "  {0}d[<name>[=<value>]]   Pre-define symbol ({0}d alone defines DEBUG as 1).",
+        "                         The name is ATTACHED: {0}d NAME defines DEBUG and",
+        "                         leaves NAME to be read as the source file",
         "  {0}i                     Ignore case in opcodes (not implemented)",
         "  {0}n                     Disable optimizations (no-op)",
         "",
+        "  EVERY VALUE ATTACHES TO ITS FLAG -- {0}oprog.bin, not {0}o prog.bin. That is",
+        "  as65's grammar, which this mode exists to accept unchanged.",
+        "",
         "  Flags concatenate in THIS grammar only: {0}tlfile = {0}t {0}lfile. It is what",
         "  as65 did, and `run` and `disk` take their options one to an argument.",
+        "  A flag taking a NUMBER may be followed inside the group -- {0}h80t is",
+        "  {0}h80 {0}t -- and one taking a NAME may not, because the name would eat it.",
         "",
-        "  CassoCli prog.a65 {1}cpu 65c02 {0}d DEBUG=1",
+        "  CassoCli prog.a65 {0}x {0}dDEBUG=1",
         "",
         "  Output:",
-        "    {0}o <file>            Where the assembled bytes go. Defaults to the source",
+        "    {0}o<file>             Where the assembled bytes go. Defaults to the source",
         "                         file's own name with its extension replaced -- .bin,",
         "                         or .s19 under {0}s and .hex under {0}s2",
         "    {1}flat{2}               Write a full 64 KB memory image, padded with the fill",
@@ -884,24 +902,26 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
         "    Naming no shape writes ONLY the assembled bytes, unpadded. There is no",
         "    flag for that -- it is what you get by not asking for another one.",
         "",
-        "    CassoCli prog.a65 {0}o prog.bin",
-        "    CassoCli rom.a65 {0}o rom.bin {1}flat {0}z",
+        "    CassoCli prog.a65 {0}oprog.bin",
+        "    CassoCli rom.a65 {0}orom.bin {1}flat {0}z",
         "",
         "  Listing and diagnostics:",
-        "    {0}l [<file>]          Generate listing ({0}l = stdout, {0}l file = to file)",
+        "    {0}l[<file>]           Generate listing ({0}l alone = stdout, {0}lprog.lst = to",
+        "                         that file)",
         "    {0}p                   Generate pass 1 listing",
         "    {0}c                   Show cycle counts in listing",
         "    {0}m                   Show macro expansions in listing",
-        "    {0}h <lines>           Page height for listing (default: no pagination).",
-        "                         As the FIRST argument, {0}h asks for help instead",
-        "    {0}w [<width>]         Column width (default: 80, {0}w alone = 133)",
+        "    {0}h<lines>            Page height for listing ({0}h0 = one continuous page,",
+        "                         the default). As the FIRST argument, {0}h asks for",
+        "                         help instead",
+        "    {0}w<width>            Column width (default: 79, {0}w alone = 133)",
         "    {0}t                   Generate symbol table",
-        "    {0}g [<file>]          Generate debug information file",
-        "                         ({0}g = the input, with a .dbg extension)",
+        "    {0}g                   Generate debug information file, named for the",
+        "                         input with a .dbg extension",
         "    {0}v                   Verbose mode",
         "    {0}q                   Quiet mode (suppress progress)",
         "",
-        "    CassoCli prog.a65 {0}l prog.lst {0}c {0}t",
+        "    CassoCli prog.a65 {0}lprog.lst {0}c {0}t",
     };
 
     std::println ("Usage:");
@@ -909,7 +929,6 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
     std::println ("");
     std::println ("  <source>   An assembly source file. Given no extension, .a65, .asm");
     std::println ("             and .s are tried in that order.");
-    std::println ("  <binary>   An assembled image to load and execute.");
     std::println ("");
     std::println ("Assembly options:");
 
@@ -934,6 +953,12 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
 //  general page and this one cannot describe `run` differently, and closes with
 //  the statuses `run` itself spends -- which are not the assembler's.
 //
+//  `<binary>` IS DESCRIBED HERE BECAUSE IT IS THIS MODE'S OPERAND. It sat on
+//  the assembler's page, where an assembled image is not something the
+//  assembler can be given. `<source>` stays there: this mode accepts one too,
+//  and the usage line above already says so, but the page that describes what
+//  gets assembled is the page that describes a source file.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
@@ -949,6 +974,8 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
 
     std::println ("Usage:");
     std::println ("{}", CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::Run));
+    std::println ("");
+    std::println ("  <binary>   An assembled image to load and execute.");
     std::println ("");
     std::println ("Run options:");
 
@@ -1118,7 +1145,15 @@ int DoRun (const CommandLineOptions & options)
         ReportAssemblyDiagnostics (ar);
 
         wasLoaded = ar.ok;
-        exitCode  = ar.ok ? 0 : 1;
+
+        //  A SOURCE THAT COULD NOT BE READ DID NOT FAIL TO ASSEMBLE. Every
+        //  failure on this path reported 1, "the input was source, and it did
+        //  not assemble" -- but a file that never opened never reached the
+        //  assembler, so nothing assembled and nothing failed. It belongs with
+        //  the other things that stopped the run from starting, which is the 2
+        //  this mode already documents and the 2 the binary path below has
+        //  always returned for the very same mistake.
+        exitCode = ar.wasRead ? (ar.ok ? 0 : 1) : 2;
 
         if (wasLoaded)
         {
@@ -1295,8 +1330,12 @@ int DoAs65 (const CommandLineOptions & options)
         std::println (stderr, "Assembly time: {} us", elapsed.count());
     }
 
-    hasWarnings = !ar.result.warnings.empty() ||
-                  options.parseVerdict == CommandLineOptions::ParseVerdict::Complaint;
+    //  ONLY THE ASSEMBLER'S OWN WARNINGS REACH STATUS 1 NOW. A dropped flag
+    //  used to count here too, which is what let a mistyped option and a
+    //  redundant `.org` report the same thing. A flag this grammar does not
+    //  have is refused before any of this runs, so there is no longer a command
+    //  line that assembles and complains at the same time.
+    hasWarnings = !ar.result.warnings.empty();
     ReportAssemblyDiagnostics (ar);
 
     exitCode = As65ExitStatus::ForAssembly (ar.wasRead, ar.ok);

@@ -469,9 +469,28 @@ namespace CommandLineTests
             Assert::IsTrue (opts.listingFile.empty());
         }
 
-        TEST_METHOD (ListingFlag_TakesSeparatedFilename)
+        //  BOTH BARE FORMS ARE as65's, WHICH IS WHY -l KEEPS ITS ONE. The
+        //  manual lists the flag twice -- "-l  Generate pass 2 listing" and
+        //  "-l<filename>  Listing file name" -- so a bare -l is a real form
+        //  rather than a missing argument, unlike a bare -o.
+        //
+        //  The SEPARATED form is gone with every other one: `-l` has a string
+        //  parameter, so it takes the rest of its own argument and reaches no
+        //  further. `-l out.lst` asks for a listing on stdout and leaves
+        //  out.lst to be read as the source file.
+        TEST_METHOD (ListingFlag_DoesNotTakeASeparatedFilename)
         {
             ArgVector           args = { "CassoCli", "demo.a65", "-l", "out.lst" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.generateListing);
+            Assert::IsTrue (opts.listingToStdout, L"a bare -l is the stdout form as65 documents");
+            Assert::IsTrue (opts.listingFile.empty(), L"and it does not reach the next argument");
+        }
+
+        TEST_METHOD (ListingFlag_TakesAnAttachedFilename)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-lout.lst" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (std::string ("out.lst"), opts.listingFile);
@@ -535,17 +554,34 @@ namespace CommandLineTests
             Assert::AreEqual ((int32_t) 5, found->second);
         }
 
-        //  A bare -d NAME defines the symbol as 1, so `ifdef` works without the
-        //  caller inventing a value.
+        //  A glued -dNAME with no value defines the symbol as 1, so `ifdef`
+        //  works without the caller inventing a value.
         TEST_METHOD (PredefineWithoutValue_DefaultsToOne)
         {
-            ArgVector           args  = { "CassoCli", "demo.a65", "-d", "DEBUG" };
+            ArgVector           args  = { "CassoCli", "demo.a65", "-dFAST" };
             CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
-            auto                found = opts.predefinedSymbols.find ("DEBUG");
+            auto                found = opts.predefinedSymbols.find ("FAST");
             bool                isSet = found != opts.predefinedSymbols.end();
 
             Assert::IsTrue (isSet);
             Assert::AreEqual ((int32_t) 1, found->second);
+        }
+
+        //  THE NAME IS GLUED AND THE SEPARATED FORM IS GONE. as65 notates the
+        //  flag `-d<name>` and its parameter is a string, which is the case its
+        //  concatenation rule singles out. `-d NAME` was this tool's own
+        //  invention, propped up by a heuristic that guessed whether the next
+        //  argument looked enough like a symbol to eat; as65 needs no such rule
+        //  because it never reaches past the argument the flag is in.
+        TEST_METHOD (PredefineWithASeparatedName_DefinesDebugAndLeavesTheNameAlone)
+        {
+            ArgVector           args  = { "CassoCli", "demo.a65", "-d", "FAST" };
+            CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.predefinedSymbols.find ("FAST") == opts.predefinedSymbols.end(),
+                            L"-d does not reach the argument after it");
+            Assert::IsTrue (opts.predefinedSymbols.find ("DEBUG") != opts.predefinedSymbols.end(),
+                            L"the bare flag is the DEBUG default as65 documents");
         }
 
         //  as65: "If no name is specified, DEBUG is defined. The label is
@@ -567,7 +603,8 @@ namespace CommandLineTests
         //  next to it is the source file. `-d demo.a65` defined a label called
         //  `demo.a65` and left the run with no input, which then failed saying
         //  no input file was given -- a diagnostic about the argument the flag
-        //  had eaten.
+        //  had eaten. It reads correctly now for the plain reason rather than
+        //  the guessed one: -d never looks past its own argument.
         TEST_METHOD (PredefineBeforeTheSourceFile_LeavesTheSourceFileAlone)
         {
             ArgVector           args  = { "CassoCli", "-d", "demo.a65" };
@@ -581,18 +618,18 @@ namespace CommandLineTests
         }
 
         //  The other thing that follows a bare -d is the next flag, and eating
-        //  one costs the argument BEHIND it too: `-d -o out.bin` defined a
-        //  label called `-o`, so `out.bin` was never read as an output name and
-        //  the derived name was written instead -- a file the caller did not
-        //  ask for, under a name they did not choose, reported as success.
+        //  one costs the argument BEHIND it too: `-d -oout.bin` defined a
+        //  label called `-oout.bin`, so no output name was ever read and the
+        //  derived one was written instead -- a file the caller did not ask
+        //  for, under a name they did not choose, reported as success.
         TEST_METHOD (PredefineBeforeAnotherFlag_LeavesThatFlagAlone)
         {
-            ArgVector           args  = { "CassoCli", "demo.a65", "-d", "-o", "out.bin" };
+            ArgVector           args  = { "CassoCli", "demo.a65", "-d", "-oout.bin" };
             CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (std::string ("out.bin"), opts.outputFile, L"-o kept its value");
             Assert::IsTrue (opts.predefinedSymbols.find ("DEBUG") != opts.predefinedSymbols.end());
-            Assert::IsTrue (opts.predefinedSymbols.find ("-o") == opts.predefinedSymbols.end(),
+            Assert::IsTrue (opts.predefinedSymbols.find ("-oout.bin") == opts.predefinedSymbols.end(),
                             L"a flag is not a symbol name");
         }
 
@@ -604,15 +641,56 @@ namespace CommandLineTests
             Assert::AreEqual (133, opts.pageWidth);
         }
 
-        //  The separated spelling is the one the usage text has always shown --
-        //  `-h <lines>` -- and it was the one being thrown away. Only the glued
-        //  form was read, so `-h 10` set nothing and said nothing.
-        TEST_METHOD (PageHeightFlag_TakesASeparatedValue_TheFormTheHelpDocuments)
+        //  THE SEPARATED FORM IS GONE. as65 notates the flag `-h<lines>` and
+        //  glues the value; `-h 60` was added here on the strength of this
+        //  tool's own help text, which documented a form the parser did not
+        //  read. The help was the thing that was wrong, and it has been
+        //  corrected instead.
+        TEST_METHOD (PageHeightFlag_DoesNotTakeASeparatedValue)
         {
             ArgVector           args = { "CassoCli", "demo.a65", "-h", "10" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::AreEqual (10, opts.pageHeight);
+            Assert::AreEqual (0, opts.pageHeight, L"the number after -h is the next argument, not the height");
+        }
+
+        //  as65's OWN worked example of its concatenation rule: "-h80t which
+        //  specifies 80 lines per page and a symbol table". Its parameter is
+        //  NUMERIC, and the rule is that "other options can follow one that has
+        //  a numeric parameter" -- so the digits end the value and the walk
+        //  resumes at `t`. This ran to the end of the argument instead and threw
+        //  the `t` away without a word, which is the bug: a listing asked for
+        //  with a symbol table came back without one, at status 0.
+        TEST_METHOD (PageHeightFlag_LetsAnotherFlagFollowItInTheGroup)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-h80t" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (80, opts.pageHeight, L"80 lines per page");
+            Assert::IsTrue (opts.symbolTable, L"and a symbol table -- as65's own example");
+        }
+
+        //  The same rule, one flag along, so the walk is shown resuming rather
+        //  than merely stopping in the right place.
+        TEST_METHOD (PageWidthFlag_LetsAnotherFlagFollowItInTheGroup)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-w100tq" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (100, opts.pageWidth);
+            Assert::IsTrue (opts.symbolTable, L"-t followed the numeric value");
+            Assert::IsTrue (opts.quiet,       L"and -q followed -t");
+        }
+
+        //  `-h0` is as65's documented special case, and it is also this tool's
+        //  default -- so the flag has to be READ rather than merely tolerated,
+        //  or a later `-h60` on the same line could not be cancelled by it.
+        TEST_METHOD (PageHeightZero_IsTheInfinitePageAs65Documents)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-h60", "-h0" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (0, opts.pageHeight, L"an infinite page length");
         }
 
         TEST_METHOD (PageHeightFlag_TakesAnAttachedValue)
@@ -638,9 +716,31 @@ namespace CommandLineTests
             Assert::AreEqual (0, opts.pageHeight, L"and no pagination was asked for");
         }
 
-        TEST_METHOD (PageWidthFlag_TakesASeparatedValue)
+        //  Gone with every other separated form. `-w 100` leaves the bare-flag
+        //  133 standing and hands `100` back to the walk.
+        TEST_METHOD (PageWidthFlag_DoesNotTakeASeparatedValue)
         {
             ArgVector           args = { "CassoCli", "demo.a65", "-w", "100" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (CommandLineParser::kWideListingColumns, opts.pageWidth,
+                              L"a bare -w is the 133-column listing, whatever follows it");
+        }
+
+        //  as65 states the default itself: "Normally, the listing is printed
+        //  using 79 columns for output to a 80-column screen or printer." It
+        //  was 80 here -- the screen's width, not the listing's.
+        TEST_METHOD (PageWidthDefault_IsTheSeventyNineAs65Documents)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (79, opts.pageWidth);
+        }
+
+        TEST_METHOD (PageWidthFlag_TakesAnAttachedValueOfItsOwn)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-w100" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (100, opts.pageWidth);
@@ -656,24 +756,47 @@ namespace CommandLineTests
             Assert::AreEqual (CommandLineParser::kWideListingColumns, opts.pageWidth);
         }
 
-        //  -g took its filename glued on and silently dropped a separated one,
-        //  writing the derived name instead. A file the user named and never
-        //  got is worse than a refusal.
-        TEST_METHOD (DebugFlag_TakesASeparatedFileName)
+        //  -g TAKES NO PARAMETER AT ALL. Its whole as65 entry is "Generate
+        //  source-level debug information file. This file can then be used in
+        //  in-system debugging or a software simulator" -- no filename, no
+        //  extension, no format. Both named forms were added here, so removing
+        //  them takes away a capability as65 never had rather than matching
+        //  one; naming the file will need a spelling of this project's own.
+        TEST_METHOD (DebugFlag_TakesNoFileName_SeparatedOrAttached)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-g", "out.dbg" };
+            ArgVector           separated = { "CassoCli", "demo.a65", "-g", "out.dbg" };
+            ArgVector           attached  = { "CassoCli", "demo.a65", "-gout.dbg" };
+            CommandLineOptions  sepOpts   = CommandLineParser::Parse (separated.Count(), separated.Data(), NoProbe());
+            CommandLineOptions  attOpts   = CommandLineParser::Parse (attached.Count(), attached.Data(), NoProbe());
+
+            Assert::IsTrue (sepOpts.debugInfo);
+            Assert::AreEqual (std::string ("demo.dbg"), sepOpts.debugFile,
+                              L"the derived name, not the one standing next to the flag");
+
+            Assert::IsTrue (attOpts.debugInfo);
+            Assert::AreEqual (std::string ("demo.dbg"), attOpts.debugFile,
+                              L"and not the one glued to it either");
+
+            //  WHAT `-gout.dbg` NOW MEANS IS `-g -out.dbg`, pinned here rather
+            //  than left to be discovered. A flag taking no parameter hands the
+            //  rest of its group straight to the walk, so the `o` is read as -o
+            //  and `ut.dbg` as its attached filename. That is as65's
+            //  concatenation working as designed -- it is the same reading that
+            //  makes `/out` mean `-o ut` -- and it is surprising enough to be
+            //  worth a test that says so out loud.
+            Assert::AreEqual (std::string ("ut.dbg"), attOpts.outputFile,
+                              L"the group continued into -o, as concatenation requires");
+        }
+
+        //  Taking no parameter is also what lets other flags follow it in a
+        //  group, exactly as they follow -t.
+        TEST_METHOD (DebugFlag_LetsAnotherFlagFollowItInTheGroup)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-gt" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.debugInfo);
-            Assert::AreEqual (std::string ("out.dbg"), opts.debugFile);
-        }
-
-        TEST_METHOD (DebugFlag_TakesAnAttachedFileName)
-        {
-            ArgVector           args = { "CassoCli", "demo.a65", "-gout.dbg" };
-            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
-
-            Assert::AreEqual (std::string ("out.dbg"), opts.debugFile);
+            Assert::IsTrue (opts.symbolTable, L"-t followed -g, which consumes nothing");
         }
 
         //  A bare -g still derives its name from the source, so the flag on its
@@ -752,28 +875,85 @@ namespace CommandLineTests
             }
         }
 
-        //  An as65 flag nobody knows is a COMPLAINT, not a refusal: the flag is
-        //  dropped and the assembly still produces its output, which is exactly
-        //  what "succeeded with complaints" describes.
-        TEST_METHOD (UnknownAs65Flag_IsAComplaint_BecauseTheAssemblyStillRuns)
+        //  AN ILLEGAL OPTION IS REFUSED, AND THIS REVERSES A SHIPPED DECISION.
+        //  as65's DIAGNOSTICS: "Help message if only parameter is a question
+        //  mark, or if an illegal option has been specified." The flag used to
+        //  be dropped with a warning while the assembly ran on and wrote its
+        //  output at status 1 -- so a makefile passing a flag this assembler
+        //  does not have got a binary shaped by the flags that survived,
+        //  reported under the status an ordinary assembler warning earns.
+        TEST_METHOD (UnknownAs65Flag_IsRefused_AndAsksForTheAssemblerPage)
         {
             ArgVector           args = { "CassoCli", "demo.a65", "-Y" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Complaint);
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"nothing is assembled");
+            Assert::IsTrue (opts.showHelp, L"and the usage text is printed, which is what as65 does");
+            Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::Assemble,
+                            L"the assembler's page -- its grammar is the one that was violated");
         }
 
-        //  A --cpu target that does not exist stops parsing outright and asks
-        //  for the usage text. Printing usage is the ANSWER to the mistake, not
-        //  evidence there was none, so it is still a refusal.
-        TEST_METHOD (UnknownCpuTarget_IsRefused_EvenThoughItAsksForUsage)
+        //  The refusal has to stop the walk, or a flag AFTER the illegal one
+        //  goes on shaping a run that is not going to happen -- and, worse, the
+        //  concatenation walk would keep reading the same argument.
+        TEST_METHOD (UnknownAs65Flag_StopsTheRestOfTheCommandLine)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "--cpu", "6510" };
+            ArgVector           args = { "CassoCli", "demo.a65", "-Yt", "-oout.bin" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsTrue (opts.showHelp, L"the user is shown the grammar");
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
+            Assert::IsFalse (opts.symbolTable, L"the flag packed behind it is not obeyed");
+            Assert::AreNotEqual (std::string ("out.bin"), opts.outputFile,
+                                 L"nor is the argument after it");
+        }
+
+        //  A BARE INVOCATION PRODUCED NOTHING AND SAID IT HAD WORKED. It prints
+        //  the general page and exited 0, so a script running the tool with an
+        //  argument variable that happened to be empty was told the run was
+        //  fine. This is not an as65 parity question -- nothing has entered the
+        //  assembler's grammar -- so it is decided on this tool's own table,
+        //  where the verdict is what the exit status is read from.
+        TEST_METHOD (NoArgumentsAtAll_IsRefused_ThoughItStillPrintsThePage)
+        {
+            ArgVector           args = { "CassoCli" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.showHelp, L"the general page is still printed");
+            Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::General);
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
-                            L"and the script is told it was wrong");
+                            L"and nothing was produced, which the status has to say");
+        }
+
+        //  The counterpart, and the reason the verdict rather than showHelp
+        //  carries it: ASKING for the page is not the same event as being shown
+        //  it, and asking still succeeds.
+        TEST_METHOD (ExplicitHelpRequest_IsNotRefused)
+        {
+            const char *  kSpellings[] = { "--help", "-help", "-?", "/?", "/help", "-h", "?" };
+
+            for (const char * spelling : kSpellings)
+            {
+                ArgVector           args = { "CassoCli", spelling };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
+                                (std::wstring (L"asking for help was refused: ") +
+                                 std::wstring (spelling, spelling + strlen (spelling))).c_str());
+            }
+        }
+
+        //  A `--` option this grammar does not have is refused outright rather
+        //  than handed to the concatenation walk as a run of single letters.
+        //  Printing a diagnostic is the ANSWER to the mistake, not evidence
+        //  there was none, so it is a refusal and the script is told.
+        TEST_METHOD (UnknownLongOption_IsRefused_EvenThoughItIsDiagnosed)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "--bogus" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"the script is told it was wrong");
         }
 
         //  Asking for help is not a complaint about anything.
@@ -801,29 +981,29 @@ namespace CommandLineTests
             Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M6502);
         }
 
-        TEST_METHOD (SeparatedCpuValue_Selects65C02)
+        //  `--cpu` IS WITHDRAWN AND `-x` REPLACES IT. Both spellings selected
+        //  the same instruction set, and `-x` is as65's own name for the
+        //  switch, so the tool carried two ways to ask for one capability.
+        //
+        //  BOTH FORMS ARE ANSWERED BY NAME rather than falling into the generic
+        //  `--` refusal, because command lines carrying `--cpu` already exist
+        //  and "unknown option: --cpu" would not tell their author what to type
+        //  instead.
+        TEST_METHOD (CpuOption_IsWithdrawn_AndPointsAtTheAs65Spelling)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "--cpu", "65c02" };
-            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+            const char *  kForms[] = { "--cpu", "--cpu=65C02" };
 
-            Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M65C02);
-        }
+            for (const char * form : kForms)
+            {
+                ArgVector           args = { "CassoCli", "demo.a65", form, "65c02" };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-        TEST_METHOD (AttachedCpuValue_Selects65C02)
-        {
-            ArgVector           args = { "CassoCli", "demo.a65", "--cpu=65C02" };
-            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
-
-            Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M65C02,
-                            L"the value is matched case-insensitively");
-        }
-
-        TEST_METHOD (UnknownCpuTarget_RequestsHelp)
-        {
-            ArgVector           args = { "CassoCli", "demo.a65", "--cpu", "6809" };
-            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
-
-            Assert::IsTrue (opts.showHelp, L"a bad target must stop parsing and print usage");
+                Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                                (std::wstring (L"still accepted: ") +
+                                 std::wstring (form, form + strlen (form))).c_str());
+                Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M6502,
+                                L"and selects nothing");
+            }
         }
 
         //  as65: "Use 65SC02 extensions. This CPU has several additional
@@ -859,17 +1039,18 @@ namespace CommandLineTests
             Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M65C02);
         }
 
-        //  BOTH NAMES REACH THE SAME TIER, and both keep working. -x is as65's
-        //  name for it and --cpu is this tool's; retiring either would break a
-        //  caller for no capability gained.
-        TEST_METHOD (BothSpellingsOfTheCmosTier_SelectTheSameTarget)
+        //  -x IS THE ONLY WAY TO THE CMOS TIER NOW, which is what makes the
+        //  withdrawal of `--cpu` a tidying rather than a loss of capability.
+        TEST_METHOD (TheAs65Flag_IsTheOnlyRouteToTheCmosTier)
         {
-            ArgVector           as65   = { "CassoCli", "demo.a65", "-x" };
-            ArgVector           modern = { "CassoCli", "demo.a65", "--cpu", "65c02" };
-            CommandLineOptions  a      = CommandLineParser::Parse (as65.Count(), as65.Data(), NoProbe());
-            CommandLineOptions  m      = CommandLineParser::Parse (modern.Count(), modern.Data(), NoProbe());
+            ArgVector           as65    = { "CassoCli", "demo.a65", "-x" };
+            ArgVector           nothing = { "CassoCli", "demo.a65" };
+            CommandLineOptions  a       = CommandLineParser::Parse (as65.Count(), as65.Data(), NoProbe());
+            CommandLineOptions  n       = CommandLineParser::Parse (nothing.Count(), nothing.Data(), NoProbe());
 
-            Assert::IsTrue (a.cpuTarget == m.cpuTarget);
+            Assert::IsTrue (a.cpuTarget == CommandLineOptions::CpuTarget::M65C02);
+            Assert::IsTrue (n.cpuTarget == CommandLineOptions::CpuTarget::M6502,
+                            L"and the default is still a strict 6502");
         }
     };
 
@@ -899,7 +1080,7 @@ namespace CommandLineTests
 
         TEST_METHOD (ExplicitOutputName_Wins)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-o", "custom.out" };
+            ArgVector           args = { "CassoCli", "demo.a65", "-ocustom.out" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (std::string ("custom.out"), opts.outputFile);
@@ -915,15 +1096,32 @@ namespace CommandLineTests
         //  A regression here HANGS this test rather than failing it, which is
         //  the honest cost of pinning the fix at the seam where the defect
         //  lives; the alternative is not pinning it at all.
-        TEST_METHOD (TrailingOutputFlag_WithNothingAfterIt_ReturnsInsteadOfSpinning)
+        //
+        //  IT IS NOW A REFUSAL RATHER THAN A FALLBACK. as65 notates the flag
+        //  `-o<filename>`, so a bare -o names nothing and there is no such
+        //  form; falling back to the inferred name meant a caller who typed
+        //  `-o out.bin` got `demo.bin` and was told it had worked.
+        TEST_METHOD (TrailingOutputFlag_WithNothingAfterIt_IsRefusedRatherThanSpinning)
         {
             ArgVector           args = { "CassoCli", "demo.a65", "-o" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::AreEqual (std::string ("demo.a65"), opts.inputFile,
-                L"the input survives");
-            Assert::AreEqual (std::string ("demo.bin"), opts.outputFile,
-                L"and the name falls back to the inferred one, as though -o were absent");
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                L"a bare -o names no file, which as65 has no form for");
+        }
+
+        //  THE SEPARATED `-o <file>` IS THE ONE CALLERS MEET FIRST, because
+        //  this project's own examples were written with it. It must not
+        //  quietly write the derived name and report success, and it must not
+        //  read the filename as the source file either.
+        TEST_METHOD (SeparatedOutputName_IsRefused_RatherThanWritingTheDerivedName)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-o", "custom.out" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
+            Assert::AreNotEqual (std::string ("custom.out"), opts.outputFile,
+                L"the separated form is not silently honored");
         }
 
         TEST_METHOD (SRecordFlag_InfersS19Extension)
@@ -1189,8 +1387,8 @@ namespace CommandLineTests
         //  which stopped meaning "nobody said" the moment the default moved.
         TEST_METHOD (ExtensionFallback_StillAppliesOnlyWhenNoShapeWasNamed)
         {
-            ArgVector           silent = { "CassoCli", "demo.a65", "-o", "out.s19" };
-            ArgVector           spoken = { "CassoCli", "demo.a65", "--flat", "-o", "out.s19" };
+            ArgVector           silent = { "CassoCli", "demo.a65", "-oout.s19" };
+            ArgVector           spoken = { "CassoCli", "demo.a65", "--flat", "-oout.s19" };
             CommandLineOptions  quiet  = CommandLineParser::Parse (silent.Count(), silent.Data(), NoProbe());
             CommandLineOptions  loud   = CommandLineParser::Parse (spoken.Count(), spoken.Data(), NoProbe());
 
@@ -1211,7 +1409,7 @@ namespace CommandLineTests
 
         TEST_METHOD (ShapeFlag_ComposesWithOtherFlags)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "--flat", "-t", "-o", "out.obj" };
+            ArgVector           args = { "CassoCli", "demo.a65", "--flat", "-t", "-oout.obj" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Binary);
@@ -1270,16 +1468,16 @@ namespace CommandLineTests
             }
         }
 
-        //  And the three it DOES have still work, which is what keeps the
-        //  refusal above from being a blanket ban on the `--` prefix.
+        //  And the two it DOES have still work, which is what keeps the
+        //  refusal above from being a blanket ban on the `--` prefix. There
+        //  were three until `--cpu` was withdrawn in favor of `-x`; both that
+        //  remain are shapes as65 has no equivalent for, which is why they stay
+        //  where `--cpu` went.
         TEST_METHOD (AssemblyMode_StillTakesTheLongOptionsItDoesHave)
         {
-            ArgVector           cpu  = { "CassoCli", "demo.a65", "--cpu", "65c02" };
             ArgVector           flat = { "CassoCli", "demo.a65", "--flat" };
             ArgVector           dos  = { "CassoCli", "demo.a65", "--dos-bin" };
 
-            Assert::IsTrue (CommandLineParser::Parse (cpu.Count(), cpu.Data(), NoProbe()).cpuTarget
-                                == CommandLineOptions::CpuTarget::M65C02, L"--cpu");
             Assert::IsTrue (CommandLineParser::Parse (flat.Count(), flat.Data(), NoProbe()).outputFormat
                                 == CommandLineOptions::OutputFormat::Binary, L"--flat");
             Assert::IsTrue (CommandLineParser::Parse (dos.Count(), dos.Data(), NoProbe()).outputFormat
@@ -1694,6 +1892,8 @@ namespace CommandLineTests
             ArgVector           dosBin = { "CassoCli", "prog.a65", "/dos-bin" };
             ArgVector           cpu    = { "CassoCli", "prog.a65", "/cpu", "65c02" };
             ArgVector           glued  = { "CassoCli", "prog.a65", "/cpu=65c02" };
+            CommandLineOptions  cpuOpts   = CommandLineParser::Parse (cpu.Count(), cpu.Data(), NoProbe());
+            CommandLineOptions  gluedOpts = CommandLineParser::Parse (glued.Count(), glued.Data(), NoProbe());
 
             //  `/flat` is the newest long option and would be read as the
             //  concatenated flags -f -l -a -t without the table -- which sets a
@@ -1703,10 +1903,16 @@ namespace CommandLineTests
                                 == CommandLineOptions::OutputFormat::Binary, L"/flat");
             Assert::IsTrue (CommandLineParser::Parse (dosBin.Count(), dosBin.Data(), NoProbe()).outputFormat
                                 == CommandLineOptions::OutputFormat::DosBinary, L"/dos-bin");
-            Assert::IsTrue (CommandLineParser::Parse (cpu.Count(), cpu.Data(), NoProbe()).cpuTarget
-                                == CommandLineOptions::CpuTarget::M65C02, L"/cpu 65c02");
-            Assert::IsTrue (CommandLineParser::Parse (glued.Count(), glued.Data(), NoProbe()).cpuTarget
-                                == CommandLineOptions::CpuTarget::M65C02, L"/cpu=65c02");
+            //  `/cpu` IS WITHDRAWN WITH `--cpu`, and is matched by name in both
+            //  prefixes rather than left to the concatenation walk -- which
+            //  would read it as -c -p -u, a true reading of as65's grammar and
+            //  a useless answer to somebody migrating off the flag.
+            Assert::IsTrue (cpuOpts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"/cpu 65c02");
+            Assert::IsTrue (gluedOpts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"/cpu=65c02");
+            Assert::IsFalse (cpuOpts.cycleCounts,
+                             L"and is not read as the concatenated -c -p -u");
         }
 
         TEST_METHOD (Run_TakesEitherPrefixOnItsLongOptions_TooBecauseTheHelpSpellsThem)
