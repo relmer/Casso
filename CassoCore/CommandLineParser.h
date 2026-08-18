@@ -59,28 +59,43 @@ public:
     static constexpr int  kWideListingColumns = 133;
 
     //
-    //  What every exit status means, for every mode, in one place.
+    //  What each mode's exit statuses mean, STATED UNDER THAT MODE BECAUSE THEY
+    //  DIFFER.
     //
-    //  STATED ONCE BECAUSE IT IS ONE VOCABULARY. The three statuses were
-    //  documented under `disk` alone, which read as though the subcommand had
-    //  invented them -- and left a reader assembling a file with no idea what
-    //  the tool would return. The assembler, `run` and `disk` have always
-    //  agreed on 0, 1 and 2; only `run` adds a fourth, and it is named here
-    //  rather than left for a script to discover.
+    //  One combined block used to stand near the top of the help and claim to
+    //  hold for every mode. It did not. An assembly error exits 2 when a source
+    //  file is assembled and 1 when `run` assembles the same file, and status 1
+    //  means "the output was written anyway" in one mode and "nothing ran" in
+    //  the other -- so a script that read the shared block and branched on 1
+    //  learned the opposite of the truth in whichever mode it was not thinking
+    //  of. Three statements that are each true beat one statement that is true
+    //  of nothing.
     //
-    //  Lives beside the grammar so the test assembly can read it. The console
-    //  executable is not linked there, so a claim written next to the printing
-    //  code is a claim nothing can check.
+    //  Every line below was measured by running the built binary, not carried
+    //  over from the text it replaces.
     //
-    static constexpr const char *  kExitStatusHelpText =
-        "  0  succeeded.\n"
-        "  1  succeeded with complaints -- an assembler warning, a flag that was not\n"
-        "     recognized and was dropped, or a disk edit that landed with something\n"
-        "     worth saying about it. The output was still written.\n"
-        "  2  produced no output -- a command line that was refused, no input file, a\n"
-        "     file that could not be read or written, an assembly error, or a disk\n"
-        "     operation the volume refused. Nothing was written.\n"
-        "  3  run only -- the program reached an illegal opcode.";
+    //  These live beside the grammar so the test assembly can read them. The
+    //  console executable is not linked there, so a claim written next to the
+    //  printing code is a claim nothing can check. `disk` keeps its own, beside
+    //  the runner that assigns it -- see DiskCommandRunner.
+    //
+    static constexpr const char *  kAssembleExitStatusHelpText =
+        "    0  assembled cleanly, and every artifact asked for was written.\n"
+        "    1  assembled, and had something to say -- an assembler warning, or a\n"
+        "       flag that was not recognized and was dropped. The output was still\n"
+        "       written.\n"
+        "    2  wrote nothing -- no input file, an input that could not be read, an\n"
+        "       assembly error, a command line that was refused, or an output file\n"
+        "       that could not be written.";
+
+    static constexpr const char *  kRunExitStatusHelpText =
+        "    0  the program ran to a stop -- the stop address, or the cycle limit.\n"
+        "    1  the input was source, and it did not assemble. Nothing ran.\n"
+        "    2  nothing could be started -- no input file, an input that could not\n"
+        "       be read, or a command line that was refused. An option this grammar\n"
+        "       cannot read is refused rather than dropped, because one it misread\n"
+        "       may have moved the load address.\n"
+        "    3  the program reached an illegal opcode.";
 
     static CommandLineOptions  Parse (int argc, char * argv[], const FileExistsFn & fileExists);
 
@@ -98,9 +113,18 @@ public:
     // instead of a hand-picked sample.
     static std::span<const SubcommandName>  GetAllSubcommands();
 
-    // Every accepted disk-verb spelling, aliases included, for the same reason
-    // -- and because the help output has to describe all of them.
+    // Every accepted disk verb, aliases included, for the same reason -- and
+    // because the help output has to describe all of them.
     static std::span<const DiskVerbName>    GetAllDiskVerbs();
+
+    //  Every option the `disk` grammar takes, comma-separated and `--`-spelled,
+    //  for the refusal an argument that is none of them earns.
+    //
+    //  Read from the parser's own table rather than retyped, for the reason
+    //  DiskCommandRunner::DescribeAcceptedVerbs already gives: a retyped list
+    //  is a list that goes stale, and the one place it shows is a suggestion
+    //  that omits the option the user was reaching for.
+    static std::string  DescribeDiskOptions();
 
 private:
     static HRESULT  ParseBoundedHex (const char * text, long maxValue, long & outValue);
@@ -129,7 +153,7 @@ private:
     static CommandLineOptions::DiskOptions::Verb  LookUpDiskVerb (const std::string & word);
 
     //  An argument reduced to the `--` spelling the grammars test for, so
-    //  `/long` and `--long` reach the same arm. Only an exact option name from
+    //  `/out` and `--out` reach the same arm. Only an exact option name from
     //  the supplied table is rewritten -- a ProDOS path starts with a slash and
     //  must stay an operand.
     static std::string  CanonicalLongFlag (const std::string             & arg,

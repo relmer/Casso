@@ -34,9 +34,11 @@ mechanism** (023 SC-006 requires that adding ca65 change nothing in that
 mechanism), so 023 must not start before 019 lands.
 
 **020 is partially delivered.** Its User Story 1 (assembler binary output) is
-already done and on master: `--raw` and `--dos-bin` live in
-`CassoCore/OutputFormats` alongside `WriteFlatImage`, with tests. A session
-picking up 020 should implement US2 onward and treat US1 as complete.
+already done and on master: the unpadded span and `--dos-bin` live in
+`CassoCore/OutputFormats` alongside `WriteFlatImage`, with tests. The unpadded
+span is the default and has no flag of its own — `--raw` named it for one
+revision and was retired by owner decision. A session picking up 020 should
+implement US2 onward and treat US1 as complete.
 
 **Two 020 findings that outlive the feature.** `NibblizationLayer::Denibblize`
 stops at the first sector it cannot decode on a track and leaves that sector and

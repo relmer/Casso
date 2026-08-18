@@ -29,15 +29,22 @@ struct without a blind merge.
 ## Grammar
 
 ```text
-casso disk list   <image> [--long]
-casso disk get    <image> <path> [--out <file>] [--text | --basic | --verbatim]
+casso disk list   <image>
+casso disk get    <image> <path> [--out <file>] [--text | --basic]
 casso disk put    <image> <file> [--as <path>] [--type <t>] [--addr $XXXX]
-                                 [--text | --basic | --verbatim]
+                                 [--text | --basic]
 casso disk delete <image> <path>
 casso disk boot   <image> <path>
 ```
 
 Aliases: `ls` → `list`, `rm` → `delete`. Help displays the descriptive form.
+
+An argument beginning with `-` that is none of these options is **refused**, and
+the command runs nothing. It used to be counted as an operand, and this grammar
+has none past the second, so `disk get img FILE -o out.bin` discarded both the
+flag and its value: the file went to standard output, nothing was written where
+the caller asked, and the exit status said the command had worked. Only a dash
+is treated as a mistake — a ProDOS path is `/VOLUME/FILE` and stays an operand.
 
 `put` and `get` are named from the **disk's** perspective, which is what makes
 their direction unambiguous — and it matches the mnemonics of the tool most
@@ -48,14 +55,24 @@ transfers without adopting that tool's flag syntax.
 established meaning of printing a file's contents, which this tool does under
 `get`.
 
-The no-conversion selector is `--verbatim`, and both obvious alternatives were
-rejected for the same reason: `--raw` already names an assembler *output shape*
-(`OutputFormat::Raw`), and `--binary` names another (`OutputFormat::Binary`, the
-padded 64 KB image). Either spelling would give one word two meanings inside one
-parser — and spec 019 is editing that parser concurrently, which is the worst
-moment to introduce a collision whose only symptom is a confusing help page.
-`--verbatim` also says what it actually does: the other two selectors transform
-the bytes, and this one does not.
+**There is no flag for the no-conversion path.** It was `--verbatim`, spelled
+that way rather than `--raw` or `--binary` because both of those already named
+assembler output shapes inside this same parser. The owner retired it: verbatim
+is the default, so the flag's only surviving effect was cancelling a `--text` or
+`--basic` earlier on the same line, which nothing needs and no caller writes.
+Naming neither conversion is how the unconverted path is reached.
+
+`--long` is retired for a related reason. It withheld the ProDOS `eof=` and
+`aux=` columns, which `ProDosVolume::Enumerate` fills whether or not anybody
+asks and which are the two fields a build loop most wants — the exact length of
+a file and the address a binary loads at. A listing prints them always; the
+widest measured row is 51 characters, well inside 80.
+
+`--out` stays the disk grammar's flag and `-o` the assembler's. They are
+deliberately **not** unified: as65 argument compatibility is what the assembly
+grammar exists for, and it outranks uniformity here. Each grammar refuses the
+other's spelling with a message naming it, so the collision is diagnosed rather
+than absorbed in either direction.
 
 ## Options nest rather than flatten
 

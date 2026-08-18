@@ -69,6 +69,24 @@ namespace CommandLineTests
 
 
 
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  Widen
+    //
+    //  A message for the assert framework, which speaks wide strings while
+    //  every argument under test is narrow. ASCII only, which is all a flag
+    //  spelling ever is.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    static std::wstring Widen (const std::string & text)
+    {
+        return std::wstring (text.begin(), text.end());
+    }
+
+
+
+
 
     ////////////////////////////////////////////////////////////////////////////////
     //
@@ -749,10 +767,13 @@ namespace CommandLineTests
     //  THE DEFAULT IS THE ASSEMBLED BYTES. It was the as65 full 64 KB padded
     //  image, which is what somebody burning a ROM or diffing against a
     //  reference wants and is not what somebody assembling a routine wants --
-    //  they got 64 KB and sliced it down by hand, or found `--raw` after the
-    //  fact. `--flat` asks for the old shape now, and `--raw` is kept as a
-    //  spelling of the new default so command lines that already carry it keep
-    //  working.
+    //  they got 64 KB and sliced it down by hand. `--flat` asks for the old
+    //  shape now.
+    //
+    //  NOTHING SPELLS THE DEFAULT. `--raw` did for one revision, on the
+    //  reasoning that command lines already carrying it should keep working; it
+    //  is gone, because an option whose only effect is to select what naming
+    //  nothing already selects is a line of help buying no capability.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -781,24 +802,26 @@ namespace CommandLineTests
             Assert::AreEqual (std::string ("demo.bin"), opts.outputFile);
         }
 
-        TEST_METHOD (RawFlag_SelectsRaw_AndIsThereforeASpellingOfTheDefault)
+        //  `--raw` is GONE, and what matters is how it is gone: refused, not
+        //  fed to the concatenation walk as -r -a -w. That walk would complain
+        //  about two flags that do not exist, quietly set the listing column
+        //  width from `w`, and assemble anyway -- which is a command line
+        //  answered wrongly rather than one turned down.
+        TEST_METHOD (RawFlag_IsRefused_NotWalkedAsThePackedLettersRAW)
         {
-            ArgVector           bare  = { "CassoCli", "demo.a65" };
-            ArgVector           args  = { "CassoCli", "demo.a65", "--raw" };
-            CommandLineOptions  plain = CommandLineParser::Parse (bare.Count(), bare.Data(), NoProbe());
-            CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+            ArgVector           args      = { "CassoCli", "demo.a65", "--raw" };
+            CommandLineOptions  opts      = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+            CommandLineOptions  untouched;
 
-            Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Raw);
-            Assert::AreEqual (std::string ("demo.bin"), opts.outputFile);
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                L"an option this grammar does not have is turned down");
+            Assert::IsFalse (opts.showHelp,
+                L"and answered with the two lines that explain it, not with 180 of usage");
 
-            //  An existing command line spelling it must produce exactly what
-            //  the bare one now does -- that is what "kept working" means.
-            Assert::IsTrue (opts.outputFormat == plain.outputFormat,
-                L"--raw and no flag at all select the same shape");
-
-            //  But the tool still knows it was TYPED, which is what keeps a
-            //  `.s19` output filename from overriding a flag the caller gave.
-            Assert::IsTrue (opts.outputFormatNamed);
+            Assert::IsFalse (opts.outputFormatNamed,
+                L"nothing claimed a shape");
+            Assert::AreEqual (untouched.pageWidth, opts.pageWidth,
+                L"and the `w` in `raw` did not become the column width");
         }
 
         //  The extension fallback used to key off the shape equalling Binary,
@@ -806,7 +829,7 @@ namespace CommandLineTests
         TEST_METHOD (ExtensionFallback_StillAppliesOnlyWhenNoShapeWasNamed)
         {
             ArgVector           silent = { "CassoCli", "demo.a65", "-o", "out.s19" };
-            ArgVector           spoken = { "CassoCli", "demo.a65", "--raw", "-o", "out.s19" };
+            ArgVector           spoken = { "CassoCli", "demo.a65", "--flat", "-o", "out.s19" };
             CommandLineOptions  quiet  = CommandLineParser::Parse (silent.Count(), silent.Data(), NoProbe());
             CommandLineOptions  loud   = CommandLineParser::Parse (spoken.Count(), spoken.Data(), NoProbe());
 
@@ -814,7 +837,7 @@ namespace CommandLineTests
                 L"a .s19 filename with no flag leaves the shape unclaimed, so the "
                 L"executable may infer an S-record from it");
             Assert::IsTrue (loud.outputFormatNamed,
-                L"and an explicit --raw claims it, so the filename may not");
+                L"and an explicit shape flag claims it, so the filename may not");
         }
 
         TEST_METHOD (DosBinFlag_SelectsDosBinary)
@@ -827,10 +850,10 @@ namespace CommandLineTests
 
         TEST_METHOD (ShapeFlag_ComposesWithOtherFlags)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "--raw", "-t", "-o", "out.obj" };
+            ArgVector           args = { "CassoCli", "demo.a65", "--flat", "-t", "-o", "out.obj" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Raw);
+            Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Binary);
             Assert::IsTrue (opts.symbolTable);
             Assert::AreEqual (std::string ("out.obj"), opts.outputFile);
         }
@@ -842,6 +865,77 @@ namespace CommandLineTests
 
             Assert::AreEqual (std::string ("demo.a65"), opts.inputFile);
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::DosBinary);
+        }
+
+        //
+        //  `--out` IS THE DISK GRAMMAR'S FLAG AND STAYS THERE. `-o` is as65's,
+        //  and as65 argument compatibility is what this grammar exists for, so
+        //  the two are not unified -- but the collision must be REPORTED rather
+        //  than absorbed.
+        //
+        //  Absorbed is what it was. The walk over concatenated flags read the
+        //  second `-` as a flag named `-` and warned about it, read `o` and
+        //  took `ut` as its glued value, and set the output file to a file
+        //  called `ut` in the working directory -- then took the NEXT argument
+        //  as the input file. Three wrong decisions and exit 1, which is the
+        //  status meaning "assembled, and the output was written".
+        //
+        TEST_METHOD (AssemblyMode_RefusesTheDiskGrammarsOut_RatherThanWritingAFileCalledUt)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "--out", "demo.bin" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                L"refused, not warned about and carried past");
+
+            Assert::AreNotEqual (std::string ("ut"), opts.outputFile,
+                L"and above all not written to a file named from the flag's own letters");
+        }
+
+        //  Every `--` argument this grammar does not know, not only the one
+        //  that collides with `disk`. A refusal special-cased to `--out` would
+        //  leave `--outfile` and `--output` walking the same path into `ut`.
+        TEST_METHOD (AssemblyMode_RefusesAnyLongOptionItDoesNotHave)
+        {
+            const char *  kUnknown[] = { "--out", "--output", "--verbatim", "--long" };
+
+            for (const char * flag : kUnknown)
+            {
+                ArgVector           args = { "CassoCli", "demo.a65", flag };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                    (std::wstring (L"not refused: ") + Widen (flag)).c_str());
+            }
+        }
+
+        //  And the three it DOES have still work, which is what keeps the
+        //  refusal above from being a blanket ban on the `--` prefix.
+        TEST_METHOD (AssemblyMode_StillTakesTheLongOptionsItDoesHave)
+        {
+            ArgVector           cpu  = { "CassoCli", "demo.a65", "--cpu", "65c02" };
+            ArgVector           flat = { "CassoCli", "demo.a65", "--flat" };
+            ArgVector           dos  = { "CassoCli", "demo.a65", "--dos-bin" };
+
+            Assert::IsTrue (CommandLineParser::Parse (cpu.Count(), cpu.Data(), NoProbe()).cpuTarget
+                                == CommandLineOptions::CpuTarget::M65C02, L"--cpu");
+            Assert::IsTrue (CommandLineParser::Parse (flat.Count(), flat.Data(), NoProbe()).outputFormat
+                                == CommandLineOptions::OutputFormat::Binary, L"--flat");
+            Assert::IsTrue (CommandLineParser::Parse (dos.Count(), dos.Data(), NoProbe()).outputFormat
+                                == CommandLineOptions::OutputFormat::DosBinary, L"--dos-bin");
+        }
+
+        //  The `/` forms deliberately do NOT get the same refusal. `/oFILE` is
+        //  the glued spelling as65 itself documents, so `/out` genuinely means
+        //  `-o ut` in the grammar this mode exists to be compatible with --
+        //  and as65 compatibility outranks uniformity here by decision.
+        TEST_METHOD (AssemblyMode_LeavesTheSlashFormAlone_BecauseAs65GluesValuesToFlags)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "/oout.bin" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
+            Assert::AreEqual (std::string ("out.bin"), opts.outputFile);
         }
     };
 
@@ -992,11 +1086,14 @@ namespace CommandLineTests
 
         TEST_METHOD (Disk_EncodingDefaultsToVerbatim)
         {
-            // Verbatim means no CHARACTER conversion -- the lossless path.
+            // Verbatim means no CHARACTER conversion -- the lossless path. It
+            // is reached by naming neither conversion, and by nothing else:
+            // there is no flag that spells it.
             ArgVector           args = { "CassoCli", "disk", "get", "my.dsk", "PROG" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim);
+            Assert::IsTrue (opts.parseVerdict  == CommandLineOptions::ParseVerdict::Clean);
         }
 
         TEST_METHOD (Disk_EncodingSelectorsAreRecognized)
@@ -1010,27 +1107,68 @@ namespace CommandLineTests
             Assert::IsTrue (basic.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Basic);
         }
 
-        TEST_METHOD (Disk_VerbatimIsASelectorOfItsOwn_NotJustTheAbsenceOfTheOthers)
+        //  `--verbatim` and `--long` are GONE, and neither may come back as a
+        //  silently swallowed operand.
+        //
+        //  `--verbatim` selected the default, so once verbatim was the default
+        //  its only surviving effect was cancelling a `--text` or `--basic`
+        //  earlier on the same line -- which nothing needs. `--long` withheld
+        //  two ProDOS columns the volume fills whether or not anyone asks.
+        TEST_METHOD (Disk_RetiredOptionsAreRefused_NotCountedAsOperands)
         {
-            // Verbatim being the default makes it easy to leave --verbatim
-            // parsed-but-inert, which nothing would notice until somebody used
-            // it to override an earlier selector. It is spelled that way rather
-            // than --raw or --binary because both of those already name
-            // assembler output shapes in this same parser.
-            ArgVector           args = { "CassoCli", "disk", "put", "my.dsk", "p.bin",
-                                         "--text", "--verbatim" };
-            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+            const char *  kRetired[] = { "--verbatim", "--long" };
 
-            Assert::IsTrue (opts.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim,
-                L"the last selector on the line wins, including the default one");
+            for (const char * flag : kRetired)
+            {
+                ArgVector           args = { "CassoCli", "disk", "list", "my.dsk", flag };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                    (std::wstring (L"not refused: ") + Widen (flag)).c_str());
+
+                //  The failure this forbids: an unrecognized flag counted as a
+                //  positional, which for `list` means it lands nowhere and the
+                //  command runs as though it were never typed.
+                Assert::AreEqual (std::string ("my.dsk"), opts.disk.imagePath,
+                    L"and it did not displace or follow the image path");
+            }
         }
 
-        TEST_METHOD (Disk_LongListingFlag)
+        //
+        //  `-o` IS AS65'S FLAG AND STAYS THERE. `disk` takes `--out`, and the
+        //  two are deliberately not unified -- as65 argument compatibility wins
+        //  over uniformity by decision. What must not happen is the collision
+        //  passing unremarked.
+        //
+        //  It did. `-o` and the filename after it fell into the positional
+        //  block as operands three and four, which this grammar has none of, so
+        //  both were dropped: the extracted file went to standard output, the
+        //  name the caller gave was never opened, and the exit status said the
+        //  command had worked.
+        //
+        TEST_METHOD (Disk_RefusesTheAssemblersDashO_RatherThanSwallowingItAndItsValue)
         {
-            ArgVector           args = { "CassoCli", "disk", "list", "my.dsk", "--long" };
+            ArgVector           args = { "CassoCli", "disk", "get", "my.dsk", "PROG",
+                                         "-o", "prog.bin" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsTrue (opts.disk.longListing);
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                L"refused, rather than run with the flag and its value discarded");
+
+            Assert::AreEqual (std::string(), opts.disk.hostFile,
+                L"and `-o` did not quietly become --out either -- it is refused, not aliased");
+        }
+
+        //  A ProDOS path is spelled with a leading slash and is an operand, so
+        //  the refusal above tests a DASH and not merely a flag-looking word.
+        //  Refusing every `/...` would lose the path this grammar most needs.
+        TEST_METHOD (Disk_RefusalDoesNotReachAProDosPath)
+        {
+            ArgVector           args = { "CassoCli", "disk", "get", "my.po", "/VOLUME/STARTUP" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
+            Assert::AreEqual (std::string ("/VOLUME/STARTUP"), opts.disk.path);
         }
 
         TEST_METHOD (Disk_DoesNotDisturbTheAssemblerFields)
@@ -1142,7 +1280,7 @@ namespace CommandLineTests
 
         TEST_METHOD (Disk_TakesEitherPrefixOnEveryOption_SoTheHelpMaySpellEither)
         {
-            const char *  kOptions[] = { "long", "text", "basic", "verbatim" };
+            const char *  kOptions[] = { "text", "basic" };
 
             for (const char * option : kOptions)
             {
@@ -1159,22 +1297,36 @@ namespace CommandLineTests
                     L"the slash spelling is a flag, not a positional");
                 Assert::IsTrue (slashed.disk.encoding == dashed.disk.encoding,
                     L"and it reaches the same arm as the dash spelling");
-                Assert::IsTrue (slashed.disk.longListing == dashed.disk.longListing);
+                Assert::IsTrue (slashed.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
+                    L"and neither prefix is refused");
             }
+        }
+
+        //  The value-taking options, which the loop above cannot cover: they
+        //  consume the argument after them, so a `list` command line carrying
+        //  one would be measuring something else.
+        TEST_METHOD (Disk_TakesEitherPrefixOnTheValueTakingOptionsToo)
+        {
+            ArgVector           slashArgs = { "CassoCli", "disk", "put", "my.dsk", "p.bin",
+                                              "/as", "PROG", "/type", "B", "/addr", "$6000" };
+            ArgVector           dashArgs  = { "CassoCli", "disk", "put", "my.dsk", "p.bin",
+                                              "--as", "PROG", "--type", "B", "--addr", "$6000" };
+            CommandLineOptions  slashed   = CommandLineParser::Parse (slashArgs.Count(), slashArgs.Data(), NoProbe());
+            CommandLineOptions  dashed    = CommandLineParser::Parse (dashArgs.Count(),  dashArgs.Data(),  NoProbe());
+
+            Assert::AreEqual (dashed.disk.path,        slashed.disk.path);
+            Assert::AreEqual (dashed.disk.typeName,    slashed.disk.typeName);
+            Assert::AreEqual (dashed.disk.loadAddress, slashed.disk.loadAddress);
+            Assert::AreEqual (std::string ("p.bin"),   slashed.disk.hostFile,
+                L"and no value was left standing as an operand");
         }
 
         TEST_METHOD (As65_TakesEitherPrefixOnItsLongOptions_IncludingAnAttachedValue)
         {
-            //  `/raw` used to be read as the concatenated flags -r -a -w, which
-            //  silently set the column width and never selected a shape.
-            ArgVector           raw    = { "CassoCli", "prog.a65", "/raw" };
             ArgVector           flat   = { "CassoCli", "prog.a65", "/flat" };
             ArgVector           dosBin = { "CassoCli", "prog.a65", "/dos-bin" };
             ArgVector           cpu    = { "CassoCli", "prog.a65", "/cpu", "65c02" };
             ArgVector           glued  = { "CassoCli", "prog.a65", "/cpu=65c02" };
-
-            Assert::IsTrue (CommandLineParser::Parse (raw.Count(), raw.Data(), NoProbe()).outputFormat
-                                == CommandLineOptions::OutputFormat::Raw, L"/raw");
 
             //  `/flat` is the newest long option and would be read as the
             //  concatenated flags -f -l -a -t without the table -- which sets a

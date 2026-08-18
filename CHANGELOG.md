@@ -63,7 +63,7 @@ Entries before versioning was introduced use dates only.
   nothing the guest wrote is thrown away. (GH #115)
 - **The tool's help offered flags the tool does not accept.** Invoked as `/?`,
   the help spelled options with whichever prefix the reader had typed —
-  `/long`, `/addr`, `/as`, `/raw`, `/cpu` — while the grammar accepted only the
+  `/out`, `/addr`, `/as`, `/type`, `/cpu` — while the grammar accepted only the
   `--` spelling, so an option copied out of the help was silently ignored.
   Rather than take the spelling away, the grammar now accepts both: every long
   option works with `/` as well as `--`, including one carrying an attached
@@ -92,25 +92,72 @@ Entries before versioning was introduced use dates only.
   processing one — so a character sent on the first clear reading races into
   that window and is dropped.
 
+### Removed
+- **BREAKING: `--raw` is gone.** It selected the assembled bytes, which is what
+  naming no shape already does, so it bought nothing and cost a line of the
+  help. **If a command line spells it, delete the flag** — the result is
+  identical. It is refused rather than ignored, so nothing carries on quietly
+  with it: `--raw` used to be readable as the packed flags `-r -a -w`, which
+  would have complained about two flags that do not exist, silently set the
+  listing column width, and assembled anyway.
+- **BREAKING: `--verbatim` is gone.** Placing and extracting bytes unchanged is
+  the default and always was; once it became the default, the flag's only
+  remaining effect was cancelling a `--text` or `--basic` earlier on the same
+  line. **If a command line spells it, delete the flag** — unless it was there
+  to cancel a `--text`, in which case delete both.
+- **BREAKING: `--long` is gone, and a ProDOS listing always shows every
+  column.** `eof=` and `aux=` — the exact length of a file and the address a
+  binary loads at — were behind the flag, and the volume records both whether
+  or not anyone asks, so it cost a reading of the help and a second run of the
+  command to see the two fields a build loop most wants. **If a command line
+  spells it, delete the flag**; the listing it produced is now what you get
+  without it, and still fits an 80-column terminal. DOS 3.3 listings are
+  unaffected — that filesystem records neither field.
+
 ### Changed
+- **BREAKING: exit statuses are documented per mode, because they differ.** The
+  help stated one set of meanings and claimed it held everywhere. It did not:
+  an assembly error exits **2** when a source file is assembled and **1** when
+  `run` assembles the same file, and status 1 means "the output was written
+  anyway" under the assembler and "nothing ran" under `run`. A script that read
+  the shared block and branched on 1 learned the opposite of the truth in
+  whichever mode its author was not picturing. Each mode's section now ends
+  with its own list, and every line was measured by running the tool rather
+  than carried over from the text it replaces. No status changed — only what
+  the help claims about them.
+- **`--out` typed at the assembler is refused instead of half-obeyed.** It
+  warned `Unknown flag: --`, wrote the output to a file called `ut` in the
+  working directory, and consumed the next argument as the input file — then
+  reported exit 1, the status meaning "assembled, and the output was written".
+  Every `--` option the assembly grammar does not have is now refused with a
+  message naming it and pointing at `-o <file>`. `--out` remains the `disk`
+  grammar's flag and `-o` the assembler's; they are deliberately not unified,
+  because as65 argument compatibility is what the assembly grammar exists for.
+  The `/` spellings are untouched — `/oFILE` is the glued form as65 documents,
+  so `/out` still means `-o ut`.
+- **`-o` typed at `disk` is refused instead of silently dropped.** `disk get
+  img FILE -o out.bin` counted `-o` and `out.bin` as a third and fourth
+  operand, which that grammar has none of, so both were discarded: the file
+  went to standard output, nothing was written where you asked, and the exit
+  status said it had worked. Any argument beginning with `-` that the disk
+  grammar does not know is now refused, and the message lists the options it
+  does take. A ProDOS path such as `/VOLUME/STARTUP` is still an operand — only
+  a dash is treated as a mistake.
 - **BREAKING: assembling now writes the assembled bytes, not a 64 KB image.**
   Naming no output shape used to write a full 64 KB memory image padded with
   the fill byte, so a 200-byte routine came out as a 65,536-byte file that had
-  to be sliced down by hand or rescued with `--raw` once you found it. The
-  padded image is what a ROM burner or a byte-for-byte reference comparison
-  wants and it is still available — it is now spelled **`--flat`**. `--raw` is
-  still accepted and still selects the assembled bytes, so every command line
-  and makefile that already spells it keeps working unchanged; it is simply a
-  spelling of the default now. **If you relied on the padded image, add
+  to be sliced down by hand. The padded image is what a ROM burner or a
+  byte-for-byte reference comparison wants and it is still available — it is
+  now spelled **`--flat`**. **If you relied on the padded image, add
   `--flat`.** One consequence worth naming: the "no shape was named" test that
   lets a `.s19` or `.hex` output filename select its format is now a fact of
-  its own rather than a value of the shape, so `--raw -o out.s19` writes raw
-  bytes where it would previously have been read as silence.
+  its own rather than a value of the shape, so `--flat -o out.s19` writes the
+  padded image where the filename would previously have won.
 - **The help is reorganized around what you are doing, not what the tool has.**
-  `--help` now opens with the usage shapes and **every exit status, for every
-  mode, stated once** — they used to appear under `disk` alone, which read as
-  though that subcommand had invented them and left anyone assembling a file
-  with no answer at all. Output and listing options are nested under assembly
+  `--help` now opens with the usage shapes, and **each mode's exit statuses
+  close that mode's own section** — they used to appear under `disk` alone,
+  which read as though that subcommand had invented them and left anyone
+  assembling a file with no answer at all. Output and listing options are nested under assembly
   options rather than standing beside them as top-level sections, because
   neither applies to `disk` or `run`. The disk verbs lead with every spelling
   they accept (`cat | catalog | dir | list | ls`) instead of trailing aliases
@@ -159,9 +206,9 @@ Entries before versioning was introduced use dates only.
   ProDOS, in `.dsk`, `.do`, `.po` and `.woz` images alike, without a
   third-party tool in the loop. `put` takes `--as` to name the file on the
   disk, `--type` and `--addr` for what the catalog records, and `--text` to
-  convert host text to the disk's own character convention; `--verbatim`, the
-  default, moves the bytes unchanged, so extract-edit-replace does not perturb
-  anything the edit did not touch. Writes are all-or-nothing and crash-safe:
+  convert host text to the disk's own character convention; naming no
+  conversion, the default, moves the bytes unchanged, so extract-edit-replace
+  does not perturb anything the edit did not touch. Writes are all-or-nothing and crash-safe:
   the complete new image is built and checked in memory, written beside the
   target and put in place atomically, so any failure — a locked file, a
   write-protected image, a volume with no room, a track that cannot be
@@ -212,14 +259,13 @@ Entries before versioning was introduced use dates only.
   booting to an error, later and somewhere else. A booting DOS 3.3 RUNs its
   greeting, so naming a binary there succeeds and says out loud that the disk
   will boot without running it.
-- **`--raw` and `--dos-bin` assembler output.** The assembler could only write
+- **Unpadded and DOS 3.3 assembler output.** The assembler could only write
   a full 64 KB memory image, padded with the fill byte — correct for ROM
   burning and reference comparison, useless for loading a 2 KB routine, which
-  meant slicing 64 KB down by hand. `--raw` writes only the assembled span;
-  `--dos-bin` writes that span behind the 4-byte load-address/length header an
-  Apple DOS 3.3 binary file carries, so the result is ready to `BLOAD` once
-  placed on a disk. (The assembled span has since become the default, under
-  Changed above; `--raw` remains an accepted spelling of it.)
+  meant slicing 64 KB down by hand. Writing only the assembled span has since
+  become the default (see Changed above), and `--dos-bin` writes that span
+  behind the 4-byte load-address/length header an Apple DOS 3.3 binary file
+  carries, so the result is ready to `BLOAD` once placed on a disk.
 
 ### Changed
 - **An explicit output-format flag now wins over the filename's extension.**

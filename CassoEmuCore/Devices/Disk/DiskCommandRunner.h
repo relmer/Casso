@@ -132,6 +132,30 @@ public:
     static constexpr const char *  kInUseRefusalText =
         "is open in another program -- close it and try again";
 
+    //
+    //  What each status means when a `disk` command returns it.
+    //
+    //  STATED UNDER `disk` BECAUSE IT IS DISK'S. One combined block used to
+    //  stand at the top of the help claiming to describe all three modes, and
+    //  it described none of them accurately: an assembly error is 2 under the
+    //  assembler and 1 under `run`, and status 1 means "the output was written
+    //  anyway" in one mode and "nothing ran" in another. What the three modes
+    //  share is only the shape 0/1/2 -- not the meanings, which is exactly what
+    //  a script branching on a number needs.
+    //
+    //  Beside the runner that assigns each one, so the wording and the
+    //  behavior are edited together and a test can read both.
+    //
+    static constexpr const char *  kExitStatusHelpText =
+        "    0  the command was carried out.\n"
+        "    1  carried out, with something worth saying -- a listing cut short by\n"
+        "       damage, a file delivered with unreadable sectors as zeros, or a\n"
+        "       startup program a booting DOS 3.3 will not actually run.\n"
+        "    2  nothing was done -- a verb or an option that was refused, an image\n"
+        "       that cannot be read or holds no filesystem, a file that is not on\n"
+        "       the volume, or a write the volume or the host refused. The image is\n"
+        "       byte-for-byte as it was.";
+
     //  The line the worked example starts on, so a reader and a test look for
     //  the same thing.
     static constexpr const char *  kExampleHeading =
@@ -151,9 +175,9 @@ public:
     //  a reader looking for options wants every subcommand's options together,
     //  and an example buried among them is one nobody reaches.
     //
-    //  EVERY SPELLING TAKES THE PREFIX THE READER ASKED FOR. Someone who typed
-    //  `/?` is shown `/long`; someone who typed `--help` is shown `--long`.
-    //  Both are accepted, so neither is a lie -- which is the whole reason the
+    //  EVERY OPTION TAKES THE PREFIX THE READER ASKED FOR. Someone who typed
+    //  `/?` is shown `/out`; someone who typed `--help` is shown `--out`. Both
+    //  are accepted, so neither is a lie -- which is the whole reason the
     //  parser had to learn `/` before this could be honest.
     //
     //  Assembled here rather than beside the printing code for the reason
@@ -168,8 +192,8 @@ public:
     //  about the disk help as a whole rather than about where a piece lands.
     static std::string  BuildHelpText (char flagPrefix = '-');
 
-    //  Every verb spelling the grammar accepts, comma-separated, for the
-    //  refusal a word that is none of them earns.
+    //  Every verb the grammar accepts, aliases included and comma-separated,
+    //  for the refusal a word that is none of them earns.
     //
     //  Read from the parser's own table rather than retyped, because a retyped
     //  list is a list that goes stale: the aliases were added to the grammar
@@ -284,9 +308,11 @@ private:
                                    FilePayload              & payload,
                                    DiskCommandResult        & result);
 
-    //  One line per catalog entry, in the shape the guest's own listing uses.
+    //  One line per catalog entry, in the shape the guest's own listing uses --
+    //  with every column the volume records, since ProDOS fills eof= and aux=
+    //  whether or not anybody asks and the widest row still fits in 80.
     static std::string  FormatDos33Entry  (const FileEntry & entry);
-    static std::string  FormatProDosEntry (const FileEntry & entry, bool longForm);
+    static std::string  FormatProDosEntry (const FileEntry & entry);
 
     static char  Dos33TypeLetter (Byte type);
 

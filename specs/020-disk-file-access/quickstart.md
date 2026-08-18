@@ -48,7 +48,7 @@ nothing in Release — so Release is not a substitute for the Debug gate.
 
 ```powershell
 # 1. Assemble to a loadable binary (already shipped)
-CassoCli.exe prog.a65 -o prog.bin --raw
+CassoCli.exe prog.a65 -o prog.bin
 
 # 2. Put it on a disk
 CassoCli.exe disk put mydisk.dsk prog.bin --as PROG --type B --addr `$6000

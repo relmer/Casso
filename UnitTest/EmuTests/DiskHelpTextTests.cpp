@@ -24,13 +24,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  Two of these pin defects the help had rather than properties it always
 //  satisfied. It was a flag list with no example, which is the half a newcomer
-//  cannot supply for themselves. And it printed the disk options as `--long`
+//  cannot supply for themselves. And it printed the disk options as `--out`
 //  and `--addr` no matter which prefix the reader typed, then documented the
 //  inconsistency in a sentence of its own -- a reader who asked for help with
 //  `/?` was shown one page in two spellings and told to live with it.
 //
 //  THAT ONE IS NOW ASSERTED IN BOTH DIRECTIONS, and the parser is asked first.
-//  A help that offers `/long` is only correct because `/long` is accepted;
+//  A help that offers `/out` is only correct because `/out` is accepted;
 //  checking the text alone would let the two drift apart again in the other
 //  direction, with the help right and the grammar wrong.
 //
@@ -218,7 +218,7 @@ public:
         }
     }
 
-    TEST_METHOD (HelpText_EverySpellingTheDiskGrammarAccepts_AppearsInTheHelp)
+    TEST_METHOD (HelpText_EveryVerbTheDiskGrammarAccepts_AppearsInTheHelp)
     {
         std::string  help  = DiskCommandRunner::BuildHelpText();
         auto         verbs = CommandLineParser::GetAllDiskVerbs();
@@ -235,35 +235,54 @@ public:
         }
     }
 
-    //  The three statuses were documented under `disk` alone, which read as
-    //  though the subcommand had invented them and left anyone assembling a
-    //  file with no answer. They are stated once now, in the overview, from a
-    //  constant every mode shares -- so the assertion moves with them rather
-    //  than being dropped.
-    TEST_METHOD (ExitStatusHelpText_DocumentsEveryStatusTheToolCanReturn_ForEveryMode)
+    //
+    //  EACH MODE STATES ITS OWN STATUSES, UNDER ITSELF, BECAUSE THEY DIFFER.
+    //
+    //  They were documented under `disk` alone, then moved to one shared block
+    //  at the top of the page on the belief that the three modes agreed. They
+    //  do not, and this test is what says so: an assembly error exits 2 under
+    //  the assembler and 1 under `run`, and status 1 means "the output was
+    //  written anyway" in one mode and "nothing ran" in the other. A shared
+    //  block cannot be true of both.
+    //
+    //  Every claim below was measured against the built binary rather than read
+    //  off the text it describes.
+    //
+    TEST_METHOD (ExitStatusHelpText_IsStatedPerMode_BecauseTheModesDisagree)
     {
-        std::string  shared = CommandLineParser::kExitStatusHelpText;
-        std::string  disk   = DiskCommandRunner::BuildHelpText();
+        std::string  assemble = CommandLineParser::kAssembleExitStatusHelpText;
+        std::string  run      = CommandLineParser::kRunExitStatusHelpText;
+        std::string  disk     = DiskCommandRunner::kExitStatusHelpText;
 
-        Assert::IsTrue (shared.find ("0  succeeded") != std::string::npos,
-                        L"clean");
-        Assert::IsTrue (shared.find ("1  succeeded with complaints") != std::string::npos,
-                        L"ran, and had something to say");
-        Assert::IsTrue (shared.find ("2  produced no output") != std::string::npos,
-                        L"refused, or failed");
+        //  The status the three modes genuinely share.
+        Assert::IsTrue (assemble.find ("0  assembled cleanly") != std::string::npos);
+        Assert::IsTrue (run.find      ("0  the program ran to a stop") != std::string::npos);
+        Assert::IsTrue (disk.find     ("0  the command was carried out") != std::string::npos);
 
-        //  3 is the one status that is not shared, and naming the mode it
-        //  belongs to is the whole point of listing it here: a script that
-        //  branches on 2 must not meet an undocumented 3 from `run`.
-        Assert::IsTrue (shared.find ("3  run only") != std::string::npos,
-                        L"the illegal-opcode status, scoped to the mode that returns it");
+        //  And the one they do not. Under the assembler, 1 still wrote the
+        //  output; under `run`, 1 means nothing ran at all.
+        Assert::IsTrue (assemble.find ("The output was still\n       written") != std::string::npos,
+                        L"1 under the assembler still produced output");
+        Assert::IsTrue (run.find ("did not assemble. Nothing ran") != std::string::npos,
+                        L"1 under run produced none -- the opposite claim");
 
-        //  And the disk section no longer carries its own copy. Two statements
-        //  of one vocabulary are two statements that can disagree.
-        Assert::IsTrue (disk.find ("exit:") == std::string::npos,
-                        L"the disk section states the statuses no more");
-        Assert::IsTrue (disk.find ("defines no status above 2") == std::string::npos,
-                        L"nor the sentence that scoped them to itself");
+        //  2 means "nothing was produced" in all three, which is the only part
+        //  of the old shared block that was ever true everywhere.
+        Assert::IsTrue (assemble.find ("2  wrote nothing")       != std::string::npos);
+        Assert::IsTrue (run.find      ("2  nothing could be started") != std::string::npos);
+        Assert::IsTrue (disk.find     ("2  nothing was done")    != std::string::npos);
+
+        //  3 belongs to `run` and appears nowhere else, so a script branching
+        //  on the assembler's statuses cannot meet it.
+        Assert::IsTrue (run.find      ("3  the program reached an illegal opcode") != std::string::npos);
+        Assert::IsTrue (assemble.find ("3  ") == std::string::npos, L"the assembler has no 3");
+        Assert::IsTrue (disk.find     ("3  ") == std::string::npos, L"neither has disk");
+
+        //  Disk's block reaches the disk help, which is the section it belongs
+        //  under -- a status described in a header nobody prints is worth
+        //  nothing.
+        Assert::IsTrue (DiskCommandRunner::BuildHelpText().find (disk) != std::string::npos,
+                        L"and disk's statuses are printed with the disk options");
     }
 
     //  The old help carried a paragraph explaining that `put` and `get` are
@@ -283,11 +302,11 @@ public:
                         L"and so does put");
     }
 
-    //  Every spelling of a verb leads the line that describes it, so a reader
+    //  Every alias of a verb leads the line that describes it, so a reader
     //  scanning the left margin for the word they already have in mind finds it
     //  there rather than in an "also spelled" clause at the end of a sentence
     //  about a word they do not use.
-    TEST_METHOD (HelpText_LeadsEachVerbLineWithEverySpelling_NotWithAnAlsoSpelledFootnote)
+    TEST_METHOD (HelpText_LeadsEachVerbLineWithEveryAlias_NotWithAnAlsoSpelledFootnote)
     {
         std::string   help    = DiskCommandRunner::BuildHelpText();
         const char *  leads[] =
@@ -382,26 +401,28 @@ public:
     TEST_METHOD (DiskGrammar_AcceptsEitherPrefix_SoTheHelpMaySpellEitherOne)
     {
         char *              slashArgv[] = { (char *) "CassoCli", (char *) "disk",
-                                            (char *) "list", (char *) "d.dsk",
-                                            (char *) "/long" };
+                                            (char *) "get", (char *) "d.dsk",
+                                            (char *) "F", (char *) "/text" };
         char *              dashArgv[]  = { (char *) "CassoCli", (char *) "disk",
-                                            (char *) "list", (char *) "d.dsk",
-                                            (char *) "--long" };
+                                            (char *) "get", (char *) "d.dsk",
+                                            (char *) "F", (char *) "--text" };
         char *              valueArgv[] = { (char *) "CassoCli", (char *) "disk",
                                             (char *) "get", (char *) "d.dsk",
                                             (char *) "F", (char *) "/out",
                                             (char *) "host.bin" };
-        CommandLineOptions  slashed     = CommandLineParser::Parse (5, slashArgv,
+        CommandLineOptions  slashed     = CommandLineParser::Parse (6, slashArgv,
                                               [] (const std::string &) { return false; });
-        CommandLineOptions  dashed      = CommandLineParser::Parse (5, dashArgv,
+        CommandLineOptions  dashed      = CommandLineParser::Parse (6, dashArgv,
                                               [] (const std::string &) { return false; });
         CommandLineOptions  valued      = CommandLineParser::Parse (7, valueArgv,
                                               [] (const std::string &) { return false; });
 
         //  The grammar's answer, because it is what makes the help's spelling
         //  right or wrong rather than merely a house style.
-        Assert::IsTrue (slashed.disk.longListing, L"the slash spelling is accepted");
-        Assert::IsTrue (dashed.disk.longListing,  L"and so is the dash spelling");
+        Assert::IsTrue (slashed.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Text,
+                        L"the slash spelling is accepted");
+        Assert::IsTrue (dashed.disk.encoding  == CommandLineOptions::DiskOptions::Encoding::Text,
+                        L"and so is the dash spelling");
 
         //  An option that takes a value has to work too, or `/out` would be
         //  swallowed as a positional and the file written somewhere else.
@@ -428,8 +449,7 @@ public:
     {
         std::string   slashHelp = DiskCommandRunner::BuildHelpText ('/');
         std::string   dashHelp  = DiskCommandRunner::BuildHelpText ('-');
-        const char *  options[] = { "long", "out", "as", "type",
-                                    "addr", "text", "basic", "verbatim" };
+        const char *  options[] = { "out", "as", "type", "addr", "text", "basic" };
 
         for (const char * option : options)
         {
@@ -446,6 +466,39 @@ public:
             Assert::IsTrue (dashHelp.find (slashForm) == std::string::npos,
                             (L"dash help still shows: " + Widen (slashForm)).c_str());
         }
+    }
+
+    //
+    //  A RETIRED OPTION MUST LEAVE THE HELP WITH IT. An option deleted from the
+    //  grammar and left in the usage text is worse than one that never existed:
+    //  the reader types what they were shown, and the grammar now refuses it.
+    //
+    //  `--long` went because the two columns it withheld -- eof= and aux=, the
+    //  exact length of a file and the address a binary loads at -- are filled
+    //  by ProDosVolume::Enumerate whether or not anyone asks, and are the two a
+    //  build loop most wants. `--verbatim` went because verbatim is the
+    //  default, leaving the flag nothing to do but cancel a `--text` earlier on
+    //  the same line.
+    //
+    TEST_METHOD (HelpText_OffersNeitherRetiredOption_InEitherPrefix)
+    {
+        const char *  kRetired[] = { "long", "verbatim" };
+
+        for (const char * option : kRetired)
+        {
+            std::string  dashForm  = std::string ("--") + option;
+            std::string  slashForm = std::string ("/")  + option;
+
+            Assert::IsTrue (DiskCommandRunner::BuildHelpText ('-').find (dashForm) == std::string::npos,
+                            (L"the dash help still offers: " + Widen (dashForm)).c_str());
+            Assert::IsTrue (DiskCommandRunner::BuildHelpText ('/').find (slashForm) == std::string::npos,
+                            (L"the slash help still offers: " + Widen (slashForm)).c_str());
+        }
+
+        //  And what replaced the `--long` row: the columns are described as
+        //  something a listing always shows, rather than as a flag.
+        Assert::IsTrue (DiskCommandRunner::BuildHelpText().find ("eof= and aux=") != std::string::npos,
+                        L"the columns are still explained, just not as an option");
     }
 
     TEST_METHOD (HelpText_NoLongerExcusesTheMixedSpelling_BecauseThereIsNoLongerOne)
@@ -496,7 +549,7 @@ public:
     //  The refusal named the five original verbs long after eight aliases were
     //  added, so a user who mistyped `catalog` was told to try five words that
     //  did not include it.
-    TEST_METHOD (UnknownVerb_IsRefusedWithEverySpellingTheGrammarActuallyTakes)
+    TEST_METHOD (UnknownVerb_IsRefusedWithEveryVerbTheGrammarActuallyTakes)
     {
         CommandLineOptions  options;
         FakeDiskFileIo      fileIo;
@@ -516,7 +569,7 @@ public:
     {
         std::string  help     = DiskCommandRunner::BuildHelpText();
         size_t       verbs    = help.find ("CassoCli disk list");
-        size_t       options  = help.find ("Add the ProDOS columns");
+        size_t       options  = help.find ("Write an extracted file here");
         size_t       example  = help.find (DiskCommandRunner::kExampleHeading);
 
         //  Overview, then options, then the worked loop. The old order put the

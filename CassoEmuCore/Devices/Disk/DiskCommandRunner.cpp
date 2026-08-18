@@ -113,13 +113,12 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
         "                                    is booted\n"
         "\n"
         "  CassoCli disk " + lp + "help\n"
-        "  CassoCli disk list   <image> [" + lp + "long]\n"
+        "  CassoCli disk list   <image>\n"
         "  CassoCli disk get    <image> <path> [" + lp + "out <file>]"
-                 " [" + lp + "text | " + lp + "basic | " + lp + "verbatim]\n"
+                 " [" + lp + "text | " + lp + "basic]\n"
         "  CassoCli disk put    <image> <file> [" + lp + "as <path>] ["
                  + lp + "type <t>] [" + lp + "addr $XXXX]\n"
-        "                                      [" + lp + "text | " + lp + "basic | "
-                 + lp + "verbatim]\n"
+        "                                      [" + lp + "text | " + lp + "basic]\n"
         "  CassoCli disk delete <image> <path>\n"
         "  CassoCli disk boot   <image> <path>\n";
 }
@@ -142,12 +141,15 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
 //  Applesoft listing` has already stopped looking. `basic` is deliberately the
 //  last row of the table so the two are adjacent.
 //
-//  EXIT STATUSES ARE NOT HERE ANY MORE. They were never disk-specific -- the
-//  assembler and `run` return the same three -- and stating them under one
-//  subcommand implied the other two had their own. They are stated once, in the
-//  overview, from CommandLineParser::kExitStatusHelpText.
+//  EXIT STATUSES ARE BACK, AND ARE THIS SUBCOMMAND'S OWN. They spent a while
+//  stated once at the top of the page for every mode, on the belief that the
+//  three modes agreed; they do not. An assembly error exits 2 under the
+//  assembler and 1 under `run`, and status 1 means "the output was written
+//  anyway" in one mode and "nothing ran" in another. So each mode states its
+//  own, under itself, and this is disk's -- see kExitStatusHelpText below for
+//  the wording and DiskCommandRunner for what assigns each one.
 //
-//  NEITHER IS THE IN-USE PROBE. A locked image is refused by name where it
+//  NOT THE IN-USE PROBE, THOUGH. A locked image is refused by name where it
 //  happens ("is open in another program -- close it and try again"), which is
 //  the report a user acts on; a paragraph restating that in the help was
 //  documentation of an error message.
@@ -157,19 +159,16 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
 std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
 {
     //  Flag, then what it does. Padded to a fixed description column below
-    //  rather than written into each literal, because `/long` is one character
-    //  narrower than `--long` and a table spaced for one prefix comes out
+    //  rather than written into each literal, because `/out` is one character
+    //  narrower than `--out` and a table spaced for one prefix comes out
     //  ragged in the other.
     static constexpr const char *  kppszOptions[][2] =
     {
-        { "long",       "Add the ProDOS columns -- eof= and aux= -- to a listing.\n"
-                        "                         A DOS 3.3 volume records neither, and ignores it" },
         { "out <file>", "Write an extracted file here, not to standard output" },
         { "as <path>",  "Name the placed file this on the disk" },
         { "type <t>",   "File type. DOS 3.3 takes T, I, A, B or R;\n"
                         "                         ProDOS takes TXT, BIN, BAS or SYS" },
         { "addr $XXXX", "Load address for a placed binary" },
-        { "verbatim",   "Place bytes unchanged (the default)" },
         { "text",       "Convert the high-bit encoding and the line endings" },
         { "basic",      "Convert to and from an Applesoft listing" },
     };
@@ -198,6 +197,14 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
 
     text +=
         "\n"
+        "  Naming neither conversion moves the bytes unchanged, which is what makes\n"
+        "  extract, edit and replace safe. The length and whatever header the type\n"
+        "  carries are still applied -- those record where a file ENDS.\n"
+        "\n"
+        "  A listing shows every column the volume records, so a ProDOS row carries\n"
+        "  eof= and aux= -- the exact length of a file and the address a binary\n"
+        "  loads at. DOS 3.3 records neither.\n"
+        "\n"
         "  write | put: " + lp + "as is the name the file takes on the disk, and defaults\n"
         "  to the host file's own name. " + lp + "type is what the catalog records, and\n"
         "  defaults to a binary -- or to Applesoft under " + lp + "basic, which is the only\n"
@@ -211,7 +218,12 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
         "  boot reads. On ProDOS it must be a file of type SYS, and not the kernel\n"
         "  itself. On DOS 3.3 the boot command is RUN, so an Applesoft or Integer\n"
         "  program runs -- anything else is set, reported, and the disk boots without\n"
-        "  running it.\n";
+        "  running it.\n"
+        "\n"
+        "  Exit status:\n";
+
+    text += kExitStatusHelpText;
+    text += "\n";
 
     return text;
 }
@@ -733,11 +745,24 @@ std::string DiskCommandRunner::FormatDos33Entry (const FileEntry & entry)
 //
 //  DiskCommandRunner::FormatProDosEntry
 //
+//  EVERY COLUMN, ALWAYS. `eof=` and `aux=` were behind a `--long` flag, and the
+//  flag was paying for nothing: ProDosVolume::Enumerate fills both fields
+//  unconditionally, so withholding them cost a read of the help to discover and
+//  a second run of the command to get. The widest row this produces still fits
+//  inside 80 columns.
+//
+//  They are the two fields a build loop actually needs, which is what made the
+//  flag worst: the exact length of a file and the address a binary loads at are
+//  what you check after placing one, and both were the ones hidden.
+//
+//  A DOS 3.3 listing is unaffected -- it has its own formatter, and the
+//  filesystem records neither field.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DiskCommandRunner::FormatProDosEntry (const FileEntry & entry, bool longForm)
+std::string DiskCommandRunner::FormatProDosEntry (const FileEntry & entry)
 {
-    char         detail[64] = {};
+    char         detail[96] = {};
     std::string  text;
 
 
@@ -749,22 +774,14 @@ std::string DiskCommandRunner::FormatProDosEntry (const FileEntry & entry, bool 
         text += " ";
     }
 
-    snprintf (detail, sizeof (detail), "%s $%02X %5u",
+    snprintf (detail, sizeof (detail), "%s $%02X %5u  eof=%u aux=$%04X",
               entry.isDirectory ? "DIR" : "   ",
               (unsigned) entry.type,
-              (unsigned) entry.sizeUnits);
+              (unsigned) entry.sizeUnits,
+              (unsigned) entry.eofBytes,
+              (unsigned) entry.auxType);
 
     text += detail;
-
-    if (longForm)
-    {
-        char  more[64] = {};
-
-        snprintf (more, sizeof (more), "  eof=%u aux=$%04X",
-                  (unsigned) entry.eofBytes, (unsigned) entry.auxType);
-
-        text += more;
-    }
 
     return text;
 }
@@ -1225,7 +1242,7 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
         {
             result.output += (opened.kind == VolumeKind::Dos33)
                            ? FormatDos33Entry (entry)
-                           : FormatProDosEntry (entry, options.disk.longListing);
+                           : FormatProDosEntry (entry);
 
             result.output += "\n";
         }
@@ -1336,7 +1353,7 @@ HRESULT DiskCommandRunner::ApplyEncoding (
             break;
 
         default:
-            result.diagnostics += "unknown encoding -- try: --text, --basic, --verbatim\n";
+            result.diagnostics += "unknown encoding -- try: --text, --basic, or neither\n";
             result.exitStatus   = kNoOutput;
             hr                  = E_INVALIDARG;
             break;
@@ -1694,7 +1711,7 @@ HRESULT DiskCommandRunner::BuildPutPayload (
             break;
 
         default:
-            result.diagnostics += "unknown encoding -- try: --text, --basic, --verbatim\n";
+            result.diagnostics += "unknown encoding -- try: --text, --basic, or neither\n";
             result.exitStatus   = kNoOutput;
             hr                  = E_INVALIDARG;
             break;
@@ -2066,13 +2083,28 @@ bool DiskCommandRunner::IsRunnableAsDos33Greeting (const VolumeListing  & listin
 //  answered a request for the grammar by refusing to run and complaining about
 //  the grammar -- exit 2 for a question the tool knows the answer to.
 //
+//  A REFUSED COMMAND LINE RUNS NOTHING, for the reason `run` gives: this
+//  grammar has no ignorable mistake in it. An option it did not recognize might
+//  have named the file to write, chosen the type the catalog records, or given
+//  the load address a binary needs, so carrying on would edit a disk on terms
+//  nobody asked for. The parser has already said what was wrong, in the words
+//  of the argument it could not take; repeating it here would report one
+//  mistake twice.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
 {
     DiskCommandResult  result;
+    bool               refused = options.parseVerdict == CommandLineOptions::ParseVerdict::Refused;
 
 
+
+    if (refused)
+    {
+        result.exitStatus = kNoOutput;
+        return result;
+    }
 
     switch (options.disk.verb)
     {

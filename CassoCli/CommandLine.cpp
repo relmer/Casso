@@ -335,12 +335,12 @@ static void ReportAssemblyDiagnostics (const AssembleResult & ar)
 //  anyway. It also leaves the two new shapes unreachable, since neither raw
 //  nor DOS-binary output has an extension of its own to be recognized by.
 //
-//  "NO FLAG WAS GIVEN" IS NOW ITS OWN BIT rather than a value of the shape.
-//  This used to ask whether the shape equalled Binary, which worked only while
-//  the default was Binary and nothing on the command line could spell it. With
-//  the assembled bytes as the default and `--raw` spelling them, that test
-//  would have read an explicit `--raw` as silence and let a `.s19` filename
-//  override the flag the caller typed.
+//  "NO FLAG WAS GIVEN" IS ITS OWN BIT rather than a value of the shape. This
+//  used to ask whether the shape equalled Binary, which worked only while the
+//  default was Binary and nothing on the command line could spell it. The
+//  assembled bytes are the default now, so the same test would have to name a
+//  shape that a flag can also select -- and would then read that flag as
+//  silence and let a `.s19` filename override what the caller typed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -780,20 +780,28 @@ static void PrintUsageOverview (const char * lp)
 //
 //  PrintUsageExitStatus
 //
-//  The statuses every mode returns, printed once and near the top.
+//  One mode's exit statuses, at the end of that mode's own section.
 //
-//  They used to appear only under `disk`, which put them where a reader who
-//  never types that subcommand would not look and implied the other two modes
-//  had statuses of their own. The wording lives in the core library so a test
-//  can read the same sentence the user does.
+//  THEY DIFFER, WHICH IS THE WHOLE REASON THIS IS CALLED THREE TIMES. A single
+//  block near the top used to claim to cover every mode, and it was wrong about
+//  two of them: an assembly error exits 2 when a source file is assembled and 1
+//  when `run` assembles the same file, and status 1 means "the output was
+//  written anyway" under the assembler and "nothing ran" under `run`. A script
+//  that read the shared block and branched on 1 learned the opposite of the
+//  truth in whichever mode its author was not picturing.
+//
+//  Each wording lives in the library beside the code that assigns it -- the
+//  assembler's and `run`'s in CommandLineParser, disk's in DiskCommandRunner --
+//  so a test can read the sentence the user does, and so a status changed in
+//  one place is a status whose description is right there to change with it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintUsageExitStatus()
+static void PrintUsageExitStatus (const char * statuses)
 {
     std::println ("");
-    std::println ("Exit status, in every mode:");
-    std::println ("{}", CommandLineParser::kExitStatusHelpText);
+    std::println ("  Exit status:");
+    std::println ("{}", statuses);
 }
 
 
@@ -895,7 +903,8 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
         "  {0}i                     Case-insensitive (default, no-op)",
         "  {0}n                     Disable optimizations (no-op)",
         "",
-        "  Flags can be concatenated: {0}tlfile = {0}t {0}lfile",
+        "  Flags concatenate in THIS grammar only: {0}tlfile = {0}t {0}lfile. It is what",
+        "  as65 did, and `run` and `disk` take their options one to an argument.",
         "",
         "  CassoCli prog.a65 {1}cpu 65c02 {0}d DEBUG=1",
         "",
@@ -911,10 +920,9 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
         "    {0}s                   Output S-record format (.s19)",
         "    {0}s2                  Output Intel HEX format (.hex)",
         "    {0}z                   Fill unused space with $00 (default: $FF)",
-        "    {1}raw{2}                Accepted, and selects the default -- kept so command",
-        "                         lines that already spell it keep working",
         "",
-        "    Naming no shape writes ONLY the assembled bytes, unpadded.",
+        "    Naming no shape writes ONLY the assembled bytes, unpadded. There is no",
+        "    flag for that -- it is what you get by not asking for another one.",
         "",
         "    CassoCli prog.a65 {0}o prog.bin",
         "    CassoCli rom.a65 {0}o rom.bin {1}flat {0}z",
@@ -942,6 +950,8 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
     {
         std::println ("{}", std::vformat (fmt, std::make_format_args (sp, lp, pad)));
     }
+
+    PrintUsageExitStatus (CommandLineParser::kAssembleExitStatusHelpText);
 }
 
 
@@ -976,6 +986,8 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
     std::println ("  {0}v                     Verbose output", sp);
     std::println ("");
     std::println ("  CassoCli run prog.a65 {0}stop $6010 {0}max-cycles 10000", lp);
+
+    PrintUsageExitStatus (CommandLineParser::kRunExitStatusHelpText);
 }
 
 
@@ -1010,8 +1022,9 @@ static void PrintUsageExamples (char prefix)
 //
 //  PrintUsage
 //
-//  What the tool is, what every exit status means, then one section per mode in
-//  the order the usage lines name them: assemble, run, disk.
+//  What the tool is, then one section per mode in the order the usage lines
+//  name them: assemble, run, disk. Each mode's exit statuses close its own
+//  section.
 //
 //  THE ORDER FOLLOWS THE USAGE LINES rather than crossing them. The page used
 //  to open with the disk subcommands, put three option groups between them and
@@ -1024,9 +1037,13 @@ static void PrintUsageExamples (char prefix)
 //  example that spans more than one; the short ones sit inside the group whose
 //  flags they use.
 //
-//  EXIT STATUSES ARE STATED ONCE, near the top, for every mode. They were under
-//  `disk` alone, which implied the assembler and `run` had statuses of their
-//  own -- and left anyone who never types `disk` with no answer at all.
+//  EXIT STATUSES ARE STATED PER MODE, UNDER THAT MODE, BECAUSE THEY DIFFER.
+//  They spent one revision stated once near the top for every mode, which was
+//  an improvement on being stated only under `disk` and still wrong: an
+//  assembly error exits 2 under the assembler and 1 under `run`, and status 1
+//  means "written anyway" in one mode and "nothing ran" in the other. What the
+//  modes share is the shape of the numbers, not their meanings -- and the
+//  meanings are the only part a script can act on.
 //
 //  EVERY SECTION IS SPELLED WITH THE PREFIX THE READER CHOSE. `/?` means the
 //  whole page reads `/flag`, and `--help` means it reads `-`/`--`. The disk
@@ -1045,7 +1062,6 @@ void PrintUsage (char prefix)
 
 
     PrintUsageOverview     (lp);
-    PrintUsageExitStatus   ();
     PrintUsageGeneral      (lp, sp, pad);
     PrintUsageAssembly     (sp, lp, pad);
     PrintUsageRun          (lp, sp, pad);
@@ -1262,7 +1278,8 @@ int DoAs65 (const CommandLineOptions & options)
     Clock::time_point         endTime;
     size_t                    lastSep     = 0;
     int                       exitCode    = 0;
-    bool                      hasInput    = !options.inputFile.empty();
+    bool                      refused     = options.parseVerdict == CommandLineOptions::ParseVerdict::Refused;
+    bool                      hasInput    = !options.inputFile.empty() && !refused;
     bool                      hasWarnings = false;
     bool                      wasWritten  = false;
 
@@ -1270,9 +1287,18 @@ int DoAs65 (const CommandLineOptions & options)
 
     // 2 is the AS65 "could not produce output" code, used by every failure
     // below; 1 means it assembled but warned.
-    if (!hasInput)
+    //
+    // A REFUSED COMMAND LINE ASSEMBLES NOTHING and says nothing further. The
+    // parser already named the argument it could not take, in that argument's
+    // own words; assembling anyway would answer a command line the tool has
+    // just said it did not understand.
+    if (!hasInput && !refused)
     {
         std::cerr << "Error: No input file specified\n";
+    }
+
+    if (!hasInput)
+    {
         exitCode = 2;
     }
 

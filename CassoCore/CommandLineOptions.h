@@ -84,6 +84,13 @@ struct CommandLineOptions
         //  How a payload's bytes relate to the file on the host. Verbatim means
         //  no CHARACTER conversion -- length and header semantics still apply,
         //  because those record where a file ends rather than transforming it.
+        //
+        //  IT IS THE DEFAULT AND NOTHING SPELLS IT. There was a --verbatim
+        //  flag, and once verbatim became the default the only thing it could
+        //  still do was cancel a --text or --basic earlier on the same line --
+        //  a combination nothing needs and no caller wrote. An option whose
+        //  whole remaining purpose is to undo another option is one more thing
+        //  to read in the help for no capability at all.
         enum class Encoding  { Verbatim, Text, Basic };
 
         Verb         verb           = Verb::None;
@@ -94,15 +101,16 @@ struct CommandLineOptions
         std::string  typeName;                         // --type, as the user spelled it
         Word         loadAddress    = 0;               // --addr
         bool         hasLoadAddress = false;           // $0000 is a legal address
-        bool         longListing    = false;           // --long
     };
 
     //  Raw -- the assembled bytes and nothing else -- is the default, because
     //  it is what somebody assembling a routine actually wants and what every
-    //  other step in the build loop takes. Binary is the as65 full-64-KB padded
-    //  image, which a ROM burner or a reference comparison wants and which now
-    //  needs --flat to ask for. DosBinary carries the Apple DOS 3.3 header.
-    //  See OutputFormats for what each one writes.
+    //  other step in the build loop takes. NOTHING SPELLS IT: a flag whose only
+    //  effect is to select the default earns a line in the help and buys no
+    //  capability, so the `--raw` that used to name it is gone. Binary is the
+    //  as65 full-64-KB padded image, which a ROM burner or a reference
+    //  comparison wants and which needs --flat to ask for. DosBinary carries
+    //  the Apple DOS 3.3 header. See OutputFormats for what each one writes.
     enum class OutputFormat  { Binary, SRecord, IntelHex, Raw, DosBinary };
 
     Subcommand    subcommand      = Subcommand::None;
@@ -111,11 +119,12 @@ struct CommandLineOptions
 
     //  Whether a shape flag was TYPED, as opposed to the default standing.
     //
-    //  Separate from outputFormat because the value alone can no longer answer
-    //  it. The default used to be Binary and nothing spelled Binary, so "equals
-    //  Binary" meant "nobody said" -- which is what let a `.s19` output file
-    //  select an S-record when no flag was given. With Raw as the default and
-    //  --raw spelling it, that test would read an explicit --raw as silence.
+    //  Separate from outputFormat because the value alone cannot answer it. The
+    //  default used to be Binary and nothing spelled Binary, so "equals Binary"
+    //  meant "nobody said" -- which is what let a `.s19` output file select an
+    //  S-record when no flag was given. Raw is the default now, and a test
+    //  against the value would call every remaining shape flag silence the
+    //  moment one of them selected the default too.
     bool          outputFormatNamed = false;
     CpuTarget     cpuTarget       = CpuTarget::M6502;   // --cpu (default: strict 6502)
     std::string   inputFile;

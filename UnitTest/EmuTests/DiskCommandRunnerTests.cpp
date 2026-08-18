@@ -62,6 +62,38 @@ public:
         return options;
     }
 
+    //
+    //  A LISTING HAS TO FIT AN 80-COLUMN TERMINAL, and that is the constraint
+    //  that made the ProDOS columns safe to print unconditionally rather than
+    //  behind a flag. A row that wraps is a row that reads as two entries.
+    //
+    static void AssertEveryLineFitsEightyColumns (const std::string & text)
+    {
+        size_t  lineStart = 0;
+        size_t  lineEnd   = 0;
+
+        while (lineStart < text.size())
+        {
+            std::string  line;
+
+            lineEnd = text.find ('\n', lineStart);
+            line    = (lineEnd == std::string::npos)
+                          ? text.substr (lineStart)
+                          : text.substr (lineStart, lineEnd - lineStart);
+
+            Assert::IsTrue (line.size() <= 80,
+                (std::wstring (L"line runs past column 80: ")
+                     + std::wstring (line.begin(), line.end())).c_str());
+
+            if (lineEnd == std::string::npos)
+            {
+                break;
+            }
+
+            lineStart = lineEnd + 1;
+        }
+    }
+
     TEST_METHOD (List_RealDisk_RendersEveryCatalogEntryIncludingHeadings)
     {
         // The vendor's own printed catalog shows all sixty-three rows, twenty
@@ -339,6 +371,92 @@ public:
         Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("list") != std::string::npos,
             L"a bad verb should say what the good ones are");
+    }
+
+    //
+    //  A REFUSED COMMAND LINE RUNS NOTHING, which is the half of the fix that
+    //  lives here rather than in the parser.
+    //
+    //  The parser learned to refuse an option this grammar does not have --
+    //  `-o`, which belongs to as65 -- and a refusal nothing acted on would have
+    //  been a diagnostic on the screen and a clean exit status in the script.
+    //  It matters most on a write: an option misread could have named the type
+    //  the catalog records or the address a binary loads at, so the disk must
+    //  not be edited on terms nobody asked for.
+    //
+    TEST_METHOD (RefusedCommandLine_RunsNothing_AndReportsNoOutput)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Verb::List);
+        DiskCommandResult   result;
+
+        SeedRealDisk (io);
+        options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.output.empty(), L"a listing this command line did not earn");
+
+        //  And nothing is said, because the parser already named the argument
+        //  it could not take. One mistake, one message.
+        Assert::AreEqual (std::string(), result.diagnostics);
+    }
+
+    //
+    //  EVERY COLUMN THE VOLUME RECORDS, WITH NO FLAG TO ASK FOR IT.
+    //
+    //  `eof=` and `aux=` sat behind `--long`, and ProDosVolume::Enumerate fills
+    //  both whether or not anybody asks -- so the flag bought nothing and cost
+    //  a reading of the help plus a second run of the command. They are the two
+    //  fields a build loop most wants, which is what made hiding them worst:
+    //  the exact length of a file and the address a binary loads at are exactly
+    //  what you check after placing one.
+    //
+    TEST_METHOD (List_OfAProDosVolume_CarriesEofAndAux_WithNoFlagToAskForThem)
+    {
+        static constexpr const char *  kProDosImage = "C:\\disks\\pro.dsk";
+
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Verb::List,
+                                                   kProDosImage);
+        DiskCommandResult   result;
+
+        SeedRealDisk (io, "Disks/Merlin-proProdos2.33-a.dsk", kProDosImage);
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+
+        //  A whole rendered row rather than a substring search for `eof=`: the
+        //  columns have to land in their places, and the row has to stay inside
+        //  80 characters now that nothing can turn them off.
+        Assert::IsTrue (result.output.find ("*MERLIN.SYSTEM        $FF    37  eof=18432 aux=$2000\n")
+                            != std::string::npos,
+            L"the ProDOS row, with both columns, unasked for");
+
+        AssertEveryLineFitsEightyColumns (result.output);
+    }
+
+    //  DOS 3.3 records neither field and has its own formatter, so it must be
+    //  untouched by the ProDOS columns becoming unconditional.
+    TEST_METHOD (List_OfADos33Volume_IsUnchangedByTheProDosColumns)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+
+        SeedRealDisk (io);
+
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List));
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::IsTrue (result.output.find (" B 004 MERLIN\n") != std::string::npos,
+            L"the DOS 3.3 row is what a booted machine prints");
+        Assert::IsTrue (result.output.find ("eof=") == std::string::npos,
+            L"and carries no field this filesystem does not record");
     }
 
     TEST_METHOD (Get_WithText_ConvertsFromAppleTextToHostText)
@@ -983,7 +1101,7 @@ public:
 
     TEST_METHOD (PutVerbatim_RoundTripsTheFILEBytes_NotTheImageBytes)
     {
-        // THE GATE FOR --verbatim, AND THE ASSERTION IS FILE EQUALITY.
+        // THE GATE FOR THE UNCONVERTED PATH, AND THE ASSERTION IS FILE EQUALITY.
         //
         // Image equality is the wrong check and would fail here for two reasons
         // that have nothing to do with character conversion. A DOS 3.3 file
@@ -1326,7 +1444,6 @@ public:
             CommandLineOptions  listOptions = MakeOptions (CommandLineOptions::DiskOptions::Verb::List,
                                                            kProDosImage);
 
-            listOptions.disk.longListing = true;
             listing = reader.Run (listOptions).output;
         }
 
@@ -1497,6 +1614,36 @@ public:
             L"and lands as the filesystem's text type");
     }
 
+    //
+    //  THE OTHER HALF OF THE DEFAULTING RULE, AND THE HALF THAT LOST A ROUTE IN.
+    //
+    //  `--text --verbatim` used to reach this branch -- the second flag
+    //  cancelled the conversion, so the type fell back to the default and the
+    //  file landed as DOS `B` where `--text` alone made it `T`. `--verbatim` is
+    //  gone, so naming neither conversion is the only way here now, and this is
+    //  what keeps the branch it leads to honest.
+    //
+    TEST_METHOD (Put_WithNoConversionAndNoNamedType_TakesTheFilesystemsOwnBinaryType)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   MakePayload());
+
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        Assert::IsTrue (options.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim,
+            L"nothing was named, which is the case under test");
+
+        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+
+        Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" B 004 PROG") != std::string::npos,
+            L"naming neither a type nor a conversion lands the filesystem's binary type");
+    }
+
     TEST_METHOD (Put_WithTextThatHasNoAppleRepresentation_NamesTheOffendingByte)
     {
         // A smart quote pasted into a listing looks identical to a plain one in
@@ -1606,8 +1753,6 @@ public:
         result = runner.Run (options);
 
         Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
-
-        listing.disk.longListing = true;
 
         Assert::IsTrue (reader.Run (listing).output.find ("aux=$6000") != std::string::npos,
             L"ProDOS records the load address in the entry, not in the file");

@@ -1371,6 +1371,103 @@ the one default they settled, and two defects the restructure surfaced.
 
 ---
 
+## Phase 12: Owner decisions on the option review
+
+The owner returned the option review Phase 11 handed them. Three options are
+deleted outright, the exit statuses are restated per mode because they were
+never shared, and the two silent failures around `-o`/`--out` are fixed by
+diagnosing rather than by accepting the other flag.
+
+**The governing decision: there are NO existing CassoCli command lines to
+preserve except as65's.** Nothing here is kept for backward compatibility with
+this project's own past spellings, and where uniformity and as65 compatibility
+conflict, as65 wins.
+
+- [x] T076 **`--raw` is deleted.** It named the default, and an option that
+      selects what naming nothing already selects costs a line of help and buys
+      no capability. It was kept in T073 so command lines already carrying it
+      would go on working; the owner's ruling that no such command lines need
+      preserving removes the only argument for it. `outputFormatNamed` stays
+      and stays load-bearing -- it is what keeps a `.s19` filename from
+      overriding `--flat` or `--dos-bin`, which is a question about those two
+      flags and not about the one that went
+- [x] T077 **`--verbatim` is deleted.** Verbatim is the default, so the flag's
+      only surviving effect was cancelling a `--text` or `--basic` earlier on
+      the same line -- a combination nothing needs and no caller writes. The
+      test that pinned it (`Disk_VerbatimIsASelectorOfItsOwn`) went with it.
+      **`ResolveFileType` was checked, since that cancellation was a real path
+      through it**: `--text --verbatim` reached the default branch and landed a
+      DOS `B` where `--text` alone landed a `T`. With the flag gone the only
+      way into that branch is naming neither conversion, so it is now pinned by
+      a test of its own -- `Put_WithNoConversionAndNoNamedType` -- alongside
+      the `--text` and `--basic` cases that were already covered. The
+      `Encoding::Verbatim` enumerator stays: it is the default value, not a
+      spelling
+- [x] T078 **`--long` is deleted and the ProDOS columns always print.**
+      `ProDosVolume::Enumerate` fills `eof=` and `aux=` unconditionally, so the
+      flag bought nothing and cost a reading of the help plus a second run of
+      the command -- and the two fields it withheld are the two a build loop
+      most wants, being the exact length of a file and the address a binary
+      loads at. The widest measured row is 51 characters, and the listing test
+      now asserts every line fits 80 rather than trusting that. DOS 3.3 has its
+      own formatter and records neither field, so it is untouched -- asserted
+      rather than assumed
+- [x] T079 **Exit statuses are stated per mode, under each mode.** The single
+      combined block claimed to hold for all three and held for none: an
+      assembly error exits **2** under the assembler and **1** under `run`, and
+      status 1 means "the output was written anyway" in one mode and "nothing
+      ran" in the other, so a script reading the shared block and branching on
+      1 learned the opposite of the truth in whichever mode its author was not
+      picturing. Three constants replace one --
+      `kAssembleExitStatusHelpText`, `kRunExitStatusHelpText`, and
+      `DiskCommandRunner::kExitStatusHelpText`, each beside the code that
+      assigns it. **Every line was measured by running the built binary**:
+      assemble 0/1/2 (clean, unknown flag, redundant-`.org` warning, no input,
+      unreadable input, assembly error, unwritable output, refused line); run
+      0/1/2/3 (stop address, cycle limit, assembly errors, no input,
+      unreadable input, refused option, illegal opcode); disk 0/1/2 (list, get,
+      a DOS 3.3 `boot` naming a binary, bad verb, missing file, unreadable
+      image, refused option)
+- [x] T080 **Concatenation is as65-only, and was already so.** The `pos`-walk
+      lives in `ParseAs65Flags` and nowhere else; `ParseRunOptions` and
+      `ParseDiskOptions` take one option per argument. Nothing had to be
+      confined -- what changed is the help, which stated the packing as a
+      property of the tool and now states it as a property of the assembly
+      grammar, naming the two that do not pack
+- [x] T081 **`--out` in assembly mode is refused instead of half-obeyed.** It
+      warned `Unknown flag: --`, set the output file to `ut`, and consumed the
+      next argument as the input -- three wrong decisions and exit 1, the
+      status meaning "assembled, and the output was written". Every `--` option
+      this grammar does not have is now refused, not only the one that collides
+      with `disk`, since a refusal special-cased to `--out` would leave
+      `--output` walking the same path. **The `/` forms deliberately still fall
+      through**: `/oFILE` is the glued spelling as65 documents, so `/out`
+      genuinely means `-o ut` and must keep meaning it. The refusal does NOT
+      set `showHelp`, unlike the bad-`--cpu` refusal beside it -- the usage
+      page is 180 lines and the sentence explaining the mistake scrolls away
+      above it
+- [x] T082 **`-o` in disk mode is refused instead of swallowed.** It fell into
+      the positional block as operand three, with its value as operand four;
+      this grammar has neither, so both were dropped, the extracted file went
+      to standard output, and the exit status said the command had worked. Any
+      argument beginning with `-` that the disk grammar does not know is now
+      refused, and the suggestion is built from the option table so it cannot
+      go stale. **Only a dash** -- a ProDOS path is `/VOLUME/FILE` and stays an
+      operand, which is the same reason `CanonicalDiskFlag` matches a table
+      instead of rewriting every leading slash. `DiskCommandRunner::Run` honors
+      the refusal by running nothing, so the diagnostic reaches the script and
+      not only the screen
+- [x] T083 **`-o` and `--out` are NOT unified**, by owner ruling: as65 argument
+      compatibility beats uniformity. T081 and T082 fix the collision by
+      diagnosing it in both directions, and neither flag learns the other's
+      spelling -- asserted, so a later "helpful" alias fails a test
+- [x] T084 **`-h` is untouched.** The collision between the help request and
+      the listing page height is being resolved separately, by spec 019's
+      requirement of an explicit assembler profile. The behavior and the help
+      note both stand
+
+---
+
 ## Dependencies
 
 ```text

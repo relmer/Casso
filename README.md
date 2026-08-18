@@ -65,7 +65,7 @@ Casso.exe --disk1 mydisk.dsk
 `CassoCli --help` carries that example, so a newcomer needs nothing but the
 tool's own output. `--basic` converts an Applesoft listing to and from the
 tokenized form; `--text` converts the high-bit encoding and line endings;
-`--verbatim`, the default, moves bytes unchanged, so extract-edit-replace
+naming neither, the default, moves bytes unchanged, so extract-edit-replace
 perturbs nothing the edit did not touch.
 
 **Command-line writes are all-or-nothing.** The complete new image is built and
@@ -445,7 +445,7 @@ Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
 | Expressions | full operator set: `+ - * / % & \| ^ ~ << >>`, `<label`, `>label`, current-PC `*` |
 | Listing output | `-l [file]` (stdout or file), `-c` for cycle counts, `-m` for macro expansion |
 | Symbol table | `-t` |
-| Output formats | the assembled span (default; also spelled `--raw`), `--flat` (full 64 KB image padded with the fill byte), `--dos-bin` (span behind a DOS 3.3 load-address/length header), `-s` (S-record), `-s2` (Intel HEX) |
+| Output formats | the assembled span (the default, with no flag to name it), `--flat` (full 64 KB image padded with the fill byte), `--dos-bin` (span behind a DOS 3.3 load-address/length header), `-s` (S-record), `-s2` (Intel HEX) |
 | Fill control | `-z` for `$00` fill (default `$FF`) |
 | Pre-defined symbols | `-d NAME` or `-d NAME=VALUE` |
 | Debug info | `-g [file]` |

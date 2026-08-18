@@ -20,8 +20,8 @@ static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
 
 //
 //  Second-level verbs of the `disk` subcommand. Descriptive words are what help
-//  displays; every other spelling is an alias accepted because somebody will
-//  type it.
+//  displays; every other word on the same row is an alias accepted because
+//  somebody will type it.
 //
 //  THE ALIASES COME FROM THREE DIFFERENT HABITS, and all three are real.
 //  `catalog` and `cat` are the words DOS 3.3 and ProDOS themselves answer to,
@@ -58,9 +58,9 @@ static constexpr CommandLineParser::DiskVerbName  s_kDiskVerbs[] =
 //
 //  THESE TABLES EXIST TO MAKE `/` A REAL PREFIX RATHER THAN A PRINTED ONE. The
 //  usage text spells every flag with whichever prefix the reader asked for, and
-//  a help that offers `/long` while the parser takes only `--long` is worse
-//  than one that never mentioned it. Single-letter flags already worked with
-//  either prefix; only the long ones did not.
+//  a help that offers `/out` while the parser takes only `--out` is worse than
+//  one that never mentioned it. Single-letter flags already worked with either
+//  prefix; only the long ones did not.
 //
 //  Matching against a table rather than rewriting any leading `/` is what keeps
 //  a ProDOS path working: `/MOUSEPAINT/STARTUP` begins with a slash and is an
@@ -69,21 +69,18 @@ static constexpr CommandLineParser::DiskVerbName  s_kDiskVerbs[] =
 //
 static constexpr const char *  s_kpszDiskOptions[] =
 {
-    "long",
-    "text",
-    "basic",
-    "verbatim",
     "out",
     "as",
     "type",
     "addr",
+    "text",
+    "basic",
 };
 
 
 static constexpr const char *  s_kpszAs65LongOptions[] =
 {
     "cpu",
-    "raw",
     "flat",
     "dos-bin",
 };
@@ -177,7 +174,7 @@ CommandLineOptions::DiskOptions::Verb CommandLineParser::LookUpDiskVerb (const s
 //  CanonicalLongFlag
 //
 //  An argument reduced to the one spelling the grammars below test for, so
-//  `/long` and `--long` reach the same arm.
+//  `/out` and `--out` reach the same arm.
 //
 //  ONLY AN EXACT OPTION NAME IS REWRITTEN. A ProDOS path is `/VOLUME/FILE` and
 //  is an operand; rewriting every leading slash would turn one into a flag and
@@ -245,10 +242,10 @@ std::string CommandLineParser::CanonicalDiskFlag (const std::string & arg)
 //
 //  Grammar, positional then flagged:
 //
-//      disk list   <image> [--long]
-//      disk get    <image> <path> [--out <file>] [--text | --basic | --verbatim]
+//      disk list   <image>
+//      disk get    <image> <path> [--out <file>] [--text | --basic]
 //      disk put    <image> <file> [--as <path>] [--type <t>] [--addr $XXXX]
-//                                 [--text | --basic | --verbatim]
+//                                 [--text | --basic]
 //      disk delete <image> <path>
 //      disk boot   <image> <path>
 //
@@ -266,6 +263,14 @@ std::string CommandLineParser::CanonicalDiskFlag (const std::string & arg)
 //  Parsing does not validate that required operands are present. That is the
 //  runner's job, because a missing operand needs a message naming what was
 //  expected, and the parser has no way to report one.
+//
+//  AN ARGUMENT THAT LOOKS LIKE A FLAG AND IS NOT ONE IS REFUSED HERE, though,
+//  because the alternative is not a missing operand -- it is an extra one. This
+//  grammar has no positional past the second, so `disk get img F -o host.bin`
+//  used to put `-o` and `host.bin` in slots nothing reads: the file went to
+//  standard output, the name the caller gave was dropped, and the exit status
+//  said it had all worked. A flag it does not have is now a refusal, and the
+//  suggestion names the flags it does have.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -315,12 +320,6 @@ void CommandLineParser::ParseDiskOptions (
         std::string  arg      = CanonicalDiskFlag (argv[i]);
         bool         hasValue = (i + 1) < argc;
 
-        if (arg == "--long")
-        {
-            options.disk.longListing = true;
-            continue;
-        }
-
         if (arg == "--text")
         {
             options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
@@ -330,12 +329,6 @@ void CommandLineParser::ParseDiskOptions (
         if (arg == "--basic")
         {
             options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
-            continue;
-        }
-
-        if (arg == "--verbatim")
-        {
-            options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Verbatim;
             continue;
         }
 
@@ -372,6 +365,23 @@ void CommandLineParser::ParseDiskOptions (
             }
 
             i++;
+            continue;
+        }
+
+        //  A DASH INTRODUCES A FLAG AND NOTHING ELSE, so one this grammar does
+        //  not have is refused rather than counted as an operand.
+        //
+        //  Only a dash. A ProDOS path is spelled `/VOLUME/FILE` and is an
+        //  operand, which is the same reason CanonicalDiskFlag matches a table
+        //  instead of rewriting every leading slash -- so a slash that reached
+        //  here is a path, and a path is exactly what the positional block
+        //  below is for.
+        if (arg.size() > 1 && arg[0] == '-')
+        {
+            std::cerr << "Error: unknown disk option: " << argv[i]
+                      << " -- try: " << DescribeDiskOptions() << "\n";
+
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             continue;
         }
 
@@ -421,16 +431,54 @@ std::span<const CommandLineParser::SubcommandName> CommandLineParser::GetAllSubc
 //
 //  GetAllDiskVerbs
 //
-//  Every spelling the disk grammar accepts, aliases included, so a test can
-//  sweep the whole table rather than a hand-picked sample. What it is for is the
-//  help output: a verb added here and not described there is a capability the
-//  user cannot find, and only a sweep of this table can notice.
+//  Every verb the disk grammar accepts, aliases included, so a test can sweep
+//  the whole table rather than a hand-picked sample. What it is for is the help
+//  output: a verb added here and not described there is a capability the user
+//  cannot find, and only a sweep of this table can notice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::span<const CommandLineParser::DiskVerbName> CommandLineParser::GetAllDiskVerbs()
 {
     return std::span<const DiskVerbName> (s_kDiskVerbs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DescribeDiskOptions
+//
+//  The disk options read out of the table that defines them, so the suggestion
+//  a refused argument earns cannot fall behind the grammar.
+//
+//  Spelled with `--` regardless of what the caller typed. Both prefixes are
+//  accepted, and the refusal is already telling the reader they got the option
+//  wrong -- offering it back in the prefix they just mistyped would suggest the
+//  prefix was the mistake.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CommandLineParser::DescribeDiskOptions()
+{
+    std::string  text;
+
+
+
+    for (const char * option : s_kpszDiskOptions)
+    {
+        if (!text.empty())
+        {
+            text += ", ";
+        }
+
+        text += "--";
+        text += option;
+    }
+
+    return text;
 }
 
 
@@ -771,9 +819,18 @@ CommandLineOptions::Subcommand CommandLineParser::LookUpSubcommand (const std::s
 //  parser would have to encode all three exceptions anyway, and every one of
 //  them is about matching a specific historical tool.
 //
-//  The stop flag ends parsing outright for a help request or a bad --cpu
-//  target. Both leave showHelp set, so the caller prints usage and no later
-//  argument can quietly undo that decision.
+//  CONCATENATION IS CONFINED TO THIS FUNCTION and belongs to as65 alone. It is
+//  the reason `-lsc` is three flags rather than one unknown one, and it is also
+//  the reason `-o` swallows whatever follows it -- neither is a property anyone
+//  would design in today. `run` and `disk` are modern grammars parsed
+//  elsewhere; neither packs, and the help says so under Assembly options rather
+//  than as a claim about the tool.
+//
+//  The stop flag ends parsing outright for a help request, a bad --cpu target,
+//  or a `--` option this grammar does not have, so no later argument can
+//  quietly undo the decision. The first two also set showHelp, which is what
+//  puts the usage page on the screen; the third deliberately does not -- see
+//  the refusal itself for why.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -791,9 +848,9 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
     while (argIndex < argc && !stop)
     {
         // A `/` spelling of a long option is canonicalized before anything
-        // tests for one, so `/cpu 65c02` and `/raw` work the way `/l` and `/o`
+        // tests for one, so `/cpu 65c02` and `/flat` work the way `/l` and `/o`
         // already did. Without this the single-character normalization further
-        // down reads `/raw` as the concatenated flags -r -a -w.
+        // down reads `/flat` as the concatenated flags -f -l -a -t.
         std::string arg = CanonicalLongFlag (argv[argIndex],
                               std::span<const char * const> (s_kpszAs65LongOptions));
 
@@ -861,20 +918,11 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
 
         // Long options selecting a binary output SHAPE.
         //
-        // THE DEFAULT IS NOW THE ASSEMBLED BYTES, and --flat is how the old
-        // full-64-KB padded image is asked for. `--raw` is kept as a spelling
-        // of that default rather than retired, because it is written into
-        // command lines and makefiles that already exist and there is nothing
-        // to gain by breaking them; it selects the shape it always selected,
-        // which simply happens to be what naming nothing selects too.
-        if (arg == "--raw")
-        {
-            options.outputFormat      = CommandLineOptions::OutputFormat::Raw;
-            options.outputFormatNamed = true;
-            argIndex++;
-            continue;
-        }
-
+        // THE DEFAULT IS THE ASSEMBLED BYTES, and --flat is how the old
+        // full-64-KB padded image is asked for. There is no flag for the
+        // default: `--raw` used to name it and was retired with it, because an
+        // option that selects what naming nothing already selects costs a line
+        // of help and buys no capability.
         if (arg == "--flat")
         {
             options.outputFormat      = CommandLineOptions::OutputFormat::Binary;
@@ -888,6 +936,37 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
             options.outputFormat      = CommandLineOptions::OutputFormat::DosBinary;
             options.outputFormatNamed = true;
             argIndex++;
+            continue;
+        }
+
+        //  A `--` OPTION THIS GRAMMAR DOES NOT HAVE IS REFUSED, not handed to
+        //  the concatenation walk below as a run of single letters.
+        //
+        //  `--out` is what that cost. The walk read `-`, complained about a
+        //  flag named `-`, read `o`, took the rest of the argument as its glued
+        //  value and set the output file to `ut`, then took the NEXT argument
+        //  as the input file. Three wrong decisions, one warning, and exit 1.
+        //
+        //  Nothing as65 accepts is refused here: as65 has no `--` form at all,
+        //  its long options being this project's own addition. The `/`
+        //  spellings deliberately fall through instead -- `/oFILE` is the glued
+        //  form as65 documents, so `/out` genuinely does mean `-o ut` and must
+        //  keep meaning it.
+        //
+        //  showHelp IS DELIBERATELY NOT SET, which is where this parts company
+        //  with the bad-`--cpu` refusal below it. That one prints the whole
+        //  usage page, and the usage page is 180 lines: the sentence explaining
+        //  the mistake scrolls away above it, so the reader is answered by
+        //  being buried. The two lines here say what was wrong and what to type
+        //  instead, which is the entire content that page would have added.
+        if (arg.rfind ("--", 0) == 0)
+        {
+            std::cerr << "Error: unknown option: " << arg << "\n"
+                      << "       Assembling takes single-letter flags -- the output file\n"
+                      << "       is -o <file>, and --out belongs to `disk`.\n";
+
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            stop                 = true;
             continue;
         }
 
