@@ -148,12 +148,15 @@ public:
         float  whiteMix;
     };
 
+    // Toned down from a near-white core: an indicator LED behind a tinted
+    // lens is a small bright thing, but it is not a highlight, and blowing
+    // its center to 0.80 white cost it the green it is supposed to read as.
     static constexpr GlowBand  kGlowProfile[] =
     {
-        { 0.00f, 0.95f, 0.80f },   // blown-out core
-        { 0.45f, 0.80f, 0.42f },
-        { 1.00f, 0.42f, 0.00f },   // the lens rim: full hue
-        { 1.90f, 0.14f, 0.00f },   // spill onto the housing
+        { 0.00f, 0.70f, 0.50f },   // hot core, still colored
+        { 0.45f, 0.56f, 0.26f },
+        { 1.00f, 0.32f, 0.00f },   // the lens rim: full hue
+        { 1.90f, 0.11f, 0.00f },   // spill onto the housing
         { 3.40f, 0.00f, 0.00f },
     };
 

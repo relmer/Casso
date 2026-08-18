@@ -307,10 +307,15 @@ m.add_triangles("glass",
 
 # The button, locked down: it fills the lower part of the notch and stands
 # proud of the notch floor, not of the case.
+#
+# Only the TOP corners are rounded. The bottom of the button travels down
+# into the frame when it is pushed, so that end is a sliding fit inside the
+# notch and never presents a molded edge to round -- rounding it read as a
+# free-standing tab rather than something that disappears into the case.
 button = (cq.Workplane("XY")
           .box(NOTCH_W - 3.0, BTN_D, NOTCH_H - 8.5, centered=(False, False, False))
           .translate((NX0 + 1.5, BTN_SETBACK, NZ0 + 1.0))
-          .edges("|Y").fillet(1.5))
+          .edges("|Y and >Z").fillet(1.5))
 
 m.add("button", button, BEZEL_DK)
 
