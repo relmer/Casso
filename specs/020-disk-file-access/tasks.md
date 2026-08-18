@@ -1562,6 +1562,82 @@ feature pins all three. Implementing `-i` and `-n` for real is deferred.
 
 ---
 
+## Phase 14: Owner-directed help tiering
+
+The owner read the 180-line help -- four screens -- and asked for a short
+default with the detail behind per-mode help. What is here is that tiering, the
+routing table the owner specified, and the two moves that make the general page
+fit on one screen.
+
+**The governing shape**: the general page is a table of contents -- banner,
+one line per mode, the route to each mode's page, and the loop the tool exists
+to run. Every flag is described on the page of the mode that takes it, once.
+Anything two pages both need is one function called twice.
+
+- [x] T095 **The help is four pages, and the routing is the owner's table.**
+      `--help`, `-?`, `/?`, `-h` as the first argument, and a bare `CassoCli`
+      open the **general** page; a lone `?` opens the **assembler's**;
+      `run` and `disk` open their own when asked. `CommandLineOptions::HelpPage`
+      carries which page a request means, so `PrintUsage` reads a decision the
+      parser made rather than making one of its own
+- [x] T096 **A lone `?` opens the assembler's page, and is the only route to
+      it.** It is as65's own request -- its manual gives usage when the only
+      parameter is a question mark -- and assembling IS as65 mode, so the
+      request lands on the page describing the grammar it comes from. Every
+      other spelling, including `--help` typed beside a source file, opens the
+      general page
+- [x] T097 **`-h` and `/h` join the help spellings that `run` and `disk`
+      accept, and the top-level `-h` is untouched.** The page height it collides
+      with exists only inside the assembler's own flag walk, and no argument of
+      either modern grammar reaches that walk -- so the two characters a reader
+      most likely types are free to mean help there. The collision at the top
+      level is still a held decision and is still held
+- [x] T098 **`run` answers a help request at all.** `run --help` was an option
+      that grammar does not have: a diagnostic, a refusal, and exit 2 -- a
+      question the tool knows the answer to, answered by complaining about being
+      asked. It is now looked for before anything else in the run arguments, and
+      anywhere among them, on the rule the disk grammar already used: a reader
+      asks for help after typing the thing they wanted help with at least as
+      often as before it
+- [x] T099 **`<source>` and `<binary>` move to the assembler's page, and the
+      `-h` collision note moves to the page-height row that owns it.** Both were
+      on the general page, where the operand descriptions cost four lines and
+      the "General options" block cost five to describe two flags the page was
+      already demonstrating. **Reported rather than smoothed over**: `<binary>`
+      is `run`'s operand and now stands on the assembler's page, which is where
+      the owner's instruction puts it; it is not repeated under `run`, because
+      one description in two places is the thing this restructure exists to
+      prevent
+- [x] T100 **The general page is composed in `CassoCore/CommandLineHelp`, so a
+      test can read the page a user reads.** The test assembly does not link the
+      console executable -- the same reason the disk help is assembled in
+      `DiskCommandRunner` -- and the general page is the one carrying a size
+      promise, which nothing could measure while it was a run of `println`s in
+      the exe. The banner is passed IN rather than built there, because it
+      carries the build's own version and architecture; it is still counted with
+      the page, since a page is what the reader sees
+- [x] T101 **The worked loop is one block on two pages.** The general page shows
+      the five commands because they are the one thing on it that is not a table
+      of contents; the disk page shows them and then explains the two traps in
+      them, because every flag they use is described there. So the commands are
+      `CommandLineHelp::BuildExampleCommands` and the prose stays in
+      `DiskCommandRunner::BuildExampleHelp`. The usage lines are shared the same
+      way: a mode's page opens with the line the general page lists it by, from
+      `UsageLineFor`, so the two cannot come to describe different grammars.
+      `DiskCommandRunner::LongPrefix` is gone in favor of the one in
+      `CommandLineHelp`, for the same reason
+- [x] T102 **A test per route, in both prefixes, plus the size promise.**
+      `HelpRoutingTests` sweeps every spelling at the top level, under `run` and
+      under `disk`, asserting the page each one opens and that a slash-spelled
+      request keeps the slash. Two of its claims are structural rather than
+      textual: a disk help request must NOT set `showHelp`, or the executable
+      would print a general page over the verb the runner answers, and asking
+      for help must leave the parse verdict clean. The general page is asserted
+      to be under thirty lines including its banner -- it is twenty -- so it
+      cannot grow back into four screens a reasonable addition at a time
+
+---
+
 ## Dependencies
 
 ```text

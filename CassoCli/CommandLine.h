@@ -18,5 +18,9 @@
 CommandLineOptions ParseCommandLine (int argc, char * argv[]);
 int  DoRun        (const CommandLineOptions & options);
 int  DoAs65       (const CommandLineOptions & options);
-void PrintUsage   (char prefix);
+
+//  The help page the request asked for, spelled with the prefix it was typed
+//  with. Both live on the options, so the caller hands over the whole parse
+//  rather than picking two fields out of it and deciding between them again.
+void PrintUsage   (const CommandLineOptions & options);
 void PrintVersion ();

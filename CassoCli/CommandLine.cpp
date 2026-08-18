@@ -3,8 +3,8 @@
 #include "CommandLine.h"
 #include "As65ExitStatus.h"
 #include "Assembler.h"
+#include "CommandLineHelp.h"
 #include "Cpu.h"
-#include "Devices/Disk/DiskCommandRunner.h"
 #include "Cpu65C02Table.h"
 #include "Microcode.h"
 #include "OutputFormats.h"
@@ -754,31 +754,22 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrintUsageOverview
+//  BuildBanner
 //
-//  What the tool IS and which shapes of command line it takes, before any
-//  individual flag. A reader who does not yet know that `disk` exists cannot
-//  find it in an alphabetical flag list, and an alphabetical list is where the
-//  old help put everything.
+//  What the tool is and which build this is.
+//
+//  Returned rather than printed because it heads the general page, and the
+//  general page has a size promise on it that only holds if the whole page --
+//  banner included -- is one thing a test can measure.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintUsageOverview (const char * lp)
+static std::string BuildBanner()
 {
-    std::cout << "CassoCli - 6502 Assembler and Emulator  v" VERSION_STRING
-              << " (" << arch << ")  " VERSION_BUILD_TIMESTAMP "\n"
-              << "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n";
-
-    std::println ("");
-    std::println ("Usage:");
-    std::println ("  CassoCli <source> [options]                Assemble a source file");
-    std::println ("  CassoCli run <binary | source> [options]   Load <binary> or assemble <source>, then execute");
-    std::println ("  CassoCli disk <verb> <image> [...]         Read and write disk images");
-    std::println ("  CassoCli {0}help | {0}version", lp);
-    std::println ("");
-    std::println ("  <source>   An assembly source file. Given no extension, .a65, .asm");
-    std::println ("             and .s are tried in that order.");
-    std::println ("  <binary>   An assembled image to load and execute.");
+    return std::string ("CassoCli - 6502 Assembler and Emulator  v" VERSION_STRING " (")
+         + arch
+         + ")  " VERSION_BUILD_TIMESTAMP "\n"
+           "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n";
 }
 
 
@@ -811,55 +802,6 @@ static void PrintUsageExitStatus (const char * statuses)
     std::println ("");
     std::println ("  Exit status:");
     std::println ("{}", statuses);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PrintUsageSubcommands
-//
-//  The disk grammar, printed from the library that implements it. See
-//  DiskCommandRunner::BuildSubcommandHelp for why it is assembled there.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static void PrintUsageSubcommands (char prefix)
-{
-    std::println ("");
-    std::println ("Disk subcommands:");
-    std::print   ("{}", DiskCommandRunner::BuildSubcommandHelp (prefix));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PrintUsageGeneral
-//
-////////////////////////////////////////////////////////////////////////////////
-
-//  EVERY SPELLING OF HELP IS ONE LINE, and the line says where one of them
-//  stops being help. `-h` is both the help request and the listing page height,
-//  which is a collision the grammar keeps deliberately; what it must not do is
-//  print two confident entries and let the reader discover the overlap by
-//  having a page height print the usage text at them.
-static void PrintUsageGeneral (const char * lp, const char * sp, const char * pad)
-{
-    // "-h, --help, -?" = 14 chars, "--version" = 9 chars => +1 space for version
-    // "/h, /help, /?"  = 13 chars, "/version"  = 8 chars => +1 space for version
-    // pad compensates: -- (2 chars) vs / (1 char) in long prefix
-    std::println ("");
-    std::println ("General options:");
-    std::println ("  {1}h, {0}help, {1}?{2}         Show this help -- but {1}h only as the FIRST", lp, sp, pad);
-    std::println ("                         argument. Anywhere else {0}h is the listing page", sp);
-    std::println ("                         height below.");
-    std::println ("                         A bare ? as the ONLY argument shows it too.");
-    std::println ("  {0}version{1}              Show version information", lp, pad);
 }
 
 
@@ -901,6 +843,12 @@ static void PrintUsageGeneral (const char * lp, const char * sp, const char * pa
 //  EXAMPLES SIT IN THE GROUP THEY DEMONSTRATE. One block of them at the end of
 //  the page is one a reader has to hold two option tables in mind to follow,
 //  and the disk loop is the only example that genuinely spans sections.
+//
+//  IT IS A PAGE OF ITS OWN NOW, reached by a lone `?` and by nothing else, so
+//  it opens with the invocation it describes and with what the two operands
+//  mean. The usage line comes from CommandLineHelp rather than being written
+//  here, because the general page lists the same modes and two descriptions of
+//  one invocation are two descriptions that can disagree.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -944,7 +892,8 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
         "    {0}p                   Generate pass 1 listing",
         "    {0}c                   Show cycle counts in listing",
         "    {0}m                   Show macro expansions in listing",
-        "    {0}h <lines>           Page height for listing (default: no pagination)",
+        "    {0}h <lines>           Page height for listing (default: no pagination).",
+        "                         As the FIRST argument, {0}h asks for help instead",
         "    {0}w [<width>]         Column width (default: 80, {0}w alone = 133)",
         "    {0}t                   Generate symbol table",
         "    {0}g [<file>]          Generate debug information file",
@@ -955,6 +904,12 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
         "    CassoCli prog.a65 {0}l prog.lst {0}c {0}t",
     };
 
+    std::println ("Usage:");
+    std::println ("{}", CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::As65));
+    std::println ("");
+    std::println ("  <source>   An assembly source file. Given no extension, .a65, .asm");
+    std::println ("             and .s are tried in that order.");
+    std::println ("  <binary>   An assembled image to load and execute.");
     std::println ("");
     std::println ("Assembly options:");
 
@@ -974,6 +929,11 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
 //
 //  PrintUsageRun
 //
+//  A page of its own, reached by asking `run` for help in any spelling. It
+//  opens with the invocation it describes, taken from CommandLineHelp so the
+//  general page and this one cannot describe `run` differently, and closes with
+//  the statuses `run` itself spends -- which are not the assembler's.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
@@ -987,6 +947,8 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
         "  {0}max-cycles <n>{1}       Maximum cycles before stopping",
     };
 
+    std::println ("Usage:");
+    std::println ("{}", CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::Run));
     std::println ("");
     std::println ("Run options:");
 
@@ -1008,78 +970,55 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrintUsageDisk / PrintUsageExamples
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static void PrintUsageDisk (char prefix)
-{
-    std::println ("");
-    std::println ("Disk options:");
-    std::print   ("{}", DiskCommandRunner::BuildOptionsHelp (prefix));
-}
-
-
-static void PrintUsageExamples (char prefix)
-{
-    std::println ("");
-    std::print   ("{}", DiskCommandRunner::BuildExampleHelp (prefix));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  PrintUsage
 //
-//  What the tool is, then one section per mode in the order the usage lines
-//  name them: assemble, run, disk. Each mode's exit statuses close its own
-//  section.
+//  The page the request asked for, and only that page.
 //
-//  THE ORDER FOLLOWS THE USAGE LINES rather than crossing them. The page used
-//  to open with the disk subcommands, put three option groups between them and
-//  the disk options that fill them in, and close with the disk example -- so
-//  the one subcommand was split across three places and the reader walked over
-//  the assembler's flags twice to assemble the two halves.
+//  ONE PAGE FOR THREE GRAMMARS RAN TO FOUR SCREENS. Every flag of the
+//  assembler, of `run` and of `disk`, three blocks of exit statuses, and the
+//  worked loop at the bottom where a reader who had scrolled past the flags
+//  never arrived. A reader gets here already knowing which of the three things
+//  they came to do, so the general page names the three and says how to ask
+//  about one, and the detail waits behind that question.
 //
-//  EACH SECTION CARRIES ITS OWN EXAMPLE. The worked loop stays whole and stays
-//  with `disk`, because that is the mode it demonstrates and it is the only
-//  example that spans more than one; the short ones sit inside the group whose
-//  flags they use.
+//  `disk` HAS NO ARM HERE, and its absence is the design rather than an
+//  oversight. Its page is answered by DiskCommandRunner as the Help verb of the
+//  disk grammar, beside every other disk verb's output -- which is what lets it
+//  be assembled and tested next to the code it describes.
 //
-//  EXIT STATUSES ARE STATED PER MODE, UNDER THAT MODE, BECAUSE THEY DIFFER.
-//  They spent one revision stated once near the top for every mode, which was
-//  an improvement on being stated only under `disk` and still wrong: an
-//  assembly error exits 2 under the assembler and 1 under `run`, and status 1
-//  means "written anyway" in one mode and "nothing ran" in the other. What the
-//  modes share is the shape of the numbers, not their meanings -- and the
-//  meanings are the only part a script can act on.
+//  EVERY PAGE IS SPELLED WITH THE PREFIX THE READER CHOSE. `/?` means the page
+//  reads `/flag` throughout, and `--help` means it reads `-`/`--`.
 //
-//  EVERY SECTION IS SPELLED WITH THE PREFIX THE READER CHOSE. `/?` means the
-//  whole page reads `/flag`, and `--help` means it reads `-`/`--`. The disk
-//  options used to be the one exception -- documented as such, in the help
-//  itself -- because the grammar accepted only `--`. The grammar accepts both
-//  now, so the exception is gone rather than explained.
+//  EXIT STATUSES BELONG TO PAGES, NOT TO THE TOOL, BECAUSE THEY DIFFER. An
+//  assembly error exits 3 under the assembler and 1 under `run`, and status 1
+//  means "the output was written anyway" in one mode and "nothing ran" in the
+//  other. So each mode's page carries its own and the general page carries
+//  none: what the modes share is the shape of the numbers, not their meanings,
+//  and the meanings are the only part a script can act on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintUsage (char prefix)
+void PrintUsage (const CommandLineOptions & options)
 {
-    const char * sp  = (prefix == '/') ? "/"  : "-";
-    const char * lp  = (prefix == '/') ? "/"  : "--";
-    const char * pad = (prefix == '/') ? " "  : "";
+    char          prefix = options.flagPrefix;
+    const char *  sp     = (prefix == '/') ? "/"  : "-";
+    const char *  lp     = (prefix == '/') ? "/"  : "--";
+    const char *  pad    = (prefix == '/') ? " "  : "";
 
 
 
-    PrintUsageOverview     (lp);
-    PrintUsageGeneral      (lp, sp, pad);
-    PrintUsageAssembly     (sp, lp, pad);
-    PrintUsageRun          (lp, sp, pad);
-    PrintUsageSubcommands  (prefix);
-    PrintUsageDisk         (prefix);
-    PrintUsageExamples     (prefix);
+    if (options.helpPage == CommandLineOptions::HelpPage::Assemble)
+    {
+        PrintUsageAssembly (sp, lp, pad);
+    }
+    else if (options.helpPage == CommandLineOptions::HelpPage::Run)
+    {
+        PrintUsageRun (lp, sp, pad);
+    }
+    else
+    {
+        std::print ("{}", CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
+    }
 }
 
 

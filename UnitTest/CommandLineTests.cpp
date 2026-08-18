@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "CommandLineHelp.h"
 #include "CommandLineParser.h"
 
 #include "CppUnitTest.h"
@@ -149,13 +150,19 @@ namespace CommandLineTests
         //  question mark". The prefixed spellings were already accepted; the
         //  bare one was read as a source filename, so `CassoCli ?` went looking
         //  for a file called `?` and exited saying it could not open one.
-        TEST_METHOD (BareQuestionMarkAlone_SelectsHelp)
+        //
+        //  IT OPENS THE ASSEMBLER'S PAGE rather than the general one, and is the
+        //  only way there. The request belongs to as65, and assembling is as65
+        //  mode, so it lands on the page describing the grammar it comes from.
+        TEST_METHOD (BareQuestionMarkAlone_OpensTheAssemblersPage)
         {
             ArgVector           args = { "CassoCli", "?" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.showHelp);
             Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::Help);
+            Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::Assemble,
+                            L"a lone ? is as65's own usage request");
             Assert::IsTrue (opts.inputFile.empty(), L"and it is not a source file to assemble");
         }
 
@@ -210,6 +217,219 @@ namespace CommandLineTests
                 Assert::IsTrue (opts.subcommand == entry.token,
                                 L"a table row must parse to the token it names");
             }
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  HelpRoutingTests
+    //
+    //  Which PAGE each way of asking lands on.
+    //
+    //  THE HELP IS TIERED, AND THE ROUTE IS THE BEHAVIOR. One page describing
+    //  three grammars ran to four screens: every flag of the assembler, of
+    //  `run` and of `disk`, three blocks of exit statuses, and the worked loop
+    //  at the bottom where a reader who had scrolled past the flags never
+    //  arrived. The general page now names the modes and each mode's flags wait
+    //  behind a request for that mode -- so a route that stops working strands
+    //  a page, and nothing about the text of that page would show it.
+    //
+    //  BOTH PREFIXES ARE SWEPT EVERYWHERE, because a page spells itself with
+    //  the prefix the reader typed: a route accepted in only one of them offers
+    //  the other back in text and then refuses it on the next command line.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (HelpRoutingTests)
+    {
+    public:
+        //  Every spelling of "help" that both grammars beneath the top level
+        //  answer to. `-h` is among them and is safe there: the page height it
+        //  collides with lives in the assembler's own flag walk, which no
+        //  argument of `run` or `disk` ever reaches.
+        static std::vector<std::string> Spellings()
+        {
+            return { "--help", "-help", "-?", "-h", "/help", "/?", "/h" };
+        }
+
+        static CommandLineOptions ParseTyped (std::initializer_list<const char *> typed)
+        {
+            ArgVector  args = typed;
+
+            return CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+        }
+
+        TEST_METHOD (EverySpellingOfHelpAtTheTopLevel_OpensTheGeneralPage)
+        {
+            for (const std::string & spelling : Spellings())
+            {
+                CommandLineOptions  opts = ParseTyped ({ "CassoCli", spelling.c_str() });
+
+                Assert::IsTrue (opts.showHelp,
+                    (L"not read as a help request: " + Widen (spelling)).c_str());
+                Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::General,
+                    (L"did not open the general page: " + Widen (spelling)).c_str());
+            }
+        }
+
+        //  Typing the tool's name and nothing else is somebody who does not yet
+        //  know what it does, which is exactly who the general page is for.
+        TEST_METHOD (NoArgumentsAtAll_OpensTheGeneralPage)
+        {
+            CommandLineOptions  opts = ParseTyped ({ "CassoCli" });
+
+            Assert::IsTrue (opts.showHelp);
+            Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::General);
+        }
+
+        TEST_METHOD (ASlashSpelledRequest_KeepsTheSlashForThePageItOpens)
+        {
+            const char *  kSlashed[] = { "/help", "/?", "/h" };
+
+            for (const char * spelling : kSlashed)
+            {
+                CommandLineOptions  opts = ParseTyped ({ "CassoCli", spelling });
+
+                Assert::AreEqual ('/', opts.flagPrefix,
+                    (L"the prefix was not remembered: " + Widen (spelling)).c_str());
+            }
+        }
+
+        //  A LONE `?` IS THE ONLY ROUTE TO THE ASSEMBLER'S PAGE, so every other
+        //  spelling has to land somewhere else even when a source file is
+        //  standing on the command line beside it.
+        TEST_METHOD (HelpBesideASourceFile_StillOpensTheGeneralPage)
+        {
+            CommandLineOptions  opts = ParseTyped ({ "CassoCli", "prog.a65", "--help" });
+
+            Assert::IsTrue (opts.showHelp);
+            Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::General,
+                            L"only a lone ? reaches the assembler's page");
+        }
+
+        //  `run --help` was an option this grammar does not have: a diagnostic,
+        //  a refusal, and exit 2 -- answering a question the tool knows the
+        //  answer to by complaining about being asked.
+        TEST_METHOD (RunTakesAHelpRequestInEverySpelling_AndOpensTheRunPage)
+        {
+            for (const std::string & spelling : Spellings())
+            {
+                CommandLineOptions  opts = ParseTyped ({ "CassoCli", "run", spelling.c_str() });
+
+                Assert::IsTrue (opts.showHelp,
+                    (L"not read as a help request: " + Widen (spelling)).c_str());
+                Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::Run,
+                    (L"did not open the run page: " + Widen (spelling)).c_str());
+                Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
+                    (L"asking for help is not a mistake: " + Widen (spelling)).c_str());
+            }
+        }
+
+        //  A reader who has typed half a command and wants the grammar back
+        //  adds the request to the end of what they already have.
+        TEST_METHOD (RunHelpAfterTheInputFile_IsStillAHelpRequest)
+        {
+            CommandLineOptions  opts = ParseTyped ({ "CassoCli", "run", "prog.a65", "--help" });
+
+            Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::Run);
+        }
+
+        TEST_METHOD (RunHelpWithASlash_RecordsTheSlashPrefix)
+        {
+            CommandLineOptions  opts = ParseTyped ({ "CassoCli", "run", "/?" });
+
+            Assert::AreEqual ('/', opts.flagPrefix);
+        }
+
+        //  THE DISK PAGE IS ANSWERED BY THE DISK RUNNER, not by the usage
+        //  printer, which is what lets it be assembled and tested beside the
+        //  code it describes. So a disk help request must NOT set showHelp:
+        //  doing so would have the executable print a general page over it and
+        //  never dispatch the verb.
+        TEST_METHOD (DiskTakesAHelpRequestInEverySpelling_AndItStaysAVerbOfTheDiskGrammar)
+        {
+            for (const std::string & spelling : Spellings())
+            {
+                CommandLineOptions  opts = ParseTyped ({ "CassoCli", "disk", spelling.c_str() });
+
+                Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::Disk,
+                    (L"left the disk grammar: " + Widen (spelling)).c_str());
+                Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::Help,
+                    (L"not read as a help request: " + Widen (spelling)).c_str());
+                Assert::IsFalse (opts.showHelp,
+                    (L"the general page would be printed over it: " + Widen (spelling)).c_str());
+            }
+        }
+
+        //
+        //  THE GENERAL PAGE IS ONE SCREEN AND HAS TO STAY ONE. What it replaced
+        //  was 180 lines, and it grew there a section at a time, each addition
+        //  reasonable on its own. The banner is counted with it because a page
+        //  is what the reader sees, not what the builder returns.
+        //
+        TEST_METHOD (GeneralPage_FitsOnOneScreen_SoItCannotGrowBackIntoFourPages)
+        {
+            const char    kBanner[]   = "CassoCli - 6502 Assembler and Emulator  v0.0.0\n"
+                                        "Copyright (c) 2025-2026 by Robert Elmer\n";
+            const size_t  kScreenful  = 30;
+            const char    kPrefixes[] = { '-', '/' };
+
+            for (char prefix : kPrefixes)
+            {
+                std::string  page  = CommandLineHelp::BuildGeneralHelp (kBanner, prefix);
+                size_t       lines = (size_t) std::count (page.begin(), page.end(), '\n');
+
+                Assert::IsTrue (lines < kScreenful,
+                    (L"the general page has grown to " + std::to_wstring (lines) +
+                     L" lines").c_str());
+            }
+        }
+
+        //  The page is a table of contents, so the contents have to be on it --
+        //  in the prefix the reader typed, since that is the one they will type
+        //  next.
+        TEST_METHOD (GeneralPage_OffersTheRouteToEveryModesOwnPage_InThePrefixTheReaderTyped)
+        {
+            std::string  dashed  = CommandLineHelp::BuildGeneralHelp ("banner\n", '-');
+            std::string  slashed = CommandLineHelp::BuildGeneralHelp ("banner\n", '/');
+
+            Assert::IsTrue (dashed.find ("CassoCli ?")           != std::string::npos);
+            Assert::IsTrue (dashed.find ("CassoCli run --help")  != std::string::npos);
+            Assert::IsTrue (dashed.find ("CassoCli disk --help") != std::string::npos);
+            Assert::IsTrue (dashed.find ("CassoCli --version")   != std::string::npos);
+
+            //  `?` carries no prefix in either page: it is as65's own request
+            //  and as65 spells it bare.
+            Assert::IsTrue (slashed.find ("CassoCli ?")          != std::string::npos);
+            Assert::IsTrue (slashed.find ("CassoCli run /help")  != std::string::npos);
+            Assert::IsTrue (slashed.find ("CassoCli disk /help") != std::string::npos);
+            Assert::IsTrue (slashed.find ("CassoCli /version")   != std::string::npos);
+            Assert::IsTrue (slashed.find ("--help")              == std::string::npos,
+                            L"and never the spelling the reader did not type");
+        }
+
+        //  ONE DESCRIPTION OF ONE INVOCATION. A mode's page opens with the same
+        //  usage line the general page lists it by, from the same function, so
+        //  the two cannot come to describe different grammars.
+        TEST_METHOD (EveryModesUsageLine_IsTheOneTheGeneralPageLists)
+        {
+            std::string  page = CommandLineHelp::BuildGeneralHelp ("banner\n", '-');
+
+            for (const CommandLineParser::SubcommandName & entry : CommandLineParser::GetAllSubcommands())
+            {
+                std::string  line = CommandLineHelp::UsageLineFor (entry.token);
+
+                Assert::IsTrue (page.find (line) != std::string::npos,
+                    (L"the general page does not list: " + Widen (entry.name)).c_str());
+            }
+
+            Assert::IsTrue (page.find (CommandLineHelp::UsageLineFor (
+                                CommandLineOptions::Subcommand::As65)) != std::string::npos,
+                            L"nor the assembler, which is the fallback rather than a named mode");
         }
     };
 
@@ -1372,9 +1592,15 @@ namespace CommandLineTests
         //  `disk --help` used to reach the verb table, be told `--help` is not
         //  a verb, and answer a question about the grammar with a complaint
         //  about the grammar. Help was recognized only as argv[1].
+        //
+        //  `-h` IS AMONG THEM AND IS SAFE HERE. The page height it collides
+        //  with at the top level exists only inside the assembler's flag walk,
+        //  and no argument of this grammar ever reaches that walk -- so the two
+        //  characters a reader most likely types are free to mean help.
         TEST_METHOD (Disk_TakesAHelpRequestInEverySpelling_NotOnlyAsTheFirstArgument)
         {
-            const char *  kSpellings[] = { "--help", "-help", "-?", "/help", "/?" };
+            const char *  kSpellings[] = { "--help", "-help", "-?", "-h",
+                                           "/help",  "/?",    "/h" };
 
             for (const char * spelling : kSpellings)
             {

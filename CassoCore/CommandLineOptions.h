@@ -69,6 +69,25 @@ struct CommandLineOptions
     //  its output. Refused means it was not, and nothing was attempted.
     enum class ParseVerdict  { Clean, Complaint, Refused };
 
+    //  Which page a help request asks for.
+    //
+    //  THE HELP IS TIERED, so a request has to say which tier. One page
+    //  describing three grammars ran to four screens, and a reader arrives
+    //  already knowing which of the three things they came to do -- so the
+    //  general page names the modes and the routes to them, and each mode's
+    //  flags wait behind the route to that mode.
+    //
+    //  A LONE `?` IS THE ASSEMBLER'S PAGE AND THE ONLY WAY TO IT. That is as65's
+    //  own convention -- its usage appears when the only parameter is a question
+    //  mark -- and assembling is as65 mode. Every other spelling of help at the
+    //  top level asks for the general page.
+    //
+    //  `disk` IS ABSENT ON PURPOSE. Its help is a verb of the disk grammar
+    //  (DiskOptions::Verb::Help) and is answered by the runner that answers
+    //  every other disk verb, which is what lets it be built and tested beside
+    //  the code it describes.
+    enum class HelpPage      { General, Assemble, Run };
+
     //
     //  Everything the `disk` subcommand expresses. Nested rather than
     //  flattened, per the note above.
@@ -115,6 +134,7 @@ struct CommandLineOptions
 
     Subcommand    subcommand      = Subcommand::None;
     ParseVerdict  parseVerdict    = ParseVerdict::Clean;
+    HelpPage      helpPage        = HelpPage::General;
     OutputFormat  outputFormat    = OutputFormat::Raw;
 
     //  Whether a shape flag was TYPED, as opposed to the default standing.

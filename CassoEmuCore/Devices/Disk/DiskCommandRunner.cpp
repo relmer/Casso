@@ -59,21 +59,6 @@ DiskCommandRunner::DiskCommandRunner (IDiskFileIo & fileIo)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskCommandRunner::LongPrefix
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DiskCommandRunner::LongPrefix (char flagPrefix)
-{
-    return (flagPrefix == '/') ? std::string ("/") : std::string ("--");
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DiskCommandRunner::BuildSubcommandHelp
 //
 //  One line per verb -- every spelling of it, then what it does -- and then the
@@ -96,7 +81,7 @@ std::string DiskCommandRunner::LongPrefix (char flagPrefix)
 
 std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
 {
-    std::string  lp = LongPrefix (flagPrefix);
+    std::string  lp = CommandLineHelp::LongPrefix (flagPrefix);
 
 
 
@@ -174,7 +159,7 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
     };
 
     const size_t  kDescriptionColumn = 25;
-    std::string   lp                 = LongPrefix (flagPrefix);
+    std::string   lp                 = CommandLineHelp::LongPrefix (flagPrefix);
     std::string   text;
 
 
@@ -241,6 +226,13 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
 //  traps below are exactly what they would guess wrong. So the example runs the
 //  loop end to end and then says why two of its steps look the way they do.
 //
+//  THE COMMANDS THEMSELVES COME FROM CommandLineHelp, because the general page
+//  shows the same loop -- it is the one thing on that page that is not a table
+//  of contents -- and a loop written out twice is a loop whose two copies will
+//  eventually place different files. What is added here is the prose, which
+//  belongs to this page alone: every flag it explains is described on this page
+//  and nowhere else.
+//
 //  The first trap is the header. `--dos-bin` and `put --addr` each write a DOS
 //  3.3 four-byte header, and a file carrying both loads its own header at the
 //  load address -- where a `BRUN` executes it. The stale header's first byte is
@@ -252,32 +244,24 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
 //  sets the name and boots without running it. The example places a one-line
 //  greeting that BRUNs the binary, which is what actually closes the loop.
 //
-//  It goes LAST in the usage text, after every option group, because it is the
-//  part a reader returns to once they know what the flags are -- and because a
+//  It goes LAST on this page, after every option group, because it is the part
+//  a reader returns to once they know what the flags are -- and because a
 //  worked loop sitting between two flag tables interrupts both.
 //
-//  ONE FLAG HERE KEEPS THE `--` SPELLING WHATEVER THE READER ASKED FOR, and it
-//  is the one belonging to a different program. `--disk1` is the emulator's
-//  flag, not this tool's, and the emulator accepts only that spelling; printing
-//  `/disk1` because the reader typed `/?` would be a promise this executable is
-//  not the one keeping.
+//  `--disk1` keeps the `--` spelling whatever the reader asked for, here as in
+//  the commands themselves: it is the emulator's flag rather than this tool's.
+//  See CommandLineHelp::BuildExampleCommands.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string DiskCommandRunner::BuildExampleHelp (char flagPrefix)
 {
-    std::string  lp = LongPrefix (flagPrefix);
-    std::string  sp = (flagPrefix == '/') ? std::string ("/") : std::string ("-");
+    std::string  lp = CommandLineHelp::LongPrefix (flagPrefix);
+    std::string  sp = CommandLineHelp::ShortPrefix (flagPrefix);
 
 
 
-    return std::string (kExampleHeading) + "\n"
-        "  CassoCli prog.a65 " + sp + "o prog.bin\n"
-        "  CassoCli disk put mydisk.dsk prog.bin " + lp + "as PROG "
-                 + lp + "type B " + lp + "addr $6000\n"
-        "  CassoCli disk put mydisk.dsk greet.bas " + lp + "as STARTUP " + lp + "basic\n"
-        "  CassoCli disk boot mydisk.dsk STARTUP\n"
-        "  Casso.exe --disk1 mydisk.dsk\n"
+    return CommandLineHelp::BuildExampleCommands (flagPrefix) +
         "\n"
         "  " + sp + "o names the assembled output file; --disk1 mounts an image in\n"
         "  drive 1 as the emulator starts -- and is the emulator's own flag, which\n"
@@ -298,16 +282,27 @@ std::string DiskCommandRunner::BuildExampleHelp (char flagPrefix)
 //
 //  DiskCommandRunner::BuildHelpText
 //
-//  The three pieces in the order a reader meets them when nothing else is
-//  interleaved. What the executable prints is the same text with the assembler
-//  and run options between the second and third; this is what a test reads, and
-//  what a caller with no usage text of its own would print.
+//  The whole disk page: what the subcommand takes, what each verb does, every
+//  option, and the worked loop.
+//
+//  IT IS A PAGE RATHER THAN A SECTION NOW, which is why the headings are here.
+//  The three pieces used to be poured into a single page between the assembler
+//  and run options, and whatever printed them supplied the headings that said
+//  where one ended. Nothing prints them interleaved any more -- a reader
+//  reaches this by asking `disk` for help -- so the piece that owns the text
+//  owns the headings too, and the usage line comes from CommandLineHelp so this
+//  page and the general page cannot describe `disk` differently.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string DiskCommandRunner::BuildHelpText (char flagPrefix)
 {
-    return BuildSubcommandHelp (flagPrefix) + "\n"
+    return "Usage:\n"
+         + CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::Disk) + "\n"
+           "\n"
+           "Disk subcommands:\n"
+         + BuildSubcommandHelp (flagPrefix) + "\n"
+           "Disk options:\n"
          + BuildOptionsHelp    (flagPrefix) + "\n"
          + BuildExampleHelp    (flagPrefix);
 }

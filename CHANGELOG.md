@@ -126,6 +126,27 @@ Entries before versioning was introduced use dates only.
   unaffected — that filesystem records neither field.
 
 ### Changed
+- **`CassoCli --help` is one screen, and each mode's flags wait behind that
+  mode's own help.** It was 180 lines — four screens of every flag of three
+  grammars, three blocks of exit statuses, and the worked loop at the bottom
+  where a reader who had scrolled past the flags never arrived. The general
+  page is now twenty lines: what the tool is, one line per mode, the route to
+  each mode's page, and the loop from source to a program running in the
+  emulator. `CassoCli ?` opens the assembler's page — that is as65's own
+  convention, usage when the only parameter is a question mark, and assembling
+  is as65 mode — while `CassoCli run --help` and `CassoCli disk --help` open
+  theirs. `-?`, `-h` as the first argument, `--help`, the `/` spelling of each,
+  and the tool's bare name all still open the general page. Every page spells
+  its flags with the prefix you typed, and each mode's exit statuses stay on
+  that mode's page and appear on no other, because they differ.
+- **`CassoCli run --help` answers instead of complaining.** The `run` grammar
+  had no help request in it, so asking for one was an option it did not
+  recognize: a diagnostic, a refusal, and exit 2. `run` and `disk` now both take
+  `--help`, `-help`, `-?`, `-h` and the `/` spelling of each, anywhere among
+  their arguments — `-h` included, because the listing page height it collides
+  with exists only inside the assembler's flag walk, which neither grammar
+  reaches. The assembler's own `-h` is unchanged: help as the first argument,
+  the page height everywhere else.
 - **BREAKING: an assembly error now exits 3, where it used to exit 2.** as65
   spends 2 on "unable to open input or output file" and 3 on "assembly gave
   errors", and this assembler collapsed both into 2 — a source that could not

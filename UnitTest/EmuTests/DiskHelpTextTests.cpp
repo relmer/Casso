@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
+#include "CommandLineHelp.h"
 #include "CommandLineParser.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 
@@ -50,7 +51,7 @@ public:
     static std::vector<std::string> ExampleCommandLines (const std::string & help)
     {
         std::vector<std::string>  lines;
-        size_t                    at        = help.find (DiskCommandRunner::kExampleHeading);
+        size_t                    at        = help.find (CommandLineHelp::kExampleHeading);
         size_t                    lineStart = 0;
         size_t                    lineEnd   = 0;
 
@@ -577,7 +578,7 @@ public:
         std::string  help     = DiskCommandRunner::BuildHelpText();
         size_t       verbs    = help.find ("CassoCli disk list");
         size_t       options  = help.find ("Write an extracted file here");
-        size_t       example  = help.find (DiskCommandRunner::kExampleHeading);
+        size_t       example  = help.find (CommandLineHelp::kExampleHeading);
 
         //  Overview, then options, then the worked loop. The old order put the
         //  example in the middle, where a reader scanning for a flag walks over
@@ -588,5 +589,49 @@ public:
 
         Assert::IsTrue (verbs < options, L"the grammar comes before the options");
         Assert::IsTrue (options < example, L"and the example comes after both");
+    }
+
+    //
+    //  THE WORKED LOOP IS ON TWO PAGES AND IS WRITTEN ONCE. The general page
+    //  shows it because it is the one thing on that page which is not a table
+    //  of contents; the disk page shows it because every flag in it is
+    //  described there. Two copies would be two loops that can drift into
+    //  placing different files under the same explanation, so both pages call
+    //  one function -- and this asserts that they still do rather than that
+    //  they agree today.
+    //
+    TEST_METHOD (ExampleLoop_IsOneBlock_ShownByBothTheGeneralPageAndTheDiskPage)
+    {
+        const char  kPrefixes[] = { '-', '/' };
+
+        for (char prefix : kPrefixes)
+        {
+            std::string  commands = CommandLineHelp::BuildExampleCommands (prefix);
+            std::string  general  = CommandLineHelp::BuildGeneralHelp ("banner\n", prefix);
+            std::string  disk     = DiskCommandRunner::BuildHelpText (prefix);
+
+            Assert::IsTrue (general.find (commands) != std::string::npos,
+                            L"the general page shows the loop, whole");
+            Assert::IsTrue (disk.find (commands) != std::string::npos,
+                            L"and so does the disk page");
+        }
+    }
+
+    //  The prose explaining the loop's two traps belongs to the page where
+    //  every flag it names is described. On the general page it would be six
+    //  paragraphs about flags that page does not document -- which is how the
+    //  one page grew to four screens in the first place.
+    TEST_METHOD (ExampleProse_StaysOnTheDiskPage_WhereTheFlagsItExplainsAreDescribed)
+    {
+        std::string  general = CommandLineHelp::BuildGeneralHelp ("banner\n", '-');
+        std::string  disk    = DiskCommandRunner::BuildHelpText ('-');
+
+        Assert::IsTrue (disk.find ("its own header loaded as code") != std::string::npos,
+                        L"the disk page explains the doubled header");
+        Assert::IsTrue (general.find ("its own header loaded as code") == std::string::npos,
+                        L"and the general page does not");
+
+        Assert::IsTrue (general.find ("Exit status") == std::string::npos,
+                        L"nor does it claim an exit status any mode would disagree with");
     }
 };

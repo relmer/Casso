@@ -128,6 +128,12 @@ static constexpr const char *  s_kpszSourceExtensions[] =
 //  it. `/HELP` is a legal volume path and stays an operand; only the lowercase
 //  flag spelling a person types at a shell is read as a request.
 //
+//  `-h` IS SAFE HERE AND NOWHERE ELSE. It is the listing page height in the
+//  assembler's flag walk, which is the only grammar that has such a thing; the
+//  `run` and `disk` grammars this function judges have no page and no height,
+//  so nothing else is competing for the two characters. A reader who learned
+//  `-h` from any other command line types it here first.
+//
 //  THE ONE TOP-LEVEL SPELLING MISSING HERE IS A BARE `?`, and it is missing
 //  because the condition that makes it a request cannot hold inside a
 //  subcommand. as65 asks for a question mark that is the ONLY parameter; every
@@ -138,8 +144,8 @@ static constexpr const char *  s_kpszSourceExtensions[] =
 
 bool CommandLineParser::IsHelpRequest (const std::string & arg)
 {
-    return arg == "--help" || arg == "-help" || arg == "-?" ||
-           arg == "/help"  || arg == "/?";
+    return arg == "--help" || arg == "-help" || arg == "-?" || arg == "-h" ||
+           arg == "/help"  || arg == "/?"    || arg == "/h";
 }
 
 
@@ -1470,13 +1476,42 @@ void CommandLineParser::ApplyAs65Defaults (CommandLineOptions & options, const F
 //  Running anyway and reporting success told a build script that a command line
 //  it got wrong had worked.
 //
+//  A HELP REQUEST IS THE ONE ARGUMENT THAT IS NEITHER, and it is looked for
+//  before any of them. `run --help` would otherwise be an option this grammar
+//  does not have -- refused, with a diagnostic, exiting 2 -- which answers a
+//  question the tool knows the answer to by complaining about it. It is looked
+//  for ANYWHERE in the arguments for the reason the disk grammar gives: a
+//  reader asks for help after typing the thing they wanted help with at least
+//  as often as before it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, CommandLineOptions & options)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr        = S_OK;
+    bool     wantsHelp = false;
 
 
+
+    for (int probe = argIndex; probe < argc; probe++)
+    {
+        if (IsHelpRequest (argv[probe]))
+        {
+            wantsHelp = true;
+
+            if (argv[probe][0] == '/')
+            {
+                options.flagPrefix = '/';
+            }
+        }
+    }
+
+    if (wantsHelp)
+    {
+        options.showHelp = true;
+        options.helpPage = CommandLineOptions::HelpPage::Run;
+        return;
+    }
 
     while (argIndex < argc)
     {
@@ -1670,6 +1705,17 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
     {
         options.subcommand = CommandLineOptions::Subcommand::Help;
         options.showHelp   = true;
+
+        //  A LONE `?` OPENS THE ASSEMBLER'S PAGE, and is the only thing that
+        //  does. It is as65's own usage request, and assembling IS as65 mode,
+        //  so the request lands on the page describing the grammar it comes
+        //  from. Every other spelling asks for the general page. The `argc == 2`
+        //  condition is already spent above, so a `?` reaching here was the
+        //  whole command line.
+        if (first == "?")
+        {
+            options.helpPage = CommandLineOptions::HelpPage::Assemble;
+        }
     }
     else if (isVer)
     {

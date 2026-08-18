@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "ApplesoftTokenizer.h"
+#include "CommandLineHelp.h"
 #include "CommandLineOptions.h"
 #include "CommitPlan.h"
 #include "IDiskFileIo.h"
@@ -156,11 +157,6 @@ public:
         "       the volume, or a write the volume or the host refused. The image is\n"
         "       byte-for-byte as it was.";
 
-    //  The line the worked example starts on, so a reader and a test look for
-    //  the same thing.
-    static constexpr const char *  kExampleHeading =
-        "Examples -- the whole loop, from source to a program running in the emulator:";
-
     //  The sentence a listing gives when neither filesystem is there. Named so
     //  a test asserts on the wording a user reads rather than a paraphrase.
     static constexpr const char *  kNoFilesystemText =
@@ -263,11 +259,6 @@ private:
     //  What the file is called on the disk: --as when given, otherwise the host
     //  file's own last component, which is the name the caller already chose.
     static std::string  OnDiskNameFor (const CommandLineOptions & options);
-
-    //  The long-flag prefix for a chosen style: `--` or `/`. One place, because
-    //  the help spells flags in a dozen sentences and a style decided in each
-    //  of them is a style that will disagree with itself.
-    static std::string  LongPrefix (char flagPrefix);
 
     //
     //  Everything an image still says about itself once neither filesystem

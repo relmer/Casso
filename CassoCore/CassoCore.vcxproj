@@ -177,6 +177,7 @@
     <ClCompile Include="As65ExitStatus.cpp" />
     <ClCompile Include="Assembler.cpp" />
     <ClCompile Include="AssemblySession.cpp" />
+    <ClCompile Include="CommandLineHelp.cpp" />
     <ClCompile Include="CommandLineParser.cpp" />
     <ClCompile Include="Cpu.cpp" />
     <ClCompile Include="Cpu6502.cpp" />
@@ -206,6 +207,7 @@
     <ClInclude Include="AssemblySession.h" />
     <ClInclude Include="AssemblerTypes.h" />
     <ClInclude Include="CommandLineOptions.h" />
+    <ClInclude Include="CommandLineHelp.h" />
     <ClInclude Include="CommandLineParser.h" />
     <ClInclude Include="Cpu.h" />
     <ClInclude Include="Cpu6502.h" />

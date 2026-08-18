@@ -52,7 +52,7 @@ int main (int argc, char * argv[])
     if (options.showHelp || options.subcommand == CommandLineOptions::Subcommand::None
                         || options.subcommand == CommandLineOptions::Subcommand::Help)
     {
-        PrintUsage (options.flagPrefix);
+        PrintUsage (options);
         exitCode = refused ? 2 : (options.showHelp ? 0 : 1);
     }
     else if (options.showVersion || options.subcommand == CommandLineOptions::Subcommand::Version)
@@ -74,7 +74,7 @@ int main (int argc, char * argv[])
     else
     {
         // A subcommand the parser knows but this dispatch does not.
-        PrintUsage (options.flagPrefix);
+        PrintUsage (options);
     }
 
     return exitCode;
