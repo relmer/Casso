@@ -274,6 +274,106 @@ void DeskScene::SetDriveVisuals (int drive, bool lampOn, float doorProgress, boo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::SetModelLighting
+//
+//  The room's two ceiling fixtures, in the coordinates of the model about to
+//  be drawn.
+//
+//  The ramp constants match what the CPU bake used, so this is a change of
+//  SHADING QUALITY and not of overall brightness: same 0.16 floor over 0.84
+//  span, same 1524 mm reference distance. What differs is the curve's top
+//  end. The bake clamped with min(1, sum), which collapsed every face past
+//  the threshold onto a single value and flattened relief wherever two
+//  nearby point lights summed over 1; this rolls off exponentially instead,
+//  so a face can keep getting brighter without ever landing on the ceiling
+//  its neighbor is already stuck against. The gain is set so the knee sits
+//  where the clamp used to: 1 - exp(-1.6) is about 0.8, so a face that
+//  previously pinned at full span now reads near it and still has somewhere
+//  left to go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetModelLighting (const DeskSceneModel & model,
+                                  bool                   lampOn,
+                                  const float            lampRgb[3])
+{
+    Dxui3DRenderer::Lighting   lighting;
+    const float             (& lights)[2][3] = model.LightsModel();
+
+    for (int i = 0; i < 3; i++)
+    {
+        lighting.light0[i] = lights[0][i];
+        lighting.light1[i] = lights[1][i];
+    }
+
+    lighting.refDist = DeskSceneModel::kLightRefMm;
+    lighting.span    = DeskSceneModel::kShadeSpan;
+    lighting.gain    = 2.05f;
+
+    // Every model shares the same axis convention -- X right, Y back, Z up --
+    // so one direction serves them all: the seated eye is in front (-Y) and
+    // about ten degrees above, looking down.
+    lighting.eye[0] =  0.0f;
+    lighting.eye[1] = -0.985f;
+    lighting.eye[2] =  0.174f;
+
+    // Molded plastic has a broad soft sheen, and without it relief on a face
+    // viewed near head-on has nothing to read by: the flanks foreshorten to
+    // a pixel or two at this camera angle, while a highlight on the rounded
+    // edge stays put. A wide lobe, because a matte case is not a mirror.
+    lighting.specStrength = 0.22f;
+    lighting.specPower    = 20.0f;
+
+    // Ceiling bounce above, desk bounce below -- and BOTH generous, because
+    // two ceiling fixtures alone cannot light a room. A vertical front face
+    // catches only about a fifth of a lamp directly overhead (N.L ~ 0.2), so
+    // a scene lit by those two lights and a token 0.16 floor rendered a
+    // cream-colored case as mid-gray. What actually lights the front of a
+    // machine on a desk is the room: walls, ceiling, window, the desk
+    // itself. That is what this stands in for, so it carries real weight
+    // rather than just keeping shadows off pure black.
+    //
+    // Slightly warm above and warmer still below, since the bounce picks up
+    // the desk's own color on the way back up.
+    lighting.ambientUp[0]   = 0.335f;
+    lighting.ambientUp[1]   = 0.328f;
+    lighting.ambientUp[2]   = 0.312f;
+    lighting.ambientDown[0] = 0.232f;
+    lighting.ambientDown[1] = 0.222f;
+    lighting.ambientDown[2] = 0.200f;
+
+    // The device's own lamp, as a light rather than baked spill. It sits at
+    // the lens and radiates the way the lens faces (-Y, toward the viewer),
+    // so the housing behind it stays dark because those faces point away --
+    // no rays traced, no second copy of the body baked with the glow burnt
+    // into its vertices.
+    if (lampOn && lampRgb != nullptr && !model.Lamps().empty())
+    {
+        const DeskLampAnchor & anchor = model.Lamps().front();
+
+        lighting.lampPos[0] = anchor.center[0];
+        lighting.lampPos[1] = anchor.frontY;
+        lighting.lampPos[2] = anchor.center[2];
+
+        lighting.lampDir[0] =  0.0f;
+        lighting.lampDir[1] = -1.0f;
+        lighting.lampDir[2] =  0.0f;
+
+        for (int i = 0; i < 3; i++)
+        {
+            lighting.lampColor[i] = lampRgb[i];
+        }
+    }
+
+    m_renderer.SetLighting (lighting);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::TintInto
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -686,9 +786,15 @@ HRESULT DeskScene::DrawDrives (const DeskSceneComposition & comp, const D3D11_VI
     {
         SceneCamera::Mul44 (comp.driveWorld[drive], comp.viewProj, mvp);
 
-        hr = m_renderer.DrawStatic (m_driveOpaqueMesh[m_driveActive[drive] ? 1 : 0],
-                                    m_drive.OpaqueVerts (m_driveActive[drive]).data(),
-                                    m_drive.OpaqueVerts (m_driveActive[drive]).size(),
+        // Lighting is set PER DEVICE, not once per frame: each model keeps
+        // its own coordinates and Load() put the room's fixtures into them,
+        // so a drive at the right of the desk sees the same two ceiling
+        // lights from a different place than the monitor above it does.
+        SetModelLighting (m_drive, m_driveActive[drive], kDriveGlowRgb);
+
+        hr = m_renderer.DrawStatic (m_driveOpaqueMesh[0],
+                                    m_drive.OpaqueVerts().data(),
+                                    m_drive.OpaqueVerts().size(),
                                     m_geometryRev, mvp, false, viewport, true);
         CHRA (hr);
 
@@ -1257,9 +1363,11 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     // Opaque bodies: monitor, then each placed drive.
     SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, mvp);
 
-    hr = m_renderer.DrawStatic (m_monitorOpaqueMesh[m_powerLampOn ? 1 : 0],
-                                m_monitor.OpaqueVerts (m_powerLampOn).data(),
-                                m_monitor.OpaqueVerts (m_powerLampOn).size(),
+    SetModelLighting (m_monitor, m_powerLampOn, kMonitorGlowRgb);
+
+    hr = m_renderer.DrawStatic (m_monitorOpaqueMesh[0],
+                                m_monitor.OpaqueVerts().data(),
+                                m_monitor.OpaqueVerts().size(),
                                 m_geometryRev, mvp, false, viewport, true);
     CHRA (hr);
 

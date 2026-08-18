@@ -289,6 +289,13 @@ private:
                                const D3D11_VIEWPORT       & viewport,
                                bool                         includeMonitor);
 
+    // Hands the renderer one model's view of the room fixtures, in that
+    // model's own coordinates, plus its own lamp when that lamp is lit.
+    // Called before each lit device's draw.
+    void  SetModelLighting (const DeskSceneModel & model,
+                            bool                   lampOn   = false,
+                            const float            lampRgb[3] = nullptr);
+
     static void  TintInto (const std::vector<Dxui3DRenderer::Vertex> & base,
                            float                                       factor,
                            std::vector<Dxui3DRenderer::Vertex>       & out);

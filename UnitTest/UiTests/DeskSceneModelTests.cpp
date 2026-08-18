@@ -482,41 +482,68 @@ public:
         }
     }
 
-    TEST_METHOD (Opaque_Verts_Carry_Baked_Shading)
+    //
+    //  Shading moved to the pixel shader, so what the model owes the renderer
+    //  is the FACE NORMAL, not a pre-multiplied Lambert ramp. This replaces a
+    //  test that asserted the tints varied across the body -- true only while
+    //  the shade was baked into them, and the very thing that had to stop.
+    //
+    TEST_METHOD (Opaque_Verts_Carry_Face_Normals)
     {
         DeskSceneModel   model;
-        bool             sawVariation = false;
-        float            firstR       = -1.0f;
+        bool             sawTwoNormals = false;
+        float            firstN[3]     = {};
+        bool             haveFirst     = false;
 
 
 
         AssertSucceeded (model.Load (DeskDeviceKind::DiskII, DriveObj(), Mtl()));
         Assert::IsFalse (model.OpaqueVerts().empty());
 
-        // The lit case verts carry the baked Lambert ramp (floor 0.30 to
-        // full material color); the unlit stamps (brand, labels) ride along
-        // in the batch with their exact colors, so only verts in the case
-        // color's family are ramp-checked.
-        for (const Dxui3DRenderer::Vertex & v : model.OpaqueVerts())
+        const std::vector<Dxui3DRenderer::Vertex> & verts = model.OpaqueVerts();
+
+        // Emitted as a triangle list, so the three vertices of each face must
+        // agree: flat shading is the contract, and a mismatch here would show
+        // up as a gradient across a face that should be uniform.
+        Assert::AreEqual (size_t (0), verts.size() % 3,
+            L"opaque verts must be whole triangles");
+
+        for (size_t i = 0; i < verts.size(); i += 3)
         {
+            const Dxui3DRenderer::Vertex  & v   = verts[i];
+            float                           len = std::sqrt (v.nx * v.nx + v.ny * v.ny + v.nz * v.nz);
+
             Assert::AreEqual (1.0f, v.a);
 
-            if (v.r > 0.833f * 0.30f - 1e-4f && v.r <= 0.833f + 1e-4f &&
-                std::abs (v.g - v.r * (0.784f / 0.833f)) < 0.02f)
+            // A degenerate triangle legitimately leaves the normal zero,
+            // which the shader reads as unlit. Anything else must be unit.
+            if (len > 1e-4f)
             {
-                if (firstR < 0.0f)
+                Assert::AreEqual (1.0f, len, 1e-3f, L"face normals must be unit length");
+
+                for (size_t k = 1; k < 3; k++)
                 {
-                    firstR = v.r;
+                    Assert::AreEqual (v.nx, verts[i + k].nx, 1e-6f);
+                    Assert::AreEqual (v.ny, verts[i + k].ny, 1e-6f);
+                    Assert::AreEqual (v.nz, verts[i + k].nz, 1e-6f);
                 }
-                else if (std::abs (v.r - firstR) > 1e-3f)
+
+                if (!haveFirst)
                 {
-                    sawVariation = true;
+                    firstN[0] = v.nx;  firstN[1] = v.ny;  firstN[2] = v.nz;
+                    haveFirst = true;
+                }
+                else if (std::abs (v.nx - firstN[0]) > 1e-3f ||
+                         std::abs (v.ny - firstN[1]) > 1e-3f ||
+                         std::abs (v.nz - firstN[2]) > 1e-3f)
+                {
+                    sawTwoNormals = true;
                 }
             }
         }
 
-        // Different face orientations get different Lambert shades.
-        Assert::IsTrue (sawVariation);
+        Assert::IsTrue (haveFirst,     L"a loaded body must carry normals at all");
+        Assert::IsTrue (sawTwoNormals, L"a box has faces pointing different ways");
     }
 
 };

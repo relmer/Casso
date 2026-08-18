@@ -9,25 +9,116 @@
 // the CPU-side float[16] goes into the constant buffer untransposed.
 static const char s_kVertexShaderSrc[] =
     "cbuffer Mvp : register(b0) { row_major float4x4 mvp; };\n"
-    "struct VSIn  { float3 pos : POSITION; float2 uv : TEXCOORD0; float4 col : COLOR; };\n"
-    "struct VSOut { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float4 col : COLOR; };\n"
+    "struct VSIn  { float3 pos : POSITION; float2 uv : TEXCOORD0; float4 col : COLOR;\n"
+    "               float3 nrm : NORMAL;   float3 emi : COLOR1; };\n"
+    "struct VSOut { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float4 col : COLOR;\n"
+    "               float3 nrm : NORMAL;     float3 emi : COLOR1; float3 wp : TEXCOORD1; };\n"
     "VSOut main (VSIn input)\n"
     "{\n"
     "    VSOut output;\n"
     "    output.pos = mul (float4 (input.pos, 1.0f), mvp);\n"
     "    output.uv  = input.uv;\n"
     "    output.col = input.col;\n"
+    "    output.nrm = input.nrm;\n"
+    "    output.emi = input.emi;\n"
+    "    output.wp  = input.pos;\n"     // pre-transform: lights live in this space
     "    return output;\n"
     "}\n";
 
 
+// Lambert per PIXEL, from the same two point lights the CPU used to bake per
+// face. Three things this fixes that baking could not:
+//
+//   - The dot product keeps its SIGN. The old code took |dot| because
+//     culling is off and a signed dot might shade a visible back face black
+//     -- which made an up-facing wall and a down-facing wall identical and
+//     destroyed every directional cue in the scene. Molded relief reads
+//     precisely because one flank catches light and the other does not, so
+//     that guard cost the thing the relief was for.
+//   - The ramp rolls off instead of clamping. A hard min(1, sum) collapsed
+//     every face past the threshold onto one value, so relief flattened
+//     wherever two nearby point lights happened to sum over 1.
+//   - Falloff is evaluated per pixel rather than per vertex.
+//
+// A signed dot needs no |abs| guard even with culling off: the CAD kernel
+// tessellates solids with consistent OUTWARD winding, so a face the viewer
+// can see already has its normal pointing at them.
+//
+// The view vector is a DIRECTION, not eye-minus-position. The eye sits 762 mm
+// back from a 368 mm-wide monitor, so the true direction swings about 14
+// degrees corner to corner -- enough to slide a highlight a little, not
+// enough to justify inverting each device's world matrix to recover an eye
+// position the composition never carried. Specular is what makes molded
+// plastic read at all when the relief is viewed near head-on: the flanks
+// foreshorten to almost nothing at this camera's 10-degree downward tilt,
+// and a highlight on the rounded edge does not care about foreshortening.
 static const char s_kPixelShaderSrc[] =
     "Texture2D    tex  : register(t0);\n"
     "SamplerState samp : register(s0);\n"
-    "struct PSIn { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float4 col : COLOR; };\n"
+    "cbuffer Light : register(b1)\n"
+    "{\n"
+    "    float4 l0;        // xyz light 0\n"
+    "    float4 l1;        // xyz light 1\n"
+    "    float4 eye;       // xyz DIRECTION toward the viewer\n"
+    "    float4 parm;      // x refDist, y span, z gain, w specStrength\n"
+    "    float4 parm2;     // x specPower\n"
+    "    float4 ambUp;     // xyz ceiling bounce\n"
+    "    float4 ambDown;   // xyz desk bounce\n"
+    "    float4 lampPos;   // xyz, w refDist\n"
+    "    float4 lampDir;   // xyz lens facing, w range\n"
+    "    float4 lampCol;   // xyz, zero disables\n"
+    "};\n"
+    "struct PSIn { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float4 col : COLOR;\n"
+    "              float3 nrm : NORMAL;      float3 emi : COLOR1;   float3 wp : TEXCOORD1; };\n"
     "float4 main (PSIn input) : SV_TARGET\n"
     "{\n"
-    "    return tex.Sample (samp, input.uv) * input.col;\n"
+    "    float4 texel = tex.Sample (samp, input.uv);\n"
+    "    float4 base  = texel * input.col;\n"
+    "    float3 lit   = base.rgb;\n"
+    "    if (dot (input.nrm, input.nrm) > 0.5f)\n"
+    "    {\n"
+    "        float3 n    = normalize (input.nrm);\n"
+    "        float3 v    = normalize (eye.xyz);\n"
+    "        float  diff = 0.0f;\n"
+    "        float  spec = 0.0f;\n"
+    "        [unroll] for (int k = 0; k < 2; k++)\n"
+    "        {\n"
+    "            float3 lp = (k == 0) ? l0.xyz : l1.xyz;\n"
+    "            float3 d  = lp - input.wp;\n"
+    "            float  r  = max (length (d), 1e-4f);\n"
+    "            float3 L  = d / r;\n"
+    "            float  at = (parm.x * parm.x) / (r * r);\n"
+    "            float  nl = saturate (dot (n, L));\n"
+    "            diff += nl * at;\n"
+    "            if (nl > 0.0f)\n"
+    "            {\n"
+    "                spec += pow (saturate (dot (n, normalize (L + v))), parm2.x) * at;\n"
+    "            }\n"
+    "        }\n"
+    "        // Ambient by FACING: ceiling bounce above, desk bounce below.\n"
+    "        float3 amb = lerp (ambDown.rgb, ambUp.rgb, saturate (n.z * 0.5f + 0.5f));\n"
+    "        float  ramp = parm.y * (1.0f - exp (-diff * parm.z));\n"
+    "        lit = base.rgb * (amb + ramp) + spec * parm.w;\n"
+    "        // The device's own lamp. No shadow rays: a face inside the notch\n"
+    "        // points at the lens and lights, a face on the outside points\n"
+    "        // away and does not, which is most of what the tracing bought.\n"
+    "        if (dot (lampCol.rgb, lampCol.rgb) > 0.0f)\n"
+    "        {\n"
+    "            float3 d  = lampPos.xyz - input.wp;\n"
+    "            float  r  = length (d);\n"
+    "            if (r < lampDir.w)\n"
+    "            {\n"
+    "                float3 L    = d / max (r, 1e-4f);\n"
+    "                float  emit = saturate (dot (-lampDir.xyz, -L));\n"
+    "                float  recv = saturate (dot (n, L));\n"
+    "                float  rr   = max (r, lampPos.w);\n"
+    "                float  fade = saturate (1.0f - r / lampDir.w);\n"
+    "                lit += base.rgb * lampCol.rgb * emit * recv * fade *\n"
+    "                       (lampPos.w * lampPos.w) / (rr * rr);\n"
+    "            }\n"
+    "        }\n"
+    "    }\n"
+    "    return float4 (lit + input.emi, base.a);\n"
     "}\n";
 
 
@@ -155,6 +246,7 @@ void Dxui3DRenderer::Shutdown()
     m_layout.Reset();
     m_vertexBuffer.Reset();
     m_mvpBuffer.Reset();
+    m_lightBuffer.Reset();
     m_blendState.Reset();
     m_rasterState.Reset();
     m_depthState.Reset();
@@ -227,6 +319,8 @@ HRESULT Dxui3DRenderer::CreateShaders()
         { "POSITION",  0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 0,                            D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "TEXCOORD",  0, DXGI_FORMAT_R32G32_FLOAT,       0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "COLOR",     0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "NORMAL",    0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "COLOR",     1, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
 
     hr = D3DCompile (s_kVertexShaderSrc, sizeof (s_kVertexShaderSrc) - 1,
@@ -387,6 +481,14 @@ HRESULT Dxui3DRenderer::CreatePipelineState()
         cb.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
         hr = m_device->CreateBuffer (&cb, nullptr, m_mvpBuffer.GetAddressOf());
+        CHR (hr);
+
+        // Five float4s of lighting, updated per draw alongside the mvp: the
+        // desk scene keeps every device in its own model space, so the light
+        // positions change with each device rather than once per frame.
+        cb.ByteWidth = 10 * 4 * sizeof (float);
+
+        hr = m_device->CreateBuffer (&cb, nullptr, m_lightBuffer.GetAddressOf());
         CHR (hr);
     }
 
@@ -1064,6 +1166,27 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
     memcpy (mapped.pData, mvp, 16 * sizeof (float));
     m_context->Unmap (m_mvpBuffer.Get(), 0);
 
+    {
+        float  lightCb[40] =
+        {
+            m_lighting.light0[0], m_lighting.light0[1], m_lighting.light0[2], 0.0f,
+            m_lighting.light1[0], m_lighting.light1[1], m_lighting.light1[2], 0.0f,
+            m_lighting.eye[0],    m_lighting.eye[1],    m_lighting.eye[2],    0.0f,
+            m_lighting.refDist,   m_lighting.span,      m_lighting.gain,      m_lighting.specStrength,
+            m_lighting.specPower, 0.0f, 0.0f, 0.0f,
+            m_lighting.ambientUp[0],   m_lighting.ambientUp[1],   m_lighting.ambientUp[2],   0.0f,
+            m_lighting.ambientDown[0], m_lighting.ambientDown[1], m_lighting.ambientDown[2], 0.0f,
+            m_lighting.lampPos[0], m_lighting.lampPos[1], m_lighting.lampPos[2], m_lighting.lampRefDist,
+            m_lighting.lampDir[0], m_lighting.lampDir[1], m_lighting.lampDir[2], m_lighting.lampRange,
+            m_lighting.lampColor[0], m_lighting.lampColor[1], m_lighting.lampColor[2], 0.0f,
+        };
+
+        hr = m_context->Map (m_lightBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+        CHR (hr);
+        memcpy (mapped.pData, lightCb, sizeof (lightCb));
+        m_context->Unmap (m_lightBuffer.Get(), 0);
+    }
+
     // Depth-tested draws re-bind the current RTV together with our DSV (the
     // host bound it without one); depth-off draws leave the bindings alone.
     if (useDepth)
@@ -1098,6 +1221,7 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
     m_context->VSSetShader            (m_vs.Get(), nullptr, 0);
     m_context->VSSetConstantBuffers   (0, 1, m_mvpBuffer.GetAddressOf());
     m_context->PSSetShader            (m_ps.Get(), nullptr, 0);
+    m_context->PSSetConstantBuffers   (1, 1, m_lightBuffer.GetAddressOf());
     m_context->PSSetShaderResources   (0, 1, &srv);
     m_context->PSSetSamplers          (0, 1, m_sampler.GetAddressOf());
 

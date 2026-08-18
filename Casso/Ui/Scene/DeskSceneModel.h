@@ -102,11 +102,11 @@ public:
     DeskDeviceKind                                Kind         () const { return m_kind; }
     bool                                          HasGlass     () const { return !m_glass.empty(); }
     const CurvedDisplaySurface &                  Surface      () const { return m_surface; }
-    // The body in its lamp-off or lamp-lit bake. The lit copy carries the
-    // light the lamp throws on its own housing -- traced, so the power
-    // notch's walls shape it. A model with no lamp has only the one copy.
-    const std::vector<Dxui3DRenderer::Vertex> &   OpaqueVerts  (bool lampLit = false) const
-    { return (lampLit && !m_opaqueLamp.empty()) ? m_opaqueLamp : m_opaque; }
+    // The body, once. The lamp used to need a second copy of it with the
+    // spill traced from the lens and baked into the vertices; the lamp is
+    // a real light in the shader now, so there is one body and the scene
+    // switches the light instead.
+    const std::vector<Dxui3DRenderer::Vertex> &   OpaqueVerts  () const { return m_opaque; }
     const std::vector<Dxui3DRenderer::Vertex> &   GlassVerts   () const { return m_glass; }
     const std::vector<Dxui3DRenderer::Vertex> &   LampVerts    () const { return m_lamp; }
     const std::vector<Dxui3DRenderer::Vertex> &   DoorVerts    () const { return m_door; }
@@ -177,6 +177,15 @@ public:
     static constexpr float  kDriveLatchKd[3]  = { 0.230f, 0.230f, 0.250f };
     static constexpr float  kKdEpsilon        = 0.02f;
 
+    // The room's shading ramp, public because the SHADER applies it now and
+    // the scene has to hand these to the renderer. The floor is deliberately
+    // low: a shallow ramp reads as a flat 2D cutout. The reference distance
+    // normalizes the inverse-square falloff so a face at ceiling height under
+    // a fixture sits at full span.
+    static constexpr float  kShadeFloor       = 0.16f;
+    static constexpr float  kShadeSpan        = 0.84f;
+    static constexpr float  kLightRefMm       = 1524.0f;
+
     // Placement METADATA rather than scenery: a marker buried in the case
     // that names the axis the brand mark centers on. The mark itself cannot
     // live in the mesh -- it is a multi-color stamp, and identity here is one
@@ -212,18 +221,6 @@ public:
 
 private:
     static bool  ColorMatches   (float r, float g, float b, const float kd[3]);
-    static bool  RayHitsTriangle (const float from[3], const float dir[3], const struct ObjTriangle & tri);
-    static bool  TriangleNear    (const struct ObjTriangle & tri, const float point[3], float rangeMm);
-
-    void  BakeLampSpill (const struct ObjTriangle * tris,      size_t triCount,
-                         const size_t             * opaqueIdx, size_t opaqueCount,
-                         const float                lampKd[3]);
-    void  AddLampSpill  (const struct ObjTriangle                      & tri,
-                         const float                                     center[3],
-                         const float                                     dir[3],
-                         const float                                     rgb[3],
-                         const std::vector<const struct ObjTriangle *> & occluders,
-                         size_t                                          vertexBase);
     void         AppendLitTri   (std::vector<Dxui3DRenderer::Vertex> & out, const struct ObjTriangle & tri);
     static void  AppendFlatTri  (std::vector<Dxui3DRenderer::Vertex> & out, const struct ObjTriangle & tri);
 
@@ -237,7 +234,6 @@ private:
 
     DeskDeviceKind                       m_kind            = DeskDeviceKind::Monitor2c;
     std::vector<Dxui3DRenderer::Vertex>  m_opaque;
-    std::vector<Dxui3DRenderer::Vertex>  m_opaqueLamp;
     std::vector<Dxui3DRenderer::Vertex>  m_glass;
     std::vector<Dxui3DRenderer::Vertex>  m_lamp;
     std::vector<Dxui3DRenderer::Vertex>  m_door;
@@ -252,6 +248,16 @@ private:
     float                                m_footprintMin[2] = {};
     float                                m_footprintMax[2] = {};
     float                                m_lightsModel[2][3] = {};
+
+public:
+    // The room fixtures in THIS model's coordinates, for the caller to hand
+    // to the renderer before drawing it. Each device sits somewhere different
+    // on the desk, so every one sees the same two ceiling lights from its own
+    // position -- which is the whole reason the scene cannot set lighting once
+    // per frame and forget it.
+    const float (&LightsModel() const)[2][3]  { return m_lightsModel; }
+
+private:
     float                                m_brandAxisX        = 0.0f;
     float                                m_frontPlaneY       = 0.0f;
 };

@@ -22,21 +22,14 @@ static constexpr float   s_kRoomLights[2][3] =
     { 2134.0f, -450.0f, 1524.0f },     // 7 ft right, 5 ft up
 };
 
-// Inverse-square falloff, normalized so a face at ceiling-height distance
-// under a light bakes at full span. The near-left light dominates and the
-// far-right one back-fills, which is what two real fixtures would do.
-static constexpr float   s_kLightRefMm  = 1524.0f;
+// Falloff reference and the shading ramp now live on the class, in the
+// header: the pixel shader applies them and the scene passes them along.
 
 // Where the monitor's model-space floor rests in desk space: on top of the
 // drive stack. A nominal Disk II height serves both pairings -- at five
 // feet of throw the shorter //c drives move the light angle by well under
 // a degree.
 static constexpr float   s_kMonitorRestMm = 96.0f;
-
-// Two-sided Lambert ramp. The floor is deliberately low: a shallow ramp
-// reads as a flat 2D cutout.
-static constexpr float   s_kShadeFloor  = 0.16f;
-static constexpr float   s_kShadeSpan   = 0.84f;
 
 // The lamp as a REAL emitter, baked at load into a second copy of the body.
 // A glow disc drawn over the lens cannot know the lamp sits at the back of
@@ -45,11 +38,6 @@ static constexpr float   s_kShadeSpan   = 0.84f;
 // faces receive light and which triangles are tested as occluders, which is
 // what keeps the shadow rays cheap -- past it the inverse square has taken
 // the contribution below a display step anyway.
-static constexpr float   s_kLedRangeMm   = 130.0f;
-static constexpr float   s_kLedRefMm     = 22.0f;    // distance lit at full strength
-static constexpr float   s_kLedGain      = 1.15f;
-static constexpr float   s_kLedRayNear   = 0.02f;    // ray t window: skip the
-static constexpr float   s_kLedRayFar    = 0.985f;   // receiver and the lens
 
 // Brand stamp placement on the monitor chin (model mm): the cassowary spans
 // this box, proud of the bezel plate's front face (y = -10), inside the
@@ -145,13 +133,26 @@ bool DeskSceneModel::ColorMatches (float r, float g, float b, const float kd[3])
 //
 //  DeskSceneModel::AppendLitTri
 //
-//  Per-face lighting baked on the CPU from the room's two ceiling fixtures:
-//  Lambert per light, two-sided (|dot|) since the meshes are drawn with
-//  culling off, attenuated by inverse-square falloff and summed. The shade
-//  premultiplies into the vertex tint; the pixel shader is tex*col and the
-//  untextured path samples opaque white, so tint IS the lit color. Light
-//  positions were moved into model space by Load(), so face math stays in
-//  the mesh's own coordinates.
+//  Emits geometry for the SHADER to light: material tint plus the face's
+//  normal, both untouched by illumination.
+//
+//  This used to bake Lambert here on the CPU, and two things about that were
+//  wrong in ways no amount of modeling could work around. It took |dot| of
+//  the normal, because culling is off and a signed dot could shade a visible
+//  back face black -- which made an up-facing wall and a down-facing wall
+//  identical, so molded relief had no light-and-shadow flanks and an arrow
+//  could not read as an arrow. And it clamped the summed contribution with
+//  min(1, sum), so every face past the threshold collapsed onto one value;
+//  with two point lights only a few feet away, whether a given face crossed
+//  that line depended on where it sat, which is why the same glyph rendered
+//  crisply on the bezel's lower band and as mush on its upper one.
+//
+//  The shader keeps the dot product's sign -- the CAD kernel winds solids
+//  outward, so a face the viewer can see already points at them and the
+//  guard was never earning its cost -- and rolls the ramp off instead of
+//  clipping it. Light positions still arrive in each model's own space --
+//  Load() puts them there, and the scene hands them to the renderer before
+//  drawing this model.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -168,303 +169,33 @@ void DeskSceneModel::AppendLitTri (std::vector<Dxui3DRenderer::Vertex> & out, co
 
     for (const float * p : { tri.p0, tri.p1, tri.p2 })
     {
-        Dxui3DRenderer::Vertex   v     = {};
-        float                    sum   = 0.0f;
-        float                    shade = s_kShadeFloor + s_kShadeSpan;
-
-        // Sampled at the VERTEX, not the face's center. These are point
-        // lights, so distance and angle vary across a face -- evaluating
-        // once per face gives the two triangles of a flat quad two
-        // different shades and draws their shared edge as a crease running
-        // corner to corner. The face's own normal still drives the Lambert
-        // term, so a flat surface stays flat; only the falloff varies, and
-        // it now varies continuously across the seam.
-        if (nl > 0.0f)
-        {
-            for (const float * light : m_lightsModel)
-            {
-                float  toL[3] = { light[0] - p[0], light[1] - p[1], light[2] - p[2] };
-                float  r      = std::sqrt (toL[0] * toL[0] + toL[1] * toL[1] + toL[2] * toL[2]);
-
-                if (r > 0.0f)
-                {
-                    float  d = (n[0] * toL[0] + n[1] * toL[1] + n[2] * toL[2]) / (nl * r);
-
-                    sum += std::abs (d) * (s_kLightRefMm * s_kLightRefMm) / (r * r);
-                }
-            }
-
-            shade = s_kShadeFloor + s_kShadeSpan * (std::min) (1.0f, sum);
-        }
+        Dxui3DRenderer::Vertex   v = {};
 
         v.x = p[0];  v.y = p[1];  v.z = p[2];
-        v.r = tri.r * shade;
-        v.g = tri.g * shade;
-        v.b = tri.b * shade;
+        v.r = tri.r;
+        v.g = tri.g;
+        v.b = tri.b;
         v.a = 1.0f;
 
+        // The face's own normal, carried per vertex. Flat by construction --
+        // all three vertices of a triangle get the same one, so a boxy CAD
+        // model stays crisp at its edges. Curved features (the fillets on
+        // the icons, the funnel's corners) still facet; smoothing those
+        // needs vertex welding with an angle threshold, which is a separate
+        // job from moving the lighting.
+        //
+        // A degenerate triangle leaves the normal ZERO, which the shader
+        // reads as unlit and passes through at full tint. That matches what
+        // the old baked path did with a zero-length normal, which skipped
+        // the Lambert loop and kept shade at floor+span == 1.
+        if (nl > 0.0f)
+        {
+            v.nx = n[0] / nl;
+            v.ny = n[1] / nl;
+            v.nz = n[2] / nl;
+        }
+
         out.push_back (v);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DeskSceneModel::RayHitsTriangle
-//
-//  Moller-Trumbore, used purely as an occlusion test: the caller only needs
-//  to know whether anything stands between a face and the lamp, never where.
-//  Hits count strictly INSIDE the segment, so the receiving face at one end
-//  and the lens at the other cannot shadow the ray they define.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DeskSceneModel::RayHitsTriangle (const float from[3], const float dir[3], const ObjTriangle & tri)
-{
-    float   e1[3] = { tri.p1[0] - tri.p0[0], tri.p1[1] - tri.p0[1], tri.p1[2] - tri.p0[2] };
-    float   e2[3] = { tri.p2[0] - tri.p0[0], tri.p2[1] - tri.p0[1], tri.p2[2] - tri.p0[2] };
-    float   h[3]  = { dir[1] * e2[2] - dir[2] * e2[1],
-                      dir[2] * e2[0] - dir[0] * e2[2],
-                      dir[0] * e2[1] - dir[1] * e2[0] };
-    float   a     = e1[0] * h[0] + e1[1] * h[1] + e1[2] * h[2];
-    float   s[3]  = { from[0] - tri.p0[0], from[1] - tri.p0[1], from[2] - tri.p0[2] };
-    float   q[3]  = {};
-    float   f     = 0.0f;
-    float   u     = 0.0f;
-    float   v     = 0.0f;
-    float   t     = 0.0f;
-
-
-
-    if (std::abs (a) < 1e-7f)
-    {
-        return false;
-    }
-
-    f = 1.0f / a;
-    u = f * (s[0] * h[0] + s[1] * h[1] + s[2] * h[2]);
-
-    if (u < 0.0f || u > 1.0f)
-    {
-        return false;
-    }
-
-    q[0] = s[1] * e1[2] - s[2] * e1[1];
-    q[1] = s[2] * e1[0] - s[0] * e1[2];
-    q[2] = s[0] * e1[1] - s[1] * e1[0];
-    v    = f * (dir[0] * q[0] + dir[1] * q[1] + dir[2] * q[2]);
-    t    = f * (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]);
-
-    return v >= 0.0f && u + v <= 1.0f && t > s_kLedRayNear && t < s_kLedRayFar;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DeskSceneModel::BakeLampSpill
-//
-//  Builds the lamp-lit copy of the body: the room bake plus the light the
-//  lamp itself throws, traced from the lens to every face near it and tested
-//  against the housing in between. That test is the whole point -- the lens
-//  sits at the back of the power notch, so the notch's own walls decide how
-//  far the spill reaches and which surfaces stay dark, which a glow drawn
-//  over the lens can never express.
-//
-//  The lamp's OWN color drives it, so the monitor's green and the drive's
-//  red each tint their housing. The scene picks this copy or the plain one
-//  by lamp state, so an unlit lamp throws nothing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DeskSceneModel::BakeLampSpill (const ObjTriangle * tris,     size_t triCount,
-                                    const size_t      * opaqueIdx, size_t opaqueCount,
-                                    const float         lampKd[3])
-{
-    std::vector<const ObjTriangle *>   occluders;
-    float                              center[3] = {};
-    float                              dir[3]    = {};
-    float                              rgb[3]    = {};
-    float                              dl        = 0.0f;
-    float                              count     = (float) m_lamp.size();
-
-
-
-    m_opaqueLamp.clear();
-
-    if (m_lamp.empty() || opaqueCount == 0)
-    {
-        return;
-    }
-
-    // The emitter stands in for the lens: where it sits, which way its face
-    // looks, and what color it burns.
-    for (const Dxui3DRenderer::Vertex & v : m_lamp)
-    {
-        center[0] += v.x / count;
-        center[1] += v.y / count;
-        center[2] += v.z / count;
-        rgb[0]    += v.r / count;
-        rgb[1]    += v.g / count;
-        rgb[2]    += v.b / count;
-    }
-
-    for (size_t i = 0; i + 2 < m_lamp.size(); i += 3)
-    {
-        dir[0] += (m_lamp[i + 1].y - m_lamp[i].y) * (m_lamp[i + 2].z - m_lamp[i].z) -
-                  (m_lamp[i + 1].z - m_lamp[i].z) * (m_lamp[i + 2].y - m_lamp[i].y);
-        dir[1] += (m_lamp[i + 1].z - m_lamp[i].z) * (m_lamp[i + 2].x - m_lamp[i].x) -
-                  (m_lamp[i + 1].x - m_lamp[i].x) * (m_lamp[i + 2].z - m_lamp[i].z);
-        dir[2] += (m_lamp[i + 1].x - m_lamp[i].x) * (m_lamp[i + 2].y - m_lamp[i].y) -
-                  (m_lamp[i + 1].y - m_lamp[i].y) * (m_lamp[i + 2].x - m_lamp[i].x);
-    }
-
-    dl = std::sqrt (dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
-
-    if (dl <= 0.0f)
-    {
-        return;
-    }
-
-    // Point it OUT of the case (-Y is toward the viewer): winding decides the
-    // sign, and a lens wound the other way would fire into the cabinet.
-    for (int i = 0; i < 3; i++)
-    {
-        dir[i] /= (dl * (dir[1] > 0.0f ? -1.0f : 1.0f));
-    }
-
-    // Everything solid near the lamp is a potential blocker -- except the
-    // lens itself, which would shadow every ray it casts.
-    for (size_t i = 0; i < triCount; i++)
-    {
-        if (ColorMatches (tris[i].r, tris[i].g, tris[i].b, lampKd))
-        {
-            continue;
-        }
-
-        if (TriangleNear (tris[i], center, s_kLedRangeMm))
-        {
-            occluders.push_back (&tris[i]);
-        }
-    }
-
-    m_opaqueLamp = m_opaque;
-
-    for (size_t i = 0; i < opaqueCount; i++)
-    {
-        AddLampSpill (tris[opaqueIdx[i]], center, dir, rgb, occluders, i * 3);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DeskSceneModel::TriangleNear
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DeskSceneModel::TriangleNear (const ObjTriangle & tri, const float point[3], float rangeMm)
-{
-    float   c[3] = { (tri.p0[0] + tri.p1[0] + tri.p2[0]) / 3.0f,
-                     (tri.p0[1] + tri.p1[1] + tri.p2[1]) / 3.0f,
-                     (tri.p0[2] + tri.p1[2] + tri.p2[2]) / 3.0f };
-    float   d[3] = { c[0] - point[0], c[1] - point[1], c[2] - point[2] };
-
-
-
-    return d[0] * d[0] + d[1] * d[1] + d[2] * d[2] <= rangeMm * rangeMm;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DeskSceneModel::AddLampSpill
-//
-//  One face's share of the lamp: inverse-square falloff over the emitter's
-//  own cosine (a lens lights what it faces) times the receiver's, dropped
-//  entirely when the housing stands in the way. Added on top of the room
-//  bake already in the vertex, so this reads as light ARRIVING rather than
-//  as a repaint.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DeskSceneModel::AddLampSpill (const ObjTriangle                      & tri,
-                                   const float                              center[3],
-                                   const float                              dir[3],
-                                   const float                              rgb[3],
-                                   const std::vector<const ObjTriangle *> & occluders,
-                                   size_t                                   vertexBase)
-{
-    float   e1[3]  = { tri.p1[0] - tri.p0[0], tri.p1[1] - tri.p0[1], tri.p1[2] - tri.p0[2] };
-    float   e2[3]  = { tri.p2[0] - tri.p0[0], tri.p2[1] - tri.p0[1], tri.p2[2] - tri.p0[2] };
-    float   n[3]   = { e1[1] * e2[2] - e1[2] * e2[1],
-                       e1[2] * e2[0] - e1[0] * e2[2],
-                       e1[0] * e2[1] - e1[1] * e2[0] };
-    float   nl     = std::sqrt (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
-    size_t  k      = 0;
-
-
-
-    if (nl <= 0.0f)
-    {
-        return;
-    }
-
-    // Per vertex, for the same reason the room bake is: one sample at the
-    // face's center steps at every shared edge, and a lamp this close to
-    // its housing makes those steps obvious.
-    for (const float * p : { tri.p0, tri.p1, tri.p2 })
-    {
-        float  toL[3] = { center[0] - p[0], center[1] - p[1], center[2] - p[2] };
-        float  r      = std::sqrt (toL[0] * toL[0] + toL[1] * toL[1] + toL[2] * toL[2]);
-        float  emit   = 0.0f;
-        float  recv   = 0.0f;
-        float  atten  = 0.0f;
-        bool   shaded = false;
-
-        if (r <= 0.0f || r > s_kLedRangeMm)
-        {
-            k++;
-            continue;
-        }
-
-        // Behind the lens is dark: the emitter radiates into the hemisphere
-        // its face looks at, which keeps light off the cabinet behind it.
-        emit = -(dir[0] * toL[0] + dir[1] * toL[1] + dir[2] * toL[2]) / r;
-
-        for (const ObjTriangle * blocker : occluders)
-        {
-            shaded = shaded || RayHitsTriangle (p, toL, *blocker);
-        }
-
-        if (emit > 0.0f && !shaded)
-        {
-            // Inverse square, but never nearer than the reference distance:
-            // a lens is an area, not a point, and a true point source a few
-            // millimeters off the notch floor divides by almost nothing --
-            // the surface saturates to white and the lamp's color is the
-            // thing that gets lost.
-            recv  = std::abs (n[0] * toL[0] + n[1] * toL[1] + n[2] * toL[2]) / (nl * r);
-            atten = emit * recv * s_kLedGain * (s_kLedRefMm * s_kLedRefMm) /
-                    ((std::max) (r, s_kLedRefMm) * (std::max) (r, s_kLedRefMm));
-
-            m_opaqueLamp[vertexBase + k].r += tri.r * rgb[0] * atten;
-            m_opaqueLamp[vertexBase + k].g += tri.g * rgb[1] * atten;
-            m_opaqueLamp[vertexBase + k].b += tri.b * rgb[2] * atten;
-        }
-
-        k++;
     }
 }
 
@@ -525,7 +256,6 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
 
     m_kind = kind;
     m_opaque.clear();
-    m_opaqueLamp.clear();
     m_glass.clear();
     m_lamp.clear();
     m_door.clear();
@@ -760,12 +490,6 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
 
         m_lamps.push_back (anchor);
     }
-
-    // Last, so the lit copy carries every proud stamp the body picked up
-    // along the way -- the brand, the badges -- not just the mesh's own
-    // triangles.
-    BakeLampSpill (triangles.data(), triangles.size(),
-                   opaqueTris.data(), opaqueTris.size(), lampKd);
 
     AddRegionBoxes();
     ComputeBounds();

@@ -36,10 +36,63 @@ class Dxui3DRenderer
 public:
     struct Vertex
     {
-        float  x, y, z;      // world-space position
-        float  u, v;         // content-texture coordinates (ignored when tinted-only)
-        float  r, g, b, a;   // tint * baked light, multiplied with the texture
+        float  x, y, z;         // position, in whatever space the mvp expects
+        float  u, v;            // content-texture coordinates (ignored when tinted-only)
+        float  r, g, b, a;      // material tint, multiplied with the texture
+        float  nx, ny, nz;      // normal, same space as the position
+        float  er, eg, eb;      // emissive, ADDED after shading
     };
+
+    // Per-pixel lighting for subsequent draws.
+    //
+    // A ZERO NORMAL MEANS UNLIT: the shader passes tint*texture straight
+    // through. That is what lets glass, lamp lenses, and every mesh built
+    // before this existed keep working untouched -- a value-initialized
+    // Vertex is unlit by construction -- while still needing only the one
+    // shader pair that serves textured and tinted geometry alike.
+    //
+    // Emissive is separate from tint because it must NOT be modulated by
+    // room light: the drive lamp's glow is baked with occlusion at load
+    // (a pixel shader cannot trace those rays cheaply), and it lands inside
+    // a dark notch. Folded into the tint it would be dimmed by the very
+    // shading it is supposed to overpower.
+    //
+    // Positions are whatever space the vertices are in -- the desk scene
+    // keeps each device in its own model coordinates and transforms the
+    // lights to match, so this is set per device before its draw.
+    struct Lighting
+    {
+        float  light0[3]    = { 0.0f, 0.0f, 0.0f };
+        float  light1[3]    = { 0.0f, 0.0f, 0.0f };
+        float  eye[3]       = { 0.0f, 0.0f, 0.0f };
+        float  refDist      = 1.0f;    // distance lit at full strength
+        float  span         = 0.84f;
+        float  gain         = 1.0f;    // drives the rolloff's knee
+        float  specStrength = 0.0f;    // 0 disables the highlight entirely
+        float  specPower    = 48.0f;
+
+        // HEMISPHERE ambient, not one flat number. A room bounces light off
+        // its ceiling and off the desk, and those are not the same color or
+        // strength, so which way a surface faces decides what it picks up
+        // even where no lamp reaches it. A single floor value gave every
+        // unlit face the identical tone, which is why a downward-facing
+        // flank of molded relief had nowhere to sit but flush with the
+        // surface beside it.
+        float  ambientUp[3]   = { 0.16f, 0.16f, 0.16f };
+        float  ambientDown[3] = { 0.16f, 0.16f, 0.16f };
+
+        // The device's own lamp as a REAL light rather than baked spill.
+        // Radiates into the hemisphere its lens faces, so the housing around
+        // a recessed lamp stays dark because those faces point away from it,
+        // not because anything traced a ray. Zero color disables it.
+        float  lampPos[3]   = { 0.0f, 0.0f, 0.0f };
+        float  lampDir[3]   = { 0.0f, -1.0f, 0.0f };   // the lens's facing
+        float  lampColor[3] = { 0.0f, 0.0f, 0.0f };
+        float  lampRefDist  = 22.0f;
+        float  lampRange    = 130.0f;
+    };
+
+    void  SetLighting (const Lighting & lighting)  { m_lighting = lighting; }
 
     Dxui3DRenderer  () = default;
     ~Dxui3DRenderer ();
@@ -182,6 +235,8 @@ private:
     ComPtr<ID3D11InputLayout>         m_layout;
     ComPtr<ID3D11Buffer>              m_vertexBuffer;
     ComPtr<ID3D11Buffer>              m_mvpBuffer;
+    ComPtr<ID3D11Buffer>              m_lightBuffer;
+    Lighting                          m_lighting;
     ComPtr<ID3D11BlendState>          m_blendState;
     ComPtr<ID3D11RasterizerState>     m_rasterState;
     ComPtr<ID3D11RasterizerState>     m_rasterStateScissor;
