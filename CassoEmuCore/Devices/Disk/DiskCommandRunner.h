@@ -168,6 +168,16 @@ public:
     //  about the disk help as a whole rather than about where a piece lands.
     static std::string  BuildHelpText (char flagPrefix = '-');
 
+    //  Every verb spelling the grammar accepts, comma-separated, for the
+    //  refusal a word that is none of them earns.
+    //
+    //  Read from the parser's own table rather than retyped, because a retyped
+    //  list is a list that goes stale: the aliases were added to the grammar
+    //  and the refusal went on naming the five original verbs, so a user who
+    //  mistyped `catalgo` was told to try `list, get, put, delete, boot` and
+    //  never learned that `catalog` was there all along.
+    static std::string  DescribeAcceptedVerbs();
+
 private:
     void  RunList   (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunGet    (const CommandLineOptions & options, DiskCommandResult & result);

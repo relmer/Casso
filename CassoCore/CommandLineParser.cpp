@@ -116,6 +116,34 @@ static constexpr const char *  s_kpszSourceExtensions[] =
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsHelpRequest
+//
+//  Whether one argument is the user asking for the usage text.
+//
+//  Every spelling the top level accepts is accepted here, because a reader who
+//  learned `--help` from one command line will type it on the next one and a
+//  subcommand that answers only its own spelling is a trap. The `/` forms are
+//  included for the same reason the option tables carry them: the help spells
+//  itself with whichever prefix was typed, so both prefixes have to work.
+//
+//  MATCHED EXACTLY AND IN LOWER CASE, which is what keeps a ProDOS path out of
+//  it. `/HELP` is a legal volume path and stays an operand; only the lowercase
+//  flag spelling a person types at a shell is read as a request.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsHelpRequest (const std::string & arg)
+{
+    return arg == "--help" || arg == "-help" || arg == "-?" ||
+           arg == "/help"  || arg == "/?";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LookUpDiskVerb
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -246,10 +274,34 @@ void CommandLineParser::ParseDiskOptions (
     int                   argIndex,
     CommandLineOptions &  options)
 {
-    int  i          = argIndex;
-    int  positional = 0;
+    int   i          = argIndex;
+    int   positional = 0;
+    bool  wantsHelp  = false;
 
 
+
+    //  A help request anywhere in the disk arguments wins outright, and is
+    //  looked for BEFORE the verb: `disk --help` would otherwise offer
+    //  `--help` to the verb table, be told it is not a verb, and answer a
+    //  request for the grammar with a complaint about the grammar.
+    for (int probe = argIndex; probe < argc; probe++)
+    {
+        if (IsHelpRequest (argv[probe]))
+        {
+            wantsHelp = true;
+
+            if (argv[probe][0] == '/')
+            {
+                options.flagPrefix = '/';
+            }
+        }
+    }
+
+    if (wantsHelp)
+    {
+        options.disk.verb = CommandLineOptions::DiskOptions::Verb::Help;
+        return;
+    }
 
     if (i < argc)
     {
@@ -793,8 +845,9 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
             {
                 std::cerr << "Error: unknown --cpu target '" << val
                           << "' (expected 6502 or 65c02)\n";
-                options.showHelp = true;
-                stop             = true;
+                options.showHelp     = true;
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+                stop                 = true;
             }
 
             if (!stop)
@@ -902,16 +955,11 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
 
             case 'h':
             {
-                if (!rest.empty())
+                int  height = options.pageHeight;
+
+                if (TakeCountValue (argc, argv, argIndex, rest, height))
                 {
-                    uint32_t val = 0;
-                    HRESULT  hr  = ParseDecimal (rest.c_str(), val);
-
-                    if (SUCCEEDED (hr))
-                    {
-                        options.pageHeight = (int) val;
-                    }
-
+                    options.pageHeight = height;
                     pos = arg.size();
                 }
                 else
@@ -924,16 +972,13 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
 
             case 'w':
             {
-                if (!rest.empty())
+                //  A bare -w is not "no width given" the way a bare -h is "no
+                //  pagination": it selects the wide listing, which is the only
+                //  reason to type the flag without a number.
+                int  width = kWideListingColumns;
+
+                if (TakeCountValue (argc, argv, argIndex, rest, width))
                 {
-                    uint32_t val = 0;
-                    HRESULT  hr  = ParseDecimal (rest.c_str(), val);
-
-                    if (SUCCEEDED (hr))
-                    {
-                        options.pageWidth = (int) val;
-                    }
-
                     pos = arg.size();
                 }
                 else
@@ -941,6 +986,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                     pos++;
                 }
 
+                options.pageWidth = width;
                 break;
             }
 
@@ -978,9 +1024,18 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
             case 'g':
                 options.debugInfo = true;
 
+                //  Named either way, on the same rule -l already uses: glued
+                //  to the flag, or the next argument when that is not itself a
+                //  flag. Accepting only the glued form meant `-g out.dbg`
+                //  wrote the derived name and dropped `out.dbg` without a word.
                 if (!rest.empty())
                 {
                     options.debugFile = rest;
+                    pos = arg.size();
+                }
+                else if (argIndex + 1 < argc && argv[argIndex + 1][0] != '-' && argv[argIndex + 1][0] != '/')
+                {
+                    options.debugFile = argv[++argIndex];
                     pos = arg.size();
                 }
                 else
@@ -1057,7 +1112,11 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                 break;
 
             default:
+                //  A complaint rather than a refusal: the flag is dropped and
+                //  the assembly still runs and still writes its output, which
+                //  is exactly what exit status 1 means here.
                 std::cerr << "Warning: Unknown flag: -" << flag << "\n";
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Complaint;
                 pos++;
                 break;
             }
@@ -1065,6 +1124,76 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
 
         argIndex++;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TakeCountValue
+//
+//  Reads the numeric argument of a concatenable AS65 flag, glued to the flag or
+//  standing next to it, and says whether one was there.
+//
+//  BOTH SPELLINGS, because the usage text has always documented the separated
+//  one -- `-h <lines>` -- and only the glued one was ever read. `-h 10` set
+//  nothing and reported nothing, so the number went to the assembler's input
+//  path resolution and the listing came out exactly as it would have with no
+//  flag at all.
+//
+//  A separated value is taken only when it PARSES AS A NUMBER, which is what
+//  distinguishes it from the next thing on the command line. `-h` before a
+//  source file must not eat the source file, and `-w -v` must not eat the -v;
+//  neither is a count, so neither is taken.
+//
+//  A glued value is consumed whether or not it parses, matching what the flag
+//  did before: the characters after the flag are its argument by position, and
+//  handing an unreadable one back to the concatenation walk would read it as
+//  more flags.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::TakeCountValue (int                   argc,
+                                        char               *  argv[],
+                                        int                &  argIndex,
+                                        const std::string  &  attached,
+                                        int                &  value)
+{
+    HRESULT   hr        = S_OK;
+    uint32_t  parsed    = 0;
+    bool      hasNext   = (argIndex + 1) < argc;
+    bool      isNumeric = false;
+    bool      wasTaken  = false;
+
+
+
+    if (!attached.empty())
+    {
+        hr = ParseDecimal (attached.c_str(), parsed);
+
+        if (SUCCEEDED (hr))
+        {
+            value = (int) parsed;
+        }
+
+        wasTaken = true;
+    }
+    else if (hasNext)
+    {
+        hr        = ParseDecimal (argv[argIndex + 1], parsed);
+        isNumeric = SUCCEEDED (hr);
+
+        if (isNumeric)
+        {
+            value    = (int) parsed;
+            wasTaken = true;
+            argIndex++;
+        }
+    }
+
+    return wasTaken;
 }
 
 
@@ -1140,6 +1269,12 @@ void CommandLineParser::ApplyAs65Defaults (CommandLineOptions & options, const F
 //  this one takes long options with separated values and no concatenation,
 //  which is exactly what AS65 mode cannot accept.
 //
+//  EVERY DIAGNOSTIC HERE IS ALSO A REFUSAL. This grammar has no ignorable
+//  mistakes: an option it does not know might have changed where the image
+//  loads or when it stops, and a value it could not read certainly would have.
+//  Running anyway and reporting success told a build script that a command line
+//  it got wrong had worked.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, CommandLineOptions & options)
@@ -1185,6 +1320,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             if (FAILED (hr))
             {
                 std::cerr << "Error: Invalid fill byte value\n";
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
         else if (arg == "--load" && argIndex + 1 < argc)
@@ -1198,6 +1334,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             else
             {
                 std::cerr << "Error: Invalid load address\n";
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
         else if (arg == "--entry" && argIndex + 1 < argc)
@@ -1211,6 +1348,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             else
             {
                 std::cerr << "Error: Invalid entry address\n";
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
         else if (arg == "--stop" && argIndex + 1 < argc)
@@ -1224,6 +1362,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             else
             {
                 std::cerr << "Error: Invalid stop address\n";
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
         else if (arg == "--max-cycles" && argIndex + 1 < argc)
@@ -1233,6 +1372,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             if (FAILED (hr))
             {
                 std::cerr << "Error: Invalid max-cycles value\n";
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
         else if (arg == "--reset-vector")
@@ -1258,6 +1398,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
         else
         {
             std::cerr << "Error: Unknown option: " << arg << "\n";
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
         }
 
         argIndex++;

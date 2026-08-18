@@ -2,6 +2,7 @@
 
 #include "DiskCommandRunner.h"
 #include "AppleTextCodec.h"
+#include "CommandLineParser.h"
 #include "VolumeImage.h"
 #include "Dos33Volume.h"
 #include "ProDosVolume.h"
@@ -92,6 +93,7 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
 
 
     return
+        "  CassoCli disk " + lp + "help\n"
         "  CassoCli disk list   <image> [" + lp + "long]\n"
         "  CassoCli disk get    <image> <path> [" + lp + "out <file>]"
                  " [" + lp + "text | " + lp + "basic | " + lp + "verbatim]\n"
@@ -268,6 +270,40 @@ std::string DiskCommandRunner::BuildHelpText (char flagPrefix)
     return BuildSubcommandHelp (flagPrefix) + "\n"
          + BuildOptionsHelp    (flagPrefix) + "\n"
          + BuildExampleHelp    (flagPrefix);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::DescribeAcceptedVerbs
+//
+//  The verb table read out in the order it is written, which is each verb
+//  followed by its own aliases -- so the suggestion a user is offered groups
+//  the way the help does rather than alphabetically, where `cat` would land
+//  three words from `catalog`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::DescribeAcceptedVerbs()
+{
+    std::string  text;
+
+
+
+    for (const auto & verb : CommandLineParser::GetAllDiskVerbs())
+    {
+        if (!text.empty())
+        {
+            text += ", ";
+        }
+
+        text += verb.name;
+    }
+
+    return text;
 }
 
 
@@ -1997,6 +2033,12 @@ bool DiskCommandRunner::IsRunnableAsDos33Greeting (const VolumeListing  & listin
 //  nothing quietly, so an absent capability cannot be mistaken for a completed
 //  operation.
 //
+//  A HELP REQUEST IS A VERB HERE, and it is answered on the output stream with
+//  a clean status. It used to be recognized only as the FIRST argument of the
+//  whole command line, so `disk --help` offered `--help` to the verb table and
+//  answered a request for the grammar by refusing to run and complaining about
+//  the grammar -- exit 2 for a question the tool knows the answer to.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
@@ -2027,8 +2069,13 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             RunBoot (options, result);
             break;
 
+        case CommandLineOptions::DiskOptions::Verb::Help:
+            result.output     += BuildHelpText (options.flagPrefix);
+            result.exitStatus  = kClean;
+            break;
+
         default:
-            result.diagnostics += "unknown disk verb -- try: list, get, put, delete, boot\n";
+            result.diagnostics += "unknown disk verb -- try: " + DescribeAcceptedVerbs() + "\n";
             result.exitStatus   = kNoOutput;
             break;
     }

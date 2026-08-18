@@ -53,7 +53,17 @@ public:
         CommandLineOptions::DiskOptions::Verb    verb;
     };
 
+    //  The column width a bare -w selects. Named rather than written twice,
+    //  because the usage text quotes the number and a help that quotes a
+    //  different one from the parser is worse than one that quotes none.
+    static constexpr int  kWideListingColumns = 133;
+
     static CommandLineOptions  Parse (int argc, char * argv[], const FileExistsFn & fileExists);
+
+    // Whether one argument is the user asking for usage text, in any spelling
+    // and either prefix. Public because a subcommand's own grammar has to ask
+    // the same question the top level does.
+    static bool  IsHelpRequest (const std::string & arg);
 
     // Shared with the executable, which needs the same tests when it decides
     // how to treat an input path and which output writer to use.
@@ -73,6 +83,14 @@ private:
     static HRESULT  ParseAddress    (const char * text, Word & address);
     static HRESULT  ParseDecimal    (const char * text, uint32_t & value);
     static HRESULT  ParseFillByte   (const char * text, Byte & fillByte);
+
+    //  The numeric argument of a concatenable AS65 flag, glued to it or
+    //  standing next to it, and whether one was there at all.
+    static bool  TakeCountValue (int                   argc,
+                                 char               *  argv[],
+                                 int                &  argIndex,
+                                 const std::string  &  attached,
+                                 int                &  value);
 
     static std::string  TryAutoExtend  (const std::string & path, const FileExistsFn & fileExists);
     static std::string  StripExtension (const std::string & path);

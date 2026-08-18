@@ -270,6 +270,89 @@ namespace CommandLineTests
 
             Assert::AreEqual (133, opts.pageWidth);
         }
+
+        //  The separated spelling is the one the usage text has always shown --
+        //  `-h <lines>` -- and it was the one being thrown away. Only the glued
+        //  form was read, so `-h 10` set nothing and said nothing.
+        TEST_METHOD (PageHeightFlag_TakesASeparatedValue_TheFormTheHelpDocuments)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-h", "10" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (10, opts.pageHeight);
+        }
+
+        TEST_METHOD (PageHeightFlag_TakesAnAttachedValue)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-h10" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (10, opts.pageHeight);
+        }
+
+        //  The separated form must not eat whatever happens to follow. A count
+        //  is a number, and the input file is what a bare -h is usually in
+        //  front of.
+        TEST_METHOD (PageHeightFlag_LeavesANonNumericNeighborAlone)
+        {
+            //  -q leads only because a bare -h in the first position is the
+            //  top-level help spelling and never reaches this grammar at all.
+            ArgVector           args = { "CassoCli", "-q", "-h", "demo.a65" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (std::string ("demo.a65"), opts.inputFile,
+                              L"the source file is not the page height");
+            Assert::AreEqual (0, opts.pageHeight, L"and no pagination was asked for");
+        }
+
+        TEST_METHOD (PageWidthFlag_TakesASeparatedValue)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-w", "100" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (100, opts.pageWidth);
+        }
+
+        //  A bare -w means the wide listing, which is what the help says it
+        //  means. It used to mean nothing at all and leave the default width.
+        TEST_METHOD (PageWidthFlagAlone_SelectsTheWideListing)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-w" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (CommandLineParser::kWideListingColumns, opts.pageWidth);
+        }
+
+        //  -g took its filename glued on and silently dropped a separated one,
+        //  writing the derived name instead. A file the user named and never
+        //  got is worse than a refusal.
+        TEST_METHOD (DebugFlag_TakesASeparatedFileName)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-g", "out.dbg" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.debugInfo);
+            Assert::AreEqual (std::string ("out.dbg"), opts.debugFile);
+        }
+
+        TEST_METHOD (DebugFlag_TakesAnAttachedFileName)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-gout.dbg" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (std::string ("out.dbg"), opts.debugFile);
+        }
+
+        //  A bare -g still derives its name from the source, so the flag on its
+        //  own keeps working -- and the flag before a source file must not
+        //  swallow the source file.
+        TEST_METHOD (DebugFlagAlone_StillDerivesTheNameFromTheSource)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-g" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (std::string ("demo.dbg"), opts.debugFile);
+        }
     };
 
 
@@ -284,6 +367,95 @@ namespace CommandLineTests
     //  accident.
     //
     ////////////////////////////////////////////////////////////////////////////////
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ParseVerdictTests
+    //
+    //  What the parser leaves behind after it complains, which is what the exit
+    //  code is made of.
+    //
+    //  Every one of these printed a diagnostic and recorded nothing, so the
+    //  executable had no way to know a diagnostic had happened and returned 0.
+    //  The user saw the complaint on their screen; their build script saw
+    //  success.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (ParseVerdictTests)
+    {
+    public:
+        TEST_METHOD (CleanCommandLine_LeavesNoVerdict)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-t" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
+        }
+
+        TEST_METHOD (RunOption_ItDoesNotKnow_IsRefused)
+        {
+            ArgVector           args = { "CassoCli", "run", "prog.a65", "--cpu", "65c02" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"an option that might have changed where the image runs");
+        }
+
+        //  A value it could not read is the same refusal: the program would run
+        //  somewhere other than where it was told to.
+        TEST_METHOD (RunValue_ItCouldNotRead_IsRefused)
+        {
+            const char *  kFlags[] = { "--load", "--entry", "--stop", "--max-cycles", "--fill" };
+
+            for (const char * flag : kFlags)
+            {
+                ArgVector           args = { "CassoCli", "run", "prog.bin", flag, "zzz" };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                                (std::wstring (L"silently accepted a bad value for ") +
+                                 std::wstring (flag, flag + strlen (flag))).c_str());
+            }
+        }
+
+        //  An as65 flag nobody knows is a COMPLAINT, not a refusal: the flag is
+        //  dropped and the assembly still produces its output, which is exactly
+        //  what "succeeded with complaints" describes.
+        TEST_METHOD (UnknownAs65Flag_IsAComplaint_BecauseTheAssemblyStillRuns)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-Y" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Complaint);
+        }
+
+        //  A --cpu target that does not exist stops parsing outright and asks
+        //  for the usage text. Printing usage is the ANSWER to the mistake, not
+        //  evidence there was none, so it is still a refusal.
+        TEST_METHOD (UnknownCpuTarget_IsRefused_EvenThoughItAsksForUsage)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "--cpu", "6510" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.showHelp, L"the user is shown the grammar");
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"and the script is told it was wrong");
+        }
+
+        //  Asking for help is not a complaint about anything.
+        TEST_METHOD (HelpRequest_LeavesNoVerdict)
+        {
+            ArgVector           args = { "CassoCli", "--help" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
+        }
+    };
+
+
+
+
 
     TEST_CLASS (CpuTargetTests)
     {
@@ -847,6 +1019,56 @@ namespace CommandLineTests
 
             Assert::AreEqual (size_t (13), CommandLineParser::GetAllDiskVerbs().size(),
                 L"and the table holds exactly the spellings swept above");
+        }
+
+        //  `disk --help` used to reach the verb table, be told `--help` is not
+        //  a verb, and answer a question about the grammar with a complaint
+        //  about the grammar. Help was recognized only as argv[1].
+        TEST_METHOD (Disk_TakesAHelpRequestInEverySpelling_NotOnlyAsTheFirstArgument)
+        {
+            const char *  kSpellings[] = { "--help", "-help", "-?", "/help", "/?" };
+
+            for (const char * spelling : kSpellings)
+            {
+                ArgVector           args = { "CassoCli", "disk", spelling };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::Help,
+                    (std::wstring (L"not read as a help request: ") +
+                     std::wstring (spelling, spelling + strlen (spelling))).c_str());
+            }
+        }
+
+        //  The prefix the reader typed reaches the disk help, which is what
+        //  lets it spell itself back the same way.
+        TEST_METHOD (Disk_HelpRequestWithASlash_RecordsTheSlashPrefix)
+        {
+            ArgVector           args = { "CassoCli", "disk", "/?" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual ('/', opts.flagPrefix);
+        }
+
+        //  A verb standing before it does not make the request go away: a
+        //  reader who has typed half a command and wants the grammar back adds
+        //  --help to the end of what they have.
+        TEST_METHOD (Disk_HelpRequestAfterAVerb_IsStillAHelpRequest)
+        {
+            ArgVector           args = { "CassoCli", "disk", "list", "my.dsk", "--help" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::Help);
+        }
+
+        //  THE ONE THING THE HELP SPELLINGS MUST NOT SWALLOW. A ProDOS path
+        //  begins with a slash, and `/HELP` is a legal volume.
+        TEST_METHOD (Disk_ProDosPathNamedHelp_IsStillAPath)
+        {
+            ArgVector           args = { "CassoCli", "disk", "get", "d.po", "/HELP/STARTUP" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::Get);
+            Assert::AreEqual (std::string ("/HELP/STARTUP"), opts.disk.path);
         }
 
         TEST_METHOD (Disk_TakesEitherPrefixOnEveryOption_SoTheHelpMaySpellEither)

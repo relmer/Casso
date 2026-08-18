@@ -26,6 +26,13 @@
 //  does not -- a genuinely unreachable state kept as a defined behavior rather
 //  than a fallthrough returning an uninitialized code.
 //
+//  A COMMAND LINE THE PARSER REFUSED EXITS 2 EVEN THOUGH IT PRINTS USAGE. A bad
+//  --cpu target ends parsing and leaves showHelp set so the user is shown the
+//  grammar, and that arrangement used to report success: the tool said "unknown
+//  --cpu target", printed the whole help, and told the calling script it had
+//  worked. Printing usage is how the tool answers the mistake, not evidence
+//  there was none.
+//
 //  The exit code is the only thing this function produces; every subcommand
 //  reports through it, which is what makes the tool usable from a build script.
 //
@@ -35,16 +42,18 @@ int main (int argc, char * argv[])
 {
     CommandLineOptions  options  = ParseCommandLine (argc, argv);
     int                 exitCode = 0;
+    bool                refused  = options.parseVerdict == CommandLineOptions::ParseVerdict::Refused;
 
 
 
     // No subcommand is a usage ERROR (exit 1); an explicit --help or `help`
-    // is the user asking, and succeeds.
+    // is the user asking, and succeeds. A refusal outranks both: the usage
+    // text is being printed AT the user, not FOR them.
     if (options.showHelp || options.subcommand == CommandLineOptions::Subcommand::None
                         || options.subcommand == CommandLineOptions::Subcommand::Help)
     {
         PrintUsage (options.flagPrefix);
-        exitCode = options.showHelp ? 0 : 1;
+        exitCode = refused ? 2 : (options.showHelp ? 0 : 1);
     }
     else if (options.showVersion || options.subcommand == CommandLineOptions::Subcommand::Version)
     {

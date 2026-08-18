@@ -221,6 +221,84 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCy
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormatListing
+//
+//  The whole listing as one page-broken document: the title, every assembled
+//  line, and a form feed wherever the page ends.
+//
+//  A PAGE ENDS FOR TWO REASONS AND THEY ARE THE SAME EVENT. The source can ask
+//  for one with a `.page` directive, and the page height can be reached; either
+//  way the reader gets a form feed and the title again at the top of the next
+//  page, which is what a period assembler sent to a line printer. So the height
+//  counter is reset by both, and a `.page` two lines into a 60-line page does
+//  not leave the next break 58 lines early.
+//
+//  A HEIGHT OF ZERO IS NO PAGINATION, not a page of no lines. That is the
+//  default, so a listing asked for with no -h is one continuous page and reads
+//  exactly as it always did -- the flag turns pagination on rather than
+//  configuring something already running.
+//
+//  The title block is not counted against the height. It is the page's header
+//  rather than part of its body, and counting it would make a `-h 60` page hold
+//  58 lines of listing on every page but the ones with no title.
+//
+//  This is built in the library rather than in the printing code because that
+//  is what makes it reachable: the test assembly does not link the console
+//  executable, and pagination that lived beside the ostream was pagination
+//  nothing could check. It never ran there -- the page height reached the
+//  assembler options and was read by nothing at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Assembler::FormatListing (const AssemblyResult & result,
+                                      int pageHeight,
+                                      bool showCycleCounts)
+{
+    std::string  output;
+    std::string  header;
+    int          onPage   = 0;
+    bool         paginate = pageHeight > 0;
+
+
+
+    if (!result.listingTitle.empty())
+    {
+        header = result.listingTitle + "\n\n";
+    }
+
+    output += header;
+
+    for (const AssemblyLine & line : result.listing)
+    {
+        //  The source's own page break, recognized the way it always was:
+        //  from the text of the line rather than from a parsed directive,
+        //  because the listing reproduces the input line and this one is
+        //  reproduced at the top of a new page.
+        bool  asked  = line.sourceText.find (".page") != std::string::npos ||
+                       line.sourceText.find (".PAGE") != std::string::npos ||
+                       line.sourceText.find ("page")  == 0;
+        bool  filled = paginate && onPage >= pageHeight;
+
+        if (asked || filled)
+        {
+            output += "\f";
+            output += header;
+            onPage  = 0;
+        }
+
+        output += FormatListingLine (line, showCycleCounts) + "\n";
+        onPage++;
+    }
+
+    return output;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FormatSymbolTable
 //
 ////////////////////////////////////////////////////////////////////////////////

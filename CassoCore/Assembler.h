@@ -27,6 +27,9 @@ public:
     AssemblyResult Assemble (const std::string & sourceText);
 
     static std::string FormatListingLine (const AssemblyLine & line, bool showCycleCounts = false);
+    static std::string FormatListing     (const AssemblyResult & result,
+                                          int pageHeight = 0,
+                                          bool showCycleCounts = false);
     static std::string FormatSymbolTable (const std::unordered_map<std::string, Word> & symbols,
                                           const std::unordered_map<std::string, SymbolKind> & symbolKinds);
     static std::string FormatDebugInfo   (const std::unordered_map<std::string, Word> & symbols);

@@ -40,6 +40,11 @@
 //  flagPrefix records which prefix the USER typed, so usage text and
 //  diagnostics come back spelled the way they invoked the tool.
 //
+//  parseVerdict records what the parser had to SAY about the command line, so
+//  the exit code can reflect it. A parser that printed a complaint and left no
+//  trace of it behind meant every mistyped flag reported success -- the
+//  diagnostic reached the user's screen and never reached their build script.
+//
 //  Lives in the core library rather than beside the executable's main so the
 //  UnitTest project can link the parser that fills it. The executable keeps
 //  only the platform edge -- reading files, writing them, printing.
@@ -51,13 +56,30 @@ struct CommandLineOptions
     enum class Subcommand    { None, Run, Help, Version, As65, Disk };
     enum class CpuTarget     { M6502, M65C02 };
 
+    //  What the parser made of the command line itself, apart from anything
+    //  the assembler, the emulator or a disk found afterwards.
+    //
+    //  The three values are the three exit statuses this tool already
+    //  documents -- 0 clean, 1 succeeded with complaints, 2 produced no output
+    //  -- so a verdict maps onto one without a second table deciding what a
+    //  complaint is worth.
+    //
+    //  Complaint means the command line was understood well enough to run:
+    //  an unrecognized as65 flag is ignored and the assembly still produces
+    //  its output. Refused means it was not, and nothing was attempted.
+    enum class ParseVerdict  { Clean, Complaint, Refused };
+
     //
     //  Everything the `disk` subcommand expresses. Nested rather than
     //  flattened, per the note above.
     //
     struct DiskOptions
     {
-        enum class Verb      { None, List, Get, Put, Delete, Boot };
+        //  Help is not a verb the grammar table holds -- it is what `disk
+        //  --help` resolves to. Keeping it out of that table is deliberate:
+        //  the table is swept to check every verb is described in the help,
+        //  and the help request is not one of the things being described.
+        enum class Verb      { None, List, Get, Put, Delete, Boot, Help };
 
         //  How a payload's bytes relate to the file on the host. Verbatim means
         //  no CHARACTER conversion -- length and header semantics still apply,
@@ -81,6 +103,7 @@ struct CommandLineOptions
     enum class OutputFormat  { Binary, SRecord, IntelHex, Raw, DosBinary };
 
     Subcommand    subcommand      = Subcommand::None;
+    ParseVerdict  parseVerdict    = ParseVerdict::Clean;
     OutputFormat  outputFormat    = OutputFormat::Binary;
     CpuTarget     cpuTarget       = CpuTarget::M6502;   // --cpu (default: strict 6502)
     std::string   inputFile;

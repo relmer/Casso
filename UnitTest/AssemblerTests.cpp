@@ -1738,6 +1738,103 @@ namespace AssemblerTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
+        //  Listing_Pagination
+        //
+        //  What -h asks for, checked where it happens.
+        //
+        //  The page height reached the assembler options and was read by
+        //  NOTHING: no code anywhere in the tool broke a listing into pages, so
+        //  a listing produced with -h 10 and one produced with no flag at all
+        //  were byte-for-byte identical. Pagination had to be built before the
+        //  flag could be fixed -- parsing the number correctly would have
+        //  changed nothing on its own.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        static AssemblyResult ListingOfNops (int count)
+        {
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
+            std::string       source;
+
+            options.generateListing = true;
+            cpu.InitForTest();
+
+            //  No trailing newline: it would make an empty final line that the
+            //  listing renders, and the count these tests reason about has to
+            //  be the one asked for.
+            for (int i = 0; i < count; i++)
+            {
+                source += (i == 0) ? "NOP" : "\nNOP";
+            }
+
+            Assembler  asm6502 (cpu.GetInstructionSet(), options);
+
+            return asm6502.Assemble (source);
+        }
+
+
+        static size_t CountPageBreaks (const std::string & listing)
+        {
+            size_t  breaks = 0;
+
+            for (char c : listing)
+            {
+                if (c == '\f')
+                {
+                    breaks++;
+                }
+            }
+
+            return breaks;
+        }
+
+
+        TEST_METHOD (Listing_NoPageHeight_IsOneContinuousPage)
+        {
+            AssemblyResult  result = ListingOfNops (42);
+
+            Assert::AreEqual ((size_t) 42, result.listing.size());
+            Assert::AreEqual ((size_t) 0, CountPageBreaks (Assembler::FormatListing (result)),
+                              L"the default must not start breaking pages");
+        }
+
+
+        //  42 lines at 10 to a page is four breaks: after lines 10, 20, 30 and
+        //  40. Not five -- the last two lines do not fill a page, and a form
+        //  feed with nothing after it is a blank page on the printer.
+        TEST_METHOD (Listing_PageHeight_BreaksEveryThatManyLines)
+        {
+            AssemblyResult  result = ListingOfNops (42);
+            std::string     paged  = Assembler::FormatListing (result, 10);
+
+            Assert::AreEqual ((size_t) 4, CountPageBreaks (paged));
+        }
+
+
+        //  The flag has to reach the page it names. A height of 1 breaks
+        //  between every pair of lines, which no off-by-one can also produce.
+        TEST_METHOD (Listing_PageHeightOfOne_BreaksBetweenEveryLine)
+        {
+            AssemblyResult  result = ListingOfNops (5);
+            std::string     paged  = Assembler::FormatListing (result, 1);
+
+            Assert::AreEqual ((size_t) 4, CountPageBreaks (paged));
+        }
+
+
+        //  A listing that fits has no break in it at all, which is what stops
+        //  pagination from putting a form feed on the front of a short one.
+        TEST_METHOD (Listing_ShorterThanThePage_HasNoBreakAtAll)
+        {
+            AssemblyResult  result = ListingOfNops (5);
+
+            Assert::AreEqual ((size_t) 0, CountPageBreaks (Assembler::FormatListing (result, 60)));
+        }
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
         //  Listing_MacroExpansion_HasPrefix
         //
         ////////////////////////////////////////////////////////////////////////////////

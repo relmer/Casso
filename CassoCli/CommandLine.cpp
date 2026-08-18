@@ -476,11 +476,10 @@ Error:
 //  Defaulting to stdout is what makes `casso -l` pipeable, and it cannot fail
 //  to open -- hence failure is only possible in the named-file case.
 //
-//  Page breaks are driven from the SOURCE TEXT rather than from a parsed
-//  directive, because the listing is a faithful rendering of the input: a
-//  `.page` line is reproduced where it appeared and emits a form feed plus a
-//  repeated title, matching what a period assembler sent to a line printer.
-//  The three spellings tested are the ones the assembler itself accepts.
+//  The page breaking lives in Assembler::FormatListing rather than here, which
+//  is what lets it be tested: the test assembly does not link this executable.
+//  It had to move before -h could do anything -- the page height reached the
+//  assembler options and nothing anywhere read it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -511,27 +510,7 @@ static HRESULT WriteListingOutput (const AssemblyResult & result,
         listOut = &listFile;
     }
 
-    if (!result.listingTitle.empty())
-    {
-        *listOut << result.listingTitle << "\n\n";
-    }
-
-    for (const auto & line : result.listing)
-    {
-        if (line.sourceText.find (".page") != std::string::npos ||
-            line.sourceText.find (".PAGE") != std::string::npos ||
-            line.sourceText.find ("page") == 0)
-        {
-            *listOut << "\f";
-
-            if (!result.listingTitle.empty())
-            {
-                *listOut << result.listingTitle << "\n\n";
-            }
-        }
-
-        *listOut << Assembler::FormatListingLine (line, options.cycleCounts) << "\n";
-    }
+    *listOut << Assembler::FormatListing (result, options.pageHeight, options.cycleCounts);
 
 Error:
     return hr;
@@ -904,10 +883,11 @@ static void PrintUsageListing (const char * sp)
         "  {0}p                     Generate pass 1 listing",
         "  {0}c                     Show cycle counts in listing",
         "  {0}m                     Show macro expansions in listing",
-        "  {0}h <lines>             Page height for listing (0 = no pagination)",
-        "  {0}w [<width>]           Column width (default: 79, {0}w alone = 133)",
+        "  {0}h <lines>             Page height for listing (default: no pagination)",
+        "  {0}w [<width>]           Column width (default: 80, {0}w alone = 133)",
         "  {0}t                     Generate symbol table",
-        "  {0}g                     Generate debug information file",
+        "  {0}g [<file>]            Generate debug information file",
+        "                         ({0}g = the input, with a .dbg extension)",
         "  {0}v                     Verbose mode",
         "  {0}q                     Quiet mode (suppress progress)",
     };
@@ -1090,8 +1070,15 @@ void PrintVersion()
 //
 //    0  ran to a normal stop
 //    1  the tools ran and said no (assembly errors)
-//    2  could not even start (no input, unreadable file)
+//    2  could not even start (no input, unreadable file, a refused command line)
 //    3  from RunCpu -- an illegal opcode
+//
+//  A REFUSED COMMAND LINE IS "COULD NOT EVEN START" AND NOTHING RUNS. The run
+//  grammar has no ignorable mistake in it: an option it did not recognize might
+//  have moved the load address or set the stop address, so a program executed
+//  without it was not the program that was asked for. This used to run anyway
+//  and exit 0, which told a build script that a command line it had got wrong
+//  had done what it said.
 //
 //  Entry point resolution has three tiers, most-explicit first: an explicit
 //  --entry, then the RESET vector at $FFFC when asked for, then the assembled
@@ -1113,19 +1100,24 @@ int DoRun (const CommandLineOptions & options)
     std::vector<std::string>  status;
     int                       exitCode   = 0;
     bool                      wasLoaded  = false;
+    bool                      refused    = options.parseVerdict == CommandLineOptions::ParseVerdict::Refused;
+    bool                      canStart   = !refused && !options.inputFile.empty();
 
 
 
-    // 2 = "cannot even start" (no input, unreadable file); 1 = "ran the tools
-    // and they said no" (assembly errors).
-    exitCode = options.inputFile.empty() ? 2 : 0;
+    // 2 = "cannot even start" (no input, unreadable file, a command line the
+    // parser refused); 1 = "ran the tools and they said no" (assembly errors).
+    exitCode = canStart ? 0 : 2;
 
-    if (options.inputFile.empty())
+    // The parser already said what was wrong with the command line, in the
+    // words of the option it could not take. Repeating it here would report
+    // one mistake twice.
+    if (!refused && options.inputFile.empty())
     {
         std::cerr << "Error: No input file specified\n";
     }
 
-    BAIL_OUT_IF (options.inputFile.empty(), S_OK);
+    BAIL_OUT_IF (!canStart, S_OK);
 
     cpu.Reset();
 
@@ -1210,6 +1202,14 @@ Error:
 //  The warning code is applied LAST, after every write has succeeded, so a
 //  warning never masks a real output failure.
 //
+//  AN UNRECOGNIZED FLAG COUNTS AS A WARNING for that code. It is a complaint
+//  the tool made and then carried on past -- the flag is dropped, the assembly
+//  runs, the output is written -- which is exactly the "assembled, but warned"
+//  case 1 exists for. Reporting 0 meant a build script could not tell a
+//  makefile passing a flag this assembler does not have from one that was
+//  right, and the only place the difference showed was a line of console
+//  output nobody captures.
+//
 //  The assembler's base directory is taken from the input file's own path, so
 //  a `.include` resolves relative to the source that names it rather than to
 //  the shell's working directory -- which is what makes a build work the same
@@ -1288,7 +1288,8 @@ int DoAs65 (const CommandLineOptions & options)
         std::println (stderr, "Assembly time: {} us", elapsed.count());
     }
 
-    hasWarnings = !ar.result.warnings.empty();
+    hasWarnings = !ar.result.warnings.empty() ||
+                  options.parseVerdict == CommandLineOptions::ParseVerdict::Complaint;
     ReportAssemblyDiagnostics (ar);
 
     exitCode = ar.ok ? 0 : 2;

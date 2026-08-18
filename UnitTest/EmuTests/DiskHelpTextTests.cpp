@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "FakeDiskFileIo.h"
 #include "CommandLineParser.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 
@@ -372,6 +373,57 @@ public:
                         L"the mixed-spelling excuse is gone");
         Assert::IsTrue (help.find ("whichever prefix") == std::string::npos,
                         L"and so is the sentence that explained it away");
+    }
+
+    //  `disk --help` printed "unknown disk verb" on the error stream and exited
+    //  2 -- a refusal, for a question the tool knows the answer to.
+    TEST_METHOD (HelpVerb_PrintsTheDiskHelpOnOutput_AndSucceeds)
+    {
+        CommandLineOptions  options;
+        FakeDiskFileIo      fileIo;
+        DiskCommandRunner   runner (fileIo);
+
+        options.disk.verb = CommandLineOptions::DiskOptions::Verb::Help;
+
+        DiskCommandResult  result = runner.Run (options);
+
+        Assert::AreEqual (0, result.exitStatus, L"asking for help is not a failure");
+        Assert::AreEqual (std::string(), result.diagnostics, L"and it is not a complaint");
+        Assert::AreEqual (DiskCommandRunner::BuildHelpText ('-'), result.output,
+                          L"the disk section of the help, on the output stream");
+    }
+
+    TEST_METHOD (HelpVerb_SpellsItselfWithThePrefixTheReaderTyped)
+    {
+        CommandLineOptions  options;
+        FakeDiskFileIo      fileIo;
+        DiskCommandRunner   runner (fileIo);
+
+        options.disk.verb  = CommandLineOptions::DiskOptions::Verb::Help;
+        options.flagPrefix = '/';
+
+        DiskCommandResult  result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::BuildHelpText ('/'), result.output);
+    }
+
+    //  The refusal named the five original verbs long after eight aliases were
+    //  added, so a user who mistyped `catalog` was told to try five words that
+    //  did not include it.
+    TEST_METHOD (UnknownVerb_IsRefusedWithEverySpellingTheGrammarActuallyTakes)
+    {
+        CommandLineOptions  options;
+        FakeDiskFileIo      fileIo;
+        DiskCommandRunner   runner (fileIo);
+        DiskCommandResult   result = runner.Run (options);
+
+        Assert::AreEqual (2, result.exitStatus, L"a word that names no verb produces nothing");
+
+        for (const auto & verb : CommandLineParser::GetAllDiskVerbs())
+        {
+            Assert::IsTrue (ContainsAsWholeToken (result.diagnostics, verb.name),
+                            (L"the refusal does not offer: " + Widen (verb.name)).c_str());
+        }
     }
 
     TEST_METHOD (HelpText_PutsTheExampleAfterTheOptions_NotBetweenThem)

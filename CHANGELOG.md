@@ -9,6 +9,41 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Fixed
+- **A mistyped option no longer reports success.** `CassoCli run prog.a65 --cpu
+  65c02` printed `Error: Unknown option` and then exited 0 — the complaint
+  reached your screen and never reached your build script. Seven paths did
+  this: every unreadable value in the `run` grammar (`--load`, `--entry`,
+  `--stop`, `--max-cycles`, `--fill`), an option `run` does not know, and an
+  unknown `--cpu` target, which printed an error, printed the whole help, and
+  called it success. The statuses now match what the tool already documents: a
+  command line the parser refused exits 2 and, for `run`, executes nothing —
+  an option it could not read might have moved the load address, so what would
+  have run is not what was asked for. An unrecognized assembler flag exits 1,
+  "assembled, but warned": the flag is dropped and the output is still written.
+- **`-h <lines>` now actually breaks the listing into pages.** It never did.
+  The page height was parsed only when glued to the flag (`-h10`), and even
+  then it was carried into the assembler's options and read by nothing — there
+  was no pagination anywhere in the tool, so a listing produced with `-h 10`
+  and one produced with no flag at all were byte-for-byte identical, form feeds
+  included. Pagination now exists, both spellings reach it, and a page break
+  repeats the listing title the way a `.page` directive already did. No `-h`
+  still means one continuous page, so existing listings are unchanged.
+- **`-w` and `-g` accept their values separated, not only attached.** `-w 100`
+  and `-g out.dbg` were silently discarded — `-g` wrote the derived
+  `<source>.dbg` and dropped the name you gave it without a word. A bare `-w`
+  now selects the 133-column listing the help has always said it selects, which
+  it previously did not. `-g` follows the same rule `-l` does, so the help gains
+  the `[<file>]` it was missing.
+- **`CassoCli disk --help` prints help.** It printed `unknown disk verb` and
+  exited 2, because `--help` was recognized only as the very first argument. It
+  is now understood anywhere in a `disk` command line, in every spelling and
+  either prefix (`--help`, `-help`, `-?`, `/help`, `/?`), and prints the disk
+  section of the help with a clean exit status. A ProDOS path such as
+  `/HELP/STARTUP` is still a path.
+- **The unknown-verb message lists the verbs that exist.** It still named the
+  five original ones after eight aliases had been added, so mistyping `catalog`
+  got you a suggestion of five words that did not include `catalog`. It is now
+  read from the grammar itself.
 - **A damaged track no longer silently truncates your disk image on eject.**
   The nibble decoder stopped at the first sector it could not read on a track
   and handed back zeros for that sector and every later one on it, while
