@@ -186,6 +186,213 @@ CommandLineOptions::DiskOptions::Verb CommandLineParser::LookUpDiskVerb (const s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsPlainDecimal
+//
+//  Whether a word is nothing but decimal digits.
+//
+//  It is asked of an argument that has NO slot left to go in, and it is what
+//  separates the two ways that happens. A bare word is usually a second
+//  filename; a bare number is almost always a value somebody typed a space in
+//  front of, because every value this assembler takes is glued.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsPlainDecimal (const std::string & text)
+{
+    bool  isDecimal = !text.empty();
+
+
+
+    for (char c : text)
+    {
+        if (isdigit ((unsigned char) c) == 0)
+        {
+            isDecimal = false;
+        }
+    }
+
+    return isDecimal;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrailingParameterFlag
+//
+//  The letter a group of assembler flags ends on, when that letter is one which
+//  takes a parameter -- and 0 otherwise.
+//
+//  This is what lets a surplus argument be diagnosed with the option it was
+//  meant for rather than in the abstract. `casso prog.a65 -l listing.txt` leaves
+//  `listing.txt` with nowhere to go, and the useful thing to say is not that it
+//  is surplus but that `-llisting.txt` is the spelling that would have worked.
+//
+//  ONLY THE LETTERS WHOSE BARE FORM IS LEGAL ARE HERE. `-h` and `-o` also take
+//  parameters, and both are refused outright when they are given none, so
+//  neither can ever be the argument standing in front of a surplus one. Listing
+//  them would be an arm nothing reaches.
+//
+//  A `--` long option is excluded because none of this grammar's long options
+//  take a value at all, so its last letter says nothing about what follows it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+char CommandLineParser::TrailingParameterFlag (const std::string & previous)
+{
+    //  as65's own notations: -d<name>, -l<filename>, -s<n>, -w<width>.
+    std::string_view  kTakesParameter = "dlsw";
+    char              flag            = 0;
+    bool              isFlag          = previous.size() >= 2 &&
+                                        (previous[0] == '-' || previous[0] == '/');
+    bool              isLong          = previous.rfind ("--", 0) == 0;
+
+
+
+    if (isFlag && !isLong && kTakesParameter.find (previous.back()) != std::string_view::npos)
+    {
+        flag = previous.back();
+    }
+
+    return flag;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperandCount
+//
+//  How many positional operands a disk verb HAS A USE FOR.
+//
+//  It differs by verb and always has: `list` names a disk and nothing else,
+//  while every other verb names a disk and a file. The count was never written
+//  down, so the parser filled two slots for every verb and the verbs that read
+//  only one discarded the other in silence -- `disk list img.dsk PROG` catalogs
+//  the disk and never says that PROG went nowhere.
+//
+//  Zero means "do not enforce a count", which is the honest answer for the verb
+//  that was not recognized and for a help request. An unknown verb is reported
+//  by the runner in its own words, and preempting that with a complaint about
+//  operand three would answer the wrong question.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CommandLineParser::DiskOperandCount (CommandLineOptions::DiskOptions::Verb verb)
+{
+    int  count = 0;
+
+
+
+    switch (verb)
+    {
+    case CommandLineOptions::DiskOptions::Verb::List:
+        count = 1;
+        break;
+
+    case CommandLineOptions::DiskOptions::Verb::Get:
+    case CommandLineOptions::DiskOptions::Verb::Put:
+    case CommandLineOptions::DiskOptions::Verb::Delete:
+    case CommandLineOptions::DiskOptions::Verb::Boot:
+        count = 2;
+        break;
+
+    default:
+        count = 0;
+        break;
+    }
+
+    return count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskVerbWord
+//
+//  The descriptive word a verb is spelled with, read from the table rather than
+//  retyped so a diagnostic cannot name a verb the grammar no longer has. The
+//  first row carrying a verb is its descriptive spelling; the rest are aliases.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * CommandLineParser::DiskVerbWord (CommandLineOptions::DiskOptions::Verb verb)
+{
+    const char *  word = "disk";
+
+
+
+    for (const DiskVerbName & entry : s_kDiskVerbs)
+    {
+        if (entry.verb == verb)
+        {
+            word = entry.name;
+            break;
+        }
+    }
+
+    return word;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsDiskOptionNeedingValue
+//
+//  Whether an argument is one of the disk options that takes a value.
+//
+//  Asked only when such an option ended the command line with nothing after it.
+//  Without this the argument fell into the unknown-option refusal, which told
+//  the reader "unknown disk option: --addr" and then listed `--addr` among the
+//  options to try instead -- a message that contradicts itself in two lines.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsDiskOptionNeedingValue (const std::string & arg)
+{
+    return arg == "--out" || arg == "--as" || arg == "--type" || arg == "--addr";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsRunOptionNeedingValue
+//
+//  The same question for the `run` grammar, asked for the same reason: every
+//  value-taking arm there declines an option that has nothing after it, and
+//  what caught the leftovers was a complaint that the option does not exist.
+//
+//  The single-letter forms are spelled with a dash because the caller has
+//  already normalized a leading slash to one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsRunOptionNeedingValue (const std::string & arg)
+{
+    return arg == "-o"     || arg == "-l"     || arg == "--fill" ||
+           arg == "--load" || arg == "--entry" || arg == "--stop" ||
+           arg == "--max-cycles";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CanonicalLongFlag
 //
 //  An argument reduced to the one spelling the grammars below test for, so
@@ -287,6 +494,11 @@ std::string CommandLineParser::CanonicalDiskFlag (const std::string & arg)
 //  said it had all worked. A flag it does not have is now a refusal, and the
 //  suggestion names the flags it does have.
 //
+//  AN EXTRA OPERAND IS REFUSED ON THE SAME GROUND, and the count comes from the
+//  VERB -- see DiskOperandCount. Two slots were filled whatever the verb, so
+//  `disk list img.dsk PROG` filled a slot `list` does not read and `disk get
+//  img.dsk PROG extra` filled none at all; both exited 0 having said nothing.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CommandLineParser::ParseDiskOptions (
@@ -297,6 +509,7 @@ void CommandLineParser::ParseDiskOptions (
 {
     int   i          = argIndex;
     int   positional = 0;
+    int   limit      = 0;
     bool  wantsHelp  = false;
 
 
@@ -329,6 +542,8 @@ void CommandLineParser::ParseDiskOptions (
         options.disk.verb = LookUpDiskVerb (argv[i]);
         i++;
     }
+
+    limit = DiskOperandCount (options.disk.verb);
 
     for ( ; i < argc; i++)
     {
@@ -368,6 +583,16 @@ void CommandLineParser::ParseDiskOptions (
             continue;
         }
 
+        //  AN ADDRESS THAT COULD NOT BE READ IS REFUSED, NOT DROPPED. It was
+        //  dropped, and the result was a message that contradicted the command
+        //  line it was answering: `disk put img prog.bin --addr zzz` said "is a
+        //  binary, which has to be told where it loads -- give --addr $XXXX" to
+        //  somebody who had just given --addr. The value they typed was gone,
+        //  so the runner saw a command line with no address on it at all.
+        //
+        //  This is the rule the rest of the tool already states -- Refused
+        //  covers "a value that could not be read" -- and `run` applies it to
+        //  every address it takes. This one option was the exception.
         if (arg == "--addr" && hasValue)
         {
             Word     address = 0;
@@ -378,8 +603,28 @@ void CommandLineParser::ParseDiskOptions (
                 options.disk.loadAddress    = address;
                 options.disk.hasLoadAddress = true;
             }
+            else
+            {
+                std::cerr << "Error: " << argv[i + 1]
+                          << " is not an address -- write it as $XXXX\n";
+
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
 
             i++;
+            continue;
+        }
+
+        //  AN OPTION THAT RAN OUT OF COMMAND LINE IS NOT AN UNKNOWN ONE. Every
+        //  arm above needs a value and so declines the argument when there is
+        //  none left, which used to drop it into the refusal below -- reporting
+        //  "unknown disk option: --addr" and then listing `--addr` among the
+        //  options to try instead.
+        if (IsDiskOptionNeedingValue (arg))
+        {
+            std::cerr << "Error: " << argv[i] << " needs a value after it\n";
+
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             continue;
         }
 
@@ -397,6 +642,29 @@ void CommandLineParser::ParseDiskOptions (
                       << " -- try: " << DescribeDiskOptions() << "\n";
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            continue;
+        }
+
+        //  AN OPERAND THE VERB HAS NO SLOT FOR IS REFUSED, and the count is the
+        //  verb's own -- `list` names a disk, everything else names a disk and
+        //  a file. Two slots were filled for every verb regardless, so the
+        //  verbs that read one discarded the other without a word: `disk list
+        //  img.dsk PROG` catalogs the whole disk and never mentions PROG, and
+        //  `disk get img.dsk PROG extra` extracts PROG and never mentions
+        //  extra. Both exited 0.
+        //
+        //  A verb the table did not recognize is left alone, count zero. The
+        //  runner reports that in its own words, and a complaint about operand
+        //  three would answer a question nobody asked.
+        if (limit > 0 && positional >= limit)
+        {
+            std::cerr << "Error: surplus argument: " << arg << "\n"
+                      << "       `disk " << DiskVerbWord (options.disk.verb) << "` takes "
+                      << (limit == 1 ? "the image and nothing else.\n"
+                                     : "the image and one file.\n");
+
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            positional++;
             continue;
         }
 
@@ -986,15 +1254,51 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
             arg[0] = '-';
         }
 
-        // Non-flag argument is the input file
+        //  Non-flag argument is the input file -- and there is exactly one of
+        //  them.
+        //
+        //  A SECOND ONE IS REFUSED RATHER THAN DROPPED. as65's synopsis is
+        //  `as65 [-cdghilnopqstvwxz] file`, one file, and it documents nothing
+        //  about a surplus argument -- so what happened to one was this tool's
+        //  own answer, and the answer was to take the first and throw the rest
+        //  away in silence. `casso pg.a65 -opg.bin -h 60` assembled, wrote the
+        //  binary, exited 0, and never said that `60` had gone nowhere.
+        //
+        //  THE MESSAGE NAMES THE LIKELY CAUSE WHEN IT CAN SEE ONE, because the
+        //  likely cause is nearly always the same: a value typed with a space
+        //  in front of it, for an option that glues its value. Two things say
+        //  so -- a surplus argument that is all digits, and an option standing
+        //  in front of it that takes a parameter -- and when either holds the
+        //  glued spelling is offered by name.
         if (arg[0] != '-' && arg[0] != '/')
         {
+            std::string  previous   = (argIndex > 1) ? argv[argIndex - 1] : "";
+            char         wantsValue = TrailingParameterFlag (previous);
+
             if (options.inputFile.empty())
             {
                 options.inputFile = arg;
+                argIndex++;
+                continue;
             }
 
-            argIndex++;
+            std::cerr << "Error: surplus argument: " << arg << "\n"
+                      << "       Assembling takes one source file, and "
+                      << options.inputFile << " is already it.\n";
+
+            if (wantsValue != 0)
+            {
+                std::cerr << "       If " << arg << " was meant as a value, as65 glues it to its option:\n"
+                          << "       " << previous << arg << ", not " << previous << " " << arg << ".\n";
+            }
+            else if (IsPlainDecimal (arg))
+            {
+                std::cerr << "       If " << arg << " was meant as a value, as65 glues every value to its\n"
+                          << "       option, with no space between them.\n";
+            }
+
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            stop                 = true;
             continue;
         }
 
@@ -1099,11 +1403,41 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
             //  was added on the strength of this tool's own help text, which
             //  documented a form the parser did not read, and it is gone: the
             //  number after a bare -h is the next argument, not the height.
+            //  A BARE -h IS REFUSED, and the silence in the manual is the
+            //  evidence rather than an omission. as65 documents the bare form
+            //  of -w -- "If the -w option is given without a number following
+            //  it, then the listing will be 133 columns wide" -- and documents
+            //  no bare form of -h, on the same page, by the same author. It
+            //  silently did nothing here: the height kept whatever it already
+            //  had and the flag might as well not have been typed.
+            //
+            //  `-h0` IS NAMED IN THE MESSAGE because a reader who wants no page
+            //  breaks has a real spelling for it and would otherwise reach for
+            //  the bare flag to ask.
+            //
+            //  This is the flag walk, which the FIRST argument never reaches --
+            //  a leading `-h` is the top-level help request and is answered
+            //  before any grammar is chosen.
             case 'h':
             {
-                int  height = options.pageHeight;
+                int     height = options.pageHeight;
+                size_t  digits = TakeGluedCount (rest, height);
 
-                pos               += 1 + TakeGluedCount (rest, height);
+                if (digits == 0)
+                {
+                    std::cerr << "Error: " << options.flagPrefix
+                              << "h takes its line count ATTACHED: "
+                              << options.flagPrefix << "h60\n"
+                              << "       Use " << options.flagPrefix
+                              << "h0 for no page breaks at all.\n";
+
+                    options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+                    pos                  = arg.size();
+                    stop                 = true;
+                    break;
+                }
+
+                pos               += 1 + digits;
                 options.pageHeight = height;
                 break;
             }
@@ -1208,12 +1542,23 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
             //  flag or like a source file -- and as65 has no such rule because
             //  the glued form never needs one. `casso -d prog.a65` defines
             //  DEBUG and assembles prog.a65 on the plain reading.
+            //  THE `=VALUE` HALF IS THIS TOOL'S OWN, and a value it cannot read
+            //  is refused rather than replaced. It used to fall back to 1 in
+            //  silence, which is the worst of the three possible answers: `-d
+            //  VER=1.0` defined VER as 1 and `-dADDR=$6000` defined ADDR as 1,
+            //  each of them assembling a source that then took a branch nobody
+            //  chose. A NAME with no value is 1 because as65 says so; a value
+            //  that was typed and not understood is a refusal.
+            //
+            //  The whole text after the `=` has to be consumed, so a trailing
+            //  fragment cannot be dropped either -- 1.0 is not 1.
             case 'd':
             {
                 std::string  def   = rest;
                 size_t       eqPos = 0;
                 std::string  name;
                 int32_t      value = 1;
+                bool         taken = true;
 
 
 
@@ -1231,9 +1576,18 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                     char         * end    = nullptr;
                     long           v      = strtol (valStr.c_str(), &end, 0);
 
-                    if (end != valStr.c_str())
+                    taken = !valStr.empty() && end != nullptr && *end == '\0';
+
+                    if (taken)
                     {
                         value = (int32_t) v;
+                    }
+                    else
+                    {
+                        std::cerr << "Error: " << options.flagPrefix << "d cannot read `"
+                                  << valStr << "` as a value.\n"
+                                  << "       Write it as a decimal or 0x-prefixed number, or leave the\n"
+                                  << "       `=` off entirely -- a name on its own is defined as 1.\n";
                     }
                 }
                 else
@@ -1241,9 +1595,21 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                     name = def;
                 }
 
-                if (!name.empty())
+                if (taken && name.empty())
+                {
+                    std::cerr << "Error: " << options.flagPrefix
+                              << "d needs a name in front of the `=`.\n";
+                    taken = false;
+                }
+
+                if (taken)
                 {
                     options.predefinedSymbols[name] = value;
+                }
+                else
+                {
+                    options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+                    stop                 = true;
                 }
 
                 pos = arg.size();
@@ -1587,6 +1953,25 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
         else if (arg[0] != '-' && options.inputFile.empty())
         {
             options.inputFile = arg;
+        }
+        else if (arg[0] != '-')
+        {
+            //  A SECOND INPUT FILE IS NAMED AS ONE. It was already refused,
+            //  which is the right verdict, but under the words "Unknown
+            //  option" -- and a filename is not an option, so the reader was
+            //  sent looking for a flag they had not typed.
+            std::cerr << "Error: surplus argument: " << arg << "\n"
+                      << "       `run` takes one input file, and " << options.inputFile
+                      << " is already it.\n";
+
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+        }
+        else if (IsRunOptionNeedingValue (arg))
+        {
+            //  An option that ran out of command line is not an unknown one.
+            //  See IsRunOptionNeedingValue.
+            std::cerr << "Error: " << argv[argIndex] << " needs a value after it\n";
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
         }
         else
         {

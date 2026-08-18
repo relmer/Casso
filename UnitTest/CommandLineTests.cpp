@@ -582,6 +582,12 @@ namespace CommandLineTests
                             L"-d does not reach the argument after it");
             Assert::IsTrue (opts.predefinedSymbols.find ("DEBUG") != opts.predefinedSymbols.end(),
                             L"the bare flag is the DEBUG default as65 documents");
+
+            //  And FAST, having nowhere left to go, is now said out loud. It
+            //  used to be dropped: the caller asked for a symbol, got DEBUG,
+            //  and was told the run had worked.
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"the name that reached no slot is reported, not discarded");
         }
 
         //  as65: "If no name is specified, DEBUG is defined. The label is
@@ -646,12 +652,69 @@ namespace CommandLineTests
         //  tool's own help text, which documented a form the parser did not
         //  read. The help was the thing that was wrong, and it has been
         //  corrected instead.
+        //
+        //  What is left of `-h 10` is a bare -h, which is refused in its own
+        //  right, so the height is never reached and the `10` is never read as
+        //  one.
         TEST_METHOD (PageHeightFlag_DoesNotTakeASeparatedValue)
         {
             ArgVector           args = { "CassoCli", "demo.a65", "-h", "10" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (0, opts.pageHeight, L"the number after -h is the next argument, not the height");
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"and the command line is refused rather than assembled without it");
+        }
+
+        //  A BARE -h IS AN ERROR, AND THE MANUAL'S SILENCE IS THE EVIDENCE.
+        //  as65 documents the bare form of -w -- "If the -w option is given
+        //  without a number following it, then the listing will be 133 columns
+        //  wide" -- and documents no bare form of -h on the same page. It used
+        //  to do nothing at all: the height kept whatever it had, the assembly
+        //  ran, and the status was 0.
+        //
+        //  IT IS NOT FIRST IN THIS ARGV ON PURPOSE. A leading `-h` is the
+        //  top-level help request and never reaches the assembler's flag walk,
+        //  so a test that put it there would pass without touching this rule.
+        TEST_METHOD (PageHeightFlagAlone_IsRefused_BecauseAs65DocumentsNoBareForm)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-h" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"a parameter-taking option given no parameter is refused, not shrugged at");
+            Assert::IsFalse (opts.showHelp,
+                             L"and it is still the height flag, not the help request the first position spells");
+        }
+
+        //  The bare form ends the group, so nothing after it is read either --
+        //  which is what stops `-ht` from quietly delivering a symbol table off
+        //  a command line that was refused.
+        TEST_METHOD (PageHeightFlagAlone_StopsTheRestOfTheGroup)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-ht" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue  (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
+            Assert::IsFalse (opts.symbolTable, L"the rest of the group is not applied to a refused line");
+        }
+
+        //  The documented bare forms are untouched by that ruling, and this is
+        //  the sweep that says so: -w is 133 columns, -l generates the listing,
+        //  -d defines DEBUG, -g takes no parameter at all. All four are as65's
+        //  own, and none of them may become a refusal.
+        TEST_METHOD (TheDocumentedBareForms_AreStillAccepted)
+        {
+            const char *  kBare[] = { "-w", "-l", "-d", "-g" };
+
+            for (const char * flag : kBare)
+            {
+                ArgVector           args = { "CassoCli", "demo.a65", flag };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
+                    (std::wstring (L"as65 documents this bare form: ") + Widen (flag)).c_str());
+            }
         }
 
         //  as65's OWN worked example of its concatenation rule: "-h80t which
@@ -701,23 +764,25 @@ namespace CommandLineTests
             Assert::AreEqual (10, opts.pageHeight);
         }
 
-        //  The separated form must not eat whatever happens to follow. A count
-        //  is a number, and the input file is what a bare -h is usually in
-        //  front of.
-        TEST_METHOD (PageHeightFlag_LeavesANonNumericNeighborAlone)
+        //  The bare flag must not reach past its own argument on its way to
+        //  being refused. A count is a number, and the input file is what a
+        //  bare -h is usually standing in front of -- so the refusal has to be
+        //  about the flag, with the neighbor left unread rather than swallowed
+        //  as a height.
+        TEST_METHOD (PageHeightFlagAlone_DoesNotReadItsNeighborAsAHeight)
         {
             //  -q leads only because a bare -h in the first position is the
             //  top-level help spelling and never reaches this grammar at all.
             ArgVector           args = { "CassoCli", "-q", "-h", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::AreEqual (std::string ("demo.a65"), opts.inputFile,
-                              L"the source file is not the page height");
-            Assert::AreEqual (0, opts.pageHeight, L"and no pagination was asked for");
+            Assert::IsTrue   (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
+            Assert::AreEqual (0, opts.pageHeight, L"the source file is not the page height");
         }
 
         //  Gone with every other separated form. `-w 100` leaves the bare-flag
-        //  133 standing and hands `100` back to the walk.
+        //  133 standing and hands `100` back to the walk -- where it is now a
+        //  surplus argument and is said so, rather than dropped.
         TEST_METHOD (PageWidthFlag_DoesNotTakeASeparatedValue)
         {
             ArgVector           args = { "CassoCli", "demo.a65", "-w", "100" };
@@ -725,6 +790,8 @@ namespace CommandLineTests
 
             Assert::AreEqual (CommandLineParser::kWideListingColumns, opts.pageWidth,
                               L"a bare -w is the 133-column listing, whatever follows it");
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"and the 100 that went nowhere is reported rather than discarded");
         }
 
         //  as65 states the default itself: "Normally, the listing is printed
@@ -963,6 +1030,294 @@ namespace CommandLineTests
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  SurplusArgumentTests
+    //
+    //  An argument that reaches no slot at all, in all three grammars.
+    //
+    //  Every one of these used to be accepted and thrown away. The command line
+    //  that found it -- `CassoCli pg.a65 -opg.bin -h 60` -- assembled, wrote the
+    //  binary, exited 0, and never said that `60` had gone nowhere; the caller's
+    //  build script had no way to learn that half of what it asked for was not
+    //  read.
+    //
+    //  as65 SETTLES NOTHING HERE. Its synopsis is `as65 [-cdghilnopqstvwxz]
+    //  file` -- one file -- and it documents no behavior for a surplus argument,
+    //  so this is a choice rather than a parity question, and the choice is to
+    //  refuse.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (SurplusArgumentTests)
+    {
+    public:
+        TEST_METHOD (Assembly_ASecondSourceFile_IsRefused)
+        {
+            ArgVector           args = { "CassoCli", "prog.a65", "-oprog.bin", "extra.a65" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"assembling takes one source file");
+            Assert::AreEqual (std::string ("prog.a65"), opts.inputFile,
+                              L"and the first one is still the one that was named");
+        }
+
+        //  The shape of the reported defect, with the bare -h taken out of it so
+        //  this pins the surplus rule rather than the bare-flag rule. `-w` is
+        //  as65's own bare form and stays legal, so `100` is what has nowhere to
+        //  go.
+        TEST_METHOD (Assembly_ASeparatedValue_IsRefusedRatherThanDropped)
+        {
+            ArgVector           args = { "CassoCli", "prog.a65", "-w", "100" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
+        }
+
+        //  Nothing is refused while there is still a slot open -- one source
+        //  file, however many flags surround it, is the ordinary command line
+        //  and must stay clean.
+        TEST_METHOD (Assembly_OneSourceFileAmongFlags_IsStillClean)
+        {
+            ArgVector           args = { "CassoCli", "-t", "prog.a65", "-oprog.bin", "-w133" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
+            Assert::AreEqual (std::string ("prog.a65"), opts.inputFile);
+        }
+
+        //  The two conditions that earn the "as65 glues its values" sentence,
+        //  checked through the thing that decides them. A word that is neither a
+        //  number nor the neighbor of a parameter-taking flag gets the plain
+        //  message, because guessing at a cause there would invent one.
+        TEST_METHOD (TheGluedValueHint_IsOfferedOnlyWhenThereIsReasonTo)
+        {
+            Assert::IsTrue  (CommandLineParser::IsPlainDecimal ("60"),  L"a separated value looks like this");
+            Assert::IsFalse (CommandLineParser::IsPlainDecimal ("60t"), L"and this is not a number");
+            Assert::IsFalse (CommandLineParser::IsPlainDecimal (""),    L"nor is nothing");
+
+            Assert::AreEqual ((int) 'l', (int) CommandLineParser::TrailingParameterFlag ("-l"),
+                              L"-l takes a filename, so what follows it may have been meant as one");
+            Assert::AreEqual ((int) 'd', (int) CommandLineParser::TrailingParameterFlag ("-td"),
+                              L"read from the END of a group, which is where a value would attach");
+            Assert::AreEqual (0, (int) CommandLineParser::TrailingParameterFlag ("-t"),
+                              L"-t takes nothing, so nothing follows from it");
+            Assert::AreEqual (0, (int) CommandLineParser::TrailingParameterFlag ("prog.a65"),
+                              L"and a filename is not a flag at all");
+        }
+
+        TEST_METHOD (Run_ASecondInputFile_IsRefused)
+        {
+            ArgVector           args = { "CassoCli", "run", "prog.a65", "extra" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
+            Assert::AreEqual (std::string ("prog.a65"), opts.inputFile);
+        }
+
+        //  `list` NAMES A DISK AND NOTHING ELSE, so its second operand is
+        //  surplus and not merely unused. `disk list img.dsk PROG` cataloged
+        //  the whole disk, said nothing about PROG, and exited 0 -- which reads
+        //  exactly like a listing filtered to PROG that happened to match
+        //  everything.
+        TEST_METHOD (Disk_ListTakesOnlyTheImage)
+        {
+            ArgVector           args = { "CassoCli", "disk", "list", "my.dsk", "PROG" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
+            Assert::AreEqual (std::string ("my.dsk"), opts.disk.imagePath,
+                              L"and the image it did name is untouched");
+        }
+
+        //  Every verb that names a file gets two operands and no more.
+        TEST_METHOD (Disk_TheFileVerbsTakeTwoOperandsAndNoMore)
+        {
+            struct { const char * verb; const char * second; }  kCases[] =
+            {
+                { "get",    "PROG"     },
+                { "put",    "prog.bin" },
+                { "delete", "PROG"     },
+                { "boot",   "PROG"     },
+            };
+
+            for (const auto & test : kCases)
+            {
+                ArgVector           two  = { "CassoCli", "disk", test.verb, "my.dsk", test.second };
+                CommandLineOptions  ok   = CommandLineParser::Parse (two.Count(), two.Data(), NoProbe());
+
+                Assert::IsTrue (ok.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
+                    (std::wstring (L"two operands is the shape of: ") + Widen (test.verb)).c_str());
+
+                ArgVector           three = { "CassoCli", "disk", test.verb, "my.dsk", test.second, "extra" };
+                CommandLineOptions  bad   = CommandLineParser::Parse (three.Count(), three.Data(), NoProbe());
+
+                Assert::IsTrue (bad.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                    (std::wstring (L"and a third is refused by: ") + Widen (test.verb)).c_str());
+            }
+        }
+
+        //  A VERB THE TABLE DOES NOT KNOW IS LEFT ALONE. The runner reports that
+        //  in its own words -- "unknown disk verb -- try: ..." -- and a
+        //  complaint about operand three instead would answer a question nobody
+        //  asked.
+        TEST_METHOD (Disk_AnUnknownVerb_IsNotDiagnosedAsAnOperandCount)
+        {
+            ArgVector           args = { "CassoCli", "disk", "format", "my.dsk", "PROG", "extra" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
+                            L"the verb is what is wrong here, and the runner says so");
+        }
+
+        //  The operand count is the verb's, so an alias has to carry the same
+        //  one the descriptive word does.
+        TEST_METHOD (Disk_AnAliasCarriesItsVerbsOperandCount)
+        {
+            ArgVector           args = { "CassoCli", "disk", "cat", "my.dsk", "PROG" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"`cat` is `list`, and `list` names a disk and nothing else");
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DiscardedValueTests
+    //
+    //  The rest of the same class: a value the user typed that was read,
+    //  understood to be unreadable, and then quietly replaced or dropped.
+    //
+    //  The tool already states the rule these restore -- a command line is
+    //  Refused when it carries "a value that could not be read" -- and `run`
+    //  applies it to every address and count it takes. These were the places
+    //  that did not.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DiscardedValueTests)
+    {
+    public:
+        //  `disk put img prog.bin --addr zzz` dropped the address and then told
+        //  the caller "is a binary, which has to be told where it loads -- give
+        //  --addr $XXXX", which is a message contradicting the command line it
+        //  was answering.
+        TEST_METHOD (Disk_AnAddressThatCouldNotBeRead_IsRefused)
+        {
+            ArgVector           args = { "CassoCli", "disk", "put", "my.dsk", "prog.bin", "--addr", "zzz" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue  (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
+            Assert::IsFalse (opts.disk.hasLoadAddress, L"and no address was invented in its place");
+        }
+
+        TEST_METHOD (Disk_AnAddressThatCouldBeRead_IsStillTaken)
+        {
+            ArgVector           args = { "CassoCli", "disk", "put", "my.dsk", "prog.bin", "--addr", "$6000" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue   (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
+            Assert::IsTrue   (opts.disk.hasLoadAddress);
+            Assert::AreEqual ((Word) 0x6000, opts.disk.loadAddress);
+        }
+
+        //  An option that ran out of command line is not an unknown one. The
+        //  refusal was right; the words were not -- "unknown disk option:
+        //  --addr", followed by a list of options to try with `--addr` in it.
+        TEST_METHOD (Disk_AnOptionWithNoValueLeft_IsStillRefused)
+        {
+            const char *  kNeedsValue[] = { "--out", "--as", "--type", "--addr" };
+
+            for (const char * flag : kNeedsValue)
+            {
+                ArgVector           args = { "CassoCli", "disk", "get", "my.dsk", "PROG", flag };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                    (std::wstring (L"not refused: ") + Widen (flag)).c_str());
+
+                Assert::IsTrue (CommandLineParser::IsDiskOptionNeedingValue (flag),
+                    L"and it is reported as an option that needs a value, not as one that does not exist");
+            }
+        }
+
+        TEST_METHOD (Run_AnOptionWithNoValueLeft_IsStillRefused)
+        {
+            const char *  kNeedsValue[] = { "-o", "-l", "--fill", "--load", "--entry",
+                                            "--stop", "--max-cycles" };
+
+            for (const char * flag : kNeedsValue)
+            {
+                ArgVector           args = { "CassoCli", "run", "prog.bin", flag };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                    (std::wstring (L"not refused: ") + Widen (flag)).c_str());
+
+                Assert::IsTrue (CommandLineParser::IsRunOptionNeedingValue (flag),
+                    L"and it is a known option that ran out of arguments, not an unknown one");
+            }
+        }
+
+        //  `-dNAME=VALUE` IS THIS TOOL'S OWN EXTENSION -- as65 documents only
+        //  `-d<name>`, equated to 1 -- so a value it cannot read is nobody's
+        //  parity requirement. It fell back to 1 in silence, which meant
+        //  `-dADDR=$6000` and `-dVER=1.0` each defined the symbol as 1 and
+        //  assembled a source that then took a branch nobody chose.
+        TEST_METHOD (Predefine_AValueThatCouldNotBeRead_IsRefused)
+        {
+            const char *  kUnreadable[] = { "-dADDR=$6000", "-dVER=1.0", "-dX=zz", "-dY=" };
+
+            for (const char * flag : kUnreadable)
+            {
+                ArgVector           args = { "CassoCli", "demo.a65", flag };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                    (std::wstring (L"silently defined as 1: ") + Widen (flag)).c_str());
+            }
+        }
+
+        TEST_METHOD (Predefine_ANameWithNothingInFrontOfTheEquals_IsRefused)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65", "-d=5" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"it defined nothing at all and said nothing about it");
+        }
+
+        //  The forms that DO read are untouched, decimal and 0x alike.
+        TEST_METHOD (Predefine_TheValuesThatCanBeRead_AreStillTaken)
+        {
+            struct { const char * flag; int32_t value; }  kCases[] =
+            {
+                { "-dA=5",    5    },
+                { "-dB=0x10", 0x10 },
+                { "-dC=-3",   -3   },
+            };
+
+            for (const auto & test : kCases)
+            {
+                ArgVector           args  = { "CassoCli", "demo.a65", test.flag };
+                CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
+                    (std::wstring (L"refused a readable value: ") + Widen (test.flag)).c_str());
+            }
         }
     };
 

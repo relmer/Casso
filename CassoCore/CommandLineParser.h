@@ -138,6 +138,24 @@ public:
     //  that omits the option the user was reaching for.
     static std::string  DescribeDiskOptions();
 
+    //  The two questions that decide what a surplus argument is TOLD, and the
+    //  two that decide whether an option was unknown or merely starved of its
+    //  value. Public for the reason GetAllSubcommands is: the answers reach the
+    //  user only as text on the error stream, which the parser writes and does
+    //  not keep, so a test can pin the rule here or nowhere.
+    //
+    //  IsPlainDecimal    -- a word that is only digits: a separated value.
+    //  TrailingParameterFlag -- the letter a flag group ends on, when that
+    //                       letter takes a parameter, and 0 otherwise.
+    static bool  IsPlainDecimal        (const std::string & text);
+    static char  TrailingParameterFlag (const std::string & previous);
+
+    //  Whether an argument is an option that grammar HAS and which takes a
+    //  value, so an option that merely ran out of command line is not reported
+    //  as one that does not exist.
+    static bool  IsDiskOptionNeedingValue (const std::string & arg);
+    static bool  IsRunOptionNeedingValue  (const std::string & arg);
+
 private:
     static HRESULT  ParseBoundedHex (const char * text, long maxValue, long & outValue);
     static HRESULT  ParseAddress    (const char * text, Word & address);
@@ -160,6 +178,12 @@ private:
     static void  ParseDiskOptions  (int argc, char * argv[], int argIndex, CommandLineOptions & options);
 
     static CommandLineOptions::DiskOptions::Verb  LookUpDiskVerb (const std::string & word);
+
+    //  How many operands a disk verb has a use for, and the descriptive word
+    //  the help spells it with. An operand past the count is one the verb would
+    //  otherwise read and discard.
+    static int           DiskOperandCount (CommandLineOptions::DiskOptions::Verb verb);
+    static const char *  DiskVerbWord     (CommandLineOptions::DiskOptions::Verb verb);
 
     //  An argument reduced to the `--` spelling the grammars test for, so
     //  `/out` and `--out` reach the same arm. Only an exact option name from

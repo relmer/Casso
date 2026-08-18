@@ -711,3 +711,51 @@ answered against real code than in advance.
 | Delete is required by replace, which is P1 | Cannot ship US2 without delete + free-space return on both filesystems | Treat delete as foundational, not Tier 2 |
 | Concurrent edits to the command-line files by spec 019 | Merge conflict on shared files | Keep the change to one table row and one arm; run `CommandLineTests` before every push |
 | ProDOS tree growth is the fiddliest remaining piece | Large files fail or corrupt | Property-test block accounting against the integrity pass rather than by inspection |
+
+---
+
+## R-014 — The silent-discard sweep (Phase 15)
+
+A surplus positional argument was measured to be dropped without a word:
+`CassoCli pg.a65 -opg.bin -h 60` assembled, wrote the binary, exited 0, and
+never mentioned `60`. The `--out`/`-o` collision found earlier was the same
+class, and both were found by accident, so the whole command-line surface was
+swept deliberately for anything the user types that is accepted and then
+discarded.
+
+**Method.** Every parameter-taking option in each grammar was invoked bare,
+with an unreadable value, and with a value it could not consume in full; every
+grammar was invoked with one more positional than it has slots for; every
+option was invoked under a verb that does not serve it. Each case was measured
+against the built binary before anything was changed.
+
+**Fixed** — see T115–T122.
+
+**Left for the owner, because each is a grammar decision rather than a defect
+with one obvious answer:**
+
+1. **A disk option is accepted under every verb, and two of them repurpose an
+   operand.** `--as` and the second positional write the same field, so
+   `disk get img BASIC --as STARTUP` extracts STARTUP and never mentions
+   BASIC; `--out` and `put`'s second positional likewise, so
+   `disk put img aaa.txt --out bbb.txt` puts bbb.txt. `--type` and `--addr` on
+   `list` are accepted and ignored at exit 0. The fix is per-verb option
+   applicability — a table of which options each verb serves, and a refusal for
+   the rest — which is a shape decision, not a repair.
+2. **The `--name=value` long-option form is claimed and not implemented.**
+   `CanonicalLongFlag` carries an attached value across, on the stated grounds
+   that "a long option may be spelled `--name=value`", and nothing matches one:
+   `run prog.a65 --load=$1000` is refused as an unknown option. Either the form
+   is wanted or the comment is wrong.
+3. **"N lines assembled" reports 0 unless `-l` was given.** The count is the
+   length of the listing, and the listing is only built when one was asked for,
+   so an ordinary assemble prints "0 lines assembled" over a binary it just
+   wrote. Outside this sweep's class -- nothing the user typed is discarded --
+   but it is the same kind of confident wrong statement.
+
+**One measurement that is NOT a product defect, recorded so it is not
+rediscovered.** PowerShell mangles a glued flag typed inline: `& $cli pg.a65
+-opg.bin` reaches the process as an output file named `pg`, with the extension
+gone. Passing the arguments as an array (`& $cli @args`) or going through
+`cmd /c` delivers them verbatim. Any command-line measurement on this project
+has to use one of those two forms, or it measures PowerShell.

@@ -9,6 +9,40 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Fixed
+- **An argument with nowhere to go is now an error instead of being thrown
+  away.** `CassoCli pg.a65 -opg.bin -h 60` assembled, wrote the binary, exited
+  0, and never said that `60` had gone nowhere — so a build script asking for
+  something the tool did not do was told it had worked. All three grammars
+  dropped a surplus argument: assembling took the first bare argument as the
+  source and discarded the rest, and `disk` filled two operand slots whatever
+  the verb, so `disk list img.dsk PROG` cataloged the whole disk without
+  mentioning `PROG` and `disk get img.dsk PROG extra` extracted `PROG` without
+  mentioning `extra`. Each is now refused at the status its own mode documents
+  for a command line that was refused — 2 — with nothing assembled, nothing
+  run, and nothing written. The message names the argument, and where the
+  likely cause is visible it names that too: a value typed with a space in
+  front of it earns `-w100, not -w 100`. `run` already refused these and called
+  them "Unknown option", which sent the reader looking for a flag they had not
+  typed; it names them as surplus arguments now.
+- **A bare `-h` is refused rather than silently doing nothing.** as65 documents
+  the bare form of `-w` — "If the -w option is given without a number following
+  it, then the listing will be 133 columns wide" — and documents no bare form
+  of `-h` on the same page. Casso accepted one and ignored it: the page height
+  kept whatever it already had, and the flag might as well not have been typed.
+  It now says so and names `-h0`, which is the real spelling for no page breaks
+  at all. `-h` as the FIRST argument is still the help request. The four bare
+  forms as65 does document — `-w`, `-l`, `-d`, `-g` — are unchanged.
+- **A value that cannot be read is refused instead of being replaced.**
+  `disk put img prog.bin --addr zzz` dropped the address and then answered "is
+  a binary, which has to be told where it loads — give `--addr $XXXX`" to
+  somebody who had just given `--addr`. `-dADDR=$6000` and `-dVER=1.0` each
+  defined the symbol as `1` in silence, so the source assembled down a branch
+  nobody chose. Both now refuse and say what they could not read. A bare `-d`
+  is still `DEBUG`, and a name with no `=` is still 1.
+- **An option that ran out of command line is no longer reported as one that
+  does not exist.** `disk list img.dsk --addr` answered "unknown disk option:
+  `--addr`" and then listed `--addr` among the options to try instead. Both the
+  `disk` and `run` grammars now say the option needs a value.
 - **A bare `-d` defines `DEBUG`, and stops eating the argument next to it.**
   as65 documents `-d` with no name as defining `DEBUG`, equated to 1. It
   defined nothing at all, because it took whatever followed unconditionally —

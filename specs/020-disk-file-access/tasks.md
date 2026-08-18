@@ -710,6 +710,16 @@ counts are unchanged at 3306 / 3303. Re-gating that switch behind a deliberate
 define and re-running T035 through it left the counts where they were, for the
 same reason.
 
+**Phase 15 is done, and the suite is 3431 Debug / 3428 Release.** T115–T122
+shipped together: a surplus argument is refused in all three grammars, a bare
+`-h` mid-command-line is refused by owner ruling, and the two places that read a
+value, failed to understand it, and substituted one anyway now say so. (The
+counts were 3412 / 3409 before this phase added 19.) Three findings from the
+same sweep were measured and left for the owner rather than decided — per-verb
+option applicability on `disk`, the `--name=value` long-option form that is
+claimed in a comment and implemented nowhere, and "N lines assembled" reporting
+0 unless `-l` was given. All three are written up in `research.md` R-014.
+
 **T047 found two defects in this feature's own documented loop, and both are the
 mistake a reader makes rather than a mistake in the code.** The five steps in
 `quickstart.md` did not produce a running program, and nothing had ever run
@@ -1784,6 +1794,99 @@ See T114.
       degrades to a bare "unknown option". **Whoever merges the two branches
       owns this**; it was not touched from here because 019's worktree is not
       visible to this one. Closes the deferred half of GH #118
+
+---
+
+## Phase 15: The silent-discard sweep
+
+`CassoCli pg.a65 -opg.bin -h 60` assembled, wrote the binary, exited 0, and
+never said that `60` had gone nowhere. That was one instance of a class, and
+this phase is the class: **anything the user typed that was accepted and then
+discarded without a diagnostic.**
+
+**as65 settles none of it.** Its synopsis is `as65 [-cdghilnopqstvwxz] file` --
+one file -- and it documents nothing about a surplus argument, so what happened
+to one was this tool's own answer. The owner's ruling is that it is an error.
+Each grammar refuses under **its own** documented status: the assembler's 2
+("no file was opened -- ... a command line that was refused"), `run`'s 2
+("nothing could be started"), and `disk`'s 2 ("nothing was done").
+
+- [x] T115 **A surplus positional in the assembler grammar is refused.** The
+      first bare argument is the source file and the second used to be dropped
+      where it fell. It is now a refusal at exit 2 with nothing assembled and
+      nothing written
+- [x] T116 **The refusal names the likely cause when it can see one.** The cause
+      is nearly always a value typed with a space in front of it, for an option
+      that glues its value, and two things say so: a surplus argument that is
+      all digits, and a parameter-taking option standing in front of it. Either
+      one earns the glued spelling by name -- `-w100, not -w 100`. A word that
+      is neither gets the plain message, because guessing at a cause there would
+      invent one
+- [x] T117 **`run` names a surplus argument as one.** It was already refused,
+      which is the right verdict, but under the words "Unknown option" -- and a
+      filename is not an option, so the reader was sent looking for a flag they
+      had not typed
+- [x] T118 **`disk` refuses an operand its VERB has no slot for**, and the count
+      is the verb's own: `list` names a disk, every other verb names a disk and
+      a file. Two slots were filled whatever the verb, so `disk list img.dsk
+      PROG` cataloged the whole disk and never mentioned PROG, and `disk get
+      img.dsk PROG extra` extracted PROG and never mentioned extra -- both at
+      exit 0. A verb the table does not recognize is left alone, so the runner's
+      "unknown disk verb" is not preempted by a complaint about operand three
+- [x] T119 **A bare `-h` mid-command-line is refused, by owner ruling.** as65
+      documents the bare form of `-w` -- "If the -w option is given without a
+      number following it, then the listing will be 133 columns wide" -- and
+      documents no bare form of `-h`, on the same page, by the same author.
+      Read that as `-h` not having one. It silently did nothing here: the height
+      kept whatever it had and the flag might as well not have been typed. The
+      message names `-h0`, because a reader who wants no page breaks has a real
+      spelling for it and would otherwise reach for the bare flag to ask.
+      **THE TOP-LEVEL `-h` IS UNTOUCHED** -- a leading `-h` is the help request
+      and never reaches the assembler's flag walk. The four bare forms as65
+      genuinely documents (`-w`, `-l`, `-d`, `-g`) are swept in a test to keep
+      them that way
+- [x] T120 **`disk --addr` refuses a value it cannot read.** It dropped it, and
+      the result was a message contradicting the command line it was answering:
+      `disk put img prog.bin --addr zzz` replied "is a binary, which has to be
+      told where it loads -- give --addr $XXXX" to somebody who had just given
+      `--addr`. The rest of the tool already states this rule -- Refused covers
+      "a value that could not be read" -- and `run` applies it to every address
+      it takes; this one option was the exception
+- [x] T121 **`-dNAME=VALUE` refuses a value it cannot read, and a missing name.**
+      The `=VALUE` half is this tool's own -- as65 documents only `-d<name>`,
+      equated to 1 -- so nothing about parity required the fallback that was
+      there: an unreadable value became 1 in silence, so `-dADDR=$6000` and
+      `-dVER=1.0` each defined the symbol as 1 and assembled a source that then
+      took a branch nobody chose. The whole text after the `=` has to be
+      consumed, so a trailing fragment cannot be dropped either. A bare `-d` is
+      still the DEBUG default as65 documents
+- [x] T122 **An option that ran out of command line is no longer reported as an
+      unknown one**, in either grammar that has value-taking options. The
+      refusal was right and the words were not: `disk list img --addr` answered
+      "unknown disk option: --addr" and then listed `--addr` among the options
+      to try instead -- a message that contradicts itself in two lines
+
+**Left for the owner, measured and not decided** -- see the sweep notes in
+`research.md`:
+
+- **A disk option is accepted under every verb, including the verbs it does not
+  serve, and two of them silently REPURPOSE an operand.** `disk get img BASIC
+  --as STARTUP` reads STARTUP, not BASIC, because `--as` writes the same field
+  the second operand does; `disk put img aaa.txt --out bbb.txt` puts bbb.txt.
+  `--type` and `--addr` on `list` are accepted and ignored at exit 0. Per-verb
+  option applicability is a grammar decision, so it is reported rather than
+  taken
+- **The `--name=value` long-option form is claimed and not implemented.**
+  `CanonicalLongFlag` carries an attached value across on the stated grounds
+  that "a long option may be spelled `--name=value`", and no arm of any grammar
+  matches one: `run prog.a65 --load=$1000` is refused as an unknown option.
+  Either the form is wanted or the comment is wrong; both are cheap, and which
+  one is a decision
+- **"N lines assembled" reports 0 unless `-l` was given.** The count is the
+  listing's length, and the listing is only built when a listing was asked for,
+  so an ordinary assemble reports "0 lines assembled" over a binary it just
+  wrote. Not a discarded input, so out of this phase's class, but it is the same
+  kind of confident wrong statement
 
 ---
 
