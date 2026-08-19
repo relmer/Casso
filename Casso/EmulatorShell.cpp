@@ -2213,8 +2213,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         switch (commandId)
         {
-            case IDM_DISK_WP1: return m_diskStore.IsMounted (6, 0);
-            case IDM_DISK_WP2: return m_diskStore.IsMounted (6, 1);
+            case IDM_DISK_WP1: return IsWriteProtectToggleOffered (0);
+            case IDM_DISK_WP2: return IsWriteProtectToggleOffered (1);
             default:           return true;
         }
     });
@@ -3326,6 +3326,35 @@ void EmulatorShell::FlushPendingNotifications()
     {
         ShowNotification (pending[i]);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::IsWriteProtectToggleOffered
+//
+//  Whether the Disk menu should offer the write-protect toggle for a drive.
+//  Reads the bay, then defers to the pure predicate so the rule itself stays
+//  testable without a mounted store behind it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsWriteProtectToggleOffered (int drive)
+{
+    const DiskImage *  image   = m_diskStore.GetImage (6, drive);
+    bool               mounted = m_diskStore.IsMounted (6, drive);
+
+
+
+    if (image == nullptr)
+    {
+        return false;
+    }
+
+    return ShouldEnableWriteProtectMenuItem (mounted, image->GetWriteProtectInfo());
 }
 
 

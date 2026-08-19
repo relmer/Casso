@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/MachineConfig.h"
+#include "Devices/Disk/IDiskImage.h"
 
 
 
@@ -102,4 +103,39 @@ inline bool ShouldEnableDisk2DebugMenuItem (const MachineConfig & config) noexce
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShouldEnableWriteProtectMenuItem
+//
+//  Pure helper that returns true iff the Disk menu's write-protect item
+//  should be clickable for a bay: something has to be mounted, and it must
+//  not be an image whose stored checksum failed to match its contents.
+//
+//  A damaged image is excluded because the toggle refuses it. Changing that
+//  flag means patching the file and recomputing its header checksum, and that
+//  checksum failing to match IS the evidence of damage -- so the one write
+//  that is otherwise harmless is the one that would destroy the proof. The
+//  refusal explains itself, but an item that always refuses should not be
+//  offered in the first place.
+//
+//  Takes the whole WriteProtectInfo rather than a lone bool so a later cause
+//  that also makes the toggle meaningless can join without changing callers,
+//  and so the call site reads as a question about write protection.
+//
+//  Inline so the headless UnitTest project can exercise the decision without
+//  pulling in any Win32 dependencies.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+inline bool ShouldEnableWriteProtectMenuItem (
+    bool                      isMounted,
+    const WriteProtectInfo &  wp) noexcept
+{
+    return isMounted && !wp.checksumMismatch;
 }

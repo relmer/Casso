@@ -12,9 +12,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  MenuPredicatesTests
 //
-//  Headless coverage of ShouldEnableDisk2DebugMenuItem (FR-001a):
-//  the View -> Disk II Debug item is enabled iff the active machine
-//  config wires at least one Disk II controller.
+//  Headless coverage of the pure menu-enable predicates:
+//
+//    ShouldEnableDisk2DebugMenuItem -- the View -> Disk II Debug item is
+//    enabled iff the active machine config wires a Disk II controller.
+//
+//    ShouldEnableWriteProtectMenuItem -- the Disk -> Write-protect item is
+//    enabled iff something is mounted and it is not a damaged image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,6 +61,77 @@ namespace MenuPredicatesTests
             config.slots.push_back (slot1);
 
             Assert::IsFalse (ShouldEnableDisk2DebugMenuItem (config));
+        }
+
+
+
+        TEST_METHOD (ShouldEnableWriteProtectMenuItem_emptyDrive_returnsFalse)
+        {
+            WriteProtectInfo  wp;
+
+            Assert::IsFalse (ShouldEnableWriteProtectMenuItem (false, wp),
+                L"nothing mounted, nothing to protect");
+        }
+
+
+
+        TEST_METHOD (ShouldEnableWriteProtectMenuItem_ordinaryImage_returnsTrue)
+        {
+            WriteProtectInfo  wp;
+
+            Assert::IsTrue (ShouldEnableWriteProtectMenuItem (true, wp),
+                L"a mounted, undamaged image can be toggled either way");
+        }
+
+
+
+        TEST_METHOD (ShouldEnableWriteProtectMenuItem_alreadyProtected_returnsTrue)
+        {
+            WriteProtectInfo  wp;
+
+            wp.imageFlag = true;
+
+            Assert::IsTrue (ShouldEnableWriteProtectMenuItem (true, wp),
+                L"an already-protected image still offers the toggle -- clearing "
+                L"the flag is what a user does before writing to a disk");
+
+            wp.imageFlag   = false;
+            wp.userSetting = true;
+
+            Assert::IsTrue (ShouldEnableWriteProtectMenuItem (true, wp),
+                L"and the drive preference is a separate control, not a reason to "
+                L"disable this one");
+        }
+
+
+
+        TEST_METHOD (ShouldEnableWriteProtectMenuItem_damagedImage_returnsFalse)
+        {
+            WriteProtectInfo  wp;
+
+            wp.checksumMismatch = true;
+
+            Assert::IsFalse (ShouldEnableWriteProtectMenuItem (true, wp),
+                L"a damaged image must not be offered a toggle that refuses it -- "
+                L"patching the flag recomputes the header checksum, and that "
+                L"checksum failing to match is the evidence of damage");
+        }
+
+
+
+        TEST_METHOD (ShouldEnableWriteProtectMenuItem_damageOutranksTheOtherCauses)
+        {
+            // Damage is not one cause among several here: it is the only one
+            // that makes the ACTION impossible rather than merely already-done.
+            WriteProtectInfo  wp;
+
+            wp.imageFlag        = true;
+            wp.readOnlyFile     = true;
+            wp.userSetting      = true;
+            wp.checksumMismatch = true;
+
+            Assert::IsFalse (ShouldEnableWriteProtectMenuItem (true, wp),
+                L"damage disables the item whatever else is set");
         }
 
 

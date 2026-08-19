@@ -761,6 +761,9 @@ private:
     // or -1 on close-gesture.
     int     ShowModalDialog      (const DialogDefinition & def);
 
+    // Whether the Disk menu offers the write-protect toggle for a drive.
+    bool    IsWriteProtectToggleOffered (int drive);
+
     // The EHM user-notification sink, installed with SetNotifyFunction so
     // every CHRN / CBRN in the tree reports through Casso's own themed
     // dialog. Nothing had ever installed one, so they all fell through to
