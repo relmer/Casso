@@ -481,13 +481,17 @@ public:
     }
 
 
-    TEST_METHOD (Denibblize_OneBrokenDataField_CorruptsASecondSectorToo)
+    TEST_METHOD (Denibblize_OneBrokenDataField_DoesNotMisfileTheNextSector)
     {
-        // Why the report exists rather than just a zero-fill note. The scan for
-        // the missing data field runs on to the NEXT sector's and stores it
-        // under the number the address field gave, so a second sector comes
-        // back holding plausible, wrong data. Zeros a reader might notice;
-        // wrong data it will not.
+        // One point of damage costs exactly one sector.
+        //
+        // It used to cost two. The scan for the missing data field ran on to
+        // the NEXT sector's, decoded it cleanly, and filed it under the number
+        // this sector's address field gave -- so a second sector came back
+        // holding plausible, wrong data. Zeros a reader might notice; wrong
+        // data it will not. The scan now stops when it meets the next address
+        // field and rewinds, so the good sector after a damaged one is neither
+        // stolen nor lost.
         DiskImage         img;
         vector<Byte>      raw    = MakePinnedRandomImage (0xC0FFEEu);
         vector<Byte>      out;
@@ -524,11 +528,13 @@ public:
             if (allZero)  { zeroed++; }
         }
 
-        Assert::AreEqual (1, zeroed, L"the undecodable sector comes back as zeros");
-        Assert::AreEqual (2, wrong,
-            L"but TWO sectors differ from the original -- the zeroed one and one "
-            L"holding the following sector's data. This is why writing the buffer "
-            L"on a success return was corruption, not merely a gap.");
+        Assert::AreEqual (1, zeroed, L"the damaged sector comes back as zeros");
+        Assert::AreEqual (1, wrong,
+            L"and it is the ONLY sector that differs -- the sector after it must "
+            L"keep its own data rather than being filed under the damaged one's "
+            L"number");
+        Assert::AreEqual (1, report.sectorsMissing,
+            L"and the report must agree that exactly one sector was lost");
     }
 
 

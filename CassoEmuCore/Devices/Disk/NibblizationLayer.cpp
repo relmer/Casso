@@ -33,6 +33,8 @@ static constexpr Byte  kAddrProlog0           = 0xD5;
 static constexpr Byte  kAddrProlog1           = 0xAA;
 static constexpr Byte  kAddrProlog2           = 0x96;
 static constexpr Byte  kDataProlog2           = 0xAD;
+static constexpr Byte  kIllegalNibble         = 0xFF;   // InverseTranslate miss
+static constexpr Byte  kSixBitMask            = 0x3F;
 static constexpr Byte  kEpilog0               = 0xDE;
 static constexpr Byte  kEpilog1               = 0xAA;
 static constexpr Byte  kEpilog2               = 0xEB;
@@ -571,8 +573,22 @@ static Byte InverseTranslate (Byte nib)
 //  Walks the bit stream until it locates the next address-field prologue,
 //  then decodes the V/T/S header followed by the data field. On success
 //  fills outSectorData[256] and returns the address-field track/sector via
-//  out params. Returns E_FAIL if no valid sector can be decoded before
-//  the cursor wraps.
+//  out params.
+//
+//  Success means VERIFIED, not merely parsed. Four things are checked, three
+//  of which the format was already carrying and this code used to discard:
+//
+//    * the address field's own checksum, which says the sector number can be
+//      trusted (it was read into locals and thrown away);
+//    * that a data field turns up before the next address field, so a sector
+//      whose data is missing cannot silently take its neighbor's;
+//    * that every data nibble is a legal 6-and-2 code;
+//    * the data field's 343rd checksum nibble, the boot ROM's success gate
+//      (it was never read at all).
+//
+//  Returns E_FAIL if any of those fail, or if no sector can be found before
+//  the cursor wraps. The caller distinguishes the two by whether the cursor
+//  moved.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -597,6 +613,16 @@ static HRESULT DecodeOneSector (
     Byte      cEven                     = 0;
     Byte      foundProlog               = 0;
     Byte      encoded[kEncodedDataSize] = {};
+    Byte      addrVolume                = 0;
+    Byte      addrTrack                 = 0;
+    Byte      addrChecksum              = 0;
+    Byte      dataChecksum              = 0;
+    Byte      decodedNibble             = 0;
+    size_t    posBeforeProlog           = 0;
+    bool      addrChecksumOk            = false;
+    bool      dataChecksumOk            = false;
+    bool      nibbleLegal               = false;
+    bool      dataFieldMissing          = false;
     Byte      prev                      = 0;
     Byte      raw                       = 0;
     int       i                         = 0;
@@ -636,20 +662,29 @@ static HRESULT DecodeOneSector (
     cOdd  = ReadNibbleAt (img, track, bitPos);
     cEven = ReadNibbleAt (img, track, bitPos);
 
-    UNREFERENCED_PARAMETER (vOdd);
-    UNREFERENCED_PARAMETER (vEven);
-    UNREFERENCED_PARAMETER (tOdd);
-    UNREFERENCED_PARAMETER (tEven);
-    UNREFERENCED_PARAMETER (cOdd);
-    UNREFERENCED_PARAMETER (cEven);
+    outSector    = Decode44 (sOdd, sEven);
+    addrVolume   = Decode44 (vOdd, vEven);
+    addrTrack    = Decode44 (tOdd, tEven);
+    addrChecksum = Decode44 (cOdd, cEven);
 
-    outSector = Decode44 (sOdd, sEven);
+    // The address field carries its own checksum, and it was being read and
+    // thrown away. It is the only thing that says the sector NUMBER can be
+    // trusted -- without it a corrupted address field files a good sector's
+    // data under whatever number the damage happened to spell.
+    //
+    // Only the field's internal consistency is checked, not whether its track
+    // matches the one being read: half-track and quarter-track images
+    // legitimately carry a different number there.
+    addrChecksumOk = (addrChecksum == (addrVolume ^ addrTrack ^ outSector));
+    CBR (addrChecksumOk);
 
     foundProlog = 0;
 
     while (foundProlog == 0)
     {
-        n0 = ReadNibbleAt (img, track, bitPos);
+        posBeforeProlog = bitPos;
+        n0              = ReadNibbleAt (img, track, bitPos);
+
         if (n0 != kAddrProlog0)
         {
             bitsConsumed = (bitPos - startBitPos);
@@ -664,7 +699,24 @@ static HRESULT DecodeOneSector (
         {
             foundProlog = 1;
         }
+        else if (n1 == kAddrProlog1 && n2 == kAddrProlog2)
+        {
+            // The NEXT sector's address field, reached without ever finding
+            // this one's data field. Running on to take that sector's data
+            // is how one point of damage used to corrupt two sectors: the
+            // bytes decode cleanly and pass their own checksum, they are
+            // simply filed under the wrong number.
+            //
+            // Rewind so the caller's next attempt starts on this address
+            // field rather than past it, or the good sector after a damaged
+            // one is lost too.
+            bitPos           = posBeforeProlog;
+            dataFieldMissing = true;
+            break;
+        }
     }
+
+    CBR (!dataFieldMissing);
 
     prev = 0;
 
@@ -674,10 +726,25 @@ static HRESULT DecodeOneSector (
         // the writer above: on-disk nibbles encode encoded[i] XOR'd
         // with the previous raw encoded value, so we recover raw
         // values via XOR with the previous DECODED value.
-        raw         = ReadNibbleAt (img, track, bitPos);
-        encoded[i]  = static_cast<Byte> (InverseTranslate (raw) ^ prev);
+        raw           = ReadNibbleAt (img, track, bitPos);
+        decodedNibble = InverseTranslate (raw);
+
+        // 0xFF means the byte on the disk is not a legal 6-and-2 nibble at
+        // all, so whatever it holds is not this sector's data.
+        nibbleLegal = (decodedNibble != kIllegalNibble);
+        CBR (nibbleLegal);
+
+        encoded[i]  = static_cast<Byte> (decodedNibble ^ prev);
         prev        = encoded[i];
     }
+
+    // The 343rd nibble is the data field's checksum -- the boot ROM's own
+    // success gate -- and it was never read. Verifying it is what lets Casso
+    // say a sector is intact rather than merely parseable.
+    decodedNibble  = InverseTranslate (ReadNibbleAt (img, track, bitPos));
+    dataChecksum   = static_cast<Byte> (prev & kSixBitMask);
+    dataChecksumOk = (decodedNibble == dataChecksum);
+    CBR (dataChecksumOk);
 
     for (i = 0; i < NibblizationLayer::kSectorByteSize; i++)
     {
