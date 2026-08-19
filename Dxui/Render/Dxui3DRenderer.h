@@ -104,6 +104,18 @@ public:
         float  shadowTexel    = 0.0f;      // 1 / map edge; 0 disables
         float  shadowBias     = 0.0f;      // in light-clip depth units
         float  shadowStrength = 1.0f;      // 0 lets a shadowed face keep its light
+
+        // The device lamp's own occlusion. It needs one because facing the
+        // lens is not the same as seeing it: the notch floor in front of the
+        // power button points straight at the lamp and takes its light, while
+        // the button sits squarely in the way. Which map to read is a slot
+        // rather than a fixed register because the lamp is a property of the
+        // DEVICE -- the monitor's and the drive's are different lamps in
+        // different model spaces, so each carries its own.
+        float  lampShadow[16]  = {};
+        float  lampShadowTexel = 0.0f;   // 0 leaves the lamp unshadowed
+        float  lampShadowBias  = 0.0f;
+        int    lampShadowSlot  = -1;
     };
 
     void  SetLighting (const Lighting & lighting)  { m_lighting = lighting; }
@@ -174,17 +186,14 @@ public:
     // they live in: the map is shared, so a device shadows its neighbors as
     // readily as itself. Call before the color pass; the maps persist until
     // the next Begin on that slot, so a still scene pays nothing to redraw.
-    HRESULT  BeginShadowPass (int slot);
+    // `texels` sizes THIS slot's map. The room lights cover the whole desk and
+    // want a generous one; a device lamp reaches only inside its own housing,
+    // so it resolves the same detail from a fraction of the memory.
+    HRESULT  BeginShadowPass (int slot, UINT texels);
     void     EndShadowPass   ();
 
-    // Shadow map edge in texels. Bigger resolves finer relief -- the desk
-    // scene spans roughly a metre and its mold relief throws shadows a few
-    // millimetres long, so this wants to be generous -- at a square cost in
-    // memory and fill. Takes effect on the next BeginShadowPass.
-    void     SetShadowMapSize (UINT texels);
-    UINT     ShadowMapSize    () const { return m_shadowSize; }
-
-    static constexpr int   kShadowLights      = 2;
+    static constexpr int   kShadowMaps        = 4;   // 0,1 room lights; 2,3 device lamps
+    static constexpr int   kShadowLights      = 2;   // ...of which these are directional
     static constexpr UINT  kDefaultShadowSize = 2048;
 
     // Lay a premultiplied texture over the whole bound target as one quad --
@@ -262,7 +271,7 @@ private:
     HRESULT  CreateShaders      ();
     HRESULT  CreatePipelineState ();
     HRESULT  EnsureVertexBuffer (size_t requiredVerts);
-    HRESULT  EnsureShadowMap    (int slot);
+    HRESULT  EnsureShadowMap    (int slot, UINT texels);
     void     IssueShadowDraw    (ID3D11Buffer * vertexBuffer, size_t vertexCount);
 
     // One light's depth of the whole scene. Depth-only: no color target is
@@ -276,8 +285,7 @@ private:
         UINT                              size = 0;
     };
 
-    ShadowMap                         m_shadow[kShadowLights];
-    UINT                              m_shadowSize = kDefaultShadowSize;
+    ShadowMap                         m_shadow[kShadowMaps];
     int                               m_shadowSlot = -1;   // >= 0 inside a pass
     ComPtr<ID3D11DepthStencilState>   m_shadowDepthState;
     ComPtr<ID3D11RasterizerState>     m_shadowRasterState;

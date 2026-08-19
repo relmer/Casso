@@ -30,6 +30,16 @@ public:
     static void  Identity44       (float out[16]);
     static void  Mul44            (const float a[16], const float b[16], float out[16]);
     static void  LookAtRH         (const float eye[3], const float at[3], float out[16]);
+
+    // LookAtRH with the up vector named rather than assumed. Needed the moment
+    // a camera looks along what the caller calls "up": the desk scene's device
+    // lamps face -Y in MODEL space, where +Y is back rather than up, so the
+    // fixed-up form divides by a zero-length cross product and fills the matrix
+    // with NaN -- silently, since a NaN shadow lookup simply misses and reads
+    // as unshadowed. Picks a substitute up when the two are parallel, so it
+    // always returns a usable basis.
+    static void  LookAtUpRH       (const float eye[3], const float at[3],
+                                    const float up[3], float out[16]);
     static void  PerspectiveFovRH (float fovY, float aspect, float zn, float zf, float out[16]);
 
     // General 4x4 inverse by cofactor expansion. Returns false (and identity)

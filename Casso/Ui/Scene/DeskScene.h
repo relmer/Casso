@@ -325,8 +325,31 @@ private:
     static constexpr float  kShadowBias      = 0.0016f;
     static constexpr float  kShadowStrength  = 0.72f;
 
-    float  m_lightVp[2][16] = {};
-    bool   m_shadowsReady   = false;
+    // The lamp's map covers only the inside of one housing rather than the
+    // whole desk, so a far smaller one resolves the same millimetre of detail.
+    // Its slots are the renderer's 2 and 3: the monitor's lamp and the drive's
+    // are different lamps in different model spaces and cannot share a map,
+    // but BOTH drives can share one, because they are the same model.
+    static constexpr UINT   kLampShadowTexels = 1024;
+    static constexpr float  kLampShadowBias   = 0.0035f;
+    static constexpr int    kLampSlotMonitor  = 2;
+    static constexpr int    kLampSlotDrive    = 3;
+
+    // How wide the lamp's frustum opens. Generous: what it has to hold is not
+    // the lamp's own reach but everything its light can land on inside the
+    // housing, and the notch floor sits well off the lens's axis.
+    static constexpr float  kLampShadowFovDeg = 120.0f;
+
+    HRESULT  FillLampShadow (const DeskSceneModel & model,
+                             int                    slot,
+                             Dxui3DRenderer::StaticMesh & mesh,
+                             uint32_t               revision,
+                             float                  outVp[16]);
+
+    float  m_lightVp[2][16]    = {};
+    float  m_lampVp[2][16]     = {};   // [0] monitor, [1] drive
+    bool   m_lampVpValid[2]    = {};
+    bool   m_shadowsReady      = false;
 
     static void  TintInto (const std::vector<Dxui3DRenderer::Vertex> & base,
                            float                                       factor,

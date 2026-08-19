@@ -73,18 +73,64 @@ void SceneCamera::Mul44 (const float a[16], const float b[16], float out[16])
 
 void SceneCamera::LookAtRH (const float eye[3], const float at[3], float out[16])
 {
+    const float   up[3] = { 0.0f, 1.0f, 0.0f };
+
+    LookAtUpRH (eye, at, up, out);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SceneCamera::LookAtUpRH
+//
+//  The general form, with up given. The parallel case is the whole reason this
+//  exists: cross(up, z) is zero-length when the view direction lies along up,
+//  and dividing by that length fills every basis vector with NaN. Nothing
+//  downstream notices -- a NaN comparison is false, so a NaN shadow lookup
+//  reports "nothing in the way" and the light simply never gets occluded.
+//  Substituting a different up is not a fudge: any vector off the view axis
+//  gives a valid frame, and which one it is only decides the roll, which for a
+//  square shadow map is not observable.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SceneCamera::LookAtUpRH (const float eye[3], const float at[3],
+                              const float up[3], float out[16])
+{
     float   z[3] = { eye[0] - at[0], eye[1] - at[1], eye[2] - at[2] };
     float   zl   = std::sqrt (z[0] * z[0] + z[1] * z[1] + z[2] * z[2]);
+    float   u[3] = { up[0], up[1], up[2] };
     float   x[3] = {};
     float   xl   = 0.0f;
     float   y[3] = {};
 
     z[0] /= zl; z[1] /= zl; z[2] /= zl;
 
-    // x = normalize(cross(up, z)) with up = (0,1,0)
-    x[0] = z[2]; x[1] = 0.0f; x[2] = -z[0];
-    xl   = std::sqrt (x[0] * x[0] + x[2] * x[2]);
-    x[0] /= xl; x[2] /= xl;
+    // x = normalize(cross(up, z))
+    x[0] = u[1] * z[2] - u[2] * z[1];
+    x[1] = u[2] * z[0] - u[0] * z[2];
+    x[2] = u[0] * z[1] - u[1] * z[0];
+    xl   = std::sqrt (x[0] * x[0] + x[1] * x[1] + x[2] * x[2]);
+
+    if (xl < 1e-4f)
+    {
+        // Up lies along the view axis. Any other direction serves; take the
+        // world axis the view direction leans on least, which cannot itself
+        // be parallel to it.
+        u[0] = (std::abs (z[0]) < 0.9f) ? 1.0f : 0.0f;
+        u[1] = 0.0f;
+        u[2] = (std::abs (z[0]) < 0.9f) ? 0.0f : 1.0f;
+
+        x[0] = u[1] * z[2] - u[2] * z[1];
+        x[1] = u[2] * z[0] - u[0] * z[2];
+        x[2] = u[0] * z[1] - u[1] * z[0];
+        xl   = std::sqrt (x[0] * x[0] + x[1] * x[1] + x[2] * x[2]);
+    }
+
+    x[0] /= xl; x[1] /= xl; x[2] /= xl;
 
     // y = cross(z, x)
     y[0] = z[1] * x[2] - z[2] * x[1];

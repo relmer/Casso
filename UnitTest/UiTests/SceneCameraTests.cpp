@@ -105,6 +105,57 @@ public:
         }
     }
 
+    // A camera looking ALONG its up vector. cross(up, forward) is zero-length
+    // there, and dividing by that length fills the matrix with NaN -- which is
+    // silent, because every later comparison against a NaN is simply false. It
+    // cost a shadow pass that rendered, sampled, and occluded nothing while
+    // reporting success at every step.
+    TEST_METHOD (LookAtUpRH_Looking_Along_Up_Still_Gives_A_Usable_Basis)
+    {
+        const float  eye[3]   = { 10.0f, 20.0f, 30.0f };
+        const float  at[3]    = { 10.0f, -80.0f, 30.0f };   // straight down -Y
+        const float  up[3]    = { 0.0f, 1.0f, 0.0f };   // ...which is up
+        float        view[16] = {};
+        float        out[3]   = {};
+
+        SceneCamera::LookAtUpRH (eye, at, up, view);
+
+        for (int i = 0; i < 16; i++)
+        {
+            Assert::IsFalse (std::isnan (view[i]), L"view matrix has a NaN");
+        }
+
+        // The eye maps to the origin and the target lands straight ahead:
+        // right-handed, so "ahead" is negative z.
+        Assert::IsTrue (SceneCamera::TransformPoint (view, eye, out));
+        Assert::AreEqual (0.0f, out[0], 1e-3f);
+        Assert::AreEqual (0.0f, out[1], 1e-3f);
+        Assert::AreEqual (0.0f, out[2], 1e-3f);
+
+        Assert::IsTrue (SceneCamera::TransformPoint (view, at, out));
+        Assert::AreEqual (0.0f, out[0], 1e-3f);
+        Assert::AreEqual (0.0f, out[1], 1e-3f);
+        Assert::AreEqual (-100.0f, out[2], 1e-2f);
+    }
+
+    // The ordinary case still routes through the same code and must not move.
+    TEST_METHOD (LookAtUpRH_With_Y_Up_Matches_LookAtRH)
+    {
+        const float  eye[3] = { 3.0f, 4.0f, 5.0f };
+        const float  at[3]  = { -2.0f, 1.0f, -6.0f };
+        const float  up[3]  = { 0.0f, 1.0f, 0.0f };
+        float        a[16]  = {};
+        float        b[16]  = {};
+
+        SceneCamera::LookAtRH   (eye, at, a);
+        SceneCamera::LookAtUpRH (eye, at, up, b);
+
+        for (int i = 0; i < 16; i++)
+        {
+            Assert::AreEqual (a[i], b[i], 1e-5f);
+        }
+    }
+
     TEST_METHOD (Inverse44_Singular_Reports_False)
     {
         float  zero[16] = {};

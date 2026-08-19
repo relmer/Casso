@@ -403,6 +403,23 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
         {
             lighting.lampColor[i] = lampRgb[i];
         }
+
+        // Which lamp map: the monitor's and the drive's are different lamps in
+        // different model spaces. Nothing needs folding into the matrix here,
+        // because the map was drawn in the very space this draw submits.
+        {
+            bool  isMonitor = (&model == &m_monitor);
+            int   which     = isMonitor ? 0 : 1;
+
+            if (m_lampVpValid[which])
+            {
+                memcpy (lighting.lampShadow, m_lampVp[which], sizeof (lighting.lampShadow));
+
+                lighting.lampShadowSlot  = isMonitor ? kLampSlotMonitor : kLampSlotDrive;
+                lighting.lampShadowTexel = 1.0f / (float) kLampShadowTexels;
+                lighting.lampShadowBias  = kLampShadowBias;
+            }
+        }
     }
 
     m_renderer.SetLighting (lighting);
@@ -860,6 +877,81 @@ void DeskScene::SceneBoundsWorld (const DeskSceneComposition & comp,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::FillLampShadow
+//
+//  Depth of one device's own body as seen from its lamp, in that device's model
+//  space -- so the matrix the shader gets needs no placement folded in, unlike
+//  the room lights' shared world-space maps.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::FillLampShadow (const DeskSceneModel       & model,
+                                   int                          slot,
+                                   Dxui3DRenderer::StaticMesh & mesh,
+                                   uint32_t                     revision,
+                                   float                        outVp[16])
+{
+    HRESULT          hr       = S_OK;
+    D3D11_VIEWPORT   vp       = {};
+    float            view[16] = {};
+    float            proj[16] = {};
+    float            eye[3]   = {};
+    float            at[3]    = {};
+
+
+    {
+        bool  hasLamp = !model.Lamps().empty();
+
+        CBREx (hasLamp, E_UNEXPECTED);
+    }
+
+    {
+        const DeskLampAnchor &  anchor = model.Lamps().front();
+
+        eye[0] = anchor.center[0];
+        eye[1] = anchor.frontY;
+        eye[2] = anchor.center[2];
+
+        // Looking the way the lens faces, which is -Y toward the viewer.
+        at[0] = eye[0];
+        at[1] = eye[1] - 100.0f;
+        at[2] = eye[2];
+    }
+
+    // Up is the model's +Z here, NOT the fixed (0,1,0) LookAtRH assumes: in
+    // model space +Y is BACK, which is exactly where this camera looks.
+    {
+        const float  up[3] = { 0.0f, 0.0f, 1.0f };
+
+        SceneCamera::LookAtUpRH (eye, at, up, view);
+    }
+
+    SceneCamera::PerspectiveFovRH (kLampShadowFovDeg * 3.14159265f / 180.0f, 1.0f,
+                                    0.5f, Dxui3DRenderer::Lighting{}.lampRange, proj);
+    SceneCamera::Mul44            (view, proj, outVp);
+
+    hr = m_renderer.BeginShadowPass (slot, kLampShadowTexels);
+    CHRA (hr);
+
+    vp.Width    = (float) kLampShadowTexels;
+    vp.Height   = (float) kLampShadowTexels;
+    vp.MaxDepth = 1.0f;
+
+    hr = m_renderer.DrawStatic (mesh, model.OpaqueVerts().data(), model.OpaqueVerts().size(),
+                                revision, outVp, false, vp, true);
+
+    m_renderer.EndShadowPass();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::RenderShadowMaps
 //
 //  One depth pass per room light, every device drawn into the same map so the
@@ -884,7 +976,6 @@ HRESULT DeskScene::RenderShadowMaps (const DeskSceneComposition & comp,
 
     m_shadowsReady = false;
 
-    m_renderer.SetShadowMapSize (kShadowMapTexels);
     SceneBoundsWorld (comp, lo, hi);
 
     CBREx (hi[0] >= lo[0], E_UNEXPECTED);
@@ -923,7 +1014,7 @@ HRESULT DeskScene::RenderShadowMaps (const DeskSceneComposition & comp,
                                         dist + radius, proj);
         SceneCamera::Mul44            (view, proj, m_lightVp[k]);
 
-        hr = m_renderer.BeginShadowPass (k);
+        hr = m_renderer.BeginShadowPass (k, kShadowMapTexels);
         CHRA (hr);
 
         SceneCamera::Mul44 (comp.monitorWorld, m_lightVp[k], mvp);
@@ -945,6 +1036,22 @@ HRESULT DeskScene::RenderShadowMaps (const DeskSceneComposition & comp,
 
         m_renderer.EndShadowPass();
         CHRA (hr);
+    }
+
+    // The lamps get their own, one per device MODEL: both drives share the
+    // drive map because they are the same geometry seen from the same lamp in
+    // the same model space, which is only true because the map is not in world
+    // space the way the room lights are.
+    {
+        HRESULT  hrMonitorLamp = FillLampShadow (m_monitor, kLampSlotMonitor,
+                                                  m_monitorOpaqueMesh[0], m_geometryRev,
+                                                  m_lampVp[0]);
+        HRESULT  hrDriveLamp   = FillLampShadow (m_drive, kLampSlotDrive,
+                                                  m_driveOpaqueMesh[0], m_geometryRev,
+                                                  m_lampVp[1]);
+
+        m_lampVpValid[0] = SUCCEEDED (hrMonitorLamp);
+        m_lampVpValid[1] = SUCCEEDED (hrDriveLamp);
     }
 
     m_shadowsReady = true;

@@ -70,9 +70,12 @@ static const char s_kPixelShaderSrc[] =
     "    row_major float4x4 shadow0;\n"
     "    row_major float4x4 shadow1;\n"
     "    float4 shadowParm;   // x texel (0 disables), y bias, z strength\n"
+    "    row_major float4x4 lampShadow;\n"
+    "    float4 lampShadowParm;   // x texel (0 disables), y bias\n"
     "};\n"
     "Texture2D              shadowTex0 : register(t1);\n"
     "Texture2D              shadowTex1 : register(t2);\n"
+    "Texture2D              lampShadowTex : register(t3);\n"
     "SamplerComparisonState shadowSamp : register(s1);\n"
     "struct PSIn { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float4 col : COLOR;\n"
     "              float3 nrm : NORMAL;      float3 emi : COLOR1;   float3 wp : TEXCOORD1; };\n"
@@ -142,9 +145,12 @@ static const char s_kPixelShaderSrc[] =
     "        float3 amb = lerp (ambDown.rgb, ambUp.rgb, saturate (n.z * 0.5f + 0.5f));\n"
     "        float  ramp = parm.y * (1.0f - exp (-diff * parm.z));\n"
     "        lit = base.rgb * (amb + ramp) + spec * parm.w;\n"
-    "        // The device's own lamp. No shadow rays: a face inside the notch\n"
-    "        // points at the lens and lights, a face on the outside points\n"
-    "        // away and does not, which is most of what the tracing bought.\n"
+    // The device's own lamp, with its own occlusion. Facing the lens was once
+    // taken as proof of seeing it -- "a face inside the notch points at the
+    // lens and lights" -- and that is wrong wherever something stands between
+    // the two. The notch floor ahead of the power button is exactly that case:
+    // it points squarely at the lamp and the button blocks every ray.
+
     "        if (dot (lampCol.rgb, lampCol.rgb) > 0.0f)\n"
     "        {\n"
     "            float3 d  = lampPos.xyz - input.wp;\n"
@@ -163,7 +169,31 @@ static const char s_kPixelShaderSrc[] =
     "                float  recv = saturate (dot (n, L));\n"
     "                float  rr   = max (r, lampPos.w);\n"
     "                float  fade = saturate (1.0f - r / lampDir.w);\n"
-    "                lit += base.rgb * lampCol.rgb * emit * recv * fade *\n"
+    "                float  lvis = 1.0f;\n"
+    "                if (lampShadowParm.x > 0.0f && emit * recv > 0.0f)\n"
+    "                {\n"
+    "                    float4 lc = mul (float4 (input.wp, 1.0f), lampShadow);\n"
+    "                    if (lc.w > 0.0f)\n"
+    "                    {\n"
+    "                        float3 p  = lc.xyz / lc.w;\n"
+    "                        float2 uv = float2 (p.x * 0.5f + 0.5f, 0.5f - p.y * 0.5f);\n"
+    "                        if (max (abs (p.x), abs (p.y)) <= 1.0f && p.z >= 0.0f && p.z <= 1.0f)\n"
+    "                        {\n"
+    "                            float acc = 0.0f;\n"
+    "                            float ref = p.z - lampShadowParm.y;\n"
+    "                            [unroll] for (int ly = -1; ly <= 1; ly++)\n"
+    "                            {\n"
+    "                                [unroll] for (int lx = -1; lx <= 1; lx++)\n"
+    "                                {\n"
+    "                                    float2 o = uv + float2 (lx, ly) * lampShadowParm.x;\n"
+    "                                    acc += lampShadowTex.SampleCmpLevelZero (shadowSamp, o, ref);\n"
+    "                                }\n"
+    "                            }\n"
+    "                            lvis = acc / 9.0f;\n"
+    "                        }\n"
+    "                    }\n"
+    "                }\n"
+    "                lit += base.rgb * lampCol.rgb * emit * recv * fade * lvis *\n"
     "                       (lampPos.w * lampPos.w) / (rr * rr);\n"
     "            }\n"
     "        }\n"
@@ -302,7 +332,7 @@ void Dxui3DRenderer::Shutdown()
     m_shadowSampler.Reset();
     m_shadowSavedRtv.Reset();
     m_shadowSavedDsv.Reset();
-    for (int i = 0; i < kShadowLights; i++)
+    for (int i = 0; i < kShadowMaps; i++)
     {
         m_shadow[i].tex.Reset();
         m_shadow[i].dsv.Reset();
@@ -597,7 +627,7 @@ HRESULT Dxui3DRenderer::CreatePipelineState()
         // every device in its own model space, so the light positions change
         // with each device rather than once per frame -- and so do the two
         // shadow matrices, which carry that device's placement.
-        cb.ByteWidth = 19 * 4 * sizeof (float);
+        cb.ByteWidth = 24 * 4 * sizeof (float);
 
         hr = m_device->CreateBuffer (&cb, nullptr, m_lightBuffer.GetAddressOf());
         CHR (hr);
@@ -803,21 +833,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetShadowMapSize
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Dxui3DRenderer::SetShadowMapSize (UINT texels)
-{
-    m_shadowSize = (texels < 256) ? 256 : texels;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  EnsureShadowMap
 //
 //  A typeless depth texture, because the same surface is written as a DSV in
@@ -826,7 +841,7 @@ void Dxui3DRenderer::SetShadowMapSize (UINT texels)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Dxui3DRenderer::EnsureShadowMap (int slot)
+HRESULT Dxui3DRenderer::EnsureShadowMap (int slot, UINT texels)
 {
     HRESULT                          hr   = S_OK;
     D3D11_TEXTURE2D_DESC             desc = {};
@@ -835,9 +850,9 @@ HRESULT Dxui3DRenderer::EnsureShadowMap (int slot)
 
 
 
-    CBREx (slot >= 0 && slot < kShadowLights, E_INVALIDARG);
+    CBREx (slot >= 0 && slot < kShadowMaps, E_INVALIDARG);
 
-    if (m_shadow[slot].dsv != nullptr && m_shadow[slot].size == m_shadowSize)
+    if (m_shadow[slot].dsv != nullptr && m_shadow[slot].size == texels)
     {
         return S_OK;
     }
@@ -846,8 +861,8 @@ HRESULT Dxui3DRenderer::EnsureShadowMap (int slot)
     m_shadow[slot].dsv.Reset();
     m_shadow[slot].srv.Reset();
 
-    desc.Width            = m_shadowSize;
-    desc.Height           = m_shadowSize;
+    desc.Width            = texels;
+    desc.Height           = texels;
     desc.MipLevels        = 1;
     desc.ArraySize        = 1;
     // 16 bits, not 32. The frustum spans about a metre of desk, so a texel of
@@ -877,7 +892,7 @@ HRESULT Dxui3DRenderer::EnsureShadowMap (int slot)
                                               m_shadow[slot].srv.GetAddressOf());
     CHR (hr);
 
-    m_shadow[slot].size = m_shadowSize;
+    m_shadow[slot].size = texels;
 
 Error:
     return hr;
@@ -898,7 +913,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Dxui3DRenderer::BeginShadowPass (int slot)
+HRESULT Dxui3DRenderer::BeginShadowPass (int slot, UINT texels)
 {
     HRESULT                   hr        = S_OK;
     ID3D11RenderTargetView *  noRtv     = nullptr;
@@ -906,10 +921,10 @@ HRESULT Dxui3DRenderer::BeginShadowPass (int slot)
 
 
     CBREx (m_device != nullptr && m_context != nullptr, E_UNEXPECTED);
-    CBREx (slot >= 0 && slot < kShadowLights, E_INVALIDARG);
+    CBREx (slot >= 0 && slot < kShadowMaps, E_INVALIDARG);
     CBREx (m_shadowSlot < 0, E_UNEXPECTED);
 
-    hr = EnsureShadowMap (slot);
+    hr = EnsureShadowMap (slot, (texels < 256) ? 256 : texels);
     CHR (hr);
 
     m_shadowSavedRtv.Reset();
@@ -1476,7 +1491,7 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
     m_context->Unmap (m_mvpBuffer.Get(), 0);
 
     {
-        float  lightCb[76] =
+        float  lightCb[96] =
         {
             m_lighting.light0[0], m_lighting.light0[1], m_lighting.light0[2], 0.0f,
             m_lighting.light1[0], m_lighting.light1[1], m_lighting.light1[2], 0.0f,
@@ -1500,6 +1515,14 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
         lightCb[73] = m_lighting.shadowBias;
         lightCb[74] = m_lighting.shadowStrength;
         lightCb[75] = 0.0f;
+
+        memcpy (&lightCb[76], m_lighting.lampShadow, 16 * sizeof (float));
+
+        lightCb[92] = (m_shadowSlot >= 0 || m_lighting.lampShadowSlot < 0)
+                    ? 0.0f : m_lighting.lampShadowTexel;
+        lightCb[93] = m_lighting.lampShadowBias;
+        lightCb[94] = 0.0f;
+        lightCb[95] = 0.0f;
 
         hr = m_context->Map (m_lightBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
         CHR (hr);
@@ -1555,13 +1578,16 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
     m_context->PSSetSamplers          (0, 1, m_sampler.GetAddressOf());
 
     {
-        ID3D11ShaderResourceView *  shadowSrvs[kShadowLights] =
+        int  lamp = m_lighting.lampShadowSlot;
+
+        ID3D11ShaderResourceView *  shadowSrvs[kShadowLights + 1] =
         {
             m_shadow[0].srv.Get(),
             m_shadow[1].srv.Get(),
+            (lamp >= 0 && lamp < kShadowMaps) ? m_shadow[lamp].srv.Get() : nullptr,
         };
 
-        m_context->PSSetShaderResources (1, kShadowLights, shadowSrvs);
+        m_context->PSSetShaderResources (1, kShadowLights + 1, shadowSrvs);
         m_context->PSSetSamplers        (1, 1, m_shadowSampler.GetAddressOf());
     }
 
@@ -1570,9 +1596,9 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
     // Unbind the SRVs so a later frame binding one as a render target -- which
     // the shadow pass genuinely does -- never hits a read/write hazard.
     {
-        ID3D11ShaderResourceView *  nullSrvs[1 + kShadowLights] = {};
+        ID3D11ShaderResourceView *  nullSrvs[2 + kShadowLights] = {};
 
-        m_context->PSSetShaderResources (0, 1 + kShadowLights, nullSrvs);
+        m_context->PSSetShaderResources (0, 2 + kShadowLights, nullSrvs);
     }
 
 Error:
