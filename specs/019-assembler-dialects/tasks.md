@@ -6,8 +6,36 @@ description: "Task list for 019-assembler-dialects"
 
 ## State of play
 
-*Updated 2026-08-17. Keep this current or delete it — a stale status block is
+*Updated 2026-08-18. Keep this current or delete it — a stale status block is
 read by whoever has no other way to check.*
+
+**THE VENDOR SOURCES ARE COMMITTED AS WINDOWS TEXT, AND THE MERLIN SUBCOMMAND
+CAN NAME ITS OUTPUT SHAPE (T092–T094). Both were user decisions.** Suite is
+**3411** Debug / **3408** Release, both green. Dormann and Harte pass, style and
+code analysis are clean (0 warnings), and `scripts/BuildDemoDisk.ps1` reproduces
+its committed image byte for byte.
+
+**The fixtures could not be read by the tool they test.** Stored as the disk
+holds them, the only decoder was in `UnitTest`, so the corpus was assemblable by
+the test project and by nothing else — `CassoCli merlin` pointed at a fixture
+saw question marks. Transcoding them made one file feed both, and made
+`scripts/RunMerlinOracles.ps1` possible: all six shipped objects reproduced
+through the executable, compared against the WHOLE file including the 4-byte
+header, which is stricter than the corpus tests are. **Objects were not
+touched.** The provenance chain now holds by re-running the extraction rather
+than by hashing in place, and the licensing reading it rests on is stated in the
+fixtures README rather than left implied.
+
+**`--dos-bin` and `--flat` needed no engine work.** All three writers existed in
+`CassoCore/OutputFormats` and the executable already dispatched on the shape for
+any dialect; only the merlin grammar refused to name them. The default is
+unchanged. **as65 still has no `--flat`**, so the vocabulary is not symmetric
+across the two dialects — deliberately left, because the as65 grammar is a
+hand-rolled walk and widening it is not this feature's business.
+
+**One gap this closed was recorded as open below and is now stale in that
+entry**: T073's note that a source containing `KBD` cannot be assembled from the
+command line was answered by the `-d` flag landing earlier on this branch.
 
 **THE FOUR DIVERGENCES THE CAPTURE FOUND ARE ALL FIXED (T082–T085), AND A FIFTH
 WAS FOUND AND LEFT OPEN.** Suite is **3391** Debug / **3388** Release, both green
@@ -1254,6 +1282,9 @@ The **one** sanctioned exception is T049a, removing the fallback heuristic: a de
 - [x] T074 Run `scripts/RunDormannTest.ps1` — required for assembler changes *(**Passes.** `6502_functional_test.a65` assembles under `as65` to a 65536-byte flat binary with 4 warnings and no errors. The downloads were real payloads, not error pages: 148497 bytes of source and a 65536-byte reference. That check was made by hand, because **this branch's copy of the script does not carry `--fail` on its `curl.exe` calls** — the hardening commit `bcaf69a3` is the single commit master holds and this branch does not, so it arrives at merge rather than needing to be written here. The 52893 differing bytes against the reference are the documented pre-Jan-2020 `zps` shift and are informational.)*
 - [x] T075 Run `scripts/RunHarteTests.ps1 -SkipGenerate` — required for assembler changes *(**Passes, against the REDUCED set**, which the runner states rather than leaves to be assumed: 153 6502 opcodes and 256 rockwell65c02 opcodes, **200 vectors each** — 81800 vectors — resolved from the checked-in `UnitTest/HarteVectors/`. No full-depth set exists on this machine (`%LOCALAPPDATA%\Casso\HarteTests` absent, `CASSO_HARTE_DIR` unset), so this run is NOT the 10000/opcode evidence and must not be read as it. Suite 3391/3391 Debug.)*
 - [x] T076 Run `scripts/Build.ps1 -RunCodeAnalysis` and `scripts/CheckStyle.ps1`, and confirm x64 Debug and Release are both green *(**All three pass.** Code analysis: **0 warnings, 0 errors** across all eight projects, with `CodeAnalysisTreatWarningsAsErrors` on. CheckStyle: 84 files checked over the lines added between `origin/master` and `HEAD` — OK. Suite: **Debug 3391/3391** against a `UnitTest.dll` the analysis build had just relinked, **Release 3388/3388**, no `EhmAssert` in the Release run. The Release DLL is the one already on disk: an incremental Release build found nothing to do, and `RunTests.ps1`'s staleness guard — which compares the assembly against the newest tracked source — let the run proceed, so it is up to date rather than stale. `-AllowStale` was not used.)*
+- [x] T092 [US1] Commit the vendor SOURCES as ordinary Windows text — seven-bit ASCII, CRLF, no BIN header — and read them without decoding *(**Done, and the reason is stronger than convenience.** The only decoder lived in `UnitTest/MerlinCorpus/MerlinFixture.cpp`, so a fixture was readable by the test project and by nothing else: `CassoCli merlin` takes text off the host filesystem and saw question marks. The corpus that measures the dialect could not be fed to the tool the dialect ships in. **Lossless for everything the assembler can see** — across all ten sources the only bytes below `$80` were spaces, and the parser already accepted CR, LF and CRLF. What went is the stored spelling of a space, `$A0` between fields against `$20` inside comment text, which looked like a free lexer and was true only of files authored on a Merlin disk; it is now absent rather than merely forbidden. **Objects were NOT touched** — they are the expectation, so transforming them transforms the answer. The type-B/type-T split in the loader went with the headers, and the two decode tests became one sweep over all ten sources. `.gitattributes` states the classification per half rather than leaving it to the NUL heuristic, and a test pins the CRLF so the attribute cannot be dropped silently.)*
+- [x] T093 [US1] Make `scripts/ExtractMerlinFixtures.ps1` transcode as it extracts, take `-Verbatim`, and record both hashes *(**Done, and the transcode is verified rather than assumed**: run against the pre-conversion bytes it reproduces all ten committed files byte for byte, so a future `-Force` run from the hash-pinned disk regenerates what is committed instead of quietly reverting it. This is what replaced "every file is byte-identical to the disk" as the provenance claim — the chain is re-run rather than hashed in place, and `README.md` carries both figures per file. **The licensing reading is stated rather than implied**: the ND term forbids an adaptation, and reproducing a work in another format is not one. `-Verbatim` exists so that reading can be reversed without archaeology.)*
+- [x] T094 Add `--dos-bin` and `--flat` to the merlin grammar, and an end-to-end script that reproduces every shipped object through the executable *(**Done, with no engine work**: `CassoCore/OutputFormats` already had all three writers and `CassoCli` already dispatched on the shape for any dialect — only the grammar refused to name them. Shapes are a TABLE for the reason the flag table is one, with sweeps in both directions so an accepted-but-undocumented shape and a documented-but-unmatched one both fail. **They are matched as whole words ahead of the letter loop, which a test pins**: `--flat` read a character at a time is `-f -l -a -t`, and the `l` arm generates a listing, so the failure would be an unasked-for output file rather than a warning. Mutating the early match away fails that test and the shape sweep. `scripts/RunMerlinOracles.ps1` reproduces all six objects through the exe and compares the WHOLE file including the header, which is stricter than the corpus tests. **as65 still has no `--flat`** — left deliberately, since widening a hand-rolled walk is not this feature's business.)*
 - [ ] T077a Update `CLAUDE.md`'s spec inventory **at merge time**, not before: move 019 from "drafted but NOT started" to shipped, and strike the sequencing note that says 023 must wait on it — 023's gate is satisfied once this lands. Deliberately deferred rather than done during the feature, because `CLAUDE.md` names spec 020 as active and the concurrent session owns that block; editing it early would put the two specs in conflict on a shared file. Leave the active-spec pointer alone entirely — that is 020's to change
 - [ ] T077 Revert `.specify/feature.json` to `specs/020-disk-file-access` before merging, so master does not thrash between two concurrent specs. This is the **only** mechanism for that file — plan.md states the same, and staging by explicit path throughout the feature is what keeps it from being committed accidentally in the meantime
 
