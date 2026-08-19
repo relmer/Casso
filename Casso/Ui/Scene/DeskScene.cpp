@@ -1124,7 +1124,11 @@ HRESULT DeskScene::DrawDrives (const DeskSceneComposition & comp, const D3D11_VI
             CHRA (hr);
         }
 
-        if (!m_driveLabelVerts[drive].empty())
+        // The drive number is a STICKER, not part of the drive. A real Disk II
+        // leaves the factory without one; an owner adds them to tell a pair
+        // apart, which is a problem only a pair has. One drive is unambiguous
+        // and wears none, so the scene stops inventing a label for it.
+        if (comp.driveCount > 1 && !m_driveLabelVerts[drive].empty())
         {
             hr = m_renderer.DrawStatic (m_labelMesh[drive], m_driveLabelVerts[drive].data(), m_driveLabelVerts[drive].size(), m_geometryRev,
                                            mvp, false, viewport, true);
