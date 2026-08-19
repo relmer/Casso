@@ -37,41 +37,54 @@ repository:
 
 1. **These files are not MIT.** Casso is MIT; this directory is not. The
    distinction is per-file, not per-repository, and it stops at this directory.
-2. **They are unmodified and must stay that way.** The ND term forbids
-   distributing altered copies, and the fixtures are worthless as an oracle the
-   moment they stop being what the vendor shipped. Never "fix" a fixture to make
-   a test pass — a mismatch is a finding about Casso, not about the file.
+2. **The CONTENT is unmodified and must stay that way.** Never "fix" a fixture
+   to make a test pass — a mismatch is a finding about Casso, not about the
+   file. The objects are the vendor's bytes exactly. The sources are the
+   vendor's text in a different encoding: bit 7 masked off and CR terminators
+   written as CRLF, which is a format shift rather than an edit — not one
+   character of Bredon's source is added, removed or altered. The ND term
+   forbids distributing an *adaptation*, and reproducing a work in another
+   format is not one; that is the reading this directory rests on, stated so it
+   can be disagreed with. If it is ever judged wrong,
+   `scripts/ExtractMerlinFixtures.ps1 -Verbatim -Force` puts the disk bytes
+   back.
 3. **Non-commercial.** Anyone redistributing Casso commercially needs to remove
    this directory and the tests that depend on it.
 
-Every file here is byte-identical to the corresponding file on the disk. That is
-checkable rather than asserted: `scripts/ExtractMerlinFixtures.ps1` re-derives
-all of them from a hash-pinned disk image, so the provenance chain from
-archive.org to this directory can be re-run end to end at any time.
+Every file here is re-derivable from the disk, which is checkable rather than
+asserted: `scripts/ExtractMerlinFixtures.ps1` regenerates all of them from a
+hash-pinned image, so the provenance chain from archive.org to this directory
+can be re-run end to end at any time. That re-run is what replaced "every file
+is byte-identical to the disk" when the sources stopped being — the inventory
+records two hashes for each file, what is committed and what came off the disk,
+and for an object the two are one figure.
 
 ## Inventory
 
-Sizes are the complete stored file including the 4-byte DOS 3.3 BIN header;
-`Load` and `Length` are that header's contents.
+`Bytes` is the committed file and `Form` is how it is stored: `verbatim` for the
+disk's own bytes, `text` for a source transcoded to Windows text. `Load` and
+`Length` are the DOS 3.3 header the file carried on the disk. A transcoded
+source no longer carries that header, and the figures stay here because they are
+evidence about the artifact rather than about the copy of it.
 
-| File | Bytes | Load | Length | SHA-256 |
-|---|---:|---|---:|---|
-| `LABELS.S` | 2082 | `$0901` | 2078 | `88D570C969C435D13FC6D26D3660BC3AFF426F72B0023572DC4B8086B7C87324` |
-| `LABELS` | 988 | `$8000` | 984 | `748E0AD18DC14864F9980271D18173CD6C322FB926469CE01A5C40DFD5D81957` |
-| `KEYMAC.S` | 5967 | `$0901` | 5963 | `999A08374C8E28D6806030CDDAFF6F44C6A19C6E6FE05505B1B1A9A34EDD382A` |
-| `KEYMAC` | 678 | `$9000` | 674 | `2A74B88E177D13D21E756EAF16EF00A029BEF91F9DA009A5E2BAF110F68612A8` |
-| `PRINTFILER.S` | 4426 | `$0901` | 4422 | `C8A014B7F16EAF6E83A36F1B3C9CB7C52746CA808C5F9D4C272207A9F213DE5F` |
-| `PRINTFILER` | 290 | `$02A0` | 286 | `024ED3AB8F456CB3FA09BE0690373740E24873DC0740F95351D8198B273B0967` |
-| `MAKE DUMP.S` | 6663 | `$0901` | 6659 | `E92EA7F5326DB382BF9056CFAB9B33F158C8D936D170AA53031DEA69D3D66630` |
-| `MAKE DUMP` | 593 | `$9000` | 589 | `1F4B0CACAC1E3B8345495936400E9131DAB69EE457127BC5F1A5DA2EA6F3F542` |
-| `CLOCK.S` | 6026 | `$0901` | 6022 | `1DD11665B922A5278B7E5FAC89D51ED8D125396581CEFF79EE816394841182CD` |
-| `CLOCK.24` | 369 | `$0240` | 365 | `45312FACAE405CFDA35190914DA355434B23FF45B32A746B18540AC6AC9DE297` |
-| `CLOCK.12` | 369 | `$0240` | 365 | `822E1B28A0E53D75D50666D1C3D9A159A2611F31D6AEBD67EB4F5DF913894B64` |
-| `PI.START.S` | 3187 | `$0901` | 3183 | `BF3E2099A0A5CCF54FC8D51329BC605154795B0A0D93A3D69FC2D7164373941A` |
-| `PI.ADD.S` | 2037 | `$0901` | 2033 | `ADFAB2BFEFA955B0B4E6737D6C3305C1F3EDEACB1970EB3C4C6EF50CDB7D754E` |
-| `T.PI.MACS` | 1084 | *(type T)* | 1084 | `2DB71CEF45DD5DDF94A4DC195D76D1EE067F79D1950066ADB15F89A8DC0A7C9B` |
-| `T.SENDMSG` | 149 | *(type T)* | 149 | `E3C13A00775F445E01EE90A8EF3965491CE84A4494841181A6D1C403572475FC` |
-| `T.MACRO LIBRARY` | 1615 | *(type T)* | 1615 | `FA37CFB3E5B9E240263E14622824C6EA44CF760549353F7074151EC77EB62D47` |
+| File | Bytes | Form | Load | Length | SHA-256 (committed) | SHA-256 (on disk) |
+|---|---:|---|---|---:|---|---|
+| `LABELS.S` | 2195 | text | `$0901` | 2078 | `FA3BC2D861CF1321437B067C9ED0EDD3A4F6F4FDBA34EC00C5664BE6A150489F` | `88D570C969C435D13FC6D26D3660BC3AFF426F72B0023572DC4B8086B7C87324` |
+| `LABELS` | 988 | verbatim | `$8000` | 984 | `748E0AD18DC14864F9980271D18173CD6C322FB926469CE01A5C40DFD5D81957` | `748E0AD18DC14864F9980271D18173CD6C322FB926469CE01A5C40DFD5D81957` |
+| `KEYMAC.S` | 6270 | text | `$0901` | 5963 | `8A63F2ABA77C081470255B39B8EA3CE82D9B3E6F5CA877A74DE44E925CF95277` | `999A08374C8E28D6806030CDDAFF6F44C6A19C6E6FE05505B1B1A9A34EDD382A` |
+| `KEYMAC` | 678 | verbatim | `$9000` | 674 | `2A74B88E177D13D21E756EAF16EF00A029BEF91F9DA009A5E2BAF110F68612A8` | `2A74B88E177D13D21E756EAF16EF00A029BEF91F9DA009A5E2BAF110F68612A8` |
+| `PRINTFILER.S` | 4637 | text | `$0901` | 4422 | `160739D730B22E280CD5CD81476710DC7D35D21C5F581BA11B030BBFD6CDE5CD` | `C8A014B7F16EAF6E83A36F1B3C9CB7C52746CA808C5F9D4C272207A9F213DE5F` |
+| `PRINTFILER` | 290 | verbatim | `$02A0` | 286 | `024ED3AB8F456CB3FA09BE0690373740E24873DC0740F95351D8198B273B0967` | `024ED3AB8F456CB3FA09BE0690373740E24873DC0740F95351D8198B273B0967` |
+| `MAKE DUMP.S` | 7034 | text | `$0901` | 6659 | `659327D3A50E5475FBDF368618526D61FA2483F6726134808EBAECFFD54735BE` | `E92EA7F5326DB382BF9056CFAB9B33F158C8D936D170AA53031DEA69D3D66630` |
+| `MAKE DUMP` | 593 | verbatim | `$9000` | 589 | `1F4B0CACAC1E3B8345495936400E9131DAB69EE457127BC5F1A5DA2EA6F3F542` | `1F4B0CACAC1E3B8345495936400E9131DAB69EE457127BC5F1A5DA2EA6F3F542` |
+| `CLOCK.S` | 6298 | text | `$0901` | 6022 | `C22B12F0397E8A9D623FD4066C4CCDCC243D3FC784998103C9EB73976AC57F7D` | `1DD11665B922A5278B7E5FAC89D51ED8D125396581CEFF79EE816394841182CD` |
+| `CLOCK.24` | 369 | verbatim | `$0240` | 365 | `45312FACAE405CFDA35190914DA355434B23FF45B32A746B18540AC6AC9DE297` | `45312FACAE405CFDA35190914DA355434B23FF45B32A746B18540AC6AC9DE297` |
+| `CLOCK.12` | 369 | verbatim | `$0240` | 365 | `822E1B28A0E53D75D50666D1C3D9A159A2611F31D6AEBD67EB4F5DF913894B64` | `822E1B28A0E53D75D50666D1C3D9A159A2611F31D6AEBD67EB4F5DF913894B64` |
+| `PI.START.S` | 3397 | text | `$0901` | 3183 | `A472B5CD0E76B84B0F4FBDA7AB164C84F86E6BB0824DE39E96B28C3484442779` | `BF3E2099A0A5CCF54FC8D51329BC605154795B0A0D93A3D69FC2D7164373941A` |
+| `PI.ADD.S` | 2179 | text | `$0901` | 2033 | `45062991B227A9247FC206CFDA1301DE986C2885C075ADB8ED89BBB1716AB168` | `ADFAB2BFEFA955B0B4E6737D6C3305C1F3EDEACB1970EB3C4C6EF50CDB7D754E` |
+| `T.PI.MACS` | 1157 | text | *(type T)* | 1084 | `98124BDCB771992994C901A7FA47C7D4A4C202557F9B5DF063849642EED63807` | `2DB71CEF45DD5DDF94A4DC195D76D1EE067F79D1950066ADB15F89A8DC0A7C9B` |
+| `T.SENDMSG` | 164 | text | *(type T)* | 149 | `0CB09F8B9E5F185EDF559FDECFF3FC639608244AC66E4BA89BA728FA17199D10` | `E3C13A00775F445E01EE90A8EF3965491CE84A4494841181A6D1C403572475FC` |
+| `T.MACRO LIBRARY` | 1784 | text | *(type T)* | 1615 | `5A441FF4ED6206E500B299652C7A23E9EF161BF54CD95F6A22FB87D35BE61AF0` | `FA37CFB3E5B9E240263E14622824C6EA44CF760549353F7074151EC77EB62D47` |
 
 Source disk: `Merlin-proDos2.23.dsk`, 143360 bytes, SHA-256
 `CB7FD9522A3B90792ACBB00D6C811323DC046DC2920FC05A640858BFE611F0E6`.
@@ -235,68 +248,24 @@ byte-for-byte rather than by size.
 
 ## Encoding, and how to read these
 
-Files are stored exactly as DOS 3.3 held them, which means they are **not**
-directly usable as host text. To get source text:
+**Sources are ordinary Windows text.** Seven-bit ASCII, CRLF line endings, no
+header. Open one in any editor, or hand it straight to `CassoCli merlin` —
+`scripts/RunMerlinOracles.ps1` does exactly that and reproduces every shipped
+object byte for byte, which is a check that could not exist while these files
+were Apple II text the tool could not read.
 
-1. Skip the 4-byte BIN header — **type B only**, see below.
-2. Read `Length` bytes (bytes 2-3 of the header, little-endian).
-3. Mask off bit 7 of every byte.
-4. Translate `$8D` (`$0D` once masked) to a newline.
+**Objects are raw DOS 3.3 files.** Load address in bytes 0–1, length in bytes
+2–3, both little-endian, payload from offset 4. Compare assembler output against
+offset 4, not against the start of the file.
 
-**Step 1 does not apply to the type-T files.** DOS 3.3 gives a text file no
-header at all: `T.SENDMSG` and `T.PI.MACS` begin directly with their content, and
-`T.SENDMSG`'s first two characters are literally `SE`. Running the type-B path
-over one costs it four characters of real text.
+Checking that declared length against what was actually read costs nothing and
+catches a truncated or sector-padded extraction, which otherwise decodes into
+entirely plausible bytes. Every object here declares a length matching its
+payload exactly.
 
-Do not sniff the type from the bytes — that is the inference that works on the
-sample and fails on the next file. Take it from the inventory above, where a
-type-T row shows `Length` equal to the whole file and no load address.
-
-Checking the declared length against what was actually read catches the mistake
-for free: `T.SENDMSG`'s first four bytes read as a header claiming 50382 bytes of
-a 149-byte file, so the wrong reader fails loudly instead of quietly returning
-text with its first four characters missing. Every type-B fixture here has a
-declared length matching its payload exactly, so the check costs nothing when it
-passes — and it also catches a truncated or sector-padded extraction, which
-otherwise decodes into entirely plausible bytes.
-
-**Strip bit 7; never assert it.** The rule is worth stating precisely, because
-the obvious sanity check on high-bit ASCII is wrong here and fails immediately.
-
-Measured across all ten sources — the seven type-B `.S` files and all three
-type-T macro libraries — the only bytes with bit 7 clear are spaces; there is not
-one non-space byte below `$80` in any of them. But spaces appear *both* ways, and
-which one depends on where the space sits:
-
-```
-END BRK ;table end
-C5 CE C4 A0 C2 D2 CB A0 BB F4 E1 E2 EC E5 20 E5 EE E4
- E  N  D  ^   B  R  K  ^   ;  t  a  b  l  e  ^  e  n  d
-          $A0           $A0                  $20
-          field separators           inside comment text
-```
-
-Field-separating spaces carry bit 7; spaces inside comment text do not.
-`LABELS.S` alone holds 214 of the former and 81 of the latter. A decoder that
-asserts bit 7 dies on the first comment line of the first file, long before
-reaching anything subtle.
-
-**Do not build a parser on that distinction.** It is real in these bytes and
-absent everywhere else — source arriving from a host editor, from a disk read, or
-from a file Casso itself writes carries no such marking, so a lexer leaning on it
-would work only on files authored on a Merlin disk. `T.SENDMSG` settles it from
-inside the corpus: all 26 of its spaces are `$A0` and none are `$20`, so the
-distinction is not even uniform across vendor files. Collapse both forms to an
-ordinary space before anything parses them.
-
-`T.MACRO LIBRARY` shows the same split as the `.S` files — 237 spaces at `$A0`
-and 36 at `$20`, the low ones all inside comment text — which is worth noting
-only because it is the same file whose parsing this corpus most depends on.
-
-Objects are raw 6502 object code behind the same 4-byte header; compare against
-assembler output starting at offset 4. Bit 7 matters there too but for an
-unrelated reason: `DCI` marks its terminating character by **inverting** bit 7,
-so low-ASCII in an object is meaningful data rather than an encoding artifact.
+**Never assert bit 7 in an object.** `DCI` marks its terminating character by
+*inverting* it, so a byte below `$80` there is meaningful data rather than an
+encoding artifact.
 
 **Inverting, not clearing — and this corpus cannot tell the difference.** Every
 `DCI` on the disk is high-ASCII, so the terminator always ends up with bit 7
@@ -310,6 +279,37 @@ one directive: **these fixtures can only test what Bredon happened to write.**
 Byte-identity against them is the strongest available evidence for the cases they
 contain and says nothing about the cases they do not. Synthetic tests are not a
 lesser supplement to a corpus like this — they cover a different set.
+
+### What the transcoding discarded
+
+One thing, and it was never grammar. On the disk, spaces appear *both* ways, and
+which one depends on where the space sits:
+
+```
+END BRK ;table end
+C5 CE C4 A0 C2 D2 CB A0 BB F4 E1 E2 EC E5 20 E5 EE E4
+ E  N  D  ^   B  R  K  ^   ;  t  a  b  l  e  ^  e  n  d
+          $A0           $A0                  $20
+          field separators           inside comment text
+```
+
+Field-separating spaces carried bit 7; spaces inside comment text did not.
+`LABELS.S` alone held 214 of the former and 81 of the latter, and across all ten
+sources spaces were the *only* bytes below `$80` — not one non-space low byte in
+any of them. So masking changed no character's identity, and both forms are now
+one ordinary `$20`.
+
+**Losing it is the point.** The distinction was real in those bytes and absent
+everywhere else — source arriving from a host editor, from a disk read, or from a
+file Casso itself writes carries no such marking, so a lexer leaning on it would
+have worked only on files authored on a Merlin disk. `T.SENDMSG` settled that
+from inside the corpus: all 26 of its spaces were `$A0` and none `$20`, so the
+distinction was not even uniform across vendor files. It could never be grammar,
+and now it is not there to be mistaken for grammar.
+
+`T.MACRO LIBRARY` showed the same split as the `.S` files — 237 spaces at `$A0`
+and 36 at `$20`, the low ones all inside comment text — which is worth recording
+only because it is the file whose parsing this corpus most depends on.
 
 ## String encodings — what these fixtures can and cannot settle
 

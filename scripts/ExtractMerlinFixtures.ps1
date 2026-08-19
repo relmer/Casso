@@ -13,18 +13,38 @@
     because the expected bytes were produced by the assembler being emulated,
     on code nobody here chose.
 
-    Files are extracted VERBATIM -- the exact bytes DOS 3.3 stores, including
-    the 4-byte BIN header, with the high-bit ASCII left as it sits on the disk.
-    Two reasons. It keeps the fixtures provably identical to the vendor
-    artifact, so any of them can be re-derived from the disk and hash-compared
-    at any time; and verbatim copying is unambiguously what the disk's license
-    permits, where a transcoded copy invites an argument about derivative
-    works. Consumers decode; see UnitTest/Fixtures/Merlin/README.md.
+    Objects are extracted VERBATIM -- the exact bytes DOS 3.3 stores, including
+    the 4-byte BIN header. They are the expectation every corpus comparison is
+    made against, so any transformation applied to them is a transformation
+    applied to the answer.
+
+    Sources are TRANSCODED to ordinary Windows text: the header removed, bit 7
+    masked off every byte, and Merlin's CR terminators written as CRLF. They are
+    INPUT, and Casso's own file reader takes text off the host filesystem -- so
+    stored as Apple II text they are files the tool under test cannot open, and
+    the corpus could only ever be assembled by the test project through a decoder
+    no shipped code path uses. As text, one file feeds both.
+
+    The transcoding is lossless for everything the assembler can see. Across all
+    ten sources the only bytes below $80 are spaces, so masking changes no
+    character's identity, and the parser accepts CR, LF and CRLF alike. What it
+    discards is the stored spelling of a space -- $A0 between fields, $20 inside
+    comment text -- which was never grammar and which a parser was never allowed
+    to read.
+
+    Pass -Verbatim to write the disk bytes instead. The README records both
+    hashes for every file, so either form can be re-derived from the hash-pinned
+    disk and compared at any time; that is what keeps the provenance chain
+    intact rather than the committed bytes being identical to the disk.
 
     Run scripts/FetchMerlin.ps1 first to obtain the disk.
 
 .PARAMETER Force
     Overwrite fixtures that already exist.
+
+.PARAMETER Verbatim
+    Write the disk bytes for the sources too, rather than transcoding them.
+    For checking a committed source against the disk it came from.
 
 .PARAMETER Disk
     Path to the Merlin Pro disk image. Defaults to the location FetchMerlin.ps1
@@ -36,6 +56,7 @@
 [CmdletBinding()]
 param (
     [switch]$Force,
+    [switch]$Verbatim,
     [string]$Disk
 )
 
@@ -113,6 +134,32 @@ $textFixtures = @(
     @{ Name = 'T.SENDMSG';        Role = 'Include target of `PUT SENDMSG`' },
     @{ Name = 'T.MACRO LIBRARY';  Role = 'The vendor macro library -- oracle half of a generated pair' }
 )
+
+#
+#  Apple II text to Windows text: mask bit 7, and write each CR terminator as
+#  CRLF.
+#
+#  The mask is unconditional. A check that bit 7 was set first would die on the
+#  first comment line of the first file -- spaces inside comment text are stored
+#  as $20 where the ones separating fields are $A0, and both are spaces.
+#
+function Convert-AppleTextToWindows([byte[]]$Bytes, [int]$Skip) {
+    $out = New-Object System.Collections.Generic.List[byte]
+
+    for ($i = $Skip; $i -lt $Bytes.Length; $i++) {
+        $masked = $Bytes[$i] -band 0x7F
+
+        if ($masked -eq 0x0D) {
+            $out.Add(0x0D)
+            $out.Add(0x0A)
+        }
+        else {
+            $out.Add($masked)
+        }
+    }
+
+    return , $out.ToArray()
+}
 
 function Get-SectorOffset([int]$Track, [int]$Sector) {
     return ((($Track * 16) + $Sector) * 256)
@@ -206,71 +253,25 @@ $skipped = 0
 $failed = 0
 $inventory = @()
 
+#
+#  The hash of what came off the DISK, kept for every file whether or not the
+#  committed copy matches it.
+#
+#  This is the provenance now that sources are transcoded: the committed bytes
+#  are no longer the disk's, so "re-derive it and compare" needs the disk figure
+#  written down rather than recomputed from what is in the tree.
+#
+function Get-Sha256Hex([byte[]]$Bytes) {
+    return (-join ([System.Security.Cryptography.SHA256]::HashData($Bytes) | ForEach-Object { $_.ToString('X2') }))
+}
+
 foreach ($fixture in $fixtures) {
     $names = @($fixture.Source) + $fixture.Objects
 
     foreach ($name in $names) {
         $destPath = Join-Path $destDir $name
-
-        if ((Test-Path $destPath) -and -not $Force) {
-            Write-Host "  SKIP  $name -- already extracted" -ForegroundColor DarkGray
-            $skipped++
-            $bytes = [System.IO.File]::ReadAllBytes($destPath)
-        }
-        else {
-            $raw = Read-DosFile -Image $image -Name $name
-
-            if (-not $raw) {
-                Write-Host "  FAIL  $name -- not found in catalog" -ForegroundColor Red
-                $failed++
-                continue
-            }
-
-            # BIN files carry load address and length in the first four bytes.
-            # Everything on this disk that we extract is type B, so the logical
-            # length is always header + declared length; the rest is sector
-            # padding that was never part of the file.
-            $declared = [int]$raw[2] + ([int]$raw[3] * 256)
-            $total = $declared + 4
-
-            if ($total -gt $raw.Length) {
-                Write-Host "  FAIL  $name -- declared length $declared exceeds $($raw.Length) bytes read" -ForegroundColor Red
-                $failed++
-                continue
-            }
-
-            $bytes = New-Object byte[] $total
-            [Array]::Copy($raw, 0, $bytes, 0, $total)
-            [System.IO.File]::WriteAllBytes($destPath, $bytes)
-
-            Write-Host "  OK    $name ($total bytes)" -ForegroundColor Green
-            $written++
-        }
-
-        $load = [int]$bytes[0] + ([int]$bytes[1] * 256)
-        $length = [int]$bytes[2] + ([int]$bytes[3] * 256)
-
-        $inventory += [pscustomobject]@{
-            Name   = $name
-            Bytes  = $bytes.Length
-            Load   = '${0:X4}' -f $load
-            Length = $length
-            Sha256 = (Get-FileHash $destPath -Algorithm SHA256).Hash
-        }
-    }
-}
-
-foreach ($textFixture in $textFixtures) {
-    $name = $textFixture.Name
-    $destPath = Join-Path $destDir $name
-
-    if ((Test-Path $destPath) -and -not $Force) {
-        Write-Host "  SKIP  $name -- already extracted" -ForegroundColor DarkGray
-        $skipped++
-        $bytes = [System.IO.File]::ReadAllBytes($destPath)
-    }
-    else {
-        $raw = Read-DosFile -Image $image -Name $name
+        $isSource = ($name -eq $fixture.Source)
+        $raw      = Read-DosFile -Image $image -Name $name
 
         if (-not $raw) {
             Write-Host "  FAIL  $name -- not found in catalog" -ForegroundColor Red
@@ -278,28 +279,110 @@ foreach ($textFixture in $textFixtures) {
             continue
         }
 
-        # A DOS 3.3 text file has no header and no stored length. It ends at
-        # the first $00, and everything after that is sector padding.
-        $end = [Array]::IndexOf($raw, [byte]0)
+        # BIN files carry load address and length in the first four bytes.
+        # Everything on this disk that we extract is type B, so the logical
+        # length is always header + declared length; the rest is sector
+        # padding that was never part of the file.
+        $declared = [int]$raw[2] + ([int]$raw[3] * 256)
+        $total = $declared + 4
 
-        if ($end -lt 0) { $end = $raw.Length }
+        if ($total -gt $raw.Length) {
+            Write-Host "  FAIL  $name -- declared length $declared exceeds $($raw.Length) bytes read" -ForegroundColor Red
+            $failed++
+            continue
+        }
 
-        $bytes = New-Object byte[] $end
-        [Array]::Copy($raw, 0, $bytes, 0, $end)
-        [System.IO.File]::WriteAllBytes($destPath, $bytes)
+        $diskBytes = New-Object byte[] $total
+        [Array]::Copy($raw, 0, $diskBytes, 0, $total)
 
-        Write-Host "  OK    $name ($end bytes, type T)" -ForegroundColor Green
+        # A source becomes host text; an object stays the answer it is.
+        if ($isSource -and -not $Verbatim) {
+            $commitBytes = Convert-AppleTextToWindows -Bytes $diskBytes -Skip 4
+            $form = 'text'
+        }
+        else {
+            $commitBytes = $diskBytes
+            $form = 'verbatim'
+        }
+
+        if ((Test-Path $destPath) -and -not $Force) {
+            Write-Host "  SKIP  $name -- already extracted" -ForegroundColor DarkGray
+            $skipped++
+            $commitBytes = [System.IO.File]::ReadAllBytes($destPath)
+        }
+        else {
+            [System.IO.File]::WriteAllBytes($destPath, $commitBytes)
+
+            Write-Host "  OK    $name ($($commitBytes.Length) bytes, $form)" -ForegroundColor Green
+            $written++
+        }
+
+        $load = [int]$diskBytes[0] + ([int]$diskBytes[1] * 256)
+
+        $inventory += [pscustomobject]@{
+            Name    = $name
+            Bytes   = $commitBytes.Length
+            Form    = $form
+            Load    = '${0:X4}' -f $load
+            Length  = $declared
+            Sha256  = Get-Sha256Hex $commitBytes
+            Disk    = Get-Sha256Hex $diskBytes
+        }
+    }
+}
+
+foreach ($textFixture in $textFixtures) {
+    $name = $textFixture.Name
+    $destPath = Join-Path $destDir $name
+    $raw = Read-DosFile -Image $image -Name $name
+
+    if (-not $raw) {
+        Write-Host "  FAIL  $name -- not found in catalog" -ForegroundColor Red
+        $failed++
+        continue
+    }
+
+    # A DOS 3.3 text file has no header and no stored length. It ends at
+    # the first $00, and everything after that is sector padding.
+    $end = [Array]::IndexOf($raw, [byte]0)
+
+    if ($end -lt 0) { $end = $raw.Length }
+
+    $diskBytes = New-Object byte[] $end
+    [Array]::Copy($raw, 0, $diskBytes, 0, $end)
+
+    if ($Verbatim) {
+        $commitBytes = $diskBytes
+        $form = 'verbatim'
+    }
+    else {
+        $commitBytes = Convert-AppleTextToWindows -Bytes $diskBytes -Skip 0
+        $form = 'text'
+    }
+
+    if ((Test-Path $destPath) -and -not $Force) {
+        Write-Host "  SKIP  $name -- already extracted" -ForegroundColor DarkGray
+        $skipped++
+        $commitBytes = [System.IO.File]::ReadAllBytes($destPath)
+    }
+    else {
+        [System.IO.File]::WriteAllBytes($destPath, $commitBytes)
+
+        Write-Host "  OK    $name ($($commitBytes.Length) bytes, type T, $form)" -ForegroundColor Green
         $written++
     }
 
     $inventory += [pscustomobject]@{
-        Name   = $name
-        Bytes  = $bytes.Length
-        Load   = 'n/a'
-        Length = $bytes.Length
-        Sha256 = (Get-FileHash $destPath -Algorithm SHA256).Hash
+        Name    = $name
+        Bytes   = $commitBytes.Length
+        Form    = $form
+        Load    = 'n/a'
+        Length  = $diskBytes.Length
+        Sha256  = Get-Sha256Hex $commitBytes
+        Disk    = Get-Sha256Hex $diskBytes
     }
 }
+
 
 Write-Host ""
 Write-Host "Written: $written  Skipped: $skipped  Failed: $failed"
@@ -312,8 +395,8 @@ if ($failed -gt 0) {
 Write-Host ""
 Write-Host "Inventory (paste into UnitTest/Fixtures/Merlin/README.md):" -ForegroundColor Cyan
 foreach ($row in $inventory) {
-    "| ``{0}`` | {1} | {2} | {3} | ``{4}`` |" -f `
-        $row.Name, $row.Bytes, $row.Load, $row.Length, $row.Sha256.Substring(0, 16)
+    "| ``{0}`` | {1} | {2} | {3} | {4} | ``{5}`` | ``{6}`` |" -f `
+        $row.Name, $row.Bytes, $row.Form, $row.Load, $row.Length, $row.Sha256, $row.Disk
 }
 
 Write-Host ""

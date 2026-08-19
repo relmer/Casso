@@ -1,25 +1,33 @@
 ###############################################################################
-#  These fixtures are byte-verbatim vendor artifacts. Any transformation
-#  destroys them.
+#  The two halves of this directory are stored differently, and git is TOLD
+#  which is which rather than left to infer it.
 #
-#  The repository root sets `* text=auto` and this clone runs core.autocrlf,
-#  so without this file git decides per-file whether to rewrite line endings
-#  by sniffing for NUL bytes. That heuristic gets the right answer here only
-#  by accident: the object files carry NULs and are classified binary, while
-#  LABELS.S and CLOCK.S carry none and are classified TEXT -- they survive
-#  solely because DOS 3.3 terminates lines with $8D, so there is no $0A for
-#  normalization to find. Add one fixture with a low-ASCII newline and git
-#  would silently rewrite it, breaking both the hashes in README.md and the
-#  oracle itself, in a way that reads as an assembler bug.
+#  The repository root sets `* text=auto` and this clone runs core.autocrlf, so
+#  without this file git decides per-file whether to rewrite line endings by
+#  sniffing for NUL bytes. That heuristic gets the right answer for the objects
+#  only by accident, and a corrupted oracle is worse than a missing one: it
+#  fails while looking authoritative.
 #
-#  A corrupted oracle is worse than a missing one: it fails while looking
-#  authoritative. So the classification is stated rather than inferred.
+#  OBJECTS are byte-verbatim vendor artifacts -- the bytes every corpus
+#  comparison is made against. Any transformation destroys them, so they stay
+#  binary. They carry NULs and would probably be classified binary anyway;
+#  "probably" is not a basis for the file the whole corpus is measured against.
+#
+#  SOURCES are committed as ordinary Windows text, which is what lets one file
+#  feed both the unit tests and `CassoCli merlin`. `eol=crlf` makes that a
+#  property of the repository rather than of whoever cloned it: a unit test
+#  asserts the CRLF is there, and without this line that assertion would be
+#  measuring the developer's core.autocrlf setting instead.
+#
+#  `binary` is a macro for `-diff -merge -text`, so restoring text also takes
+#  restoring diff and merge. Setting `text` alone leaves a source file
+#  undiffable, which is the opposite of the point.
 ###############################################################################
 * binary
 
-# The documentation and the license note are ordinary text and should behave
-# that way. `binary` is a macro for `-diff -merge -text`, so restoring diff and
-# merge takes saying so -- setting `text` alone would leave them undiffable.
+*.S            text eol=crlf diff merge
+T.*            text eol=crlf diff merge
+
 README.md      text=auto diff merge
 LICENSE        text=auto diff merge
 .gitattributes text=auto diff merge

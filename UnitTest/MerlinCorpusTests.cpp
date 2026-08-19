@@ -228,15 +228,62 @@ namespace MerlinCorpusTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  CorpusText
+    //
+    //  Widening, for failure messages that name the file they are about. Carried
+    //  here rather than inside one test class because two of them need it, and
+    //  the second copy is where two spellings of the same helper start.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class CorpusText
+    {
+    public:
+        static std::wstring Widen (const std::string & text)
+        {
+            return std::wstring (text.begin(), text.end());
+        }
+    };
+
+
+
+    //  Every source committed under UnitTest/Fixtures/Merlin/, in one list so the
+    //  form sweep below can cover all of them rather than the ones a test author
+    //  happened to remember. The oracle table holds five of these, the rejection
+    //  table two, and the library table three -- no existing table sees the whole
+    //  set, and the property being swept belongs to the whole set.
+    static constexpr const char *  s_kCommittedSources[] =
+    {
+        "Merlin/LABELS.S",
+        "Merlin/KEYMAC.S",
+        "Merlin/PRINTFILER.S",
+        "Merlin/MAKE DUMP.S",
+        "Merlin/CLOCK.S",
+        "Merlin/PI.START.S",
+        "Merlin/PI.ADD.S",
+        "Merlin/T.PI.MACS",
+        "Merlin/T.SENDMSG",
+        "Merlin/T.MACRO LIBRARY",
+    };
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  MerlinFixtureTests
     //
-    //  The decode step, pinned against the committed vendor files.
+    //  The read step, pinned against the committed vendor files.
     //
-    //  This sits upstream of every corpus entry: entries compare bytes the
-    //  decoder produced, so a decoder that strips the wrong number of header
-    //  bytes or mangles the high bit yields expectations that are wrong
-    //  uniformly -- and a corpus wrong in the same direction everywhere still
-    //  looks entirely consistent.
+    //  This sits upstream of every corpus entry: entries compare bytes an object
+    //  file supplied, so a reader that strips the wrong number of header bytes
+    //  yields expectations that are wrong uniformly -- and a corpus wrong in the
+    //  same direction everywhere still looks entirely consistent.
+    //
+    //  It also guards the FORM of the sources. They are committed as ordinary
+    //  Windows text rather than as the Apple II text the disk holds, which is
+    //  what lets the same file feed both this project and `CassoCli merlin`;
+    //  a fixture that quietly reverted to disk form would assemble here and
+    //  nowhere else.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -264,16 +311,17 @@ namespace MerlinCorpusTests
 
 
 
-        //  Spaces appear BOTH ways in stored source: $A0 separating fields, $20
-        //  inside comment text. LABELS.S holds 214 of the first and 81 of the
-        //  second, and across all nine committed sources spaces are the only
-        //  bytes below $80. A decoder requiring the high bit dies on the first
-        //  comment line of the first file -- long before reaching any DCI.
+        //  Spaces appeared BOTH ways in stored source: $A0 separating fields,
+        //  $20 inside comment text. LABELS.S held 214 of the first and 81 of the
+        //  second, and across all ten sources spaces were the only bytes below
+        //  $80 -- so masking bit 7 changed no character's identity, and both
+        //  forms are now one ordinary $20.
         //
-        //  Both forms must arrive as one ordinary space. The parser is not
-        //  allowed to tell them apart (see MerlinFixture.h): source reaching
-        //  Casso by any other route carries no such distinction.
-        TEST_METHOD (LoadSource_DecodesBothSpaceFormsToOneOrdinarySpace)
+        //  The distinction is gone on purpose, not by accident. The parser was
+        //  never allowed to tell the two apart (see MerlinFixture.h), because
+        //  source reaching Casso by any other route carries no such marking;
+        //  transcoding removes the temptation along with the encoding.
+        TEST_METHOD (LoadSource_ReadsBothStoredSpaceFormsAsOneOrdinarySpace)
         {
             FixtureProvider  provider;
             std::string      text;
@@ -281,42 +329,76 @@ namespace MerlinCorpusTests
             AssertSucceeded (MerlinFixture::LoadSource (provider, "Merlin/LABELS.S", text));
 
             //  "END BRK ;table end" -- $A0 separators before and after BRK, then
-            //  $20 spaces inside the comment. If either form survived undecoded
-            //  this substring could not match.
+            //  $20 spaces inside the comment. If either form had survived the
+            //  transcoding as itself, this substring could not match.
             Assert::IsTrue (text.find ("END BRK ;table end") != std::string::npos,
-                            L"field-separating $A0 and comment-text $20 must both decode to ' '");
+                            L"field-separating $A0 and comment-text $20 must both read as ' '");
         }
 
 
 
-        //  Every byte lands under $80 once masked, and Merlin's CR terminators
-        //  become newlines. A stray $8D would mean the mask was skipped; a stray
-        //  $0D would mean the translation was.
-        TEST_METHOD (LoadSource_MasksEveryByteAndTranslatesTerminators)
+        //  The guard on the FORM of every committed source, which is what the
+        //  transcoding established and what a later extraction could quietly
+        //  undo. A file re-extracted verbatim arrives as high bytes and a
+        //  four-byte header; one re-saved through an Apple II editor arrives as
+        //  bare CRs. Either fails here by name, instead of as a wall of parse
+        //  errors somewhere downstream that reads like a dialect defect.
+        //
+        //  The CRLF assertion also pins the .gitattributes rule that produces
+        //  it: without `eol=crlf` these files check out with whatever the
+        //  developer's core.autocrlf says, and "Windows text file" stops being
+        //  a property of the repository.
+        //
+        //  The count is asserted first, so a source committed later joins this
+        //  sweep deliberately rather than escaping it silently.
+        TEST_METHOD (EverySourceIsCommittedAsPlainWindowsText)
         {
             FixtureProvider  provider;
-            std::string      text;
-            size_t           highBits    = 0;
-            size_t           bareReturns = 0;
 
-            AssertSucceeded (MerlinFixture::LoadSource (provider, "Merlin/LABELS.S", text));
+            Assert::AreEqual (static_cast<size_t> (10), std::size (s_kCommittedSources),
+                              L"ten sources are committed; a new one belongs in this sweep");
 
-            for (size_t i = 0; i < text.size(); i++)
+            for (const char * path : s_kCommittedSources)
             {
-                if ((static_cast<Byte> (text[i]) & 0x80) != 0)
+                std::string  text;
+                size_t       highBits = 0;
+                size_t       controls = 0;
+                size_t       loneCr   = 0;
+
+                AssertSucceeded (MerlinFixture::LoadSource (provider, path, text));
+
+                for (size_t i = 0; i < text.size(); i++)
                 {
-                    highBits++;
+                    Byte  value = static_cast<Byte> (text[i]);
+
+                    if ((value & 0x80) != 0)
+                    {
+                        highBits++;
+                    }
+                    else if (value == '\r')
+                    {
+                        if (i + 1 >= text.size() || text[i + 1] != '\n')
+                        {
+                            loneCr++;
+                        }
+                    }
+                    else if (value < 0x20 && value != '\n')
+                    {
+                        //  A surviving BIN header shows up here: $01 and $09 are
+                        //  the first two bytes of every source file on the disk.
+                        controls++;
+                    }
                 }
 
-                if (text[i] == '\r')
-                {
-                    bareReturns++;
-                }
+                Assert::AreEqual (static_cast<size_t> (0), highBits,
+                                  CorpusText::Widen (std::string (path) + " keeps a high bit, so it was not transcoded").c_str());
+                Assert::AreEqual (static_cast<size_t> (0), loneCr,
+                                  CorpusText::Widen (std::string (path) + " holds a bare CR, so its line endings are Apple II's").c_str());
+                Assert::AreEqual (static_cast<size_t> (0), controls,
+                                  CorpusText::Widen (std::string (path) + " holds a control byte, most likely a BIN header").c_str());
+                Assert::IsTrue (text.find ("\r\n") != std::string::npos,
+                                CorpusText::Widen (std::string (path) + " has no CRLF, so it did not check out as Windows text").c_str());
             }
-
-            Assert::AreEqual (static_cast<size_t> (0), highBits, L"no byte may keep its high bit");
-            Assert::AreEqual (static_cast<size_t> (0), bareReturns, L"every CR must have become a newline");
-            Assert::IsTrue (text.find ('\n') != std::string::npos, L"and the source must have line breaks at all");
         }
 
 
@@ -393,40 +475,19 @@ namespace MerlinCorpusTests
 
 
 
-        //  DOS 3.3 gives a type-T file no header at all: T.SENDMSG's bytes begin
-        //  with the literal characters "SE".
-        TEST_METHOD (LoadTextSource_ReadsATypeTFileFromOffsetZero)
+        //  A macro library begins at its first character. These files carried no
+        //  header even on the disk -- DOS 3.3 gives a type-T file none -- and the
+        //  transcoding removed the one the sources had, so both halves of the
+        //  corpus now start where their text starts.
+        TEST_METHOD (LoadSource_ReadsAMacroLibraryFromItsFirstCharacter)
         {
             FixtureProvider  provider;
             std::string      text;
 
-            AssertSucceeded (MerlinFixture::LoadTextSource (provider, "Merlin/T.SENDMSG", text));
+            AssertSucceeded (MerlinFixture::LoadSource (provider, "Merlin/T.SENDMSG", text));
 
-            Assert::IsTrue (text.rfind ("SE", 0) == 0,
-                            L"a type-T file starts at its first byte, with no header to skip");
-        }
-
-
-
-        //  Reaching for the wrong loader must fail rather than quietly return
-        //  text missing its first four characters. T.SENDMSG's leading bytes read
-        //  as a header claiming 50382 bytes of a 149-byte file, so the length
-        //  check catches it -- which is the second job that check does, beyond
-        //  the truncated-extraction case it was written for.
-        TEST_METHOD (LoadSource_RefusesATypeTFileRatherThanEatingFourCharacters)
-        {
-            FixtureProvider  provider;
-            std::string      text;
-            HRESULT          hrLoad = S_OK;
-
-            {
-                UnitTestHelpers::ExpectedEhmAssert  expected;
-
-                hrLoad = MerlinFixture::LoadSource (provider, "Merlin/T.SENDMSG", text);
-            }
-
-            Assert::IsTrue (FAILED (hrLoad),
-                            L"a headerless file decoded as type-B must fail, not lose its first four bytes");
+            Assert::IsTrue (text.rfind ("SENDMSG", 0) == 0,
+                            L"the file must start at its first byte, with nothing skipped");
         }
 
 
@@ -529,26 +590,26 @@ namespace MerlinCorpusTests
         //  105 string directives and almost nothing else -- a purpose-built probe
         //  for the encoding area. It names no origin anywhere, so its load
         //  address comes entirely from the dialect default.
-        { "LABELS",     "Merlin/LABELS.S",     "Merlin/LABELS",     2082, 988, {},                true },
+        { "LABELS",     "Merlin/LABELS.S",     "Merlin/LABELS",     2195, 988, {},                true },
 
         //  The largest source, and the broadest. Three sections at three
         //  addresses collapse into one contiguous object, which is only true
         //  because the origin directive relocates rather than seeks.
-        { "MAKE DUMP",  "Merlin/MAKE DUMP.S",  "Merlin/MAKE DUMP",  6663, 593, {},                true },
+        { "MAKE DUMP",  "Merlin/MAKE DUMP.S",  "Merlin/MAKE DUMP",  7034, 593, {},                true },
 
         //  Its own save-object answer gates only the save directive, so the bytes
         //  are the same either way and the answer avoiding the out-of-subset
         //  construct is the one to give.
-        { "KEYMAC",     "Merlin/KEYMAC.S",     "Merlin/KEYMAC",     5967, 678, s_kSaveObjectOff,  true },
+        { "KEYMAC",     "Merlin/KEYMAC.S",     "Merlin/KEYMAC",     6270, 678, s_kSaveObjectOff,  true },
 
         //  One source, two shipped objects, differing in exactly four bytes of
         //  365 -- so a conditional-assembly defect shows up as a small specific
         //  delta rather than a wall of noise.
-        { "CLOCK.24",   "Merlin/CLOCK.S",      "Merlin/CLOCK.24",   6026, 369, s_kTwentyFourHour, true },
-        { "CLOCK.12",   "Merlin/CLOCK.S",      "Merlin/CLOCK.12",   6026, 369, s_kTwelveHour,     true },
+        { "CLOCK.24",   "Merlin/CLOCK.S",      "Merlin/CLOCK.24",   6298, 369, s_kTwentyFourHour, true },
+        { "CLOCK.12",   "Merlin/CLOCK.S",      "Merlin/CLOCK.12",   6298, 369, s_kTwelveHour,     true },
 
         //  Assembled at the configuration recovered from its own bytes.
-        { "PRINTFILER", "Merlin/PRINTFILER.S", "Merlin/PRINTFILER", 4426, 290, s_kVendorBuild,    true },
+        { "PRINTFILER", "Merlin/PRINTFILER.S", "Merlin/PRINTFILER", 4637, 290, s_kVendorBuild,    true },
     };
 
 
@@ -674,12 +735,6 @@ namespace MerlinCorpusTests
             return wide;
         }
 
-
-
-        static std::wstring Widen (const std::string & text)
-        {
-            return std::wstring (text.begin(), text.end());
-        }
     };
 
 
@@ -755,7 +810,7 @@ namespace MerlinCorpusTests
                 std::string  path = entry.sourcePath;
 
                 Assert::IsTrue (path.find ("PI.") == std::string::npos,
-                                VendorOracle::Widen (path + " ships no object of its own").c_str());
+                                CorpusText::Widen (path + " ships no object of its own").c_str());
             }
         }
 
@@ -778,11 +833,11 @@ namespace MerlinCorpusTests
                 comparison = CorpusHarness::Compare (object.payload, assembly.result.bytes);
 
                 Assert::IsTrue (comparison.verdict == CorpusVerdict::Match,
-                                VendorOracle::Widen (CorpusHarness::Describe (entry.name, comparison)).c_str());
+                                CorpusText::Widen (CorpusHarness::Describe (entry.name, comparison)).c_str());
 
                 Assert::AreEqual (static_cast<int> (object.loadAddress),
                                   static_cast<int> (assembly.result.startAddress),
-                                  VendorOracle::Widen (std::string (entry.name) + " must load where it was shipped").c_str());
+                                  CorpusText::Widen (std::string (entry.name) + " must load where it was shipped").c_str());
             }
         }
 
@@ -813,7 +868,7 @@ namespace MerlinCorpusTests
                     discriminating++;
 
                     Assert::IsFalse (comparison.verdict == CorpusVerdict::Match,
-                                     VendorOracle::Widen (std::string (entry.name)
+                                     CorpusText::Widen (std::string (entry.name)
                                          + " produced Merlin's bytes under AS65, so the profile was not consulted").c_str());
                 }
             }
@@ -837,7 +892,7 @@ namespace MerlinCorpusTests
         //  at which point it is not a transcription.
         //
         //  Everything here is re-derived from the provider rather than taken from
-        //  the decoder the sweep above uses. A decoder that normalized whitespace
+        //  the reader the sweep above uses. A reader that normalized whitespace
         //  would otherwise satisfy this test with the same wrong text it handed
         //  the assembler.
         TEST_METHOD (EveryVendorEntryAssemblesTheFixtureBytesUnmodified)
@@ -864,9 +919,9 @@ namespace MerlinCorpusTests
                 std::vector<Byte>  object = VendorOracle::LoadRaw (entry.objectPath);
 
                 Assert::AreEqual (entry.sourceRawBytes, source.size(),
-                                  VendorOracle::Widen (std::string (entry.sourcePath) + " is not the size it was extracted at").c_str());
+                                  CorpusText::Widen (std::string (entry.sourcePath) + " is not the size it was extracted at").c_str());
                 Assert::AreEqual (entry.objectRawBytes, object.size(),
-                                  VendorOracle::Widen (std::string (entry.objectPath) + " is not the size it was extracted at").c_str());
+                                  CorpusText::Widen (std::string (entry.objectPath) + " is not the size it was extracted at").c_str());
             }
         }
 
@@ -927,47 +982,34 @@ namespace MerlinCorpusTests
 
     private:
 
-        //  The stored file as text, one character per byte: the four-byte header
-        //  removed, the declared length honored, bit 7 masked, and Merlin's CR
-        //  line terminators translated. Written out here rather than called,
-        //  because this is the independent half of the comparison.
+        //  The text handed to the assembler, against the file as it sits in the
+        //  repository.
+        //
+        //  Sources are committed as text, so this is an equality rather than the
+        //  independent decode it used to be. It is still worth making: it is what
+        //  catches a reader that trims, reflows or re-encodes on the way through,
+        //  which would hand the assembler text nobody committed while every byte
+        //  comparison downstream carried on passing.
         static void AssertTextIsTheStoredBytes (const VendorOracleEntry & entry,
                                                 const std::string       & assembled,
                                                 const std::vector<Byte> & raw)
         {
-            constexpr size_t  kHeaderBytes    = 4;
-            constexpr size_t  kLengthOffset   = 2;
-            constexpr Byte    kLowSevenBits   = 0x7F;
-            constexpr Byte    kCarriageReturn = 0x0D;
-            size_t            declared        = 0;
-
-            Assert::IsTrue (raw.size() > kHeaderBytes,
-                            VendorOracle::Widen (std::string (entry.sourcePath) + " is too short to hold a header").c_str());
-
-            declared = (size_t) raw[kLengthOffset] | ((size_t) raw[kLengthOffset + 1] << 8);
-
-            Assert::AreEqual (raw.size() - kHeaderBytes, declared,
-                              VendorOracle::Widen (std::string (entry.sourcePath)
-                                  + " declares a length its payload does not match").c_str());
-
-            Assert::AreEqual (declared, assembled.size(),
-                              VendorOracle::Widen (std::string (entry.name)
+            Assert::AreEqual (raw.size(), assembled.size(),
+                              CorpusText::Widen (std::string (entry.name)
                                   + ": the assembled text is not one character per stored byte, so a line was added,"
                                     " removed or reflowed").c_str());
 
-            for (size_t i = 0; i < declared; i++)
+            for (size_t i = 0; i < raw.size(); i++)
             {
-                Byte  masked   = raw[kHeaderBytes + i] & kLowSevenBits;
-                char  expected = (masked == kCarriageReturn) ? '\n' : (char) masked;
-
-                if (assembled[i] != expected)
+                if (static_cast<Byte> (assembled[i]) != raw[i])
                 {
-                    Assert::Fail (VendorOracle::Widen (std::string (entry.name) + ": the assembled text differs from the"
+                    Assert::Fail (CorpusText::Widen (std::string (entry.name) + ": the assembled text differs from the"
                                       " stored bytes at offset " + std::to_string (i)
                                       + " -- the source was edited, not assembled as committed").c_str());
                 }
             }
         }
+
     };
 
 
@@ -1025,11 +1067,11 @@ namespace MerlinCorpusTests
                 comparison = CorpusHarness::Compare (object.payload, result.bytes);
 
                 Assert::IsTrue (comparison.verdict == CorpusVerdict::Match,
-                                VendorOracle::Widen (CorpusHarness::Describe (entry.name, comparison)).c_str());
+                                CorpusText::Widen (CorpusHarness::Describe (entry.name, comparison)).c_str());
 
                 Assert::AreEqual (static_cast<int> (object.loadAddress),
                                   static_cast<int> (result.startAddress),
-                                  VendorOracle::Widen (std::string (entry.name)
+                                  CorpusText::Widen (std::string (entry.name)
                                       + " must load where it was shipped").c_str());
             }
 
@@ -1071,7 +1113,7 @@ namespace MerlinCorpusTests
                         questions++;
 
                         Assert::IsTrue (RefusalNames (result, answer.symbol),
-                                        VendorOracle::Widen (std::string (entry.name) + " never refused "
+                                        CorpusText::Widen (std::string (entry.name) + " never refused "
                                             + answer.symbol + ", so that answer reaches no byte").c_str());
                     }
                 }
@@ -1207,7 +1249,7 @@ namespace MerlinCorpusTests
                             VendorOracle::FirstDiagnostic (entry.name, result).c_str());
 
             Assert::IsTrue (comparison.verdict == CorpusVerdict::Match,
-                            VendorOracle::Widen (CorpusHarness::Describe (entry.name, comparison)).c_str());
+                            CorpusText::Widen (CorpusHarness::Describe (entry.name, comparison)).c_str());
         }
     };
 
@@ -1358,7 +1400,7 @@ namespace MerlinCorpusTests
                     }
                 }
 
-                Assert::IsTrue (covered, VendorOracle::Widen (std::string (oracle.sourcePath)
+                Assert::IsTrue (covered, CorpusText::Widen (std::string (oracle.sourcePath)
                                     + " ships an object but is not swept for rejections").c_str());
             }
         }
@@ -1426,7 +1468,7 @@ namespace MerlinCorpusTests
                 bool         isDemo    = path.find ("PI.") != std::string::npos;
                 bool         rejects   = entry.expectedRefusals > 0;
 
-                Assert::AreEqual (isDemo, rejects, VendorOracle::Widen (path
+                Assert::AreEqual (isDemo, rejects, CorpusText::Widen (path
                                       + ": only the linker demo may be expected to reject").c_str());
             }
         }
@@ -1458,7 +1500,7 @@ namespace MerlinCorpusTests
                     requests += reader.CountRequests (library.requestedAs);
                 }
 
-                Assert::IsTrue (requests > 0, VendorOracle::Widen (std::string (library.requestedAs)
+                Assert::IsTrue (requests > 0, CorpusText::Widen (std::string (library.requestedAs)
                                     + " is committed as an inclusion specimen and no vendor source asks for it").c_str());
             }
         }
@@ -1479,7 +1521,7 @@ namespace MerlinCorpusTests
                 {
                     bool  served = reader.files.find (requested) != reader.files.end();
 
-                    Assert::IsTrue (served, VendorOracle::Widen (std::string (entry.path)
+                    Assert::IsTrue (served, CorpusText::Widen (std::string (entry.path)
                                         + " asked for \"" + requested + "\", which is not a committed fixture -- "
                                         + std::to_string (result.errors.size()) + " diagnostics followed").c_str());
                 }
@@ -1511,7 +1553,7 @@ namespace MerlinCorpusTests
             {
                 std::string  text;
 
-                AssertSucceeded (MerlinFixture::LoadTextSource (provider, library.fixturePath, text));
+                AssertSucceeded (MerlinFixture::LoadSource (provider, library.fixturePath, text));
 
                 reader.files[library.requestedAs] = text;
             }
@@ -1552,7 +1594,7 @@ namespace MerlinCorpusTests
                 }
             }
 
-            Assert::AreEqual ((size_t) 1, matches, VendorOracle::Widen (std::string (entry.path)
+            Assert::AreEqual ((size_t) 1, matches, CorpusText::Widen (std::string (entry.path)
                                   + " line " + std::to_string (error.lineNumber)
                                   + ": a rejection with no boundary row behind it is a defect, not a limitation -- "
                                   + error.message).c_str());
@@ -1571,7 +1613,7 @@ namespace MerlinCorpusTests
                 text += " | " + std::to_string (error.lineNumber) + ": " + error.message.substr (0, 60);
             }
 
-            return VendorOracle::Widen (text);
+            return CorpusText::Widen (text);
         }
     };
 
@@ -1687,7 +1729,7 @@ namespace MerlinCorpusTests
             Assert::IsTrue (result.errors.empty(), FirstDiagnostic (result).c_str());
 
             Assert::IsTrue (compared.verdict == CorpusVerdict::Match,
-                            VendorOracle::Widen (CorpusHarness::Describe ("macro library", compared)).c_str());
+                            CorpusText::Widen (CorpusHarness::Describe ("macro library", compared)).c_str());
 
             Assert::AreEqual (0x8000, (int) result.startAddress,
                               L"the library entry loads where Merlin put it");
@@ -1762,7 +1804,7 @@ namespace MerlinCorpusTests
             std::string       library;
             AssemblerOptions  options = {};
 
-            AssertSucceeded (MerlinFixture::LoadTextSource (provider, "Merlin/T.MACRO LIBRARY", library));
+            AssertSucceeded (MerlinFixture::LoadSource (provider, "Merlin/T.MACRO LIBRARY", library));
 
             reader.files["T.MACRO LIBRARY"] = library;
 
@@ -1786,7 +1828,7 @@ namespace MerlinCorpusTests
                 return L"";
             }
 
-            return VendorOracle::Widen ("line " + std::to_string (result.errors[0].lineNumber)
+            return CorpusText::Widen ("line " + std::to_string (result.errors[0].lineNumber)
                                         + ": " + result.errors[0].message);
         }
     };
@@ -2568,7 +2610,7 @@ namespace MerlinCorpusTests
             for (const CapturedEntry & entry : s_kCapturedCorpus)
             {
                 Assert::IsFalse (entry.expected.empty(),
-                                 Widen (std::string (entry.name) + ": an empty expectation compares nothing").c_str());
+                                 CorpusText::Widen (std::string (entry.name) + ": an empty expectation compares nothing").c_str());
                 Assert::IsNotNull (entry.merlinVersion,
                                    L"a captured entry without a version stamp cannot say what produced it");
             }
@@ -2595,7 +2637,7 @@ namespace MerlinCorpusTests
                 }
 
                 Assert::IsTrue (found > 0,
-                                Widen (std::string (spelling) + " has no captured entry, and half the family has no vendor oracle either").c_str());
+                                CorpusText::Widen (std::string (spelling) + " has no captured entry, and half the family has no vendor oracle either").c_str());
             }
         }
 
@@ -2612,14 +2654,14 @@ namespace MerlinCorpusTests
                 Assert::IsTrue (result.errors.empty(), Diagnose (entry, result).c_str());
 
                 Assert::IsTrue (compared.verdict == CorpusVerdict::Match,
-                                Widen (CorpusHarness::Describe (entry.name, compared)
+                                CorpusText::Widen (CorpusHarness::Describe (entry.name, compared)
                                        + At (compared, expected, result.bytes)).c_str());
 
                 //  Half the claim. A wrong default origin yields byte-perfect
                 //  output in the wrong place, which reads as a far deeper problem
                 //  than it is -- and eleven of these rows name no origin at all.
                 Assert::AreEqual (entry.loadAddress, static_cast<int> (result.startAddress),
-                                  Widen (std::string (entry.name) + " must load where Merlin put it").c_str());
+                                  CorpusText::Widen (std::string (entry.name) + " must load where Merlin put it").c_str());
             }
         }
 
@@ -2648,7 +2690,7 @@ namespace MerlinCorpusTests
                 discriminating++;
 
                 Assert::IsTrue (!result.errors.empty() || compared.verdict != CorpusVerdict::Match,
-                                Widen (std::string (entry.name)
+                                CorpusText::Widen (std::string (entry.name)
                                        + " reproduces its bytes under AS65 too, so it tests nothing about the dialect").c_str());
             }
 
@@ -2691,13 +2733,13 @@ namespace MerlinCorpusTests
                 for (const std::string & requested : reader.requests)
                 {
                     Assert::IsTrue (reader.files.find (requested) != reader.files.end(),
-                                    Widen (std::string (pending.name) + " asked for \"" + requested
+                                    CorpusText::Widen (std::string (pending.name) + " asked for \"" + requested
                                            + "\", which was not served -- its divergence says nothing"
                                              " about the construct").c_str());
                 }
 
                 Assert::IsTrue (!result.errors.empty() || compared.verdict != CorpusVerdict::Match,
-                                Widen (std::string (pending.name)
+                                CorpusText::Widen (std::string (pending.name)
                                        + " now reproduces its captured bytes -- move it into the corpus. Recorded divergence: "
                                        + pending.divergence).c_str());
             }
@@ -2736,7 +2778,7 @@ namespace MerlinCorpusTests
 
                 Assert::IsTrue (result.errors.empty(), FirstDiagnostic (result).c_str());
                 Assert::IsTrue (compared.verdict == CorpusVerdict::Match,
-                                Widen (CorpusHarness::Describe ("inclusion", compared)).c_str());
+                                CorpusText::Widen (CorpusHarness::Describe ("inclusion", compared)).c_str());
                 Assert::AreEqual (1, reader.CountRequests ("T.MYMAC"),
                                   L"the operand names MYMAC and the file is T.MYMAC -- the prefix is the dialect's, not the caller's");
             }
@@ -2768,7 +2810,7 @@ namespace MerlinCorpusTests
             AssemblerOptions  options = {};
             AssemblyResult    result;
 
-            AssertSucceeded (MerlinFixture::LoadTextSource (provider, "Merlin/T.MACRO LIBRARY", library));
+            AssertSucceeded (MerlinFixture::LoadSource (provider, "Merlin/T.MACRO LIBRARY", library));
 
             reader.files["T.MACRO LIBRARY"] = library;
 
@@ -2783,13 +2825,6 @@ namespace MerlinCorpusTests
             }
 
             return result;
-        }
-
-
-
-        static std::wstring Widen (const std::string & text)
-        {
-            return std::wstring (text.begin(), text.end());
         }
 
 
@@ -2831,7 +2866,7 @@ namespace MerlinCorpusTests
                      + " (" + std::to_string (result.errors.size()) + " total)";
             }
 
-            return Widen (text);
+            return CorpusText::Widen (text);
         }
 
 
@@ -2850,7 +2885,7 @@ namespace MerlinCorpusTests
                       + " (" + std::to_string (result.errors.size()) + " total)";
             }
 
-            return Widen (text);
+            return CorpusText::Widen (text);
         }
     };
 }

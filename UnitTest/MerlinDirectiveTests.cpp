@@ -151,7 +151,7 @@ namespace MerlinDirectiveTests
             FixtureProvider  provider;
             std::string      source;
 
-            AssertSucceeded (MerlinFixture::LoadTextSource (provider, path, source));
+            AssertSucceeded (MerlinFixture::LoadSource (provider, path, source));
 
             return source;
         }

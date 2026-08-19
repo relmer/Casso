@@ -33,38 +33,49 @@ struct MerlinFixtureFile
 //
 //  MerlinFixture
 //
-//  Decodes the vendor fixtures under UnitTest/Fixtures/Merlin/, which are raw
-//  DOS 3.3 files exactly as they sat on the Merlin Pro 2.23 disk.
+//  Reads the vendor fixtures under UnitTest/Fixtures/Merlin/.
 //
-//  The convention lives here ONCE rather than in every entry. Repeating a
-//  four-byte header strip and a high-bit mask per entry is how one entry ends up
-//  decoding differently from the rest, and a decoding difference produces bytes
-//  that are wrong without looking wrong.
+//  The two halves are committed in different forms, and the difference is
+//  deliberate:
 //
-//  THIS CODE MUST NEVER ASSERT THAT BIT 7 IS SET. Two separate conventions break
-//  that assumption. They live in different files and are unrelated:
+//    - OBJECTS are the raw DOS 3.3 files, byte for byte as they sat on the
+//      Merlin Pro 2.23 disk, 4-byte header and all. They are the expectation an
+//      assembly is compared against, so any transformation applied to them
+//      would be a transformation applied to the answer.
+//    - SOURCES are ordinary text files -- seven-bit ASCII with CRLF line
+//      endings, no header. The transcoding happens ONCE, in
+//      scripts/ExtractMerlinFixtures.ps1, rather than on every read here.
 //
-//    - In SOURCE, spaces appear BOTH ways. A space separating fields carries the
-//      high bit ($A0); a space inside comment text does not ($20). LABELS.S holds
-//      214 of the former and 81 of the latter. Measured across all nine committed
-//      sources, spaces are the ONLY bytes below $80 -- not one non-space low byte
-//      in any of them. A decoder validating the high bit dies on the first
-//      comment line of the first file.
-//    - In OBJECTS, DCI marks its terminator by CLEARING the high bit, where the
-//      cleared bit is meaningful data rather than an encoding artifact. An
-//      assertion here would reject evidence the corpus exists to pin.
+//  Sources are transcoded because they are INPUT. Casso's own file reader takes
+//  text off the host filesystem, so a fixture stored as Apple II text is a file
+//  the tool under test cannot open -- the corpus could only ever be assembled by
+//  the test project, through a decoder no shipped code path uses. Committed as
+//  text, the same file is what the unit tests read and what `CassoCli merlin`
+//  reads, and the two cannot diverge.
 //
-//  Masking is unconditional for that reason: correct whichever convention
-//  applies, where a check would have to know which one it was looking at.
+//  THE TRANSCODING IS LOSSLESS FOR EVERYTHING THE ASSEMBLER CAN SEE. Across all
+//  ten sources the only bytes that were ever below $80 are spaces, so masking
+//  bit 7 changed no character's identity; every line ended in a single CR, and
+//  every CR became a CRLF that the parser accepts identically. What it does
+//  discard is the stored spelling of a space: a space separating fields carried
+//  the high bit ($A0) where a space inside comment text did not ($20), and both
+//  are now $20.
 //
-//  THE SOURCE DISTINCTION IS A TRAP FOR THE PARSER, and is deliberately not
-//  surfaced by this API. The encoding happens to mark field structure apart from
-//  comment text, which looks like a free lexer. It is not: source arriving by any
-//  other route -- a host editor, a read off a disk image, a file Casso itself
-//  writes -- carries no such distinction, and a parser leaning on it would work
-//  only on files authored on a Merlin disk. It is an observation about these
-//  bytes, never grammar. T.SENDMSG settles it: all 26 of its spaces are $A0 and
-//  none are $20, so the distinction is not even present in every vendor file.
+//  THAT LOSS IS THE POINT, not a regret. The distinction looked like a free
+//  lexer -- the encoding marking field structure apart from comment text -- and
+//  it was a trap, because source reaching Casso by any other route carries no
+//  such distinction, and a parser leaning on it would work only on files
+//  authored on a Merlin disk. It was never grammar. Now it cannot be mistaken
+//  for grammar, because it is not there to lean on.
+//
+//  THE OBJECT PATH MUST NEVER ASSERT THAT BIT 7 IS SET. DCI marks its
+//  terminator by CLEARING the high bit, so a low byte in an object is
+//  meaningful data rather than an encoding artifact, and an assertion here
+//  would reject the evidence the corpus exists to pin.
+//
+//  The verbatim disk bytes are not lost by this: their SHA-256 hashes stay
+//  recorded in UnitTest/Fixtures/Merlin/README.md, and the extraction script
+//  reproduces either form from the hash-pinned disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,27 +89,13 @@ public:
         const std::string          &  relativePath,
         MerlinFixtureFile          &  outFile);
 
-    //  A type-B source file, decoded to ordinary text: the four-byte header
-    //  removed, high bits masked off, and Merlin's CR line terminators
-    //  translated to newlines.
+    //  A source file, which is already text. Read and handed over unmodified --
+    //  no masking, no header, no line-ending translation, and no trailing-blank
+    //  trimming. The corpus compares what Merlin assembled, so a reader that
+    //  tidied its input would be testing the tidied text rather than the
+    //  vendor's, and the field model this dialect turns on is made of exactly
+    //  the whitespace such a step would remove.
     static HRESULT           LoadSource (
-        IFixtureProvider           &  provider,
-        const std::string          &  relativePath,
-        std::string                &  outText);
-
-    //  A type-T source file. Same text decoding, but DOS 3.3 gives a text file
-    //  NO header -- the bytes are the content from offset zero. The vendor macro
-    //  libraries ship this way: T.SENDMSG begins with the literal characters
-    //  "SE", not a load address.
-    //
-    //  Kept as a separate entry point rather than sniffed, because guessing the
-    //  file type from its bytes is precisely the kind of inference that succeeds
-    //  on the sample and fails on the next file. Using the wrong one is safe: the
-    //  length check in the type-B path rejects a header that was never there
-    //  (T.SENDMSG's first four bytes claim 50382 bytes of a 149-byte file), so
-    //  the mistake surfaces as a failure rather than as text missing its first
-    //  four characters.
-    static HRESULT           LoadTextSource (
         IFixtureProvider           &  provider,
         const std::string          &  relativePath,
         std::string                &  outText);
@@ -107,8 +104,4 @@ private:
     static HRESULT           StripHeader (
         const std::vector<Byte>    &  raw,
         MerlinFixtureFile          &  outFile);
-
-    static void              DecodeText (
-        const std::vector<Byte>    &  payload,
-        std::string                &  outText);
 };

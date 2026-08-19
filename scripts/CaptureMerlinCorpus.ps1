@@ -248,10 +248,12 @@ if ($Verify)
     $actualText   = ($actualText   -replace "`r`n", "`n") -replace "`r", "`n"
     $expectedText = ($expectedText -replace "`r`n", "`n") -replace "`r", "`n"
 
-    # The canonical copy is what gets COMMITTED, so it is written decoded rather
-    # than as the disk's high-bit bytes: a corpus entry is a C++ string literal,
-    # and bytes nothing on this side can read are not a source file.
-    [System.IO.File]::WriteAllText($roundTripped, $actualText)
+    # The canonical copy is what gets COMMITTED, so it is written as host text
+    # rather than as the disk.s high-bit bytes -- the same form every committed
+    # fixture takes, which is what lets one file feed both the test project and
+    # CassoCli. CRLF for the same reason: a file landing here with bare LF would
+    # be the one source in the directory that differs from the rest.
+    [System.IO.File]::WriteAllText($roundTripped, ($actualText -replace "`n", "`r`n"))
 
     if ($actualText -ceq $expectedText)
     {
