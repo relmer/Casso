@@ -150,6 +150,8 @@ std::span<const CommandLineParser::DialectFlag> CommandLineParser::GetFlags (Dia
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CommandLineParser::GetOutputShapes
@@ -173,6 +175,8 @@ std::span<const CommandLineParser::OutputShape> CommandLineParser::GetOutputShap
 
     return shapes;
 }
+
+
 
 
 
@@ -205,8 +209,6 @@ bool CommandLineParser::ApplyOutputShape (const std::string & arg, DialectId dia
 
     return matched;
 }
-
-
 
 
 
