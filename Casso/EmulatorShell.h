@@ -761,6 +761,28 @@ private:
     // or -1 on close-gesture.
     int     ShowModalDialog      (const DialogDefinition & def);
 
+    // The EHM user-notification sink, installed with SetNotifyFunction so
+    // every CHRN / CBRN in the tree reports through Casso's own themed
+    // dialog. Nothing had ever installed one, so they all fell through to
+    // EhmNotifyUser's built-in path and became raw Win32 message boxes.
+    //
+    // Static because SetNotifyFunction takes a plain function pointer; it
+    // forwards to the one live shell.
+    static void  NotifyUser (const wchar_t * message);
+
+    // Holds a report raised before there is a window to show it in. Public
+    // and static because wWinMain installs the sink before the shell exists.
+    static void  QueueNotification (const std::wstring & message);
+
+    // Shows one notification, marshaling as needed. Callable from any
+    // thread: a flush that fails on the CPU thread reports through here.
+    void         ShowNotification (const std::wstring & message);
+
+    // Replays notifications raised before the window existed. Startup reports
+    // a bad prefs file before there is anything to parent a dialog to, and a
+    // queued message that appears a moment later beats a bare Win32 box.
+    void         FlushPendingNotifications ();
+
     // Render a "simple" dialog (text + buttons + an optional Info /
     // Warning / Error glyph icon -- no custom body, tick, hyperlinks,
     // app-bitmap icon, or resizable mode) as a MessageDialog (DxuiWindow

@@ -66,6 +66,34 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  User-notification marshaling
+//
+//  A notification raised off the UI thread is posted rather than shown: the
+//  dialog is Dxui, and Dxui asserts UI-thread affinity. lParam carries an
+//  owned wstring the message loop deletes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+#define WM_APP_NOTIFY_USER (WM_APP + 0x22)
+
+// The shell the EHM notification sink forwards to. One shell per process;
+// cleared in the destructor so a late report cannot touch a dead object.
+static EmulatorShell *  s_pNotifyShell = nullptr;
+
+// Reports raised before there is a window to parent a dialog to. File scope
+// rather than a shell member because the sink is installed at the top of
+// wWinMain, before the shell is constructed -- command-line and machine-config
+// failures happen in that window and must not vanish. Drained once the window
+// exists. The CPU thread can append, hence the lock.
+static std::vector<std::wstring>  s_pendingNotifications;
+static std::mutex                 s_pendingNotifyMutex;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Constants
 //
 //  File-scope tuning for the shell: framebuffer geometry, chrome band metrics
@@ -569,6 +597,11 @@ EmulatorShell::~EmulatorShell()
 
 
 
+    // Before anything else tears down: a notification arriving mid-teardown
+    // must not reach a half-destroyed shell.
+    SetNotifyFunction (nullptr);
+    s_pNotifyShell = nullptr;
+
     m_cpuManager.Stop();
 
     // Spec-006 / FR-024. Revoke BOTH sinks BEFORE the dialog tears
@@ -716,6 +749,11 @@ HRESULT EmulatorShell::Initialize (
     m_currentMachineName = machineName;
     m_config             = config;
     m_cyclesPerFrame     = config.cyclesPerFrame;
+
+    // wWinMain installed the sink already; this just gives it a shell to
+    // forward to. Anything reported before now is sitting in the queue and
+    // is replayed once the window exists.
+    s_pNotifyShell = this;
 
     RegisterChromeDock();
     InitAssetPathsAndStores();
@@ -2011,6 +2049,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_hwnd = m_host->Hwnd();
     m_scaler.SetDpi (GetDpiForWindow (m_hwnd));
 
+    // There is a window to parent a dialog to now, so anything reported
+    // during startup can finally be shown.
+    FlushPendingNotifications();
+
     // The caption (title + icon + min/max/close) is owned and rendered
     // by the host (CreateParams::captionStyle == Standard), which also
     // classifies the caption / system-button / resize-edge NC hits --
@@ -3145,6 +3187,157 @@ void EmulatorShell::SaveGlobalPrefs()
 //  Shows the supplied dialog modally through the Dxui ShowModal host
 //  path and blocks until the user dismisses it. Returns the chosen
 //  button's resultCode, or -1 when the user closes via window gesture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::NotifyUser
+//
+//  The EHM notification sink. Forwards to the live shell; if there is none
+//  (teardown), the message is dropped rather than crashing on a stale
+//  pointer -- an error report is not worth taking the process down for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::NotifyUser (const wchar_t * message)
+{
+    if (message == nullptr)
+    {
+        return;
+    }
+
+    // No shell yet (startup) or none left (teardown): hold the text rather
+    // than drop it. Everything raised this early is replayed the moment there
+    // is a window to show it in.
+    if (s_pNotifyShell == nullptr)
+    {
+        QueueNotification (message);
+        return;
+    }
+
+    s_pNotifyShell->ShowNotification (message);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::QueueNotification
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::QueueNotification (const std::wstring & message)
+{
+    std::lock_guard<std::mutex>  guard (s_pendingNotifyMutex);
+
+    s_pendingNotifications.push_back (message);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowNotification
+//
+//  Shows one notification as a themed modal. Callable from any thread.
+//
+//  Three cases, in order. With no window yet the text is queued for
+//  FlushPendingNotifications -- startup reports a bad prefs file before
+//  there is anything to parent a dialog to. Off the UI thread it is posted,
+//  because the dialog is Dxui and Dxui asserts UI-thread affinity; a flush
+//  failing on the CPU thread takes that path. Otherwise it is shown here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ShowNotification (const std::wstring & message)
+{
+    DialogDefinition  def;
+    bool              isOffThread = false;
+
+
+
+    if (m_hwnd == nullptr)
+    {
+        EmulatorShell::QueueNotification (message);
+        return;
+    }
+
+    isOffThread = (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
+
+    if (isOffThread)
+    {
+        wstring *  carried = new (std::nothrow) wstring (message);
+
+        if (carried != nullptr && !PostMessageW (m_hwnd, WM_APP_NOTIFY_USER, 0,
+                                                 reinterpret_cast<LPARAM> (carried)))
+        {
+            delete carried;
+        }
+
+        return;
+    }
+
+    def.title = L"Casso";
+    def.icon  = DialogIcon::Warning;
+    def.body.push_back (DialogTextRun { message, false, wstring() });
+    def.buttons.push_back (DialogButton { L"OK", 0, true, true, false });
+
+    ShowModalDialog (def);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::FlushPendingNotifications
+//
+//  Replays anything reported before the window existed. The queue is drained
+//  under the lock and shown outside it, because showing is modal and holding
+//  a lock across a nested message loop invites a deadlock with a CPU-thread
+//  notification arriving mid-dialog.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::FlushPendingNotifications()
+{
+    std::vector<std::wstring>  pending;
+    size_t                     i = 0;
+
+
+
+    {
+        std::lock_guard<std::mutex>  guard (s_pendingNotifyMutex);
+
+        pending.swap (s_pendingNotifications);
+    }
+
+    for (i = 0; i < pending.size(); i++)
+    {
+        ShowNotification (pending[i]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowModalDialog
+//
+//  Every modal in Casso goes through the Dxui host path. Kept as its own
+//  entry point so callers name the intent rather than the renderer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4467,6 +4660,21 @@ int EmulatorShell::RunMessageLoop()
             // it doubles as the signal to reflow the chrome for a possible
             // Disk ][ controller add/remove (the window size is unchanged, so
             // no WM_SIZE / OnSize would otherwise re-evaluate it).
+            // A notification raised off the UI thread. lParam owns a
+            // heap-allocated copy of the text, handed over by ShowNotification.
+            if (msg.message == WM_APP_NOTIFY_USER)
+            {
+                wstring *  carried = reinterpret_cast<wstring *> (msg.lParam);
+
+                if (carried != nullptr)
+                {
+                    ShowNotification (*carried);
+                    delete carried;
+                }
+
+                continue;
+            }
+
             if (msg.message == WM_APP_DXUI_UPDATE_TITLE)
             {
                 UpdateWindowTitle();
