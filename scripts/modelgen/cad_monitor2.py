@@ -161,16 +161,39 @@ NOTCH_REAR_Y  = NOTCH_D - NOTCH_OVERCUT
 # why they live up here with the dimensions rather than beside the first icon
 # that happens to use them.
 RIDGE_W  = 1.0                             # stroke width of the relief
-RIDGE_H  = 2.5                             # proud of the face. At 0.45 the
-                                           # relief barely read; at 1.0 a
-                                           # filled glyph still did not, since
-                                           # its top face takes the same light
-                                           # as the plastic around it and only
-                                           # the side walls show. Depth is the
-                                           # only lever on a filled shape.
-RELIEF_ROUND = 0.35                        # front-edge round-over on all
-                                           # mold relief; must stay under
-                                           # half the stroke width
+RIDGE_H  = 0.5                             # proud of the face. The history
+                                           # here is worth keeping: at 0.45
+                                           # the relief barely read, and at
+                                           # 1.0 a FILLED glyph still did not,
+                                           # so this went to 2.5 to give the
+                                           # side walls something to show.
+                                           # That reasoning expired when the
+                                           # scene started casting real
+                                           # shadows -- a stroke now reads by
+                                           # what it throws across the face
+                                           # beside it, not by how much wall
+                                           # it can turn toward the camera,
+                                           # and 2.5 mm of relief on a 1 mm
+                                           # stroke was always more than the
+                                           # real case carries.
+BRAND_D  = RIDGE_H                         # the badge is as thick as the
+                                           # icons are proud, BY DESIGN, and
+                                           # sits in a recess of the same
+                                           # depth so its face finishes flush
+                                           # with the frame. Named separately
+                                           # only so the two uses are legible
+                                           # -- it tracks RIDGE_H and is meant
+                                           # to. DeskSceneModel's
+                                           # s_kMon2BrandThickMm is a literal
+                                           # that CANNOT track it, so changing
+                                           # this means changing that too.
+# Front-edge round-over on all mold relief. DERIVED, because it is bounded by
+# two different dimensions and a fixed number silently violates one of them:
+# it has to stay under half the stroke WIDTH (or opposite fillets collide) and
+# under the relief's HEIGHT (or there is no wall left to round). Thinning
+# RIDGE_H to 0.5 with this pinned at 0.35 asked OCC for a round-over 70% as
+# tall as the feature, and every fillet in the file failed at once.
+RELIEF_ROUND = min (0.35, RIDGE_W * 0.45, RIDGE_H * 0.4)
 
 # The button's face sits this far behind the case face, with clearance left
 # behind it inside the notch. Its thickness is what is LEFT of the notch's
@@ -264,7 +287,7 @@ BRAND_Z1   = 43.778 + BRAND_MGN
 
 case = case.cut(
     cq.Workplane("XY")
-      .box(BRAND_HALF * 2.0, RIDGE_H + 1.0, BRAND_Z1 - BRAND_Z0,
+      .box(BRAND_HALF * 2.0, BRAND_D + 1.0, BRAND_Z1 - BRAND_Z0,
            centered=(False, False, False))
       .translate((REVEAL_CX - BRAND_HALF, -1.0, BRAND_Z0))
       .edges("|Y").fillet(RELIEF_ROUND))

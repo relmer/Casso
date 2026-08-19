@@ -57,10 +57,16 @@ static constexpr float   s_kBrandFrontY   = -10.6f;
 // bake their bias into tuned constants instead.
 //
 // COUPLED TO THE GENERATOR. cad_monitor2.py cuts a rounded-corner pocket
-// RIDGE_H deep for this mark (see its BRAND_* block, which quotes the
+// BRAND_D deep for this mark (see its BRAND_* block, which quotes the
 // silhouette's drawn bounds). The stamp stands in that pocket at the same
 // thickness, so its face finishes FLUSH with the frame -- front at y = 0,
 // back on the pocket floor. Change either side and the other has to follow.
+//
+// BRAND_D tracks the icons' RIDGE_H by design -- the badge is as thick as the
+// icons are proud. The hazard is not the coupling, it is that THIS side is a
+// literal and cannot follow: thin the relief in the generator alone and the
+// pocket shrinks while the badge does not, leaving it standing proud of the
+// frame it is supposed to finish flush with.
 static constexpr float   s_kMon2BrandTopZMm   = 46.0f;
 static constexpr float   s_kMon2BrandHeightMm = 24.0f;
 
@@ -68,7 +74,7 @@ static constexpr float   s_kMon2BrandHeightMm = 24.0f;
 // with the frame. BuildBrandSolid gives it the smoothed outline and rolled top
 // edge; laid flat on the pocket floor instead, it read as artwork in a tray
 // rather than a badge set into the case.
-static constexpr float   s_kMon2BrandThickMm  = 2.5f;    // == the CAD's RIDGE_H
+static constexpr float   s_kMon2BrandThickMm  = 0.5f;    // == the CAD's BRAND_D
 static constexpr float   s_kMon2BrandFrontY   = 0.0f;
 
 // How the mark sits left-to-right inside its recess. 0 puts its drawn MASS on
