@@ -40,7 +40,7 @@ public:
     //  The line the worked example starts on, so a reader and a test look for
     //  the same thing.
     static constexpr const char *  kExampleHeading =
-        "Examples -- the whole loop, from source to a program running in the emulator:";
+        "Examples, the whole loop from source to a program running in the emulator:";
 
     //  The prefix a chosen style spells its flags with. One place, because the
     //  help spells flags in dozens of sentences and a style decided in each of

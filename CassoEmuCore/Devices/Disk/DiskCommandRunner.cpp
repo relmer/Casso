@@ -101,7 +101,7 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
 
 
     return
-        "  cat | catalog | dir | list | ls   Show files on the disk -- name, type,\n"
+        "  cat | catalog | dir | list | ls   Show files on the disk: name, type,\n"
         "                                    size, lock state, free space, and any\n"
         "                                    damage found\n"
         "  read | get                        Read a file from the disk, to standard\n"
@@ -199,15 +199,15 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
         "\n"
         "  Naming neither conversion moves the bytes unchanged, which is what makes\n"
         "  extract, edit and replace safe. The length and whatever header the type\n"
-        "  carries are still applied -- those record where a file ENDS.\n"
+        "  carries are still applied, because those record where a file ENDS.\n"
         "\n"
         "  A listing shows every column the volume records, so a ProDOS row carries\n"
-        "  eof= and aux= -- the exact length of a file and the address a binary\n"
+        "  eof= and aux=, the exact length of a file and the address a binary\n"
         "  loads at. DOS 3.3 records neither.\n"
         "\n"
         "  write | put: " + lp + "as is the name the file takes on the disk, and defaults\n"
         "  to the host file's own name. " + lp + "type is what the catalog records, and\n"
-        "  defaults to a binary -- or to Applesoft under " + lp + "basic, which is the only\n"
+        "  defaults to a binary, or to Applesoft under " + lp + "basic, which is the only\n"
         "  type the guest will RUN. " + lp + "addr is the load address a binary carries: a\n"
         "  DOS 3.3 B or a ProDOS BIN is refused without one, every other type ignores\n"
         "  it, and " + lp + "basic refuses it outright because Applesoft keeps its program\n"
@@ -217,10 +217,10 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
         "  spells it, and the image has to carry an operating system on the tracks a\n"
         "  boot reads. On ProDOS it must be a file of type SYS, and not the kernel\n"
         "  itself. On DOS 3.3 the boot command is RUN, so an Applesoft or Integer\n"
-        "  program runs -- anything else is set, reported, and the disk boots without\n"
+        "  program runs. Anything else is set, reported, and the disk boots without\n"
         "  running it.\n"
         "\n"
-        "  Exit status:\n";
+        "  Exit codes:\n";
 
     text += kExitStatusHelpText;
     text += "\n";
@@ -279,13 +279,13 @@ std::string DiskCommandRunner::BuildExampleHelp (char flagPrefix)
     return CommandLineHelp::BuildExampleCommands (flagPrefix) +
         "\n"
         "  " + sp + "o names the assembled output file; --disk1 mounts an image in\n"
-        "  drive 1 as the emulator starts -- and is the emulator's own flag, which\n"
-        "  is why it keeps the -- spelling here.\n"
-        "  Assemble with the default shape rather than " + lp + "dos-bin: put writes the\n"
+        "  drive 1 as the emulator starts, and is the emulator's own flag, which\n"
+        "  is why it keeps that spelling here.\n"
+        "  Assemble with the default output rather than " + lp + "dos-bin: put writes the\n"
         "  DOS 3.3 header itself from " + lp + "addr, and a file that already carries one\n"
         "  has its own header loaded as code where the program should begin.\n"
-        "  greet.bas holds one Applesoft line -- 10 PRINT CHR$(4);\"BRUN PROG\"\n"
-        "  -- because a booting DOS 3.3 volume RUNs its greeting. Naming the\n"
+        "  greet.bas holds one Applesoft line, 10 PRINT CHR$(4);\"BRUN PROG\",\n"
+        "  because a booting DOS 3.3 volume RUNs its greeting. Naming the\n"
         "  binary there sets the name and the disk boots without running it.\n";
 }
 

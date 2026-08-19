@@ -27,6 +27,18 @@ Entries before versioning was introduced use dates only.
   https://github.com/relmer/Casso/issues/118.
 
 ### Changed
+- **The assembly page opens with an as65 compatibility section.** The grammar
+  rules a reader needs before any individual flag makes sense -- that switches
+  chain into one argument, and that a value attaches with no space before it --
+  were scattered as footnotes below the option table. They are now one section
+  at the top, led by what the assembler is: an implementation of as65 that keeps
+  100% compatibility with as65's command-line patterns.
+- **The help no longer says "shape", uses " -- " as a dash, or calls them "exit
+  statuses".** Output formats are named as formats, dashes are commas, colons or
+  full stops, and every page's status block is headed "Exit codes".
+- **The assembly page no longer documents `-h` as a help request.** That a
+  leading `-h` asks for help is general command-line behavior, not a property of
+  the listing's page-height option it was attached to.
 - **The assembly page explains its examples.** Each of the four command lines
   now says what it assembles, what file it writes and what is in it. A bare
   command line is an example only to a reader who already knows what it

@@ -151,8 +151,8 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
     const std::string  lp                 = LongPrefix (flagPrefix);
     const std::string  routes[][2]        =
     {
-        { "?",                   "Assembly options, output shapes and listings" },
-        { "run "  + lp + "help", "Run options -- load address, entry point, limits" },
+        { "?",                   "Assembly options, output formats and listings" },
+        { "run "  + lp + "help", "Run options: load address, entry point, limits" },
         { "disk " + lp + "help", "Disk verbs, their options, and a worked example" },
         { lp + "version",        "Version information" },
     };

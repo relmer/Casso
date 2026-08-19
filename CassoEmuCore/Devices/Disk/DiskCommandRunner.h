@@ -149,10 +149,10 @@ public:
     //
     static constexpr const char *  kExitStatusHelpText =
         "    0  the command was carried out.\n"
-        "    1  carried out, with something worth saying -- a listing cut short by\n"
+        "    1  carried out, with something worth saying: a listing cut short by\n"
         "       damage, a file delivered with unreadable sectors as zeros, or a\n"
         "       startup program a booting DOS 3.3 will not actually run.\n"
-        "    2  nothing was done -- a verb or an option that was refused, an image\n"
+        "    2  nothing was done: a verb or an option that was refused, an image\n"
         "       that cannot be read or holds no filesystem, a file that is not on\n"
         "       the volume, or a write the volume or the host refused. The image is\n"
         "       byte-for-byte as it was.";

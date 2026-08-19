@@ -814,7 +814,7 @@ std::string BuildBanner()
 static void PrintUsageExitStatus (const char * statuses)
 {
     std::println ("");
-    std::println ("  Exit status:");
+    std::println ("  Exit codes:");
     std::println ("{}", statuses);
 }
 
@@ -894,16 +894,31 @@ static void PrintUsageExitStatus (const char * statuses)
 
 static void PrintUsageAssembly (const char * sp, const char * lp, const char * pad)
 {
+    const char * intro[] =
+    {
+        "as65 compatibility:",
+        "  This assembler is an implementation of as65 and keeps 100% compatibility",
+        "  with as65's command-line patterns, so any as65 command line assembles",
+        "  here unchanged.",
+        "",
+        "  Single-letter switches chain into one argument, so {0}tlfile means {0}t",
+        "  {0}lfile. A switch taking a NUMBER can be followed inside the group, so",
+        "  {0}h80t means {0}h80 {0}t. One taking a NAME cannot, because the name would",
+        "  swallow whatever came after it.",
+        "",
+        "  A switch value attaches directly to its switch, with no space before it:",
+        "  {0}dDEBUG rather than {0}d DEBUG, {0}oprog.bin rather than {0}o prog.bin.",
+        "",
+        "  {0}o is the one switch that accepts both spellings. PowerShell cuts an",
+        "  unquoted {0}oprog.bin into {0}oprog and .bin, because a parameter name",
+        "  cannot contain a dot, and {0}o has no bare form, so whatever follows it",
+        "  can only be its filename. Every other switch here does have a bare form,",
+        "  which is what would leave a separated value ambiguous.",
+        "",
+    };
+
     const char * lines[] =
     {
-        "",
-        "  Every option below is compatible with the standard as65 switch of the same",
-        "  name, so an as65 command line assembles here unchanged. These flags also",
-        "  accept a space before their value, so that they survive PowerShell's own",
-        "  argument parsing:",
-        "",
-        "      {0}o",
-        "",
         "  {0}x                     Use the 65SC02 extensions. Without it the CMOS",
         "                         opcodes are rejected, which is the default",
         "  {0}d[<name>[=<value>]]   Pre-define symbol ({0}d alone defines DEBUG as 1).",
@@ -916,34 +931,19 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
         "                         nothing; tracked as issue #118 at",
         "                         https://github.com/relmer/Casso/issues/118",
         "",
-        "  EVERY VALUE ATTACHES TO ITS FLAG:  {0}dDEBUG, not {0}d DEBUG. That is as65's",
-        "  grammar, which this mode exists to accept unchanged.",
-        "",
-        "  {0}o IS THE ONE EXCEPTION: {0}o prog.bin is allowed as well as {0}oprog.bin.",
-        "  PowerShell cuts an unquoted {0}oprog.bin into {0}oprog and .bin, because a",
-        "  parameter name cannot contain a dot. {0}o has no bare form, so what follows",
-        "  it can only be its filename; every other flag here has one, and a separated",
-        "  value would be ambiguous with it.",
-        "",
-        "  Flags may also be run together into a single argument, so that {0}tlfile",
-        "  means {0}t {0}lfile. This is supported in assembly command lines only, as an",
-        "  accommodation to as65 compatibility. A flag taking a NUMBER may be followed",
-        "  inside the group -- {0}h80t means {0}h80 {0}t -- but one taking a NAME may not,",
-        "  because the name would swallow whatever came after it.",
-        "",
         "  CassoCli prog.a65 {0}x {0}dDEBUG=1",
         "      Assembles prog.a65 with the 65SC02 opcodes available and the symbol",
         "      DEBUG defined as 1, then writes the assembled bytes to prog.bin beside",
         "      the source.",
         "",
         "  Output:",
-        "    {0}o<file>             Where the assembled bytes go, attached or separated",
-        "                         -- {0}oprog.bin or {0}o prog.bin. Defaults to the source",
-        "                         file's own name with its extension replaced -- .bin,",
-        "                         or .s19 under {0}s and .hex under {0}s2",
+        "    {0}o<file>             Where the assembled bytes go, attached or separated:",
+        "                         {0}oprog.bin or {0}o prog.bin. Defaults to the source",
+        "                         file's own name with its extension replaced by .bin,",
+        "                         or by .s19 under {0}s and .hex under {0}s2",
         "    {1}flat{2}               Write a full 64 KB memory image, padded with the fill",
-        "                         byte -- what a ROM burner or a byte-for-byte reference",
-        "                         comparison wants",
+        "                         byte, for a ROM burner or a byte-for-byte reference",
+        "                         comparison",
         "    {1}dos-bin{2}            Write the assembled bytes behind a 4-byte DOS 3.3",
         "                         header (load address + length), ready to BLOAD",
         "    {0}s                   Output S-record format (.s19)",
@@ -951,22 +951,22 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
         "    {0}z                   Fill unused space with $00 (default: $FF)",
         "",
         "    By default, only the assembled bytes are written to the output file,",
-        "    with no header and no padding -- which is the shape the disk put verb",
-        "    expects. Use {1}flat for a full 64 KB memory image, {1}dos-bin for those",
-        "    bytes behind a DOS 3.3 load-address-and-length header, {0}s for S-record",
-        "    text, or {0}s2 for Intel HEX.",
+        "    with no header and no padding, which is what the disk put verb expects.",
+        "    Use {1}flat for a full 64 KB memory image, {1}dos-bin for those bytes",
+        "    behind a DOS 3.3 load-address-and-length header, {0}s for S-record text,",
+        "    or {0}s2 for Intel HEX.",
         "",
         "    CassoCli prog.a65 {0}oprog.bin",
         "        Assembles prog.a65 and writes the assembled bytes, and nothing else,",
-        "        to prog.bin. Naming the file is all {0}o does here: the default shape",
-        "        is what a program being placed on a disk wants, because the disk",
-        "        records its own load address.",
+        "        to prog.bin. Naming the file is all {0}o does here: what gets written",
+        "        is already what a program being placed on a disk wants, because the",
+        "        disk records its own load address.",
         "",
         "    CassoCli rom.a65 {0}orom.bin {1}flat {0}z",
         "        Writes rom.bin as a full 64 KB image, with the assembled bytes at",
         "        the addresses the source gave them and every byte the source did not",
-        "        fill set to $00 instead of $FF -- what a ROM burner takes, and what a",
-        "        byte-for-byte comparison against a reference image needs.",
+        "        fill set to $00 instead of $FF. That is what a ROM burner takes, and",
+        "        what a byte-for-byte comparison against a reference image needs.",
         "",
         "  Listing and diagnostics:",
         "    {0}l[<file>]           Generate listing ({0}l alone = stdout, {0}lprog.lst = to",
@@ -975,8 +975,7 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
         "    {0}c                   Show cycle counts in listing",
         "    {0}m                   Show macro expansions in listing",
         "    {0}h<lines>            Page height for listing ({0}h0 = one continuous page,",
-        "                         the default). As the FIRST argument, {0}h asks for",
-        "                         help instead",
+        "                         the default)",
         "    {0}w<width>            Column width (default: 79, {0}w alone = 133)",
         "    {0}t                   Generate symbol table",
         "    {0}g                   Generate debug information file, named for the",
@@ -998,6 +997,11 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
     std::println ("  <source>   An assembly source file. Given no extension, .a65, .asm");
     std::println ("             and .s are tried in that order.");
     std::println ("");
+    for (const char * fmt : intro)
+    {
+        std::println ("{}", std::vformat (fmt, std::make_format_args (sp, lp, pad)));
+    }
+
     std::println ("Assembly options:");
 
     for (const char * fmt : lines)

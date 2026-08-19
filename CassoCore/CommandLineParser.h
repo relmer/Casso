@@ -89,7 +89,7 @@ public:
         "    0  assembled cleanly, and every artifact asked for was written.\n"
         "    1  assembled, and the assembler had something to say. The output was still\n"
         "       written.\n"
-        "    2  no file was opened -- no input file, an input that could not be\n"
+        "    2  no file was opened: no input file, an input that could not be\n"
         "       read, a command line that was refused, or an output file that\n"
         "       could not be written.\n"
         "    3  the source was read and did not assemble.\n"
@@ -101,9 +101,9 @@ public:
         "       bad command line under 2 with the other cases that opened no file.";
 
     static constexpr const char *  kRunExitStatusHelpText =
-        "    0  the program ran to a stop -- the stop address, or the cycle limit.\n"
+        "    0  the program ran to a stop, either the stop address or the cycle limit.\n"
         "    1  the input was source, and it did not assemble. Nothing ran.\n"
-        "    2  nothing could be started -- no input file, an input that could not\n"
+        "    2  nothing could be started: no input file, an input that could not\n"
         "       be read, or a command line that was refused. An option this grammar\n"
         "       cannot read is refused rather than dropped, because one it misread\n"
         "       may have moved the load address.\n"

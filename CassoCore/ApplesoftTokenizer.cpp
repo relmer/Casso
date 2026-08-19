@@ -1099,7 +1099,7 @@ std::string ApplesoftTokenizer::RoundTripHelpText (char flagPrefix)
     return lp + "basic is real tokenization: it writes the binary token stream\n"
            "  Applesoft itself stores, and reads one back. Extracting a program and\n"
            "  placing it back is byte-exact. A listing placed and extracted again is\n"
-           "  NOT -- and what is LOST there belongs to the listing's formatting, not\n"
+           "  NOT, and what is LOST there belongs to the listing's formatting, not\n"
            "  to the program: spacing outside strings, REM and DATA is dropped, ?\n"
            "  becomes PRINT, lowercase outside those three becomes uppercase, and\n"
            "  lines are ordered by number. Applesoft normalizes every one of those\n"

@@ -398,11 +398,11 @@ public:
     {
         std::string  help = DiskCommandRunner::BuildHelpText();
 
-        //  `--raw` used to be named here as the shape to assemble with. It is
+        //  `--raw` used to be named here as the output to assemble with. It is
         //  the default now, so the warning names the default -- and would read
         //  as advice to type a flag that does nothing if it still said --raw.
-        Assert::IsTrue (help.find ("the default shape rather than --dos-bin") != std::string::npos,
-                        L"which assembler shape the placement path wants");
+        Assert::IsTrue (help.find ("the default output rather than --dos-bin") != std::string::npos,
+                        L"which assembler output the placement path wants");
         Assert::IsTrue (help.find ("its own header loaded as code") != std::string::npos,
                         L"and what goes wrong when the other one is used");
     }
