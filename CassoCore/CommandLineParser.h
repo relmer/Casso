@@ -64,6 +64,28 @@ public:
         const char   *  description;
     };
 
+    // One output SHAPE a dialect's grammar accepts, as data, for the same
+    // reason DialectFlag is: the parser walks this table and the help text is
+    // generated from it, so a shape the tool accepts and a shape the tool
+    // documents cannot come apart.
+    //
+    // Long-spelled rather than a letter, because these name a file format
+    // rather than an assembler option, and the as65 grammar already spells
+    // them that way.
+    struct OutputShape
+    {
+        const char                    *  spelling;
+        CommandLineOptions::OutputFormat format;
+        const char                    *  description;
+    };
+
+    struct OutputShapeTable
+    {
+        DialectId            dialect;
+        const OutputShape *  shapes;
+        size_t               count;
+    };
+
     // Which dialect a flag table belongs to. A row rather than a test on the
     // dialect, so a dialect with a grammar of its own is added by stating it
     // and a dialect without one simply has no row.
@@ -93,6 +115,10 @@ public:
     // what keeps help and parser from drifting.
     static std::span<const DialectFlag>     GetFlags (DialectId dialect);
 
+    // The output shapes a dialect names on its command line, empty for one
+    // that offers no choice. Public for the same reason GetFlags is.
+    static std::span<const OutputShape>      GetOutputShapes (DialectId dialect);
+
 private:
     static HRESULT  ParseBoundedHex (const char * text, long maxValue, long & outValue);
     static HRESULT  ParseAddress    (const char * text, Word & address);
@@ -110,6 +136,8 @@ private:
     static void  ParseRunOptions     (int argc, char * argv[], int argIndex, CommandLineOptions & options);
 
     static bool  RefuseCpuFlagWhereSelectedInSource (CommandLineOptions & options);
+
+    static bool  ApplyOutputShape (const std::string & arg, DialectId dialect, CommandLineOptions & options);
 
     static void  AddSymbolDefinition (const std::string & definition, CommandLineOptions & options);
 

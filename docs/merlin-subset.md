@@ -150,6 +150,28 @@ Repeat it once per question. A bare `-d SAVOBJ` answers 1, for a source that
 tests only whether a symbol was given; `-d SAVOBJ=0` answers zero, which is a
 different answer and not an absent one.
 
+## What comes out
+
+The default output is the assembled bytes and nothing around them. A Merlin
+source names its own origin, so "the object" is what the subcommand writes.
+
+Two flags wrap them differently:
+
+```
+CassoCli merlin CLOCK.S -d SAVOBJ=0 -d VERSION=24 --dos-bin -o CLOCK.24
+```
+
+- `--dos-bin` writes the bytes behind a 4-byte DOS 3.3 header carrying the
+  origin and the length — the form the file takes on an Apple II disk.
+- `--flat` writes a full 64 KB image with the bytes at their origin.
+
+**`--dos-bin` is the one that closes a gap rather than adding a convenience.**
+The header carries the ORIGIN, and the default output throws it away — so
+wrapping the bytes by hand afterward means already knowing an address that
+usually comes from an `ORG` buried in the source. The assembler knows it;
+nothing downstream reliably does.
+
+
 ## Deliberate divergences and unverified corners
 
 Casso's Merlin support was built against vendor source and the object files

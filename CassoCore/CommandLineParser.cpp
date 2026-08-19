@@ -56,6 +56,41 @@ static constexpr CommandLineParser::DialectFlagTable  s_kDialectFlags[] =
 };
 
 
+//
+//  The output shapes the merlin grammar names.
+//
+//  The DEFAULT stays the assembled bytes and nothing else. A Merlin source
+//  names its own origin, so "the object" is what a developer asking for output
+//  means, and that is what the subcommand has always written. These two rows
+//  say what the bytes can be wrapped in instead.
+//
+//  --dos-bin is the one that closes a real gap rather than adding a
+//  convenience. The 4-byte header carries the ORIGIN, and raw output throws it
+//  away -- so a developer wrapping the bytes by hand has to already know an
+//  address that usually comes from an ORG buried in the source. The assembler
+//  knows it; nothing else reliably does.
+//
+//  as65 has no row. Its grammar is a hand-rolled walk that spells --raw and
+//  --dos-bin inline, and its own usage block documents them, so a row here
+//  would be a second description of a tool this table does not drive.
+//
+static constexpr CommandLineParser::OutputShape  s_kMerlinOutputShapes[] =
+{
+    { "--dos-bin", CommandLineOptions::OutputFormat::DosBinary,
+                   "Write the bytes behind a 4-byte DOS 3.3 header carrying origin and length" },
+    { "--flat",    CommandLineOptions::OutputFormat::Binary,
+                   "Write a full 64 KB image with the bytes at their origin" },
+};
+
+
+//  Which dialect an output-shape table belongs to, on the same principle as the
+//  flag tables above: a dialect offering no choice simply has no row.
+static constexpr CommandLineParser::OutputShapeTable  s_kOutputShapeTables[] =
+{
+    { DialectId::Merlin, s_kMerlinOutputShapes, std::size (s_kMerlinOutputShapes) },
+};
+
+
 //  Source extensions tried, in order, for an input path with no extension.
 static constexpr const char *  s_kpszSourceExtensions[] =
 {
@@ -112,6 +147,66 @@ std::span<const CommandLineParser::DialectFlag> CommandLineParser::GetFlags (Dia
 
     return flags;
 }
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::GetOutputShapes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const CommandLineParser::OutputShape> CommandLineParser::GetOutputShapes (DialectId dialect)
+{
+    std::span<const OutputShape>  shapes;
+
+
+
+    for (const OutputShapeTable & table : s_kOutputShapeTables)
+    {
+        if (table.dialect == dialect)
+        {
+            shapes = std::span<const OutputShape> (table.shapes, table.count);
+            break;
+        }
+    }
+
+    return shapes;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::ApplyOutputShape
+//
+//  Selects the output shape an argument names, if it names one.
+//
+//  Returns whether the argument was consumed, so a grammar that offers no
+//  shapes -- an empty table -- consumes nothing and its parse is unchanged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::ApplyOutputShape (const std::string & arg, DialectId dialect, CommandLineOptions & options)
+{
+    bool  matched = false;
+
+
+
+    for (const OutputShape & shape : GetOutputShapes (dialect))
+    {
+        if (arg == shape.spelling)
+        {
+            options.outputFormat = shape.format;
+            matched              = true;
+            break;
+        }
+    }
+
+    return matched;
+}
+
+
 
 
 
@@ -1122,6 +1217,16 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
                 argIndex++;
             }
 
+            continue;
+        }
+
+        // An output shape, matched against the same table the help text is
+        // composed from. Placed beside the CPU flag rather than in the letter
+        // loop below, because these are whole words: a letter loop would read
+        // --flat as -f -l -a -t and warn four times about flags nobody wrote.
+        if (ApplyOutputShape (arg, DialectId::Merlin, options))
+        {
+            argIndex++;
             continue;
         }
 

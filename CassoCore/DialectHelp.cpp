@@ -67,6 +67,7 @@ std::string DialectHelp::GetDialect (const DialectProfile & profile, char flagPr
     text  = std::string ("\n  ") + profile.GetName() + " <source> [flags]\n";
     text += ComposeFlagLines (profile.GetId(), flagPrefix);
     text += ComposeCpuLine   (profile);
+    text += ComposeOutputShapeLines (profile.GetId());
 
     if (hasBoundary)
     {
@@ -165,6 +166,40 @@ std::string DialectHelp::ComposeCpuLine (const DialectProfile & profile)
 
     return text;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialectHelp::ComposeOutputShapeLines
+//
+//  The output shapes a dialect names, from the same table its parser matches
+//  against.
+//
+//  A dialect offering no choice contributes nothing, which is why an empty span
+//  is a legitimate answer here too: the shape a source assembles to is not a
+//  question every grammar asks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DialectHelp::ComposeOutputShapeLines (DialectId dialect)
+{
+    constexpr size_t                                 kDescriptionColumn = 27;
+    std::span<const CommandLineParser::OutputShape>  shapes             = CommandLineParser::GetOutputShapes (dialect);
+    std::string                                      text;
+
+
+
+    for (const CommandLineParser::OutputShape & shape : shapes)
+    {
+        text += PadTo (std::string ("    ") + shape.spelling, kDescriptionColumn) + shape.description + "\n";
+    }
+
+    return text;
+}
+
 
 
 

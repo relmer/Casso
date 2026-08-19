@@ -384,6 +384,54 @@ namespace MerlinCommandLineTests
                             L"a defaulted output name would silently outrank the source's own");
         }
 
+        //  The default is the assembled bytes and nothing around them, which is
+        //  what this subcommand has always written. Pinned as its own test
+        //  because the two shape flags are a DEPARTURE from it: a default that
+        //  drifted would make both of them mean something else while their own
+        //  tests carried on passing.
+        TEST_METHOD (MerlinWritesRawBytesWhenNoShapeIsNamed)
+        {
+            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s" });
+
+            Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Raw,
+                            L"the merlin default is the object and nothing around it");
+        }
+
+        //  Sweeps the shape table for the reason the flag sweep exists one class
+        //  over: a row the help advertises and the parser never matches is a
+        //  documented flag that quietly does nothing.
+        TEST_METHOD (EveryOutputShapeIsAcceptedAndSelectsTheFormatItDeclares)
+        {
+            Assert::IsFalse (CommandLineParser::GetOutputShapes (DialectId::Merlin).empty(),
+                             L"nothing to sweep");
+
+            for (const CommandLineParser::OutputShape & shape : CommandLineParser::GetOutputShapes (DialectId::Merlin))
+            {
+                CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", shape.spelling });
+
+                Assert::IsTrue (opts.outputFormat == shape.format,
+                                Fixture::Widen (std::string (shape.spelling) + " did not select its declared format").c_str());
+            }
+        }
+
+        //  A whole-word flag must not fall into the letter loop. `--flat` read a
+        //  character at a time is -f -l -a -t, and the `l` arm GENERATES A
+        //  LISTING -- so the failure is not a warning about unknown flags, it is
+        //  an output file nobody asked for, produced by an invocation that
+        //  otherwise looks like it worked.
+        TEST_METHOD (AnOutputShapeIsNotReadAsAStringOfLetterFlags)
+        {
+            std::string  baseline = Fixture::Fingerprint (Fixture::Parse ({ "CassoCli", "merlin", "demo.s" }));
+
+            for (const CommandLineParser::OutputShape & shape : CommandLineParser::GetOutputShapes (DialectId::Merlin))
+            {
+                CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", shape.spelling });
+
+                Assert::AreEqual (baseline, Fixture::Fingerprint (opts),
+                                  Fixture::Widen (std::string (shape.spelling) + " disturbed something other than the output shape").c_str());
+            }
+        }
+
         //  Sweeps the flag table rather than a hand-picked sample, and asserts
         //  each row DID something: a row added to the table with no arm behind it
         //  parses quietly and changes nothing, which is exactly the drift the
@@ -574,6 +622,24 @@ namespace MerlinCommandLineTests
             {
                 Assert::IsTrue (help.find (entry.profile->GetName()) != std::string::npos,
                                 Fixture::Widen (std::string ("undocumented dialect: ") + entry.name).c_str());
+            }
+        }
+
+        //  The same rule for the shape rows, and for the same reason: a shape
+        //  the parser accepts and the help never mentions is a flag a developer
+        //  can only find by reading the source.
+        TEST_METHOD (EveryOutputShapeReachesTheHelpWithItsDescription)
+        {
+            std::string  help = DialectHelp::GetAllDialects ('-');
+
+            Assert::IsFalse (CommandLineParser::GetOutputShapes (DialectId::Merlin).empty(), L"nothing to sweep");
+
+            for (const CommandLineParser::OutputShape & shape : CommandLineParser::GetOutputShapes (DialectId::Merlin))
+            {
+                Assert::IsTrue (help.find (shape.spelling)   != std::string::npos,
+                                Fixture::Widen (shape.spelling).c_str());
+                Assert::IsTrue (help.find (shape.description) != std::string::npos,
+                                Fixture::Widen (shape.description).c_str());
             }
         }
 

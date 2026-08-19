@@ -41,6 +41,16 @@ Entries before versioning was introduced use dates only.
   `CLOCK.S` — produces either of the two objects Merlin shipped depending on the
   answer, from one file and two command lines.
 
+  **`--dos-bin` and `--flat` choose what wraps the bytes.** The default is
+  unchanged — the assembled stream and nothing around it. `--dos-bin` writes it
+  behind a 4-byte DOS 3.3 header carrying the origin and length, which is the
+  form the file takes on an Apple II disk; `--flat` writes a full 64 KB image
+  with the bytes at their origin. `--dos-bin` is worth reaching for because the
+  header carries the ORIGIN: the default output throws it away, and a Merlin
+  source usually takes its origin from an `ORG` line rather than from the
+  command line, so wrapping the bytes afterward means already knowing an address
+  only the assembler saw.
+
   There is no `--cpu` flag, and passing one is refused rather than ignored:
   Merlin selects its CPU in the source, and the refusal names the directive that
   does it. Exit codes are the ones every assembler subcommand already speaks —
