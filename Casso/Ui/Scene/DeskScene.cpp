@@ -7,6 +7,22 @@
 
 
 
+// The room's two ceiling fixtures in WORLD space -- the one basis every
+// device's placement is expressed in, so it is the only place they can live
+// if shading and shadowing are to agree about where the light is.
+//
+// World is the desk's axes remapped by MakeDeviceWorld: desk x stays x, desk
+// z (up) becomes world y, and desk y (back) becomes world -z. World y = 0 is
+// the desk surface, which is where the drives stand.
+static constexpr float   s_kRoomLightsWorld[2][3] =
+{
+    { -610.0f, 1524.0f, 450.0f },     // 2 ft left, 5 ft up, slightly forward
+    { 2134.0f, 1524.0f, 450.0f },     // 7 ft right, same height
+};
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -294,16 +310,40 @@ void DeskScene::SetDriveVisuals (int drive, bool lampOn, float doorProgress, boo
 ////////////////////////////////////////////////////////////////////////////////
 
 void DeskScene::SetModelLighting (const DeskSceneModel & model,
+                                  const float            world[16],
                                   bool                   lampOn,
                                   const float            lampRgb[3])
 {
     Dxui3DRenderer::Lighting   lighting;
-    const float             (& lights)[2][3] = model.LightsModel();
+    float                      toModel[16] = {};
 
-    for (int i = 0; i < 3; i++)
+    // Where the fixtures are for THIS device, solved from its placement
+    // rather than assumed. The model used to carry its own copy, offset by
+    // its own x-center, which quietly lit every device as though it stood on
+    // the desk's center line: both drives took identical light no matter
+    // where the row put them. That was invisible while nothing cast a
+    // shadow, and it stops being invisible the moment something does -- a
+    // face can shade lit while the shadow map, which works in real world
+    // space, says it is occluded. One basis for both, or they disagree.
+    if (SceneCamera::Inverse44 (world, toModel))
     {
-        lighting.light0[i] = lights[0][i];
-        lighting.light1[i] = lights[1][i];
+        SceneCamera::TransformPoint (toModel, s_kRoomLightsWorld[0], lighting.light0);
+        SceneCamera::TransformPoint (toModel, s_kRoomLightsWorld[1], lighting.light1);
+    }
+
+    // The shadow lookup goes from THIS device's model space straight to the
+    // light's clip space, so its placement rides in the matrix and the pixel
+    // shader never needs a world position it does not have.
+    if (m_shadowsReady)
+    {
+        for (int k = 0; k < 2; k++)
+        {
+            SceneCamera::Mul44 (world, m_lightVp[k], lighting.shadowMatrix[k]);
+        }
+
+        lighting.shadowTexel    = 1.0f / (float) kShadowMapTexels;
+        lighting.shadowBias     = kShadowBias;
+        lighting.shadowStrength = kShadowStrength;
     }
 
     lighting.refDist = DeskSceneModel::kLightRefMm;
@@ -767,6 +807,158 @@ void DeskScene::BuildGlassSheen (const CurvedDisplaySurface & surface)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::SceneBoundsWorld
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SceneBoundsWorld (const DeskSceneComposition & comp,
+                                  float                        lo[3],
+                                  float                        hi[3]) const
+{
+    auto  accumulate = [&lo, &hi] (const DeskSceneModel & model, const float world[16])
+    {
+        float  mn[3] = {};
+        float  mx[3] = {};
+
+        model.BoundsMin (mn);
+        model.BoundsMax (mx);
+
+        // All eight corners, because the model->world remap swaps axes: the
+        // box's min corner is not the world box's min corner.
+        for (int c = 0; c < 8; c++)
+        {
+            float  pt[3]  = { (c & 1) ? mx[0] : mn[0],
+                              (c & 2) ? mx[1] : mn[1],
+                              (c & 4) ? mx[2] : mn[2] };
+            float  out[3] = {};
+
+            if (SceneCamera::TransformPoint (world, pt, out))
+            {
+                for (int a = 0; a < 3; a++)
+                {
+                    lo[a] = (std::min) (lo[a], out[a]);
+                    hi[a] = (std::max) (hi[a], out[a]);
+                }
+            }
+        }
+    };
+
+    lo[0] = lo[1] = lo[2] =  FLT_MAX;
+    hi[0] = hi[1] = hi[2] = -FLT_MAX;
+
+    accumulate (m_monitor, comp.monitorWorld);
+
+    for (int drive = 0; drive < comp.driveCount; drive++)
+    {
+        accumulate (m_drive, comp.driveWorld[drive]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::RenderShadowMaps
+//
+//  One depth pass per room light, every device drawn into the same map so the
+//  shadows are the scene's and not each device's own.
+//
+//  The frustum is solved from the scene's bounding SPHERE rather than its box:
+//  a box's extent depends on which way the light looks at it, so a
+//  box-derived fov breathes as the composition changes and the shadow's
+//  resolution breathes with it. The sphere gives one number that holds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::RenderShadowMaps (const DeskSceneComposition & comp,
+                                     const D3D11_VIEWPORT       & viewport)
+{
+    HRESULT  hr        = S_OK;
+    float    lo[3]     = {};
+    float    hi[3]     = {};
+    float    center[3] = {};
+    float    radius    = 0.0f;
+
+
+    m_shadowsReady = false;
+
+    m_renderer.SetShadowMapSize (kShadowMapTexels);
+    SceneBoundsWorld (comp, lo, hi);
+
+    CBREx (hi[0] >= lo[0], E_UNEXPECTED);
+
+    for (int a = 0; a < 3; a++)
+    {
+        center[a] = (lo[a] + hi[a]) * 0.5f;
+    }
+
+    radius = 0.5f * std::sqrt ((hi[0] - lo[0]) * (hi[0] - lo[0]) +
+                               (hi[1] - lo[1]) * (hi[1] - lo[1]) +
+                               (hi[2] - lo[2]) * (hi[2] - lo[2]));
+
+    for (int k = 0; k < 2; k++)
+    {
+        float  view[16] = {};
+        float  proj[16] = {};
+        float  dx       = s_kRoomLightsWorld[k][0] - center[0];
+        float  dy       = s_kRoomLightsWorld[k][1] - center[1];
+        float  dz       = s_kRoomLightsWorld[k][2] - center[2];
+        float  dist     = std::sqrt (dx * dx + dy * dy + dz * dz);
+        float  fovY     = 0.0f;
+        float  mvp[16]  = {};
+
+        if (dist <= radius * 1.01f)
+        {
+            continue;
+        }
+
+        // Just wide enough to hold the sphere, with a little air so a texel
+        // at the very edge is never the one being read.
+        fovY = 2.0f * std::asin ((std::min) (0.99f, radius / dist)) * 1.08f;
+
+        SceneCamera::LookAtRH         (s_kRoomLightsWorld[k], center, view);
+        SceneCamera::PerspectiveFovRH (fovY, 1.0f, (std::max) (1.0f, dist - radius),
+                                        dist + radius, proj);
+        SceneCamera::Mul44            (view, proj, m_lightVp[k]);
+
+        hr = m_renderer.BeginShadowPass (k);
+        CHRA (hr);
+
+        SceneCamera::Mul44 (comp.monitorWorld, m_lightVp[k], mvp);
+
+        hr = m_renderer.DrawStatic (m_monitorOpaqueMesh[0],
+                                    m_monitor.OpaqueVerts().data(),
+                                    m_monitor.OpaqueVerts().size(),
+                                    m_geometryRev, mvp, false, viewport, true);
+
+        for (int drive = 0; drive < comp.driveCount && SUCCEEDED (hr); drive++)
+        {
+            SceneCamera::Mul44 (comp.driveWorld[drive], m_lightVp[k], mvp);
+
+            hr = m_renderer.DrawStatic (m_driveOpaqueMesh[0],
+                                        m_drive.OpaqueVerts().data(),
+                                        m_drive.OpaqueVerts().size(),
+                                        m_geometryRev, mvp, false, viewport, true);
+        }
+
+        m_renderer.EndShadowPass();
+        CHRA (hr);
+    }
+
+    m_shadowsReady = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::DrawDrives
 //
 //  The drive pass both presentations share: opaque body, the door assembly
@@ -790,7 +982,7 @@ HRESULT DeskScene::DrawDrives (const DeskSceneComposition & comp, const D3D11_VI
         // its own coordinates and Load() put the room's fixtures into them,
         // so a drive at the right of the desk sees the same two ceiling
         // lights from a different place than the monitor above it does.
-        SetModelLighting (m_drive, m_driveActive[drive], kDriveGlowRgb);
+        SetModelLighting (m_drive, comp.driveWorld[drive], m_driveActive[drive], kDriveGlowRgb);
 
         hr = m_renderer.DrawStatic (m_driveOpaqueMesh[0],
                                     m_drive.OpaqueVerts().data(),
@@ -1342,6 +1534,13 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     hr = EnsurePlateTarget (width, height);
     CHRA (hr);
 
+    // Shadows first, and OUTSIDE the multisampled detour: a depth-only pass
+    // wants neither the MSAA target nor the scene's own depth buffer, and
+    // filling the maps before anything samples them is the whole ordering
+    // requirement.
+    hr = RenderShadowMaps (m_comp, viewport);
+    CHRA (hr);
+
     // Behind the picture first.
     rawPlate = m_backPlateRtv.Get();
     m_context->OMSetRenderTargets (1, &rawPlate, nullptr);
@@ -1363,7 +1562,7 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     // Opaque bodies: monitor, then each placed drive.
     SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, mvp);
 
-    SetModelLighting (m_monitor, m_powerLampOn, kMonitorGlowRgb);
+    SetModelLighting (m_monitor, m_comp.monitorWorld, m_powerLampOn, kMonitorGlowRgb);
 
     hr = m_renderer.DrawStatic (m_monitorOpaqueMesh[0],
                                 m_monitor.OpaqueVerts().data(),

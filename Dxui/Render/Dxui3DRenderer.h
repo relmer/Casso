@@ -90,6 +90,20 @@ public:
         float  lampColor[3] = { 0.0f, 0.0f, 0.0f };
         float  lampRefDist  = 22.0f;
         float  lampRange    = 130.0f;
+
+        // Shadow lookup, one matrix per room light. Each takes THIS draw's
+        // vertex positions straight to that light's clip space (row-vector:
+        // clip = v * M), so geometry submitted in its own model space needs
+        // no world position in the shader -- the caller folds the device's
+        // placement into the matrix, which is also what lets one shared map
+        // hold every device and give inter-object shadows.
+        //
+        // Zero texel disables shadowing outright, which is how every scene
+        // that never calls BeginShadowPass keeps working untouched.
+        float  shadowMatrix[2][16] = {};
+        float  shadowTexel    = 0.0f;      // 1 / map edge; 0 disables
+        float  shadowBias     = 0.0f;      // in light-clip depth units
+        float  shadowStrength = 1.0f;      // 0 lets a shadowed face keep its light
     };
 
     void  SetLighting (const Lighting & lighting)  { m_lighting = lighting; }
@@ -150,6 +164,28 @@ public:
     // to composite and is equally quiet, so callers pair them unconditionally.
     HRESULT  BeginMultisampledScene ();
     HRESULT  EndMultisampledScene   ();
+
+    // Depth-only pass from one room light. Between Begin and End every draw
+    // writes ONLY depth, into that light's shadow map, using whatever mvp the
+    // caller passes -- which has to land the geometry in the same clip space
+    // the matching Lighting::shadowMatrix does, or the lookup misses.
+    //
+    // Submit every caster in the scene between one pair, in whatever spaces
+    // they live in: the map is shared, so a device shadows its neighbors as
+    // readily as itself. Call before the color pass; the maps persist until
+    // the next Begin on that slot, so a still scene pays nothing to redraw.
+    HRESULT  BeginShadowPass (int slot);
+    void     EndShadowPass   ();
+
+    // Shadow map edge in texels. Bigger resolves finer relief -- the desk
+    // scene spans roughly a metre and its mold relief throws shadows a few
+    // millimetres long, so this wants to be generous -- at a square cost in
+    // memory and fill. Takes effect on the next BeginShadowPass.
+    void     SetShadowMapSize (UINT texels);
+    UINT     ShadowMapSize    () const { return m_shadowSize; }
+
+    static constexpr int   kShadowLights      = 2;
+    static constexpr UINT  kDefaultShadowSize = 2048;
 
     // Lay a premultiplied texture over the whole bound target as one quad --
     // what EndMultisampledScene does with its resolve, exposed because the
@@ -226,6 +262,28 @@ private:
     HRESULT  CreateShaders      ();
     HRESULT  CreatePipelineState ();
     HRESULT  EnsureVertexBuffer (size_t requiredVerts);
+    HRESULT  EnsureShadowMap    (int slot);
+    void     IssueShadowDraw    (ID3D11Buffer * vertexBuffer, size_t vertexCount);
+
+    // One light's depth of the whole scene. Depth-only: no color target is
+    // bound while it is being filled, and the SRV is what the color pass
+    // reads back.
+    struct ShadowMap
+    {
+        ComPtr<ID3D11Texture2D>           tex;
+        ComPtr<ID3D11DepthStencilView>    dsv;
+        ComPtr<ID3D11ShaderResourceView>  srv;
+        UINT                              size = 0;
+    };
+
+    ShadowMap                         m_shadow[kShadowLights];
+    UINT                              m_shadowSize = kDefaultShadowSize;
+    int                               m_shadowSlot = -1;   // >= 0 inside a pass
+    ComPtr<ID3D11DepthStencilState>   m_shadowDepthState;
+    ComPtr<ID3D11RasterizerState>     m_shadowRasterState;
+    ComPtr<ID3D11SamplerState>        m_shadowSampler;
+    ComPtr<ID3D11RenderTargetView>    m_shadowSavedRtv;
+    ComPtr<ID3D11DepthStencilView>    m_shadowSavedDsv;
 
     ID3D11Device        *             m_device  = nullptr;   // non-owning
     ID3D11DeviceContext *             m_context = nullptr;   // non-owning

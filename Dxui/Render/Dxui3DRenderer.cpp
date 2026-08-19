@@ -67,7 +67,13 @@ static const char s_kPixelShaderSrc[] =
     "    float4 lampPos;   // xyz, w refDist\n"
     "    float4 lampDir;   // xyz lens facing, w range\n"
     "    float4 lampCol;   // xyz, zero disables\n"
+    "    row_major float4x4 shadow0;\n"
+    "    row_major float4x4 shadow1;\n"
+    "    float4 shadowParm;   // x texel (0 disables), y bias, z strength\n"
     "};\n"
+    "Texture2D              shadowTex0 : register(t1);\n"
+    "Texture2D              shadowTex1 : register(t2);\n"
+    "SamplerComparisonState shadowSamp : register(s1);\n"
     "struct PSIn { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float4 col : COLOR;\n"
     "              float3 nrm : NORMAL;      float3 emi : COLOR1;   float3 wp : TEXCOORD1; };\n"
     "float4 main (PSIn input) : SV_TARGET\n"
@@ -89,10 +95,47 @@ static const char s_kPixelShaderSrc[] =
     "            float3 L  = d / r;\n"
     "            float  at = (parm.x * parm.x) / (r * r);\n"
     "            float  nl = saturate (dot (n, L));\n"
-    "            diff += nl * at;\n"
+    "            float  vis = 1.0f;\n"
+    // Shadow lookup. The texture fetch is written out per light rather than
+    // indexed because ps_4_0 has no texture arrays and cannot take a
+    // Texture2D as a parameter; the k loop is unrolled, so both ternaries
+    // fold away at compile time and this costs nothing at runtime.
+    "            if (shadowParm.x > 0.0f && nl > 0.0f)\n"
+    "            {\n"
+    "                float4 lc = (k == 0) ? mul (float4 (input.wp, 1.0f), shadow0)\n"
+    "                                     : mul (float4 (input.wp, 1.0f), shadow1);\n"
+    "                if (lc.w > 0.0f)\n"
+    "                {\n"
+    "                    float3 p  = lc.xyz / lc.w;\n"
+    "                    float2 uv = float2 (p.x * 0.5f + 0.5f, 0.5f - p.y * 0.5f);\n"
+    // Outside the map is LIT, never shadowed: a caster's frustum covers the
+    // scene, so falling outside means nothing was in the way.
+    "                    if (max (abs (p.x), abs (p.y)) <= 1.0f && p.z >= 0.0f && p.z <= 1.0f)\n"
+    "                    {\n"
+    // Hardware comparison filtering: each tap is already bilinear across
+    // four texels, so nine of them span an effective six-by-six and the
+    // edge comes out graded instead of staircased. Doing the compare by
+    // hand cost the same nine fetches and gave nine hard yes-or-no answers.
+    "                        float lit = 0.0f;\n"
+    "                        float ref = p.z - shadowParm.y;\n"
+    "                        [unroll] for (int sy = -1; sy <= 1; sy++)\n"
+    "                        {\n"
+    "                            [unroll] for (int sx = -1; sx <= 1; sx++)\n"
+    "                            {\n"
+    "                                float2 o = uv + float2 (sx, sy) * shadowParm.x * 1.5f;\n"
+    "                                lit += (k == 0)\n"
+    "                                     ? shadowTex0.SampleCmpLevelZero (shadowSamp, o, ref)\n"
+    "                                     : shadowTex1.SampleCmpLevelZero (shadowSamp, o, ref);\n"
+    "                            }\n"
+    "                        }\n"
+    "                        vis = lerp (1.0f, lit / 9.0f, shadowParm.z);\n"
+    "                    }\n"
+    "                }\n"
+    "            }\n"
+    "            diff += nl * at * vis;\n"
     "            if (nl > 0.0f)\n"
     "            {\n"
-    "                spec += pow (saturate (dot (n, normalize (L + v))), parm2.x) * at;\n"
+    "                spec += pow (saturate (dot (n, normalize (L + v))), parm2.x) * at * vis;\n"
     "            }\n"
     "        }\n"
     "        // Ambient by FACING: ceiling bounce above, desk bounce below.\n"
@@ -254,6 +297,20 @@ void Dxui3DRenderer::Shutdown()
     m_vertexBuffer.Reset();
     m_mvpBuffer.Reset();
     m_lightBuffer.Reset();
+    m_shadowDepthState.Reset();
+    m_shadowRasterState.Reset();
+    m_shadowSampler.Reset();
+    m_shadowSavedRtv.Reset();
+    m_shadowSavedDsv.Reset();
+    for (int i = 0; i < kShadowLights; i++)
+    {
+        m_shadow[i].tex.Reset();
+        m_shadow[i].dsv.Reset();
+        m_shadow[i].srv.Reset();
+        m_shadow[i].size = 0;
+    }
+
+    m_shadowSlot = -1;
     m_blendState.Reset();
     m_rasterState.Reset();
     m_depthState.Reset();
@@ -479,6 +536,52 @@ HRESULT Dxui3DRenderer::CreatePipelineState()
         CHR (hr);
     }
 
+    // Shadow map state. BORDER addressing with a white border so a lookup
+    // that lands off the map reads "nothing in the way" -- clamping instead
+    // smears the edge texel across everything outside and paints phantom
+    // shadows over the whole scene.
+    {
+        D3D11_SAMPLER_DESC        samp   = {};
+        D3D11_RASTERIZER_DESC     raster = {};
+        D3D11_DEPTH_STENCIL_DESC  depth  = {};
+
+        samp.Filter         = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+        samp.ComparisonFunc = D3D11_COMPARISON_LESS_EQUAL;
+        samp.AddressU       = D3D11_TEXTURE_ADDRESS_BORDER;
+        samp.AddressV       = D3D11_TEXTURE_ADDRESS_BORDER;
+        samp.AddressW       = D3D11_TEXTURE_ADDRESS_BORDER;
+        samp.BorderColor[0] = 1.0f;
+        samp.BorderColor[1] = 1.0f;
+        samp.BorderColor[2] = 1.0f;
+        samp.BorderColor[3] = 1.0f;
+        samp.MaxLOD         = D3D11_FLOAT32_MAX;
+
+        hr = m_device->CreateSamplerState (&samp, m_shadowSampler.GetAddressOf());
+        CHR (hr);
+
+        // Front faces culled while filling the map. The scene draws with no
+        // culling and its relief is millimetres proud on a case a third of a
+        // metre across, so a depth written by the very surface being shaded
+        // is the whole acne problem; recording the BACK faces moves the
+        // recorded depth behind the lit surface and takes most of it away
+        // before any bias is asked to.
+        raster.FillMode              = D3D11_FILL_SOLID;
+        raster.CullMode              = D3D11_CULL_FRONT;
+        raster.DepthClipEnable       = TRUE;
+        raster.DepthBias             = 24;
+        raster.SlopeScaledDepthBias  = 2.0f;
+
+        hr = m_device->CreateRasterizerState (&raster, m_shadowRasterState.GetAddressOf());
+        CHR (hr);
+
+        depth.DepthEnable    = TRUE;
+        depth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+        depth.DepthFunc      = D3D11_COMPARISON_LESS;
+
+        hr = m_device->CreateDepthStencilState (&depth, m_shadowDepthState.GetAddressOf());
+        CHR (hr);
+    }
+
     {
         D3D11_BUFFER_DESC   cb = {};
 
@@ -490,10 +593,11 @@ HRESULT Dxui3DRenderer::CreatePipelineState()
         hr = m_device->CreateBuffer (&cb, nullptr, m_mvpBuffer.GetAddressOf());
         CHR (hr);
 
-        // Five float4s of lighting, updated per draw alongside the mvp: the
-        // desk scene keeps every device in its own model space, so the light
-        // positions change with each device rather than once per frame.
-        cb.ByteWidth = 10 * 4 * sizeof (float);
+        // Lighting, updated per draw alongside the mvp: the desk scene keeps
+        // every device in its own model space, so the light positions change
+        // with each device rather than once per frame -- and so do the two
+        // shadow matrices, which carry that device's placement.
+        cb.ByteWidth = 19 * 4 * sizeof (float);
 
         hr = m_device->CreateBuffer (&cb, nullptr, m_lightBuffer.GetAddressOf());
         CHR (hr);
@@ -691,6 +795,204 @@ HRESULT Dxui3DRenderer::BeginDepthPass()
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetShadowMapSize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dxui3DRenderer::SetShadowMapSize (UINT texels)
+{
+    m_shadowSize = (texels < 256) ? 256 : texels;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureShadowMap
+//
+//  A typeless depth texture, because the same surface is written as a DSV in
+//  the shadow pass and read as an SRV in the color pass -- one format cannot
+//  do both, so it is declared without one and each view names its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dxui3DRenderer::EnsureShadowMap (int slot)
+{
+    HRESULT                          hr   = S_OK;
+    D3D11_TEXTURE2D_DESC             desc = {};
+    D3D11_DEPTH_STENCIL_VIEW_DESC    dsv  = {};
+    D3D11_SHADER_RESOURCE_VIEW_DESC  srv  = {};
+
+
+
+    CBREx (slot >= 0 && slot < kShadowLights, E_INVALIDARG);
+
+    if (m_shadow[slot].dsv != nullptr && m_shadow[slot].size == m_shadowSize)
+    {
+        return S_OK;
+    }
+
+    m_shadow[slot].tex.Reset();
+    m_shadow[slot].dsv.Reset();
+    m_shadow[slot].srv.Reset();
+
+    desc.Width            = m_shadowSize;
+    desc.Height           = m_shadowSize;
+    desc.MipLevels        = 1;
+    desc.ArraySize        = 1;
+    // 16 bits, not 32. The frustum spans about a metre of desk, so a texel of
+    // depth is well under a hundredth of a millimetre either way -- and the
+    // map is square, so halving the format is what pays for doubling the
+    // edge, which is the axis that actually shows.
+    desc.Format           = DXGI_FORMAT_R16_TYPELESS;
+    desc.SampleDesc.Count = 1;
+    desc.Usage            = D3D11_USAGE_DEFAULT;
+    desc.BindFlags        = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+
+    hr = m_device->CreateTexture2D (&desc, nullptr, m_shadow[slot].tex.GetAddressOf());
+    CHR (hr);
+
+    dsv.Format        = DXGI_FORMAT_D16_UNORM;
+    dsv.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+
+    hr = m_device->CreateDepthStencilView (m_shadow[slot].tex.Get(), &dsv,
+                                           m_shadow[slot].dsv.GetAddressOf());
+    CHR (hr);
+
+    srv.Format                    = DXGI_FORMAT_R16_UNORM;
+    srv.ViewDimension             = D3D11_SRV_DIMENSION_TEXTURE2D;
+    srv.Texture2D.MipLevels       = 1;
+
+    hr = m_device->CreateShaderResourceView (m_shadow[slot].tex.Get(), &srv,
+                                              m_shadow[slot].srv.GetAddressOf());
+    CHR (hr);
+
+    m_shadow[slot].size = m_shadowSize;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BeginShadowPass / EndShadowPass
+//
+//  The caller's render target is set aside and NO color target is bound while
+//  the map fills: a depth-only pass is the cheapest thing this pipeline can
+//  do, and binding a color target it would not write is what makes shadow
+//  passes cost more than they should.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dxui3DRenderer::BeginShadowPass (int slot)
+{
+    HRESULT                   hr        = S_OK;
+    ID3D11RenderTargetView *  noRtv     = nullptr;
+
+
+
+    CBREx (m_device != nullptr && m_context != nullptr, E_UNEXPECTED);
+    CBREx (slot >= 0 && slot < kShadowLights, E_INVALIDARG);
+    CBREx (m_shadowSlot < 0, E_UNEXPECTED);
+
+    hr = EnsureShadowMap (slot);
+    CHR (hr);
+
+    m_shadowSavedRtv.Reset();
+    m_shadowSavedDsv.Reset();
+    m_context->OMGetRenderTargets (1, m_shadowSavedRtv.GetAddressOf(),
+                                       m_shadowSavedDsv.GetAddressOf());
+
+    m_context->OMSetRenderTargets    (1, &noRtv, m_shadow[slot].dsv.Get());
+    m_context->ClearDepthStencilView (m_shadow[slot].dsv.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+    m_shadowSlot = slot;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EndShadowPass
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dxui3DRenderer::EndShadowPass()
+{
+    ID3D11RenderTargetView *  rtv = nullptr;
+
+
+
+    if (m_shadowSlot < 0)
+    {
+        return;
+    }
+
+    rtv = m_shadowSavedRtv.Get();
+    m_context->OMSetRenderTargets (1, &rtv, m_shadowSavedDsv.Get());
+
+    m_shadowSavedRtv.Reset();
+    m_shadowSavedDsv.Reset();
+    m_shadowSlot = -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IssueShadowDraw
+//
+//  The depth-only half of IssueDraw: no color target, no pixel shader, and the
+//  light's own square viewport rather than the caller's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dxui3DRenderer::IssueShadowDraw (ID3D11Buffer * vertexBuffer, size_t vertexCount)
+{
+    D3D11_VIEWPORT  vp     = {};
+    UINT            stride = sizeof (Vertex);
+    UINT            offset = 0;
+
+
+
+    vp.Width    = (float) m_shadow[m_shadowSlot].size;
+    vp.Height   = (float) m_shadow[m_shadowSlot].size;
+    vp.MaxDepth = 1.0f;
+
+    m_context->RSSetViewports         (1, &vp);
+    m_context->OMSetDepthStencilState (m_shadowDepthState.Get(), 0);
+    m_context->RSSetState             (m_shadowRasterState.Get());
+
+    m_context->IASetInputLayout       (m_layout.Get());
+    m_context->IASetPrimitiveTopology (D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    m_context->IASetVertexBuffers     (0, 1, &vertexBuffer, &stride, &offset);
+
+    m_context->VSSetShader            (m_vs.Get(), nullptr, 0);
+    m_context->VSSetConstantBuffers   (0, 1, m_mvpBuffer.GetAddressOf());
+    m_context->PSSetShader            (nullptr, nullptr, 0);
+
+    m_context->Draw ((UINT) vertexCount, 0);
 }
 
 
@@ -1174,7 +1476,7 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
     m_context->Unmap (m_mvpBuffer.Get(), 0);
 
     {
-        float  lightCb[40] =
+        float  lightCb[76] =
         {
             m_lighting.light0[0], m_lighting.light0[1], m_lighting.light0[2], 0.0f,
             m_lighting.light1[0], m_lighting.light1[1], m_lighting.light1[2], 0.0f,
@@ -1188,10 +1490,30 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
             m_lighting.lampColor[0], m_lighting.lampColor[1], m_lighting.lampColor[2], 0.0f,
         };
 
+        memcpy (&lightCb[40], m_lighting.shadowMatrix[0], 16 * sizeof (float));
+        memcpy (&lightCb[56], m_lighting.shadowMatrix[1], 16 * sizeof (float));
+
+        // Shadowing off inside a shadow pass: the depth-only draws never run
+        // the pixel shader, and leaving a map bound while it is the render
+        // target would be a read/write hazard.
+        lightCb[72] = (m_shadowSlot >= 0) ? 0.0f : m_lighting.shadowTexel;
+        lightCb[73] = m_lighting.shadowBias;
+        lightCb[74] = m_lighting.shadowStrength;
+        lightCb[75] = 0.0f;
+
         hr = m_context->Map (m_lightBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
         CHR (hr);
         memcpy (mapped.pData, lightCb, sizeof (lightCb));
         m_context->Unmap (m_lightBuffer.Get(), 0);
+    }
+
+    // Inside a shadow pass nothing else matters: depth only, no color target,
+    // no pixel shader, the light's viewport rather than the caller's.
+    if (m_shadowSlot >= 0)
+    {
+        IssueShadowDraw (vertexBuffer, vertexCount);
+
+        return S_OK;
     }
 
     // Depth-tested draws re-bind the current RTV together with our DSV (the
@@ -1232,13 +1554,25 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
     m_context->PSSetShaderResources   (0, 1, &srv);
     m_context->PSSetSamplers          (0, 1, m_sampler.GetAddressOf());
 
+    {
+        ID3D11ShaderResourceView *  shadowSrvs[kShadowLights] =
+        {
+            m_shadow[0].srv.Get(),
+            m_shadow[1].srv.Get(),
+        };
+
+        m_context->PSSetShaderResources (1, kShadowLights, shadowSrvs);
+        m_context->PSSetSamplers        (1, 1, m_shadowSampler.GetAddressOf());
+    }
+
     m_context->Draw ((UINT) vertexCount, 0);
 
-    // Unbind the SRV so a later frame binding this texture as a render target
-    // (not done today, but cheap insurance) never hits a hazard warning.
+    // Unbind the SRVs so a later frame binding one as a render target -- which
+    // the shadow pass genuinely does -- never hits a read/write hazard.
     {
-        ID3D11ShaderResourceView *  nullSrv = nullptr;
-        m_context->PSSetShaderResources (0, 1, &nullSrv);
+        ID3D11ShaderResourceView *  nullSrvs[1 + kShadowLights] = {};
+
+        m_context->PSSetShaderResources (0, 1 + kShadowLights, nullSrvs);
     }
 
 Error:

@@ -296,8 +296,37 @@ private:
     // model's own coordinates, plus its own lamp when that lamp is lit.
     // Called before each lit device's draw.
     void  SetModelLighting (const DeskSceneModel & model,
+                            const float            world[16],
                             bool                   lampOn   = false,
                             const float            lampRgb[3] = nullptr);
+
+    // Fills one shadow map per room light with the whole scene's depth, in
+    // WORLD space -- shared, so the monitor shadows the drives it stands on
+    // and a drive shadows its neighbor, not merely itself.
+    //
+    // Called from RenderPlate, which is the cached path: the maps are rebuilt
+    // exactly when the plate is, so a still scene pays for them once. Anything
+    // that moves geometry already invalidates the plate, and the bezel's tilt
+    // will be no different.
+    HRESULT  RenderShadowMaps (const DeskSceneComposition & comp,
+                               const D3D11_VIEWPORT       & viewport);
+
+    // The scene's extent in world mm, over every placed device -- what each
+    // light's frustum has to cover.
+    void  SceneBoundsWorld (const DeskSceneComposition & comp,
+                            float                        lo[3],
+                            float                        hi[3]) const;
+
+    // Shadow map edge. The scene spans roughly a metre and its mold relief
+    // throws shadows a few millimetres long, so this has to be generous: at
+    // 2048 a texel is about half a millimetre of desk, and the 4 mm shadow a
+    // 2.5 mm ridge casts is eight of them across.
+    static constexpr UINT   kShadowMapTexels = 4096;
+    static constexpr float  kShadowBias      = 0.0016f;
+    static constexpr float  kShadowStrength  = 0.72f;
+
+    float  m_lightVp[2][16] = {};
+    bool   m_shadowsReady   = false;
 
     static void  TintInto (const std::vector<Dxui3DRenderer::Vertex> & base,
                            float                                       factor,
