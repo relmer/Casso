@@ -92,6 +92,33 @@ namespace AssemblerTests
 
 
 
+        //  AN OPCODE'S CASE NEVER MATTERS, and no flag is involved in that.
+        //
+        //  THE HELP MAKES THIS CLAIM ON as65's BEHALF. `-i` is as65's request
+        //  for case-insensitive opcodes, and it is accepted here as a no-op
+        //  BECAUSE the behavior it asks for is already unconditional, not
+        //  because it is unimplemented -- which is what the help used to say.
+        //  The difference matters to anyone reading the flag list to decide
+        //  whether they can rely on lowercase source: they can, and always
+        //  could.
+        //
+        //  Assembled with no options at all, so nothing but the default is
+        //  being measured.
+        TEST_METHOD (OpcodeCaseIsIgnoredWithNoFlagAskingForIt)
+        {
+            Assembler  asm6502 = BuildAssembler();
+            auto       lower   = asm6502.Assemble ("lda #$42");
+            auto       upper   = asm6502.Assemble ("LDA #$42");
+            auto       mixed   = asm6502.Assemble ("Lda #$42");
+
+            Assert::IsTrue (lower.success, L"lowercase assembles with no flag asked for");
+            Assert::IsTrue (mixed.success, L"and so does mixed case");
+            Assert::IsTrue (lower.bytes == upper.bytes, L"to the same bytes as uppercase");
+            Assert::IsTrue (mixed.bytes == upper.bytes);
+        }
+
+
+
 
 
         ////////////////////////////////////////////////////////////////////////////////

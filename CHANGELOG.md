@@ -38,6 +38,13 @@ Entries before versioning was introduced use dates only.
   that assigns them.
 
 ### Fixed
+- **`-i` was described as unimplemented, and is not.** as65's `-i` asks for
+  case-insensitive opcodes, and this assembler has always been case-insensitive
+  about opcodes with or without it, so the flag is a no-op because the behavior
+  is already unconditional. Calling it "not implemented" told a reader that
+  lowercase source was unsupported, when `lda #$42` has always assembled. Labels
+  remain case-sensitive, and `-i` does not claim otherwise: as65's flag is about
+  opcodes.
 - **`-x` said it selected the 65SC02, and selects the 65C02.** The table it
   installs carries RMB/SMB/BBR/BBS, which a 65SC02 does not have. "65SC02" is
   as65's own name for the switch; the help says 65C02, which is what Apple
@@ -56,10 +63,9 @@ Entries before versioning was introduced use dates only.
   the first thing on the page, together with the list of flags -- `-o` today --
   that additionally accept a space before their value, which is what makes these
   command lines typable in PowerShell.
-- **`-i` and `-n` name the issue that tracks them.** Both are accepted and do
-  nothing; the page said "not implemented" and "no-op", which is a status a
-  reader cannot check from a help page. It now points at
-  https://github.com/relmer/Casso/issues/118.
+- **`-n` names the issue that tracks it.** It is accepted and does nothing; the
+  page said "no-op", which is a status a reader cannot check from a help page.
+  It now points at https://github.com/relmer/Casso/issues/118.
 
 ### Changed
 - **The assembly page opens with an as65 compatibility section.** The grammar
