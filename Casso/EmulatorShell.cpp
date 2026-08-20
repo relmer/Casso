@@ -1506,6 +1506,13 @@ SceneHitResult EmulatorShell::StripHit (int xPx, int yPx) const
 //  at all; a //c with the external drive disconnected shows only the
 //  internal one.
 //
+//  The controller check stays first and stays separate from the config. A
+//  machine can declare drive ports it cannot use -- the //c builds its IWM in
+//  code from a banked-ROM test rather than from a slot -- so "is there a
+//  controller" and "what is attached to it" are two questions, and answering
+//  the second alone would put drives on a machine that has nowhere to run
+//  them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int EmulatorShell::DeskSceneDriveCount() const
@@ -1519,7 +1526,17 @@ int EmulatorShell::DeskSceneDriveCount() const
         return 0;
     }
 
-    return ShouldShowExternalDrive() ? 2 : 1;
+    // The //c's drives are not carded -- one is soldered in and the second
+    // hangs off the back-panel disk port -- so its slot list says nothing
+    // about them and the internal drive is always there.
+    if (m_config.slots.empty())
+    {
+        return ShouldShowExternalDrive() ? 2 : 1;
+    }
+
+    // A card with every port empty reports zero, which is the point of being
+    // able to detach a drive at all.
+    return m_config.AttachedDiskIiDriveCount();
 }
 
 
@@ -3349,13 +3366,18 @@ void EmulatorShell::ReflowChromeForMachineChange()
 //
 //  EmulatorShell::ShouldShowExternalDrive
 //
-//  The second drive-mount widget is fixed hardware on the //e (two-drive
-//  slot-6 controller) and every other Disk ][ machine, so it is always
-//  visible there. The //c's second drive is an optional external unit that
-//  plugs into the disk port, so it appears only when the user has marked it
-//  connected (Hardware tab toggle -> $cassoUiPrefs.externalDriveConnected).
-//  The //c is the only machine with a banked system ROM, so romBankSize is
-//  the discriminator -- the same signal that gates the built-in IWM drive.
+//  The //c's second drive is an optional external unit that plugs into the
+//  disk port, so it appears only when the user has marked it connected
+//  (Hardware tab toggle -> $cassoUiPrefs.externalDriveConnected). The //c is
+//  the only machine with a banked system ROM, so romBankSize is the
+//  discriminator -- the same signal that gates the built-in IWM drive.
+//
+//  Everywhere else the second drive is whatever is attached to the Disk ][
+//  card's second connector. That used to be unconditionally true, on the
+//  reasoning that the card is two-drive hardware -- but the CARD having two
+//  connectors was never the same claim as both of them having a drive on the
+//  end, and this is the question the 2D widgets and the desk scene both ask,
+//  so answering it from the config is what keeps them agreeing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3365,7 +3387,12 @@ bool EmulatorShell::ShouldShowExternalDrive() const
 
 
 
-    return !externalIsOptional || m_externalDriveConnected;
+    if (externalIsOptional)
+    {
+        return m_externalDriveConnected;
+    }
+
+    return m_config.AttachedDiskIiDriveCount() >= kDiskIiPortCount;
 }
 
 

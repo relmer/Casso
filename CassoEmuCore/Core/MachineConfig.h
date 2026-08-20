@@ -171,6 +171,15 @@ struct PortConfig
 };
 
 
+// The Disk ][ Interface, the drive that plugs into it, and the number of
+// connectors the real card has. Shared rather than repeated because the
+// loader, the migration and the drive-count query must agree on all three --
+// a private copy in any one of them is a drift waiting to happen.
+static constexpr const char *  kpszDiskIiDevice = "disk-ii";
+static constexpr const char *  kpszDiskIiDrive  = "disk-ii-drive";
+static constexpr int           kDiskIiPortCount = 2;
+
+
 struct SlotConfig
 {
     int             slot            = 0;     // 1..7
@@ -310,6 +319,60 @@ struct MachineConfig
         }
 
         return false;
+    }
+
+
+    // The machine's own named connector, or nullptr when it has none by that
+    // name. This is the back panel of a machine whose hardware is built in --
+    // a card's connectors are numbered and live on the slot instead.
+    const PortConfig *  FindPort (const string & portName) const
+    {
+        for (const PortConfig & port : ports)
+        {
+            if (port.name == portName)
+            {
+                return &port;
+            }
+        }
+
+        return nullptr;
+    }
+
+
+    // How many drive units are attached to the machine's Disk ][ card, and 0
+    // when no enabled slot holds one.
+    //
+    // A card that declares NO ports has not been DESCRIBED yet -- it is not a
+    // card with nothing plugged in -- so it reports the two connectors the
+    // real Disk ][ Interface has, which is the hardware every config written
+    // before `ports` existed has been behaving as though it had. Reading an
+    // absent list as zero would take everyone's drives away.
+    int  AttachedDiskIiDriveCount () const
+    {
+        int  attached = 0;
+
+        for (const SlotConfig & entry : slots)
+        {
+            if (!entry.enabled || entry.device != kpszDiskIiDevice)
+            {
+                continue;
+            }
+
+            if (entry.ports.empty())
+            {
+                return kDiskIiPortCount;
+            }
+
+            for (const PortConfig & port : entry.ports)
+            {
+                if (!port.device.empty())
+                {
+                    attached++;
+                }
+            }
+        }
+
+        return attached;
     }
 };
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "MachineConfigUpgrade.h"
+#include "MachineConfig.h"
 #include "JsonParser.h"
 #include "JsonValue.h"
 #include "JsonWriter.h"

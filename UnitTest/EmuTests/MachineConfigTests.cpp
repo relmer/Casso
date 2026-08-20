@@ -629,6 +629,104 @@ public:
 
 
     //
+    //  The rule the whole feature rests on: a card that declares NO ports has
+    //  not been described yet, not emptied. Reading an absent list as zero
+    //  would take the drives away from every config written before the key
+    //  existed -- which is all of them.
+    //
+    TEST_METHOD (AttachedDiskIiDriveCount_UndeclaredPortsMeanTheRealCardsTwo)
+    {
+        MachineConfig  config;
+        SlotConfig     slot;
+
+        slot.slot   = 6;
+        slot.device = "disk-ii";
+        config.slots.push_back (slot);
+
+        Assert::AreEqual (2, config.AttachedDiskIiDriveCount(),
+            L"A Disk ][ with no ports declared has the two drives it "
+            L"has always behaved as having.");
+    }
+
+
+    TEST_METHOD (AttachedDiskIiDriveCount_CountsOnlyOccupiedConnectors)
+    {
+        MachineConfig  config;
+        SlotConfig     slot;
+
+        slot.slot   = 6;
+        slot.device = "disk-ii";
+        slot.ports.push_back ({ "", "disk-ii-drive" });
+        slot.ports.push_back ({ "", "" });               // connector, no drive
+        config.slots.push_back (slot);
+
+        Assert::AreEqual (1, config.AttachedDiskIiDriveCount(),
+            L"The card still has two connectors; only one has a drive.");
+    }
+
+
+    TEST_METHOD (AttachedDiskIiDriveCount_ADetachedPairReportsZero)
+    {
+        MachineConfig  config;
+        SlotConfig     slot;
+
+        slot.slot   = 6;
+        slot.device = "disk-ii";
+        slot.ports.push_back ({ "", "" });
+        slot.ports.push_back ({ "", "" });
+        config.slots.push_back (slot);
+
+        Assert::AreEqual (0, config.AttachedDiskIiDriveCount(),
+            L"A card with both connectors empty has no drives -- which is "
+            L"the point of being able to detach one at all.");
+    }
+
+
+    TEST_METHOD (AttachedDiskIiDriveCount_IgnoresADisabledCard)
+    {
+        MachineConfig  config;
+        SlotConfig     slot;
+
+        slot.slot    = 6;
+        slot.device  = "disk-ii";
+        slot.enabled = false;
+        config.slots.push_back (slot);
+
+        Assert::AreEqual (0, config.AttachedDiskIiDriveCount(),
+            L"A card the user turned off in Settings > Hardware is not "
+            L"present, so neither are its drives.");
+    }
+
+
+    TEST_METHOD (AttachedDiskIiDriveCount_SlotlessMachineHasNoCardedDrives)
+    {
+        MachineConfig  config;   // the //c: built-in drive, no slots
+
+        Assert::AreEqual (0, config.AttachedDiskIiDriveCount(),
+            L"The //c's drives are not on a card, so this query says "
+            L"nothing about them.");
+    }
+
+
+    TEST_METHOD (FindPort_NamesTheBackPanelConnectorOrNothing)
+    {
+        MachineConfig  config;
+
+        config.ports.push_back ({ "disk",     "" });
+        config.ports.push_back ({ "joystick", "apple2-joystick" });
+
+        Assert::IsTrue (config.FindPort ("disk") != nullptr,
+            L"A declared connector must be findable even when unoccupied.");
+        Assert::IsTrue (config.FindPort ("disk")->device.empty());
+        Assert::AreEqual (std::string ("apple2-joystick"),
+                          config.FindPort ("joystick")->device);
+        Assert::IsTrue (config.FindPort ("serial1") == nullptr,
+            L"A connector the machine does not have is absent, which is a "
+            L"different answer from present-and-empty.");
+    }
+
+
+    //
     //  A card's ports are numbered rather than named, so they are written as
     //  bare strings and read positionally. An empty string is a connector
     //  with nothing on it, which is a different state from the connector not
