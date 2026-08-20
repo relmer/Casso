@@ -23,7 +23,7 @@ namespace DialectEquivalenceTests
     //  something outside Casso -- the vendor's shipped objects for Merlin, the
     //  conformance expectations for as65. Those prove each dialect right on its
     //  own terms and say nothing about the two agreeing, because no source in
-    //  either corpus exists in the other spelling.
+    //  either corpus exists in a form the other dialect accepts.
     //
     //  This is that missing measurement, and the demo is the specimen because it
     //  is REAL: a boot loader with disk I/O, self-modifying reads, cross-stage
@@ -45,7 +45,7 @@ namespace DialectEquivalenceTests
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    //  One program in both spellings. Held in a table so a third pair joins the
+    //  One program written for both dialects. Held in a table so a third pair joins the
     //  sweep by being listed, and so the count below can assert what is covered.
     struct EquivalentPair
     {
@@ -53,7 +53,7 @@ namespace DialectEquivalenceTests
         const char *  as65Path;     // relative to Apple2/Demos
         const char *  merlinPath;
 
-        //  Whether the Merlin spelling is Merlin's ALONE. Equality between two
+        //  Whether the Merlin source is Merlin's ALONE. Equality between two
         //  files both dialects accept says only that the files agree; it cannot
         //  say the Merlin profile was consulted, because a mechanism that
         //  quietly fell back to as65 would produce the same bytes. A pair
@@ -64,7 +64,7 @@ namespace DialectEquivalenceTests
 
 
     //  Stage 1 discriminates because Merlin's own name for the carry branch is
-    //  BLT, which as65 rejects by name -- a faithful spelling rather than a
+    //  BLT, which as65 rejects by name -- a faithful use of the dialect rather than a
     //  contrivance, and it emits the same $90 either way.
     //
     //  Stage 2 does NOT, and the flag says so rather than implying otherwise.
@@ -74,8 +74,8 @@ namespace DialectEquivalenceTests
     //  make the specimen less like the program it is.
     static constexpr EquivalentPair  s_kEquivalentPairs[] =
     {
-        { "casso-rocks stage 1", "casso-rocks.a65",        "casso-rocks.S",        true  },
-        { "casso-rocks stage 2", "casso-rocks-stage2.a65", "casso-rocks-stage2.S", false },
+        { "casso-rocks stage 1", "casso-rocks.a65",        "casso-rocks.merlin.S",        true  },
+        { "casso-rocks stage 2", "casso-rocks-stage2.a65", "casso-rocks-stage2.merlin.S", false },
     };
 
 
@@ -84,7 +84,7 @@ namespace DialectEquivalenceTests
     {
     public:
 
-        //  Both spellings, byte for byte, with the count asserted first so a
+        //  Both dialects, byte for byte, with the count asserted first so a
         //  pair added later joins this sweep rather than escaping it.
         TEST_METHOD (EveryPairAssemblesToTheSameBytesUnderBothDialects)
         {
@@ -105,13 +105,13 @@ namespace DialectEquivalenceTests
                                  Widen (std::string (pair.name) + ": the Merlin source assembled to nothing").c_str());
 
                 Assert::AreEqual (fromAs65.size(), fromMerlin.size(),
-                                  Widen (std::string (pair.name) + ": the two spellings produced different lengths").c_str());
+                                  Widen (std::string (pair.name) + ": the two dialects produced different lengths").c_str());
 
                 for (size_t i = 0; i < fromAs65.size(); i++)
                 {
                     if (fromAs65[i] != fromMerlin[i])
                     {
-                        Assert::Fail (Widen (std::string (pair.name) + ": the two spellings differ at offset "
+                        Assert::Fail (Widen (std::string (pair.name) + ": the two dialects differ at offset "
                                              + std::to_string (i) + " -- as65 emitted " + Hex (fromAs65[i])
                                              + " where Merlin emitted " + Hex (fromMerlin[i])).c_str());
                     }
@@ -127,7 +127,7 @@ namespace DialectEquivalenceTests
         //
         //  `EQU` and `ORG` are NOT enough for that, which is worth recording
         //  because it is the assumption this test was first written on: as65
-        //  spells both the same way, so a port using only those lands in the
+        //  supports both identically, so a port using only those lands in the
         //  shared subset and assembles happily under either dialect.
         TEST_METHOD (EveryDiscriminatingPairIsRefusedByTheOtherDialect)
         {

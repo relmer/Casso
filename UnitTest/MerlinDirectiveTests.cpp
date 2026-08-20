@@ -2667,11 +2667,11 @@ namespace MerlinDirectiveTests
 
 
 
-        //  The advice spells the flag the way the invocation spelled its flags.
+        //  The advice writes the flag with the prefix the invocation used.
         //
         //  This diagnostic is the one place the ASSEMBLER names a command-line
         //  flag, and it is the reason AssemblerOptions carries a prefix at all.
-        //  Telling someone who typed `/o` to pass `-d` names a spelling their
+        //  Telling someone who typed `/o` to pass `-d` names a prefix their
         //  invocation did not use -- and, before the slash forms were accepted,
         //  one their next command would have had to switch styles to obey.
         TEST_METHOD (TheMissingAnswerAdviceFollowsTheInvocationsFlagPrefix)

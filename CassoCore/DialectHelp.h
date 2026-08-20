@@ -37,7 +37,7 @@ class DialectHelp
 {
 public:
     // Every selectable dialect and everything the tool has to say about it.
-    // `flagPrefix` is the one the user typed, so flags are spelled back the way
+    // `flagPrefix` is the one the user typed, so flags are written back the way
     // they invoked the tool.
     static std::string  GetAllDialects (char flagPrefix);
 

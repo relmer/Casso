@@ -232,7 +232,7 @@ namespace MerlinCorpusTests
     //
     //  Widening, for failure messages that name the file they are about. Carried
     //  here rather than inside one test class because two of them need it, and
-    //  the second copy is where two spellings of the same helper start.
+    //  the second copy is where two versions of the same helper start.
     //
     ////////////////////////////////////////////////////////////////////////////////
 

@@ -250,7 +250,7 @@ static AssemblerOptions BuildAssemblerOptions (const CommandLineOptions & option
     asmOptions.predefinedSymbols  = options.predefinedSymbols;
 
     // Carried so an assembler diagnostic naming a flag names it the way this
-    // invocation spells flags. The assembler never sees a command line.
+    // invocation used for its flags. The assembler never sees a command line.
     asmOptions.flagPrefix         = options.flagPrefix;
 
     return asmOptions;
@@ -474,7 +474,7 @@ static CommandLineOptions::OutputFormat ResolveOutputFormat (const CommandLineOp
 //  Writes the assembled image in the resolved shape.
 //
 //  "nul" is the explicit bit bucket and is matched case-insensitively, since
-//  it is a Windows device name that scripts spell every way. Writing nothing
+//  it is a Windows device name that scripts write every way. Writing nothing
 //  is SUCCESS on that path: it is how a caller asks for diagnostics only, and
 //  reporting failure would break a build that deliberately discards output.
 //
@@ -585,7 +585,7 @@ Error:
 //  directive, because the listing is a faithful rendering of the input: a
 //  `.page` line is reproduced where it appeared and emits a form feed plus a
 //  repeated title, matching what a period assembler sent to a line printer.
-//  The three spellings tested are the ones the assembler itself accepts.
+//  The three forms tested are the ones the assembler itself accepts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -932,14 +932,14 @@ static void PrintUsageGeneral (const char * lp, const char * sp, const char * pa
 //
 //  PrintUsageAssembler
 //
-//  Prints the AS65-mode flag reference, spelled with whichever prefix the user
+//  Prints the AS65-mode flag reference, using whichever prefix the user
 //  typed.
 //
 //  The prefix is substituted rather than hard-coded because both `/` and `-`
 //  are accepted, and usage text showing the form the reader did NOT type reads
 //  as though their invocation was wrong. The flag table is a format-string
 //  array for exactly that reason: one placeholder per flag, filled at print
-//  time, so neither spelling can be forgotten when a flag is added.
+//  time, so neither form can be forgotten when a flag is added.
 //
 //  The `--cpu` and source lines sit outside the table because they take a
 //  long-form or positional argument and carry no prefix to substitute.
@@ -954,9 +954,9 @@ static void PrintUsageAssembler (const char * sp)
     std::println ("                         (will try .a65, .asm, .s if no extension is present)");
     std::println ("");
     std::println ("  {:<22} Write only the assembled bytes, unpadded",
-                  CommandLineParser::SpellLongOption ("--raw", sp[0]));
+                  CommandLineParser::FormatLongOption ("--raw", sp[0]));
     std::println ("  {:<22} Write the assembled bytes behind a 4-byte DOS 3.3",
-                  CommandLineParser::SpellLongOption ("--dos-bin", sp[0]));
+                  CommandLineParser::FormatLongOption ("--dos-bin", sp[0]));
     std::println ("                         header (load address + length), ready to BLOAD");
     std::println ("                         (default: a full 64 KB image, padded with the fill byte)");
 
@@ -1083,7 +1083,7 @@ void PrintVersion()
 //  Deliberately NOT the usage block. `CassoCli input.a65` used to assemble, and
 //  the people it stops are build scripts -- which nobody reads again until the
 //  day they fail. A wall of usage text makes that day start with a bisect,
-//  where one line naming the replacement ends it. So the replacement is spelled
+//  where one line naming the replacement ends it. So the replacement is written
 //  out literally, ready to paste back into the script that broke.
 //
 ////////////////////////////////////////////////////////////////////////////////

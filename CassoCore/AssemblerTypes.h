@@ -97,10 +97,10 @@ enum class ArithmeticWidth
 //
 //  A bitwise operation an expression can name, independent of which character
 //  names it. The shared evaluator already performs all three; what differs
-//  between dialects is only the spelling, which is why this is a lookup on the
+//  between dialects is only the name, which is why this is a lookup on the
 //  way IN to the tokenizer rather than a second set of folds.
 //
-//  Merlin needs it because two of its spellings collide with the shared
+//  Merlin needs it because two of its names collide with the shared
 //  syntax outright: `!` reads as logical-not there and `.` is not punctuation
 //  at all. CLOCK.S settles both from its two shipped objects -- `HOURS/24!1`
 //  has to be exclusive-or (inclusive-or puts the edit cursor on the wrong digit
@@ -362,8 +362,8 @@ struct AssemblerOptions
     bool                                        disableOpt        = false;   // -n flag
     std::unordered_map<std::string, int32_t>    predefinedSymbols;   // -d flag
 
-    // Which prefix the invocation spelled its flags with, so a diagnostic that
-    // tells the user to pass one spells it their way. The assembler has no
+    // Which prefix the invocation used for its flags, so a diagnostic that
+    // tells the user to pass one uses their prefix. The assembler has no
     // command line of its own; this arrives from whoever built these options,
     // and the default suits every caller that never had one.
     char                                        flagPrefix        = '-';

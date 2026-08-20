@@ -57,7 +57,7 @@ struct MerlinFixtureFile
 //  ten sources the only bytes that were ever below $80 are spaces, so masking
 //  bit 7 changed no character's identity; every line ended in a single CR, and
 //  every CR became a CRLF that the parser accepts identically. What it does
-//  discard is the stored spelling of a space: a space separating fields carried
+//  discard is how a space was stored: a space separating fields carried
 //  the high bit ($A0) where a space inside comment text did not ($20), and both
 //  are now $20.
 //

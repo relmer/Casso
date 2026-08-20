@@ -102,20 +102,20 @@ std::string DialectHelp::ComposeFlagLines (DialectId dialect, char flagPrefix)
     constexpr size_t                                 kDescriptionColumn = 27;
     std::span<const CommandLineParser::DialectFlag>  flags              = CommandLineParser::GetFlags (dialect);
     std::string                                      text;
-    std::string                                      spelling;
+    std::string                                      rendered;
 
 
 
     for (const CommandLineParser::DialectFlag & flag : flags)
     {
-        spelling = std::string ("    ") + flagPrefix + flag.letter;
+        rendered = std::string ("    ") + flagPrefix + flag.letter;
 
         if (flag.valueName[0] != '\0')
         {
-            spelling += std::string (" ") + flag.valueName;
+            rendered += std::string (" ") + flag.valueName;
         }
 
-        text += PadTo (spelling, kDescriptionColumn) + flag.description + "\n";
+        text += PadTo (rendered, kDescriptionColumn) + flag.description + "\n";
     }
 
     return text;
@@ -149,14 +149,14 @@ std::string DialectHelp::ComposeCpuLine (const DialectProfile & profile, char fl
 
     if (isInSource)
     {
-        text = PadTo ("    " + CommandLineParser::SpellLongOption ("--cpu", flagPrefix) + " <target>", kDescriptionColumn)
+        text = PadTo ("    " + CommandLineParser::FormatLongOption ("--cpu", flagPrefix) + " <target>", kDescriptionColumn)
              + "Refused: the CPU target is selected in the source,\n"
              + PadTo ("", kDescriptionColumn)
              + "with the " + profile.GetCpuDirectiveName() + " directive\n";
     }
     else
     {
-        text = PadTo ("    " + CommandLineParser::SpellLongOption ("--cpu", flagPrefix) + " <6502|65c02>", kDescriptionColumn)
+        text = PadTo ("    " + CommandLineParser::FormatLongOption ("--cpu", flagPrefix) + " <6502|65c02>", kDescriptionColumn)
              + "Target CPU (default: 6502). 65c02 enables the CMOS\n"
              + PadTo ("", kDescriptionColumn)
              + "opcodes (STZ, BRA, RMBn/SMBn, BBRn/BBSn, ...);\n"
@@ -194,7 +194,7 @@ std::string DialectHelp::ComposeOutputShapeLines (DialectId dialect, char flagPr
 
     for (const CommandLineParser::OutputShape & shape : shapes)
     {
-        text += PadTo (std::string ("    ") + CommandLineParser::SpellLongOption (shape.spelling, flagPrefix), kDescriptionColumn) + shape.description + "\n";
+        text += PadTo (std::string ("    ") + CommandLineParser::FormatLongOption (shape.option, flagPrefix), kDescriptionColumn) + shape.description + "\n";
     }
 
     return text;
@@ -209,7 +209,7 @@ std::string DialectHelp::ComposeOutputShapeLines (DialectId dialect, char flagPr
 //  DialectHelp::PadTo
 //
 //  Right-pads to a column, leaving a single space where the text is already
-//  that wide, so a long flag spelling pushes its description along instead of
+//  that wide, so a long flag name pushes its description along instead of
 //  running into it.
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -60,7 +60,7 @@ public:
     {
         char            letter;
         FlagArgument    argument;
-        const char   *  valueName;     // how the value is spelled in help
+        const char   *  valueName;     // how the value appears in help
         const char   *  description;
     };
 
@@ -69,12 +69,12 @@ public:
     // generated from it, so a shape the tool accepts and a shape the tool
     // documents cannot come apart.
     //
-    // Long-spelled rather than a letter, because these name a file format
-    // rather than an assembler option, and the as65 grammar already spells
+    // Named as a whole word rather than a letter, because these name a file format
+    // rather than an assembler option, and the as65 grammar already writes
     // them that way.
     struct OutputShape
     {
-        const char                    *  spelling;
+        const char                    *  option;
         CommandLineOptions::OutputFormat format;
         const char                    *  description;
     };
@@ -106,7 +106,7 @@ public:
     static bool         EndsWith         (const std::string & str, const std::string & suffix);
     static std::string  StripExtension   (const std::string & path);
 
-    // Every accepted subcommand spelling, so tests can sweep the whole table
+    // Every accepted subcommand name, so tests can sweep the whole table
     // instead of a hand-picked sample.
     static std::span<const SubcommandName>  GetAllSubcommands();
 
@@ -119,19 +119,19 @@ public:
     // that offers no choice. Public for the same reason GetFlags is.
     static std::span<const OutputShape>      GetOutputShapes (DialectId dialect);
 
-    // A long option spelled the way this invocation spells them: `--name` for a
+    // A long option written with the prefix this invocation used: `--name` for a
     // dash command line, `/name` for a slash one. Public because the help text
     // and the diagnostics have to agree with the parser about how an option is
     // written -- printing `--dos-bin` at someone who typed `/o` tells them to
-    // use a spelling this parser would then have to accept anyway.
-    static std::string  SpellLongOption (const std::string & canonical, char flagPrefix);
+    // use a form this parser would then have to accept anyway.
+    static std::string  FormatLongOption (const std::string & canonical, char flagPrefix);
 
     // Records the prefix the user typed, the FIRST time one appears. A command
-    // line that mixes the two is answered in the spelling it opened with.
+    // line that mixes the two is answered with the prefix it opened with.
     static void         NoteFlagPrefix  (char prefix, CommandLineOptions & options);
 
     // Whether `arg` names the long option `canonical` (given as `--name`) in
-    // either spelling, recording the prefix as a side effect.
+    // either form, recording the prefix as a side effect.
     static bool         IsLongOption    (const std::string & arg, const std::string & canonical,
                                          CommandLineOptions & options);
 

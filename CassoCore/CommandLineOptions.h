@@ -25,7 +25,7 @@
 //  strict 6502 -- so an option omitted behaves the way as65 did.
 //
 //  flagPrefix records which prefix the USER typed, so usage text and
-//  diagnostics come back spelled the way they invoked the tool.
+//  diagnostics come back using the prefix they invoked the tool with.
 //
 //  Lives in the core library rather than beside the executable's main so the
 //  UnitTest project can link the parser that fills it. The executable keeps
@@ -75,7 +75,7 @@ struct CommandLineOptions
 
     //  Whether a prefixed argument has been seen yet, which is what makes the
     //  FIRST one the one that counts. Without it a mixed command line would be
-    //  answered in whichever spelling happened to come last, so the same
+    //  answered with whichever prefix happened to come last, so the same
     //  invocation could be echoed back two different ways depending on the
     //  order of flags nobody thinks of as ordered.
     bool          flagPrefixSeen  = false;

@@ -70,7 +70,7 @@ static constexpr CommandLineParser::DialectFlagTable  s_kDialectFlags[] =
 //  address that usually comes from an ORG buried in the source. The assembler
 //  knows it; nothing else reliably does.
 //
-//  as65 has no row. Its grammar is a hand-rolled walk that spells --raw and
+//  as65 has no row. Its grammar is a hand-rolled walk that writes --raw and
 //  --dos-bin inline, and its own usage block documents them, so a row here
 //  would be a second description of a tool this table does not drive.
 //
@@ -199,7 +199,7 @@ bool CommandLineParser::ApplyOutputShape (const std::string & arg, DialectId dia
 
     for (const OutputShape & shape : GetOutputShapes (dialect))
     {
-        if (IsLongOption (arg, shape.spelling, options))
+        if (IsLongOption (arg, shape.option, options))
         {
             options.outputFormat = shape.format;
             matched              = true;
@@ -221,8 +221,8 @@ bool CommandLineParser::ApplyOutputShape (const std::string & arg, DialectId dia
 //  The FIRST prefix wins, which is the whole point of recording it separately
 //  from the default.
 //
-//  A command line mixing the two spellings is a typo, not a request, and the
-//  only wrong answer is to echo back a spelling the user never typed. Taking
+//  A command line mixing the two prefixes is a typo, not a request, and the
+//  only wrong answer is to echo back a prefix the user never typed. Taking
 //  the first means the answer depends on how the invocation opens rather than
 //  on which flag happens to sit last -- an order nobody thinks of as ordered.
 //
@@ -243,7 +243,7 @@ void CommandLineParser::NoteFlagPrefix (char prefix, CommandLineOptions & option
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLineParser::SpellLongOption
+//  CommandLineParser::FormatLongOption
 //
 //  `--name` becomes `/name` on a slash command line.
 //
@@ -252,10 +252,10 @@ void CommandLineParser::NoteFlagPrefix (char prefix, CommandLineOptions & option
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string CommandLineParser::SpellLongOption (const std::string & canonical, char flagPrefix)
+std::string CommandLineParser::FormatLongOption (const std::string & canonical, char flagPrefix)
 {
     std::string  bare    = canonical;
-    std::string  spelled = canonical;
+    std::string  written = canonical;
 
 
 
@@ -266,10 +266,10 @@ std::string CommandLineParser::SpellLongOption (const std::string & canonical, c
 
     if (flagPrefix == '/')
     {
-        spelled = std::string ("/") + bare;
+        written = std::string ("/") + bare;
     }
 
-    return spelled;
+    return written;
 }
 
 
@@ -280,7 +280,7 @@ std::string CommandLineParser::SpellLongOption (const std::string & canonical, c
 //
 //  CommandLineParser::IsLongOption
 //
-//  Matches a long option in either spelling, so the parser accepts what the
+//  Matches a long option in either form, so the parser accepts what the
 //  help text advertises.
 //
 //  This exists because the slash form used to fall through to the LETTER loop,
@@ -299,7 +299,7 @@ bool CommandLineParser::IsLongOption (const std::string & arg, const std::string
 
     if (!matched && !arg.empty() && arg[0] == '/')
     {
-        matched = (arg == SpellLongOption (canonical, '/'));
+        matched = (arg == FormatLongOption (canonical, '/'));
     }
 
     if (matched && !arg.empty())
@@ -326,7 +326,7 @@ bool CommandLineParser::IsLongOptionWithValue (const std::string & arg, const st
                                                std::string & value, CommandLineOptions & options)
 {
     std::string  dashed  = canonical + "=";
-    std::string  slashed = SpellLongOption (canonical, '/') + "=";
+    std::string  slashed = FormatLongOption (canonical, '/') + "=";
     bool         matched = false;
 
     if (arg.rfind (dashed, 0) == 0)
@@ -489,7 +489,7 @@ Error:
 //  would silently classify one of them as having no recognized extension.
 //
 //  Both sides are lowered rather than assuming the caller passes a lowercase
-//  suffix, so the function is correct regardless of how the call site spells
+//  suffix, so the function is correct regardless of how the call site writes
 //  its literal.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -683,7 +683,7 @@ CommandLineOptions::Subcommand CommandLineParser::LookUpSubcommand (const std::s
 //                    not an unknown flag named "lsc"
 //    prefix parity   `/` and `-` both introduce a flag. The prefix the user
 //                    chose is REMEMBERED in flagPrefix so the usage text comes
-//                    back spelled the way they type
+//                    back using the prefix they type
 //    attached values a flag's argument may be glued to it or separated
 //
 //  Which is why this is a hand-rolled walk rather than a table: a table-driven
@@ -806,7 +806,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
             continue;
         }
 
-        // Normalize / prefix to - for flag parsing, recording which spelling the
+        // Normalize / prefix to - for flag parsing, recording which prefix the
         // invocation opened with on the way past.
         if (arg[0] == '/')
         {
@@ -1150,7 +1150,7 @@ bool CommandLineParser::RefuseCpuFlagWhereSelectedInSource (CommandLineOptions &
 
     if (isInSource)
     {
-        options.cpuFlagRefusal = SpellLongOption ("--cpu", options.flagPrefix) + std::string (" is not accepted for ") + profile.GetName()
+        options.cpuFlagRefusal = FormatLongOption ("--cpu", options.flagPrefix) + std::string (" is not accepted for ") + profile.GetName()
                                + ": the CPU target is selected in the source, with the "
                                + profile.GetCpuDirectiveName() + " directive.";
     }
@@ -1301,7 +1301,7 @@ bool CommandLineParser::ApplyMerlinFlag (char                 letter,
 //  decides nothing of its own. That is what makes the help text generated from
 //  the same rows a description of this parser rather than a second account of it.
 //
-//  A listing filename must be ATTACHED, unlike the as65 spelling that also
+//  A listing filename must be ATTACHED, unlike the as65 form that also
 //  accepts a separated one. Merlin's own source names the object file, so the
 //  bare word after a flag is far more likely to be the source than a listing
 //  path, and swallowing it would leave an assembly with no input and a listing
@@ -1626,7 +1626,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
 //  of which one would have applied.
 //
 //  A leading `/` is normalized to `-` throughout, after recording the user's
-//  chosen prefix in flagPrefix so usage text is spelled back the way they type.
+//  chosen prefix in flagPrefix so usage text uses the prefix they type.
 //
 //  An unrecognized first argument IS an error, and is carried back out by name.
 //  It used to be taken for a source filename, which is how as65 was invoked; the
