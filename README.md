@@ -34,6 +34,7 @@ The project includes:
 - [Project Structure](#project-structure)
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
+- [CPU Emulation Status](#cpu-emulation-status)
 - [Assembler](docs/Assembler.md)
 - [Why "Casso"?](#why-casso)
 - [Acknowledgments and Attributions](#acknowledgments-and-attributions)
@@ -402,6 +403,13 @@ Casso --machine Apple2c --disk1 "side-a.woz" --disk2 "side-b.woz"
 
 Machine names come from `Resources/Machines/<Name>/`:
 `Apple2`, `Apple2Plus`, `Apple2e`, `Apple2eEnhanced`, `Apple2c`.
+
+## CPU Emulation Status
+
+All 56 standard 6502 mnemonics are implemented, plus the 65C02 set. Validated
+against [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests)
+(full pass) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests)
+(all 151 legal-opcode test sets, 10,000 vectors each).
 
 ## Assembler
 

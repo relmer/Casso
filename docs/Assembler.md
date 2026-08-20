@@ -71,11 +71,6 @@ Under `--cpu 6502` a 65C02-only opcode is rejected as invalid rather than
 silently assembled, so targeting the wrong CPU is a build error and not a
 runtime surprise.
 
-The same instruction set backs the emulator, which is validated against
-[Klaus Dormann's functional tests](https://github.com/Klaus2m5/6502_65C02_functional_tests)
-(full pass) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests)
-(all 151 legal-opcode sets).
-
 ### Listing and symbols
 
 | Flag | Meaning |
@@ -102,12 +97,17 @@ The same instruction set backs the emulator, which is validated against
 
 > The three warning flags are accepted but are not yet listed in `--help`.
 
-### Accepted for compatibility
+### Accepted but not yet implemented
 
-| Flag | Meaning |
-|---|---|
-| `-i` | Case-insensitive labels. Already the default; accepted as a no-op. |
-| `-n` | Disable optimizations. Accepted as a no-op. |
+Both are parsed and then read by no code, so passing them changes nothing.
+They exist so an as65 invocation is not refused outright. Tracked by
+[#118](https://github.com/relmer/Casso/issues/118); in real as65 neither is a
+no-op.
+
+| Flag | as65 behavior | Casso today |
+|---|---|---|
+| `-i` | Ignore case in **opcodes**, so `adc` and `ADC` are the same instruction. Labels stay case-sensitive. | Accepted, ignored. Mnemonics and directives are already matched case-insensitively whether or not you pass it, so the flag has nothing left to switch on — but that is a coincidence of the implementation, not the flag working. |
+| `-n` | Disable optimizations, overriding the `OPT` pseudo-instruction. | Accepted, ignored. |
 
 ---
 
@@ -159,6 +159,7 @@ Addresses accept `$8000` or `0x8000`.
 | Numbers | `$FF` hex, `%10101010` binary, `255` decimal |
 | Expressions | `+ - * / % & \| ^ ~ << >>`, `<label` low byte, `>label` high byte, `*` current PC |
 | Listing control | `.page` is accepted and acts at listing time |
+| Case | Mnemonics and directives are matched case-insensitively; **labels are case-sensitive**. The asymmetry is deliberate — period sources write instructions in either case, but folding label case would silently merge `foo` and `FOO` into one symbol. |
 
 ---
 
