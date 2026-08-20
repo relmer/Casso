@@ -360,7 +360,11 @@ std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, 
         bool  isRedefinable = (kindIt != symbolKinds.end() && kindIt->second == SymbolKind::Set);
 
         std::string fullName = (isRedefinable ? "*" : "") + pair.first;
-        output += std::format ("{:<16s}${:04X}\n", fullName, pair.second);
+
+        //  Hex and decimal both, which is what AS65 lists: an address is read
+        //  in hex and a constant standing for a count is read in decimal, and
+        //  the table cannot tell which a symbol is.
+        output += std::format ("{:<16s}${:04X}  {:5d}\n", fullName, pair.second, pair.second);
     }
 
     return output;

@@ -9,6 +9,15 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Breaking changes
+- **`--cpu` is gone; use `-x` for the 65C02.** `-x` is what AS65 itself
+  documents — *"Use 65SC02 extensions. When this option is not specified the
+  assembler rejects the 65SC02 extensions"* — and `--cpu` was a second spelling
+  Casso invented for the same question. There is deliberately nothing to name
+  the narrow target with: omitting `-x` **is** naming it, which is what an AS65
+  user already does, and a Merlin user selects the CPU with `XC` in the source.
+  Replace `--cpu 65c02` with `-x`, and drop `--cpu 6502` entirely.
+
+  `merlin -x` is refused by name, as `merlin --cpu` was, and says to use `XC`.
 - **Assembling now names its dialect: `CassoCli as65 input.a65 -o out.bin`.**
   The old form, `CassoCli input.a65 -o out.bin`, no longer works. An
   unrecognized first argument used to be assumed to be an as65 source file;
@@ -118,11 +127,11 @@ Entries before versioning was introduced use dates only.
   `build.a65`? — is injected rather than probed directly.
 
 ### Added
-- **AS65's `-x` is accepted.** It is how AS65 asks for the extended CPU, and
-  Casso rejected it as an unknown flag — then carried on with the *narrow*
-  instruction table and reported every instruction the flag had asked to enable
-  as invalid. It now means what `--cpu 65c02` means.
-- **`run` takes the CPU too: `-x` or `--cpu`.** Without it there was a source
+- **AS65's `-x` is accepted, and is now the only CPU flag.** It is how AS65
+  asks for the extended CPU, and Casso rejected it as an unknown flag — then
+  carried on with the *narrow* instruction table and reported every instruction
+  the flag had asked to enable as invalid.
+- **`run` takes the assembler flags that change what is assembled: `-x` and `-d`.** Without it there was a source
   Casso could assemble and could not run — `run` refused the flag as unknown
   and then reported every 65C02 instruction in the file as invalid. It remains
   the only assembler option `run` accepts; the rest have no meaning when no
@@ -138,6 +147,9 @@ Entries before versioning was introduced use dates only.
   indent to the source column, so wrapped text lines up under the text rather
   than under the address and object bytes, which a listing's reader scans
   positionally.
+- **The symbol table shows decimal beside hex.** AS65 lists "the name,
+  hexadecimal and decimal value of each label"; Casso showed hex alone, which
+  is the wrong half for a symbol standing for a count rather than an address.
 - **`-g` writes its symbols in both useful orders.** The debug file lists them
   by address as before, then again by name, case-insensitively. Reading one is
   two different questions — what sits at an address, and where a name went —

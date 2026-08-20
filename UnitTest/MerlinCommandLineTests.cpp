@@ -561,13 +561,13 @@ namespace MerlinCommandLineTests
         TEST_METHOD (RunTakesTheCpuTheSourceNeeds)
         {
             CommandLineOptions  viaX    = Fixture::Parse ({ "CassoCli", "run", "demo.a65", "-x" });
-            CommandLineOptions  viaCpu  = Fixture::Parse ({ "CassoCli", "run", "demo.a65", "--cpu", "65c02" });
+            CommandLineOptions  viaSlash = Fixture::Parse ({ "CassoCli", "run", "demo.a65", "/x" });
             CommandLineOptions  plain   = Fixture::Parse ({ "CassoCli", "run", "demo.a65" });
 
             Assert::IsTrue (viaX.cpuTarget   == CommandLineOptions::CpuTarget::M65C02,
                             L"-x must reach the assembler run uses");
-            Assert::IsTrue (viaCpu.cpuTarget == CommandLineOptions::CpuTarget::M65C02,
-                            L"and so must --cpu 65c02");
+            Assert::IsTrue (viaSlash.cpuTarget == CommandLineOptions::CpuTarget::M65C02,
+                            L"and so must its slash form");
             Assert::IsTrue (plain.cpuTarget  == CommandLineOptions::CpuTarget::M6502,
                             L"with the strict 6502 still the default");
         }
@@ -639,7 +639,7 @@ namespace MerlinCommandLineTests
     public:
         TEST_METHOD (MerlinRefusesTheCpuFlagAndNamesTheDirectiveThatReplacesIt)
         {
-            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", "--cpu", "65c02" });
+            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", "-x" });
 
             Assert::IsFalse (opts.cpuFlagRefusal.empty(), L"the flag must be refused, not ignored");
             Assert::IsTrue  (opts.cpuFlagRefusal.find ("XC") != std::string::npos,
@@ -654,14 +654,14 @@ namespace MerlinCommandLineTests
         //  spelling and honored in the other is worse than one honored in both.
         TEST_METHOD (TheAttachedSpellingIsRefusedToo)
         {
-            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", "--cpu=65c02" });
+            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", "/x" });
 
             Assert::IsFalse (opts.cpuFlagRefusal.empty());
         }
 
         TEST_METHOD (As65AcceptsTheCpuFlag)
         {
-            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "as65", "demo.a65", "--cpu", "65c02" });
+            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "as65", "demo.a65", "-x" });
 
             Assert::IsTrue (opts.cpuFlagRefusal.empty(), L"as65 takes its CPU from the command line");
             Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M65C02);
@@ -689,8 +689,7 @@ namespace MerlinCommandLineTests
 
             for (const DialectRegistry::Entry & entry : DialectRegistry::GetAllDialects())
             {
-                CommandLineOptions  opts       = Fixture::Parse ({ "CassoCli", entry.name, "source.s",
-                                                                   "--cpu", "65c02" });
+                CommandLineOptions  opts       = Fixture::Parse ({ "CassoCli", entry.name, "source.s", "-x" });
                 bool                isInSource = entry.profile->GetCpuSelectionSource() ==
                                                      CpuSelectionSource::InSource;
                 bool                wasRefused = !opts.cpuFlagRefusal.empty();

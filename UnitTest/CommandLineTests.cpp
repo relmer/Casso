@@ -309,34 +309,6 @@ namespace CommandLineTests
             Assert::AreEqual (133, opts.pageWidth);
         }
 
-        //  AS65 spells the extended CPU as a flag of its own: "Use 65SC02
-        //  extensions. When this option is not specified the assembler rejects
-        //  the 65SC02 extensions."
-        //
-        //  Casso answers that question with --cpu and used to reject -x as an
-        //  unknown flag -- which is the worst of the three possible outcomes: it
-        //  warned, carried on with the NARROW table, and then reported every
-        //  instruction the flag had asked to enable as invalid.
-        TEST_METHOD (As65ExtendedCpuFlag_SelectsTheSameTargetAsTheCpuOption)
-        {
-            ArgVector           extended = { "CassoCli", "as65", "demo.a65", "-x" };
-            ArgVector           named    = { "CassoCli", "as65", "demo.a65", "--cpu", "65c02" };
-            ArgVector           plain    = { "CassoCli", "as65", "demo.a65" };
-
-            CommandLineOptions  viaX     = CommandLineParser::Parse (extended.Count(), extended.Data(), NoProbe());
-            CommandLineOptions  viaCpu   = CommandLineParser::Parse (named.Count(),    named.Data(),    NoProbe());
-            CommandLineOptions  neither  = CommandLineParser::Parse (plain.Count(),    plain.Data(),    NoProbe());
-
-            Assert::IsTrue (viaX.cpuTarget == CommandLineOptions::CpuTarget::M65C02,
-                            L"-x must select the extended CPU");
-            Assert::IsTrue (viaX.cpuTarget == viaCpu.cpuTarget,
-                            L"and must mean exactly what --cpu 65c02 means");
-            Assert::IsTrue (viaX.hasCpuTarget,
-                            L"an invocation that asked for a CPU must be recorded as having asked");
-
-            Assert::IsTrue (neither.cpuTarget == CommandLineOptions::CpuTarget::M6502,
-                            L"and the default stays the strict 6502");
-        }
 
         //  The three figures as65 documents, pinned together because they are
         //  one rule: a listing is 79 columns unless told otherwise, and the bare
@@ -380,29 +352,41 @@ namespace CommandLineTests
             Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M6502);
         }
 
-        TEST_METHOD (SeparatedCpuValue_Selects65C02)
+        //  -x IS THE ONLY WAY TO ASK, which is what AS65 does. There is nothing
+        //  to name the narrow target with, because omitting the flag IS naming
+        //  it: "when this option is not specified the assembler rejects the
+        //  65SC02 extensions".
+        //
+        //  --cpu is gone. It was Casso's own invention, it duplicated this, and
+        //  it did not exist in the tool this grammar is compatible with.
+        TEST_METHOD (ExtendedCpuFlag_Selects65C02)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-x" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M65C02);
+            Assert::IsTrue (opts.hasCpuTarget, L"and the invocation is recorded as having asked");
+        }
+
+        TEST_METHOD (ExtendedCpuFlag_ConcatenatesLikeEveryOtherLetter)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-tx" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M65C02,
+                            L"-x is a letter flag and concatenates as one");
+            Assert::IsTrue (opts.symbolTable, L"and the letter beside it still applies");
+        }
+
+        //  The flag Casso used to carry is no longer a flag, so it falls to the
+        //  unknown-letter path rather than quietly selecting anything.
+        TEST_METHOD (TheRetiredCpuOptionNoLongerSelectsATarget)
         {
             ArgVector           args = { "CassoCli", "as65", "demo.a65", "--cpu", "65c02" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M65C02);
-        }
-
-        TEST_METHOD (AttachedCpuValue_Selects65C02)
-        {
-            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--cpu=65C02" };
-            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
-
-            Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M65C02,
-                            L"the value is matched case-insensitively");
-        }
-
-        TEST_METHOD (UnknownCpuTarget_RequestsHelp)
-        {
-            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--cpu", "6809" };
-            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
-
-            Assert::IsTrue (opts.showHelp, L"a bad target must stop parsing and print usage");
+            Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M6502,
+                            L"a retired flag must not still work");
         }
     };
 

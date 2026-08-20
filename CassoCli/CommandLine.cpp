@@ -938,8 +938,8 @@ static void PrintUsageGeneral (const char * lp, const char * sp, const char * pa
     // pad compensates: -- (2 chars) vs / (1 char) in long prefix
     PrintSectionHeading ("General");
     std::println ("  Assembles AS65 or Merlin source for the 6502 and the 65C02. The subcommand");
-    std::println ("  names the dialect; the CPU is chosen with {0}cpu or {1}x under AS65, and by", lp, sp);
-    std::println ("  the XC directive inside Merlin source.");
+    std::println ("  names the dialect; the CPU is chosen with {0}x under AS65, and by the XC", sp);
+    std::println ("  directive inside Merlin source.");
     std::println ("");
     std::println ("  See docs/Assembler.md for additional information.");
     std::println ("");
@@ -1036,11 +1036,8 @@ static void PrintUsageAssembler (const char * sp)
 
     std::println ("");
     std::println ("  CPU:");
-    std::println ("    {0}x                   Assemble the 65C02 instructions. AS65's flag for", sp);
-    std::println ("                         it, and the one to prefer");
-    std::println ("    {:<20} The same choice, named. Under 6502 a 65C02-only",
-                  CommandLineParser::FormatLongOption ("--cpu", sp[0]) + " <6502|65c02>");
-    std::println ("                         instruction is an assembly error, not a surprise");
+    std::println ("    {0}x                   Assemble 65C02 instructions. Omit it for the plain", sp);
+    std::println ("                         6502, where a 65C02 instruction is an assembly error");
 }
 
 
@@ -1064,9 +1061,8 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
                   CommandLineParser::FormatLongOption ("--as65", sp[0]) + " | "
                   + CommandLineParser::FormatLongOption ("--merlin", sp[0]));
     std::println ("                         Ignored for a binary, which needs no assembler");
-    std::println ("  {0}x, {1:<18} The CPU a source assembles for, as in AS65 mode. No", sp,
-                  CommandLineParser::FormatLongOption ("--cpu", sp[0]) + " <6502|65c02>");
-    std::println ("                         other assembler flag is accepted here");
+    std::println ("  After it, that assembler's own switches are accepted too --");
+    std::println ("                         {0}x and {0}d, the two that change what is assembled", sp);
     std::println ("");
 
     const char * lines[] =
@@ -1259,9 +1255,10 @@ int DoRun (const CommandLineOptions & options)
         // Which assembler reads the source, from --as65 / --merlin. Carried with
         // its provenance for the same reason the subcommands carry it: a dialect
         // the caller named needs no report, one it inherited does.
-        asmOptions.dialect          = options.dialect;
-        asmOptions.dialectSelection = options.dialectSelection;
-        asmOptions.flagPrefix       = options.flagPrefix;
+        asmOptions.dialect           = options.dialect;
+        asmOptions.dialectSelection  = options.dialectSelection;
+        asmOptions.flagPrefix        = options.flagPrefix;
+        asmOptions.predefinedSymbols = options.predefinedSymbols;
 
         ar = AssembleFile (options.inputFile, SelectInstructionSet (options, cpu), nullptr, asmOptions);
         ReportAssemblyDiagnostics (ar);

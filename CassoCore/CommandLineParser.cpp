@@ -767,65 +767,6 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
             continue;
         }
 
-        // Long option: --cpu <target> / --cpu=<target> selects the target
-        // instruction set. Default stays 6502 so 65C02-only opcodes never assemble
-        // by accident; only an explicit --cpu 65c02 unlocks the CMOS tier.
-        if (IsLongOption (arg, "--cpu", options) || IsLongOptionWithValue (arg, "--cpu", attachedValue, options))
-        {
-            std::string val = attachedValue;
-
-            if (val.empty())
-            {
-                if (argIndex + 1 < argc)
-                {
-                    val = argv[++argIndex];
-                }
-            }
-
-            for (char & c : val)
-            {
-                c = (char) tolower ((unsigned char) c);
-            }
-
-            // Recognized by every grammar; honored only where the active
-            // dialect's profile says the CPU comes from the command line.
-            //
-            // This call can never refuse anything TODAY -- the only dialect
-            // reaching it says its CPU comes from the command line -- and
-            // deleting it is a mutation no test catches. It stays because it is
-            // what makes the refusal a property of the mechanism rather than of
-            // one grammar: flip this dialect's profile and the refusal happens
-            // here too, which is the registry sweep's whole claim. Without the
-            // call, that sweep would be true of a parser with a per-dialect arm.
-            refused = RefuseCpuFlagWhereSelectedInSource (options);
-            stop    = refused;
-
-            if (!refused && val == "6502")
-            {
-                options.cpuTarget    = CommandLineOptions::CpuTarget::M6502;
-                options.hasCpuTarget = true;
-            }
-            else if (!refused && val == "65c02")
-            {
-                options.cpuTarget    = CommandLineOptions::CpuTarget::M65C02;
-                options.hasCpuTarget = true;
-            }
-            else if (!refused)
-            {
-                std::cerr << "Error: unknown --cpu target '" << val
-                          << "' (expected 6502 or 65c02)\n";
-                options.showHelp = true;
-                stop             = true;
-            }
-
-            if (!stop)
-            {
-                argIndex++;
-            }
-
-            continue;
-        }
-
         // Long options selecting a binary output SHAPE. The default stays the
         // as65 full-64-KB image, so an invocation that names neither is
         // unaffected.
@@ -949,18 +890,28 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
                 break;
             }
 
-            //  AS65 spells the extended CPU as a flag of its own: "Use 65SC02
-            //  extensions. When this option is not specified the assembler
-            //  rejects the 65SC02 extensions." Casso answers the same question
-            //  with --cpu, and accepts this spelling so an AS65 invocation that
-            //  asks for the wider processor is not left assembling for the
-            //  narrower one -- which is what happened before, with a warning
-            //  about an unknown flag and then a pile of invalid-instruction
-            //  errors on the very instructions the flag had asked to enable.
+            //  The extended CPU, and the ONLY way to ask for it. AS65 documents
+            //  it as "Use 65SC02 extensions. When this option is not specified
+            //  the assembler rejects the 65SC02 extensions", so omitting it is
+            //  how an AS65 user pins the plain 6502 -- there is nothing to name
+            //  the narrow target with, and nothing that needs one.
+            //
+            //  The refusal call is what keeps the CPU question a property of the
+            //  MECHANISM rather than of this grammar: it can refuse nothing
+            //  today, because the only dialect reaching here takes its CPU from
+            //  the command line, but flip a profile and the refusal happens here
+            //  without this arm being touched.
             case 'x':
             {
-                options.cpuTarget    = CommandLineOptions::CpuTarget::M65C02;
-                options.hasCpuTarget = true;
+                refused = RefuseCpuFlagWhereSelectedInSource (options);
+                stop    = refused;
+
+                if (!refused)
+                {
+                    options.cpuTarget    = CommandLineOptions::CpuTarget::M65C02;
+                    options.hasCpuTarget = true;
+                }
+
                 pos++;
                 break;
             }
@@ -1210,7 +1161,7 @@ bool CommandLineParser::RefuseCpuFlagWhereSelectedInSource (CommandLineOptions &
 
     if (isInSource)
     {
-        options.cpuFlagRefusal = FormatLongOption ("--cpu", options.flagPrefix) + std::string (" is not accepted for ") + profile.GetName()
+        options.cpuFlagRefusal = std::string (1, options.flagPrefix) + "x is not accepted for " + profile.GetName()
                                + ": the CPU target is selected in the source, with the "
                                + profile.GetCpuDirectiveName() + " directive.";
     }
@@ -1407,12 +1358,9 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
         // The CPU flag is recognized by every grammar and honored by the ones
         // whose dialect takes its CPU from the command line. Whether this is one
         // of them is the profile's answer, not this parser's.
-        if (IsLongOption (arg, "--cpu", options) || IsLongOptionWithValue (arg, "--cpu", attachedValue, options))
+        if (arg == "-x" || arg == "/x")
         {
-            if (attachedValue.empty() && argIndex + 1 < argc)
-            {
-                argIndex++;
-            }
+            NoteFlagPrefix (arg[0] == '/' ? '/' : '-', options);
 
             stop = RefuseCpuFlagWhereSelectedInSource (options);
 
@@ -1600,21 +1548,24 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             continue;
         }
 
-        if (IsLongOption (arg, "--cpu", options) && argIndex + 1 < argc)
+        // A symbol the source expects, the other assembler flag that changes
+        // what gets assembled. The rest describe a file `run` never writes.
+        if ((arg.rfind ("-d", 0) == 0 || arg.rfind ("/d", 0) == 0) && arg.size() > 2)
         {
-            std::string  target (argv[++argIndex]);
-
-            for (char & c : target)
-            {
-                c = (char) tolower ((unsigned char) c);
-            }
-
-            options.cpuTarget    = (target == "65c02") ? CommandLineOptions::CpuTarget::M65C02
-                                                       : CommandLineOptions::CpuTarget::M6502;
-            options.hasCpuTarget = true;
+            NoteFlagPrefix (arg[0] == '/' ? '/' : '-', options);
+            AddSymbolDefinition (arg.substr (2), options);
             argIndex++;
             continue;
         }
+
+        if ((arg == "-d" || arg == "/d") && argIndex + 1 < argc)
+        {
+            NoteFlagPrefix (arg[0] == '/' ? '/' : '-', options);
+            AddSymbolDefinition (argv[++argIndex], options);
+            argIndex++;
+            continue;
+        }
+
 
         // Normalize / prefix to - on Windows
         if (arg.size() > 1 && arg[0] == '/')

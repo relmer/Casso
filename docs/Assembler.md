@@ -75,11 +75,10 @@ extension is consulted only when no flag is given.
 
 | Flag | Meaning |
 |---|---|
-| `--cpu 6502` | Strict NMOS 6502. **Default.** |
-| `-x` | AS65's own name for the extended CPU. The same as `--cpu 65c02`. |
-| `--cpu 65c02` | CMOS 65C02: `STZ`, `BRA`, `TSB`/`TRB`, `PHX`/`PHY`/`PLX`/`PLY`, `RMBn`/`SMBn`/`BBRn`/`BBSn`, and the `(zp)` and `(abs,X)` modes. |
+| *(omitted)* | Strict NMOS 6502. **Default.** |
+| `-x` | The extended CPU: `STZ`, `BRA`, `TSB`/`TRB`, `PHX`/`PHY`/`PLX`/`PLY`, `RMBn`/`SMBn`/`BBRn`/`BBSn`, and the `(zp)` and `(abs,X)` modes. |
 
-Under `--cpu 6502` a 65C02-only opcode is rejected as invalid rather than
+Without `-x` a 65C02-only opcode is rejected as invalid rather than
 silently assembled, so targeting the wrong CPU is a build error and not a
 runtime surprise.
 
@@ -148,12 +147,15 @@ and runs the result — no intermediate file.
 
 **`run` names its assembler.** `--as65` (the default) or `--merlin` decides which
 dialect reads a source; the flag is ignored for a binary, which needs no
-assembler at all.
+assembler at all. After it, that assembler's own switches are accepted for the
+two that change what is assembled -- `-x` and `-d`. The rest describe a file
+`run` never writes.
 
 | Option | Meaning |
 |---|---|
 | `--as65` \| `--merlin` | Which assembler reads a source. Default `--as65`. |
-| `-x`, `--cpu <6502\|65c02>` | The CPU a source assembles for. The only assembler option `run` accepts. |
+| `-x` | The extended CPU, as in AS65 mode. |
+| `-d <name>[=<value>]` | Define a symbol, as in AS65 mode. |
 | `--load <addr>` | Load address. Default `$8000`. |
 | `--entry <addr>` | Entry point. Defaults to the load address. |
 | `--reset-vector` | Take the entry point from the reset vector at `$FFFC`/`$FFFD`. |
