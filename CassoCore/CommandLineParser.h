@@ -71,11 +71,16 @@ public:
     //  of. Three statements that are each true beat one statement that is true
     //  of nothing.
     //
-    //  THE ASSEMBLER'S BLOCK NAMES A STATUS IT DOES NOT PRODUCE, once, on
-    //  purpose. as65 documents 4 for a failed allocation, and this assembler
-    //  cannot reach that condition -- a 64 KB image on a virtual-memory host.
-    //  Saying so costs two lines and answers the question a script ported from
-    //  as65 would otherwise have to answer by experiment.
+    //  THE ASSEMBLER'S LIST IS as65'S LIST. 0, 1, 2 and 3 carry the meanings the
+    //  as65 manual assigns them, warnings report 5 because as65 has no status
+    //  for them, and 4 is left alone because as65 spends it on a failed
+    //  allocation this tool cannot reach. See As65ExitStatus for why 1 moved.
+    //
+    //  IT IS A TABLE RATHER THAN PROSE. Four lines of explanation per status
+    //  said what each one covered and what a script should conclude, which is
+    //  reading for somebody porting a build and noise for everybody looking up a
+    //  number they just got back. What the statuses MEAN belongs in the header
+    //  that assigns them, and that is where it now lives.
     //
     //  Every line below was measured by running the built binary, not carried
     //  over from the text it replaces.
@@ -86,19 +91,11 @@ public:
     //  the runner that assigns it -- see DiskCommandRunner.
     //
     static constexpr const char *  kAssembleExitStatusHelpText =
-        "    0  assembled cleanly, and every artifact asked for was written.\n"
-        "    1  assembled, and the assembler had something to say. The output was still\n"
-        "       written.\n"
-        "    2  no file was opened: no input file, an input that could not be\n"
-        "       read, a command line that was refused, or an output file that\n"
-        "       could not be written.\n"
-        "    3  the source was read and did not assemble.\n"
-        "       as65 also defines 4, no memory could be allocated. This assembler\n"
-        "       does not produce it.\n"
-        "       TWO AUTHORITIES MEET IN THIS LIST. 0, 2 and 3 carry as65's own\n"
-        "       meanings. 1 does not: as65 spends it on a bad command line, and\n"
-        "       this assembler spends it on an assembly that warned, refusing the\n"
-        "       bad command line under 2 with the other cases that opened no file.";
+        "    0  Assembled successfully\n"
+        "    1  Bad command line\n"
+        "    2  Error opening source or output file\n"
+        "    3  Error assembling source file\n"
+        "    5  Assembled with warnings";
 
     static constexpr const char *  kRunExitStatusHelpText =
         "    0  the program ran to a stop, either the stop address or the cycle limit.\n"

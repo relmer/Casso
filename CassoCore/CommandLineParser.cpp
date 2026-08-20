@@ -2241,7 +2241,7 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
     //  THIS IS NOT AN as65 PARITY QUESTION. Nothing here has entered the
     //  assembler's grammar -- there is no source file, no `run`, no `disk` --
     //  so as65's statuses do not govern it. The value comes from this tool's
-    //  own table instead, where 2 is "no file was opened -- no input file".
+    //  own table instead, where 1 is a command line that could not be acted on.
     //
     //  The verdict carries it because the verdict is what the exit code is
     //  read from, and because a bare invocation is not the user ASKING for the

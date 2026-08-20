@@ -22,6 +22,21 @@ Entries before versioning was introduced use dates only.
   form to fall back on. With the repair in place the help no longer explains the
   shell at all, and simply states that the space after `-o` is optional.
 
+### Changed
+- **The assembler's exit codes now match as65's exactly.** as65 documents
+  `1 - Incorrect parameter specified on the commandline`; this tool spent 1 on
+  an assembly that warned and put the bad command line under 2 with everything
+  else that opened no file. So a script ported from as65 read a warning as a
+  command-line error and a command-line error as a missing file. 0 through 3 are
+  as65's meanings now, warnings report **5**, and 4 stays unused because as65
+  spends it on an out-of-memory this tool cannot reach. Naming no source file at
+  all is 1 rather than 2 for the same reason: nothing was opened because nothing
+  was named. **This is a breaking change for any script branching on 1 or 2.**
+- **The assembly exit-code list is a table.** Four lines of explanation per
+  status is reading for somebody porting a build and noise for somebody looking
+  up a number they just got back; what the statuses mean now lives in the header
+  that assigns them.
+
 ### Fixed
 - **`-x` said it selected the 65SC02, and selects the 65C02.** The table it
   installs carries RMB/SMB/BBR/BBS, which a 65SC02 does not have. "65SC02" is

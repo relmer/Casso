@@ -20,24 +20,29 @@
 //      3 - Assembly gave errors.
 //      4 - No memory could be allocated.
 //
-//  FOUR OF THE FIVE ARE PRODUCED HERE. Status 4 is not, and cannot honestly be:
-//  it belongs to a 16-bit tool that allocated its symbol table out of a 640 KB
-//  real-mode heap and could genuinely run out assembling a large source. A
-//  64 KB image on a modern virtual-memory host does not reach that condition --
-//  the allocation that failed would have taken the process down long before a
-//  status could be returned. It is named in the help as as65's rather than
-//  quietly omitted, so a script porting from as65 can see the difference was
-//  noticed instead of wondering which status replaced it.
+//  ALL FOUR MEANINGS ARE HONORED EXACTLY, and 0 through 3 mean here what they
+//  mean there. A build script ported from as65 branches correctly without being
+//  read again, which is the whole point of claiming compatibility.
 //
-//  STATUS 1 IS THE ONE DIVERGENCE LEFT, and it is stated in the help rather
-//  than left for the as65 wording to imply. as65 spends 1 on "Incorrect
-//  parameter specified on the commandline"; this tool spends it on "assembled,
-//  and the assembler had something to say", and puts the bad command line under
-//  2 alongside every other case that opened no file.
+//  STATUS 4 IS as65'S AND IS NOT PRODUCED. It belongs to a 16-bit tool that
+//  allocated its symbol table out of a 640 KB real-mode heap and could genuinely
+//  run out assembling a large source. A 64 KB image on a modern virtual-memory
+//  host does not reach that condition: the allocation that failed would have
+//  taken the process down long before a status could be returned. It is left
+//  unused rather than reassigned, so a script that still tests for it is testing
+//  for something that cannot happen rather than catching a different failure.
 //
-//  It used to cover a dropped flag as well. It does not: an option this grammar
-//  does not have now prints usage and assembles nothing, which is as65's own
-//  behavior, so that case reaches 2 as a refusal instead of 1 as a warning.
+//  WARNINGS REPORT 5, WHICH IS THIS TOOL'S OWN. as65 has no status for "it
+//  assembled and the assembler had something to say", and the obvious place for
+//  it was 1 -- which is where this tool used to put it, at the cost of the one
+//  meaning as65 assigns that a script is most likely to branch on. A bad command
+//  line is 1 now, as65 says it is, and warnings moved to the first number as65
+//  does not define. 4 was skipped rather than taken because it is spoken for.
+//
+//  THE OUTPUT IS STILL WRITTEN UNDER 5. A warning is not a failure, and a script
+//  that stops on any non-zero status will stop; one that wants the artifact can
+//  test for 5 specifically, which it could not do when 5 was 1 and 1 also meant
+//  the command line was wrong.
 //
 //  This lives in the core library rather than beside the console executable's
 //  main because the test assembly does not link that executable. A status
@@ -51,9 +56,10 @@ class As65ExitStatus
 {
 public:
     static constexpr int  kClean          = 0;
-    static constexpr int  kWarned         = 1;
+    static constexpr int  kBadCommandLine = 1;
     static constexpr int  kNoOutput       = 2;
     static constexpr int  kAssemblyErrors = 3;
+    static constexpr int  kWarned         = 5;
 
     static int  ForAssembly (bool inputWasRead, bool assembled);
 };

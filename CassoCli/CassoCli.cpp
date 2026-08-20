@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "As65ExitStatus.h"
 #include "CommandLine.h"
 #include "DiskCommand.h"
 #include "CassoCli.h"
@@ -14,11 +15,15 @@
 //
 //  Parses the command line and dispatches to a subcommand.
 //
-//  ASKING FOR THE USAGE TEXT EXITS 0; BEING SHOWN IT EXITS 2. Both print the
+//  ASKING FOR THE USAGE TEXT EXITS 0; BEING SHOWN IT EXITS 1. Both print the
 //  same page, and the difference is who wanted it there. An explicit --help or
 //  `help` is the user asking. A bare `CassoCli` and an option this grammar does
-//  not have are the tool answering a command line it could not act on, and each
-//  of those produced nothing -- which is what this tool's own table calls 2.
+//  not have are the tool answering a command line it could not act on, which is
+//  what as65 calls 1: "incorrect parameter specified on the commandline".
+//
+//  IT USED TO BE 2, AND 2 NOW MEANS SOMETHING ELSE. That status is "unable to
+//  open input or output file", so reporting it for a command line that named no
+//  file to open sent a script looking for a path problem it did not have.
 //
 //  The comment here used to say a missing subcommand exits 1, and the arm that
 //  would have done it was unreachable: the parser sets showHelp for an empty
@@ -59,7 +64,7 @@ int main (int argc, char * argv[])
                         || options.subcommand == CommandLineOptions::Subcommand::Help)
     {
         PrintUsage (options);
-        exitCode = asked ? 0 : 2;
+        exitCode = asked ? As65ExitStatus::kClean : As65ExitStatus::kBadCommandLine;
     }
     else if (options.showVersion || options.subcommand == CommandLineOptions::Subcommand::Version)
     {

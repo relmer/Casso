@@ -918,26 +918,25 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
     {
         "  {0}x                     Use the 65C02 extensions. Without it the CMOS",
         "                         opcodes are rejected, which is the default",
-        "  {0}d[<name>[=<value>]]   Pre-define symbol ({0}d alone defines DEBUG as 1).",
-        "                         The name is ATTACHED: {0}d NAME defines DEBUG and",
-        "                         leaves NAME to be read as the source file",
-        "  {0}i                     Ignore case in opcodes. Accepted and does",
-        "                         nothing; tracked as issue #118 at",
+        "  {0}d[<name>[=<value>]]   Pre-define a symbol: {0}dFAST defines FAST as 1,",
+        "                         {0}dFAST=2 defines it as 2, and a bare {0}d defines",
+        "                         DEBUG as 1. The name attaches, so {0}d FAST is a",
+        "                         bare {0}d followed by FAST, which is then read as",
+        "                         the source file",
+        "  {0}i                     Ignore case of opcodes; NYI. Tracked at",
         "                         https://github.com/relmer/Casso/issues/118",
-        "  {0}n                     Disable optimizations. Accepted and does",
-        "                         nothing; tracked as issue #118 at",
+        "  {0}n                     Disable optimizations; NYI. Tracked at",
         "                         https://github.com/relmer/Casso/issues/118",
         "",
-        "  CassoCli prog.a65 {0}x {0}dDEBUG=1",
+        "  CassoCli prog.a65 {0}x {0}dFAST=1",
         "      Assembles prog.a65 with the 65C02 opcodes available and the symbol",
-        "      DEBUG defined as 1, then writes the assembled bytes to prog.bin beside",
+        "      FAST defined as 1, then writes the assembled bytes to prog.bin beside",
         "      the source.",
         "",
         "  Output:",
-        "    {0}o<file>             Where the assembled bytes go, attached or separated:",
-        "                         {0}oprog.bin or {0}o prog.bin. Defaults to the source",
-        "                         file's own name with its extension replaced by .bin,",
-        "                         or by .s19 under {0}s and .hex under {0}s2",
+        "    {0}o<file>             Where the assembled bytes go. Defaults to",
+        "                         <source>.bin, or <source>.s19 under {0}s and",
+        "                         <source>.hex under {0}s2",
         "    {1}flat{2}               Write a full 64 KB memory image, padded with the fill",
         "                         byte, for a ROM burner or a byte-for-byte reference",
         "                         comparison",
@@ -975,8 +974,7 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
         "                         the default)",
         "    {0}w<width>            Column width (default: 79, {0}w alone = 133)",
         "    {0}t                   Generate symbol table",
-        "    {0}g                   Generate debug information file, named for the",
-        "                         input with a .dbg extension",
+        "    {0}g                   Generate debug information file, <source>.dbg",
         "    {0}v                   Verbose mode",
         "    {0}q                   Quiet mode (suppress progress)",
         "",
@@ -1352,14 +1350,22 @@ int DoAs65 (const CommandLineOptions & options)
 
 
 
-    // kNoOutput is the AS65 "could not open input or output file" code, used by
-    // every failure below except the assembly itself, which has kAssemblyErrors
-    // of its own; kWarned means it assembled but warned.
+    // kNoOutput is the AS65 "could not open input or output file" code, spent
+    // below on a source that could not be read and on an artifact that could
+    // not be written; the assembly itself has kAssemblyErrors, and kWarned means
+    // it assembled and the assembler had something to say.
     //
     // A REFUSED COMMAND LINE ASSEMBLES NOTHING and says nothing further. The
     // parser already named the argument it could not take, in that argument's
     // own words; assembling anyway would answer a command line the tool has
     // just said it did not understand.
+    //
+    // BOTH WAYS OF ARRIVING HERE ARE COMMAND-LINE FAILURES, which is why one
+    // status covers them. A refused argument and a command line that named no
+    // source at all differ in what the user typed and not in what went wrong,
+    // and neither one ever opened a file -- so reporting kNoOutput, "unable to
+    // open input or output file", pointed a script at a path problem it did not
+    // have.
     if (!hasInput && !refused)
     {
         std::cerr << "Error: No input file specified\n";
@@ -1367,7 +1373,7 @@ int DoAs65 (const CommandLineOptions & options)
 
     if (!hasInput)
     {
-        exitCode = As65ExitStatus::kNoOutput;
+        exitCode = As65ExitStatus::kBadCommandLine;
     }
 
     BAIL_OUT_IF (!hasInput, S_OK);

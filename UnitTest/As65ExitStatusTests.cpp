@@ -62,16 +62,40 @@ namespace As65ExitStatusTests
             Assert::AreEqual (2, As65ExitStatus::ForAssembly (false, true));
         }
 
-        //  The four statuses are distinct values, which is the only property a
+        //  The five statuses are distinct values, which is the only property a
         //  script branching on them actually needs.
-        TEST_METHOD (TheFourStatusesAreDistinct)
+        TEST_METHOD (TheFiveStatusesAreDistinct)
         {
             std::set<int>  statuses = { As65ExitStatus::kClean,
-                                        As65ExitStatus::kWarned,
+                                        As65ExitStatus::kBadCommandLine,
                                         As65ExitStatus::kNoOutput,
-                                        As65ExitStatus::kAssemblyErrors };
+                                        As65ExitStatus::kAssemblyErrors,
+                                        As65ExitStatus::kWarned };
 
-            Assert::AreEqual (size_t (4), statuses.size());
+            Assert::AreEqual (size_t (5), statuses.size());
+        }
+
+        //  THE NUMBERS THEMSELVES ARE THE CONTRACT, not merely their being
+        //  different from one another. 0 through 3 are as65's, quoted from its
+        //  manual, and a build script ported from as65 branches on them without
+        //  being read again -- so a change to any of them has to fail here
+        //  rather than in somebody's build.
+        TEST_METHOD (ZeroThroughThreeAreAs65sOwnNumbers)
+        {
+            Assert::AreEqual (0, As65ExitStatus::kClean,          L"source file assembled without errors");
+            Assert::AreEqual (1, As65ExitStatus::kBadCommandLine, L"incorrect parameter specified on the commandline");
+            Assert::AreEqual (2, As65ExitStatus::kNoOutput,       L"unable to open input or output file");
+            Assert::AreEqual (3, As65ExitStatus::kAssemblyErrors, L"assembly gave errors");
+        }
+
+        //  WARNINGS TAKE 5 AND NOT 4. as65 has no status for an assembly that
+        //  warned, and 4 is not free: as65 spends it on a failed allocation this
+        //  tool cannot reach, so taking it would make a script that still tests
+        //  for it catch the wrong thing.
+        TEST_METHOD (WarningsTakeTheFirstNumberAs65DoesNotDefine)
+        {
+            Assert::AreEqual (5, As65ExitStatus::kWarned);
+            Assert::AreNotEqual (4, As65ExitStatus::kWarned, L"4 is as65's out-of-memory and stays unused");
         }
     };
 
@@ -92,27 +116,30 @@ namespace As65ExitStatusTests
     TEST_CLASS (HelpTextTests)
     {
     public:
-        //  The help claimed an assembly error exited 2, because it did. Both
-        //  moved together, and this is what says so.
-        TEST_METHOD (AssembleHelp_StatesAssemblyErrorsAsThree)
+        //  THE LIST IS as65'S LIST, and the help has to print the same numbers
+        //  the header assigns. It is the pairing that catches a status changed
+        //  in one place and described in the other.
+        TEST_METHOD (AssembleHelp_PrintsTheAs65Numbers)
         {
             std::string  help = CommandLineParser::kAssembleExitStatusHelpText;
 
-            Assert::IsTrue (help.find ("3  the source was read and did not assemble") != std::string::npos);
-            Assert::IsTrue (help.find ("assembly error") == std::string::npos,
-                            L"and 2 no longer claims it");
+            Assert::IsTrue (help.find ("0  Assembled successfully")             != std::string::npos);
+            Assert::IsTrue (help.find ("1  Bad command line")                   != std::string::npos);
+            Assert::IsTrue (help.find ("2  Error opening source or output file") != std::string::npos);
+            Assert::IsTrue (help.find ("3  Error assembling source file")       != std::string::npos);
+            Assert::IsTrue (help.find ("5  Assembled with warnings")            != std::string::npos);
         }
 
-        //  as65 defines a fifth status this assembler does not produce. It is
-        //  named as as65's rather than left out, so a caller porting a script
-        //  can see that the difference was noticed instead of guessing which
-        //  status replaced it.
-        TEST_METHOD (AssembleHelp_NamesTheAs65StatusItDoesNotProduce)
+        //  4 IS as65'S AND IS NOT LISTED, because this assembler cannot reach
+        //  the condition it names. Listing it would advertise a status that
+        //  never arrives; taking it for something else would mislead a script
+        //  still testing for it. Neither, so it does not appear.
+        TEST_METHOD (AssembleHelp_DoesNotListTheStatusItCannotProduce)
         {
             std::string  help = CommandLineParser::kAssembleExitStatusHelpText;
 
-            Assert::IsTrue (help.find ("as65 also defines 4") != std::string::npos);
-            Assert::IsTrue (help.find ("does not produce it") != std::string::npos);
+            Assert::IsTrue (help.find ("    4  ") == std::string::npos,
+                            L"4 is as65's out-of-memory and this tool never returns it");
         }
 
         //  Every status the code can return is named in the text, swept from

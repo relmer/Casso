@@ -267,23 +267,26 @@ public:
         std::string  disk     = DiskCommandRunner::kExitStatusHelpText;
 
         //  The status the three modes genuinely share.
-        Assert::IsTrue (assemble.find ("0  assembled cleanly") != std::string::npos);
+        Assert::IsTrue (assemble.find ("0  Assembled successfully") != std::string::npos);
         Assert::IsTrue (run.find      ("0  the program ran to a stop") != std::string::npos);
         Assert::IsTrue (disk.find     ("0  the command was carried out") != std::string::npos);
 
-        //  And the one they do not. Under the assembler, 1 still wrote the
-        //  output; under `run`, 1 means nothing ran at all.
-        Assert::IsTrue (assemble.find ("The output was still\n       written") != std::string::npos,
-                        L"1 under the assembler still produced output");
+        //  And the one they do not. Under the assembler, 1 is as65's bad
+        //  command line; under `run`, 1 is a source file that did not
+        //  assemble -- which the assembler itself calls 3.
+        Assert::IsTrue (assemble.find ("1  Bad command line") != std::string::npos,
+                        L"1 under the assembler is a command line that could not be acted on");
         Assert::IsTrue (run.find ("did not assemble. Nothing ran") != std::string::npos,
-                        L"1 under run produced none -- the opposite claim");
+                        L"1 under run is an assembly failure, which is 3 under the assembler");
 
         //  2 is a failure to produce anything in all three, which is the only
         //  part of the old shared block that was ever true everywhere. The
         //  assembler states it as a FILE that could not be opened rather than
         //  as nothing written, because since 3 was split out of it "wrote
-        //  nothing" describes both statuses and distinguishes neither.
-        Assert::IsTrue (assemble.find ("2  no file was opened")  != std::string::npos);
+        //  nothing" describes both statuses and distinguishes neither -- and
+        //  since 1 became the bad command line, a command line that named no
+        //  file at all is not 2 either.
+        Assert::IsTrue (assemble.find ("2  Error opening source or output file") != std::string::npos);
         Assert::IsTrue (run.find      ("2  nothing could be started") != std::string::npos);
         Assert::IsTrue (disk.find     ("2  nothing was done")    != std::string::npos);
 
@@ -294,7 +297,7 @@ public:
         //  already, for an illegal opcode, because under `run` an assembly
         //  error stops at 1 and nothing executes. `disk` has no 3 at all.
         Assert::IsTrue (run.find      ("3  the program reached an illegal opcode") != std::string::npos);
-        Assert::IsTrue (assemble.find ("3  the source was read and did not assemble") != std::string::npos);
+        Assert::IsTrue (assemble.find ("3  Error assembling source file") != std::string::npos);
         Assert::IsTrue (disk.find     ("3  ") == std::string::npos, L"disk has no 3");
 
         //  Disk's block reaches the disk help, which is the section it belongs
