@@ -1283,7 +1283,7 @@ public:
         AssertImageMatches (io, kBlankImage, blank);
     }
 
-    //  A listing whose every interesting rule is exercised: a token spelling
+    //  A listing whose every interesting rule is exercised: a token form
     //  inside a string, a DATA payload with a colon in a quoted item, a REM that
     //  swallows one, and spacing that has to survive the trip unchanged.
     static std::string BasicListing()
@@ -1958,7 +1958,7 @@ public:
     //  Where a booted DOS reads the name of the program it runs. Restated from
     //  the published layout rather than taken from the implementation, and
     //  corroborated by this fixture: the Merlin DOS 3.3 disk carries the
-    //  high-ASCII spelling of HELLO here, exactly as the stock master does.
+    //  high-ASCII form of HELLO here, exactly as the stock master does.
     static constexpr int     kGreetingTrack  = 1;
     static constexpr int     kGreetingSector = 9;
     static constexpr size_t  kGreetingOffset = 0x75;

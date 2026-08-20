@@ -117,7 +117,7 @@ public:
 
     static CommandLineOptions  Parse (int argc, char * argv[], const FileExistsFn & fileExists);
 
-    // Whether one argument is the user asking for usage text, in any spelling
+    // Whether one argument is the user asking for usage text, in any form
     // and either prefix. Public because a subcommand's own grammar has to ask
     // the same question the top level does.
     static bool  IsHelpRequest (const std::string & arg);
@@ -127,7 +127,7 @@ public:
     static bool  IsAssemblySource (const std::string & path);
     static bool  EndsWith         (const std::string & str, const std::string & suffix);
 
-    // Every accepted subcommand spelling, so tests can sweep the whole table
+    // Every accepted subcommand form, so tests can sweep the whole table
     // instead of a hand-picked sample.
     static std::span<const SubcommandName>  GetAllSubcommands();
 
@@ -135,7 +135,7 @@ public:
     // because the help output has to describe all of them.
     static std::span<const DiskVerbName>    GetAllDiskVerbs();
 
-    //  Every option the `disk` grammar takes, comma-separated and `--`-spelled,
+    //  Every option the `disk` grammar takes, comma-separated and in their `--` form,
     //  for the refusal an argument that is none of them earns.
     //
     //  Read from the parser's own table rather than retyped, for the reason
@@ -220,12 +220,12 @@ private:
     static CommandLineOptions::DiskOptions::Verb  LookUpDiskVerb (const std::string & word);
 
     //  How many operands a disk verb has a use for, and the descriptive word
-    //  the help spells it with. An operand past the count is one the verb would
+    //  the help writes it with. An operand past the count is one the verb would
     //  otherwise read and discard.
     static int           DiskOperandCount (CommandLineOptions::DiskOptions::Verb verb);
     static const char *  DiskVerbWord     (CommandLineOptions::DiskOptions::Verb verb);
 
-    //  An argument reduced to the `--` spelling the grammars test for, so
+    //  An argument reduced to the `--` form the grammars test for, so
     //  `/out` and `--out` reach the same arm. Only an exact option name from
     //  the supplied table is rewritten -- a ProDOS path starts with a slash and
     //  must stay an operand.

@@ -85,9 +85,9 @@ std::string CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand mode)
 //  shows the loop and then says why two of its steps look the way they do.
 //  Splitting the block is what lets both have it without either owning a copy.
 //
-//  ONE FLAG HERE KEEPS THE `--` SPELLING WHATEVER THE READER ASKED FOR, and it
+//  ONE FLAG HERE KEEPS THE `--` FORM WHATEVER THE READER ASKED FOR, and it
 //  is the one belonging to a different program. `--disk1` is the emulator's
-//  flag, not this tool's, and the emulator accepts only that spelling; printing
+//  flag, not this tool's, and the emulator accepts only that form; printing
 //  `/disk1` because the reader typed `/?` would be a promise this executable is
 //  not the one keeping.
 //
@@ -137,7 +137,7 @@ std::string CommandLineHelp::BuildExampleCommands (char flagPrefix)
 //  `?` IS THE ROUTE TO THE ASSEMBLER'S PAGE and carries no prefix, because it
 //  is as65's own convention: a lone question mark is how that assembler is
 //  asked for its usage, and assembling IS as65 mode. Every other route is
-//  spelled with the prefix the reader typed.
+//  written with the prefix the reader typed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

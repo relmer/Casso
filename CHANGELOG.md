@@ -44,6 +44,13 @@ Entries before versioning was introduced use dates only.
   renumbered or folded into another. It is named as as65's, with the reason it
   cannot arrive here.
 
+### Removed
+- **`ignoreOpcodeCase` is gone.** `-i` set it, nothing read it, and nothing
+  could: this assembler folds opcode case unconditionally, which is exactly what
+  the flag asks for. A stored `true` in two structs was an invitation to
+  implement a conditional folding the assembler does not need. `-i` is still
+  accepted, still concatenates, and now records nothing.
+
 ### Fixed
 - **`-i` was described as unimplemented, and is not.** as65's `-i` asks for
   case-insensitive opcodes, and this assembler has always been case-insensitive

@@ -102,7 +102,7 @@ public:
                                 std::string              & outHostListing,
                                 ApplesoftListingError    & outError);
 
-    //  What a token byte spells, or nullptr when the byte is not a token.
+    //  What a token byte writes, or nullptr when the byte is not a token.
     static const char *  GetKeyword (Byte token);
 
     //  One paragraph for the help output, so the claim and the code cannot
@@ -111,7 +111,7 @@ public:
     //  A FUNCTION RATHER THAN A CONSTANT because the sentence names a flag, and
     //  which prefix a flag wears is the reader's choice: someone who asked for
     //  help with `/?` is shown `/basic` throughout, and a paragraph that said
-    //  `--basic` in the middle of it would be describing a spelling they did
+    //  `--basic` in the middle of it would be describing a form they did
     //  not ask for.
     static std::string  RoundTripHelpText (char flagPrefix);
 
@@ -187,7 +187,7 @@ private:
                                      std::vector<Byte>  & outBody,
                                      std::string        & outReason);
 
-    //  Matches one spelling from the cursor, skipping spaces the way Applesoft
+    //  Matches one form from the cursor, skipping spaces the way Applesoft
     //  does -- which is what makes `PR INT` one token.
     static bool  TryMatchKeyword    (const std::string  & text,
                                      size_t               at,

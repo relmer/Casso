@@ -112,7 +112,7 @@ public:
                           const std::vector<Byte>  & newImageBytes,
                           DiskCommandResult        & result);
 
-    //  Exit-status vocabulary, named so call sites do not spell the numbers.
+    //  Exit-status vocabulary, named so call sites do not write the numbers.
     static constexpr int  kClean          = 0;
     static constexpr int  kWithComplaints = 1;
     static constexpr int  kNoOutput       = 2;

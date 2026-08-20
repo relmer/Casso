@@ -239,7 +239,7 @@ public:
 
     TEST_METHOD (Tokenize_TheCoverageBoundary_MatchesWhatApplesoftStored)
     {
-        // Token spellings inside a string, a DATA payload ending at a colon it
+        // Token forms inside a string, a DATA payload ending at a colon it
         // does not own, a REM swallowing one, a keyword split by a space, and a
         // lowercase keyword.
         AssertBytesAre (Tokenized (BoundarySource()), BoundaryBytes(),
@@ -300,7 +300,7 @@ public:
             const char *  keyword = ApplesoftTokenizer::GetKeyword ((Byte) token);
 
             Assert::IsNotNull (keyword,
-                L"every byte in the token range must spell a keyword -- a table sweep "
+                L"every byte in the token range must write a keyword -- a table sweep "
                 L"visits only the rows that exist, so this sweeps the RANGE");
 
             Assert::IsTrue (keyword[0] != '\0', L"and none of them may be empty");
@@ -337,7 +337,7 @@ public:
 
             Assert::AreEqual ((int) token, (int) bytes[bodyAt],
                 L"a keyword typed on its own must resolve to its own token -- this is what "
-                L"catches a table whose ORDER lets an earlier spelling swallow a later one");
+                L"catches a table whose ORDER lets an earlier form swallow a later one");
 
             resolved++;
         }
@@ -583,7 +583,7 @@ public:
 
     TEST_METHOD (Detokenize_ATokenInsideAString_IsRefusedRatherThanSpelled)
     {
-        // Applesoft cannot store this, and spelling it out would hand back a
+        // Applesoft cannot store this, and form it out would hand back a
         // listing that tokenizes to different bytes -- a round trip that looks
         // like it worked.
         std::vector<Byte>      program = Tokenized ("10 PRINT \"AB\"\n");

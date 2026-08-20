@@ -352,7 +352,7 @@ static void ReportAssemblyDiagnostics (const AssembleResult & ar)
 //
 //  "NO FLAG WAS GIVEN" IS ITS OWN BIT rather than a value of the shape. This
 //  used to ask whether the shape equalled Binary, which worked only while the
-//  default was Binary and nothing on the command line could spell it. The
+//  default was Binary and nothing on the command line could write it. The
 //  assembled bytes are the default now, so the same test would have to name a
 //  shape that a flag can also select -- and would then read that flag as
 //  silence and let a `.s19` filename override what the caller typed.
@@ -391,7 +391,7 @@ static CommandLineOptions::OutputFormat ResolveOutputFormat (const CommandLineOp
 //  Writes the assembled image in the resolved shape.
 //
 //  "nul" is the explicit bit bucket and is matched case-insensitively, since
-//  it is a Windows device name that scripts spell every way. Writing nothing
+//  it is a Windows device name that scripts write every way. Writing nothing
 //  is SUCCESS on that path: it is how a caller asks for diagnostics only, and
 //  reporting failure would break a build that deliberately discards output.
 //
@@ -848,7 +848,7 @@ static void PrintUsageExitStatus (const char * statuses)
 //  are accepted, and usage text showing the form the reader did NOT type reads
 //  as though their invocation was wrong. The tables are format strings for
 //  exactly that reason: one placeholder per flag, filled at print time, so
-//  neither spelling can be forgotten when a flag is added.
+//  neither form can be forgotten when a flag is added.
 //
 //  THE OUTPUT DEFAULT IS STATED AGAINST THE ABSENCE OF THE FLAGS, beneath the
 //  table, because that is what it is a property of. It is the assembled bytes
@@ -1015,7 +1015,7 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
 //
 //  PrintUsageRun
 //
-//  A page of its own, reached by asking `run` for help in any spelling. It
+//  A page of its own, reached by asking `run` for help in any form. It
 //  opens with the invocation it describes, taken from CommandLineHelp so the
 //  general page and this one cannot describe `run` differently, and closes with
 //  the statuses `run` itself spends -- which are not the assembler's.
@@ -1082,7 +1082,7 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
 //  disk grammar, beside every other disk verb's output -- which is what lets it
 //  be assembled and tested next to the code it describes.
 //
-//  EVERY PAGE IS SPELLED WITH THE PREFIX THE READER CHOSE. `/?` means the page
+//  EVERY PAGE IS WRITTEN WITH THE PREFIX THE READER CHOSE. `/?` means the page
 //  reads `/flag` throughout, and `--help` means it reads `-`/`--`.
 //
 //  EXIT STATUSES BELONG TO PAGES, NOT TO THE TOOL, BECAUSE THEY DIFFER. An

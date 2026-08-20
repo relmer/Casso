@@ -42,8 +42,8 @@ public:
     static constexpr const char *  kExampleHeading =
         "Examples, the whole loop from source to a program running in the emulator:";
 
-    //  The prefix a chosen style spells its flags with. One place, because the
-    //  help spells flags in dozens of sentences and a style decided in each of
+    //  The prefix a chosen style writes its flags with. One place, because the
+    //  help writes flags in dozens of sentences and a style decided in each of
     //  them is a style that will disagree with itself.
     static std::string  LongPrefix  (char flagPrefix);
     static std::string  ShortPrefix (char flagPrefix);

@@ -76,11 +76,11 @@ void DiskCommandRunner::SetBanner (const std::string & banner)
 //
 //  DiskCommandRunner::BuildSubcommandHelp
 //
-//  One line per verb -- every spelling of it, then what it does -- and then the
+//  One line per verb -- every form of it, then what it does -- and then the
 //  grammar showing where the operands go.
 //
 //  EVERY ALIAS LEADS THE LINE IT BELONGS TO rather than trailing it in an "also
-//  spelled" clause. A person coming from an Apple II reaches for CATALOG, one
+//  written" clause. A person coming from an Apple II reaches for CATALOG, one
 //  coming from the host shell for DIR, one from a Unix shell for LS; all three
 //  are accepted, and a reader scanning the left margin for the word they already
 //  have in mind finds it there instead of at the end of a sentence about a word
@@ -237,7 +237,7 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
 //  DiskCommandRunner::BuildExampleHelp
 //
 //  THE EXAMPLE IS THE POINT. A flag reference tells a reader what each switch
-//  spells and leaves them to guess the order and the combination, and the two
+//  writes and leaves them to guess the order and the combination, and the two
 //  traps below are exactly what they would guess wrong. So the example runs the
 //  loop end to end and then says why two of its steps look the way they do.
 //
@@ -263,7 +263,7 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
 //  a reader returns to once they know what the flags are -- and because a
 //  worked loop sitting between two flag tables interrupts both.
 //
-//  `--disk1` keeps the `--` spelling whatever the reader asked for, here as in
+//  `--disk1` keeps the `--` form whatever the reader asked for, here as in
 //  the commands themselves: it is the emulator's flag rather than this tool's.
 //  See CommandLineHelp::BuildExampleCommands.
 //
@@ -1519,7 +1519,7 @@ std::string DiskCommandRunner::OnDiskNameFor (const CommandLineOptions & options
 //  DiskCommandRunner::ResolveFileType
 //
 //  The two filesystems number their types differently and name them
-//  differently, so the spellings accepted here are each one's own. A letter
+//  differently, so the forms accepted here are each one's own. A letter
 //  that means Applesoft on DOS 3.3 and nothing on ProDOS must not resolve to
 //  whatever ProDOS keeps at that number.
 //
@@ -1527,7 +1527,7 @@ std::string DiskCommandRunner::OnDiskNameFor (const CommandLineOptions & options
 //  asked for -- text when they asked for text, a binary otherwise, which is
 //  what a build loop places.
 //
-//  AN UNRECOGNIZED SPELLING IS REFUSED, not defaulted. Defaulting would place
+//  AN UNRECOGNIZED FORM IS REFUSED, not defaulted. Defaulting would place
 //  the file under a type the caller did not ask for and say nothing, and the
 //  guest would report the mismatch much later as a file that will not load.
 //
@@ -1546,7 +1546,7 @@ HRESULT DiskCommandRunner::ResolveFileType (
     bool         named      = !options.disk.typeName.empty();
     bool         recognized = true;
     size_t       i          = 0;
-    std::string  spelling   = options.disk.typeName;
+    std::string  form       = options.disk.typeName;
 
 
 
@@ -1565,29 +1565,29 @@ HRESULT DiskCommandRunner::ResolveFileType (
 
     BAIL_OUT_IF (!named, S_OK);
 
-    for (i = 0; i < spelling.size(); i++)
+    for (i = 0; i < form.size(); i++)
     {
-        if (spelling[i] >= 'a' && spelling[i] <= 'z')
+        if (form[i] >= 'a' && form[i] <= 'z')
         {
-            spelling[i] = (char) (spelling[i] - 'a' + 'A');
+            form[i] = (char) (form[i] - 'a' + 'A');
         }
     }
 
     if (isDos)
     {
-        if      (spelling == "T" || spelling == "TXT") { outType = Dos33Volume::kTypeText; }
-        else if (spelling == "I" || spelling == "INT") { outType = Dos33Volume::kTypeInteger; }
-        else if (spelling == "A" || spelling == "BAS") { outType = Dos33Volume::kTypeApplesoft; }
-        else if (spelling == "B" || spelling == "BIN") { outType = Dos33Volume::kTypeBinary; }
-        else if (spelling == "R" || spelling == "REL") { outType = Dos33Volume::kTypeRelocatable; }
+        if      (form == "T" || form == "TXT") { outType = Dos33Volume::kTypeText; }
+        else if (form == "I" || form == "INT") { outType = Dos33Volume::kTypeInteger; }
+        else if (form == "A" || form == "BAS") { outType = Dos33Volume::kTypeApplesoft; }
+        else if (form == "B" || form == "BIN") { outType = Dos33Volume::kTypeBinary; }
+        else if (form == "R" || form == "REL") { outType = Dos33Volume::kTypeRelocatable; }
         else                                           { recognized = false; }
     }
     else
     {
-        if      (spelling == "T" || spelling == "TXT") { outType = ProDosVolume::kTypeText; }
-        else if (spelling == "B" || spelling == "BIN") { outType = ProDosVolume::kTypeBinary; }
-        else if (spelling == "A" || spelling == "BAS") { outType = ProDosVolume::kTypeBasic; }
-        else if (spelling == "S" || spelling == "SYS") { outType = ProDosVolume::kTypeSystem; }
+        if      (form == "T" || form == "TXT") { outType = ProDosVolume::kTypeText; }
+        else if (form == "B" || form == "BIN") { outType = ProDosVolume::kTypeBinary; }
+        else if (form == "A" || form == "BAS") { outType = ProDosVolume::kTypeBasic; }
+        else if (form == "S" || form == "SYS") { outType = ProDosVolume::kTypeSystem; }
         else                                           { recognized = false; }
     }
 

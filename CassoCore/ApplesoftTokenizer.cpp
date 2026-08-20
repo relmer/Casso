@@ -7,7 +7,7 @@
 
 //
 //  The whole token set, in TABLE ORDER, which is load-bearing rather than
-//  cosmetic: the first spelling that matches wins, so `ONERR` must precede `ON`
+//  cosmetic: the first form that matches wins, so `ONERR` must precede `ON`
 //  and `HGR2` must precede `HGR`, while `TO` preceding nothing is exactly why
 //  `TOTAL` tokenizes as TO followed by TAL. Index 0 is $80.
 //
@@ -255,7 +255,7 @@ bool ApplesoftTokenizer::TryParseLineNumber (
 //
 //  ApplesoftTokenizer::TryMatchKeyword
 //
-//  SPACES ARE SKIPPED INSIDE THE SPELLING, not merely around it. That is
+//  SPACES ARE SKIPPED INSIDE THE FORM, not merely around it. That is
 //  Applesoft's own behavior and it is measured, not assumed: `PR INT` typed into
 //  a booted machine is stored as the single PRINT token.
 //
@@ -474,7 +474,7 @@ HRESULT ApplesoftTokenizer::TokenizeBody (
         if (c == '?')
         {
             // The one abbreviation Applesoft accepts, and it is not reversible:
-            // LIST spells it PRINT and so does this, because the stored byte is
+            // LIST renders it PRINT and so does this, because the stored byte is
             // the same token either way.
             outBody.push_back (kTokenPrint);
             i++;
@@ -855,7 +855,7 @@ HRESULT ApplesoftTokenizer::RenderOneLine (
             if (verbatim)
             {
                 // Applesoft never stores a token where the bytes are data, so
-                // this is a program no guest produced -- and spelling it out
+                // this is a program no guest produced -- and form it out
                 // would hand back a listing that tokenizes to something else.
                 outReason = "carries a token byte inside a string, a REM or a DATA payload";
                 ok        = false;
@@ -1070,7 +1070,7 @@ Error:
 //
 //  ApplesoftTokenizer::RoundTripHelpText
 //
-//  What --basic does and does not preserve, spelled with the prefix the reader
+//  What --basic does and does not preserve, written with the prefix the reader
 //  asked for.
 //
 //  IT LEADS WITH WHAT THE CONVERSION IS, because the paragraph that followed

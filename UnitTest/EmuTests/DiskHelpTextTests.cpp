@@ -28,7 +28,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  cannot supply for themselves. And it printed the disk options as `--out`
 //  and `--addr` no matter which prefix the reader typed, then documented the
 //  inconsistency in a sentence of its own -- a reader who asked for help with
-//  `/?` was shown one page in two spellings and told to live with it.
+//  `/?` was shown one page in two forms and told to live with it.
 //
 //  THAT ONE IS NOW ASSERTED IN BOTH DIRECTIONS, and the parser is asked first.
 //  A help that offers `/out` is only correct because `/out` is accepted;
@@ -193,7 +193,7 @@ public:
         Assert::AreEqual (size_t (5), lines.size(), L"the example runs the loop end to end");
 
         //  No shape flag: the assembled bytes are what a bare invocation writes
-        //  now, so the example that used to spell `--raw` spells nothing.
+        //  now, so the example that used to write `--raw` writes nothing.
         //  The output name is ATTACHED, which is as65's grammar and now this
         //  mode's only form.
         Assert::AreEqual (std::string ("  CassoCli prog.a65 -oprog.bin"),
@@ -326,7 +326,7 @@ public:
 
     //  Every alias of a verb leads the line that describes it, so a reader
     //  scanning the left margin for the word they already have in mind finds it
-    //  there rather than in an "also spelled" clause at the end of a sentence
+    //  there rather than in an "also written" clause at the end of a sentence
     //  about a word they do not use.
     TEST_METHOD (HelpText_LeadsEachVerbLineWithEveryAlias_NotWithAnAlsoSpelledFootnote)
     {
@@ -346,7 +346,7 @@ public:
                             (L"verb line missing or misaligned: " + Widen (lead)).c_str());
         }
 
-        Assert::IsTrue (help.find ("Also spelled") == std::string::npos,
+        Assert::IsTrue (help.find ("Also written") == std::string::npos,
                         L"and no alias is left trailing in a footnote");
     }
 
@@ -439,17 +439,17 @@ public:
         CommandLineOptions  valued      = CommandLineParser::Parse (7, valueArgv,
                                               [] (const std::string &) { return false; });
 
-        //  The grammar's answer, because it is what makes the help's spelling
+        //  The grammar's answer, because it is what makes the help's form
         //  right or wrong rather than merely a house style.
         Assert::IsTrue (slashed.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Text,
-                        L"the slash spelling is accepted");
+                        L"the slash form is accepted");
         Assert::IsTrue (dashed.disk.encoding  == CommandLineOptions::DiskOptions::Encoding::Text,
-                        L"and so is the dash spelling");
+                        L"and so is the dash form");
 
         //  An option that takes a value has to work too, or `/out` would be
         //  swallowed as a positional and the file written somewhere else.
         Assert::AreEqual (std::string ("host.bin"), valued.disk.hostFile,
-                          L"a slash-spelled option still consumes its value");
+                          L"a slash-written option still consumes its value");
     }
 
     TEST_METHOD (DiskGrammar_LeavesAProDosPathAlone_EvenThoughItStartsWithASlash)
@@ -461,7 +461,7 @@ public:
                                           [] (const std::string &) { return false; });
 
         //  THIS IS WHY THE SLASH FORM IS A TABLE LOOKUP AND NOT A REWRITE. A
-        //  ProDOS path is spelled with a leading slash, and a parser that turned
+        //  ProDOS path is written with a leading slash, and a parser that turned
         //  every one of them into a flag would lose the operand entirely.
         Assert::AreEqual (std::string ("/VOLUME/STARTUP"), parsed.disk.path,
                           L"a path that begins with a slash stays an operand");
@@ -528,10 +528,10 @@ public:
         std::string  help = DiskCommandRunner::BuildHelpText();
 
         //  The old help carried a sentence conceding that disk options took the
-        //  `--` spelling whichever prefix the assembler flags were given with.
+        //  `--` form whichever prefix the assembler flags were given with.
         //  A concession is what a rule looks like when it is not being kept.
         Assert::IsTrue (help.find ("always take the") == std::string::npos,
-                        L"the mixed-spelling excuse is gone");
+                        L"the mixed-form excuse is gone");
         Assert::IsTrue (help.find ("whichever prefix") == std::string::npos,
                         L"and so is the sentence that explained it away");
     }

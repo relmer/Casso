@@ -38,7 +38,7 @@
 //  strict 6502 -- so an option omitted behaves the way as65 did.
 //
 //  flagPrefix records which prefix the USER typed, so usage text and
-//  diagnostics come back spelled the way they invoked the tool.
+//  diagnostics come back written the way they invoked the tool.
 //
 //  parseVerdict records what the parser had to SAY about the command line, so
 //  the exit code can reflect it. A parser that printed a complaint and left no
@@ -87,7 +87,7 @@ struct CommandLineOptions
     //
     //  A LONE `?` IS THE ASSEMBLER'S PAGE AND THE ONLY WAY TO IT. That is as65's
     //  own convention -- its usage appears when the only parameter is a question
-    //  mark -- and assembling is as65 mode. Every other spelling of help at the
+    //  mark -- and assembling is as65 mode. Every other form of help at the
     //  top level asks for the general page.
     //
     //  `disk` IS ABSENT ON PURPOSE. Its help is a verb of the disk grammar
@@ -112,7 +112,7 @@ struct CommandLineOptions
         //  no CHARACTER conversion -- length and header semantics still apply,
         //  because those record where a file ends rather than transforming it.
         //
-        //  IT IS THE DEFAULT AND NOTHING SPELLS IT. There was a --verbatim
+        //  IT IS THE DEFAULT AND NOTHING WRITES IT. There was a --verbatim
         //  flag, and once verbatim became the default the only thing it could
         //  still do was cancel a --text or --basic earlier on the same line --
         //  a combination nothing needs and no caller wrote. An option whose
@@ -125,14 +125,14 @@ struct CommandLineOptions
         std::string  imagePath;                        // the disk image
         std::string  path;                             // the file ON the disk
         std::string  hostFile;                         // source for put, --out for get
-        std::string  typeName;                         // --type, as the user spelled it
+        std::string  typeName;                         // --type, as the user wrote it
         Word         loadAddress    = 0;               // --addr
         bool         hasLoadAddress = false;           // $0000 is a legal address
     };
 
     //  Raw -- the assembled bytes and nothing else -- is the default, because
     //  it is what somebody assembling a routine actually wants and what every
-    //  other step in the build loop takes. NOTHING SPELLS IT: a flag whose only
+    //  other step in the build loop takes. NOTHING WRITES IT: a flag whose only
     //  effect is to select the default earns a line in the help and buys no
     //  capability, so the `--raw` that used to name it is gone. Binary is the
     //  as65 full-64-KB padded image, which a ROM burner or a reference
@@ -148,7 +148,7 @@ struct CommandLineOptions
     //  Whether a shape flag was TYPED, as opposed to the default standing.
     //
     //  Separate from outputFormat because the value alone cannot answer it. The
-    //  default used to be Binary and nothing spelled Binary, so "equals Binary"
+    //  default used to be Binary and nothing written Binary, so "equals Binary"
     //  meant "nobody said" -- which is what let a `.s19` output file select an
     //  S-record when no flag was given. Raw is the default now, and a test
     //  against the value would call every remaining shape flag silence the
@@ -191,21 +191,6 @@ struct CommandLineOptions
     //  not fit on it. This project's own 002 contract said 79 as well, so the
     //  80 was drift from both authorities at once.
     int                                       pageWidth         = 79;   // -w<N>
-    //  -i, and NOT YET IMPLEMENTED -- the flag parses and changes nothing.
-    //
-    //  The name is what matters until it is. as65's -i means "Ignore case in
-    //  opcodes", and this field was called caseSensitive and set to TRUE when
-    //  the flag was given, which states the opposite of the flag's meaning.
-    //  Whoever implements it would have inherited a name arguing against the
-    //  behavior they were writing.
-    //
-    //  THE ASYMMETRY IS THE HARD PART OF IMPLEMENTING IT. as65's own wording:
-    //  "Ignore case in opcodes. In this way, the assembler does not
-    //  differentiate between 'adc' and 'ADC', for example. Labels are still
-    //  case sensitive." So it is not one comparison mode for the assembler --
-    //  the mnemonic table is folded and the symbol table is not, in the same
-    //  pass over the same line.
-    bool                                      ignoreOpcodeCase  = false;
     bool                                      pass1Listing      = false;   // -p
     bool                                      symbolTable       = false;   // -t
     bool                                      debugInfo         = false;   // -g

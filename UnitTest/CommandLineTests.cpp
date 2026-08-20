@@ -76,7 +76,7 @@ namespace CommandLineTests
     //
     //  A message for the assert framework, which speaks wide strings while
     //  every argument under test is narrow. ASCII only, which is all a flag
-    //  spelling ever is.
+    //  form ever is.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,7 +147,7 @@ namespace CommandLineTests
         }
 
         //  as65's DIAGNOSTICS section: "Help message if only parameter is a
-        //  question mark". The prefixed spellings were already accepted; the
+        //  question mark". The prefixed forms were already accepted; the
         //  bare one was read as a source filename, so `CassoCli ?` went looking
         //  for a file called `?` and exited saying it could not open one.
         //
@@ -238,7 +238,7 @@ namespace CommandLineTests
     //  behind a request for that mode -- so a route that stops working strands
     //  a page, and nothing about the text of that page would show it.
     //
-    //  BOTH PREFIXES ARE SWEPT EVERYWHERE, because a page spells itself with
+    //  BOTH PREFIXES ARE SWEPT EVERYWHERE, because a page writes itself with
     //  the prefix the reader typed: a route accepted in only one of them offers
     //  the other back in text and then refuses it on the next command line.
     //
@@ -247,11 +247,11 @@ namespace CommandLineTests
     TEST_CLASS (HelpRoutingTests)
     {
     public:
-        //  Every spelling of "help" that both grammars beneath the top level
+        //  Every form of "help" that both grammars beneath the top level
         //  answer to. `-h` is among them and is safe there: the page height it
         //  collides with lives in the assembler's own flag walk, which no
         //  argument of `run` or `disk` ever reaches.
-        static std::vector<std::string> Spellings()
+        static std::vector<std::string> Forms()
         {
             return { "--help", "-help", "-?", "-h", "/help", "/?", "/h" };
         }
@@ -265,14 +265,14 @@ namespace CommandLineTests
 
         TEST_METHOD (EverySpellingOfHelpAtTheTopLevel_OpensTheGeneralPage)
         {
-            for (const std::string & spelling : Spellings())
+            for (const std::string & form : Forms())
             {
-                CommandLineOptions  opts = ParseTyped ({ "CassoCli", spelling.c_str() });
+                CommandLineOptions  opts = ParseTyped ({ "CassoCli", form.c_str() });
 
                 Assert::IsTrue (opts.showHelp,
-                    (L"not read as a help request: " + Widen (spelling)).c_str());
+                    (L"not read as a help request: " + Widen (form)).c_str());
                 Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::General,
-                    (L"did not open the general page: " + Widen (spelling)).c_str());
+                    (L"did not open the general page: " + Widen (form)).c_str());
             }
         }
 
@@ -290,17 +290,17 @@ namespace CommandLineTests
         {
             const char *  kSlashed[] = { "/help", "/?", "/h" };
 
-            for (const char * spelling : kSlashed)
+            for (const char * form : kSlashed)
             {
-                CommandLineOptions  opts = ParseTyped ({ "CassoCli", spelling });
+                CommandLineOptions  opts = ParseTyped ({ "CassoCli", form });
 
                 Assert::AreEqual ('/', opts.flagPrefix,
-                    (L"the prefix was not remembered: " + Widen (spelling)).c_str());
+                    (L"the prefix was not remembered: " + Widen (form)).c_str());
             }
         }
 
         //  A LONE `?` IS THE ONLY ROUTE TO THE ASSEMBLER'S PAGE, so every other
-        //  spelling has to land somewhere else even when a source file is
+        //  form has to land somewhere else even when a source file is
         //  standing on the command line beside it.
         TEST_METHOD (HelpBesideASourceFile_StillOpensTheGeneralPage)
         {
@@ -316,16 +316,16 @@ namespace CommandLineTests
         //  answer to by complaining about being asked.
         TEST_METHOD (RunTakesAHelpRequestInEverySpelling_AndOpensTheRunPage)
         {
-            for (const std::string & spelling : Spellings())
+            for (const std::string & form : Forms())
             {
-                CommandLineOptions  opts = ParseTyped ({ "CassoCli", "run", spelling.c_str() });
+                CommandLineOptions  opts = ParseTyped ({ "CassoCli", "run", form.c_str() });
 
                 Assert::IsTrue (opts.showHelp,
-                    (L"not read as a help request: " + Widen (spelling)).c_str());
+                    (L"not read as a help request: " + Widen (form)).c_str());
                 Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::Run,
-                    (L"did not open the run page: " + Widen (spelling)).c_str());
+                    (L"did not open the run page: " + Widen (form)).c_str());
                 Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
-                    (L"asking for help is not a mistake: " + Widen (spelling)).c_str());
+                    (L"asking for help is not a mistake: " + Widen (form)).c_str());
             }
         }
 
@@ -352,16 +352,16 @@ namespace CommandLineTests
         //  never dispatch the verb.
         TEST_METHOD (DiskTakesAHelpRequestInEverySpelling_AndItStaysAVerbOfTheDiskGrammar)
         {
-            for (const std::string & spelling : Spellings())
+            for (const std::string & form : Forms())
             {
-                CommandLineOptions  opts = ParseTyped ({ "CassoCli", "disk", spelling.c_str() });
+                CommandLineOptions  opts = ParseTyped ({ "CassoCli", "disk", form.c_str() });
 
                 Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::Disk,
-                    (L"left the disk grammar: " + Widen (spelling)).c_str());
+                    (L"left the disk grammar: " + Widen (form)).c_str());
                 Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::Help,
-                    (L"not read as a help request: " + Widen (spelling)).c_str());
+                    (L"not read as a help request: " + Widen (form)).c_str());
                 Assert::IsFalse (opts.showHelp,
-                    (L"the general page would be printed over it: " + Widen (spelling)).c_str());
+                    (L"the general page would be printed over it: " + Widen (form)).c_str());
             }
         }
 
@@ -403,13 +403,13 @@ namespace CommandLineTests
             Assert::IsTrue (dashed.find ("CassoCli --version")   != std::string::npos);
 
             //  `?` carries no prefix in either page: it is as65's own request
-            //  and as65 spells it bare.
+            //  and as65 writes it bare.
             Assert::IsTrue (slashed.find ("CassoCli ?")          != std::string::npos);
             Assert::IsTrue (slashed.find ("CassoCli run /help")  != std::string::npos);
             Assert::IsTrue (slashed.find ("CassoCli disk /help") != std::string::npos);
             Assert::IsTrue (slashed.find ("CassoCli /version")   != std::string::npos);
             Assert::IsTrue (slashed.find ("--help")              == std::string::npos,
-                            L"and never the spelling the reader did not type");
+                            L"and never the form the reader did not type");
         }
 
         //  ONE DESCRIPTION OF ONE INVOCATION. A mode's page opens with the same
@@ -505,25 +505,43 @@ namespace CommandLineTests
             Assert::IsTrue (opts.symbolTable, L"/t must mean what -t means");
         }
 
-        //  -i IS STILL A NO-OP, and this test is about its NAME rather than its
-        //  effect. as65's -i means "Ignore case in opcodes"; the field it sets
-        //  was called caseSensitive and was set to TRUE, so the record of the
-        //  flag stated the opposite of the flag. Whoever implements it reads
-        //  this field first, and an inverted name is how a no-op becomes a bug.
-        TEST_METHOD (IgnoreCaseFlag_RecordsThatCaseIsToBeIgnored)
+        //  -i IS ACCEPTED AND RECORDS NOTHING, which is the whole of what this
+        //  grammar owes it.
+        //
+        //  These two tests used to assert a stored flag. The flag is gone: as65's
+        //  -i asks for case-insensitive opcodes with case-sensitive labels, this
+        //  assembler does exactly that unconditionally, and a field nothing could
+        //  usefully read was an invitation to implement a conditional folding it
+        //  does not need. What is left to check is that the flag still parses --
+        //  an as65 command line carrying it must not be refused -- and that it
+        //  does not swallow the source file.
+        //
+        //  The behavior itself is pinned in AssemblerTests, against the assembler,
+        //  where it can actually be measured.
+        TEST_METHOD (IgnoreCaseFlag_IsAccepted_AndChangesNothingAboutTheParse)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-i" };
-            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+            ArgVector           with    = { "CassoCli", "demo.a65", "-i" };
+            ArgVector           without = { "CassoCli", "demo.a65" };
+            CommandLineOptions  a       = CommandLineParser::Parse (with.Count(),    with.Data(),    NoProbe());
+            CommandLineOptions  b       = CommandLineParser::Parse (without.Count(), without.Data(), NoProbe());
 
-            Assert::IsTrue (opts.ignoreOpcodeCase);
+            Assert::IsTrue (a.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
+                            L"an as65 command line carrying -i is not refused");
+            Assert::AreEqual (std::string ("demo.a65"), a.inputFile,
+                              L"and -i does not consume the source file");
+            Assert::IsTrue (a.parseVerdict == b.parseVerdict);
         }
 
-        TEST_METHOD (WithoutTheIgnoreCaseFlag_CaseIsNotToBeIgnored)
+        //  It concatenates like every other valueless flag, so -it is -i -t.
+        //  Worth pinning because a flag that records nothing is a flag whose
+        //  position in a group nothing else would catch.
+        TEST_METHOD (IgnoreCaseFlag_StillConcatenates)
         {
-            ArgVector           args = { "CassoCli", "demo.a65" };
+            ArgVector           args = { "CassoCli", "demo.a65", "-it" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsFalse (opts.ignoreOpcodeCase);
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
+            Assert::IsTrue (opts.symbolTable, L"the -t after -i is still read");
         }
 
         TEST_METHOD (FillZeroFlag_SetsZeroFill)
@@ -684,7 +702,7 @@ namespace CommandLineTests
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
                             L"a parameter-taking option given no parameter is refused, not shrugged at");
             Assert::IsFalse (opts.showHelp,
-                             L"and it is still the height flag, not the help request the first position spells");
+                             L"and it is still the height flag, not the help request the first position writes");
         }
 
         //  The bare form ends the group, so nothing after it is read either --
@@ -772,7 +790,7 @@ namespace CommandLineTests
         TEST_METHOD (PageHeightFlagAlone_DoesNotReadItsNeighborAsAHeight)
         {
             //  -q leads only because a bare -h in the first position is the
-            //  top-level help spelling and never reaches this grammar at all.
+            //  top-level help form and never reaches this grammar at all.
             ArgVector           args = { "CassoCli", "-q", "-h", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
@@ -828,7 +846,7 @@ namespace CommandLineTests
         //  in-system debugging or a software simulator" -- no filename, no
         //  extension, no format. Both named forms were added here, so removing
         //  them takes away a capability as65 never had rather than matching
-        //  one; naming the file will need a spelling of this project's own.
+        //  one; naming the file will need a form of this project's own.
         TEST_METHOD (DebugFlag_TakesNoFileName_SeparatedOrAttached)
         {
             ArgVector           separated = { "CassoCli", "demo.a65", "-g", "out.dbg" };
@@ -999,14 +1017,14 @@ namespace CommandLineTests
         {
             const char *  kSpellings[] = { "--help", "-help", "-?", "/?", "/help", "-h", "?" };
 
-            for (const char * spelling : kSpellings)
+            for (const char * form : kSpellings)
             {
-                ArgVector           args = { "CassoCli", spelling };
+                ArgVector           args = { "CassoCli", form };
                 CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
                 Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
                                 (std::wstring (L"asking for help was refused: ") +
-                                 std::wstring (spelling, spelling + strlen (spelling))).c_str());
+                                 std::wstring (form, form + strlen (form))).c_str());
             }
         }
 
@@ -1198,7 +1216,7 @@ namespace CommandLineTests
             Assert::AreEqual (std::string ("prog.bin"), opts.outputFile);
         }
 
-        //  A FLAG WITH NO SEPARATED SPELLING IS REPAIRED TOO, which is the half
+        //  A FLAG WITH NO SEPARATED FORM IS REPAIRED TOO, which is the half
         //  of this that quoting advice could never fix: -o could always be
         //  written `-o prog.bin`, and -l could not be written at all in
         //  PowerShell without quotes.
@@ -1469,7 +1487,7 @@ namespace CommandLineTests
             Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M6502);
         }
 
-        //  `--cpu` IS WITHDRAWN AND `-x` REPLACES IT. Both spellings selected
+        //  `--cpu` IS WITHDRAWN AND `-x` REPLACES IT. Both forms selected
         //  the same instruction set, and `-x` is as65's own name for the
         //  switch, so the tool carried two ways to ask for one capability.
         //
@@ -1882,7 +1900,7 @@ namespace CommandLineTests
     //  they got 64 KB and sliced it down by hand. `--flat` asks for the old
     //  shape now.
     //
-    //  NOTHING SPELLS THE DEFAULT. `--raw` did for one revision, on the
+    //  NOTHING WRITES THE DEFAULT. `--raw` did for one revision, on the
     //  reasoning that command lines already carrying it should keep working; it
     //  is gone, because an option whose only effect is to select what naming
     //  nothing already selects is a line of help buying no capability.
@@ -2038,7 +2056,7 @@ namespace CommandLineTests
         }
 
         //  The `/` forms deliberately do NOT get the same refusal. `/oFILE` is
-        //  the glued spelling as65 itself documents, so `/out` genuinely means
+        //  the glued form as65 itself documents, so `/out` genuinely means
         //  `-o ut` in the grammar this mode exists to be compatible with --
         //  and as65 compatibility outranks uniformity here by decision.
         TEST_METHOD (AssemblyMode_LeavesTheSlashFormAlone_BecauseAs65GluesValuesToFlags)
@@ -2200,7 +2218,7 @@ namespace CommandLineTests
         {
             // Verbatim means no CHARACTER conversion -- the lossless path. It
             // is reached by naming neither conversion, and by nothing else:
-            // there is no flag that spells it.
+            // there is no flag that writes it.
             ArgVector           args = { "CassoCli", "disk", "get", "my.dsk", "PROG" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
@@ -2271,7 +2289,7 @@ namespace CommandLineTests
                 L"and `-o` did not quietly become --out either -- it is refused, not aliased");
         }
 
-        //  A ProDOS path is spelled with a leading slash and is an operand, so
+        //  A ProDOS path is written with a leading slash and is an operand, so
         //  the refusal above tests a DASH and not merely a flag-looking word.
         //  Refusing every `/...` would lose the path this grammar most needs.
         TEST_METHOD (Disk_RefusalDoesNotReachAProDosPath)
@@ -2323,21 +2341,21 @@ namespace CommandLineTests
                 { "boot",    CommandLineOptions::DiskOptions::Verb::Boot   },
             };
 
-            for (const auto & spelling : kSpellings)
+            for (const auto & form : kSpellings)
             {
-                ArgVector           args = { "CassoCli", "disk", spelling.word, "my.dsk" };
+                ArgVector           args = { "CassoCli", "disk", form.word, "my.dsk" };
                 CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-                Assert::IsTrue (opts.disk.verb == spelling.verb,
-                    (std::wstring (L"unrecognized spelling: ") +
-                     std::wstring (spelling.word, spelling.word + strlen (spelling.word))).c_str());
+                Assert::IsTrue (opts.disk.verb == form.verb,
+                    (std::wstring (L"unrecognized form: ") +
+                     std::wstring (form.word, form.word + strlen (form.word))).c_str());
 
                 Assert::AreEqual (std::string ("my.dsk"), opts.disk.imagePath,
-                    L"the image is still the first positional after any spelling");
+                    L"the image is still the first positional after any form");
             }
 
             Assert::AreEqual (size_t (13), CommandLineParser::GetAllDiskVerbs().size(),
-                L"and the table holds exactly the spellings swept above");
+                L"and the table holds exactly the forms swept above");
         }
 
         //  `disk --help` used to reach the verb table, be told `--help` is not
@@ -2353,19 +2371,19 @@ namespace CommandLineTests
             const char *  kSpellings[] = { "--help", "-help", "-?", "-h",
                                            "/help",  "/?",    "/h" };
 
-            for (const char * spelling : kSpellings)
+            for (const char * form : kSpellings)
             {
-                ArgVector           args = { "CassoCli", "disk", spelling };
+                ArgVector           args = { "CassoCli", "disk", form };
                 CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
                 Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::Help,
                     (std::wstring (L"not read as a help request: ") +
-                     std::wstring (spelling, spelling + strlen (spelling))).c_str());
+                     std::wstring (form, form + strlen (form))).c_str());
             }
         }
 
         //  The prefix the reader typed reaches the disk help, which is what
-        //  lets it spell itself back the same way.
+        //  lets it write itself back the same way.
         TEST_METHOD (Disk_HelpRequestWithASlash_RecordsTheSlashPrefix)
         {
             ArgVector           args = { "CassoCli", "disk", "/?" };
@@ -2385,7 +2403,7 @@ namespace CommandLineTests
             Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::Help);
         }
 
-        //  THE ONE THING THE HELP SPELLINGS MUST NOT SWALLOW. A ProDOS path
+        //  THE ONE THING THE HELP FORMS MUST NOT SWALLOW. A ProDOS path
         //  begins with a slash, and `/HELP` is a legal volume.
         TEST_METHOD (Disk_ProDosPathNamedHelp_IsStillAPath)
         {
@@ -2409,12 +2427,12 @@ namespace CommandLineTests
                 CommandLineOptions  slashed   = CommandLineParser::Parse (slashArgs.Count(), slashArgs.Data(), NoProbe());
                 CommandLineOptions  dashed    = CommandLineParser::Parse (dashArgs.Count(),  dashArgs.Data(),  NoProbe());
 
-                //  Neither spelling may be read as the image path, which is
+                //  Neither form may be read as the image path, which is
                 //  what an unrecognized flag would silently become.
                 Assert::AreEqual (std::string ("my.dsk"), slashed.disk.imagePath,
-                    L"the slash spelling is a flag, not a positional");
+                    L"the slash form is a flag, not a positional");
                 Assert::IsTrue (slashed.disk.encoding == dashed.disk.encoding,
-                    L"and it reaches the same arm as the dash spelling");
+                    L"and it reaches the same arm as the dash form");
                 Assert::IsTrue (slashed.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
                     L"and neither prefix is refused");
             }
@@ -2472,7 +2490,7 @@ namespace CommandLineTests
         {
             //  `/load` used to normalize to `-load`, match nothing, and be
             //  reported as an unknown option -- while the usage text under `/?`
-            //  offered exactly that spelling.
+            //  offered exactly that form.
             ArgVector           args = { "CassoCli", "run", "prog.bin",
                                          "/load", "$2000", "/reset-vector" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
@@ -2487,7 +2505,7 @@ namespace CommandLineTests
         TEST_METHOD (Disk_LeavesAProDosPathAlone_EvenThoughItBeginsWithASlash)
         {
             //  THIS IS WHY THE SLASH FORM IS A TABLE LOOKUP AND NOT A REWRITE.
-            //  A ProDOS path is spelled with a leading slash; a parser that
+            //  A ProDOS path is written with a leading slash; a parser that
             //  turned every one of them into a flag would lose the operand.
             ArgVector           args = { "CassoCli", "disk", "get", "my.po", "/VOLUME/STARTUP" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());

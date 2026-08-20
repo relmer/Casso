@@ -53,11 +53,11 @@ static constexpr CommandLineParser::DiskVerbName  s_kDiskVerbs[] =
 
 
 //
-//  Every LONG option spelling, without a prefix, in the two grammars that have
+//  Every LONG option form, without a prefix, in the two grammars that have
 //  any.
 //
 //  THESE TABLES EXIST TO MAKE `/` A REAL PREFIX RATHER THAN A PRINTED ONE. The
-//  usage text spells every flag with whichever prefix the reader asked for, and
+//  usage text writes every flag with whichever prefix the reader asked for, and
 //  a help that offers `/out` while the parser takes only `--out` is worse than
 //  one that never mentioned it. Single-letter flags already worked with either
 //  prefix; only the long ones did not.
@@ -121,15 +121,15 @@ static constexpr const char *  s_kpszSourceExtensions[] =
 //
 //  Whether one argument is the user asking for the usage text.
 //
-//  Every spelling the top level accepts is accepted here, because a reader who
+//  Every form the top level accepts is accepted here, because a reader who
 //  learned `--help` from one command line will type it on the next one and a
-//  subcommand that answers only its own spelling is a trap. The `/` forms are
-//  included for the same reason the option tables carry them: the help spells
+//  subcommand that answers only its own form is a trap. The `/` forms are
+//  included for the same reason the option tables carry them: the help writes
 //  itself with whichever prefix was typed, so both prefixes have to work.
 //
 //  MATCHED EXACTLY AND IN LOWER CASE, which is what keeps a ProDOS path out of
 //  it. `/HELP` is a legal volume path and stays an operand; only the lowercase
-//  flag spelling a person types at a shell is read as a request.
+//  flag form a person types at a shell is read as a request.
 //
 //  `-h` IS SAFE HERE AND NOWHERE ELSE. It is the listing page height in the
 //  assembler's flag walk, which is the only grammar that has such a thing; the
@@ -137,7 +137,7 @@ static constexpr const char *  s_kpszSourceExtensions[] =
 //  so nothing else is competing for the two characters. A reader who learned
 //  `-h` from any other command line types it here first.
 //
-//  THE ONE TOP-LEVEL SPELLING MISSING HERE IS A BARE `?`, and it is missing
+//  THE ONE TOP-LEVEL FORM MISSING HERE IS A BARE `?`, and it is missing
 //  because the condition that makes it a request cannot hold inside a
 //  subcommand. as65 asks for a question mark that is the ONLY parameter; every
 //  argument this function judges has a verb in front of it, so a `?` reaching
@@ -228,7 +228,7 @@ bool CommandLineParser::IsPlainDecimal (const std::string & text)
 //  This is what lets a surplus argument be diagnosed with the option it was
 //  meant for rather than in the abstract. `casso prog.a65 -l listing.txt` leaves
 //  `listing.txt` with nowhere to go, and the useful thing to say is not that it
-//  is surplus but that `-llisting.txt` is the spelling that would have worked.
+//  is surplus but that `-llisting.txt` is the form that would have worked.
 //
 //  ONLY THE LETTERS WHOSE BARE FORM IS LEGAL ARE HERE. `-h` and `-o` also take
 //  parameters and neither can ever be the argument standing in front of a
@@ -322,7 +322,7 @@ char CommandLineParser::TrailingParameterFlag (const std::string & previous)
 //  them asks. Every value in those grammars is SEPARATED -- `--out prog.bin`,
 //  `-o prog.bin` -- so a value is its own token, does not begin with `-`, and
 //  is never a parameter name to be cut. The one way to reach the shape there is
-//  to type a glued spelling neither grammar accepts, where the answer is not
+//  to type a glued form neither grammar accepts, where the answer is not
 //  "quote it" but "that flag takes its value separately" -- which is what those
 //  grammars already say.
 //
@@ -465,9 +465,9 @@ int CommandLineParser::DiskOperandCount (CommandLineOptions::DiskOptions::Verb v
 //
 //  DiskVerbWord
 //
-//  The descriptive word a verb is spelled with, read from the table rather than
+//  The descriptive word a verb is written with, read from the table rather than
 //  retyped so a diagnostic cannot name a verb the grammar no longer has. The
-//  first row carrying a verb is its descriptive spelling; the rest are aliases.
+//  first row carrying a verb is its descriptive form; the rest are aliases.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -523,7 +523,7 @@ bool CommandLineParser::IsDiskOptionNeedingValue (const std::string & arg)
 //  value-taking arm there declines an option that has nothing after it, and
 //  what caught the leftovers was a complaint that the option does not exist.
 //
-//  The single-letter forms are spelled with a dash because the caller has
+//  The single-letter forms are written with a dash because the caller has
 //  already normalized a leading slash to one.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -543,7 +543,7 @@ bool CommandLineParser::IsRunOptionNeedingValue (const std::string & arg)
 //
 //  CanonicalLongFlag
 //
-//  An argument reduced to the one spelling the grammars below test for, so
+//  An argument reduced to the one form the grammars below test for, so
 //  `/out` and `--out` reach the same arm.
 //
 //  ONLY AN EXACT OPTION NAME IS REWRITTEN. A ProDOS path is `/VOLUME/FILE` and
@@ -551,7 +551,7 @@ bool CommandLineParser::IsRunOptionNeedingValue (const std::string & arg)
 //  lose it. Anything not in the table comes back untouched, which is what lets
 //  a caller pass one string through for both flags and positionals.
 //
-//  An attached value is carried across, because a long option may be spelled
+//  An attached value is carried across, because a long option may be written
 //  `--name=value` and `/name=value` therefore has to be one too. The name is
 //  matched against the part BEFORE the `=` for exactly that reason.
 //
@@ -625,8 +625,8 @@ std::string CommandLineParser::CanonicalDiskFlag (const std::string & arg)
 //  operand lives on the host -- so it is spelled out rather than smoothed over.
 //
 //  Each option is also accepted with a `/` prefix, because the usage text
-//  spells every flag with whichever prefix the reader asked for and offering a
-//  spelling the parser rejects is worse than never offering it. See
+//  writes every flag with whichever prefix the reader asked for and offering a
+//  form the parser rejects is worse than never offering it. See
 //  CanonicalDiskFlag for why that is a table lookup and not a rewrite of any
 //  leading slash.
 //
@@ -779,7 +779,7 @@ void CommandLineParser::ParseDiskOptions (
         //  A DASH INTRODUCES A FLAG AND NOTHING ELSE, so one this grammar does
         //  not have is refused rather than counted as an operand.
         //
-        //  Only a dash. A ProDOS path is spelled `/VOLUME/FILE` and is an
+        //  Only a dash. A ProDOS path is written `/VOLUME/FILE` and is an
         //  operand, which is the same reason CanonicalDiskFlag matches a table
         //  instead of rewriting every leading slash -- so a slash that reached
         //  here is a path, and a path is exactly what the positional block
@@ -885,7 +885,7 @@ std::span<const CommandLineParser::DiskVerbName> CommandLineParser::GetAllDiskVe
 //  The disk options read out of the table that defines them, so the suggestion
 //  a refused argument earns cannot fall behind the grammar.
 //
-//  Spelled with `--` regardless of what the caller typed. Both prefixes are
+//  Written with `--` regardless of what the caller typed. Both prefixes are
 //  accepted, and the refusal is already telling the reader they got the option
 //  wrong -- offering it back in the prefix they just mistyped would suggest the
 //  prefix was the mistake.
@@ -1053,7 +1053,7 @@ Error:
 //  would silently classify one of them as having no recognized extension.
 //
 //  Both sides are lowered rather than assuming the caller passes a lowercase
-//  suffix, so the function is correct regardless of how the call site spells
+//  suffix, so the function is correct regardless of how the call site writes
 //  its literal.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1243,7 +1243,7 @@ CommandLineOptions::Subcommand CommandLineParser::LookUpSubcommand (const std::s
 //                    not an unknown flag named "lsc"
 //    prefix parity   `/` and `-` both introduce a flag. The prefix the user
 //                    chose is REMEMBERED in flagPrefix so the usage text comes
-//                    back spelled the way they type
+//                    back written the way they type
 //    attached values a flag's argument is GLUED to it, and how much of the
 //                    argument it takes depends on the KIND of parameter. as65:
 //                    "no other option can follow one that may have a string
@@ -1291,7 +1291,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
 
     while (argIndex < argc && !stop)
     {
-        // A `/` spelling of a long option is canonicalized before anything
+        // A `/` form of a long option is canonicalized before anything
         // tests for one, so `/cpu 65c02` and `/flat` work the way `/l` and `/o`
         // already did. Without this the single-character normalization further
         // down reads `/flat` as the concatenated flags -f -l -a -t.
@@ -1313,7 +1313,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
 
         //  `--cpu` IS WITHDRAWN AND `-x` REPLACES IT. The two selected the same
         //  instruction set, and `-x` is as65's own name for that switch --
-        //  "Use 65SC02 extensions" -- so the tool kept two spellings of one
+        //  "Use 65SC02 extensions" -- so the tool kept two forms of one
         //  capability, one of which no as65 user would reach for.
         //
         //  It is answered by NAME rather than falling into the generic `--`
@@ -1322,7 +1322,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
         //  about what to type instead. Same reasoning as the bare `-o`.
         //  BOTH PREFIXES ARE MATCHED HERE EXPLICITLY, because `cpu` has left
         //  the long-option table and so `/cpu` is no longer canonicalized into
-        //  `--cpu` on its way past. Without this the slash spelling would fall
+        //  `--cpu` on its way past. Without this the slash form would fall
         //  into the concatenation walk and be read as -c -p -u -- cycle counts,
         //  a pass 1 listing, and an unknown flag -- which is a true reading of
         //  as65's grammar and a useless answer to somebody migrating.
@@ -1380,7 +1380,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
         //
         //  Nothing as65 accepts is refused here: as65 has no `--` form at all,
         //  its long options being this project's own addition. The `/`
-        //  spellings deliberately fall through instead -- `/oFILE` is the glued
+        //  forms deliberately fall through instead -- `/oFILE` is the glued
         //  form as65 documents, so `/out` genuinely does mean `-o ut` and must
         //  keep meaning it.
         //
@@ -1423,7 +1423,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
         //  in front of it, for an option that glues its value. Two things say
         //  so -- a surplus argument that is all digits, and an option standing
         //  in front of it that takes a parameter -- and when either holds the
-        //  glued spelling is offered by name.
+        //  glued form is offered by name.
         //
         //  THE SHELL IS NOT ASKED ABOUT HERE ANY MORE. A command line PowerShell
         //  cut in half never reaches this point: RejoinShellSplitArguments puts
@@ -1605,7 +1605,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
             //  had and the flag might as well not have been typed.
             //
             //  `-h0` IS NAMED IN THE MESSAGE because a reader who wants no page
-            //  breaks has a real spelling for it and would otherwise reach for
+            //  breaks has a real form for it and would otherwise reach for
             //  the bare flag to ask.
             //
             //  This is the flag walk, which the FIRST argument never reaches --
@@ -1668,8 +1668,22 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                 pos++;
                 break;
 
+            //  as65: "Ignore case in opcodes. In this way, the assembler does
+            //  not differentiate between `adc` and `ADC`, for example. Labels
+            //  are still case sensitive."
+            //
+            //  ACCEPTED AND RECORDED NOWHERE, because there is nothing to
+            //  record. This assembler folds opcode case unconditionally and
+            //  keeps labels case-sensitive, which is precisely what the flag
+            //  asks for -- so honoring it is a no-op in the strict sense: the
+            //  behavior is already the one requested.
+            //
+            //  IT USED TO SET A FIELD, and the field was the problem. Nothing
+            //  read it, nothing could read it usefully, and a stored `true`
+            //  sitting in two structs invited somebody to implement a
+            //  conditional case-folding that the assembler does not need and
+            //  cannot want. `-n` is the flag with real work behind it.
             case 'i':
-                options.ignoreOpcodeCase = true;
                 pos++;
                 break;
 
@@ -1678,7 +1692,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
             //  rejects the 65SC02 extensions." One instruction set, reachable
             //  by the name as65 gave it.
             //
-            //  IT IS THE ONLY SPELLING NOW. `--cpu` selected the same
+            //  IT IS THE ONLY FORM NOW. `--cpu` selected the same
             //  instruction set under a name as65 never had, so the tool carried
             //  two ways to ask for one thing and the as65-shaped one was the
             //  one an as65 user would reach for. `--cpu` is answered by name
@@ -1709,7 +1723,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
             //  BOTH `-g <file>` AND `-g<file>` ARE GONE. They were added here,
             //  and removing them takes away a capability as65 never had rather
             //  than matching one it did; naming the debug file will need a
-            //  spelling of this project's own if it is wanted back. The derived
+            //  form of this project's own if it is wanted back. The derived
             //  name -- the source with a .dbg extension -- is what remains, and
             //  it is what a bare -g always produced.
             case 'g':
@@ -2191,7 +2205,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
 //  of which one would have applied.
 //
 //  A leading `/` is normalized to `-` throughout, after recording the user's
-//  chosen prefix in flagPrefix so usage text is spelled back the way they type.
+//  chosen prefix in flagPrefix so usage text is written back the way they type.
 //
 //  An unrecognized first argument is NOT an error -- it is a source filename,
 //  which is exactly how as65 was invoked -- so AS65 is the fallback rather
@@ -2285,7 +2299,7 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
         //  A LONE `?` OPENS THE ASSEMBLER'S PAGE, and is the only thing that
         //  does. It is as65's own usage request, and assembling IS as65 mode,
         //  so the request lands on the page describing the grammar it comes
-        //  from. Every other spelling asks for the general page. The `argc == 2`
+        //  from. Every other form asks for the general page. The `argc == 2`
         //  condition is already spent above, so a `?` reaching here was the
         //  whole command line.
         if (first == "?")
