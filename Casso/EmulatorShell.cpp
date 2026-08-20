@@ -2092,10 +2092,27 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     // FinishUiShellLayout gates on ShouldShowExternalDrive() -- so the first
     // paint matches the saved setup. External drive defaults not-connected;
     // mouse defaults CONNECTED.
-    hrOpt = uiPrefs->GetBool ("externalDriveConnected", extConnected);
-    if (SUCCEEDED (hrOpt))
+    //
+    // The drive's answer is the back-panel disk port. The legacy
+    // externalDriveConnected boolean is still read as a FALLBACK because the
+    // fold that retires it only runs on a version bump -- a config already at
+    // the current stamp keeps its old key until Settings next saves, and
+    // dropping the drive for that one launch would be a visible regression.
     {
-        m_externalDriveConnected = extConnected;
+        const PortConfig *  diskPort = m_config.FindPort ("disk");
+
+        if (diskPort != nullptr)
+        {
+            m_externalDriveConnected = !diskPort->device.empty();
+        }
+        else
+        {
+            hrOpt = uiPrefs->GetBool ("externalDriveConnected", extConnected);
+            if (SUCCEEDED (hrOpt))
+            {
+                m_externalDriveConnected = extConnected;
+            }
+        }
     }
 
     hrOpt = uiPrefs->GetBool ("mouseConnected", mouseConn);

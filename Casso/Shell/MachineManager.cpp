@@ -1554,15 +1554,50 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                 // machines (ShouldShowExternalDrive ignores it when the system
                 // ROM is not banked).
                 {
-                    const JsonValue  * extPrefs  = nullptr;
-                    bool               connected = false;
-                    bool               mouseConn = false;
+                    const JsonValue  * extPrefs   = nullptr;
+                    const JsonValue  * portsArray = nullptr;
+                    bool               connected  = false;
+                    bool               mouseConn  = false;
+                    bool               fFromPort  = false;
 
                     if (mergedJson.HasObject ("$cassoUiPrefs", extPrefs) &&
                         extPrefs != nullptr)
                     {
                         HRESULT  hrExt = extPrefs->GetBool ("externalDriveConnected", connected);
                         IGNORE_RETURN_VALUE (hrExt, S_OK);
+                    }
+
+                    // The back-panel disk port is the answer when the machine
+                    // declares one; the legacy boolean above stays as the
+                    // fallback for a config that has not been folded yet.
+                    if (mergedJson.HasArray ("ports", portsArray) &&
+                        portsArray != nullptr)
+                    {
+                        for (size_t p = 0; !fFromPort && p < portsArray->ArraySize(); p++)
+                        {
+                            const JsonValue  & port       = portsArray->ArrayAt (p);
+                            string             portName;
+                            string             portDevice;
+                            HRESULT            hrName     = S_OK;
+                            HRESULT            hrDev      = S_OK;
+
+                            if (port.GetType() != JsonType::Object)
+                            {
+                                continue;
+                            }
+
+                            hrName = port.GetString ("name",   portName);
+                            hrDev  = port.GetString ("device", portDevice);
+
+                            IGNORE_RETURN_VALUE (hrName, S_OK);
+                            IGNORE_RETURN_VALUE (hrDev,  S_OK);
+
+                            if (portName == "disk")
+                            {
+                                connected = !portDevice.empty();
+                                fFromPort = true;
+                            }
+                        }
                     }
 
                     m_shell.m_externalDriveConnected = connected;

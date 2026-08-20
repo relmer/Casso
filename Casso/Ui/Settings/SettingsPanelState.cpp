@@ -366,6 +366,22 @@ HRESULT SettingsPanelState::LoadFromMachine (
     hr = ExtractHardware (mergedJson, m_original.hardware);
     CHR (hr);
 
+    hr = ExtractMachinePorts (mergedJson, m_original.machinePorts);
+    CHR (hr);
+
+    // The back-panel disk port outranks the legacy externalDriveConnected
+    // boolean ExtractUiPrefs just read. Both can be on disk at once -- the
+    // fold that retires the boolean only runs on a version bump -- and the
+    // port is the one Settings writes from here on.
+    for (const SettingsMachinePort & port : m_original.machinePorts)
+    {
+        if (port.name == kpszDiskPortName)
+        {
+            m_original.prefs.externalDriveConnected = !port.device.empty();
+            break;
+        }
+    }
+
     m_current = m_original;
 
 Error:
@@ -601,15 +617,29 @@ void SettingsPanelState::SetWriteProtect (int drive, bool wp)
 //
 //  SetExternalDriveConnected
 //
-//  //c external-drive port toggle. A live-effect UI pref -- it only
+//  //c external-drive port toggle. A live-effect setting -- it only
 //  reveals/hides the second drive-mount widget, so unlike a hardware
 //  enable it never sets RequiresReset.
+//
+//  The staged boolean drives the UI and the live apply; the staged PORT is
+//  what gets written to disk. Both move together here so there is exactly one
+//  place where "the external drive is attached" is decided, which is the
+//  whole point of retiring the standalone boolean.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SettingsPanelState::SetExternalDriveConnected (bool connected)
 {
     m_current.prefs.externalDriveConnected = connected;
+
+    for (SettingsMachinePort & port : m_current.machinePorts)
+    {
+        if (port.name == kpszDiskPortName)
+        {
+            port.device = connected ? kpszDiskIicDrive : "";
+            break;
+        }
+    }
 }
 
 
@@ -711,7 +741,8 @@ HRESULT SettingsPanelState::Apply (
         sink.QueueMachineReset();
     }
 
-    outCurrentJson = BuildJson (m_mergedJson, m_current.hardware, m_current.prefs);
+    outCurrentJson = BuildJson (m_mergedJson, m_current.hardware, m_current.prefs,
+                                m_current.machinePorts);
 
     return hr;
 }
@@ -1127,6 +1158,58 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+HRESULT SettingsPanelState::ExtractMachinePorts (
+    const JsonValue                  & mergedJson,
+    std::vector<SettingsMachinePort> & outPorts)
+{
+    const JsonValue *  portsArr = nullptr;
+    size_t             i        = 0;
+
+
+
+    outPorts.clear();
+
+    // No root ports is not an error and not an empty back panel -- it is a
+    // machine whose hardware is carded, so there is nothing here to write
+    // back and BuildJson must leave the key alone entirely.
+    if (mergedJson.GetType() != JsonType::Object ||
+        !mergedJson.HasArray (kpszPortsKey, portsArr) ||
+        portsArr == nullptr)
+    {
+        return S_OK;
+    }
+
+    for (i = 0; i < portsArr->ArraySize(); ++i)
+    {
+        const JsonValue      & entry = portsArr->ArrayAt (i);
+        SettingsMachinePort    port;
+
+        if (entry.GetType() == JsonType::String)
+        {
+            port.device = entry.GetString();
+        }
+        else if (entry.GetType() == JsonType::Object)
+        {
+            port.name   = GetStringOpt (entry, kpszPortNameKey,   "");
+            port.device = GetStringOpt (entry, kpszPortDeviceKey, "");
+        }
+
+        outPorts.push_back (std::move (port));
+    }
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExtractHardware
+//
+////////////////////////////////////////////////////////////////////////////////
+
 HRESULT SettingsPanelState::ExtractHardware (
     const JsonValue              & mergedJson,
     std::vector<HardwareEntry>   & outEntries)
@@ -1282,9 +1365,10 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 JsonValue SettingsPanelState::BuildJson (
-    const JsonValue                       & mergedJson,
-    const std::vector<HardwareEntry>      & hw,
-    const SettingsUiPrefs                 & prefs)
+    const JsonValue                        & mergedJson,
+    const std::vector<HardwareEntry>       & hw,
+    const SettingsUiPrefs                  & prefs,
+    const std::vector<SettingsMachinePort> & machinePorts)
 {
     std::vector<std::pair<std::string, JsonValue>>          root;
     std::vector<std::pair<std::string, JsonValue>>          uiObj;
@@ -1313,6 +1397,14 @@ JsonValue SettingsPanelState::BuildJson (
         const JsonValue   & val = (*entries)[i].second;
 
         if (key == "internalDevices" || key == "slots" || key == kpszUiPrefsKey)
+        {
+            continue;
+        }
+
+        // Root `ports` is rebuilt from the staged list below when there is
+        // one; cloning it here would write the machine's back panel back
+        // exactly as loaded and silently discard the toggle.
+        if (key == kpszPortsKey && !machinePorts.empty())
         {
             continue;
         }
@@ -1431,13 +1523,54 @@ JsonValue SettingsPanelState::BuildJson (
         root.emplace_back ("slots", JsonValue (std::move (slotArr)));
     }
 
+    // The machine's own connectors, written back in full. A user array
+    // replaces the default's wholesale, so emitting only the port that
+    // changed would leave the //c with a disk port and nothing else.
+    if (! machinePorts.empty())
+    {
+        std::vector<JsonValue>  portArr;
+
+        for (const SettingsMachinePort & port : machinePorts)
+        {
+            std::vector<std::pair<std::string, JsonValue>>  entry;
+
+            entry.emplace_back (kpszPortNameKey,   JsonValue (port.name));
+            entry.emplace_back (kpszPortDeviceKey, JsonValue (port.device));
+            portArr.emplace_back (JsonValue (std::move (entry)));
+        }
+
+        root.emplace_back (kpszPortsKey, JsonValue (std::move (portArr)));
+    }
+
     // $cassoUiPrefs block
     uiObj.emplace_back ("speedMode",          JsonValue (std::string (SpeedToString (prefs.speedMode))));
     uiObj.emplace_back ("colorMode",          JsonValue (std::string (ColorToString (prefs.colorMode))));
     uiObj.emplace_back ("writeMode",          JsonValue (std::string (WriteModeToString (prefs.writeMode))));
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (prefs.floppySoundEnabled));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (prefs.floppyMechanism));
-    uiObj.emplace_back ("externalDriveConnected", JsonValue (prefs.externalDriveConnected));
+    // The legacy boolean is written ONLY when the machine has no disk port to
+    // hold the answer. Where a port exists it is authoritative, and writing
+    // both would put two answers to one question back on disk -- exactly what
+    // folding it into the port was for.
+    {
+        bool  fHasDiskPort = false;
+
+        for (const SettingsMachinePort & port : machinePorts)
+        {
+            if (port.name == kpszDiskPortName)
+            {
+                fHasDiskPort = true;
+                break;
+            }
+        }
+
+        if (!fHasDiskPort)
+        {
+            uiObj.emplace_back ("externalDriveConnected",
+                                JsonValue (prefs.externalDriveConnected));
+        }
+    }
+
     uiObj.emplace_back ("mouseConnected",         JsonValue (prefs.mouseConnected));
     uiObj.emplace_back ("driveMotorVolume",   JsonValue ((double) prefs.driveMotorVolume));
     uiObj.emplace_back ("driveHeadVolume",    JsonValue ((double) prefs.driveHeadVolume));

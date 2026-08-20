@@ -129,6 +129,22 @@ struct HardwareEntry
 };
 
 
+//
+//  One of the MACHINE's own connectors -- the //c's back panel, as opposed to
+//  a card's connectors, which ride along on their slot's HardwareEntry.
+//
+//  The whole list is staged even though only the disk port is editable today,
+//  because a user array replaces the default's wholesale: writing back only
+//  the port that was touched would leave the //c with a disk port and no
+//  serial or joystick ports at all.
+//
+struct SettingsMachinePort
+{
+    std::string  name;      // "disk", "serial1", "joystick"
+    std::string  device;    // what is attached; empty for an unoccupied port
+};
+
+
 struct SettingsMemoryRegion
 {
     std::string  name;          // "Main RAM", "Aux RAM", "System ROM" ...
@@ -290,16 +306,25 @@ public:
                                        SettingsMachineInfo        & outInfo);
     static HRESULT ExtractUiPrefs     (const JsonValue            & mergedJson,
                                        SettingsUiPrefs            & outPrefs);
-    static JsonValue BuildJson        (const JsonValue                 & mergedJson,
-                                       const std::vector<HardwareEntry> & hw,
-                                       const SettingsUiPrefs          & prefs);
+
+    // The machine's own connectors, read from the root `ports` array. Absent
+    // leaves the list empty, which BuildJson takes as "this machine never had
+    // a back panel to write back".
+    static HRESULT ExtractMachinePorts (const JsonValue                       & mergedJson,
+                                        std::vector<SettingsMachinePort>      & outPorts);
+
+    static JsonValue BuildJson        (const JsonValue                        & mergedJson,
+                                       const std::vector<HardwareEntry>       & hw,
+                                       const SettingsUiPrefs                  & prefs,
+                                       const std::vector<SettingsMachinePort> & machinePorts = {});
 
 private:
 
     struct Snapshot
     {
-        SettingsUiPrefs            prefs;
-        std::vector<HardwareEntry> hardware;
+        SettingsUiPrefs                   prefs;
+        std::vector<HardwareEntry>        hardware;
+        std::vector<SettingsMachinePort>  machinePorts;
     };
 
     static bool PrefsEqual    (const SettingsUiPrefs & a, const SettingsUiPrefs & b);
@@ -311,7 +336,12 @@ private:
     // the class. FindKey in particular collided by name with
     // MachineConfigUpgrade's, which is what the anonymous namespaces were
     // hiding.
-    static constexpr const char *  kpszUiPrefsKey = "$cassoUiPrefs";
+    static constexpr const char *  kpszUiPrefsKey   = "$cassoUiPrefs";
+    static constexpr const char *  kpszPortsKey     = "ports";
+    static constexpr const char *  kpszPortNameKey  = "name";
+    static constexpr const char *  kpszPortDeviceKey = "device";
+    static constexpr const char *  kpszDiskPortName = "disk";
+    static constexpr const char *  kpszDiskIicDrive = "disk-iic-drive";
     static constexpr const char *  kpszVersionKey = "$cassoMachineVersion";
 
     static int  FindKey (

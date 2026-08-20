@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Core/MachineConfigUpgrade.h"
+#include "Core/JsonParser.h"
+#include "Core/JsonValue.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -733,6 +735,161 @@ public:
             L"Neither a printer nor a Mockingboard has drive ports.");
         Assert::IsTrue (migrated.find ("\"ports\"") == string::npos,
             L"A non-Disk-][ card must not be given drive connectors.");
+    }
+
+
+    //
+    //  The //c's back panel, as the embedded default declares it. The fold
+    //  needs it as a TEMPLATE: a user array replaces the default's wholesale,
+    //  so a delta naming only the disk port would leave the machine with one
+    //  connector and no serial or joystick ports at all.
+    //
+    static JsonValue MakeDefaultCcPorts()
+    {
+        JsonValue       ports;
+        JsonParseError  err;
+        string          json = "[ { \"name\": \"disk\",     \"device\": \"\" },"
+                               "  { \"name\": \"serial1\",  \"device\": \"\" },"
+                               "  { \"name\": \"serial2\",  \"device\": \"\" },"
+                               "  { \"name\": \"joystick\", \"device\": \"\" } ]";
+
+        HRESULT  hr = JsonParser::Parse (json, ports, err);
+
+        Assert::IsTrue (SUCCEEDED (hr), L"fixture ports must parse");
+
+        return ports;
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_FoldsAConnectedExternalDriveOntoTheDiskPort)
+    {
+        string     migrated;
+        bool       changed = false;
+        HRESULT    hr      = S_OK;
+        JsonValue  ports   = MakeDefaultCcPorts();
+
+        string     input   = "{ \"$cassoMachineVersion\": 1,"
+                             "  \"internalDevices\": [],"
+                             "  \"$cassoUiPrefs\": {"
+                             "    \"externalDriveConnected\": true,"
+                             "    \"mouseConnected\": true } }";
+
+        hr = MachineConfigUpgrade::MigrateUserConfig (input, &ports, migrated, changed);
+
+        AssertSucceeded (hr);
+        Assert::IsTrue (changed, L"a set external-drive pref must be folded");
+        Assert::IsTrue (migrated.find ("\"disk-iic-drive\"") != string::npos,
+            L"the drive the user had attached must land on the disk port.");
+        Assert::IsTrue (migrated.find ("\"externalDriveConnected\"") == string::npos,
+            L"the legacy boolean must be gone -- leaving it would keep two "
+            L"answers to one question on disk.");
+        Assert::IsTrue (migrated.find ("\"mouseConnected\"") != string::npos,
+            L"unrelated UI prefs must survive the fold.");
+        Assert::IsTrue (migrated.find ("\"serial1\"")  != string::npos &&
+                        migrated.find ("\"joystick\"") != string::npos,
+            L"the WHOLE back panel must be written -- a user ports array "
+            L"replaces the default's wholesale.");
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_ADisconnectedExternalDriveJustDropsTheKey)
+    {
+        string     migrated;
+        bool       changed = false;
+        HRESULT    hr      = S_OK;
+        JsonValue  ports   = MakeDefaultCcPorts();
+
+        string     input   = "{ \"$cassoMachineVersion\": 1,"
+                             "  \"internalDevices\": [],"
+                             "  \"$cassoUiPrefs\": {"
+                             "    \"externalDriveConnected\": false } }";
+
+        hr = MachineConfigUpgrade::MigrateUserConfig (input, &ports, migrated, changed);
+
+        AssertSucceeded (hr);
+        Assert::IsTrue (changed);
+        Assert::IsTrue (migrated.find ("\"externalDriveConnected\"") == string::npos,
+            L"the legacy boolean goes either way.");
+        Assert::IsTrue (migrated.find ("\"ports\"") == string::npos,
+            L"not-connected already matches the default, so writing a ports "
+            L"array would only add a delta to maintain.");
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_ExistingPortsOutrankTheLegacyPref)
+    {
+        string     migrated;
+        bool       changed = false;
+        HRESULT    hr      = S_OK;
+        JsonValue  ports   = MakeDefaultCcPorts();
+
+        // Someone has already said what is on the disk port. A pref we are in
+        // the middle of retiring must not overrule that.
+        string     input   = "{ \"$cassoMachineVersion\": 1,"
+                             "  \"internalDevices\": [],"
+                             "  \"ports\": [ { \"name\": \"disk\", \"device\": \"\" } ],"
+                             "  \"$cassoUiPrefs\": {"
+                             "    \"externalDriveConnected\": true } }";
+
+        hr = MachineConfigUpgrade::MigrateUserConfig (input, &ports, migrated, changed);
+
+        AssertSucceeded (hr);
+        Assert::IsTrue (migrated.find ("\"disk-iic-drive\"") == string::npos,
+            L"an explicit ports array is the user's own statement and wins.");
+        Assert::IsTrue (migrated.find ("\"externalDriveConnected\"") == string::npos,
+            L"the legacy key is still retired.");
+    }
+
+
+    //
+    //  An attached drive is never dropped on the floor. Retiring the legacy
+    //  key is only safe once the answer lives somewhere else, so a `true`
+    //  with no port to move it to must keep the key and wait for a migration
+    //  that has the template.
+    //
+    TEST_METHOD (MigrateUserConfig_WithoutATemplateAConnectedDriveKeepsItsKey)
+    {
+        string   migrated;
+        bool     changed = false;
+        HRESULT  hr      = S_OK;
+
+        string   input   = "{ \"$cassoMachineVersion\": 1,"
+                           "  \"internalDevices\": [],"
+                           "  \"$cassoUiPrefs\": {"
+                           "    \"externalDriveConnected\": true } }";
+
+        // The three-argument overload passes no template, which is what every
+        // caller with no default config on hand ends up doing.
+        hr = MachineConfigUpgrade::MigrateUserConfig (input, migrated, changed);
+
+        AssertSucceeded (hr);
+        Assert::IsTrue (migrated.find ("\"ports\"") == string::npos,
+            L"no template means no ports array -- guessing the back panel "
+            L"would be worse than leaving it to the next migration.");
+        Assert::IsTrue (migrated.find ("\"externalDriveConnected\"") != string::npos,
+            L"and the key MUST survive, or the attached drive is lost with "
+            L"nothing written anywhere to replace it.");
+    }
+
+
+    //  The same case with the drive NOT attached is safe to retire outright:
+    //  `false` already matches the default, so there is nothing to preserve.
+    TEST_METHOD (MigrateUserConfig_WithoutATemplateADisconnectedDriveStillRetires)
+    {
+        string   migrated;
+        bool     changed = false;
+        HRESULT  hr      = S_OK;
+
+        string   input   = "{ \"$cassoMachineVersion\": 1,"
+                           "  \"internalDevices\": [],"
+                           "  \"$cassoUiPrefs\": {"
+                           "    \"externalDriveConnected\": false } }";
+
+        hr = MachineConfigUpgrade::MigrateUserConfig (input, migrated, changed);
+
+        AssertSucceeded (hr);
+        Assert::IsTrue (migrated.find ("\"externalDriveConnected\"") == string::npos,
+            L"nothing to preserve, so the key goes.");
     }
 
 

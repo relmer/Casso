@@ -933,9 +933,24 @@ HRESULT UserConfigStore::Load (
         CHR (hr);
 
         migrated = userContent;
-        // Whether anything actually moved does not change what happens
-        // next -- the canonicalize/save below is idempotent either way.
-        hr = MachineConfigUpgrade::MigrateUserConfig (userContent, migrated, fRewritten);
+
+        // The default's port list is the template the external-drive fold
+        // materializes: a user array replaces the default's wholesale, so a
+        // delta naming one port would leave the machine with one connector.
+        {
+            const JsonValue *  defaultPorts = nullptr;
+
+            if (!defaultJson.HasArray ("ports", defaultPorts))
+            {
+                defaultPorts = nullptr;
+            }
+
+            // Whether anything actually moved does not change what happens
+            // next -- the canonicalize/save below is idempotent either way.
+            hr = MachineConfigUpgrade::MigrateUserConfig (
+                     userContent, defaultPorts, migrated, fRewritten);
+        }
+
         if (FAILED (hr))
         {
             migrated = userContent;
