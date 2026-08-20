@@ -126,6 +126,12 @@ struct HardwareEntry
     CapabilityFlag     capability   = CapabilityFlag::Optional;
     std::string        lockReason;                    // only meaningful for PlatformLocked
     bool               enabled      = true;
+
+    // What is attached to this CARD's connectors, in port order; empty for a
+    // card that declares none. Empty means "not described", NOT "nothing
+    // attached" -- BuildJson leaves the key alone in that case so a card that
+    // never had ports does not acquire an empty list by being looked at.
+    std::vector<std::string>  ports;
 };
 
 
@@ -290,6 +296,14 @@ public:
     void    SetDriveTwoPan      (float pan);
     void    SetWriteProtect    (int drive, bool wp);
     void    SetExternalDriveConnected (bool connected);
+
+    // The machine's SECOND DRIVE, wherever that machine keeps it: the //c's
+    // back-panel disk port, or the Disk ][ card's second connector. One
+    // question, two stores, because the hardware really is different -- the
+    // //c's is an external unit on a cable and the //e's is a drive on the
+    // card's other plug.
+    bool    SecondDriveAttached () const;
+    void    SetSecondDriveAttached (bool attached);
     void    SetMouseConnected         (bool connected);
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
 
@@ -342,6 +356,9 @@ private:
     static constexpr const char *  kpszPortDeviceKey = "device";
     static constexpr const char *  kpszDiskPortName = "disk";
     static constexpr const char *  kpszDiskIicDrive = "disk-iic-drive";
+    static constexpr const char *  kpszDiskIiDevice = "disk-ii";
+    static constexpr const char *  kpszDiskIiDrive  = "disk-ii-drive";
+    static constexpr size_t        kSecondDrivePortIndex = 1;
     static constexpr const char *  kpszVersionKey = "$cassoMachineVersion";
 
     static int  FindKey (

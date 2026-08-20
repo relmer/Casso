@@ -178,6 +178,80 @@ public:
     }
 
 
+    // A carded machine gets the same choice under its own name. "Drive 2"
+    // rather than "External drive" because that is what the hardware is: a
+    // drive on the card's second connector, not a unit on a cable.
+    TEST_METHOD (BuildNodes_AppendsSecondDriveNodeForACardedMachine)
+    {
+        std::vector<HardwareEntry>  entries;
+
+        entries.push_back (MakeEntry (HardwareEntryKind::Slot, "Slot 6: disk-ii",
+                                      CapabilityFlag::Optional, true));
+        std::vector<DxuiTreeNode>   nodes   =
+            HardwarePage::BuildNodes (entries, false, false, true, true, true);
+
+        bool  found = false;
+
+        for (const DxuiTreeNode & n : nodes)
+        {
+            if (n.label == L"Drive 2")
+            {
+                found = true;
+                Assert::IsTrue (n.checked, L"attached -> checked");
+                Assert::IsTrue (n.capabilityFlag == DxuiTreeCapabilityFlag::Optional,
+                                L"the user can detach it");
+            }
+        }
+
+        Assert::IsTrue (found, L"a carded machine must offer the Drive 2 node");
+    }
+
+
+    TEST_METHOD (BuildNodes_SecondDriveNodeReflectsDetached)
+    {
+        std::vector<HardwareEntry>  entries;
+
+        entries.push_back (MakeEntry (HardwareEntryKind::Slot, "Slot 6: disk-ii",
+                                      CapabilityFlag::Optional, true));
+        std::vector<DxuiTreeNode>   nodes   =
+            HardwarePage::BuildNodes (entries, false, false, true, true, false);
+
+        for (const DxuiTreeNode & n : nodes)
+        {
+            if (n.label == L"Drive 2")
+            {
+                Assert::IsFalse (n.checked, L"detached -> unchecked");
+            }
+        }
+    }
+
+
+    // The two nodes are mutually exclusive. The //c reports true for BOTH
+    // gates -- its built-in IWM has to count as a controller for the Disk tab
+    // -- so a machine must never end up offering its second drive twice.
+    TEST_METHOD (BuildNodes_ACcGetsTheExternalNodeAndNotAlsoDriveTwo)
+    {
+        std::vector<HardwareEntry>  entries;
+
+        entries.push_back (MakeEntry (HardwareEntryKind::Slot, "Slot 6: disk-ii",
+                                      CapabilityFlag::Optional, true));
+        std::vector<DxuiTreeNode>   nodes   =
+            HardwarePage::BuildNodes (entries, true, true, true, false, false);
+
+        bool  external = false;
+        bool  second   = false;
+
+        for (const DxuiTreeNode & n : nodes)
+        {
+            if (n.label == L"External drive") { external = true; }
+            if (n.label == L"Drive 2")        { second   = true; }
+        }
+
+        Assert::IsTrue  (external, L"the //c keeps its external-drive node");
+        Assert::IsFalse (second,   L"and must not also get a Drive 2 node");
+    }
+
+
     TEST_METHOD (BuildNodes_NoExternalDriveNodeWhenUnsupported)
     {
         std::vector<DxuiTreeNode>  nodes;

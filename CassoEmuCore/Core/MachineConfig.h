@@ -374,6 +374,46 @@ struct MachineConfig
 
         return attached;
     }
+
+
+    // Attach or detach the drive on the Disk ][ card's `portIndex` connector.
+    // Returns false when the machine has no enabled Disk ][ card, or when it
+    // has no such connector.
+    //
+    // A card with NO declared ports gets its full connector list materialized
+    // first, both occupied. An undeclared card means the real card's two
+    // drives, so detaching one has to write both entries -- writing only the
+    // detached one would leave a single-element list and take the other drive
+    // away as a side effect of removing its neighbor.
+    bool  SetDiskIiPortAttached (size_t portIndex, bool attached)
+    {
+        for (SlotConfig & entry : slots)
+        {
+            if (!entry.enabled || entry.device != kpszDiskIiDevice)
+            {
+                continue;
+            }
+
+            if (entry.ports.empty())
+            {
+                for (int i = 0; i < kDiskIiPortCount; i++)
+                {
+                    entry.ports.push_back (PortConfig { string(), kpszDiskIiDrive });
+                }
+            }
+
+            if (portIndex >= entry.ports.size())
+            {
+                return false;
+            }
+
+            entry.ports[portIndex].device = attached ? kpszDiskIiDrive : string();
+
+            return true;
+        }
+
+        return false;
+    }
 };
 
 

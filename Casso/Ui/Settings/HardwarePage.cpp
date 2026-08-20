@@ -29,6 +29,7 @@ static constexpr size_t  s_kMemoryRow        = 2;
 // config slot), so the tree's toggle handler matches this label to route
 // it to SetExternalDriveConnected instead of SetHardwareEnabled.
 static constexpr wchar_t s_kExternalDriveLabel[] = L"External drive";
+static constexpr wchar_t s_kSecondDriveLabel[]   = L"Drive 2";
 
 // Synthetic node for the //c mouse peripheral -- same pattern.
 static constexpr wchar_t s_kMouseLabel[]         = L"Mouse";
@@ -457,7 +458,16 @@ void HardwarePage::Rebuild()
         bool  externalConnected = (state != nullptr) && state->Prefs().externalDriveConnected;
         bool  mouseConnected    = (state == nullptr) || state->Prefs().mouseConnected;
 
-        nodes = BuildNodes (entries, supportsExternal, externalConnected, mouseConnected);
+        // A carded machine offers the same choice under its own name. The
+        // //c is excluded here because its node is the external-drive one
+        // above -- HasDiskIIController answers true for it as well, since its
+        // built-in IWM has to count for the Disk tab.
+        bool  supportsSecond    = (state != nullptr) && !supportsExternal &&
+                                  state->HasDiskIIController();
+        bool  secondAttached    = (state != nullptr) && state->SecondDriveAttached();
+
+        nodes = BuildNodes (entries, supportsExternal, externalConnected, mouseConnected,
+                            supportsSecond, secondAttached);
     }
 
     m_tree.SetNodes (std::move (nodes));
@@ -477,6 +487,12 @@ void HardwarePage::Rebuild()
         if (label == s_kExternalDriveLabel)
         {
             state->SetExternalDriveConnected (checked);
+            return;
+        }
+
+        if (label == s_kSecondDriveLabel)
+        {
+            state->SetSecondDriveAttached (checked);
             return;
         }
 
@@ -534,7 +550,9 @@ void HardwarePage::Rebuild()
 std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEntry> & entries,
                                                     bool supportsExternalDrive,
                                                     bool externalDriveConnected,
-                                                    bool mouseConnected)
+                                                    bool mouseConnected,
+                                                    bool supportsSecondDrive,
+                                                    bool secondDriveAttached)
 {
     std::vector<DxuiTreeNode>  out;
     DxuiTreeNode               internalGroup;
@@ -592,7 +610,7 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
     // 5.25" drive on the disk port. Optional (interactive), so the user can
     // connect/disconnect it; checked mirrors the persisted connected state.
     // Unlike the hardware rows this is not a config device -- toggling it is
-    // a live UI pref, so the tree's OnToggle routes this label specially.
+    // a live change, so the tree's OnToggle routes this label specially.
     if (supportsExternalDrive)
     {
         DxuiTreeNode  external;
@@ -610,6 +628,20 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
         mouse.checked        = mouseConnected;
         mouse.expanded       = false;
         out.push_back (std::move (mouse));
+    }
+    else if (supportsSecondDrive)
+    {
+        // The same question for a carded machine, under the name that machine
+        // uses for it: not an external unit on a cable but a second drive on
+        // the Disk ][ card's other connector. Mutually exclusive with the //c
+        // node above -- a machine has one kind of second drive or the other.
+        DxuiTreeNode  second;
+
+        second.label          = s_kSecondDriveLabel;
+        second.capabilityFlag = DxuiTreeCapabilityFlag::Optional;
+        second.checked        = secondDriveAttached;
+        second.expanded       = false;
+        out.push_back (std::move (second));
     }
 
     return out;

@@ -709,6 +709,106 @@ public:
     }
 
 
+    // A carded machine's second drive is the Disk ][ card's second connector.
+    // An UNDECLARED port list means the card has not been described rather
+    // than emptied, so it must read as attached -- the two drives every such
+    // config has always behaved as having.
+    TEST_METHOD (SecondDrive_UndeclaredPortsReadAsAttached)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsTrue (st.SecondDriveAttached(),
+            L"a Disk ][ with no ports declared has both drives.");
+    }
+
+
+    // Detaching must write BOTH connectors. A one-element list would take
+    // drive 1 away as a side effect of removing drive 2.
+    TEST_METHOD (SecondDrive_DetachingWritesBothConnectors)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        std::string         text;
+
+        st.LoadFromMachine ("X", v, v);
+        st.SetSecondDriveAttached (false);
+
+        Assert::IsFalse (st.SecondDriveAttached());
+        Assert::IsTrue  (st.IsDirty(), L"detaching a drive is an edit");
+        Assert::IsFalse (st.RequiresReset(),
+            L"attaching a drive is a live change, not a machine rebuild");
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        text = WriteCompactOrFail (outJson);
+
+        Assert::IsTrue (text.find ("[\"disk-ii-drive\",\"\"]") != std::string::npos,
+            L"drive 1 stays attached and drive 2 goes -- both written, or "
+            L"removing the second would silently remove the first.");
+    }
+
+
+    TEST_METHOD (SecondDrive_ReattachingRestoresTheDrive)
+    {
+        SettingsPanelState  st;
+        SettingsPanelState  reloaded;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+
+        st.LoadFromMachine ("X", v, v);
+        st.SetSecondDriveAttached (false);
+        AssertSucceeded (st.Apply (sink, outJson));
+
+        reloaded.LoadFromMachine ("X", outJson, outJson);
+        Assert::IsFalse (reloaded.SecondDriveAttached(), L"detached survives a round trip");
+
+        reloaded.SetSecondDriveAttached (true);
+        Assert::IsTrue (reloaded.SecondDriveAttached(), L"and can be put back");
+    }
+
+
+    // The //c answers from its back-panel disk port, not from a card. Its
+    // second drive is an external unit on a cable, so the two stores must not
+    // be confused for one another.
+    TEST_METHOD (SecondDrive_OnACcReadsTheBackPanelPort)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureCcJson);
+
+        st.LoadFromMachine ("TestCc", v, v);
+        Assert::IsFalse (st.SecondDriveAttached(), L"//c disk port starts empty");
+
+        st.SetSecondDriveAttached (true);
+        Assert::IsTrue (st.SecondDriveAttached());
+        Assert::IsTrue (st.Prefs().externalDriveConnected,
+            L"the //c's second drive IS its external drive -- one question.");
+    }
+
+
+    // A card the user turned off has no drives to attach anything to.
+    TEST_METHOD (SecondDrive_ADisabledCardReportsDetached)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 1,
+            "internalDevices": [],
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "enabled": false }
+            ]
+        })JSON");
+
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsFalse (st.SecondDriveAttached(),
+            L"a disabled Disk ][ is not present, so neither are its drives.");
+    }
+
+
     // supportsExternalDrive is derived from a banked system ROM (romBankSize),
     // the //c's defining trait -- it is the only machine whose second drive is
     // an optional add-on. Flat-ROM machines (//e / ][) report false.

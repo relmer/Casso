@@ -497,14 +497,41 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
 void WindowCommandManager::OnExternalDriveCommand (int id)
 {
     bool  connected = (id == IDM_DRIVE_EXTERNAL_CONNECT);
+    bool  fChanged  = false;
 
 
 
     if (connected != m_shell.m_externalDriveConnected)
     {
         m_shell.m_externalDriveConnected = connected;
-        m_shell.ReflowChromeForMachineChange();
+        fChanged = true;
     }
+
+    // A carded machine's answer lives in the card's second connector, so the
+    // RUNNING config has to move too -- ShouldShowExternalDrive reads the
+    // attached count from there for anything that is not a //c, and would
+    // otherwise keep reporting the old one however the flag above is set.
+    if (m_shell.m_config.SetDiskIiPortAttached (1, connected))
+    {
+        fChanged = true;
+    }
+
+    if (!fChanged)
+    {
+        return;
+    }
+
+    // A detached drive cannot still be holding a disk. Ejecting flushes it
+    // through DiskImageStore, so pulling the drive does not quietly strand
+    // unwritten changes in an image the user can no longer reach -- and it
+    // routes through the CPU command queue like every other eject, rather
+    // than tearing state out from under the running machine.
+    if (!connected && m_shell.m_diskManager != nullptr)
+    {
+        m_shell.m_diskManager->Eject (6, 1);
+    }
+
+    m_shell.ReflowChromeForMachineChange();
 }
 
 
