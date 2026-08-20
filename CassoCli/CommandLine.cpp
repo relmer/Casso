@@ -907,13 +907,17 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
         "  swallow whatever came after it.",
         "",
         "  A switch value attaches directly to its switch, with no space before it:",
-        "  {0}dDEBUG rather than {0}d DEBUG, {0}oprog.bin rather than {0}o prog.bin.",
+        "  {0}dDEBUG rather than {0}d DEBUG, {0}w133 rather than {0}w 133.",
         "",
         "  {0}o is the one switch that accepts both spellings. PowerShell cuts an",
         "  unquoted {0}oprog.bin into {0}oprog and .bin, because a parameter name",
         "  cannot contain a dot, and {0}o has no bare form, so whatever follows it",
         "  can only be its filename. Every other switch here does have a bare form,",
         "  which is what would leave a separated value ambiguous.",
+        "",
+        "  PowerShell cuts any dotted value the same way, so quote the ones that",
+        "  have no separated spelling: '{0}lprog.lst' assembles, while a bare",
+        "  {0}lprog.lst arrives as {0}lprog and .lst.",
         "",
     };
 
