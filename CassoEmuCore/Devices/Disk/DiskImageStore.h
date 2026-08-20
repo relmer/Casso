@@ -116,6 +116,11 @@ public:
     //  committing to a lossy copy, rather than learning them afterwards.
     HRESULT       AssessSalvage (int slot, int drive, SalvageAssessment & out);
 
+    //  The verdict reached at mount. Free to call: no decoding, no allocation.
+    //  Use this to decide whether to OFFER salvage; use AssessSalvage when the
+    //  user has asked for it and the counts have to be current.
+    bool          IsSalvageOffered (int slot, int drive) const;
+
     //  Writes the salvaged copy to `path`. The ORIGINAL IS NEVER TOUCHED --
     //  that is the whole shape of this feature: the damaged file keeps its
     //  damage, detectably, and the user gets a separate disk they can work on.
@@ -177,6 +182,11 @@ private:
         string                 path;
         DiskFormat             format  = DiskFormat::Dsk;
         bool                   mounted = false;
+
+        //  Whether salvage applies to this image, decided once at mount.
+        //  Answering it needs a full decode for a damaged disk, which is far
+        //  too much work to repeat every time a menu is drawn.
+        bool                   salvageOffered = false;
     };
 
     // Every public accessor takes a caller-supplied slot/drive pair, so each
@@ -191,8 +201,13 @@ private:
     // read and write seams stay symmetric.
     HRESULT       ReadImageFile     (const string & path, vector<Byte> & bytes) const;
 
-    // Shared by AssessSalvage and SalvageToFile: recover what can be
-    // recovered and rebuild it as a WOZ. Produces no side effects.
+    // Recover what can be recovered. Decode only -- this is all the counts
+    // need, and it is the half AssessSalvage can afford to run.
+    HRESULT       DecodeForSalvage (Entry & entry, vector<Byte> & outSectors,
+                                    DenibblizeReport & report);
+
+    // Decode, then rebuild the result as a WOZ. Only the write path needs the
+    // rebuild, so only the write path pays for it.
     HRESULT       BuildSalvagedImage (Entry & entry, vector<Byte> & outBytes,
                                       DenibblizeReport & report);
 

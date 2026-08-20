@@ -124,6 +124,17 @@ inline bool ShouldEnableDisk2DebugMenuItem (const MachineConfig & config) noexce
 //  refusal explains itself, but an item that always refuses should not be
 //  offered in the first place.
 //
+//  Three of the five causes disable it, for the same reason in each case: the
+//  flag lives inside the file, so changing it means WRITING the file.
+//
+//    checksumMismatch  rewriting recomputes the header checksum, and that
+//                      checksum failing to match IS the evidence of damage.
+//    readOnlyFile      the host file carries +R; the write would fail.
+//    noPermission      likewise, for want of access.
+//
+//  The other two do not. An image already flagged, or one the user protected
+//  through Settings, is exactly the case where someone reaches for this.
+//
 //  Takes the whole WriteProtectInfo rather than a lone bool so a later cause
 //  that also makes the toggle meaningless can join without changing callers,
 //  and so the call site reads as a question about write protection.
@@ -137,5 +148,5 @@ inline bool ShouldEnableWriteProtectMenuItem (
     bool                      isMounted,
     const WriteProtectInfo &  wp) noexcept
 {
-    return isMounted && !wp.checksumMismatch;
+    return isMounted && !wp.checksumMismatch && !wp.readOnlyFile && !wp.noPermission;
 }

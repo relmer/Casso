@@ -2273,10 +2273,14 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
                 WriteProtectInfo  info = image->GetWriteProtectInfo();
 
-                return ((info.imageFlag || info.readOnlyFile)
-                            ? L"Allow writes to \""
-                            : L"Write-protect \"")
-                     + name + L"\"";
+                // Names the flag the command actually changes. The old wording
+                // ("Allow writes to ...") described an outcome the command
+                // cannot promise -- the host file's read-only attribute and the
+                // drive preference protect the disk too, and neither is touched
+                // here. It also flipped on readOnlyFile, so a writable image in
+                // a read-only file offered to "allow writes" and then could not.
+                return (info.imageFlag ? L"Clear \"" : L"Set \"")
+                     + name + L"\" internal write-protect flag";
             }
 
             default:
@@ -3419,17 +3423,11 @@ Error:
 
 bool EmulatorShell::IsSalvageOffered (int drive)
 {
-    SalvageAssessment  assessment;
-    HRESULT            hr = m_diskStore.AssessSalvage (6, drive, assessment);
-
-
-
-    if (FAILED (hr))
-    {
-        return false;
-    }
-
-    return assessment.isOffered;
+    // Reads the verdict reached at mount rather than re-deriving it. This runs
+    // from the menu's enable query, so it runs on every draw of that menu:
+    // assessing here cost 11 ms for an ordinary disk and 154 ms for a
+    // copy-protected one, per drive, on the UI thread.
+    return m_diskStore.IsSalvageOffered (6, drive);
 }
 
 

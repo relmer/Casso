@@ -914,6 +914,34 @@ public:
     }
 
 
+
+    TEST_METHOD (AssessSalvage_UndamagedDisk_DoesNotDecodeTheDisk)
+    {
+        // Pins the cheap path, because the expensive one is not merely slow --
+        // this runs from the Disk menu's enable query, so it runs every time
+        // that menu is drawn. Decoding unconditionally cost 11 ms for an
+        // ordinary disk and 154 ms for a copy-protected one, per drive.
+        //
+        // Damage is free to test, salvage is only ever offered for a damaged
+        // disk, so an undamaged one must return before decoding anything. An
+        // untouched report is how that is observable from here.
+        DiskImageStore     store;
+        SalvageAssessment  assessment;
+        vector<Byte>       healthy = MakeDamagedStandardWoz();
+
+        healthy[8] = static_cast<Byte> (healthy[8] ^ 0xFF);   // put the checksum back
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "fine.woz",
+                                               DiskFormat::Woz, healthy));
+        AssertSucceeded (store.AssessSalvage (kSlot, kDrive, assessment));
+
+        Assert::AreEqual (0, assessment.report.tracksPresent,
+            L"an undamaged disk must not be decoded at all");
+        Assert::AreEqual (0, assessment.totalSectors,
+            L"and no counts are produced, because none were needed");
+    }
+
+
     TEST_METHOD (AssessSalvage_NonStandardDisk_IsNotOffered)
     {
         // A copy-protected disk has no standard sectors to recover, and

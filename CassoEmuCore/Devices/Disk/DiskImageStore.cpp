@@ -145,8 +145,20 @@ HRESULT DiskImageStore::MountFromBytes (
         {
             entry.image.reset();
             entry.path.clear();
-            entry.mounted = false;
+            entry.mounted        = false;
+            entry.salvageOffered = false;
             hr = E_FAIL;
+        }
+        else
+        {
+            // Decide the salvage question once, here, where the cost is paid
+            // by a mount the user already asked for. Undamaged images settle
+            // it for free; a damaged one is decoded once instead of on every
+            // menu draw.
+            SalvageAssessment  assessment;
+            HRESULT            hrAssess = AssessSalvage (slot, drive, assessment);
+
+            entry.salvageOffered = SUCCEEDED (hrAssess) && assessment.isOffered;
         }
     }
 
@@ -529,23 +541,49 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::BuildSalvagedImage (
+HRESULT DiskImageStore::DecodeForSalvage (
     Entry             &  entry,
-    vector<Byte>      &  outBytes,
+    vector<Byte>      &  outSectors,
     DenibblizeReport  &  report)
 {
-    HRESULT       hr       = S_OK;
-    bool          hasImage = false;
-    DiskImage     rebuilt;
-    WozMetadata   carried;
-    vector<Byte>  sectors;
+    HRESULT  hr       = S_OK;
+    bool     hasImage = false;
 
 
 
     hasImage = (entry.mounted && entry.image != nullptr);
     CBRAEx (hasImage, E_INVALIDARG);
 
-    hr = NibblizationLayer::SalvageSectors (*entry.image, DiskFormat::Dsk, sectors, report);
+    hr = NibblizationLayer::SalvageSectors (*entry.image, DiskFormat::Dsk, outSectors, report);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildSalvagedImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::BuildSalvagedImage (
+    Entry             &  entry,
+    vector<Byte>      &  outBytes,
+    DenibblizeReport  &  report)
+{
+    HRESULT       hr       = S_OK;
+    DiskImage     rebuilt;
+    WozMetadata   carried;
+    vector<Byte>  sectors;
+
+
+
+    hr = DecodeForSalvage (entry, sectors, report);
     CHR (hr);
 
     hr = NibblizationLayer::NibblizeDsk (sectors, rebuilt);
@@ -563,6 +601,26 @@ HRESULT DiskImageStore::BuildSalvagedImage (
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsSalvageOffered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::IsSalvageOffered (int slot, int drive) const
+{
+    if (!IsValidBay (slot, drive))
+    {
+        return false;
+    }
+
+    return At (slot, drive).salvageOffered;
 }
 
 
@@ -591,7 +649,7 @@ HRESULT DiskImageStore::AssessSalvage (int slot, int drive, SalvageAssessment & 
     bool          hasImage   = false;
     bool          isDamaged  = false;
     bool          isStandard = false;
-    vector<Byte>  bytes;
+    vector<Byte>  sectors;
 
 
 
@@ -606,16 +664,25 @@ HRESULT DiskImageStore::AssessSalvage (int slot, int drive, SalvageAssessment & 
         hasImage = (entry.mounted && entry.image != nullptr);
         CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
 
-        hr = BuildSalvagedImage (entry, bytes, out.report);
+        // Damage is free to test and decoding is not, so test damage first.
+        // This runs from the Disk menu's enable query, which means it runs
+        // every time that menu is drawn: decoding both drives unconditionally
+        // cost 11 ms an ordinary disk and 154 ms a copy-protected one, where a
+        // protected track burns its whole attempt budget before giving up.
+        // Salvage is only ever offered for a damaged disk, so an undamaged one
+        // never needs the decode at all.
+        isDamaged = entry.image->HasSourceCrcMismatch();
+        BAIL_OUT_IF (!isDamaged, S_OK);
+
+        hr = DecodeForSalvage (entry, sectors, out.report);
         CHR (hr);
 
         out.totalSectors = out.report.tracksPresent * NibblizationLayer::kSectorsPerTrack;
 
         // A track with no standard structure at all is the signature of copy
         // protection, and rebuilding from sectors would destroy it.
-        isDamaged  = entry.image->HasSourceCrcMismatch();
-        isStandard = (out.report.tracksPresent > 0) && (out.report.tracksUnformatted == 0);
-        out.isOffered = isDamaged && isStandard;
+        isStandard    = (out.report.tracksPresent > 0) && (out.report.tracksUnformatted == 0);
+        out.isOffered = isStandard;
 
         if (!entry.path.empty())
         {
