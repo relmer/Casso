@@ -984,7 +984,7 @@ static void PrintUsageAssembler (const char * sp)
         "  {0}s                     Write Motorola S-record (<source>.s19)",
         "  {0}s2                    Write Intel HEX (<source>.hex)",
         "  {0}t                     Generate symbol table",
-        "  {0}w [<width>]           Wrap the listing at <width> columns (default: 80;",
+        "  {0}w [<width>]           Wrap the listing at <width> columns (default: 79;",
         "                         {0}w alone = 133). Continuations indent to the source",
         "  {0}v                     Verbose: pass timings and an assembly summary,",
         "                         all on stderr",

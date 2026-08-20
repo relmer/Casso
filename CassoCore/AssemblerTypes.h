@@ -352,7 +352,7 @@ struct AssemblerOptions
     bool                                        cycleCounts       = false;   // -c flag
     bool                                        macroExpansion    = false;   // -m flag (show macro expansion in listing)
     int                                         pageHeight        = 0;   // -h flag (0 = no pagination)
-    int                                         pageWidth         = 80;   // -w flag
+    int                                         pageWidth         = 79;   // -w flag (as65's default)
     bool                                        caseSensitive     = false;   // -i flag (we're case-insensitive by default)
     bool                                        pass1Listing      = false;   // -p flag
     bool                                        symbolTable       = false;   // -t flag

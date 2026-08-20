@@ -308,6 +308,23 @@ namespace CommandLineTests
 
             Assert::AreEqual (133, opts.pageWidth);
         }
+
+        //  The three figures as65 documents, pinned together because they are
+        //  one rule: a listing is 79 columns unless told otherwise, and the bare
+        //  flag is the wide printer rather than a switch.
+        //
+        //  The default was 80 while nothing read it, which cost nothing and was
+        //  still wrong; it became visible the moment -w started wrapping.
+        TEST_METHOD (PageWidthFollowsTheAs65Defaults)
+        {
+            ArgVector           plain    = { "CassoCli", "as65", "demo.a65" };
+            ArgVector           bare     = { "CassoCli", "as65", "demo.a65", "-w" };
+            CommandLineOptions  unstated = CommandLineParser::Parse (plain.Count(), plain.Data(), NoProbe());
+            CommandLineOptions  wide     = CommandLineParser::Parse (bare.Count(),  bare.Data(),  NoProbe());
+
+            Assert::AreEqual (79,  unstated.pageWidth, L"as65 lists at 79 columns when nothing says otherwise");
+            Assert::AreEqual (133, wide.pageWidth,     L"and a bare -w is the 133-column wide listing");
+        }
     };
 
 

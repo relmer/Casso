@@ -102,7 +102,7 @@ struct CommandLineOptions
     bool                                      cycleCounts       = false;   // -c
     bool                                      macroExpansion    = false;   // -m
     int                                       pageHeight        = 0;   // -h<N>
-    int                                       pageWidth         = 80;   // -w<N>
+    int                                       pageWidth         = 79;   // -w<N> (as65's default)
     bool                                      caseSensitive     = false;   // -i (no-op)
     bool                                      pass1Listing      = false;   // -p
     bool                                      symbolTable       = false;   // -t

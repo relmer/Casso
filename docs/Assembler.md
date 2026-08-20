@@ -91,7 +91,7 @@ runtime surprise.
 | `-m` | Show macro expansions in the listing. |
 | `-p` | Generate a pass 1 listing. |
 | `-t` | Generate a symbol table. |
-| `-w [<width>]` | Wrap the listing at `<width>` columns. Default `80`; `-w` alone means `133`; `0` disables wrapping. Continuations indent to the source column, so wrapped text lines up under the text rather than under the address and bytes. |
+| `-w [<width>]` | Wrap the listing at `<width>` columns. Default `79`; `-w` alone means `133`; `0` disables wrapping. Continuations indent to the source column, so wrapped text lines up under the text rather than under the address and bytes. |
 | `-g <file>` | Write symbol addresses as `NAME=$ADDR`, **twice**: once ordered by address under a `; by address` heading, then again ordered by symbol name, case-insensitively, under `; by symbol`. Reading a debug file is two questions -- what is at an address, and where a name went -- and each order answers one. Casso's own format; no standard is being followed. |
 
 ### Symbols and diagnostics

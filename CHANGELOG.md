@@ -125,7 +125,7 @@ Entries before versioning was introduced use dates only.
 - **`-w` wraps the listing instead of being ignored.** It was parsed, stored,
   and read by no code, so a listing ran as wide as its widest source line
   however narrow a width was asked for. `-w <n>` wraps at that column, `-w`
-  alone means 133, and `0` disables wrapping; the default is 80. Continuations
+  alone means 133, and `0` disables wrapping; the default is 79, as65's own. Continuations
   indent to the source column, so wrapped text lines up under the text rather
   than under the address and object bytes, which a listing's reader scans
   positionally.
