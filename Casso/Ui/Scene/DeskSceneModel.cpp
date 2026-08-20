@@ -369,7 +369,39 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
                   ColorMatches (tri.r, tri.g, tri.b, kDriveDoorAltKd)  ||
                   ColorMatches (tri.r, tri.g, tri.b, kDriveLatchAltKd)))
         {
+            // The door is molded in the same pebbled black as the face around
+            // it, but its Kd is spoken for -- that is what identifies it as
+            // the part the scene swings. One Kd cannot say two things, so the
+            // finish is applied here instead of in the generator.
+            size_t  first = m_door.size();
+
             AppendLitTri (m_door, tri);
+
+            if (kind == DeskDeviceKind::DiskII)
+            {
+                for (size_t i = first; i < m_door.size(); i++)
+                {
+                    m_door[i].pebble = 1.0f;
+                }
+            }
+        }
+        else if (ColorMatches (tri.r, tri.g, tri.b, kPlatePebbledKd))
+        {
+            // A finish, not a color. Take the marker off the tint and put it
+            // on the pebble flag, so the grain shows up in the LIGHT and the
+            // plastic stays the same black as the matte plate beside it.
+            size_t  first = m_opaque.size();
+
+            opaqueTris.push_back (t);
+            AppendLitTri (m_opaque, tri);
+
+            for (size_t i = first; i < m_opaque.size(); i++)
+            {
+                m_opaque[i].r      = kPlateMatteRgb[0];
+                m_opaque[i].g      = kPlateMatteRgb[1];
+                m_opaque[i].b      = kPlateMatteRgb[2];
+                m_opaque[i].pebble = 1.0f;
+            }
         }
         else
         {

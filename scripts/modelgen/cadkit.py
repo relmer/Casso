@@ -30,6 +30,13 @@ KD = {
     "drive_door_alt": (0.720, 0.712, 0.685),
     "drive_latch_alt":(0.640, 0.632, 0.605),
 
+    # FINISH, not color: black plastic with the molded-in pebble grain, as
+    # against the smooth matte of the same plastic. The scene reads this to
+    # set a per-vertex flag and then FORCES the color back to the matte one,
+    # the way it forces glass to white -- so the two finishes stay the same
+    # black and only their light differs, which is the whole point.
+    "plate_pebbled":  (0.135, 0.130, 0.150),
+
     # Placement metadata, not scenery: markers the scene reads to learn where
     # something belongs, then throws away instead of drawing. They never reach
     # a vertex buffer, so they may sit anywhere -- but bury them inside a solid

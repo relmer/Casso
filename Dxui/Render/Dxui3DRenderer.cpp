@@ -10,9 +10,10 @@
 static const char s_kVertexShaderSrc[] =
     "cbuffer Mvp : register(b0) { row_major float4x4 mvp; };\n"
     "struct VSIn  { float3 pos : POSITION; float2 uv : TEXCOORD0; float4 col : COLOR;\n"
-    "               float3 nrm : NORMAL;   float3 emi : COLOR1; };\n"
+    "               float3 nrm : NORMAL;   float3 emi : COLOR1;   float peb : TEXCOORD1; };\n"
     "struct VSOut { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float4 col : COLOR;\n"
-    "               float3 nrm : NORMAL;     float3 emi : COLOR1; float3 wp : TEXCOORD1; };\n"
+    "               float3 nrm : NORMAL;     float3 emi : COLOR1; float3 wp : TEXCOORD1;\n"
+    "               float  peb : TEXCOORD2; };\n"
     "VSOut main (VSIn input)\n"
     "{\n"
     "    VSOut output;\n"
@@ -22,6 +23,7 @@ static const char s_kVertexShaderSrc[] =
     "    output.nrm = input.nrm;\n"
     "    output.emi = input.emi;\n"
     "    output.wp  = input.pos;\n"     // pre-transform: lights live in this space
+    "    output.peb = input.peb;\n"
     "    return output;\n"
     "}\n";
 
@@ -72,13 +74,39 @@ static const char s_kPixelShaderSrc[] =
     "    float4 shadowParm;   // x texel (0 disables), y bias, z strength\n"
     "    row_major float4x4 lampShadow;\n"
     "    float4 lampShadowParm;   // x texel (0 disables), y bias\n"
+    "    float4 parm3;            // x pebble pitch (mm), y pebble amount\n"
     "};\n"
     "Texture2D              shadowTex0 : register(t1);\n"
     "Texture2D              shadowTex1 : register(t2);\n"
     "Texture2D              lampShadowTex : register(t3);\n"
     "SamplerComparisonState shadowSamp : register(s1);\n"
     "struct PSIn { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float4 col : COLOR;\n"
-    "              float3 nrm : NORMAL;      float3 emi : COLOR1;   float3 wp : TEXCOORD1; };\n"
+    "              float3 nrm : NORMAL;      float3 emi : COLOR1;   float3 wp : TEXCOORD1;\n"
+    "              float  peb : TEXCOORD2; };\n"
+    // A molded-in pebble finish, computed rather than sampled.
+    //
+    // An INTEGER hash of the quantized position, not the usual
+    // frac(sin(dot(p,k)) * 43758.5453): that one rides on transcendental
+    // float precision and gives visibly different grain on different GPUs
+    // and driver versions. Bit ops on integers are exact, so every machine
+    // renders the same drive -- which also keeps screenshot comparisons
+    // meaningful.
+    //
+    // Nothing here reads a clock or a frame counter. Same point, same value,
+    // every frame and every run; the only thing it shares with randomness is
+    // that it looks irregular.
+    "uint HashCell (int3 c)\n"
+    "{\n"
+    "    uint h = (uint) (c.x * 374761393 + c.y * 668265263 + c.z * 1274126177);\n"
+    "    h ^= h >> 13;\n"
+    "    h *= 1274126177u;\n"
+    "    return h ^ (h >> 16);\n"
+    "}\n"
+    "float CellRand (int3 c, int salt)\n"
+    "{\n"
+    "    return (float) (HashCell (c + int3 (salt * 7, salt * 13, salt * 29)) & 0xFFFFu)\n"
+    "         * (1.0f / 65535.0f);\n"
+    "}\n"
     "float4 main (PSIn input) : SV_TARGET\n"
     "{\n"
     "    float4 texel = tex.Sample (samp, input.uv);\n"
@@ -87,6 +115,13 @@ static const char s_kPixelShaderSrc[] =
     "    if (dot (input.nrm, input.nrm) > 0.5f)\n"
     "    {\n"
     "        float3 n    = normalize (input.nrm);\n"
+    "        if (input.peb > 0.0f)\n"
+    "        {\n"
+    "            int3   c = (int3) floor (input.wp / parm3.x);\n"
+    "            float3 j = float3 (CellRand (c, 1), CellRand (c, 2), CellRand (c, 3))\n"
+    "                     * 2.0f - 1.0f;\n"
+    "            n = normalize (n + j * (parm3.y * input.peb));\n"
+    "        }\n"
     "        float3 v    = normalize (eye.xyz);\n"
     "        float  diff = 0.0f;\n"
     "        float  spec = 0.0f;\n"
@@ -415,6 +450,7 @@ HRESULT Dxui3DRenderer::CreateShaders()
         { "COLOR",     0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "NORMAL",    0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "COLOR",     1, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD",  1, DXGI_FORMAT_R32_FLOAT,          0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
 
     hr = D3DCompile (s_kVertexShaderSrc, sizeof (s_kVertexShaderSrc) - 1,
@@ -627,7 +663,7 @@ HRESULT Dxui3DRenderer::CreatePipelineState()
         // every device in its own model space, so the light positions change
         // with each device rather than once per frame -- and so do the two
         // shadow matrices, which carry that device's placement.
-        cb.ByteWidth = 24 * 4 * sizeof (float);
+        cb.ByteWidth = 25 * 4 * sizeof (float);
 
         hr = m_device->CreateBuffer (&cb, nullptr, m_lightBuffer.GetAddressOf());
         CHR (hr);
@@ -1491,7 +1527,7 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
     m_context->Unmap (m_mvpBuffer.Get(), 0);
 
     {
-        float  lightCb[96] =
+        float  lightCb[100] =
         {
             m_lighting.light0[0], m_lighting.light0[1], m_lighting.light0[2], 0.0f,
             m_lighting.light1[0], m_lighting.light1[1], m_lighting.light1[2], 0.0f,
@@ -1523,6 +1559,14 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
         lightCb[93] = m_lighting.lampShadowBias;
         lightCb[94] = 0.0f;
         lightCb[95] = 0.0f;
+
+        // Never zero: the shader divides the position by this to find its
+        // bump cell, and only the pebble branch reads it -- so a zero here
+        // would sit harmless until the first textured surface appeared.
+        lightCb[96] = (m_lighting.pebblePitchMm > 1e-4f) ? m_lighting.pebblePitchMm : 1.0f;
+        lightCb[97] = m_lighting.pebbleAmount;
+        lightCb[98] = 0.0f;
+        lightCb[99] = 0.0f;
 
         hr = m_context->Map (m_lightBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
         CHR (hr);

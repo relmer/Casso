@@ -174,8 +174,16 @@ public:
     static constexpr float  kMonitorLampKd[3] = { 0.290f, 0.870f, 0.380f };
     static constexpr float  kDriveLampKd[3]   = { 0.900f, 0.120f, 0.100f };
     static constexpr float  kDriveDoorKd[3]   = { 0.160f, 0.160f, 0.180f };
-    static constexpr float  kDriveLatchKd[3]  = { 0.230f, 0.230f, 0.250f };
-    static constexpr float  kKdEpsilon        = 0.02f;
+
+    // Black plastic with the molded pebble grain. A FINISH marker, not a
+    // color: Load forces the tint back to the matte plate's own black and
+    // raises the per-vertex pebble flag instead, so the two finishes differ
+    // only in how they take light. Same trick the glass uses to be white
+    // whatever Kd identified it.
+    static constexpr float  kPlatePebbledKd[3] = { 0.135f, 0.130f, 0.150f };
+    static constexpr float  kPlateMatteRgb[3]  = { 0.100f, 0.100f, 0.110f };
+    static constexpr float  kDriveLatchKd[3]   = { 0.230f, 0.230f, 0.250f };
+    static constexpr float  kKdEpsilon         = 0.02f;
 
     // The room's shading ramp, public because the SHADER applies it now and
     // the scene has to hand these to the renderer. The floor is deliberately

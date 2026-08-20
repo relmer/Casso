@@ -41,6 +41,15 @@ public:
         float  r, g, b, a;      // material tint, multiplied with the texture
         float  nx, ny, nz;      // normal, same space as the position
         float  er, eg, eb;      // emissive, ADDED after shading
+
+        // Surface finish, 0 smooth .. 1 fully pebbled. Perturbs the normal
+        // with position-hashed noise before shading, so a molded-in texture
+        // catches light per bump instead of being painted on.
+        //
+        // Evaluated in the vertex's OWN space, which for the desk scene is
+        // model space, so the grain is welded to the part: a drive the user
+        // drags carries its finish with it rather than swimming through it.
+        float  pebble = 0.0f;
     };
 
     // Per-pixel lighting for subsequent draws.
@@ -116,6 +125,12 @@ public:
         float  lampShadowTexel = 0.0f;   // 0 leaves the lamp unshadowed
         float  lampShadowBias  = 0.0f;
         int    lampShadowSlot  = -1;
+
+        // The pebble finish's grain: how far apart the bumps sit, in the
+        // vertices' own units (mm here), and how hard each tilts the normal.
+        // Only vertices carrying a nonzero `pebble` are affected at all.
+        float  pebblePitchMm = 1.35f;
+        float  pebbleAmount  = 0.16f;
     };
 
     void  SetLighting (const Lighting & lighting)  { m_lighting = lighting; }
