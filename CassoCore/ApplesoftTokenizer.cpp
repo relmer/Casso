@@ -473,9 +473,10 @@ HRESULT ApplesoftTokenizer::TokenizeBody (
 
         if (c == '?')
         {
-            // The one abbreviation Applesoft accepts, and it is not reversible:
-            // LIST renders it PRINT and so does this, because the stored byte is
-            // the same token either way.
+            // Applesoft BASIC accepts "?" as shorthand for "PRINT". Both encode
+            // to the same token, so nothing in a stored program says which one
+            // was typed. Applesoft's own LIST shows PRINT, and this follows
+            // suit.
             outBody.push_back (kTokenPrint);
             i++;
             continue;
