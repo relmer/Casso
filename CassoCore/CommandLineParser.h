@@ -56,11 +56,27 @@ public:
     // One flag of a dialect's own grammar, as data. The table is what the
     // parser walks AND what the help text is generated from, so the two cannot
     // describe different tools.
+    // Which part of the job a flag belongs to, so help can group them. Someone
+    // looking for "how do I get a listing" should find the listing flags
+    // together rather than scanning one alphabetical run for the four that
+    // apply.
+    enum class FlagCategory
+    {
+        AssembledCode,   // what is assembled, and what is written out
+        Listing,         // the human-readable listing
+        Debug,           // symbol and debug files
+        General,         // everything else about the run itself
+    };
+
+    // One flag of a dialect's own grammar, as data. The table is what the
+    // parser walks AND what the help text is generated from, so the two cannot
+    // describe different tools.
     struct DialectFlag
     {
         char            letter;
         FlagArgument    argument;
         const char   *  valueName;     // how the value appears in help
+        FlagCategory    category;
         const char   *  description;
     };
 
@@ -78,6 +94,10 @@ public:
         CommandLineOptions::OutputFormat format;
         const char                    *  description;
     };
+
+    // The heading a category prints under, so the wording lives with the enum
+    // rather than at whichever call site printed it first.
+    static const char *  DescribeCategory (FlagCategory category);
 
     struct OutputShapeTable
     {

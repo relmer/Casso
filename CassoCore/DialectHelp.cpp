@@ -8,6 +8,20 @@
 
 
 
+//  The order categories print in, which is the order someone reads them in:
+//  what comes out first, then what to look at, then what to debug with, then
+//  the rest. Fixed here rather than taken from the flag table, so a row added
+//  in the middle of a table does not reshuffle the help.
+static constexpr CommandLineParser::FlagCategory  s_kCategoryOrder[] =
+{
+    CommandLineParser::FlagCategory::AssembledCode,
+    CommandLineParser::FlagCategory::Listing,
+    CommandLineParser::FlagCategory::Debug,
+    CommandLineParser::FlagCategory::General,
+};
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,8 +99,7 @@ std::string DialectHelp::GetDialect (const DialectProfile & profile, char flagPr
 
 std::string DialectHelp::GetDialectFlags (const DialectProfile & profile, char flagPrefix)
 {
-    return ComposeFlagLines (profile.GetId(), flagPrefix)
-         + ComposeOutputShapeLines (profile.GetId(), flagPrefix);
+    return ComposeFlagLines (profile.GetId(), flagPrefix);
 }
 
 
@@ -110,54 +123,59 @@ std::string DialectHelp::ComposeFlagLines (DialectId dialect, char flagPrefix)
 {
     constexpr size_t                                 kDescriptionColumn = 25;
     std::span<const CommandLineParser::DialectFlag>  flags              = CommandLineParser::GetFlags (dialect);
+    std::span<const CommandLineParser::OutputShape>  shapes             = CommandLineParser::GetOutputShapes (dialect);
     std::string                                      text;
     std::string                                      rendered;
 
 
 
-    for (const CommandLineParser::DialectFlag & flag : flags)
+    // Grouped by what the reader is trying to do, in a fixed order rather than
+    // the table's. A category with no rows prints no heading, so a dialect that
+    // writes no debug file is not offered an empty section.
+    for (CommandLineParser::FlagCategory category : s_kCategoryOrder)
     {
-        rendered = std::string ("  ") + flagPrefix + flag.letter;
+        std::string  group;
 
-        if (flag.valueName[0] != '\0')
+        for (const CommandLineParser::DialectFlag & flag : flags)
         {
-            rendered += std::string (" ") + flag.valueName;
+            if (flag.category != category)
+            {
+                continue;
+            }
+
+            rendered = std::string ("    ") + flagPrefix + flag.letter;
+
+            // An OPTIONAL value attaches or is absent -- there is no separated
+            // form to write -- so it is shown joined to its flag. Writing
+            // `-l <file>` would document a form the parser reads as a filename
+            // named `<file>` and a source that has gone missing.
+            if (flag.valueName[0] != '\0')
+            {
+                bool  attachesOnly = flag.argument == CommandLineParser::FlagArgument::Optional;
+
+                rendered += attachesOnly ? std::string ("[") + flag.valueName + "]"
+                                         : std::string (" ") + flag.valueName;
+            }
+
+            group += PadTo (rendered, kDescriptionColumn) + flag.description + "\n";
         }
 
-        text += PadTo (rendered, kDescriptionColumn) + flag.description + "\n";
-    }
+        // The output shapes are assembled-code options and print with them,
+        // rather than in a section of their own that says the same thing.
+        if (category == CommandLineParser::FlagCategory::AssembledCode)
+        {
+            for (const CommandLineParser::OutputShape & shape : shapes)
+            {
+                group += PadTo (std::string ("    ") + CommandLineParser::FormatLongOption (shape.option, flagPrefix),
+                                kDescriptionColumn)
+                       + shape.description + "\n";
+            }
+        }
 
-    return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DialectHelp::ComposeOutputShapeLines
-//
-//  The output shapes a dialect names, from the same table its parser matches
-//  against.
-//
-//  A dialect offering no choice contributes nothing, which is why an empty span
-//  is a legitimate answer here too: the shape a source assembles to is not a
-//  question every grammar asks.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DialectHelp::ComposeOutputShapeLines (DialectId dialect, char flagPrefix)
-{
-    constexpr size_t                                 kDescriptionColumn = 25;
-    std::span<const CommandLineParser::OutputShape>  shapes             = CommandLineParser::GetOutputShapes (dialect);
-    std::string                                      text;
-
-
-
-    for (const CommandLineParser::OutputShape & shape : shapes)
-    {
-        text += PadTo (std::string ("  ") + CommandLineParser::FormatLongOption (shape.option, flagPrefix), kDescriptionColumn) + shape.description + "\n";
+        if (!group.empty())
+        {
+            text += std::string ("\n  ") + CommandLineParser::DescribeCategory (category) + "\n" + group;
+        }
     }
 
     return text;

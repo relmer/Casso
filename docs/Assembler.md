@@ -76,11 +76,19 @@ extension is consulted only when no flag is given.
 | Flag | Meaning |
 |---|---|
 | `--cpu 6502` | Strict NMOS 6502. **Default.** |
+| `-x` | AS65's own name for the extended CPU. The same as `--cpu 65c02`. |
 | `--cpu 65c02` | CMOS 65C02: `STZ`, `BRA`, `TSB`/`TRB`, `PHX`/`PHY`/`PLX`/`PLY`, `RMBn`/`SMBn`/`BBRn`/`BBSn`, and the `(zp)` and `(abs,X)` modes. |
 
 Under `--cpu 6502` a 65C02-only opcode is rejected as invalid rather than
 silently assembled, so targeting the wrong CPU is a build error and not a
 runtime surprise.
+
+**Casso's 65C02 is the Rockwell R65C02**, which is a superset of the 65SC02 AS65
+targets: everything AS65 accepts under `-x` assembles here, plus the Rockwell bit
+operations `RMBn`/`SMBn`/`BBRn`/`BBSn` that a 65SC02 has no opcodes for. So Casso
+will not reject a Rockwell-only instruction on a part that could not run it.
+WDC's `WAI`/`STP` are excluded deliberately -- they are not in the Rockwell parts
+Apple shipped, and their opcode slots behave as NOPs.
 
 ### Listing and symbols
 
@@ -91,7 +99,7 @@ runtime surprise.
 | `-m` | Show macro expansions in the listing. |
 | `-p` | Generate a pass 1 listing. |
 | `-t` | Generate a symbol table. |
-| `-w [<width>]` | Wrap the listing at `<width>` columns. Default `79`; `-w` alone means `133`; `0` disables wrapping. Continuations indent to the source column, so wrapped text lines up under the text rather than under the address and bytes. |
+| `-w [<width>]` | Wrap the listing at `<width>` columns. Default `79`; `-w` alone means `133`; `0` disables wrapping. AS65 documents the range as 60 to 200; Casso does not enforce it. Continuations indent to the source column, so wrapped text lines up under the text rather than under the address and bytes. |
 | `-g <file>` | Write symbol addresses as `NAME=$ADDR`, **twice**: once ordered by address under a `; by address` heading, then again ordered by symbol name, case-insensitively, under `; by symbol`. Reading a debug file is two questions -- what is at an address, and where a name went -- and each order answers one. Casso's own format; no standard is being followed. |
 
 ### Symbols and diagnostics

@@ -30,17 +30,21 @@ static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
 static constexpr CommandLineParser::DialectFlag  s_kMerlinFlags[] =
 {
     { 'o', CommandLineParser::FlagArgument::Required, "<file>",
+           CommandLineParser::FlagCategory::AssembledCode,
            "Rename output file (default: <source>.bin)" },
-    { 'l', CommandLineParser::FlagArgument::Optional, "[<file>]",
-           "Generate listing (no <file> attached = stdout)" },
+    { 'l', CommandLineParser::FlagArgument::Optional, "<file>",
+           CommandLineParser::FlagCategory::Listing,
+           "Generate listing; alone, it goes to stdout" },
     { 'v', CommandLineParser::FlagArgument::None,     "",
+           CommandLineParser::FlagCategory::General,
            "Verbose: an assembly summary on stderr" },
 
     //  Merlin asks the operator for a keyboard-input symbol and waits. A batch
     //  assembly has nobody to ask, so the answer has to arrive with the
     //  invocation -- and without this row the three vendor sources that ask
     //  questions cannot be assembled from a command line at all.
-    { 'd', CommandLineParser::FlagArgument::Required, "<symbol>[=<value>]",
+    { 'd', CommandLineParser::FlagArgument::Required, "<name>[=<value>]",
+           CommandLineParser::FlagCategory::General,
            "Define a symbol the source expects (defaults to 1)" },
 };
 
@@ -112,6 +116,39 @@ static constexpr const char *  s_kpszSourceExtensions[] =
 std::span<const CommandLineParser::SubcommandName> CommandLineParser::GetAllSubcommands()
 {
     return std::span<const SubcommandName> (s_kSubcommands);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DescribeCategory
+//
+//  The heading one category of flags prints under.
+//
+//  Here rather than at the printing edge so every caller heads a group the same
+//  way, and so adding a category is a case here rather than a search for
+//  whoever wrote the headings.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * CommandLineParser::DescribeCategory (FlagCategory category)
+{
+    const char *  heading = "General:";
+
+
+
+    switch (category)
+    {
+        case FlagCategory::AssembledCode:  heading = "Assembled code:";  break;
+        case FlagCategory::Listing:        heading = "Listing:";         break;
+        case FlagCategory::Debug:          heading = "Debug:";           break;
+        case FlagCategory::General:        heading = "General:";         break;
+    }
+
+    return heading;
 }
 
 
@@ -909,6 +946,22 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
                     pos++;
                 }
 
+                break;
+            }
+
+            //  AS65 spells the extended CPU as a flag of its own: "Use 65SC02
+            //  extensions. When this option is not specified the assembler
+            //  rejects the 65SC02 extensions." Casso answers the same question
+            //  with --cpu, and accepts this spelling so an AS65 invocation that
+            //  asks for the wider processor is not left assembling for the
+            //  narrower one -- which is what happened before, with a warning
+            //  about an unknown flag and then a pile of invalid-instruction
+            //  errors on the very instructions the flag had asked to enable.
+            case 'x':
+            {
+                options.cpuTarget    = CommandLineOptions::CpuTarget::M65C02;
+                options.hasCpuTarget = true;
+                pos++;
                 break;
             }
 

@@ -118,6 +118,10 @@ Entries before versioning was introduced use dates only.
   `build.a65`? — is injected rather than probed directly.
 
 ### Added
+- **AS65's `-x` is accepted.** It is how AS65 asks for the extended CPU, and
+  Casso rejected it as an unknown flag — then carried on with the *narrow*
+  instruction table and reported every instruction the flag had asked to enable
+  as invalid. It now means what `--cpu 65c02` means.
 - **`run` names its assembler: `--as65` or `--merlin`.** `run` given a source
   assembled it as as65 and nothing else, so a Merlin source could be assembled
   or run, but not both in one step. The default is unchanged, and the flag is
