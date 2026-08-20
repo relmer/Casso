@@ -1,10 +1,18 @@
 # Disk write integrity — status
 
-**Updated:** 2026-08-18. **Base:** `master` @ `a25a3c67` (released 1.16.2).
+**Updated:** 2026-08-20. **Base:** `master` @ `a25a3c67` (released 1.16.2).
+**Branch:** `handoff/disk-write-integrity`, version bumped to 1.17.0,
+unreleased.
 
-Everything the 2026-08-18 handoff listed as outstanding is now on
-`claude/disk-write-integrity-b99179` and pushed, unreleased. What remains is
-the follow-ups in §6.
+Everything the 2026-08-18 handoff listed as outstanding is done, and the work
+carried further than that list: sectors are now verified rather than merely
+parsed (§2f), a damaged disk can be salvaged into a working copy (§2g), and
+errors reach the user through Casso's own dialogs rather than system message
+boxes (§2h). What remains is the follow-ups in §6.
+
+The branch was consolidated into the primary checkout on 2026-08-20; the
+`claude/disk-write-integrity-b99179` branch and its worktree are gone, and
+their commits are reachable here.
 
 The reference material at the end — WOZ field offsets, the repro drivers, the
 build traps — is kept because it is what made the work possible and will make
@@ -136,6 +144,138 @@ broken; the files are vestigial.
 
 ---
 
+### 2f. Sectors are verified, not merely parsed
+
+Three integrity signals live on every Apple II disk and all three were being
+discarded. The address field's checksum was read into locals and explicitly
+`UNREFERENCED_PARAMETER`'d; the data field's 343rd checksum nibble — the boot
+ROM's own success gate — was never read at all, because the decode loop
+stopped one nibble short; and `InverseTranslate` already returned `0xFF` for a
+byte that is not a legal 6-and-2 code, which nobody looked at.
+
+A fourth check needed no new data. The scan for a data field ran past the next
+ADDRESS field when the data field was missing, took that sector's data and
+filed it under the earlier sector number. It decoded cleanly and passed its own
+checksum — it was simply the wrong sector's data, which is precisely the
+corruption you cannot spot by looking. The scan now stops at the next address
+field and rewinds, so the good sector after a damaged one is neither stolen nor
+lost.
+
+`DecodeOneSector` reports an outcome instead of a bare failure:
+
+| outcome | meaning |
+|---|---|
+| `Verified` | both checksums matched; the bytes are the disk's |
+| `Recovered` | decoded but failed verification — usable, may contain errors |
+| `Lost` | no data field, or an address checksum that cannot be trusted |
+
+`Lost` covers the one case that cannot be recovered on principle: if the
+sector NUMBER is untrustworthy, writing the data anywhere risks overwriting a
+good sector.
+
+**Consequence for classification.** A copy-protected track used to yield one
+spurious decoded sector from garbage that happened to parse. Karateka,
+Choplifter, Lode Runner, Space Quarks and Carmen side A now report every track
+as having no standard structure, cleanly — which is the distinction the
+salvage gate depends on.
+
+**A real finding.** `AppleStellarInvaders.woz` has a valid file-level checksum
+and round-trips byte for byte, yet track 1 sector 4 fails its own data
+checksum (stored 0 against a computed 1). Not a false positive: every other
+sector on that disk, all 560 on three other intact dumps, and a synthetic image
+through our own writer all verify. It is a genuine defect in a 1980
+preservation dump that nothing had noticed. No behavior change — WOZ images
+are written by the WOZ serializer and never take the sector path.
+
+---
+
+### 2g. Salvage
+
+A damaged disk is held read-only, which protects the evidence and leaves the
+user stuck. Salvage is the way out: `NibblizationLayer::SalvageSectors` keeps
+every sector that decoded at all, `DiskImageStore::AssessSalvage` reports what
+that would cost without writing anything, and `SalvageToFile` writes
+`<disk>.salvaged.woz` beside the original.
+
+**Recovered sectors are kept, not zeroed.** The data field decodes as a running
+XOR chain, so one bad nibble leaves every byte before it exactly right and
+skews the rest by a single constant delta; and if what rotted was the check
+nibble itself, the 342 data nibbles are untouched and the sector is perfect.
+Re-nibblizing supplies a correct checksum by construction, so a sector that
+would have made DOS report an I/O error reads normally. Verified end to end:
+the salvaged copy denibblizes at 560/560 verified while the original stays at
+558 with two partial tracks.
+
+**The gate needs both halves** — damaged AND ordinarily formatted
+(`tracksUnformatted == 0`). An undamaged disk is already writable, so a lossy
+copy could only lose data; a copy-protected disk would be destroyed by a
+rebuild from sectors. Because neither reaches the dialog, the dialog never has
+to mention copy protection.
+
+**Two operations, not one.** Assess is read-only and produces the counts the
+dialog shows; salvage writes. A single call that reported afterwards would be
+telling someone what they lost rather than asking what they want.
+
+**The original is never opened for writing**, and `SalvageToFile` refuses a
+destination equal to the source. Not defensive coding: the entire point is that
+the damaged file survives to stay detectably damaged.
+
+**Metadata.** The copy carries the source's `META` across — it is still the
+same disk — but takes Casso's creator stamp, because Casso wrote that
+particular file.
+
+---
+
+### 2h. Errors report through Casso's dialogs
+
+`wWinMain` installed an EHM notification sink that called `MessageBoxW`, so all
+21 `CHRN` / `CBRN` sites surfaced as system message boxes inside a themed
+application. The sink is now `EmulatorShell::NotifyUser`, which builds a
+`DialogDefinition` and goes through the same modal path as every other dialog;
+no call site changed.
+
+Two constraints it respects. Dxui asserts UI-thread affinity and a report can
+be raised from the CPU thread (a motor-idle auto-flush), so off-thread reports
+post `WM_APP_NOTIFY_USER` with an owned copy of the text. And startup failures
+happen before there is a window to parent to — which is why a system box was
+used here at all — so those queue and replay once the window exists.
+
+Three `MessageBoxW` calls remain deliberately: the assertion reporter (it
+reports that an invariant broke and cannot assume Dxui works), `DxuiMessageBox`'s
+own fallback for a backend that failed to create, and `EhmNotifyUser`'s
+built-in path, which only `CassoCli` reaches.
+
+**The damage report moved up a layer.** `WozLoader` no longer reports it:
+`EhmNotifyUser` carries a string and nothing else, and that report needs a
+Salvage button on it. `EmulatorShell::ReportDamagedMount` raises it after the
+mount instead. `CassoCli` loses nothing — it does not use `WozLoader`.
+
+---
+
+### 2i. UI defects found by looking, not by testing
+
+Three, all invisible to the test suite:
+
+- **Dialog buttons were a fixed 96 DIP**, so a long label wrapped and spilled
+  outside its own button. `DxuiButtonRow` already accepted per-button widths;
+  the caller passed the constant for all of them. Buttons now size to their
+  label with the old width as a floor, so existing dialogs are unchanged.
+- **The salvage panel drew at raw DIP sizes.** `DxuiLabel` draws at
+  `scaler.Pxf (theme.BodyFont().sizeDip)`; the panel passed unscaled values, so
+  at 125% its text rendered a fifth smaller than every other dialog and its
+  column metrics were unscaled to match. It looks perfect at 100%, which is
+  where it was written.
+- **`DxuiInfoBanner` showed an empty line** because `PreferredHeightPx` has no
+  text renderer and deliberately rounds up so text never clips. Harmless on an
+  auto-sized surface, visible on a fixed dialog. `MeasuredHeightPx` was added
+  for callers that do have a renderer; the estimate remains the fallback.
+
+The badge on a damaged drive and the mark in a warning banner are now one
+implementation (`DxuiWarningBadge`), verified pixel-identical after the move:
+0 differing pixels out of 1850 in the badge region.
+
+---
+
 ## 3. Print Shop Color side A
 
 Restored byte-for-byte from `61f89c9d`, which had it intact. Done only after
@@ -169,6 +309,17 @@ A re-scan finds no remaining WOZ in the tree with `creator = Casso`.
 ---
 
 ## 5. Test coverage added
+
+Suite: **3015 Debug / 3012 Release**, code analysis 0 warnings, CheckStyle
+clean. Salvage adds 15 tests {em} four on the decode taxonomy, seven on the
+store operations (gate, counts, the untouched original, the refusal to
+overwrite the source), and four on the menu predicate.
+
+Known gap: `DxuiButtonRow::WidthForLabel` and `DxuiInfoBanner::MeasuredHeightPx`
+are pure and untested. Both guard failures that are silent {em} a clipped label
+and an over-tall box look merely ugly, never broken {em} so they are worth
+pinning.
+
 
 - **Retention** (`WozLoaderTests`): META byte-for-byte, INFO fields Casso does
   not own, creator policy in both directions, an unmodeled chunk surviving,

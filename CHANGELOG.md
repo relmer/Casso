@@ -9,6 +9,43 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Added
+- **Salvage the readable sectors of a damaged disk.** A disk whose stored
+  checksum does not match its contents is held read-only, which protects the
+  evidence of the damage but leaves the user with a disk they cannot write to
+  and no way forward. Casso can now build a salvaged copy beside it, named
+  `<disk>.salvaged.woz`, offered from the Disk menu and from the report shown
+  when the damaged image is inserted.
+
+  Sectors come back in one of three states, and the difference decides what
+  happens to each. A sector whose own checksums match is copied unchanged. A
+  sector that decoded but failed verification is *recovered* rather than
+  discarded: its bytes are kept and written with a freshly computed checksum,
+  so a sector that would have made DOS report an I/O error reads normally
+  instead. Only a sector with nothing usable — no data field, or an address
+  field whose checksum fails, so its number cannot be trusted — is zeroed,
+  because filing data under a number that might be wrong risks overwriting a
+  good sector.
+
+  Recovering rather than zeroing matters more than the counts suggest. The
+  data field decodes as a running XOR chain, so a single bad nibble leaves
+  every byte before it exactly right and skews the rest by one constant delta
+  — and if what rotted was the check nibble itself, the sector is perfect.
+  Zeroing throws all 256 bytes away to avoid admitting to a few.
+
+  The figures are shown before anything is written, because a lossy copy is a
+  decision to make with the numbers in front of you, and the dialog warns that
+  repairing the checksums makes the disk structurally sound while masking any
+  corrupted data left in those recovered sectors. The original is never opened
+  for writing: it keeps its damage, detectably, which is the guarantee the
+  whole feature rests on. The salvaged copy carries the source's `META` across
+  — it is still the same disk — but takes Casso's own creator stamp,
+  because Casso wrote that particular file and leaving an imaging tool's name
+  on a lossy reconstruction would be its own kind of false record.
+
+  Offered only for a disk that is both damaged and ordinarily formatted. An
+  undamaged disk is already writable, so a lossy copy could only lose data; a
+  copy-protected one has no standard sectors to recover and would be destroyed
+  by a rebuild. Neither is offered the command.
 - **`--raw` and `--dos-bin` assembler output.** The assembler could only write
   a full 64 KB memory image, padded with the fill byte — correct for ROM
   burning and reference comparison, useless for loading a 2 KB routine, which
@@ -18,6 +55,26 @@ Entries before versioning was introduced use dates only.
   placed on a disk. The default is unchanged.
 
 ### Changed
+- **Errors reach the user through Casso's own dialogs.** Every user-facing
+  error in the tree — a settings file that will not parse, a disk that will
+  not save, a damaged image — surfaced as a raw Win32 message box in the
+  middle of a themed application, because the notification sink installed at
+  startup called `MessageBoxW`. All twenty-one report sites now render as
+  ordinary Casso dialogs, with no change at any call site.
+
+  Two details that path has to respect. A report can be raised off the UI
+  thread — a motor-idle auto-flush runs on the CPU thread — so those are
+  marshaled rather than drawn from wherever they happened. And a failure
+  during startup arrives before there is a window to parent a dialog to, which
+  is why a system box was used here in the first place; those are now held and
+  shown once the window exists, so they arrive themed a moment later rather
+  than unthemed and early, and none are dropped.
+
+  Three system message boxes remain deliberately, each a case where depending
+  on Casso's own interface is what would make it unreliable: the assertion
+  reporter, which exists to report that an internal invariant broke and cannot
+  assume the interface still works; the fallback for when the dialog backend
+  itself fails to start; and the console path, which `CassoCli` takes.
 - **An explicit output-format flag now wins over the filename's extension.**
   Extension matching remains as the fallback when no flag is given, so as65-era
   scripts naming a `.s19` or `.hex` output keep working. Previously the
@@ -30,6 +87,45 @@ Entries before versioning was introduced use dates only.
   `build.a65`? — is injected rather than probed directly.
 
 ### Fixed
+- **Decoding a sector now verifies it rather than merely parsing it.** Three
+  integrity signals are recorded on every Apple II disk and all three were
+  being discarded: the address field's checksum was read into locals and
+  explicitly thrown away, the data field's 343rd checksum nibble — the boot
+  ROM's own success gate — was never read at all, and a byte that is not a
+  legal 6-and-2 code was already detected and ignored. All three are checked
+  now.
+
+  A fourth check needed no new data and fixes real corruption. The scan for a
+  sector's data field ran on past the next address field if the data field was
+  missing, took that sector's data and filed it under the earlier number —
+  so it decoded cleanly, passed its own checksum, and was simply wrong. One
+  point of damage produced two bad sectors, and the second was undetectable
+  because nothing about it looked wrong. The scan now stops and rewinds, so a
+  damaged sector costs exactly itself: measured on an image with one data
+  field destroyed, sectors differing from the original drop from two to one.
+
+  This also sharpens what "unformatted" means. A copy-protected track used to
+  yield one spurious decoded sector from garbage that happened to parse;
+  protected disks now report cleanly as having no standard structure, which is
+  the distinction the salvage gate depends on.
+
+  One finding worth recording: `AppleStellarInvaders.woz`, whose file-level
+  checksum is valid and which round-trips byte for byte, has a sector that
+  fails its own data checksum. It is a genuine defect in a 1980 preservation
+  dump that nothing had noticed, not a false positive — every other sector
+  on that disk and all 560 on three other intact dumps verify.
+- **The write-protect toggle is no longer offered for a damaged disk.**
+  Changing that flag means patching the file and recomputing its header
+  checksum, and that checksum failing to match *is* the evidence of damage, so
+  the operation refuses a damaged image. The menu item stayed enabled anyway,
+  which meant the only way to learn any of this was to click something that
+  could never work. An already-protected image still offers the toggle —
+  clearing the flag is exactly what a user does before writing to a disk —
+  and only damage disables it.
+- **A dialog button no longer clips a long label.** Buttons were laid out at a
+  fixed width, so any label longer than about a dozen characters wrapped and
+  spilled outside the button. Buttons now size to their label and never go
+  below the previous width, so every existing dialog is unchanged.
 - **Saving a WOZ no longer strips its metadata.** A round trip through Casso
   deleted the `META` chunk outright and overwrote most of `INFO`, so every WOZ
   that passed through a flush came back degraded: a preservation dump lost its
