@@ -474,9 +474,9 @@ HRESULT ApplesoftTokenizer::TokenizeBody (
         if (c == '?')
         {
             // Applesoft BASIC accepts "?" as shorthand for "PRINT". Both encode
-            // to the same token, so nothing in a stored program says which one
-            // was typed. Applesoft's own LIST shows PRINT, and this follows
-            // suit.
+            // to the same token, so there's no way to distinguish whether the
+            // user actually entered ? or PRINT. Since Applesoft's LIST command
+            // shows PRINT, we'll follow suit here.
             outBody.push_back (kTokenPrint);
             i++;
             continue;
