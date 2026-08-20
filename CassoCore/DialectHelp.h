@@ -44,9 +44,13 @@ public:
     // One dialect's own section.
     static std::string  GetDialect (const DialectProfile & profile, char flagPrefix);
 
+    // A dialect's flag lines alone, for a caller printing its own heading. The
+    // lines still come from the parser's tables; only the invocation line above
+    // them is left out.
+    static std::string  GetDialectFlags (const DialectProfile & profile, char flagPrefix);
+
 private:
     static std::string  ComposeFlagLines (DialectId dialect, char flagPrefix);
-    static std::string  ComposeCpuLine   (const DialectProfile & profile, char flagPrefix);
     static std::string  ComposeOutputShapeLines (DialectId dialect, char flagPrefix);
     static std::string  PadTo            (const std::string & text, size_t width);
 };

@@ -5,6 +5,7 @@
 #include "AssemblerExitCode.h"
 #include "DiagnosticFormatter.h"
 #include "DialectHelp.h"
+#include "DialectRegistry.h"
 #include "DialectReporting.h"
 #include "Cpu.h"
 #include "Cpu65C02Table.h"
@@ -951,34 +952,43 @@ static void PrintUsageAssembler (const char * sp)
     std::println ("");
     std::println ("as65 flags:");
     std::println ("  <source>               Assembly source file");
-    std::println ("                         (will try .a65, .asm, .s if no extension is present)");
+    std::println ("                         (tries .a65, .asm, .s if no extension is given)");
     std::println ("");
+    std::println ("  {:<22} Target CPU (default: 6502). Under 6502 a 65C02-only",
+                  CommandLineParser::FormatLongOption ("--cpu", sp[0]) + " <6502|65c02>");
+    std::println ("                         instruction is an assembly error, not a surprise");
     std::println ("  {:<22} Write only the assembled bytes, unpadded",
                   CommandLineParser::FormatLongOption ("--raw", sp[0]));
     std::println ("  {:<22} Write the assembled bytes behind a 4-byte DOS 3.3",
                   CommandLineParser::FormatLongOption ("--dos-bin", sp[0]));
     std::println ("                         header (load address + length), ready to BLOAD");
-    std::println ("                         (default: a full 64 KB image, padded with the fill byte)");
+    std::println ("                         (default: a full 64 KB image, padded)");
 
     const char * lines[] =
     {
         "  {0}c                     Show cycle counts in listing",
-        "  {0}d <name>[=<value>]    Pre-define symbol",
-        "  {0}g                     Generate debug information file",
-        "  {0}h <lines>             Page height for listing (0 = no pagination)",
-        "  {0}i                     Case-insensitive (default, no-op)",
-        "  {0}l [<file>]            Generate listing ({0}l = stdout, {0}l file = to file)",
+        "  {0}d <name>[=<value>]    Define symbol (defaults to 1 if <value> is omitted)",
+        "  {0}g <file>              Write symbol addresses as NAME=$ADDR, one per line",
+        "  {0}i                     Case-insensitive opcodes. Default behavior, but",
+        "                         accepted as a no-op",
+        "  {0}l [<file>]            Generate listing ({0}l = stdout, {0}l <file> = to <file>)",
         "  {0}m                     Show macro expansions in listing",
-        "  {0}n                     Disable optimizations (no-op)",
-        "  {0}o <file>              Output file (default: input with .bin extension)",
+        "  {0}o <file>              Rename output file (default: <source>.bin)",
         "  {0}p                     Generate pass 1 listing",
         "  {0}q                     Quiet mode (suppress progress)",
-        "  {0}s                     Output S-record format (.s19)",
-        "  {0}s2                    Output Intel HEX format (.hex)",
+        "  {0}s                     Write Motorola S-record (<source>.s19)",
+        "  {0}s2                    Write Intel HEX (<source>.hex)",
         "  {0}t                     Generate symbol table",
-        "  {0}v                     Verbose mode",
-        "  {0}w [<width>]           Column width (default: 79, {0}w alone = 133)",
-        "  {0}z                     Fill unused space with $00 (default: $FF)",
+        "  {0}v                     Verbose: pass timings and an assembly summary,",
+        "                         all on stderr",
+        "  {0}z                     Fill unused space with $00 (default: $FF). Applies",
+        "                         to the padded image only -- raw and dos-bin never pad",
+        "",
+        "  Accepted and not yet implemented, so an as65 invocation is not refused:",
+        "  {0}h <lines>             Listing page height; NYI",
+        "  {0}n                     Disable optimizations; NYI",
+        "  {0}w [<width>]           Listing column width; NYI",
+        "                         Tracked at https://github.com/relmer/Casso/issues/118",
     };
 
     for (const char * fmt : lines)
@@ -1046,14 +1056,25 @@ void PrintUsage (char prefix)
 
     PrintUsageHeader    (sp, lp);
     PrintUsageGeneral   (lp, sp, pad);
-
-    // Which dialects there are, what each one's own flags are, where each takes
-    // its CPU from, and where a supported subset ends -- all composed in core
-    // from the registry, the parser's flag tables and the boundary tables, so
-    // none of it can describe a tool that no longer exists.
-    std::cout << DialectHelp::GetAllDialects (prefix);
-
     PrintUsageAssembler (sp);
+
+    // The merlin section's flag lines are composed in core from the same tables
+    // the parser walks, so they cannot describe a tool that no longer exists.
+    // The heading and the notes are here because they are prose about one
+    // dialect rather than data any dialect supplies.
+    //
+    // A dialect added later gets its flags printed by the same call and needs no
+    // edit here; what it would not get is a section of its own, which is a note
+    // for whoever adds one rather than a claim that this scales.
+    std::println ("");
+    std::println ("merlin flags:");
+    std::println ("  <source>               Merlin assembly source file");
+    std::println ("                         (tries .a65, .asm, .s if no extension is given)");
+    std::cout << DialectHelp::GetDialectFlags (DialectRegistry::Get (DialectId::Merlin), prefix);
+    std::println ("");
+    std::println ("  The CPU comes from the source, not the command line: XC selects the 65C02.");
+    std::println ("  Where merlin support ends is in docs/Assembler.md.");
+
     PrintUsageRun       (lp, sp, pad);
 }
 

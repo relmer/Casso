@@ -715,9 +715,6 @@ namespace MerlinCommandLineTests
         {
             std::string  help = DialectHelp::GetAllDialects ('/');
 
-            Assert::IsTrue  (help.find ("/cpu")  != std::string::npos, L"the CPU line must follow the prefix");
-            Assert::IsFalse (help.find ("--cpu") != std::string::npos, L"and must not also print the dashed form");
-
             for (const CommandLineParser::OutputShape & shape : CommandLineParser::GetOutputShapes (DialectId::Merlin))
             {
                 std::string  slashed = CommandLineParser::FormatLongOption (shape.option, '/');
@@ -769,54 +766,51 @@ namespace MerlinCommandLineTests
             Assert::IsFalse (slashed.find ("-o <file>") != std::string::npos);
         }
 
-        //  The CPU sentence is the profile's answer rather than a fixed line, so
-        //  each dialect is checked against what its own profile says.
-        TEST_METHOD (TheCpuLineSaysWhatEachProfileSaysAboutItsCpu)
+        //  THE SUBSET BOUNDARY IS NOT IN --help, AND THAT IS THE ASSERTION.
+        //
+        //  Six rows, each a sentence of what the construct is, why it is refused
+        //  and what would widen it, is a page of prose in front of a reader who
+        //  typed --help wanting the flags. It moved to docs/Assembler.md.
+        //
+        //  The table is unchanged and still composes that text -- the sweep below
+        //  proves every row reaches it -- so what this pins is only WHERE it is
+        //  printed. Without the second half, deleting the boundary table
+        //  altogether would satisfy the first.
+        TEST_METHOD (TheSubsetBoundaryIsDocumentedRatherThanPrintedInHelp)
         {
-            std::string  help = DialectHelp::GetAllDialects ('-');
-
-            for (const DialectRegistry::Entry & entry : DialectRegistry::GetAllDialects())
-            {
-                bool  isInSource = entry.profile->GetCpuSelectionSource() == CpuSelectionSource::InSource;
-
-                if (isInSource)
-                {
-                    Assert::IsTrue (help.find (entry.profile->GetCpuDirectiveName()) != std::string::npos,
-                                    L"a dialect selecting its CPU in source must name the directive");
-                }
-            }
-
-            Assert::IsTrue (help.find ("--cpu <6502|65c02>") != std::string::npos,
-                            L"a dialect taking its CPU from the command line must show the flag");
-            Assert::IsTrue (help.find ("Refused") != std::string::npos,
-                            L"and one that does not must say the flag is refused");
-        }
-
-        //  Where the supported subset ends, swept from the boundary table itself.
-        TEST_METHOD (EveryBoundaryRowReachesTheHelp)
-        {
-            std::string  help = DialectHelp::GetAllDialects ('-');
+            std::string  help    = DialectHelp::GetAllDialects ('-');
+            std::string  written = MerlinSubsetBoundary::GetHelpText();
 
             Assert::IsFalse (MerlinSubsetBoundary::GetAll().empty(), L"nothing to sweep");
+            Assert::IsFalse (help.find ("support ends") != std::string::npos,
+                             L"the boundary heading must not be in the flag help");
 
             for (const SubsetBoundaryRow & row : MerlinSubsetBoundary::GetAll())
             {
-                Assert::IsTrue (help.find (row.spelling)  != std::string::npos,
+                Assert::IsFalse (help.find (row.construct) != std::string::npos,
+                                 Fixture::Widen (std::string (row.construct) + " is still in the flag help").c_str());
+
+                Assert::IsTrue (written.find (row.spelling)  != std::string::npos,
                                 Fixture::Widen (row.spelling).c_str());
-                Assert::IsTrue (help.find (row.construct) != std::string::npos,
+                Assert::IsTrue (written.find (row.construct) != std::string::npos,
                                 Fixture::Widen (row.construct).c_str());
             }
         }
 
-        //  A dialect that refuses nothing gets no boundary heading, rather than
-        //  an empty one. An empty heading reads as "the list is coming".
-        TEST_METHOD (ADialectWithNoBoundaryGetsNoBoundaryHeading)
+        //  NOR IS THE CPU FLAG, for the dialect that refuses it.
+        //
+        //  Documenting a flag in order to say it is unavailable spends a line of
+        //  help telling the reader not to type something they had no reason to
+        //  type. Merlin takes its CPU from the source; the flag is still refused
+        //  by name if passed, which is where that belongs.
+        TEST_METHOD (TheRefusedCpuFlagIsNotAdvertisedInHelp)
         {
-            std::string  help = DialectHelp::GetDialect (DialectRegistry::Get (DialectId::As65), '-');
+            std::string  help = DialectHelp::GetAllDialects ('-');
 
-            Assert::IsTrue  (help.find ("as65")               != std::string::npos);
-            Assert::IsFalse (help.find ("support ends")       != std::string::npos,
-                             L"as65 states no subset boundary");
+            Assert::IsFalse (help.find ("Refused") != std::string::npos,
+                             L"help must not advertise a flag in order to refuse it");
+            Assert::IsFalse (help.find ("--cpu")   != std::string::npos,
+                             L"and the dialect block names no CPU flag at all");
         }
     };
 

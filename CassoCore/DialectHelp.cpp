@@ -5,7 +5,6 @@
 #include "CommandLineParser.h"
 #include "DialectProfile.h"
 #include "DialectRegistry.h"
-#include "SubsetBoundary.h"
 
 
 
@@ -47,37 +46,47 @@ std::string DialectHelp::GetAllDialects (char flagPrefix)
 //
 //  DialectHelp::GetDialect
 //
-//  One dialect: how it is selected, its own flags, where its CPU comes from,
-//  and where its supported subset ends.
+//  One dialect: how it is selected, and its own flags.
 //
 //  Each part is absent when the profile has nothing to say, rather than printed
-//  empty. A dialect with no flags of its own and no boundary reduces to its
-//  selection line, which is the honest description of it.
+//  empty. A dialect with no flags of its own reduces to its selection line,
+//  which is the honest description of it.
+//
+//  WHERE A SUBSET ENDS IS NOT HERE. The Merlin boundary is six paragraphs of
+//  why, and a reader who typed --help wanted the flags. It is composed from the
+//  same table by MerlinSubsetBoundary::GetHelpText and belongs in
+//  docs/Assembler.md, where there is room to explain what widens each one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string DialectHelp::GetDialect (const DialectProfile & profile, char flagPrefix)
 {
-    std::span<const SubsetBoundaryRow>  boundary    = profile.GetSubsetBoundary();
-    std::string                         text;
-    bool                                hasBoundary = !boundary.empty();
+    std::string  text;
 
 
 
     text  = std::string ("\n  ") + profile.GetName() + " <source> [flags]\n";
-    text += ComposeFlagLines (profile.GetId(), flagPrefix);
-    text += ComposeCpuLine   (profile, flagPrefix);
-    text += ComposeOutputShapeLines (profile.GetId(), flagPrefix);
-
-    if (hasBoundary)
-    {
-        // Indented to match the rows the composer writes rather than the flags
-        // above, so the heading sits with what it introduces.
-        text += std::string ("\n  Where ") + profile.GetName() + " support ends:\n";
-        text += SubsetBoundary::ComposeHelpText (boundary);
-    }
+    text += GetDialectFlags (profile, flagPrefix);
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialectHelp::GetDialectFlags
+//
+//  The flag lines alone, for a caller that prints its own heading.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DialectHelp::GetDialectFlags (const DialectProfile & profile, char flagPrefix)
+{
+    return ComposeFlagLines (profile.GetId(), flagPrefix)
+         + ComposeOutputShapeLines (profile.GetId(), flagPrefix);
 }
 
 
@@ -99,7 +108,7 @@ std::string DialectHelp::GetDialect (const DialectProfile & profile, char flagPr
 
 std::string DialectHelp::ComposeFlagLines (DialectId dialect, char flagPrefix)
 {
-    constexpr size_t                                 kDescriptionColumn = 27;
+    constexpr size_t                                 kDescriptionColumn = 25;
     std::span<const CommandLineParser::DialectFlag>  flags              = CommandLineParser::GetFlags (dialect);
     std::string                                      text;
     std::string                                      rendered;
@@ -108,7 +117,7 @@ std::string DialectHelp::ComposeFlagLines (DialectId dialect, char flagPrefix)
 
     for (const CommandLineParser::DialectFlag & flag : flags)
     {
-        rendered = std::string ("    ") + flagPrefix + flag.letter;
+        rendered = std::string ("  ") + flagPrefix + flag.letter;
 
         if (flag.valueName[0] != '\0')
         {
@@ -116,52 +125,6 @@ std::string DialectHelp::ComposeFlagLines (DialectId dialect, char flagPrefix)
         }
 
         text += PadTo (rendered, kDescriptionColumn) + flag.description + "\n";
-    }
-
-    return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DialectHelp::ComposeCpuLine
-//
-//  What the CPU flag does for this dialect, which is the profile's answer and
-//  not this function's.
-//
-//  Both readings are stated in the same place, because they answer one question
-//  and a reader comparing two dialects is asking exactly that question. The
-//  refusal names the in-source directive, so the line says what to write instead
-//  of the flag rather than only that the flag is unavailable.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DialectHelp::ComposeCpuLine (const DialectProfile & profile, char flagPrefix)
-{
-    constexpr size_t  kDescriptionColumn = 27;
-    std::string       text;
-    bool              isInSource         = profile.GetCpuSelectionSource() == CpuSelectionSource::InSource;
-
-
-
-    if (isInSource)
-    {
-        text = PadTo ("    " + CommandLineParser::FormatLongOption ("--cpu", flagPrefix) + " <target>", kDescriptionColumn)
-             + "Refused: the CPU target is selected in the source,\n"
-             + PadTo ("", kDescriptionColumn)
-             + "with the " + profile.GetCpuDirectiveName() + " directive\n";
-    }
-    else
-    {
-        text = PadTo ("    " + CommandLineParser::FormatLongOption ("--cpu", flagPrefix) + " <6502|65c02>", kDescriptionColumn)
-             + "Target CPU (default: 6502). 65c02 enables the CMOS\n"
-             + PadTo ("", kDescriptionColumn)
-             + "opcodes (STZ, BRA, RMBn/SMBn, BBRn/BBSn, ...);\n"
-             + PadTo ("", kDescriptionColumn)
-             + "under 6502 those are rejected as invalid\n";
     }
 
     return text;
@@ -186,7 +149,7 @@ std::string DialectHelp::ComposeCpuLine (const DialectProfile & profile, char fl
 
 std::string DialectHelp::ComposeOutputShapeLines (DialectId dialect, char flagPrefix)
 {
-    constexpr size_t                                 kDescriptionColumn = 27;
+    constexpr size_t                                 kDescriptionColumn = 25;
     std::span<const CommandLineParser::OutputShape>  shapes             = CommandLineParser::GetOutputShapes (dialect);
     std::string                                      text;
 
@@ -194,7 +157,7 @@ std::string DialectHelp::ComposeOutputShapeLines (DialectId dialect, char flagPr
 
     for (const CommandLineParser::OutputShape & shape : shapes)
     {
-        text += PadTo (std::string ("    ") + CommandLineParser::FormatLongOption (shape.option, flagPrefix), kDescriptionColumn) + shape.description + "\n";
+        text += PadTo (std::string ("  ") + CommandLineParser::FormatLongOption (shape.option, flagPrefix), kDescriptionColumn) + shape.description + "\n";
     }
 
     return text;

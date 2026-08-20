@@ -30,18 +30,18 @@ static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
 static constexpr CommandLineParser::DialectFlag  s_kMerlinFlags[] =
 {
     { 'o', CommandLineParser::FlagArgument::Required, "<file>",
-           "Output file, which beats any name the source gives itself" },
+           "Rename output file (default: <source>.bin)" },
     { 'l', CommandLineParser::FlagArgument::Optional, "[<file>]",
-           "Generate listing; with no filename attached it goes to stdout" },
+           "Generate listing (no <file> attached = stdout)" },
     { 'v', CommandLineParser::FlagArgument::None,     "",
-           "Verbose mode" },
+           "Verbose: an assembly summary on stderr" },
 
     //  Merlin asks the operator for a keyboard-input symbol and waits. A batch
     //  assembly has nobody to ask, so the answer has to arrive with the
     //  invocation -- and without this row the three vendor sources that ask
     //  questions cannot be assembled from a command line at all.
     { 'd', CommandLineParser::FlagArgument::Required, "<symbol>[=<value>]",
-           "Answer a symbol the source asks for; a bare symbol answers 1" },
+           "Define a symbol the source expects (defaults to 1)" },
 };
 
 
@@ -77,9 +77,9 @@ static constexpr CommandLineParser::DialectFlagTable  s_kDialectFlags[] =
 static constexpr CommandLineParser::OutputShape  s_kMerlinOutputShapes[] =
 {
     { "--dos-bin", CommandLineOptions::OutputFormat::DosBinary,
-                   "Write the bytes behind a 4-byte DOS 3.3 header carrying origin and length" },
+                   "Write the bytes behind a 4-byte DOS 3.3 header" },
     { "--flat",    CommandLineOptions::OutputFormat::Binary,
-                   "Write a full 64 KB image with the bytes at their origin" },
+                   "Write a full 64 KB image at the origin, padded with $FF" },
 };
 
 

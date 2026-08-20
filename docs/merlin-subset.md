@@ -9,10 +9,10 @@ This page exists so you can tell whether a Merlin project is inside that subset
 **before** pointing the tool at it. If your source uses none of the constructs
 under [Where support ends](#where-support-ends), it is in.
 
-The tool will also tell you: `CassoCli --help` prints the same boundary, and the
-authority for both is one table in `CassoCore/MerlinSubsetBoundary.cpp`. Every
-refusal, every help line and the list below are composed from that table's own
-fields, so they cannot describe different rules.
+The boundary is also set out in [Assembler.md](Assembler.md#where-merlin-support-ends),
+with what would widen each row. The authority for all of it is one table in
+`CassoCore/MerlinSubsetBoundary.cpp`: every refusal and every published list is
+composed from that table's own fields, so they cannot describe different rules.
 
 ## Where support ends
 
@@ -20,7 +20,9 @@ Six constructs are recognized and refused **by name**. That distinction is the
 point: a refusal says which construct, why, and what would widen the boundary,
 where an unknown-directive error would read as "Merlin support is broken".
 
-The block below is the output of `CassoCli --help`, verbatim.
+The block below is the text that table composes, verbatim. It is no longer
+printed by `--help` -- six rows of why belong in a document rather than in front
+of someone who asked for the flag list.
 
 ```
 Where merlin support ends:
