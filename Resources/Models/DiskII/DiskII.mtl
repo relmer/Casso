@@ -35,12 +35,12 @@ d 1
 
 newmtl mat_7
 Ka 0 0 0 
-Kd 0.9 0.87 0.78
+Kd 0.9 0.12 0.1
 d 1
 
 newmtl mat_8
 Ka 0 0 0 
-Kd 0.9 0.12 0.1
+Kd 0.76 0.71 0.59
 d 1
 
 newmtl mat_9
@@ -140,7 +140,7 @@ d 1
 
 newmtl mat_28
 Ka 0 0 0 
-Kd 0.76 0.71 0.59
+Kd 0.15 0.14 0.13
 d 1
 
 newmtl mat_29
@@ -154,11 +154,6 @@ Kd 0.15 0.14 0.13
 d 1
 
 newmtl mat_31
-Ka 0 0 0 
-Kd 0.15 0.14 0.13
-d 1
-
-newmtl mat_32
 Ka 0 0 0 
 Kd 0.15 0.14 0.13
 d 1

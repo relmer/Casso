@@ -82,11 +82,11 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind       monitorKind,
     // (plaque 13..52 x 64..74 mm): the number differs per drive, so the
     // text lives here, not in the shared model.
     {
-        constexpr float   kLabelCellMm = 0.85f;
-        constexpr float   kLabelLeftMm = 15.2f;
-        constexpr float   kLabelTopZMm = 80.4f;   // on the badge plaque (71.4 .. 82.6)
+        constexpr float   kLabelCellMm = 0.43f;
+        constexpr float   kLabelLeftMm = 13.7f;
+        constexpr float   kLabelTopZMm = 78.7f;   // straight on the black, no plaque
         constexpr float   kLabelFrontY = -1.9f;
-        constexpr float   kLabelRgb[3] = { 0.150f, 0.140f, 0.130f };
+        constexpr float   kLabelRgb[3] = { 0.870f, 0.860f, 0.840f };   // white ON the black, no plaque behind it
 
         m_driveLabelVerts[0].clear();
         m_driveLabelVerts[1].clear();

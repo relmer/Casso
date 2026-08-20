@@ -201,16 +201,22 @@ m.add("notch_liner", liner.cut (notch), KD["plate_pebbled"])
 
 m.add("door", door, KD["drive_door"])
 
-# Badge plaque, upper-left: the scene stamps DRIVE 1 / DRIVE 2 onto it.
-m.add("badge",
-      cq.Workplane("XY").box(39.0, 0.8, 10.0 * FZ, centered=(False, False, False))
-        .translate((13.0, -1.8, 64.0 * FZ)),
-      BADGE)
+# No badge plaque. The drive-number sticker is white lettering straight onto
+# the black face -- a plaque under it was invention, and at this size it read
+# as a raised gray slab where the real drive has nothing at all. (The "DRIVE
+# A:/B:" stickers DO sit on a light patch, but those are a different label and
+# we are deliberately not modeling them.)
 
-# IN-USE LED, lower-left; its label is stamped by the scene to its left.
+# IN-USE LED, lower-left, with its label stamped by the scene to its left.
+# PROUD of the plate. It used to sit at y -0.6 with the plate face at -1.0,
+# which buried the lens inside the faceplate -- the drive has never actually
+# shown its activity light, and nothing said so because an unlit LED is dark
+# anyway.
+# Measured off a front-on photograph: a 3 mm lens sitting just right of the
+# text, not the 6.4 mm one twice that far across the face.
 m.add("led",
-      cq.Workplane("XY").cylinder(2.0, 3.2, direct=(0, 1, 0), centered=(True, True, False))
-        .translate((68.0, -0.6, 16.0 * FZ)),
+      cq.Workplane("XY").cylinder(2.0, 1.55, direct=(0, 1, 0), centered=(True, True, False))
+        .translate((45.0, -2.0, 28.9)),
       KD["drive_lamp"])
 
 # ------------------------------------------------------------- lid and sides

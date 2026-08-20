@@ -97,9 +97,9 @@ static constexpr float   s_kDriveBrandFrontY   = -1.8f;
 
 // The IN-USE label: "IN USE" plus the pointer triangle, sitting to the
 // LED's left at the LED's height (the 2D widget's arrangement).
-static constexpr float   s_kInUseLeftMm  = 20.0f;
-static constexpr float   s_kInUseTopZMm  = 21.8f;
-static constexpr float   s_kInUseCellMm  = 1.0f;
+static constexpr float   s_kInUseLeftMm  = 18.9f;
+static constexpr float   s_kInUseTopZMm  = 31.1f;
+static constexpr float   s_kInUseCellMm  = 0.5f;
 static constexpr float   s_kInUseFrontY  = -1.8f;
 static constexpr float   s_kInUseRgb[3]  = { 0.750f, 0.730f, 0.700f };
 
