@@ -1586,6 +1586,36 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             continue;
         }
 
+        // The CPU a SOURCE assembles for, in both spellings the assembler
+        // subcommands take. Without these, `run` could assemble nothing that
+        // used a 65C02 instruction -- it refused the flag and then reported
+        // every such instruction as invalid, which is a source that can be
+        // assembled and cannot be run.
+        if (arg == "-x" || arg == "/x")
+        {
+            NoteFlagPrefix (arg[0] == '/' ? '/' : '-', options);
+            options.cpuTarget    = CommandLineOptions::CpuTarget::M65C02;
+            options.hasCpuTarget = true;
+            argIndex++;
+            continue;
+        }
+
+        if (IsLongOption (arg, "--cpu", options) && argIndex + 1 < argc)
+        {
+            std::string  target (argv[++argIndex]);
+
+            for (char & c : target)
+            {
+                c = (char) tolower ((unsigned char) c);
+            }
+
+            options.cpuTarget    = (target == "65c02") ? CommandLineOptions::CpuTarget::M65C02
+                                                       : CommandLineOptions::CpuTarget::M6502;
+            options.hasCpuTarget = true;
+            argIndex++;
+            continue;
+        }
+
         // Normalize / prefix to - on Windows
         if (arg.size() > 1 && arg[0] == '/')
         {

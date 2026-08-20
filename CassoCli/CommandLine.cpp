@@ -918,15 +918,28 @@ static void PrintUsageHeader (const char * sp, const char * lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+//  A top-level heading, underlined to its own width. Written once so the four
+//  sections cannot drift into three styles.
+static void PrintSectionHeading (const std::string & name)
+{
+    std::println ("");
+    std::println ("{}", name);
+    std::println ("{}", std::string (name.size(), '-'));
+}
+
+
+
+
+
 static void PrintUsageGeneral (const char * lp, const char * sp, const char * pad)
 {
     // "--help, -?" = 10 chars, "--version" = 9 chars => +1 space for version
     // "/help, /?"  =  9 chars, "/version"  = 8 chars => +1 space for version
     // pad compensates: -- (2 chars) vs / (1 char) in long prefix
-    std::println ("\nGeneral:");
+    PrintSectionHeading ("General");
     std::println ("  Assembles AS65 or Merlin source for the 6502 and the 65C02. The subcommand");
-    std::println ("  names the dialect; the CPU is chosen with {0}cpu under AS65, and by the XC", lp);
-    std::println ("  directive inside Merlin source.");
+    std::println ("  names the dialect; the CPU is chosen with {0}cpu or {1}x under AS65, and by", lp, sp);
+    std::println ("  the XC directive inside Merlin source.");
     std::println ("");
     std::println ("  See docs/Assembler.md for additional information.");
     std::println ("");
@@ -958,8 +971,7 @@ static void PrintUsageGeneral (const char * lp, const char * sp, const char * pa
 
 static void PrintUsageAssembler (const char * sp)
 {
-    std::println ("");
-    std::println ("AS65 mode:");
+    PrintSectionHeading ("AS65 mode");
     std::println ("  <source>               Assembly source file");
     std::println ("                         (tries .a65, .asm, .s if no extension is given)");
     std::println ("");
@@ -969,20 +981,23 @@ static void PrintUsageAssembler (const char * sp)
     std::println ("    A value ATTACHES to its flag -- {0}ofile rather than {0}o file --", sp);
     std::println ("      though {0}o and {0}l accept a separated one too.", sp);
     std::println ("    {0}s2 is one flag, not {0}s followed by a 2.", sp);
-    std::println ("    Long options are whole words: {}. Either prefix works, and the",
-                  CommandLineParser::FormatLongOption ("--raw", sp[0]));
-    std::println ("      one you type FIRST is the one answers come back in.");
 
     const char * lines[] =
     {
         "",
         "  Assembled code:",
+        "    <default>            Write a full 64 KB image padded with the fill byte",
+        "                         (see {0}z)",
+        "    {1}raw                Write only the assembled bytes, unpadded",
+        "    {1}dos-bin            Write the bytes behind a 4-byte DOS 3.3 header",
+        "                         (load address + length), ready to BLOAD",
         "    {0}o <file>            Rename output file (default: <source>.bin)",
         "    {0}s                   Write Motorola S-record (<source>.s19)",
         "    {0}s2                  Write Intel HEX (<source>.hex)",
-        "    {0}z                   Fill unused space with $00 (default: $FF), in the",
-        "                         padded image",
-        "    {0}n                   Disable optimizations. Not yet implemented (#118)",
+        "    {0}z                   Fill unused space in the padded image with $00",
+        "                         (default: $FF)",
+        "    {0}n                   Disable optimizations. Not yet implemented",
+        "                         (GitHub issue #118)",
         "",
         "  Listing:",
         "    {0}l[<file>]           Generate listing ({0}l alone goes to stdout)",
@@ -992,41 +1007,40 @@ static void PrintUsageAssembler (const char * sp)
         "    {0}w[<width>]          Wrap listing at <width> columns, 60 to 200",
         "                         (default: 79, {0}w alone = 133)",
         "    {0}h<lines>            Page height: a header and a form feed every <lines>,",
-        "                         {0}h0 for no paging. Not yet implemented (#118)",
+        "                         {0}h0 for no paging. Not yet implemented",
+        "                         (GitHub issue #118)",
         "",
         "  Debug:",
-        "    {0}t                   Generate symbol table",
-        "    {0}g <file>            Write symbol addresses as NAME=$ADDR, by address and",
-        "                         again by name",
+        "    {0}t                   Print the symbol table to stdout, with each symbol's",
+        "                         address; AS65 lists it between the two passes",
+        "    {0}g <file>            Write symbol addresses to <file> as NAME=$ADDR, by",
+        "                         address and again by name",
         "",
         "  General:",
         "    {0}d <name>[=<value>]  Define symbol (defaults to 1 if <value> is omitted)",
         "    {0}v                   Verbose: pass timings and an assembly summary, on",
         "                         stderr",
         "    {0}q                   Quiet mode (suppress progress)",
-        "    {0}i                   Ignore case in opcodes. Casso does this anyway, so",
-        "                         the flag is accepted and changes nothing",
+        "    {0}i                   Ignore case of opcodes. Always enabled in Casso,",
+        "                         accepted for command-line compatibility with AS65",
     };
 
     for (const char * fmt : lines)
     {
-        std::println ("{}", std::vformat (fmt, std::make_format_args (sp)));
+        // {0} is the short prefix and {1} the long one, so a row naming either
+        // spells it the way this invocation does.
+        std::string  lp = (sp[0] == '/') ? "/" : "--";
+
+        std::println ("{}", std::vformat (fmt, std::make_format_args (sp, lp)));
     }
 
     std::println ("");
     std::println ("  CPU:");
-    std::println ("    {:<20} Target CPU (default: 6502). Under 6502 a 65C02-only",
+    std::println ("    {0}x                   Assemble the 65C02 instructions. AS65's flag for", sp);
+    std::println ("                         it, and the one to prefer");
+    std::println ("    {:<20} The same choice, named. Under 6502 a 65C02-only",
                   CommandLineParser::FormatLongOption ("--cpu", sp[0]) + " <6502|65c02>");
     std::println ("                         instruction is an assembly error, not a surprise");
-    std::println ("    {0}x                   AS65's own name for the extended CPU; the same as", sp);
-    std::println ("                         {0}{1}cpu 65c02", (sp[0] == '/') ? "" : "-", sp);
-    std::println ("");
-    std::println ("  Output shape. With neither, a full 64 KB image padded with the fill byte:");
-    std::println ("    {:<20} Write only the assembled bytes, unpadded",
-                  CommandLineParser::FormatLongOption ("--raw", sp[0]));
-    std::println ("    {:<20} Write the bytes behind a 4-byte DOS 3.3 header",
-                  CommandLineParser::FormatLongOption ("--dos-bin", sp[0]));
-    std::println ("                         (load address + length), ready to BLOAD");
 }
 
 
@@ -1041,16 +1055,18 @@ static void PrintUsageAssembler (const char * sp)
 
 static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
 {
-    std::println ("");
-    std::println ("Run options:");
+    PrintSectionHeading ("Run mode");
     std::println ("  <binary>               A binary file to load and execute");
     std::println ("  <source>               An assembly source file to assemble and run");
     std::println ("                         (tries .a65, .asm, .s if no extension is given)");
     std::println ("");
-    std::println ("  {:<22} Which assembler reads a source (default: as65).",
+    std::println ("  {:<22} Which assembler reads a source (default: AS65).",
                   CommandLineParser::FormatLongOption ("--as65", sp[0]) + " | "
                   + CommandLineParser::FormatLongOption ("--merlin", sp[0]));
     std::println ("                         Ignored for a binary, which needs no assembler");
+    std::println ("  {0}x, {1:<18} The CPU a source assembles for, as in AS65 mode. No", sp,
+                  CommandLineParser::FormatLongOption ("--cpu", sp[0]) + " <6502|65c02>");
+    std::println ("                         other assembler flag is accepted here");
     std::println ("");
 
     const char * lines[] =
@@ -1101,7 +1117,7 @@ void PrintUsage (char prefix)
     // edit here; what it would not get is a section of its own, which is a note
     // for whoever adds one rather than a claim that this scales.
     std::println ("");
-    std::println ("Merlin mode:");
+    PrintSectionHeading ("Merlin mode");
     std::println ("  <source>               Merlin assembly source file");
     std::println ("                         (tries .a65, .asm, .s if no extension is given)");
     std::println ("");
@@ -1109,8 +1125,9 @@ void PrintUsage (char prefix)
     std::println ("  more of the same questions:");
     std::println ("    Use the XC assembler directive to select the CPU.");
     std::println ("    A DSK directive in the source names the output file. {0}o overrides it.", sp);
-    std::println ("    Constructs outside the supported subset are refused by name, and the");
-    std::println ("      refusal says what would widen the boundary.");
+    std::println ("    Six Merlin directives are not supported -- REL, ENT, EXT, TYP, SAV and a");
+    std::println ("      second XC. Each is refused by name, saying why and what it would take");
+    std::println ("      to support it.");
     std::cout << DialectHelp::GetDialectFlags (DialectRegistry::Get (DialectId::Merlin), prefix);
 
     PrintUsageRun       (lp, sp, pad);

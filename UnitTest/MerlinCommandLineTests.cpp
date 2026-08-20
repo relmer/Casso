@@ -550,6 +550,28 @@ namespace MerlinCommandLineTests
                             L"and that is reportable, because nobody asked for it");
         }
 
+        //  `run` also takes the CPU, in both spellings the assembler subcommands
+        //  take.
+        //
+        //  Without it there was a source Casso could assemble and could not
+        //  run: `run` refused the flag as unknown and then reported every 65C02
+        //  instruction in the file as invalid. It remains the ONLY assembler
+        //  option `run` accepts -- the rest have no meaning when no file is
+        //  written.
+        TEST_METHOD (RunTakesTheCpuTheSourceNeeds)
+        {
+            CommandLineOptions  viaX    = Fixture::Parse ({ "CassoCli", "run", "demo.a65", "-x" });
+            CommandLineOptions  viaCpu  = Fixture::Parse ({ "CassoCli", "run", "demo.a65", "--cpu", "65c02" });
+            CommandLineOptions  plain   = Fixture::Parse ({ "CassoCli", "run", "demo.a65" });
+
+            Assert::IsTrue (viaX.cpuTarget   == CommandLineOptions::CpuTarget::M65C02,
+                            L"-x must reach the assembler run uses");
+            Assert::IsTrue (viaCpu.cpuTarget == CommandLineOptions::CpuTarget::M65C02,
+                            L"and so must --cpu 65c02");
+            Assert::IsTrue (plain.cpuTarget  == CommandLineOptions::CpuTarget::M6502,
+                            L"with the strict 6502 still the default");
+        }
+
         //  as65 states no table, and the absence is the point: its grammar is a
         //  hand-rolled walk over a historical command line, and a table it does
         //  not walk would be a second description of the parser.

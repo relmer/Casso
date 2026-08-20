@@ -122,6 +122,11 @@ Entries before versioning was introduced use dates only.
   Casso rejected it as an unknown flag — then carried on with the *narrow*
   instruction table and reported every instruction the flag had asked to enable
   as invalid. It now means what `--cpu 65c02` means.
+- **`run` takes the CPU too: `-x` or `--cpu`.** Without it there was a source
+  Casso could assemble and could not run — `run` refused the flag as unknown
+  and then reported every 65C02 instruction in the file as invalid. It remains
+  the only assembler option `run` accepts; the rest have no meaning when no
+  file is written.
 - **`run` names its assembler: `--as65` or `--merlin`.** `run` given a source
   assembled it as as65 and nothing else, so a Merlin source could be assembled
   or run, but not both in one step. The default is unchanged, and the flag is

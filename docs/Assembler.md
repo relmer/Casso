@@ -98,7 +98,7 @@ Apple shipped, and their opcode slots behave as NOPs.
 | `-c` | Include cycle counts in the listing. |
 | `-m` | Show macro expansions in the listing. |
 | `-p` | Generate a pass 1 listing. |
-| `-t` | Generate a symbol table. |
+| `-t` | Print the symbol table to stdout, name and address, with a `*` on a redefinable symbol. AS65 lists it between the two passes and shows decimal as well as hex. |
 | `-w [<width>]` | Wrap the listing at `<width>` columns. Default `79`; `-w` alone means `133`; `0` disables wrapping. AS65 documents the range as 60 to 200; Casso does not enforce it. Continuations indent to the source column, so wrapped text lines up under the text rather than under the address and bytes. |
 | `-g <file>` | Write symbol addresses as `NAME=$ADDR`, **twice**: once ordered by address under a `; by address` heading, then again ordered by symbol name, case-insensitively, under `; by symbol`. Reading a debug file is two questions -- what is at an address, and where a name went -- and each order answers one. Casso's own format; no standard is being followed. |
 
@@ -153,6 +153,7 @@ assembler at all.
 | Option | Meaning |
 |---|---|
 | `--as65` \| `--merlin` | Which assembler reads a source. Default `--as65`. |
+| `-x`, `--cpu <6502\|65c02>` | The CPU a source assembles for. The only assembler option `run` accepts. |
 | `--load <addr>` | Load address. Default `$8000`. |
 | `--entry <addr>` | Entry point. Defaults to the load address. |
 | `--reset-vector` | Take the entry point from the reset vector at `$FFFC`/`$FFFD`. |
