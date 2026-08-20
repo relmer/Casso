@@ -151,11 +151,38 @@ public:
     static char  TrailingParameterFlag (const std::string & previous);
 
     //  Whether an argument is the BACK HALF of one a shell cut in two, with the
-    //  argument in front of it as the front half. Public for the same reason:
-    //  what it decides is only ever seen as text on the error stream, so a test
-    //  can pin the rule here or nowhere.
+    //  argument in front of it as the front half. Public because it is the
+    //  predicate the repair below turns on, and a rule that silently rejoins two
+    //  arguments is one a test has to be able to state exactly.
     static bool  IsShellSplitFragment (const std::string & previous,
                                        const std::string & arg);
+
+    //
+    //  The command line as it was TYPED, with any halves PowerShell cut put back
+    //  together.
+    //
+    //  THE TOOL USED TO REFUSE THIS COMMAND LINE AND EXPLAIN THE SHELL TO THE
+    //  USER. The explanation was accurate and the refusal was still the wrong
+    //  answer: `CassoCli prog.a65 -oprog.bin` is a correct as65 command line,
+    //  the user typed it correctly, and it failed for a reason that had nothing
+    //  to do with them. Being told to add quotes every time is a tax on using
+    //  this tool from the shell most Windows users have.
+    //
+    //  REJOINING IS SAFE BECAUSE THE SHAPE IS UNREACHABLE OTHERWISE. Every
+    //  command line IsShellSplitFragment accepts is one that could not parse:
+    //  the front half is a flag group ending in a flag whose value is a name,
+    //  the back half begins with the dot the cut was made at, and the front half
+    //  carries neither dot nor colon, which is what proves the cut happened. A
+    //  command line of that shape has no reading in which the two halves are
+    //  separate arguments -- the assembler takes ONE source file, and the back
+    //  half could only ever be a surplus one. So nothing that used to work is
+    //  read differently now; only what used to be refused now runs.
+    //
+    //  IT REPAIRS SILENTLY. A warning would fire on a command line the user
+    //  typed correctly, about a thing they cannot prevent from inside the shell,
+    //  and there is nothing for them to do about it once it is already fixed.
+    //
+    static std::vector<std::string>  RejoinShellSplitArguments (int argc, char * argv[]);
 
     //  Whether an argument is an option that grammar HAS and which takes a
     //  value, so an option that merely ran out of command line is not reported
@@ -173,12 +200,6 @@ private:
     //  occupied -- which is where the flag ends and the next one in the group
     //  begins.
     static size_t  TakeGluedCount (const std::string & rest, int & value);
-
-    //  The index of the first argument a shell cut off its flag, or 0 when the
-    //  command line carries none -- and the two lines that explain one.
-    static int   FindShellSplitFragment   (int argc, char * argv[]);
-    static void  ReportShellSplitFragment (const std::string & head,
-                                           const std::string & fragment);
 
     static std::string  TryAutoExtend  (const std::string & path, const FileExistsFn & fileExists);
     static std::string  StripExtension (const std::string & path);

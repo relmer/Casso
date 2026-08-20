@@ -9,6 +9,25 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Added
+- **PowerShell no longer breaks an ordinary as65 command line.** `CassoCli
+  prog.a65 -oprog.bin` arrives as `-oprog` and `.bin`, because a PowerShell
+  parameter name cannot contain a dot, and the tool used to refuse it and
+  explain the shell to a user who had typed it correctly. The halves are now
+  rejoined before parsing. The signature is exact -- a front half that is a
+  single-dash flag group ending in a flag whose value is a name and carrying
+  neither dot nor colon, with a back half beginning at the dot -- and no command
+  line of that shape had a valid reading, so nothing that worked before is read
+  differently. It repairs `-l`, `-d` and `-s` too, which mattered more than `-o`:
+  `-o` could always be written `-o prog.bin`, and those three had no separated
+  form to fall back on.
+
+### Fixed
+- **`-x` said it selected the 65SC02, and selects the Rockwell 65C02.** The
+  table it installs carries RMB/SMB/BBR/BBS, which a 65SC02 does not have, and
+  omits WDC's WAI and STP. "65SC02" is as65's own name for the switch, so the
+  help now gives both: what as65 calls it, and what is actually in it.
+
+### Added
 - **Every help page now opens with the banner.** The tool's name, the version,
   the architecture and the copyright headed the general page only, and a mode's
   page is reached directly -- `CassoCli ?`, `CassoCli run --help`, `CassoCli

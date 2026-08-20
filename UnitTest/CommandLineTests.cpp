@@ -1165,31 +1165,86 @@ namespace CommandLineTests
                 L"and a colon before the first dot means nothing was cut at all");
         }
 
-        //  The mangling as it actually arrives, in the order that leaves the
-        //  back half surplus.
-        TEST_METHOD (Assembly_AMangledOutputName_IsStillRefused)
+        //  THE MANGLING AS IT ACTUALLY ARRIVES, and what the parser now makes
+        //  of it. This pair used to assert a refusal, and the refusal was the
+        //  defect: `CassoCli prog.a65 -oprog.bin` is a correct as65 command
+        //  line that PowerShell takes apart on the way in, so the user was told
+        //  to quote something they had typed correctly.
+        TEST_METHOD (Assembly_AMangledOutputName_IsRejoinedAndAssembled)
         {
             ArgVector           args = { "CassoCli", "prog.a65", "-oprog", ".bin" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
-                L"half a filename is not silently written to `prog`");
-            Assert::AreEqual (std::string ("prog"), opts.outputFile,
-                L"and the half that was read is not repaired behind the caller's back");
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
+                L"the halves go back together rather than earning a diagnostic");
+            Assert::AreEqual (std::string ("prog.bin"), opts.outputFile,
+                L"and the whole filename is what the output is named");
+            Assert::AreEqual (std::string ("prog.a65"), opts.inputFile,
+                L"the source file is untouched by the repair");
         }
 
         //  THE SAME MISTAKE TYPED THE OTHER WAY ROUND, where the back half
-        //  lands in the source-file slot and the real source file is what ends
-        //  up surplus. It is why the signature is looked for across the whole
-        //  command line rather than at the pair that tripped the refusal.
-        TEST_METHOD (Assembly_AMangledOutputNameBeforeTheSource_IsRefused)
+        //  would otherwise land in the source-file slot and displace the real
+        //  source. It is why the repair walks the whole command line rather
+        //  than examining the pair that happened to fail.
+        TEST_METHOD (Assembly_AMangledOutputNameBeforeTheSource_IsRejoined)
         {
             ArgVector           args = { "CassoCli", "-oprog", ".bin", "prog.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
-            Assert::AreEqual (std::string (".bin"), opts.inputFile,
-                L"the back half filled the source slot, which is what displaced prog.a65");
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
+            Assert::AreEqual (std::string ("prog.a65"), opts.inputFile,
+                L"prog.a65 keeps the source slot the fragment used to take");
+            Assert::AreEqual (std::string ("prog.bin"), opts.outputFile);
+        }
+
+        //  A FLAG WITH NO SEPARATED SPELLING IS REPAIRED TOO, which is the half
+        //  of this that quoting advice could never fix: -o could always be
+        //  written `-o prog.bin`, and -l could not be written at all in
+        //  PowerShell without quotes.
+        TEST_METHOD (Assembly_AMangledListingName_IsRejoined)
+        {
+            ArgVector           args = { "CassoCli", "prog.a65", "-lprog", ".lst" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
+            Assert::AreEqual (std::string ("prog.lst"), opts.listingFile);
+        }
+
+        //  THE REPAIR IS A FUNCTION OF THE ARGUMENT LIST ALONE, so the rule can
+        //  be stated here rather than inferred from what a parse happened to
+        //  produce.
+        //
+        //  THE NEGATIVE CASES ARE THE POINT. A repair that fires on an ordinary
+        //  command line would silently change what it means, and the two below
+        //  are the ones that come closest: a relative path standing behind an
+        //  output name is not a fragment, because the front half still carries
+        //  the dot a shell would have cut at; and two real arguments in a row
+        //  are left as two.
+        TEST_METHOD (RejoiningPutsBackWhatTheShellCut_AndTouchesNothingElse)
+        {
+            auto  rejoin = [] (std::initializer_list<const char *> raw)
+            {
+                ArgVector  args = raw;
+                return CommandLineParser::RejoinShellSplitArguments (args.Count(), args.Data());
+            };
+
+            auto  cut = rejoin ({ "CassoCli", "prog.a65", "-oprog", ".bin" });
+            Assert::AreEqual (size_t (3), cut.size(), L"four arguments in, three out");
+            Assert::AreEqual (std::string ("-oprog.bin"), cut[2]);
+
+            auto  path = rejoin ({ "CassoCli", "-oout.bin", "./prog.a65" });
+            Assert::AreEqual (size_t (3), path.size(),
+                L"a relative path is not a fragment: the front half already has its dot");
+            Assert::AreEqual (std::string ("./prog.a65"), path[2]);
+
+            auto  plain = rejoin ({ "CassoCli", "prog.a65", "extra.a65" });
+            Assert::AreEqual (size_t (3), plain.size(),
+                L"two real arguments stay two, and the surplus one is still surplus");
+
+            auto  none = rejoin ({ "CassoCli" });
+            Assert::AreEqual (size_t (1), none.size(),
+                L"nothing to rejoin, and no first argument consumed looking");
         }
 
         TEST_METHOD (Run_ASecondInputFile_IsRefused)

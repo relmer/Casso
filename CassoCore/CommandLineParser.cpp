@@ -360,82 +360,51 @@ bool CommandLineParser::IsShellSplitFragment (const std::string & previous,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FindShellSplitFragment
+//  RejoinShellSplitArguments
 //
-//  The index of the first argument a shell cut off its flag, or 0.
+//  The command line as it was typed, with the halves PowerShell cut apart put
+//  back together.
 //
-//  THE WHOLE COMMAND LINE IS SEARCHED RATHER THAN THE PAIR AT HAND, because
-//  which argument ends up with nowhere to go depends on the order the user
-//  typed. `casso prog.a65 -oprog.bin` leaves the back half `.bin` surplus and it
-//  is the fragment itself; `casso -oprog.bin prog.a65` lets `.bin` fill the
-//  source-file slot instead and makes `prog.a65` the surplus one. One mistake,
-//  reported at two different arguments -- so the diagnostic names the halves it
-//  found rather than whichever argument happened to trip the refusal.
+//  THE WHOLE LIST IS WALKED RATHER THAN THE PAIR AT HAND, because which argument
+//  ends up homeless depends on the order the user typed. `CassoCli prog.a65
+//  -oprog.bin` leaves the back half `.bin` with nowhere to go; `CassoCli
+//  -oprog.bin prog.a65` lets `.bin` fill the source-file slot and strands
+//  `prog.a65` instead. One cut, surfacing at two different arguments, so the
+//  repair looks for the cut itself and not for whichever argument failed.
+//
+//  ONE PASS, AND A JOINED ARGUMENT IS NOT RE-EXAMINED. A shell makes the cut at
+//  the FIRST dot, so a joined argument carries one and can never be the front
+//  half of another split -- IsShellSplitFragment requires a front half with no
+//  dot in it. Feeding the result back through would therefore find nothing, and
+//  looking anyway would mean a repair could depend on a previous repair, which
+//  is a rule far harder to state than the one it would replace.
+//
+//  See CommandLineParser.h for why rejoining cannot change what an already-valid
+//  command line means.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int CommandLineParser::FindShellSplitFragment (int argc, char * argv[])
+std::vector<std::string> CommandLineParser::RejoinShellSplitArguments (int argc, char * argv[])
 {
-    int  found = 0;
+    std::vector<std::string>  rejoined;
 
 
 
-    for (int i = 1; (i < argc) && (found == 0); i++)
+    for (int i = 0; i < argc; i++)
     {
-        if (IsShellSplitFragment (argv[i - 1], argv[i]))
+        std::string  arg = argv[i];
+
+        if (!rejoined.empty() && IsShellSplitFragment (rejoined.back(), arg))
         {
-            found = i;
+            rejoined.back() += arg;
+        }
+        else
+        {
+            rejoined.push_back (arg);
         }
     }
 
-    return found;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReportShellSplitFragment
-//
-//  Says what cut the argument in half, and gives the spellings that survive it.
-//
-//  BOTH HALVES ARE NAMED, AND SO IS THE WHOLE THEY CAME FROM, because the
-//  reader typed the whole and has never seen either half. "surplus argument:
-//  .bin" is true and answers nothing on its own -- `.bin` is not on the command
-//  line the reader remembers writing, so the message reads as a bug in the tool
-//  rather than as something the shell did on the way in.
-//
-//  THE SEPARATED FORM IS OFFERED ONLY FOR -o, because -o is the only flag that
-//  takes one -- see the flag's own arm for why the others cannot. Quoting works
-//  for every one of them and is always offered.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CommandLineParser::ReportShellSplitFragment (const std::string & head,
-                                                  const std::string & fragment)
-{
-    std::string  whole      = head + fragment;
-    bool         isOutputTo = head.size() > 2 && head[1] == 'o';
-
-
-
-    std::cerr << "       PowerShell cut " << whole << " in two, into " << head
-              << " and " << fragment << ": a token\n"
-              << "       starting with `-` is a parameter name, and a parameter name\n"
-              << "       cannot contain a dot.\n"
-              << "       Quote it -- '" << whole << "' -- ";
-
-    if (isOutputTo)
-    {
-        std::cerr << "or write it separated: " << head.substr (0, 2) << " "
-                  << whole.substr (2) << "\n";
-    }
-    else
-    {
-        std::cerr << "and it arrives whole.\n";
-    }
+    return rejoined;
 }
 
 
@@ -1456,18 +1425,15 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
         //  in front of it that takes a parameter -- and when either holds the
         //  glued spelling is offered by name.
         //
-        //  THE SHELL IS ASKED ABOUT FIRST, because when it cut the command line
-        //  the "surplus" argument was never typed. `casso prog.a65 -oprog.bin`
-        //  in PowerShell arrives as `-oprog` and `.bin`, and "surplus argument:
-        //  .bin -- assembling takes one source file" is true of nothing the
-        //  reader wrote. It is asked of the whole command line rather than of
-        //  this pair, because which half lands where depends on the typing
-        //  order -- see FindShellSplitFragment.
+        //  THE SHELL IS NOT ASKED ABOUT HERE ANY MORE. A command line PowerShell
+        //  cut in half never reaches this point: RejoinShellSplitArguments puts
+        //  the halves back together before parsing begins, so `CassoCli prog.a65
+        //  -oprog.bin` assembles instead of arriving as `-oprog` and `.bin` and
+        //  being explained to the reader who typed it correctly.
         if (arg[0] != '-' && arg[0] != '/')
         {
             std::string  previous   = (argIndex > 1) ? argv[argIndex - 1] : "";
             char         wantsValue = TrailingParameterFlag (previous);
-            int          cutHere    = 0;
 
             if (options.inputFile.empty())
             {
@@ -1476,29 +1442,19 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
                 continue;
             }
 
-            cutHere = FindShellSplitFragment (argc, argv);
-
             std::cerr << "Error: surplus argument: " << arg << "\n";
+            std::cerr << "       Assembling takes one source file, and "
+                      << options.inputFile << " is already it.\n";
 
-            if (cutHere != 0)
+            if (wantsValue != 0)
             {
-                ReportShellSplitFragment (argv[cutHere - 1], argv[cutHere]);
+                std::cerr << "       If " << arg << " was meant as a value, as65 glues it to its option:\n"
+                          << "       " << previous << arg << ", not " << previous << " " << arg << ".\n";
             }
-            else
+            else if (IsPlainDecimal (arg))
             {
-                std::cerr << "       Assembling takes one source file, and "
-                          << options.inputFile << " is already it.\n";
-
-                if (wantsValue != 0)
-                {
-                    std::cerr << "       If " << arg << " was meant as a value, as65 glues it to its option:\n"
-                              << "       " << previous << arg << ", not " << previous << " " << arg << ".\n";
-                }
-                else if (IsPlainDecimal (arg))
-                {
-                    std::cerr << "       If " << arg << " was meant as a value, as65 glues every value to its\n"
-                              << "       option, with no space between them.\n";
-                }
+                std::cerr << "       If " << arg << " was meant as a value, as65 glues every value to its\n"
+                          << "       option, with no space between them.\n";
             }
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
@@ -2253,6 +2209,27 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
     bool                            isHelp   = false;
     bool                            isVer    = false;
     bool                            isAs65   = false;
+    //  THE SHELL'S DAMAGE IS UNDONE BEFORE ANY OF THE GRAMMAR SEES THE COMMAND
+    //  LINE, which is what lets every reader below assume the arguments are the
+    //  ones the user typed. Doing it per-grammar would mean three places that
+    //  each have to remember, and the one that forgot would be the one refusing
+    //  a command line as65 has accepted for thirty years.
+    //
+    //  The joined strings must outlive the parse, so they are held here and
+    //  pointed at, rather than rebuilt inside the helper and returned by value
+    //  into a dangling argv.
+    std::vector<std::string>        typed    = RejoinShellSplitArguments (argc, argv);
+    std::vector<char *>             args;
+
+
+
+    for (std::string & one : typed)
+    {
+        args.push_back (one.data());
+    }
+
+    argc = static_cast<int> (args.size());
+    argv = args.data();
 
 
 

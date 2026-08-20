@@ -280,7 +280,7 @@ std::string DiskCommandRunner::BuildExampleHelp (char flagPrefix)
         "\n"
         "  " + sp + "o names the assembled output file; --disk1 mounts an image in\n"
         "  drive 1 as the emulator starts, and is the emulator's own flag, which\n"
-        "  is why it keeps that spelling here.\n"
+        "  is why it is written that way here.\n"
         "  Assemble with the default output rather than " + lp + "dos-bin: put writes the\n"
         "  DOS 3.3 header itself from " + lp + "addr, and a file that already carries one\n"
         "  has its own header loaded as code where the program should begin.\n"
