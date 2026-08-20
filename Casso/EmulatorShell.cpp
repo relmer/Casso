@@ -75,7 +75,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-#define WM_APP_NOTIFY_USER (WM_APP + 0x22)
+#define WM_APP_NOTIFY_USER   (WM_APP + 0x22)
+#define WM_APP_REPORT_DAMAGE (WM_APP + 0x23)
 
 // The shell the EHM notification sink forwards to. One shell per process;
 // cleared in the destructor so a late report cannot touch a dead object.
@@ -834,14 +835,11 @@ HRESULT EmulatorShell::Initialize (
     // exits early because trackBits[0] == 0).
     PowerCycle();
 
-    m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
+    // Every mount reports a damaged image, not just this one. Installed before
+    // the command-line disks go in so those are covered too.
+    m_diskManager->SetMountedCallback ([this] (int drive) { ReportDamagedMount (drive); });
 
-    // Report a damaged image now the mount has settled. The window already
-    // exists at this point (CreateEmulatorWindow runs earlier in Initialize),
-    // so the prompt has something to parent to and can carry its Salvage
-    // button.
-    ReportDamagedMount (0);
-    ReportDamagedMount (1);
+    m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
     // A disk mounted at startup (boot-disk picker result or --disk1 /
     // --disk2) belongs in the recent-disks MRU just like one mounted via
@@ -3545,16 +3543,29 @@ void EmulatorShell::RunSalvageFlow (int drive)
 
 void EmulatorShell::ReportDamagedMount (int drive)
 {
-    DiskImage          * image      = m_diskStore.GetImage (6, drive);
+    DiskImage          * image       = m_diskStore.GetImage (6, drive);
     SalvageAssessment    assessment;
     DialogDefinition     def;
-    HRESULT              hr         = S_OK;
-    int                  choice     = 0;
+    HRESULT              hr          = S_OK;
+    int                  choice      = 0;
+    bool                 isOffThread = false;
 
 
 
     if (image == nullptr)
     {
+        return;
+    }
+
+    // Mounts run on the CPU thread -- the picker and the menu both route
+    // through it so a flush never races the drive engine -- and this raises a
+    // modal. Bounce to the UI thread rather than building a dialog from there.
+    isOffThread = (m_hwnd != nullptr) &&
+                  (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
+
+    if (isOffThread)
+    {
+        PostMessageW (m_hwnd, WM_APP_REPORT_DAMAGE, (WPARAM) drive, 0);
         return;
     }
 
@@ -4958,6 +4969,14 @@ int EmulatorShell::RunMessageLoop()
             // no WM_SIZE / OnSize would otherwise re-evaluate it).
             // A notification raised off the UI thread. lParam owns a
             // heap-allocated copy of the text, handed over by ShowNotification.
+            // A mount that ran on the CPU thread wants its damage report raised
+            // here, where a modal can be built.
+            if (msg.message == WM_APP_REPORT_DAMAGE)
+            {
+                ReportDamagedMount ((int) msg.wParam);
+                continue;
+            }
+
             if (msg.message == WM_APP_NOTIFY_USER)
             {
                 wstring *  carried = reinterpret_cast<wstring *> (msg.lParam);

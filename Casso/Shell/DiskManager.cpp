@@ -396,6 +396,7 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
     HRESULT              hr         = S_OK;
     Disk2Controller  *   controller = FindSlot6Controller();
     DiskImage         *  external   = nullptr;
+    bool                 mounted    = false;
 
 
 
@@ -403,6 +404,8 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
 
     hr = m_diskStore.Mount (6, drive, path);
     CHR (hr);
+
+    mounted = true;
 
     external = m_diskStore.GetImage (6, drive);
     controller->SetExternalDisk (drive, external);
@@ -451,6 +454,13 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
                                          DriveWidgetController::SyncAction::DoorClose,
                                          NowMs());
         m_diskAudioSources[drive]->OnDiskInserted();
+    }
+
+    // Last, so anything the callback does (raising a dialog, say) sees a fully
+    // mounted drive.
+    if (mounted && m_onMounted)
+    {
+        m_onMounted (drive);
     }
 
 Error:

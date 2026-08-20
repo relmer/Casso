@@ -62,6 +62,17 @@ public:
     bool                HasSlot6Controller     () { return FindSlot6Controller() != nullptr; }
 
     HRESULT  MountDiskInSlot6       (int drive, const std::string & path);
+
+    //  Called after any successful mount, whatever started it: the command
+    //  line, the picker, a machine switch, session restore. Every mount funnels
+    //  through MountDiskInSlot6, so hooking it here is what makes "report a
+    //  damaged image" cover all of them rather than the one path someone
+    //  remembered. DiskManager owns no UI, so the shell supplies the reaction.
+    void     SetMountedCallback     (std::function<void (int)> cb)
+    {
+        m_onMounted = std::move (cb);
+    }
+
     void     EjectDiskInSlot6       (int drive);
     void     RemountSlot6Disks      ();
     void     MountCommandLineDisks  (const std::string & disk1Path,
@@ -96,6 +107,8 @@ public:
     // re-applying the external state, so every indicator reflects reality
     // whether the change stuck or failed.
     HRESULT  ToggleImageWriteProtect (int drive);
+
+    std::function<void (int)>  m_onMounted;
 
     // Probes whether the host file at `path` can be written back. Sets
     // outReadOnly when the file carries the read-only attribute and
