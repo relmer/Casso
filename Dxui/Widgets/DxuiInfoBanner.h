@@ -28,11 +28,23 @@
 class DxuiInfoBanner : public IDxuiControl
 {
 public:
+    //  Info states something; Warning cautions about a consequence. The
+    //  difference is the badge and the tint, not the layout.
+    enum class Severity
+    {
+        Info,
+        Warning
+    };
+
     DxuiInfoBanner  () = default;
     explicit DxuiInfoBanner  (std::wstring text) : m_text (std::move (text)) {}
     ~DxuiInfoBanner () override = default;
 
     void  SetText (const std::wstring & text) { m_text = text; }
+
+    void  SetSeverity (Severity severity) { m_severity = severity; }
+
+    Severity  GetSeverity () const { return m_severity; }
     const std::wstring & Text () const { return m_text; }
 
     void  SetRect (const RECT & rect) { SetBounds (rect); }
@@ -57,6 +69,8 @@ public:
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Label; }
 
 private:
+    Severity  m_severity = Severity::Info;
+
     // Geometry (DIP; scaled into the layout space via the scaler).
     static constexpr float  s_kPadXDip      = 12.0f;   // left / right inner padding
     static constexpr float  s_kPadYDip      = 9.0f;    // top / bottom inner padding
