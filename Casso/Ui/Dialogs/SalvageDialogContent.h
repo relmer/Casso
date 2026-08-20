@@ -49,6 +49,21 @@ public:
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
 private:
+    //  Draws wrapped text, returns the height used (clamped to maxHeight).
+    static float  DrawWrapped (IDxuiTextRenderer   &  text,
+                               const IDxuiTheme    &  theme,
+                               const std::wstring  &  body,
+                               float                  left,
+                               float                  top,
+                               float                  width,
+                               float                  maxHeight,
+                               float                  fontPx,
+                               const wchar_t       *  face,
+                               DxuiFontWeight         weight);
+
+public:
+
+private:
     struct Row
     {
         std::wstring  label;

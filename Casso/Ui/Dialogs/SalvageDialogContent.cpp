@@ -109,6 +109,54 @@ void SalvageDialogContent::Layout (const RECT & boundsDip, const DxuiDpiScaler &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SalvageDialogContent::DrawWrapped
+//
+//  Draws wrapped text and returns the height it used, clamped to maxHeight so
+//  a pathological path cannot push the rest of the dialog off the bottom.
+//  Measuring rather than reserving is what keeps the spacing right for a path
+//  of any length.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float SalvageDialogContent::DrawWrapped (IDxuiTextRenderer   &  text,
+                                         const IDxuiTheme    &  theme,
+                                         const std::wstring  &  body,
+                                         float                  left,
+                                         float                  top,
+                                         float                  width,
+                                         float                  maxHeight,
+                                         float                  fontPx,
+                                         const wchar_t       *  face,
+                                         DxuiFontWeight         weight)
+{
+    HRESULT  hr     = S_OK;
+    float    outW   = 0.0f;
+    float    outH   = 0.0f;
+    float    used   = maxHeight;
+
+
+
+    hr = text.MeasureStringWrapped (body.c_str(), fontPx, face, width, outW, outH);
+
+    if (SUCCEEDED (hr) && outH > 0.0f)
+    {
+        used = (outH < maxHeight) ? outH : maxHeight;
+    }
+
+    hr = text.DrawString (body.c_str(), left, top, width, used,
+                          theme.Foreground(), fontPx, face,
+                          DxuiTextHAlign::Left, DxuiTextVAlign::Top, weight, true);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    return used;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SalvageDialogContent::Paint
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,21 +186,17 @@ void SalvageDialogContent::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 
     // Prose first: it says what this dialog is about. The path names the disk
     // it is about, set apart beneath it by a blank line.
-    hr = text.DrawString (m_prose.c_str(), left, y, width,
-                          lineH * s_kProseLines,
-                          theme.Foreground(), fontPx, face,
-                          DxuiTextHAlign::Left, DxuiTextVAlign::Top,
-                          DxuiFontWeight::Normal, true);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-    y += lineH * s_kProseLines + gap;
+    //
+    // Both advance by the height they actually used rather than by a fixed
+    // line allowance. A path can be one line or four depending entirely on
+    // where the user keeps their disks, and a fixed reservation is wrong in
+    // both directions -- it collides when the path is long and leaves a hole
+    // when it is short.
+    y += DrawWrapped (text, theme, m_prose, left, y, width, lineH * s_kProseLines,
+                      fontPx, face, DxuiFontWeight::Normal) + gap;
 
-    hr = text.DrawString (m_sourcePath.c_str(), left, y, width,
-                          lineH * s_kPathLines,
-                          theme.Foreground(), fontPx, face,
-                          DxuiTextHAlign::Left, DxuiTextVAlign::Top,
-                          DxuiFontWeight::SemiBold, true);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-    y += lineH * s_kPathLines + gap;
+    y += DrawWrapped (text, theme, m_sourcePath, left, y, width, lineH * s_kPathLines,
+                      fontPx, face, DxuiFontWeight::SemiBold) + gap;
 
     for (i = 0; i < m_rows.size(); i++)
     {

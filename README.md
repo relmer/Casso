@@ -25,7 +25,7 @@ The project includes:
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **2900+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
+- **3000+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
 
 ## Contents
 
@@ -34,8 +34,7 @@ The project includes:
 - [Project Structure](#project-structure)
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
-- [Assembler Features](#assembler-features)
-- [CPU Emulation Status](#cpu-emulation-status)
+- [Assembler](docs/Assembler.md)
 - [Why "Casso"?](#why-casso)
 - [Acknowledgments and Attributions](#acknowledgments-and-attributions)
 - [Contributing](#contributing)
@@ -46,6 +45,36 @@ The project includes:
 See [CHANGELOG.md](CHANGELOG.md) for the granular history, and
 [ARCHITECTURE.md](ARCHITECTURE.md) for a technical overview of the emulator's
 internals (projects, threading, the memory model, and the optimization log).
+
+### Salvage a damaged disk (v1.17.0)
+
+A WOZ whose stored checksum no longer matches its contents is damaged, and
+Casso will not write to it — rewriting the file would stamp a freshly
+computed checksum over the same damage, leaving nothing able to tell the file
+is wrong. That protects the evidence, but on its own it leaves you holding a
+disk you cannot write to.
+
+Casso can now build a **salvaged copy** beside it, from the Disk menu or
+straight from the report shown when the damaged image is inserted. Every sector
+is checked against the checksums the disk format has always carried, and the
+result is stated before anything is written:
+
+<p align="center"><img src="Assets/feat-salvage.png" alt="Salvage readable sectors dialog — the damaged disk's path, a table of total, verified, recovered and lost sectors, the destination filename, and a warning that repairing the checksums masks any corrupted data left in the recovered sectors" width="560" /></p>
+
+Sectors that fail verification are **recovered rather than discarded**. A data
+field decodes as a running XOR chain, so one bad nibble leaves every byte before
+it exactly right and skews the rest by a single constant — and when what
+rotted is the check nibble itself, the sector is perfect. Those bytes are kept
+and written with a correct checksum, so a sector that would have made DOS report
+an I/O error reads normally instead. Only a sector with nothing usable is
+zeroed.
+
+The original is never opened for writing. It keeps its damage, detectably, and
+the copy is a working disk you can write to.
+
+Checking every sector also found something nobody was looking for: a genuine
+bad sector in `AppleStellarInvaders.woz`, a 1980 preservation dump whose
+file-level checksum is perfectly valid.
 
 ### Create blank disks in-app + write-protect toggle (v1.16.0)
 
@@ -331,95 +360,54 @@ Casso.sln
 
 ### Assemble and Run
 
+`CassoCli` assembles 6502 / 65C02 source and can run it in one step. Full flag
+and syntax reference: **[docs/Assembler.md](docs/Assembler.md)**.
+
 ```powershell
-# Assemble a source file to a flat binary (AS65 mode — no subcommand)
+# Assemble to the default full 64 KB image
 CassoCli input.a65 -o output.bin
 
-# Assemble with a listing file and a symbol table
-CassoCli input.a65 -o output.bin -l listing.txt -t
+# Assemble a BLOAD-ready DOS 3.3 binary
+CassoCli input.a65 --dos-bin -o HELLO.BIN
 
-# Output Motorola S-record (.s19) or Intel HEX (.hex)
-CassoCli input.a65 -s   -o output.s19
-CassoCli input.a65 -s2  -o output.hex
-
-# Write only the assembled bytes, or a BLOAD-ready DOS 3.3 binary
-# (the default is a full 64 KB image padded with the fill byte)
-CassoCli input.a65 --raw      -o output.bin
-CassoCli input.a65 --dos-bin  -o output.bin
-
-# Pre-define a symbol on the command line
-CassoCli input.a65 -d DEBUG=1 -o output.bin
-
-# Generate a listing with cycle counts
-CassoCli input.a65 -c -l listing.txt
-
-# Assemble 65C02 source (CMOS opcodes: STZ, BRA, RMB/SMB/BBR/BBS, ...)
-# The default is a strict 6502; 65C02-only opcodes are rejected without --cpu.
+# 65C02 source (CMOS opcodes are rejected without the flag)
 CassoCli input.a65c --cpu 65c02 -o output.bin
 
-# Assemble and run an assembly source directly
+# Assemble and run in one step
 CassoCli run input.a65
 
-# Load and run a pre-assembled binary at a specific address
+# Run a pre-assembled binary at a chosen address
 CassoCli run output.bin --load $8000
 ```
 
 ### Apple II Emulator
 
-The emulator requires Apple II ROM images, which are copyrighted by Apple and not
-distributed with this project. A script is included to download them from the
-[AppleWin](https://github.com/AppleWin/AppleWin) project:
+Run `Casso` with no arguments for an Apple II+ with an empty drive. ROMs and
+sample disks are fetched on first launch, with your consent {em} there is
+nothing to install by hand.
 
 ```powershell
-# Download ROM images into the per-machine Machines/<Name>/ folders
-.\scripts\FetchRoms.ps1
-
-# Run the emulator (defaults to Apple II+)
+# Launch the emulator (defaults to Apple II+)
 Casso
 
-# Run with a specific machine config
+# Pick a machine
 Casso --machine Apple2e
+
+# Boot a disk in drive 1
+Casso --machine Apple2e --disk1 "Apple2\Demos\casso-rocks.woz"
+
+# Both drives
+Casso --machine Apple2c --disk1 "side-a.woz" --disk2 "side-b.woz"
 ```
 
-ROM images live under `Machines/<MachineName>/` (e.g.,
-`Machines/Apple2e/Apple2e.rom`) and shared device boot ROMs live
-under `Devices/<Family>/` (e.g., `Devices/DiskII/Disk2.rom`). Both
-`Machines/` and `Devices/` are fully runtime-managed: every file
-inside is either extracted from binary-embedded resources or
-downloaded on first launch (with user consent). Delete either
-directory and the next launch rebuilds it from scratch.
+Machine names come from `Resources/Machines/<Name>/`:
+`Apple2`, `Apple2Plus`, `Apple2e`, `Apple2eEnhanced`, `Apple2c`.
 
-Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
+## Assembler
 
-## Assembler Features
-
-| Feature | Syntax / Flag |
-|---------|---------------|
-| All 56 mnemonics | `LDA`, `STA`, `ADC`, `BNE`, etc. |
-| All addressing modes | `#$42`, `$30`, `$1234,X`, `($20),Y`, `A` |
-| CPU target | `--cpu 6502` (default, strict) or `--cpu 65c02` for CMOS opcodes (`STZ`, `BRA`, `TSB`/`TRB`, `RMB`/`SMB`/`BBR`/`BBS`, `(zp)`, `(abs,X)`); Rockwell bit ops take `<bit>,<zp>[,<target>]` or the suffixed `RMB0`/`BBR3` form |
-| Labels | `loop: DEX` / `BNE loop` |
-| Directives | `.org $8000`, `.byte $FF`, `.word $1234`, `.text "hello"`, `code`/`data`/`bss` |
-| Constants | `value = $42`, `carry equ %00000001` (chains and forward refs supported) |
-| Conditionals | `if`/`ifdef`/`ifndef`/`else`/`endif` |
-| Macros | `name macro` … `endm`, with arguments and `\` line continuation |
-| Includes | `include "file.a65"` |
-| Comments | `; full line` / `LDA #$42 ; inline` |
-| Number formats | `$FF` (hex), `%10101010` (binary), `255` (decimal) |
-| Expressions | full operator set: `+ - * / % & \| ^ ~ << >>`, `<label`, `>label`, current-PC `*` |
-| Listing output | `-l [file]` (stdout or file), `-c` for cycle counts, `-m` for macro expansion |
-| Symbol table | `-t` |
-| Output formats | full 64 KB image (default), `--raw` (assembled span only), `--dos-bin` (span behind a DOS 3.3 load-address/length header), `-s` (S-record), `-s2` (Intel HEX) |
-| Fill control | `-z` for `$00` fill (default `$FF`) |
-| Pre-defined symbols | `-d NAME` or `-d NAME=VALUE` |
-| Debug info | `-g [file]` |
-| Warning control | `--warn`, `--no-warn`, `--fatal-warnings` |
-| Verbose / quiet | `-v` / `-q` |
-| Flag concatenation | `-tlfile` ≡ `-t -l file` (AS65 style) |
-
-## CPU Emulation Status
-
-All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) (full pass) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) (all 151 legal-opcode test sets, 10,000 vectors each).
+`CassoCli` is an as65-compatible 6502 / 65C02 cross-assembler with a built-in
+runner. Every flag, directive, addressing mode and output format is documented
+in **[docs/Assembler.md](docs/Assembler.md)**.
 
 ## Why "Casso"?
 
