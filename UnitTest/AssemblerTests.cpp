@@ -1750,7 +1750,7 @@ namespace AssemblerTests
             //  Continuations line up under the SOURCE, not under the address and
             //  bytes -- a listing is read positionally, and text wrapped into the
             //  fixed columns would be read as belonging to them.
-            std::string  first = Assembler::FormatListingLine (result.listing[0], false);
+            std::string  first  = Assembler::FormatListingLine (result.listing[0], false);
             size_t       indent = first.size() - result.listing[0].sourceText.size();
 
             Assert::AreEqual (indent, rows[1].find_first_not_of (' '),
