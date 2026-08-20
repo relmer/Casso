@@ -246,6 +246,7 @@
     <ClCompile Include="CmapTests.cpp" />
     <ClCompile Include="OutputFormatTests.cpp" />
     <ClCompile Include="ConformanceTests.cpp" />
+    <ClCompile Include="DialectEquivalenceTests.cpp" />
     <ClCompile Include="DormannIntegrationTests.cpp" />
     <ClCompile Include="EhmTestHelper.cpp" />
     <ClCompile Include="HarteTestRunner.cpp" />
