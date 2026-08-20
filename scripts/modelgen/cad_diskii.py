@@ -72,8 +72,43 @@ DOOR_BACK = PLATE_Y + DOOR_T      # both steps share one back plane
 NOTCH_W    = DOOR_W + 1.0         # a hair wider, so the door never binds
 NOTCH_DEEP = 38.0
 
+# ------------------------------------------------------------- the enclosure
+#
+# The metal case is one wrapped sheet around the drive body plus a separate
+# plate closing the rest of the bottom.
+#
+# It OVERHANGS the plastic front, so the bezel sits down inside a shallow
+# metal picture-frame instead of flush with it. That lip is most of what tells
+# you the case is metal and the front is not: it catches light the whole way
+# round, which a flush joint cannot.
+#
+# The bottom being TWO pieces is the detail worth having. The wrap's flange
+# ends stop short of each other and a separate plate fills the span between
+# them, sitting BOTTOM_DROP lower, so the two seams read from the front as a
+# pair of fine gaps in the bottom edge.
+#
+# SEAM POSITIONS ARE ESTIMATED, and are the one number here not measured off
+# anything. They belong under the "k" of the "disk ][" wordmark and under the
+# cassowary -- both of which live on the LID, and the lid label is not modeled
+# yet, so there is nothing in this file to measure against. These are where
+# those glyphs fall as fractions of the width in the reference photograph;
+# they want re-measuring once the lid label exists.
+SHELL_T     = 1.25                # sheet thickness
+SHELL_PROUD = 0.75                # how far the metal stands forward of the bezel
+BOTTOM_DROP = 0.25                # how much lower the separate bottom plate sits
+SEAM_GAP    = 0.35                # the visible gap where wrap meets bottom plate
+
+SEAM_K      = 0.44 * W            # under the "k" in "disk ]["
+SEAM_LOGO   = 0.62 * W            # under the cassowary
+
+SHELL_Y0    = -3.0 - SHELL_PROUD  # the metal's front edge
+
 BEIGE    = (0.833, 0.784, 0.659)
 BEIGE_DK = (0.760, 0.710, 0.590)
+# Painted sheet metal: the same beige the plastic is meant to match, a shade
+# cooler and darker because it never quite does -- which is exactly what makes
+# the join between the two visible on the real drive.
+SHELL    = (0.806, 0.762, 0.648)
 PLATE    = (0.100, 0.100, 0.110)
 SLOT_DK  = (0.035, 0.035, 0.045)
 BADGE    = (0.900, 0.870, 0.780)
@@ -121,6 +156,54 @@ notch = (cq.Workplane("XZ")
 case = case.cut (notch)
 
 m.add("case", case, BEIGE)
+
+# ---------------------------------------------------------------- enclosure
+
+# The wrap: a tube around the body, open at both ends. Hollowed with the
+# body's OWN volume rather than an inset box, so the metal is exactly
+# SHELL_T everywhere by construction and cannot drift out of true if the
+# body's dimensions change.
+#
+# The outer corners are filleted by the body's radius PLUS the sheet
+# thickness, which is what an offset surface actually does -- filleting both
+# to the same radius would leave the metal thin at the corners.
+#
+# Only the VERTICAL edges are rounded. The horizontal ones are left crisp on
+# purpose: a fillet along the front edge would eat the proud lip, which is
+# 1.25 mm of material and the whole point of the overhang.
+shell_outer = (cq.Workplane("XY")
+               .box(W + SHELL_T * 2.0, D - SHELL_Y0, H + SHELL_T * 2.0,
+                    centered=(False, False, False))
+               .translate((-SHELL_T, SHELL_Y0, -SHELL_T))
+               .edges("|Y").fillet(1.8 + SHELL_T))
+
+shell_cav = (cq.Workplane("XY")
+             .box(W, D - SHELL_Y0 + 2.0, H, centered=(False, False, False))
+             .translate((0.0, SHELL_Y0 - 1.0, 0.0)))
+
+shell = shell_outer.cut (shell_cav)
+
+# Take the bottom plate's span out of the wrap. The cut runs well below the
+# sheet so it clears the plate at its dropped height too -- the two must not
+# be left sharing a face, or the seam disappears into a coincident surface
+# and the join stops reading at any angle.
+bottom_span = (cq.Workplane("XY")
+               .box(SEAM_LOGO - SEAM_K, D - SHELL_Y0 + 2.0, SHELL_T + BOTTOM_DROP + 2.0,
+                    centered=(False, False, False))
+               .translate((SEAM_K, SHELL_Y0 - 1.0, -SHELL_T - BOTTOM_DROP - 2.0)))
+
+m.add("shell", shell.cut (bottom_span), SHELL)
+
+# The separate bottom plate, narrower than the span it fills by SEAM_GAP at
+# each end. Those two slots ARE the gaps -- they are what shows from the
+# front, and they exist because the piece is a different piece, not because
+# anything was drawn on.
+m.add("shell_bottom",
+      cq.Workplane("XY")
+        .box((SEAM_LOGO - SEAM_GAP) - (SEAM_K + SEAM_GAP), D - SHELL_Y0, SHELL_T,
+             centered=(False, False, False))
+        .translate((SEAM_K + SEAM_GAP, SHELL_Y0, -SHELL_T - BOTTOM_DROP)),
+      SHELL)
 
 # The black faceplate filling the pocket floor, a hair behind the lip.
 plate = (cq.Workplane("XY")
@@ -221,27 +304,35 @@ m.add("led",
 
 # ------------------------------------------------------------- lid and sides
 
+# These all ride on the METAL now, not on the body -- the body's top and
+# sides are under the wrap, and anything left at the old offsets would be
+# sealed inside it. Each is pushed out by the sheet thickness.
+
 # Lid channels: two slim darker strips running front to back.
 for i, (x0, x1) in enumerate([(24.0, 62.0), (93.0, 131.0)]):
     m.add(f"channel{i}",
           cq.Workplane("XY").box(x1 - x0, D - 42.0, 0.35, centered=(False, False, False))
-            .translate((x0, 18.0, H - 0.01)),
+            .translate((x0, 18.0, H + SHELL_T - 0.01)),
           BEIGE_DK)
 
 # Side vents: nine slits per side, rear half.
-for s, (sx0, sx1) in enumerate([(-0.35, 0.1), (W - 0.1, W + 0.35)]):
+for s, (sx0, sx1) in enumerate([(-SHELL_T - 0.35, -SHELL_T + 0.1),
+                                (W + SHELL_T - 0.1, W + SHELL_T + 0.35)]):
     for i in range(9):
         m.add(f"vent{s}_{i}",
               cq.Workplane("XY").box(sx1 - sx0, 3.2, 46.0 * FZ, centered=(False, False, False))
                 .translate((sx0, 146.0 + i * 7.0, 20.0 * FZ)),
               BEIGE_DK)
 
-# Rubber feet: the ground footprint the contact shadow is sized from.
+# Rubber feet: the ground footprint the contact shadow is sized from. They sit
+# under the WRAP's flanges rather than under the separate bottom plate, which
+# is where the real drive puts them -- the plate is not what carries the
+# weight -- so they drop by the sheet thickness, not by the plate's.
 for fx in (16.0, W - 16.0):
     for fy in (18.0, D - 18.0):
         m.add(f"foot{fx:.0f}_{fy:.0f}",
               cq.Workplane("XY").cylinder(2.2, 6.0, centered=(True, True, False))
-                .translate((fx, fy, -2.2)),
+                .translate((fx, fy, -2.2 - SHELL_T)),
               FOOT)
 
 

@@ -5,12 +5,12 @@ d 1
 
 newmtl mat_1
 Ka 0 0 0 
-Kd 0.135 0.13 0.15
+Kd 0.806 0.762 0.648
 d 1
 
 newmtl mat_2
 Ka 0 0 0 
-Kd 0.1 0.1 0.11
+Kd 0.806 0.762 0.648
 d 1
 
 newmtl mat_3
@@ -20,7 +20,7 @@ d 1
 
 newmtl mat_4
 Ka 0 0 0 
-Kd 0.035 0.035 0.045
+Kd 0.1 0.1 0.11
 d 1
 
 newmtl mat_5
@@ -30,22 +30,22 @@ d 1
 
 newmtl mat_6
 Ka 0 0 0 
-Kd 0.16 0.16 0.18
+Kd 0.035 0.035 0.045
 d 1
 
 newmtl mat_7
 Ka 0 0 0 
-Kd 0.9 0.12 0.1
+Kd 0.135 0.13 0.15
 d 1
 
 newmtl mat_8
 Ka 0 0 0 
-Kd 0.76 0.71 0.59
+Kd 0.16 0.16 0.18
 d 1
 
 newmtl mat_9
 Ka 0 0 0 
-Kd 0.76 0.71 0.59
+Kd 0.9 0.12 0.1
 d 1
 
 newmtl mat_10
@@ -140,12 +140,12 @@ d 1
 
 newmtl mat_28
 Ka 0 0 0 
-Kd 0.15 0.14 0.13
+Kd 0.76 0.71 0.59
 d 1
 
 newmtl mat_29
 Ka 0 0 0 
-Kd 0.15 0.14 0.13
+Kd 0.76 0.71 0.59
 d 1
 
 newmtl mat_30
@@ -154,6 +154,16 @@ Kd 0.15 0.14 0.13
 d 1
 
 newmtl mat_31
+Ka 0 0 0 
+Kd 0.15 0.14 0.13
+d 1
+
+newmtl mat_32
+Ka 0 0 0 
+Kd 0.15 0.14 0.13
+d 1
+
+newmtl mat_33
 Ka 0 0 0 
 Kd 0.15 0.14 0.13
 d 1

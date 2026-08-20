@@ -648,16 +648,14 @@ void SettingsPanelState::SetExternalDriveConnected (bool connected)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SecondDriveAttached / SetSecondDriveAttached
+//  SecondDriveAttached
 //
-//  The machine's second drive, read from and written to whichever store that
-//  machine keeps it in. A //c has a back-panel disk port; everything else has
-//  a Disk ][ card whose second connector is the drive in question.
+//  The machine's second drive, read from whichever store that machine keeps
+//  it in. A //c has a back-panel disk port; everything else has a Disk ][
+//  card whose second connector is the drive in question.
 //
 //  A card that declares NO ports has not been described rather than emptied,
 //  so it reads as attached -- the two drives it has always behaved as having.
-//  Writing then materializes both connectors, because a one-element list
-//  would take the FIRST drive away as a side effect of detaching the second.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -690,6 +688,22 @@ bool SettingsPanelState::SecondDriveAttached() const
     return false;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSecondDriveAttached
+//
+//  The write side of SecondDriveAttached, routed to the same store it reads.
+//
+//  MATERIALIZES BOTH CONNECTORS on a card that declared none. A one-element
+//  port list would take the FIRST drive away as a side effect of detaching
+//  the second, which is the kind of bug that looks like the model is wrong
+//  rather than the config.
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void SettingsPanelState::SetSecondDriveAttached (bool attached)
 {
