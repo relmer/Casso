@@ -519,6 +519,37 @@ namespace MerlinCommandLineTests
             }
         }
 
+        //  `run` given a SOURCE has to assemble it, and until now it assembled
+        //  as65 and nothing else -- so a Merlin source could be assembled or
+        //  run, but not both in one step.
+        //
+        //  The provenance travels with it for the same reason the subcommands
+        //  carry it: a dialect the caller named needs no report, one it
+        //  inherited does.
+        TEST_METHOD (RunTakesTheAssemblerItIsToldToUse)
+        {
+            CommandLineOptions  merlin    = Fixture::Parse ({ "CassoCli", "run", "demo.s", "--merlin" });
+            CommandLineOptions  as65      = Fixture::Parse ({ "CassoCli", "run", "demo.a65", "--as65" });
+            CommandLineOptions  unstated  = Fixture::Parse ({ "CassoCli", "run", "demo.a65" });
+            CommandLineOptions  slashed   = Fixture::Parse ({ "CassoCli", "run", "demo.s", "/merlin" });
+
+            Assert::IsTrue (merlin.dialect == DialectId::Merlin, L"--merlin selects the Merlin assembler");
+            Assert::IsTrue (merlin.dialectSelection == DialectSelection::Stated,
+                            L"and an invocation that named one must not be told it back");
+
+            Assert::IsTrue (as65.dialect == DialectId::As65, L"--as65 selects as65");
+            Assert::IsTrue (as65.dialectSelection == DialectSelection::Stated);
+
+            Assert::IsTrue (slashed.dialect == DialectId::Merlin, L"the slash form selects it too");
+
+            //  The default is unchanged, so every `run` written before this
+            //  keeps assembling what it always did.
+            Assert::IsTrue (unstated.dialect == DialectId::As65,
+                            L"naming no assembler still means as65");
+            Assert::IsTrue (unstated.dialectSelection == DialectSelection::Defaulted,
+                            L"and that is reportable, because nobody asked for it");
+        }
+
         //  as65 states no table, and the absence is the point: its grammar is a
         //  hand-rolled walk over a historical command line, and a table it does
         //  not walk would be a second description of the parser.

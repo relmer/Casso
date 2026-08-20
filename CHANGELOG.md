@@ -117,6 +117,23 @@ Entries before versioning was introduced use dates only.
   tests; the grammar's one filesystem question — does `build` name a real
   `build.a65`? — is injected rather than probed directly.
 
+### Added
+- **`run` names its assembler: `--as65` or `--merlin`.** `run` given a source
+  assembled it as as65 and nothing else, so a Merlin source could be assembled
+  or run, but not both in one step. The default is unchanged, and the flag is
+  ignored for a binary, which needs no assembler.
+- **`-w` wraps the listing instead of being ignored.** It was parsed, stored,
+  and read by no code, so a listing ran as wide as its widest source line
+  however narrow a width was asked for. `-w <n>` wraps at that column, `-w`
+  alone means 133, and `0` disables wrapping; the default is 80. Continuations
+  indent to the source column, so wrapped text lines up under the text rather
+  than under the address and object bytes, which a listing's reader scans
+  positionally.
+- **`-g` writes its symbols in both useful orders.** The debug file lists them
+  by address as before, then again by name, case-insensitively. Reading one is
+  two different questions — what sits at an address, and where a name went —
+  and each order answers one of them.
+
 ### Fixed
 - **Merlin now takes its mnemonics in any case.** `lda` was refused as an
   invalid mnemonic while `org` on the line above was accepted, so the case rule

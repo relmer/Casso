@@ -649,7 +649,10 @@ static HRESULT WriteListingOutput (const AssemblyResult & result,
             }
         }
 
-        *listOut << Assembler::FormatListingLine (line, options.cycleCounts) << "\n";
+        for (const std::string & row : Assembler::FormatListingRows (line, options.cycleCounts, options.pageWidth))
+        {
+            *listOut << row << "\n";
+        }
     }
 
 Error:
@@ -957,12 +960,14 @@ static void PrintUsageAssembler (const char * sp)
     std::println ("  {:<22} Target CPU (default: 6502). Under 6502 a 65C02-only",
                   CommandLineParser::FormatLongOption ("--cpu", sp[0]) + " <6502|65c02>");
     std::println ("                         instruction is an assembly error, not a surprise");
+    std::println ("");
+    std::println ("  Output shape. With neither, a full 64 KB image padded with the fill byte:");
     std::println ("  {:<22} Write only the assembled bytes, unpadded",
                   CommandLineParser::FormatLongOption ("--raw", sp[0]));
     std::println ("  {:<22} Write the assembled bytes behind a 4-byte DOS 3.3",
                   CommandLineParser::FormatLongOption ("--dos-bin", sp[0]));
     std::println ("                         header (load address + length), ready to BLOAD");
-    std::println ("                         (default: a full 64 KB image, padded)");
+    std::println ("");
 
     const char * lines[] =
     {
@@ -979,15 +984,16 @@ static void PrintUsageAssembler (const char * sp)
         "  {0}s                     Write Motorola S-record (<source>.s19)",
         "  {0}s2                    Write Intel HEX (<source>.hex)",
         "  {0}t                     Generate symbol table",
+        "  {0}w [<width>]           Wrap the listing at <width> columns (default: 80;",
+        "                         {0}w alone = 133). Continuations indent to the source",
         "  {0}v                     Verbose: pass timings and an assembly summary,",
         "                         all on stderr",
         "  {0}z                     Fill unused space with $00 (default: $FF). Applies",
         "                         to the padded image only -- raw and dos-bin never pad",
         "",
         "  Accepted and not yet implemented, so an as65 invocation is not refused:",
-        "  {0}h <lines>             Listing page height; NYI",
+        "  {0}h <lines>             Listing page height (form feed every <lines>); NYI",
         "  {0}n                     Disable optimizations; NYI",
-        "  {0}w [<width>]           Listing column width; NYI",
         "                         Tracked at https://github.com/relmer/Casso/issues/118",
     };
 
@@ -997,7 +1003,15 @@ static void PrintUsageAssembler (const char * sp)
     }
 
     std::println ("");
-    std::println ("  Flags can be concatenated: {0}tlfile = {0}t {0}lfile", sp);
+    std::println ("  The as65 command line has its own habits, kept for compatibility:");
+    std::println ("    Single letters concatenate, value-taking flag last:");
+    std::println ("      {0}tlfile        is {0}t {0}lfile", sp);
+    std::println ("    A value ATTACHES to its flag -- {0}ofile, not {0}o file -- except", sp);
+    std::println ("      that {0}o and {0}l also accept a separated one.", sp);
+    std::println ("    {0}s2 is one flag, not {0}s followed by a 2.", sp);
+    std::println ("    Long options are whole words: {}. Either prefix works, and",
+                  CommandLineParser::FormatLongOption ("--raw", sp[0]));
+    std::println ("      the one you type FIRST is the one answers come back in.");
 }
 
 
@@ -1016,7 +1030,12 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
     std::println ("Run options:");
     std::println ("  <binary>               A binary file to load and execute");
     std::println ("  <source>               An assembly source file to assemble and run");
-    std::println ("                         (will try .a65, .asm, .s if no extension is present)");
+    std::println ("                         (tries .a65, .asm, .s if no extension is given)");
+    std::println ("");
+    std::println ("  {:<22} Which assembler reads a source (default: as65).",
+                  CommandLineParser::FormatLongOption ("--as65", sp[0]) + " | "
+                  + CommandLineParser::FormatLongOption ("--merlin", sp[0]));
+    std::println ("                         Ignored for a binary, which needs no assembler");
     std::println ("");
 
     const char * lines[] =
@@ -1072,7 +1091,13 @@ void PrintUsage (char prefix)
     std::println ("                         (tries .a65, .asm, .s if no extension is given)");
     std::cout << DialectHelp::GetDialectFlags (DialectRegistry::Get (DialectId::Merlin), prefix);
     std::println ("");
-    std::println ("  The CPU comes from the source, not the command line: XC selects the 65C02.");
+    std::println ("  Where merlin differs from as65 on the command line:");
+    std::println ("    No CPU flag. The source selects its processor with XC.");
+    std::println ("    No {0}z. The flat shape always pads with $FF; the others never pad.", sp);
+    std::println ("    {0}l takes an ATTACHED filename only. A bare word after it is far", sp);
+    std::println ("      more likely to be the source, and swallowing it leaves no input.");
+    std::println ("    The source may name its own object file; {0}o beats it.", sp);
+    std::println ("");
     std::println ("  Where merlin support ends is in docs/Assembler.md.");
 
     PrintUsageRun       (lp, sp, pad);
@@ -1199,7 +1224,14 @@ int DoRun (const CommandLineOptions & options)
         AssemblerOptions  asmOptions = {};
         AssembleResult    ar;
 
-        asmOptions.warningMode = options.warningMode;
+        asmOptions.warningMode      = options.warningMode;
+
+        // Which assembler reads the source, from --as65 / --merlin. Carried with
+        // its provenance for the same reason the subcommands carry it: a dialect
+        // the caller named needs no report, one it inherited does.
+        asmOptions.dialect          = options.dialect;
+        asmOptions.dialectSelection = options.dialectSelection;
+        asmOptions.flagPrefix       = options.flagPrefix;
 
         ar = AssembleFile (options.inputFile, SelectInstructionSet (options, cpu), nullptr, asmOptions);
         ReportAssemblyDiagnostics (ar);

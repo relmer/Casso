@@ -240,6 +240,102 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCy
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormatListingRows
+//
+//  One listing row, wrapped to a column width.
+//
+//  The wrap point is the last space that fits, so a line breaks between words
+//  where it can. A single word longer than the space available is cut at the
+//  margin instead -- a symbol wider than the page has to go somewhere, and
+//  refusing to break it would print a line wider than the width asked for.
+//
+//  Continuations carry the source column's indent and nothing else: no line
+//  number, no address, no bytes. Repeating those would claim a second line
+//  emitted the same bytes, and blanking them by hand at each call site is how
+//  two callers end up disagreeing about the layout.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> Assembler::FormatListingRows (const AssemblyLine & line,
+                                                       bool showCycleCounts,
+                                                       int  columnWidth)
+{
+    std::vector<std::string>  rows;
+    std::string               full    = FormatListingLine (line, showCycleCounts);
+    size_t                    width   = (columnWidth > 0) ? (size_t) columnWidth : 0;
+    size_t                    indent  = 0;
+    bool                      wraps   = (width > 0) && (full.size() > width);
+
+
+
+    if (!wraps)
+    {
+        rows.push_back (full);
+        return rows;
+    }
+
+    // Where the source text starts in the rendered row, found by subtracting it
+    // rather than by recomputing the column arithmetic -- which would be a
+    // second copy of the layout, free to drift from the first.
+    indent = full.size() - line.sourceText.size();
+
+    // A width that cannot fit the fixed columns plus one character of text
+    // leaves nothing to wrap INTO, and looping would never advance.
+    if (indent + 1 >= width)
+    {
+        rows.push_back (full);
+        return rows;
+    }
+
+    rows.push_back (full.substr (0, width));
+
+    for (size_t taken = width; taken < full.size(); )
+    {
+        size_t  room  = 0;
+        size_t  chunk = 0;
+        size_t  brk   = std::string::npos;
+
+        // A continuation starts at text, not at whatever whitespace the cut
+        // landed in the middle of. Done at the top so it covers the first
+        // continuation as well, which begins at a hard cut rather than at a
+        // break this loop chose.
+        while (taken < full.size() && full[taken] == ' ')
+        {
+            taken++;
+        }
+
+        if (taken >= full.size())
+        {
+            break;
+        }
+
+        room  = width - indent;
+        chunk = std::min (room, full.size() - taken);
+
+        if (taken + chunk < full.size())
+        {
+            brk = full.rfind (' ', taken + chunk);
+        }
+
+        if (brk != std::string::npos && brk > taken)
+        {
+            chunk = brk - taken;
+        }
+
+        rows.push_back (std::string (indent, ' ') + full.substr (taken, chunk));
+
+        taken += chunk;
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FormatSymbolTable
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -282,16 +378,42 @@ std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, 
 
 std::string Assembler::FormatDebugInfo (const std::unordered_map<std::string, Word> & symbols)
 {
-    std::string output;
+    std::string                                output;
+    std::vector<std::pair<std::string, Word>>  sorted (symbols.begin(), symbols.end());
 
 
 
     // Sort symbols by address for deterministic output
-    std::vector<std::pair<std::string, Word>> sorted (symbols.begin(), symbols.end());
-
     std::sort (sorted.begin(), sorted.end(),
         [] (const auto & a, const auto & b) { return a.second < b.second; });
 
+    output += "; by address\n";
+
+    for (const auto & pair : sorted)
+    {
+        output += std::format ("{}=${:04X}\n", pair.first, pair.second);
+    }
+
+    // The same symbols again, by NAME. Reading a debug file is two different
+    // questions -- "what is at $0310" and "where did FOO go" -- and a table
+    // sorted for one answers the other by scanning. Both are cheap to write and
+    // neither is cheap to reconstruct by hand.
+    //
+    // Case-insensitive, so `foo` and `FOO` sort together rather than landing in
+    // separate runs of the alphabet. Ties fall back to the case-sensitive
+    // comparison, because the sort has to be a total order: symbols differing
+    // only in case are distinct symbols here, and leaving their order to the
+    // hash container would make the file differ between runs.
+    std::sort (sorted.begin(), sorted.end(),
+        [] (const auto & a, const auto & b)
+        {
+            std::string  left  = Parser::ToUpper (a.first);
+            std::string  right = Parser::ToUpper (b.first);
+
+            return (left != right) ? (left < right) : (a.first < b.first);
+        });
+
+    output += "\n; by symbol\n";
 
     for (const auto & pair : sorted)
     {

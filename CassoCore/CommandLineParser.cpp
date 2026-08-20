@@ -914,6 +914,12 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
 
             case 'w':
             {
+                //  Bare `-w` is as65's wide listing, which is a width rather
+                //  than a switch: 133 columns, the width of a 132-column
+                //  printer plus its carriage. Left as the default before this,
+                //  which made the flag do nothing at all.
+                constexpr int  kWideListing = 133;
+
                 if (!rest.empty())
                 {
                     uint32_t val = 0;
@@ -928,6 +934,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
                 }
                 else
                 {
+                    options.pageWidth = kWideListing;
                     pos++;
                 }
 
@@ -1502,6 +1509,29 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
     while (argIndex < argc)
     {
         std::string arg (argv[argIndex]);
+
+        // Which assembler reads a SOURCE handed to `run`. Named the same way the
+        // subcommands name it, because the question is the same question: a
+        // dialect the tool inferred is a dialect nobody stated. Ignored when the
+        // input is a binary, which needs no assembler at all.
+        //
+        // The default stays as65, so every `run` invocation written before this
+        // existed keeps assembling what it always did.
+        if (IsLongOption (arg, "--as65", options))
+        {
+            options.dialect          = DialectId::As65;
+            options.dialectSelection = DialectSelection::Stated;
+            argIndex++;
+            continue;
+        }
+
+        if (IsLongOption (arg, "--merlin", options))
+        {
+            options.dialect          = DialectId::Merlin;
+            options.dialectSelection = DialectSelection::Stated;
+            argIndex++;
+            continue;
+        }
 
         // Normalize / prefix to - on Windows
         if (arg.size() > 1 && arg[0] == '/')

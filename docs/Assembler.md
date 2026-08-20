@@ -91,7 +91,8 @@ runtime surprise.
 | `-m` | Show macro expansions in the listing. |
 | `-p` | Generate a pass 1 listing. |
 | `-t` | Generate a symbol table. |
-| `-g <file>` | Write symbol addresses, one `NAME=$ADDR` per line, sorted by address. Casso's own format -- there is no standard being followed. |
+| `-w [<width>]` | Wrap the listing at `<width>` columns. Default `80`; `-w` alone means `133`; `0` disables wrapping. Continuations indent to the source column, so wrapped text lines up under the text rather than under the address and bytes. |
+| `-g <file>` | Write symbol addresses as `NAME=$ADDR`, **twice**: once ordered by address under a `; by address` heading, then again ordered by symbol name, case-insensitively, under `; by symbol`. Reading a debug file is two questions -- what is at an address, and where a name went -- and each order answers one. Casso's own format; no standard is being followed. |
 
 ### Symbols and diagnostics
 
@@ -108,7 +109,7 @@ runtime surprise.
 
 ### Accepted but not yet implemented
 
-All four are parsed and then read by no code, so passing them changes nothing.
+Both are parsed and then read by no code, so passing them changes nothing.
 They exist so an as65 invocation is not refused outright. Tracked by
 [#118](https://github.com/relmer/Casso/issues/118).
 
@@ -117,7 +118,6 @@ They exist so an as65 invocation is not refused outright. Tracked by
 | `-i` | Ignore case in **opcodes**, so `adc` and `ADC` are the same instruction. Labels stay case-sensitive. | Accepted, ignored — and it has nothing left to switch on, because opcodes are matched case-insensitively either way. That is now a deliberate rule rather than a coincidence; see [Case](#case). |
 | `-n` | Disable optimizations, overriding the `OPT` pseudo-instruction. | Accepted, ignored. |
 | `-h <lines>` | Listing page height; `0` disables pagination. | Accepted, ignored. The listing is not paginated at all. |
-| `-w [<width>]` | Listing column width. | Accepted, ignored. |
 
 ---
 
@@ -138,12 +138,13 @@ They exist so an as65 invocation is not refused outright. Tracked by
 `run` takes either a binary or a source file. Given source, it assembles first
 and runs the result — no intermediate file.
 
-**`run` assembles as65 syntax.** It names no dialect, so it takes the default;
-there is no way to run a Merlin source in one step. Assemble it with `merlin`
-first and `run` the binary.
+**`run` names its assembler.** `--as65` (the default) or `--merlin` decides which
+dialect reads a source; the flag is ignored for a binary, which needs no
+assembler at all.
 
 | Option | Meaning |
 |---|---|
+| `--as65` \| `--merlin` | Which assembler reads a source. Default `--as65`. |
 | `--load <addr>` | Load address. Default `$8000`. |
 | `--entry <addr>` | Entry point. Defaults to the load address. |
 | `--reset-vector` | Take the entry point from the reset vector at `$FFFC`/`$FFFD`. |

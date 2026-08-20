@@ -1716,6 +1716,118 @@ namespace AssemblerTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
+        //  Listing_Wrapping
+        //
+        //  -w was accepted and read by no code, so a listing ran as wide as its
+        //  widest source line however narrow a width was asked for.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Listing_WrapsToTheRequestedWidth)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+            std::string       source  = "LDA #$42 ; a trailing comment long enough to need more than one row";
+
+            cpu.InitForTest();
+            options.generateListing = true;
+
+            Assembler       asm6502 (cpu.GetInstructionSet(), options);
+            AssemblyResult  result = asm6502.Assemble (source);
+
+            Assert::IsTrue (result.success);
+
+            std::vector<std::string>  rows = Assembler::FormatListingRows (result.listing[0], false, 40);
+
+            Assert::IsTrue (rows.size() > 1, L"a line wider than the width must produce continuations");
+
+            for (const std::string & row : rows)
+            {
+                Assert::IsTrue (row.size() <= 40,
+                                L"no row may exceed the width, which is the whole of what -w asks for");
+            }
+
+            //  Continuations line up under the SOURCE, not under the address and
+            //  bytes -- a listing is read positionally, and text wrapped into the
+            //  fixed columns would be read as belonging to them.
+            std::string  first = Assembler::FormatListingLine (result.listing[0], false);
+            size_t       indent = first.size() - result.listing[0].sourceText.size();
+
+            Assert::AreEqual (indent, rows[1].find_first_not_of (' '),
+                              L"a continuation starts at the source column");
+        }
+
+
+
+        //  A width of zero means "do not wrap", so a caller with no preference
+        //  gets exactly what it got before wrapping existed.
+        TEST_METHOD (Listing_WidthOfZeroLeavesTheRowAlone)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+
+            cpu.InitForTest();
+            options.generateListing = true;
+
+            Assembler       asm6502 (cpu.GetInstructionSet(), options);
+            AssemblyResult  result = asm6502.Assemble ("LDA #$42 ; a trailing comment long enough to matter");
+
+            std::vector<std::string>  rows = Assembler::FormatListingRows (result.listing[0], false, 0);
+
+            Assert::AreEqual ((size_t) 1, rows.size(), L"width 0 must not wrap");
+            Assert::AreEqual (Assembler::FormatListingLine (result.listing[0], false), rows[0]);
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  DebugInfo_TwoOrders
+        //
+        //  Reading a debug file is two questions -- "what is at $0310" and
+        //  "where did FOO go" -- so both orders are written.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (DebugInfo_ListsSymbolsByAddressAndAgainByName)
+        {
+            std::unordered_map<std::string, Word>  symbols;
+
+            symbols["zebra"] = 0x0300;
+            symbols["ALPHA"] = 0x0310;
+            symbols["mid"]   = 0x0308;
+
+            std::string  text      = Assembler::FormatDebugInfo (symbols);
+            size_t       byAddress = text.find ("; by address");
+            size_t       bySymbol  = text.find ("; by symbol");
+
+            Assert::IsTrue (byAddress != std::string::npos, L"the address-ordered table must be labeled");
+            Assert::IsTrue (bySymbol  != std::string::npos, L"and so must the name-ordered one");
+            Assert::IsTrue (byAddress < bySymbol,           L"address order first, as it always was");
+
+            //  In the first table zebra ($0300) precedes ALPHA ($0310); in the
+            //  second, case-insensitive order puts ALPHA first. Asserting both
+            //  is what distinguishes two orders from the same order printed
+            //  twice.
+            std::string  first  = text.substr (byAddress, bySymbol - byAddress);
+            std::string  second = text.substr (bySymbol);
+
+            Assert::IsTrue (first.find ("zebra") < first.find ("ALPHA"),
+                            L"the first table is ordered by address");
+            Assert::IsTrue (second.find ("ALPHA") < second.find ("mid"),
+                            L"the second is ordered by name, case-insensitively");
+            Assert::IsTrue (second.find ("mid") < second.find ("zebra"),
+                            L"so `mid` sorts between ALPHA and zebra rather than after both");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
         //  Listing_ColumnLayout_MatchesAS65
         //
         //  Pins the listing's field positions against the AS65 layout, column
