@@ -484,15 +484,10 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
 
     if (!crcOk)
     {
-        EhmNotifyUser (L"This disk image's stored checksum does not match its "
-                       L"contents, so the file is damaged or was written by a "
-                       L"tool that miscomputed it.\n\nCasso has loaded it anyway "
-                       L"so you can read it, and has write-protected it for this "
-                       L"session: rewriting the file would give it a newly "
-                       L"computed checksum and leave nothing able to detect the "
-                       L"damage. The emulated machine will see the disk as "
-                       L"write-protected. Work on a copy if you need to write "
-                       L"to it.");
+        // Deliberately NOT reported here. EhmNotifyUser carries a string and
+        // nothing else, and this report needs an action on it -- salvage --
+        // which only the shell can offer. EmulatorShell::ReportDamagedMount
+        // raises it after the mount instead. The flag below is what it reads.
     }
 
     pos = kSigLen + kCrcLen;

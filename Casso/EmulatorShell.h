@@ -57,6 +57,7 @@
 class DxuiHwndSource;
 class SettingsSheet;
 class JsonValue;
+class SalvageDialogContent;
 
 
 
@@ -763,6 +764,26 @@ private:
 
     // Whether the Disk menu offers the write-protect toggle for a drive.
     bool    IsWriteProtectToggleOffered (int drive);
+
+    // Whether the Disk menu offers salvage for a drive: only a damaged image
+    // with ordinary 16-sector structure can be rebuilt from its sectors.
+    bool    IsSalvageOffered (int drive);
+
+    // Shows a dialog whose body is a caller-built panel rather than text runs,
+    // for content a string cannot carry (here: an aligned figures table and a
+    // warning banner).
+    int     ShowSalvageDialog (const DialogDefinition & def,
+                               std::unique_ptr<SalvageDialogContent> content);
+
+    // The whole salvage interaction: assess, show the figures, write the copy
+    // on confirmation, then offer to insert it.
+    void    RunSalvageFlow (int drive);
+
+    // Reports a freshly mounted image that failed its stored checksum, with
+    // salvage offered inline. Raised here rather than by the loader because a
+    // dialog with an action on it is the shell's business, and EhmNotifyUser
+    // carries a string and nothing else.
+    void    ReportDamagedMount (int drive);
 
     // The EHM user-notification sink, installed with SetNotifyFunction so
     // every CHRN / CBRN in the tree reports through Casso's own themed

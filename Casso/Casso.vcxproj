@@ -283,6 +283,7 @@
     <ClCompile Include="Ui\Chrome\DriveLabelTruncation.cpp" />
     <ClCompile Include="Ui\Dialogs\DialogBodyContent.cpp" />
     <ClCompile Include="Ui\Dialogs\MessageDialog.cpp" />
+    <ClCompile Include="Ui\Dialogs\SalvageDialogContent.cpp" />
     <ClCompile Include="Ui\Dialogs\CreateDiskDialog.cpp" />
     <ClCompile Include="Ui\FileBrowseModel.cpp" />
     <ClCompile Include="Ui\Dialogs\DownloadBodyPanel.cpp" />
@@ -328,6 +329,7 @@
     <ClInclude Include="Ui\Dialogs\DialogDefinition.h" />
     <ClInclude Include="Ui\Dialogs\DialogBodyContent.h" />
     <ClInclude Include="Ui\Dialogs\MessageDialog.h" />
+    <ClInclude Include="Ui\Dialogs\SalvageDialogContent.h" />
     <ClInclude Include="Ui\Dialogs\CreateDiskDialog.h" />
     <ClInclude Include="Ui\FileBrowseModel.h" />
     <ClInclude Include="Ui\Dialogs\DownloadBodyPanel.h" />

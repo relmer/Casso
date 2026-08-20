@@ -43,6 +43,7 @@
 #include "Window/DxuiHwndSource.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
+#include "Ui/Dialogs/SalvageDialogContent.h"
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 
 #pragma comment(lib, "ole32.lib")
@@ -834,6 +835,13 @@ HRESULT EmulatorShell::Initialize (
     PowerCycle();
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
+
+    // Report a damaged image now the mount has settled. The window already
+    // exists at this point (CreateEmulatorWindow runs earlier in Initialize),
+    // so the prompt has something to parent to and can carry its Salvage
+    // button.
+    ReportDamagedMount (0);
+    ReportDamagedMount (1);
 
     // A disk mounted at startup (boot-disk picker result or --disk1 /
     // --disk2) belongs in the recent-disks MRU just like one mounted via
@@ -2213,8 +2221,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         switch (commandId)
         {
-            case IDM_DISK_WP1: return IsWriteProtectToggleOffered (0);
-            case IDM_DISK_WP2: return IsWriteProtectToggleOffered (1);
+            case IDM_DISK_WP1:      return IsWriteProtectToggleOffered (0);
+            case IDM_DISK_WP2:      return IsWriteProtectToggleOffered (1);
+            case IDM_DISK_SALVAGE1: return IsSalvageOffered (0);
+            case IDM_DISK_SALVAGE2: return IsSalvageOffered (1);
             default:           return true;
         }
     });
@@ -3325,6 +3335,263 @@ void EmulatorShell::FlushPendingNotifications()
     for (i = 0; i < pending.size(); i++)
     {
         ShowNotification (pending[i]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowSalvageDialog
+//
+//  Shows a dialog whose body is a caller-built panel instead of wrapped text
+//  runs. The salvage dialog needs a figures table and a warning banner, and
+//  neither survives being expressed as a string: a table spaced with padding
+//  characters comes apart at any font or DPI other than the author's.
+//
+//  Wider than the standard dialog because the table has three columns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::ShowSalvageDialog (const DialogDefinition             &  def,
+                                      std::unique_ptr<SalvageDialogContent>  content)
+{
+    constexpr int  s_kDialogWidthDip  = 520;
+    constexpr int  s_kChromeHeightDip = 108;   // caption + content pad*2 + button row
+    constexpr int  s_kMinHeightDip    = 160;
+    constexpr int  s_kMaxHeightDip    = 620;
+
+    MessageDialog                       dlg;
+    DxuiWindow::CreateParams            params;
+    std::vector<MessageDialog::Button>  buttons;
+    HRESULT                             hr        = S_OK;
+    int                                 heightDip = 0;
+    int                                 result    = -1;
+
+
+
+    CBRAEx (content != nullptr, E_INVALIDARG);
+
+    // The panel measures itself once laid out; until then its preferred
+    // height is the estimate it reported for the width we are about to give
+    // it, which is why the width is fixed above rather than derived.
+    heightDip = std::clamp (s_kChromeHeightDip + content->PreferredHeightDip(),
+                            s_kMinHeightDip,
+                            s_kMaxHeightDip);
+
+    for (const DialogButton & button : def.buttons)
+    {
+        buttons.push_back ({ button.label, button.resultCode, button.isDefault, button.isCancel });
+    }
+
+    dlg.Configure (std::move (content), std::move (buttons), def.closeBoxResult.value_or (-1));
+
+    params.title                    = def.title;
+    params.hInstance                = m_hInstance;
+    params.ownerHwnd                = m_hwnd;
+    params.initialSizeDip           = { s_kDialogWidthDip, heightDip };
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+
+    hr = dlg.Create (params);
+    CHRA (hr);
+
+    dlg.SetTheme (&m_chromeTheme);
+
+    result = dlg.TranslateResult (dlg.ShowModalDialog (dlg.DefaultCommandId()));
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::IsSalvageOffered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsSalvageOffered (int drive)
+{
+    SalvageAssessment  assessment;
+    HRESULT            hr = m_diskStore.AssessSalvage (6, drive, assessment);
+
+
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    return assessment.isOffered;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::RunSalvageFlow
+//
+//  Assess, show the figures, write on confirmation, then offer to insert the
+//  copy. The assessment is shown BEFORE anything is written: a lossy copy is
+//  the user's decision to make with the numbers in front of them, not one to
+//  learn about afterwards.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RunSalvageFlow (int drive)
+{
+    SalvageAssessment                       assessment;
+    DenibblizeReport                        report;
+    DialogDefinition                        def;
+    std::unique_ptr<SalvageDialogContent>   content;
+    HRESULT                                 hr        = S_OK;
+    int                                     choice    = 0;
+    std::wstring                            sourcePath;
+    std::wstring                            destName;
+    std::wstring                            summary;
+
+
+
+    hr = m_diskStore.AssessSalvage (6, drive, assessment);
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    if (!assessment.isOffered)
+    {
+        return;
+    }
+
+    sourcePath = fs::path (m_diskStore.GetSourcePath (6, drive)).wstring();
+    destName   = fs::path (assessment.suggestedPath).filename().wstring();
+
+    content = std::make_unique<SalvageDialogContent>();
+    content->SetAssessment (sourcePath, destName, assessment);
+
+    def.title = L"Salvage readable sectors";
+    def.buttons.push_back (DialogButton { L"Salvage", 1, true,  false, false });
+    def.buttons.push_back (DialogButton { L"Cancel",  0, false, true,  false });
+
+    choice = ShowSalvageDialog (def, std::move (content));
+    if (choice != 1)
+    {
+        return;
+    }
+
+    hr = m_diskStore.SalvageToFile (6, drive, assessment.suggestedPath, report);
+
+    if (FAILED (hr))
+    {
+        DialogDefinition  failed;
+
+        failed.title = L"Could not write the salvaged copy";
+        failed.icon  = DialogIcon::Error;
+        failed.body.push_back (DialogTextRun {
+            fs::path (assessment.suggestedPath).wstring() + L"\n\n"
+            L"The original disk image was not changed.\n\n" +
+            WindowCommandManager::FormatSystemError (hr), false, std::wstring() });
+        failed.buttons.push_back (DialogButton { L"OK", 0, true, true, false });
+
+        ShowModalDialog (failed);
+        return;
+    }
+
+    // Result first, then the question: the counts are what happened, not part
+    // of the prompt.
+    summary = L"Salvaged copy written to:\n\n" +
+              fs::path (assessment.suggestedPath).wstring() + L"\n\n" +
+              std::to_wstring (report.sectorsRecovered) + L" sectors recovered, " +
+              std::to_wstring (report.sectorsLost) + L" lost. The original disk "
+              L"image was not changed.\n\n"
+              L"Insert the salvaged copy into drive " + std::to_wstring (drive + 1) + L"?";
+
+    def = DialogDefinition();
+    def.title = L"Salvage complete";
+    def.body.push_back (DialogTextRun { summary, false, std::wstring() });
+    def.buttons.push_back (DialogButton { L"Insert",  1, true,  false, false });
+    def.buttons.push_back (DialogButton { L"Not now", 0, false, true,  false });
+
+    choice = ShowModalDialog (def);
+
+    if (choice == 1)
+    {
+        HRESULT  hrMount = m_diskManager->MountDiskInSlot6 (drive, assessment.suggestedPath);
+
+        IGNORE_RETURN_VALUE (hrMount, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ReportDamagedMount
+//
+//  The damage report, with salvage offered inline so the dialog is not a dead
+//  end. Reached after every mount; silent unless the image failed its stored
+//  checksum.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReportDamagedMount (int drive)
+{
+    DiskImage          * image      = m_diskStore.GetImage (6, drive);
+    SalvageAssessment    assessment;
+    DialogDefinition     def;
+    HRESULT              hr         = S_OK;
+    int                  choice     = 0;
+
+
+
+    if (image == nullptr)
+    {
+        return;
+    }
+
+    if (!image->HasSourceCrcMismatch())
+    {
+        return;
+    }
+
+    def.title = L"Disk image is damaged";
+    def.icon  = DialogIcon::Warning;
+    def.body.push_back (DialogTextRun {
+        fs::path (m_diskStore.GetSourcePath (6, drive)).wstring() + L"\n\n"
+        L"This disk image's stored checksum does not match its contents, so the "
+        L"file is damaged or was written by a tool that miscomputed it.\n\n"
+        L"Casso has loaded it anyway so you can read it, and has write-protected "
+        L"it for this session: rewriting the file would give it a newly computed "
+        L"checksum and leave nothing able to detect the damage. The emulated "
+        L"machine will see the disk as write-protected.",
+        false, std::wstring() });
+
+    hr = m_diskStore.AssessSalvage (6, drive, assessment);
+
+    if (SUCCEEDED (hr) && assessment.isOffered)
+    {
+        def.buttons.push_back (DialogButton { L"Salvage readable sectors...", 1,
+                                              false, false, false });
+    }
+
+    def.buttons.push_back (DialogButton { L"OK", 0, true, true, false });
+
+    choice = ShowModalDialog (def);
+
+    if (choice == 1)
+    {
+        RunSalvageFlow (drive);
     }
 }
 
@@ -5210,6 +5477,13 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
             // races the drive engine; failures already reported inside.
             hrToggle = m_diskManager->ToggleImageWriteProtect (drive);
             IGNORE_RETURN_VALUE (hrToggle, S_OK);
+            break;
+        }
+
+        case IDM_DISK_SALVAGE1:
+        case IDM_DISK_SALVAGE2:
+        {
+            RunSalvageFlow ((cmd.id == IDM_DISK_SALVAGE1) ? 0 : 1);
             break;
         }
 
