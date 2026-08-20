@@ -6,14 +6,35 @@ description: "Task list for 019-assembler-dialects"
 
 ## State of play
 
-*Updated 2026-08-18. Keep this current or delete it — a stale status block is
+*Updated 2026-08-20. Keep this current or delete it — a stale status block is
 read by whoever has no other way to check.*
 
+**MASTER IS MERGED IN AND EVERY GATE WAS RE-RUN AFTER IT (T095).**
+`origin/master` at `a25a3c67` — 1.16.2, the three WOZ/disk-write fixes, and the
+Dormann download hardening — merged as `b2cce9b1`. **One conflict, in
+`CHANGELOG.md`**, where both sides had written under `[Unreleased]`: resolved by
+keeping both, then consolidating what the merge left behind. It produced two
+`### Added` headings in one release; there is now one section per type in Keep a
+Changelog order, and every entry was checked to appear exactly once rather than
+eyeballed.
+
+**Suite is 3423 Debug / 3420 Release, both green** (from 3411 / 3408 — the
+twelve are master's disk-write tests). Code analysis 0 warnings, CheckStyle OK
+over 99 files, Harte passes against the reduced set,
+`scripts/RunMerlinOracles.ps1` reproduces all six shipped objects through the
+executable, and `scripts/BuildDemoDisk.ps1` reproduces its committed image byte
+for byte.
+
+**T074's caveat is discharged by the merge rather than by new work**: the branch
+now carries `bcaf69a3`, so `scripts/RunDormannTest.ps1` fails a bad download
+instead of assembling the error page. The run still reports the documented
+pre-Jan-2020 `zps` shift as informational.
+
 **THE VENDOR SOURCES ARE COMMITTED AS WINDOWS TEXT, AND THE MERLIN SUBCOMMAND
-CAN NAME ITS OUTPUT SHAPE (T092–T094). Both were user decisions.** Suite is
-**3411** Debug / **3408** Release, both green. Dormann and Harte pass, style and
-code analysis are clean (0 warnings), and `scripts/BuildDemoDisk.ps1` reproduces
-its committed image byte for byte.
+CAN NAME ITS OUTPUT SHAPE (T092–T094). Both were user decisions.** Suite was
+**3411** Debug / **3408** Release at that point, both green. Dormann and Harte
+pass, style and code analysis are clean (0 warnings), and
+`scripts/BuildDemoDisk.ps1` reproduces its committed image byte for byte.
 
 **The fixtures could not be read by the tool they test.** Stored as the disk
 holds them, the only decoder was in `UnitTest`, so the corpus was assemblable by
