@@ -235,6 +235,8 @@ OpcodeTable::FindIgnoringCase (const std::string & mnemonic) const
 {
     auto  found = m_table.find (mnemonic);
 
+
+
     if (found == m_table.end())
     {
         found = m_table.find (ToUpperCase (mnemonic.c_str()));
