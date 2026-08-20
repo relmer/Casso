@@ -617,9 +617,12 @@ public:
 
 
 
+        // The occupant is deliberately NOT a disk-ii: a Disk ][ entry with no
+        // `ports` is itself something to migrate, which would make `changed`
+        // true for a reason that has nothing to do with slot 1.
         string   input    = "{ \"$cassoMachineVersion\": 7,"
                             "  \"slots\": ["
-                            "    { \"slot\": 1, \"device\": \"disk-ii\", \"capabilityFlag\": \"optional\" }"
+                            "    { \"slot\": 1, \"device\": \"mockingboard\", \"capabilityFlag\": \"optional\" }"
                             "  ] }";
         hr = MachineConfigUpgrade::MigrateUserConfig (input, migrated, changed);
 
@@ -628,6 +631,108 @@ public:
             L"An occupied slot 1 with a canonical schema needs no change.");
         Assert::IsTrue (migrated.find ("\"parallel-printer\"") == string::npos,
             L"Slot 1 already occupied -- must not inject a printer.");
+    }
+
+
+    //
+    //  A user file that carries its own `slots[]` never receives the embedded
+    //  default's new `ports` through the merge, because a user array replaces
+    //  the default wholesale. Without the injection below, every user who had
+    //  ever touched their slots would silently lose their second drive.
+    //
+    TEST_METHOD (MigrateUserConfig_GivesAPreExistingDiskIiCardItsTwoDrivePorts)
+    {
+        string   migrated;
+        bool     changed  = false;
+        HRESULT  hr       = S_OK;
+        size_t   first    = string::npos;
+        size_t   second   = string::npos;
+
+
+
+        // Slot 1 is occupied so the only thing left to migrate is the ports,
+        // making `changed` mean what this test says it means.
+        string   input    = "{ \"$cassoMachineVersion\": 8,"
+                            "  \"slots\": ["
+                            "    { \"slot\": 1, \"device\": \"parallel-printer\", \"capabilityFlag\": \"optional\" },"
+                            "    { \"slot\": 6, \"device\": \"disk-ii\", \"rom\": \"Disk2.rom\","
+                            "      \"capabilityFlag\": \"optional\" }"
+                            "  ] }";
+        hr = MachineConfigUpgrade::MigrateUserConfig (input, migrated, changed);
+
+        first  = migrated.find ("\"disk-ii-drive\"");
+        second = (first == string::npos) ? string::npos
+                                         : migrated.find ("\"disk-ii-drive\"", first + 1);
+
+        AssertSucceeded (hr);
+        Assert::IsTrue (changed,
+            L"A Disk ][ card with no ports must be migrated.");
+        Assert::IsTrue (migrated.find ("\"ports\"") != string::npos,
+            L"The migrated card must carry a ports list.");
+        Assert::IsTrue (second != string::npos,
+            L"The card has TWO drive connectors -- both must be occupied, "
+            L"which is the hardware this config already behaved as having.");
+    }
+
+
+    //
+    //  The user's own port list is their statement about their own hardware.
+    //  An empty list means "I detached that drive", and a migration that
+    //  helpfully filled it back in would undo a deliberate choice -- the same
+    //  rule that keeps a disabled printer slot from being resurrected.
+    //
+    TEST_METHOD (MigrateUserConfig_NeverRefillsPortsTheUserEmptied)
+    {
+        string   migrated;
+        bool     changed  = false;
+        HRESULT  hr       = S_OK;
+
+
+
+        // Slot 1 is occupied on purpose: a free slot 1 would draw a printer
+        // injection and set `changed` for a reason unrelated to ports.
+        string   input    = "{ \"$cassoMachineVersion\": 9,"
+                            "  \"slots\": ["
+                            "    { \"slot\": 1, \"device\": \"parallel-printer\", \"capabilityFlag\": \"optional\" },"
+                            "    { \"slot\": 6, \"device\": \"disk-ii\", \"rom\": \"Disk2.rom\","
+                            "      \"capabilityFlag\": \"optional\","
+                            "      \"ports\": [\"disk-ii-drive\", \"\"] }"
+                            "  ] }";
+        hr = MachineConfigUpgrade::MigrateUserConfig (input, migrated, changed);
+
+        AssertSucceeded (hr);
+        Assert::IsFalse (changed,
+            L"A card that already declares its ports needs no change.");
+        Assert::IsTrue (migrated.find ("\"\"") != string::npos,
+            L"The detached second drive must stay detached.");
+    }
+
+
+    //
+    //  Only a Disk ][ gets drive ports. Another card in the same array must
+    //  come through untouched, or the injection is keying off position rather
+    //  than off what the card actually is.
+    //
+    TEST_METHOD (MigrateUserConfig_DoesNotGiveDrivePortsToOtherCards)
+    {
+        string   migrated;
+        bool     changed  = false;
+        HRESULT  hr       = S_OK;
+
+
+
+        string   input    = "{ \"$cassoMachineVersion\": 9,"
+                            "  \"slots\": ["
+                            "    { \"slot\": 1, \"device\": \"parallel-printer\", \"capabilityFlag\": \"optional\" },"
+                            "    { \"slot\": 4, \"device\": \"mockingboard\", \"capabilityFlag\": \"optional\" }"
+                            "  ] }";
+        hr = MachineConfigUpgrade::MigrateUserConfig (input, migrated, changed);
+
+        AssertSucceeded (hr);
+        Assert::IsFalse (changed,
+            L"Neither a printer nor a Mockingboard has drive ports.");
+        Assert::IsTrue (migrated.find ("\"ports\"") == string::npos,
+            L"A non-Disk-][ card must not be given drive connectors.");
     }
 
 

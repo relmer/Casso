@@ -601,6 +601,77 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ParsePorts
+//
+//  Reads a `ports` array, which describes what the owner's CONNECTORS have
+//  attached to them. The owner is a slot entry for a card's ports, or the
+//  machine root for a machine whose hardware is built in -- a //c has no
+//  slots, it has a back panel, and both are the same idea.
+//
+//  A port entry takes either form:
+//
+//      "ports": [ "disk-ii-drive", "" ]                             numbered
+//      "ports": [ { "name": "disk", "device": "disk-ii-drive" } ]   named
+//
+//  The short form is for connectors told apart only by their order, like the
+//  Disk II Interface's two drive ports. The object form is for connectors with
+//  an identity of their own, like a //c's disk/serial/joystick ports, which
+//  are emphatically not interchangeable.
+//
+//  NOTHING HERE IS AN ERROR. An empty or absent `device` is an unoccupied
+//  connector, which is a real hardware state and the most common one; a
+//  malformed entry becomes an unoccupied connector too, because refusing to
+//  load a machine over a junk port would cost the user their whole config to
+//  punish a field that has a harmless reading.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineConfigLoader::ParsePorts (
+    const JsonValue    & owner,
+    vector<PortConfig> & outPorts)
+{
+    const JsonValue * portsArray = nullptr;
+    HRESULT           hrPorts    = owner.GetArray ("ports", portsArray);
+
+    IGNORE_RETURN_VALUE (hrPorts, S_OK);
+
+    if (portsArray == nullptr)
+    {
+        // No key at all. Leave the vector empty, which every caller reads as
+        // "this machine's default" -- NOT as a machine with no connectors.
+        return;
+    }
+
+    for (size_t idx = 0; idx < portsArray->ArraySize(); idx++)
+    {
+        const JsonValue & entry = portsArray->ArrayAt (idx);
+        PortConfig        port;
+
+        if (entry.GetType() == JsonType::String)
+        {
+            port.device = entry.GetString();
+        }
+        else if (entry.GetType() == JsonType::Object)
+        {
+            HRESULT hrName = entry.GetString ("name",   port.name);
+            HRESULT hrDev  = entry.GetString ("device", port.device);
+
+            IGNORE_RETURN_VALUE (hrName, S_OK);
+            IGNORE_RETURN_VALUE (hrDev,  S_OK);
+        }
+
+        // Anything else (null, a number, a nested array) leaves both fields
+        // empty and lands here as an unoccupied connector, on purpose.
+        outPorts.push_back (port);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LoadSlots
 //
 //  Reads the peripheral slot array: which slot, what device, and the optional
@@ -676,6 +747,8 @@ HRESULT MachineConfigLoader::LoadSlots (
 
         CBRF (hasDev || hasRom,
               outError = format ("slots[{}]: must specify 'device' and/or 'rom'", idx));
+
+        ParsePorts (entry, slot.ports);
 
         if (hasRom)
         {
@@ -981,6 +1054,12 @@ HRESULT MachineConfigLoader::Load (
             CHR (hr);
         }
     }
+
+    // Optional: ports (array) -- the MACHINE's own connectors, for hardware
+    // that is built in rather than carded. A //e's drive ports belong to the
+    // card in slot 6 and are read above; a //c's belong to the machine, so a
+    // slotless machine still gets to say what it has and what is on it.
+    ParsePorts (root, outConfig.ports);
 
     // Required: video
     hr = root.GetObject ("video", pVideo);

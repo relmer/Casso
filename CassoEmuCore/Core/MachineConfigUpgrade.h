@@ -146,6 +146,10 @@ private:
     static constexpr const char *  kpszDeviceKey          = "device";
     static constexpr const char *  kpszPrinterDevice      = "parallel-printer";
     static constexpr int           kPrinterDefaultSlot    = 1;
+    static constexpr const char *  kpszPortsKey           = "ports";
+    static constexpr const char *  kpszDiskIiDevice       = "disk-ii";
+    static constexpr const char *  kpszDiskIiDrive        = "disk-ii-drive";
+    static constexpr int           kDiskIiPortCount       = 2;
 
     static int  FindKey (
         const vector<pair<string, JsonValue>> & entries,
@@ -160,6 +164,8 @@ private:
         const char  * defaultFlag);
 
     static bool  TryInjectPrinterSlot (JsonValue & arr);
+
+    static bool  TryInjectDiskPorts (JsonValue & arr);
 
     static JsonValue  RewriteTopLevel (
         const JsonValue & root,

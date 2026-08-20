@@ -148,6 +148,29 @@ struct DeviceConfig
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+//
+//  One connector and whatever is plugged into it.
+//
+//  A PORT IS NOT A DRIVE, which is the whole reason this exists instead of a
+//  drive count. The Disk II Interface has two ports taking one drive each; a
+//  DuoDisk is ONE device on ONE port providing two drive units; a ProFile is a
+//  different card in its own slot entirely. A count describes none of that.
+//
+//  `device` empty means the connector is present and nothing is on it -- which
+//  is a real and different state from the connector not existing.
+//
+//  `name` identifies a connector that has an identity of its own: a //c's back
+//  panel has a disk port, two serial ports and a joystick port, and they are
+//  not interchangeable. A card's connectors are numbered rather than named, so
+//  they leave it empty and are read positionally.
+//
+struct PortConfig
+{
+    string  name;      // "disk", "serial1", "joystick"; empty for numbered ports
+    string  device;    // what is attached; empty for an unoccupied port
+};
+
+
 struct SlotConfig
 {
     int             slot            = 0;     // 1..7
@@ -158,6 +181,11 @@ struct SlotConfig
     CapabilityFlag  capabilityFlag  = CapabilityFlag::Optional;
     string          lockReason;              // Optional: shown as tooltip when PlatformLocked.
     bool            enabled         = true;   // false => user disabled this slot (Settings > Hardware); skip install.
+
+    // What is plugged into the CARD's connectors, in port order. Absent (an
+    // empty vector) means this machine's own default, which is what every
+    // config written before the key existed relies on.
+    vector<PortConfig>  ports;
 };
 
 
@@ -254,6 +282,17 @@ struct MachineConfig
     CharacterRomReference       characterRom;
     vector<InternalDevice>      internalDevices;
     vector<SlotConfig>          slots;
+
+    // The machine's OWN connectors, for machines whose hardware is built in
+    // rather than carded. A //c has no slots at all -- it has a back panel:
+    // a disk port, two serial ports, a joystick port. Those are as real as a
+    // card's connectors and belong in the config for the same reason, which
+    // is that what is plugged into them is the owner's choice and not ours.
+    //
+    // The built-in hardware BEHIND a port is not described here and does not
+    // need to be: a //c's internal drive is soldered in, not attached, so it
+    // is not a port and never appears in this list.
+    vector<PortConfig>          ports;
     VideoConfig                 videoConfig;
     string                      keyboardType;
 
@@ -360,6 +399,19 @@ private:
                                         CapabilityFlag  defaultFlag,
                                         CapabilityFlag & outFlag,
                                         string         & outError);
+
+    // Reads an optional `ports` array off `owner` -- a slot entry or the
+    // machine root -- into `outPorts`. An entry may be a bare string naming
+    // the attached device, or an object with `name` and/or `device`, so a
+    // named connector and a numbered one use the same key. Anything else
+    // becomes an empty port rather than an error: an unoccupied connector is
+    // a legitimate state, so there is nothing here worth failing a load over.
+    //
+    // A MISSING `ports` KEY LEAVES `outPorts` EMPTY, and empty means "this
+    // machine's default" -- never "no connectors". Every config written
+    // before the key existed depends on that reading.
+    static void    ParsePorts         (const JsonValue    & owner,
+                                       vector<PortConfig> & outPorts);
 
     static HRESULT LoadTiming         (const JsonValue & timing,
                                        MachineConfig   & outConfig,

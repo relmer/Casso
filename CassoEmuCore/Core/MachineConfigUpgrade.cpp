@@ -259,6 +259,12 @@ string MachineConfigUpgrade::BytesToHex (span<const uint8_t> bytes)
 //          `internalDevices[]` (default `"required"`) and `slots[]`
 //          (default `"optional"`). Existing flags are preserved.
 //
+//      3.  `ports[]` injection on a `disk-ii` slot entry that predates the
+//          key, giving it the two occupied drive connectors it has always
+//          behaved as though it had. Needed because a user delta replaces
+//          an array wholesale, so `slots[]` in a user file never picks up
+//          the embedded default's new ports through the merge.
+//
 //  The operation is idempotent: running it on an already-canonical
 //  document leaves `outChanged` false with `outMigrated` set to the input
 //  bytes verbatim. `outChanged` is true when at least one change was
@@ -408,6 +414,95 @@ bool  MachineConfigUpgrade::TryInjectPrinterSlot (JsonValue & arr)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryInjectDiskPorts
+//
+//  Give a Disk ][ Interface entry that predates `ports` the two drive
+//  connectors the real card has, both occupied -- which is the hardware every
+//  such config has been emulating all along, now written down instead of
+//  assumed. Returns true if any entry was changed.
+//
+//  THIS EXISTS BECAUSE A USER DELTA REPLACES AN ARRAY WHOLESALE. A user file
+//  carrying its own `slots[]` never receives the embedded default's new
+//  `ports` through the merge, so without this migration everyone who has
+//  touched their slots would silently lose their second drive.
+//
+//  An entry that already has `ports` is left alone even if the list is empty
+//  or disagrees with the card: that list is the user's statement about their
+//  own hardware, and a migration that "corrects" it would reattach a drive
+//  they detached on purpose -- the same rule TryInjectPrinterSlot follows for
+//  a slot the user turned off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool  MachineConfigUpgrade::TryInjectDiskPorts (JsonValue & arr)
+{
+    vector<JsonValue>  rebuilt;
+    bool               fChanged = false;
+    size_t             i        = 0;
+    string             device;
+
+
+
+    if (arr.GetType() != JsonType::Array)
+    {
+        return false;
+    }
+
+    rebuilt.reserve (arr.ArraySize());
+
+    for (i = 0; i < arr.ArraySize(); ++i)
+    {
+        const JsonValue & elem     = arr.ArrayAt (i);
+        bool              fIsObj   = (elem.GetType() == JsonType::Object);
+        HRESULT           hrDevice = E_FAIL;
+
+        device.clear();
+
+        if (fIsObj)
+        {
+            hrDevice = elem.GetString (kpszDeviceKey, device);
+        }
+
+        // Only a Disk ][ card gets drive ports, and only if it has not
+        // already spoken for itself.
+        if (!fIsObj ||
+            EntryHasKey (elem, kpszPortsKey) ||
+            FAILED (hrDevice) ||
+            device != kpszDiskIiDevice)
+        {
+            rebuilt.push_back (elem);
+        }
+        else
+        {
+            vector<pair<string, JsonValue>>  entry = elem.GetObjectEntries();
+            vector<JsonValue>                ports;
+            int                              p     = 0;
+
+            for (p = 0; p < kDiskIiPortCount; ++p)
+            {
+                ports.emplace_back (string (kpszDiskIiDrive));
+            }
+
+            entry.emplace_back (kpszPortsKey, JsonValue (std::move (ports)));
+            rebuilt.emplace_back (JsonValue (std::move (entry)));
+            fChanged = true;
+        }
+    }
+
+    if (fChanged)
+    {
+        arr = JsonValue (std::move (rebuilt));
+    }
+
+    return fChanged;
+}
+
+
 // Build a new top-level object, applying the version canonicalization
 // rule in place. `outChanged` is set to true if anything moved.
 JsonValue  MachineConfigUpgrade::RewriteTopLevel (
@@ -519,6 +614,11 @@ HRESULT MachineConfigUpgrade::MigrateUserConfig (
             }
 
             if (TryInjectPrinterSlot (rebuilt[(size_t) idxSlots].second))
+            {
+                fChanged = true;
+            }
+
+            if (TryInjectDiskPorts (rebuilt[(size_t) idxSlots].second))
             {
                 fChanged = true;
             }

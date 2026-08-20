@@ -627,6 +627,193 @@ public:
                          L"a slotless machine has no printer");
     }
 
+
+    //
+    //  A card's ports are numbered rather than named, so they are written as
+    //  bare strings and read positionally. An empty string is a connector
+    //  with nothing on it, which is a different state from the connector not
+    //  existing -- the whole reason this is a list and not a drive count.
+    //
+    TEST_METHOD (Load_SlotPorts_BareStringsReadPositionally)
+    {
+        MachineConfig config;
+        std::string   error;
+
+
+
+        std::string json = R"({
+            "name": "Test",
+            "cpu": "6502",
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
+            "ram": [],
+            "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
+            "internalDevices": [],
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom",
+                  "ports": ["disk-ii-drive", ""] }
+            ],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
+                                                config, error);
+
+        AssertSucceeded (hr,
+            std::format (L"Load should succeed: {}",
+                std::wstring (error.begin(), error.end())).c_str());
+
+        Assert::AreEqual (size_t (1), config.slots.size());
+        Assert::AreEqual (size_t (2), config.slots[0].ports.size(),
+            L"The card declares two connectors whether or not both are used.");
+        Assert::AreEqual (std::string ("disk-ii-drive"), config.slots[0].ports[0].device);
+        Assert::IsTrue (config.slots[0].ports[1].device.empty(),
+            L"An empty string is a present-but-unoccupied connector.");
+        Assert::IsTrue (config.slots[0].ports[0].name.empty(),
+            L"A card's connectors are numbered, not named.");
+    }
+
+
+    //
+    //  A missing `ports` key must leave the vector EMPTY, which callers read
+    //  as "this machine's default" -- never as "no connectors". Every config
+    //  written before the key existed depends on that reading.
+    //
+    TEST_METHOD (Load_SlotPorts_AbsentKeyLeavesPortsEmpty)
+    {
+        MachineConfig config;
+        std::string   error;
+
+
+
+        std::string json = R"({
+            "name": "Test",
+            "cpu": "6502",
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
+            "ram": [],
+            "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
+            "internalDevices": [],
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
+            ],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
+                                                config, error);
+
+        AssertSucceeded (hr);
+        Assert::AreEqual (size_t (1), config.slots.size());
+        Assert::IsTrue (config.slots[0].ports.empty(),
+            L"No ports key means the machine's default, not a portless card.");
+    }
+
+
+    //
+    //  A slotless machine still has connectors. The //c's hardware is built
+    //  in, so its back panel belongs to the machine rather than to a card,
+    //  and those connectors are NAMED because a disk port and a joystick port
+    //  are not interchangeable.
+    //
+    TEST_METHOD (Load_MachinePorts_NamedBackPanelOnASlotlessMachine)
+    {
+        MachineConfig config;
+        std::string   error;
+
+
+
+        std::string json = R"({
+            "name": "Test //c",
+            "cpu": "65C02",
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
+            "ram": [],
+            "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
+            "internalDevices": [],
+            "ports": [
+                { "name": "disk",     "device": "disk-iic-drive" },
+                { "name": "joystick", "device": "" }
+            ],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
+                                                config, error);
+
+        AssertSucceeded (hr,
+            std::format (L"Load should succeed: {}",
+                std::wstring (error.begin(), error.end())).c_str());
+
+        Assert::IsTrue (config.slots.empty(), L"The //c has no slots at all.");
+        Assert::AreEqual (size_t (2), config.ports.size());
+        Assert::AreEqual (std::string ("disk"),           config.ports[0].name);
+        Assert::AreEqual (std::string ("disk-iic-drive"), config.ports[0].device);
+        Assert::AreEqual (std::string ("joystick"),       config.ports[1].name);
+        Assert::IsTrue (config.ports[1].device.empty(),
+            L"A named connector with nothing on it is a real state.");
+    }
+
+
+    //
+    //  A junk port entry becomes an unoccupied connector rather than failing
+    //  the load. Refusing to start a machine over a malformed port would cost
+    //  the user their whole config to punish a field with a harmless reading.
+    //
+    TEST_METHOD (Load_MachinePorts_MalformedEntryIsAnEmptyPortNotAnError)
+    {
+        MachineConfig config;
+        std::string   error;
+
+
+
+        std::string json = R"({
+            "name": "Test",
+            "cpu": "6502",
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
+            "ram": [],
+            "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
+            "internalDevices": [],
+            "ports": [null, 47, "disk-ii-drive"],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
+                                                config, error);
+
+        AssertSucceeded (hr, L"A junk port must not fail the whole load.");
+        Assert::AreEqual (size_t (3), config.ports.size(),
+            L"Every entry still counts as a connector.");
+        Assert::IsTrue (config.ports[0].device.empty());
+        Assert::IsTrue (config.ports[1].device.empty());
+        Assert::AreEqual (std::string ("disk-ii-drive"), config.ports[2].device);
+    }
+
 private:
 
     // Mock resolver that creates a temporary file of the expected size for the
