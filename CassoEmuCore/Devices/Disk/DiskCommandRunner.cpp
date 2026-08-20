@@ -214,7 +214,7 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
         "  at $0801 and nowhere else.\n"
         "\n"
         "  boot: the program has to be on the volume already, named as the catalog\n"
-        "  spells it, and the image has to carry an operating system on the tracks a\n"
+        "  records it, and the image has to carry an operating system on the tracks a\n"
         "  boot reads. On ProDOS it must be a file of type SYS, and not the kernel\n"
         "  itself. On DOS 3.3 the boot command is RUN, so an Applesoft or Integer\n"
         "  program runs. Anything else is set, reported, and the disk boots without\n"
