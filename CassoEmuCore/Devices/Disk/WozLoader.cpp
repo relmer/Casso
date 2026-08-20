@@ -294,6 +294,8 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
     bool           sigV2                = false;
     bool           sigV1                = false;
     size_t         rawSize              = 0;
+    uint32_t       storedCrc            = 0;
+    bool           crcOk                = true;
 
     rawSize = raw.size();
     CBR (rawSize >= kHeaderSize);
@@ -306,6 +308,31 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
     CBR (sigV2 || sigV1);
 
     isV2 = sigV2;
+
+    // A stored CRC of zero means the writer computed none, which the format
+    // defines as "skip validation". Any other value must match, and a
+    // mismatch is REPORTED rather than fatal: a damaged preservation dump is
+    // precisely the file a user needs to be able to open and inspect. The
+    // image carries the fact so a later flush can warn before replacing the
+    // file with a freshly checksummed copy of the same damage.
+    storedCrc = Read32LE (raw.data() + kSigLen);
+
+    if (storedCrc != 0)
+    {
+        crcOk = (storedCrc == Crc32 (raw.data() + kHeaderSize, rawSize - kHeaderSize));
+    }
+
+    out.SetSourceCrcMismatch (!crcOk);
+
+    if (!crcOk)
+    {
+        EhmNotifyUser (L"This disk image's stored checksum does not match its "
+                       L"contents, so the file is damaged or was written by a "
+                       L"tool that miscomputed it.\n\nCasso has loaded it anyway "
+                       L"so you can read it. Saving the disk will replace the "
+                       L"file with a newly checksummed copy, after which the "
+                       L"damage can no longer be detected.");
+    }
 
     pos = kSigLen + kCrcLen;
 
@@ -464,6 +491,11 @@ Error:
 //                  TRK[0] = (startingBlock=3, blockCount=N, bitCount)
 //      [block 3..]  bit-stream payload
 //
+//  The TRKS chunk size spans the record table AND the bit-stream payload
+//  that follows it, per the WOZ2 spec -- the payload is chunk content, not
+//  trailing data, so a size covering only the records leaves every later
+//  chunk unreachable to a conformant parser.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT WozLoader::BuildSyntheticV2 (
@@ -479,6 +511,7 @@ HRESULT WozLoader::BuildSyntheticV2 (
     size_t    fileBytes      = 0;
     size_t    pos            = 0;
     size_t    trksRecBytes   = kV2TrkRecordCount * kV2TrkRecordSize;
+    size_t    trksSize       = 0;
     size_t    trksHdr        = 8;
     size_t    bitStreamStart = 0;
     int       qt             = 0;
@@ -491,7 +524,7 @@ HRESULT WozLoader::BuildSyntheticV2 (
         blocks = 1;
     }
 
-    fileBytes = 3 * kV2BlockSize + blocks * kV2BlockSize;
+    fileBytes = (kV2FirstDataBlock + blocks) * kV2BlockSize;
 
     outBytes.assign (fileBytes, 0);
 
@@ -523,12 +556,15 @@ HRESULT WozLoader::BuildSyntheticV2 (
 
     pos += 8 + kTmapChunkSize;
 
+    // Records plus the block-aligned payload that follows them.
+    trksSize = trksRecBytes + blocks * kV2BlockSize;
+
     memcpy (outBytes.data() + pos, kTrksMagic, 4);
-    Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (trksRecBytes));
+    Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (trksSize));
 
-    bitStreamStart = 3 * kV2BlockSize;
+    bitStreamStart = kV2FirstDataBlock * kV2BlockSize;
 
-    Write16LE (outBytes.data() + pos + trksHdr,                  static_cast<uint16_t> (3));
+    Write16LE (outBytes.data() + pos + trksHdr,                  kV2FirstDataBlock);
     Write16LE (outBytes.data() + pos + trksHdr + 2,              static_cast<uint16_t> (blocks));
     Write32LE (outBytes.data() + pos + trksHdr + 4,              static_cast<uint32_t> (trackZeroBitCount));
 
@@ -559,6 +595,12 @@ HRESULT WozLoader::BuildSyntheticV2 (
 //      [248..1535]   TRKS chunk (8-byte hdr + 160 x 8-byte TRK records)
 //      [block 3..]   per-track bit streams, each block-aligned (512 bytes)
 //
+//  The TRKS chunk size spans the records AND the bit streams after them:
+//  they are the chunk's content, not trailing data. Sizing it to the record
+//  table alone puts a conformant parser's next chunk offset in the middle of
+//  track data, so it sees no valid id and stops -- which silently hides any
+//  chunk written after TRKS.
+//
 //  The TMAP is rebuilt from the image's quarter-track map (ResolveQuarterTrack),
 //  and each slot's TRK record points at its block-aligned bit stream. The
 //  write-protect flag is carried through from INFO. Emitting v2 for any source
@@ -577,9 +619,10 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
 
     HRESULT             hr           = S_OK;
     int                 slotCount    = img.GetTrackCount();
-    uint16_t            nextBlock    = 3;                 // blocks 0..2 hold the chunks
+    uint16_t            nextBlock    = kV2FirstDataBlock;
     uint16_t            largestTrack = 0;
     size_t              trksRecBytes = kV2TrkRecordCount * kV2TrkRecordSize;
+    size_t              trksSize     = 0;
     size_t              pos          = 0;
     int                 slot         = 0;
     int                 qt           = 0;
@@ -616,6 +659,11 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
             largestTrack = static_cast<uint16_t> (blocks);
         }
     }
+
+    // Pass 1 fixed the payload span, so the TRKS chunk size is now known:
+    // the record table plus every block assigned above.
+    trksSize = trksRecBytes
+             + static_cast<size_t> (nextBlock - kV2FirstDataBlock) * kV2BlockSize;
 
     outBytes.assign (static_cast<size_t> (nextBlock) * kV2BlockSize, 0);
 
@@ -671,7 +719,7 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
     // TRKS chunk: 160 fixed 8-byte records; populated slots reference their
     // block-aligned bit stream, the rest stay zero (empty).
     memcpy    (outBytes.data() + pos, kTrksMagic, 4);
-    Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (trksRecBytes));
+    Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (trksSize));
     {
         Byte *   trks = outBytes.data() + pos + 8;
 

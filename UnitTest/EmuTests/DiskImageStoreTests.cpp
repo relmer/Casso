@@ -600,5 +600,196 @@ public:
         Assert::AreEqual (Byte (0), store2.GetImage (6, 0)->ReadBit (0, flippedBit),
             L"the write persisted at motor-off must survive reload");
     }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  Atomic persist. FlushEntry used to open the mounted image's own path
+    //  with ofstream, which truncates it before the first byte is written --
+    //  so a write that then failed (full volume, disconnected share) left no
+    //  file at all, and nothing checked the stream afterwards, so the image
+    //  was marked clean either way. These cover the replacement: the target
+    //  is only ever swapped for a fully written temp file.
+    //
+    //  Not covered here: a write that fails PART WAY through. Forcing that
+    //  needs a filesystem seam this class does not have, so the guarantee it
+    //  rests on -- the target is untouched until the temp file is complete --
+    //  is checked structurally below rather than by simulating a short write.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    // A scratch path in the system temp directory, removed by the caller.
+    static fs::path ScratchPath (const char * name)
+    {
+        return fs::temp_directory_path() / (string ("casso_atomic_") + name);
+    }
+
+
+    static string ReadBackAll (const fs::path & path)
+    {
+        ifstream           file (path, ios::binary);
+        std::stringstream  buffer;
+
+        buffer << file.rdbuf();
+
+        return buffer.str();
+    }
+
+
+    TEST_METHOD (WriteFileAtomically_ReplacesTargetAndLeavesNoTempBehind)
+    {
+        fs::path         target = ScratchPath ("replace.bin");
+        vector<Byte>     bytes  (2048, 0x5A);
+        std::error_code  ec;
+
+        {
+            ofstream  seed (target, ios::binary);
+            seed << "stale content";
+        }
+
+        AssertSucceeded (DiskImageStore::WriteFileAtomically (target.string(), bytes));
+
+        Assert::AreEqual (size_t (2048), ReadBackAll (target).size(),
+            L"the target must hold the new bytes, not the stale ones");
+        Assert::IsFalse (fs::exists (target.string() + ".casso-tmp"),
+            L"a successful write must not leave its temp file behind");
+
+        fs::remove (target, ec);
+    }
+
+
+    TEST_METHOD (WriteFileAtomically_UnwritableTarget_LeavesOriginalIntact)
+    {
+        // The target directory does not exist, so the temp file cannot be
+        // created. The point is what does NOT happen: no partial file, no
+        // truncated target, and a reported failure rather than a silent one.
+        fs::path      missingDir = ScratchPath ("no_such_dir");
+        fs::path      target     = missingDir / "image.dsk";
+        vector<Byte>  bytes (512, 0x11);
+        HRESULT       hr         = S_OK;
+
+        Assert::IsFalse (fs::exists (missingDir), L"precondition: the directory must not exist");
+
+        hr = DiskImageStore::WriteFileAtomically (target.string(), bytes);
+
+        Assert::IsTrue (FAILED (hr),
+            L"an impossible write must report failure, not succeed silently");
+        Assert::IsFalse (fs::exists (target), L"no partial target may be left behind");
+        Assert::IsFalse (fs::exists (target.string() + ".casso-tmp"),
+            L"no temp file may be left behind on failure");
+    }
+
+
+    TEST_METHOD (Flush_ToRealFile_WritesThroughAtomicPath)
+    {
+        // The production branch -- no flush sink -- end to end on a real
+        // file. Every other test in this class installs a sink, so this path
+        // had no coverage at all.
+        DiskImageStore   store;
+        fs::path         target = ScratchPath ("flush.dsk");
+        vector<Byte>     seedBytes = MakeDsk (0x24);
+        std::error_code  ec;
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, target.string(),
+                                               DiskFormat::Dsk, seedBytes));
+        store.GetImage (kSlot, kDrive)->WriteBit (0, 0,
+            static_cast<uint8_t> (store.GetImage (kSlot, kDrive)->ReadBit (0, 0) ^ 1));
+
+        AssertSucceeded (store.Flush (kSlot, kDrive));
+
+        Assert::AreEqual (static_cast<size_t> (NibblizationLayer::kImageByteSize), ReadBackAll (target).size(),
+            L"a real-file flush must write a full-size image");
+        Assert::IsFalse (fs::exists (target.string() + ".casso-tmp"),
+            L"the flush must not leave its temp file beside the image");
+
+        fs::remove (target, ec);
+    }
+
+
+    // A WOZ carrying a valid CRC, then damaged -- the stored checksum now
+    // describes what the file used to be.
+    vector<Byte> MakeCrcDamagedWoz()
+    {
+        DiskImage     src;
+        vector<Byte>  bits (6400, 0xFF);
+        vector<Byte>  woz;
+        vector<Byte>  out;
+
+        bits[20] = 0xD5;
+        bits[21] = 0xAA;
+        bits[22] = 0x96;
+
+        AssertSucceeded (WozLoader::BuildSyntheticV2 (1, false, bits, 51200, woz));
+        AssertSucceeded (WozLoader::Load (woz, src));
+        AssertSucceeded (WozLoader::Serialize (src, out));
+
+        out[out.size() - 1] = static_cast<Byte> (out[out.size() - 1] ^ 0xFF);
+
+        return out;
+    }
+
+
+    TEST_METHOD (Flush_CrcMismatchedImage_WarnsBeforeRewritingIt)
+    {
+        // Saving replaces the file with a correctly checksummed copy of the
+        // same damage, so the mismatch stops being detectable. The user is
+        // told at the last moment it is still true -- before the write.
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<Byte>              damaged = MakeCrcDamagedWoz();
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return S_OK; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "suspect.woz",
+                                               DiskFormat::Woz, damaged));
+        Assert::IsTrue (store.GetImage (kSlot, kDrive)->HasSourceCrcMismatch(),
+            L"precondition: the mount must have seen the bad checksum");
+
+        s_flushNotifyCount = 0;
+        s_flushNotifyLast.clear();
+
+        store.GetImage (kSlot, kDrive)->WriteBit (0, 0,
+            static_cast<uint8_t> (store.GetImage (kSlot, kDrive)->ReadBit (0, 0) ^ 1));
+        AssertSucceeded (store.Flush (kSlot, kDrive));
+
+        Assert::AreEqual (1, s_flushNotifyCount,
+            L"overwriting a CRC-mismatched image must be reported once");
+        Assert::IsTrue (s_flushNotifyLast.find (L"suspect.woz") != wstring::npos,
+            L"the warning must name the image being rewritten");
+    }
+
+
+    TEST_METHOD (Flush_CrcMismatchedImage_DoesNotWarnAgainOnceRewritten)
+    {
+        // After the first save the file on disk carries a freshly computed,
+        // correct CRC -- the mismatch is no longer true of it, so repeating
+        // the warning on every later eject or power cycle would be noise.
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<Byte>              damaged = MakeCrcDamagedWoz();
+        DiskImage *               img     = nullptr;
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return S_OK; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "suspect.woz",
+                                               DiskFormat::Woz, damaged));
+        img = store.GetImage (kSlot, kDrive);
+
+        Assert::IsTrue (img->HasSourceCrcMismatch(),
+            L"precondition: the mount must have seen the bad checksum");
+
+        img->WriteBit (0, 0, static_cast<uint8_t> (img->ReadBit (0, 0) ^ 1));
+        AssertSucceeded (store.Flush (kSlot, kDrive));
+
+        s_flushNotifyCount = 0;
+
+        img->WriteBit (0, 1, static_cast<uint8_t> (img->ReadBit (0, 1) ^ 1));
+        AssertSucceeded (store.Flush (kSlot, kDrive));
+
+        Assert::AreEqual (0, s_flushNotifyCount,
+            L"the checksum warning must not repeat after the file was rewritten");
+        Assert::IsFalse (img->HasSourceCrcMismatch(),
+            L"the rewritten file's stored CRC is valid, so the flag must clear");
+    }
 };
 

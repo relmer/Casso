@@ -34,6 +34,10 @@ public:
     static constexpr size_t  kV2BlockSize       = 512;
     static constexpr size_t  kV2TrkRecordCount  = 160;
 
+    // Blocks 0..2 hold the header and the INFO / TMAP / TRKS chunks; every
+    // per-track bit stream lives at block 3 or later.
+    static constexpr uint16_t  kV2FirstDataBlock = 3;
+
     static HRESULT  Load (const vector<Byte> & raw, DiskImage & out);
 
     // Serialize a DiskImage back to a WOZ v2 byte image (INFO + TMAP +

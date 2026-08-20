@@ -68,6 +68,55 @@ Entries before versioning was introduced use dates only.
   Merlin construct in an `as65` file is still rejected, and now says which
   dialect defines it instead of reporting an unknown instruction.
 
+- **`--raw` and `--dos-bin` assembler output.** The assembler could only write
+  a full 64 KB memory image, padded with the fill byte — correct for ROM
+  burning and reference comparison, useless for loading a 2 KB routine, which
+  meant slicing 64 KB down by hand. `--raw` writes only the assembled span;
+  `--dos-bin` writes that span behind the 4-byte load-address/length header an
+  Apple DOS 3.3 binary file carries, so the result is ready to `BLOAD` once
+  placed on a disk. The default is unchanged.
+
+### Changed
+- **A run that named no `--cpu` now reports the target that stood.** Under `-v`
+  it goes to stderr, and into the listing header when a listing is produced —
+  never to stdout, which carries the listing itself when no listing file is
+  named. This affects `as65` as well as `merlin`: a build that passes `-v` or
+  `-l` gains one line reading `cpu: 6502 (dialect default)`. The point is that
+  "nothing selected a CPU, so the default stands" and "the flag I passed was
+  quietly dropped" used to look identical, and a dialect that selects its CPU in
+  source makes the difference matter.
+- **Three assembler diagnostics now quote the directive the source wrote.** The
+  origin and reserve-space messages named `.org` and `.ds` as literal text,
+  which is a spelling no dialect's table holds and simply wrong at a line that
+  wrote something else. They now quote the active dialect's canonical spelling,
+  so `as65` reads `.ORG` and `.DS` — the same directives, upper-cased. Nothing
+  else about the messages changed, and no output byte moves.
+- **A mistyped directive no longer silently drops the bytes it should have
+  produced.** A dotted word the dialect does not define was discarded without a
+  diagnostic: the line vanished from the listing, every address below it moved
+  up by however many bytes the directive would have emitted, and the run exited
+  zero. `.org $0300` / `.fill 8, $EA` / `rts` wrote a one-byte object and called
+  it a success. The spelling is now reported by name, with its line and file, so
+  a typo costs a message instead of an object nobody can explain — and where the
+  word belongs to another dialect, the message says which. This applies to every
+  dialect, since it is the shared engine that reports it. A source that has been
+  quietly losing a line will now fail to assemble; the line was never being
+  assembled, so the bytes have not changed, only the silence.
+- **The usage line no longer advertises the removed bare-source form.** It read
+  `CassoCli <source> [flags]`, which stopped working when the dialect became
+  something the invocation names; it is now built from the subcommand table, as
+  is the list of alternatives offered when the first word names nothing.
+- **An explicit output-format flag now wins over the filename's extension.**
+  Extension matching remains as the fallback when no flag is given, so as65-era
+  scripts naming a `.s19` or `.hex` output keep working. Previously the
+  extension always won, which meant `-s -o out.dat` silently wrote a flat
+  binary despite the flag asking for an S-record.
+- Command-line option modelling and parsing moved from the `CassoCli`
+  executable into `CassoCore`, where the test project can link it. Parsing was
+  previously unreachable from any test. Behavior is unchanged and now pinned by
+  tests; the grammar's one filesystem question — does `build` name a real
+  `build.a65`? — is injected rather than probed directly.
+
 ### Fixed
 - **A dialect no longer borrows the other dialect's vocabulary.** A word the
   active dialect declined was offered to a second, fixed spelling table, so 55
@@ -130,55 +179,55 @@ Entries before versioning was introduced use dates only.
   processing one — so a character sent on the first clear reading races into
   that window and is dropped.
 
-### Added
-- **`--raw` and `--dos-bin` assembler output.** The assembler could only write
-  a full 64 KB memory image, padded with the fill byte — correct for ROM
-  burning and reference comparison, useless for loading a 2 KB routine, which
-  meant slicing 64 KB down by hand. `--raw` writes only the assembled span;
-  `--dos-bin` writes that span behind the 4-byte load-address/length header an
-  Apple DOS 3.3 binary file carries, so the result is ready to `BLOAD` once
-  placed on a disk. The default is unchanged.
 
-### Changed
-- **A run that named no `--cpu` now reports the target that stood.** Under `-v`
-  it goes to stderr, and into the listing header when a listing is produced —
-  never to stdout, which carries the listing itself when no listing file is
-  named. This affects `as65` as well as `merlin`: a build that passes `-v` or
-  `-l` gains one line reading `cpu: 6502 (dialect default)`. The point is that
-  "nothing selected a CPU, so the default stands" and "the flag I passed was
-  quietly dropped" used to look identical, and a dialect that selects its CPU in
-  source makes the difference matter.
-- **Three assembler diagnostics now quote the directive the source wrote.** The
-  origin and reserve-space messages named `.org` and `.ds` as literal text,
-  which is a spelling no dialect's table holds and simply wrong at a line that
-  wrote something else. They now quote the active dialect's canonical spelling,
-  so `as65` reads `.ORG` and `.DS` — the same directives, upper-cased. Nothing
-  else about the messages changed, and no output byte moves.
-- **A mistyped directive no longer silently drops the bytes it should have
-  produced.** A dotted word the dialect does not define was discarded without a
-  diagnostic: the line vanished from the listing, every address below it moved
-  up by however many bytes the directive would have emitted, and the run exited
-  zero. `.org $0300` / `.fill 8, $EA` / `rts` wrote a one-byte object and called
-  it a success. The spelling is now reported by name, with its line and file, so
-  a typo costs a message instead of an object nobody can explain — and where the
-  word belongs to another dialect, the message says which. This applies to every
-  dialect, since it is the shared engine that reports it. A source that has been
-  quietly losing a line will now fail to assemble; the line was never being
-  assembled, so the bytes have not changed, only the silence.
-- **The usage line no longer advertises the removed bare-source form.** It read
-  `CassoCli <source> [flags]`, which stopped working when the dialect became
-  something the invocation names; it is now built from the subcommand table, as
-  is the list of alternatives offered when the first word names nothing.
-- **An explicit output-format flag now wins over the filename's extension.**
-  Extension matching remains as the fallback when no flag is given, so as65-era
-  scripts naming a `.s19` or `.hex` output keep working. Previously the
-  extension always won, which meant `-s -o out.dat` silently wrote a flat
-  binary despite the flag asking for an S-record.
-- Command-line option modelling and parsing moved from the `CassoCli`
-  executable into `CassoCore`, where the test project can link it. Parsing was
-  previously unreachable from any test. Behavior is unchanged and now pinned by
-  tests; the grammar's one filesystem question — does `build` name a real
-  `build.a65`? — is injected rather than probed directly.
+## [1.16.2] — safer disk image writes
+
+### Fixed
+- **A failed disk save no longer destroys the disk.** Flushing a mounted image
+  opened its own file for writing, which truncates it before the first byte is
+  written, and then never checked whether the write actually succeeded -- so a
+  full volume or a disconnected share replaced a working image with a truncated
+  one, or with nothing at all, and the image was marked saved either way. The
+  bytes now land in a temporary file beside the target, are verified in full,
+  and only then replace it. A failure at any point leaves the original file
+  exactly as it was, reports the loss, and keeps the image dirty so a later
+  flush retries.
+- **WOZ images Casso writes can now be read by other tools.** Every WOZ Casso
+  saved -- a mounted disk flushed after a guest write, or a blank disk it
+  created -- declared a `TRKS` chunk size covering only the 160-entry track
+  record table, leaving the track data that follows it outside the chunk it
+  belongs to. Casso read its own files back correctly, so the damage was
+  invisible from inside the emulator: a conformant parser adds that size to the
+  chunk start, lands in the middle of track data, finds no valid chunk id and
+  stops, making every chunk after `TRKS` unreachable to every tool but ours.
+  The size now spans the record table plus the block-aligned bit streams, which
+  is byte-for-byte what Applesauce writes for the same disk. No track data
+  changes -- only the size field and the header CRC.
+
+  A round trip still drops the `META` chunk and most of `INFO` (creator,
+  synchronized, boot sector format, compatible hardware, required RAM). Those
+  are separate defects in the same writer and are not fixed here, so a
+  preservation dump still loses its provenance on flush.
+- **A damaged WOZ is now reported instead of quietly repaired-looking.** The
+  loader never checked the checksum stored in a WOZ header, while the writer
+  always stamped a freshly computed one -- so a corrupt image opened silently,
+  and the first save replaced it with a correctly checksummed copy of the same
+  damage, after which nothing could tell it had ever been wrong. Casso now
+  validates the stored checksum at load and says so when it does not match. The
+  image still loads, because being able to open a damaged preservation dump is
+  the point, and a checksum of zero still means "none computed" as the format
+  specifies. Saving such an image warns first, since that save is what makes the
+  damage undetectable.
+- **Pasting into the guest no longer garbles the text.** A valid Applesoft line
+  pasted at the `]` prompt produced a SYNTAX ERROR while typing the same line
+  by hand worked. Two independent causes, both fixed: Ctrl+V is claimed as a
+  host shortcut but Windows synthesizes its control character anyway, so a
+  `^V` reached the guest keyboard ahead of the pasted text; and characters were
+  fed faster than the guest could take them. Feeding is now paced in emulated
+  cycles and waits for the keyboard strobe to stay clear, because the guest
+  clears it the moment it takes a key but may flush the keyboard again while
+  processing one — so a character sent on the first clear reading races into
+  that window and is dropped.
 
 ## [1.16.1] — the //c mouse works with VBL-interrupt software
 
