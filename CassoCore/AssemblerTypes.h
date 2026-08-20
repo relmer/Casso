@@ -361,6 +361,12 @@ struct AssemblerOptions
     bool                                        quiet             = false;   // -q flag
     bool                                        disableOpt        = false;   // -n flag
     std::unordered_map<std::string, int32_t>    predefinedSymbols;   // -d flag
+
+    // Which prefix the invocation spelled its flags with, so a diagnostic that
+    // tells the user to pass one spells it their way. The assembler has no
+    // command line of its own; this arrives from whoever built these options,
+    // and the default suits every caller that never had one.
+    char                                        flagPrefix        = '-';
 };
 
 

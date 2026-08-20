@@ -73,6 +73,13 @@ struct CommandLineOptions
     bool          hasEntryAddress = false;
     char          flagPrefix      = '-';                // '-' for Unix-style, '/' for Windows-style
 
+    //  Whether a prefixed argument has been seen yet, which is what makes the
+    //  FIRST one the one that counts. Without it a mixed command line would be
+    //  answered in whichever spelling happened to come last, so the same
+    //  invocation could be echoed back two different ways depending on the
+    //  order of flags nobody thinks of as ordered.
+    bool          flagPrefixSeen  = false;
+
     //  Which dialect the invocation named, and whether it named one at all.
     //  Two fields rather than one, because the default dialect is also a dialect
     //  a caller can ask for by name: the value alone cannot say which happened,

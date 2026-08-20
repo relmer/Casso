@@ -3068,7 +3068,8 @@ HRESULT AssemblySession::HandleKeyboardInput (const PendingLine & current, LineI
             message += " (" + prompt + ")";
         }
 
-        message += " -- define it on the command line, for example -d " + name + "=0";
+        message += " -- define it on the command line, for example "
+                 + std::string (1, m_options.flagPrefix) + "d " + name + "=0";
 
         RecordError (current.sourceLineNumber, message);
     }

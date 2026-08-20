@@ -119,6 +119,27 @@ public:
     // that offers no choice. Public for the same reason GetFlags is.
     static std::span<const OutputShape>      GetOutputShapes (DialectId dialect);
 
+    // A long option spelled the way this invocation spells them: `--name` for a
+    // dash command line, `/name` for a slash one. Public because the help text
+    // and the diagnostics have to agree with the parser about how an option is
+    // written -- printing `--dos-bin` at someone who typed `/o` tells them to
+    // use a spelling this parser would then have to accept anyway.
+    static std::string  SpellLongOption (const std::string & canonical, char flagPrefix);
+
+    // Records the prefix the user typed, the FIRST time one appears. A command
+    // line that mixes the two is answered in the spelling it opened with.
+    static void         NoteFlagPrefix  (char prefix, CommandLineOptions & options);
+
+    // Whether `arg` names the long option `canonical` (given as `--name`) in
+    // either spelling, recording the prefix as a side effect.
+    static bool         IsLongOption    (const std::string & arg, const std::string & canonical,
+                                         CommandLineOptions & options);
+
+    // The same, for the `--name=value` / `/name=value` form. `value` is filled
+    // only when the option matched with a value attached.
+    static bool         IsLongOptionWithValue (const std::string & arg, const std::string & canonical,
+                                               std::string & value, CommandLineOptions & options);
+
 private:
     static HRESULT  ParseBoundedHex (const char * text, long maxValue, long & outValue);
     static HRESULT  ParseAddress    (const char * text, Word & address);

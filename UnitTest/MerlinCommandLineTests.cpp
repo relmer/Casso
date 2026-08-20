@@ -414,6 +414,66 @@ namespace MerlinCommandLineTests
             }
         }
 
+        //  The same sweep in the Windows spelling, and it is a REGRESSION test
+        //  rather than a completeness one.
+        //
+        //  `/dos-bin` used to reach the letter loop as `-dos-bin`, where `-d`
+        //  takes a required value and swallowed `os-bin` as a symbol definition.
+        //  No warning, no header, exit 0 -- the file was simply the wrong shape.
+        //  `/raw` on the as65 side did the same thing and wrote 65536 bytes where
+        //  27 were asked for. A flag the help advertises has to be a flag the
+        //  parser accepts, in both spellings the help is willing to print.
+        TEST_METHOD (EveryOutputShapeIsAcceptedInTheSlashSpellingToo)
+        {
+            for (const CommandLineParser::OutputShape & shape : CommandLineParser::GetOutputShapes (DialectId::Merlin))
+            {
+                std::string         slashed = CommandLineParser::SpellLongOption (shape.spelling, '/');
+                CommandLineOptions  opts    = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", slashed });
+
+                Assert::IsTrue (opts.outputFormat == shape.format,
+                                Fixture::Widen (slashed + " did not select its declared format").c_str());
+                Assert::AreEqual ('/', opts.flagPrefix,
+                                  Fixture::Widen (slashed + " did not record the prefix it was typed with").c_str());
+            }
+        }
+
+        //  The as65 half of that regression, which is where it was found.
+        TEST_METHOD (As65AcceptsTheSlashSpellingOfItsOutputShapes)
+        {
+            CommandLineOptions  raw = Fixture::Parse ({ "CassoCli", "as65", "demo.a65", "/raw" });
+            CommandLineOptions  dos = Fixture::Parse ({ "CassoCli", "as65", "demo.a65", "/dos-bin" });
+
+            Assert::IsTrue (raw.outputFormat == CommandLineOptions::OutputFormat::Raw,
+                            L"/raw must write the assembled span, not the 64 KB image it replaces");
+            Assert::IsTrue (dos.outputFormat == CommandLineOptions::OutputFormat::DosBinary,
+                            L"/dos-bin must write the DOS 3.3 header");
+        }
+
+        //  A mixed command line is a typo, and the only wrong answer is to echo
+        //  back a spelling the user never typed. First one wins, so the answer
+        //  depends on how the invocation opens rather than on which flag happens
+        //  to sit last.
+        TEST_METHOD (TheFirstPrefixTypedIsTheOneEchoedBack)
+        {
+            CommandLineOptions  slashFirst = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", "/v", "-o", "out.bin" });
+            CommandLineOptions  dashFirst  = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", "-v", "/o", "out.bin" });
+
+            Assert::AreEqual ('/', slashFirst.flagPrefix, L"opened with a slash, so slashes come back");
+            Assert::AreEqual ('-', dashFirst.flagPrefix,  L"opened with a dash, so dashes come back");
+        }
+
+        //  An invocation that names no flag at all still has to answer in
+        //  something. The dash is the documented default, and it is asserted
+        //  rather than assumed because every message that spells a flag reads
+        //  this field.
+        TEST_METHOD (AnInvocationWithNoFlagsAnswersInDashes)
+        {
+            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s" });
+
+            Assert::AreEqual ('-', opts.flagPrefix, L"the default spelling is the dash");
+            Assert::IsFalse (opts.flagPrefixSeen,   L"and nothing claimed to have seen one");
+        }
+
         //  A whole-word flag must not fall into the letter loop. `--flat` read a
         //  character at a time is -f -l -a -t, and the `l` arm GENERATES A
         //  LISTING -- so the failure is not a warning about unknown flags, it is
@@ -641,6 +701,40 @@ namespace MerlinCommandLineTests
                 Assert::IsTrue (help.find (shape.description) != std::string::npos,
                                 Fixture::Widen (shape.description).c_str());
             }
+        }
+
+        //  Help asked for in slashes answers in slashes, all the way down.
+        //
+        //  The flag table already honored the prefix; the CPU line and the shape
+        //  lines did not, so a `/?` invocation used to print `/o` and `/l` beside
+        //  `--cpu` and `--dos-bin` -- a spelling mixture in one block, half of
+        //  which the parser then refused. The sweep asserts the absence of the
+        //  dashed form too, because a line printing BOTH spellings would satisfy
+        //  a find() for the slash one.
+        TEST_METHOD (HelpAskedForInSlashesNamesEveryLongOptionInSlashes)
+        {
+            std::string  help = DialectHelp::GetAllDialects ('/');
+
+            Assert::IsTrue  (help.find ("/cpu")  != std::string::npos, L"the CPU line must follow the prefix");
+            Assert::IsFalse (help.find ("--cpu") != std::string::npos, L"and must not also print the dashed form");
+
+            for (const CommandLineParser::OutputShape & shape : CommandLineParser::GetOutputShapes (DialectId::Merlin))
+            {
+                std::string  slashed = CommandLineParser::SpellLongOption (shape.spelling, '/');
+
+                Assert::IsTrue  (help.find (slashed)        != std::string::npos,
+                                 Fixture::Widen (slashed + " is missing from slash-spelled help").c_str());
+                Assert::IsFalse (help.find (shape.spelling) != std::string::npos,
+                                 Fixture::Widen (std::string (shape.spelling) + " leaked into slash-spelled help").c_str());
+            }
+        }
+
+        //  One long option, both spellings, from the one function that renders
+        //  them. A second slash would be nobody's convention.
+        TEST_METHOD (SpellLongOptionRendersOneSlashAndKeepsTheDashedFormIntact)
+        {
+            Assert::AreEqual (std::string ("/dos-bin"),  CommandLineParser::SpellLongOption ("--dos-bin", '/'));
+            Assert::AreEqual (std::string ("--dos-bin"), CommandLineParser::SpellLongOption ("--dos-bin", '-'));
         }
 
         //  Both halves of every row, because a help line carrying the spelling

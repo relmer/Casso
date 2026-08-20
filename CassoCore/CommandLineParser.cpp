@@ -199,12 +199,148 @@ bool CommandLineParser::ApplyOutputShape (const std::string & arg, DialectId dia
 
     for (const OutputShape & shape : GetOutputShapes (dialect))
     {
-        if (arg == shape.spelling)
+        if (IsLongOption (arg, shape.spelling, options))
         {
             options.outputFormat = shape.format;
             matched              = true;
             break;
         }
+    }
+
+    return matched;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::NoteFlagPrefix
+//
+//  The FIRST prefix wins, which is the whole point of recording it separately
+//  from the default.
+//
+//  A command line mixing the two spellings is a typo, not a request, and the
+//  only wrong answer is to echo back a spelling the user never typed. Taking
+//  the first means the answer depends on how the invocation opens rather than
+//  on which flag happens to sit last -- an order nobody thinks of as ordered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::NoteFlagPrefix (char prefix, CommandLineOptions & options)
+{
+    if (!options.flagPrefixSeen)
+    {
+        options.flagPrefix     = prefix;
+        options.flagPrefixSeen = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::SpellLongOption
+//
+//  `--name` becomes `/name` on a slash command line.
+//
+//  One slash, not two: `//name` is nobody's convention, and the Windows form of
+//  a long option has always been a single slash ahead of the whole word.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CommandLineParser::SpellLongOption (const std::string & canonical, char flagPrefix)
+{
+    std::string  bare    = canonical;
+    std::string  spelled = canonical;
+
+    while (!bare.empty() && bare[0] == '-')
+    {
+        bare.erase (0, 1);
+    }
+
+    if (flagPrefix == '/')
+    {
+        spelled = std::string ("/") + bare;
+    }
+
+    return spelled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::IsLongOption
+//
+//  Matches a long option in either spelling, so the parser accepts what the
+//  help text advertises.
+//
+//  This exists because the slash form used to fall through to the LETTER loop,
+//  where it did not fail -- it did something else. `/raw` became `-raw`, warned
+//  about an unknown `-r` and `-a`, and wrote the 64 KB image the flag was asked
+//  to suppress; `/dos-bin` became `-dos-bin`, where `-d` swallowed `os-bin` as
+//  a symbol definition and no warning appeared at all. Both produced the wrong
+//  file and reported success.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsLongOption (const std::string & arg, const std::string & canonical,
+                                      CommandLineOptions & options)
+{
+    bool  matched = (arg == canonical);
+
+    if (!matched && !arg.empty() && arg[0] == '/')
+    {
+        matched = (arg == SpellLongOption (canonical, '/'));
+    }
+
+    if (matched && !arg.empty())
+    {
+        NoteFlagPrefix (arg[0] == '/' ? '/' : '-', options);
+    }
+
+    return matched;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::IsLongOptionWithValue
+//
+//  The `=value` form of the above, for options that accept one attached.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsLongOptionWithValue (const std::string & arg, const std::string & canonical,
+                                               std::string & value, CommandLineOptions & options)
+{
+    std::string  dashed  = canonical + "=";
+    std::string  slashed = SpellLongOption (canonical, '/') + "=";
+    bool         matched = false;
+
+    if (arg.rfind (dashed, 0) == 0)
+    {
+        value   = arg.substr (dashed.size());
+        matched = true;
+    }
+    else if (arg.rfind (slashed, 0) == 0)
+    {
+        value   = arg.substr (slashed.size());
+        matched = true;
+    }
+
+    if (matched)
+    {
+        NoteFlagPrefix (arg[0] == '/' ? '/' : '-', options);
     }
 
     return matched;
@@ -577,13 +713,14 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
     while (argIndex < argc && !stop)
     {
         std::string arg (argv[argIndex]);
+        std::string attachedValue;
 
         // Check for help requests
         if (arg == "--help" || arg == "-help" || arg == "-?" || arg == "/?" || arg == "/help")
         {
             if (arg[0] == '/')
             {
-                options.flagPrefix = '/';
+                NoteFlagPrefix ('/', options);
             }
 
             options.showHelp = true;
@@ -594,20 +731,16 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
         // Long option: --cpu <target> / --cpu=<target> selects the target
         // instruction set. Default stays 6502 so 65C02-only opcodes never assemble
         // by accident; only an explicit --cpu 65c02 unlocks the CMOS tier.
-        if (arg == "--cpu" || arg.rfind ("--cpu=", 0) == 0)
+        if (IsLongOption (arg, "--cpu", options) || IsLongOptionWithValue (arg, "--cpu", attachedValue, options))
         {
-            std::string val;
+            std::string val = attachedValue;
 
-            if (arg == "--cpu")
+            if (val.empty())
             {
                 if (argIndex + 1 < argc)
                 {
                     val = argv[++argIndex];
                 }
-            }
-            else
-            {
-                val = arg.substr (6);   // after "--cpu="
             }
 
             for (char & c : val)
@@ -657,24 +790,30 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
         // Long options selecting a binary output SHAPE. The default stays the
         // as65 full-64-KB image, so an invocation that names neither is
         // unaffected.
-        if (arg == "--raw")
+        if (IsLongOption (arg, "--raw", options))
         {
             options.outputFormat = CommandLineOptions::OutputFormat::Raw;
             argIndex++;
             continue;
         }
 
-        if (arg == "--dos-bin")
+        if (IsLongOption (arg, "--dos-bin", options))
         {
             options.outputFormat = CommandLineOptions::OutputFormat::DosBinary;
             argIndex++;
             continue;
         }
 
-        // Normalize / prefix to - for flag parsing
+        // Normalize / prefix to - for flag parsing, recording which spelling the
+        // invocation opened with on the way past.
         if (arg[0] == '/')
         {
+            NoteFlagPrefix ('/', options);
             arg[0] = '-';
+        }
+        else if (arg[0] == '-')
+        {
+            NoteFlagPrefix ('-', options);
         }
 
         // Non-flag argument is the input file
@@ -906,7 +1045,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
                 break;
 
             default:
-                std::cerr << "Warning: Unknown flag: -" << flag << "\n";
+                std::cerr << "Warning: Unknown flag: " << options.flagPrefix << flag << "\n";
                 pos++;
                 break;
             }
@@ -1009,7 +1148,7 @@ bool CommandLineParser::RefuseCpuFlagWhereSelectedInSource (CommandLineOptions &
 
     if (isInSource)
     {
-        options.cpuFlagRefusal = std::string ("--cpu is not accepted for ") + profile.GetName()
+        options.cpuFlagRefusal = SpellLongOption ("--cpu", options.flagPrefix) + std::string (" is not accepted for ") + profile.GetName()
                                + ": the CPU target is selected in the source, with the "
                                + profile.GetCpuDirectiveName() + " directive.";
     }
@@ -1188,13 +1327,14 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
     while (argIndex < argc && !stop)
     {
         std::string  arg (argv[argIndex]);
+        std::string  attachedValue;
         size_t       pos = 1;
 
         if (arg == "--help" || arg == "-help" || arg == "-?" || arg == "/?" || arg == "/help")
         {
             if (arg[0] == '/')
             {
-                options.flagPrefix = '/';
+                NoteFlagPrefix ('/', options);
             }
 
             options.showHelp = true;
@@ -1205,9 +1345,9 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
         // The CPU flag is recognized by every grammar and honored by the ones
         // whose dialect takes its CPU from the command line. Whether this is one
         // of them is the profile's answer, not this parser's.
-        if (arg == "--cpu" || arg.rfind ("--cpu=", 0) == 0)
+        if (IsLongOption (arg, "--cpu", options) || IsLongOptionWithValue (arg, "--cpu", attachedValue, options))
         {
-            if (arg == "--cpu" && argIndex + 1 < argc)
+            if (attachedValue.empty() && argIndex + 1 < argc)
             {
                 argIndex++;
             }
@@ -1234,8 +1374,16 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
 
         if (arg[0] == '/')
         {
-            options.flagPrefix = '/';
+            NoteFlagPrefix ('/', options);
             arg[0]             = '-';
+        }
+        else if (arg[0] == '-')
+        {
+            // Noted here as well, or "first prefix wins" would silently mean
+            // "first SLASH wins": a dash flag ahead of a slash one would leave
+            // nothing recorded, and the slash would take an invocation it did
+            // not open.
+            NoteFlagPrefix ('-', options);
         }
 
         if (arg[0] != '-')
@@ -1259,7 +1407,7 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
 
             if (!known)
             {
-                std::cerr << "Warning: Unknown flag: -" << arg[pos] << "\n";
+                std::cerr << "Warning: Unknown flag: " << options.flagPrefix << arg[pos] << "\n";
                 pos++;
                 continue;
             }
@@ -1289,7 +1437,7 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
 
             if (!applied)
             {
-                std::cerr << "Warning: Unknown flag: -" << flag->letter << "\n";
+                std::cerr << "Warning: Unknown flag: " << options.flagPrefix << flag->letter << "\n";
             }
         }
 
@@ -1375,7 +1523,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
         {
             options.verbose = true;
         }
-        else if (arg == "--fill" && argIndex + 1 < argc)
+        else if (IsLongOption (arg, "--fill", options) && argIndex + 1 < argc)
         {
             hr = ParseFillByte (argv[++argIndex], options.fillByte);
 
@@ -1384,7 +1532,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
                 std::cerr << "Error: Invalid fill byte value\n";
             }
         }
-        else if (arg == "--load" && argIndex + 1 < argc)
+        else if (IsLongOption (arg, "--load", options) && argIndex + 1 < argc)
         {
             hr = ParseAddress (argv[++argIndex], options.loadAddress);
 
@@ -1397,7 +1545,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
                 std::cerr << "Error: Invalid load address\n";
             }
         }
-        else if (arg == "--entry" && argIndex + 1 < argc)
+        else if (IsLongOption (arg, "--entry", options) && argIndex + 1 < argc)
         {
             hr = ParseAddress (argv[++argIndex], options.entryAddress);
 
@@ -1410,7 +1558,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
                 std::cerr << "Error: Invalid entry address\n";
             }
         }
-        else if (arg == "--stop" && argIndex + 1 < argc)
+        else if (IsLongOption (arg, "--stop", options) && argIndex + 1 < argc)
         {
             hr = ParseAddress (argv[++argIndex], options.stopAddress);
 
@@ -1423,7 +1571,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
                 std::cerr << "Error: Invalid stop address\n";
             }
         }
-        else if (arg == "--max-cycles" && argIndex + 1 < argc)
+        else if (IsLongOption (arg, "--max-cycles", options) && argIndex + 1 < argc)
         {
             hr = ParseDecimal (argv[++argIndex], options.maxCycles);
 
@@ -1432,19 +1580,19 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
                 std::cerr << "Error: Invalid max-cycles value\n";
             }
         }
-        else if (arg == "--reset-vector")
+        else if (IsLongOption (arg, "--reset-vector", options))
         {
             options.useResetVector = true;
         }
-        else if (arg == "--warn")
+        else if (IsLongOption (arg, "--warn", options))
         {
             options.warningMode = WarningMode::Warn;
         }
-        else if (arg == "--no-warn")
+        else if (IsLongOption (arg, "--no-warn", options))
         {
             options.warningMode = WarningMode::NoWarn;
         }
-        else if (arg == "--fatal-warnings")
+        else if (IsLongOption (arg, "--fatal-warnings", options))
         {
             options.warningMode = WarningMode::FatalWarnings;
         }
@@ -1510,7 +1658,7 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
 
     if (first[0] == '/')
     {
-        options.flagPrefix = '/';
+        NoteFlagPrefix ('/', options);
         first[0] = '-';
     }
 

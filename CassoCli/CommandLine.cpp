@@ -249,6 +249,10 @@ static AssemblerOptions BuildAssemblerOptions (const CommandLineOptions & option
     asmOptions.disableOpt         = options.disableOpt;
     asmOptions.predefinedSymbols  = options.predefinedSymbols;
 
+    // Carried so an assembler diagnostic naming a flag names it the way this
+    // invocation spells flags. The assembler never sees a command line.
+    asmOptions.flagPrefix         = options.flagPrefix;
+
     return asmOptions;
 }
 
@@ -949,8 +953,10 @@ static void PrintUsageAssembler (const char * sp)
     std::println ("  <source>               Assembly source file");
     std::println ("                         (will try .a65, .asm, .s if no extension is present)");
     std::println ("");
-    std::println ("  --raw                  Write only the assembled bytes, unpadded");
-    std::println ("  --dos-bin              Write the assembled bytes behind a 4-byte DOS 3.3");
+    std::println ("  {:<22} Write only the assembled bytes, unpadded",
+                  CommandLineParser::SpellLongOption ("--raw", sp[0]));
+    std::println ("  {:<22} Write the assembled bytes behind a 4-byte DOS 3.3",
+                  CommandLineParser::SpellLongOption ("--dos-bin", sp[0]));
     std::println ("                         header (load address + length), ready to BLOAD");
     std::println ("                         (default: a full 64 KB image, padded with the fill byte)");
 

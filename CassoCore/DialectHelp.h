@@ -46,7 +46,7 @@ public:
 
 private:
     static std::string  ComposeFlagLines (DialectId dialect, char flagPrefix);
-    static std::string  ComposeCpuLine   (const DialectProfile & profile);
-    static std::string  ComposeOutputShapeLines (DialectId dialect);
+    static std::string  ComposeCpuLine   (const DialectProfile & profile, char flagPrefix);
+    static std::string  ComposeOutputShapeLines (DialectId dialect, char flagPrefix);
     static std::string  PadTo            (const std::string & text, size_t width);
 };

@@ -118,6 +118,23 @@ Entries before versioning was introduced use dates only.
   `build.a65`? — is injected rather than probed directly.
 
 ### Fixed
+- **A long option written with a slash now works instead of silently doing
+  something else.** `CassoCli as65 src.a65 /raw` used to fall through to the
+  single-letter parser as `-raw`: it warned about an unknown `-r` and `-a`,
+  swallowed the `w`, and wrote the padded 64 KB image the flag exists to
+  suppress. `merlin src.s /dos-bin` was worse — `-d` takes a value, so `os-bin`
+  became a predefined symbol, no warning appeared at all, and the output simply
+  had no header. Both exited 0. Every long option now accepts either spelling,
+  and the two forms mean the same thing.
+- **Messages spell flags the way the invocation spelled them.** A `/`-style
+  command line was answered in places with `--cpu`, `--dos-bin` and `-d`,
+  mixing both conventions inside a single help block — and, before the fix
+  above, advising a spelling the parser would then have refused. Help, the
+  unknown-flag warning, the `--cpu` refusal and the assembler's own
+  "define it on the command line, for example `-d NAME=0`" now all follow the
+  prefix the user typed. A command line mixing the two is answered in whichever
+  it opened with, so the reply never depends on which flag happened to come
+  last.
 - **A dialect no longer borrows the other dialect's vocabulary.** A word the
   active dialect declined was offered to a second, fixed spelling table, so 55
   spellings Merlin does not have still resolved — and eight of them steered

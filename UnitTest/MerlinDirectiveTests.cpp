@@ -2667,6 +2667,47 @@ namespace MerlinDirectiveTests
 
 
 
+        //  The advice spells the flag the way the invocation spelled its flags.
+        //
+        //  This diagnostic is the one place the ASSEMBLER names a command-line
+        //  flag, and it is the reason AssemblerOptions carries a prefix at all.
+        //  Telling someone who typed `/o` to pass `-d` names a spelling their
+        //  invocation did not use -- and, before the slash forms were accepted,
+        //  one their next command would have had to switch styles to obey.
+        TEST_METHOD (TheMissingAnswerAdviceFollowsTheInvocationsFlagPrefix)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+
+            cpu.InitForTest();
+            options.dialect    = DialectId::Merlin;
+            options.flagPrefix = '/';
+
+            {
+                Assembler       assembler (cpu.GetInstructionSet(), options);
+                AssemblyResult  result = assembler.Assemble ("SAVOBJ KBD Save it?\n DFB SAVOBJ\n");
+
+                Assert::IsTrue  (MerlinAssemblyFixture::AnyErrorMentions (result, "/d SAVOBJ=0"),
+                                 L"a slash invocation must be told to pass /d");
+                Assert::IsFalse (MerlinAssemblyFixture::AnyErrorMentions (result, "-d SAVOBJ=0"),
+                                 L"and must not also be told to pass -d");
+            }
+        }
+
+
+
+        //  The default is the dash, for every caller that never had a command
+        //  line to take a prefix from.
+        TEST_METHOD (TheMissingAnswerAdviceDefaultsToTheDashSpelling)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin ("SAVOBJ KBD Save it?\n DFB SAVOBJ\n");
+
+            Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "-d SAVOBJ=0"),
+                            L"an assembly with no invocation behind it advises in dashes");
+        }
+
+
+
         //  The label names a SYMBOL, not an address. Binding it to the program
         //  counter as well would leave the conditional that reads it testing where
         //  the line sat -- which is non-zero for any ordinary origin, so every

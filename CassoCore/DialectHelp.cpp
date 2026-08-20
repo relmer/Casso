@@ -66,8 +66,8 @@ std::string DialectHelp::GetDialect (const DialectProfile & profile, char flagPr
 
     text  = std::string ("\n  ") + profile.GetName() + " <source> [flags]\n";
     text += ComposeFlagLines (profile.GetId(), flagPrefix);
-    text += ComposeCpuLine   (profile);
-    text += ComposeOutputShapeLines (profile.GetId());
+    text += ComposeCpuLine   (profile, flagPrefix);
+    text += ComposeOutputShapeLines (profile.GetId(), flagPrefix);
 
     if (hasBoundary)
     {
@@ -139,7 +139,7 @@ std::string DialectHelp::ComposeFlagLines (DialectId dialect, char flagPrefix)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DialectHelp::ComposeCpuLine (const DialectProfile & profile)
+std::string DialectHelp::ComposeCpuLine (const DialectProfile & profile, char flagPrefix)
 {
     constexpr size_t  kDescriptionColumn = 27;
     std::string       text;
@@ -149,14 +149,14 @@ std::string DialectHelp::ComposeCpuLine (const DialectProfile & profile)
 
     if (isInSource)
     {
-        text = PadTo ("    --cpu <target>", kDescriptionColumn)
+        text = PadTo ("    " + CommandLineParser::SpellLongOption ("--cpu", flagPrefix) + " <target>", kDescriptionColumn)
              + "Refused: the CPU target is selected in the source,\n"
              + PadTo ("", kDescriptionColumn)
              + "with the " + profile.GetCpuDirectiveName() + " directive\n";
     }
     else
     {
-        text = PadTo ("    --cpu <6502|65c02>", kDescriptionColumn)
+        text = PadTo ("    " + CommandLineParser::SpellLongOption ("--cpu", flagPrefix) + " <6502|65c02>", kDescriptionColumn)
              + "Target CPU (default: 6502). 65c02 enables the CMOS\n"
              + PadTo ("", kDescriptionColumn)
              + "opcodes (STZ, BRA, RMBn/SMBn, BBRn/BBSn, ...);\n"
@@ -184,7 +184,7 @@ std::string DialectHelp::ComposeCpuLine (const DialectProfile & profile)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DialectHelp::ComposeOutputShapeLines (DialectId dialect)
+std::string DialectHelp::ComposeOutputShapeLines (DialectId dialect, char flagPrefix)
 {
     constexpr size_t                                 kDescriptionColumn = 27;
     std::span<const CommandLineParser::OutputShape>  shapes             = CommandLineParser::GetOutputShapes (dialect);
@@ -194,7 +194,7 @@ std::string DialectHelp::ComposeOutputShapeLines (DialectId dialect)
 
     for (const CommandLineParser::OutputShape & shape : shapes)
     {
-        text += PadTo (std::string ("    ") + shape.spelling, kDescriptionColumn) + shape.description + "\n";
+        text += PadTo (std::string ("    ") + CommandLineParser::SpellLongOption (shape.spelling, flagPrefix), kDescriptionColumn) + shape.description + "\n";
     }
 
     return text;
