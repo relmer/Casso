@@ -81,8 +81,6 @@ runtime surprise.
 | `-p` | Generate a pass 1 listing. |
 | `-t` | Generate a symbol table. |
 | `-g [<file>]` | Generate a debug information file. |
-| `-h <lines>` | Listing page height. `0` disables pagination. |
-| `-w [<width>]` | Listing column width. Default `79`; `-w` alone means `133`. |
 
 ### Symbols and diagnostics
 
@@ -97,17 +95,30 @@ runtime surprise.
 
 > The three warning flags are accepted but are not yet listed in `--help`.
 
-### Accepted but not yet implemented
+### Already the behavior
 
-Both are parsed and then read by no code, so passing them changes nothing.
-They exist so an as65 invocation is not refused outright. Tracked by
-[#118](https://github.com/relmer/Casso/issues/118); in real as65 neither is a
-no-op.
+| Flag | Meaning |
+|---|---|
+| `-i` | Ignore case in **opcodes**, so `adc` and `ADC` are the same instruction. Labels stay case-sensitive. |
 
-| Flag | as65 behavior | Casso today |
-|---|---|---|
-| `-i` | Ignore case in **opcodes**, so `adc` and `ADC` are the same instruction. Labels stay case-sensitive. | Accepted, ignored. Mnemonics and directives are already matched case-insensitively whether or not you pass it, so the flag has nothing left to switch on — but that is a coincidence of the implementation, not the flag working. |
-| `-n` | Disable optimizations, overriding the `OPT` pseudo-instruction. | Accepted, ignored. |
+Casso is at parity with as65 here without the flag doing anything: opcode and
+directive lookups always ignore case, and labels are always case-sensitive —
+which is exactly the behavior `-i` asks for. Passing it or omitting it gives
+the same, correct result.
+
+### Accepted and not yet implemented
+
+Parsed so an as65 invocation is not refused, then read by no code. Tracked by
+[#118](https://github.com/relmer/Casso/issues/118).
+
+| Flag | as65 behavior |
+|---|---|
+| `-h <lines>` | Listing page height. |
+| `-n` | Disable optimizations, overriding the `OPT` pseudo-instruction. |
+| `-w [<width>]` | Listing column width. |
+
+`OPT` and `NOOPT` are likewise accepted and ignored as directives, so there is
+currently nothing for `-n` to switch off.
 
 ---
 
