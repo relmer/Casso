@@ -34,6 +34,10 @@ void SalvageDialogContent::SetAssessment (
               L"Casso can build a salvaged copy you can work on. "
               L"The original is left untouched.";
 
+    // Prose first, then the file it refers to. Naming the disk before saying
+    // anything about it makes the reader hold a path in mind with no reason
+    // to yet.
+
     m_rows.clear();
     m_rows.push_back (Row { L"Total sectors:",      std::to_wstring (total),     L"" });
     m_rows.push_back (Row { L"Verified sectors:",   std::to_wstring (verified),  L"(checksums matched)" });
@@ -44,8 +48,8 @@ void SalvageDialogContent::SetAssessment (
 
     m_warning.SetSeverity (DxuiInfoBanner::Severity::Warning);
     m_warning.SetText (L"Repairing the checksums makes the disk structurally sound, "
-                       L"but this masks any data corruption remaining in the "
-                       L"recovered sectors.");
+                       L"but this masks any corrupted data in those recovered "
+                       L"sectors.");
 
     // The host needs a height BEFORE the panel is laid out -- it sizes the
     // window, and layout happens inside it. Computed here from the content
@@ -78,12 +82,13 @@ void SalvageDialogContent::Layout (const RECT & boundsDip, const DxuiDpiScaler &
 
 
     SetBounds (boundsDip);
+    m_scaler = scaler;
 
-    // path, gap, prose, gap, table, gap, destination, gap
-    y += s_kPathLines * s_kLineDip + s_kGapDip;
-    y += s_kProseLines * s_kLineDip + s_kGapDip;
-    y += s_kLineDip * static_cast<int> (m_rows.size()) + s_kGapDip;
-    y += s_kLineDip + s_kGapDip;
+    // prose, gap, path, gap, table, gap, destination, gap
+    y += m_scaler.Px (s_kProseLines * s_kLineDip + s_kGapDip);
+    y += m_scaler.Px (s_kPathLines * s_kLineDip + s_kGapDip);
+    y += m_scaler.Px (s_kLineDip * static_cast<int> (m_rows.size()) + s_kGapDip);
+    y += m_scaler.Px (s_kLineDip + s_kGapDip);
 
     bannerRect.left   = boundsDip.left;
     bannerRect.top    = y;
@@ -111,70 +116,93 @@ void SalvageDialogContent::Layout (const RECT & boundsDip, const DxuiDpiScaler &
 void SalvageDialogContent::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
                                   const IDxuiTheme & theme)
 {
-    HRESULT  hr    = S_OK;
-    float    left  = static_cast<float> (m_boundsDip.left);
-    float    width = static_cast<float> (m_boundsDip.right - m_boundsDip.left);
-    float    y     = static_cast<float> (m_boundsDip.top);
-    size_t   i     = 0;
+    HRESULT         hr        = S_OK;
+    float           left      = static_cast<float> (m_boundsDip.left);
+    float           width     = static_cast<float> (m_boundsDip.right - m_boundsDip.left);
+    float           y         = static_cast<float> (m_boundsDip.top);
+    size_t          i         = 0;
+
+    // Match every other dialog: labels draw at the theme's body size, scaled
+    // into pixels. Drawing at a raw DIP size renders correctly only at 100%.
+    DxuiFontHandle    body       = theme.BodyFont();
+    const wchar_t   * face       = (body.face != nullptr) ? body.face : DxuiTheme::kBodyFace;
+    float             fontPx     = m_scaler.Pxf (body.sizeDip);
+    float             lineH      = static_cast<float> (m_scaler.Px (s_kLineDip));
+    float             gap        = static_cast<float> (m_scaler.Px (s_kGapDip));
+    float             figureCol  = static_cast<float> (m_scaler.Px (s_kNoteColDip));
+    float             noteLeft   = figureCol + gap;
+    float             bannerH    = 0.0f;
+    RECT              bannerRect = {};
 
 
 
-    // The disk being acted on, set apart from the prose by a blank line so it
-    // reads as the subject rather than as part of a sentence.
-    hr = text.DrawString (m_sourcePath.c_str(), left, y, width,
-                          (float) (s_kPathLines * s_kLineDip),
-                          theme.Foreground(), s_kFontDip, DxuiTheme::kBodyFace,
-                          DxuiTextHAlign::Left, DxuiTextVAlign::Top,
-                          DxuiFontWeight::SemiBold, true);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-    y += s_kPathLines * s_kLineDip + s_kGapDip;
-
+    // Prose first: it says what this dialog is about. The path names the disk
+    // it is about, set apart beneath it by a blank line.
     hr = text.DrawString (m_prose.c_str(), left, y, width,
-                          (float) (s_kProseLines * s_kLineDip),
-                          theme.Foreground(), s_kFontDip, DxuiTheme::kBodyFace,
+                          lineH * s_kProseLines,
+                          theme.Foreground(), fontPx, face,
                           DxuiTextHAlign::Left, DxuiTextVAlign::Top,
                           DxuiFontWeight::Normal, true);
     IGNORE_RETURN_VALUE (hr, S_OK);
-    y += s_kProseLines * s_kLineDip + s_kGapDip;
+    y += lineH * s_kProseLines + gap;
+
+    hr = text.DrawString (m_sourcePath.c_str(), left, y, width,
+                          lineH * s_kPathLines,
+                          theme.Foreground(), fontPx, face,
+                          DxuiTextHAlign::Left, DxuiTextVAlign::Top,
+                          DxuiFontWeight::SemiBold, true);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    y += lineH * s_kPathLines + gap;
 
     for (i = 0; i < m_rows.size(); i++)
     {
         const Row &  row = m_rows[i];
 
-        hr = text.DrawString (row.label.c_str(), left, y, (float) s_kFigureColDip,
-                              (float) s_kLineDip, theme.Foreground(), s_kFontDip,
-                              DxuiTheme::kBodyFace, DxuiTextHAlign::Left,
+        hr = text.DrawString (row.label.c_str(), left, y,
+                              static_cast<float> (m_scaler.Px (s_kFigureColDip)), lineH,
+                              theme.Foreground(), fontPx, face, DxuiTextHAlign::Left,
                               DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         // Right-aligned so the digits line up regardless of how many there
         // are -- the whole reason this is a layout and not padded text.
-        hr = text.DrawString (row.figure.c_str(), left, y, (float) s_kNoteColDip,
-                              (float) s_kLineDip, theme.Foreground(), s_kFontDip,
-                              DxuiTheme::kBodyFace, DxuiTextHAlign::Right,
+        hr = text.DrawString (row.figure.c_str(), left, y, figureCol, lineH,
+                              theme.Foreground(), fontPx, face, DxuiTextHAlign::Right,
                               DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         if (!row.note.empty())
         {
-            hr = text.DrawString (row.note.c_str(), left + s_kNoteColDip + s_kGapDip, y,
-                                  width - s_kNoteColDip - s_kGapDip, (float) s_kLineDip,
-                                  theme.ForegroundMuted(), s_kFontDip,
-                                  DxuiTheme::kBodyFace, DxuiTextHAlign::Left,
-                                  DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+            hr = text.DrawString (row.note.c_str(), left + noteLeft, y,
+                                  width - noteLeft, lineH,
+                                  theme.ForegroundMuted(), fontPx, face,
+                                  DxuiTextHAlign::Left, DxuiTextVAlign::Top,
+                                  DxuiFontWeight::Normal, false);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
-        y += s_kLineDip;
+        y += lineH;
     }
 
-    y += s_kGapDip;
+    y += gap;
 
-    hr = text.DrawString (m_destLine.c_str(), left, y, width, (float) s_kLineDip,
-                          theme.Foreground(), s_kFontDip, DxuiTheme::kBodyFace,
+    hr = text.DrawString (m_destLine.c_str(), left, y, width, lineH,
+                          theme.Foreground(), fontPx, face,
                           DxuiTextHAlign::Left, DxuiTextVAlign::Top,
                           DxuiFontWeight::SemiBold, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
+    y += lineH + gap;
 
+    // Size the banner to the height its text actually needs. Layout had to
+    // estimate (no text renderer there), and the estimate rounds up so text
+    // never clips -- which showed as an empty line inside the box.
+    bannerH           = m_warning.MeasuredHeightPx (text, width, m_scaler);
+    bannerRect.left   = m_boundsDip.left;
+    bannerRect.top    = static_cast<int> (y);
+    bannerRect.right  = m_boundsDip.right;
+    bannerRect.bottom = static_cast<int> (y + bannerH);
+
+    m_warning.SetRect (bannerRect);
+    m_warning.SetDpi (m_scaler.Dpi());
     m_warning.Paint (painter, text, theme);
 }

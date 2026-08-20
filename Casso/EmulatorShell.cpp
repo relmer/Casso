@@ -3567,14 +3567,16 @@ void EmulatorShell::ReportDamagedMount (int drive)
 
     def.title = L"Disk image is damaged";
     def.icon  = DialogIcon::Warning;
+    // The sentence leads and the path follows it: naming the file before
+    // saying anything about it makes the reader hold a path in mind with no
+    // reason to yet.
     def.body.push_back (DialogTextRun {
+        L"This disk image's stored checksum does not match its contents. "
+        L"The file is damaged or was written by a tool that miscomputed it.\n\n" +
         fs::path (m_diskStore.GetSourcePath (6, drive)).wstring() + L"\n\n"
-        L"This disk image's stored checksum does not match its contents, so the "
-        L"file is damaged or was written by a tool that miscomputed it.\n\n"
-        L"Casso has loaded it anyway so you can read it, and has write-protected "
-        L"it for this session: rewriting the file would give it a newly computed "
-        L"checksum and leave nothing able to detect the damage. The emulated "
-        L"machine will see the disk as write-protected.",
+        L"Casso has loaded it so you can read it, and has write-protected it "
+        L"for this session. Rewriting the file would give it a newly computed "
+        L"checksum, silently hiding the damaged sectors.",
         false, std::wstring() });
 
     hr = m_diskStore.AssessSalvage (6, drive, assessment);

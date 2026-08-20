@@ -82,6 +82,47 @@ float DxuiInfoBanner::PreferredHeightPx (float widthPx, const DxuiDpiScaler & sc
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiInfoBanner::MeasuredHeightPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiInfoBanner::MeasuredHeightPx (IDxuiTextRenderer   &  text,
+                                        float                  widthPx,
+                                        const DxuiDpiScaler &  scaler) const
+{
+    HRESULT  hr        = S_OK;
+    float    padX      = scaler.Pxf (s_kPadXDip);
+    float    padY      = scaler.Pxf (s_kPadYDip);
+    float    iconCol   = scaler.Pxf (s_kIconBoxDip) + scaler.Pxf (s_kIconGapDip);
+    float    textWidth = widthPx - padX * 2.0f - iconCol;
+    float    iconH     = scaler.Pxf (s_kIconBoxDip);
+    float    outW      = 0.0f;
+    float    outH      = 0.0f;
+
+
+
+    if (textWidth < 1.0f)
+    {
+        textWidth = 1.0f;
+    }
+
+    hr = text.MeasureStringWrapped (m_text.c_str(), scaler.Pxf (s_kFontDip),
+                                    DxuiTheme::kBodyFace, textWidth, outW, outH);
+
+    if (FAILED (hr) || outH <= 0.0f)
+    {
+        return PreferredHeightPx (widthPx, scaler);
+    }
+
+    return ((outH > iconH) ? outH : iconH) + padY * 2.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiInfoBanner::Paint
 //
 //  Draws an informational notice: an accent-tinted surface, an info badge, and

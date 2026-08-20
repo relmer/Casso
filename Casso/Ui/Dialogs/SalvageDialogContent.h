@@ -37,6 +37,15 @@ public:
     int   PreferredHeightDip () const { return m_preferredHeightDip; }
 
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+
+private:
+    //  Every metric below is in DIPs and MUST be scaled before use. Drawing
+    //  at raw DIP values renders correctly only at 100% -- at 125% the text
+    //  came out a fifth smaller than every other dialog on screen, which is
+    //  exactly how this was found.
+    DxuiDpiScaler     m_scaler;
+
+public:
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
 private:

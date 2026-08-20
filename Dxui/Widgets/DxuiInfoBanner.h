@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Render/IDxuiTextRenderer.h"
 #include "Theme/DxuiTheme.h"
 
 
@@ -56,6 +57,15 @@ public:
     // an average glyph width (Layout has no text renderer) and rounded up so text
     // never clips.
     float  PreferredHeightPx (float widthPx, const DxuiDpiScaler & scaler) const;
+
+    // The height the banner ACTUALLY needs, measured rather than estimated.
+    // PreferredHeightPx is deliberately generous -- it has no text renderer,
+    // so it rounds up and never clips -- but on a fixed-size dialog that
+    // slack shows as an empty line inside the box. A caller that has a
+    // renderer can ask for the real height instead.
+    float  MeasuredHeightPx (IDxuiTextRenderer   &  text,
+                             float                  widthPx,
+                             const DxuiDpiScaler &  scaler) const;
 
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override
     {
