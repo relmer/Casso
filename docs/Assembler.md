@@ -12,6 +12,7 @@ working; the modern conveniences are opt-in.
 - [Assembler flags](#assembler-flags)
 - [Output formats](#output-formats)
 - [Running code](#running-code)
+- [One source, one image](#one-source-one-image)
 - [Language reference](#language-reference)
 - [Examples](#examples)
 - [Dialects](#dialects)
@@ -67,9 +68,13 @@ CassoCli as65 input.a65 -tlfile        # same as -t -l file
 | `-z` | Fill unused space with `$00`. Default is `$FF`. |
 
 With no format flag the output is a **full 64 KB image** padded with the fill
-byte — as65's behavior, and the right shape for ROM burning or reference
-comparison. An explicit format flag wins over the output file's extension; the
-extension is consulted only when no flag is given.
+byte — AS65's behavior, and the right shape for ROM burning or reference
+comparison.
+
+**The four shape flags are mutually exclusive and the last one given wins.**
+They all set one field, so `-s --raw` is raw and `--raw -s` is an S-record;
+neither is an error. The output file's extension (`.s19`, `.hex`) is consulted
+only when no flag was given at all, so an explicit flag always beats it.
 
 ### CPU target
 
@@ -82,12 +87,21 @@ Without `-x` a 65C02-only opcode is rejected as invalid rather than
 silently assembled, so targeting the wrong CPU is a build error and not a
 runtime surprise.
 
-**Casso's 65C02 is the Rockwell R65C02**, which is a superset of the 65SC02 AS65
-targets: everything AS65 accepts under `-x` assembles here, plus the Rockwell bit
-operations `RMBn`/`SMBn`/`BBRn`/`BBSn` that a 65SC02 has no opcodes for. So Casso
-will not reject a Rockwell-only instruction on a part that could not run it.
-WDC's `WAI`/`STP` are excluded deliberately -- they are not in the Rockwell parts
-Apple shipped, and their opcode slots behave as NOPs.
+**Casso accepts more than AS65 does here.** AS65 is an assembler "for the 6502
+and 65SC02 microprocessors", and `-x` enables that 65SC02 set. Casso's `-x`
+enables the **Rockwell R65C02**, which is a superset: everything AS65 accepts,
+plus the bit operations `RMBn`, `SMBn`, `BBRn` and `BBSn`, for which a 65SC02
+has no opcodes.
+
+The practical consequence runs one way. A source written for the 65SC02
+assembles identically under both. A source using the Rockwell bit operations
+assembles under Casso and **would not** under AS65 — and Casso will not warn
+that it has left the 65SC02 behind. The wider set is deliberate: Apple's //c
+ROM 4 and the Enhanced //e firmware use those instructions, and the emulator
+has to run them.
+
+WDC's `WAI`/`STP` are excluded — not part of the Rockwell devices Apple
+shipped, and their opcode slots behave as NOPs.
 
 ### Listing and symbols
 
@@ -97,7 +111,7 @@ Apple shipped, and their opcode slots behave as NOPs.
 | `-c` | Include cycle counts in the listing. |
 | `-m` | Show macro expansions in the listing. |
 | `-p` | Generate a pass 1 listing. |
-| `-t` | Print the symbol table to stdout, name and address, with a `*` on a redefinable symbol. AS65 lists it between the two passes and shows decimal as well as hex. |
+| `-t` | Print the symbol table to stdout: each symbol with its address in hex and decimal, and a `*` on a redefinable one. |
 | `-w [<width>]` | Wrap the listing at `<width>` columns. Default `79`; `-w` alone means `133`; `0` disables wrapping. AS65 documents the range as 60 to 200; Casso does not enforce it. Continuations indent to the source column, so wrapped text lines up under the text rather than under the address and bytes. |
 | `-g <file>` | Write symbol addresses as `NAME=$ADDR`, **twice**: once ordered by address under a `; by address` heading, then again ordered by symbol name, case-insensitively, under `; by symbol`. Reading a debug file is two questions -- what is at an address, and where a name went -- and each order answers one. Casso's own format; no standard is being followed. |
 
@@ -164,6 +178,28 @@ two that change what is assembled -- `-x` and `-d`. The rest describe a file
 | `-v` | Verbose: what was assembled or loaded, the entry point, the stop reason, the cycle count, and the final register file. On stderr. |
 
 Addresses accept `$8000` or `0x8000`.
+
+---
+
+## One source, one image
+
+**Casso assembles a single source file into a single absolutely located image.
+There is no linker, and no way to assemble several sources into one program.**
+
+A source may pull in others — `include` under AS65, `PUT`/`USE` under Merlin —
+but that is textual inclusion: the result is still one assembly producing one
+image. What is absent is separate compilation: assembling several files
+independently and resolving references between them afterward. That is why
+Merlin's `REL`, `ENT` and `EXT` are refused, and why AS65's own relocatable
+output has no equivalent here.
+
+Nor does one assembly produce several outputs, which is why Merlin's `SAV` is
+refused.
+
+If your project needs either, please open an issue at
+[github.com/relmer/Casso/issues](https://github.com/relmer/Casso/issues) —
+the linker is tracked as [#112](https://github.com/relmer/Casso/issues/112) and
+would benefit from a concrete case to be designed against.
 
 ---
 

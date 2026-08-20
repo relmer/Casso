@@ -987,23 +987,26 @@ static void PrintUsageAssembler (const char * sp)
         "",
         "  Assembled code:",
         "    <default>            Write a full 64 KB image padded with the fill byte",
-        "                         (see {0}z)",
-        "    {1}raw                Write only the assembled bytes, unpadded",
-        "    {1}dos-bin            Write the bytes behind a 4-byte DOS 3.3 header",
-        "                         (load address + length), ready to BLOAD",
         "    {0}o <file>            Rename output file (default: <source>.bin)",
-        "    {0}s                   Write Motorola S-record (<source>.s19)",
-        "    {0}s2                  Write Intel HEX (<source>.hex)",
-        "    {0}z                   Fill unused space in the padded image with $00",
-        "                         (default: $FF)",
         "    {0}n                   Disable optimizations. Not yet implemented",
         "                         (GitHub issue #118)",
         "",
+        "    The four output shapes are mutually exclusive; the last one given",
+        "    wins. With none of them the default above applies, and only then is",
+        "    the output file's extension consulted.",
+        "    {0}s                   Write Motorola S-record (<source>.s19)",
+        "    {0}s2                  Write Intel HEX (<source>.hex)",
+        "    {1}dos-bin            Write the bytes behind a 4-byte DOS 3.3 header",
+        "                         (load address + length), ready to BLOAD",
+        "    {1}raw                Write only the assembled bytes, unpadded",
+        "    {0}z                   Fill unused space in the padded image with $00",
+        "                         (default: $FF)",
+        "",
         "  Listing:",
         "    {0}l[<file>]           Generate listing ({0}l alone goes to stdout)",
+        "    {0}p                   Generate pass 1 listing",
         "    {0}c                   Show cycle counts in listing",
         "    {0}m                   Show macro expansions in listing",
-        "    {0}p                   Generate pass 1 listing",
         "    {0}w[<width>]          Wrap listing at <width> columns, 60 to 200",
         "                         (default: 79, {0}w alone = 133)",
         "    {0}h<lines>            Page height: a header and a form feed every <lines>,",
@@ -1011,8 +1014,8 @@ static void PrintUsageAssembler (const char * sp)
         "                         (GitHub issue #118)",
         "",
         "  Debug:",
-        "    {0}t                   Print the symbol table to stdout, with each symbol's",
-        "                         address; AS65 lists it between the two passes",
+        "    {0}t                   Print the symbol table to stdout, each symbol with",
+        "                         its address in hex and decimal",
         "    {0}g <file>            Write symbol addresses to <file> as NAME=$ADDR, by",
         "                         address and again by name",
         "",
@@ -1036,8 +1039,13 @@ static void PrintUsageAssembler (const char * sp)
 
     std::println ("");
     std::println ("  CPU:");
-    std::println ("    {0}x                   Assemble 65C02 instructions. Omit it for the plain", sp);
-    std::println ("                         6502, where a 65C02 instruction is an assembly error");
+    std::println ("    {0}x                   Assemble 65SC02 instructions. Omit it for the plain", sp);
+    std::println ("                         6502, where they are an assembly error");
+    std::println ("");
+    std::println ("    Casso goes further than AS65 here: {0}x enables the full Rockwell", sp);
+    std::println ("    65C02 set, which adds RMBn, SMBn, BBRn and BBSn to the 65SC02");
+    std::println ("    instructions AS65 accepts. A source using those assembles in Casso");
+    std::println ("    and would not in AS65.");
 }
 
 
@@ -1117,13 +1125,19 @@ void PrintUsage (char prefix)
     std::println ("  <source>               Merlin assembly source file");
     std::println ("                         (tries .a65, .asm, .s if no extension is given)");
     std::println ("");
-    std::println ("  Merlin's command line is shorter than AS65's, because its source answers");
-    std::println ("  more of the same questions:");
-    std::println ("    Use the XC assembler directive to select the CPU.");
-    std::println ("    A DSK directive in the source names the output file. {0}o overrides it.", sp);
-    std::println ("    Six Merlin directives are not supported -- REL, ENT, EXT, TYP, SAV and a");
-    std::println ("      second XC. Each is refused by name, saying why and what it would take");
-    std::println ("      to support it.");
+    std::println ("  Merlin uses assembler directives in the source file in lieu of switches.");
+    std::println ("  Some examples are:");
+    std::println ("    XC       Select the 65C02. A second one selects the 65802/65816 and is");
+    std::println ("             refused -- Casso does not emulate them.");
+    std::println ("    DSK      Name the output file. {0}o overrides it.", sp);
+    std::println ("    ORG      Set the origin, which is why there is no load-address flag.");
+    std::println ("    KBD      Ask the operator for a value. A batch assembly has nobody to");
+    std::println ("             ask, so {0}d answers it instead.", sp);
+    std::println ("");
+    std::println ("  Five more are recognized and refused by name, each saying what it would");
+    std::println ("  take to support it: REL, ENT and EXT need a linker; TYP needs a");
+    std::println ("  filesystem with file types; SAV needs a decision about writing several");
+    std::println ("  files from one assembly.");
     std::cout << DialectHelp::GetDialectFlags (DialectRegistry::Get (DialectId::Merlin), prefix);
 
     PrintUsageRun       (lp, sp, pad);
