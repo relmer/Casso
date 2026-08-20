@@ -257,6 +257,8 @@ std::string CommandLineParser::SpellLongOption (const std::string & canonical, c
     std::string  bare    = canonical;
     std::string  spelled = canonical;
 
+
+
     while (!bare.empty() && bare[0] == '-')
     {
         bare.erase (0, 1);
