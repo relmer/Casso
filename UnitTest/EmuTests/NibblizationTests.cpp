@@ -436,7 +436,7 @@ public:
         Assert::AreEqual (35,  report.tracksComplete);
         Assert::AreEqual (0,   report.tracksPartial);
         Assert::AreEqual (0,   report.tracksUnformatted);
-        Assert::AreEqual (560, report.sectorsDecoded, L"35 tracks x 16 sectors");
+        Assert::AreEqual (560, report.sectorsVerified, L"35 tracks x 16 sectors, every one verified");
         Assert::AreEqual (0,   report.sectorsMissing);
         Assert::IsFalse  (report.HasPartialTrack());
         Assert::IsTrue   (raw == out, L"and the bytes must round-trip exactly");
@@ -474,7 +474,7 @@ public:
         Assert::AreEqual (0,  report.tracksUnformatted);
         Assert::AreEqual (1,  report.sectorsMissing,
             L"one damaged data field costs one sector, not the rest of the track");
-        Assert::AreEqual (559, report.sectorsDecoded);
+        Assert::AreEqual (559, report.sectorsVerified);
 
         Assert::AreEqual (15, CountDecoded (report.decodedSectorMask[kTrack]),
             L"and the report must name WHICH track lost it");
@@ -590,6 +590,192 @@ public:
 
         Assert::IsTrue (FAILED (hr),
             L"Serialize must carry the refusal, since that is what the flush path checks");
+    }
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  Salvage. The strict path refuses a partly-decoded image because
+    //  writing it over the user's file would be corruption. Salvage is the
+    //  deliberate opposite: the disk is already unwritable, so a lossy copy
+    //  in a NEW file is strictly more than the user had.
+    //
+    //  The distinction that matters is between a sector that decoded but did
+    //  not verify -- keep it, its bytes are the disk's and re-nibblizing gives
+    //  it a correct checksum so it READS -- and one that yielded nothing,
+    //  which can only be zeroed.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    // Corrupt one nibble inside a sector's data field, leaving the field's
+    // structure intact. The sector still decodes; it just no longer verifies.
+    // Returns false if the pattern could not be found, so a test cannot pass
+    // by having damaged nothing.
+    bool CorruptOneDataNibble (DiskImage & img, int track)
+    {
+        vector<Byte> &  bits = img.GetTrackBitsForWrite (track);
+        size_t          i    = 0;
+
+        for (i = 0; i + 40 < bits.size(); i++)
+        {
+            if (bits[i] == 0xD5 && bits[i + 1] == 0xAA && bits[i + 2] == 0xAD)
+            {
+                // Well inside the payload, past the prolog. 0x96 is a legal
+                // 6-and-2 code, so this is a plausible-looking wrong byte
+                // rather than an illegal one -- the checksum is the only
+                // thing that can catch it.
+                bits[i + 20] = 0x96;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+
+    TEST_METHOD (Salvage_RecoveredSector_KeepsTheDataInsteadOfZeroingIt)
+    {
+        // The whole point of recovering rather than zeroing. A sector whose
+        // checksum fails is not noise: the decode is a running XOR chain, so
+        // one bad nibble skews the bytes after it by a constant and leaves
+        // everything before it exactly right. Zeroing would throw all 256
+        // bytes away to avoid admitting to a few.
+        DiskImage         img;
+        vector<Byte>      raw           = MakePinnedRandomImage (0xC0FFEEu);
+        vector<Byte>      strict;
+        vector<Byte>      salvaged;
+        DenibblizeReport  strictReport;
+        DenibblizeReport  salvageReport;
+        const int         kTrack        = 7;
+        const size_t      kTrkSz        = 16 * 256;
+        size_t            base          = static_cast<size_t> (kTrack) * kTrkSz;
+        size_t            i             = 0;
+        int               zeroed        = 0;
+        int               kept          = 0;
+        HRESULT           hrStrict      = S_OK;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+        Assert::IsTrue (CorruptOneDataNibble (img, kTrack),
+            L"precondition: a data nibble was actually corrupted");
+
+        // Strict: refuses, and the damaged sector is a hole.
+        hrStrict = NibblizationLayer::Denibblize (img, DiskFormat::Dsk, strict, strictReport);
+
+        Assert::IsTrue (FAILED (hrStrict),
+            L"the strict path must still refuse a partly-decoded image");
+        Assert::AreEqual (1, strictReport.sectorsRecovered,
+            L"one sector decoded but did not verify");
+        Assert::AreEqual (0, strictReport.sectorsLost,
+            L"and nothing was outright unreadable");
+
+        // Salvage: succeeds, and keeps the bytes.
+        AssertSucceeded (NibblizationLayer::SalvageSectors (img, DiskFormat::Dsk,
+                                                            salvaged, salvageReport),
+            L"salvage must not fail on damage -- that is the job");
+
+        Assert::AreEqual (559, salvageReport.sectorsVerified);
+        Assert::AreEqual (1,   salvageReport.sectorsRecovered);
+
+        for (i = 0; i < kTrkSz; i++)
+        {
+            if (strict[base + i] == 0 && salvaged[base + i] != 0)
+            {
+                kept++;
+            }
+
+            if (salvaged[base + i] == 0 && raw[base + i] != 0)
+            {
+                zeroed++;
+            }
+        }
+
+        Assert::IsTrue (kept > 0,
+            L"salvage must carry bytes the strict path left as zeros");
+        Assert::IsTrue (zeroed < 128,
+            L"and it must not have blanked the sector wholesale");
+    }
+
+
+    TEST_METHOD (Salvage_RecoveredSector_ReadsBackCleanlyAfterRenibblizing)
+    {
+        // Why recovery is worth doing at all: a sector that fails its checksum
+        // makes DOS report an I/O error, which can cost a whole file. Writing
+        // the recovered bytes back through the nibblizer gives the sector a
+        // correct checksum by construction, so it READS -- possibly with some
+        // wrong bytes, but readable, which is the difference between a file
+        // you can open and one you cannot.
+        DiskImage         img;
+        DiskImage         rebuilt;
+        vector<Byte>      raw    = MakePinnedRandomImage (0xC0FFEEu);
+        vector<Byte>      salvaged;
+        vector<Byte>      reread;
+        DenibblizeReport  salvageReport;
+        DenibblizeReport  rereadReport;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+        Assert::IsTrue (CorruptOneDataNibble (img, 7));
+
+        AssertSucceeded (NibblizationLayer::SalvageSectors (img, DiskFormat::Dsk,
+                                                            salvaged, salvageReport));
+        Assert::AreEqual (1, salvageReport.sectorsRecovered, L"precondition: one recovered");
+
+        // The salvaged image, put back on a disk.
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (salvaged, rebuilt));
+
+        AssertSucceeded (NibblizationLayer::Denibblize (rebuilt, DiskFormat::Dsk,
+                                                        reread, rereadReport),
+            L"the salvaged disk must denibblize cleanly -- no refusal, no damage");
+
+        Assert::AreEqual (560, rereadReport.sectorsVerified,
+            L"every sector on the salvaged disk verifies, including the recovered one");
+        Assert::AreEqual (0, rereadReport.sectorsRecovered);
+        Assert::AreEqual (0, rereadReport.sectorsLost);
+        Assert::IsTrue (salvaged == reread,
+            L"and it round-trips, so the salvaged file is a real working disk");
+    }
+
+
+    TEST_METHOD (Salvage_LostSector_IsZeroedBecauseThereIsNothingToKeep)
+    {
+        // The other half of the taxonomy. A sector with no data field at all
+        // yields nothing to recover, so it is zeroed and counted as lost --
+        // distinct from the recovered case, and the dialog says so.
+        DiskImage         img;
+        vector<Byte>      raw = MakePinnedRandomImage (0xC0FFEEu);
+        vector<Byte>      salvaged;
+        DenibblizeReport  report;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+        Assert::IsTrue (BreakOneDataField (img, 7) > 0,
+            L"precondition: a data field was destroyed outright");
+
+        AssertSucceeded (NibblizationLayer::SalvageSectors (img, DiskFormat::Dsk,
+                                                            salvaged, report));
+
+        Assert::AreEqual (1, report.sectorsLost,
+            L"a sector with no data field cannot be recovered, only lost");
+        Assert::AreEqual (0, report.sectorsRecovered,
+            L"and it must not be miscounted as recoverable");
+        Assert::AreEqual (559, report.sectorsVerified);
+    }
+
+
+    TEST_METHOD (Salvage_CleanImage_ChangesNothing)
+    {
+        // Salvaging an undamaged disk must be a byte-for-byte copy. If it is
+        // not, salvage is doing something to data it had no reason to touch.
+        DiskImage         img;
+        vector<Byte>      raw = MakePinnedRandomImage (0x5A5A5A5Au);
+        vector<Byte>      salvaged;
+        DenibblizeReport  report;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+        AssertSucceeded (NibblizationLayer::SalvageSectors (img, DiskFormat::Dsk,
+                                                            salvaged, report));
+
+        Assert::AreEqual (560, report.sectorsVerified);
+        Assert::AreEqual (0,   report.sectorsRecovered);
+        Assert::AreEqual (0,   report.sectorsLost);
+        Assert::IsTrue (raw == salvaged, L"an undamaged disk salvages to itself");
     }
 };
 

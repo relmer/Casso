@@ -202,6 +202,11 @@ without a filesystem seam in `DiskImageStore`. Said so in
 
 ## 6. Follow-ups
 
+- **Map damaged sectors to files.** Salvage reports counts per disk; per FILE
+  would be far more useful -- "CATALOG lost 3 sectors, HELLO is intact" tells a
+  user whether the damage matters. Feasible: `DenibblizeReport` already carries
+  per-track sector masks, and the tree has ProDOS volume structure plus DOS
+  catalog handling to walk against them. Deferred deliberately, not forgotten.
 - **GH #115** can be closed when this branch merges.
 - **The write-protect menu item is still enabled for a damaged image.** Clicking
   it now fails with a clear explanation rather than corrupting anything, but
