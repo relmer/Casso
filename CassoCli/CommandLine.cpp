@@ -909,20 +909,15 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
         "  A switch value attaches directly to its switch, with no space before it:",
         "  {0}dDEBUG rather than {0}d DEBUG, {0}w133 rather than {0}w 133.",
         "",
-        "  {0}o is the one switch where the space before its value is optional, so",
-        "  {0}o prog.bin is taken as readily as {0}oprog.bin. It can be, because {0}o",
-        "  has no bare form: whatever follows it can only be its filename.",
+        "  {0}o is the one switch where the space before its value is optional:",
+        "  {0}o prog.bin is taken as readily as {0}oprog.bin.",
         "",
     };
 
     const char * lines[] =
     {
-        "  {0}x                     Use the 65C02 extensions, which as65 calls the",
-        "                         65SC02 ones. Without it the CMOS opcodes are",
-        "                         rejected, which is the default. The set here is",
-        "                         Rockwell's: STZ, PHX, BRA and the rest, plus the",
-        "                         RMB/SMB/BBR/BBS bit instructions a plain 65SC02",
-        "                         does not carry. WDC's WAI and STP are not in it",
+        "  {0}x                     Use the 65C02 extensions. Without it the CMOS",
+        "                         opcodes are rejected, which is the default",
         "  {0}d[<name>[=<value>]]   Pre-define symbol ({0}d alone defines DEBUG as 1).",
         "                         The name is ATTACHED: {0}d NAME defines DEBUG and",
         "                         leaves NAME to be read as the source file",

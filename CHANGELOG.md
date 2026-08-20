@@ -19,13 +19,14 @@ Entries before versioning was introduced use dates only.
   line of that shape had a valid reading, so nothing that worked before is read
   differently. It repairs `-l`, `-d` and `-s` too, which mattered more than `-o`:
   `-o` could always be written `-o prog.bin`, and those three had no separated
-  form to fall back on.
+  form to fall back on. With the repair in place the help no longer explains the
+  shell at all, and simply states that the space after `-o` is optional.
 
 ### Fixed
-- **`-x` said it selected the 65SC02, and selects the Rockwell 65C02.** The
-  table it installs carries RMB/SMB/BBR/BBS, which a 65SC02 does not have, and
-  omits WDC's WAI and STP. "65SC02" is as65's own name for the switch, so the
-  help now gives both: what as65 calls it, and what is actually in it.
+- **`-x` said it selected the 65SC02, and selects the 65C02.** The table it
+  installs carries RMB/SMB/BBR/BBS, which a 65SC02 does not have. "65SC02" is
+  as65's own name for the switch; the help says 65C02, which is what Apple
+  materials call the part.
 
 ### Added
 - **Every help page now opens with the banner.** The tool's name, the version,
