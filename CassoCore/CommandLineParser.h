@@ -72,9 +72,17 @@ public:
     //  of nothing.
     //
     //  THE ASSEMBLER'S LIST IS as65'S LIST. 0, 1, 2 and 3 carry the meanings the
-    //  as65 manual assigns them, warnings report 5 because as65 has no status
-    //  for them, and 4 is left alone because as65 spends it on a failed
-    //  allocation this tool cannot reach. See As65ExitStatus for why 1 moved.
+    //  as65 manual assigns them, and warnings report 5 because as65 has no
+    //  status for them. See As65ExitStatus for why 1 moved.
+    //
+    //  4 IS LISTED AND IS NEVER RETURNED, which is the one entry here that
+    //  documents somebody else's tool. as65 spends it on a failed allocation,
+    //  and a script ported from as65 may well still test for it; finding it
+    //  absent from this list would leave the reader deciding whether it was
+    //  renumbered, quietly merged into another status, or simply forgotten.
+    //  Naming it settles that in one line, and the line can afford to be
+    //  cheerful about it, because a 6502 assembler exhausting a modern host's
+    //  memory to fill 64 KB is not a failure mode anybody needs to plan for.
     //
     //  IT IS A TABLE RATHER THAN PROSE. Four lines of explanation per status
     //  said what each one covered and what a script should conclude, which is
@@ -95,6 +103,7 @@ public:
         "    1  Bad command line\n"
         "    2  Error opening source or output file\n"
         "    3  Error assembling source file\n"
+        "    4  Out of memory, says as65. 64K. On a machine with gigabytes. Sure.\n"
         "    5  Assembled with warnings";
 
     static constexpr const char *  kRunExitStatusHelpText =

@@ -37,6 +37,13 @@ Entries before versioning was introduced use dates only.
   up a number they just got back; what the statuses mean now lives in the header
   that assigns them.
 
+### Added
+- **Exit code 4 is documented, and is never returned.** as65 spends it on a
+  failed allocation, so a script ported from as65 may still test for it, and a
+  list jumping from 3 to 5 left its author guessing whether the status had been
+  renumbered or folded into another. It is named as as65's, with the reason it
+  cannot arrive here.
+
 ### Fixed
 - **`-i` was described as unimplemented, and is not.** as65's `-i` asks for
   case-insensitive opcodes, and this assembler has always been case-insensitive

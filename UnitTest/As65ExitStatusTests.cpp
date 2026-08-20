@@ -130,16 +130,25 @@ namespace As65ExitStatusTests
             Assert::IsTrue (help.find ("5  Assembled with warnings")            != std::string::npos);
         }
 
-        //  4 IS as65'S AND IS NOT LISTED, because this assembler cannot reach
-        //  the condition it names. Listing it would advertise a status that
-        //  never arrives; taking it for something else would mislead a script
-        //  still testing for it. Neither, so it does not appear.
-        TEST_METHOD (AssembleHelp_DoesNotListTheStatusItCannotProduce)
+        //  4 IS LISTED, AND NOTHING RETURNS IT. Both halves matter. A script
+        //  ported from as65 may still test for 4, and a list that skipped from
+        //  3 to 5 would leave its author guessing whether the status had been
+        //  renumbered or folded into another one. So it is named as as65's, and
+        //  no constant here claims it.
+        TEST_METHOD (AssembleHelp_ListsAs65sStatusFour_WhichNothingReturns)
         {
             std::string  help = CommandLineParser::kAssembleExitStatusHelpText;
 
-            Assert::IsTrue (help.find ("    4  ") == std::string::npos,
-                            L"4 is as65's out-of-memory and this tool never returns it");
+            Assert::IsTrue (help.find ("    4  ") != std::string::npos,
+                            L"4 is documented, because a ported script may test for it");
+            Assert::IsTrue (help.find ("as65") != std::string::npos,
+                            L"and attributed, because it is as65's status and not this tool's");
+
+            Assert::AreNotEqual (4, As65ExitStatus::kClean);
+            Assert::AreNotEqual (4, As65ExitStatus::kBadCommandLine);
+            Assert::AreNotEqual (4, As65ExitStatus::kNoOutput);
+            Assert::AreNotEqual (4, As65ExitStatus::kAssemblyErrors);
+            Assert::AreNotEqual (4, As65ExitStatus::kWarned);
         }
 
         //  Every status the code can return is named in the text, swept from

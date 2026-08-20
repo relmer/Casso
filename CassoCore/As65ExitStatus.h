@@ -24,13 +24,15 @@
 //  mean there. A build script ported from as65 branches correctly without being
 //  read again, which is the whole point of claiming compatibility.
 //
-//  STATUS 4 IS as65'S AND IS NOT PRODUCED. It belongs to a 16-bit tool that
-//  allocated its symbol table out of a 640 KB real-mode heap and could genuinely
-//  run out assembling a large source. A 64 KB image on a modern virtual-memory
-//  host does not reach that condition: the allocation that failed would have
-//  taken the process down long before a status could be returned. It is left
-//  unused rather than reassigned, so a script that still tests for it is testing
-//  for something that cannot happen rather than catching a different failure.
+//  STATUS 4 IS as65'S, IS DOCUMENTED, AND IS NEVER PRODUCED. It belongs to a
+//  16-bit tool that allocated its symbol table out of a 640 KB real-mode heap
+//  and could genuinely run out assembling a large source. A 64 KB image on a
+//  modern virtual-memory host does not reach that condition: the allocation that
+//  failed would have taken the process down long before a status could be
+//  returned. It is left unused rather than reassigned, so a script that still
+//  tests for it is testing for something that cannot happen rather than catching
+//  a different failure -- and it is named in the help for that script's author,
+//  who would otherwise have to work out whether 4 had been renumbered.
 //
 //  WARNINGS REPORT 5, WHICH IS THIS TOOL'S OWN. as65 has no status for "it
 //  assembled and the assembler had something to say", and the obvious place for
