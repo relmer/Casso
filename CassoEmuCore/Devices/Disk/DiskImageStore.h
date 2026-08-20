@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "DiskImage.h"
+#include "NibblizationLayer.h"
 
 
 
@@ -48,6 +49,33 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+//
+//  What salvaging a bay would produce, and whether it is worth offering.
+//  Read-only: producing one writes nothing and touches nothing.
+//
+//      isOffered      the disk is damaged AND has ordinary 16-sector
+//                     structure. Both halves matter. A disk that is not
+//                     damaged is not write-protected, so there is nothing to
+//                     escape and a lossy copy would only lose data; a
+//                     copy-protected disk has no standard sectors to salvage,
+//                     and rebuilding it from sectors would destroy the very
+//                     tracks that make it work.
+//      totalSectors   sectors on the tracks this disk actually has -- 320 on a
+//                     20-track disk, not a flat 560, or the count is a lie.
+//      suggestedPath  "<name>.salvaged.woz" beside the original.
+//
+struct SalvageAssessment
+{
+    bool              isOffered     = false;
+    int               totalSectors  = 0;
+    DenibblizeReport  report;
+    string            suggestedPath;
+};
+
+
+
+
+
 class DiskImageStore
 {
 public:
@@ -82,6 +110,22 @@ public:
     //  Flushes pending guest writes first, so the patch lands on a file that
     //  already holds them. That ordering used to be the caller's to get right.
     HRESULT       SetImageWriteProtect (int slot, int drive, bool writeProtected);
+
+    //  Whether salvage is worth offering for a bay, and what it would cost.
+    //  Writes nothing -- this exists so the user sees the counts BEFORE
+    //  committing to a lossy copy, rather than learning them afterwards.
+    HRESULT       AssessSalvage (int slot, int drive, SalvageAssessment & out);
+
+    //  Writes the salvaged copy to `path`. The ORIGINAL IS NEVER TOUCHED --
+    //  that is the whole shape of this feature: the damaged file keeps its
+    //  damage, detectably, and the user gets a separate disk they can work on.
+    //
+    //  The copy keeps the source's META (what the disk *is* -- title,
+    //  publisher, provenance) but is stamped with Casso as creator, because
+    //  Casso did write this particular file and claiming otherwise would put
+    //  a preservation tool's name on a lossy reconstruction.
+    HRESULT       SalvageToFile (int slot, int drive, const string & path,
+                                 DenibblizeReport & report);
     void          SoftReset         ();
     void          PowerCycle        ();
 
@@ -147,6 +191,11 @@ private:
     // read and write seams stay symmetric.
     HRESULT       ReadImageFile     (const string & path, vector<Byte> & bytes) const;
 
+    // Shared by AssessSalvage and SalvageToFile: recover what can be
+    // recovered and rebuild it as a WOZ. Produces no side effects.
+    HRESULT       BuildSalvagedImage (Entry & entry, vector<Byte> & outBytes,
+                                      DenibblizeReport & report);
+
     // Builds the user-facing "could not save" message from the mount path;
     // handed to CHRN/CBRN in FlushEntry on a genuine persist failure.
     static wstring FormatFlushLossMessage (const string & path);
@@ -155,6 +204,10 @@ private:
     // write-protects the image for the session, so the file is never
     // rewritten and the damage it carries stays detectable.
     static wstring FormatDamagedImageMessage (const string & path);
+
+    // Why a salvaged copy could not be written. Names the copy, and says the
+    // original is untouched -- which is the thing the user will worry about.
+    static wstring FormatSalvageFailedMessage (const string & path);
 
     Entry        m_entries[kSlotCount][kDriveCount];
     FlushSink    m_flushSink;

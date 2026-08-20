@@ -833,5 +833,239 @@ public:
         Assert::IsTrue (file == original, L"so the file is byte-for-byte untouched");
     }
 
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  Salvage at the store level: the gate, the counts, and the one
+    //  guarantee the whole feature rests on -- the damaged original is
+    //  never written to.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    // A WOZ built from a real sector image, so its tracks are ordinary
+    // 16-sector data, with the header CRC then broken so the image mounts as
+    // damaged. That combination -- damaged AND standard -- is what salvage
+    // is for.
+    vector<Byte> MakeDamagedStandardWoz()
+    {
+        DiskImage     src;
+        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  woz;
+        uint32_t      seed = 0xC0FFEEu;
+        size_t        i    = 0;
+
+        for (i = 0; i < sectors.size(); i++)
+        {
+            seed       = seed * 1664525u + 1013904223u;
+            sectors[i] = static_cast<Byte> ((seed >> 16) & 0xFF);
+        }
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, src));
+        src.SetSourceFormat (DiskFormat::Woz);
+        AssertSucceeded (WozLoader::Serialize (src, woz));
+
+        // Break the stored checksum without touching the data, so the image
+        // is damaged in exactly the way that write-protects it.
+        woz[8] = static_cast<Byte> (woz[8] ^ 0xFF);
+
+        return woz;
+    }
+
+
+    TEST_METHOD (AssessSalvage_DamagedStandardDisk_IsOffered)
+    {
+        DiskImageStore     store;
+        SalvageAssessment  assessment;
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "broken.woz",
+                                               DiskFormat::Woz, MakeDamagedStandardWoz()));
+
+        AssertSucceeded (store.AssessSalvage (kSlot, kDrive, assessment));
+
+        Assert::IsTrue (assessment.isOffered,
+            L"a damaged disk with ordinary sectors is exactly what salvage is for");
+        Assert::AreEqual (560, assessment.totalSectors,
+            L"the total counts the tracks this disk has, not a flat 35 x 16 assumption");
+        Assert::AreEqual (560, assessment.report.sectorsVerified,
+            L"the damage here is the file checksum, not the sectors -- all still verify");
+        Assert::IsTrue (assessment.suggestedPath.find ("broken.salvaged.woz") != string::npos,
+            L"the suggested name says what the file is");
+    }
+
+
+    TEST_METHOD (AssessSalvage_UndamagedDisk_IsNotOffered)
+    {
+        // Nothing to escape from: an undamaged disk is not write-protected, so
+        // a lossy copy could only lose data.
+        DiskImageStore     store;
+        SalvageAssessment  assessment;
+        vector<Byte>       healthy = MakeDamagedStandardWoz();
+
+        healthy[8] = static_cast<Byte> (healthy[8] ^ 0xFF);   // put the checksum back
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "fine.woz",
+                                               DiskFormat::Woz, healthy));
+        Assert::IsFalse (store.GetImage (kSlot, kDrive)->HasSourceCrcMismatch(),
+            L"precondition: this image is not damaged");
+
+        AssertSucceeded (store.AssessSalvage (kSlot, kDrive, assessment));
+
+        Assert::IsFalse (assessment.isOffered,
+            L"salvage must not be offered for a disk the user can already write to");
+    }
+
+
+    TEST_METHOD (AssessSalvage_NonStandardDisk_IsNotOffered)
+    {
+        // A copy-protected disk has no standard sectors to recover, and
+        // rebuilding it from sectors would destroy the tracks it depends on.
+        // It never reaches the dialog, which is why the dialog never has to
+        // explain copy protection.
+        DiskImageStore     store;
+        SalvageAssessment  assessment;
+        vector<Byte>       woz;
+        vector<Byte>       bits ((51200 + 7) / 8, 0xFF);
+
+        // A track of pure sync bytes: a legal bit stream with no address
+        // fields at all, which is what protection looks like from here.
+        AssertSucceeded (WozLoader::BuildSyntheticV2 (1, false, bits, 51200, woz));
+        woz[8] = static_cast<Byte> (woz[8] ^ 0xFF);   // damaged too, so only structure decides
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "protected.woz",
+                                               DiskFormat::Woz, woz));
+
+        AssertSucceeded (store.AssessSalvage (kSlot, kDrive, assessment));
+
+        Assert::IsTrue (assessment.report.tracksUnformatted > 0,
+            L"precondition: this disk has no standard structure");
+        Assert::IsFalse (assessment.isOffered,
+            L"salvage must refuse a disk whose tracks it cannot rebuild");
+    }
+
+
+    TEST_METHOD (AssessSalvage_WritesNothing)
+    {
+        // It exists to inform a decision, so it must not make one.
+        DiskImageStore     store;
+        SalvageAssessment  assessment;
+        int                sinkCalls = 0;
+
+        store.SetFlushSink ([&sinkCalls] (const string &, const vector<Byte> &)
+        {
+            sinkCalls++;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "broken.woz",
+                                               DiskFormat::Woz, MakeDamagedStandardWoz()));
+        AssertSucceeded (store.AssessSalvage (kSlot, kDrive, assessment));
+
+        Assert::AreEqual (0, sinkCalls, L"assessing must write nothing at all");
+    }
+
+
+    TEST_METHOD (SalvageToFile_WritesTheCopyAndLeavesTheOriginalAlone)
+    {
+        // The guarantee the whole feature rests on. The damaged original has
+        // to survive, still damaged and still detectably so, or salvage has
+        // destroyed the evidence it was built to preserve.
+        DiskImageStore    store;
+        DenibblizeReport  report;
+        vector<Byte>      original = MakeDamagedStandardWoz();
+        string            writtenTo;
+        vector<Byte>      written;
+        DiskImage         reloaded;
+
+        store.SetFlushSink ([&writtenTo, &written] (const string & path,
+                                                    const vector<Byte> & bytes)
+        {
+            writtenTo = path;
+            written   = bytes;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "broken.woz",
+                                               DiskFormat::Woz, original));
+
+        AssertSucceeded (store.SalvageToFile (kSlot, kDrive, "broken.salvaged.woz", report));
+
+        Assert::AreEqual (string ("broken.salvaged.woz"), writtenTo,
+            L"the copy goes to its own file");
+        Assert::IsTrue (written.size() > 0, L"and it actually holds something");
+
+        // The salvaged copy is a valid, undamaged WOZ.
+        AssertSucceeded (WozLoader::Load (written, reloaded));
+        Assert::IsFalse (reloaded.HasSourceCrcMismatch(),
+            L"the salvaged copy carries a correct checksum of its own");
+
+        Assert::AreEqual (string ("broken.woz"), store.GetSourcePath (kSlot, kDrive),
+            L"and the mount still points at the untouched original");
+    }
+
+
+    TEST_METHOD (SalvageToFile_RefusesToOverwriteTheSource)
+    {
+        // Salvage exists so the damaged original survives. Writing over it
+        // would defeat the entire point, so the path is checked rather than
+        // trusted.
+        DiskImageStore    store;
+        DenibblizeReport  report;
+        int               sinkCalls = 0;
+        HRESULT           hr        = S_OK;
+
+        store.SetFlushSink ([&sinkCalls] (const string &, const vector<Byte> &)
+        {
+            sinkCalls++;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "broken.woz",
+                                               DiskFormat::Woz, MakeDamagedStandardWoz()));
+
+        UnitTestHelpers::ExpectedEhmAssert  expected;
+
+        hr = store.SalvageToFile (kSlot, kDrive, "broken.woz", report);
+
+        Assert::IsTrue (FAILED (hr), L"salvaging onto the source must be refused");
+        Assert::AreEqual (0, sinkCalls, L"and nothing may be written on the way to refusing");
+    }
+
+
+    TEST_METHOD (SalvageToFile_KeepsTheMetadataButClaimsTheFile)
+    {
+        // The salvaged copy is still the same disk -- title, publisher and
+        // provenance travel -- but Casso wrote this particular file, and
+        // leaving someone else's name in creator would put a preservation
+        // tool's signature on a lossy reconstruction.
+        DiskImageStore    store;
+        DenibblizeReport  report;
+        vector<Byte>      original = MakeDamagedStandardWoz();
+        vector<Byte>      written;
+        string            meta     = "title\tSalvage Test\npublisher\tCasso\n";
+        Byte              header[8] = { 'M', 'E', 'T', 'A', 0, 0, 0, 0 };
+
+        header[4] = static_cast<Byte> (meta.size() & 0xFF);
+        original.insert (original.end(), header, header + sizeof (header));
+        original.insert (original.end(), meta.begin(), meta.end());
+
+        store.SetFlushSink ([&written] (const string &, const vector<Byte> & bytes)
+        {
+            written = bytes;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "broken.woz",
+                                               DiskFormat::Woz, original));
+        AssertSucceeded (store.SalvageToFile (kSlot, kDrive, "broken.salvaged.woz", report));
+
+        {
+            string  blob (reinterpret_cast<const char *> (written.data()), written.size());
+
+            Assert::IsTrue (blob.find ("title\tSalvage Test") != string::npos,
+                L"the salvaged copy is still the same disk, so META travels");
+            Assert::IsTrue (blob.find ("Casso ") != string::npos,
+                L"but Casso wrote this file and says so in creator");
+        }
+    }
+
 };
 

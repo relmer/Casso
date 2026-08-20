@@ -515,6 +515,214 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BuildSalvagedImage
+//
+//  Recover every sector that decoded, verified or not, and rebuild the result
+//  as a WOZ. Re-nibblizing is what makes a recovered sector readable: it gets
+//  a correct checksum by construction, so a sector that would have made DOS
+//  report an I/O error becomes an ordinary one holding possibly-wrong bytes.
+//
+//  The rebuilt image carries the source's META across but not its INFO, so
+//  the copy still says which disk it is while the creator field says Casso
+//  wrote this file. Putting Applesauce's name on a lossy reconstruction would
+//  be the same class of lie the creator policy exists to prevent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::BuildSalvagedImage (
+    Entry             &  entry,
+    vector<Byte>      &  outBytes,
+    DenibblizeReport  &  report)
+{
+    HRESULT       hr       = S_OK;
+    bool          hasImage = false;
+    DiskImage     rebuilt;
+    WozMetadata   carried;
+    vector<Byte>  sectors;
+
+
+
+    hasImage = (entry.mounted && entry.image != nullptr);
+    CBRAEx (hasImage, E_INVALIDARG);
+
+    hr = NibblizationLayer::SalvageSectors (*entry.image, DiskFormat::Dsk, sectors, report);
+    CHR (hr);
+
+    hr = NibblizationLayer::NibblizeDsk (sectors, rebuilt);
+    CHR (hr);
+
+    // META travels, INFO does not: the disk is still the same title, but the
+    // file is Casso's work now. An empty infoPayload is what tells the writer
+    // to stamp its own creator.
+    carried.passThrough = entry.image->GetWozMetadata().passThrough;
+    rebuilt.SetWozMetadata (carried);
+    rebuilt.SetSourceFormat (DiskFormat::Woz);
+
+    hr = WozLoader::Serialize (rebuilt, outBytes);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssessSalvage
+//
+//  What salvage would cost, without doing it.
+//
+//  Offered only for a disk that is BOTH damaged and ordinarily formatted.
+//  Undamaged disks are writable already, so a lossy copy would be pure loss;
+//  copy-protected ones have no standard sectors to recover, and rebuilding
+//  them from sectors would destroy the non-standard tracks they depend on.
+//  Neither ever reaches the dialog, which is why the dialog never has to
+//  explain copy protection.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::AssessSalvage (int slot, int drive, SalvageAssessment & out)
+{
+    HRESULT       hr         = S_OK;
+    bool          bayOk      = false;
+    bool          hasImage   = false;
+    bool          isDamaged  = false;
+    bool          isStandard = false;
+    vector<Byte>  bytes;
+
+
+
+    out = SalvageAssessment();
+
+    bayOk = IsValidBay (slot, drive);
+    CBRAEx (bayOk, E_INVALIDARG);
+
+    {
+        Entry &  entry = At (slot, drive);
+
+        hasImage = (entry.mounted && entry.image != nullptr);
+        CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+
+        hr = BuildSalvagedImage (entry, bytes, out.report);
+        CHR (hr);
+
+        out.totalSectors = out.report.tracksPresent * NibblizationLayer::kSectorsPerTrack;
+
+        // A track with no standard structure at all is the signature of copy
+        // protection, and rebuilding from sectors would destroy it.
+        isDamaged  = entry.image->HasSourceCrcMismatch();
+        isStandard = (out.report.tracksPresent > 0) && (out.report.tracksUnformatted == 0);
+        out.isOffered = isDamaged && isStandard;
+
+        if (!entry.path.empty())
+        {
+            fs::path  source = fs::path (entry.path);
+
+            out.suggestedPath = (source.parent_path()
+                                 / (source.stem().string() + ".salvaged.woz")).string();
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SalvageToFile
+//
+//  Writes the salvaged copy. The original is never opened for writing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::SalvageToFile (
+    int                 slot,
+    int                 drive,
+    const string     &  path,
+    DenibblizeReport &  report)
+{
+    HRESULT       hr       = S_OK;
+    bool          bayOk    = false;
+    bool          hasImage = false;
+    bool          hasPath  = !path.empty();
+    bool          isSource = false;
+    vector<Byte>  bytes;
+
+
+
+    bayOk = IsValidBay (slot, drive);
+    CBRAEx (bayOk, E_INVALIDARG);
+    CBRAEx (hasPath, E_INVALIDARG);
+
+    {
+        Entry &  entry = At (slot, drive);
+
+        hasImage = (entry.mounted && entry.image != nullptr);
+        CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+
+        // Refusing to write over the source is not defensive coding: the
+        // entire point of salvage is that the damaged original survives to
+        // stay detectably damaged.
+        isSource = (path == entry.path);
+        CBRAEx (!isSource, E_INVALIDARG);
+
+        hr = BuildSalvagedImage (entry, bytes, report);
+        CHRN (hr, FormatSalvageFailedMessage (path).c_str());
+
+        if (m_flushSink)
+        {
+            hr = m_flushSink (path, bytes);
+        }
+        else
+        {
+            hr = WriteFileAtomically (path, bytes);
+        }
+
+        CHRN (hr, FormatSalvageFailedMessage (path).c_str());
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatSalvageFailedMessage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring DiskImageStore::FormatSalvageFailedMessage (const string & path)
+{
+    wstring  widePath = fs::path (path).wstring();
+
+
+
+    if (widePath.empty())
+    {
+        widePath = L"(unknown path)";
+    }
+
+    return L"Casso could not write the salvaged copy:\n\n" + widePath +
+           L"\n\nThe original disk image was not changed.";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReadImageFile
 //
 //  Whole-file read for a mounted image's backing file, through the test
