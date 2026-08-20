@@ -276,7 +276,7 @@ public:
     // Drive door swing: fully open lifts the door bar this far off the
     // faceplate (a touch past 60 degrees, like the real drive at rest), and
     // progress deltas below the epsilon skip the vertex rebuild.
-    static constexpr float  kDoorOpenRad     = 1.15f;
+    static constexpr float  kDoorOpenRad     = DeskSceneModel::kDiskIiDoorOpenRad;
     static constexpr float  kDoorProgressEps = 1.0f / 256.0f;
 
 private:

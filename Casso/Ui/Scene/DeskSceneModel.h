@@ -114,8 +114,31 @@ public:
     const std::vector<DeskLampAnchor> &           Lamps        () const { return m_lamps; }
     const std::vector<DeskRegionBox> &            RegionBoxes  () const { return m_regions; }
 
-    // The door's hinge line: the X-axis line through the assembly's top-back
-    // edge, where the real drive's flip-up door attaches to the faceplate.
+    // The Disk II door's motion is a CANTILEVER, not a hinge. It rises as it
+    // swings, which is the only way it clears into a notch shallower than the
+    // door is long: a pure pivot at the door's top would sweep its bottom edge
+    // 57.7 mm back, and the notch is 38 deep. That arithmetic rules a simple
+    // hinge out before any of it is modeled.
+    //
+    // Any planar displacement is still a rotation about SOME point, so one
+    // rotation serves -- the pole is simply not on the part. Solved from the
+    // two poses the photographs give: closed with the bottom edge at the
+    // frame's bottom on the face, open with it risen to the notch's top and
+    // barely proud of it, which is the "only the bottom edge and a few mm
+    // show" pose. The pole lands inside the drive, where a linkage's would.
+    //
+    // Pole and angle live TOGETHER, and public, because neither means anything
+    // without the other and a test can then assert the POSE the pair produces.
+    // They were in two files, with the angle tuned in one while the pivot was
+    // derived from the door's bounding box in the other -- so remodeling the
+    // door silently moved the mechanism.
+    static constexpr float  kDiskIiDoorPoleY   = 22.19f;
+    static constexpr float  kDiskIiDoorPoleZ   = 65.37f;
+    static constexpr float  kDiskIiDoorOpenRad = 1.3631f;
+
+    // The door's pole: the X-axis line it TURNS ABOUT. Not a hinge, and not on
+    // the part -- the mechanism is a cantilever, so the door rises as it swings
+    // and the center of that motion sits inside the drive.
     void  DoorPivot (float & outY, float & outZ) const { outY = m_doorPivotY; outZ = m_doorPivotZ; }
 
     // Rotates the cached door assembly about the hinge by `angleRad`: the

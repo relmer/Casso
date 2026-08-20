@@ -510,17 +510,13 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
 
     if (kind == DeskDeviceKind::DiskII)
     {
-        float   hiY = -FLT_MAX;
-        float   hiZ = -FLT_MAX;
-
-        for (const Dxui3DRenderer::Vertex & v : m_door)
-        {
-            hiY = std::max (hiY, v.y);
-            hiZ = std::max (hiZ, v.z);
-        }
-
-        m_doorPivotY = hiY;
-        m_doorPivotZ = hiZ;
+        // NOT derived from the door's own top-back edge any more. That put the
+        // pole ON the part, which is a plain hinge, and a plain hinge cannot
+        // produce this motion -- see s_kDiskIiDoorPole*. Deriving it also made
+        // the mechanism a silent function of the door's bounding box, so
+        // remodeling the door moved the mechanism.
+        m_doorPivotY = kDiskIiDoorPoleY;
+        m_doorPivotZ = kDiskIiDoorPoleZ;
 
         BuildPadlockStamp();
 

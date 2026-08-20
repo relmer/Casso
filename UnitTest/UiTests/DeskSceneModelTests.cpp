@@ -399,10 +399,14 @@ public:
         AssertSucceeded (model.Load (DeskDeviceKind::DiskII, DriveObj(), Mtl()));
         Assert::IsFalse (model.DoorVerts().empty());
 
-        // The hinge is the assembly's top-back edge.
+        // The pole is the CANTILEVER's center, a fixed point inside the drive
+        // -- deliberately not the door's own top-back edge, which is a hinge.
+        // Deriving it from the assembly made the mechanism a function of the
+        // door's bounding box, so remodeling the door moved the mechanism.
         model.DoorPivot (pivotY, pivotZ);
-        Assert::AreEqual (s_kDoorBackY, pivotY, 0.01f);
-        Assert::AreEqual (s_kDoorTopZ,  pivotZ, 0.01f);
+        Assert::AreEqual (DeskSceneModel::kDiskIiDoorPoleY, pivotY, 0.01f);
+        Assert::AreEqual (DeskSceneModel::kDiskIiDoorPoleZ, pivotZ, 0.01f);
+        Assert::IsTrue   (pivotY > 0.0f, L"the pole belongs inside the drive");
 
         // The door left the opaque batch: nothing opaque remains in the
         // door bar's proud slab in front of the faceplate.
@@ -425,6 +429,58 @@ public:
 
         AssertFailed (model.Load (DeskDeviceKind::DiskII, DriveObj (false), Mtl()));
         expect.RequireCount (1);
+    }
+
+    // What the pole and the angle are FOR, asserted as the pose they produce
+    // rather than as two numbers. This is the check that would have caught the
+    // door swinging out toward the camera, which is what it used to do.
+    TEST_METHOD (Door_Fully_Open_Rises_Into_The_Notch_Instead_Of_Swinging_Out)
+    {
+        // The closed pose of the door's bottom edge, on the drive face at the
+        // slot frame's bottom -- the two points the mechanism was solved from.
+        const float  kClosedY = -1.0f;
+        const float  kClosedZ = 47.58f;
+
+        std::vector<Dxui3DRenderer::Vertex>   base (1);
+        std::vector<Dxui3DRenderer::Vertex>   open;
+
+        base[0].y = kClosedY;
+        base[0].z = kClosedZ;
+
+        DeskSceneModel::RotateDoorVerts (base,
+                                         DeskSceneModel::kDiskIiDoorPoleY,
+                                         DeskSceneModel::kDiskIiDoorPoleZ,
+                                         DeskSceneModel::kDiskIiDoorOpenRad,
+                                         open);
+
+        // It RISES: the bottom edge ends up at the notch's top, some 37 mm
+        // above where it started, which is what leaves only that edge showing.
+        Assert::AreEqual (84.4f, open[0].z, 0.5f);
+
+        // And it does NOT come toward the viewer. The old mechanism drove the
+        // bottom edge to negative y -- out of the drive and into the room.
+        Assert::IsTrue (open[0].y > kClosedY,
+                        L"the door must travel back into the drive, not out at the viewer");
+        Assert::AreEqual (0.0f, open[0].y, 0.5f);
+    }
+
+    // The far end has to FIT: the notch is 38 mm deep, and a door that swings
+    // deeper than that would pass through the back of its own pocket.
+    TEST_METHOD (Door_Fully_Open_Stays_Within_The_Notch_Depth)
+    {
+        std::vector<Dxui3DRenderer::Vertex>   base (1);
+        std::vector<Dxui3DRenderer::Vertex>   open;
+
+        base[0].y = -1.0f;
+        base[0].z = 84.4f;      // the door's top edge, closed
+
+        DeskSceneModel::RotateDoorVerts (base,
+                                         DeskSceneModel::kDiskIiDoorPoleY,
+                                         DeskSceneModel::kDiskIiDoorPoleZ,
+                                         DeskSceneModel::kDiskIiDoorOpenRad,
+                                         open);
+
+        Assert::IsTrue (open[0].y < 38.0f, L"the door swings past the notch's floor");
     }
 
     TEST_METHOD (Rotating_The_Door_Keeps_The_Hinge_And_Swings_The_Bottom_Out)
