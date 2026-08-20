@@ -192,6 +192,26 @@ namespace MerlinDirectiveTests
 
             return found;
         }
+
+
+
+        //  The same question of the WARNINGS, for a rule whose whole content is
+        //  that a construct is accepted and remarked on rather than refused.
+        static bool AnyWarningMentions (const AssemblyResult & result, const std::string & fragment)
+        {
+            bool  found = false;
+
+            for (const AssemblyError & warning : result.warnings)
+            {
+                if (warning.message.find (fragment) != std::string::npos)
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            return found;
+        }
     };
 
 
@@ -2692,6 +2712,71 @@ namespace MerlinDirectiveTests
                 Assert::IsFalse (MerlinAssemblyFixture::AnyErrorMentions (result, "-d SAVOBJ=0"),
                                  L"and must not also be told to pass -d");
             }
+        }
+
+
+
+        //  MERLIN TAKES ITS MNEMONICS IN ANY CASE, and the bytes do not change.
+        //
+        //  Real Merlin ran on hardware with no lower case, so no vendor source
+        //  can settle this and the corpus never will. What settled it is the
+        //  other direction: Casso already accepted lower-case DIRECTIVES, so
+        //  refusing lower-case mnemonics made the case rule disagree with itself
+        //  inside one dialect -- `org` fine, `lda` an error, with a diagnostic
+        //  that never mentioned case. Accepting both is the wider reading, and a
+        //  dialect that accepts more than the original cannot reject a source
+        //  the original would have assembled.
+        TEST_METHOD (MnemonicsAreAcceptedInAnyCaseAndEmitTheSameBytes)
+        {
+            AssemblyResult  upper = MerlinAssemblyFixture::AssembleMerlin (" ORG $300\n LDA #$41\n RTS\n");
+            AssemblyResult  lower = MerlinAssemblyFixture::AssembleMerlin (" org $300\n lda #$41\n rts\n");
+            AssemblyResult  mixed = MerlinAssemblyFixture::AssembleMerlin (" Org $300\n Lda #$41\n rTs\n");
+
+            Assert::IsTrue (upper.errors.empty(), L"the upper-case form must assemble, or this test proves nothing");
+            Assert::IsTrue (lower.errors.empty(), L"a lower-case source must assemble");
+            Assert::IsTrue (mixed.errors.empty(), L"and so must a mixed one");
+
+            Assert::IsTrue (upper.bytes == lower.bytes, L"case must not change a byte");
+            Assert::IsTrue (upper.bytes == mixed.bytes, L"in either direction");
+        }
+
+
+
+        //  The alternate branch names travel with them, because they are
+        //  resolved by an alias table the parser consults after upper-casing --
+        //  a separate path from the opcode lookup, and one that could have been
+        //  left case-sensitive without any of the above noticing.
+        TEST_METHOD (TheAlternateBranchNamesAreAcceptedInAnyCaseToo)
+        {
+            AssemblyResult  upper = MerlinAssemblyFixture::AssembleMerlin (" ORG $300\nHERE BLT HERE\n");
+            AssemblyResult  lower = MerlinAssemblyFixture::AssembleMerlin (" ORG $300\nHERE blt HERE\n");
+
+            Assert::IsTrue (upper.errors.empty(), L"BLT must assemble");
+            Assert::IsTrue (lower.errors.empty(), L"and so must blt");
+            Assert::IsTrue (upper.bytes == lower.bytes, L"to the same branch opcode");
+        }
+
+
+
+        //  AND A LOWER-CASE LABEL THAT LOOKS LIKE AN INSTRUCTION IS STILL LEGAL.
+        //
+        //  This is the rule the change above could most easily have broken: the
+        //  label question is asked exact-case ON PURPOSE, because `lda` as a
+        //  label is legal in period sources. Widening the opcode lookup without
+        //  keeping the two questions apart would have turned this line into a
+        //  hard error while every test above went on passing.
+        //  The label goes in column 1 with a real instruction beside it, because
+        //  an EQU form never reaches the check: the first version of this test
+        //  used one, passed, and went on passing when the label question was
+        //  deliberately broken. Mutation is what found that; the form below
+        //  fails within one line of it.
+        TEST_METHOD (ALowerCaseLabelResemblingAnInstructionIsStillAccepted)
+        {
+            AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin ("lda NOP\n RTS\n");
+
+            Assert::IsTrue (result.errors.empty(), L"a label named `lda` must remain legal, not a hard error");
+            Assert::IsTrue (MerlinAssemblyFixture::AnyWarningMentions (result, "Label name resembles mnemonic"),
+                            L"and must be warned about at its definition, which is the whole of the accommodation");
         }
 
 

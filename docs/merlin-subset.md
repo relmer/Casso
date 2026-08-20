@@ -199,6 +199,20 @@ behavior.
   follows a digit, where no identifier is being scanned, so the corpus cannot
   force the other reading; a source that needs it would.
 
+## Case
+
+**Directives, mnemonics and the alternate branch names are taken in any case.**
+`LDA`, `lda` and `Lda` are one instruction, and they emit the same byte.
+
+Real Merlin ran on hardware with no lower case, so no vendor source can settle
+this and the corpus never will. Casso is deliberately wider here: a dialect that
+accepts more than the original cannot reject a source the original would have
+assembled, and Merlin source written in a Windows editor arrives lower-case.
+
+**Symbols are a different question and stay case-sensitive.** A label written
+`lda` is legal — period sources do it — and is accepted with a warning that it
+resembles an instruction, rather than being refused.
+
 ## Strictness
 
 There is no lenient superset. A source is read under the dialect its invocation

@@ -118,6 +118,14 @@ Entries before versioning was introduced use dates only.
   `build.a65`? — is injected rather than probed directly.
 
 ### Fixed
+- **Merlin now takes its mnemonics in any case.** `lda` was refused as an
+  invalid mnemonic while `org` on the line above was accepted, so the case rule
+  disagreed with itself inside one dialect — and the diagnostic never mentioned
+  case, leaving `Invalid mnemonic: lda` to be puzzled out. Instructions,
+  directives and the alternate branch names are now all case-insensitive, and
+  the bytes are identical either way. Symbols are untouched and stay
+  case-sensitive: a label written `lda` remains legal and is warned about
+  rather than refused, which is what period sources rely on.
 - **A long option written with a slash now works instead of silently doing
   something else.** `CassoCli as65 src.a65 /raw` used to fall through to the
   single-letter parser as `-raw`: it warned about an unknown `-r` and `-a`,

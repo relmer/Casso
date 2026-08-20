@@ -960,7 +960,7 @@ bool AssemblySession::OperandNamesAnOperation (const ParsedLine & parsed) const
 
     word  = Parser::ToUpper ((end == std::string::npos) ? parsed.operand : parsed.operand.substr (0, end));
     names = !word.empty() &&
-            (m_opcodeTable->IsMnemonic (word) ||
+            (m_opcodeTable->NamesAnInstruction (word) ||
              (m_dialect.GetDirectiveForSpelling (word) != Directive::None));
 
     for (const MnemonicAlias & alias : m_dialect.GetMnemonicAliases())
@@ -2577,7 +2577,7 @@ void AssemblySession::OpenMacroDefinition (const PendingLine & current, const Li
                       : info.parsed.mnemonic;
 
     // Name collision check
-    if (m_opcodeTable->IsMnemonic (opened.name))
+    if (m_opcodeTable->NamesAnInstruction (opened.name))
     {
         RecordError (current.sourceLineNumber, "Macro name conflicts with mnemonic: " + opened.name);
     }
@@ -6370,7 +6370,7 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
             }
             else if (!info.hasError)
             {
-                if (!m_opcodeTable->IsMnemonic (info.parsed.mnemonic))
+                if (!m_opcodeTable->NamesAnInstruction (info.parsed.mnemonic))
                 {
                     RecordError (current.sourceLineNumber, DescribeUnknownOperation (info.parsed));
                 }
