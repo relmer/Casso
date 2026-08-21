@@ -248,6 +248,10 @@ public:
     // the same question the top level does.
     static bool  IsHelpRequest (const std::string & arg);
 
+    // as65's unadorned `?`, which is a request only when it is the ONLY
+    // parameter -- so this is handed the whole tail rather than one argument.
+    static bool  IsLoneQuestionMark (int argc, char * argv[], int startIndex);
+
     // Shared with the executable, which needs the same tests when it decides
     // how to treat an input path and which output writer to use, and the same
     // answer about where a path's extension begins when it names an output

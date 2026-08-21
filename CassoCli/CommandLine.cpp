@@ -293,6 +293,8 @@ void CommandLine::PrintAssemblePage (char prefix)
     PrintUsageLine (std::format ("  {0}o is the one switch where the space before its value is optional: {0}o prog.bin is taken as readily as {0}oprog.bin.", sp));
     std::println ("");
     PrintUsageLine (std::format ("  {0}s2 is one switch rather than {0}s followed by a 2. The longest switch name that matches wins, which is how as65 reads it too.", sp));
+    std::println ("");
+    PrintUsageLine ("  A question mark with no switch character in front of it prints this page, which is as65's own usage request. It has to be the only thing after `as65`: with anything beside it, ? is an ordinary argument.");
 
     PrintSectionHeading ("AS65 options");
     PrintDialectFlags (DialectId::As65, prefix);

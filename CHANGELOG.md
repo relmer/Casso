@@ -41,9 +41,12 @@ Entries before versioning was introduced use dates only.
 - **A bare `?` shows the usage text.** as65 prints its help when the only
   parameter is a question mark. `-?` and `/?` already worked; the unadorned one
   was read as a source filename, so `CassoCli ?` went looking for a file called
-  `?` and exited saying it could not open one. Only the single-argument case
-  changed — `?` alongside anything else is still an ordinary argument, because
-  a question mark further along a command line is somebody's operand.
+  `?` and exited saying it could not open one. Every subcommand takes it too —
+  `CassoCli as65 ?` is where an as65 user types it now that assembling names its
+  dialect, and `merlin`, `run` and `disk` answer with their own pages. Only the
+  single-argument case changed — `?` alongside anything else is still an
+  ordinary argument, because a question mark further along a command line is
+  somebody's operand, and a DOS 3.3 catalog will hold a file called `?`.
 - **A `disk` subcommand: read files off an Apple II disk image and put them
   back.** `CassoCli disk list <image>` catalogs a volume, `disk get` extracts a
   file, `disk put` places one, and `disk delete` removes one — on DOS 3.3 and

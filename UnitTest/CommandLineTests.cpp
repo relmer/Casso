@@ -494,6 +494,61 @@ namespace CommandLineTests
             Assert::IsTrue (run.helpPage     == CommandLineOptions::HelpPage::Run);
         }
 
+        //
+        //  A BARE `?` IS as65's OWN USAGE REQUEST -- "Help message if only
+        //  parameter is a question mark" -- and it carries no switch character
+        //  at all. It was accepted at the top level already, from before
+        //  assembling named its dialect; `CassoCli as65 ?` is where an as65
+        //  user types it now, so that is where it has to work.
+        //
+        //  It reaches the other grammars too. None of them has anything else to
+        //  spend a lone `?` on, and a form a reader learned one command line ago
+        //  answering only under `as65` is the trap IsHelpRequest exists to avoid.
+        //
+        TEST_METHOD (ALoneQuestionMark_OpensThePageOfWhicheverModeItFollows)
+        {
+            CommandLineOptions  top    = ParseTyped ({ "CassoCli", "?" });
+            CommandLineOptions  as65   = ParseTyped ({ "CassoCli", "as65",   "?" });
+            CommandLineOptions  merlin = ParseTyped ({ "CassoCli", "merlin", "?" });
+            CommandLineOptions  run    = ParseTyped ({ "CassoCli", "run",    "?" });
+            CommandLineOptions  disk   = ParseTyped ({ "CassoCli", "disk",   "?" });
+
+            //  The top-level one lands on the assembler's page, because a bare
+            //  `?` IS as65's request and assembling is what as65 does.
+            Assert::IsTrue (top.showHelp,    L"CassoCli ?");
+            Assert::IsTrue (top.helpPage    == CommandLineOptions::HelpPage::Assemble);
+
+            Assert::IsTrue (as65.showHelp,   L"CassoCli as65 ?");
+            Assert::IsTrue (as65.helpPage   == CommandLineOptions::HelpPage::Assemble);
+
+            Assert::IsTrue (merlin.showHelp, L"CassoCli merlin ?");
+            Assert::IsTrue (merlin.helpPage == CommandLineOptions::HelpPage::Merlin);
+
+            Assert::IsTrue (run.showHelp,    L"CassoCli run ?");
+            Assert::IsTrue (run.helpPage    == CommandLineOptions::HelpPage::Run);
+
+            Assert::IsTrue (disk.disk.verb  == CommandLineOptions::DiskOptions::Verb::Help,
+                            L"CassoCli disk ?");
+        }
+
+        //  AND ONLY WHEN IT IS ALONE, which is the half of as65's rule that
+        //  keeps it safe. A `?` beside anything else is an operand: a DOS 3.3
+        //  catalog will hold a file called `?` quite happily, and a source file
+        //  followed by one is a surplus argument to complain about rather than
+        //  a request for a page.
+        TEST_METHOD (AQuestionMarkBesideAnythingElse_IsAnOperandRatherThanARequest)
+        {
+            CommandLineOptions  extra  = ParseTyped ({ "CassoCli", "as65", "prog.a65", "?" });
+            CommandLineOptions  named  = ParseTyped ({ "CassoCli", "disk", "get", "img.dsk", "?" });
+
+            Assert::IsFalse (extra.showHelp, L"a source and a ? is not a help request");
+
+            Assert::IsTrue (named.disk.verb == CommandLineOptions::DiskOptions::Verb::Get,
+                            L"the verb still reads as get");
+            Assert::AreEqual (std::string ("?"), named.disk.path,
+                              L"and the ? is the path it was typed as");
+        }
+
         TEST_METHOD (EverySpellingOfHelpAtTheTopLevel_OpensTheGeneralPage)
         {
             for (const std::string & form : Forms())

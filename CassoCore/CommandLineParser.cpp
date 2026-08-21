@@ -350,10 +350,9 @@ static constexpr const char *  s_kpszSourceExtensions[] =
 //  `-h` from any other command line types it here first.
 //
 //  THE ONE TOP-LEVEL FORM MISSING HERE IS A BARE `?`, and it is missing
-//  because the condition that makes it a request cannot hold inside a
-//  subcommand. as65 asks for a question mark that is the ONLY parameter; every
-//  argument this function judges has a verb in front of it, so a `?` reaching
-//  here is somebody's operand -- a file on a disk is allowed to be called that.
+//  because this function cannot judge it. as65 asks for a question mark that is
+//  the ONLY parameter, and one argument on its own does not know whether it was
+//  alone. IsLoneQuestionMark below is handed the whole tail and answers that.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -361,6 +360,35 @@ bool CommandLineParser::IsHelpRequest (const std::string & arg)
 {
     return arg == "--help" || arg == "-help" || arg == "-?" || arg == "-h" ||
            arg == "/help"  || arg == "/?"    || arg == "/h";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::IsLoneQuestionMark
+//
+//  Whether everything a subcommand was given is a single bare `?`.
+//
+//  as65 documents "Help message if only parameter is a question mark", and
+//  keeps it unadorned: no dash, no slash. `CassoCli as65 ?` is that command
+//  line now that assembling names its dialect, so the condition is measured
+//  from the word after `as65` rather than from the program name.
+//
+//  THE "ONLY PARAMETER" HALF IS THE WHOLE SAFETY OF IT. A `?` with anything
+//  beside it is an operand and stays one -- a DOS 3.3 catalog will hold a file
+//  called `?` quite happily, so `disk get img.dsk ?` has to keep meaning what
+//  it says. Alone, there is nothing for it to be an operand OF: no subcommand
+//  here does anything useful with one argument that is not a filename, and a
+//  filename is what `?` cannot be on this host.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsLoneQuestionMark (int argc, char * argv[], int startIndex)
+{
+    return (argc - startIndex) == 1 && std::string (argv[startIndex]) == "?";
 }
 
 
@@ -878,6 +906,12 @@ void CommandLineParser::ParseDiskOptions (
     //  looked for BEFORE the verb: `disk --help` would otherwise offer
     //  `--help` to the verb table, be told it is not a verb, and answer a
     //  request for the grammar with a complaint about the grammar.
+    //  The lone `?` is looked for the other way round -- across the whole tail
+    //  at once rather than one argument at a time -- because it is a request
+    //  only when nothing else was typed. A catalog will hold a file called `?`,
+    //  so `disk get img.dsk ?` has to keep meaning what it says.
+    wantsHelp = IsLoneQuestionMark (argc, argv, argIndex);
+
     for (int probe = argIndex; probe < argc; probe++)
     {
         if (IsHelpRequest (argv[probe]))
@@ -1838,7 +1872,15 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
         //  question to ask here. Every other grammar may treat a bare `-h` as
         //  help; this one cannot, because `-h<lines>` is as65's page height and
         //  the flag walk below owns it.
-        if (arg == "--help" || arg == "-help" || arg == "-?" || arg == "/?" || arg == "/help")
+        //
+        //  The unadorned `?` is on it, and is as65's own: this is the grammar
+        //  that documents it, and `CassoCli as65 ?` is where an as65 user types
+        //  it now that assembling names its dialect. Measured from startIndex
+        //  rather than from the walk's own position, because "only parameter"
+        //  is the whole condition: `as65 prog.a65 ?` has a surplus argument to
+        //  complain about and is not a request for anything.
+        if (arg == "--help" || arg == "-help" || arg == "-?" || arg == "/?" || arg == "/help" ||
+            IsLoneQuestionMark (argc, argv, startIndex))
         {
             if (arg[0] == '/')
             {
@@ -2635,7 +2677,11 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
 
         //  Merlin's own page, for the reason as65's arm gives: the subcommand
         //  already said which grammar the reader is in.
-        if (IsHelpRequest (arg))
+        //
+        //  The lone `?` comes along even though it is as65's convention rather
+        //  than Merlin's, because a reader who learned it one line ago types it
+        //  here next and Merlin has nothing else to spend it on.
+        if (IsHelpRequest (arg) || IsLoneQuestionMark (argc, argv, startIndex))
         {
             if (arg[0] == '/')
             {
@@ -2821,6 +2867,10 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
     bool     refused   = false;
 
 
+
+    //  And the lone `?`, for the reason the disk arm gives: it is a request
+    //  only when there is nothing beside it.
+    wantsHelp = IsLoneQuestionMark (argc, argv, argIndex);
 
     for (int probe = argIndex; probe < argc; probe++)
     {
