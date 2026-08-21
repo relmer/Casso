@@ -83,7 +83,14 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind       monitorKind,
     // text lives here, not in the shared model.
     {
         constexpr float   kLabelCellMm = 0.43f;
-        constexpr float   kLabelLeftMm = 13.7f;
+        // Both faceplate legends line up on the OUTER edge of the slot
+        // frame's left bevel -- the one strong vertical the front actually
+        // has. Two labels each measured to themselves read as two accidents;
+        // sharing an edge with the frame makes the column look intended.
+        //
+        // Kept in step with s_kInUseLeftMm in DeskSceneModel.cpp; the value is
+        // FRAME_X0 + FRAME_FLAT from cad_diskii.py.
+        constexpr float   kLabelLeftMm = 12.23f;
         constexpr float   kLabelTopZMm = 78.7f;   // straight on the black, no plaque
         constexpr float   kLabelFrontY = -1.9f;
         constexpr float   kLabelRgb[3] = { 0.870f, 0.860f, 0.840f };   // white ON the black, no plaque behind it

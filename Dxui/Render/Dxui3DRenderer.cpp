@@ -107,6 +107,28 @@ static const char s_kPixelShaderSrc[] =
     "    return (float) (HashCell (c + int3 (salt * 7, salt * 13, salt * 29)) & 0xFFFFu)\n"
     "         * (1.0f / 65535.0f);\n"
     "}\n"
+    // Smooth value noise, INTERPOLATED across the cell rather than constant
+    // within it. The cell value alone is a cube of one number, so the finish
+    // rendered as flat blocks a few pixels across -- digital noise, not a
+    // molded grain. Reading all eight corners and easing between them turns
+    // the same hash into a continuous undulation, which is what a pebbled
+    // surface actually is: the mold's texture is smooth at every scale, only
+    // irregular.
+    //
+    // The ease is the standard smoothstep weighting, so the field's slope is
+    // continuous at the cell walls too -- linear weights leave a crease on
+    // every boundary, which reads as a faint grid.
+    "float SmoothRand (float3 p, int salt)\n"
+    "{\n"
+    "    int3   c = (int3) floor (p);\n"
+    "    float3 f = p - (float3) c;\n"
+    "    float3 w = f * f * (3.0f - 2.0f * f);\n"
+    "    float  x00 = lerp (CellRand (c + int3 (0,0,0), salt), CellRand (c + int3 (1,0,0), salt), w.x);\n"
+    "    float  x10 = lerp (CellRand (c + int3 (0,1,0), salt), CellRand (c + int3 (1,1,0), salt), w.x);\n"
+    "    float  x01 = lerp (CellRand (c + int3 (0,0,1), salt), CellRand (c + int3 (1,0,1), salt), w.x);\n"
+    "    float  x11 = lerp (CellRand (c + int3 (0,1,1), salt), CellRand (c + int3 (1,1,1), salt), w.x);\n"
+    "    return lerp (lerp (x00, x10, w.y), lerp (x01, x11, w.y), w.z);\n"
+    "}\n"
     "float4 main (PSIn input) : SV_TARGET\n"
     "{\n"
     "    float4 texel = tex.Sample (samp, input.uv);\n"
@@ -117,10 +139,16 @@ static const char s_kPixelShaderSrc[] =
     "        float3 n    = normalize (input.nrm);\n"
     "        if (input.peb > 0.0f)\n"
     "        {\n"
-    "            int3   c = (int3) floor (input.wp / parm3.x);\n"
-    "            float3 j = float3 (CellRand (c, 1), CellRand (c, 2), CellRand (c, 3))\n"
-    "                     * 2.0f - 1.0f;\n"
-    "            n = normalize (n + j * (parm3.y * input.peb));\n"
+    // Two octaves. One alone is a single spatial frequency, which reads as
+    // regular swell rather than grain; adding a half-scale octave at a third
+    // of the weight gives the fine break-up a molded finish has without
+    // returning to per-cell chaos.
+    "            float3 p  = input.wp / parm3.x;\n"
+    "            float3 j  = float3 (SmoothRand (p, 1), SmoothRand (p, 2),\n"
+    "                                SmoothRand (p, 3)) * 2.0f - 1.0f;\n"
+    "            float3 j2 = float3 (SmoothRand (p * 2.7f, 4), SmoothRand (p * 2.7f, 5),\n"
+    "                                SmoothRand (p * 2.7f, 6)) * 2.0f - 1.0f;\n"
+    "            n = normalize (n + (j + j2 * 0.35f) * (parm3.y * input.peb));\n"
     "        }\n"
     "        float3 v    = normalize (eye.xyz);\n"
     "        float  diff = 0.0f;\n"

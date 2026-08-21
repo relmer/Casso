@@ -77,6 +77,12 @@ DOOR_BACK = PLATE_Y + DOOR_T      # both steps share one back plane
 NOTCH_W    = DOOR_W + 1.0         # a hair wider, so the door never binds
 NOTCH_DEEP = 38.0
 
+# The diskette slot proper: a void running back into the drive's core, deep
+# enough that its far end goes dark and a diskette's back edge has somewhere
+# to sit.
+SLOT_DEPTH = 34.0
+SLOT_WALL  = 1.2                  # thickness of the black lining around it
+
 # ------------------------------------------------------------- the enclosure
 #
 # The metal case is one wrapped sheet around the drive body plus a separate
@@ -94,8 +100,8 @@ NOTCH_DEEP = 38.0
 #
 SHELL_T     = 1.25                # sheet thickness
 SHELL_PROUD = 0.75                # how far the metal stands forward of the face
-BOTTOM_DROP = 0.25                # how much lower the separate bottom plate sits
-SEAM_GAP    = 0.35                # the visible gap where wrap meets bottom plate
+BOTTOM_DROP = 1.25                # how far the bottom plate hangs below the wrap
+SEAM_GAP    = 0.70                # the visible gap where wrap meets bottom plate
 
 # The wrap's flanges reach SEAM_INSET in from each outer side, so the separate
 # plate covers the BULK of the bottom rather than a strip down the middle.
@@ -154,16 +160,30 @@ case = case.cut(
 # face itself -- which is why an open door leaves a gap in the frame, the
 # frame being proud of that face -- and it falls back to NOTCH_DEEP where the
 # door comes to rest. Measured from the face, not from the frame.
+# THE RAMP STARTS BEHIND THE DOOR, not at the face. Starting it at the face
+# put it INSIDE the door slab for the first 1.9 mm of the door's height --
+# the ramp climbs to y +1.5 by z 50 while the door occupies y -1..+1 -- and
+# two solids sharing a volume is what drew the thin triangle across the
+# closed door's bottom. The door needs somewhere to BE, so the pocket it
+# retracts into has to begin behind it.
 notch = (cq.Workplane("XZ")
          .polyline ([(FRAME_Y,                 DOOR_Z0),
-                     (PLATE_Y,                 DOOR_Z0),
+                     (DOOR_BACK,               DOOR_Z0),
                      (PLATE_Y + NOTCH_DEEP,    DOOR_Z1),
                      (FRAME_Y,                 DOOR_Z1)])
          .close()
          .extrude (NOTCH_W)
          .translate (((W - NOTCH_W) * 0.5, 0.0, 0.0)))
 
-case = case.cut (notch)
+# The slot's void, defined HERE because it has to be taken out of the case
+# and the notch liner as well as shown as a lining -- a cavity that is only
+# subtracted from the thing lining it is still solid drive behind.
+slot_cavity = (cq.Workplane("XY")
+               .box(SLOT_X1 - SLOT_X0, SLOT_DEPTH, SLOT_Z1 - SLOT_Z0,
+                    centered=(False, False, False))
+               .translate((SLOT_X0, FRAME_Y + BEVEL_RUN, SLOT_Z0)))
+
+case = case.cut (notch).cut (slot_cavity)
 
 m.add("case", case, BEIGE)
 
@@ -260,12 +280,28 @@ throat = (cq.Workplane("XY")
 
 m.add("frame", frame.cut (mouth).cut (throat).cut (notch), KD["plate_pebbled"])
 
-# The dark mouth behind the bevel, so the opening reads as a hole rather than
-# a painted rectangle.
-m.add("slot",
-      cq.Workplane("XY").box(slot_w, 0.6, slot_h, centered=(False, False, False))
-        .translate((SLOT_X0, FRAME_Y + BEVEL_RUN + 1.2, SLOT_Z0)),
-      SLOT_DK)
+# The slot is a VOID cut into the core of the drive, not a dark rectangle
+# painted behind the bevel. It used to be a 0.6 mm panel floating at y 0.47,
+# which is inside the door's own slab -- so it both read as a flat card and
+# fought the door for the same pixels.
+#
+# A real cavity is what makes it read as a hole: light falls off down its
+# length, so an empty drive is mostly black at the back, and there is
+# somewhere for the back edge of a diskette to sit when one is inserted.
+#
+# It is cut through the notch pocket and on into the case, since the pocket
+# is only a few mm deep at the slot's height and would otherwise floor the
+# opening almost immediately.
+# The cavity's walls are black plastic, not the beige they would otherwise
+# expose. Grown by the wall thickness and hollowed by the cavity itself, so
+# the lining is exactly the surfaces the eye can see down the slot.
+slot_shell = (cq.Workplane("XY")
+              .box(slot_w + SLOT_WALL * 2.0, SLOT_DEPTH + SLOT_WALL,
+                   slot_h + SLOT_WALL * 2.0, centered=(False, False, False))
+              .translate((SLOT_X0 - SLOT_WALL, FRAME_Y + BEVEL_RUN,
+                          SLOT_Z0 - SLOT_WALL)))
+
+m.add("slot", slot_shell.cut (slot_cavity), SLOT_DK)
 
 # The door. IDENTITY COLOR: the scene splits this out and swings it, so its
 # y/z extents are part of the contract.
@@ -290,7 +326,7 @@ liner = (cq.Workplane("XY")
               centered=(False, False, False))
          .translate(((W - NOTCH_W) * 0.5 - 2.0, PLATE_Y, DOOR_Z0 - 2.0)))
 
-m.add("notch_liner", liner.cut (notch), KD["plate_pebbled"])
+m.add("notch_liner", liner.cut (notch).cut (slot_cavity), KD["plate_pebbled"])
 
 m.add("door", door, KD["drive_door"])
 

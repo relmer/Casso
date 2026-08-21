@@ -97,7 +97,10 @@ static constexpr float   s_kDriveBrandFrontY   = -1.8f;
 
 // The IN-USE label: "IN USE" plus the pointer triangle, sitting to the
 // LED's left at the LED's height (the 2D widget's arrangement).
-static constexpr float   s_kInUseLeftMm  = 18.9f;
+// Shares the drive label's left edge -- the outer edge of the slot frame's
+// left bevel. See kLabelLeftMm in DeskScene.cpp; the value is
+// FRAME_X0 + FRAME_FLAT from cad_diskii.py.
+static constexpr float   s_kInUseLeftMm  = 12.23f;
 static constexpr float   s_kInUseTopZMm  = 31.1f;
 static constexpr float   s_kInUseCellMm  = 0.5f;
 static constexpr float   s_kInUseFrontY  = -1.8f;
