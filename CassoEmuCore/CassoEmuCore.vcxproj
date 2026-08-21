@@ -301,6 +301,7 @@
     <ClInclude Include="Devices\Disk\Disk2NibbleEngine.h" />
     <ClInclude Include="Devices\Disk\NibblizationLayer.h" />
     <ClInclude Include="Devices\Disk\WozLoader.h" />
+    <ClInclude Include="Devices\Disk\WozMetadata.h" />
     <ClInclude Include="Devices\Disk\BlankDiskBuilder.h" />
     <ClInclude Include="Devices\Disk\Dos33Skeleton.h" />
     <ClInclude Include="Devices\Disk\ProDosSkeleton.h" />

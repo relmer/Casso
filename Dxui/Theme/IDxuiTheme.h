@@ -204,6 +204,33 @@ public:
 
     virtual uint32_t  InfoBannerForeground () const { return Foreground(); }
 
+    //
+    //  Warning severity. A warning is not an accent-colored notice -- it has
+    //  to read as caution regardless of what the theme's accent happens to
+    //  be, so it carries its own hue rather than deriving from Accent(). The
+    //  default is the same amber the damaged-disk badge uses, so a warning in
+    //  a dialog and a warning on a drive are recognizably the same thing.
+    //
+    virtual uint32_t  WarningAccent () const { return 0xFFE8A317u; }
+
+    virtual uint32_t  WarningEdge   () const { return 0xFF7A4E00u; }
+
+    virtual uint32_t  WarningMark   () const { return 0xFF241500u; }
+
+    virtual uint32_t  InfoBannerWarningBackground () const
+    {
+        constexpr uint32_t  kTintAlpha = 0x16u << 24;   // matches the info tint's weight
+
+        return (WarningAccent() & 0x00FFFFFFu) | kTintAlpha;
+    }
+
+    virtual uint32_t  InfoBannerWarningBorder () const
+    {
+        constexpr uint32_t  kBorderAlpha = 0x99u << 24;
+
+        return (WarningAccent() & 0x00FFFFFFu) | kBorderAlpha;
+    }
+
     // Typography. Returned handles are opaque to widgets.
     virtual DxuiFontHandle  BodyFont      () const = 0;
     virtual DxuiFontHandle  BodyBoldFont  () const = 0;

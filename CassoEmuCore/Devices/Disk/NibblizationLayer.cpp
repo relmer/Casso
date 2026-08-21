@@ -33,6 +33,8 @@ static constexpr Byte  kAddrProlog0           = 0xD5;
 static constexpr Byte  kAddrProlog1           = 0xAA;
 static constexpr Byte  kAddrProlog2           = 0x96;
 static constexpr Byte  kDataProlog2           = 0xAD;
+static constexpr Byte  kIllegalNibble         = 0xFF;   // InverseTranslate miss
+static constexpr Byte  kSixBitMask            = 0x3F;
 static constexpr Byte  kEpilog0               = 0xDE;
 static constexpr Byte  kEpilog1               = 0xAA;
 static constexpr Byte  kEpilog2               = 0xEB;
@@ -566,13 +568,57 @@ static Byte InverseTranslate (Byte nib)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PopCount
+//
+//  Set bits in a 16-sector mask.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static int PopCount (uint16_t mask)
+{
+    int   count = 0;
+    int   bit   = 0;
+
+
+
+    for (bit = 0; bit < 16; bit++)
+    {
+        if ((mask & (1 << bit)) != 0)
+        {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DecodeOneSector
 //
 //  Walks the bit stream until it locates the next address-field prologue,
 //  then decodes the V/T/S header followed by the data field. On success
 //  fills outSectorData[256] and returns the address-field track/sector via
-//  out params. Returns E_FAIL if no valid sector can be decoded before
-//  the cursor wraps.
+//  out params.
+//
+//  Success means VERIFIED, not merely parsed. Four things are checked, three
+//  of which the format was already carrying and this code used to discard:
+//
+//    * the address field's own checksum, which says the sector number can be
+//      trusted (it was read into locals and thrown away);
+//    * that a data field turns up before the next address field, so a sector
+//      whose data is missing cannot silently take its neighbor's;
+//    * that every data nibble is a legal 6-and-2 code;
+//    * the data field's 343rd checksum nibble, the boot ROM's success gate
+//      (it was never read at all).
+//
+//  Returns E_FAIL if any of those fail, or if no sector can be found before
+//  the cursor wraps. The caller distinguishes the two by whether the cursor
+//  moved.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -581,7 +627,8 @@ static HRESULT DecodeOneSector (
     int                  track,
     size_t            &  bitPos,
     Byte              &  outSector,
-    Byte              *  outData)
+    Byte              *  outData,
+    SectorOutcome     &  outcome)
 {
     HRESULT   hr                        = S_OK;
     Byte      n0                        = 0;
@@ -597,6 +644,17 @@ static HRESULT DecodeOneSector (
     Byte      cEven                     = 0;
     Byte      foundProlog               = 0;
     Byte      encoded[kEncodedDataSize] = {};
+    Byte      addrVolume                = 0;
+    Byte      addrTrack                 = 0;
+    Byte      addrChecksum              = 0;
+    Byte      dataChecksum              = 0;
+    Byte      decodedNibble             = 0;
+    size_t    posBeforeProlog           = 0;
+    bool      addrChecksumOk            = false;
+    bool      dataChecksumOk            = false;
+    bool      nibbleLegal               = false;
+    bool      dataFieldMissing          = false;
+    bool      dataTrusted               = true;
     Byte      prev                      = 0;
     Byte      raw                       = 0;
     int       i                         = 0;
@@ -636,20 +694,33 @@ static HRESULT DecodeOneSector (
     cOdd  = ReadNibbleAt (img, track, bitPos);
     cEven = ReadNibbleAt (img, track, bitPos);
 
-    UNREFERENCED_PARAMETER (vOdd);
-    UNREFERENCED_PARAMETER (vEven);
-    UNREFERENCED_PARAMETER (tOdd);
-    UNREFERENCED_PARAMETER (tEven);
-    UNREFERENCED_PARAMETER (cOdd);
-    UNREFERENCED_PARAMETER (cEven);
+    outSector    = Decode44 (sOdd, sEven);
+    addrVolume   = Decode44 (vOdd, vEven);
+    addrTrack    = Decode44 (tOdd, tEven);
+    addrChecksum = Decode44 (cOdd, cEven);
 
-    outSector = Decode44 (sOdd, sEven);
+    // The address field carries its own checksum, and it was being read and
+    // thrown away. It is the only thing that says the sector NUMBER can be
+    // trusted -- without it a corrupted address field files a good sector's
+    // data under whatever number the damage happened to spell.
+    //
+    // Only the field's internal consistency is checked, not whether its track
+    // matches the one being read: half-track and quarter-track images
+    // legitimately carry a different number there.
+    // Lost until something proves otherwise, so every early exit below
+    // classifies correctly without having to remember to say so.
+    outcome = SectorOutcome::Lost;
+
+    addrChecksumOk = (addrChecksum == (addrVolume ^ addrTrack ^ outSector));
+    BAIL_OUT_IF (!addrChecksumOk, S_OK);
 
     foundProlog = 0;
 
     while (foundProlog == 0)
     {
-        n0 = ReadNibbleAt (img, track, bitPos);
+        posBeforeProlog = bitPos;
+        n0              = ReadNibbleAt (img, track, bitPos);
+
         if (n0 != kAddrProlog0)
         {
             bitsConsumed = (bitPos - startBitPos);
@@ -664,7 +735,24 @@ static HRESULT DecodeOneSector (
         {
             foundProlog = 1;
         }
+        else if (n1 == kAddrProlog1 && n2 == kAddrProlog2)
+        {
+            // The NEXT sector's address field, reached without ever finding
+            // this one's data field. Running on to take that sector's data
+            // is how one point of damage used to corrupt two sectors: the
+            // bytes decode cleanly and pass their own checksum, they are
+            // simply filed under the wrong number.
+            //
+            // Rewind so the caller's next attempt starts on this address
+            // field rather than past it, or the good sector after a damaged
+            // one is lost too.
+            bitPos           = posBeforeProlog;
+            dataFieldMissing = true;
+            break;
+        }
     }
+
+    BAIL_OUT_IF (dataFieldMissing, S_OK);
 
     prev = 0;
 
@@ -674,10 +762,35 @@ static HRESULT DecodeOneSector (
         // the writer above: on-disk nibbles encode encoded[i] XOR'd
         // with the previous raw encoded value, so we recover raw
         // values via XOR with the previous DECODED value.
-        raw         = ReadNibbleAt (img, track, bitPos);
-        encoded[i]  = static_cast<Byte> (InverseTranslate (raw) ^ prev);
+        raw           = ReadNibbleAt (img, track, bitPos);
+        decodedNibble = InverseTranslate (raw);
+
+        // 0xFF means the byte on the disk is not a legal 6-and-2 nibble at
+        // all. The sector stops being trustworthy, but decoding continues:
+        // the bytes before this point are still the disk's, and the caller
+        // may want them. The substituted value is arbitrary -- there is no
+        // right one -- which is exactly why the sector is marked unverified.
+        nibbleLegal = (decodedNibble != kIllegalNibble);
+
+        if (!nibbleLegal)
+        {
+            decodedNibble = 0;
+            dataTrusted   = false;
+        }
+
+        encoded[i]  = static_cast<Byte> (decodedNibble ^ prev);
         prev        = encoded[i];
     }
+
+    // The 343rd nibble is the data field's checksum -- the boot ROM's own
+    // success gate -- and it was never read. Verifying it is what lets Casso
+    // say a sector is intact rather than merely parseable.
+    decodedNibble  = InverseTranslate (ReadNibbleAt (img, track, bitPos));
+    dataChecksum   = static_cast<Byte> (prev & kSixBitMask);
+    dataChecksumOk = (decodedNibble == dataChecksum);
+    dataTrusted    = dataTrusted && dataChecksumOk;
+
+    outcome = dataTrusted ? SectorOutcome::Verified : SectorOutcome::Recovered;
 
     for (i = 0; i < NibblizationLayer::kSectorByteSize; i++)
     {
@@ -729,16 +842,142 @@ Error:
 
 HRESULT NibblizationLayer::Denibblize (const DiskImage & img, DiskFormat fmt, vector<Byte> & out)
 {
+    DenibblizeReport  ignored;
+
+
+
+    return Denibblize (img, fmt, out, ignored);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Denibblize
+//
+//  Decode every track's bit stream back to a plain 143,360-byte sector image.
+//
+//  What used to lose data was the SILENCE, not the early stop. This returned
+//  S_OK over a track it had only partly decoded, and the flush path wrote that
+//  buffer over the user's file -- so a damaged track was saved as a mixture of
+//  real sectors, zeroed sectors and wrong sectors, reported as a clean save.
+//
+//  Measured, on an image with one sector's data field destroyed: that sector
+//  comes back as zeros, AND a second sector comes back holding the wrong data,
+//  because the scan for the missing data field runs on and finds the NEXT
+//  sector's, storing it under the sector number the address field gave. Two
+//  sectors wrong from one point of damage, and nothing said so.
+//
+//  So the fix that matters is the report, and a partial track failing the whole
+//  operation: the zeros and the misfiled sectors are lost data rather than
+//  blank media, and refusing to save is the only answer that destroys nothing.
+//  The caller keeps the image dirty and the existing file intact.
+//
+//  A track that decodes nothing at all is a different case and still succeeds:
+//  an unformatted track in a sector image legitimately IS zeros.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT NibblizationLayer::SalvageSectors (
+    const DiskImage   &  img,
+    DiskFormat           fmt,
+    vector<Byte>      &  out,
+    DenibblizeReport  &  report)
+{
+    HRESULT   hr = S_OK;
+
+
+
+    hr = DecodeTracks (img, fmt, true, out, report);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Denibblize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT NibblizationLayer::Denibblize (
+    const DiskImage   &  img,
+    DiskFormat           fmt,
+    vector<Byte>      &  out,
+    DenibblizeReport  &  report)
+{
+    HRESULT   hr          = S_OK;
+    bool      lostSectors = false;
+
+
+
+    hr = DecodeTracks (img, fmt, false, out, report);
+    CHR (hr);
+
+    // A half-decoded track means the output holds zeros where the user's data
+    // should be. Saying so is the whole point: the caller writes this buffer
+    // over their file, and once it lands nothing distinguishes it from a
+    // clean save. Salvage takes the other entry point and does not come here.
+    lostSectors = report.HasPartialTrack();
+    CBR (!lostSectors);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DecodeTracks
+//
+//  The shared walk. keepRecovered decides what happens to a sector that
+//  decoded but did not verify: the strict path drops it (so the track reads
+//  as partial and the save is refused), salvage keeps its bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT NibblizationLayer::DecodeTracks (
+    const DiskImage   &  img,
+    DiskFormat           fmt,
+    bool                 keepRecovered,
+    vector<Byte>      &  out,
+    DenibblizeReport  &  report)
+{
+    // Enough attempts to still find all sixteen good sectors when several
+    // reads fail or repeat, without letting a hostile track spin forever.
+    constexpr int  kMaxAttemptsPerTrack = kSectorsPerTrack * 2;
+    constexpr int  kAllSectorsMask      = (1 << kSectorsPerTrack) - 1;
+
     HRESULT       hr                    = S_OK;
     const int *   interleave            = nullptr;
     int           track                 = 0;
-    int           sec                   = 0;
+    int           attempt               = 0;
+    int           decoded               = 0;
+    uint16_t      mask                  = 0;
+    uint16_t      recovered             = 0;
+    uint16_t      lost                  = 0;
     Byte          outSector             = 0;
     Byte          data[kSectorByteSize] = {};
     size_t        bitPos                = 0;
     size_t        offset                = 0;
+    size_t        trackBits             = 0;
+    int           trackLimit            = img.GetTrackCount();
+
+
 
     out.assign (kImageByteSize, 0);
+
+    report = DenibblizeReport();
 
     switch (fmt)
     {
@@ -750,22 +989,35 @@ HRESULT NibblizationLayer::Denibblize (const DiskImage & img, DiskFormat fmt, ve
 
     CHR (hr);
 
-    for (track = 0; track < kTrackCount; track++)
+    if (trackLimit > kTrackCount)
     {
-        if (track >= img.GetTrackCount())
+        trackLimit = kTrackCount;
+    }
+
+    report.decodedSectorMask.assign (static_cast<size_t> (trackLimit), 0);
+
+    for (track = 0; track < trackLimit; track++)
+    {
+        bitPos    = 0;
+        mask      = 0;
+        recovered = 0;
+        lost      = 0;
+        trackBits = img.GetTrackBitCount (track);
+
+        for (attempt = 0; attempt < kMaxAttemptsPerTrack && mask != kAllSectorsMask; attempt++)
         {
-            break;
-        }
+            SectorOutcome  outcome  = SectorOutcome::Lost;
+            HRESULT        hrSector = DecodeOneSector (img, track, bitPos, outSector,
+                                                       data, outcome);
 
-        bitPos = 0;
-
-        for (sec = 0; sec < kSectorsPerTrack; sec++)
-        {
-            HRESULT   hrSector = DecodeOneSector (img, track, bitPos, outSector, data);
-
+            // A hard failure means no address field could be found before the
+            // cursor wrapped -- there is nothing further on this track. Keep
+            // scanning anyway: the loop is bounded, and abandoning it here is
+            // what would cost the sectors after a damaged one the moment the
+            // decoder grows a per-sector failure mode. It has one now.
             if (FAILED (hrSector))
             {
-                break;
+                continue;
             }
 
             if (outSector >= kSectorsPerTrack)
@@ -773,10 +1025,59 @@ HRESULT NibblizationLayer::Denibblize (const DiskImage & img, DiskFormat fmt, ve
                 continue;
             }
 
+            if (outcome == SectorOutcome::Lost)
+            {
+                lost = static_cast<uint16_t> (lost | (1 << outSector));
+                continue;
+            }
+
+            if (outcome == SectorOutcome::Recovered)
+            {
+                recovered = static_cast<uint16_t> (recovered | (1 << outSector));
+
+                if (!keepRecovered)
+                {
+                    continue;
+                }
+            }
+
             offset = static_cast<size_t> (track * kSectorsPerTrack + interleave[outSector])
                    * kSectorByteSize;
 
             memcpy (&out[offset], data, kSectorByteSize);
+
+            if (outcome == SectorOutcome::Verified)
+            {
+                mask = static_cast<uint16_t> (mask | (1 << outSector));
+            }
+        }
+
+        report.decodedSectorMask[static_cast<size_t> (track)] = mask;
+
+        if (trackBits == 0)
+        {
+            continue;
+        }
+
+        decoded = PopCount (mask);
+
+        report.tracksPresent++;
+        report.sectorsVerified  += decoded;
+        report.sectorsRecovered += PopCount (recovered);
+        report.sectorsLost      += PopCount (lost);
+
+        if (decoded == 0)
+        {
+            report.tracksUnformatted++;
+        }
+        else if (decoded < kSectorsPerTrack)
+        {
+            report.tracksPartial++;
+            report.sectorsMissing += kSectorsPerTrack - decoded;
+        }
+        else
+        {
+            report.tracksComplete++;
         }
     }
 

@@ -530,11 +530,12 @@ int WINAPI wWinMain (
     // _CrtSetDbgFlag (_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF);
 #endif
 
-    // Register GUI error notification so EHM errors show a MessageBox
-    SetNotifyFunction ([] (const wchar_t * message)
-    {
-        MessageBoxW (NULL, message, L"Casso emulator", MB_OK | MB_ICONERROR);
-    });
+    // Route every EHM user-facing error (CHRN / CBRN) through Casso's own
+    // themed dialog rather than a system message box. Installed here, before
+    // anything can fail, so a command-line or machine-config failure is
+    // reported too; those happen before the shell exists, so the sink queues
+    // them and the shell replays them once there is a window.
+    SetNotifyFunction (&EmulatorShell::NotifyUser);
 
     // Register a GUI assertion breakpoint. In debug builds a failed EHM
     // assertion (the *A macro variants, or a bare ASSERT) otherwise breaks

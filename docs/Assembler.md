@@ -146,6 +146,9 @@ They exist so an as65 invocation is not refused outright. Tracked by
 | `-n` | Disable optimizations, overriding the `OPT` pseudo-instruction. | Accepted, ignored. |
 | `-h <lines>` | Listing page height; `0` disables pagination. | Accepted, ignored. The listing is not paginated at all. |
 
+`OPT` and `NOOPT` are likewise accepted and ignored as directives, so there is
+currently nothing for `-n` to switch off.
+
 ---
 
 ## Output formats

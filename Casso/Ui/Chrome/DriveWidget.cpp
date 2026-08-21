@@ -4,6 +4,7 @@
 #include "CassoBranding.h"
 #include "../IDriveCommandSink.h"
 #include "Core/UnicodeSymbols.h"
+#include "Widgets/DxuiWarningBadge.h"
 
 
 
@@ -130,6 +131,34 @@ void DriveWidget::DrawPadlock (IDxuiPainter & painter,
 
     // Keyhole.
     painter.FillRect (holeX, holeY, holeW, bodyH * 0.42f, hole);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveWidget::DrawDamageBadge
+//
+//  A warning triangle with an exclamation mark, drawn where the padlock would
+//  go when the mounted image is damaged. The shape carries the distinction:
+//  a padlock says "you cannot write to this", which is true but sounds like a
+//  setting, and this state is the file being wrong rather than a choice
+//  anyone made.
+//
+//  The triangle is a degenerate convex quad (the apex given twice) rather
+//  than a stack of scanlines, so it gets the painter's own edge handling.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DriveWidget::DrawDamageBadge (IDxuiPainter & painter,
+                                   float left, float top, float w, float h,
+                                   uint32_t fill, uint32_t edge, uint32_t mark)
+{
+    // The mark itself lives in Dxui: the info banner's warning severity shows
+    // the same triangle, and one implementation keeps them from drifting.
+    DxuiWarningBadge::Draw (painter, left, top, w, h, fill, edge, mark);
 }
 
 
@@ -459,16 +488,28 @@ void DriveWidget::Paint (
             UNREFERENCED_PARAMETER (inUseFontDip);
             UNREFERENCED_PARAMETER (doorOffset);
 
-            // Write-protect padlock, just left of the status LED.
+            // Write-protect padlock, just left of the status LED -- or the
+            // damage badge in its place, since a damaged image is already
+            // write-protected and showing both would say the milder thing
+            // twice.
             if (m_state.writeProtect.Any())
             {
-                int    badgeW = Scale (kWpBadgeWidthPx,  dpi);
-                int    badgeH = Scale (kWpBadgeHeightPx, dpi);
-                float  badgeX = (float) (m_bodyRect.right - pad - Scale (10, dpi) - badgeW - Scale (6, dpi));
-                float  badgeY = (float) (m_bodyRect.top + (bodyHcompact - badgeH) / 2);
+                bool   damaged = m_state.writeProtect.checksumMismatch;
+                int    badgeW  = Scale (damaged ? kDamageBadgeWidthPx  : kWpBadgeWidthPx,  dpi);
+                int    badgeH  = Scale (damaged ? kDamageBadgeHeightPx : kWpBadgeHeightPx, dpi);
+                float  badgeX  = (float) (m_bodyRect.right - pad - Scale (10, dpi) - badgeW - Scale (6, dpi));
+                float  badgeY  = (float) (m_bodyRect.top + (bodyHcompact - badgeH) / 2);
 
-                DrawPadlock (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
-                             kWpBadgeFillArgb, kWpBadgeShadeArgb, kWpBadgeHoleArgb);
+                if (damaged)
+                {
+                    DrawDamageBadge (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
+                                     kDamageFillArgb, kDamageEdgeArgb, kDamageMarkArgb);
+                }
+                else
+                {
+                    DrawPadlock (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
+                                 kWpBadgeFillArgb, kWpBadgeShadeArgb, kWpBadgeHoleArgb);
+                }
             }
 
             m_led.Paint (painter, text, theme);
@@ -876,21 +917,32 @@ void DriveWidget::Paint (
         // Write-protect padlock, top-right of the faceplate. Occupies a cell
         // the same size and horizontal position as the Cassowary logo below,
         // mirrored to the top edge, with the (smaller) padlock centered inside
-        // it so the two marks read as a balanced pair.
+        // it so the two marks read as a balanced pair. A damaged image shows
+        // the warning triangle in that same cell instead: it is already
+        // write-protected, and the padlock would only restate the milder half.
         if (m_state.writeProtect.Any())
         {
-            int    cellW  = Scale (kCassowaryWidthPx,  dpi);
-            int    cellH  = Scale (kCassowaryHeightPx, dpi);
-            int    margin = Scale (kCassowaryMarginPx, dpi);
-            int    badgeW = Scale (kWpBadgeWidthPx,    dpi);
-            int    badgeH = Scale (kWpBadgeHeightPx,   dpi);
-            float  cellX  = (float) (m_faceRect.right - cellW - margin);
-            float  cellY  = (float) (m_faceRect.top + margin);
-            float  badgeX = cellX + (float) (cellW - badgeW) / 2.0f;
-            float  badgeY = cellY + (float) (cellH - badgeH) / 2.0f;
+            bool   damaged = m_state.writeProtect.checksumMismatch;
+            int    cellW   = Scale (kCassowaryWidthPx,  dpi);
+            int    cellH   = Scale (kCassowaryHeightPx, dpi);
+            int    margin  = Scale (kCassowaryMarginPx, dpi);
+            int    badgeW  = Scale (damaged ? kDamageBadgeWidthPx  : kWpBadgeWidthPx,  dpi);
+            int    badgeH  = Scale (damaged ? kDamageBadgeHeightPx : kWpBadgeHeightPx, dpi);
+            float  cellX   = (float) (m_faceRect.right - cellW - margin);
+            float  cellY   = (float) (m_faceRect.top + margin);
+            float  badgeX  = cellX + (float) (cellW - badgeW) / 2.0f;
+            float  badgeY  = cellY + (float) (cellH - badgeH) / 2.0f;
 
-            DrawPadlock (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
-                         kWpBadgeFillArgb, kWpBadgeShadeArgb, kWpBadgeHoleArgb);
+            if (damaged)
+            {
+                DrawDamageBadge (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
+                                 kDamageFillArgb, kDamageEdgeArgb, kDamageMarkArgb);
+            }
+            else
+            {
+                DrawPadlock (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
+                             kWpBadgeFillArgb, kWpBadgeShadeArgb, kWpBadgeHoleArgb);
+            }
         }
 
         PaintBasenameLabel (text, theme, dpi);

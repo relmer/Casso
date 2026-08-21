@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "IDiskImage.h"
+#include "WozMetadata.h"
 
 
 
@@ -74,6 +75,16 @@ public:
     void             SetSourceCrcMismatch   (bool bad) { m_sourceCrcMismatch = bad; }
     bool             HasSourceCrcMismatch   () const { return m_sourceCrcMismatch; }
 
+    // The parts of a source WOZ the track model cannot express -- the INFO
+    // chunk's non-geometry fields and every chunk Casso does not parse (META
+    // above all). The writer rebuilds INFO/TMAP/TRKS from the live tracks,
+    // which is what makes guest writes survive, so anything the model does
+    // not hold has to be retained here or the first flush drops it. Empty
+    // for a synthesized image, which is also how the writer tells a disk
+    // Casso authored from one it merely edited.
+    void                  SetWozMetadata         (const WozMetadata & meta) { m_wozMetadata = meta; }
+    const WozMetadata &   GetWozMetadata         () const { return m_wozMetadata; }
+
     bool             IsImageWriteProtected  () const { return m_imageWriteProtected; }
     bool             IsUserWriteProtected   () const { return m_userWriteProtected;  }
     WriteProtectInfo GetWriteProtectInfo    () const;
@@ -135,4 +146,5 @@ private:
     bool                  m_fileNoPermission    = false;
     bool                  m_sourceCrcMismatch   = false;
     vector<Byte>          m_rawSourceBytes;
+    WozMetadata           m_wozMetadata;
 };

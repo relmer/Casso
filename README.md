@@ -26,7 +26,7 @@ The project includes:
 - **CLI tool** — an assembler under a named dialect (`as65` or `merlin`), or the `run` subcommand to load and execute a binary or assembly source.
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **3350+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
+- **3450+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
 
 ## Contents
 
@@ -35,8 +35,8 @@ The project includes:
 - [Project Structure](#project-structure)
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
-- [Assembler Features](#assembler-features)
 - [CPU Emulation Status](#cpu-emulation-status)
+- [Assembler](docs/Assembler.md)
 - [Why "Casso"?](#why-casso)
 - [Acknowledgments and Attributions](#acknowledgments-and-attributions)
 - [Contributing](#contributing)
@@ -47,6 +47,15 @@ The project includes:
 See [CHANGELOG.md](CHANGELOG.md) for the granular history, and
 [ARCHITECTURE.md](ARCHITECTURE.md) for a technical overview of the emulator's
 internals (projects, threading, the memory model, and the optimization log).
+
+### Salvage a damaged .woz disk (v1.17.0)
+
+Casso now checks disk integrity when a .woz disk is inserted. If the checksums
+are incorrect, Casso treats the disk as read-only to prevent further corruption
+or data loss. A Salvage wizard opens and offers to salvage data into a
+structurally correct copy of the original disk.
+
+<p align="center"><img src="Assets/feat-salvage.png" alt="Salvage dialog listing total, verified, recoverable and lost sectors for a damaged disk, the name of the salvaged copy, and a warning that repairing the checksums cannot recover corrupt data" width="560" /></p>
 
 ### Create blank disks in-app + write-protect toggle (v1.16.0)
 
@@ -332,6 +341,9 @@ Casso.sln
 
 ### Assemble and Run
 
+`CassoCli` assembles 6502 / 65C02 source and can run it in one step. Full flag
+and syntax reference: **[docs/Assembler.md](docs/Assembler.md)**.
+
 ```powershell
 # Assemble a source file to a flat binary. The dialect is NAMED: `as65` is a
 # subcommand, not an assumption. `CassoCli input.a65` used to work and no
@@ -357,8 +369,8 @@ CassoCli as65 input.a65 -d DEBUG=1 -o output.bin
 CassoCli as65 input.a65 -c -l listing.txt
 
 # Assemble 65C02 source (CMOS opcodes: STZ, BRA, RMB/SMB/BBR/BBS, ...)
-# The default is a strict 6502; 65C02-only opcodes are rejected without --cpu.
-CassoCli as65 input.a65c --cpu 65c02 -o output.bin
+# The default is a strict 6502; 65C02-only opcodes are rejected without -x.
+CassoCli as65 input.a65c -x -o output.bin
 
 # Assemble Merlin source. The object written is the assembled stream, since
 # Merlin's ORG relocates rather than seeks -- see CassoCli --help for where
@@ -368,72 +380,51 @@ CassoCli merlin SOURCE.S -o OBJECT
 # Merlin names its own object file, so -o is only needed to override the source
 CassoCli merlin SOURCE.S
 
-# There is no --cpu here: Merlin selects its CPU in the source, with XC, and a
-# CPU flag is refused rather than quietly ignored.
+# There is no CPU flag here: Merlin selects its CPU in the source, with XC, and
+# -x is refused rather than quietly ignored.
 
-# Assemble and run an assembly source directly
+# Assemble and run in one step
 CassoCli run input.a65
 
-# Load and run a pre-assembled binary at a specific address
+# Run a pre-assembled binary at a chosen address
 CassoCli run output.bin --load $8000
 ```
 
 ### Apple II Emulator
 
-The emulator requires Apple II ROM images, which are copyrighted by Apple and not
-distributed with this project. A script is included to download them from the
-[AppleWin](https://github.com/AppleWin/AppleWin) project:
+Run `Casso` with no arguments for an Apple II+ with an empty drive. ROMs and
+sample disks are fetched on first launch, with your consent — there is
+nothing to install by hand.
 
 ```powershell
-# Download ROM images into the per-machine Machines/<Name>/ folders
-.\scripts\FetchRoms.ps1
-
-# Run the emulator (defaults to Apple II+)
+# Launch the emulator (defaults to Apple II+)
 Casso
 
-# Run with a specific machine config
+# Pick a machine
 Casso --machine Apple2e
+
+# Boot a disk in drive 1
+Casso --machine Apple2e --disk1 "Apple2\Demos\casso-rocks.woz"
+
+# Both drives
+Casso --machine Apple2c --disk1 "side-a.woz" --disk2 "side-b.woz"
 ```
 
-ROM images live under `Machines/<MachineName>/` (e.g.,
-`Machines/Apple2e/Apple2e.rom`) and shared device boot ROMs live
-under `Devices/<Family>/` (e.g., `Devices/DiskII/Disk2.rom`). Both
-`Machines/` and `Devices/` are fully runtime-managed: every file
-inside is either extracted from binary-embedded resources or
-downloaded on first launch (with user consent). Delete either
-directory and the next launch rebuilds it from scratch.
-
-Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
-
-## Assembler Features
-
-| Feature | Syntax / Flag |
-|---------|---------------|
-| All 56 mnemonics | `LDA`, `STA`, `ADC`, `BNE`, etc. |
-| All addressing modes | `#$42`, `$30`, `$1234,X`, `($20),Y`, `A` |
-| CPU target | `--cpu 6502` (default, strict) or `--cpu 65c02` for CMOS opcodes (`STZ`, `BRA`, `TSB`/`TRB`, `RMB`/`SMB`/`BBR`/`BBS`, `(zp)`, `(abs,X)`); Rockwell bit ops take `<bit>,<zp>[,<target>]` or the suffixed `RMB0`/`BBR3` form |
-| Labels | `loop: DEX` / `BNE loop` |
-| Directives | `.org $8000`, `.byte $FF`, `.word $1234`, `.text "hello"`, `code`/`data`/`bss` |
-| Constants | `value = $42`, `carry equ %00000001` (chains and forward refs supported) |
-| Conditionals | `if`/`ifdef`/`ifndef`/`else`/`endif` |
-| Macros | `name macro` … `endm`, with arguments and `\` line continuation |
-| Includes | `include "file.a65"` |
-| Comments | `; full line` / `LDA #$42 ; inline` |
-| Number formats | `$FF` (hex), `%10101010` (binary), `255` (decimal) |
-| Expressions | full operator set: `+ - * / % & \| ^ ~ << >>`, `<label`, `>label`, current-PC `*` |
-| Listing output | `-l [file]` (stdout or file), `-c` for cycle counts, `-m` for macro expansion |
-| Symbol table | `-t` |
-| Output formats | full 64 KB image (default), `--raw` (assembled span only), `--dos-bin` (span behind a DOS 3.3 load-address/length header), `-s` (S-record), `-s2` (Intel HEX) |
-| Fill control | `-z` for `$00` fill (default `$FF`) |
-| Pre-defined symbols | `-d NAME` or `-d NAME=VALUE` |
-| Debug info | `-g [file]` |
-| Warning control | `--warn`, `--no-warn`, `--fatal-warnings` |
-| Verbose / quiet | `-v` / `-q` |
-| Flag concatenation | `-tlfile` ≡ `-t -l file` (AS65 style) |
+Machine names come from `Resources/Machines/<Name>/`:
+`Apple2`, `Apple2Plus`, `Apple2e`, `Apple2eEnhanced`, `Apple2c`.
 
 ## CPU Emulation Status
 
-All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) (full pass) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) (all 151 legal-opcode test sets, 10,000 vectors each).
+All 56 standard 6502 mnemonics are implemented, plus the 65C02 set. Validated
+against [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests)
+(full pass) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests)
+(all 151 legal-opcode test sets, 10,000 vectors each).
+
+## Assembler
+
+`CassoCli` is an as65-compatible 6502 / 65C02 cross-assembler with a built-in
+runner. Every flag, directive, addressing mode and output format is documented
+in **[docs/Assembler.md](docs/Assembler.md)**.
 
 ## Why "Casso"?
 

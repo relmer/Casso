@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Render/IDxuiTextRenderer.h"
 #include "Theme/DxuiTheme.h"
 
 
@@ -28,11 +29,23 @@
 class DxuiInfoBanner : public IDxuiControl
 {
 public:
+    //  Info states something; Warning cautions about a consequence. The
+    //  difference is the badge and the tint, not the layout.
+    enum class Severity
+    {
+        Info,
+        Warning
+    };
+
     DxuiInfoBanner  () = default;
     explicit DxuiInfoBanner  (std::wstring text) : m_text (std::move (text)) {}
     ~DxuiInfoBanner () override = default;
 
     void  SetText (const std::wstring & text) { m_text = text; }
+
+    void  SetSeverity (Severity severity) { m_severity = severity; }
+
+    Severity  GetSeverity () const { return m_severity; }
     const std::wstring & Text () const { return m_text; }
 
     void  SetRect (const RECT & rect) { SetBounds (rect); }
@@ -44,6 +57,15 @@ public:
     // an average glyph width (Layout has no text renderer) and rounded up so text
     // never clips.
     float  PreferredHeightPx (float widthPx, const DxuiDpiScaler & scaler) const;
+
+    // The height the banner ACTUALLY needs, measured rather than estimated.
+    // PreferredHeightPx is deliberately generous -- it has no text renderer,
+    // so it rounds up and never clips -- but on a fixed-size dialog that
+    // slack shows as an empty line inside the box. A caller that has a
+    // renderer can ask for the real height instead.
+    float  MeasuredHeightPx (IDxuiTextRenderer   &  text,
+                             float                  widthPx,
+                             const DxuiDpiScaler &  scaler) const;
 
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override
     {
@@ -57,6 +79,8 @@ public:
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Label; }
 
 private:
+    Severity  m_severity = Severity::Info;
+
     // Geometry (DIP; scaled into the layout space via the scaler).
     static constexpr float  s_kPadXDip      = 12.0f;   // left / right inner padding
     static constexpr float  s_kPadYDip      = 9.0f;    // top / bottom inner padding

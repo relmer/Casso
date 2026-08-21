@@ -77,13 +77,40 @@ Entries before versioning was introduced use dates only.
   Merlin construct in an `as65` file is still rejected, and now says which
   dialect defines it instead of reporting an unknown instruction.
 
-- **`--raw` and `--dos-bin` assembler output.** The assembler could only write
-  a full 64 KB memory image, padded with the fill byte — correct for ROM
-  burning and reference comparison, useless for loading a 2 KB routine, which
-  meant slicing 64 KB down by hand. `--raw` writes only the assembled span;
-  `--dos-bin` writes that span behind the 4-byte load-address/length header an
-  Apple DOS 3.3 binary file carries, so the result is ready to `BLOAD` once
-  placed on a disk. The default is unchanged.
+- **AS65's `-x` is accepted, and is now the only CPU flag.** It is how AS65
+  asks for the extended CPU, and Casso rejected it as an unknown flag — then
+  carried on with the *narrow* instruction table and reported every instruction
+  the flag had asked to enable as invalid.
+- **`run` takes the assembler flags that change what is assembled: `-x` and `-d`.** Without it there was a source
+  Casso could assemble and could not run — `run` refused the flag as unknown
+  and then reported every 65C02 instruction in the file as invalid. It remains
+  the only assembler option `run` accepts; the rest have no meaning when no
+  file is written.
+- **`run` names its assembler: `--as65` or `--merlin`.** `run` given a source
+  assembled it as as65 and nothing else, so a Merlin source could be assembled
+  or run, but not both in one step. The default is unchanged, and the flag is
+  ignored for a binary, which needs no assembler.
+- **`-w` wraps the listing instead of being ignored.** It was parsed, stored,
+  and read by no code, so a listing ran as wide as its widest source line
+  however narrow a width was asked for. `-w <n>` wraps at that column, `-w`
+  alone means 133, and `0` disables wrapping; the default is 79, as65's own. Continuations
+  indent to the source column, so wrapped text lines up under the text rather
+  than under the address and object bytes, which a listing's reader scans
+  positionally.
+- **The symbol table shows decimal beside hex.** AS65 lists "the name,
+  hexadecimal and decimal value of each label"; Casso showed hex alone, which
+  is the wrong half for a symbol standing for a count rather than an address.
+- **`-g` writes its symbols in both useful orders.** The debug file lists them
+  by address as before, then again by name, case-insensitively. Reading one is
+  two different questions — what sits at an address, and where a name went —
+  and each order answers one of them.
+- **`--help` fills the terminal it is printed to.** Every line of usage is now
+  written once, whole, and folded at print time to the console's width, so a
+  wide terminal gets a wide reference instead of a column of text down its left
+  third and a narrow one stops truncating. A wrapped flag description continues
+  under the description rather than at the left margin, which is what keeps the
+  two-column table reading as a table. Redirected output is folded at 80, since
+  a file has no width to ask about and will be read in an editor.
 
 ### Changed
 - **An argument the tool does not know is refused, with the help that applies.**
@@ -123,52 +150,6 @@ Entries before versioning was introduced use dates only.
   `CassoCli <source> [flags]`, which stopped working when the dialect became
   something the invocation names; it is now built from the subcommand table, as
   is the list of alternatives offered when the first word names nothing.
-- **An explicit output-format flag now wins over the filename's extension.**
-  Extension matching remains as the fallback when no flag is given, so as65-era
-  scripts naming a `.s19` or `.hex` output keep working. Previously the
-  extension always won, which meant `-s -o out.dat` silently wrote a flat
-  binary despite the flag asking for an S-record.
-- Command-line option modelling and parsing moved from the `CassoCli`
-  executable into `CassoCore`, where the test project can link it. Parsing was
-  previously unreachable from any test. Behavior is unchanged and now pinned by
-  tests; the grammar's one filesystem question — does `build` name a real
-  `build.a65`? — is injected rather than probed directly.
-
-### Added
-- **AS65's `-x` is accepted, and is now the only CPU flag.** It is how AS65
-  asks for the extended CPU, and Casso rejected it as an unknown flag — then
-  carried on with the *narrow* instruction table and reported every instruction
-  the flag had asked to enable as invalid.
-- **`run` takes the assembler flags that change what is assembled: `-x` and `-d`.** Without it there was a source
-  Casso could assemble and could not run — `run` refused the flag as unknown
-  and then reported every 65C02 instruction in the file as invalid. It remains
-  the only assembler option `run` accepts; the rest have no meaning when no
-  file is written.
-- **`run` names its assembler: `--as65` or `--merlin`.** `run` given a source
-  assembled it as as65 and nothing else, so a Merlin source could be assembled
-  or run, but not both in one step. The default is unchanged, and the flag is
-  ignored for a binary, which needs no assembler.
-- **`-w` wraps the listing instead of being ignored.** It was parsed, stored,
-  and read by no code, so a listing ran as wide as its widest source line
-  however narrow a width was asked for. `-w <n>` wraps at that column, `-w`
-  alone means 133, and `0` disables wrapping; the default is 79, as65's own. Continuations
-  indent to the source column, so wrapped text lines up under the text rather
-  than under the address and object bytes, which a listing's reader scans
-  positionally.
-- **The symbol table shows decimal beside hex.** AS65 lists "the name,
-  hexadecimal and decimal value of each label"; Casso showed hex alone, which
-  is the wrong half for a symbol standing for a count rather than an address.
-- **`-g` writes its symbols in both useful orders.** The debug file lists them
-  by address as before, then again by name, case-insensitively. Reading one is
-  two different questions — what sits at an address, and where a name went —
-  and each order answers one of them.
-- **`--help` fills the terminal it is printed to.** Every line of usage is now
-  written once, whole, and folded at print time to the console's width, so a
-  wide terminal gets a wide reference instead of a column of text down its left
-  third and a narrow one stops truncating. A wrapped flag description continues
-  under the description rather than at the left margin, which is what keeps the
-  two-column table reading as a table. Redirected output is folded at 80, since
-  a file has no width to ask about and will be read in an editor.
 
 ### Fixed
 - **Naming two output formats is refused instead of resolved.** `-s --raw`
@@ -252,17 +233,248 @@ Entries before versioning was introduced use dates only.
   number arrived paired with the wrong file, sending the reader to whatever
   happened to sit at that line of the outer source. The originating file is now
   captured where the diagnostic is created and travels with it.
-- **Pasting into the guest no longer garbles the text.** A valid Applesoft line
-  pasted at the `]` prompt produced a SYNTAX ERROR while typing the same line
-  by hand worked. Two independent causes, both fixed: Ctrl+V is claimed as a
-  host shortcut but Windows synthesizes its control character anyway, so a
-  `^V` reached the guest keyboard ahead of the pasted text; and characters were
-  fed faster than the guest could take them. Feeding is now paced in emulated
-  cycles and waits for the keyboard strobe to stay clear, because the guest
-  clears it the moment it takes a key but may flush the keyboard again while
-  processing one — so a character sent on the first clear reading races into
-  that window and is dropped.
 
+## [1.17.0] — salvage a damaged disk
+
+### Added
+- **Salvage the readable sectors of a damaged disk.** A disk whose stored
+  checksum does not match its contents is held read-only, which protects the
+  evidence of the damage but leaves the user with a disk they cannot write to
+  and no way forward. Casso can now build a salvaged copy beside it, named
+  `<disk>.salvaged.woz`, offered from the Disk menu and from the report shown
+  when the damaged image is inserted.
+
+  Sectors come back in one of three states, and the difference decides what
+  happens to each. A sector whose own checksums match is copied unchanged. A
+  sector that decoded but failed verification is *recovered* rather than
+  discarded: its bytes are kept and written with a freshly computed checksum,
+  so a sector that would have made DOS report an I/O error reads normally
+  instead. Only a sector with nothing usable — no data field, or an address
+  field whose checksum fails, so its number cannot be trusted — is zeroed,
+  because filing data under a number that might be wrong risks overwriting a
+  good sector.
+
+  Recovering rather than zeroing matters more than the counts suggest. The
+  data field decodes as a running XOR chain, so a single bad nibble leaves
+  every byte before it exactly right and skews the rest by one constant delta
+  — and if what rotted was the check nibble itself, the sector is perfect.
+  Zeroing throws all 256 bytes away to avoid admitting to a few.
+
+  The figures are shown before anything is written, because a lossy copy is a
+  decision to make with the numbers in front of you, and the dialog warns that
+  repairing the checksums makes the disk structurally sound but cannot recover
+  corrupt data within the sectors. The original is never opened
+  for writing: it keeps its damage, detectably, which is the guarantee the
+  whole feature rests on. The salvaged copy carries the source's `META` across
+  — it is still the same disk — but takes Casso's own creator stamp,
+  because Casso wrote that particular file and leaving an imaging tool's name
+  on a lossy reconstruction would be its own kind of false record.
+
+  Offered only for a disk that is both damaged and ordinarily formatted. An
+  undamaged disk is already writable, so a lossy copy could only lose data; a
+  copy-protected one has no standard sectors to recover and would be destroyed
+  by a rebuild. Neither is offered the command.
+- **`--raw` and `--dos-bin` assembler output.** The assembler could only write
+  a full 64 KB memory image, padded with the fill byte — correct for ROM
+  burning and reference comparison, useless for loading a 2 KB routine, which
+  meant slicing 64 KB down by hand. `--raw` writes only the assembled span;
+  `--dos-bin` writes that span behind the 4-byte load-address/length header an
+  Apple DOS 3.3 binary file carries, so the result is ready to `BLOAD` once
+  placed on a disk. The default is unchanged.
+
+### Changed
+- **The write-protect menu item names the flag it changes.** It read "Allow
+  writes to <disk>", which promised an outcome it cannot deliver: the drive
+  preference and the host file's read-only attribute also refuse a write, and
+  neither is touched here. It also flipped its verb on the file attribute as
+  well as the in-file flag, so a writable image inside a read-only file offered
+  to allow writes and then could not. It now reads "Clear" or "Set" — the
+  disk — "internal write-protect flag", keyed to the WOZ flag alone.
+- **Errors reach the user through Casso's own dialogs.** Every user-facing
+  error in the tree — a settings file that will not parse, a disk that will
+  not save, a damaged image — surfaced as a raw Win32 message box in the
+  middle of a themed application, because the notification sink installed at
+  startup called `MessageBoxW`. All twenty-one report sites now render as
+  ordinary Casso dialogs, with no change at any call site.
+
+  Two details that path has to respect. A report can be raised off the UI
+  thread — a motor-idle auto-flush runs on the CPU thread — so those are
+  marshaled rather than drawn from wherever they happened. And a failure
+  during startup arrives before there is a window to parent a dialog to, which
+  is why a system box was used here in the first place; those are now held and
+  shown once the window exists, so they arrive themed a moment later rather
+  than unthemed and early, and none are dropped.
+
+  Three system message boxes remain deliberately, each a case where depending
+  on Casso's own interface is what would make it unreliable: the assertion
+  reporter, which exists to report that an internal invariant broke and cannot
+  assume the interface still works; the fallback for when the dialog backend
+  itself fails to start; and the console path, which `CassoCli` takes.
+- **An explicit output-format flag now wins over the filename's extension.**
+  Extension matching remains as the fallback when no flag is given, so as65-era
+  scripts naming a `.s19` or `.hex` output keep working. Previously the
+  extension always won, which meant `-s -o out.dat` silently wrote a flat
+  binary despite the flag asking for an S-record.
+- Command-line option modelling and parsing moved from the `CassoCli`
+  executable into `CassoCore`, where the test project can link it. Parsing was
+  previously unreachable from any test. Behavior is unchanged and now pinned by
+  tests; the grammar's one filesystem question — does `build` name a real
+  `build.a65`? — is injected rather than probed directly.
+
+### Fixed
+- **Decoding a sector now verifies it rather than merely parsing it.** Three
+  integrity signals are recorded on every Apple II disk and all three were
+  being discarded: the address field's checksum was read into locals and
+  explicitly thrown away, the data field's 343rd checksum nibble — the boot
+  ROM's own success gate — was never read at all, and a byte that is not a
+  legal 6-and-2 code was already detected and ignored. All three are checked
+  now.
+
+  A fourth check needed no new data and fixes real corruption. The scan for a
+  sector's data field ran on past the next address field if the data field was
+  missing, took that sector's data and filed it under the earlier number —
+  so it decoded cleanly, passed its own checksum, and was simply wrong. One
+  point of damage produced two bad sectors, and the second was undetectable
+  because nothing about it looked wrong. The scan now stops and rewinds, so a
+  damaged sector costs exactly itself: measured on an image with one data
+  field destroyed, sectors differing from the original drop from two to one.
+
+  This also sharpens what "unformatted" means. A copy-protected track used to
+  yield one spurious decoded sector from garbage that happened to parse;
+  protected disks now report cleanly as having no standard structure, which is
+  the distinction the salvage gate depends on.
+
+  One finding worth recording: `AppleStellarInvaders.woz`, whose file-level
+  checksum is valid and which round-trips byte for byte, has a sector that
+  fails its own data checksum. It is a genuine defect in a 1980 preservation
+  dump that nothing had noticed, not a false positive — every other sector
+  on that disk and all 560 on three other intact dumps verify.
+- **The write-protect toggle is no longer offered for a damaged disk.**
+  Changing that flag means patching the file and recomputing its header
+  checksum, and that checksum failing to match *is* the evidence of damage, so
+  the operation refuses a damaged image. The menu item stayed enabled anyway,
+  which meant the only way to learn any of this was to click something that
+  could never work. An already-protected image still offers the toggle —
+  clearing the flag is exactly what a user does before writing to a disk —
+  and only damage disables it.
+- **A menu no longer clips what it has to say.** The Disk menu's dropdown was a
+  fixed width, so any row wider than it wrapped and ran into the row beneath.
+  That was already truncating stock accelerators — "Ctrl+Shift+1" rendered
+  as "Ctrl+Shift" — and it left no room for a label that names a file. The
+  dropdown now measures its widest row, label plus accelerator, and keeps the
+  old width as a floor, so every menu that fitted before is unchanged.
+- **The write-protect toggle is no longer offered when the write cannot
+  succeed.** The flag it changes lives inside the file, so setting or clearing
+  it means writing the file — which a read-only backing file or a
+  permissions failure makes impossible. The item stayed enabled anyway and
+  failed on the click. It now requires a writable file, exactly as it already
+  required an undamaged one.
+- **A dialog button no longer clips a long label.** Buttons were laid out at a
+  fixed width, so any label longer than about a dozen characters wrapped and
+  spilled outside the button. Buttons now size to their label and never go
+  below the previous width, so every existing dialog is unchanged.
+- **Saving a WOZ no longer strips its metadata.** A round trip through Casso
+  deleted the `META` chunk outright and overwrote most of `INFO`, so every WOZ
+  that passed through a flush came back degraded: a preservation dump lost its
+  title, publisher, developer, copyright, language and imaging provenance, and
+  its creator field was replaced with `Casso`. The cause was the write-back
+  path itself — it rebuilds the file from the live per-track buffers, which is
+  what makes guest writes survive, and a writer that reconstructs from the
+  track model can only emit what that model holds. The image now retains the
+  source `INFO` chunk and every chunk Casso does not parse, and re-emits them
+  unchanged, so a flush preserves them byte for byte while still writing guest
+  writes out. Verified across the demo library: all six intact WOZ 2 dumps now
+  round-trip byte for byte.
+
+  Two consequences worth knowing. Casso stamps its own name into `creator`
+  only on a disk it authored itself and preserves whoever imaged the disk
+  otherwise — overwriting that field destroys the one record of where a dump
+  came from. And a chunk Casso has never heard of no longer ends the chunk
+  walk: it is stepped over and kept, where before it stopped the scan and took
+  every chunk after it down with it.
+- **A WOZ 1 image upgraded to WOZ 2 keeps what version 1 recorded.** Casso
+  always writes version 2. The fields version 1 never had are now filled for
+  the two with no legal zero — disk sides and optimal bit timing — while the
+  three Casso cannot derive stay `unknown` rather than being guessed at.
+  Creator, synchronized and cleaned carry across.
+- **Toggling a WOZ's write-protect no longer rewrites the disk.** The flag
+  lives inside the file (`INFO` byte 2), so changing it has to write — and the
+  only writer available was the one that rebuilds the whole image from the
+  track model. One menu click therefore relaid out an entire disk to carry one
+  bit, with no guest write and no emulation involved, and it fired in both
+  directions: un-protecting a preservation dump before writing to it rewrote
+  it too, which is the one thing a user does to those files. Seven of the
+  eleven demo images ship write-protected. The toggle now patches the single
+  flag byte, recomputes the header checksum and writes the result back
+  atomically. Measured across the demo library: un-protecting an image changes
+  five bytes — the flag and the four checksum bytes — where the old path
+  changed up to 223,700 and dropped the `META` chunk.
+
+  This is deliberately a guarantee by construction rather than one that
+  depends on the rebuild path being complete: bytes that are never parsed
+  cannot be damaged. The store no longer offers any way to force a flush past
+  its dirty and write-protect gates, because changing this flag was the only
+  thing that ever wanted one.
+- **A sector image that cannot be fully decoded is no longer saved as if it
+  were** ([#115](https://github.com/relmer/Casso/issues/115)). Writing a
+  `.dsk`, `.do` or `.po` back out decodes every track's nibble stream to
+  sectors, and it reported success no matter how much of that failed — so a
+  track Casso could only partly read was written over the user's file as a
+  mixture of real sectors, zeroed sectors and wrong ones, reported as a clean
+  save. Measured on an image with a single sector's data field destroyed: that
+  sector comes back as zeros, *and* a second one comes back holding the
+  following sector's data, because the search for the missing data field runs
+  on and finds the next one, filing it under the sector number the address
+  field gave. Two sectors wrong from one point of damage, silently.
+
+  Denibblizing now reports what it decoded, per track and per sector, and a
+  track that decoded some of its sectors but not all fails the whole
+  operation. The flush path already handles that correctly: it reports the
+  loss and keeps the image dirty, leaving the existing file untouched. A track
+  that decodes nothing at all still succeeds — an unformatted track in a
+  sector image legitimately is zeros, and treating that as damage would make
+  every blank disk refuse to save.
+
+  WOZ images are unaffected: they are written by the WOZ serializer and never
+  go through this path.
+- **A damaged disk image is now held read-only instead of being quietly
+  repaired-looking.** Casso has detected a WOZ whose stored checksum does not
+  match its contents since 1.16.2, but it went on to treat the file as
+  writable — and rewriting it stamps a freshly computed, correct checksum over
+  the same damage, so nothing afterwards can tell the file is wrong. The image
+  now becomes write-protected for the session, as a fifth and separate cause
+  alongside the in-file flag, the user preference and the two file-state
+  causes, so the interface can say *why* rather than just refusing. The disk
+  still loads and still reads: being able to open a damaged preservation dump
+  is the point.
+
+  Deliberately session state and not the image's own flag, because that flag
+  lives inside the file — setting it would mean writing the very file being
+  protected from writes. The write-protect toggle also now refuses a damaged
+  image outright, since patching its flag byte recomputes the header checksum,
+  and that checksum failing to match *is* the damage report.
+
+  The emulated machine sees the disk as write-protected too. That is the
+  intended trade: telling the guest the truth beats accepting its writes and
+  discarding them later.
+- **A damaged image gets its own badge, not the padlock.** An ordinary
+  write-protect is something the user chose and can undo; a damaged file is
+  neither, and showing the same brass padlock for both invited a hunt for the
+  toggle that would now refuse them. Damaged disks show an amber warning
+  triangle in the padlock's place, on the drive faceplate and in the compact
+  drive row alike, and the hover text leads with what is wrong and why Casso
+  will not write to it.
+- **A disk image that cannot be serialized is no longer "saved" by reverting
+  it.** `DiskImage::Flush` — reached on eject and on //e soft reset — fell back
+  to writing the file's pre-session bytes over the user's disk when
+  serialization failed, and returned success: every guest write of that
+  session vanished silently. It also opened the target directly, truncating it
+  before the first byte landed, and never checked the stream afterwards, so a
+  full volume or a disconnected share destroyed the image and reported nothing
+  — the same defect fixed in the store's flush path in 1.16.2, in a second
+  write path that fix did not cover. Both are gone: the bytes go through the
+  atomic write, and a failed serialize now fails loudly and leaves the image
+  dirty so a later flush retries.
 
 ## [1.16.2] — safer disk image writes
 

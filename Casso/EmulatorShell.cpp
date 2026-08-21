@@ -43,6 +43,7 @@
 #include "Window/DxuiHwndSource.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
+#include "Ui/Dialogs/SalvageDialogContent.h"
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 
 #pragma comment(lib, "ole32.lib")
@@ -59,6 +60,36 @@
     "name='Microsoft.Windows.Common-Controls' version='6.0.0.0' " \
     "processorArchitecture='*' publicKeyToken='6595b64144ccf1df' " \
     "language='*'\"")
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  User-notification marshaling
+//
+//  A notification raised off the UI thread is posted rather than shown: the
+//  dialog is Dxui, and Dxui asserts UI-thread affinity. lParam carries an
+//  owned wstring the message loop deletes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+#define WM_APP_NOTIFY_USER   (WM_APP + 0x22)
+#define WM_APP_REPORT_DAMAGE (WM_APP + 0x23)
+#define WM_APP_RUN_SALVAGE   (WM_APP + 0x24)
+
+// The shell the EHM notification sink forwards to. One shell per process;
+// cleared in the destructor so a late report cannot touch a dead object.
+static EmulatorShell *  s_pNotifyShell = nullptr;
+
+// Reports raised before there is a window to parent a dialog to. File scope
+// rather than a shell member because the sink is installed at the top of
+// wWinMain, before the shell is constructed -- command-line and machine-config
+// failures happen in that window and must not vanish. Drained once the window
+// exists. The CPU thread can append, hence the lock.
+static std::vector<std::wstring>  s_pendingNotifications;
+static std::mutex                 s_pendingNotifyMutex;
 
 
 
@@ -569,6 +600,11 @@ EmulatorShell::~EmulatorShell()
 
 
 
+    // Before anything else tears down: a notification arriving mid-teardown
+    // must not reach a half-destroyed shell.
+    SetNotifyFunction (nullptr);
+    s_pNotifyShell = nullptr;
+
     m_cpuManager.Stop();
 
     // Spec-006 / FR-024. Revoke BOTH sinks BEFORE the dialog tears
@@ -717,6 +753,11 @@ HRESULT EmulatorShell::Initialize (
     m_config             = config;
     m_cyclesPerFrame     = config.cyclesPerFrame;
 
+    // wWinMain installed the sink already; this just gives it a shell to
+    // forward to. Anything reported before now is sitting in the queue and
+    // is replayed once the window exists.
+    s_pNotifyShell = this;
+
     RegisterChromeDock();
     InitAssetPathsAndStores();
 
@@ -794,6 +835,10 @@ HRESULT EmulatorShell::Initialize (
     // user's freshly-mounted image (the engine ticks but AdvanceOneBit
     // exits early because trackBits[0] == 0).
     PowerCycle();
+
+    // Every mount reports a damaged image, not just this one. Installed before
+    // the command-line disks go in so those are covered too.
+    m_diskManager->SetMountedCallback ([this] (int drive) { ReportDamagedMount (drive); });
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
@@ -2011,6 +2056,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_hwnd = m_host->Hwnd();
     m_scaler.SetDpi (GetDpiForWindow (m_hwnd));
 
+    // There is a window to parent a dialog to now, so anything reported
+    // during startup can finally be shown.
+    FlushPendingNotifications();
+
     // The caption (title + icon + min/max/close) is owned and rendered
     // by the host (CreateParams::captionStyle == Standard), which also
     // classifies the caption / system-button / resize-edge NC hits --
@@ -2171,8 +2220,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         switch (commandId)
         {
-            case IDM_DISK_WP1: return m_diskStore.IsMounted (6, 0);
-            case IDM_DISK_WP2: return m_diskStore.IsMounted (6, 1);
+            case IDM_DISK_WP1:      return IsWriteProtectToggleOffered (0);
+            case IDM_DISK_WP2:      return IsWriteProtectToggleOffered (1);
+            case IDM_DISK_SALVAGE1: return IsSalvageOffered (0);
+            case IDM_DISK_SALVAGE2: return IsSalvageOffered (1);
             default:           return true;
         }
     });
@@ -2221,10 +2272,14 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
                 WriteProtectInfo  info = image->GetWriteProtectInfo();
 
-                return ((info.imageFlag || info.readOnlyFile)
-                            ? L"Allow writes to \""
-                            : L"Write-protect \"")
-                     + name + L"\"";
+                // Names the flag the command actually changes. The old wording
+                // ("Allow writes to ...") described an outcome the command
+                // cannot promise -- the host file's read-only attribute and the
+                // drive preference protect the disk too, and neither is touched
+                // here. It also flipped on readOnlyFile, so a writable image in
+                // a read-only file offered to "allow writes" and then could not.
+                return (info.imageFlag ? L"Clear \"" : L"Set \"")
+                     + name + L"\" internal write-protect flag";
             }
 
             default:
@@ -3145,6 +3200,466 @@ void EmulatorShell::SaveGlobalPrefs()
 //  Shows the supplied dialog modally through the Dxui ShowModal host
 //  path and blocks until the user dismisses it. Returns the chosen
 //  button's resultCode, or -1 when the user closes via window gesture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::NotifyUser
+//
+//  The EHM notification sink. Forwards to the live shell; if there is none
+//  (teardown), the message is dropped rather than crashing on a stale
+//  pointer -- an error report is not worth taking the process down for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::NotifyUser (const wchar_t * message)
+{
+    if (message == nullptr)
+    {
+        return;
+    }
+
+    // No shell yet (startup) or none left (teardown): hold the text rather
+    // than drop it. Everything raised this early is replayed the moment there
+    // is a window to show it in.
+    if (s_pNotifyShell == nullptr)
+    {
+        QueueNotification (message);
+        return;
+    }
+
+    s_pNotifyShell->ShowNotification (message);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::QueueNotification
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::QueueNotification (const std::wstring & message)
+{
+    std::lock_guard<std::mutex>  guard (s_pendingNotifyMutex);
+
+    s_pendingNotifications.push_back (message);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowNotification
+//
+//  Shows one notification as a themed modal. Callable from any thread.
+//
+//  Three cases, in order. With no window yet the text is queued for
+//  FlushPendingNotifications -- startup reports a bad prefs file before
+//  there is anything to parent a dialog to. Off the UI thread it is posted,
+//  because the dialog is Dxui and Dxui asserts UI-thread affinity; a flush
+//  failing on the CPU thread takes that path. Otherwise it is shown here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ShowNotification (const std::wstring & message)
+{
+    DialogDefinition  def;
+    bool              isOffThread = false;
+
+
+
+    if (m_hwnd == nullptr)
+    {
+        EmulatorShell::QueueNotification (message);
+        return;
+    }
+
+    isOffThread = (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
+
+    if (isOffThread)
+    {
+        wstring *  carried = new (std::nothrow) wstring (message);
+
+        if (carried != nullptr && !PostMessageW (m_hwnd, WM_APP_NOTIFY_USER, 0,
+                                                 reinterpret_cast<LPARAM> (carried)))
+        {
+            delete carried;
+        }
+
+        return;
+    }
+
+    def.title = L"Casso";
+    def.icon  = DialogIcon::Warning;
+    def.body.push_back (DialogTextRun { message, false, wstring() });
+    def.buttons.push_back (DialogButton { L"OK", 0, true, true, false });
+
+    ShowModalDialog (def);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::FlushPendingNotifications
+//
+//  Replays anything reported before the window existed. The queue is drained
+//  under the lock and shown outside it, because showing is modal and holding
+//  a lock across a nested message loop invites a deadlock with a CPU-thread
+//  notification arriving mid-dialog.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::FlushPendingNotifications()
+{
+    std::vector<std::wstring>  pending;
+    size_t                     i = 0;
+
+
+
+    {
+        std::lock_guard<std::mutex>  guard (s_pendingNotifyMutex);
+
+        pending.swap (s_pendingNotifications);
+    }
+
+    for (i = 0; i < pending.size(); i++)
+    {
+        ShowNotification (pending[i]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowSalvageDialog
+//
+//  Shows a dialog whose body is a caller-built panel instead of wrapped text
+//  runs. The salvage dialog needs a figures table and a warning banner, and
+//  neither survives being expressed as a string: a table spaced with padding
+//  characters comes apart at any font or DPI other than the author's.
+//
+//  Wider than the standard dialog because the table has three columns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::ShowSalvageDialog (const DialogDefinition             &  def,
+                                      std::unique_ptr<SalvageDialogContent>  content)
+{
+    constexpr int  s_kDialogWidthDip  = 520;
+    constexpr int  s_kChromeHeightDip = 108;   // caption + content pad*2 + button row
+    constexpr int  s_kMinHeightDip    = 160;
+    constexpr int  s_kMaxHeightDip    = 620;
+
+    MessageDialog                       dlg;
+    DxuiWindow::CreateParams            params;
+    std::vector<MessageDialog::Button>  buttons;
+    HRESULT                             hr        = S_OK;
+    int                                 heightDip = 0;
+    int                                 result    = -1;
+
+
+
+    CBRAEx (content != nullptr, E_INVALIDARG);
+
+    // The panel measures itself once laid out; until then its preferred
+    // height is the estimate it reported for the width we are about to give
+    // it, which is why the width is fixed above rather than derived.
+    heightDip = std::clamp (s_kChromeHeightDip + content->PreferredHeightDip(),
+                            s_kMinHeightDip,
+                            s_kMaxHeightDip);
+
+    for (const DialogButton & button : def.buttons)
+    {
+        buttons.push_back ({ button.label, button.resultCode, button.isDefault, button.isCancel });
+    }
+
+    dlg.Configure (std::move (content), std::move (buttons), def.closeBoxResult.value_or (-1));
+
+    params.title                    = def.title;
+    params.hInstance                = m_hInstance;
+    params.ownerHwnd                = m_hwnd;
+    params.initialSizeDip           = { s_kDialogWidthDip, heightDip };
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+
+    hr = dlg.Create (params);
+    CHRA (hr);
+
+    dlg.SetTheme (&m_chromeTheme);
+
+    result = dlg.TranslateResult (dlg.ShowModalDialog (dlg.DefaultCommandId()));
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::IsSalvageOffered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsSalvageOffered (int drive)
+{
+    // Reads the verdict reached at mount rather than re-deriving it. This runs
+    // from the menu's enable query, so it runs on every draw of that menu:
+    // assessing here cost 11 ms for an ordinary disk and 154 ms for a
+    // copy-protected one, per drive, on the UI thread.
+    return m_diskStore.IsSalvageOffered (6, drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::RunSalvageFlow
+//
+//  Assess, show the figures, write on confirmation, then offer to insert the
+//  copy. The assessment is shown BEFORE anything is written: a lossy copy is
+//  the user's decision to make with the numbers in front of them, not one to
+//  learn about afterwards.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RunSalvageFlow (int drive)
+{
+    SalvageAssessment                       assessment;
+    DenibblizeReport                        report;
+    DialogDefinition                        def;
+    std::unique_ptr<SalvageDialogContent>   content;
+    HRESULT                                 hr          = S_OK;
+    int                                     choice      = 0;
+    bool                                    isOffThread = false;
+    std::wstring                            sourcePath;
+    std::wstring                            destName;
+    std::wstring                            summary;
+
+
+
+    // The Disk menu dispatches on the CPU thread and this builds a Dxui modal.
+    // Reached from the damage prompt it is already on the UI thread; reached
+    // from the menu it was not, so the dialog never appeared and the command
+    // looked like it did nothing at all.
+    isOffThread = (m_hwnd != nullptr) &&
+                  (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
+
+    if (isOffThread)
+    {
+        PostMessageW (m_hwnd, WM_APP_RUN_SALVAGE, (WPARAM) drive, 0);
+        return;
+    }
+
+    hr = m_diskStore.AssessSalvage (6, drive, assessment);
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    if (!assessment.isOffered)
+    {
+        return;
+    }
+
+    sourcePath = fs::path (m_diskStore.GetSourcePath (6, drive)).wstring();
+    destName   = fs::path (assessment.suggestedPath).filename().wstring();
+
+    content = std::make_unique<SalvageDialogContent>();
+    content->SetAssessment (sourcePath, destName, assessment);
+
+    def.title = L"Salvage readable sectors";
+    def.buttons.push_back (DialogButton { L"Salvage", 1, true,  false, false });
+    def.buttons.push_back (DialogButton { L"Cancel",  0, false, true,  false });
+
+    choice = ShowSalvageDialog (def, std::move (content));
+    if (choice != 1)
+    {
+        return;
+    }
+
+    hr = m_diskStore.SalvageToFile (6, drive, assessment.suggestedPath, report);
+
+    if (FAILED (hr))
+    {
+        DialogDefinition  failed;
+
+        failed.title = L"Could not write the salvaged copy";
+        failed.icon  = DialogIcon::Error;
+        failed.body.push_back (DialogTextRun {
+            fs::path (assessment.suggestedPath).wstring() + L"\n\n"
+            L"The original disk image was not changed.\n\n" +
+            WindowCommandManager::FormatSystemError (hr), false, std::wstring() });
+        failed.buttons.push_back (DialogButton { L"OK", 0, true, true, false });
+
+        ShowModalDialog (failed);
+        return;
+    }
+
+    // Result first, then the question: the counts are what happened, not part
+    // of the prompt.
+    summary = L"Salvaged copy written to:\n\n" +
+              fs::path (assessment.suggestedPath).wstring() + L"\n\n" +
+              std::to_wstring (report.sectorsRecovered) + L" sectors recovered, " +
+              std::to_wstring (report.sectorsLost) + L" lost. The original disk "
+              L"image was not changed.\n\n"
+              L"Insert the salvaged copy into drive " + std::to_wstring (drive + 1) + L"?";
+
+    def = DialogDefinition();
+    def.title = L"Salvage complete";
+    def.body.push_back (DialogTextRun { summary, false, std::wstring() });
+    def.buttons.push_back (DialogButton { L"Insert",  1, true,  false, false });
+    def.buttons.push_back (DialogButton { L"Not now", 0, false, true,  false });
+
+    choice = ShowModalDialog (def);
+
+    if (choice == 1)
+    {
+        HRESULT  hrMount = m_diskManager->MountDiskInSlot6 (drive, assessment.suggestedPath);
+
+        IGNORE_RETURN_VALUE (hrMount, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ReportDamagedMount
+//
+//  The damage report, with salvage offered inline so the dialog is not a dead
+//  end. Reached after every mount; silent unless the image failed its stored
+//  checksum.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReportDamagedMount (int drive)
+{
+    DiskImage          * image       = m_diskStore.GetImage (6, drive);
+    SalvageAssessment    assessment;
+    DialogDefinition     def;
+    HRESULT              hr          = S_OK;
+    int                  choice      = 0;
+    bool                 isOffThread = false;
+
+
+
+    if (image == nullptr)
+    {
+        return;
+    }
+
+    // Mounts run on the CPU thread -- the picker and the menu both route
+    // through it so a flush never races the drive engine -- and this raises a
+    // modal. Bounce to the UI thread rather than building a dialog from there.
+    isOffThread = (m_hwnd != nullptr) &&
+                  (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
+
+    if (isOffThread)
+    {
+        PostMessageW (m_hwnd, WM_APP_REPORT_DAMAGE, (WPARAM) drive, 0);
+        return;
+    }
+
+    if (!image->HasSourceCrcMismatch())
+    {
+        return;
+    }
+
+    def.title = L"Disk image is damaged";
+    def.icon  = DialogIcon::Warning;
+    // The sentence leads and the path follows it: naming the file before
+    // saying anything about it makes the reader hold a path in mind with no
+    // reason to yet.
+    def.body.push_back (DialogTextRun {
+        L"This disk image's stored checksum does not match its contents. "
+        L"The file is damaged or was written by a tool that miscomputed it.\n\n" +
+        fs::path (m_diskStore.GetSourcePath (6, drive)).wstring() + L"\n\n"
+        L"Casso has loaded it so you can read it, and has write-protected it "
+        L"for this session. Rewriting the file would give it a newly computed "
+        L"checksum, silently hiding the damaged sectors.",
+        false, std::wstring() });
+
+    hr = m_diskStore.AssessSalvage (6, drive, assessment);
+
+    if (SUCCEEDED (hr) && assessment.isOffered)
+    {
+        def.buttons.push_back (DialogButton { L"Salvage readable sectors...", 1,
+                                              false, false, false });
+    }
+
+    def.buttons.push_back (DialogButton { L"OK", 0, true, true, false });
+
+    choice = ShowModalDialog (def);
+
+    if (choice == 1)
+    {
+        RunSalvageFlow (drive);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::IsWriteProtectToggleOffered
+//
+//  Whether the Disk menu should offer the write-protect toggle for a drive.
+//  Reads the bay, then defers to the pure predicate so the rule itself stays
+//  testable without a mounted store behind it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsWriteProtectToggleOffered (int drive)
+{
+    const DiskImage *  image   = m_diskStore.GetImage (6, drive);
+    bool               mounted = m_diskStore.IsMounted (6, drive);
+
+
+
+    if (image == nullptr)
+    {
+        return false;
+    }
+
+    return ShouldEnableWriteProtectMenuItem (mounted, image->GetWriteProtectInfo());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowModalDialog
+//
+//  Every modal in Casso goes through the Dxui host path. Kept as its own
+//  entry point so callers name the intent rather than the renderer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4467,6 +4982,37 @@ int EmulatorShell::RunMessageLoop()
             // it doubles as the signal to reflow the chrome for a possible
             // Disk ][ controller add/remove (the window size is unchanged, so
             // no WM_SIZE / OnSize would otherwise re-evaluate it).
+            // A notification raised off the UI thread. lParam owns a
+            // heap-allocated copy of the text, handed over by ShowNotification.
+            // A mount that ran on the CPU thread wants its damage report raised
+            // here, where a modal can be built.
+            if (msg.message == WM_APP_REPORT_DAMAGE)
+            {
+                ReportDamagedMount ((int) msg.wParam);
+                continue;
+            }
+
+            // Likewise the salvage flow: the Disk menu dispatches it from the
+            // CPU thread, and it builds a modal.
+            if (msg.message == WM_APP_RUN_SALVAGE)
+            {
+                RunSalvageFlow ((int) msg.wParam);
+                continue;
+            }
+
+            if (msg.message == WM_APP_NOTIFY_USER)
+            {
+                wstring *  carried = reinterpret_cast<wstring *> (msg.lParam);
+
+                if (carried != nullptr)
+                {
+                    ShowNotification (*carried);
+                    delete carried;
+                }
+
+                continue;
+            }
+
             if (msg.message == WM_APP_DXUI_UPDATE_TITLE)
             {
                 UpdateWindowTitle();
@@ -4973,6 +5519,13 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
             // races the drive engine; failures already reported inside.
             hrToggle = m_diskManager->ToggleImageWriteProtect (drive);
             IGNORE_RETURN_VALUE (hrToggle, S_OK);
+            break;
+        }
+
+        case IDM_DISK_SALVAGE1:
+        case IDM_DISK_SALVAGE2:
+        {
+            RunSalvageFlow ((cmd.id == IDM_DISK_SALVAGE1) ? 0 : 1);
             break;
         }
 

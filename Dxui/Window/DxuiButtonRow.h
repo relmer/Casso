@@ -38,6 +38,27 @@ namespace DxuiButtonRow
 
     enum class Anchor { Right, Left };
 
+    //  The width a button needs for its label, never narrower than the
+    //  standard width. Buttons were a fixed 96 DIP, which silently clipped
+    //  any label longer than about a dozen characters -- the text simply
+    //  wrapped and spilled outside the button. Short labels are unaffected,
+    //  so existing dialogs keep the width they had.
+    //
+    //  Estimated from an average glyph width rather than measured: layout
+    //  runs without a text renderer. The estimate is generous, matching
+    //  DxuiInfoBanner's, so a label is never cut off -- a button a little
+    //  wide reads as deliberate, a clipped one reads as broken.
+    inline int  WidthForLabel (const std::wstring & label)
+    {
+        constexpr float  kFontDip     = 13.0f;
+        constexpr float  kEstGlyphEm  = 0.58f;
+        constexpr int    kSidePadDip  = 24;
+
+        int   estimated = static_cast<int> (label.size() * kFontDip * kEstGlyphEm) + kSidePadDip;
+
+        return (estimated > kButtonWidthDip) ? estimated : kButtonWidthDip;
+    }
+
 
     //
     //  Canonical left-to-right rank for the right-aligned group. Lower sorts

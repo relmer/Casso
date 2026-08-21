@@ -29,6 +29,16 @@ class EmulatorShell;
 class WindowCommandManager
 {
 public:
+    // Turn a failure HRESULT into a "0xXXXXXXXX -- <system text>" detail line
+    // for an error dialog: the friendly sentence is for humans; this trailer
+    // is the hr + OS message for nerds (and bug reports). A Win32-wrapped code
+    // (HRESULT_FROM_WIN32) resolves to its GetLastError text; other HRESULTs
+    // resolve where the system has a message and degrade to just the hex code.
+    //
+    // Public because it is no longer print-specific: the salvage failure
+    // dialog wants the same trailer, and error dialogs should read alike.
+    static std::wstring  FormatSystemError (HRESULT hr);
+
     explicit WindowCommandManager (EmulatorShell & shell);
 
     void  HandleCommand        (WORD commandId);
@@ -100,14 +110,6 @@ private:
 
     // Print-path helpers. Every reader is a WindowCommandManager method, so
     // they belong to the class rather than to the translation unit.
-
-    // Turn a failure HRESULT into a "0xXXXXXXXX -- <system text>" detail line
-    // for the error dialog: the friendly sentence is for humans; this trailer
-    // is the hr + OS message for nerds (and bug reports). A Win32-wrapped code
-    // (HRESULT_FROM_WIN32) resolves to its GetLastError text; other HRESULTs
-    // resolve where the system has a message and degrade to just the hex code.
-    static std::wstring  FormatSystemError (HRESULT hr);
-
     static HRESULT  HrFromSpoolResult (int ret, const wchar_t * call, int pageIx);
     static void     PrimeDefaultPrinterDriver ();
     static HDC      CreateDcFromDevNames (const PRINTDLGW & pd);

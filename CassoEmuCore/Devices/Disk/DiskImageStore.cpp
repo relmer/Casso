@@ -145,8 +145,20 @@ HRESULT DiskImageStore::MountFromBytes (
         {
             entry.image.reset();
             entry.path.clear();
-            entry.mounted = false;
+            entry.mounted        = false;
+            entry.salvageOffered = false;
             hr = E_FAIL;
+        }
+        else
+        {
+            // Decide the salvage question once, here, where the cost is paid
+            // by a mount the user already asked for. Undamaged images settle
+            // it for free; a damaged one is decoded once instead of on every
+            // menu draw.
+            SalvageAssessment  assessment;
+            HRESULT            hrAssess = AssessSalvage (slot, drive, assessment);
+
+            entry.salvageOffered = SUCCEEDED (hrAssess) && assessment.isOffered;
         }
     }
 
@@ -169,35 +181,17 @@ Error:
 
 HRESULT DiskImageStore::Mount (int slot, int drive, const string & path)
 {
-    HRESULT       hr        = S_OK;
-    DiskFormat    fmt       = DiskFormat::Dsk;
+    HRESULT       hr   = S_OK;
+    DiskFormat    fmt  = DiskFormat::Dsk;
     vector<Byte>  bytes;
-    bool          fileOk    = false;
 
 
 
     hr = DetectFormatByExtension (path, fmt);
     CHR (hr);
 
-    {
-        streamsize  size = 0;
-
-        ifstream  file (path, ios::binary | ios::ate);
-
-        fileOk = file.good();
-        CBR (fileOk);
-
-        size = file.tellg();
-        file.seekg (0, ios::beg);
-
-        bytes.resize (static_cast<size_t> (size));
-
-        if (size > 0)
-        {
-            file.read (reinterpret_cast<char *> (bytes.data()),
-                       static_cast<streamsize> (size));
-        }
-    }
+    hr = ReadImageFile (path, bytes);
+    CHR (hr);
 
     hr = MountFromBytes (slot, drive, path, fmt, bytes);
 
@@ -219,7 +213,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-wstring DiskImageStore::FormatCrcLaunderMessage (const string & path)
+wstring DiskImageStore::FormatDamagedImageMessage (const string & path)
 {
     wstring  widePath = fs::path (path).wstring();
 
@@ -230,11 +224,11 @@ wstring DiskImageStore::FormatCrcLaunderMessage (const string & path)
         widePath = L"(unknown path)";
     }
 
-    return L"Casso is about to save a disk image whose stored checksum did not "
-           L"match its contents when it was loaded:\n\n" + widePath +
-           L"\n\nThe saved file gets a newly computed checksum, so after this "
-           L"save the existing damage can no longer be detected. Keep a copy of "
-           L"the original first if its condition matters.";
+    return L"This disk is damaged, so Casso will not write to it:\n\n" + widePath +
+           L"\n\nRewriting it would give the file a newly computed checksum, "
+           L"leaving nothing able to detect the damage it already carries. The "
+           L"disk stays readable and the emulated machine sees it as "
+           L"write-protected. Work on a copy if you need to write to it.";
 }
 
 
@@ -284,21 +278,22 @@ wstring DiskImageStore::FormatFlushLossMessage (const string & path)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::FlushEntry (Entry & entry, bool force)
+HRESULT DiskImageStore::FlushEntry (Entry & entry)
 {
     HRESULT       hr     = S_OK;
     vector<Byte>  bytes;
 
 
 
-    // No-op cases -- nothing dirty to persist -- succeed silently. A
-    // forced flush persists the current state regardless: the dirty bit
-    // and the write-protect gate govern guest writes, not a host-side
-    // persist of (say) a flipped write-protect flag.
+    // No-op cases -- nothing dirty to persist -- succeed silently. There is
+    // deliberately no way to force a flush past these gates: the only caller
+    // that wanted one was changing a write-protect flag, and rebuilding a
+    // whole image to carry one bit is what SetImageWriteProtect exists to
+    // avoid. An API that cannot be asked to do that cannot be misused into it.
     BAIL_OUT_IF (!entry.mounted || entry.image == nullptr, S_OK);
-    BAIL_OUT_IF (!force && !entry.image->IsDirty(), S_OK);
+    BAIL_OUT_IF (!entry.image->IsDirty(), S_OK);
 
-    if (!force && entry.image->IsWriteProtected())
+    if (entry.image->IsWriteProtected())
     {
         entry.image->ClearDirty();
         BAIL_OUT_IF (true, S_OK);
@@ -310,13 +305,13 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, bool force)
     // here through the shared EHM notifier rather than a return nobody
     // checks. The image keeps its dirty bit on failure so a later flush
     // can retry.
-    // Said before the write, not after: once the file is replaced its stored
-    // CRC is valid again, so this is the last moment the mismatch is true.
-    if (entry.image->HasSourceCrcMismatch())
-    {
-        EhmNotifyUser (FormatCrcLaunderMessage (entry.path).c_str());
-    }
-
+    //
+    // There is deliberately no warning here about overwriting an image whose
+    // stored checksum did not validate at load. There used to be, and it is
+    // no longer reachable: a checksum mismatch now write-protects the image,
+    // so the gate above returns before this point and the file is never
+    // rewritten. The user is told at mount instead, which is earlier and is
+    // where the decision actually gets made.
     hr = entry.image->Serialize (bytes);
     CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
 
@@ -442,19 +437,433 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ForceFlush
+//  SetImageWriteProtect
+//
+//  Change a mounted WOZ's write-protect flag in its backing file, by patching
+//  the one byte that holds it. The flag lives inside the file, so the change
+//  has to be written; the question is how much of the file gets rewritten to
+//  carry it. The answer here is one byte plus the header CRC.
+//
+//  The path this replaces sent the flag through DiskImage::Serialize, the full
+//  rebuild-from-model writer. Everything that writer could not reproduce was
+//  lost on a menu click -- no guest write, no emulation, just a click -- and
+//  it fired in both directions, so un-protecting a preservation dump before
+//  writing to it rewrote it too. Now the guarantee does not depend on the
+//  writer reproducing every field: the bytes are never parsed, so they cannot
+//  be damaged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::ForceFlush (int slot, int drive)
+HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writeProtected)
+{
+    HRESULT       hr        = S_OK;
+    bool          bayOk     = false;
+    bool          isWoz     = false;
+    bool          hasPath   = false;
+    bool          hasImage  = false;
+    bool          isDamaged = false;
+    vector<Byte>  bytes;
+
+
+
+    bayOk = IsValidBay (slot, drive);
+    CBRAEx (bayOk, E_INVALIDARG);
+
+    {
+        Entry &  entry = At (slot, drive);
+
+        hasImage = (entry.mounted && entry.image != nullptr);
+        CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+
+        isWoz = (entry.format == DiskFormat::Woz);
+        CBRAEx (isWoz, E_INVALIDARG);
+
+        hasPath = !entry.path.empty();
+        CBR (hasPath);
+
+        // A damaged image is refused outright. Patching the flag byte
+        // recomputes the header checksum, and that checksum failing to match
+        // IS the damage report -- so the one write that is otherwise harmless
+        // is the one write that would destroy the evidence.
+        isDamaged = entry.image->HasSourceCrcMismatch();
+        CBRN (!isDamaged, FormatDamagedImageMessage (entry.path).c_str());
+
+        // Guest writes go out FIRST, while the image still accepts a flush.
+        // Patching the flag byte afterwards edits a file that already holds
+        // them; doing it the other way round would strand them behind the
+        // gate this call is about to close.
+        hr = FlushEntry (entry);
+        CHR (hr);
+
+        hr = ReadImageFile (entry.path, bytes);
+        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
+
+        hr = WozLoader::SetWriteProtectFlag (bytes, writeProtected);
+        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
+
+        if (m_flushSink)
+        {
+            hr = m_flushSink (entry.path, bytes);
+        }
+        else
+        {
+            hr = WriteFileAtomically (entry.path, bytes);
+        }
+
+        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
+
+        // The live image follows the file, and only once the file has
+        // actually changed -- so a failed write leaves the two agreeing.
+        entry.image->SetImageWriteProtected (writeProtected);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildSalvagedImage
+//
+//  Recover every sector that decoded, verified or not, and rebuild the result
+//  as a WOZ. Re-nibblizing is what makes a recovered sector readable: it gets
+//  a correct checksum by construction, so a sector that would have made DOS
+//  report an I/O error becomes an ordinary one holding possibly-wrong bytes.
+//
+//  The rebuilt image carries the source's META across but not its INFO, so
+//  the copy still says which disk it is while the creator field says Casso
+//  wrote this file. Putting Applesauce's name on a lossy reconstruction would
+//  be the same class of lie the creator policy exists to prevent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::DecodeForSalvage (
+    Entry             &  entry,
+    vector<Byte>      &  outSectors,
+    DenibblizeReport  &  report)
+{
+    HRESULT  hr       = S_OK;
+    bool     hasImage = false;
+
+
+
+    hasImage = (entry.mounted && entry.image != nullptr);
+    CBRAEx (hasImage, E_INVALIDARG);
+
+    hr = NibblizationLayer::SalvageSectors (*entry.image, DiskFormat::Dsk, outSectors, report);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildSalvagedImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::BuildSalvagedImage (
+    Entry             &  entry,
+    vector<Byte>      &  outBytes,
+    DenibblizeReport  &  report)
+{
+    HRESULT       hr       = S_OK;
+    DiskImage     rebuilt;
+    WozMetadata   carried;
+    vector<Byte>  sectors;
+
+
+
+    hr = DecodeForSalvage (entry, sectors, report);
+    CHR (hr);
+
+    hr = NibblizationLayer::NibblizeDsk (sectors, rebuilt);
+    CHR (hr);
+
+    // META travels, INFO does not: the disk is still the same title, but the
+    // file is Casso's work now. An empty infoPayload is what tells the writer
+    // to stamp its own creator.
+    carried.passThrough = entry.image->GetWozMetadata().passThrough;
+    rebuilt.SetWozMetadata (carried);
+    rebuilt.SetSourceFormat (DiskFormat::Woz);
+
+    hr = WozLoader::Serialize (rebuilt, outBytes);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsSalvageOffered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::IsSalvageOffered (int slot, int drive) const
+{
+    if (!IsValidBay (slot, drive))
+    {
+        return false;
+    }
+
+    return At (slot, drive).salvageOffered;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssessSalvage
+//
+//  What salvage would cost, without doing it.
+//
+//  Offered only for a disk that is BOTH damaged and ordinarily formatted.
+//  Undamaged disks are writable already, so a lossy copy would be pure loss;
+//  copy-protected ones have no standard sectors to recover, and rebuilding
+//  them from sectors would destroy the non-standard tracks they depend on.
+//  Neither ever reaches the dialog, which is why the dialog never has to
+//  explain copy protection.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::AssessSalvage (int slot, int drive, SalvageAssessment & out)
+{
+    HRESULT       hr         = S_OK;
+    bool          bayOk      = false;
+    bool          hasImage   = false;
+    bool          isDamaged  = false;
+    bool          isStandard = false;
+    vector<Byte>  sectors;
+
+
+
+    out = SalvageAssessment();
+
+    bayOk = IsValidBay (slot, drive);
+    CBRAEx (bayOk, E_INVALIDARG);
+
+    {
+        Entry &  entry = At (slot, drive);
+
+        hasImage = (entry.mounted && entry.image != nullptr);
+        CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+
+        // Damage is free to test and decoding is not, so test damage first.
+        // This runs from the Disk menu's enable query, which means it runs
+        // every time that menu is drawn: decoding both drives unconditionally
+        // cost 11 ms an ordinary disk and 154 ms a copy-protected one, where a
+        // protected track burns its whole attempt budget before giving up.
+        // Salvage is only ever offered for a damaged disk, so an undamaged one
+        // never needs the decode at all.
+        isDamaged = entry.image->HasSourceCrcMismatch();
+        BAIL_OUT_IF (!isDamaged, S_OK);
+
+        hr = DecodeForSalvage (entry, sectors, out.report);
+        CHR (hr);
+
+        out.totalSectors = out.report.tracksPresent * NibblizationLayer::kSectorsPerTrack;
+
+        // A track with no standard structure at all is the signature of copy
+        // protection, and rebuilding from sectors would destroy it.
+        isStandard    = (out.report.tracksPresent > 0) && (out.report.tracksUnformatted == 0);
+        out.isOffered = isStandard;
+
+        if (!entry.path.empty())
+        {
+            fs::path  source = fs::path (entry.path);
+
+            out.suggestedPath = (source.parent_path()
+                                 / (source.stem().string() + ".salvaged.woz")).string();
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SalvageToFile
+//
+//  Writes the salvaged copy. The original is never opened for writing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::SalvageToFile (
+    int                 slot,
+    int                 drive,
+    const string     &  path,
+    DenibblizeReport &  report)
+{
+    HRESULT       hr       = S_OK;
+    bool          bayOk    = false;
+    bool          hasImage = false;
+    bool          hasPath  = !path.empty();
+    bool          isSource = false;
+    vector<Byte>  bytes;
+
+
+
+    bayOk = IsValidBay (slot, drive);
+    CBRAEx (bayOk, E_INVALIDARG);
+    CBRAEx (hasPath, E_INVALIDARG);
+
+    {
+        Entry &  entry = At (slot, drive);
+
+        hasImage = (entry.mounted && entry.image != nullptr);
+        CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+
+        // Refusing to write over the source is not defensive coding: the
+        // entire point of salvage is that the damaged original survives to
+        // stay detectably damaged.
+        isSource = (path == entry.path);
+        CBRAEx (!isSource, E_INVALIDARG);
+
+        hr = BuildSalvagedImage (entry, bytes, report);
+        CHRN (hr, FormatSalvageFailedMessage (path).c_str());
+
+        if (m_flushSink)
+        {
+            hr = m_flushSink (path, bytes);
+        }
+        else
+        {
+            hr = WriteFileAtomically (path, bytes);
+        }
+
+        CHRN (hr, FormatSalvageFailedMessage (path).c_str());
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatSalvageFailedMessage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring DiskImageStore::FormatSalvageFailedMessage (const string & path)
+{
+    wstring  widePath = fs::path (path).wstring();
+
+
+
+    if (widePath.empty())
+    {
+        widePath = L"(unknown path)";
+    }
+
+    return L"Casso could not write the salvaged copy:\n\n" + widePath +
+           L"\n\nThe original disk image was not changed.";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadImageFile
+//
+//  Whole-file read for a mounted image's backing file, through the test
+//  reader hook when one is installed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::ReadImageFile (const string & path, vector<Byte> & bytes) const
 {
     HRESULT   hr = S_OK;
 
 
 
-    CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
+    if (m_imageReader)
+    {
+        hr = m_imageReader (path, bytes);
+        CHR (hr);
+        BAIL_OUT_IF (true, S_OK);
+    }
 
-    hr = FlushEntry (At (slot, drive), true);
+    hr = ReadFileBytes (path, bytes);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadFileBytes
+//
+//  Reads a whole file. Reports failure rather than returning a short buffer:
+//  a caller that cannot tell a truncated read from a small file will happily
+//  write the truncation back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::ReadFileBytes (const string & path, vector<Byte> & bytes)
+{
+    HRESULT     hr      = S_OK;
+    bool        hasPath = !path.empty();
+    bool        fileOk  = false;
+    bool        readOk  = false;
+    streamsize  size    = 0;
+
+
+
+    CBRAEx (hasPath, E_INVALIDARG);
+
+    {
+        ifstream  file (path, ios::binary | ios::ate);
+
+        fileOk = file.good();
+        CBR (fileOk);
+
+        size = file.tellg();
+        CBR (size >= 0);
+
+        file.seekg (0, ios::beg);
+        bytes.resize (static_cast<size_t> (size));
+
+        if (size > 0)
+        {
+            file.read (reinterpret_cast<char *> (bytes.data()),
+                       static_cast<streamsize> (size));
+
+            readOk = (file.gcount() == size);
+            CBR (readOk);
+        }
+    }
 
 Error:
     return hr;
