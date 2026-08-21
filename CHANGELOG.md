@@ -90,11 +90,10 @@ Entries before versioning was introduced use dates only.
   A flag no subcommand's grammar recognized used to earn a one-line warning and
   then be ignored -- the assembly ran, the exit code was 0, and the output file
   was written as though the flag had been honored, so a typo in a build script
-  was silent in every way that mattered. Now the invocation is refused (exit 2)
-  and the message naming the argument is followed by the help for the mode it
-  was given under: `as65 demo.a65 -k` prints the AS65 section, `run demo.bin
-  --bogus` the run section. A first word that names no subcommand still gets
-  the line naming what to type instead, now followed by the general section.
+  was silent in every way that mattered. Now the invocation is refused (exit 2):
+  the full usage is printed, and the line naming the argument comes LAST, so it
+  is what is left on screen. A first word that names no subcommand gets the
+  same treatment, with the line naming what to type instead at the end.
 - **A run that named no CPU now reports the target that stood.** Under `-v`
   it goes to stderr, and into the listing header when a listing is produced —
   never to stdout, which carries the listing itself when no listing file is

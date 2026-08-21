@@ -380,50 +380,6 @@ void CommandLine::PrintUsage (char prefix)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLine::PrintUsage
-//
-//  The help for where the invocation got to. A reader who typed `as65` and
-//  then something the grammar did not know has shown which section they need,
-//  and the other three are noise between them and the answer. One who typed no
-//  subcommand at all gets the general section, which is where the subcommands
-//  are listed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CommandLine::PrintUsage (char prefix, CommandLineOptions::Subcommand scope)
-{
-    const char * sp  = (prefix == '/') ? "/"  : "-";
-    const char * lp  = (prefix == '/') ? "/"  : "--";
-    const char * pad = (prefix == '/') ? " "  : "";
-
-
-
-    PrintUsageHeader (sp, lp);
-
-    if (scope == CommandLineOptions::Subcommand::As65)
-    {
-        PrintUsageAssembler (sp);
-    }
-    else if (scope == CommandLineOptions::Subcommand::Merlin)
-    {
-        PrintUsageMerlin (sp, prefix);
-    }
-    else if (scope == CommandLineOptions::Subcommand::Run)
-    {
-        PrintUsageRun (lp, sp, pad);
-    }
-    else
-    {
-        PrintUsageGeneral (lp, sp, pad);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CommandLine::PrintUsageMerlin
 //
 //  The merlin section's flag lines are composed in core from the same tables
@@ -472,12 +428,14 @@ void CommandLine::PrintVersion()
 //
 //  CommandLine::PrintUnrecognizedArgument
 //
-//  The targeted message FIRST, then the general help. `CassoCli input.a65` used
-//  to assemble, and the people it stops are build scripts -- which nobody
-//  reads again until the day they fail. The line naming the replacement is
-//  what ends that day quickly, so it leads, written out literally and ready to
-//  paste back; the general section follows for a reader who needs more than
-//  the one line.
+//  The full usage, and THEN the message. Usage is long, and what a reader sees
+//  is the bottom of the screen, so the line that says what went wrong goes
+//  last. `CassoCli input.a65` used to assemble, and the people it stops are
+//  build scripts -- which nobody reads again until the day they fail -- so the
+//  replacement is written out literally, ready to paste back.
+//
+//  Usage goes to stdout and the message to stderr, which is why stdout is
+//  flushed between them: the order on the screen has to be the order here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -487,7 +445,10 @@ void CommandLine::PrintUnrecognizedArgument (const std::string & word, char pref
 
 
 
-    std::cerr << "CassoCli: '" << word << "' is not a subcommand.\n";
+    PrintUsage (prefix);
+    std::cout.flush();
+
+    std::cerr << "\nCassoCli: '" << word << "' is not a subcommand.\n";
 
     if (CommandLineParser::IsAssemblySource (word))
     {
@@ -505,9 +466,6 @@ void CommandLine::PrintUnrecognizedArgument (const std::string & word, char pref
 
         std::cerr << "  Expected one of: " << expected << ".\n";
     }
-
-    std::cerr << "\n";
-    PrintUsage (prefix, CommandLineOptions::Subcommand::None);
 }
 
 
@@ -518,9 +476,8 @@ void CommandLine::PrintUnrecognizedArgument (const std::string & word, char pref
 //
 //  CommandLine::PrintUnrecognizedFlag
 //
-//  The subcommand was fine; something after it was not. Naming the argument is
-//  what the reader needs first -- a typo is found by seeing it -- and the help
-//  that follows is the one section that lists what would have been accepted.
+//  The subcommand was fine; something after it was not. The full usage, then
+//  the line naming the argument, last for the same reason as above.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -539,8 +496,10 @@ void CommandLine::PrintUnrecognizedFlag (const std::string & flag, CommandLineOp
         }
     }
 
-    std::cerr << "CassoCli: '" << flag << "' is not an option of the " << mode << " subcommand.\n\n";
-    PrintUsage (prefix, subcommand);
+    PrintUsage (prefix);
+    std::cout.flush();
+
+    std::cerr << "\nCassoCli: '" << flag << "' is not an option of the " << mode << " subcommand.\n";
 }
 
 

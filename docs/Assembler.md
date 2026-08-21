@@ -46,10 +46,9 @@ Flags accept either prefix: `-o` and `/o` are the same flag, and `--dos-bin` and
 remembered, so usage text and diagnostics come back written the way you invoked
 the tool even if the rest of the command line mixes the two.
 
-**An argument the grammar does not know is refused, not skipped.** The message
-names it and is followed by the help for the mode it was given under -- the AS65
-section for `as65`, and so on -- and the process exits 2 without assembling. A
-first word that is not a subcommand gets the general section instead.
+**An argument the grammar does not know is refused, not skipped.** The full
+usage is printed, the line naming the argument comes last, and the process
+exits 2 without assembling.
 
 Short flags concatenate as65-style, with a value-taking flag last:
 
