@@ -9,32 +9,18 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  As65Mode::SelectInstructionSet
+//  As65Mode::CreateInstructionSetProvider
+//
+//  One set, from `-x`, with nothing to switch to. That is what `-x` being a
+//  flag rather than a directive means: the CPU is named once on the command
+//  line and stands for the whole assembly, so a source cannot reach a wider
+//  one part way through.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const Microcode * As65Mode::SelectInstructionSet (const CommandLineOptions & options, const Cpu & cpu) const
+InstructionSetProvider As65Mode::CreateInstructionSetProvider (const CommandLineOptions & options, const Cpu & cpu) const
 {
-    return SourceAssembler::SelectInstructionSet (options, cpu);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  As65Mode::SelectExtendedInstructionSet
-//
-//  None. The CPU is named on the command line and stands for the whole
-//  assembly, so a source cannot switch to a wider one part way through -- which
-//  is exactly what `-x` being a flag rather than a directive means.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const Microcode * As65Mode::SelectExtendedInstructionSet() const
-{
-    return nullptr;
+    return InstructionSetProvider (SourceAssembler::SelectInstructionSet (options, cpu));
 }
 
 

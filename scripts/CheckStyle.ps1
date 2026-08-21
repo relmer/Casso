@@ -832,7 +832,16 @@ function Test-Structure
             {
                 if ($lines[$i] -ne '{') { continue }
 
-                $sig = $lines[$i - 1]
+                # The signature may wrap: a parameter list broken one per line
+                # leaves an indented `... & last)` directly above the brace.
+                # Walk up over the indented continuation to the line that
+                # opens it, which is the one that names the function. Without
+                # this every multi-line signature was skipped by CS0014 and
+                # CS0016 both, and nothing said so.
+                $s = $i - 1
+                while ($s -gt 0 -and $lines[$s] -match '^\s+\S') { $s-- }
+
+                $sig = $lines[$s]
                 if ($sig -notmatch '^[A-Za-z_~][A-Za-z0-9_:<>,&*\s]*\(')                                  { continue }
                 if ($sig -match '^\s*(if|for|while|switch|else|do|struct|class|enum|namespace|union)\b')   { continue }
 
@@ -876,7 +885,11 @@ function Test-Structure
 
                     if ($ln -match '^\s{4}//') { $d++; continue }
 
-                    if ($ln -notmatch $declStart -or $ln -match '\breturn\b|\bdelete\b|\+\+|--') { break }
+                    # The statement test looks at code, not at string literals:
+                    # a `"--"` in an initializer is not a decrement.
+                    $code = $ln -replace '"([^"\\]|\\.)*"', '""'
+
+                    if ($ln -notmatch $declStart -or $code -match '\breturn\b|\bdelete\b|\+\+|--') { break }
 
                     # Run past a wrapped initializer to the line that closes it.
                     while ($d -lt $lines.Length -and $lines[$d] -notmatch $declEnd -and $lines[$d].Trim() -ne '')

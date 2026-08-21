@@ -26,7 +26,7 @@ class RunMode
 public:
     //  Load, execute, and report. The HRESULT says what went wrong; `exitCode`
     //  is what the process hands back, set alongside rather than derived from
-    //  it -- a program that ran into an illegal opcode is a run that worked.
+    //  it, since the three-value exit vocabulary cannot carry what went wrong.
     static HRESULT  Run                      (const CommandLineOptions & options, int & exitCode);
 
 private:
@@ -41,8 +41,10 @@ private:
 
     //  Execute from the entry point until a stop condition. Collects status
     //  lines rather than printing them, so `run` stays quiet enough to pipe.
-    static int      RunCpu                   (Cpu & cpu,
+    //  An illegal opcode is a failed run: STATUS_ILLEGAL_INSTRUCTION, exit 3.
+    static HRESULT  RunCpu                   (Cpu & cpu,
                                               const CommandLineOptions & options,
                                               Word entryPoint,
-                                              std::vector<std::string> & status);
+                                              std::vector<std::string> & status,
+                                              int & exitCode);
 };

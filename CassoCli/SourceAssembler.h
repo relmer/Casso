@@ -4,6 +4,7 @@
 #include "CommandLineOptions.h"
 #include "Cpu.h"
 #include "DialectReporting.h"
+#include "InstructionSetProvider.h"
 #include "Microcode.h"
 
 
@@ -51,11 +52,9 @@ public:
     //  the caller merely inherited does.
     static AssemblerOptions   BuildOptions          (const CommandLineOptions & options);
 
-    //  Assemble one file. `extendedSet` is null for a dialect whose CPU the
-    //  command line fixes, and non-null for one that selects it in source.
+    //  Assemble one file against the instruction sets the caller chose.
     static Result             Assemble              (const std::string & inputFile,
-                                                     const Microcode instructionSet[256],
-                                                     const Microcode extendedSet[256],
+                                                     const InstructionSetProvider & instructionSets,
                                                      const AssemblerOptions & asmOptions);
 
     //  The assembly's own warnings and errors, on stderr.

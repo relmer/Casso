@@ -368,6 +368,8 @@ bool CommandLineParser::IsLongOption (const std::string & arg, const std::string
 {
     bool  matched = (arg == canonical);
 
+
+
     if (!matched && !arg.empty() && arg[0] == '/')
     {
         matched = (arg == FormatLongOption (canonical, '/'));
@@ -399,6 +401,8 @@ bool CommandLineParser::IsLongOptionWithValue (const std::string & arg, const st
     std::string  dashed  = canonical + "=";
     std::string  slashed = FormatLongOption (canonical, '/') + "=";
     bool         matched = false;
+
+
 
     if (arg.rfind (dashed, 0) == 0)
     {

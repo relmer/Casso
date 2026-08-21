@@ -2,7 +2,7 @@
 
 #include "CommandLineOptions.h"
 #include "Cpu.h"
-#include "Microcode.h"
+#include "InstructionSetProvider.h"
 #include "SourceAssembler.h"
 
 
@@ -51,23 +51,25 @@ public:
     HRESULT Run (const CommandLineOptions & options, int & exitCode) const;
 
 protected:
-    //  The table the source assembles against, and the wider one it may switch
-    //  to mid-assembly. A dialect whose CPU the command line fixes has nothing
-    //  to switch to and answers null.
-    virtual const Microcode *  SelectInstructionSet         (const CommandLineOptions & options, const Cpu & cpu) const = 0;
-    virtual const Microcode *  SelectExtendedInstructionSet () const = 0;
+    //  The instruction sets this assembly may choose between, in core's own
+    //  terms: the base set it starts on, and the extended set an in-source
+    //  directive may switch to, if the dialect has such a directive. Which
+    //  CPUs those are is the dialect's answer -- AS65 takes the base from `-x`
+    //  and has no directive; Merlin starts on the 6502 and lets `XC` reach the
+    //  65C02.
+    virtual InstructionSetProvider  CreateInstructionSetProvider (const CommandLineOptions & options, const Cpu & cpu) const = 0;
 
     //  What the object file is called. The default is the name the flags
     //  resolved; a dialect whose source can name its own object overrides it.
-    virtual std::string        ResolveOutputName            (const CommandLineOptions & options, const AssemblyResult & result) const;
+    virtual std::string             ResolveOutputName            (const CommandLineOptions & options, const AssemblyResult & result) const;
 
     //  Progress either side of the assembly, and once it has been judged
     //  successful. All three do nothing by default: a subcommand written today
     //  can simply not print, and AS65's lines are a historical courtesy.
-    virtual void               ReportAssemblyStarting       (const CommandLineOptions & options) const;
-    virtual void               ReportAssemblyFinished       (const CommandLineOptions & options, long long elapsedMicroseconds) const;
-    virtual void               ReportAssemblySucceeded      (const CommandLineOptions & options, const AssemblyResult & result) const;
+    virtual void                    ReportAssemblyStarting       (const CommandLineOptions & options) const;
+    virtual void                    ReportAssemblyFinished       (const CommandLineOptions & options, long long elapsedMicroseconds) const;
+    virtual void                    ReportAssemblySucceeded      (const CommandLineOptions & options, const AssemblyResult & result) const;
 
     //  Anything beyond the listing and the object. Nothing, by default.
-    virtual HRESULT            WriteExtraArtifacts          (const CommandLineOptions & options, const AssemblyResult & result) const;
+    virtual HRESULT                 WriteExtraArtifacts          (const CommandLineOptions & options, const AssemblyResult & result) const;
 };

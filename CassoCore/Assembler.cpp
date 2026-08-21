@@ -81,6 +81,24 @@ Assembler::Assembler (const Microcode baseSet[256], const Microcode extendedSet[
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Assembler::Assembler
+//
+//  From a provider the caller built.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Assembler::Assembler (const InstructionSetProvider & instructionSets, AssemblerOptions options) :
+    m_instructionSets (instructionSets),
+    m_options         (options)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RecordWarning
 //
 //  Files a diagnostic according to the caller's warning mode, which decides

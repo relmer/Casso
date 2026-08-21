@@ -10,34 +10,21 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MerlinMode::SelectInstructionSet
+//  MerlinMode::CreateInstructionSetProvider
+//
+//  The 6502 to start on and the 65C02 to switch to. Merlin's `XC` is what
+//  decides whether a source reaches the 65C02, and that decision happens
+//  mid-assembly -- so both tables have to be in hand before the first line is
+//  read. There is no command-line say in it, which is why `options` goes
+//  unread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const Microcode * MerlinMode::SelectInstructionSet (const CommandLineOptions & options, const Cpu & cpu) const
+InstructionSetProvider MerlinMode::CreateInstructionSetProvider (const CommandLineOptions & options, const Cpu & cpu) const
 {
     (void) options;
 
-    return cpu.GetInstructionSet();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MerlinMode::SelectExtendedInstructionSet
-//
-//  The 65C02, always available to switch to. Merlin's `XC` is what decides
-//  whether a source reaches it, and that decision happens mid-assembly -- so
-//  the table has to be in hand before the first line is read.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const Microcode * MerlinMode::SelectExtendedInstructionSet() const
-{
-    return GetCpu65C02InstructionSet();
+    return InstructionSetProvider (cpu.GetInstructionSet(), GetCpu65C02InstructionSet());
 }
 
 

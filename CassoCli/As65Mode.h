@@ -26,12 +26,11 @@
 class As65Mode : public AssemblerMode
 {
 protected:
-    const Microcode *  SelectInstructionSet (const CommandLineOptions & options, const Cpu & cpu) const override;
-    const Microcode *  SelectExtendedInstructionSet   () const override;
+    InstructionSetProvider  CreateInstructionSetProvider (const CommandLineOptions & options, const Cpu & cpu) const override;
 
-    void               ReportAssemblyStarting       (const CommandLineOptions & options) const override;
-    void               ReportAssemblyFinished        (const CommandLineOptions & options, long long elapsedMicroseconds) const override;
-    void               ReportAssemblySucceeded      (const CommandLineOptions & options, const AssemblyResult & result) const override;
+    void                    ReportAssemblyStarting       (const CommandLineOptions & options) const override;
+    void                    ReportAssemblyFinished       (const CommandLineOptions & options, long long elapsedMicroseconds) const override;
+    void                    ReportAssemblySucceeded      (const CommandLineOptions & options, const AssemblyResult & result) const override;
 
-    HRESULT            WriteExtraArtifacts  (const CommandLineOptions & options, const AssemblyResult & result) const override;
+    HRESULT                 WriteExtraArtifacts          (const CommandLineOptions & options, const AssemblyResult & result) const override;
 };

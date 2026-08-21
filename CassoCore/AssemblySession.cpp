@@ -1595,8 +1595,9 @@ bool AssemblySession::IsMacroDefinitionStart (const ParsedLine & parsed, const s
                            (operandUpper.size() <= defKeyword.size()   ||
                             operandUpper[defKeyword.size()] == ' '     ||
                             operandUpper[defKeyword.size()] == '\t');
-
     bool  namedByLabel   = (parsed.directiveToken == Directive::MacroDef) && !parsed.label.empty();
+
+
 
     return namedByLabel || (!parsed.mnemonic.empty() && !parsed.isEmpty && looksLikeMacro);
 }
@@ -2527,9 +2528,9 @@ HRESULT AssemblySession::DetectMacroDefinition (const PendingLine & current, Lin
 {
     HRESULT  hr = S_OK;
 
+
+
     handled = false;
-
-
 
     // Same predicate ClassifyPass1Line used to route here, so the two cannot
     // disagree about what opens a definition.
@@ -2577,6 +2578,8 @@ void AssemblySession::OpenMacroDefinition (const PendingLine & current, const Li
 {
     MacroDefinition  opened     = {};
     std::string      defKeyword = m_dialect.GetMacroSyntax().defKeyword;
+
+
 
     opened.name = (info.parsed.directiveToken == Directive::MacroDef)
                       ? info.parsed.label
@@ -5650,10 +5653,9 @@ HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef
                                                  const std::string & uniqueSuffix,
                                                  std::vector<std::string> & expandedLines)
 {
-    HRESULT      hr           = S_OK;
-    std::string  localKeyword = m_dialect.GetMacroSyntax().localKeyword;
-
-    const auto & body = macroDef.body;
+    HRESULT       hr           = S_OK;
+    std::string   localKeyword = m_dialect.GetMacroSyntax().localKeyword;
+    const auto &  body         = macroDef.body;
 
 
 
@@ -5813,6 +5815,11 @@ HRESULT AssemblySession::CountExitmIfDepth (const std::vector<std::string> & exp
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::ApplyMacroSubstitutions
+//
+////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::ApplyMacroSubstitutions (std::string & expanded,
                                                    const MacroDefinition & macroDef,

@@ -32,6 +32,11 @@ public:
     // library, which this one must not reach into.
     Assembler (const Microcode baseSet[256], const Microcode extendedSet[256], AssemblerOptions options = {});
 
+    // The provider already built, for a caller that decided which sets there
+    // are somewhere else -- a subcommand, say -- and should not have to unpack
+    // its decision into arrays for this constructor to pack again.
+    Assembler (const InstructionSetProvider & instructionSets, AssemblerOptions options = {});
+
     AssemblyResult Assemble (const std::string & sourceText);
 
     static std::string FormatListingLine (const AssemblyLine & line, bool showCycleCounts = false);

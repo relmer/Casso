@@ -38,6 +38,8 @@ HRESULT MerlinFixture::StripHeader (
     bool      hasHeader       = false;
     bool      lengthAgrees    = false;
 
+
+
     outFile.loadAddress = 0;
     outFile.payload.clear();
 
@@ -76,6 +78,8 @@ HRESULT MerlinFixture::LoadObject (
     HRESULT              hr   = S_OK;
     std::vector<Byte>    raw;
 
+
+
     hr = provider.OpenFixture (relativePath, raw);
     CHR (hr);
 
@@ -110,6 +114,8 @@ HRESULT MerlinFixture::LoadSource (
 {
     HRESULT              hr   = S_OK;
     std::vector<Byte>    raw;
+
+
 
     outText.clear();
 

@@ -116,18 +116,16 @@ AssemblerOptions SourceAssembler::BuildOptions (const CommandLineOptions & optio
 ////////////////////////////////////////////////////////////////////////////////
 
 SourceAssembler::Result SourceAssembler::Assemble (const std::string & inputFile,
-                                                      const Microcode instructionSet[256],
-                                                      const Microcode extendedSet[256],
+                                                      const InstructionSetProvider & instructionSets,
                                                       const AssemblerOptions & asmOptions)
 {
-    HRESULT                  hr        = S_OK;
-    SourceAssembler::Result  ar        = {};
+    HRESULT                  hr = S_OK;
+    SourceAssembler::Result  ar = {};
     std::string              source;
-    bool                     canSwitch = extendedSet != nullptr;
+
+
 
     ar.inputFile = inputFile;
-
-
 
     hr = HostFile::ReadAll (inputFile, source);
 
@@ -136,18 +134,11 @@ SourceAssembler::Result SourceAssembler::Assemble (const std::string & inputFile
         std::cerr << "Error: Cannot read input file: " << inputFile << "\n";
         ar.ok = false;
     }
-    else if (canSwitch)
-    {
-        Assembler  asm6502 (instructionSet, extendedSet, asmOptions);
-
-        ar.result = asm6502.Assemble (source);
-        ar.ok     = ar.result.success;
-    }
     else
     {
-        Assembler  asm6502 (instructionSet, asmOptions);
+        Assembler  assembler (instructionSets, asmOptions);
 
-        ar.result = asm6502.Assemble (source);
+        ar.result = assembler.Assemble (source);
         ar.ok     = ar.result.success;
     }
 

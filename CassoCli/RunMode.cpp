@@ -97,16 +97,18 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int RunMode::RunCpu (Cpu & cpu,
+HRESULT RunMode::RunCpu (Cpu & cpu,
                          const CommandLineOptions & options,
                          Word entryPoint,
-                         std::vector<std::string> & status)
+                         std::vector<std::string> & status,
+                         int & exitCode)
 {
-    uint32_t cycles   = 0;
-    int      exitCode = 0;
+    HRESULT   hr     = S_OK;
+    uint32_t  cycles = 0;
 
 
 
+    exitCode = 0;
     cpu.SetPC (entryPoint);
     status.push_back (std::format ("Executing from ${:04X}", entryPoint));
 
@@ -128,6 +130,7 @@ int RunMode::RunCpu (Cpu & cpu,
         if (!cpu.GetMicrocode (opcode).isLegal)
         {
             std::println (stderr, "Illegal opcode ${:02X} at ${:04X}", opcode, cpu.GetPC());
+            hr       = HRESULT_FROM_NT (STATUS_ILLEGAL_INSTRUCTION);
             exitCode = 3;
             break;
         }
@@ -146,7 +149,7 @@ int RunMode::RunCpu (Cpu & cpu,
     status.push_back (std::format ("  A=${:02X} X=${:02X} Y=${:02X} SP=${:02X} PC=${:04X}",
         cpu.GetA(), cpu.GetX(), cpu.GetY(), cpu.GetSP(), cpu.GetPC()));
 
-    return exitCode;
+    return hr;
 }
 
 
@@ -223,7 +226,9 @@ HRESULT RunMode::Run (const CommandLineOptions & options, int & exitCode)
         asmOptions.flagPrefix        = options.flagPrefix;
         asmOptions.predefinedSymbols = options.predefinedSymbols;
 
-        ar = SourceAssembler::Assemble (options.inputFile, SourceAssembler::SelectInstructionSet (options, cpu), nullptr, asmOptions);
+        ar = SourceAssembler::Assemble (options.inputFile,
+                                        InstructionSetProvider (SourceAssembler::SelectInstructionSet (options, cpu)),
+                                        asmOptions);
         SourceAssembler::ReportDiagnostics (ar);
 
         wasLoaded = ar.ok;
@@ -259,9 +264,7 @@ HRESULT RunMode::Run (const CommandLineOptions & options, int & exitCode)
         entryPoint = cpu.PeekWord (0xFFFC);
     }
 
-    //  An illegal opcode is the PROGRAM's fault, not the tool's: the run did
-    //  what was asked and reports it through the exit code alone.
-    exitCode = RunCpu (cpu, options, entryPoint, status);
+    hr = RunCpu (cpu, options, entryPoint, status, exitCode);
 
     if (options.verbose)
     {

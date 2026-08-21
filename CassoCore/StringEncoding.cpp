@@ -81,6 +81,8 @@ void StringEncoding::Encode (
     size_t       i       = 0;
     Byte         value   = 0;
 
+
+
     if (mode == StringEncodingMode::Reversed)
     {
         std::reverse (ordered.begin(), ordered.end());

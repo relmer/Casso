@@ -84,10 +84,7 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode) 
     ReportAssemblyStarting (options);
 
     startTime = Clock::now();
-    ar        = SourceAssembler::Assemble (options.inputFile,
-                                           SelectInstructionSet (options, cpu),
-                                           SelectExtendedInstructionSet(),
-                                           asmOptions);
+    ar        = SourceAssembler::Assemble (options.inputFile, CreateInstructionSetProvider (options, cpu), asmOptions);
     endTime   = Clock::now();
 
     ReportAssemblyFinished (options, std::chrono::duration_cast<std::chrono::microseconds> (endTime - startTime).count());
