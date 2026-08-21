@@ -41,20 +41,19 @@ namespace ConformanceTests
     static std::string GetTestDataDir()
     {
         std::string  unitDir;
-        std::string  repoRoot;
 
 
 
-        // __FILE__ points to UnitTest/ConformanceTests.cpp
-        // Navigate up to repo root, then into testdata/conformance
+        // __FILE__ points to UnitTest/ConformanceTests.cpp, and the fixtures sit
+        // beside it under the test project rather than under specs/. A copy of
+        // the same files remains with spec 002 as its written record; this one
+        // is the INPUT, and a test that reads its inputs from a spec directory
+        // makes moving or archiving that spec a way to break the suite.
         std::string thisFile = __FILE__;
         size_t      lastSep  = thisFile.find_last_of ("\\/");
         unitDir = thisFile.substr (0, lastSep);
 
-        lastSep = unitDir.find_last_of ("\\/");
-        repoRoot = unitDir.substr (0, lastSep);
-
-        return repoRoot + "\\specs\\002-as65-assembler-compat\\testdata\\conformance";
+        return unitDir + "\\Fixtures\\Conformance";
     }
 
 

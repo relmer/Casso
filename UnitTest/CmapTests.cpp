@@ -219,5 +219,51 @@ namespace CmapTests
             Assert::AreEqual ((Byte) 0x10, result.bytes[1]);
             Assert::AreEqual ((Byte) 0x20, result.bytes[3]);
         }
+
+        // The same reassignment read by a DATA directive rather than an
+        // instruction, which is the case that discriminates. An instruction's
+        // operand is settled in pass 1, and pass 1 walks the file in order, so
+        // the test above reads the right value whether or not pass 2 replays
+        // the assignments. A data directive is emitted in pass 2 against the
+        // finished symbol table, so without that replay it reads whatever the
+        // file assigned LAST -- and one file then disagrees with itself.
+        TEST_METHOD (SetValueIsSeenByDataEmittedInPassTwo)
+        {
+            TestCpu cpu;
+
+            auto result = cpu.Assemble (
+                "    .org $1000\n"
+                "val set $10\n"
+                "    .byte val\n"
+                "val set $20\n"
+                "    .byte val\n"
+            );
+
+            Assert::IsTrue (result.success, L"Assembly should succeed");
+            Assert::AreEqual ((size_t) 2, result.bytes.size());
+            Assert::AreEqual ((Byte) 0x10, result.bytes[0], L"the first .byte reads the assignment above it");
+            Assert::AreEqual ((Byte) 0x20, result.bytes[1], L"the second reads its own");
+        }
+
+        // `name = expr` is the same reassignable kind as `set` -- as65 gives
+        // both SymbolKind::Set -- and it is the far commoner spelling, so it
+        // gets its own coverage rather than being assumed to follow.
+        TEST_METHOD (EqualsFormIsReassignableAndSeenByDataInPassTwo)
+        {
+            TestCpu cpu;
+
+            auto result = cpu.Assemble (
+                "    .org $1000\n"
+                "val = $10\n"
+                "    .byte val\n"
+                "val = $20\n"
+                "    .byte val\n"
+            );
+
+            Assert::IsTrue (result.success, L"Assembly should succeed");
+            Assert::AreEqual ((size_t) 2, result.bytes.size());
+            Assert::AreEqual ((Byte) 0x10, result.bytes[0]);
+            Assert::AreEqual ((Byte) 0x20, result.bytes[1]);
+        }
     };
 }

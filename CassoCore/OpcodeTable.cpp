@@ -218,13 +218,67 @@ OpcodeTable::OpcodeTable (const Microcode instructionSet[256])
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FindIgnoringCase
+//
+//  One instruction, however the source wrote its name.
+//
+//  The exact match is tried first and answers almost every call, so the
+//  upper-casing is paid for only by a source that actually writes its opcodes
+//  in lower case. The table's own keys are upper-cased when it is built, so the
+//  second try can only match an entry the first would have matched given a
+//  differently-cased source.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::unordered_map<std::string, std::unordered_map<int, OpcodeEntry>>::const_iterator
+OpcodeTable::FindIgnoringCase (const std::string & mnemonic) const
+{
+    auto  found = m_table.find (mnemonic);
+
+
+
+    if (found == m_table.end())
+    {
+        found = m_table.find (ToUpperCase (mnemonic.c_str()));
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NamesAnInstruction
+//
+//  Whether an OPCODE FIELD names an instruction, in any case.
+//
+//  Deliberately not IsMnemonic, which answers the label question and must stay
+//  exact-case. Two callers wanting opposite answers from one function is how a
+//  legal lower-case label becomes a hard error.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool OpcodeTable::NamesAnInstruction (const std::string & mnemonic) const
+{
+    return FindIgnoringCase (mnemonic) != m_table.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TryLookup
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool OpcodeTable::TryLookup (const std::string & mnemonic, GlobalAddressingMode::AddressingMode mode, OpcodeEntry & result) const
 {
-    auto  mnemonicIt = m_table.find (mnemonic);
+    auto  mnemonicIt = FindIgnoringCase (mnemonic);
     bool  found      = false;
 
 
@@ -266,13 +320,43 @@ bool OpcodeTable::IsMnemonic (const std::string & name) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetAllMnemonics
+//
+//  Every spelling the table answers to, synonyms included. Unordered, because
+//  the map is: a caller wanting an order sorts, and pretending to one here would
+//  be a promise the container does not keep.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> OpcodeTable::GetAllMnemonics() const
+{
+    std::vector<std::string>  names;
+
+
+
+    names.reserve (m_table.size());
+
+    for (const auto & entry : m_table)
+    {
+        names.push_back (entry.first);
+    }
+
+    return names;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HasMode
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool OpcodeTable::HasMode (const std::string & mnemonic, GlobalAddressingMode::AddressingMode mode) const
 {
-    auto  mnemonicIt = m_table.find (mnemonic);
+    auto  mnemonicIt = FindIgnoringCase (mnemonic);
 
 
 

@@ -31,9 +31,17 @@ Two axes are involved and they are independent:
   string encodings, macro grammar.
 - **CPU target** is *which opcodes are legal*.
 
-65C02 code can be written in any dialect, so selecting a dialect MUST NOT imply a
-CPU, and selecting a CPU MUST work under any dialect. Casso's existing `--cpu`
-selection already covers the second axis; this feature adds the first.
+65C02 code can be written in any dialect, so a dialect profile MUST NOT imply a
+CPU and the mechanism MUST NOT assume a profile has only one CPU available to it.
+Casso's existing `--cpu` selection already covers the second axis; this feature
+adds the first.
+
+Independent axes do not mean identical controls, though. *Where* a dialect takes
+its CPU from is part of that dialect's personality: AS65 has no in-source CPU
+directive and so takes it from the command line, while Merlin has one and takes it
+from there exclusively. Offering a command-line override under Merlin would let
+Casso assemble source real Merlin rejects, which is the opposite of the
+authenticity FR-005 demands.
 
 ### Relationship to disk file access
 
@@ -53,6 +61,63 @@ drives a developer to a modern host in the first place. Its observable effect is
 to name the output, which this feature can honor by itself; writing into a
 mounted disk image rather than a host file is the part that wants 020. The
 dependency is therefore a refinement, not a prerequisite.
+
+## Clarifications
+
+### Session 2026-08-15
+
+- Q: Where do the reference bytes for SC-001 come from, given unit tests may not
+  touch disk and a Merlin disk image cannot be committed? → A: Capture them
+  offline from real Merlin Pro running under Casso's own emulation, once per corpus
+  entry, and commit the source-plus-bytes pairs as fixtures. The
+  emulation dependency exists only at capture time and is discharged by
+  cross-checking a sample against hand-derived expectations from the manual.
+- Q: Does the file-and-column diagnostic requirement mean retrofitting every
+  diagnostic in the assembler, or only Merlin's? → A: Neither. The position
+  fields are added additively so existing diagnostics keep their shape, and every
+  diagnostic this feature emits populates them. Backfilling the AS65 front end is
+  a separate mechanical sweep.
+- Q: Are Merlin's column rules literal column positions, or a field model? → A: A
+  field model. Whitespace runs separate the label, opcode, operand, and comment
+  fields; the only significant column is the first, which decides whether a line
+  has a label. The fixed columns in Merlin listings are the editor's display
+  formatting, not an assembler requirement.
+- Q: How is the active dialect reported without breaking scripts that pipe the
+  assembler's output? → A: On the diagnostic stream under verbose output, and in
+  the listing header when a listing is produced — never unconditionally on
+  standard output, which carries the listing when no listing file is named.
+- Q: How is the dialect mechanism itself measured, given `023-ca65-dialect` gates
+  on it being ready for a third profile? → A: By adding a synthetic, test-only
+  third profile in the unit tests and showing it requires no change to the shared
+  two-pass engine, expression evaluator, or opcode tables. Recorded as SC-009.
+- Q: Does the Merlin dialect offer a command-line CPU flag? FR-002 implied yes;
+  issue #92 said no. → A: No. The CPU comes from Merlin's in-source directive
+  alone, and passing the flag anyway is refused with a message naming that
+  directive. Accepting extended opcodes without it would not be authentic Merlin,
+  violating FR-005. FR-002 is rescoped to mean the axes are independent in the
+  mechanism, not that every dialect exposes a flag.
+- Q: What makes the corpus "representative"? → A: A defined floor, recorded as its
+  own subsection: one entry per FR-007..FR-015 construct, one per string-encoding
+  directive rather than one for FR-010 as a whole, irregular-spacing entries,
+  a multi-file inclusion entry, expression-evaluator entries, and a separate
+  hand-authored negative class for refusals and diagnostics.
+- Q: What does the second occurrence of Merlin's CPU-selection directive do, given
+  it selects the 65802/65816? → A: It becomes a subset-boundary refusal. FR-015 is
+  scoped to the first occurrence only, and FR-016 is generalized to "requires a
+  linker or a CPU Casso does not emulate" so a future linker or 65816 core widens
+  the boundary from one place.
+- Q: Are Merlin's object-file, file-type, and save-object directives in scope? →
+  A: They are three different cases, not one family. The object-file directive is
+  in scope as an output name, with the command line taking precedence over it. The
+  file-type directive is deferred to 020, which owns filesystem types. The
+  save-object directive is refused as multi-output segmentation needing its own
+  decision — explicitly not a 020 dependency.
+- Q: How do the implementation and documentation derive the subset boundary from
+  one place? → A: One table in code, exposed through a GetAll-style accessor like
+  the existing directive and subcommand tables, with the help text generated from
+  it so that pair cannot disagree at all. A unit test sweeps the accessor in
+  memory. Markdown sync, if wanted, is a repository-level check — a unit test may
+  not read files.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -110,11 +175,17 @@ rejected accordingly.
 1. **Given** source containing a construct that only Merlin accepts, **When** it is
    assembled in AS65 mode, **Then** it is rejected with a diagnostic naming the
    construct and the active dialect.
-2. **Given** any dialect selection, **When** the developer also selects a CPU target,
-   **Then** both apply independently and neither overrides the other.
+2. **Given** a dialect that exposes a command-line CPU flag, **When** the developer
+   selects both a dialect and a CPU target, **Then** both apply independently and
+   neither overrides the other.
+2a. **Given** a dialect that takes its CPU from source instead, **When** the
+   developer passes a command-line CPU flag, **Then** it is refused with a message
+   naming that dialect's in-source directive — never accepted and ignored.
 3. **Given** no dialect selection, **When** the developer assembles, **Then** the
-   dialect used is stated in the tool's output so it is never ambiguous which
-   rules were applied.
+   dialect that was inferred is reported on the diagnostic stream under verbose
+   output and in the listing header, and never unconditionally on standard
+   output, so it is discoverable without guessing and without disturbing a
+   piped listing.
 4. **Given** any dialect selection, **When** the developer requests help, **Then**
    the help describes the flags and behavior of that dialect specifically.
 
@@ -160,17 +231,33 @@ confirm the diagnostic names the right construct at the right position.
   located image and has no linker, so this MUST be refused with the construct
   named and the reason given — never as an unknown-directive error, which reads
   as "Merlin support is broken" rather than "your source is relocatable."
-- What happens to source whose meaning depends on column position, when it is
-  written with tabs rather than spaces? Merlin's column rules MUST be applied to a
-  defined interpretation of tabs, and that interpretation MUST be documented.
+- What happens to source written with tabs rather than spaces? Nothing special.
+  Merlin's line structure is field-based, so a tab is whitespace and separates
+  fields exactly as a space does; no tab-stop expansion is performed, because tab
+  stops affect only display. The one column-sensitive rule — a label must begin in
+  the first column — is unaffected, since a leading tab is leading whitespace
+  either way.
 - What happens when a dialect's directive spelling collides with an instruction
   mnemonic? The instruction MUST win where the dialect says it wins, and the
   resolution MUST NOT depend on which table happens to be consulted first.
 - What happens when a macro defined in one dialect's grammar is invoked with the
   argument syntax of another? It MUST be rejected rather than partially expanded.
+- Is a semicolon *required* to start the comment field, or does Merlin treat
+  everything after the operand field as comment regardless of what it begins with?
+  Both readings fit the source observed so far, and they differ for a line whose
+  fourth field starts with an ordinary word. MUST be settled by capture.
+- Does Merlin accept a form of its CPU-selection directive that resets the target
+  back to 6502? If it does, that form is in scope and cheap to support; if it does
+  not, there is nothing to do. This MUST be settled by capturing the construct
+  against real Merlin rather than by reasoning from the manual.
 - What happens when included files are written in a different dialect than the
-  including file? The dialect MUST apply to the whole assembly, and mixed-dialect
-  inclusion MUST be reported rather than silently mis-parsed.
+  including file? The dialect MUST apply to the whole assembly. No detection is
+  required or possible — an included file does not declare a dialect — so this
+  resolves to ordinary parsing: source written in another dialect fails to parse
+  under the active one, and the resulting diagnostic MUST name which dialect
+  defines the offending construct (FR-022) and which file it came from (FR-025).
+  The requirement is that the failure be *explained*, not that mixing be detected
+  ahead of time.
 - What happens to existing build scripts that invoke Casso's assembler today?
   Their behavior MUST be preserved, or the change MUST be stated explicitly in
   release notes — the project's user-experience principle forbids silent
@@ -180,27 +267,65 @@ confirm the diagnostic names the right construct at the right position.
 
 ### Functional Requirements
 
+Requirements added during clarification carry numbers above FR-025 but sit in the
+section they belong to, so they read out of numeric order. Existing numbers are
+never reused or shifted: GitHub issue #112 cites FR-016 through FR-019 by number,
+and `023-ca65-dialect` gates on this spec, so renumbering would silently break
+references outside this file.
+
 #### Dialect selection
 
 - **FR-001**: The assembler MUST accept an explicit dialect selection covering, at
   minimum, the existing AS65 dialect and Merlin.
-- **FR-002**: Dialect selection MUST be independent of CPU target selection; each
-  MUST be settable without constraining the other.
+- **FR-002**: Dialect selection and CPU target selection MUST be independent *in
+  the mechanism*: a dialect profile MUST NOT imply a CPU, and the mechanism MUST
+  NOT assume a profile has only one CPU available to it. This does not oblige
+  every dialect to expose a command-line CPU flag — a dialect whose own source
+  defines CPU selection may take the CPU from there exclusively.
 - **FR-003**: Where a dialect defines its own in-source CPU selection, that
   in-source directive MUST take effect for the remainder of the assembly.
-- **FR-004**: The dialect in effect MUST be discoverable from the tool's output so
-  a developer can never be uncertain which rules were applied.
+- **FR-004**: The dialect in effect **and the CPU target in effect** MUST both be
+  discoverable without guessing. An explicit dialect selection is self-documenting
+  from the invocation itself; where either was inferred rather than stated — the
+  dialect by a caller that set none and took the default, or the CPU by an
+  in-source directive — the tool MUST report
+  it on the diagnostic stream under verbose output, and in the listing header when
+  a listing is produced. Neither MUST be emitted unconditionally on standard
+  output, which carries the listing when no listing file is named and is therefore
+  piped by build scripts. SC-005 is measured entirely against this requirement.
 - **FR-005**: Each dialect MUST be applied strictly and authentically; the
-  assembler MUST NOT accept a lenient union of all dialects.
+  assembler MUST NOT accept a lenient union of all dialects. "Authentic" is
+  measured against the dialect the profile names, and for AS65 that dialect is
+  what Casso's assembler accepts *today* — this requirement forbids admitting
+  another dialect's constructs into AS65, and does not license tightening AS65
+  against source it currently accepts. SC-004 holds AS65 output unchanged; this
+  holds AS65 acceptance unchanged, which is what FR-023 depends on.
 - **FR-006**: Dialect selection MUST be available to every entry point that
   assembles source, not only the command-line tool.
+- **FR-026**: The Merlin dialect MUST take its CPU target from Merlin's in-source
+  CPU-selection directive alone, and MUST NOT offer a command-line CPU flag.
+  Accepting extended opcodes without the in-source directive would violate FR-005,
+  because source real Merlin rejects is not authentically Merlin; it would also
+  put SC-001 at risk. A command-line CPU flag passed to Merlin MUST be refused
+  with a message naming the in-source directive, rather than accepted and
+  ignored — a flag that is accepted and does nothing is worse than one that
+  errors.
 
 #### Merlin dialect
 
-- **FR-007**: The assembler MUST accept Merlin's comment conventions, including
-  whole-line comments introduced in the first column.
-- **FR-008**: The assembler MUST accept Merlin's label rules, including its column
-  conventions and its local-label prefix.
+- **FR-007**: The assembler MUST accept Merlin's comment conventions: a whole-line
+  comment introduced by an asterisk in the first column, and a comment occupying
+  the trailing comment field. A semicolon does **not** introduce a comment "at any
+  position" — **inside the operand field it is data**, and Merlin uses it to
+  separate macro arguments. The distinction is the field boundary: a semicolon
+  within the whitespace-delimited operand token belongs to the operand, while one
+  beginning the field after it starts a comment. This reinforces the field model
+  in FR-008 rather than qualifying it.
+- **FR-008**: The assembler MUST accept Merlin's label rules and its local-label
+  prefix. Merlin's line structure is field-based rather than literal-column-based:
+  runs of whitespace separate the label, opcode, operand, and comment fields, and
+  the only significant column is the first — a line beginning with whitespace has
+  no label. The parser MUST NOT require any field to appear at a specific column.
 - **FR-009**: The assembler MUST accept Merlin's data directives for bytes, words,
   and reversed-order words, and its raw hexadecimal data directive.
 - **FR-010**: The assembler MUST accept Merlin's string directives and apply each
@@ -212,9 +337,44 @@ confirm the diagnostic names the right construct at the right position.
   assigns addresses without emitting bytes.
 - **FR-013**: The assembler MUST accept Merlin's macro definition, invocation, and
   positional parameter syntax.
+- **FR-032**: The assembler MUST accept a macro definition that has no terminator
+  of its own and **falls into the next**: while any definition is open, a further
+  opening line starts another beside it, every following line is appended to all
+  of them, and a single terminator closes them all. An unclosed definition is
+  reported once per open level, at the line each one opened on.
+
+  **This is an ENGINE change and therefore a spec amendment, taken deliberately
+  and with the user's approval rather than as an implementation detail.** The
+  reasoning is in [contracts/dialect-profile.md](./contracts/dialect-profile.md)
+  under "Amendment: overlapping macro definitions". Two things about it matter as
+  much as the behavior. It is expressed as mechanism **every dialect gets** — no
+  profile field selects it and no dialect is named in the collector — because the
+  shared engine had no way to represent overlapping definitions at all, in any
+  dialect. And it is what the distribution disk's own macro library depends on:
+  `ADDX` there has no `<<<` and runs on into `ADDA`, so the library could not be
+  assembled without it (FR-033).
+- **FR-033**: The assembler MUST reproduce the object code real Merlin produces
+  from source that includes the distribution disk's macro library and invokes its
+  macros. The library is committed as a fixture and its object is **generated**
+  rather than shipped — nothing on the disk includes it, so its oracle was made by
+  assembling an authored source under Merlin Pro 2.23 and capturing the result,
+  exactly as the hand-authored corpus entries were.
+
+  It is the only evidence anywhere that macro fall-through (FR-032) and the
+  first-character conditional are ordinary Merlin rather than exotic. Both went
+  unimplemented for the whole of the first pass at this feature precisely because
+  no committed fixture used them.
 - **FR-014**: The assembler MUST accept Merlin's file-inclusion directives and
   resolve included files relative to the source that names them.
-- **FR-015**: The assembler MUST accept Merlin's CPU-selection directive.
+- **FR-015**: The assembler MUST accept the *first* occurrence of Merlin's
+  CPU-selection directive, which enables the 65C02 instruction set for the
+  remainder of the assembly. The directive is cumulative in Merlin, and its second
+  occurrence selects a CPU Casso does not emulate; FR-016 owns that case, so this
+  requirement is deliberately scoped to the first.
+- **FR-027**: The assembler MUST honor Merlin's object-file directive as naming
+  the assembly's output. Where both the command line and an in-source directive
+  name an output, the **command line MUST take precedence**, so a build script can
+  override what the source asks for.
 
 #### Subset boundary
 
@@ -224,29 +384,88 @@ entry and external symbols resolved later. Casso emits one absolutely located
 image and has no linker, so that path is out of scope — and MUST say so rather
 than failing as though the source were malformed.
 
-- **FR-016**: The assembler MUST reject Merlin constructs that require
-  relocatable output or a linker — relocatable-mode assembly, and entry and
-  external symbol declarations — naming the specific construct.
+The linker is not the only thing outside the boundary, and the boundary is
+therefore defined by *why* a construct is refused rather than by a fixed list.
+Three reasons appear here: a construct needs a linker, it needs a CPU Casso does
+not emulate, or it needs a capability another feature owns. Each MUST be refused
+with the construct named and the reason given.
+
+- **FR-016**: The assembler MUST reject Merlin constructs that require a linker or
+  a CPU Casso does not emulate, naming the specific construct. This covers
+  relocatable-mode assembly and entry and external symbol declarations, which need
+  the relocating linker, and the second occurrence of the CPU-selection directive,
+  which selects the 65802/65816. The boundary is stated as a general condition
+  rather than an enumeration so that a future linker (GitHub issue #112) or a
+  65816 core widens it from one place.
 - **FR-017**: A subset-boundary refusal MUST be distinguishable from a syntax
   error, so a developer can tell "Casso does not do this" from "your source is
   wrong."
+- **FR-031**: Where a refused construct has a workaround, the refusal MUST name
+  it. Specifically, a module using relocatable mode and entry symbols but **no
+  external symbols** exports without importing, so it assembles absolutely once
+  relocatable mode is removed and an origin supplied — the refusal MUST say so.
+  A module declaring external symbols has no such workaround, because it
+  references symbols defined elsewhere and resolving those needs the linker Casso
+  does not have; that refusal MUST say that instead of offering a fix which would
+  not work. Naming the construct (FR-016) does not by itself require naming a way
+  forward, and the two cases are not interchangeable: the sample project shipped
+  on the Merlin distribution disk is the export-only case, so the most likely
+  first encounter with this boundary is the one that has a two-line fix.
 - **FR-018**: A subset-boundary refusal MUST report every offending construct in
   the source, not only the first, so the scale of the gap is visible in one pass.
-- **FR-019**: The supported subset MUST be defined in one place that both the
-  implementation and the documentation derive from, so they cannot disagree.
+- **FR-019**: The supported subset MUST be defined by a single table in code,
+  exposed through an enumerating accessor in the manner of the existing directive
+  and subcommand tables, so tests sweep the whole boundary rather than a
+  hand-picked sample. The tool's help text describing where the subset ends MUST
+  be generated from that table, so help and implementation cannot disagree by
+  construction rather than by detection. A unit test MUST sweep the accessor and
+  assert that every entry produces the expected refusal, entirely in memory.
+  Keeping the prose documentation in step is a repository-level check, not a unit
+  test — test isolation forbids a unit test reading a file.
+- **FR-028**: The assembler MUST refuse Merlin's file-type directive as outside
+  the supported subset. It sets the output's filesystem file type, which has no
+  meaning without a filesystem that has types; it is deferred to
+  `020-disk-file-access`.
+- **FR-029**: The assembler MUST refuse Merlin's save-object directive as outside
+  the supported subset. It saves the object accumulated so far and continues, so
+  it can appear repeatedly and produce *multiple* outputs from one assembly, with
+  the object-address directive resetting between them. That is multi-output
+  segmentation and needs its own decision. It is **not** a `020-disk-file-access`
+  dependency and MUST NOT be documented as one — 020 landing will not make the
+  right behavior obvious.
 
 #### Diagnostics and compatibility
 
 - **FR-020**: Diagnostics MUST describe constructs using the vocabulary of the
   active dialect.
-- **FR-021**: Diagnostics MUST carry file, line, and column in a machine-parseable
-  form.
+- **FR-021**: Diagnostics emitted by this feature MUST carry file, line, and
+  column in a machine-parseable form. The position fields MUST be added
+  additively, so diagnostics that predate this feature keep their present shape
+  and behavior; backfilling those with positions is a separate mechanical change
+  and is out of scope here.
 - **FR-022**: A construct rejected because it belongs to a different dialect MUST
   say which dialect defines it.
 - **FR-023**: Existing invocations of the assembler MUST either behave as they do
-  today or have their change documented in release notes.
+  today or have their change documented in release notes. Exactly one takes the
+  second branch: removing the unrecognized-first-argument fallback (#92) breaks
+  `CassoCli input.a65 -o out.bin`, whose replacement is `CassoCli as65 input.a65
+  -o out.bin`. "Documented" is not satisfied by a mention — it requires a
+  breaking-changes heading in `CHANGELOG.md` and an error message that names the
+  replacement, because the population affected is build scripts that nobody
+  re-reads until they fail.
 - **FR-024**: Every dialect and its flags MUST be documented in the tool's help
   output, including where the supported Merlin subset ends.
+- **FR-030**: The Merlin entry point MUST use the same exit-code vocabulary as
+  the tool's existing subcommands: **0** for a clean run, **1** for a run that
+  succeeded but emitted complaints, **2** for a run that produced no output. A
+  script driving the tool must not need per-subcommand knowledge of what a given
+  number means. This convention is shared with `020-disk-file-access`, which is
+  defining exit codes for its own subcommand concurrently.
+- **FR-025**: A diagnostic originating inside an included file MUST name that
+  file, not the top-level input. The tool reports every diagnostic against the
+  top-level input today, which misattributes errors from included source; Merlin's
+  file-inclusion directives make multi-file assembly normal rather than
+  occasional, so the misattribution MUST be corrected as part of this feature.
 
 ### Key Entities
 
@@ -263,24 +482,168 @@ than failing as though the source were malformed.
 
 ## Success Criteria *(mandatory)*
 
+### Corpus Floor
+
+SC-001 is measured against a defined floor rather than a judgment about what
+"representative" means.
+
+**Two sources, because each has the other's blind spot.** The *manual* enumerates
+the vocabulary and tells you what to test **for**. The *disk* demonstrates idiom —
+how constructs are actually written — and surfaces what the manual
+under-documents; the semicolon serving as a macro-argument separator is not
+something a manual states clearly, and vendor source showed it in minutes.
+
+The disk's blind spot is symmetric and easy to miss: **it cannot report what the
+vocabulary contains that this vendor did not use.** Absence from the disk is not
+evidence of absence from the language. Where the manual lists a construct the
+disk never exercises, that MUST become a corpus entry rather than an assumption.
+
+**And a file on the disk that no other file uses has the same blind spot, which
+cost this feature two constructs.** The distribution's macro library ships no
+object, so it was never an oracle and never assembled — and macro fall-through
+(FR-032) and the first-character conditional, which it uses throughout, were both
+missed for the whole of the first pass. The lesson is that "ships no object" is a
+statement about 1984 and not about what can be compared: **an oracle can be
+GENERATED.** Author a source that uses the file, assemble it under real Merlin,
+capture what it produced, and the file becomes half of an ordinary pair. FR-033
+is that, done.
+
+**Vendor source is captured, not read.** Beyond what is needed to fix the field
+model, the macro grammar, and the string family, the remaining source on the disk
+MUST be added as corpus entries rather than studied for spec revisions. A
+byte mismatch is a better signal than a reading: it is specific, it is attached to
+a test, and it cannot be forgotten. Reading is reserved for constructs genuinely
+ambiguous from bytes alone — those that change what the assembler *does* rather
+than what it *emits*, which comparison cannot settle.
+
+**Vendor source and objects ARE committed, verbatim, under the grant.** This
+supersedes an earlier rule that they must never enter the repository — written
+when the candidate oracle carried no license declaration at all, which made
+"assemble it but do not ship it" the only defensible position. The pinned
+oracle's CC BY-NC-ND 3.0 grant explicitly permits verbatim non-commercial
+redistribution with attribution, and `UnitTest/Fixtures/Merlin/` does exactly and
+only that.
+
+Three conditions ride with it, none optional:
+
+- The files MUST stay **unmodified**. The no-derivatives term forbids altered
+  copies, and an adjusted fixture has stopped being an oracle — a mismatch is a
+  finding about Casso, never a reason to edit the file.
+- The directory MUST carry a sidecar `LICENSE` naming the license, the required
+  attribution, and where the material came from, because it is **not** under this
+  repository's license. **The directory is the unit** — one notice covers every
+  file in it, and files sharing a license are grouped into their own subdirectory
+  rather than annotated individually. Constitution 1.9.0 requires this and
+  requires nothing more: no allowlist entry, no per-file accounting, and no
+  amendment when a fixture is added.
+- The no-derivatives term engages the constitution's read-only clause: a fixture
+  whose license forbids modification MUST be read-only to the tests consuming it.
+  Satisfied by construction here, since `IFixtureProvider::OpenFixture` opens
+  read-only and nothing in this feature writes to a fixture.
+- Anyone redistributing Casso commercially MUST remove the directory and the
+  tests depending on it.
+
+The corpus MUST contain, at minimum:
+
+- **One entry per construct named in FR-007 through FR-015.** Breadth beyond the
+  floor is opportunistic; the floor itself is not.
+- **One entry per string-encoding directive**, not one for FR-010 as a whole.
+  FR-010 covers five distinct encodings in a single requirement, and this is the
+  highest-risk area in the dialect: a high-bit or terminator bug produces output
+  that still looks plausible on inspection.
+- **Irregular-spacing entries** — extra spaces, tabs, and mixtures of the two, as
+  real source contains. These are what settle the field-based line model
+  empirically. If byte-identity holds across them, the parse model is right.
+- **At least one multi-file entry** exercising the file-inclusion directives
+  through the injected file-reader seam, served from memory.
+- **Expression-evaluator entries** covering Merlin's operator set, its precedence,
+  and its current-program-counter form. The evaluator is shared with AS65, and
+  Merlin's operators and precedence may not match it.
+- **A harness that fails when the corpus is missing.** A comparison loop over an
+  empty entry table reports success while covering nothing. The corpus MUST
+  assert its own presence — a non-zero entry count, and an entry with no expected
+  bytes treated as an error rather than a trivially satisfied comparison —
+  because a corpus that silently covers nothing is worse than no corpus, it being
+  indistinguishable from a passing one.
+- **Entries that must discriminate, and are checked to.** Labels, origin,
+  literals, and the expression evaluator are shared across dialects, so an entry
+  built only from those assembles identically whether the Merlin profile works or
+  is never consulted. A corpus can be large, entirely green, and vacuous.
+
+  Every entry is therefore classified. An entry whose stated purpose is a
+  **Merlin-specific construct** — the data and hex directives, the string family,
+  variable symbols, the loop and dummy constructs, macros and their positional
+  parameters, file inclusion, the CPU directive, or a semicolon inside the
+  operand field — MUST be verified to **fail under the AS65 profile**. If it
+  passes under both, either it is not exercising the construct it claims or the
+  profile is not being consulted, and both are defects.
+
+  A **shared-construct** entry is legitimate and is not required to discriminate;
+  it is regression cover for the engine, which SC-004 already depends on.
+  Recording the class per entry is what makes "passes under both dialects" read
+  as a stated property rather than an open question.
+
+  This gives the corpus a second job. Byte-identity alone shows Merlin's output
+  is right; discrimination additionally shows the **profile** produced it — which
+  is the claim SC-009 rests on, and precisely what a seam shaped by one dialect
+  would otherwise satisfy trivially.
+- **A separate negative class**, for subset-boundary refusals (FR-016 through
+  FR-019) and diagnostic expectations (User Story 3). These expectations are
+  **hand-authored, not Merlin-captured**, because Merlin produces no bytes for
+  source it rejects. They MUST be kept distinct from the captured class so it is
+  never unclear where a given expectation came from.
+
 ### Measurable Outcomes
 
-- **SC-001**: A representative corpus of real, unmodified Merlin source assembles
-  to byte-identical output against reference builds.
+- **SC-001**: A corpus of real, unmodified Merlin source meeting the **Corpus
+  Floor** above assembles to output byte-identical to reference bytes **captured
+  beforehand** from the pinned oracle below. The comparison is against committed
+  fixtures; nothing invokes another assembler at test time.
+
+  **The oracle is pinned, not "Merlin".** It is **Merlin Pro 2.23**, archive.org
+  item `MerlinProMacroAssembler`, CC BY-NC-ND 3.0, Glen Bredon / Roger Wagner
+  Publishing 1984, obtained via `scripts/FetchMerlin.ps1` which verifies a
+  per-file SHA-256. Naming a version is not pedantry: different Merlin releases
+  ship *different source files*, so a figure measured against one is not
+  comparable to the other. Every recorded byte count MUST state the oracle it
+  came from.
 - **SC-002**: A developer with an existing Merlin project can assemble it in Casso
   without editing any source line.
-- **SC-003**: Every rejection of valid Merlin source is a reported defect, not an
-  expected limitation — the dialect is complete or the gap is documented.
+- **SC-003**: Valid Merlin source is rejected only where the subset-boundary table
+  says so. A rejection with no corresponding boundary row is a defect rather than a
+  limitation, which makes the table the definition of "expected limitation" and
+  gives this criterion something to measure against.
 - **SC-004**: The existing AS65 dialect's output remains byte-for-byte identical
   for every source file in the current test corpus.
 - **SC-005**: A developer can determine which dialect and CPU target were used for
-  any assembly from the tool's own output alone.
+  any assembly from the tool's own output alone, by the means FR-004 defines —
+  the invocation itself where either was stated, and verbose output or the
+  listing header where either was inferred.
 - **SC-006**: Diagnostics for dialect-specific errors identify the correct line and
   column in every case covered by the test corpus.
 - **SC-007**: Every construct outside the supported subset produces a diagnostic
   naming it — no such construct fails as an unexplained parse error.
 - **SC-008**: A developer can determine whether their Merlin project is within
   the supported subset from the documentation alone, without attempting it.
+- **SC-009**: A third dialect profile can be added without modifying the shared
+  two-pass engine, expression evaluator, or opcode tables — demonstrated by a
+  synthetic, test-only profile exercised in the unit tests. The claim is verified
+  rather than asserted; `023-ca65-dialect` gates on it (023 SC-006).
+
+  Two qualifications, both load-bearing. **Extending the dialect seam is not
+  modifying the engine**: adding a virtual to the profile interface is how the
+  mechanism absorbs a dialect it has not met, and is expected — what this
+  criterion forbids is a dialect reaching into how the assembly *runs*. And the
+  demonstration MUST be sequenced **after** the second real dialect lands: run
+  against a seam shaped by one dialect, a synthetic profile passes trivially
+  because it is written to fit the seam that exists, which proves only that the
+  seam supports profiles shaped like the one already there.
+
+  The corpus's discrimination checks are what give this criterion teeth. Matching
+  bytes show only that the output is correct; an entry that also **fails under
+  the other dialect** shows the *profile* produced those bytes rather than shared
+  machinery that would have produced them regardless. Without that, a seam which
+  has only ever met one dialect satisfies SC-009 for free.
 
 ## Assumptions
 
@@ -293,12 +656,20 @@ than failing as though the source were malformed.
   the very next dialect.
 - Scope is **absolute Merlin**. Merlin shipped a relocating linker, and its
   relocatable mode with entry and external symbols is used for library routines
-  and run-time packages, so this boundary is real rather than theoretical — it is
-  simply not where most published 8-bit Merlin source sits. Supporting it needs a
-  linker Casso does not have; that linker would also serve ca65
-  (`023-ca65-dialect`) and relocatable object output (GitHub issue #58), so the
-  boundary is expected to widen once one exists. It is specified as data (FR-019)
-  for that reason.
+  and run-time packages, so this boundary is real rather than theoretical.
+
+  It is also closer to hand than assumed. The Apple PI sample project shipped on
+  the Merlin Pro 2.23 distribution disk opens with `REL` and declares `ENT`
+  symbols — refused constructs, in the disk's own flagship example. Real users
+  will therefore meet the boundary early, which raises the stakes on FR-016
+  through FR-019: the refusal must read as "your source is relocatable" the first
+  time someone assembles the sample that came with their assembler. It also makes
+  that project excellent negative-corpus material.
+
+  Supporting it needs a linker Casso does not have; that linker would also serve
+  ca65 (`023-ca65-dialect`) and relocatable object output (GitHub issue #58), so
+  the boundary is expected to widen once one exists. It is specified as data
+  (FR-019) for that reason.
 - Backward compatibility with Casso's current assembler invocation is desirable but
   not paramount; the existing dialect has extremely limited adoption, so a
   documented change is acceptable where it buys a cleaner model.
@@ -307,5 +678,81 @@ than failing as though the source were malformed.
   in what the machine does.
 - The reference for correctness is byte-identical output against the original
   assembler, not agreement with any published grammar.
+- **The oracle is Merlin Pro 2.23**, and the version is part of the identity.
+  Provenance: archive.org item `MerlinProMacroAssembler`, **CC BY-NC-ND 3.0**,
+  Glen Bredon / Roger Wagner Publishing 1984, fetched by
+  `scripts/FetchMerlin.ps1` against pinned SHA-256 hashes.
+
+  The license is why this release and not another. A corpus exists to be citable,
+  and an explicit grant for verbatim non-commercial redistribution with
+  attribution is a different thing from an archive item that simply declares no
+  license at all. **Merlin 8 v2.47** was used briefly and is **out**: its archive
+  item declares no license, and its disk ships *different* source files, so
+  figures measured against it do not transfer.
+
+  Nor do figures transfer between Merlin Pro's own disks. The ProDOS **2.33**
+  images carry their own `LABELS` / `LABELS.S` at different sizes — a later build,
+  not a discrepancy. **Source and object correspond within a disk, never across
+  disks**, which is why every fixture came from the single DOS 3.3 2.23 image.
+
+  Merlin 32 is also not the oracle: it implements Merlin 16+ syntax, so validating
+  against it would bake the wrong expectations into the corpus. It may cross-check
+  constructs the dialects share; it is not the authority. Reading its source is
+  governed by the project's clean-room rule — consult for behavior, never copy.
+- **Reference source and bytes are committed as fixtures** under
+  `UnitTest/Fixtures/Merlin/`, lifted verbatim from the pinned disk, and read
+  through `IFixtureProvider::OpenFixture` — the project's only sanctioned path to
+  fixture bytes. No test opens a host path, so test isolation is satisfied by the
+  contract rather than by discipline. Multi-file entries are served through the
+  injected file-reader seam.
+
+  A fixture MUST NOT be edited to make a test pass. The license's no-derivatives
+  term forbids altered copies, and a fixture that has been adjusted has stopped
+  being an oracle: a mismatch is a finding about Casso, not about the file.
+- **The disk images are committed too**, under `UnitTest/Fixtures/Disks/` — the
+  DOS 3.3 2.23 volume this feature's fixtures came from, plus two ProDOS volumes,
+  each with its vendor catalog listing. That is a correction: this spec previously
+  said the image was not committed, which was written before the images landed on
+  master and was simply false thereafter. `scripts/FetchMerlin.ps1` still retrieves
+  and hash-verifies them against the archive item, so the provenance chain is
+  re-runnable rather than asserted; committing them makes it re-runnable *and*
+  offline.
+
+  This does not give **this** feature a second oracle. 019's tests read the
+  extracted `Merlin/*` files, never the `.dsk` — reading the image would mean a
+  DOS 3.3 reader inside a test, which is `020-disk-file-access`'s job and the
+  reason those volumes are there at all. The image is needed here only to **add**
+  a fixture, via `scripts/ExtractMerlinFixtures.ps1`.
+
+  The volumes carry runnable Merlin — `MERLIN.SYSTEM`, `PRODOS`,
+  `BASIC.SYSTEM`, the assembler itself — not just source and object text, which
+  once looked like the harder half of the license question. Constitution 1.9.0
+  settles it and covers them: the rule is stated by **role** — inputs consumed by
+  the test suite, shipping in nothing, reaching no end user — rather than by what
+  the bytes contain, so a bootable volume qualifies on the rule's own terms.
+  `UnitTest/Fixtures/Disks/LICENSE` names the software explicitly.
+- **Capture depends on Casso running Merlin correctly, but only at capture time.**
+  Nothing at test time touches Merlin or the emulator. The dependency is
+  discharged by cross-checking a sample of entries against hand-derived
+  expectations from the manual; disagreement indicates either a corpus error or an
+  emulator bug, both worth finding.
+- **Capture is a documented, reproducible procedure, not a one-off.** Each entry
+  records the exact Merlin version, because edge semantics differ across
+  revisions.
+- Capture runs Merlin under Casso, which needs source onto the Merlin disk and
+  bytes back off it. Neither blocks on `020-disk-file-access`. Bytes come off with
+  a small throwaway extractor, because the Merlin disk is a flat DOS-order image
+  whose sectors sit at fixed offsets; source goes in by typing or pasting into
+  Merlin's own editor. Paste is not trusted — it is **verified per entry** by
+  saving the source back to the disk, extracting it, and comparing against what
+  was intended, since the guest paste path is reported to garble input. The
+  extractor is capture tooling, not a product capability, and is deleted if 020's
+  extraction lands first.
+- **The committed source for an entry is the copy read back off the disk**, not
+  the text that was typed. That is what Merlin assembled, so it is the only text
+  guaranteed to correspond to the captured bytes, and it makes each entry
+  self-consistent by construction. Merlin's editor may normalize whitespace or
+  column positions on save; committing the disk copy makes that harmless instead
+  of making every entry fail a byte-exactness check nobody can satisfy.
 - No new third-party dependency is introduced; dialect support is additional
   parsing, not a vendored grammar.

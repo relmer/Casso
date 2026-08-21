@@ -3,6 +3,8 @@
 #include "Parser.h"
 #include "Directive.h"
 #include "OpcodeTable.h"
+#include "DialectProfile.h"
+#include "DialectRegistry.h"
 
 
 
@@ -119,7 +121,7 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::string StripComments (const std::string & line)
+std::string Parser::StripComments (const std::string & line)
 {
     size_t  pos = line.find (';');
 
@@ -137,7 +139,7 @@ static std::string StripComments (const std::string & line)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::string Trim (const std::string & s)
+std::string Parser::Trim (const std::string & s)
 {
     std::string  out;
     size_t       end   = 0;
@@ -165,7 +167,7 @@ static std::string Trim (const std::string & s)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::string ToUpper (const std::string & s)
+std::string Parser::ToUpper (const std::string & s)
 {
     std::string result = s;
 
@@ -187,234 +189,70 @@ static std::string ToUpper (const std::string & s)
 //
 //  ParseLine
 //
-//  One source line into its parts. The ORDER of the tests is the grammar --
-//  each rules out a shape so the next can assume it is gone:
+//  One source line into its parts, using the active dialect's grammar.
 //
-//    comments first, so a ';' inside nothing later can be mistaken for code
-//    blank             nothing else to decide
-//    label             `name:` splits off, and a label-only line stops here
-//    .directive        a leading dot is unambiguous, so it settles next
-//    NAME = / equ / set   constant definition
-//    everything else   mnemonic + operand
+//  The grammar itself lives in the profile, because the shape of a line is the
+//  one thing the dialects genuinely disagree about. Everything downstream
+//  consumes the ParsedLine this returns without knowing which profile made it,
+//  which is what lets the two-pass engine, the expression evaluator, and the
+//  opcode tables stay shared.
 //
-//  Reordering these breaks things quietly. Strip comments after splitting on
-//  ':' and a commented-out label steals the line; test for a constant before
-//  the dot and `.if X = 1` parses as a definition of `.if X`.
+//  Instruction aliases are applied HERE, once, on the way out. A dialect that
+//  spells an existing instruction its own way -- Merlin's BLT and BGE for BCC
+//  and BCS -- supplies a table, and the mnemonic is rewritten before anything
+//  looks it up. Doing it any later means the opcode lookup, the size estimate,
+//  the branch-range check and the encoder each need to know about the second
+//  name, and a per-dialect special case lands in four places in the shared
+//  engine to serve two spellings.
 //
-//  startsAtColumn0 is captured from the STRIPPED line before trimming, since
-//  it is the one fact trimming destroys -- and it is what later lets a bare
-//  word in column 0 be recognized as a colon-less label.
+//  A directive line is left alone. Its mnemonic field carries the directive's
+//  own spelling, and an alias table has nothing to say about that.
 //
-//  Unknown dotted spellings resolve to Directive::None and keep their text,
-//  so pass 1 reports them rather than the parser guessing.
+////////////////////////////////////////////////////////////////////////////////
+
+ParsedLine Parser::ParseLine (const std::string & line, int lineNumber, const DialectProfile & dialect)
+{
+    ParsedLine   result = dialect.ParseLine (line, lineNumber);
+    std::string  spelled;
+
+
+
+    if (result.isDirective || result.mnemonic.empty())
+    {
+        return result;
+    }
+
+    spelled = ToUpper (result.mnemonic);
+
+    for (const MnemonicAlias & alias : dialect.GetMnemonicAliases())
+    {
+        if (spelled == alias.spelling)
+        {
+            result.mnemonic = alias.instruction;
+            break;
+        }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseLine
+//
+//  AS65 overload. Kept so every caller that predates dialect selection reads
+//  and behaves exactly as it did -- the dialect is a new axis, not a new
+//  obligation on existing code.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
 {
-    HRESULT      hr                 = S_OK;
-    ParsedLine   result             = {};
-    std::string  stripped           = StripComments (line);   // comments go first
-    std::string  trimmed            = Trim (stripped);
-    std::string  remainder;
-    std::string  firstWordUpper;
-    std::string  canonicalDirective;
-    Directive    directiveToken     = Directive::None;
-    size_t       colonPos           = std::string::npos;
-    size_t       spacePos           = std::string::npos;
-    size_t       eqPos              = std::string::npos;
-    bool         startsAtColumn0    = false;
-    bool         isBlank            = trimmed.empty();
-    bool         labelOnly          = false;
-    bool         isDotDirective     = false;
-    bool         isConstant         = false;
-    bool         isBareDirective    = false;
-
-
-
-    result.lineNumber  = lineNumber;
-    result.isEmpty     = isBlank;
-    result.isDirective = false;
-    result.isConstant  = false;
-
-    BAIL_OUT_IF (isBlank, S_OK);
-
-    remainder = trimmed;
-
-    // Check for colon-less label: line starts at column 0 with an identifier
-    startsAtColumn0 = !stripped.empty() && !isspace ((unsigned char) stripped[0]);
-
-    // Check for label (contains ':')
-    colonPos = remainder.find (':');
-
-    if (colonPos != std::string::npos)
-    {
-        result.label = Trim (remainder.substr (0, colonPos));
-        remainder    = Trim (remainder.substr (colonPos + 1));
-        labelOnly    = remainder.empty();
-    }
-
-    BAIL_OUT_IF (labelOnly, S_OK);
-
-    // Check for directive (starts with '.')
-    isDotDirective = !remainder.empty() && remainder[0] == '.';
-
-    if (isDotDirective)
-    {
-        result.isDirective = true;
-        spacePos           = remainder.find_first_of (" \t");
-
-        if (spacePos == std::string::npos)
-        {
-            result.directive = ToUpper (remainder);
-        }
-        else
-        {
-            result.directive    = ToUpper (remainder.substr (0, spacePos));
-            result.directiveArg = Trim (remainder.substr (spacePos + 1));
-        }
-
-        // Unknown dotted spellings resolve to None and stay a string; the
-        // pass-1 dispatch reports them as unhandled exactly as before.
-        result.directiveToken = DirectiveTable::FromSpelling (result.directive);
-    }
-
-    BAIL_OUT_IF (isDotDirective, S_OK);
-
-    // Check for constant definition: NAME = EXPR, NAME equ EXPR, NAME set EXPR
-    // Extract first word and check what follows
-    spacePos = remainder.find_first_of (" \t");
-    eqPos    = remainder.find ('=');
-
-    // NAME = EXPR (= can appear right after name or with spaces)
-    if (eqPos != std::string::npos)
-    {
-        std::string beforeEq = Trim (remainder.substr (0, eqPos));
-        std::string afterEq  = Trim (remainder.substr (eqPos + 1));
-
-        // Ensure beforeEq is a valid identifier (not a mnemonic)
-        if (!beforeEq.empty() && (isalpha ((unsigned char) beforeEq[0]) || beforeEq[0] == '_'))
-        {
-            bool validId = true;
-
-            for (char c : beforeEq)
-            {
-                if (!isalnum ((unsigned char) c) && c != '_')
-                {
-                    validId = false;
-                    break;
-                }
-            }
-
-            if (validId && !afterEq.empty())
-            {
-                result.isConstant   = true;
-                result.constantName = beforeEq;
-                result.constantExpr = afterEq;
-                result.constantKind = SymbolKind::Set;
-                isConstant          = true;
-            }
-        }
-    }
-
-    // NAME equ EXPR / NAME set EXPR
-    if (!isConstant && spacePos != std::string::npos)
-    {
-        std::string  firstWord   = remainder.substr (0, spacePos);
-        std::string  afterFirst  = Trim (remainder.substr (spacePos + 1));
-        std::string  secondWord;
-        std::string  secondUpper;
-
-        size_t sp2 = afterFirst.find_first_of (" \t");
-        secondWord = (sp2 == std::string::npos) ? afterFirst : afterFirst.substr (0, sp2);
-        secondUpper = ToUpper (secondWord);
-
-        if (secondUpper == "EQU" || secondUpper == "SET")
-        {
-            std::string expr = (sp2 == std::string::npos) ? "" : Trim (afterFirst.substr (sp2 + 1));
-
-            if (!firstWord.empty() && (isalpha ((unsigned char) firstWord[0]) || firstWord[0] == '_'))
-            {
-                result.isConstant   = true;
-                result.constantName = firstWord;
-                result.constantExpr = expr;
-                result.constantKind = (secondUpper == "EQU") ? SymbolKind::Equ : SymbolKind::Set;
-                isConstant          = true;
-            }
-        }
-    }
-
-    BAIL_OUT_IF (isConstant, S_OK);
-
-    // Extract mnemonic (first word)
-    firstWordUpper = (spacePos == std::string::npos)
-                         ? ToUpper (remainder)
-                         : ToUpper (remainder.substr (0, spacePos));
-
-    // as65 spells its directives without a leading dot (DB / FCB / FCC for
-    // .BYTE, and so on). DirectiveTable holds every accepted spelling, so
-    // this is one lookup rather than a chain -- and that table is the seam a
-    // second assembler dialect plugs into.
-    directiveToken = DirectiveTable::FromSpelling (firstWordUpper);
-
-    if (directiveToken != Directive::None)
-    {
-        canonicalDirective = DirectiveTable::GetCanonicalName (directiveToken);
-    }
-
-    // A spelling the table rejected may still be one of the dual-purpose forms
-    // that cannot live in it -- today only RMB, where `rmb <count>` reserves
-    // storage but `rmb <bit>,<zp>` is the Rockwell instruction. The comma is
-    // what separates them, so once it is absent the instruction is ruled out
-    // and DirectiveTable can resolve the rest.
-    //
-    // The dialect's other dual-purpose mnemonic, `nop <count>`, cannot be
-    // decided here -- see AssemblySession::HandleMultiNop.
-    if (directiveToken == Directive::None)
-    {
-        Directive ambiguous = DirectiveTable::FromAmbiguousSpelling (firstWordUpper);
-
-        if (ambiguous != Directive::None)
-        {
-            std::string operandText = (spacePos == std::string::npos) ? "" : remainder.substr (spacePos + 1);
-
-            // The comma is what rules the instruction out.
-            if (operandText.find (',') == std::string::npos)
-            {
-                directiveToken     = ambiguous;
-                canonicalDirective = DirectiveTable::GetCanonicalName (ambiguous);
-            }
-        }
-    }
-
-    isBareDirective = !canonicalDirective.empty();
-
-    if (isBareDirective)
-    {
-        result.isDirective    = true;
-        result.directive      = canonicalDirective;
-        result.directiveToken = directiveToken;
-
-        if (spacePos != std::string::npos)
-        {
-            result.directiveArg = Trim (remainder.substr (spacePos + 1));
-        }
-    }
-
-    BAIL_OUT_IF (isBareDirective, S_OK);
-
-    // Plain instruction. The operand is whatever follows the mnemonic, if
-    // anything -- an implied-mode instruction has none.
-    result.mnemonic        = firstWordUpper;
-    result.startsAtColumn0 = startsAtColumn0;
-
-    if (spacePos != std::string::npos)
-    {
-        result.operand = Trim (remainder.substr (spacePos + 1));
-    }
-
-Error:
-    return result;
+    return ParseLine (line, lineNumber, DialectRegistry::Get (DialectId::As65));
 }
 
 
@@ -433,7 +271,7 @@ Error:
 
 static std::string TrimOperand (const std::string & s)
 {
-    return Trim (s);
+    return Parser::Trim (s);
 }
 
 
@@ -817,11 +655,19 @@ static std::string ToUpperValidate (const std::string & s)
 //  errorMessage is left untouched on success, so a caller may reuse one string
 //  across many labels without clearing it.
 //
+//  `extraCharacters` widens the legal character set by exactly what the active
+//  dialect names and nothing else -- Merlin allows `?`, and `CMD?` is a label in
+//  the vendor sources. It is a parameter rather than a relaxation of the rule
+//  because admitting one dialect's spellings into another is precisely what the
+//  strictness requirement forbids: as65 must go on rejecting `CMD?`.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage)
+HRESULT Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage,
+                               const char * extraCharacters)
 {
     HRESULT      hr         = S_OK;
+    std::string  extra      = (extraCharacters != nullptr) ? extraCharacters : "";
     std::string  upper;
     char         first      = label.empty() ? '\0' : label[0];
     bool         isEmpty    = label.empty();
@@ -835,13 +681,18 @@ HRESULT Parser::ValidateLabel (const std::string & label, const OpcodeTable & op
 
     if (!isEmpty)
     {
-        // Must start with letter or underscore.
+        // Must start with letter or underscore. A dialect's extra characters do
+        // NOT widen this: they are legal inside a name, not at the front of one,
+        // or a label could open with punctuation another field model has already
+        // claimed.
         badFirst = !isalpha ((unsigned char) first) && first != '_';
 
-        // Must contain only alphanumeric + underscore.
+        // Must contain only alphanumeric + underscore, plus whatever the
+        // dialect adds.
         for (char c : label)
         {
-            badChar = badChar || (!isalnum ((unsigned char) c) && c != '_');
+            badChar = badChar || (!isalnum ((unsigned char) c) && c != '_' &&
+                                  extra.find (c) == std::string::npos);
         }
 
         // Must not be a register name (case-insensitive), nor an exact
@@ -916,6 +767,93 @@ std::vector<std::string> Parser::SplitArgList (const std::string & text)
         }
 
         start = commaPos + 1;
+    }
+
+    return args;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Parser::SplitOnSeparator
+//
+//  An argument list split on a separator the caller names, for macro calls,
+//  where the separator belongs to the dialect rather than to the assembler.
+//  Merlin's is a semicolon -- `ADD SUMSTR;DEFLEN;PL` passes three arguments --
+//  and the character is data precisely so no dialect branch is needed here.
+//
+//  Parenthesis depth and character literals are respected exactly as the comma
+//  splitter does. The bracket depth is CLAMPED at zero, which the comma splitter
+//  does not do, because Merlin spells a variable symbol with a leading `]`: an
+//  unmatched one would otherwise drive the depth negative and hide every
+//  separator after it, collapsing an argument list to its first item.
+//
+//  That is a guard rather than a fix for an observed failure, and the difference
+//  is worth recording. Variable references are rewritten while the line is
+//  parsed, so by the time an argument list reaches here the sigil is gone and no
+//  test can tell the clamp from its absence. It costs one comparison and it is
+//  what keeps a later change to that ordering from silently truncating argument
+//  lists.
+//
+//  Empty items are dropped, matching SplitArgList: every caller counts items,
+//  and none has a use for a positional blank.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> Parser::SplitOnSeparator (const std::string & text, char separator)
+{
+    std::vector<std::string>  args;
+    size_t                    start = 0;
+    size_t                    i     = 0;
+    int                       depth = 0;
+
+
+
+    for (i = 0; i < text.size(); i++)
+    {
+        char  c = text[i];
+
+        if (c == '\'' && i + 2 < text.size() && text[i + 2] == '\'')
+        {
+            i += 2;
+            continue;
+        }
+
+        if (c == '(' || c == '[')
+        {
+            depth++;
+            continue;
+        }
+
+        if (c == ')' || c == ']')
+        {
+            depth = (depth > 0) ? (depth - 1) : 0;
+            continue;
+        }
+
+        if (c == separator && depth == 0)
+        {
+            std::string  arg = Trim (text.substr (start, i - start));
+
+            if (!arg.empty())
+            {
+                args.push_back (arg);
+            }
+
+            start = i + 1;
+        }
+    }
+
+    {
+        std::string  last = Trim (text.substr (start));
+
+        if (!last.empty())
+        {
+            args.push_back (last);
+        }
     }
 
     return args;

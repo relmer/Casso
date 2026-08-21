@@ -138,7 +138,7 @@ namespace CommandLineTests
 
         TEST_METHOD (BareFilename_FallsBackToAs65)
         {
-            ArgVector           args = { "CassoCli", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::As65);
@@ -167,6 +167,95 @@ namespace CommandLineTests
                                 L"a table row must parse to the token it names");
             }
         }
+
+        //  The fallback is gone: a first word naming no subcommand used to be
+        //  ASSUMED to be an as65 source file, and now is not. Asserting the
+        //  subcommand alone would be satisfied by a parser that simply left it
+        //  at None for some other reason, so the word itself must come back.
+        TEST_METHOD (UnrecognizedFirstArgument_IsReportedRatherThanAssumedToBeSource)
+        {
+            ArgVector           args = { "CassoCli", "demo.a65" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.subcommand != CommandLineOptions::Subcommand::As65,
+                            L"a bare source filename must no longer select the assembler");
+            Assert::AreEqual (std::string ("demo.a65"), opts.unrecognizedArgument,
+                              L"the rejected word comes back so the caller can name the replacement");
+        }
+
+        //  A recognized word leaves it clear, or every successful parse would
+        //  look like a rejected one to a caller checking the field.
+        TEST_METHOD (ARecognizedSubcommand_LeavesNoUnrecognizedArgument)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue   (opts.subcommand == CommandLineOptions::Subcommand::As65);
+            Assert::AreEqual (std::string ("demo.a65"), opts.inputFile,
+                              L"the source is the argument AFTER the subcommand");
+            Assert::IsTrue   (opts.unrecognizedArgument.empty());
+        }
+
+        //  A flag first is the other half of the same removal: it reached the
+        //  assembler through the fallback too.
+        TEST_METHOD (AFlagAsTheFirstArgument_IsAlsoUnrecognized)
+        {
+            ArgVector           args = { "CassoCli", "-t" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (std::string ("-t"), opts.unrecognizedArgument);
+        }
+
+        //  Past a recognized subcommand, an argument its grammar does not know
+        //  comes back by name in a SEPARATE field, because the two cases earn
+        //  different help: no subcommand gets the general section, a bad flag
+        //  under one gets that mode's. It used to be a warning printed from
+        //  inside the parser, after which the assembly ran anyway.
+        TEST_METHOD (AnUnknownAs65Flag_IsReportedByName)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-k" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue   (opts.subcommand == CommandLineOptions::Subcommand::As65);
+            Assert::AreEqual (std::string ("-k"), opts.unrecognizedFlag);
+            Assert::IsTrue   (opts.unrecognizedArgument.empty(), L"the subcommand itself was fine");
+        }
+
+        TEST_METHOD (AnUnknownMerlinFlag_IsReportedByName)
+        {
+            ArgVector           args = { "CassoCli", "merlin", "demo.S", "/k" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue   (opts.subcommand == CommandLineOptions::Subcommand::Merlin);
+            Assert::AreEqual (std::string ("/k"), opts.unrecognizedFlag, L"written with the prefix the user typed");
+        }
+
+        TEST_METHOD (AnUnknownRunOption_IsReportedByName)
+        {
+            ArgVector           args = { "CassoCli", "run", "demo.bin", "--bogus" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue   (opts.subcommand == CommandLineOptions::Subcommand::Run);
+            Assert::AreEqual (std::string ("--bogus"), opts.unrecognizedFlag);
+        }
+
+        //  The first is the one reported; a second typo is obvious against the
+        //  help that follows the first.
+        TEST_METHOD (TheFirstUnknownFlag_IsTheOneReported)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-k", "-j" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (std::string ("-k"), opts.unrecognizedFlag);
+        }
+
+        TEST_METHOD (KnownFlags_LeaveNoUnrecognizedFlag)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-t", "-x", "-o", "out.bin" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.unrecognizedFlag.empty());
+        }
     };
 
 
@@ -187,7 +276,7 @@ namespace CommandLineTests
     public:
         TEST_METHOD (ConcatenatedFlags_SplitIntoIndividualFlags)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-tlfile.lst" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-tlfile.lst" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.symbolTable,     L"-t must be seen inside -tlfile.lst");
@@ -197,7 +286,7 @@ namespace CommandLineTests
 
         TEST_METHOD (ListingFlagAlone_GoesToStdout)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-l" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-l" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.generateListing);
@@ -207,7 +296,7 @@ namespace CommandLineTests
 
         TEST_METHOD (ListingFlag_TakesSeparatedFilename)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-l", "out.lst" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-l", "out.lst" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (std::string ("out.lst"), opts.listingFile);
@@ -216,7 +305,7 @@ namespace CommandLineTests
 
         TEST_METHOD (SlashPrefix_IsAcceptedAndRemembered)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "/t" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "/t" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.symbolTable, L"/t must mean what -t means");
@@ -224,7 +313,7 @@ namespace CommandLineTests
 
         TEST_METHOD (FillZeroFlag_SetsZeroFill)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-z" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-z" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.fillZero);
@@ -233,7 +322,7 @@ namespace CommandLineTests
 
         TEST_METHOD (DefaultFill_IsFF)
         {
-            ArgVector           args = { "CassoCli", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual ((int) 0xFF, (int) opts.fillByte);
@@ -241,7 +330,7 @@ namespace CommandLineTests
 
         TEST_METHOD (PredefineWithValue_IsRecorded)
         {
-            ArgVector           args  = { "CassoCli", "demo.a65", "-dDEBUG=5" };
+            ArgVector           args  = { "CassoCli", "as65", "demo.a65", "-dDEBUG=5" };
             CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
             auto                found = opts.predefinedSymbols.find ("DEBUG");
             bool                isSet = found != opts.predefinedSymbols.end();
@@ -254,7 +343,7 @@ namespace CommandLineTests
         //  caller inventing a value.
         TEST_METHOD (PredefineWithoutValue_DefaultsToOne)
         {
-            ArgVector           args  = { "CassoCli", "demo.a65", "-d", "DEBUG" };
+            ArgVector           args  = { "CassoCli", "as65", "demo.a65", "-d", "DEBUG" };
             CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
             auto                found = opts.predefinedSymbols.find ("DEBUG");
             bool                isSet = found != opts.predefinedSymbols.end();
@@ -265,10 +354,28 @@ namespace CommandLineTests
 
         TEST_METHOD (PageWidthFlag_TakesAttachedValue)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-w133" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-w133" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (133, opts.pageWidth);
+        }
+
+
+        //  The three figures as65 documents, pinned together because they are
+        //  one rule: a listing is 79 columns unless told otherwise, and the bare
+        //  flag is the wide printer rather than a switch.
+        //
+        //  The default was 80 while nothing read it, which cost nothing and was
+        //  still wrong; it became visible the moment -w started wrapping.
+        TEST_METHOD (PageWidthFollowsTheAs65Defaults)
+        {
+            ArgVector           plain    = { "CassoCli", "as65", "demo.a65" };
+            ArgVector           bare     = { "CassoCli", "as65", "demo.a65", "-w" };
+            CommandLineOptions  unstated = CommandLineParser::Parse (plain.Count(), plain.Data(), NoProbe());
+            CommandLineOptions  wide     = CommandLineParser::Parse (bare.Count(),  bare.Data(),  NoProbe());
+
+            Assert::AreEqual (79,  unstated.pageWidth, L"as65 lists at 79 columns when nothing says otherwise");
+            Assert::AreEqual (133, wide.pageWidth,     L"and a bare -w is the 133-column wide listing");
         }
     };
 
@@ -290,35 +397,97 @@ namespace CommandLineTests
     public:
         TEST_METHOD (Default_IsStrict6502)
         {
-            ArgVector           args = { "CassoCli", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M6502);
         }
 
-        TEST_METHOD (SeparatedCpuValue_Selects65C02)
+        //  TWO FORMATS IS TWO FILES ASKED FOR, and one gets written.
+        //
+        //  Last-one-wins would answer a question nobody asked, silently: both
+        //  spellings are valid alone, so nothing about `-s --raw` looks like a
+        //  mistake in the output. It is refused instead, and the refusal names
+        //  both flags -- the reader has to know which two collided.
+        TEST_METHOD (TwoOutputFormats_AreRefusedRatherThanResolved)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "--cpu", "65c02" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-s", "--raw" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsFalse (opts.outputFormatConflict.empty(), L"naming two formats must be refused");
+            Assert::IsTrue  (opts.outputFormatConflict.find ("-s")    != std::string::npos,
+                             L"the refusal must name the first flag");
+            Assert::IsTrue  (opts.outputFormatConflict.find ("--raw") != std::string::npos,
+                             L"and the second");
+        }
+
+        //  Order must not decide whether an invocation is legal, only which
+        //  flag is named first in the message.
+        TEST_METHOD (TwoOutputFormats_AreRefusedInEitherOrder)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--dos-bin", "-s2" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsFalse (opts.outputFormatConflict.empty());
+        }
+
+        //  The same flag twice asks for one thing, twice. Refusing it would
+        //  break a script that built its command line by appending.
+        TEST_METHOD (TheSameOutputFormatTwice_IsNotAConflict)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--raw", "--raw" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.outputFormatConflict.empty(), L"one format named twice is still one format");
+            Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Raw);
+        }
+
+        //  And one format alone still selects it, or the guard above would be
+        //  satisfied by a parser that refused everything.
+        TEST_METHOD (OneOutputFormat_StillSelectsIt)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--dos-bin" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.outputFormatConflict.empty());
+            Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::DosBinary);
+        }
+
+        //  -x IS THE ONLY WAY TO ASK, which is what AS65 does. There is nothing
+        //  to name the narrow target with, because omitting the flag IS naming
+        //  it: "when this option is not specified the assembler rejects the
+        //  65SC02 extensions".
+        //
+        //  --cpu is gone. It was Casso's own invention, it duplicated this, and
+        //  it did not exist in the tool this grammar is compatible with.
+        TEST_METHOD (ExtendedCpuFlag_Selects65C02)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-x" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M65C02);
+            Assert::IsTrue (opts.hasCpuTarget, L"and the invocation is recorded as having asked");
         }
 
-        TEST_METHOD (AttachedCpuValue_Selects65C02)
+        TEST_METHOD (ExtendedCpuFlag_ConcatenatesLikeEveryOtherLetter)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "--cpu=65C02" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-tx" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M65C02,
-                            L"the value is matched case-insensitively");
+                            L"-x is a letter flag and concatenates as one");
+            Assert::IsTrue (opts.symbolTable, L"and the letter beside it still applies");
         }
 
-        TEST_METHOD (UnknownCpuTarget_RequestsHelp)
+        //  The flag Casso used to carry is no longer a flag, so it falls to the
+        //  unknown-letter path rather than quietly selecting anything.
+        TEST_METHOD (TheRetiredCpuOptionNoLongerSelectsATarget)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "--cpu", "6809" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--cpu", "65c02" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsTrue (opts.showHelp, L"a bad target must stop parsing and print usage");
+            Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M6502,
+                            L"a retired flag must not still work");
         }
     };
 
@@ -340,7 +509,7 @@ namespace CommandLineTests
     public:
         TEST_METHOD (BinaryOutputName_DerivesFromInput)
         {
-            ArgVector           args = { "CassoCli", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (std::string ("demo.bin"), opts.outputFile);
@@ -348,7 +517,7 @@ namespace CommandLineTests
 
         TEST_METHOD (ExplicitOutputName_Wins)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-o", "custom.out" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-o", "custom.out" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (std::string ("custom.out"), opts.outputFile);
@@ -356,7 +525,7 @@ namespace CommandLineTests
 
         TEST_METHOD (SRecordFlag_InfersS19Extension)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-s" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-s" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::SRecord);
@@ -365,7 +534,7 @@ namespace CommandLineTests
 
         TEST_METHOD (IntelHexFlag_InfersHexExtension)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-s2" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-s2" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::IntelHex);
@@ -374,7 +543,7 @@ namespace CommandLineTests
 
         TEST_METHOD (DebugFlag_InfersDbgExtension)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-g" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-g" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.debugInfo);
@@ -383,7 +552,7 @@ namespace CommandLineTests
 
         TEST_METHOD (NoInputFile_InfersNothing)
         {
-            ArgVector           args = { "CassoCli", "-t" };
+            ArgVector           args = { "CassoCli", "as65", "-t" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFile.empty(), L"nothing to derive a name from");
@@ -409,7 +578,7 @@ namespace CommandLineTests
     public:
         TEST_METHOD (ExtensionlessInput_ResolvesToExistingA65)
         {
-            ArgVector           args = { "CassoCli", "build" };
+            ArgVector           args = { "CassoCli", "as65", "build" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), ProbeFor ("build.a65"));
 
             Assert::AreEqual (std::string ("build.a65"), opts.inputFile);
@@ -419,7 +588,7 @@ namespace CommandLineTests
 
         TEST_METHOD (ExtensionlessInput_FallsThroughToAsm)
         {
-            ArgVector           args = { "CassoCli", "build" };
+            ArgVector           args = { "CassoCli", "as65", "build" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), ProbeFor ("build.asm"));
 
             Assert::AreEqual (std::string ("build.asm"), opts.inputFile);
@@ -427,7 +596,7 @@ namespace CommandLineTests
 
         TEST_METHOD (ExtensionlessInput_WithNoMatch_IsLeftAsTyped)
         {
-            ArgVector           args = { "CassoCli", "build" };
+            ArgVector           args = { "CassoCli", "as65", "build" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (std::string ("build"), opts.inputFile,
@@ -436,7 +605,7 @@ namespace CommandLineTests
 
         TEST_METHOD (InputWithExtension_IsNeverProbed)
         {
-            ArgVector           args = { "CassoCli", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), ProbeFor ("demo.a65.a65"));
 
             Assert::AreEqual (std::string ("demo.a65"), opts.inputFile);
@@ -446,7 +615,7 @@ namespace CommandLineTests
         //  a candidate for auto-extension.
         TEST_METHOD (DotInDirectoryName_DoesNotCountAsExtension)
         {
-            ArgVector           args = { "CassoCli", "src/v1.2/build" };
+            ArgVector           args = { "CassoCli", "as65", "src/v1.2/build" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(),
                                                                 ProbeFor ("src/v1.2/build.a65"));
 
@@ -561,7 +730,7 @@ namespace CommandLineTests
     public:
         TEST_METHOD (Default_IsTheFullImage)
         {
-            ArgVector           args = { "CassoCli", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Binary);
@@ -569,7 +738,7 @@ namespace CommandLineTests
 
         TEST_METHOD (RawFlag_SelectsRaw)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "--raw" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--raw" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Raw);
@@ -578,7 +747,7 @@ namespace CommandLineTests
 
         TEST_METHOD (DosBinFlag_SelectsDosBinary)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "--dos-bin" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--dos-bin" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::DosBinary);
@@ -586,7 +755,7 @@ namespace CommandLineTests
 
         TEST_METHOD (ShapeFlag_ComposesWithOtherFlags)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "--raw", "-t", "-o", "out.obj" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--raw", "-t", "-o", "out.obj" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Raw);
@@ -596,7 +765,7 @@ namespace CommandLineTests
 
         TEST_METHOD (ShapeFlag_DoesNotConsumeTheInputFile)
         {
-            ArgVector           args = { "CassoCli", "--dos-bin", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "--dos-bin", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (std::string ("demo.a65"), opts.inputFile);

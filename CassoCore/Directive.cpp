@@ -190,30 +190,6 @@ Directive DirectiveTable::FromAmbiguousSpelling (const std::string & word)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DirectiveTable::FromStorageSpelling
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Directive DirectiveTable::FromStorageSpelling (const std::string & word)
-{
-    Directive  token = FromSpelling (word);
-
-
-
-    if (token == Directive::None)
-    {
-        token = FromAmbiguousSpelling (word);
-    }
-
-    return token;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DirectiveTable::GetAllSpellings
 //
 //  Exposes the vocabulary so DirectiveTokenTests can sweep all of it rather

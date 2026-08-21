@@ -1,0 +1,5 @@
+; Conformance: ds (define storage) directive
+    .org $0000
+    lda #$01        ; $A9 $01
+    ds 3            ; 3 fill bytes ($FF $FF $FF)
+    lda #$02        ; $A9 $02

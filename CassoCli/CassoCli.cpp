@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "CommandLine.h"
+#include "As65Mode.h"
+#include "MerlinMode.h"
+#include "RunMode.h"
 #include "CassoCli.h"
 
 
@@ -32,36 +35,80 @@
 
 int main (int argc, char * argv[])
 {
-    CommandLineOptions  options  = ParseCommandLine (argc, argv);
+    CommandLineOptions  options  = CommandLine::Parse (argc, argv);
+    HRESULT             hr       = S_OK;
     int                 exitCode = 0;
 
 
 
-    // No subcommand is a usage ERROR (exit 1); an explicit --help or `help`
-    // is the user asking, and succeeds.
-    if (options.showHelp || options.subcommand == CommandLineOptions::Subcommand::None
-                        || options.subcommand == CommandLineOptions::Subcommand::Help)
+    // A first word that named nothing gets a targeted message, not the usage
+    // block -- see PrintUnrecognizedArgument. Checked before the usage arm
+    // because it is a strictly better answer for the same condition.
+    if (!options.unrecognizedArgument.empty())
     {
-        PrintUsage (options.flagPrefix);
+        CommandLine::PrintUnrecognizedArgument (options.unrecognizedArgument, options.flagPrefix);
+        exitCode = 1;
+    }
+    else if (!options.unrecognizedFlag.empty())
+    {
+        // The subcommand was recognized, so the help that follows the message
+        // is that mode's alone. Refused rather than warned about and run: a
+        // typo that still produced an output file was a typo nobody saw.
+        CommandLine::PrintUnrecognizedFlag (options.unrecognizedFlag, options.subcommand, options.flagPrefix);
+        exitCode = 2;
+    }
+    else if (!options.outputFormatConflict.empty())
+    {
+        // Two formats named is two files asked for, and one gets written. Same
+        // reasoning as the arm below: the sentence naming both flags is a
+        // better answer than usage text that lists them among twenty others.
+        exitCode = CommandLine::PrintCpuFlagRefusal (options.outputFormatConflict);
+    }
+    else if (!options.cpuFlagRefusal.empty())
+    {
+        // Checked before the usage arm for the same reason the line above is: a
+        // refusal that names the directive to write instead is a strictly better
+        // answer than a wall of usage text, and printing usage would bury it.
+        exitCode = CommandLine::PrintCpuFlagRefusal (options.cpuFlagRefusal);
+    }
+    else if (options.showHelp || options.subcommand == CommandLineOptions::Subcommand::None
+                             || options.subcommand == CommandLineOptions::Subcommand::Help)
+    {
+        // No subcommand is a usage ERROR (exit 1); an explicit --help or
+        // `help` is the user asking, and succeeds.
+        CommandLine::PrintUsage (options.flagPrefix);
         exitCode = options.showHelp ? 0 : 1;
     }
     else if (options.showVersion || options.subcommand == CommandLineOptions::Subcommand::Version)
     {
-        PrintVersion();
+        CommandLine::PrintVersion();
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::Run)
     {
-        exitCode = DoRun (options);
+        hr = RunMode::Run (options, exitCode);
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::As65)
     {
-        exitCode = DoAs65 (options);
+        As65Mode  mode;
+
+        hr = mode.Run (options, exitCode);
+    }
+    else if (options.subcommand == CommandLineOptions::Subcommand::Merlin)
+    {
+        MerlinMode  mode;
+
+        hr = mode.Run (options, exitCode);
     }
     else
     {
         // A subcommand the parser knows but this dispatch does not.
-        PrintUsage (options.flagPrefix);
+        CommandLine::PrintUsage (options.flagPrefix);
     }
+
+    //  The HRESULT says what went wrong; the exit code is what a script reads.
+    //  Only the second crosses the process boundary, and it is never derived
+    //  from the first -- an assembly that warned succeeded and exits 1.
+    (void) hr;
 
     return exitCode;
 }

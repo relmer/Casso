@@ -297,6 +297,81 @@ namespace MacroTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  OverlappingDefinitionTests
+    //
+    //  A definition opened while another is still collecting does not become
+    //  body text of it -- it opens beside it, both receive every following line,
+    //  and one terminator closes both.
+    //
+    //  These are written in as65's spelling deliberately. The behavior came from
+    //  Merlin, whose own macro library depends on it, but it is the COLLECTOR's
+    //  and no profile is consulted about it: nothing here selects a dialect, and
+    //  the Merlin half in `MerlinDirectiveTests` asserts the same shape through
+    //  `MAC` / `<<<`. A test in only one of the two dialects would leave a
+    //  dialect-shaped special case indistinguishable from the mechanism.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (OverlappingDefinitionTests)
+    {
+    public:
+
+        TEST_METHOD (TwoDefinitionsShareOneTerminator)
+        {
+            TestCpu cpu;
+
+            auto result = cpu.Assemble (
+                "    .org $1000\n"
+                "outer macro\n"
+                "    txa\n"
+                "inner macro\n"
+                "    clc\n"
+                "    endm\n"
+                "    outer\n"
+                "    inner\n"
+            );
+
+            Assert::IsTrue (result.success, L"one terminator must close both definitions");
+            Assert::AreEqual ((size_t) 3, result.bytes.size(), L"TXA CLC from outer, then CLC from inner");
+            Assert::AreEqual ((Byte) 0x8A, result.bytes[0], L"outer starts at its own first line");
+            Assert::AreEqual ((Byte) 0x18, result.bytes[1], L"and runs on into inner's body");
+            Assert::AreEqual ((Byte) 0x18, result.bytes[2], L"inner exists in its own right");
+        }
+
+
+
+        //  Each definition declares its own parameters, and the tail they share
+        //  binds to whichever one is being expanded. A single shared parameter
+        //  list would bind the second call's argument in both.
+        TEST_METHOD (EachDefinitionBindsTheSharedTailToItsOwnArgument)
+        {
+            TestCpu cpu;
+
+            auto result = cpu.Assemble (
+                "    .org $1000\n"
+                "outer macro val\n"
+                "    txa\n"
+                "inner macro val\n"
+                "    .byte val\n"
+                "    endm\n"
+                "    outer $11\n"
+                "    inner $22\n"
+            );
+
+            Assert::IsTrue (result.success, L"both definitions must expand");
+            Assert::AreEqual ((size_t) 3, result.bytes.size(), L"TXA and a byte from outer, one byte from inner");
+            Assert::AreEqual ((Byte) 0x8A, result.bytes[0], L"outer starts at its own first line");
+            Assert::AreEqual ((Byte) 0x11, result.bytes[1], L"and binds the shared tail to its own argument");
+            Assert::AreEqual ((Byte) 0x22, result.bytes[2], L"inner binds the same line to a different one");
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  LineContinuationTests
     //
     ////////////////////////////////////////////////////////////////////////////////

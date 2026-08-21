@@ -1,0 +1,14 @@
+; Conformance: all 6502 addressing modes
+    .org $0200
+    nop             ; Implied:      $EA
+    lda #$42        ; Immediate:    $A9 $42
+    lda $10         ; ZeroPage:     $A5 $10
+    lda $10,x       ; ZeroPage,X:   $B5 $10
+    ldx $10,y       ; ZeroPage,Y:   $B6 $10
+    lda $1234       ; Absolute:     $AD $34 $12
+    lda $1234,x     ; Absolute,X:   $BD $34 $12
+    lda $1234,y     ; Absolute,Y:   $B9 $34 $12
+    lda ($10,x)     ; (Indirect,X): $A1 $10
+    lda ($10),y     ; (Indirect),Y: $B1 $10
+    jmp ($1234)     ; (Indirect):   $6C $34 $12
+    rol a           ; Accumulator:  $2A

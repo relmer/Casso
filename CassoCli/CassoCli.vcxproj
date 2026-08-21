@@ -204,11 +204,26 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ArtifactWriter.cpp" />
+    <ClCompile Include="As65Mode.cpp" />
+    <ClCompile Include="AssemblerMode.cpp" />
     <ClCompile Include="CommandLine.cpp" />
+    <ClCompile Include="HostFile.cpp" />
+    <ClCompile Include="MerlinMode.cpp" />
+    <ClCompile Include="RunMode.cpp" />
+    <ClCompile Include="SourceAssembler.cpp" />
     <ClCompile Include="CassoCli.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Pch.h" />
+    <ClInclude Include="ArtifactWriter.h" />
+    <ClInclude Include="As65Mode.h" />
+    <ClInclude Include="AssemblerMode.h" />
     <ClInclude Include="CommandLine.h" />
+    <ClInclude Include="HostFile.h" />
+    <ClInclude Include="MerlinMode.h" />
+    <ClInclude Include="RunMode.h" />
+    <ClInclude Include="SourceAssembler.h" />
     <ClInclude Include="CassoCli.h" />
   </ItemGroup>
   <ItemGroup>

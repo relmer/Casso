@@ -131,6 +131,70 @@ namespace OpcodeTableTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
+        //  TheTwoQuestionsAboutAWordDisagreeOnPurpose
+        //
+        //  An OPCODE FIELD naming an instruction and a WORD being an instruction
+        //  name are different questions, and `lda` is where they part company.
+        //
+        //  As an opcode it is LDA -- as65 always took either case, and Merlin
+        //  source written in a modern editor arrives lower-case. As a LABEL it is
+        //  legal and occasionally deliberate, which Parser::ValidateLabel allows
+        //  by asking the exact-case question. One function answering both would
+        //  either reject lower-case opcodes or turn a legal label into an error.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (TheTwoQuestionsAboutAWordDisagreeOnPurpose)
+        {
+            OpcodeTable  table = BuildTable();
+
+            Assert::IsTrue  (table.NamesAnInstruction ("lda"), L"a lower-case opcode field names LDA");
+            Assert::IsTrue  (table.NamesAnInstruction ("LDA"), L"and so does the upper-case one");
+            Assert::IsTrue  (table.NamesAnInstruction ("Lda"), L"and any mixture of the two");
+            Assert::IsFalse (table.IsMnemonic ("lda"),
+                             L"but `lda` as a WRITTEN WORD is not an instruction name, which is what keeps it a legal label");
+            Assert::IsFalse (table.NamesAnInstruction ("xyz"), L"and a word that is no instruction stays none in any case");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  EncodingAndModeLookupsIgnoreCaseToo
+        //
+        //  The predicate above would be cosmetic if the lookups that actually
+        //  emit bytes still missed. Both are asked here, because an addressing
+        //  mode resolved from one table and an opcode encoded from another is
+        //  how a lower-case source assembles to the wrong instruction rather
+        //  than to none.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (EncodingAndModeLookupsIgnoreCaseToo)
+        {
+            OpcodeTable  table = BuildTable();
+            OpcodeEntry  upper = {};
+            OpcodeEntry  lower = {};
+
+            Assert::IsTrue (table.TryLookup ("LDA", GlobalAddressingMode::AddressingMode::Immediate, upper),
+                            L"the upper-case form must encode, or this test proves nothing");
+            Assert::IsTrue (table.TryLookup ("lda", GlobalAddressingMode::AddressingMode::Immediate, lower),
+                            L"and the lower-case form must encode as well");
+            Assert::AreEqual (static_cast<int> (upper.opcode), static_cast<int> (lower.opcode),
+                              L"to the very same opcode");
+
+            Assert::IsTrue (table.HasMode ("lda", GlobalAddressingMode::AddressingMode::Immediate),
+                            L"and the mode question must agree with the encoding one");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
         //  HasMode_LDA_Immediate_ReturnsTrue
         //
         ////////////////////////////////////////////////////////////////////////////////

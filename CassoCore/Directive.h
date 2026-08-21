@@ -61,6 +61,40 @@ enum class Directive
     Title,
     Word,
 
+    //  Introduced by the Merlin dialect. These have NO as65 spelling and must
+    //  never acquire one -- FR-005 forbids admitting one dialect's constructs
+    //  into another, so `.HEX` staying unrecognized by as65 is the requirement
+    //  rather than an omission.
+    //
+    //  That makes this enum no longer total over as65's spelling table, which
+    //  it was when as65 was the only dialect. The totality that still holds, and
+    //  that DialectMechanismTests now checks, is weaker and correct: every token
+    //  is claimed by AT LEAST ONE dialect. A token claimed by none is
+    //  unreachable, which is the bug the original sweep existed to catch.
+    StringData,             // ASC / DCI / INV / FLS / STR / REV -- one operation, six encodings
+    HexData,                // HEX
+    WordHighFirst,          // DDB -- the byte order Word does not do
+    ErrorIf,                // ERR -- fails the assembly when its expression is non-zero
+    Loop,                   // LUP
+    LoopEnd,                // --^
+    DummySection,           // DUM -- assigns addresses, emits nothing
+    DummySectionEnd,        // DEND
+    MacroDef,               // MAC
+    MacroEnd,               // <<< -- the TERMINATOR, not an invocation
+    CpuSelect,              // XC
+    ObjectFile,             // DSK
+    KeyboardInput,          // KBD -- binds a symbol from an answer supplied to the assembly
+    ParameterBinding,       // VAR -- binds the positional parameters, with no macro call
+
+    //  Recognized ONLY so they can be refused by name. A construct outside the
+    //  supported subset must say so; failing as an unknown directive reads as
+    //  "Merlin support is broken" rather than "this is outside the subset".
+    Relocatable,            // REL
+    EntrySymbol,            // ENT
+    ExternalSymbol,         // EXT
+    FileType,               // TYP
+    SaveObject,             // SAV
+
     Count,          // sentinel: sizes token-indexed tables
 };
 
@@ -102,11 +136,6 @@ public:
     // The caller owns the disambiguation: resolving RMB without first ruling
     // the instruction out would turn `rmb 3,$20` into storage.
     static Directive  FromAmbiguousSpelling (const std::string & word);
-
-    // FromSpelling, falling back to FromAmbiguousSpelling. For callers whose
-    // context rules the instruction out outright -- inside a .STRUCT body every
-    // member declaration names a storage directive, so nothing is ambiguous.
-    static Directive  FromStorageSpelling (const std::string & word);
 
     // The canonical dotted spelling, for diagnostics and listings.
     static const char * GetCanonicalName (Directive directive);
