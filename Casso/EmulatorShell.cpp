@@ -7280,7 +7280,13 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // press recorded rather than accumulated frame to frame, so the scene
     // tracks the cursor exactly however far or slowly it travels and a long
     // drag cannot creep away from it.
-    if (m_scenePanning && leftDown)
+    //
+    // The paddle check below cannot be reached while this claims the move, so
+    // the capture is tested HERE too. A pan cannot start under paddle capture
+    // today -- the press handler bails before arming one -- but that is one
+    // early-out in another function away from being untrue, and the failure
+    // it would cause is a game whose paddles stop responding.
+    if (m_scenePanning && leftDown && !m_paddleCaptured)
     {
         RECT   box    = m_deskScene.Composition().viewportPx;
         float  width  = (float) (box.right - box.left);
@@ -7725,7 +7731,14 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
 
 
 
-    if (horizontal || delta == 0 || !DeskSceneActive())
+    // Paddle capture owns the pointer: it is hidden and confined to the
+    // window because someone is playing a game with it. Nothing about a wheel
+    // notch there is a request to reframe the scene, and having the desk zoom
+    // out from under a game is the kind of thing that reads as a glitch.
+    //
+    // Mouse mode is NOT excluded. The guest mouse has no wheel to steal the
+    // notch from, so zooming stays available while pointing.
+    if (horizontal || delta == 0 || !DeskSceneActive() || m_paddleCaptured)
     {
         return DxuiMessageResult::NotHandled;
     }
@@ -7836,7 +7849,12 @@ DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
             // at 1x would swallow it and leave touch unable to work the drive
             // widgets at all -- the scene would gain a pan it cannot use and
             // lose every touch drag that meant something else.
-            if (m_sceneView.zoom <= 1.0f || width <= 0.0f || height <= 0.0f)
+            //
+            // Declined for the same reason while the guest mouse is live: a
+            // one-finger drag then is someone pointing, and the promotion to
+            // mouse input is exactly what has to keep happening.
+            if (m_sceneView.zoom <= 1.0f || width <= 0.0f || height <= 0.0f ||
+                GuestMouseLive())
             {
                 break;
             }
@@ -8013,7 +8031,15 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // drag can never steal one. Zoomed all the way out there is nothing to
     // pan to, so it stays disarmed and an idle drag on the backdrop does
     // nothing rather than wobbling a scene that already fits.
-    if (DeskSceneActive() && m_sceneView.zoom > 1.0f && !m_mainMenu.IsOpen())
+    //
+    // NOT WHILE THE GUEST MOUSE IS LIVE. //c Mouse mode maps the host pointer
+    // absolutely, and it keeps doing so over the BACKGROUND -- so a drag out
+    // there is very likely someone steering the guest cursor toward an edge,
+    // and panning would both hijack that drag and freeze the guest pointer
+    // for its duration. GuestMouseLive rather than Active on purpose: at a
+    // BASIC prompt nothing is reading the mouse, so panning stays available.
+    if (DeskSceneActive() && m_sceneView.zoom > 1.0f && !m_mainMenu.IsOpen()
+        && !GuestMouseLive())
     {
         SceneHitResult  hit = DeskSceneHit (x, y);
 
