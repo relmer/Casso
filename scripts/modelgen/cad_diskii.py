@@ -352,10 +352,31 @@ m.add("door", door, KD["drive_door"])
 # anyway.
 # Measured off a front-on photograph: a 3 mm lens sitting just right of the
 # text, not the 6.4 mm one twice that far across the face.
-m.add("led",
-      cq.Workplane("XY").cylinder(2.0, 1.55, direct=(0, 1, 0), centered=(True, True, False))
-        .translate((45.0, -2.0, 28.9)),
-      KD["drive_lamp"])
+#
+# A ROUND-TOPPED LED, barrel plus dome, standing LED_PROUD off the face --
+# the shape everyone pictures. It was a flat-ended cylinder, and the flat end
+# is why the drive's own faceplate took no light from it: a lens flush with
+# a surface, or facing straight out of one, cannot illuminate that surface.
+# The protrusion is the whole mechanism, so it is geometry rather than a
+# fudge factor in the renderer.
+#
+# Total reach is barrel + radius, so the barrel carries the remainder and the
+# dome's tip lands exactly LED_PROUD off the plate however the radius moves.
+LED_R      = 1.55
+LED_PROUD  = 3.0
+LED_BARREL = LED_PROUD - LED_R
+LED_X, LED_Z = 45.0, 28.9
+
+led = (cq.Workplane("XY")
+       .cylinder(LED_BARREL, LED_R, direct=(0, 1, 0), centered=(True, True, False))
+       .translate((LED_X, PLATE_Y - LED_BARREL, LED_Z)))
+
+led = led.union (
+    cq.Workplane("XY")
+      .sphere(LED_R)
+      .translate((LED_X, PLATE_Y - LED_BARREL, LED_Z)))
+
+m.add("led", led, KD["drive_lamp"])
 
 # ------------------------------------------------------------- lid and sides
 

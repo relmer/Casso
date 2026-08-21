@@ -170,6 +170,12 @@ public:
     static constexpr float  kMonitorGlowRgb[3] = { 0.400f, 1.000f, 0.520f };
     static constexpr float  kDriveGlowRgb[3]   = { 1.000f, 0.260f, 0.180f };
 
+    // Turns a lamp's COLOR into its light. See SetModelLighting: the shader
+    // scales the lamp term by the lit surface's own base color, so a lamp at
+    // unity lands ~1.5/255 on matte black plastic. Applied to the light only,
+    // never to the glowing bulb.
+    static constexpr float  kLampLightGain     = 16.0f;
+
     // Contact shadow: what grounds a device. Without one every model reads as
     // pasted onto the backdrop rather than standing on a desk -- the scene has
     // no floor geometry, but the eye infers a surface from the shadow alone,

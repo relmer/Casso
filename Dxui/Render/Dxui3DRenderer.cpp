@@ -228,7 +228,19 @@ static const char s_kPixelShaderSrc[] =
     "                // lens -- the notch walls, the button top, the whole\n"
     "                // point of having the lamp -- fell on the zero side of\n"
     "                // the saturate and took no light at all.\n"
-    "                float  emit = saturate (dot (lampDir.xyz, -L));\n"
+    // WRAPPED rather than hard-clipped at 90 degrees. A bare saturate makes
+    // the lens a perfect hemisphere emitter, so the surface the lamp is
+    // MOUNTED IN -- which lies at or behind that 90 degrees -- takes exactly
+    // zero light. The LED glowed and lit nothing around it, reading as a
+    // painted dot with a halo rather than a bulb in a faceplate.
+    //
+    // A real lens is not a hemisphere: it scatters internally and its housing
+    // bleeds, so the plastic it sits in picks up a glancing wash. Wrapping
+    // the term spreads emission past the equator and falls off smoothly
+    // instead of ending at a cliff.
+    "                float  wrap = 0.65f;\n"
+    "                float  emit = saturate ((dot (lampDir.xyz, -L) + wrap)\n"
+    "                                        / (1.0f + wrap));\n"
     "                float  recv = saturate (dot (n, L));\n"
     "                float  rr   = max (r, lampPos.w);\n"
     "                float  fade = saturate (1.0f - r / lampDir.w);\n"

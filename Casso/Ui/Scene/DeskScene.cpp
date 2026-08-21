@@ -82,7 +82,9 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind       monitorKind,
     // (plaque 13..52 x 64..74 mm): the number differs per drive, so the
     // text lives here, not in the shared model.
     {
-        constexpr float   kLabelCellMm = 0.43f;
+        // 0.43 at the old 5x7 grid. Same 18 mm sticker, more and smaller
+        // pixels -- the advance went 6 cells -> 8, so the cell shrinks.
+        constexpr float   kLabelCellMm = 0.3225f;
         // Both faceplate legends line up on the OUTER edge of the slot
         // frame's left bevel -- the one strong vertical the front actually
         // has. Two labels each measured to themselves read as two accidents;
@@ -398,6 +400,15 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
     {
         const DeskLampAnchor & anchor = model.Lamps().front();
 
+        // The source sits at the lens's own most-proud point, and that is
+        // enough BECAUSE THE LENS ACTUALLY PROTRUDES. The shader weighs each
+        // surface by dot(n, L), so a lamp coplanar with the faceplate lies in
+        // that plane and lights none of it; a domed LED standing 3 mm off the
+        // face gives every direction a real component along the face's normal.
+        //
+        // This was briefly a renderer-side standoff constant instead, which
+        // was the wrong place: the protrusion is a fact about the part, so
+        // the part should carry it and every device gets it for free.
         lighting.lampPos[0] = anchor.center[0];
         lighting.lampPos[1] = anchor.frontY;
         lighting.lampPos[2] = anchor.center[2];
@@ -406,9 +417,20 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
         lighting.lampDir[1] = -1.0f;
         lighting.lampDir[2] =  0.0f;
 
+        // The lamp's light is its color times an INTENSITY, because the two
+        // are different things and only one of them was being supplied. The
+        // shader scales the lamp term by the receiving surface's own base
+        // color, and the faceplate is matte black at 0.10 -- so a lamp of
+        // "brightness 1" put 1.5/255 of red onto the plastic beside it, which
+        // is to say nothing. A working LED is a small source but a fierce
+        // one; the number it needs is nowhere near unity.
+        //
+        // The GLOW geometry keeps the unscaled color on purpose: the bulb is
+        // already at full brightness and multiplying it too would only clip
+        // it to a white blob.
         for (int i = 0; i < 3; i++)
         {
-            lighting.lampColor[i] = lampRgb[i];
+            lighting.lampColor[i] = lampRgb[i] * kLampLightGain;
         }
 
         // Which lamp map: the monitor's and the drive's are different lamps in

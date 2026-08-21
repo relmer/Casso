@@ -102,7 +102,10 @@ static constexpr float   s_kDriveBrandFrontY   = -1.8f;
 // FRAME_X0 + FRAME_FLAT from cad_diskii.py.
 static constexpr float   s_kInUseLeftMm  = 12.23f;
 static constexpr float   s_kInUseTopZMm  = 31.1f;
-static constexpr float   s_kInUseCellMm  = 0.5f;
+// 0.5 at the old 5x7 grid. The legend keeps its measured 24 mm width: the
+// advance went 6 cells -> 8, so the cell shrinks to match rather than the
+// label growing.
+static constexpr float   s_kInUseCellMm  = 0.375f;
 static constexpr float   s_kInUseFrontY  = -1.8f;
 static constexpr float   s_kInUseRgb[3]  = { 0.750f, 0.730f, 0.700f };
 
@@ -1121,25 +1124,137 @@ void DeskSceneModel::RotateDoorVerts (const std::vector<Dxui3DRenderer::Vertex> 
 
 // The label font: only what the scene's drive labels use. '>' is the
 // LED-pointer triangle.
+//
+// SEVEN BY NINE, and written as PICTURES rather than hex. The old font was
+// 5x7 packed into uint8_t rows, and both halves of that were a problem: five
+// columns cannot hold a letterform with any weight to it, so the labels read
+// as chunky approximations, and a wall of hex is not something anyone can
+// edit -- the shape is invisible until it renders.
+//
+// A '#' is on and every other character is off, so the glyph in the source
+// looks like the glyph on the drive. That matters more than the parse cost,
+// which is paid once at model load and never again.
 struct SceneGlyph
 {
-    char     ch;
-    uint8_t  rows[7];
+    char          ch;
+    const char *  rows[9];
 };
+
+static constexpr int  s_kGlyphW    = 7;
+static constexpr int  s_kGlyphH    = 9;
+static constexpr int  s_kGlyphAdv  = 8;   // 7 columns + 1 of tracking
 
 static constexpr SceneGlyph  s_kSceneFont[] =
 {
-    { 'D', { 0x0F, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0F } },
-    { 'R', { 0x0F, 0x11, 0x11, 0x0F, 0x05, 0x09, 0x11 } },
-    { 'I', { 0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x1F } },
-    { 'V', { 0x11, 0x11, 0x11, 0x11, 0x11, 0x0A, 0x04 } },
-    { 'E', { 0x1F, 0x01, 0x01, 0x0F, 0x01, 0x01, 0x1F } },
-    { 'N', { 0x11, 0x13, 0x15, 0x19, 0x11, 0x11, 0x11 } },
-    { 'U', { 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E } },
-    { 'S', { 0x1E, 0x01, 0x01, 0x0E, 0x10, 0x10, 0x0F } },
-    { '1', { 0x04, 0x06, 0x04, 0x04, 0x04, 0x04, 0x0E } },
-    { '2', { 0x0E, 0x11, 0x10, 0x0C, 0x02, 0x01, 0x1F } },
-    { '>', { 0x01, 0x03, 0x07, 0x0F, 0x07, 0x03, 0x01 } },
+    { 'D', { "######.",
+             "##...##",
+             "##....#",
+             "##....#",
+             "##....#",
+             "##....#",
+             "##....#",
+             "##...##",
+             "######." } },
+
+    { 'R', { "######.",
+             "##...##",
+             "##...##",
+             "##...##",
+             "######.",
+             "##.##..",
+             "##..##.",
+             "##...##",
+             "##....#" } },
+
+    { 'I', { "#######",
+             "...#...",
+             "...#...",
+             "...#...",
+             "...#...",
+             "...#...",
+             "...#...",
+             "...#...",
+             "#######" } },
+
+    { 'V', { "##...##",
+             "##...##",
+             "##...##",
+             "##...##",
+             "##...##",
+             ".##.##.",
+             ".##.##.",
+             "..###..",
+             "...#..." } },
+
+    { 'E', { "#######",
+             "##.....",
+             "##.....",
+             "##.....",
+             "######.",
+             "##.....",
+             "##.....",
+             "##.....",
+             "#######" } },
+
+    { 'N', { "##....#",
+             "###...#",
+             "####..#",
+             "##.#..#",
+             "##..#.#",
+             "##...##",
+             "##....#",
+             "##....#",
+             "##....#" } },
+
+    { 'U', { "##...##",
+             "##...##",
+             "##...##",
+             "##...##",
+             "##...##",
+             "##...##",
+             "##...##",
+             "##...##",
+             ".#####." } },
+
+    { 'S', { ".#####.",
+             "##...##",
+             "##.....",
+             "###....",
+             ".####..",
+             "....###",
+             ".....##",
+             "##...##",
+             ".#####." } },
+
+    { '1', { "...##..",
+             "..###..",
+             ".####..",
+             "...##..",
+             "...##..",
+             "...##..",
+             "...##..",
+             "...##..",
+             ".######" } },
+
+    { '2', { ".#####.",
+             "##...##",
+             ".....##",
+             "....##.",
+             "...##..",
+             "..##...",
+             ".##....",
+             "##.....",
+             "#######" } },
+
+    { '>', { "##.....",
+             "###....",
+             "####...",
+             "#####..",
+             "######.",
+             "#####..",
+             "####...",
+             "###....",
+             "##....." } },
 };
 
 void DeskSceneModel::StampText (std::vector<Dxui3DRenderer::Vertex> & out,
@@ -1169,17 +1284,17 @@ void DeskSceneModel::StampText (std::vector<Dxui3DRenderer::Vertex> & out,
 
         if (glyph != nullptr)
         {
-            for (int row = 0; row < 7; row++)
+            for (int row = 0; row < s_kGlyphH; row++)
             {
-                uint8_t  bits = glyph->rows[row];
-                float    zTop = topZMm - (float) row * cellMm;
-                int      col  = 0;
+                const char *  bits = glyph->rows[row];
+                float         zTop = topZMm - (float) row * cellMm;
+                int           col  = 0;
 
-                while (col < 5)
+                while (col < s_kGlyphW)
                 {
                     int  runStart = 0;
 
-                    if ((bits & (1 << col)) == 0)
+                    if (bits[col] != '#')
                     {
                         col++;
                         continue;
@@ -1187,7 +1302,7 @@ void DeskSceneModel::StampText (std::vector<Dxui3DRenderer::Vertex> & out,
 
                     runStart = col;
 
-                    while (col < 5 && (bits & (1 << col)) != 0)
+                    while (col < s_kGlyphW && bits[col] == '#')
                     {
                         col++;
                     }
@@ -1211,7 +1326,7 @@ void DeskSceneModel::StampText (std::vector<Dxui3DRenderer::Vertex> & out,
             }
         }
 
-        penX += 6.0f * cellMm;   // 5 columns + 1 of tracking
+        penX += (float) s_kGlyphAdv * cellMm;
     }
 }
 

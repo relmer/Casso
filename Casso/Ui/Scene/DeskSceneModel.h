@@ -151,12 +151,17 @@ public:
                                   float                                       angleRad,
                                   std::vector<Dxui3DRenderer::Vertex>       & out);
 
-    // Stamps text in a blocky 5x7 pixel font as proud unlit quads, one
-    // merged quad per horizontal pixel run -- the same technique as the
-    // brand stamp, so labels keep the period pixel-art house style. Glyphs
-    // cover what the scene labels need (DRIVE n / IN USE and the '>'
-    // LED-pointer triangle); unknown characters stamp as spaces. `cellMm`
-    // is one font pixel; a glyph is 5 cells wide + 1 cell of tracking.
+    // Stamps text in a 7x9 pixel font as proud unlit quads, one merged quad
+    // per horizontal pixel run -- the same technique as the brand stamp, so
+    // labels keep the period pixel-art house style. Glyphs cover what the
+    // scene labels need (DRIVE n / IN USE and the '>' LED-pointer triangle);
+    // unknown characters stamp as spaces. `cellMm` is one font pixel; a
+    // glyph is 7 cells wide + 1 cell of tracking.
+    //
+    // The grid was 5x7, which is too few columns to carry a letterform with
+    // any weight -- the labels read as chunky approximations of type rather
+    // than type. Callers scale cellMm DOWN to match: the same label is now
+    // more, smaller pixels rather than the same pixels made bigger.
     static void  StampText (std::vector<Dxui3DRenderer::Vertex> & out,
                             const char                          * text,
                             float                                 leftMm,
