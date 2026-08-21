@@ -4,6 +4,7 @@
 #include "As65ExitStatus.h"
 #include "Assembler.h"
 #include "CommandLineHelp.h"
+#include "UsageText.h"
 #include "Cpu.h"
 #include "Cpu65C02Table.h"
 #include "Microcode.h"
@@ -792,6 +793,110 @@ std::string BuildBanner()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UsageWidth
+//
+//  How wide the reader's terminal is, or 80 when there is no terminal.
+//
+//  TAKEN FROM THE DIALECTS BRANCH UNCHANGED, together with the two functions
+//  below it, so that when that branch lands the three merge as the same text
+//  rather than as a conflict. The folding they do is that branch's idea and is
+//  the better one: a help line authored once and folded at print time cannot
+//  be hand-wrapped to a width the reader does not have.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static size_t UsageWidth()
+{
+    constexpr size_t            kNoTerminal = 80;
+    constexpr size_t            kNarrowest  = 40;
+    CONSOLE_SCREEN_BUFFER_INFO  info        = {};
+    HANDLE                      out         = GetStdHandle (STD_OUTPUT_HANDLE);
+    size_t                      width       = kNoTerminal;
+
+
+
+    if (out != INVALID_HANDLE_VALUE && GetConsoleScreenBufferInfo (out, &info))
+    {
+        int  columns = info.srWindow.Right - info.srWindow.Left + 1;
+
+        if (columns > (int) kNarrowest)
+        {
+            width = (size_t) columns - 1;
+        }
+    }
+
+    return width;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintUsageLine
+//
+//  One logical line of usage, folded to the terminal. Every line of help goes
+//  through here, so none of them is hand-wrapped to a width the reader may not
+//  have.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void PrintUsageLine (const std::string & line)
+{
+    for (const std::string & row : UsageText::Wrap (line, UsageWidth()))
+    {
+        std::println ("{}", row);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintUsageBlock
+//
+//  A block of usage composed elsewhere -- core builds whole pages and the exit
+//  code tables -- folded row by row. Split here rather than in core so the
+//  composing code stays free of the terminal.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void PrintUsageBlock (const std::string & block)
+{
+    size_t  start = 0;
+
+
+
+    while (start <= block.size())
+    {
+        size_t  end = block.find ('\n', start);
+
+        if (end == std::string::npos)
+        {
+            end = block.size();
+        }
+
+        // A block conventionally ends in a newline, which would otherwise print
+        // as a trailing blank row that was never in the text.
+        if (end == start && end == block.size())
+        {
+            break;
+        }
+
+        PrintUsageLine (block.substr (start, end - start));
+        start = end + 1;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PrintUsageExitStatus
 //
 //  One mode's exit statuses, at the end of that mode's own section.
@@ -813,9 +918,9 @@ std::string BuildBanner()
 
 static void PrintUsageExitStatus (const char * statuses)
 {
-    std::println ("");
-    std::println ("  Exit codes:");
-    std::println ("{}", statuses);
+    PrintUsageLine  ("");
+    PrintUsageLine  ("  Exit codes:");
+    PrintUsageBlock (statuses);
 }
 
 
@@ -984,24 +1089,23 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
         "        costs, then the symbol table at the end.",
     };
 
-    std::print   ("{}", BuildBanner());
-    std::println ("");
-    std::println ("Usage:");
-    std::println ("{}", CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::As65));
-    std::println ("");
-    std::println ("  <source>   An assembly source file. Given no extension, .a65, .asm");
-    std::println ("             and .s are tried in that order.");
-    std::println ("");
+    PrintUsageBlock (BuildBanner());
+    PrintUsageLine  ("");
+    PrintUsageLine  ("Usage:");
+    PrintUsageLine  (CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::As65));
+    PrintUsageLine  ("");
+    PrintUsageLine  ("  <source>   An assembly source file. Given no extension, .a65, .asm and .s are tried in that order.");
+    PrintUsageLine  ("");
     for (const char * fmt : intro)
     {
-        std::println ("{}", std::vformat (fmt, std::make_format_args (sp, lp, pad)));
+        PrintUsageLine (std::vformat (fmt, std::make_format_args (sp, lp, pad)));
     }
 
-    std::println ("Assembly options:");
+    PrintUsageLine ("Assembly options:");
 
     for (const char * fmt : lines)
     {
-        std::println ("{}", std::vformat (fmt, std::make_format_args (sp, lp, pad)));
+        PrintUsageLine (std::vformat (fmt, std::make_format_args (sp, lp, pad)));
     }
 
     PrintUsageExitStatus (CommandLineParser::kAssembleExitStatusHelpText);
@@ -1039,23 +1143,23 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
         "  {0}max-cycles <n>{1}       Maximum cycles before stopping",
     };
 
-    std::print   ("{}", BuildBanner());
-    std::println ("");
-    std::println ("Usage:");
-    std::println ("{}", CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::Run));
-    std::println ("");
-    std::println ("  <binary>   An assembled image to load and execute.");
-    std::println ("");
-    std::println ("Run options:");
+    PrintUsageBlock (BuildBanner());
+    PrintUsageLine  ("");
+    PrintUsageLine  ("Usage:");
+    PrintUsageLine  (CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::Run));
+    PrintUsageLine  ("");
+    PrintUsageLine  ("  <binary>   An assembled image to load and execute.");
+    PrintUsageLine  ("");
+    PrintUsageLine  ("Run options:");
 
     for (const char * fmt : lines)
     {
-        std::println ("{}", std::vformat (fmt, std::make_format_args (lp, pad)));
+        PrintUsageLine (std::vformat (fmt, std::make_format_args (lp, pad)));
     }
 
-    std::println ("  {0}v                     Verbose output", sp);
-    std::println ("");
-    std::println ("  CassoCli run prog.a65 {0}stop $6010 {0}max-cycles 10000", lp);
+    PrintUsageLine (std::format ("  {0}v                     Verbose output", sp));
+    PrintUsageLine ("");
+    PrintUsageLine (std::format ("  CassoCli run prog.a65 {0}stop $6010 {0}max-cycles 10000", lp));
 
     PrintUsageExitStatus (CommandLineParser::kRunExitStatusHelpText);
 }
@@ -1113,7 +1217,7 @@ void PrintUsage (const CommandLineOptions & options)
     }
     else
     {
-        std::print ("{}", CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
+        PrintUsageBlock (CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
     }
 }
 

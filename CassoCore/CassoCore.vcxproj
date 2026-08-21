@@ -179,6 +179,7 @@
     <ClCompile Include="AssemblySession.cpp" />
     <ClCompile Include="CommandLineHelp.cpp" />
     <ClCompile Include="CommandLineParser.cpp" />
+    <ClCompile Include="UsageText.cpp" />
     <ClCompile Include="Cpu.cpp" />
     <ClCompile Include="Cpu6502.cpp" />
     <ClCompile Include="CpuOperations.cpp" />
@@ -209,6 +210,7 @@
     <ClInclude Include="CommandLineOptions.h" />
     <ClInclude Include="CommandLineHelp.h" />
     <ClInclude Include="CommandLineParser.h" />
+    <ClInclude Include="UsageText.h" />
     <ClInclude Include="Cpu.h" />
     <ClInclude Include="Cpu6502.h" />
     <ClInclude Include="ICpu.h" />

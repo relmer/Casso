@@ -110,6 +110,30 @@ a shared table and silently dropping the disk rows.
 did before the sweep. Sweep 019's incoming help text for the retired words: `" -- "`,
 `shape`, `spelling`, `Exit status`, `65SC02`.
 
+## Already done from 020's side
+
+**`UsageText` is on 020, byte-identical to 019's.** `CassoCore/UsageText.{h,cpp}`
+and `UnitTest/UsageTextTests.cpp` were copied verbatim and registered, and all
+nine of its tests pass here. When 019 lands, git sees the same blob on both sides
+and the three files merge silently.
+
+**Every usage print site in 020's `CommandLine.cpp` already folds through it.**
+019's `UsageWidth`, `PrintUsageLine` and `PrintUsageBlock` were taken with their
+bodies unchanged — they are file-static here and `CommandLine` members there,
+which is the one textual difference the merge will meet. Step 3 below is
+therefore half done: the mechanism is wired; what remains is unwrapping 020's
+hand-wrapped literals into one logical line each, which was deliberately NOT done
+now so the tables' description column could be verified intact first. It is:
+every page renders identically at 80 columns, and the one line that WAS unwrapped
+(the `<source>` operand) re-folds at its own gutter.
+
+**The disk page was deliberately left printing through `std::cout`.**
+`DiskCommandRunner`'s `result.output` carries catalogs and listings as well as
+help, and those have column layouts that folding must not touch. Routing only the
+Help verb's output through `PrintUsageBlock` is a small, separable change for the
+merge session; it needs the runner to distinguish help from a listing, which it
+does not today.
+
 ## Suggested order for the merge session
 
 1. Take 019's module decomposition as the destination. It is the better shape and
@@ -117,9 +141,8 @@ did before the sweep. Sweep 019's incoming help text for the retired words: `" -
 2. Move 020's `DoAs65`/`DoRun` bodies into `AssemblerMode`/`RunMode`, and its
    artifact writing into `ArtifactWriter`, rather than merging `CommandLine.cpp`
    textually.
-3. Keep `CommandLineHelp` as the content store; make it emit logical lines and
-   print them through `UsageText::Wrap`. Unwrap 020's hand-wrapped literals as you
-   go.
+3. Keep `CommandLineHelp` as the content store. The print path already folds;
+   unwrap 020's hand-wrapped literals into one logical line each as you go.
 4. Add the `merlin` page to the tier, fed by `DialectHelp`.
 5. Reconcile the two grammars: accept a separated value wherever either branch
    did, keep the rejoin, and correct the `-o` sentence.
