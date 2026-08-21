@@ -248,7 +248,7 @@ void CommandLine::PrintUsageAssembler (const char * sp)
     std::println ("");
     PrintUsageLine ("  AS65's command line has habits of its own, kept for compatibility:");
     PrintUsageLine (std::format ("    Single letters concatenate, with the value-taking flag last, so {0}tlfile is {0}t {0}lfile.", sp));
-    PrintUsageLine (std::format ("    A value ATTACHES to its flag -- {0}ofile rather than {0}o file -- though {0}o and {0}l accept a separated one too.", sp));
+    PrintUsageLine (std::format ("    A value ATTACHES to its flag, {0}ofile rather than {0}o file, though {0}o and {0}l accept a separated one too.", sp));
     PrintUsageLine (std::format ("    {0}s2 is one flag, not {0}s followed by a 2.", sp));
 
     const char * lines[] =
@@ -262,10 +262,10 @@ void CommandLine::PrintUsageAssembler (const char * sp)
         "    {0}o <file>            Rename output file (default: <source>.bin)",
         "    {0}n                   Disable optimizations. Not yet implemented (GitHub issue #118)",
         "",
-        "    Output formats. Mutually exclusive: naming two is refused rather than resolved, and the output file's extension is consulted only when none is given.",
+        "    Output formats (mutually exclusive):",
         "    <default>            Write a full 64 KB image, padded with the fill byte ({0}z sets it)",
-        "    {0}s                   Write Motorola S-record (<source>.s19)",
-        "    {0}s2                  Write Intel HEX (<source>.hex)",
+        "    {0}s                   Write only the assembled bytes as Motorola S-records, each with its address (<source>.s19)",
+        "    {0}s2                  Write only the assembled bytes as Intel HEX records, each with its address (<source>.hex)",
         "    {1}dos-bin            Write the bytes behind a 4-byte DOS 3.3 header (load address + length), ready to BLOAD",
         "    {1}raw                Write only the assembled bytes, unpadded",
         "    {0}z                   Fill unused space in the padded image with $00 (default: $FF)",

@@ -148,11 +148,16 @@ They exist so an as65 invocation is not refused outright. Tracked by
 
 | Format | Flag | What is written |
 |---|---|---|
-| Full image | *(default)* | 64 KB, padded with the fill byte. |
-| Raw | `--raw` | Only the assembled span. |
+| Full image | *(default)* | 64 KB, padded with the fill byte. The only format that pads. |
+| Raw | `--raw` | Only the assembled span, with no address. |
 | DOS 3.3 binary | `--dos-bin` | Load address (2 bytes, little-endian), length (2 bytes), then the span. `BLOAD`-ready. |
-| S-record | `-s` | Motorola S19 text. |
-| Intel HEX | `-s2` | Intel HEX text. |
+| S-record | `-s` | Only the assembled span, as Motorola S1 records that each carry their address. |
+| Intel HEX | `-s2` | Only the assembled span, as Intel HEX records that each carry their address. |
+
+Put another way: the default answers "what is in memory", and the other four
+answer "what was assembled". Three of those four know where it goes -- the DOS
+header, the S-record address field, the HEX address field -- and `--raw` is the
+one that does not.
 
 ---
 
