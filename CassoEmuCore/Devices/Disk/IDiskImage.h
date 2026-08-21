@@ -28,36 +28,50 @@ enum class DiskFormat
 //
 //  WriteProtectInfo
 //
-//  Why a mounted disk is write-protected. The four causes are
-//  independent -- a disk can be protected by several at once (e.g. a
-//  read-only WOZ whose backing file is also read-only), so these are
-//  plain booleans rather than a single mutually-exclusive reason.
+//  Why a mounted disk is write-protected. The causes are independent -- a
+//  disk can be protected by several at once (e.g. a read-only WOZ whose
+//  backing file is also read-only), so these are plain booleans rather
+//  than a single mutually-exclusive reason.
 //
-//      imageFlag     the image's own embedded write-protect flag
-//                    (WOZ INFO chunk). Round-trips through Serialize.
-//      userSetting   the user's Settings / menu write-protect toggle.
-//      readOnlyFile  the backing host file has the read-only attribute.
-//      noPermission  the backing host file cannot be opened for writing
-//                    (ACL denial, exclusive lock, etc.) though it is not
-//                    marked read-only.
+//      imageFlag         the image's own embedded write-protect flag
+//                        (WOZ INFO chunk). Lives in the file.
+//      userSetting       the user's Settings / menu write-protect toggle.
+//      readOnlyFile      the backing host file has the read-only attribute.
+//      noPermission      the backing host file cannot be opened for writing
+//                        (ACL denial, exclusive lock, etc.) though it is not
+//                        marked read-only.
+//      checksumMismatch  the image's own stored checksum did not match its
+//                        contents at load, so the file is damaged. Rewriting
+//                        it would stamp a fresh, correct checksum over the
+//                        damage and leave nothing able to detect it, so the
+//                        disk is held read-only for the session instead.
+//
+//  checksumMismatch is deliberately NOT the image flag: that flag lives in
+//  the file, so setting it would mean writing the very file being protected
+//  from writes. It is session state, like userSetting.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct WriteProtectInfo
 {
-    bool  imageFlag    = false;
-    bool  userSetting  = false;
-    bool  readOnlyFile = false;
-    bool  noPermission = false;
+    bool  imageFlag        = false;
+    bool  userSetting      = false;
+    bool  readOnlyFile     = false;
+    bool  noPermission     = false;
+    bool  checksumMismatch = false;
 
-    bool  Any () const { return imageFlag || userSetting || readOnlyFile || noPermission; }
+    bool  Any () const
+    {
+        return imageFlag || userSetting || readOnlyFile || noPermission || checksumMismatch;
+    }
 
     bool  operator== (const WriteProtectInfo & o) const
     {
-        return imageFlag    == o.imageFlag    &&
-               userSetting  == o.userSetting  &&
-               readOnlyFile == o.readOnlyFile &&
-               noPermission == o.noPermission;
+        return imageFlag        == o.imageFlag        &&
+               userSetting      == o.userSetting      &&
+               readOnlyFile     == o.readOnlyFile     &&
+               noPermission     == o.noPermission     &&
+               checksumMismatch == o.checksumMismatch;
     }
 
     bool  operator!= (const WriteProtectInfo & o) const { return !(*this == o); }

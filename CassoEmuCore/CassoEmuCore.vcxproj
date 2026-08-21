@@ -327,6 +327,7 @@
     <ClInclude Include="Devices\Disk\CommitPlan.h" />
     <ClInclude Include="Devices\Disk\DiskCommandRunner.h" />
     <ClInclude Include="Devices\Disk\WozLoader.h" />
+    <ClInclude Include="Devices\Disk\WozMetadata.h" />
     <ClInclude Include="Devices\Disk\BlankDiskBuilder.h" />
     <ClInclude Include="Devices\Disk\DirectBootBuilder.h" />
     <ClInclude Include="Devices\Disk\Dos33Skeleton.h" />

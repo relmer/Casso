@@ -57,6 +57,7 @@
 class DxuiHwndSource;
 class SettingsSheet;
 class JsonValue;
+class SalvageDialogContent;
 
 
 
@@ -760,6 +761,51 @@ private:
     // shown via ShowModalDialog). Returns the resultCode of the chosen button,
     // or -1 on close-gesture.
     int     ShowModalDialog      (const DialogDefinition & def);
+
+    // Whether the Disk menu offers the write-protect toggle for a drive.
+    bool    IsWriteProtectToggleOffered (int drive);
+
+    // Whether the Disk menu offers salvage for a drive: only a damaged image
+    // with ordinary 16-sector structure can be rebuilt from its sectors.
+    bool    IsSalvageOffered (int drive);
+
+    // Shows a dialog whose body is a caller-built panel rather than text runs,
+    // for content a string cannot carry (here: an aligned figures table and a
+    // warning banner).
+    int     ShowSalvageDialog (const DialogDefinition & def,
+                               std::unique_ptr<SalvageDialogContent> content);
+
+    // The whole salvage interaction: assess, show the figures, write the copy
+    // on confirmation, then offer to insert it.
+    void    RunSalvageFlow (int drive);
+
+    // Reports a freshly mounted image that failed its stored checksum, with
+    // salvage offered inline. Raised here rather than by the loader because a
+    // dialog with an action on it is the shell's business, and EhmNotifyUser
+    // carries a string and nothing else.
+    void    ReportDamagedMount (int drive);
+
+    // The EHM user-notification sink, installed with SetNotifyFunction so
+    // every CHRN / CBRN in the tree reports through Casso's own themed
+    // dialog. Nothing had ever installed one, so they all fell through to
+    // EhmNotifyUser's built-in path and became raw Win32 message boxes.
+    //
+    // Static because SetNotifyFunction takes a plain function pointer; it
+    // forwards to the one live shell.
+    static void  NotifyUser (const wchar_t * message);
+
+    // Holds a report raised before there is a window to show it in. Public
+    // and static because wWinMain installs the sink before the shell exists.
+    static void  QueueNotification (const std::wstring & message);
+
+    // Shows one notification, marshaling as needed. Callable from any
+    // thread: a flush that fails on the CPU thread reports through here.
+    void         ShowNotification (const std::wstring & message);
+
+    // Replays notifications raised before the window existed. Startup reports
+    // a bad prefs file before there is anything to parent a dialog to, and a
+    // queued message that appears a moment later beats a bare Win32 box.
+    void         FlushPendingNotifications ();
 
     // Render a "simple" dialog (text + buttons + an optional Info /
     // Warning / Error glyph icon -- no custom body, tick, hyperlinks,

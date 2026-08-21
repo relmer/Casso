@@ -116,6 +116,19 @@ void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
     {
         std::vector<int>   rWidths (right.size(), DxuiButtonRow::kButtonWidthDip);
         std::vector<int>   lWidths (left.size(),  DxuiButtonRow::kButtonWidthDip);
+
+        // Size each button to its own label. A fixed width clipped anything
+        // longer than a short verb.
+        for (i = 0; i < right.size(); ++i)
+        {
+            rWidths[i] = DxuiButtonRow::WidthForLabel (right[i]->button->AccessibleName());
+        }
+
+        for (i = 0; i < left.size(); ++i)
+        {
+            lWidths[i] = DxuiButtonRow::WidthForLabel (left[i]->button->AccessibleName());
+        }
+
         std::vector<RECT>  rRects  (right.size());
         std::vector<RECT>  lRects  (left.size());
 

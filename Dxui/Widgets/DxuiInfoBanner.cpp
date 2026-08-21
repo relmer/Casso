@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiInfoBanner.h"
+#include "Widgets/DxuiWarningBadge.h"
 
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
@@ -81,6 +82,47 @@ float DxuiInfoBanner::PreferredHeightPx (float widthPx, const DxuiDpiScaler & sc
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiInfoBanner::MeasuredHeightPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiInfoBanner::MeasuredHeightPx (IDxuiTextRenderer   &  text,
+                                        float                  widthPx,
+                                        const DxuiDpiScaler &  scaler) const
+{
+    HRESULT  hr        = S_OK;
+    float    padX      = scaler.Pxf (s_kPadXDip);
+    float    padY      = scaler.Pxf (s_kPadYDip);
+    float    iconCol   = scaler.Pxf (s_kIconBoxDip) + scaler.Pxf (s_kIconGapDip);
+    float    textWidth = widthPx - padX * 2.0f - iconCol;
+    float    iconH     = scaler.Pxf (s_kIconBoxDip);
+    float    outW      = 0.0f;
+    float    outH      = 0.0f;
+
+
+
+    if (textWidth < 1.0f)
+    {
+        textWidth = 1.0f;
+    }
+
+    hr = text.MeasureStringWrapped (m_text.c_str(), scaler.Pxf (s_kFontDip),
+                                    DxuiTheme::kBodyFace, textWidth, outW, outH);
+
+    if (FAILED (hr) || outH <= 0.0f)
+    {
+        return PreferredHeightPx (widthPx, scaler);
+    }
+
+    return ((outH > iconH) ? outH : iconH) + padY * 2.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiInfoBanner::Paint
 //
 //  Draws an informational notice: an accent-tinted surface, an info badge, and
@@ -128,15 +170,35 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         return;
     }
 
-    // Themed surface: a subtle accent-tinted fill inside a muted accent border,
-    // so the banner reads as a notice, not a button.
-    painter.FillRect    (left, top, width, height, theme.InfoBannerBackground());
-    painter.OutlineRect (left, top, width, height, borderPx, theme.InfoBannerBorder());
-
-    // Info badge, drawn from primitives (no icon-font dependency, exact centering):
-    // a full-accent disc with a light "i" -- a dot over a stem, symmetric about the
-    // disc center both ways.
+    // Themed surface: a subtle tinted fill inside a muted border, so the banner
+    // reads as a notice, not a button. A warning carries its own hue rather
+    // than the theme accent -- caution should not depend on what the accent
+    // happens to be.
+    if (m_severity == Severity::Warning)
     {
+        painter.FillRect    (left, top, width, height, theme.InfoBannerWarningBackground());
+        painter.OutlineRect (left, top, width, height, borderPx, theme.InfoBannerWarningBorder());
+    }
+    else
+    {
+        painter.FillRect    (left, top, width, height, theme.InfoBannerBackground());
+        painter.OutlineRect (left, top, width, height, borderPx, theme.InfoBannerBorder());
+    }
+
+    if (m_severity == Severity::Warning)
+    {
+        // The same triangle the drive widget shows on a damaged disk, so the
+        // two read as one idea rather than two similar-looking marks.
+        DxuiWarningBadge::Draw (painter,
+                                iconCx - iconR, iconCy - iconR,
+                                iconBox, iconBox,
+                                theme.WarningAccent(), theme.WarningEdge(), theme.WarningMark());
+    }
+    else
+    {
+        // Info badge, drawn from primitives (no icon-font dependency, exact centering):
+        // a full-accent disc with a light "i" -- a dot over a stem, symmetric about the
+        // disc center both ways.
         float  dotR  = iconR * 0.17f;
         float  stemW = iconR * 0.24f;
         float  stemH = iconR * 0.62f;

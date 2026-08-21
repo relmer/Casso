@@ -529,6 +529,7 @@
     <ClCompile Include="Dxui\DxuiPopupHostTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
     <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
+    <ClCompile Include="Dxui\DxuiButtonRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarTests.cpp" />
     <ClCompile Include="Dxui\DxuiStackLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiViewportTests.cpp" />

@@ -64,11 +64,19 @@ try {
 
     # Download source and reference using curl.exe (avoids Defender ClickFix false positive
     # triggered by the cmd.exe -> powershell -> Invoke-WebRequest pattern)
+    #  --fail is load-bearing. Without it curl writes the SERVER'S ERROR PAGE to
+    #  the output file and still exits 0, so a rate-limited or unavailable
+    #  download hands the assembler HTML and surfaces as nonsense far downstream
+    #  -- "Invalid mnemonic: TOO", "Label ... <!DOCTYPE" -- which reads as a
+    #  broken assembler rather than as a failed fetch. Observed live during a
+    #  GitHub 429/503 window.
     Write-Host "Downloading source..."
-    curl.exe -sL -o $sourceFile $sourceUrl
+    curl.exe --fail -sL -o $sourceFile $sourceUrl
+    if ($LASTEXITCODE -ne 0) { throw "Could not download the Dormann source ($sourceUrl): curl exit $LASTEXITCODE." }
 
     Write-Host "Downloading reference binary..."
-    curl.exe -sL -o $refBinFile $refBinUrl
+    curl.exe --fail -sL -o $refBinFile $refBinUrl
+    if ($LASTEXITCODE -ne 0) { throw "Could not download the Dormann reference ($refBinUrl): curl exit $LASTEXITCODE." }
 
     Write-Host "Source size:    $((Get-Item $sourceFile).Length) bytes"
     Write-Host "Reference size: $((Get-Item $refBinFile).Length) bytes"

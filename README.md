@@ -26,7 +26,6 @@ The project includes:
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
 - **3300+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, DOS 3.3 + ProDOS file read/write and the command path over them, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines. Several of them boot a real 6502 over an image the command line just wrote and check what the guest makes of it, because that is the only oracle for "the disk is right" that our own reader cannot satisfy by agreeing with itself.
-
 ## Contents
 
 - [About](#about)
@@ -34,8 +33,8 @@ The project includes:
 - [Project Structure](#project-structure)
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
-- [Assembler Features](#assembler-features)
 - [CPU Emulation Status](#cpu-emulation-status)
+- [Assembler](docs/Assembler.md)
 - [Why "Casso"?](#why-casso)
 - [Acknowledgments and Attributions](#acknowledgments-and-attributions)
 - [Contributing](#contributing)
@@ -93,6 +92,14 @@ mounted image is not held open, so a disk mounted in Casso is neither noticed
 nor protected. Detecting in-use is out of scope, and the tool says so rather
 than implying a clean check means a mounted disk is safe.
 
+### Salvage a damaged .woz disk (v1.17.0)
+
+Casso now checks disk integrity when a .woz disk is inserted. If the checksums
+are incorrect, Casso treats the disk as read-only to prevent further corruption
+or data loss. A Salvage wizard opens and offers to salvage data into a
+structurally correct copy of the original disk.
+
+<p align="center"><img src="Assets/feat-salvage.png" alt="Salvage dialog listing total, verified, recoverable and lost sectors for a damaged disk, the name of the salvaged copy, and a warning that repairing the checksums cannot recover corrupt data" width="560" /></p>
 ### Create blank disks in-app + write-protect toggle (v1.16.0)
 
 <p align="center"><img src="Assets/feat-create-disk.png" alt="Create New Disk dialog — save-style folder browsing, format and image-type dropdowns, Make-bootable checkbox, and name field" width="540" /></p>
@@ -377,6 +384,9 @@ Casso.sln
 
 ### Assemble and Run
 
+`CassoCli` assembles 6502 / 65C02 source and can run it in one step. Full flag
+and syntax reference: **[docs/Assembler.md](docs/Assembler.md)**.
+
 ```powershell
 # Assemble a source file to its assembled bytes (AS65 mode — no subcommand)
 # Every value attaches to its flag, which is as65's grammar: -ooutput.bin
@@ -404,29 +414,31 @@ CassoCli input.a65 -c -llisting.txt
 # Assemble 65C02 source (CMOS opcodes: STZ, BRA, RMB/SMB/BBR/BBS, ...)
 # The default is a strict 6502; 65C02-only opcodes are rejected without -x.
 CassoCli input.a65c -x -ooutput.bin
-
-# Assemble and run an assembly source directly
+# Assemble and run in one step
 CassoCli run input.a65
 
-# Load and run a pre-assembled binary at a specific address
+# Run a pre-assembled binary at a chosen address
 CassoCli run output.bin --load $8000
 ```
 
 ### Apple II Emulator
 
-The emulator requires Apple II ROM images, which are copyrighted by Apple and not
-distributed with this project. A script is included to download them from the
-[AppleWin](https://github.com/AppleWin/AppleWin) project:
+Run `Casso` with no arguments for an Apple II+ with an empty drive. ROMs and
+sample disks are fetched on first launch, with your consent — there is
+nothing to install by hand.
 
 ```powershell
-# Download ROM images into the per-machine Machines/<Name>/ folders
-.\scripts\FetchRoms.ps1
-
-# Run the emulator (defaults to Apple II+)
+# Launch the emulator (defaults to Apple II+)
 Casso
 
-# Run with a specific machine config
+# Pick a machine
 Casso --machine Apple2e
+
+# Boot a disk in drive 1
+Casso --machine Apple2e --disk1 "Apple2\Demos\casso-rocks.woz"
+
+# Both drives
+Casso --machine Apple2c --disk1 "side-a.woz" --disk2 "side-b.woz"
 ```
 
 ROM images live under `Machines/<MachineName>/` (e.g.,
@@ -465,9 +477,20 @@ Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
 | Verbose / quiet | `-v` / `-q` |
 | Flag concatenation | `-tlfile` ≡ `-t -lfile` (AS65 style); a numeric value lets more flags follow, so `-h80t` is `-h80 -t` |
 
+Machine names come from `Resources/Machines/<Name>/`:
+`Apple2`, `Apple2Plus`, `Apple2e`, `Apple2eEnhanced`, `Apple2c`.
 ## CPU Emulation Status
 
-All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) (full pass) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) (all 151 legal-opcode test sets, 10,000 vectors each).
+All 56 standard 6502 mnemonics are implemented, plus the 65C02 set. Validated
+against [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests)
+(full pass) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests)
+(all 151 legal-opcode test sets, 10,000 vectors each).
+
+## Assembler
+
+`CassoCli` is an as65-compatible 6502 / 65C02 cross-assembler with a built-in
+runner. Every flag, directive, addressing mode and output format is documented
+in **[docs/Assembler.md](docs/Assembler.md)**.
 
 ## Why "Casso"?
 
