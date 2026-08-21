@@ -264,6 +264,7 @@ private:
     bool  OnViewportKey   (const DxuiKeyEvent   & ev) override;
     bool  OnViewportMouse (const DxuiMouseEvent & ev) override;
     DxuiMessageResult  OnMouseWheel    (WPARAM wParam, LPARAM lParam, bool horizontal) override;
+    DxuiMessageResult  OnGesture       (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseMove     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseLeave    () override;
     DxuiMessageResult  OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
@@ -1112,6 +1113,14 @@ private:
     POINT                    m_scenePanStartPx  = {};
     float                    m_scenePanStartX   = 0.0f;
     float                    m_scenePanStartY   = 0.0f;
+
+    // Touch gesture tracking. Windows reports a pinch as an ABSOLUTE
+    // separation between the two fingers and a pan as an ABSOLUTE point, so
+    // both need their previous value kept to turn into a step -- there is no
+    // delta in the message. Reset on GF_BEGIN, or the first step of a new
+    // gesture would be measured against wherever the last one ended.
+    ULONGLONG                m_gestureZoomLast  = 0;
+    POINT                    m_gesturePanLastPx = {};
 
     // //c only: whether the optional external drive is "connected". Mirrors
     // the per-machine $cassoUiPrefs.externalDriveConnected pref; seeded at

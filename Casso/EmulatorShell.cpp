@@ -7755,6 +7755,128 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::OnGesture
+//
+//  Touchscreen pinch and drag, framing the desk scene exactly as the wheel
+//  and a mouse drag do.
+//
+//  Windows reports both gestures ABSOLUTELY -- a pinch as the current
+//  separation between the fingers, a pan as the current point -- so each step
+//  is the ratio or difference against the previous report, and GF_BEGIN
+//  reseeds rather than measuring the first step of a new gesture against
+//  wherever the last one ended.
+//
+//  A pinch is a RATIO, not a difference: fingers moving 20 px apart means
+//  something quite different starting from 40 px apart than from 400, and
+//  only the ratio matches what the hand is doing.
+//
+//  ptsLocation is in SCREEN coordinates like the wheel's point, not client
+//  like the button messages -- the same trap, in a second place.
+//
+//  A single-finger drag pans without the zoom gate the mouse path applies.
+//  On a mouse the press has to be shared with clicking, so panning waits
+//  until there is something to pan to; a touch drag on the backdrop has no
+//  competing meaning, and refusing to move would just read as broken.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
+{
+    GESTUREINFO  info    = {};
+    POINT        pt      = {};
+    bool         handled = false;
+
+
+
+    info.cbSize = sizeof (info);
+
+    if (!DeskSceneActive() ||
+        !GetGestureInfo (reinterpret_cast<HGESTUREINFO> (lParam), &info))
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    pt.x = info.ptsLocation.x;
+    pt.y = info.ptsLocation.y;
+
+    if (m_hwnd == nullptr || !ScreenToClient (m_hwnd, &pt))
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    switch (wParam)
+    {
+        case GID_ZOOM:
+        {
+            if ((info.dwFlags & GF_BEGIN) != 0 || m_gestureZoomLast == 0)
+            {
+                m_gestureZoomLast = info.ullArguments;
+                handled           = true;
+                break;
+            }
+
+            if (info.ullArguments > 0)
+            {
+                ZoomSceneAt (pt, (float) info.ullArguments / (float) m_gestureZoomLast);
+                m_gestureZoomLast = info.ullArguments;
+            }
+
+            handled = true;
+            break;
+        }
+
+        case GID_PAN:
+        {
+            RECT   box    = m_deskScene.Composition().viewportPx;
+            float  width  = (float) (box.right - box.left);
+            float  height = (float) (box.bottom - box.top);
+
+            // NOT CLAIMED when there is nothing to pan to. Windows promotes an
+            // unhandled gesture to mouse input, so claiming a one-finger drag
+            // at 1x would swallow it and leave touch unable to work the drive
+            // widgets at all -- the scene would gain a pan it cannot use and
+            // lose every touch drag that meant something else.
+            if (m_sceneView.zoom <= 1.0f || width <= 0.0f || height <= 0.0f)
+            {
+                break;
+            }
+
+            if ((info.dwFlags & GF_BEGIN) != 0)
+            {
+                m_gesturePanLastPx = pt;
+                handled            = true;
+                break;
+            }
+
+            m_sceneView.panX += ((float) (pt.x - m_gesturePanLastPx.x) / width)  * 2.0f;
+            m_sceneView.panY -= ((float) (pt.y - m_gesturePanLastPx.y) / height) * 2.0f;
+
+            ClampSceneView();
+            InvalidateSceneComposition();
+
+            m_gesturePanLastPx = pt;
+            handled            = true;
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    if ((info.dwFlags & GF_END) != 0)
+    {
+        m_gestureZoomLast = 0;
+    }
+
+    return handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnLButtonDown
 //
 //  Press half of the click pair. Unlike the release, this handler mostly

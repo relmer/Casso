@@ -2351,6 +2351,43 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         case WM_TIMER:         isHandled = Claimed (m_client->OnTimer (static_cast<UINT_PTR> (wp)),
                                                     RepaintOnClaim::Yes); break;
 
+        // Touch gestures. The HGESTUREINFO is closed HERE, once, whatever the
+        // client answered: the client's answer means "did I act on it", not
+        // "do I own the handle", and leaking one leaks for the life of the
+        // window. An unclaimed gesture still reaches DefWindowProc, so the
+        // ones nobody handles keep behaving normally.
+        case WM_GESTURE:
+        {
+            isHandled = Claimed (m_client->OnGesture (wp, lp), RepaintOnClaim::Yes);
+            CloseGestureInfoHandle (reinterpret_cast<HGESTUREINFO> (lp));
+            break;
+        }
+
+        // Windows asks, once per gesture sequence, which gestures this window
+        // wants. Answering is what turns pan and zoom on at all -- the default
+        // set is aimed at scrolling documents, and a window that never
+        // responds simply never sees a pinch.
+        case WM_GESTURENOTIFY:
+        {
+            GESTURECONFIG  config[2] = {};
+
+            config[0].dwID    = GID_ZOOM;
+            config[0].dwWant  = GC_ZOOM;
+            config[1].dwID    = GID_PAN;
+            config[1].dwWant  = GC_PAN | GC_PAN_WITH_SINGLE_FINGER_VERTICALLY
+                                       | GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY;
+
+            // Inertia is deliberately NOT wanted: it keeps sending pan
+            // deltas after the finger lifts, which reads as the scene
+            // drifting on its own rather than staying where it was put.
+            config[1].dwBlock = GC_PAN_WITH_INERTIA | GC_PAN_WITH_GUTTER;
+
+            SetGestureConfig (m_hwnd, 0, 2, config, sizeof (GESTURECONFIG));
+
+            isHandled = false;   // DefWindowProc still finishes the notify
+            break;
+        }
+
         // -- claim and repaint unless a wheel flood is being absorbed --
         case WM_MOUSEWHEEL:    isHandled = Claimed (m_client->OnMouseWheel (wp, lp, false),
                                                     RepaintOnClaim::IfNotSuppressed); break;
