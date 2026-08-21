@@ -209,8 +209,9 @@ namespace StructTests
 
         //  The dual-purpose spelling must NOT leak the other way: outside a
         //  struct, `rmb <bit>,<zp>` is still the Rockwell instruction, and
-        //  routing struct members through FromStorageSpelling must not change
-        //  that. Two bytes of opcode plus zero page, not reserved storage.
+        //  admitting the profile's ambiguous vocabulary for struct members must
+        //  not change that. Two bytes of opcode plus zero page, not reserved
+        //  storage.
         TEST_METHOD (RmbBitForm_OutsideStruct_StaysAnInstruction)
         {
             TestCpu65C02  cpu;

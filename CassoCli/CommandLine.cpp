@@ -1,23 +1,21 @@
 #include "Pch.h"
 
 #include "CommandLine.h"
-#include "As65ExitStatus.h"
-#include "Assembler.h"
-#include "CommandLineHelp.h"
+#include "HostFile.h"
 #include "UsageText.h"
-#include "Cpu.h"
-#include "Cpu65C02Table.h"
-#include "Microcode.h"
-#include "OutputFormats.h"
+#include "AssemblerExitCode.h"
+#include "DialectHelp.h"
+#include "DialectRegistry.h"
 #include "Version.h"
 
 
+
 #if defined(_M_X64) || defined(__x86_64__)
-    static const char * arch = "x64";
+    static const char * s_arch = "x64";
 #elif defined(_M_ARM64) || defined(__aarch64__)
-    static const char * arch = "ARM64";
+    static const char * s_arch = "ARM64";
 #else
-    static const char * arch = "Unknown";
+    static const char * s_arch = "Unknown";
 #endif
 
 
@@ -26,719 +24,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ReadFileContents
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static HRESULT ReadFileContents (const std::string & path, std::string & contents)
-{
-    HRESULT             hr     = S_OK;
-    std::ostringstream  ss;
-    bool                isOpen = false;
-    std::ifstream       file (path, std::ios::binary);
-    isOpen = file.is_open();
-
-
-
-    CBR (isOpen);
-
-    ss << file.rdbuf();
-    contents = ss.str();
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WriteBinaryShapeFile
-//
-//  Opens the output file in binary mode and hands the stream to the writer for
-//  the chosen shape.
-//
-//  The three binary shapes differ only in what goes INTO the stream, so the
-//  file handling -- open it, check it, verify the write landed -- is written
-//  once here, and each shape lives in OutputFormats where tests can reach it
-//  without a file at all.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static HRESULT WriteBinaryShapeFile (const std::string & path,
-                                     const AssemblyResult & result,
-                                     CommandLineOptions::OutputFormat shape,
-                                     Byte fillByte)
-{
-    HRESULT  hr         = S_OK;
-    bool     isOpen     = false;
-    bool     wasWritten = false;
-    std::ofstream  file (path, std::ios::binary);
-    isOpen = file.is_open();
-
-
-
-    CBR (isOpen);
-
-    if (shape == CommandLineOptions::OutputFormat::Raw)
-    {
-        OutputFormats::WriteRaw (result.bytes, file);
-    }
-    else if (shape == CommandLineOptions::OutputFormat::DosBinary)
-    {
-        OutputFormats::WriteDosBinary (result.bytes, result.startAddress, file);
-    }
-    else
-    {
-        OutputFormats::WriteFlatImage (result.bytes, result.startAddress, fillByte, file);
-    }
-
-    wasWritten = file.good();
-    CBR (wasWritten);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WriteSymbolFile
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static HRESULT WriteSymbolFile (const std::string & path, const std::unordered_map<std::string, Word> & symbols)
-{
-    HRESULT                                    hr         = S_OK;
-    std::vector<std::pair<std::string, Word>>  sorted;
-    bool                                       isOpen     = false;
-    bool                                       wasWritten = false;
-    std::ofstream                              file (path);
-    isOpen = file.is_open();
-
-
-
-    CBR (isOpen);
-
-    // Sort symbols by address for deterministic output
-    sorted.assign (symbols.begin(), symbols.end());
-
-    std::sort (sorted.begin(), sorted.end(),
-        [] (const auto & a, const auto & b) { return a.second < b.second; });
-
-    for (const auto & pair : sorted)
-    {
-        file << std::format ("${:04X}  {}\n", pair.second, pair.first);
-    }
-
-    wasWritten = file.good();
-    CBR (wasWritten);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FileExists
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static bool FileExists (const std::string & path)
-{
-    std::ifstream f (path);
-    return f.good();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SelectInstructionSet
-//
-//  Picks the assembler's target instruction table from -x. The default is the
-//  strict 6502 table (`cpu`), so 65C02-only opcodes never assemble by accident;
-//  -x substitutes the CMOS 65C02 (Rockwell R65C02) table.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static const Microcode * SelectInstructionSet (const CommandLineOptions & options, const Cpu & cpu)
-{
-    const Microcode *  set = nullptr;
-
-
-
-    if (options.cpuTarget == CommandLineOptions::CpuTarget::M65C02)
-    {
-        set = GetCpu65C02InstructionSet();
-    }
-    else
-    {
-        set = cpu.GetInstructionSet();
-    }
-
-    return set;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AssembleResult
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct AssembleResult
-{
-    AssemblyResult result;
-    bool           ok        = false;   // default: treat an unfilled result as failure
-    bool           wasRead   = false;   // whether the source ever reached the assembler
-    std::string    inputFile;
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BuildAssemblerOptions - build AssemblerOptions from CommandLineOptions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static AssemblerOptions BuildAssemblerOptions (const CommandLineOptions & options)
-{
-    AssemblerOptions asmOptions   = {};
-    asmOptions.fillByte           = options.fillByte;
-    asmOptions.generateListing    = options.generateListing;
-    asmOptions.warningMode        = options.warningMode;
-    asmOptions.cycleCounts        = options.cycleCounts;
-    asmOptions.macroExpansion     = options.macroExpansion;
-    asmOptions.pageHeight         = options.pageHeight;
-    asmOptions.pageWidth          = options.pageWidth;
-    asmOptions.pass1Listing       = options.pass1Listing;
-    asmOptions.symbolTable        = options.symbolTable;
-    asmOptions.debugInfo          = options.debugInfo;
-    asmOptions.verbose            = options.verbose;
-    asmOptions.quiet              = options.quiet;
-    asmOptions.disableOpt         = options.disableOpt;
-    asmOptions.predefinedSymbols  = options.predefinedSymbols;
-
-    return asmOptions;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AssembleFile
-//
-//  Reads one source file and assembles it, bundling the result with the input
-//  path so diagnostics can be attributed later.
-//
-//  Carrying the filename in the result is what lets ReportAssemblyDiagnostics
-//  print `file:line: error:` without being handed the path separately -- the
-//  format editors parse to jump to the offending line.
-//
-//  An unreadable file and a failed assembly both come back as ok == false, so
-//  the caller has one failure test. They are distinguished for the USER by the
-//  message, and for the SHELL by wasRead: as65 spends a different status on
-//  each -- "unable to open input or output file" against "assembly gave
-//  errors" -- and a script reading the status is choosing between "your path is
-//  wrong" and "your code is wrong". One flag carries the difference the message
-//  already made, rather than a second read of the file to ask whether the first
-//  one worked.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static AssembleResult AssembleFile (const std::string & inputFile,
-                                   const Microcode instructionSet[256],
-                                   const AssemblerOptions & asmOptions)
-{
-    HRESULT         hr = S_OK;
-    AssembleResult  ar = {};
-    std::string     source;
-
-    ar.inputFile = inputFile;
-
-
-
-    hr = ReadFileContents (inputFile, source);
-
-    if (FAILED (hr))
-    {
-        std::cerr << "Error: Cannot read input file: " << inputFile << "\n";
-        ar.ok      = false;
-        ar.wasRead = false;
-    }
-    else
-    {
-        Assembler  asm6502 (instructionSet, asmOptions);
-
-        ar.result  = asm6502.Assemble (source);
-        ar.ok      = ar.result.success;
-        ar.wasRead = true;
-    }
-
-    return ar;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReportAssemblyDiagnostics
-//
-//  THE FAILURE LINE IS GATED ON THE SOURCE HAVING BEEN READ, for the reason the
-//  exit status is. An unreadable input printed "Cannot read input file" and then
-//  "Assembly failed with 0 error(s)" underneath it -- a second, contradicting
-//  account of the same event, naming a count of zero because there was nothing
-//  to count. Nothing was assembled, so nothing failed to assemble.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static void ReportAssemblyDiagnostics (const AssembleResult & ar)
-{
-    for (const auto & w : ar.result.warnings)
-    {
-        std::println (stderr, "{}:{}: warning: {}", ar.inputFile, w.lineNumber, w.message);
-    }
-
-    for (const auto & e : ar.result.errors)
-    {
-        std::println (stderr, "{}:{}: error: {}", ar.inputFile, e.lineNumber, e.message);
-    }
-
-    if (!ar.ok && ar.wasRead)
-    {
-        std::println (stderr, "Assembly failed with {} error(s)", ar.result.errors.size());
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ResolveOutputFormat
-//
-//  Decides which shape to write.
-//
-//  An explicit format flag WINS. Extension matching remains, but only as the
-//  fallback when no flag was given, which is what keeps as65-era build scripts
-//  -- which name a .s19 or .hex output and pass no flag -- working unchanged.
-//
-//  Deriving purely from the extension, as this used to, meant `-s -o out.dat`
-//  silently wrote a flat binary: the flag said S-record and the extension won
-//  anyway. It also leaves the two new shapes unreachable, since neither raw
-//  nor DOS-binary output has an extension of its own to be recognized by.
-//
-//  "NO FLAG WAS GIVEN" IS ITS OWN BIT rather than a value of the shape. This
-//  used to ask whether the shape equalled Binary, which worked only while the
-//  default was Binary and nothing on the command line could write it. The
-//  assembled bytes are the default now, so the same test would have to name a
-//  shape that a flag can also select -- and would then read that flag as
-//  silence and let a `.s19` filename override what the caller typed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static CommandLineOptions::OutputFormat ResolveOutputFormat (const CommandLineOptions & options)
-{
-    CommandLineOptions::OutputFormat  shape      = options.outputFormat;
-    bool                              isDefault  = !options.outputFormatNamed;
-    bool                              isSRec     = CommandLineParser::EndsWith (options.outputFile, ".s19");
-    bool                              isHex      = CommandLineParser::EndsWith (options.outputFile, ".hex");
-
-
-
-    if (isDefault && isSRec)
-    {
-        shape = CommandLineOptions::OutputFormat::SRecord;
-    }
-    else if (isDefault && isHex)
-    {
-        shape = CommandLineOptions::OutputFormat::IntelHex;
-    }
-
-    return shape;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WriteBinaryOutput
-//
-//  Writes the assembled image in the resolved shape.
-//
-//  "nul" is the explicit bit bucket and is matched case-insensitively, since
-//  it is a Windows device name that scripts write every way. Writing nothing
-//  is SUCCESS on that path: it is how a caller asks for diagnostics only, and
-//  reporting failure would break a build that deliberately discards output.
-//
-//  The text formats open the stream in text mode and the binary shapes in
-//  binary mode, which is the only reason this splits in two rather than
-//  handing every shape to one writer.
-//
-//  A DOS binary carries its length in 16 bits, so a span of exactly 64 KB is
-//  refused here rather than written as a file claiming to be empty.
-//
-//  The failure diagnostic is emitted once for every format. It used to be
-//  written out at four separate sites, which is three opportunities for the
-//  wording to drift apart.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static HRESULT WriteBinaryOutput (const AssemblyResult & result,
-                                  const CommandLineOptions & options)
-{
-    HRESULT                           hr        = S_OK;
-    CommandLineOptions::OutputFormat  shape     = ResolveOutputFormat (options);
-    std::string                       outLower  = options.outputFile;
-    size_t                            spanBytes = result.bytes.size();
-    bool                              isNul     = false;
-    bool                              isText    = false;
-    bool                              isOpen    = false;
-    bool                              fitsDos   = true;
-    bool                              reported  = false;
-
-
-
-    for (auto & c : outLower)
-    {
-        c = (char) tolower ((unsigned char) c);
-    }
-
-    // "nul" is the explicit bit bucket: nothing written, and that is success.
-    isNul  = outLower == "nul";
-    isText = shape == CommandLineOptions::OutputFormat::SRecord ||
-             shape == CommandLineOptions::OutputFormat::IntelHex;
-
-    if (shape == CommandLineOptions::OutputFormat::DosBinary)
-    {
-        fitsDos = spanBytes <= OutputFormats::kMaxDosBinaryLength;
-
-        if (!fitsDos)
-        {
-            std::println (stderr,
-                          "Error: {} bytes is too large for a DOS 3.3 binary (limit {})",
-                          spanBytes,
-                          OutputFormats::kMaxDosBinaryLength);
-            reported = true;
-        }
-    }
-
-    CBR (fitsDos);
-
-    if (!isNul && isText)
-    {
-        std::ofstream  outFile (options.outputFile);
-
-        isOpen = outFile.is_open();
-        CBR (isOpen);
-
-        if (shape == CommandLineOptions::OutputFormat::SRecord)
-        {
-            OutputFormats::WriteSRecord (result.bytes, result.startAddress, result.endAddress, result.startAddress, outFile);
-        }
-        else
-        {
-            OutputFormats::WriteIntelHex (result.bytes, result.startAddress, result.endAddress, result.startAddress, outFile);
-        }
-    }
-    else if (!isNul)
-    {
-        hr = WriteBinaryShapeFile (options.outputFile, result, shape, options.fillByte);
-        CHR (hr);
-    }
-
-Error:
-    // One diagnostic for every path -- it was written out identically at four
-    // sites before, which is three chances for the wording to drift. Suppressed
-    // when the failure already explained itself, so one problem never reports
-    // twice.
-    if (FAILED (hr) && !reported)
-    {
-        std::cerr << "Error: Cannot write output file: " << options.outputFile << "\n";
-    }
-
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WriteListingOutput
-//
-//  Emits the assembly listing, to a file when one was named and to stdout
-//  otherwise.
-//
-//  Defaulting to stdout is what makes `casso -l` pipeable, and it cannot fail
-//  to open -- hence failure is only possible in the named-file case.
-//
-//  The page breaking lives in Assembler::FormatListing rather than here, which
-//  is what lets it be tested: the test assembly does not link this executable.
-//  It had to move before -h could do anything -- the page height reached the
-//  assembler options and nothing anywhere read it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static HRESULT WriteListingOutput (const AssemblyResult & result,
-                                   const CommandLineOptions & options)
-{
-    HRESULT         hr      = S_OK;
-    std::ostream *  listOut = &std::cout;
-    std::ofstream   listFile;
-    bool            isOpen  = false;
-
-
-
-    // No listing file named means the listing goes to stdout, which cannot
-    // fail to open.
-    if (!options.listingFile.empty())
-    {
-        listFile.open (options.listingFile);
-        isOpen = listFile.is_open();
-
-        if (!isOpen)
-        {
-            std::cerr << "Error: Cannot write listing file: " << options.listingFile << "\n";
-        }
-
-        CBR (isOpen);
-
-        listOut = &listFile;
-    }
-
-    *listOut << Assembler::FormatListing (result, options.pageHeight, options.cycleCounts);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WriteSymbolTableOutput
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static void WriteSymbolTableOutput (const AssemblyResult & result)
-{
-    std::cout << "\nSymbol Table:\n";
-    std::cout << Assembler::FormatSymbolTable (result.symbols, result.symbolKinds);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WriteDebugInfoOutput
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static HRESULT WriteDebugInfoOutput (const AssemblyResult & result,
-                                     const std::string & debugFile)
-{
-    HRESULT  hr     = S_OK;
-    bool     isOpen = false;
-    std::ofstream  dbgFile (debugFile);
-    isOpen = dbgFile.is_open();
-
-
-
-    if (!isOpen)
-    {
-        std::cerr << "Error: Cannot write debug file: " << debugFile << "\n";
-    }
-
-    CBR (isOpen);
-
-    dbgFile << Assembler::FormatDebugInfo (result.symbols);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LoadAssembledIntoMemory
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static void LoadAssembledIntoMemory (Cpu & cpu, const AssemblyResult & result)
-{
-    Word loadAddr = result.startAddress;
-
-
-
-    for (size_t i = 0; i < result.bytes.size(); i++)
-    {
-        cpu.PokeByte (loadAddr + (Word) i, result.bytes[i]);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LoadBinaryFileIntoMemory
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static HRESULT LoadBinaryFileIntoMemory (Cpu & cpu,
-                                         const std::string & inputFile,
-                                         Word loadAddr,
-                                         Word & entryPoint)
-{
-    HRESULT      hr = S_OK;
-    std::string  contents;
-    size_t       i  = 0;
-
-
-
-    hr = ReadFileContents (inputFile, contents);
-
-    if (FAILED (hr))
-    {
-        std::cerr << "Error: Cannot read input file: " << inputFile << "\n";
-    }
-
-    CHR (hr);
-
-    for (i = 0; i < contents.size(); i++)
-    {
-        cpu.PokeByte (loadAddr + (Word) i, (Byte) contents[i]);
-    }
-
-    entryPoint = loadAddr;
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RunCpu
-//
-//  Executes the loaded image from the entry point until something stops it,
-//  then reports final register state.
-//
-//  Every exit is BOUNDED, which is what makes this safe to run unattended in a
-//  build or a test script: a cycle limit, an explicit stop address, or an
-//  illegal opcode. A 6502 program with no halt instruction would otherwise
-//  loop forever, and the CLI has no user at the keyboard to interrupt it.
-//
-//  An illegal opcode exits with a distinct code rather than merely stopping,
-//  so a script can tell "ran off into data" from "reached the stop address".
-//
-//  The cycle counter counts INSTRUCTIONS, not machine cycles -- it is a
-//  runaway guard, not a timing model, and the CLI has no clock to be faithful
-//  to.
-//
-//  Status lines are accumulated into the caller's vector instead of printed,
-//  so the caller decides whether they belong on stdout, in quiet mode, or
-//  interleaved with other output.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static int RunCpu (Cpu & cpu,
-                   const CommandLineOptions & options,
-                   Word entryPoint,
-                   std::vector<std::string> & status)
-{
-    uint32_t cycles   = 0;
-    int      exitCode = 0;
-
-
-
-    cpu.SetPC (entryPoint);
-    status.push_back (std::format ("Executing from ${:04X}", entryPoint));
-
-
-
-
-    for (;;)
-    {
-        Byte  opcode = 0;
-
-        if (options.maxCycles > 0 && cycles >= options.maxCycles)
-        {
-            status.push_back (std::format ("Stopped: cycle limit reached ({})", options.maxCycles));
-            break;
-        }
-
-        opcode = cpu.PeekByte (cpu.GetPC());
-
-        if (!cpu.GetMicrocode (opcode).isLegal)
-        {
-            std::println (stderr, "Illegal opcode ${:02X} at ${:04X}", opcode, cpu.GetPC());
-            exitCode = 3;
-            break;
-        }
-
-        if (options.hasStopAddress && cpu.GetPC() == options.stopAddress)
-        {
-            status.push_back (std::format ("Stopped at address ${:04X}", options.stopAddress));
-            break;
-        }
-
-        cpu.StepOne();
-        cycles++;
-    }
-
-    status.push_back (std::format ("Execution complete: {} cycle(s)", cycles));
-    status.push_back (std::format ("  A=${:02X} X=${:02X} Y=${:02X} SP=${:02X} PC=${:04X}",
-        cpu.GetA(), cpu.GetX(), cpu.GetY(), cpu.GetSP(), cpu.GetPC()));
-
-    return exitCode;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ParseCommandLine
+//  CommandLine::Parse
 //
 //  Thin adapter over the core parser: supplies the one thing the grammar needs
 //  from the platform -- whether a candidate source file exists -- and lets
@@ -750,9 +36,9 @@ static int RunCpu (Cpu & cpu,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CommandLineOptions ParseCommandLine (int argc, char * argv[])
+CommandLineOptions CommandLine::Parse (int argc, char * argv[])
 {
-    return CommandLineParser::Parse (argc, argv, FileExists);
+    return CommandLineParser::Parse (argc, argv, HostFile::Exists);
 }
 
 
@@ -761,51 +47,18 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BuildBanner
+//  CommandLine::UsageWidth
 //
-//  What the tool is and which build this is.
+//  How wide the reader's terminal is, or 80 when there is no terminal to ask.
 //
-//  Returned rather than printed because it heads the general page, and the
-//  general page has a size promise on it that only holds if the whole page --
-//  banner included -- is one thing a test can measure.
-//
-//  IT HEADS EVERY PAGE, NOT ONLY THE GENERAL ONE. A mode's page is reached
-//  directly -- `CassoCli ?`, `CassoCli run --help` -- so a reader can meet the
-//  whole of the help without ever passing the general page, and the version and
-//  architecture are exactly what a bug report or a "which build is this"
-//  question needs. It is not built here for the disk page, which is assembled in
-//  the library where the build's version is not known; that page gets it from
-//  the executable at print time, which is why this is no longer static.
+//  A redirected stream has no width, and guessing a wide one there would put
+//  long lines into a file someone will read in an editor at 80. The last column
+//  is left unused: writing INTO it makes a console wrap on its own, which
+//  produces a blank line between every row on some terminals.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string BuildBanner()
-{
-    return std::string ("CassoCli - 6502 Assembler and Emulator  v" VERSION_STRING " (")
-         + arch
-         + ")  " VERSION_BUILD_TIMESTAMP "\n"
-           "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  UsageWidth
-//
-//  How wide the reader's terminal is, or 80 when there is no terminal.
-//
-//  TAKEN FROM THE DIALECTS BRANCH UNCHANGED, together with the two functions
-//  below it, so that when that branch lands the three merge as the same text
-//  rather than as a conflict. The folding they do is that branch's idea and is
-//  the better one: a help line authored once and folded at print time cannot
-//  be hand-wrapped to a width the reader does not have.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static size_t UsageWidth()
+size_t CommandLine::UsageWidth()
 {
     constexpr size_t            kNoTerminal = 80;
     constexpr size_t            kNarrowest  = 40;
@@ -834,7 +87,7 @@ static size_t UsageWidth()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrintUsageLine
+//  CommandLine::PrintUsageLine
 //
 //  One logical line of usage, folded to the terminal. Every line of help goes
 //  through here, so none of them is hand-wrapped to a width the reader may not
@@ -842,7 +95,7 @@ static size_t UsageWidth()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintUsageLine (const std::string & line)
+void CommandLine::PrintUsageLine (const std::string & line)
 {
     for (const std::string & row : UsageText::Wrap (line, UsageWidth()))
     {
@@ -856,15 +109,15 @@ static void PrintUsageLine (const std::string & line)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrintUsageBlock
+//  CommandLine::PrintUsageBlock
 //
-//  A block of usage composed elsewhere -- core builds whole pages and the exit
-//  code tables -- folded row by row. Split here rather than in core so the
-//  composing code stays free of the terminal.
+//  A block of usage composed elsewhere -- core builds the dialect flag lines --
+//  folded row by row. Split here rather than in core so the composing code stays
+//  free of the terminal.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintUsageBlock (const std::string & block)
+void CommandLine::PrintUsageBlock (const std::string & block)
 {
     size_t  start = 0;
 
@@ -897,30 +150,18 @@ static void PrintUsageBlock (const std::string & block)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrintUsageExitStatus
+//  CommandLine::PrintSectionHeading
 //
-//  One mode's exit statuses, at the end of that mode's own section.
-//
-//  THEY DIFFER, WHICH IS THE WHOLE REASON THIS IS CALLED THREE TIMES. A single
-//  block near the top used to claim to cover every mode, and it was wrong about
-//  two of them: an assembly error exits 2 when a source file is assembled and 1
-//  when `run` assembles the same file, and status 1 means "the output was
-//  written anyway" under the assembler and "nothing ran" under `run`. A script
-//  that read the shared block and branched on 1 learned the opposite of the
-//  truth in whichever mode its author was not picturing.
-//
-//  Each wording lives in the library beside the code that assigns it -- the
-//  assembler's and `run`'s in CommandLineParser, disk's in DiskCommandRunner --
-//  so a test can read the sentence the user does, and so a status changed in
-//  one place is a status whose description is right there to change with it.
+//  A top-level heading, underlined to its own width. Written once so the four
+//  sections cannot drift into three styles.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintUsageExitStatus (const char * statuses)
+void CommandLine::PrintSectionHeading (const std::string & name)
 {
-    PrintUsageLine  ("");
-    PrintUsageLine  ("  Exit codes:");
-    PrintUsageBlock (statuses);
+    std::println ("");
+    std::println ("{}", name);
+    std::println ("{}", std::string (name.size(), '-'));
 }
 
 
@@ -929,186 +170,139 @@ static void PrintUsageExitStatus (const char * statuses)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrintUsageAssembly
+//  CommandLine::PrintUsageHeader
 //
-//  Everything that applies while a source file is being assembled, in three
-//  tiers: what the assembler is allowed to assemble, where the bytes go, and
-//  what it reports about the run.
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLine::PrintUsageHeader (const char * sp, const char * lp)
+{
+    std::string  subcommands;
+
+
+
+    // Swept from the parser's own table rather than listed here. A subcommand
+    // the tool accepts and the usage line omits is unfindable, and the fallback
+    // that used to make the first word optional is gone -- so this line is now
+    // the only place a reader learns that the first word is obligatory.
+    for (const CommandLineParser::SubcommandName & entry : CommandLineParser::GetAllSubcommands())
+    {
+        subcommands += std::string (subcommands.empty() ? "" : " | ") + entry.name + " <file>";
+    }
+
+    std::println ("CassoCli - 6502 Assembler and Emulator  v" VERSION_STRING " ({})  " VERSION_BUILD_TIMESTAMP, s_arch);
+    std::println ("Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer");
+    std::println ("");
+    PrintUsageLine (std::format ("Usage:  CassoCli {} [options] | {}? | {}version", subcommands, sp, lp));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 //
-//  ALPHABETICAL ORDER WAS THE ORIGINAL ARRANGEMENT and it is the one ordering
-//  guaranteed to separate related things: `-l`, `-p`, `-c` and `-m` all shape
-//  the same listing and landed four places apart, while `-i` and `-l` sat
-//  adjacent with nothing in common. A reader arrives with a goal -- "how do I
-//  get a symbol table", "how do I control the output file" -- and a grouping by
-//  goal answers it in one place.
+//  CommandLine::PrintUsageGeneral
 //
-//  OUTPUT AND LISTING ARE NESTED HERE RATHER THAN STANDING BESIDE IT. They were
-//  top-level sections, and a top-level section is a claim about scope: a reader
-//  meeting "Output options" between the disk commands and the run flags has
-//  every reason to read `-o` as naming a disk extraction or a run's artifact.
-//  Neither is true -- both groups exist only while a source file is being
-//  assembled -- and an indent says so without spending a sentence on it.
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLine::PrintUsageGeneral (const char * lp, const char * sp, const char * pad)
+{
+    // "--help, -?" = 10 chars, "--version" = 9 chars => +1 space for version
+    // "/help, /?"  =  9 chars, "/version"  = 8 chars => +1 space for version
+    // pad compensates: -- (2 chars) vs / (1 char) in long prefix
+    PrintSectionHeading ("General");
+    PrintUsageLine (std::format ("  Assembles AS65 or Merlin source for the 6502 and the 65C02. The subcommand names the dialect; the CPU is chosen with {0}x under AS65 and by the XC directive inside Merlin source.", sp));
+    std::println ("");
+    PrintUsageLine ("  See docs/Assembler.md for additional information.");
+    std::println ("");
+    PrintUsageLine (std::format ("  {0}help, {1}?{2}             Show this help", lp, sp, pad));
+    PrintUsageLine (std::format ("  {0}version{1}              Show version information", lp, pad));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLine::PrintUsageAssembler
+//
+//  Prints the AS65-mode flag reference, using whichever prefix the user
+//  typed.
 //
 //  The prefix is substituted rather than hard-coded because both `/` and `-`
 //  are accepted, and usage text showing the form the reader did NOT type reads
-//  as though their invocation was wrong. The tables are format strings for
-//  exactly that reason: one placeholder per flag, filled at print time, so
-//  neither form can be forgotten when a flag is added.
+//  as though their invocation was wrong. The flag table is a format-string
+//  array for exactly that reason: one placeholder per flag, filled at print
+//  time, so neither form can be forgotten when a flag is added.
 //
-//  THE OUTPUT DEFAULT IS STATED AGAINST THE ABSENCE OF THE FLAGS, beneath the
-//  table, because that is what it is a property of. It is the assembled bytes
-//  now; the padded 64 KB image it used to be is asked for with --flat. It is
-//  stated as what the tool does rather than as what the reader did not ask
-//  for: "naming no shape writes only the assembled bytes" describes a hole in
-//  the table, and a reader looking for the plain-bytes output was being asked
-//  to notice an absence and infer a behavior from it.
-//
-//  EXAMPLES SIT IN THE GROUP THEY DEMONSTRATE, AND EACH SAYS WHAT IT DOES.
-//  One block of them at the end of the page is one a reader has to hold two
-//  option tables in mind to follow, and the disk loop is the only example that
-//  genuinely spans sections. A bare command line is only an example to somebody
-//  who already knows what it produces -- which is not the reader who came to
-//  this page -- so each one names the file it writes and what is in it.
-//
-//  THE as65 COMPATIBILITY PROMISE LEADS THE PAGE. It is the first thing a
-//  reader arriving from as65 needs to know and the last thing they should have
-//  to infer from a per-flag footnote; the one place this grammar accepts MORE
-//  than as65 does -- a separated value, for the flags listed there -- belongs
-//  in the same breath, because it is what makes these command lines typable in
-//  PowerShell. The list is a list, not a sentence naming one flag, so a second
-//  flag earning the same treatment is a list entry rather than a rewrite.
-//
-//  THE ISSUE NUMBER IS PRINTED FOR THE TWO ACCEPTED NO-OPS. `-i` and `-n` are
-//  taken and do nothing, which is a promise a reader cannot check from here;
-//  naming GH #118 is what turns "not implemented" from a dead end into
-//  something they can read the status of.
-//
-//  IT IS A PAGE OF ITS OWN NOW, reached by a lone `?` and by an option this
-//  grammar does not have, so it opens with the invocation it describes and with
-//  what its operand means. The usage line comes from CommandLineHelp rather
-//  than being written here, because the general page lists the same modes and
-//  two descriptions of one invocation are two descriptions that can disagree.
-//
-//  IT DESCRIBES ONE OPERAND, `<source>`. It carried `<binary>` as well, which
-//  is `run`'s operand and nothing this page can be given: an assembler is not
-//  handed an assembled image. It moved to the run page rather than being
-//  repeated on both, because an operand documented in two places is one a
-//  reader has to guess the scope of.
+//  The CPU and source lines sit outside the table because they take a
+//  long-form or positional argument and carry no prefix to substitute.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintUsageAssembly (const char * sp, const char * lp, const char * pad)
+void CommandLine::PrintUsageAssembler (const char * sp)
 {
-    const char * intro[] =
-    {
-        "as65 compatibility:",
-        "  This assembler is an implementation of as65 and keeps 100% compatibility",
-        "  with as65's command-line patterns, so any as65 command line assembles",
-        "  here unchanged.",
-        "",
-        "  Single-letter switches chain into one argument, so {0}tlfile means {0}t",
-        "  {0}lfile. A switch taking a NUMBER can be followed inside the group, so",
-        "  {0}h80t means {0}h80 {0}t. One taking a NAME cannot, because the name would",
-        "  swallow whatever came after it.",
-        "",
-        "  A switch value attaches directly to its switch, with no space before it:",
-        "  {0}dDEBUG rather than {0}d DEBUG, {0}w133 rather than {0}w 133.",
-        "",
-        "  {0}o is the one switch where the space before its value is optional:",
-        "  {0}o prog.bin is taken as readily as {0}oprog.bin.",
-        "",
-    };
+    PrintSectionHeading ("AS65 mode");
+    PrintUsageLine ("  <source>               Assembly source file (tries .a65, .asm, .s if no extension is given)");
+    std::println ("");
+    PrintUsageLine ("  AS65's command line has habits of its own, kept for compatibility:");
+    PrintUsageLine (std::format ("    Single letters concatenate, with the value-taking flag last, so {0}tlfile is {0}t {0}lfile.", sp));
+    PrintUsageLine (std::format ("    A value ATTACHES to its flag, {0}ofile rather than {0}o file, though {0}o and {0}l accept a separated one too.", sp));
+    PrintUsageLine (std::format ("    {0}s2 is one flag, not {0}s followed by a 2.", sp));
 
     const char * lines[] =
     {
-        "  {0}x                     Use the 65C02 extensions. Without it the CMOS",
-        "                         opcodes are rejected, which is the default",
-        "  {0}d[<name>[=<value>]]   Pre-define a symbol: {0}dFAST defines FAST as 1,",
-        "                         {0}dFAST=2 defines it as 2, and a bare {0}d defines",
-        "                         DEBUG as 1. The name attaches, so {0}d FAST is a",
-        "                         bare {0}d followed by FAST, which is then read as",
-        "                         the source file",
-        "  {0}i                     Case-insensitive opcodes. Already the default;",
-        "                         accepted as a no-op",
-        "  {0}n                     Disable optimizations; NYI. Tracked at",
-        "                         https://github.com/relmer/Casso/issues/118",
+        //  ONE LOGICAL LINE PER ROW. The gutter between a flag and its
+        //  description is what tells the wrapper where a continuation belongs,
+        //  so a row is written whole and folded to the reader's terminal rather
+        //  than broken here at a width nobody may have.
         "",
-        "  CassoCli prog.a65 {0}x {0}dFAST=1",
-        "      Assembles prog.a65 with the 65C02 opcodes available and the symbol",
-        "      FAST defined as 1, then writes the assembled bytes to prog.bin beside",
-        "      the source.",
+        "  Assembled code:",
+        "    {0}o <file>            Rename output file (default: <source>.bin)",
+        "    {0}n                   Disable optimizations. Not yet implemented (GitHub issue #118)",
         "",
-        "  Output:",
-        "    {0}o<file>             Where the assembled bytes go. Defaults to",
-        "                         <source>.bin, or <source>.s19 under {0}s and",
-        "                         <source>.hex under {0}s2",
-        "    {1}flat{2}               Write a full 64 KB memory image, padded with the fill",
-        "                         byte, for a ROM burner or a byte-for-byte reference",
-        "                         comparison",
-        "    {1}dos-bin{2}            Write the assembled bytes behind a 4-byte DOS 3.3",
-        "                         header (load address + length), ready to BLOAD",
-        "    {0}s                   Output S-record format (.s19)",
-        "    {0}s2                  Output Intel HEX format (.hex)",
-        "    {0}z                   Fill unused space with $00 (default: $FF)",
+        "  Output formats (mutually exclusive):",
+        "    <default>            Write a full 64 KB image, padded with the fill byte (see {0}z below)",
+        "    {1}raw                Write the assembled bytes, unpadded",
+        "    {1}dos-bin            Write the assembled bytes behind a 4-byte DOS 3.3 header (load address + length), ready to BLOAD",
+        "    {0}s                   Write the assembled bytes as Motorola S-records, each with its address (<source>.s19)",
+        "    {0}s2                  Write the assembled bytes as Intel HEX records, each with its address (<source>.hex)",
         "",
-        "    By default, only the assembled bytes are written to the output file,",
-        "    with no header and no padding, which is what the disk put verb expects.",
-        "    Use {1}flat for a full 64 KB memory image, {1}dos-bin for those bytes",
-        "    behind a DOS 3.3 load-address-and-length header, {0}s for S-record text,",
-        "    or {0}s2 for Intel HEX.",
+        "    {0}z                   Fill unused space in the padded image with $00 (default: $FF)",
         "",
-        "    CassoCli prog.a65 {0}oprog.bin",
-        "        Assembles prog.a65 and writes the assembled bytes, and nothing else,",
-        "        to prog.bin. Naming the file is all {0}o does here: what gets written",
-        "        is already what a program being placed on a disk wants, because the",
-        "        disk records its own load address.",
-        "",
-        "    CassoCli rom.a65 {0}orom.bin {1}flat {0}z",
-        "        Writes rom.bin as a full 64 KB image, with the assembled bytes at",
-        "        the addresses the source gave them and every byte the source did not",
-        "        fill set to $00 instead of $FF. That is what a ROM burner takes, and",
-        "        what a byte-for-byte comparison against a reference image needs.",
-        "",
-        "  Listing and diagnostics:",
-        "    {0}l[<file>]           Generate listing ({0}l alone = stdout, {0}lprog.lst = to",
-        "                         that file)",
+        "  Listing:",
+        "    {0}l[<file>]           Generate listing ({0}l alone goes to stdout)",
         "    {0}p                   Generate pass 1 listing",
         "    {0}c                   Show cycle counts in listing",
         "    {0}m                   Show macro expansions in listing",
-        "    {0}h<lines>            Page height for listing ({0}h0 = one continuous page,",
-        "                         the default)",
-        "    {0}w<width>            Column width (default: 79, {0}w alone = 133)",
-        "    {0}t                   Generate symbol table",
-        "    {0}g                   Generate debug information file, <source>.dbg",
-        "    {0}v                   Verbose mode",
-        "    {0}q                   Quiet mode (suppress progress)",
+        "    {0}w[<width>]          Wrap listing at <width> columns, 60 to 200 (default: 79, {0}w alone = 133)",
+        "    {0}h<lines>            Page height: a header and a form feed every <lines>, {0}h0 for no paging. Not yet implemented (GitHub issue #118)",
         "",
-        "    CassoCli prog.a65 {0}lprog.lst {0}c {0}t",
-        "        Assembles prog.a65 to prog.bin as usual, and writes prog.lst alongside",
-        "        it: each source line with the bytes it generated and the cycles it",
-        "        costs, then the symbol table at the end.",
+        "  Debug:",
+        "    {0}t                   Print the symbol table to stdout, each symbol with its address in hex and decimal",
+        "    {0}g <file>            Write symbol addresses to <file> as NAME=$ADDR, by address and again by name",
+        "",
+        "  General:",
+        "    {0}d <name>[=<value>]  Define symbol (defaults to 1 if <value> is omitted)",
+        "    {0}v                   Verbose: pass timings and an assembly summary, on stderr",
+        "    {0}q                   Quiet mode (suppress progress)",
+        "    {0}i                   Ignore case of opcodes. Always enabled in Casso, accepted for command-line compatibility with AS65",
     };
-
-    PrintUsageBlock (BuildBanner());
-    PrintUsageLine  ("");
-    PrintUsageLine  ("Usage:");
-    PrintUsageLine  (CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::As65));
-    PrintUsageLine  ("");
-    PrintUsageLine  ("  <source>   An assembly source file. Given no extension, .a65, .asm and .s are tried in that order.");
-    PrintUsageLine  ("");
-    for (const char * fmt : intro)
-    {
-        PrintUsageLine (std::vformat (fmt, std::make_format_args (sp, lp, pad)));
-    }
-
-    PrintUsageLine ("Assembly options:");
 
     for (const char * fmt : lines)
     {
-        PrintUsageLine (std::vformat (fmt, std::make_format_args (sp, lp, pad)));
+        // {0} is the short prefix and {1} the long one, so a row naming either
+        // writes it the way this invocation does.
+        std::string  lp = (sp[0] == '/') ? "/" : "--";
+
+        PrintUsageLine (std::vformat (fmt, std::make_format_args (sp, lp)));
     }
 
-    PrintUsageExitStatus (CommandLineParser::kAssembleExitStatusHelpText);
+    std::println ("");
+    PrintUsageLine ("  CPU:");
+    PrintUsageLine ("    <default>            Assemble 6502 instructions");
+    PrintUsageLine (std::format ("    {0}x                   Assemble 65C02 instructions", sp));
 }
 
 
@@ -1117,23 +311,27 @@ static void PrintUsageAssembly (const char * sp, const char * lp, const char * p
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrintUsageRun
-//
-//  A page of its own, reached by asking `run` for help in any form. It
-//  opens with the invocation it describes, taken from CommandLineHelp so the
-//  general page and this one cannot describe `run` differently, and closes with
-//  the statuses `run` itself spends -- which are not the assembler's.
-//
-//  `<binary>` IS DESCRIBED HERE BECAUSE IT IS THIS MODE'S OPERAND. It sat on
-//  the assembler's page, where an assembled image is not something the
-//  assembler can be given. `<source>` stays there: this mode accepts one too,
-//  and the usage line above already says so, but the page that describes what
-//  gets assembled is the page that describes a source file.
+//  CommandLine::PrintUsageRun
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
+void CommandLine::PrintUsageRun (const char * lp, const char * sp, const char * pad)
 {
+    PrintSectionHeading ("Run mode");
+    PrintUsageLine ("  <binary>               A binary file to load and execute");
+    PrintUsageLine ("  <source>               An assembly source file to assemble and run (tries .a65, .asm, .s if no extension is given)");
+    std::println ("");
+
+    // The two dialects get a row each rather than sharing one, because what
+    // differs between them here is which assembler options come along -- and
+    // that belongs beside the name that admits them, not in a paragraph
+    // underneath that the reader has to re-split by dialect.
+    PrintUsageLine (std::format ("  {:<22} Assemble the source as AS65 (the default). Allows AS65 {}x and {}d; see AS65 mode above.",
+                      CommandLineParser::FormatLongOption ("--as65", sp[0]), sp, sp));
+    PrintUsageLine (std::format ("  {:<22} Assemble the source as Merlin. Allows {}d; see Merlin mode above.",
+                      CommandLineParser::FormatLongOption ("--merlin", sp[0]), sp));
+    std::println ("");
+
     const char * lines[] =
     {
         "  {0}load <addr>{1}          Load address (default: $8000)",
@@ -1143,25 +341,12 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
         "  {0}max-cycles <n>{1}       Maximum cycles before stopping",
     };
 
-    PrintUsageBlock (BuildBanner());
-    PrintUsageLine  ("");
-    PrintUsageLine  ("Usage:");
-    PrintUsageLine  (CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::Run));
-    PrintUsageLine  ("");
-    PrintUsageLine  ("  <binary>   An assembled image to load and execute.");
-    PrintUsageLine  ("");
-    PrintUsageLine  ("Run options:");
-
     for (const char * fmt : lines)
     {
         PrintUsageLine (std::vformat (fmt, std::make_format_args (lp, pad)));
     }
 
     PrintUsageLine (std::format ("  {0}v                     Verbose output", sp));
-    PrintUsageLine ("");
-    PrintUsageLine (std::format ("  CassoCli run prog.a65 {0}stop $6010 {0}max-cycles 10000", lp));
-
-    PrintUsageExitStatus (CommandLineParser::kRunExitStatusHelpText);
 }
 
 
@@ -1170,54 +355,141 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrintUsage
-//
-//  The page the request asked for, and only that page.
-//
-//  ONE PAGE FOR THREE GRAMMARS RAN TO FOUR SCREENS. Every flag of the
-//  assembler, of `run` and of `disk`, three blocks of exit statuses, and the
-//  worked loop at the bottom where a reader who had scrolled past the flags
-//  never arrived. A reader gets here already knowing which of the three things
-//  they came to do, so the general page names the three and says how to ask
-//  about one, and the detail waits behind that question.
-//
-//  `disk` HAS NO ARM HERE, and its absence is the design rather than an
-//  oversight. Its page is answered by DiskCommandRunner as the Help verb of the
-//  disk grammar, beside every other disk verb's output -- which is what lets it
-//  be assembled and tested next to the code it describes.
-//
-//  EVERY PAGE IS WRITTEN WITH THE PREFIX THE READER CHOSE. `/?` means the page
-//  reads `/flag` throughout, and `--help` means it reads `-`/`--`.
-//
-//  EXIT STATUSES BELONG TO PAGES, NOT TO THE TOOL, BECAUSE THEY DIFFER. An
-//  assembly error exits 3 under the assembler and 1 under `run`, and status 1
-//  means "the output was written anyway" in one mode and "nothing ran" in the
-//  other. So each mode's page carries its own and the general page carries
-//  none: what the modes share is the shape of the numbers, not their meanings,
-//  and the meanings are the only part a script can act on.
+//  CommandLine::PrintUsage
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintUsage (const CommandLineOptions & options)
+void CommandLine::PrintUsage (char prefix)
 {
-    char          prefix = options.flagPrefix;
-    const char *  sp     = (prefix == '/') ? "/"  : "-";
-    const char *  lp     = (prefix == '/') ? "/"  : "--";
-    const char *  pad    = (prefix == '/') ? " "  : "";
+    const char * sp  = (prefix == '/') ? "/"  : "-";
+    const char * lp  = (prefix == '/') ? "/"  : "--";
+    const char * pad = (prefix == '/') ? " "  : "";
 
 
 
-    if (options.helpPage == CommandLineOptions::HelpPage::Assemble)
+    PrintUsageHeader    (sp, lp);
+    PrintUsageGeneral   (lp, sp, pad);
+    PrintUsageAssembler (sp);
+    PrintUsageMerlin    (sp, prefix);
+    PrintUsageRun       (lp, sp, pad);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLine::PrintUsageMerlin
+//
+//  The merlin section's flag lines are composed in core from the same tables
+//  the parser walks, so they cannot describe a tool that no longer exists. The
+//  heading and the notes are here because they are prose about one dialect
+//  rather than data any dialect supplies.
+//
+//  A dialect added later gets its flags printed by the same call and needs no
+//  edit here; what it would not get is a section of its own, which is a note
+//  for whoever adds one rather than a claim that this scales.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLine::PrintUsageMerlin (const char * sp, char prefix)
+{
+    PrintSectionHeading ("Merlin mode");
+    PrintUsageLine ("  <source>               Merlin assembly source file (tries .a65, .asm, .s if no extension is given)");
+    std::println ("");
+    PrintUsageLine ("  Merlin uses assembler directives in the source file in lieu of switches. Some examples are:");
+    PrintUsageLine ("    XC       Select the 65C02.");
+    PrintUsageLine (std::format ("    DSK      Name the output file. {0}o overrides it.", sp));
+    PrintUsageLine ("    ORG      Set the origin.");
+    PrintUsageBlock (DialectHelp::GetDialectFlags (DialectRegistry::Get (DialectId::Merlin), prefix));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLine::PrintVersion
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLine::PrintVersion()
+{
+    std::cout << "CassoCli v" VERSION_STRING " (" << s_arch << ")  " VERSION_BUILD_TIMESTAMP "\n";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLine::BuildBanner
+//
+//  What the tool is and which build this is.
+//
+//  Returned rather than printed because the disk help is assembled in the core
+//  library, which does not know this build's version, and a page reached
+//  directly by `CassoCli disk --help` should still say which binary answered.
+//  So the executable builds the line and the library places it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CommandLine::BuildBanner()
+{
+    return std::string ("CassoCli - 6502 Assembler and Emulator  v" VERSION_STRING " (")
+         + s_arch
+         + ")  " VERSION_BUILD_TIMESTAMP "\n"
+           "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLine::PrintUnrecognizedArgument
+//
+//  The full usage, and THEN the message. Usage is long, and what a reader sees
+//  is the bottom of the screen, so the line that says what went wrong goes
+//  last. `CassoCli input.a65` used to assemble, and the people it stops are
+//  build scripts -- which nobody reads again until the day they fail -- so the
+//  replacement is written out literally, ready to paste back.
+//
+//  Usage goes to stdout and the message to stderr, which is why stdout is
+//  flushed between them: the order on the screen has to be the order here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLine::PrintUnrecognizedArgument (const std::string & word, char prefix)
+{
+    std::string  expected;
+
+
+
+    PrintUsage (prefix);
+    std::cout.flush();
+
+    std::cerr << "\nCassoCli: '" << word << "' is not a subcommand.\n";
+
+    if (CommandLineParser::IsAssemblySource (word))
     {
-        PrintUsageAssembly (sp, lp, pad);
-    }
-    else if (options.helpPage == CommandLineOptions::HelpPage::Run)
-    {
-        PrintUsageRun (lp, sp, pad);
+        std::cerr << "  It looks like a source file. Assembling now names its dialect:\n"
+                  << "      CassoCli as65 " << word << "\n";
     }
     else
     {
-        PrintUsageBlock (CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
+        // Swept from the table, so a subcommand added to the tool is offered
+        // here without anyone remembering to add it.
+        for (const CommandLineParser::SubcommandName & entry : CommandLineParser::GetAllSubcommands())
+        {
+            expected += std::string (expected.empty() ? "" : ", ") + entry.name;
+        }
+
+        std::cerr << "  Expected one of: " << expected << ".\n";
     }
 }
 
@@ -1227,13 +499,32 @@ void PrintUsage (const CommandLineOptions & options)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrintVersion
+//  CommandLine::PrintUnrecognizedFlag
+//
+//  The subcommand was fine; something after it was not. The full usage, then
+//  the line naming the argument, last for the same reason as above.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintVersion()
+void CommandLine::PrintUnrecognizedFlag (const std::string & flag, CommandLineOptions::Subcommand subcommand, char prefix)
 {
-    std::cout << "CassoCli v" VERSION_STRING " (" << arch << ")  " VERSION_BUILD_TIMESTAMP "\n";
+    std::string  mode = "this";
+
+
+
+    for (const CommandLineParser::SubcommandName & entry : CommandLineParser::GetAllSubcommands())
+    {
+        if (entry.token == subcommand)
+        {
+            mode = entry.name;
+            break;
+        }
+    }
+
+    PrintUsage (prefix);
+    std::cout.flush();
+
+    std::cerr << "\nCassoCli: '" << flag << "' is not an option of the " << mode << " subcommand.\n";
 }
 
 
@@ -1242,344 +533,20 @@ void PrintVersion()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DoRun
+//  CommandLine::PrintCpuFlagRefusal
 //
-//  The `run` subcommand: get an image into memory -- assembling it first if
-//  the input is source -- pick an entry point, and execute.
+//  A CPU flag the active dialect does not take.
 //
-//  Accepting either source or a binary is what makes this usable as a one-step
-//  test harness: `casso run foo.a65` assembles and runs without an
-//  intermediate file, while the same command on a .bin runs a prebuilt image.
-//  The choice is made from the input's extension, not from a flag.
-//
-//  Exit codes are meaningful and distinct, because scripts branch on them:
-//
-//    0  ran to a normal stop
-//    1  the tools ran and said no (assembly errors)
-//    2  could not even start (no input, unreadable file, a refused command line)
-//    3  from RunCpu -- an illegal opcode
-//
-//  A REFUSED COMMAND LINE IS "COULD NOT EVEN START" AND NOTHING RUNS. The run
-//  grammar has no ignorable mistake in it: an option it did not recognize might
-//  have moved the load address or set the stop address, so a program executed
-//  without it was not the program that was asked for. This used to run anyway
-//  and exit 0, which told a build script that a command line it had got wrong
-//  had done what it said.
-//
-//  Entry point resolution has three tiers, most-explicit first: an explicit
-//  --entry, then the RESET vector at $FFFC when asked for, then the assembled
-//  start address (or the load address for a binary). Reading the reset vector
-//  is what lets a ROM image boot the way the hardware would rather than from
-//  wherever its bytes happen to begin.
-//
-//  Status lines are collected throughout and printed only under --verbose, so
-//  the default run stays quiet enough to pipe.
+//  The sentence arrives composed, because naming the in-source directive that
+//  replaces the flag is the dialect's own knowledge and this is the printing
+//  edge. The exit code is the same "no output" every other way of producing
+//  nothing earns: a script asks whether it got a file, and it did not.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DoRun (const CommandLineOptions & options)
+int CommandLine::PrintCpuFlagRefusal (const std::string & refusal)
 {
-    HRESULT                   hr         = S_OK;
-    Cpu                       cpu;
-    Word                      entryPoint = 0x8000;
-    Word                      loadAddr   = 0;
-    std::vector<std::string>  status;
-    int                       exitCode   = 0;
-    bool                      wasLoaded  = false;
-    bool                      refused    = options.parseVerdict == CommandLineOptions::ParseVerdict::Refused;
-    bool                      canStart   = !refused && !options.inputFile.empty();
+    std::cerr << "CassoCli: " << refusal << "\n";
 
-
-
-    // 2 = "cannot even start" (no input, unreadable file, a command line the
-    // parser refused); 1 = "ran the tools and they said no" (assembly errors).
-    exitCode = canStart ? 0 : 2;
-
-    // The parser already said what was wrong with the command line, in the
-    // words of the option it could not take. Repeating it here would report
-    // one mistake twice.
-    if (!refused && options.inputFile.empty())
-    {
-        std::cerr << "Error: No input file specified\n";
-    }
-
-    BAIL_OUT_IF (!canStart, S_OK);
-
-    cpu.Reset();
-
-    if (CommandLineParser::IsAssemblySource (options.inputFile))
-    {
-        AssemblerOptions  asmOptions = {};
-        AssembleResult    ar;
-
-        asmOptions.warningMode = options.warningMode;
-
-        ar = AssembleFile (options.inputFile, SelectInstructionSet (options, cpu), asmOptions);
-        ReportAssemblyDiagnostics (ar);
-
-        wasLoaded = ar.ok;
-
-        //  A SOURCE THAT COULD NOT BE READ DID NOT FAIL TO ASSEMBLE. Every
-        //  failure on this path reported 1, "the input was source, and it did
-        //  not assemble" -- but a file that never opened never reached the
-        //  assembler, so nothing assembled and nothing failed. It belongs with
-        //  the other things that stopped the run from starting, which is the 2
-        //  this mode already documents and the 2 the binary path below has
-        //  always returned for the very same mistake.
-        exitCode = ar.wasRead ? (ar.ok ? 0 : 1) : 2;
-
-        if (wasLoaded)
-        {
-            LoadAssembledIntoMemory (cpu, ar.result);
-            entryPoint = ar.result.startAddress;
-
-            status.push_back (std::format ("Assembling: {}", options.inputFile));
-            status.push_back (std::format ("Assembled {} bytes", ar.result.bytes.size()));
-            status.push_back (std::format ("  Start: ${:04X}", ar.result.startAddress));
-        }
-    }
-    else
-    {
-        loadAddr  = options.hasLoadAddress ? options.loadAddress : (Word) 0x8000;
-        hr        = LoadBinaryFileIntoMemory (cpu, options.inputFile, loadAddr, entryPoint);
-        wasLoaded = SUCCEEDED (hr);
-        exitCode  = wasLoaded ? 0 : 2;
-
-        if (wasLoaded)
-        {
-            status.push_back (std::format ("Loaded binary at ${:04X}", loadAddr));
-        }
-    }
-
-    BAIL_OUT_IF (!wasLoaded, S_OK);
-
-    if (options.hasEntryAddress)
-    {
-        entryPoint = options.entryAddress;
-    }
-    else if (options.useResetVector)
-    {
-        entryPoint = cpu.PeekWord (0xFFFC);
-    }
-
-    exitCode = RunCpu (cpu, options, entryPoint, status);
-
-    if (options.verbose)
-    {
-        for (const auto & msg : status)
-        {
-            std::cerr << msg << "\n";
-        }
-    }
-
-Error:
-    return exitCode;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DoAs65
-//
-//  AS65-compatible assembly: assemble once, then emit every artifact the flags
-//  asked for -- listing, binary, symbol table, debug info, symbol file.
-//
-//  Exit codes follow as65, because build scripts written against it test them:
-//
-//    0  clean
-//    1  assembled, but warned
-//    2  produced no output (no input, an input that could not be read, or a
-//       failed write)
-//    3  the source was read and did not assemble
-//
-//  2 AND 3 USED TO BE THE SAME CODE, and the tool was the poorer for it. as65
-//  separates "unable to open input or output file" from "assembly gave errors"
-//  precisely because a script does something different about each -- fix the
-//  path, or fix the code -- and collapsing them sent every syntax error down
-//  the first branch. As65ExitStatus holds the decision, in the core library,
-//  where the test assembly can reach it.
-//
-//  The warning code is applied LAST, after every write has succeeded, so a
-//  warning never masks a real output failure.
-//
-//  AN UNRECOGNIZED FLAG COUNTS AS A WARNING for that code. It is a complaint
-//  the tool made and then carried on past -- the flag is dropped, the assembly
-//  runs, the output is written -- which is exactly the "assembled, but warned"
-//  case 1 exists for. Reporting 0 meant a build script could not tell a
-//  makefile passing a flag this assembler does not have from one that was
-//  right, and the only place the difference showed was a line of console
-//  output nobody captures.
-//
-//  The assembler's base directory is taken from the input file's own path, so
-//  a `.include` resolves relative to the source that names it rather than to
-//  the shell's working directory -- which is what makes a build work the same
-//  from any directory.
-//
-//  Each artifact is optional but fails identically, so each step reduces to a
-//  "not requested, or written successfully" test with a single shared exit
-//  code. A failed WRITE keeps status 2 alongside a failed read, which is what
-//  as65 says -- its 2 covers "input or output file" -- and the alternative, a
-//  distinct code per artifact, would tell a script which file failed while
-//  breaking every script that already knows 2 means "no output".
-//
-//  The two verbose Pass 1 / Pass 2 lines are cosmetic. Assemble runs both
-//  passes internally, so they bracket the single call rather than marking real
-//  boundaries; the timing figure spans both.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DoAs65 (const CommandLineOptions & options)
-{
-    using Clock = std::chrono::high_resolution_clock;
-
-
-
-    HRESULT                   hr          = S_OK;
-    std::vector<std::string>  status;
-    AssemblerOptions          asmOptions;
-    DefaultFileReader         fileReader;
-    Cpu                       cpu;
-    AssembleResult            ar;
-    Clock::time_point         startTime;
-    Clock::time_point         endTime;
-    size_t                    lastSep     = 0;
-    int                       exitCode    = 0;
-    bool                      refused     = options.parseVerdict == CommandLineOptions::ParseVerdict::Refused;
-    bool                      hasInput    = !options.inputFile.empty() && !refused;
-    bool                      hasWarnings = false;
-    bool                      wasWritten  = false;
-
-
-
-    // kNoOutput is the AS65 "could not open input or output file" code, spent
-    // below on a source that could not be read and on an artifact that could
-    // not be written; the assembly itself has kAssemblyErrors, and kWarned means
-    // it assembled and the assembler had something to say.
-    //
-    // A REFUSED COMMAND LINE ASSEMBLES NOTHING and says nothing further. The
-    // parser already named the argument it could not take, in that argument's
-    // own words; assembling anyway would answer a command line the tool has
-    // just said it did not understand.
-    //
-    // BOTH WAYS OF ARRIVING HERE ARE COMMAND-LINE FAILURES, which is why one
-    // status covers them. A refused argument and a command line that named no
-    // source at all differ in what the user typed and not in what went wrong,
-    // and neither one ever opened a file -- so reporting kNoOutput, "unable to
-    // open input or output file", pointed a script at a path problem it did not
-    // have.
-    if (!hasInput && !refused)
-    {
-        std::cerr << "Error: No input file specified\n";
-    }
-
-    if (!hasInput)
-    {
-        exitCode = As65ExitStatus::kBadCommandLine;
-    }
-
-    BAIL_OUT_IF (!hasInput, S_OK);
-
-    asmOptions            = BuildAssemblerOptions (options);
-    asmOptions.fileReader = &fileReader;
-
-    // Extract base directory from input file
-    lastSep = options.inputFile.find_last_of ("/\\");
-
-    if (lastSep != std::string::npos)
-    {
-        asmOptions.baseDir = options.inputFile.substr (0, lastSep);
-    }
-
-    if (options.verbose)
-    {
-        std::cerr << "Pass 1...\n";
-    }
-
-    cpu.Reset();
-
-    startTime = Clock::now();
-    ar        = AssembleFile (options.inputFile, SelectInstructionSet (options, cpu), asmOptions);
-    endTime   = Clock::now();
-
-    if (options.verbose)
-    {
-        auto elapsed = std::chrono::duration_cast<std::chrono::microseconds> (endTime - startTime);
-        std::cerr << "Pass 2...\n";
-        std::println (stderr, "Assembly time: {} us", elapsed.count());
-    }
-
-    //  ONLY THE ASSEMBLER'S OWN WARNINGS REACH STATUS 1 NOW. A dropped flag
-    //  used to count here too, which is what let a mistyped option and a
-    //  redundant `.org` report the same thing. A flag this grammar does not
-    //  have is refused before any of this runs, so there is no longer a command
-    //  line that assembles and complains at the same time.
-    hasWarnings = !ar.result.warnings.empty();
-    ReportAssemblyDiagnostics (ar);
-
-    exitCode = As65ExitStatus::ForAssembly (ar.wasRead, ar.ok);
-
-    BAIL_OUT_IF (!ar.ok, S_OK);
-
-    if (!options.quiet)
-    {
-        std::cerr << ar.result.listing.size() << " lines assembled\n";
-    }
-
-    // Each output artifact is optional but fails the run the same way, so the
-    // exit code is set once and each step just reports whether it wrote.
-    hr         = options.generateListing ? WriteListingOutput (ar.result, options) : S_OK;
-    wasWritten = SUCCEEDED (hr);
-    exitCode   = wasWritten ? As65ExitStatus::kClean : As65ExitStatus::kNoOutput;
-
-    BAIL_OUT_IF (!wasWritten, S_OK);
-
-    hr         = WriteBinaryOutput (ar.result, options);
-    wasWritten = SUCCEEDED (hr);
-    exitCode   = wasWritten ? As65ExitStatus::kClean : As65ExitStatus::kNoOutput;
-
-    BAIL_OUT_IF (!wasWritten, S_OK);
-
-    if (options.symbolTable)
-    {
-        WriteSymbolTableOutput (ar.result);
-    }
-
-    hr         = (!options.debugInfo || options.debugFile.empty())
-                     ? S_OK
-                     : WriteDebugInfoOutput (ar.result, options.debugFile);
-    wasWritten = SUCCEEDED (hr);
-    exitCode   = wasWritten ? As65ExitStatus::kClean : As65ExitStatus::kNoOutput;
-
-    BAIL_OUT_IF (!wasWritten, S_OK);
-
-    hr         = options.symbolFile.empty()
-                     ? S_OK
-                     : WriteSymbolFile (options.symbolFile, ar.result.symbols);
-    wasWritten = SUCCEEDED (hr);
-    exitCode   = wasWritten ? As65ExitStatus::kClean : As65ExitStatus::kNoOutput;
-
-    if (!wasWritten)
-    {
-        std::cerr << "Error: Cannot write symbol file: " << options.symbolFile << "\n";
-    }
-
-    BAIL_OUT_IF (!wasWritten, S_OK);
-
-    if (options.verbose)
-    {
-        std::cerr << "Assembly successful\n";
-        std::println (stderr, "  Output:  {}", options.outputFile);
-        std::println (stderr, "  Bytes:   {}", ar.result.bytes.size());
-        std::println (stderr, "  Start:   ${:04X}", ar.result.startAddress);
-        std::println (stderr, "  End:     ${:04X}", ar.result.endAddress);
-        std::println (stderr, "  Symbols: {}", ar.result.symbols.size());
-    }
-
-    exitCode = hasWarnings ? As65ExitStatus::kWarned : As65ExitStatus::kClean;
-
-Error:
-    return exitCode;
+    return AssemblerExitCode::ToProcessCode (AssemblyExitCode::NoOutput);
 }

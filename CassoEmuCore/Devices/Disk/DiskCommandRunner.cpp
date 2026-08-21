@@ -458,6 +458,9 @@ std::string DiskCommandRunner::DescribeWozChunks (const std::vector<Byte> & file
     WozLoader::Description  woz;
     std::string             text;
     std::string             media;
+
+
+
     char                    note[160] = {};
 
 
@@ -581,6 +584,9 @@ std::string DiskCommandRunner::DescribeSurface (const OpenedImage & opened)
     bool         trackZeroOk = true;
     bool         bootCode    = false;
     std::string  text;
+
+
+
     char         note[512]   = {};
 
 
@@ -1214,6 +1220,9 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
     HRESULT             hr           = S_OK;
     OpenedImage         opened;
     VolumeListing       listing;
+
+
+
     char                summary[128] = {};
 
 
@@ -1395,6 +1404,9 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     OpenedImage         opened;
     FilePayload         payload;
     FilePath            path;
+
+
+
     char                note[128] = {};
 
 
@@ -1640,6 +1652,9 @@ HRESULT DiskCommandRunner::BuildPutPayload (
     HRESULT                hr        = S_OK;
     Byte                   type      = 0;
     size_t                 badOffset = 0;
+
+
+
     char                   note[160] = {};
     std::string            hostText;
     ApplesoftListingError  listingError;

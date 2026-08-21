@@ -1060,9 +1060,8 @@ bool Dos33Volume::TryAllocateUnits (
     vector<uint32_t>             & outUnits) const
 {
     constexpr int  kAllocatableTracks = NibblizationLayer::kTrackCount - 1;
-
-    int     slot   = 0;
-    size_t  taken  = 0;
+    int            slot               = 0;
+    size_t         taken              = 0;
 
 
 
@@ -1408,11 +1407,11 @@ HRESULT Dos33Volume::Write (
     vector<Byte>         nameBytes;
     vector<Byte>         stored;
     vector<Byte>         staged;
+    //  stagedVolume binds to `staged` by reference, and is read only once that
+    //  buffer has been filled.
     vector<RawEntry>     entries;
     vector<std::string>  damage;
     DeleteOutcome        removal;
-
-    //  Binds to `staged` by reference, and is read only once it is filled.
     Dos33Volume          stagedVolume (staged);
 
 

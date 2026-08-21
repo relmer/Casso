@@ -159,10 +159,28 @@ std::vector<Byte> GuestSession::DecodeThroughTheDrive (const std::vector<Byte> &
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::DecodeThroughTheDrive
+//
+//  The image's sectors as the DRIVE reads them, rather than as the container
+//  stores them, with the report of what decoded.
+//
+//  Going through the nibble layer is the point: a test that read the container
+//  directly would agree with whatever wrote it, and the question here is what a
+//  6502 booting this disk actually gets.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<Byte> GuestSession::DecodeThroughTheDrive (const DiskImage     & image,
                                                        SectorDecodeReport  & outReport)
 {
     std::vector<Byte>  sectors;
+
+
 
     //  The REPORTING overload, and not for the report alone. Its twin fails on
     //  any data loss, and a copy-protected disk loses data by construction --
@@ -191,6 +209,8 @@ void GuestSession::AssertTheDrivePresentsWhatWasMounted (const DiskImage        
     SectorDecodeReport  report;
     std::vector<Byte>   seen = DecodeThroughTheDrive (image, report);
     size_t              at   = 0;
+
+
 
     Assert::AreEqual (mounted.size(), seen.size(), std::format (
         L"{}: the drive presents {} bytes where {} were mounted",
@@ -235,6 +255,8 @@ void GuestSession::AssertTheDriveCanReadTheBootSector (const DiskImage  & image,
     bool                blank   = true;
     size_t              i       = 0;
 
+
+
     Assert::IsTrue (report.IsSectorRecovered (kBootTrack, kBootSector), std::format (
         L"{}: the drive cannot recover track 0's first sector, which is the one the "
         L"controller ROM reads into $0800 and jumps into. Booting this would put a 6502 "
@@ -269,6 +291,8 @@ void GuestSession::AssertTheDriveHoldsWrittenTracks (const DiskImage  & image,
     SectorDecodeReport  report;
     int                 written = 0;
     int                 slot    = 0;
+
+
 
     DecodeThroughTheDrive (image, report);
 

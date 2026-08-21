@@ -149,6 +149,9 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
     //  prefix comes out ragged in the other.
     const size_t       kDescriptionColumn = 25;
     const std::string  lp                 = LongPrefix (flagPrefix);
+
+
+
     const std::string  routes[][2]        =
     {
         { "?",                   "Assembly options, output formats and listings" },

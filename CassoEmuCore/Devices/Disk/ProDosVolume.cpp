@@ -463,6 +463,8 @@ HRESULT ProDosVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) c
     //  Blocks 0-1 are the boot blocks, 2-5 the volume directory, 6 the bitmap.
     constexpr uint32_t  kReservedBlocks = 7;
 
+
+
     HRESULT              hr          = S_OK;
     size_t               bufferBytes = m_sectors.size();
     vector<RawEntry>     entries;
@@ -1393,6 +1395,8 @@ HRESULT ProDosVolume::Write (
     vector<RawEntry>       entries;
     vector<std::string>    damage;
     DeleteOutcome          removal;
+
+
 
     //  Binds to `staged` by reference, and is read only once it is filled.
     ProDosVolume           stagedVolume (staged);

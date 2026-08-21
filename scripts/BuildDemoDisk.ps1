@@ -100,7 +100,9 @@ function Get-AssembledRegion {
     # .bin written) from warnings-only (.bin written, exit 1).
     if (Test-Path $outBin) { Remove-Item $outBin }
 
-    & $cli $SourcePath -o $outBin -q -z | Out-Null
+    # The dialect is named, because assembling no longer guesses: an
+    # unrecognized first argument is refused rather than taken as a source file.
+    & $cli as65 $SourcePath -o $outBin -q -z | Out-Null
 
     if (-not (Test-Path $outBin)) {
         throw "Assembly failed: $SourcePath (no output produced)"

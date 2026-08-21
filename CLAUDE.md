@@ -13,53 +13,32 @@ build loop: assembler binary output, DOS 3.3 / ProDOS file read+write, a
 [`specs/020-disk-file-access/plan.md`](specs/020-disk-file-access/plan.md).
 Next step is `/speckit-tasks`.
 
-Four further specs are drafted but NOT started, each to be picked up in its own
-session:
+Three further specs are drafted but NOT started, each to be picked up in its
+own session:
 
-- `specs/019-assembler-dialects` — the dialect mechanism plus Merlin. Seeded by
-  GH #92. Independent of 020; see the CLI note below.
 - `specs/021-disk-manager` — graphical disk manager, live editing of the mounted
   disk, inspection tools, and CLI parity. Depends on 020.
 - `specs/022-disk-image-formats` — 2MG, nibble, compressed/archived images, extra
   filesystems, larger media. Depends on 020/021; large-media parts gated on
   GH #101 / #93.
-- `specs/023-ca65-dialect` — ca65's absolute subset, split out of 019. Depends on
-  019's dialect mechanism; full compatibility needs a linker (GH #58).
+- `specs/023-ca65-dialect` — ca65's absolute subset, split out of 019. Builds on
+  019's dialect mechanism, which has shipped; full compatibility needs a linker
+  (GH #58).
 
-**Sequencing.** 019 and 020 ran in parallel and **both rewrote the command-line
-surface**, so they no longer merge cleanly. The landing order is decided:
+**Sequencing.** 021 needs 020's filesystem layer and 022 needs 020/021. 023's
+gate was 019's dialect mechanism (023 SC-006 requires that adding ca65 change
+nothing in that mechanism), and that shipped in 1.18.0 — 023 can start any
+time.
 
-1. **019 merges to master first.**
-2. **Then master merges into 020**, and the conflicts get resolved here.
-3. **Then 020 merges back to master** as its own release.
-
-**Expect real work at step 2, concentrated in the usage and command-line code.**
-The two branches step on each other across `CommandLineParser`, `CommandLine`,
-and the help text; `CommandLineHelp` exists only on 020. One collision is known
-by name: 020 withdrew `--cpu` in favor of as65's `-x`, while 019 pins `--cpu` in
-as65 mode with its own tests and refuses it **by name** on the Merlin path to
-point the user at Merlin's `XC` directive. Those tests need retargeting at `-x`
-and that refusal needs rewording, or its guidance degrades to a bare "unknown
-option". 020 also carries a fix 019 will want and a bug 019 already fixed — the
-"0 lines assembled" miscount, corrected on 019 by `11f43ff6`.
-
-The earlier claim that moving the command-line surface into `CassoCore` would let
-both extend it "without a blind merge" was optimistic: it made the code testable,
-which is worth having, but 020 then restructured what it found there.
-
-**The merge is surveyed.** `specs/020-disk-file-access/merge-019-prep.md` maps
-what 019 did to the command line — it dismantled `CommandLine.cpp` into per-mode
-modules, which 020 grew instead — and lists the five real collisions with a
-suggested order of work. Read it before starting step 2.
-
-The others are gated: 021 needs 020's filesystem layer, 022 needs 020/021, and
-**023 needs 019's dialect mechanism** (023 SC-006 requires that adding ca65
-change nothing in that mechanism), so 023 must not start before 019 lands.
-
-**Versions are pre-assigned so `Version.h` is not a merge conflict.**
-`handoff/disk-write-integrity` holds 1.17.0, 019 takes 1.18, and 020 is 1.19.0
-with its release already cut in the changelog — merging 020 to master IS that
-release.
+**019 and 020 both rewrote the command line, and 019 landed first.** Master was
+merged into 020 and the reconciliation was decided in 019's favor on the point
+that matters: **the grammar is table-driven**, a dialect's flags are data that
+the parser walks and the help is generated from, and **assembling names its
+dialect** — `CassoCli as65 <source>`, not a bare source file. 020's command-line
+work rides on top of that: the `disk` subcommand and its grammar, as65's exit
+codes, and the rejoining of a command line PowerShell cut in half. Both branches
+had independently withdrawn `--cpu` in favor of as65's `-x`, so the collision
+predicted here never materialized.
 
 **020 is partially delivered.** Its User Story 1 (assembler binary output) is
 already done and on master: the unpadded span and `--dos-bin` live in
@@ -77,6 +56,7 @@ leaves a track partly written can lose the rest of it on eject today. Separately
 `ProDosSkeleton.h`, so a survey by filename misses them; DOS 3.3 has no reader at
 all. Both are written up in `specs/020-disk-file-access/research.md`.
 
-Recent specs live under `specs/` (015 printer support, 016 Apple //c, and 017
-blank-disk creation are all complete and shipped).
+Recent specs live under `specs/` (015 printer support, 016 Apple //c, 017
+blank-disk creation, and 019 assembler dialects + Merlin are all complete and
+shipped).
 <!-- SPECKIT END -->

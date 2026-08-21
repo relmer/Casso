@@ -46,10 +46,18 @@ int DiskCommand::Run (const CommandLineOptions & options)
 {
     Win32DiskFileIo    fileIo;
     DiskCommandRunner  runner (fileIo);
-    runner.SetBanner (BuildBanner());
-    DiskCommandResult  result   = runner.Run (options);
+    DiskCommandResult  result;
     HRESULT            hr       = S_OK;
-    int                exitCode = result.exitStatus;
+    int                exitCode = 0;
+
+
+
+    //  The banner is the executable's to know: the disk help is assembled in
+    //  the core library, which has no VERSION_STRING of its own.
+    runner.SetBanner (CommandLine::BuildBanner());
+
+    result   = runner.Run (options);
+    exitCode = result.exitStatus;
 
 
 

@@ -461,6 +461,233 @@ Entries before versioning was introduced use dates only.
   clears it the moment it takes a key but may flush the keyboard again while
   processing one — so a character sent on the first clear reading races into
   that window and is dropped.
+## [1.18.0] — Merlin assembler dialect
+
+### Breaking changes
+- **`--cpu` is gone; use `-x` for the 65C02.** `-x` is what AS65 itself
+  documents — *"Use 65SC02 extensions. When this option is not specified the
+  assembler rejects the 65SC02 extensions"* — and `--cpu` was a second flag
+  Casso invented for the same question. There is deliberately nothing to name
+  the narrow target with: omitting `-x` **is** naming it, which is what an AS65
+  user already does, and a Merlin user selects the CPU with `XC` in the source.
+  Replace `--cpu 65c02` with `-x`, and drop `--cpu 6502` entirely.
+
+  `merlin -x` is refused by name, as `merlin --cpu` was, and says to use `XC`.
+- **Assembling now names its dialect: `CassoCli as65 input.a65 -o out.bin`.**
+  The old form, `CassoCli input.a65 -o out.bin`, no longer works. An
+  unrecognized first argument used to be assumed to be an as65 source file;
+  that guess is gone, because a dialect the tool inferred is a dialect nobody
+  stated, and this release adds a second one.
+
+  Update build scripts by inserting the word `as65` after the executable —
+  nothing else about the invocation changes, and the output bytes are identical
+  (verified byte-for-byte against the previous binary). A bare `CassoCli as65`
+  also stops resolving `as65` as a source filename.
+
+  The tool does not print usage when it hits the old form. It names the
+  replacement literally, ready to paste back, because the population this
+  breaks is build scripts and nobody re-reads one until the day it fails.
+
+### Added
+- **`CassoCli merlin <source>` assembles Merlin source.** The dialect is named
+  by a subcommand, the way `as65` is. Its flags are `-o <file>` (which beats any
+  name the source gives itself), `-l[<file>]` for a listing, `-v`, and
+  `-d <symbol>[=<value>]`. The object written is the assembled stream: Merlin's
+  origin relocates rather than seeks, so one contiguous object may carry sections
+  destined for several addresses, and the padded 64 KB image `as65` writes by
+  default would scatter it.
+
+  `-d` answers the questions a source asks. Merlin stops and prompts the operator
+  for a keyboard-input symbol; a batch assembly has nobody to ask, so the answer
+  is typed with the invocation, once per question, and a bare `-d SYMBOL` answers
+  1. It is the same flag, written the way `as65` writes it. Three of the five
+  vendor sources Casso is verified against ask questions, and one of them —
+  `CLOCK.S` — produces either of the two objects Merlin shipped depending on the
+  answer, from one file and two command lines.
+
+  **`--dos-bin` and `--flat` choose what wraps the bytes.** The default is
+  unchanged — the assembled stream and nothing around it. `--dos-bin` writes it
+  behind a 4-byte DOS 3.3 header carrying the origin and length, which is the
+  form the file takes on an Apple II disk; `--flat` writes a full 64 KB image
+  with the bytes at their origin. `--dos-bin` is worth reaching for because the
+  header carries the ORIGIN: the default output throws it away, and a Merlin
+  source usually takes its origin from an `ORG` line rather than from the
+  command line, so wrapping the bytes afterward means already knowing an address
+  only the assembler saw.
+
+  There is no CPU switch, and passing `-x` is refused rather than ignored:
+  Merlin selects its CPU in the source, and the refusal names the directive that
+  does it. Exit codes are the ones every assembler subcommand already speaks —
+  0 clean, 1 assembled with complaints, 2 no output — and a construct outside
+  the supported Merlin subset earns the same 2 as a syntax error, distinguished
+  by its message rather than by a number.
+
+  `CassoCli --help` now lists the dialects, each one's flags, where each takes
+  its CPU target from, and where Merlin support ends.
+- **A dialect is a mechanism, not a second assembler.** Merlin arrives as a
+  directive table and a line model behind one profile seam; the two-pass engine,
+  the expression evaluator and the opcode tables are the same ones `as65` has
+  always used. A source is assembled strictly under the dialect its invocation
+  names — there is no lenient superset that quietly accepts a mixture, so a
+  Merlin construct in an `as65` file is still rejected, and now says which
+  dialect defines it instead of reporting an unknown instruction.
+
+- **AS65's `-x` is accepted, and is now the only CPU flag.** It is how AS65
+  asks for the extended CPU, and Casso rejected it as an unknown flag — then
+  carried on with the *narrow* instruction table and reported every instruction
+  the flag had asked to enable as invalid.
+- **`run` takes the assembler flags that change what is assembled: `-x` and `-d`.** Without it there was a source
+  Casso could assemble and could not run — `run` refused the flag as unknown
+  and then reported every 65C02 instruction in the file as invalid. It remains
+  the only assembler option `run` accepts; the rest have no meaning when no
+  file is written.
+- **`run` names its assembler: `--as65` or `--merlin`.** `run` given a source
+  assembled it as as65 and nothing else, so a Merlin source could be assembled
+  or run, but not both in one step. The default is unchanged, and the flag is
+  ignored for a binary, which needs no assembler.
+- **`-w` wraps the listing instead of being ignored.** It was parsed, stored,
+  and read by no code, so a listing ran as wide as its widest source line
+  however narrow a width was asked for. `-w <n>` wraps at that column, `-w`
+  alone means 133, and `0` disables wrapping; the default is 79, as65's own. Continuations
+  indent to the source column, so wrapped text lines up under the text rather
+  than under the address and object bytes, which a listing's reader scans
+  positionally.
+- **The symbol table shows decimal beside hex.** AS65 lists "the name,
+  hexadecimal and decimal value of each label"; Casso showed hex alone, which
+  is the wrong half for a symbol standing for a count rather than an address.
+- **`-g` writes its symbols in both useful orders.** The debug file lists them
+  by address as before, then again by name, case-insensitively. Reading one is
+  two different questions — what sits at an address, and where a name went —
+  and each order answers one of them.
+- **`--help` fills the terminal it is printed to.** Every line of usage is now
+  written once, whole, and folded at print time to the console's width, so a
+  wide terminal gets a wide reference instead of a column of text down its left
+  third and a narrow one stops truncating. A wrapped flag description continues
+  under the description rather than at the left margin, which is what keeps the
+  two-column table reading as a table. Redirected output is folded at 80, since
+  a file has no width to ask about and will be read in an editor.
+
+### Changed
+- **An argument the tool does not know is refused, with the help that applies.**
+  A flag no subcommand's grammar recognized used to earn a one-line warning and
+  then be ignored -- the assembly ran, the exit code was 0, and the output file
+  was written as though the flag had been honored, so a typo in a build script
+  was silent in every way that mattered. Now the invocation is refused (exit 2):
+  the full usage is printed, and the line naming the argument comes LAST, so it
+  is what is left on screen. A first word that names no subcommand gets the
+  same treatment, with the line naming what to type instead at the end.
+- **A run that named no CPU now reports the target that stood.** Under `-v`
+  it goes to stderr, and into the listing header when a listing is produced —
+  never to stdout, which carries the listing itself when no listing file is
+  named. This affects `as65` as well as `merlin`: a build that passes `-v` or
+  `-l` gains one line reading `cpu: 6502 (dialect default)`. The point is that
+  "nothing selected a CPU, so the default stands" and "the flag I passed was
+  quietly dropped" used to look identical, and a dialect that selects its CPU in
+  source makes the difference matter.
+- **Three assembler diagnostics now quote the directive the source wrote.** The
+  origin and reserve-space messages named `.org` and `.ds` as literal text,
+  which is a form no dialect's table holds and simply wrong at a line that
+  wrote something else. They now quote the active dialect's canonical name,
+  so `as65` reads `.ORG` and `.DS` — the same directives, upper-cased. Nothing
+  else about the messages changed, and no output byte moves.
+- **A mistyped directive no longer silently drops the bytes it should have
+  produced.** A dotted word the dialect does not define was discarded without a
+  diagnostic: the line vanished from the listing, every address below it moved
+  up by however many bytes the directive would have emitted, and the run exited
+  zero. `.org $0300` / `.fill 8, $EA` / `rts` wrote a one-byte object and called
+  it a success. The word is now reported by name, with its line and file, so
+  a typo costs a message instead of an object nobody can explain — and where the
+  word belongs to another dialect, the message says which. This applies to every
+  dialect, since it is the shared engine that reports it. A source that has been
+  quietly losing a line will now fail to assemble; the line was never being
+  assembled, so the bytes have not changed, only the silence.
+- **The usage line no longer advertises the removed bare-source form.** It read
+  `CassoCli <source> [flags]`, which stopped working when the dialect became
+  something the invocation names; it is now built from the subcommand table, as
+  is the list of alternatives offered when the first word names nothing.
+
+### Fixed
+- **Naming two output formats is refused instead of resolved.** `-s --raw`
+  silently wrote raw, and `--raw -s` silently wrote an S-record, because all
+  four format flags set one field and the last assignment stood. Each flag
+  is valid on its own, so nothing about the result looked wrong. The refusal
+  names both flags. Repeating one flag is still fine — it asks for one thing,
+  twice.
+- **Merlin now takes its mnemonics in any case.** `lda` was refused as an
+  invalid mnemonic while `org` on the line above was accepted, so the case rule
+  disagreed with itself inside one dialect — and the diagnostic never mentioned
+  case, leaving `Invalid mnemonic: lda` to be puzzled out. Instructions,
+  directives and the alternate branch names are now all case-insensitive, and
+  the bytes are identical either way. Symbols are untouched and stay
+  case-sensitive: a label written `lda` remains legal and is warned about
+  rather than refused, which is what period sources rely on.
+- **A long option written with a slash now works instead of silently doing
+  something else.** `CassoCli as65 src.a65 /raw` used to fall through to the
+  single-letter parser as `-raw`: it warned about an unknown `-r` and `-a`,
+  swallowed the `w`, and wrote the padded 64 KB image the flag exists to
+  suppress. `merlin src.s /dos-bin` was worse — `-d` takes a value, so `os-bin`
+  became a predefined symbol, no warning appeared at all, and the output simply
+  had no header. Both exited 0. Every long option now accepts either prefix,
+  and the two forms mean the same thing.
+- **Messages write flags with the prefix the invocation used.** A `/`-style
+  command line was answered in places with `--raw`, `--dos-bin` and `-d`,
+  mixing both conventions inside a single help block — and, before the fix
+  above, advising a form the parser would then have refused. Help, the
+  unknown-flag warning, the CPU-flag refusal and the assembler's own
+  "define it on the command line, for example `-d NAME=0`" now all follow the
+  prefix the user typed. A command line mixing the two is answered in whichever
+  it opened with, so the reply never depends on which flag happened to come
+  last.
+- **A dialect no longer borrows the other dialect's vocabulary.** A word the
+  active dialect declined was offered to a second, fixed directive table, so 55
+  words Merlin does not have still resolved — and eight of them steered
+  conditional assembly. A Merlin source writing `IFDEF` or `.ENDIF` had its
+  blocks honored by a directive Merlin has never had, so lines were included or
+  skipped by a construct the real assembler would have rejected. The same table
+  ran the other way too: the closers an early macro exit owes the conditionals
+  it abandons were counted from the wrong vocabulary and written in the wrong
+  word, and `NOP 3` — as65's way of asking for three of them — silently emitted
+  three bytes in a dialect with no such form.
+
+  Every one of those words is now refused by name in the dialect that does
+  not define it. Nothing changes for `as65`, whose own words were never in
+  question; what changes is that Merlin source is read only as Merlin.
+- **A macro definition with no terminator of its own now falls into the next.**
+  Merlin lets a family of macros that end the same way be written once — the
+  longest first, each shorter one opening where its own body starts, and a
+  single terminator at the bottom closing them all. The assembler collected one
+  definition at a time, so the second opening line was swallowed as body text,
+  the definition it should have started was never made, and the source was
+  reported as one definition that never ends. The distribution disk's own macro
+  library is written that way and could not be assembled at all.
+
+  Every dialect gets the behavior, not just Merlin: the collector had no way to
+  represent overlapping definitions in any dialect, so as65's `macro` / `endm`
+  gains it too. An unterminated definition is now reported once per open level,
+  each at the line it opened on.
+- **An assembler directive whose operand names a file now keeps the spaces in
+  it.** ` USE MACRO LIBRARY` names one file on the Merlin distribution disk; the
+  operand was read to the first space, so the assembler asked for `MACRO` and
+  reported the real file missing. A comment after the name still ends it. The
+  same line was also being read as *defining a macro called `PUT`*, because the
+  keyword that opens a definition from the operand field was a fixed word in the
+  shared engine rather than the active dialect's own; it is the dialect's
+  now, and Merlin — which opens definitions with `MAC` in the opcode field — has
+  no operand form at all.
+- **A symbol assigned twice now holds, at each reference, the value assigned
+  most recently above it.** `name = expr` defines a *reassignable* symbol, and
+  pass 2 resolved every reference against one symbol table built after pass 1
+  had finished — so they all took the last value the file ever assigned, while
+  pass 1 had already sized the lines between the assignments against the values
+  in force at each. A file that assigns a symbol twice and refers to it between
+  the assignments assembled cleanly and emitted the wrong bytes; it now emits
+  the right ones. A file that assigns each symbol once is unaffected.
+- **A diagnostic raised inside an included file now names that file.** Errors
+  and warnings were all attributed to the top-level input, because by the time
+  one is printed that is the only filename in hand — so an include's own line
+  number arrived paired with the wrong file, sending the reader to whatever
+  happened to sit at that line of the outer source. The originating file is now
+  captured where the diagnostic is created and travels with it.
 
 ## [1.17.0] — salvage a damaged disk
 

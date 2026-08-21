@@ -1,1 +1,276 @@
-	†ªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªª                              ªª            ÃÌÏÃË             ªª                              ªª   Çìåî Å® Âòåäïî   ¹¯±µ¯¸´   ªª                              ªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ª Áî éîôåòòõðô äòéöåî ãìïãë æïò õóå ÷éôè Íåòìéî­ðòïª ¨²®°° áô ìåáóô© ïò ÂÁÓÉÃ®  Òåñõéòåó á ¯¯ã óéîãå éôª õóåó ÖÂÌÉÎÔ®ªª Êõóô ÂÒÕÎ ÃÌÏÃË æòïí Íåòìéî ïò ÂÁÓÉÃ®  Ôèéó åîôåòó áª ôéíå åäéô òïõôéîå®  ×èåî ôéíå èáó âååî åîôåòåä èéôª ÒÅÔÕÒÎ®  Ôéíå óôáòôó áô ôèéó ðïéîô®ªª ÃÁÕÔÉÏÎº  Ôèéó éó îïô ãïíðáôéâìå ÷éôè ôèéîçó ìéëå ØÒÅÆª ÷èéãè õóå ðáçå ³®  Èéô ÒÅÓÅÔ âåæïòå õóéîç óõãèª õôéìéôéåó¡  ¨Òåáóóåíâìù ôï áî áääòåóó éî èéçè íåíïòù¬ª âåæïòå ¤¹¸¸µ¬ ÷ïõìä âå ãïíðáôéâìå âõô ùïõ ÷ïõìä èáöåª ôï âå öåòù ãáòåæõì ôï áöïéä ïöåò÷òéôå ÷èéìå éîôåòòõðôóª áòå ãïíéîç®©ªª Äéóë áããåóóåó áîä ïôèåò ôèéîçó ÷èéãè äéóáâìåª éîôåòòõðôó ÷éìì ãáõóå ôèå ãìïãë ôï òõî óìï÷®  Ùïõ ãáîª ãïíðåîóáôå æïò ôèéó âù ðòåóóéîç ôèå íïõóå âõôôïî ÷èéãèª ãáõóåó ôèå ôéíå ôï êõíð ôï ôèå îåøô íéîõôå®  Æáóôª éîãòåáóåó ïæ ôéíå íáù âå áãèåéöåä âù èïìäéîç äï÷îª ôèå íïõóå âõôôïî áîä ôèå ãìïóåä áððìå ëåù®ªª                ­­­­­­¾ ×ÁÒÎÉÎÇ ¼­­­­­­ªª Äï îïô õóå ôèéó ÷éôè ðòïçòáíó ôèáô ùïõ áòå îïô ÓÕÒÅª áòå ãïíðáôéâìå®  Éô ãïõìä òåóõìô éî ìïóó ïæ äéóë®ª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ÓÁÖÏÂÊ ËÂÄ ¢Óáöå ïâêåãô ãïäå¿ ¨±½ùåó¬ °½îï©¢ÖÅÒÓÉÏÎ ËÂÄ ¢×áîô ±² ïò ²´ èïõò öåòóéïî ¨±²¯²´©¿¢ÈÏÕÒÓ ½ ÖÅÒÓÉÏÎ­²µ¯­±ª±²«±² ÅÒÒ ÈÏÕÒÓ­ÖÅÒÓÉÏÎ ÔÒÄÏÓ×ÒÍ ½ ¤³Ä°ÉÒÑÖÅÃ ½ ¤³ÆÅÌÉÎÅ± ½ ¤´°°ÏÎÓÃÒÅÅÎ ½ ÌÉÎÅ±«³²ËÅÙ ½ ¤Ã°°°ÓÔÒÏÂÅ ½ ¤Ã°±°ÐÁÇÅ± ½ ¤Ã°µ´ÐÁÇÅ² ½ ¤Ã°µµÃÌÓÁÐÐÌÅ ½ ¤Ã°¶² »Ãìïóåä áððìå ëåùÍÏÕÓÅÂÕÔ ½ ¤Ã°¶³ÃÏÎÔÒÏÌ ½ ¤Ã°¸°ÒÏÍÒÅÁÄ ½ ¥±°ÅÎÁÂÌÅ ½ ¥±±ÍÏÕÓÅ ½ ¤Ã´°°ÓÅÔÍÏÕÓÅ ½ ÍÏÕÓÅ«¤³Ä »Áääòåóó áäêõóôåäÉÄÂÙÔÅ ½ ¤ÆÂÂ³ÉÄÂÙÔÅ² ½ ¤ÆÂÃ°ÂÅÌÌ² ½ ¤ÆÂÄÄÈÏÍÅ ½ ¤ÆÃµ¸ ÁÓÔ µ° ÏÒÇ ¤²´°ÓÔÁÒÔ ÌÄÁ ÉÄÂÙÔÅ »Éó éô á ¯¯ã¿ ÃÍÐ £¶ ÂÎÅ ºÁÂÏÒÔ »Éçîïòå éæ îïô ÌÄÁ ÉÄÂÙÔÅ² ÂÅÑ ºÏËºÁÂÏÒÔ ÒÔÓ »Óïòòù¬ îïô óùíðáôéãïºÏË ÊÓÒ ÈÏÍÅ ÂÉÔ ÃÏÎÔÒÏÌ¡ÅÎÁÂÌÅ ÂÉÔ ÃÏÎÔÒÏÌ¡ÅÎÁÂÌÅ ÌÄÙ £ÐÁÔÃÈÅÎÄ­ÐÁÔÃÈ­±ÝÌÏÏÐ ÌÄÁ ÐÁÔÃÈ¬Ù »Æéø íïîéôïò âåìì òïõôéîå ÓÔÁ ÂÅÌÌ²¬Ù » óï éô ÷éìì óïõîä ïë ÷éôè ÄÅÙ » éîôåòòõðôó®  Ôèéó ÷éìì îïô ÂÐÌ ÝÌÏÏÐ » äï áîùôèéîç éî ÂÁÓÉÃ õîìåóó ÂÉÔ ÃÏÎÔÒÏÌ¡ÒÏÍÒÅÁÄ » ùïõ ãïðù ÂÁÓÉÃ ôï ôèå ÌÃ ÌÄÙ £ÉÒÑÅÎÄ­ÉÒÑÈÁÎÄ­±ÝÌÏÏÐ ÌÄÁ ÈÅÒÅÉÒÑ¬Ù ÓÔÁ ÉÒÑÈÁÎÄ¬Ù ÄÅÙ ÂÐÌ ÝÌÏÏÐ ÓÅÉ »Äéóáâìå éîôåòõðôó ÷èéìå ÌÄÁ £ÉÒÑÈÁÎÄ » ãèáîçéîç öåãôïò¡ ÓÔÁ ÉÒÑÖÅÃ ÌÄÁ £¾ÉÒÑÈÁÎÄ ÓÔÁ ÉÒÑÖÅÃ«±ª­­­­­­­­­­­­­­­­­­­­­­­­­­ª       Ôéíå åäéôïòºª­­­­­­­­­­­­­­­­­­­­­­­­­­ ÌÄØ £ÈÏÕÒÓ¯²´¡± ÊÓÒ ÓÈÏ×ÔÉÍÅ »Ðõô ãìïãë ïî óãòååîÌÏÏÐ ÌÄÁ ÏÎÓÃÒÅÅÎ¬Ø ÐÈÁ »Óáöå óãòååî ãèáò ÁÎÄ £¤³Æ »Íáëå ãõòóïò ÓÔÁ ÏÎÓÃÒÅÅÎ¬ØºÇË ÌÄÙ ËÅÙ »×áéô æïò ëåù ÂÐÌ ºÇË ÂÉÔ ÓÔÒÏÂÅ ÐÌÁºÒÃÈÒ ÓÔÁ ÏÎÓÃÒÅÅÎ¬Ø »Òåðìáãå óãòååî ãèáò ÃÐÙ £¤¸Ä ÂÅÑ ºÄÏÎÅ »Åøéô ïî ÃÒ ÃÐÙ £¤¸¸ »Âáãëóðáãå ÂÅÑ ºÂÓ ÃÐÙ £¢Õ¢¦¤¹Æ »­¾ ÂÎÅ ºÉÓÄÉÇ ÌÄÁ ºÔÁÂÌÅ¬Ø ÔÁØºÂÓ ÌÄÁ ºÔÁÂÌÅ«µ¬Ø ÔÁØºÉÓÄÉÇ ÃÐÙ £¢°¢ »Éó éô á äéçéô ÂÌÔ ÌÏÏÐ ÃÐÙ £¢¹¢«± ÂÇÅ ÌÏÏÐ »×å äïî§ô ãèåãë æïò ïöåò ÔÙÁ » ¶° ïî íéîõôåó¬ åôã®» ÓÔÁ ÔÉÍÅ¬Ø » ÷å áóóõíå õóåò éîôåììéçåîãå¡ ÌÄÙ £¢Õ¢¦¤¹Æ ÂÌÔ ºÒÃÈÒ »Áì÷áùó ôáëåîºÔÁÂÌÅ ÄÆÂ ³¬´¬°¬¶¬·¬·¬°¬±¬±¬³¬´¬´¬¶ºÄÏÎÅ ÌÄÁ ÍÏÕÓÅ«¤±² »Çåô ïææóåô æïò ôèå ÓÔÁ ÊÓÅÔ«± » ÓÅÔÍÏÕÓÅ òïõôéîå ÌÄÁ £¸ÊÓÅÔ ÊÓÒ ÓÅÔÍÏÕÓÅ »Ôèéó äïåó á ÃÌÉ ÊÍÐ ÄÏÓ×ÒÍ »Íõóô äï ôï æéø âõç éî» ÂÒË èáîäìåòª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ª Æéø æïò íïîéôïò âåìì òïõôéîå óï ôèáôª âåììó óïõîä ïë ÷éôè éîôåòòõðôóºª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ÐÁÔÃÈ ÐÈÐ ÓÅÉ ÎÏÐ ÎÏÐ ÌÄÙ £¤Ã°ÝÌÏÏÐ ÌÄÁ £¤Ã ÊÓÒ ¤ÆÃÁ¸ ÌÄÁ ¤Ã°³° ÄÅÙ ÂÎÅ ÝÌÏÏÐ ÐÌÐ ÒÔÓÐÁÔÃÈÅÎÄª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ª Ðáôãè æïò ÄÏÓ ôï íáëå óõòå éîôåòòõðô èáîäìåò èáóª îïô âååî ïöåò÷òéôôåî®  ¨Éæ éô éó éô æïòãåó á òåóåô®©ª Éæ ùïõ õóå ïôèåò ÄÏÓ ðáôãèåó ïò á îïî­óôáîäáòä ÄÏÓª ôèåî ùïõ ÍÕÓÔ íáëå óõòå ôèéó áòåá éó áöáéìáâìå ïòª ãèáîçå éô ôï óïíå ïôèåò ðìáãå¡  Äï îïô õóå ÐÒ£¶ª ôï òåâïïô®  ¨Ãîôò­ïðåî áððìå­òåóåô éó ïë®©ª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ÈÅÒÅÉÒÑ ÏÒÇ ¤ÂÆÃ¸ÉÒÑÈÁÎÄ ÐÈÁ »Óáöéîç òåçéóôåòó éó îïô ÔÙÁ » òåáììù îååäåä ïî ôèå ¯¯ã ÐÈÁ ÌÄÙ £ÃÈËÅÎÄ­ÃÈËÃÏÄÅ­±ÝÌÏÏÐ ÌÄÁ ÃÈËÃÏÄÅ¬Ù »Ãïíðáòå ãïðù ïæ ãïäå ÃÍÐ ÃÌÏÃË¬Ù » ÷éôè óôáòô ïæ ãìïãë ãïäå ÂÎÅ ª »Æïòãå ÒÅÓÅÔ éæ îïô óáíå ÄÅÙ ÂÐÌ ÝÌÏÏÐ ÊÍÐ ÃÌÏÃË »Èáîäìå ôèå éîôåòòõðô ÅÒÒ Ü¤ÂÆÄÃÉÒÑÅÎÄ ÏÒÇ ÅÒÒ Ü¤³°° ÄÓ ¤³°°­ªª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ª          Íáéî ãìïãë òïõôéîå¬ áô ¤³°°ºªª Éæ ùïõ ÷áîô ôï õóå ôèå ïðåî áððìå ëåù éî ðìáãåª ïæ ôèå íïõóå âõôôïî¬ ãèáîçå ôèå ìéîå  ÂÍÉ ºÎÏÂÕÔª ôï  ÂÐÌ  ºÎÏÂÕÔ  áîä ãèáîçå ÍÏÕÓÅÂÕÔ ôï âå ¤Ã°¶±®ª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ÃÌÏÃË ÃÌÄ »Áìì éîôåòòõðôó áòå áóóõíåä ÃÌÃ » ôï âå ïõòó® ÂÉÔ ÍÏÕÓÅÂÕÔ »Íïõóå âõôôïî ðõóèåä¿ ÂÍÉ ºÎÏÂÕÔ »Âòáîãè éæ îïô ÂÉÔ ÃÌÓÁÐÐÌÅ »Ãìïóåä áððìå ëåù áìóï äï÷î¿ ÂÍÉ ºÄÏÉÎÃ »Âòáîãè éæ óï ÂÉÔ ÂÕÔÆÌÁÇ »×áéôéîç æïò òåìåáóå¿ ÂÍÉ ºÎÏÁÃÔ »Âòáîãè éæ óïºÄÏÉÎÃ ÊÓÒ ÉÎÃÍÉÎ »Âõíð íéîõôåó éæ îïô ÓÅÃºÎÏÂÕÔ ÒÏÒ ÂÕÔÆÌÁÇ »Óåô òåìåáóå æìáçºÎÏÁÃÔ ÊÓÒ ÓÈÏ×ÔÉÍÅ »Õðäáôå ¶° ôéíåó¯óåãïîä ÌÄÁ ÔÉÍÅ ÃÍÐ £¢°¢ ÂÎÅ ºÏË ÌÄÁ £¢ ¢ »Âìáîë ìåáäéîç ¢°¢ ÓÔÁ ÏÎÓÃÒÅÅÎºÏË ÊÓÒ ÉÎÃÔÉÍÅ ÐÌÁ ÔÁÙ ÐÌÁ ÒÔÉÉÎÃÍÉÎ ÌÄÙ £³ »Æïòãå ãáòòù ôï íéîõôåó ÌÄÁ £¢¹¢ÝÌÏÏÐ ÓÔÁ ÔÉÍÅ«¶¬Ù ÄÅÙ ÂÐÌ ÝÌÏÏÐÉÎÃÔÉÍÅ ÌÄÙ £¹ÝÌÏÏÐ ÌÄÁ ÔÉÍÅ¬Ù ÃÌÃ ÁÄÃ £± ÃÍÐ ÍÁØ¬Ù ÂÌÔ ºÏÕÔ ÌÄÁ ÆÉÒÓÔ¬ÙºÏÕÔ ÓÔÁ ÔÉÍÅ¬Ù ÄÅÙ ÂÇÅ ÝÌÏÏÐ ÃÐÙ £µ »Áää ±¯¶° ôè óåã åöåòù ÂÅÑ ÉÎÃÔÉÍÅ » ±° óåãïîäó ¨áððòïø© ÌÄÁ ÔÉÍÅ«± ÃÍÐ £ÈÏÕÒÓ¯²´«³®¢°¢ ÌÄÁ ÔÉÍÅ ÓÂÃ £ÈÏÕÒÓ¯±²®¢°¢ ÂÌÔ ºÒÅÔ »Âòáîãè éæ îïô ÌÄÁ £¢°¢ »Æéø èïõòó ÷èéãè ÓÔÁ ÔÉÍÅ » èáöåî§ô ðòïðåòìù ÌÄÁ £ÈÏÕÒÓ¯²´¡±«¢°¢ ÓÔÁ ÔÉÍÅ«± » ãáòòéåä®ºÒÅÔ ÒÔÓÓÈÏ×ÔÉÍÅ ÌÄÙ £· ÓÔÁ ËÅÙ«± »Áììï÷ ðáçå ² ó÷éôãè ôï ÓÔÁ ÐÁÇÅ² » õóå áõø íåíïòù ÌÄÁ £¢ ¢ÝÌÏÏÐ ÓÔÁ ÏÎÓÃÒÅÅÎ¬Ù ÄÅÙ ÂÐÌ ÝÌÏÏÐ ÓÔÁ ÐÁÇÅ± ÌÄÙ £¸ÝÌÏÏÐ ÌÄÁ ÔÉÍÅ­±¬Ù ÓÔÁ ÏÎÓÃÒÅÅÎ­±¬Ù ÄÅÙ ÂÐÌ ÝÌÏÏÐ ÒÔÓ ÁÓÃ ¢ ¢ÔÉÍÅ ÁÓÃ ¢°°º°°º°°°°¢ÍÁØ ÁÓÃ ¢ººº¶ºº¶º¶º¢ÆÉÒÓÔ ÁÓÃ ¢°°º°°º°°°°¢ÂÕÔÆÌÁÇ ÂÒË »Æìáç ôï òåáä âõôôïî ïîìù ïîãåÃÈËÃÏÄÅ ÃÌÄ »Ãïðù ïæ óôáòô ïæ ãìïãë ãïäå ÃÌÃ » ôï ãèåãë æïò ïöåò÷òéôå ÂÉÔ ÍÏÕÓÅÂÕÔÃÈËÅÎÄ ÅÒÒ Ü¤³Ä° ÄÏ ÓÁÖÏÂÊ ÄÏ ÈÏÕÒÓ­±² ÓÁÖ ÃÌÏÃË®²´ ÅÌÓÅ ÓÁÖ ÃÌÏÃË®±² ÆÉÎ ÆÉÎ
+********************************
+*                              *
+*            CLOCK             *
+*                              *
+*   Glen E. Bredon   9/15/84   *
+*                              *
+********************************
+
+
+*-------------------------------------------------------
+* An interrupt driven clock for use with Merlin-pro
+* (2.00 at least) or BASIC.  Requires a //c since it
+* uses VBLINT.
+*
+* Just BRUN CLOCK from Merlin or BASIC.  This enters a
+* time edit routine.  When time has been entered hit
+* RETURN.  Time starts at this point.
+*
+* CAUTION:  This is not compatible with things like XREF
+* which use page 3.  Hit RESET before using such
+* utilities!  (Reassembly to an address in high memory,
+* before $9885, would be compatible but you would have
+* to be very careful to avoid overwrite while interrupts
+* are coming.)
+*
+* Disk accesses and other things which disable
+* interrupts will cause the clock to run slow.  You can
+* compensate for this by pressing the mouse button which
+* causes the time to jump to the next minute.  Fast
+* increases of time may be acheived by holding down
+* the mouse button and the closed apple key.
+*
+*                ------> WARNING <------
+*
+* Do not use this with programs that you are not SURE
+* are compatible.  It could result in loss of disk.
+*-------------------------------------------------------
+
+SAVOBJ KBD "Save object code? (1=yes, 0=no)"
+VERSION KBD "Want 12 or 24 hour version (12/24)?"
+HOURS = VERSION-25/-1*12+12
+ ERR HOURS-VERSION
+ TR
+
+DOSWRM = $3D0
+IRQVEC = $3FE
+LINE1 = $400
+ONSCREEN = LINE1+32
+KEY = $C000
+STROBE = $C010
+PAGE1 = $C054
+PAGE2 = $C055
+CLSAPPLE = $C062 ;Closed apple key
+MOUSEBUT = $C063
+CONTROL = $C080
+ROMREAD = %10
+ENABLE = %11
+MOUSE = $C400
+SETMOUSE = MOUSE+$3D ;Address adjusted
+IDBYTE = $FBB3
+IDBYTE2 = $FBC0
+BELL2 = $FBDD
+HOME = $FC58
+
+ AST 50
+
+ ORG $240
+
+START LDA IDBYTE ;Is it a //c?
+ CMP #6
+ BNE :ABORT ;Ignore if not
+ LDA IDBYTE2
+ BEQ :OK
+:ABORT RTS ;Sorry, not sympatico
+:OK JSR HOME
+ BIT CONTROL!ENABLE
+ BIT CONTROL!ENABLE
+ LDY #PATCHEND-PATCH-1
+]LOOP LDA PATCH,Y ;Fix monitor bell routine
+ STA BELL2,Y ; so it will sound ok with
+ DEY ; interrupts.  This will not
+ BPL ]LOOP ; do anything in BASIC unless
+ BIT CONTROL!ROMREAD ; you copy BASIC to the LC
+
+ LDY #IRQEND-IRQHAND-1
+]LOOP LDA HEREIRQ,Y
+ STA IRQHAND,Y
+ DEY
+ BPL ]LOOP
+ SEI ;Disable interupts while
+ LDA #IRQHAND ; changing vector!
+ STA IRQVEC
+ LDA #>IRQHAND
+ STA IRQVEC+1
+
+*--------------------------
+*       Time editor:
+*--------------------------
+ LDX #HOURS/24!1
+ JSR SHOWTIME ;Put clock on screen
+LOOP LDA ONSCREEN,X
+ PHA ;Save screen char
+ AND #$3F ;Make cursor
+ STA ONSCREEN,X
+:GK LDY KEY ;Wait for key
+ BPL :GK
+ BIT STROBE
+ PLA
+:RCHR STA ONSCREEN,X ;Replace screen char
+ CPY #$8D
+ BEQ :DONE ;Exit on CR
+ CPY #$88 ;Backspace
+ BEQ :BS
+ CPY #"U"&$9F ;->
+ BNE :ISDIG
+ LDA :TABLE,X
+ TAX
+:BS LDA :TABLE+5,X
+ TAX
+:ISDIG CPY #"0" ;Is it a digit
+ BLT LOOP
+ CPY #"9"+1
+ BGE LOOP ;We don't check for over
+ TYA ; 60 on minutes, etc.;
+ STA TIME,X ; we assume user intelligence!
+ LDY #"U"&$9F
+ BLT :RCHR ;Always taken
+
+:TABLE DFB 3,4,0,6,7,7,0,1,1,3,4,4,6
+
+:DONE LDA MOUSE+$12 ;Get offset for the
+ STA JSET+1 ; SETMOUSE routine
+ LDA #8
+JSET JSR SETMOUSE ;This does a CLI
+ JMP DOSWRM ;Must do to fix bug in
+; BRK handler
+*-------------------------------------
+* Fix for monitor bell routine so that
+* bells sound ok with interrupts:
+*-------------------------------------
+PATCH PHP
+ SEI
+ NOP
+ NOP
+ LDY #$C0
+]LOOP LDA #$C
+ JSR $FCA8
+ LDA $C030
+ DEY
+ BNE ]LOOP
+ PLP
+ RTS
+PATCHEND
+
+*-----------------------------------------------------
+* Patch for DOS to make sure interrupt handler has
+* not been overwritten.  (If it is it forces a reset.)
+* If you use other DOS patches or a non-standard DOS
+* then you MUST make sure this area is available or
+* change it to some other place!  Do not use PR#6
+* to reboot.  (Cntr-open apple-reset is ok.)
+*-----------------------------------------------------
+
+HEREIRQ ORG $BFC8
+
+IRQHAND PHA ;Saving registers is not
+ TYA ; really needed on the //c
+ PHA
+ LDY #CHKEND-CHKCODE-1
+]LOOP LDA CHKCODE,Y ;Compare copy of code
+ CMP CLOCK,Y ; with start of clock code
+ BNE * ;Force RESET if not same
+ DEY
+ BPL ]LOOP
+ JMP CLOCK ;Handle the interrupt
+
+ ERR \$BFDC
+IRQEND ORG
+
+ ERR \$300
+ DS $300-*
+
+*--------------------------------------------------
+*          Main clock routine, at $300:
+*
+* If you want to use the open apple key in place
+* of the mouse button, change the line  BMI :NOBUT
+* to  BPL  :NOBUT  and change MOUSEBUT to be $C061.
+*--------------------------------------------------
+
+CLOCK CLD ;All interrupts are assumed
+ CLC ; to be ours.
+ BIT MOUSEBUT ;Mouse button pushed?
+ BMI :NOBUT ;Branch if not
+ BIT CLSAPPLE ;Closed apple key also down?
+ BMI :DOINC ;Branch if so
+ BIT BUTFLAG ;Waiting for release?
+ BMI :NOACT ;Branch if so
+:DOINC JSR INCMIN ;Bump minutes if not
+ SEC
+:NOBUT ROR BUTFLAG ;Set release flag
+:NOACT JSR SHOWTIME ;Update 60 times/second
+ LDA TIME
+ CMP #"0"
+ BNE :OK
+ LDA #" " ;Blank leading "0"
+ STA ONSCREEN
+:OK JSR INCTIME
+ PLA
+ TAY
+ PLA
+ RTI
+
+INCMIN LDY #3 ;Force carry to minutes
+ LDA #"9"
+]LOOP STA TIME+6,Y
+ DEY
+ BPL ]LOOP
+INCTIME LDY #9
+]LOOP LDA TIME,Y
+ CLC
+ ADC #1
+ CMP MAX,Y
+ BLT :OUT
+ LDA FIRST,Y
+:OUT STA TIME,Y
+ DEY
+ BGE ]LOOP
+ CPY #5 ;Add 1/60 th sec every
+ BEQ INCTIME ; 10 seconds (approx)
+ LDA TIME+1
+ CMP #HOURS/24+3."0"
+ LDA TIME
+ SBC #HOURS/12."0"
+ BLT :RET ;Branch if not
+ LDA #"0" ;Fix hours which
+ STA TIME ; haven't properly
+ LDA #HOURS/24!1+"0"
+ STA TIME+1 ; carried.
+:RET RTS
+
+SHOWTIME LDY #7
+ STA KEY+1 ;Allow page 2 switch to
+ STA PAGE2 ; use aux memory
+ LDA #" "
+]LOOP STA ONSCREEN,Y
+ DEY
+ BPL ]LOOP
+ STA PAGE1
+ LDY #8
+]LOOP LDA TIME-1,Y
+ STA ONSCREEN-1,Y
+ DEY
+ BPL ]LOOP
+ RTS
+
+ ASC " "
+TIME ASC "00:00:0000"
+MAX ASC ":::6::6:6:"
+FIRST ASC "00:00:0000"
+BUTFLAG BRK ;Flag to read button only once
+
+CHKCODE CLD ;Copy of start of clock code
+ CLC ; to check for overwrite
+ BIT MOUSEBUT
+CHKEND
+
+ ERR \$3D0
+
+ DO SAVOBJ
+ DO HOURS-12
+ SAV CLOCK.24
+ ELSE
+ SAV CLOCK.12
+ FIN
+ FIN

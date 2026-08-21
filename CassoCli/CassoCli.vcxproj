@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -204,16 +204,30 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ArtifactWriter.cpp" />
+    <ClCompile Include="As65Mode.cpp" />
+    <ClCompile Include="AssemblerMode.cpp" />
     <ClCompile Include="CommandLine.cpp" />
     <ClCompile Include="DiskCommand.cpp" />
     <ClCompile Include="Win32DiskFileIo.cpp" />
+    <ClCompile Include="HostFile.cpp" />
+    <ClCompile Include="MerlinMode.cpp" />
+    <ClCompile Include="RunMode.cpp" />
+    <ClCompile Include="SourceAssembler.cpp" />
     <ClCompile Include="CassoCli.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />
     <ClInclude Include="DiskCommand.h" />
     <ClInclude Include="Win32DiskFileIo.h" />
+    <ClInclude Include="ArtifactWriter.h" />
+    <ClInclude Include="As65Mode.h" />
+    <ClInclude Include="AssemblerMode.h" />
     <ClInclude Include="CommandLine.h" />
+    <ClInclude Include="HostFile.h" />
+    <ClInclude Include="MerlinMode.h" />
+    <ClInclude Include="RunMode.h" />
+    <ClInclude Include="SourceAssembler.h" />
     <ClInclude Include="CassoCli.h" />
   </ItemGroup>
   <ItemGroup>

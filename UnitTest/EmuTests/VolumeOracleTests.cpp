@@ -100,6 +100,23 @@ public:
         return bytes;
     }
 
+    //
+    //  THE ORACLE FIXTURES LIVE UNDER MerlinOracle/, NOT Merlin/, and the two
+    //  directories hold four files of the same names on purpose.
+    //
+    //  Merlin/ holds the SOURCES that feed `CassoCli merlin`, stored as Windows
+    //  text because a corpus test asserts the CRLF is there. MerlinOracle/ holds
+    //  the same four files as they sit on the disk: the complete DOS 3.3 record,
+    //  4-byte header and all, lines ending in a bare CR, marked binary so
+    //  nothing rewrites them.
+    //
+    //  They were one directory once, and the two requirements are incompatible:
+    //  a source stored verbatim is not the Windows text the corpus wants, and a
+    //  source stored as text is four bytes shorter and one byte per line longer
+    //  than the disk holds. Sharing a path meant whichever branch wrote last
+    //  won, and the loser failed while still looking like a Merlin source --
+    //  which is the failure this whole suite exists to catch.
+    //
     //  Compares one extracted file against the independently produced copy.
     void AssertMatchesOracle (const char * onDiskName, const char * fixturePath, Word expectedLoad)
     {
@@ -160,7 +177,7 @@ public:
         // Merlin stores its SOURCE as type B rather than type T, all loading at
         // $0901. A reader that assumed sources were text would return four
         // extra bytes and call them content.
-        AssertMatchesOracle ("MAKE DUMP.S", "Merlin/MAKE DUMP.S", 0x0901);
+        AssertMatchesOracle ("MAKE DUMP.S", "MerlinOracle/MAKE DUMP.S", 0x0901);
     }
 
     TEST_METHOD (Oracle_MultiSectorFile_MatchesIndependentExtraction)
@@ -168,7 +185,7 @@ public:
         // 6,663 stored bytes is 27 sectors, well past a single track and deep
         // into the track/sector list. The synthetic multi-list test constructs
         // that shape; this one finds it on a disk somebody shipped.
-        AssertMatchesOracle ("KEYMAC.S", "Merlin/KEYMAC.S", 0x0901);
+        AssertMatchesOracle ("KEYMAC.S", "MerlinOracle/KEYMAC.S", 0x0901);
     }
 
     //  Type T has no header and no stored length: the file ends at the first
@@ -207,14 +224,14 @@ public:
         // plausible source text. No crash, no absurd length to catch it, just
         // quietly truncated. The binaries have a declared length that would
         // look wrong; type T has nothing to check against but the real bytes.
-        AssertTextMatchesOracle ("T.SENDMSG", "Merlin/T.SENDMSG");
+        AssertTextMatchesOracle ("T.SENDMSG", "MerlinOracle/T.SENDMSG");
     }
 
     TEST_METHOD (Oracle_LargerTextFile_MatchesIndependentExtraction)
     {
         // 1,084 bytes spans multiple sectors, so this also exercises the
         // track/sector walk on the type-T path rather than only on binaries.
-        AssertTextMatchesOracle ("T.PI.MACS", "Merlin/T.PI.MACS");
+        AssertTextMatchesOracle ("T.PI.MACS", "MerlinOracle/T.PI.MACS");
     }
 
     TEST_METHOD (Dos33_RealDisk_EnumeratesItsCatalog)

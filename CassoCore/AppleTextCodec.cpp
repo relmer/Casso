@@ -151,14 +151,14 @@ void AppleTextCodec::Decode (
     AppleTextConvention         convention,
     std::string              &  outHostText)
 {
-    constexpr Byte  kLineFeed = 0x0A;
-
-    //  Stripped to seven bits, so it matches whichever form the file carries.
-    //  Both conventions reduce to the same value here, which is a consequence
-    //  of tolerating mixed bytes rather than a coincidence: once the high bit
-    //  is ignored, high-ASCII and plain-ASCII text differ in nothing.
-    Byte    terminator = (Byte) (GetTerminator (convention) & 0x7F);
-    size_t  i          = 0;
+    //  The terminator is stripped to seven bits, so it matches whichever form
+    //  the file carries. Both conventions reduce to the same value there, which
+    //  is a consequence of tolerating mixed bytes rather than a coincidence:
+    //  once the high bit is ignored, high-ASCII and plain-ASCII text differ in
+    //  nothing.
+    constexpr Byte  kLineFeed  = 0x0A;
+    Byte            terminator = (Byte) (GetTerminator (convention) & 0x7F);
+    size_t          i          = 0;
 
 
 

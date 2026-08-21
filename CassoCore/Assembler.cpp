@@ -51,8 +51,45 @@ FileReadResult DefaultFileReader::ReadFile (const std::string & filename, const 
 ////////////////////////////////////////////////////////////////////////////////
 
 Assembler::Assembler (const Microcode instructionSet[256], AssemblerOptions options) :
-    m_opcodeTable (instructionSet),
-    m_options     (options)
+    m_instructionSets (instructionSet),
+    m_options         (options)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Assembler::Assembler
+//
+//  Base and extended instruction sets, so a dialect's in-source CPU directive
+//  has something to select.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Assembler::Assembler (const Microcode baseSet[256], const Microcode extendedSet[256], AssemblerOptions options) :
+    m_instructionSets (baseSet, extendedSet),
+    m_options         (options)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Assembler::Assembler
+//
+//  From a provider the caller built.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Assembler::Assembler (const InstructionSetProvider & instructionSets, AssemblerOptions options) :
+    m_instructionSets (instructionSets),
+    m_options         (options)
 {
 }
 
@@ -119,7 +156,10 @@ void Assembler::RecordWarning (AssemblyResult & result, int lineNumber, const st
 
 AssemblyResult Assembler::Assemble (const std::string & sourceText)
 {
-    AssemblySession session (m_opcodeTable, m_options);
+    AssemblySession  session (m_instructionSets, m_options);
+
+
+
     return session.Run (sourceText);
 }
 
@@ -221,38 +261,121 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCy
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormatListingRows
+//
+//  One listing row, wrapped to a column width.
+//
+//  The wrap point is the last space that fits, so a line breaks between words
+//  where it can. A single word longer than the space available is cut at the
+//  margin instead -- a symbol wider than the page has to go somewhere, and
+//  refusing to break it would print a line wider than the width asked for.
+//
+//  Continuations carry the source column's indent and nothing else: no line
+//  number, no address, no bytes. Repeating those would claim a second line
+//  emitted the same bytes, and blanking them by hand at each call site is how
+//  two callers end up disagreeing about the layout.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> Assembler::FormatListingRows (const AssemblyLine & line,
+                                                       bool showCycleCounts,
+                                                       int  columnWidth)
+{
+    std::vector<std::string>  rows;
+    std::string               full    = FormatListingLine (line, showCycleCounts);
+    size_t                    width   = (columnWidth > 0) ? (size_t) columnWidth : 0;
+    size_t                    indent  = 0;
+    bool                      wraps   = (width > 0) && (full.size() > width);
+
+
+
+    if (!wraps)
+    {
+        rows.push_back (full);
+        return rows;
+    }
+
+    // Where the source text starts in the rendered row, found by subtracting it
+    // rather than by recomputing the column arithmetic -- which would be a
+    // second copy of the layout, free to drift from the first.
+    indent = full.size() - line.sourceText.size();
+
+    // A width that cannot fit the fixed columns plus one character of text
+    // leaves nothing to wrap INTO, and looping would never advance.
+    if (indent + 1 >= width)
+    {
+        rows.push_back (full);
+        return rows;
+    }
+
+    rows.push_back (full.substr (0, width));
+
+    for (size_t taken = width; taken < full.size(); )
+    {
+        size_t  room  = 0;
+        size_t  chunk = 0;
+        size_t  brk   = std::string::npos;
+
+        // A continuation starts at text, not at whatever whitespace the cut
+        // landed in the middle of. Done at the top so it covers the first
+        // continuation as well, which begins at a hard cut rather than at a
+        // break this loop chose.
+        while (taken < full.size() && full[taken] == ' ')
+        {
+            taken++;
+        }
+
+        if (taken >= full.size())
+        {
+            break;
+        }
+
+        room  = width - indent;
+        chunk = std::min (room, full.size() - taken);
+
+        if (taken + chunk < full.size())
+        {
+            brk = full.rfind (' ', taken + chunk);
+        }
+
+        if (brk != std::string::npos && brk > taken)
+        {
+            chunk = brk - taken;
+        }
+
+        rows.push_back (std::string (indent, ' ') + full.substr (taken, chunk));
+
+        taken += chunk;
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FormatListing
 //
-//  The whole listing as one page-broken document: the title, every assembled
-//  line, and a form feed wherever the page ends.
+//  Every listing line, wrapped and paginated, under the source's own title.
 //
-//  A PAGE ENDS FOR TWO REASONS AND THEY ARE THE SAME EVENT. The source can ask
-//  for one with a `.page` directive, and the page height can be reached; either
-//  way the reader gets a form feed and the title again at the top of the next
-//  page, which is what a period assembler sent to a line printer. So the height
-//  counter is reset by both, and a `.page` two lines into a 60-line page does
-//  not leave the next break 58 lines early.
+//  THE PAGE COUNT IS IN ROWS. A line that wrapped to three rows fills three
+//  lines of paper, and counting it as one would overrun the page by whatever
+//  wrapping added -- which is the whole reason the two features have to be
+//  composed here rather than applied by separate callers.
 //
-//  A HEIGHT OF ZERO IS NO PAGINATION, not a page of no lines. That is the
-//  default, so a listing asked for with no -h is one continuous page and reads
-//  exactly as it always did -- the flag turns pagination on rather than
-//  configuring something already running.
-//
-//  The title block is not counted against the height. It is the page's header
-//  rather than part of its body, and counting it would make a `-h 60` page hold
-//  58 lines of listing on every page but the ones with no title.
-//
-//  This is built in the library rather than in the printing code because that
-//  is what makes it reachable: the test assembly does not link the console
-//  executable, and pagination that lived beside the ostream was pagination
-//  nothing could check. It never ran there -- the page height reached the
-//  assembler options and was read by nothing at all.
+//  A SOURCE CAN ASK FOR A BREAK ITSELF, and that is recognized from the text of
+//  the line rather than from a parsed directive, because the listing reproduces
+//  the input line and this one is reproduced at the top of the new page.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string Assembler::FormatListing (const AssemblyResult & result,
-                                      int pageHeight,
-                                      bool showCycleCounts)
+                                      int  pageHeight,
+                                      bool showCycleCounts,
+                                      int  columnWidth)
 {
     std::string  output;
     std::string  header;
@@ -270,14 +393,11 @@ std::string Assembler::FormatListing (const AssemblyResult & result,
 
     for (const AssemblyLine & line : result.listing)
     {
-        //  The source's own page break, recognized the way it always was:
-        //  from the text of the line rather than from a parsed directive,
-        //  because the listing reproduces the input line and this one is
-        //  reproduced at the top of a new page.
-        bool  asked  = line.sourceText.find (".page") != std::string::npos ||
-                       line.sourceText.find (".PAGE") != std::string::npos ||
-                       line.sourceText.find ("page")  == 0;
-        bool  filled = paginate && onPage >= pageHeight;
+        std::vector<std::string>  rows   = FormatListingRows (line, showCycleCounts, columnWidth);
+        bool                      asked  = line.sourceText.find (".page") != std::string::npos ||
+                                           line.sourceText.find (".PAGE") != std::string::npos ||
+                                           line.sourceText.find ("page")  == 0;
+        bool                      filled = paginate && onPage >= pageHeight;
 
         if (asked || filled)
         {
@@ -286,8 +406,11 @@ std::string Assembler::FormatListing (const AssemblyResult & result,
             onPage  = 0;
         }
 
-        output += FormatListingLine (line, showCycleCounts) + "\n";
-        onPage++;
+        for (const std::string & row : rows)
+        {
+            output += row + "\n";
+            onPage++;
+        }
     }
 
     return output;
@@ -323,7 +446,11 @@ std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, 
         bool  isRedefinable = (kindIt != symbolKinds.end() && kindIt->second == SymbolKind::Set);
 
         std::string fullName = (isRedefinable ? "*" : "") + pair.first;
-        output += std::format ("{:<16s}${:04X}\n", fullName, pair.second);
+
+        //  Hex and decimal both, which is what AS65 lists: an address is read
+        //  in hex and a constant standing for a count is read in decimal, and
+        //  the table cannot tell which a symbol is.
+        output += std::format ("{:<16s}${:04X}  {:5d}\n", fullName, pair.second, pair.second);
     }
 
     return output;
@@ -341,16 +468,42 @@ std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, 
 
 std::string Assembler::FormatDebugInfo (const std::unordered_map<std::string, Word> & symbols)
 {
-    std::string output;
+    std::string                                output;
+    std::vector<std::pair<std::string, Word>>  sorted (symbols.begin(), symbols.end());
 
 
 
     // Sort symbols by address for deterministic output
-    std::vector<std::pair<std::string, Word>> sorted (symbols.begin(), symbols.end());
-
     std::sort (sorted.begin(), sorted.end(),
         [] (const auto & a, const auto & b) { return a.second < b.second; });
 
+    output += "; by address\n";
+
+    for (const auto & pair : sorted)
+    {
+        output += std::format ("{}=${:04X}\n", pair.first, pair.second);
+    }
+
+    // The same symbols again, by NAME. Reading a debug file is two different
+    // questions -- "what is at $0310" and "where did FOO go" -- and a table
+    // sorted for one answers the other by scanning. Both are cheap to write and
+    // neither is cheap to reconstruct by hand.
+    //
+    // Case-insensitive, so `foo` and `FOO` sort together rather than landing in
+    // separate runs of the alphabet. Ties fall back to the case-sensitive
+    // comparison, because the sort has to be a total order: symbols differing
+    // only in case are distinct symbols here, and leaving their order to the
+    // hash container would make the file differ between runs.
+    std::sort (sorted.begin(), sorted.end(),
+        [] (const auto & a, const auto & b)
+        {
+            std::string  left  = Parser::ToUpper (a.first);
+            std::string  right = Parser::ToUpper (b.first);
+
+            return (left != right) ? (left < right) : (a.first < b.first);
+        });
+
+    output += "\n; by symbol\n";
 
     for (const auto & pair : sorted)
     {

@@ -175,7 +175,8 @@ namespace CommandLineTests
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsFalse (opts.showHelp, L"two parameters is not the documented case");
-            Assert::AreEqual (std::string ("?"), opts.inputFile);
+            Assert::AreEqual (std::string ("?"), opts.unrecognizedArgument,
+                              L"and it names no subcommand, so it is reported rather than assumed to be source");
         }
 
         TEST_METHOD (Version_SelectsVersion)
@@ -189,7 +190,7 @@ namespace CommandLineTests
 
         TEST_METHOD (BareFilename_FallsBackToAs65)
         {
-            ArgVector           args = { "CassoCli", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::As65);
@@ -304,7 +305,7 @@ namespace CommandLineTests
         //  standing on the command line beside it.
         TEST_METHOD (HelpBesideASourceFile_StillOpensTheGeneralPage)
         {
-            CommandLineOptions  opts = ParseTyped ({ "CassoCli", "prog.a65", "--help" });
+            CommandLineOptions  opts = ParseTyped ({ "CassoCli", "as65", "prog.a65", "--help" });
 
             Assert::IsTrue (opts.showHelp);
             Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::General,
@@ -451,7 +452,7 @@ namespace CommandLineTests
     public:
         TEST_METHOD (ConcatenatedFlags_SplitIntoIndividualFlags)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-tlfile.lst" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-tlfile.lst" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.symbolTable,     L"-t must be seen inside -tlfile.lst");
@@ -461,7 +462,7 @@ namespace CommandLineTests
 
         TEST_METHOD (ListingFlagAlone_GoesToStdout)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-l" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-l" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.generateListing);
@@ -480,7 +481,7 @@ namespace CommandLineTests
         //  out.lst to be read as the source file.
         TEST_METHOD (ListingFlag_DoesNotTakeASeparatedFilename)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-l", "out.lst" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-l", "out.lst" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.generateListing);
@@ -490,7 +491,7 @@ namespace CommandLineTests
 
         TEST_METHOD (ListingFlag_TakesAnAttachedFilename)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-lout.lst" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-lout.lst" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (std::string ("out.lst"), opts.listingFile);
@@ -499,7 +500,7 @@ namespace CommandLineTests
 
         TEST_METHOD (SlashPrefix_IsAcceptedAndRemembered)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "/t" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "/t" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.symbolTable, L"/t must mean what -t means");
@@ -520,8 +521,8 @@ namespace CommandLineTests
         //  where it can actually be measured.
         TEST_METHOD (IgnoreCaseFlag_IsAccepted_AndChangesNothingAboutTheParse)
         {
-            ArgVector           with    = { "CassoCli", "demo.a65", "-i" };
-            ArgVector           without = { "CassoCli", "demo.a65" };
+            ArgVector           with    = { "CassoCli", "as65", "demo.a65", "-i" };
+            ArgVector           without = { "CassoCli", "as65", "demo.a65" };
             CommandLineOptions  a       = CommandLineParser::Parse (with.Count(),    with.Data(),    NoProbe());
             CommandLineOptions  b       = CommandLineParser::Parse (without.Count(), without.Data(), NoProbe());
 
@@ -537,7 +538,7 @@ namespace CommandLineTests
         //  position in a group nothing else would catch.
         TEST_METHOD (IgnoreCaseFlag_StillConcatenates)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-it" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-it" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
@@ -546,7 +547,7 @@ namespace CommandLineTests
 
         TEST_METHOD (FillZeroFlag_SetsZeroFill)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-z" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-z" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.fillZero);
@@ -555,7 +556,7 @@ namespace CommandLineTests
 
         TEST_METHOD (DefaultFill_IsFF)
         {
-            ArgVector           args = { "CassoCli", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual ((int) 0xFF, (int) opts.fillByte);
@@ -563,7 +564,7 @@ namespace CommandLineTests
 
         TEST_METHOD (PredefineWithValue_IsRecorded)
         {
-            ArgVector           args  = { "CassoCli", "demo.a65", "-dDEBUG=5" };
+            ArgVector           args  = { "CassoCli", "as65", "demo.a65", "-dDEBUG=5" };
             CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
             auto                found = opts.predefinedSymbols.find ("DEBUG");
             bool                isSet = found != opts.predefinedSymbols.end();
@@ -576,7 +577,7 @@ namespace CommandLineTests
         //  works without the caller inventing a value.
         TEST_METHOD (PredefineWithoutValue_DefaultsToOne)
         {
-            ArgVector           args  = { "CassoCli", "demo.a65", "-dFAST" };
+            ArgVector           args  = { "CassoCli", "as65", "demo.a65", "-dFAST" };
             CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
             auto                found = opts.predefinedSymbols.find ("FAST");
             bool                isSet = found != opts.predefinedSymbols.end();
@@ -593,7 +594,7 @@ namespace CommandLineTests
         //  because it never reaches past the argument the flag is in.
         TEST_METHOD (PredefineWithASeparatedName_DefinesDebugAndLeavesTheNameAlone)
         {
-            ArgVector           args  = { "CassoCli", "demo.a65", "-d", "FAST" };
+            ArgVector           args  = { "CassoCli", "as65", "demo.a65", "-d", "FAST" };
             CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.predefinedSymbols.find ("FAST") == opts.predefinedSymbols.end(),
@@ -614,7 +615,7 @@ namespace CommandLineTests
         //  unambiguously being asked for.
         TEST_METHOD (PredefineWithNoNameAtAll_DefinesDebugAsOne)
         {
-            ArgVector           args  = { "CassoCli", "demo.a65", "-d" };
+            ArgVector           args  = { "CassoCli", "as65", "demo.a65", "-d" };
             CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
             auto                found = opts.predefinedSymbols.find ("DEBUG");
             bool                isSet = found != opts.predefinedSymbols.end();
@@ -631,7 +632,7 @@ namespace CommandLineTests
         //  the guessed one: -d never looks past its own argument.
         TEST_METHOD (PredefineBeforeTheSourceFile_LeavesTheSourceFileAlone)
         {
-            ArgVector           args  = { "CassoCli", "-d", "demo.a65" };
+            ArgVector           args  = { "CassoCli", "as65", "-d", "demo.a65" };
             CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
             bool                named = opts.predefinedSymbols.find ("demo.a65") != opts.predefinedSymbols.end();
 
@@ -648,7 +649,7 @@ namespace CommandLineTests
         //  for, under a name they did not choose, reported as success.
         TEST_METHOD (PredefineBeforeAnotherFlag_LeavesThatFlagAlone)
         {
-            ArgVector           args  = { "CassoCli", "demo.a65", "-d", "-oout.bin" };
+            ArgVector           args  = { "CassoCli", "as65", "demo.a65", "-d", "-oout.bin" };
             CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (std::string ("out.bin"), opts.outputFile, L"-o kept its value");
@@ -659,7 +660,7 @@ namespace CommandLineTests
 
         TEST_METHOD (PageWidthFlag_TakesAttachedValue)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-w133" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-w133" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (133, opts.pageWidth);
@@ -676,7 +677,7 @@ namespace CommandLineTests
         //  one.
         TEST_METHOD (PageHeightFlag_DoesNotTakeASeparatedValue)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-h", "10" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-h", "10" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (0, opts.pageHeight, L"the number after -h is the next argument, not the height");
@@ -696,7 +697,7 @@ namespace CommandLineTests
         //  so a test that put it there would pass without touching this rule.
         TEST_METHOD (PageHeightFlagAlone_IsRefused_BecauseAs65DocumentsNoBareForm)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-h" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-h" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
@@ -710,7 +711,7 @@ namespace CommandLineTests
         //  a command line that was refused.
         TEST_METHOD (PageHeightFlagAlone_StopsTheRestOfTheGroup)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-ht" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-ht" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue  (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
@@ -727,7 +728,7 @@ namespace CommandLineTests
 
             for (const char * flag : kBare)
             {
-                ArgVector           args = { "CassoCli", "demo.a65", flag };
+                ArgVector           args = { "CassoCli", "as65", "demo.a65", flag };
                 CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
                 Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
@@ -744,7 +745,7 @@ namespace CommandLineTests
         //  with a symbol table came back without one, at status 0.
         TEST_METHOD (PageHeightFlag_LetsAnotherFlagFollowItInTheGroup)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-h80t" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-h80t" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (80, opts.pageHeight, L"80 lines per page");
@@ -755,7 +756,7 @@ namespace CommandLineTests
         //  than merely stopping in the right place.
         TEST_METHOD (PageWidthFlag_LetsAnotherFlagFollowItInTheGroup)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-w100tq" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-w100tq" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (100, opts.pageWidth);
@@ -768,7 +769,7 @@ namespace CommandLineTests
         //  or a later `-h60` on the same line could not be cancelled by it.
         TEST_METHOD (PageHeightZero_IsTheInfinitePageAs65Documents)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-h60", "-h0" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-h60", "-h0" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (0, opts.pageHeight, L"an infinite page length");
@@ -776,7 +777,7 @@ namespace CommandLineTests
 
         TEST_METHOD (PageHeightFlag_TakesAnAttachedValue)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-h10" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-h10" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (10, opts.pageHeight);
@@ -791,7 +792,7 @@ namespace CommandLineTests
         {
             //  -q leads only because a bare -h in the first position is the
             //  top-level help form and never reaches this grammar at all.
-            ArgVector           args = { "CassoCli", "-q", "-h", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "-q", "-h", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue   (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
@@ -803,7 +804,7 @@ namespace CommandLineTests
         //  surplus argument and is said so, rather than dropped.
         TEST_METHOD (PageWidthFlag_DoesNotTakeASeparatedValue)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-w", "100" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-w", "100" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (CommandLineParser::kWideListingColumns, opts.pageWidth,
@@ -817,7 +818,7 @@ namespace CommandLineTests
         //  was 80 here -- the screen's width, not the listing's.
         TEST_METHOD (PageWidthDefault_IsTheSeventyNineAs65Documents)
         {
-            ArgVector           args = { "CassoCli", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (79, opts.pageWidth);
@@ -825,7 +826,7 @@ namespace CommandLineTests
 
         TEST_METHOD (PageWidthFlag_TakesAnAttachedValueOfItsOwn)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-w100" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-w100" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (100, opts.pageWidth);
@@ -835,7 +836,7 @@ namespace CommandLineTests
         //  means. It used to mean nothing at all and leave the default width.
         TEST_METHOD (PageWidthFlagAlone_SelectsTheWideListing)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-w" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-w" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (CommandLineParser::kWideListingColumns, opts.pageWidth);
@@ -849,8 +850,8 @@ namespace CommandLineTests
         //  one; naming the file will need a form of this project's own.
         TEST_METHOD (DebugFlag_TakesNoFileName_SeparatedOrAttached)
         {
-            ArgVector           separated = { "CassoCli", "demo.a65", "-g", "out.dbg" };
-            ArgVector           attached  = { "CassoCli", "demo.a65", "-gout.dbg" };
+            ArgVector           separated = { "CassoCli", "as65", "demo.a65", "-g", "out.dbg" };
+            ArgVector           attached  = { "CassoCli", "as65", "demo.a65", "-gout.dbg" };
             CommandLineOptions  sepOpts   = CommandLineParser::Parse (separated.Count(), separated.Data(), NoProbe());
             CommandLineOptions  attOpts   = CommandLineParser::Parse (attached.Count(), attached.Data(), NoProbe());
 
@@ -877,7 +878,7 @@ namespace CommandLineTests
         //  group, exactly as they follow -t.
         TEST_METHOD (DebugFlag_LetsAnotherFlagFollowItInTheGroup)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-gt" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-gt" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.debugInfo);
@@ -889,7 +890,7 @@ namespace CommandLineTests
         //  swallow the source file.
         TEST_METHOD (DebugFlagAlone_StillDerivesTheNameFromTheSource)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-g" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-g" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (std::string ("demo.dbg"), opts.debugFile);
@@ -928,7 +929,7 @@ namespace CommandLineTests
     public:
         TEST_METHOD (CleanCommandLine_LeavesNoVerdict)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-t" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-t" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
@@ -969,14 +970,15 @@ namespace CommandLineTests
         //  reported under the status an ordinary assembler warning earns.
         TEST_METHOD (UnknownAs65Flag_IsRefused_AndAsksForTheAssemblerPage)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-Y" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-Y" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
                             L"nothing is assembled");
-            Assert::IsTrue (opts.showHelp, L"and the usage text is printed, which is what as65 does");
-            Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::Assemble,
-                            L"the assembler's page -- its grammar is the one that was violated");
+            Assert::AreEqual (std::string ("-Y"), opts.unrecognizedFlag,
+                              L"and the flag is named, rather than answered with a wall of usage");
+            Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::As65,
+                            L"under the assembler, so the help that follows is the assembler's");
         }
 
         //  The refusal has to stop the walk, or a flag AFTER the illegal one
@@ -984,7 +986,7 @@ namespace CommandLineTests
         //  concatenation walk would keep reading the same argument.
         TEST_METHOD (UnknownAs65Flag_StopsTheRestOfTheCommandLine)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-Yt", "-oout.bin" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-Yt", "-oout.bin" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
@@ -1034,7 +1036,7 @@ namespace CommandLineTests
         //  there was none, so it is a refusal and the script is told.
         TEST_METHOD (UnknownLongOption_IsRefused_EvenThoughItIsDiagnosed)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "--bogus" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--bogus" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
@@ -1079,7 +1081,7 @@ namespace CommandLineTests
     public:
         TEST_METHOD (Assembly_ASecondSourceFile_IsRefused)
         {
-            ArgVector           args = { "CassoCli", "prog.a65", "-oprog.bin", "extra.a65" };
+            ArgVector           args = { "CassoCli", "as65", "prog.a65", "-oprog.bin", "extra.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
@@ -1094,7 +1096,7 @@ namespace CommandLineTests
         //  go.
         TEST_METHOD (Assembly_ASeparatedValue_IsRefusedRatherThanDropped)
         {
-            ArgVector           args = { "CassoCli", "prog.a65", "-w", "100" };
+            ArgVector           args = { "CassoCli", "as65", "prog.a65", "-w", "100" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
@@ -1105,7 +1107,7 @@ namespace CommandLineTests
         //  and must stay clean.
         TEST_METHOD (Assembly_OneSourceFileAmongFlags_IsStillClean)
         {
-            ArgVector           args = { "CassoCli", "-t", "prog.a65", "-oprog.bin", "-w133" };
+            ArgVector           args = { "CassoCli", "as65", "-t", "prog.a65", "-oprog.bin", "-w133" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
@@ -1190,7 +1192,7 @@ namespace CommandLineTests
         //  to quote something they had typed correctly.
         TEST_METHOD (Assembly_AMangledOutputName_IsRejoinedAndAssembled)
         {
-            ArgVector           args = { "CassoCli", "prog.a65", "-oprog", ".bin" };
+            ArgVector           args = { "CassoCli", "as65", "prog.a65", "-oprog", ".bin" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
@@ -1207,7 +1209,7 @@ namespace CommandLineTests
         //  than examining the pair that happened to fail.
         TEST_METHOD (Assembly_AMangledOutputNameBeforeTheSource_IsRejoined)
         {
-            ArgVector           args = { "CassoCli", "-oprog", ".bin", "prog.a65" };
+            ArgVector           args = { "CassoCli", "as65", "-oprog", ".bin", "prog.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
@@ -1222,7 +1224,7 @@ namespace CommandLineTests
         //  PowerShell without quotes.
         TEST_METHOD (Assembly_AMangledListingName_IsRejoined)
         {
-            ArgVector           args = { "CassoCli", "prog.a65", "-lprog", ".lst" };
+            ArgVector           args = { "CassoCli", "as65", "prog.a65", "-lprog", ".lst" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
@@ -1247,17 +1249,17 @@ namespace CommandLineTests
                 return CommandLineParser::RejoinShellSplitArguments (args.Count(), args.Data());
             };
 
-            auto  cut = rejoin ({ "CassoCli", "prog.a65", "-oprog", ".bin" });
-            Assert::AreEqual (size_t (3), cut.size(), L"four arguments in, three out");
-            Assert::AreEqual (std::string ("-oprog.bin"), cut[2]);
+            auto  cut = rejoin ({ "CassoCli", "as65", "prog.a65", "-oprog", ".bin" });
+            Assert::AreEqual (size_t (4), cut.size(), L"five arguments in, four out");
+            Assert::AreEqual (std::string ("-oprog.bin"), cut[3]);
 
-            auto  path = rejoin ({ "CassoCli", "-oout.bin", "./prog.a65" });
-            Assert::AreEqual (size_t (3), path.size(),
+            auto  path = rejoin ({ "CassoCli", "as65", "-oout.bin", "./prog.a65" });
+            Assert::AreEqual (size_t (4), path.size(),
                 L"a relative path is not a fragment: the front half already has its dot");
-            Assert::AreEqual (std::string ("./prog.a65"), path[2]);
+            Assert::AreEqual (std::string ("./prog.a65"), path[3]);
 
-            auto  plain = rejoin ({ "CassoCli", "prog.a65", "extra.a65" });
-            Assert::AreEqual (size_t (3), plain.size(),
+            auto  plain = rejoin ({ "CassoCli", "as65", "prog.a65", "extra.a65" });
+            Assert::AreEqual (size_t (4), plain.size(),
                 L"two real arguments stay two, and the surplus one is still surplus");
 
             auto  none = rejoin ({ "CassoCli" });
@@ -1434,7 +1436,7 @@ namespace CommandLineTests
 
             for (const char * flag : kUnreadable)
             {
-                ArgVector           args = { "CassoCli", "demo.a65", flag };
+                ArgVector           args = { "CassoCli", "as65", "demo.a65", flag };
                 CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
                 Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
@@ -1444,7 +1446,7 @@ namespace CommandLineTests
 
         TEST_METHOD (Predefine_ANameWithNothingInFrontOfTheEquals_IsRefused)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-d=5" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-d=5" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
@@ -1463,7 +1465,7 @@ namespace CommandLineTests
 
             for (const auto & test : kCases)
             {
-                ArgVector           args  = { "CassoCli", "demo.a65", test.flag };
+                ArgVector           args  = { "CassoCli", "as65", "demo.a65", test.flag };
                 CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
                 Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
@@ -1481,7 +1483,7 @@ namespace CommandLineTests
     public:
         TEST_METHOD (Default_IsStrict6502)
         {
-            ArgVector           args = { "CassoCli", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M6502);
@@ -1501,7 +1503,7 @@ namespace CommandLineTests
 
             for (const char * form : kForms)
             {
-                ArgVector           args = { "CassoCli", "demo.a65", form, "65c02" };
+                ArgVector           args = { "CassoCli", "as65", "demo.a65", form, "65c02" };
                 CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
                 Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
@@ -1519,7 +1521,7 @@ namespace CommandLineTests
         //  rather than about the flag.
         TEST_METHOD (As65ExtensionFlag_Selects65C02)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-x" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-x" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M65C02);
@@ -1530,7 +1532,7 @@ namespace CommandLineTests
         //  It is an as65 flag, so it packs with the others the way they do.
         TEST_METHOD (As65ExtensionFlag_Concatenates)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-xq" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-xq" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M65C02);
@@ -1539,7 +1541,7 @@ namespace CommandLineTests
 
         TEST_METHOD (As65ExtensionFlag_AcceptsTheSlashPrefix)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "/x" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "/x" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M65C02);
@@ -1549,8 +1551,8 @@ namespace CommandLineTests
         //  withdrawal of `--cpu` a tidying rather than a loss of capability.
         TEST_METHOD (TheAs65Flag_IsTheOnlyRouteToTheCmosTier)
         {
-            ArgVector           as65    = { "CassoCli", "demo.a65", "-x" };
-            ArgVector           nothing = { "CassoCli", "demo.a65" };
+            ArgVector           as65    = { "CassoCli", "as65", "demo.a65", "-x" };
+            ArgVector           nothing = { "CassoCli", "as65", "demo.a65" };
             CommandLineOptions  a       = CommandLineParser::Parse (as65.Count(), as65.Data(), NoProbe());
             CommandLineOptions  n       = CommandLineParser::Parse (nothing.Count(), nothing.Data(), NoProbe());
 
@@ -1578,7 +1580,7 @@ namespace CommandLineTests
     public:
         TEST_METHOD (BinaryOutputName_DerivesFromInput)
         {
-            ArgVector           args = { "CassoCli", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (std::string ("demo.bin"), opts.outputFile);
@@ -1586,7 +1588,7 @@ namespace CommandLineTests
 
         TEST_METHOD (ExplicitOutputName_Wins)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-ocustom.out" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-ocustom.out" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (std::string ("custom.out"), opts.outputFile);
@@ -1609,7 +1611,7 @@ namespace CommandLineTests
         //  `-o out.bin` got `demo.bin` and was told it had worked.
         TEST_METHOD (TrailingOutputFlag_WithNothingAfterIt_IsRefusedRatherThanSpinning)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-o" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-o" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
@@ -1623,7 +1625,7 @@ namespace CommandLineTests
         //  less, so no as65 command line changes meaning.
         TEST_METHOD (SeparatedOutputName_IsTaken_AndDoesNotBecomeTheSourceFile)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-o", "custom.out" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-o", "custom.out" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
@@ -1636,7 +1638,7 @@ namespace CommandLineTests
         //  is where a caller who reaches for the separated form usually puts it.
         TEST_METHOD (SeparatedOutputName_WorksBeforeTheSourceFile)
         {
-            ArgVector           args = { "CassoCli", "-o", "custom.out", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "-o", "custom.out", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
@@ -1650,13 +1652,13 @@ namespace CommandLineTests
         //  as65 documents has to keep working unchanged.
         TEST_METHOD (OutputName_TakesAnAbsolutePathAttachedOrSeparated)
         {
-            ArgVector           separated = { "CassoCli", "demo.a65", "-o", "C:\\tmp\\prog.bin" };
+            ArgVector           separated = { "CassoCli", "as65", "demo.a65", "-o", "C:\\tmp\\prog.bin" };
             CommandLineOptions  apart     = CommandLineParser::Parse (separated.Count(), separated.Data(), NoProbe());
 
             Assert::IsTrue (apart.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
             Assert::AreEqual (std::string ("C:\\tmp\\prog.bin"), apart.outputFile);
 
-            ArgVector           glued  = { "CassoCli", "demo.a65", "-oC:\\tmp\\prog.bin" };
+            ArgVector           glued  = { "CassoCli", "as65", "demo.a65", "-oC:\\tmp\\prog.bin" };
             CommandLineOptions  joined = CommandLineParser::Parse (glued.Count(), glued.Data(), NoProbe());
 
             Assert::IsTrue (joined.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
@@ -1669,7 +1671,7 @@ namespace CommandLineTests
         //  legitimately be named that way.
         TEST_METHOD (SeparatedOutputName_IsTakenWhateverItLooksLike)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-o", "-t" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-o", "-t" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (std::string ("-t"), opts.outputFile);
@@ -1687,7 +1689,7 @@ namespace CommandLineTests
 
             for (const char * flag : kGluedOnly)
             {
-                ArgVector           args = { "CassoCli", "demo.a65", flag, "value" };
+                ArgVector           args = { "CassoCli", "as65", "demo.a65", flag, "value" };
                 CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
                 Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
@@ -1697,7 +1699,7 @@ namespace CommandLineTests
 
         TEST_METHOD (SRecordFlag_InfersS19Extension)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-s" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-s" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::SRecord);
@@ -1706,7 +1708,7 @@ namespace CommandLineTests
 
         TEST_METHOD (IntelHexFlag_InfersHexExtension)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-s2" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-s2" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::IntelHex);
@@ -1715,7 +1717,7 @@ namespace CommandLineTests
 
         TEST_METHOD (DebugFlag_InfersDbgExtension)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "-g" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-g" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.debugInfo);
@@ -1750,7 +1752,7 @@ namespace CommandLineTests
     public:
         TEST_METHOD (ExtensionlessInput_ResolvesToExistingA65)
         {
-            ArgVector           args = { "CassoCli", "build" };
+            ArgVector           args = { "CassoCli", "as65", "build" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), ProbeFor ("build.a65"));
 
             Assert::AreEqual (std::string ("build.a65"), opts.inputFile);
@@ -1760,7 +1762,7 @@ namespace CommandLineTests
 
         TEST_METHOD (ExtensionlessInput_FallsThroughToAsm)
         {
-            ArgVector           args = { "CassoCli", "build" };
+            ArgVector           args = { "CassoCli", "as65", "build" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), ProbeFor ("build.asm"));
 
             Assert::AreEqual (std::string ("build.asm"), opts.inputFile);
@@ -1768,7 +1770,7 @@ namespace CommandLineTests
 
         TEST_METHOD (ExtensionlessInput_WithNoMatch_IsLeftAsTyped)
         {
-            ArgVector           args = { "CassoCli", "build" };
+            ArgVector           args = { "CassoCli", "as65", "build" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (std::string ("build"), opts.inputFile,
@@ -1777,7 +1779,7 @@ namespace CommandLineTests
 
         TEST_METHOD (InputWithExtension_IsNeverProbed)
         {
-            ArgVector           args = { "CassoCli", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), ProbeFor ("demo.a65.a65"));
 
             Assert::AreEqual (std::string ("demo.a65"), opts.inputFile);
@@ -1787,7 +1789,7 @@ namespace CommandLineTests
         //  a candidate for auto-extension.
         TEST_METHOD (DotInDirectoryName_DoesNotCountAsExtension)
         {
-            ArgVector           args = { "CassoCli", "src/v1.2/build" };
+            ArgVector           args = { "CassoCli", "as65", "src/v1.2/build" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(),
                                                                 ProbeFor ("src/v1.2/build.a65"));
 
@@ -1912,7 +1914,7 @@ namespace CommandLineTests
     public:
         TEST_METHOD (Default_IsTheAssembledBytes_NotAPaddedFullImage)
         {
-            ArgVector           args = { "CassoCli", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Raw,
@@ -1923,7 +1925,7 @@ namespace CommandLineTests
 
         TEST_METHOD (FlatFlag_SelectsTheFullPaddedImage)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "--flat" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--flat" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Binary,
@@ -1939,7 +1941,7 @@ namespace CommandLineTests
         //  answered wrongly rather than one turned down.
         TEST_METHOD (RawFlag_IsRefused_NotWalkedAsThePackedLettersRAW)
         {
-            ArgVector           args      = { "CassoCli", "demo.a65", "--raw" };
+            ArgVector           args      = { "CassoCli", "as65", "demo.a65", "--raw" };
             CommandLineOptions  opts      = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
             CommandLineOptions  untouched;
 
@@ -1958,8 +1960,8 @@ namespace CommandLineTests
         //  which stopped meaning "nobody said" the moment the default moved.
         TEST_METHOD (ExtensionFallback_StillAppliesOnlyWhenNoShapeWasNamed)
         {
-            ArgVector           silent = { "CassoCli", "demo.a65", "-oout.s19" };
-            ArgVector           spoken = { "CassoCli", "demo.a65", "--flat", "-oout.s19" };
+            ArgVector           silent = { "CassoCli", "as65", "demo.a65", "-oout.s19" };
+            ArgVector           spoken = { "CassoCli", "as65", "demo.a65", "--flat", "-oout.s19" };
             CommandLineOptions  quiet  = CommandLineParser::Parse (silent.Count(), silent.Data(), NoProbe());
             CommandLineOptions  loud   = CommandLineParser::Parse (spoken.Count(), spoken.Data(), NoProbe());
 
@@ -1972,7 +1974,7 @@ namespace CommandLineTests
 
         TEST_METHOD (DosBinFlag_SelectsDosBinary)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "--dos-bin" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--dos-bin" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::DosBinary);
@@ -1980,7 +1982,7 @@ namespace CommandLineTests
 
         TEST_METHOD (ShapeFlag_ComposesWithOtherFlags)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "--flat", "-t", "-oout.obj" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--flat", "-t", "-oout.obj" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Binary);
@@ -1990,7 +1992,7 @@ namespace CommandLineTests
 
         TEST_METHOD (ShapeFlag_DoesNotConsumeTheInputFile)
         {
-            ArgVector           args = { "CassoCli", "--dos-bin", "demo.a65" };
+            ArgVector           args = { "CassoCli", "as65", "--dos-bin", "demo.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual (std::string ("demo.a65"), opts.inputFile);
@@ -2012,7 +2014,7 @@ namespace CommandLineTests
         //
         TEST_METHOD (AssemblyMode_RefusesTheDiskGrammarsOut_RatherThanWritingAFileCalledUt)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "--out", "demo.bin" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--out", "demo.bin" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
@@ -2031,7 +2033,7 @@ namespace CommandLineTests
 
             for (const char * flag : kUnknown)
             {
-                ArgVector           args = { "CassoCli", "demo.a65", flag };
+                ArgVector           args = { "CassoCli", "as65", "demo.a65", flag };
                 CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
                 Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
@@ -2046,8 +2048,8 @@ namespace CommandLineTests
         //  where `--cpu` went.
         TEST_METHOD (AssemblyMode_StillTakesTheLongOptionsItDoesHave)
         {
-            ArgVector           flat = { "CassoCli", "demo.a65", "--flat" };
-            ArgVector           dos  = { "CassoCli", "demo.a65", "--dos-bin" };
+            ArgVector           flat = { "CassoCli", "as65", "demo.a65", "--flat" };
+            ArgVector           dos  = { "CassoCli", "as65", "demo.a65", "--dos-bin" };
 
             Assert::IsTrue (CommandLineParser::Parse (flat.Count(), flat.Data(), NoProbe()).outputFormat
                                 == CommandLineOptions::OutputFormat::Binary, L"--flat");
@@ -2061,7 +2063,7 @@ namespace CommandLineTests
         //  and as65 compatibility outranks uniformity here by decision.
         TEST_METHOD (AssemblyMode_LeavesTheSlashFormAlone_BecauseAs65GluesValuesToFlags)
         {
-            ArgVector           args = { "CassoCli", "demo.a65", "/oout.bin" };
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "/oout.bin" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
@@ -2459,10 +2461,10 @@ namespace CommandLineTests
 
         TEST_METHOD (As65_TakesEitherPrefixOnItsLongOptions_IncludingAnAttachedValue)
         {
-            ArgVector           flat   = { "CassoCli", "prog.a65", "/flat" };
-            ArgVector           dosBin = { "CassoCli", "prog.a65", "/dos-bin" };
-            ArgVector           cpu    = { "CassoCli", "prog.a65", "/cpu", "65c02" };
-            ArgVector           glued  = { "CassoCli", "prog.a65", "/cpu=65c02" };
+            ArgVector           flat   = { "CassoCli", "as65", "prog.a65", "/flat" };
+            ArgVector           dosBin = { "CassoCli", "as65", "prog.a65", "/dos-bin" };
+            ArgVector           cpu    = { "CassoCli", "as65", "prog.a65", "/cpu", "65c02" };
+            ArgVector           glued  = { "CassoCli", "as65", "prog.a65", "/cpu=65c02" };
             CommandLineOptions  cpuOpts   = CommandLineParser::Parse (cpu.Count(), cpu.Data(), NoProbe());
             CommandLineOptions  gluedOpts = CommandLineParser::Parse (glued.Count(), glued.Data(), NoProbe());
 
@@ -2517,7 +2519,7 @@ namespace CommandLineTests
         {
             // Adding a row must not turn an unrecognized first argument into an
             // error: it is a source filename, which is how as65 was invoked.
-            ArgVector           args = { "CassoCli", "disky.a65" };
+            ArgVector           args = { "CassoCli", "as65", "disky.a65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::As65);

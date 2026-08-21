@@ -390,6 +390,8 @@ HRESULT NibblizationLayer::RenibblizeTracks (
     int           logical    = 0;
     int           trackCount = inOutImage.GetTrackCount();
 
+
+
     CBRAEx (rawSize == (size_t) kImageByteSize, E_INVALIDARG);
 
     switch (fmt)

@@ -2,19 +2,25 @@
 
 #include "CommandLineParser.h"
 
+#include "DialectProfile.h"
+#include "DialectRegistry.h"
+
 
 
 
 
 //
-//  Every bare-word subcommand. Anything not in this table is a source
-//  filename, which puts the parser in AS65 mode -- so a new subcommand is a
-//  row here plus an arm in Parse, not a reshaped dispatcher.
+//  Every bare-word subcommand. Anything not in this table is rejected -- so a
+//  new subcommand is a row here plus an arm in Parse, not a reshaped
+//  dispatcher.
 //
 static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
 {
     { "run",  CommandLineOptions::Subcommand::Run  },
     { "disk", CommandLineOptions::Subcommand::Disk },
+    { "as65",   CommandLineOptions::Subcommand::As65   },
+    { "merlin", CommandLineOptions::Subcommand::Merlin },
+    { "run",    CommandLineOptions::Subcommand::Run    },
 };
 
 
@@ -49,6 +55,141 @@ static constexpr CommandLineParser::DiskVerbName  s_kDiskVerbs[] =
     { "rm",      CommandLineOptions::DiskOptions::Verb::Delete },
     { "del",     CommandLineOptions::DiskOptions::Verb::Delete },
     { "boot",    CommandLineOptions::DiskOptions::Verb::Boot   },
+};
+
+
+
+
+//
+//  The Merlin grammar's flags. Short on purpose: Merlin's source answers in
+//  itself most of what as65 answers with a flag -- the object's name, the CPU --
+//  so what remains here is what only the invocation can say.
+//
+static constexpr CommandLineParser::DialectFlag  s_kMerlinFlags[] =
+{
+    { "o", CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOrSeparate,
+           nullptr,
+           CommandLineParser::FlagCategory::AssembledCode, "<file>",
+           "Rename output file (default: <source>.bin)" },
+    { "l", CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOnly,
+           "-",
+           CommandLineParser::FlagCategory::Listing, "<file>",
+           "Generate listing; alone, it goes to stdout" },
+    { "v", CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
+           nullptr,
+           CommandLineParser::FlagCategory::General, "",
+           "Verbose: an assembly summary on stderr" },
+
+    //  Merlin asks the operator for a keyboard-input symbol and waits. A batch
+    //  assembly has nobody to ask, so the answer has to arrive with the
+    //  invocation -- and without this row the three vendor sources that ask
+    //  questions cannot be assembled from a command line at all.
+    { "d", CommandLineParser::ValueKind::SymbolDefinition, CommandLineParser::Attachment::AttachedOrSeparate,
+           nullptr,
+           CommandLineParser::FlagCategory::General, "<name>[=<value>]",
+           "Define a symbol the source expects (defaults to 1)" },
+};
+
+
+
+
+//
+//  The as65 grammar's flags, which is the whole of as65's switch set.
+//
+//  IT IS A TABLE FOR THE REASON MERLIN'S IS: the parser walks it and the help is
+//  generated from it, so the tool cannot document a flag it does not take or
+//  take one it does not document. as65's set resisted this while a row was a
+//  single `char` -- `-s2` is not `-s` followed by `2` -- and stopped resisting
+//  once the option became a string matched longest-first.
+//
+//  THE ORDER HERE IS THE ORDER THE HELP PRINTS, within each category. It is not
+//  alphabetical on purpose: `-c`, `-l`, `-m` and `-p` all shape one listing and
+//  alphabetical order put them four places apart.
+//
+//  `-i` AND `-n` ARE ROWS THAT DO NOTHING, and they are rows rather than
+//  special cases in the walk because as65 accepts them: a command line carrying
+//  either must not be refused. `-i` asks for case-insensitive opcodes, which
+//  this assembler does unconditionally, so honoring it is already done. `-n` is
+//  not implemented -- see the issue named in its description.
+//
+static constexpr CommandLineParser::DialectFlag  s_kAs65Flags[] =
+{
+    { "x",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
+            nullptr,
+            CommandLineParser::FlagCategory::AssembledCode, "",
+            "Use the 65C02 extensions. Without it the CMOS opcodes are rejected, which is the default" },
+    { "d",  CommandLineParser::ValueKind::SymbolDefinition, CommandLineParser::Attachment::AttachedOnly,
+            "DEBUG=1",
+            CommandLineParser::FlagCategory::AssembledCode, "<name>[=<value>]",
+            "Pre-define a symbol: -dFAST defines FAST as 1, -dFAST=2 defines it as 2, and a bare -d defines DEBUG as 1" },
+    { "i",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
+            nullptr,
+            CommandLineParser::FlagCategory::AssembledCode, "",
+            "Case-insensitive opcodes. Already the default; accepted as a no-op" },
+    { "n",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
+            nullptr,
+            CommandLineParser::FlagCategory::AssembledCode, "",
+            "Disable optimizations; NYI. Tracked at https://github.com/relmer/Casso/issues/118" },
+
+    { "o",  CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOrSeparate,
+            nullptr,
+            CommandLineParser::FlagCategory::AssembledCode, "<file>",
+            "Where the assembled bytes go. Defaults to <source>.bin, or <source>.s19 under -s and <source>.hex under -s2" },
+    { "s2", CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOnly,
+            "",
+            CommandLineParser::FlagCategory::AssembledCode, "<file>",
+            "Output Intel HEX format (.hex)" },
+    { "s",  CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOnly,
+            "",
+            CommandLineParser::FlagCategory::AssembledCode, "<file>",
+            "Output S-record format (.s19)" },
+    { "z",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
+            nullptr,
+            CommandLineParser::FlagCategory::AssembledCode, "",
+            "Fill unused space with $00 (default: $FF)" },
+
+    { "l",  CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOnly,
+            "-",
+            CommandLineParser::FlagCategory::Listing, "<file>",
+            "Generate listing (-l alone = stdout, -lprog.lst = to that file)" },
+    { "p",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
+            nullptr,
+            CommandLineParser::FlagCategory::Listing, "",
+            "Generate pass 1 listing" },
+    { "c",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
+            nullptr,
+            CommandLineParser::FlagCategory::Listing, "",
+            "Show cycle counts in listing" },
+    { "m",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
+            nullptr,
+            CommandLineParser::FlagCategory::Listing, "",
+            "Show macro expansions in listing" },
+    { "h",  CommandLineParser::ValueKind::Number,   CommandLineParser::Attachment::AttachedOnly,
+            nullptr,
+            CommandLineParser::FlagCategory::Listing, "<lines>",
+            "Page height for listing (-h0 = one continuous page, the default)" },
+    { "w",  CommandLineParser::ValueKind::Number,   CommandLineParser::Attachment::AttachedOnly,
+            "133",
+            CommandLineParser::FlagCategory::Listing, "<width>",
+            "Column width (default: 79, -w alone = 133)" },
+
+    { "t",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
+            nullptr,
+            CommandLineParser::FlagCategory::Debug, "",
+            "Generate symbol table" },
+    { "g",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
+            nullptr,
+            CommandLineParser::FlagCategory::Debug, "",
+            "Generate debug information file, <source>.dbg" },
+
+    { "v",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
+            nullptr,
+            CommandLineParser::FlagCategory::General, "",
+            "Verbose mode" },
+    { "q",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
+            nullptr,
+            CommandLineParser::FlagCategory::General, "",
+            "Quiet mode (suppress progress)" },
 };
 
 
@@ -100,6 +241,55 @@ static constexpr const char *  s_kpszRunLongOptions[] =
     "warn",
     "no-warn",
     "fatal-warnings",
+};
+
+
+
+
+//
+//  Which dialect each flag table belongs to. Both have one now: as65's grammar
+//  was a hand-rolled walk over a historical command line until the option
+//  became a string matched longest-first, which is what `-s2` needed.
+//
+static constexpr CommandLineParser::DialectFlagTable  s_kDialectFlags[] =
+{
+    { DialectId::As65,   s_kAs65Flags,   std::size (s_kAs65Flags)   },
+    { DialectId::Merlin, s_kMerlinFlags, std::size (s_kMerlinFlags) },
+};
+
+
+//
+//  The output formats the merlin grammar names.
+//
+//  The DEFAULT stays the assembled bytes and nothing else. A Merlin source
+//  names its own origin, so "the object" is what a developer asking for output
+//  means, and that is what the subcommand has always written. These two rows
+//  say what the bytes can be wrapped in instead.
+//
+//  --dos-bin is the one that closes a real gap rather than adding a
+//  convenience. The 4-byte header carries the ORIGIN, and raw output throws it
+//  away -- so a developer wrapping the bytes by hand has to already know an
+//  address that usually comes from an ORG buried in the source. The assembler
+//  knows it; nothing else reliably does.
+//
+//  as65 has no row. Its grammar is a hand-rolled walk that writes --raw and
+//  --dos-bin inline, and its own usage block documents them, so a row here
+//  would be a second description of a tool this table does not drive.
+//
+static constexpr CommandLineParser::OutputFormatFlag  s_kMerlinOutputFormats[] =
+{
+    { "--dos-bin", CommandLineOptions::OutputFormat::DosBinary,
+                   "Write the bytes behind a 4-byte DOS 3.3 header" },
+    { "--flat",    CommandLineOptions::OutputFormat::Binary,
+                   "Write a full 64 KB image at the origin, padded with $FF" },
+};
+
+
+//  Which dialect an output-format table belongs to, on the same principle as the
+//  flag tables above: a dialect offering no choice simply has no row.
+static constexpr CommandLineParser::OutputFormatTable  s_kOutputFormatTables[] =
+{
+    { DialectId::Merlin, s_kMerlinOutputFormats, std::size (s_kMerlinOutputFormats) },
 };
 
 
@@ -918,6 +1108,317 @@ std::string CommandLineParser::DescribeDiskOptions()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DescribeCategory
+//
+//  The heading one category of flags prints under.
+//
+//  Here rather than at the printing edge so every caller heads a group the same
+//  way, and so adding a category is a case here rather than a search for
+//  whoever wrote the headings.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * CommandLineParser::DescribeCategory (FlagCategory category)
+{
+    const char *  heading = "General:";
+
+
+
+    switch (category)
+    {
+        case FlagCategory::AssembledCode:  heading = "Assembled code:";  break;
+        case FlagCategory::Listing:        heading = "Listing:";         break;
+        case FlagCategory::Debug:          heading = "Debug:";           break;
+        case FlagCategory::General:        heading = "General:";         break;
+    }
+
+    return heading;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetFlags
+//
+//  A dialect's own flags, or none.
+//
+//  A lookup rather than a test on the dialect, so nothing here has to be edited
+//  when a dialect is added -- and so a dialect whose grammar is not a table is
+//  described by the absence of a row rather than by a special case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const CommandLineParser::DialectFlag> CommandLineParser::GetFlags (DialectId dialect)
+{
+    std::span<const DialectFlag>  flags;
+
+
+
+    for (const DialectFlagTable & table : s_kDialectFlags)
+    {
+        if (table.dialect == dialect)
+        {
+            flags = std::span<const DialectFlag> (table.flags, table.count);
+            break;
+        }
+    }
+
+    return flags;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::GetOutputFormats
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const CommandLineParser::OutputFormatFlag> CommandLineParser::GetOutputFormats (DialectId dialect)
+{
+    std::span<const OutputFormatFlag>  formats;
+
+
+
+    for (const OutputFormatTable & table : s_kOutputFormatTables)
+    {
+        if (table.dialect == dialect)
+        {
+            formats = std::span<const OutputFormatFlag> (table.formats, table.count);
+            break;
+        }
+    }
+
+    return formats;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::ApplyOutputFormat
+//
+//  Selects the output format an argument names, if it names one.
+//
+//  Returns whether the argument was consumed, so a grammar that offers no
+//  formats -- an empty table -- consumes nothing and its parse is unchanged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::SelectOutputFormat (const std::string & flag,
+                                            CommandLineOptions::OutputFormat format,
+                                            CommandLineOptions & options)
+{
+    bool  alreadyChosen = !options.outputFormatFlag.empty();
+    bool  disagrees     = alreadyChosen && options.outputFormat != format;
+
+
+
+    // The same flag twice is not a conflict -- it asks for one thing, twice.
+    if (disagrees && options.outputFormatConflict.empty())
+    {
+        options.outputFormatConflict = "Only one output format is allowed; "
+                                     + options.outputFormatFlag + " and " + flag + " were both given.";
+    }
+
+    if (!alreadyChosen)
+    {
+        options.outputFormat     = format;
+        options.outputFormatFlag = flag;
+    }
+
+    //  RECORDED IN BOTH FORMS BECAUSE TWO QUESTIONS ARE ASKED OF IT. The flag's
+    //  own text is what a conflict message names; whether ANY format was named
+    //  is what decides the extension fallback, and it is asked where the flag
+    //  that chose it is of no interest. Setting one and not the other left the
+    //  fallback claiming an output name a format flag had already claimed.
+    options.outputFormatNamed = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::ApplyOutputFormat
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::ApplyOutputFormat (const std::string & arg, DialectId dialect, CommandLineOptions & options)
+{
+    bool  matched = false;
+
+
+
+    for (const OutputFormatFlag & format : GetOutputFormats (dialect))
+    {
+        if (IsLongOption (arg, format.option, options))
+        {
+            SelectOutputFormat (FormatLongOption (format.option, options.flagPrefix), format.format, options);
+            matched = true;
+            break;
+        }
+    }
+
+    return matched;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::NoteFlagPrefix
+//
+//  The FIRST prefix wins, which is the whole point of recording it separately
+//  from the default.
+//
+//  A command line mixing the two prefixes is a typo, not a request, and the
+//  only wrong answer is to echo back a prefix the user never typed. Taking
+//  the first means the answer depends on how the invocation opens rather than
+//  on which flag happens to sit last -- an order nobody thinks of as ordered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::NoteFlagPrefix (char prefix, CommandLineOptions & options)
+{
+    if (!options.flagPrefixSeen)
+    {
+        options.flagPrefix     = prefix;
+        options.flagPrefixSeen = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::FormatLongOption
+//
+//  `--name` becomes `/name` on a slash command line.
+//
+//  One slash, not two: `//name` is nobody's convention, and the Windows form of
+//  a long option has always been a single slash ahead of the whole word.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CommandLineParser::FormatLongOption (const std::string & canonical, char flagPrefix)
+{
+    std::string  bare    = canonical;
+    std::string  written = canonical;
+
+
+
+    while (!bare.empty() && bare[0] == '-')
+    {
+        bare.erase (0, 1);
+    }
+
+    if (flagPrefix == '/')
+    {
+        written = std::string ("/") + bare;
+    }
+
+    return written;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::IsLongOption
+//
+//  Matches a long option in either form, so the parser accepts what the
+//  help text advertises.
+//
+//  This exists because the slash form used to fall through to the LETTER loop,
+//  where it did not fail -- it did something else. `/raw` became `-raw`, warned
+//  about an unknown `-r` and `-a`, and wrote the 64 KB image the flag was asked
+//  to suppress; `/dos-bin` became `-dos-bin`, where `-d` swallowed `os-bin` as
+//  a symbol definition and no warning appeared at all. Both produced the wrong
+//  file and reported success.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsLongOption (const std::string & arg, const std::string & canonical,
+                                      CommandLineOptions & options)
+{
+    bool  matched = (arg == canonical);
+
+
+
+    if (!matched && !arg.empty() && arg[0] == '/')
+    {
+        matched = (arg == FormatLongOption (canonical, '/'));
+    }
+
+    if (matched && !arg.empty())
+    {
+        NoteFlagPrefix (arg[0] == '/' ? '/' : '-', options);
+    }
+
+    return matched;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::IsLongOptionWithValue
+//
+//  The `=value` form of the above, for options that accept one attached.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsLongOptionWithValue (const std::string & arg, const std::string & canonical,
+                                               std::string & value, CommandLineOptions & options)
+{
+    std::string  dashed  = canonical + "=";
+    std::string  slashed = FormatLongOption (canonical, '/') + "=";
+    bool         matched = false;
+
+
+
+    if (arg.rfind (dashed, 0) == 0)
+    {
+        value   = arg.substr (dashed.size());
+        matched = true;
+    }
+    else if (arg.rfind (slashed, 0) == 0)
+    {
+        value   = arg.substr (slashed.size());
+        matched = true;
+    }
+
+    if (matched)
+    {
+        NoteFlagPrefix (arg[0] == '/' ? '/' : '-', options);
+    }
+
+    return matched;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ParseBoundedHex
 //
 //  Shared by ParseAddress and ParseFillByte, which differ only in their upper
@@ -1203,8 +1704,12 @@ bool CommandLineParser::IsAssemblySource (const std::string & path)
 //
 //  LookUpSubcommand
 //
-//  Resolves a bare word to a subcommand, or None when the word is not one --
-//  which is the signal that it is a source filename and AS65 mode applies.
+//  Resolves a bare word to a subcommand, or None when the word is not one.
+//
+//  None used to mean "a source filename, so assemble it" -- the fallback that
+//  let `CassoCli input.a65` work. It now means exactly what it says, and the
+//  caller reports it, because inferring a dialect from the absence of a word
+//  is the guess this feature exists to remove.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1251,6 +1756,8 @@ CommandLineOptions::Subcommand CommandLineParser::LookUpSubcommand (const std::s
 //                    parameter." So -d and -o take the rest of the argument,
 //                    while -h and -w take only their digits and hand back what
 //                    follows -- `-h80t` is `-h80 -t`
+//                    back using the prefix they type
+//    attached values a flag's argument may be glued to it or separated
 //
 //  Which is why this is a hand-rolled walk rather than a table: a table-driven
 //  parser would have to encode all three exceptions anyway, and every one of
@@ -1277,33 +1784,35 @@ CommandLineOptions::Subcommand CommandLineParser::LookUpSubcommand (const std::s
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOptions & options)
+void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex, CommandLineOptions & options)
 {
-    int   argIndex = 1;
-    // Set when an argument ends parsing outright -- a help request, or an
-    // option this grammar does not have (or no longer has). Only the
-    // unknown-single-letter case leaves showHelp set; the rest answer by name.
+    int   argIndex = startIndex;
+    // Set when an argument ends parsing outright -- a help request. It leaves
+    // showHelp set, so the caller prints usage.
     bool  stop     = false;
+    // A CPU flag the active dialect's profile does not accept. It ends parsing
+    // too, but leaves showHelp clear: the refusal explains itself.
+    bool  refused  = false;
 
-    options.subcommand = CommandLineOptions::Subcommand::As65;
+
+
+    options.subcommand       = CommandLineOptions::Subcommand::As65;
+    options.dialect          = DialectId::As65;
+    options.dialectSelection = DialectSelection::Stated;
 
 
 
     while (argIndex < argc && !stop)
     {
-        // A `/` form of a long option is canonicalized before anything
-        // tests for one, so `/cpu 65c02` and `/flat` work the way `/l` and `/o`
-        // already did. Without this the single-character normalization further
-        // down reads `/flat` as the concatenated flags -f -l -a -t.
-        std::string arg = CanonicalLongFlag (argv[argIndex],
-                              std::span<const char * const> (s_kpszAs65LongOptions));
+        std::string arg (argv[argIndex]);
+        std::string attachedValue;
 
         // Check for help requests
         if (arg == "--help" || arg == "-help" || arg == "-?" || arg == "/?" || arg == "/help")
         {
             if (arg[0] == '/')
             {
-                options.flagPrefix = '/';
+                NoteFlagPrefix ('/', options);
             }
 
             options.showHelp = true;
@@ -1311,21 +1820,46 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
             continue;
         }
 
-        //  `--cpu` IS WITHDRAWN AND `-x` REPLACES IT. The two selected the same
-        //  instruction set, and `-x` is as65's own name for that switch --
-        //  "Use 65SC02 extensions" -- so the tool kept two forms of one
-        //  capability, one of which no as65 user would reach for.
+        // Long options selecting a binary output FORMAT.
         //
-        //  It is answered by NAME rather than falling into the generic `--`
-        //  refusal below, because command lines and makefiles carrying it
-        //  already exist and "unknown option: --cpu" tells their author nothing
-        //  about what to type instead. Same reasoning as the bare `-o`.
-        //  BOTH PREFIXES ARE MATCHED HERE EXPLICITLY, because `cpu` has left
-        //  the long-option table and so `/cpu` is no longer canonicalized into
-        //  `--cpu` on its way past. Without this the slash form would fall
-        //  into the concatenation walk and be read as -c -p -u -- cycle counts,
-        //  a pass 1 listing, and an unknown flag -- which is a true reading of
-        //  as65's grammar and a useless answer to somebody migrating.
+        // THE DEFAULT IS THE ASSEMBLED BYTES, which is what `--raw` used to
+        // name. A flag for the default is a flag that does nothing, so it was
+        // withdrawn and `--flat` asks for the full 64 KB image instead -- the
+        // shape a ROM burner or a byte-for-byte comparison wants, and the one
+        // thing the default cannot give you. Merlin's table already reads this
+        // way; this is as65 agreeing with it.
+        if (IsLongOption (arg, "--flat", options))
+        {
+            SelectOutputFormat (FormatLongOption ("--flat", options.flagPrefix), CommandLineOptions::OutputFormat::Binary, options);
+            argIndex++;
+            continue;
+        }
+
+        if (IsLongOption (arg, "--dos-bin", options))
+        {
+            SelectOutputFormat (FormatLongOption ("--dos-bin", options.flagPrefix), CommandLineOptions::OutputFormat::DosBinary, options);
+            argIndex++;
+            continue;
+        }
+
+        //  A `--` OPTION THIS GRAMMAR DOES NOT HAVE IS REFUSED, NOT WALKED.
+        //
+        //  Everything below reads a single dash as a group of letters, so
+        //  `--out` reaching it becomes `-o` with the filename `ut` -- the tool
+        //  writing a file called `ut` and reporting success, for a flag it does
+        //  not have. `disk`'s options are the ones a user is most likely to try
+        //  here, which is exactly how that was found.
+        //
+        //  The two it DOES have were matched above, so anything still carrying
+        //  `--` at this point is unknown by definition. A single dash is left
+        //  alone: that is as65's own concatenated form and the walk owns it.
+        //
+        //  `--cpu` IS ANSWERED BY NAME FIRST, in both prefixes. Command lines
+        //  carrying it already exist, and `/cpu` left to the walk below is read
+        //  as `-c -p -u` -- a true reading of as65's grammar and a useless
+        //  answer to somebody migrating off the flag. Both branches withdrew it
+        //  in favor of as65's own `-x`, so this points there rather than
+        //  reporting an unknown option.
         if (arg == "--cpu" || arg.rfind ("--cpu=", 0) == 0 ||
             arg == "/cpu"  || arg.rfind ("/cpu=",  0) == 0)
         {
@@ -1333,7 +1867,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
 
             if (arg[0] == '/')
             {
-                options.flagPrefix = '/';
+                NoteFlagPrefix ('/', options);
             }
 
             std::cerr << "Error: " << longPrefix << "cpu is gone -- use "
@@ -1347,89 +1881,32 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
             continue;
         }
 
-        // Long options selecting a binary output SHAPE.
-        //
-        // THE DEFAULT IS THE ASSEMBLED BYTES, and --flat is how the old
-        // full-64-KB padded image is asked for. There is no flag for the
-        // default: `--raw` used to name it and was retired with it, because an
-        // option that selects what naming nothing already selects costs a line
-        // of help and buys no capability.
-        if (arg == "--flat")
-        {
-            options.outputFormat      = CommandLineOptions::OutputFormat::Binary;
-            options.outputFormatNamed = true;
-            argIndex++;
-            continue;
-        }
-
-        if (arg == "--dos-bin")
-        {
-            options.outputFormat      = CommandLineOptions::OutputFormat::DosBinary;
-            options.outputFormatNamed = true;
-            argIndex++;
-            continue;
-        }
-
-        //  A `--` OPTION THIS GRAMMAR DOES NOT HAVE IS REFUSED, not handed to
-        //  the concatenation walk below as a run of single letters.
-        //
-        //  `--out` is what that cost. The walk read `-`, complained about a
-        //  flag named `-`, read `o`, took the rest of the argument as its glued
-        //  value and set the output file to `ut`, then took the NEXT argument
-        //  as the input file. Three wrong decisions, one warning, and exit 1.
-        //
-        //  Nothing as65 accepts is refused here: as65 has no `--` form at all,
-        //  its long options being this project's own addition. The `/`
-        //  forms deliberately fall through instead -- `/oFILE` is the glued
-        //  form as65 documents, so `/out` genuinely does mean `-o ut` and must
-        //  keep meaning it.
-        //
-        //  showHelp IS DELIBERATELY NOT SET, which is where this parts company
-        //  with the unknown-single-letter refusal further down. That one prints
-        //  the whole usage page, and the usage page is long: the sentence
-        //  explaining the mistake scrolls away above it, so the reader is
-        //  answered by being buried. The lines here say what was wrong and what
-        //  to type instead, which is the entire content that page would add.
         if (arg.rfind ("--", 0) == 0)
         {
-            std::cerr << "Error: unknown option: " << arg << "\n"
-                      << "       Assembling takes single-letter flags with their values\n"
-                      << "       attached -- the output file is -oFILE, and --out belongs\n"
-                      << "       to `disk`.\n";
-
-            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
-            stop                 = true;
+            NoteFlagPrefix ('-', options);
+            RecordUnrecognizedFlag (arg, options);
+            argIndex++;
             continue;
         }
 
-        // Normalize / prefix to - for flag parsing
+        // Normalize / prefix to - for flag parsing, recording which prefix the
+        // invocation opened with on the way past.
         if (arg[0] == '/')
         {
+            NoteFlagPrefix ('/', options);
             arg[0] = '-';
         }
+        else if (arg[0] == '-')
+        {
+            NoteFlagPrefix ('-', options);
+        }
 
-        //  Non-flag argument is the input file -- and there is exactly one of
-        //  them.
-        //
-        //  A SECOND ONE IS REFUSED RATHER THAN DROPPED. as65's synopsis is
-        //  `as65 [-cdghilnopqstvwxz] file`, one file, and it documents nothing
-        //  about a surplus argument -- so what happened to one was this tool's
-        //  own answer, and the answer was to take the first and throw the rest
-        //  away in silence. `casso pg.a65 -opg.bin -h 60` assembled, wrote the
-        //  binary, exited 0, and never said that `60` had gone nowhere.
-        //
-        //  THE MESSAGE NAMES THE LIKELY CAUSE WHEN IT CAN SEE ONE, because the
-        //  likely cause is nearly always the same: a value typed with a space
-        //  in front of it, for an option that glues its value. Two things say
-        //  so -- a surplus argument that is all digits, and an option standing
-        //  in front of it that takes a parameter -- and when either holds the
-        //  glued form is offered by name.
-        //
-        //  THE SHELL IS NOT ASKED ABOUT HERE ANY MORE. A command line PowerShell
-        //  cut in half never reaches this point: RejoinShellSplitArguments puts
-        //  the halves back together before parsing begins, so `CassoCli prog.a65
-        //  -oprog.bin` assembles instead of arriving as `-oprog` and `.bin` and
-        //  being explained to the reader who typed it correctly.
+        //  A NON-FLAG ARGUMENT IS THE SOURCE FILE, AND A SECOND ONE IS AN
+        //  ERROR RATHER THAN LITTER. It used to be dropped in silence, so
+        //  `CassoCli as65 a.a65 b.a65` assembled a.a65, never mentioned
+        //  b.a65, and exited 0 -- and the likeliest way to type it is a
+        //  value with a space in front of it, which this grammar attaches.
+        //  So the message names the glued form when it can see one.
         if (arg[0] != '-' && arg[0] != '/')
         {
             std::string  previous   = (argIndex > 1) ? argv[argIndex - 1] : "";
@@ -1462,419 +1939,118 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], CommandLineOpti
             continue;
         }
 
-        // Parse concatenated flags: -tlfile means -t -lfile
-        size_t pos = 1;
+        //  THE FLAG WALK READS THE TABLE. Every rule it applies is a column of
+        //  s_kAs65Flags rather than a case of its own: which option matched,
+        //  what kind of value it takes, whether that value may be separated,
+        //  and what a bare one means. A flag is added by adding a row.
+        //
+        //  MATCHING IS LONGEST-FIRST, which is what makes `-s2` an option
+        //  rather than `-s` carrying the filename `2`. See MatchFlag.
+        //
+        //  A NUMBER LEAVES THE GROUP OPEN AND A NAME CLOSES IT, which is as65's
+        //  own rule -- "no other option can follow one that may have a string
+        //  parameter" -- so `-h80t` is `-h80 -t` while `-lfile` is one flag and
+        //  its filename. Deriving it from ValueKind is what stopped every arm
+        //  from having to remember it, which is how `-g` came to eat a filename
+        //  it does not take.
+        size_t  pos = 1;
 
-        while (pos < arg.size())
+        while (pos < arg.size() && !stop)
         {
-            char         flag = arg[pos];
-            std::string  rest = arg.substr (pos + 1);
+            size_t                matched = 0;
+            const DialectFlag  *  flag    = MatchFlag (DialectId::As65, arg, pos, matched);
+            std::string           rest;
+            std::string           value;
+            bool                  refused = false;
 
-            switch (flag)
+            if (flag == nullptr)
             {
-            case 'c':
-                options.cycleCounts = true;
-                pos++;
-                break;
-
-            case 't':
-                options.symbolTable = true;
-                pos++;
-                break;
-
-            //  as65 documents BOTH forms of this one, which is why a bare -l
-            //  stays legal where a bare -o does not: "-l  Generate pass 2
-            //  listing" and "-l<filename>  Listing file name". The parameter is
-            //  a STRING either way, so the flag takes the rest of its argument
-            //  and nothing may follow it in the group -- `-lt` names a listing
-            //  file called `t`, it is not `-l -t`.
-            case 'l':
-                options.generateListing = true;
-
-                if (!rest.empty())
-                {
-                    options.listingFile = rest;
-                }
-                else
-                {
-                    options.listingToStdout = true;
-                }
-
-                pos = arg.size();
-                break;
-
-            //  as65: `-o<filename>`. A STRING parameter, glued, with nothing
-            //  following it in the group -- and that form is untouched.
-            //
-            //  THE SEPARATED `-o <file>` IS ACCEPTED AS WELL, by owner
-            //  decision. It takes MORE than as65 does and never less, so every
-            //  as65 command line still reads exactly as as65 reads it, and
-            //  nothing that used to assemble stops assembling.
-            //
-            //  WHAT EARNS IT IS A SHELL, NOT A PREFERENCE. PowerShell parses a
-            //  token beginning with a single `-` as a parameter name, and a
-            //  parameter name may not contain a `.`, so it cuts `-oprog.bin`
-            //  into `-oprog` and `.bin` before this program is even started.
-            //  Nearly every output name has an extension, so in that shell --
-            //  the one this tool is typed into most -- the glued form does not
-            //  survive being typed unquoted.
-            //
-            //  IT DOES NOT EVEN FAIL CONSISTENTLY, which is the other half of
-            //  the case for accepting a separated value. A colon before the
-            //  first dot suppresses the cut, so `-oC:\out\prog.bin` arrives
-            //  whole and works while `-oprog.bin` beside it does not. See
-            //  IsShellSplitFragment for the measurement behind both.
-            //
-            //  ONLY -o TAKES A SEPARATED VALUE, AND THE ASYMMETRY IS THE POINT
-            //  RATHER THAN AN OVERSIGHT. -l, -d, -w and -g each have a bare
-            //  form as65 documents -- a listing to standard output, a DEBUG
-            //  definition, 133 columns, and no parameter at all -- so for any
-            //  of them the word that follows is genuinely ambiguous with the
-            //  bare reading, and telling the two apart takes a GUESS about what
-            //  that word looks like. That guess was here for -d, where it
-            //  defined a label called `demo.a65`, and it was deleted for being
-            //  unprincipled. -o has NO bare form -- one is refused below -- so
-            //  the argument after it can only be its filename, and no guess is
-            //  involved. Ambiguity is what separates the two cases, and -o is
-            //  the only flag that has none.
-            //
-            //  It is taken VERBATIM, whatever it looks like. Skipping a value
-            //  that "looks like a flag" would be the same guess arriving by a
-            //  different door, and a file may legitimately be named one.
-            //
-            //  AN -o WITH NOTHING AFTER IT AT ALL IS STILL REFUSED, which also
-            //  retires a hang for good: it used to match no branch and advance
-            //  nothing, so the walk reread the same character forever and the
-            //  process had to be killed.
-            //
-            //  showHelp IS NOT SET, which parts this from the unknown-option
-            //  refusal below on the same rule the `--out` refusal already uses:
-            //  these two lines ARE the answer, and the usage page would bury
-            //  them. An option that does not exist is the case with nothing
-            //  specific to say, and that one gets the page.
-            case 'o':
-                if (!rest.empty())
-                {
-                    options.outputFile = rest;
-                }
-                else if (argIndex + 1 < argc)
-                {
-                    options.outputFile = argv[argIndex + 1];
-                    argIndex++;
-                }
-                else
-                {
-                    std::cerr << "Error: " << options.flagPrefix
-                              << "o needs a filename after it, attached or separated:\n"
-                              << "       " << options.flagPrefix << "oprog.bin, or "
-                              << options.flagPrefix << "o prog.bin\n";
-
-                    options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
-                    stop                 = true;
-                }
-
-                pos = arg.size();
-                break;
-
-            case 'm':
-                options.macroExpansion = true;
-                pos++;
-                break;
-
-            //  as65: "-h<lines> ... The special case -h0 indicates an infinite
-            //  page length."
-            //
-            //  ITS PARAMETER IS NUMERIC, WHICH IS WHAT DECIDES HOW MUCH OF THE
-            //  ARGUMENT IT MAY TAKE. as65's rule: "no other option can follow
-            //  one that may have a string parameter. Other options can follow
-            //  one that has a numeric parameter" -- and its own worked example
-            //  is `-h80t`, "which specifies 80 lines per page and a symbol
-            //  table". This ran `pos` to the end of the argument instead, so
-            //  `-h80t` set the height and threw the `t` away without a word.
-            //
-            //  The separated `-h 60` this used to accept was never as65's. It
-            //  was added on the strength of this tool's own help text, which
-            //  documented a form the parser did not read, and it is gone: the
-            //  number after a bare -h is the next argument, not the height.
-            //  A BARE -h IS REFUSED, and the silence in the manual is the
-            //  evidence rather than an omission. as65 documents the bare form
-            //  of -w -- "If the -w option is given without a number following
-            //  it, then the listing will be 133 columns wide" -- and documents
-            //  no bare form of -h, on the same page, by the same author. It
-            //  silently did nothing here: the height kept whatever it already
-            //  had and the flag might as well not have been typed.
-            //
-            //  `-h0` IS NAMED IN THE MESSAGE because a reader who wants no page
-            //  breaks has a real form for it and would otherwise reach for
-            //  the bare flag to ask.
-            //
-            //  This is the flag walk, which the FIRST argument never reaches --
-            //  a leading `-h` is the top-level help request and is answered
-            //  before any grammar is chosen.
-            case 'h':
-            {
-                int     height = options.pageHeight;
-                size_t  digits = TakeGluedCount (rest, height);
-
-                if (digits == 0)
-                {
-                    std::cerr << "Error: " << options.flagPrefix
-                              << "h takes its line count ATTACHED: "
-                              << options.flagPrefix << "h60\n"
-                              << "       Use " << options.flagPrefix
-                              << "h0 for no page breaks at all.\n";
-
-                    options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
-                    pos                  = arg.size();
-                    stop                 = true;
-                    break;
-                }
-
-                pos               += 1 + digits;
-                options.pageHeight = height;
+                //  as65's DIAGNOSTICS: usage is printed "if an illegal option
+                //  has been specified", and nothing after it is acted on.
+                RecordUnrecognizedFlag (std::string (1, options.flagPrefix) + arg[pos], options);
+                stop = true;
                 break;
             }
 
-            //  as65: "-w<width>  Specify column width... If the -w option is
-            //  given without a number following it, then the listing will be
-            //  133 columns wide, otherwise it will be the number of colulmns
-            //  specified (between 60 and 200)."
-            //
-            //  A BARE -w MEANING 133 IS as65's OWN FORM, not this project's --
-            //  which is why it survives where the separated `-w 100` does not.
-            //  Numeric like -h, so `-w100t` is `-w100 -t`.
-            case 'w':
-            {
-                int     width  = kWideListingColumns;
-                size_t  digits = TakeGluedCount (rest, width);
+            rest = arg.substr (pos + matched);
 
-                pos             += 1 + digits;
-                options.pageWidth = width;
-                break;
+            if (flag->value == ValueKind::None)
+            {
+                pos += matched;
+            }
+            else if (flag->value == ValueKind::Number)
+            {
+                size_t  digits = 0;
+
+                while (digits < rest.size() && isdigit ((unsigned char) rest[digits]) != 0)
+                {
+                    digits++;
+                }
+
+                if (digits > 0)
+                {
+                    value = rest.substr (0, digits);
+                    pos  += matched + digits;
+                }
+                else if (flag->bareDefault != nullptr)
+                {
+                    value = flag->bareDefault;
+                    pos  += matched;
+                }
+                else
+                {
+                    //  A numeric option given no number. as65 documents no bare
+                    //  form for -h, and the neighboring argument is not one: a
+                    //  separated value here would be somebody's source file.
+                    std::cerr << "Error: " << options.flagPrefix << flag->option
+                              << " takes its number ATTACHED: " << options.flagPrefix
+                              << flag->option << "60\n";
+                    refused = true;
+                }
+            }
+            else
+            {
+                value = rest;
+
+                if (value.empty() && flag->attachment == Attachment::AttachedOrSeparate
+                                  && argIndex + 1 < argc)
+                {
+                    value = argv[++argIndex];
+                }
+
+                if (value.empty() && flag->bareDefault != nullptr)
+                {
+                    value = flag->bareDefault;
+                }
+
+                //  A NAME-TAKING OPTION WITH NO BARE FORM AND NO NAME IS
+                //  REFUSED. `-o` at the end of a command line named no file,
+                //  and taking it as the empty name wrote the assembled bytes
+                //  over whatever the empty path resolves to -- or, before the
+                //  refusal existed, span forever looking for the value.
+                if (value.empty() && flag->bareDefault == nullptr)
+                {
+                    std::cerr << "Error: " << options.flagPrefix << flag->option
+                              << " needs a filename after it, attached or separated:\n"
+                              << "       " << options.flagPrefix << flag->option << "prog.bin, or "
+                              << options.flagPrefix << flag->option << " prog.bin\n";
+                    refused = true;
+                }
+
+                //  A name consumes the rest of the argument whether it found one
+                //  or not: what follows a string option is its value, and a flag
+                //  letter sitting there would be part of the name.
+                pos = arg.size();
             }
 
-            case 'v':
-                options.verbose = true;
-                pos++;
-                break;
-
-            case 'q':
-                options.quiet = true;
-                pos++;
-                break;
-
-            case 'n':
-                options.disableOpt = true;
-                pos++;
-                break;
-
-            //  as65: "Ignore case in opcodes. In this way, the assembler does
-            //  not differentiate between `adc` and `ADC`, for example. Labels
-            //  are still case sensitive."
-            //
-            //  ACCEPTED AND RECORDED NOWHERE, because there is nothing to
-            //  record. This assembler folds opcode case unconditionally and
-            //  keeps labels case-sensitive, which is precisely what the flag
-            //  asks for -- so honoring it is a no-op in the strict sense: the
-            //  behavior is already the one requested.
-            //
-            //  IT USED TO SET A FIELD, and the field was the problem. Nothing
-            //  read it, nothing could read it usefully, and a stored `true`
-            //  sitting in two structs invited somebody to implement a
-            //  conditional case-folding that the assembler does not need and
-            //  cannot want. `-n` is the flag with real work behind it.
-            case 'i':
-                pos++;
-                break;
-
-            //  as65: "Use 65SC02 extensions. This CPU has several additional
-            //  instructions. When this option is not specified the assembler
-            //  rejects the 65SC02 extensions." One instruction set, reachable
-            //  by the name as65 gave it.
-            //
-            //  IT IS THE ONLY FORM NOW. `--cpu` selected the same
-            //  instruction set under a name as65 never had, so the tool carried
-            //  two ways to ask for one thing and the as65-shaped one was the
-            //  one an as65 user would reach for. `--cpu` is answered by name
-            //  above rather than left to the generic refusal.
-            case 'x':
-                options.cpuTarget = CommandLineOptions::CpuTarget::M65C02;
-                pos++;
-                break;
-
-            case 'p':
-                options.pass1Listing = true;
-                pos++;
-                break;
-
-            case 'z':
-                options.fillZero = true;
-                options.fillByte = 0x00;
-                pos++;
-                break;
-
-            //  as65: "-g   Generate source-level debug information file. This
-            //  file can then be used in in-system debugging or a software
-            //  simulator." THAT IS THE WHOLE ENTRY -- the flag takes NO
-            //  parameter, and the filename, its extension and its format are
-            //  all undocumented. So it names nothing, takes nothing, and other
-            //  options may follow it in a group exactly as they follow -t.
-            //
-            //  BOTH `-g <file>` AND `-g<file>` ARE GONE. They were added here,
-            //  and removing them takes away a capability as65 never had rather
-            //  than matching one it did; naming the debug file will need a
-            //  form of this project's own if it is wanted back. The derived
-            //  name -- the source with a .dbg extension -- is what remains, and
-            //  it is what a bare -g always produced.
-            case 'g':
-                options.debugInfo = true;
-                pos++;
-                break;
-
-            //  as65: "Define a label before the first source line is read. If
-            //  no name is specified, DEBUG is defined. The label is EQUated to
-            //  be 1."
-            //
-            //  THE NAME IS GLUED, AND -d NEVER CONSUMES THE ARGUMENT AFTER IT.
-            //  as65 notates it `-d<name>`, and its parameter is a STRING, which
-            //  is the case its concatenation rule singles out: "no other option
-            //  can follow one that may have a string parameter". So the flag
-            //  takes the rest of its own argument and stops there -- a bare -d
-            //  is the DEBUG default and nothing else.
-            //
-            //  A SEPARATED `-d NAME` WAS THIS TOOL'S INVENTION AND IS GONE. It
-            //  took whatever followed, which meant `casso -d demo.a65` defined
-            //  a label called `demo.a65` and left no input file; the repair
-            //  was a heuristic -- take the next argument unless it looks like a
-            //  flag or like a source file -- and as65 has no such rule because
-            //  the glued form never needs one. `casso -d prog.a65` defines
-            //  DEBUG and assembles prog.a65 on the plain reading.
-            //  THE `=VALUE` HALF IS THIS TOOL'S OWN, and a value it cannot read
-            //  is refused rather than replaced. It used to fall back to 1 in
-            //  silence, which is the worst of the three possible answers: `-d
-            //  VER=1.0` defined VER as 1 and `-dADDR=$6000` defined ADDR as 1,
-            //  each of them assembling a source that then took a branch nobody
-            //  chose. A NAME with no value is 1 because as65 says so; a value
-            //  that was typed and not understood is a refusal.
-            //
-            //  The whole text after the `=` has to be consumed, so a trailing
-            //  fragment cannot be dropped either -- 1.0 is not 1.
-            case 'd':
+            if (refused)
             {
-                std::string  def   = rest;
-                size_t       eqPos = 0;
-                std::string  name;
-                int32_t      value = 1;
-                bool         taken = true;
-
-
-
-                if (def.empty())
-                {
-                    def = "DEBUG";
-                }
-
-                eqPos = def.find ('=');
-
-                if (eqPos != std::string::npos)
-                {
-                    name = def.substr (0, eqPos);
-                    std::string    valStr = def.substr (eqPos + 1);
-                    char         * end    = nullptr;
-                    long           v      = strtol (valStr.c_str(), &end, 0);
-
-                    taken = !valStr.empty() && end != nullptr && *end == '\0';
-
-                    if (taken)
-                    {
-                        value = (int32_t) v;
-                    }
-                    else
-                    {
-                        std::cerr << "Error: " << options.flagPrefix << "d cannot read `"
-                                  << valStr << "` as a value.\n"
-                                  << "       Write it as a decimal or 0x-prefixed number, or leave the\n"
-                                  << "       `=` off entirely -- a name on its own is defined as 1.\n";
-                    }
-                }
-                else
-                {
-                    name = def;
-                }
-
-                if (taken && name.empty())
-                {
-                    std::cerr << "Error: " << options.flagPrefix
-                              << "d needs a name in front of the `=`.\n";
-                    taken = false;
-                }
-
-                if (taken)
-                {
-                    options.predefinedSymbols[name] = value;
-                }
-                else
-                {
-                    options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
-                    stop                 = true;
-                }
-
-                pos = arg.size();
-                break;
-            }
-
-            case 's':
-                // -s = S-record output (.s19), -s2 = Intel HEX output (.hex)
-                options.outputFormatNamed = true;
-
-                if (!rest.empty() && rest[0] == '2')
-                {
-                    options.outputFormat = CommandLineOptions::OutputFormat::IntelHex;
-
-                    if (rest.size() > 1)
-                    {
-                        options.outputFile = rest.substr (1);
-                    }
-                }
-                else
-                {
-                    options.outputFormat = CommandLineOptions::OutputFormat::SRecord;
-
-                    if (!rest.empty())
-                    {
-                        options.outputFile = rest;
-                    }
-                }
-
-                pos = arg.size();
-                break;
-
-            //  AN ILLEGAL OPTION ENDS THE COMMAND LINE. as65's DIAGNOSTICS:
-            //  "Help message if only parameter is a question mark, or if an
-            //  illegal option has been specified." Usage is printed and
-            //  nothing is assembled.
-            //
-            //  THIS REVERSES A SHIPPED DECISION, by owner ruling, choosing
-            //  parity over the behavior that was here: the flag was dropped
-            //  with a warning, the assembly ran, the output was written, and
-            //  the status was 1. The cost of that was a build whose makefile
-            //  passed a flag this assembler does not have and got a binary
-            //  shaped by the flags that were left -- reported under the same
-            //  status an ordinary assembler warning earns.
-            //
-            //  THE ASSEMBLER'S PAGE IS THE ONE PRINTED, because the assembler's
-            //  grammar is the one that was violated. The complaint goes to
-            //  stderr and the page to stdout, so a caller redirecting either
-            //  one keeps the sentence rather than losing it above the page.
-            default:
-                std::cerr << "Error: unknown option: " << options.flagPrefix << flag << "\n";
-                options.showHelp     = true;
-                options.helpPage     = CommandLineOptions::HelpPage::Assemble;
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
-                pos                  = arg.size();
                 stop                 = true;
                 break;
             }
+
+            ApplyAs65Flag (flag, value, options, stop);
         }
 
         argIndex++;
@@ -1931,6 +2107,207 @@ size_t CommandLineParser::TakeGluedCount (const std::string & rest, int & value)
     return digits;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddSymbolDefinition
+//
+//  as65's `-d`: a name, optionally equated to a value, defined as 1 without one.
+//
+//  A VALUE IT CANNOT READ IS REFUSED RATHER THAN QUIETLY MADE 1. `-dADDR=$6000`
+//  and `-dVER=1.0` each defined the symbol as 1 in silence, and the source then
+//  took a branch nobody chose. `$6000` is the assembler's own hex syntax and
+//  reads perfectly well INSIDE a source file; on the command line it is not a
+//  number this flag knows, and the difference is worth a sentence rather than a
+//  wrong answer.
+//
+//  A BARE `-d` ARRIVES HERE AS `DEBUG=1`, because that is what its row says a
+//  bare one means. Nothing here has to know that.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::AddSymbolDefinition (const std::string & definition,
+                                             CommandLineOptions & options,
+                                             bool & stop)
+{
+    size_t       eqPos = definition.find ('=');
+    std::string  name  = definition;
+    int32_t      value = 1;
+    bool         taken = true;
+
+
+
+    if (eqPos != std::string::npos)
+    {
+        std::string    text = definition.substr (eqPos + 1);
+        char         * end  = nullptr;
+        long           read = strtol (text.c_str(), &end, 0);
+
+        name  = definition.substr (0, eqPos);
+        taken = !text.empty() && end != nullptr && *end == 0;
+
+        if (taken)
+        {
+            value = (int32_t) read;
+        }
+        else
+        {
+            std::cerr << "Error: " << options.flagPrefix << "d cannot read `"
+                      << text << "` as a value.\n"
+                      << "       Write it as a decimal or 0x-prefixed number, or leave the\n"
+                      << "       `=` off entirely -- a name on its own is defined as 1.\n";
+        }
+    }
+
+    if (taken && name.empty())
+    {
+        std::cerr << "Error: " << options.flagPrefix
+                  << "d needs a name in front of the `=`.\n";
+        taken = false;
+    }
+
+    if (taken)
+    {
+        options.predefinedSymbols[name] = value;
+    }
+    else
+    {
+        options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+        stop                 = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyAs65Flag
+//
+//  What one matched as65 flag does to the options, given the value the walk
+//  already read for it.
+//
+//  THE WALK DECIDED THE GRAMMAR; THIS DECIDES THE MEANING. Nothing here reads
+//  the argument, counts characters, or looks at the next argv entry -- all of
+//  that came out of the flag's own row before this is called. What is left is
+//  one option, one value, one field, which is what makes a new flag a row plus
+//  a case rather than a new piece of parsing.
+//
+//  `stop` IS AN OUT-PARAMETER BECAUSE TWO FLAGS END THE COMMAND LINE. A `-d`
+//  whose value cannot be read is refused, and so is one with nothing in front
+//  of its `=`; both leave the rest of the line unparsed, because a run that is
+//  not going to happen should not go on being configured.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::ApplyAs65Flag (const DialectFlag * flag,
+                                       const std::string & value,
+                                       CommandLineOptions & options,
+                                       bool & stop)
+{
+    std::string  option = flag->option;
+
+
+
+    if (option == "x")
+    {
+        options.cpuTarget    = CommandLineOptions::CpuTarget::M65C02;
+        options.hasCpuTarget = true;
+    }
+    else if (option == "d")
+    {
+        AddSymbolDefinition (value, options, stop);
+    }
+    else if (option == "i" || option == "n")
+    {
+        //  Accepted and recorded nowhere. `-i` asks for case-insensitive
+        //  opcodes, which this assembler does unconditionally; `-n` is not
+        //  implemented, and its help says where that is tracked. Both must
+        //  parse, because an as65 command line carrying either is a command
+        //  line this mode exists to accept.
+        if (option == "n")
+        {
+            options.disableOpt = true;
+        }
+    }
+    else if (option == "o")
+    {
+        options.outputFile = value;
+    }
+    else if (option == "s" || option == "s2")
+    {
+        SelectOutputFormat (std::string (1, options.flagPrefix) + option,
+                            option == "s2" ? CommandLineOptions::OutputFormat::IntelHex
+                                           : CommandLineOptions::OutputFormat::SRecord,
+                            options);
+
+        //  The format flags carry an optional output name of their own, which
+        //  is as65's own shape: `-s2out.hex` names the file in one word.
+        if (!value.empty())
+        {
+            options.outputFile = value;
+        }
+    }
+    else if (option == "z")
+    {
+        //  Both, because two readers ask differently: the assembler takes the
+        //  byte, and the fill decision is asked as a yes/no where the byte is
+        //  of no interest. Setting one and not the other left `-z` documented
+        //  and inert.
+        options.fillZero = true;
+        options.fillByte = 0x00;
+    }
+    else if (option == "l")
+    {
+        //  The bare form's default is "-", which is how the table says stdout
+        //  without this having to know what an empty filename would mean.
+        bool  toStdout = value == "-";
+
+        options.generateListing  = true;
+        options.listingToStdout  = toStdout;
+        options.listingFile      = toStdout ? std::string() : value;
+    }
+    else if (option == "p")
+    {
+        options.pass1Listing = true;
+    }
+    else if (option == "c")
+    {
+        options.cycleCounts = true;
+    }
+    else if (option == "m")
+    {
+        options.macroExpansion = true;
+    }
+    else if (option == "h")
+    {
+        options.pageHeight = atoi (value.c_str());
+    }
+    else if (option == "w")
+    {
+        options.pageWidth = atoi (value.c_str());
+    }
+    else if (option == "t")
+    {
+        options.symbolTable = true;
+    }
+    else if (option == "g")
+    {
+        options.debugInfo = true;
+    }
+    else if (option == "v")
+    {
+        options.verbose = true;
+    }
+    else if (option == "q")
+    {
+        options.quiet = true;
+    }
+}
 
 
 
@@ -1998,6 +2375,387 @@ void CommandLineParser::ApplyAs65Defaults (CommandLineOptions & options, const F
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandLineParser::RecordUnrecognizedFlag
+//
+//  An argument the active grammar does not know, carried out by name rather
+//  than printed here.
+//
+//  It used to be a warning written to stderr from inside the parser, after
+//  which parsing -- and the assembly -- carried on. That made a typo silent in
+//  every way that mattered: the warning scrolled past, the exit code was 0, and
+//  the output file was written as though the flag had been honored. Recording
+//  it lets the edge refuse the invocation and print the help for the mode the
+//  flag was meant for.
+//
+//  The FIRST one is the one reported. A command line with two typos gets one
+//  message and the help, and the second typo is obvious against the help.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::RecordUnrecognizedFlag (const std::string & flag, CommandLineOptions & options)
+{
+    if (options.unrecognizedFlag.empty())
+    {
+        options.unrecognizedFlag = flag;
+    }
+
+    //  THE VERDICT MOVES WITH THE FLAG, because two different callers ask two
+    //  different ways. The executable reads the flag's own text, to name it in
+    //  the message; anything deciding whether the command line was ACTED ON
+    //  reads the verdict. Recording one without the other is how a refused flag
+    //  came to print a complaint and still report success -- the diagnostic
+    //  reached the user's screen and never reached their build script.
+    options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RefuseCpuFlagWhereSelectedInSource
+//
+//  Refuses a command-line CPU flag for a dialect that takes its CPU from the
+//  source, and words the refusal.
+//
+//  Driven entirely by the PROFILE. Nothing here names a dialect, and nothing
+//  here knows which dialects have an in-source CPU directive: the profile says
+//  where its CPU comes from and what the directive is called, and both halves of
+//  the sentence are its own. A test that flips a profile's answer therefore
+//  flips the behavior, which is what makes the claim checkable rather than a
+//  matter of reading the code.
+//
+//  Refused rather than ignored, because a flag that is accepted and does nothing
+//  is worse than one that errors -- and because accepting the wider instruction
+//  set without the directive that selects it would assemble source the real
+//  assembler rejects.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::RefuseCpuFlagWhereSelectedInSource (CommandLineOptions & options)
+{
+    const DialectProfile  & profile    = DialectRegistry::Get (options.dialect);
+    bool                    isInSource = profile.GetCpuSelectionSource() == CpuSelectionSource::InSource;
+
+
+
+    if (isInSource)
+    {
+        options.cpuFlagRefusal = std::string (1, options.flagPrefix) + "x is not accepted for " + profile.GetName()
+                               + ": the CPU target is selected in the source, with the "
+                               + profile.GetCpuDirectiveName() + " directive.";
+    }
+
+    return isInSource;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MatchFlag
+//
+//  The flag a dialect's table matches at this position, taking the LONGEST row
+//  that fits.
+//
+//  LONGEST MATCH IS WHAT MAKES `-s2` ORDINARY. `s` and `s2` are both rows, and
+//  `-s2out.hex` has two readings that both parse: the s2 flag with the filename
+//  out.hex, or the s flag with the filename 2out.hex. as65 resolves it the first
+//  way, this always resolved it the first way with a hand-written peek inside
+//  the `s` arm, and stating the rule once for every dialect is the only change.
+//  The documented cost is that `-s` cannot name a file beginning with `2`.
+//
+//  It takes the whole remaining argument rather than one character because a
+//  row is a string now, and returns how much it consumed so the walk knows
+//  where the value starts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const CommandLineParser::DialectFlag * CommandLineParser::MatchFlag (DialectId dialect,
+                                                                     const std::string & text,
+                                                                     size_t at,
+                                                                     size_t & outLength)
+{
+    const DialectFlag *  found = nullptr;
+
+
+
+    outLength = 0;
+
+    for (const DialectFlag & flag : GetFlags (dialect))
+    {
+        size_t  length = strlen (flag.option);
+
+        if (text.compare (at, length, flag.option) == 0 && length > outLength)
+        {
+            found     = &flag;
+            outLength = length;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyMerlinFlag
+//
+//  What one flag DOES, once the walk above has taken whatever value it carries.
+//
+//  Reports whether it recognized the letter rather than ignoring one it does
+//  not, so a row added to the table without an arm here is a flag the help
+//  advertises and the parser drops -- which is exactly the drift the table
+//  exists to prevent, and which the table sweep in the tests would otherwise
+//  pass over in silence.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::ApplyMerlinFlag (char                 letter,
+                                         const std::string  & value,
+                                         CommandLineOptions & options,
+                                         bool               & stop)
+{
+    bool  applied = true;
+
+
+
+    switch (letter)
+    {
+    case 'o':
+        options.outputFile = value;
+        break;
+
+    case 'l':
+        //  "-" is what the table says a bare -l means, so the sentinel is
+        //  read here rather than every caller having to know that an empty
+        //  filename and "no filename" are the same request.
+        options.generateListing = true;
+        options.listingToStdout = value == "-";
+        options.listingFile     = options.listingToStdout ? std::string() : value;
+        break;
+
+    case 'v':
+        options.verbose = true;
+        break;
+
+    case 'd':
+        AddSymbolDefinition (value, options, stop);
+        break;
+
+    default:
+        applied = false;
+        break;
+    }
+
+    return applied;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseMerlinFlags
+//
+//  Parses the Merlin grammar, which is the flag table above and nothing else.
+//
+//  The table decides which letters exist and how each takes its value; this walk
+//  decides nothing of its own. That is what makes the help text generated from
+//  the same rows a description of this parser rather than a second account of it.
+//
+//  A listing filename must be ATTACHED, unlike the as65 form that also
+//  accepts a separated one. Merlin's own source names the object file, so the
+//  bare word after a flag is far more likely to be the source than a listing
+//  path, and swallowing it would leave an assembly with no input and a listing
+//  nobody asked for.
+//
+//  The output format is Raw for this dialect and is not a flag. A Merlin object
+//  IS the assembled stream: the origin relocates rather than seeks, so padding
+//  it out to an address-indexed image would scatter one contiguous object across
+//  the address space.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startIndex, CommandLineOptions & options)
+{
+    int   argIndex = startIndex;
+    bool  stop     = false;
+
+
+
+    options.subcommand       = CommandLineOptions::Subcommand::Merlin;
+    options.dialect          = DialectId::Merlin;
+    options.dialectSelection = DialectSelection::Stated;
+    options.outputFormat     = CommandLineOptions::OutputFormat::Raw;
+
+    while (argIndex < argc && !stop)
+    {
+        std::string  arg (argv[argIndex]);
+        std::string  attachedValue;
+        size_t       pos = 1;
+
+        if (arg == "--help" || arg == "-help" || arg == "-?" || arg == "/?" || arg == "/help")
+        {
+            if (arg[0] == '/')
+            {
+                NoteFlagPrefix ('/', options);
+            }
+
+            options.showHelp = true;
+            stop             = true;
+            continue;
+        }
+
+        // The CPU flag is recognized by every grammar and honored by the ones
+        // whose dialect takes its CPU from the command line. Whether this is one
+        // of them is the profile's answer, not this parser's.
+        if (arg == "-x" || arg == "/x")
+        {
+            NoteFlagPrefix (arg[0] == '/' ? '/' : '-', options);
+
+            stop = RefuseCpuFlagWhereSelectedInSource (options);
+
+            if (!stop)
+            {
+                argIndex++;
+            }
+
+            continue;
+        }
+
+        // An output format, matched against the same table the help text is
+        // composed from. Placed beside the CPU flag rather than in the letter
+        // loop below, because these are whole words: a letter loop would read
+        // --flat as -f -l -a -t and warn four times about flags nobody wrote.
+        if (ApplyOutputFormat (arg, DialectId::Merlin, options))
+        {
+            argIndex++;
+            continue;
+        }
+
+        if (arg[0] == '/')
+        {
+            NoteFlagPrefix ('/', options);
+            arg[0]             = '-';
+        }
+        else if (arg[0] == '-')
+        {
+            // Noted here as well, or "first prefix wins" would silently mean
+            // "first SLASH wins": a dash flag ahead of a slash one would leave
+            // nothing recorded, and the slash would take an invocation it did
+            // not open.
+            NoteFlagPrefix ('-', options);
+        }
+
+        if (arg[0] != '-')
+        {
+            if (options.inputFile.empty())
+            {
+                options.inputFile = arg;
+            }
+
+            argIndex++;
+            continue;
+        }
+
+        while (pos < arg.size())
+        {
+            size_t                matched = 0;
+            const DialectFlag  *  flag    = MatchFlag (DialectId::Merlin, arg, pos, matched);
+            std::string           rest;
+            std::string           value;
+            bool                  applied = false;
+
+            if (flag == nullptr)
+            {
+                RecordUnrecognizedFlag (std::string (1, options.flagPrefix) + arg[pos], options);
+                pos++;
+                continue;
+            }
+
+            rest = arg.substr (pos + matched);
+
+            //  A value that takes a name consumes the rest of the argument,
+            //  which is what stops the name from swallowing a flag; one that
+            //  takes nothing leaves the walk where it is. See ValueKind.
+            if (flag->value == ValueKind::None)
+            {
+                pos += matched;
+            }
+            else
+            {
+                value = rest;
+
+                if (value.empty() && flag->attachment == Attachment::AttachedOrSeparate
+                                  && argIndex + 1 < argc)
+                {
+                    value = argv[++argIndex];
+                }
+
+                if (value.empty() && flag->bareDefault != nullptr)
+                {
+                    value = flag->bareDefault;
+                }
+
+                pos = value.empty() ? pos + matched : arg.size();
+            }
+
+            applied = ApplyMerlinFlag (flag->option[0], value, options, stop);
+
+            if (!applied)
+            {
+                RecordUnrecognizedFlag (std::string (1, options.flagPrefix) + flag->option, options);
+            }
+        }
+
+        argIndex++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyMerlinDefaults
+//
+//  Resolves the source path the same way AS65 mode does, so `merlin build`
+//  finds build.s.
+//
+//  The OUTPUT name is deliberately not defaulted here. Merlin source can name
+//  its own object, and that answer arrives only once the file has been read --
+//  so the precedence between the flag and the directive is settled by the
+//  assembler, which sees both, rather than guessed by a parser that sees one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::ApplyMerlinDefaults (CommandLineOptions & options, const FileExistsFn & fileExists)
+{
+    bool  hasInput = !options.inputFile.empty();
+
+
+
+    if (hasInput)
+    {
+        options.inputFile = TryAutoExtend (options.inputFile, fileExists);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ParseRunOptions
 //
 //  Parses the modern, separated-option grammar the `run` subcommand uses.
@@ -2026,6 +2784,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
 {
     HRESULT  hr        = S_OK;
     bool     wantsHelp = false;
+    bool     refused   = false;
 
 
 
@@ -2057,6 +2816,62 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
         std::string arg = CanonicalLongFlag (argv[argIndex],
                               std::span<const char * const> (s_kpszRunLongOptions));
 
+        // Which assembler reads a SOURCE handed to `run`. Named the same way the
+        // subcommands name it, because the question is the same question: a
+        // dialect the tool inferred is a dialect nobody stated. Ignored when the
+        // input is a binary, which needs no assembler at all.
+        //
+        // The default stays as65, so every `run` invocation written before this
+        // existed keeps assembling what it always did.
+        if (IsLongOption (arg, "--as65", options))
+        {
+            options.dialect          = DialectId::As65;
+            options.dialectSelection = DialectSelection::Stated;
+            argIndex++;
+            continue;
+        }
+
+        if (IsLongOption (arg, "--merlin", options))
+        {
+            options.dialect          = DialectId::Merlin;
+            options.dialectSelection = DialectSelection::Stated;
+            argIndex++;
+            continue;
+        }
+
+        // The CPU a SOURCE assembles for, in both spellings the assembler
+        // subcommands take. Without these, `run` could assemble nothing that
+        // used a 65C02 instruction -- it refused the flag and then reported
+        // every such instruction as invalid, which is a source that can be
+        // assembled and cannot be run.
+        if (arg == "-x" || arg == "/x")
+        {
+            NoteFlagPrefix (arg[0] == '/' ? '/' : '-', options);
+            options.cpuTarget    = CommandLineOptions::CpuTarget::M65C02;
+            options.hasCpuTarget = true;
+            argIndex++;
+            continue;
+        }
+
+        // A symbol the source expects, the other assembler flag that changes
+        // what gets assembled. The rest describe a file `run` never writes.
+        if ((arg.rfind ("-d", 0) == 0 || arg.rfind ("/d", 0) == 0) && arg.size() > 2)
+        {
+            NoteFlagPrefix (arg[0] == '/' ? '/' : '-', options);
+            AddSymbolDefinition (arg.substr (2), options, refused);
+            argIndex++;
+            continue;
+        }
+
+        if ((arg == "-d" || arg == "/d") && argIndex + 1 < argc)
+        {
+            NoteFlagPrefix (arg[0] == '/' ? '/' : '-', options);
+            AddSymbolDefinition (argv[++argIndex], options, refused);
+            argIndex++;
+            continue;
+        }
+
+
         // Normalize / prefix to - on Windows
         if (arg.size() > 1 && arg[0] == '/')
         {
@@ -2079,7 +2894,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
         {
             options.verbose = true;
         }
-        else if (arg == "--fill" && argIndex + 1 < argc)
+        else if (IsLongOption (arg, "--fill", options) && argIndex + 1 < argc)
         {
             hr = ParseFillByte (argv[++argIndex], options.fillByte);
 
@@ -2089,7 +2904,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
-        else if (arg == "--load" && argIndex + 1 < argc)
+        else if (IsLongOption (arg, "--load", options) && argIndex + 1 < argc)
         {
             hr = ParseAddress (argv[++argIndex], options.loadAddress);
 
@@ -2103,7 +2918,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
-        else if (arg == "--entry" && argIndex + 1 < argc)
+        else if (IsLongOption (arg, "--entry", options) && argIndex + 1 < argc)
         {
             hr = ParseAddress (argv[++argIndex], options.entryAddress);
 
@@ -2117,7 +2932,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
-        else if (arg == "--stop" && argIndex + 1 < argc)
+        else if (IsLongOption (arg, "--stop", options) && argIndex + 1 < argc)
         {
             hr = ParseAddress (argv[++argIndex], options.stopAddress);
 
@@ -2131,7 +2946,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
-        else if (arg == "--max-cycles" && argIndex + 1 < argc)
+        else if (IsLongOption (arg, "--max-cycles", options) && argIndex + 1 < argc)
         {
             hr = ParseDecimal (argv[++argIndex], options.maxCycles);
 
@@ -2141,19 +2956,19 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
-        else if (arg == "--reset-vector")
+        else if (IsLongOption (arg, "--reset-vector", options))
         {
             options.useResetVector = true;
         }
-        else if (arg == "--warn")
+        else if (IsLongOption (arg, "--warn", options))
         {
             options.warningMode = WarningMode::Warn;
         }
-        else if (arg == "--no-warn")
+        else if (IsLongOption (arg, "--no-warn", options))
         {
             options.warningMode = WarningMode::NoWarn;
         }
-        else if (arg == "--fatal-warnings")
+        else if (IsLongOption (arg, "--fatal-warnings", options))
         {
             options.warningMode = WarningMode::FatalWarnings;
         }
@@ -2184,9 +2999,20 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
         {
             std::cerr << "Error: Unknown option: " << arg << "\n";
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            RecordUnrecognizedFlag (arg, options);
         }
 
         argIndex++;
+    }
+
+    // The CPU flag is refused for a dialect whose source selects its own, here
+    // as well as in that dialect's own subcommand. Checked after the loop
+    // rather than inside it because the two facts arrive in either order:
+    // `run src.s --merlin -x` and `run src.s -x --merlin` are the same request,
+    // and a check inside the loop would refuse only one of them.
+    if (options.hasCpuTarget)
+    {
+        RefuseCpuFlagWhereSelectedInSource (options);
     }
 }
 
@@ -2206,11 +3032,12 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
 //
 //  A leading `/` is normalized to `-` throughout, after recording the user's
 //  chosen prefix in flagPrefix so usage text is written back the way they type.
+//  chosen prefix in flagPrefix so usage text uses the prefix they type.
 //
-//  An unrecognized first argument is NOT an error -- it is a source filename,
-//  which is exactly how as65 was invoked -- so AS65 is the fallback rather
-//  than a named mode. Adding a subcommand means adding a row to the table and
-//  an arm below; the fallback is unaffected.
+//  An unrecognized first argument IS an error, and is carried back out by name.
+//  It used to be taken for a source filename, which is how as65 was invoked; the
+//  guess is gone, and each assembler dialect is named by a subcommand of its
+//  own. Adding one means adding a row to the table and an arm below.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2234,6 +3061,7 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
     //  into a dangling argv.
     std::vector<std::string>        typed    = RejoinShellSplitArguments (argc, argv);
     std::vector<char *>             args;
+    bool                            isMerlin = false;
 
 
 
@@ -2273,7 +3101,7 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
 
     if (first[0] == '/')
     {
-        options.flagPrefix = '/';
+        NoteFlagPrefix ('/', options);
         first[0] = '-';
     }
 
@@ -2315,18 +3143,37 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
 
     BAIL_OUT_IF (isHelp || isVer, S_OK);
 
-    named  = LookUpSubcommand (first);
-    isAs65 = named == CommandLineOptions::Subcommand::None;
+    named    = LookUpSubcommand (first);
+    isAs65   = named == CommandLineOptions::Subcommand::As65;
+    isMerlin = named == CommandLineOptions::Subcommand::Merlin;
+
+    // An unrecognized first word is now an error rather than an assumed source
+    // filename. The word is carried out so the caller can name the replacement
+    // instead of printing usage: the population this breaks is build scripts,
+    // which nobody re-reads until they fail, and "unknown argument" turns a
+    // one-line fix into a bisect.
+    if (named == CommandLineOptions::Subcommand::None)
+    {
+        options.unrecognizedArgument = first;
+    }
 
     if (isAs65)
     {
-        ParseAs65Flags    (argc, argv, options);
+        // From argv[2] -- argv[1] is the `as65` word itself. Every other
+        // subcommand's parser already starts there.
+        ParseAs65Flags    (argc, argv, 2, options);
         ApplyAs65Defaults (options, fileExists);
     }
 
-    // AS65 mode consumed the whole command line above; only a named
-    // subcommand continues into its own option parser.
-    BAIL_OUT_IF (isAs65, S_OK);
+    if (isMerlin)
+    {
+        ParseMerlinFlags    (argc, argv, 2, options);
+        ApplyMerlinDefaults (options, fileExists);
+    }
+
+    // An assembler grammar consumed the rest of the command line above; only
+    // another named subcommand continues into its own option parser.
+    BAIL_OUT_IF (isAs65 || isMerlin, S_OK);
 
     options.subcommand = named;
 

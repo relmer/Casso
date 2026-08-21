@@ -1,8 +1,10 @@
 #include "Pch.h"
 
-#include "As65ExitStatus.h"
 #include "CommandLine.h"
+#include "As65Mode.h"
 #include "DiskCommand.h"
+#include "MerlinMode.h"
+#include "RunMode.h"
 #include "CassoCli.h"
 
 
@@ -15,19 +17,10 @@
 //
 //  Parses the command line and dispatches to a subcommand.
 //
-//  ASKING FOR THE USAGE TEXT EXITS 0; BEING SHOWN IT EXITS 1. Both print the
-//  same page, and the difference is who wanted it there. An explicit --help or
-//  `help` is the user asking. A bare `CassoCli` and an option this grammar does
-//  not have are the tool answering a command line it could not act on, which is
-//  what as65 calls 1: "incorrect parameter specified on the commandline".
-//
-//  IT USED TO BE 2, AND 2 NOW MEANS SOMETHING ELSE. That status is "unable to
-//  open input or output file", so reporting it for a command line that named no
-//  file to open sent a script looking for a path problem it did not have.
-//
-//  The comment here used to say a missing subcommand exits 1, and the arm that
-//  would have done it was unreachable: the parser sets showHelp for an empty
-//  command line, so the "user asked" branch claimed it and reported success.
+//  No subcommand is a usage ERROR and exits 1, while an explicit --help or
+//  `help` is the user asking and exits 0. Both print the same text, but a
+//  script that invokes the tool wrongly must fail, and one that asks for help
+//  must not.
 //
 //  Dispatch is a flat chain over the parsed subcommand, so the parser owns all
 //  the grammar and this function owns none of it.
@@ -36,13 +29,6 @@
 //  does not -- a genuinely unreachable state kept as a defined behavior rather
 //  than a fallthrough returning an uninitialized code.
 //
-//  A COMMAND LINE THE PARSER REFUSED EXITS 2 EVEN THOUGH IT PRINTS USAGE. An
-//  option this grammar does not have ends parsing and leaves showHelp set so
-//  the user is shown the grammar, and that arrangement used to report success:
-//  the tool printed a diagnostic, printed the whole help, and told the calling
-//  script it had worked. Printing usage is how the tool answers the mistake,
-//  not evidence there was none.
-//
 //  The exit code is the only thing this function produces; every subcommand
 //  reports through it, which is what makes the tool usable from a build script.
 //
@@ -50,43 +36,87 @@
 
 int main (int argc, char * argv[])
 {
-    CommandLineOptions  options  = ParseCommandLine (argc, argv);
+    CommandLineOptions  options  = CommandLine::Parse (argc, argv);
+    HRESULT             hr       = S_OK;
     int                 exitCode = 0;
-    bool                refused  = options.parseVerdict == CommandLineOptions::ParseVerdict::Refused;
-    bool                asked    = options.showHelp && !refused;
 
 
 
-    // The usage page is reached two ways and they do not report the same
-    // thing: `asked` is the user requesting it, and everything else landing
-    // here is the page being printed AT them because nothing could be done.
-    if (options.showHelp || options.subcommand == CommandLineOptions::Subcommand::None
-                        || options.subcommand == CommandLineOptions::Subcommand::Help)
+    // A first word that named nothing gets a targeted message, not the usage
+    // block -- see PrintUnrecognizedArgument. Checked before the usage arm
+    // because it is a strictly better answer for the same condition.
+    if (!options.unrecognizedArgument.empty())
     {
-        PrintUsage (options);
-        exitCode = asked ? As65ExitStatus::kClean : As65ExitStatus::kBadCommandLine;
+        CommandLine::PrintUnrecognizedArgument (options.unrecognizedArgument, options.flagPrefix);
+        exitCode = 1;
+    }
+    else if (!options.unrecognizedFlag.empty())
+    {
+        // The subcommand was recognized, so the help that follows the message
+        // is that mode's alone. Refused rather than warned about and run: a
+        // typo that still produced an output file was a typo nobody saw.
+        CommandLine::PrintUnrecognizedFlag (options.unrecognizedFlag, options.subcommand, options.flagPrefix);
+        exitCode = 2;
+    }
+    else if (!options.outputFormatConflict.empty())
+    {
+        // Two formats named is two files asked for, and one gets written. Same
+        // reasoning as the arm below: the sentence naming both flags is a
+        // better answer than usage text that lists them among twenty others.
+        exitCode = CommandLine::PrintCpuFlagRefusal (options.outputFormatConflict);
+    }
+    else if (!options.cpuFlagRefusal.empty())
+    {
+        // Checked before the usage arm for the same reason the line above is: a
+        // refusal that names the directive to write instead is a strictly better
+        // answer than a wall of usage text, and printing usage would bury it.
+        exitCode = CommandLine::PrintCpuFlagRefusal (options.cpuFlagRefusal);
+    }
+    else if (options.showHelp || options.subcommand == CommandLineOptions::Subcommand::None
+                             || options.subcommand == CommandLineOptions::Subcommand::Help)
+    {
+        // No subcommand is a usage ERROR (exit 1); an explicit --help or
+        // `help` is the user asking, and succeeds.
+        CommandLine::PrintUsage (options.flagPrefix);
+        exitCode = options.showHelp ? 0 : 1;
     }
     else if (options.showVersion || options.subcommand == CommandLineOptions::Subcommand::Version)
     {
-        PrintVersion();
+        CommandLine::PrintVersion();
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::Run)
     {
-        exitCode = DoRun (options);
+        hr = RunMode::Run (options, exitCode);
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::Disk)
     {
+        // The only arm that reports its own status rather than an HRESULT:
+        // `disk` distinguishes "carried out with something worth saying" from
+        // "nothing was done", and those are the runner's to assign.
         exitCode = DiskCommand::Run (options);
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::As65)
     {
-        exitCode = DoAs65 (options);
+        As65Mode  mode;
+
+        hr = mode.Run (options, exitCode);
+    }
+    else if (options.subcommand == CommandLineOptions::Subcommand::Merlin)
+    {
+        MerlinMode  mode;
+
+        hr = mode.Run (options, exitCode);
     }
     else
     {
         // A subcommand the parser knows but this dispatch does not.
-        PrintUsage (options);
+        CommandLine::PrintUsage (options.flagPrefix);
     }
+
+    //  The HRESULT says what went wrong; the exit code is what a script reads.
+    //  Only the second crosses the process boundary, and it is never derived
+    //  from the first -- an assembly that warned succeeded and exits 1.
+    (void) hr;
 
     return exitCode;
 }

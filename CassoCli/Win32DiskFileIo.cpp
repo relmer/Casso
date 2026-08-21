@@ -354,22 +354,22 @@ Error:
 
 bool Win32DiskFileIo::IsAbortStageRequested (const wchar_t * stage)
 {
-    constexpr DWORD  kMaxStageLength         = 32;
-    wchar_t          buffer[kMaxStageLength] = {};
-    DWORD            length                  = 0;
-    std::wstring     requested;
-    bool             matches                 = false;
+    constexpr DWORD       kMaxStageLength = 32;
+    std::vector<wchar_t>  buffer (kMaxStageLength, L'\0');
+    DWORD                 length          = 0;
+    std::wstring          requested;
+    bool                  matches         = false;
 
 
 
-    length = GetEnvironmentVariableW (kpszAbortVariable, buffer, kMaxStageLength);
+    length = GetEnvironmentVariableW (kpszAbortVariable, buffer.data(), kMaxStageLength);
 
     // Absent yields zero, and a value too long for the buffer yields the size
     // it would need while leaving the buffer empty. Neither names a stage, and
     // treating the second as a match would fire on a truncation.
     if (length > 0 && length < kMaxStageLength)
     {
-        requested.assign (buffer, length);
+        requested.assign (buffer.data(), length);
     }
 
     matches = !requested.empty() && requested == stage;
@@ -398,7 +398,6 @@ void Win32DiskFileIo::AbortWithPartialFileIfRequested (
     const std::vector<Byte>  & bytes)
 {
     constexpr size_t  kPartDivisor = 2;
-
     bool              requested    = false;
     size_t            partial      = 0;
 

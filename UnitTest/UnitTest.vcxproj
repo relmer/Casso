@@ -232,11 +232,24 @@
     <ClCompile Include="UsageTextTests.cpp" />
     <ClCompile Include="DirectiveTests.cpp" />
     <ClCompile Include="DirectiveTokenTests.cpp" />
+    <ClCompile Include="DialectMechanismTests.cpp" />
+    <ClCompile Include="DialectReportingTests.cpp" />
+    <ClCompile Include="AssemblerExitCodeTests.cpp" />
+    <ClCompile Include="MerlinDiagnosticTests.cpp" />
+    <ClCompile Include="MerlinDirectiveTests.cpp" />
+    <ClCompile Include="MerlinCorpus\MerlinFixture.cpp" />
+    <ClCompile Include="MerlinCorpusTests.cpp" />
+    <ClCompile Include="MerlinCommandLineTests.cpp" />
+    <ClCompile Include="MerlinSubsetBoundaryTests.cpp" />
+    <ClCompile Include="MerlinParserTests.cpp" />
+    <ClCompile Include="MerlinStringEncodingTests.cpp" />
     <ClCompile Include="IncludeTests.cpp" />
     <ClCompile Include="StructTests.cpp" />
     <ClCompile Include="CmapTests.cpp" />
     <ClCompile Include="OutputFormatTests.cpp" />
     <ClCompile Include="ConformanceTests.cpp" />
+    <ClCompile Include="DialectEquivalenceTests.cpp" />
+    <ClCompile Include="UsageTextTests.cpp" />
     <ClCompile Include="DormannIntegrationTests.cpp" />
     <ClCompile Include="EhmTestHelper.cpp" />
     <ClCompile Include="HarteTestRunner.cpp" />
@@ -557,6 +570,9 @@
   <ItemGroup>
     <ClInclude Include="Pch.h" />
     <ClInclude Include="TestHelpers.h" />
+    <ClInclude Include="MockFileReader.h" />
+    <ClInclude Include="MerlinCorpus\CorpusHarness.h" />
+    <ClInclude Include="MerlinCorpus\MerlinFixture.h" />
     <ClInclude Include="TestCpu65C02.h" />
     <ClInclude Include="EhmTestHelper.h" />
     <ClInclude Include="HarteTestRunner.h" />

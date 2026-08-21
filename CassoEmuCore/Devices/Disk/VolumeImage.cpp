@@ -171,6 +171,8 @@ void VolumeImage::ChangedTracks (
     int           track       = 0;
     size_t        needed      = (size_t) NibblizationLayer::kImageByteSize;
 
+
+
     outTracks.clear();
 
     if (priorSectors.size() != needed || editedSectors.size() != needed)

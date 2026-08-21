@@ -23,9 +23,10 @@
 //  own flag parser. It used to be a single `first != "run"` test, which meant
 //  every new subcommand reshaped the dispatcher.
 //
-//  An unrecognized first argument is NOT an error: it is a source filename,
-//  which is exactly how as65 was invoked. AS65 is therefore the fallback
-//  rather than a named mode.
+//  An unrecognized first argument is an ERROR. It used to be taken for a source
+//  filename, which is how as65 was invoked, and that guess is what made the
+//  dialect something the tool decided rather than something the invocation
+//  said. Every dialect is now named by a subcommand of its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,6 +116,131 @@ public:
         "       may have moved the load address.\n"
         "    3  the program reached an illegal opcode.";
 
+    //
+    //  What KIND of value a flag takes, which decides three things at once: how
+    //  the value is read, whether a concatenated group may continue past it, and
+    //  how the value appears in help.
+    //
+    //  THE GROUP RULE IS as65's OWN, and it is derived here rather than written
+    //  into each flag: "no other option can follow one that may have a string
+    //  parameter. Other options can follow one that has a numeric parameter."
+    //  So None and Number let the walk continue at the next character; Filename
+    //  and SymbolDefinition consume the rest of the argument, because a name
+    //  would otherwise swallow whatever came after it.
+    //
+    enum class ValueKind
+    {
+        None,              // the flag is the whole of it
+        Number,            // digits, and the group may continue after them
+        Filename,          // a path, which takes the rest of the argument
+        SymbolDefinition,  // as65's -d: NAME, or NAME=VALUE
+    };
+
+    //  Whether a flag's value may be a separate argument, or must be attached.
+    //
+    //  as65 attaches every value. `-o` is the one exception, and it can be,
+    //  because it has no bare form: whatever follows it can only be its
+    //  filename. Every other flag here has a bare form, which is what would
+    //  leave a separated value ambiguous.
+    enum class Attachment
+    {
+        AttachedOnly,
+        AttachedOrSeparate,
+    };
+
+    // Which part of the job a flag belongs to, so help can group them. Someone
+    // looking for "how do I get a listing" should find the listing flags
+    // together rather than scanning one alphabetical run for the four that
+    // apply.
+    enum class FlagCategory
+    {
+        AssembledCode,   // what is assembled, and what is written out
+        Listing,         // the human-readable listing
+        Debug,           // symbol and debug files
+        General,         // everything else about the run itself
+    };
+
+    // One flag of a dialect's own grammar, as data. The table is what the
+    // parser walks AND what the help text is generated from, so the two cannot
+    // describe different tools.
+    //
+    //  THE OPTION IS A STRING, NOT A LETTER, and that is what stops `-s2` from
+    //  being a special case. `s` and `s2` are simply two rows, and the walk
+    //  takes the LONGEST row that matches at each position -- so `-s2out.hex`
+    //  is Intel HEX to out.hex rather than S-records to a file called 2out.hex.
+    //
+    //  THAT AMBIGUITY IS REAL AND as65 HAS IT TOO: `-s` takes an optional
+    //  attached filename, so both readings parse. Longest match settles it, at
+    //  the documented cost that `-s` cannot name a file beginning with `2`.
+    //  It was settled before by a hand-written peek inside the `s` arm; stating
+    //  it once for the whole grammar is the only change.
+    //
+    //  bareDefault is what the flag means with no value attached, and it is
+    //  data because it differs per flag: a bare `-w` is 133 columns, a bare `-d`
+    //  defines DEBUG as 1, a bare `-l` lists to stdout. nullptr means a bare
+    //  form is refused.
+    //
+    struct DialectFlag
+    {
+        const char   *  option;        // "s", "s2", "d" -- longest match wins
+        ValueKind       value;
+        Attachment      attachment;
+        const char   *  bareDefault;   // what a bare flag means, or nullptr
+        FlagCategory    category;
+        const char   *  valueName;     // how the value appears in help
+        const char   *  description;
+    };
+
+    // One output FORMAT a dialect's grammar accepts, as data, for the same
+    // reason DialectFlag is: the parser walks this table and the help text is
+    // generated from it, so a format the tool accepts and one the tool
+    // documents cannot come apart.
+    //
+    // Named as a whole word rather than a letter, because these name a file format
+    // rather than an assembler option, and the as65 grammar already writes
+    // them that way.
+    struct OutputFormatFlag
+    {
+        const char                    *  option;
+        CommandLineOptions::OutputFormat format;
+        const char                    *  description;
+    };
+
+    // The heading a category prints under, so the wording lives with the enum
+    // rather than at whichever call site printed it first.
+    static const char *  DescribeCategory (FlagCategory category);
+
+    struct OutputFormatTable
+    {
+        DialectId                 dialect;
+        const OutputFormatFlag  * formats;
+        size_t                    count;
+    };
+
+    // Which dialect a flag table belongs to. A row rather than a test on the
+    // dialect, so a dialect with a grammar of its own is added by stating it
+    // and a dialect without one simply has no row.
+    struct DialectFlagTable
+    {
+        DialectId             dialect;
+        const DialectFlag  *  flags;
+        size_t                count;
+    };
+
+    //
+    //  The flag a dialect's table matches at `at`, longest row first, with how
+    //  many characters it consumed. Null when nothing matches.
+    //
+    //  PUBLIC BECAUSE LONGEST MATCH IS A RULE, not an implementation detail.
+    //  It is what makes `-s2` an option rather than `-s` carrying the filename
+    //  `2`, and a rule that decides between two readings of the same argument
+    //  is one a test has to be able to state directly.
+    //
+    static const DialectFlag *  MatchFlag (DialectId dialect,
+                                           const std::string & text,
+                                           size_t at,
+                                           size_t & outLength);
+
     static CommandLineOptions  Parse (int argc, char * argv[], const FileExistsFn & fileExists);
 
     // Whether one argument is the user asking for usage text, in any form
@@ -123,13 +249,12 @@ public:
     static bool  IsHelpRequest (const std::string & arg);
 
     // Shared with the executable, which needs the same tests when it decides
-    // how to treat an input path and which output writer to use.
-    static bool  IsAssemblySource (const std::string & path);
-    static bool  EndsWith         (const std::string & str, const std::string & suffix);
-
-    // Every accepted subcommand form, so tests can sweep the whole table
-    // instead of a hand-picked sample.
-    static std::span<const SubcommandName>  GetAllSubcommands();
+    // how to treat an input path and which output writer to use, and the same
+    // answer about where a path's extension begins when it names an output
+    // after an input.
+    static bool         IsAssemblySource (const std::string & path);
+    static bool         EndsWith         (const std::string & str, const std::string & suffix);
+    static std::string  StripExtension   (const std::string & path);
 
     // Every accepted disk verb, aliases included, for the same reason -- and
     // because the help output has to describe all of them.
@@ -195,6 +320,46 @@ public:
     //  as one that does not exist.
     static bool  IsDiskOptionNeedingValue (const std::string & arg);
     static bool  IsRunOptionNeedingValue  (const std::string & arg);
+    // Every accepted subcommand name, so tests can sweep the whole table
+    // instead of a hand-picked sample.
+    static std::span<const SubcommandName>  GetAllSubcommands();
+
+    // A dialect's own flags, empty for one whose grammar is not table-driven.
+    // Public because the help text is generated from this exact table, which is
+    // what keeps help and parser from drifting.
+    static std::span<const DialectFlag>     GetFlags (DialectId dialect);
+
+    // The output formats a dialect names on its command line, empty for one
+    // that offers no choice. Public for the same reason GetFlags is.
+    static std::span<const OutputFormatFlag>      GetOutputFormats (DialectId dialect);
+
+    // A long option written with the prefix this invocation used: `--name` for a
+    // dash command line, `/name` for a slash one. Public because the help text
+    // and the diagnostics have to agree with the parser about how an option is
+    // written -- printing `--dos-bin` at someone who typed `/o` tells them to
+    // use a form this parser would then have to accept anyway.
+    static std::string  FormatLongOption (const std::string & canonical, char flagPrefix);
+
+    // Records the prefix the user typed, the FIRST time one appears. A command
+    // line that mixes the two is answered with the prefix it opened with.
+    static void         NoteFlagPrefix  (char prefix, CommandLineOptions & options);
+
+    // Whether `arg` names the long option `canonical` (given as `--name`) in
+    // either form, recording the prefix as a side effect.
+    static bool         IsLongOption    (const std::string & arg, const std::string & canonical,
+                                         CommandLineOptions & options);
+
+    // Records the output format one flag asked for, refusing a second flag that
+    // asks for a different one. Public because both grammars select formats and
+    // both have to refuse the same way.
+    static void         SelectOutputFormat (const std::string & flag,
+                                            CommandLineOptions::OutputFormat format,
+                                            CommandLineOptions & options);
+
+    // The same, for the `--name=value` / `/name=value` form. `value` is filled
+    // only when the option matched with a value attached.
+    static bool         IsLongOptionWithValue (const std::string & arg, const std::string & canonical,
+                                               std::string & value, CommandLineOptions & options);
 
 private:
     static HRESULT  ParseBoundedHex (const char * text, long maxValue, long & outValue);
@@ -208,13 +373,22 @@ private:
     static size_t  TakeGluedCount (const std::string & rest, int & value);
 
     static std::string  TryAutoExtend  (const std::string & path, const FileExistsFn & fileExists);
-    static std::string  StripExtension (const std::string & path);
 
     static CommandLineOptions::Subcommand  LookUpSubcommand (const std::string & word);
 
-    static void  ParseAs65Flags    (int argc, char * argv[], CommandLineOptions & options);
-    static void  ApplyAs65Defaults (CommandLineOptions & options, const FileExistsFn & fileExists);
-    static void  ParseRunOptions   (int argc, char * argv[], int argIndex, CommandLineOptions & options);
+    //  What one matched as65 flag means, given the value its row told the walk
+    //  to read. `stop` says the command line ended here, which two refusals do.
+    static void  ApplyAs65Flag (const DialectFlag * flag,
+                                const std::string & value,
+                                CommandLineOptions & options,
+                                bool & stop);
+
+    //  as65's `-d`: a name, optionally equated to a value. Refuses a value it
+    //  cannot read rather than quietly defining the symbol as 1.
+    static void  AddSymbolDefinition (const std::string & definition,
+                                      CommandLineOptions & options,
+                                      bool & stop);
+
     static void  ParseDiskOptions  (int argc, char * argv[], int argIndex, CommandLineOptions & options);
 
     static CommandLineOptions::DiskOptions::Verb  LookUpDiskVerb (const std::string & word);
@@ -233,4 +407,20 @@ private:
                                            std::span<const char * const>   names);
 
     static std::string  CanonicalDiskFlag (const std::string & arg);
+    static void  ParseAs65Flags      (int argc, char * argv[], int startIndex, CommandLineOptions & options);
+    static void  ApplyAs65Defaults   (CommandLineOptions & options, const FileExistsFn & fileExists);
+    static void  ParseMerlinFlags    (int argc, char * argv[], int startIndex, CommandLineOptions & options);
+    static void  ApplyMerlinDefaults (CommandLineOptions & options, const FileExistsFn & fileExists);
+    static void  ParseRunOptions     (int argc, char * argv[], int argIndex, CommandLineOptions & options);
+
+    static bool  RefuseCpuFlagWhereSelectedInSource (CommandLineOptions & options);
+    static void  RecordUnrecognizedFlag (const std::string & flag, CommandLineOptions & options);
+
+    static bool  ApplyOutputFormat (const std::string & arg, DialectId dialect, CommandLineOptions & options);
+
+
+    static bool                 ApplyMerlinFlag (char                 letter,
+                                                 const std::string  & value,
+                                                 CommandLineOptions & options,
+                                                 bool               & stop);
 };

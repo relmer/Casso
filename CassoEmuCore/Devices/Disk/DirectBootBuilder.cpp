@@ -212,6 +212,9 @@ std::string DirectBootBuilder::DescribeWindow (Word loadAddress)
 std::string DirectBootBuilder::DescribeTooLarge (Word loadAddress, size_t payloadBytes)
 {
     size_t  capacity   = CapacityFor (loadAddress);
+
+
+
     char    text[256]  = {};
 
 

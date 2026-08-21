@@ -53,7 +53,7 @@
 
 struct CommandLineOptions
 {
-    enum class Subcommand    { None, Run, Help, Version, As65, Disk };
+    enum class Subcommand    { None, Run, Help, Version, As65, Merlin, Disk };
     enum class CpuTarget     { M6502, M65C02 };
 
     //  What the parser made of the command line itself, apart from anything
@@ -172,6 +172,16 @@ struct CommandLineOptions
     WarningMode   warningMode     = WarningMode::Warn;
     bool          showVersion     = false;
     bool          showHelp        = false;
+
+    //  The first word, when it named no subcommand. Empty otherwise. Carried
+    //  rather than turned into a message here so the wording lives with the
+    //  other user-facing text, and so a test can assert WHICH word was rejected.
+    std::string   unrecognizedArgument;
+
+    //  An argument AFTER a recognized subcommand that its grammar does not
+    //  know, as typed. Empty otherwise. The subcommand is valid, so the help
+    //  the edge prints is that mode's rather than the general one.
+    std::string   unrecognizedFlag;
     bool          hasLoadAddress  = false;
     bool          hasStopAddress  = false;
     bool          hasEntryAddress = false;
@@ -180,6 +190,42 @@ struct CommandLineOptions
     //  Live only when subcommand == Disk. Grouped so its boundary is visible
     //  at every use site rather than mixed into the assembler's fields.
     DiskOptions   disk;
+
+    //  Whether a prefixed argument has been seen yet, which is what makes the
+    //  FIRST one the one that counts. Without it a mixed command line would be
+    //  answered with whichever prefix happened to come last, so the same
+    //  invocation could be echoed back two different ways depending on the
+    //  order of flags nobody thinks of as ordered.
+    bool          flagPrefixSeen  = false;
+
+    //  Which dialect the invocation named, and whether it named one at all.
+    //  Two fields rather than one, because the default dialect is also a dialect
+    //  a caller can ask for by name: the value alone cannot say which happened,
+    //  and what gets reported back to the developer turns on exactly that.
+    DialectId         dialect          = DialectId::As65;
+    DialectSelection  dialectSelection = DialectSelection::Defaulted;
+
+    //  Whether a CPU flag was given at all, since an explicitly requested target
+    //  and the one nothing asked for are the same value.
+    bool              hasCpuTarget     = false;
+
+    //  Why a CPU flag could not be honored, already worded. Empty when none was
+    //  given, or when the active dialect takes its CPU from the command line.
+    //  Composed where the dialect's own data is rather than at the printing
+    //  edge, so the sentence naming the in-source directive is reachable from a
+    //  test -- and so no caller has to know which dialects have one.
+    std::string       cpuFlagRefusal;
+
+    //  Why two output-format flags could not both be honored, already worded,
+    //  and which flag chose the format that stands. Empty when at most one was
+    //  given.
+    //
+    //  Two flags naming different formats is a request for two files where the
+    //  tool writes one. Taking the last and discarding the first would be
+    //  answering a question the user did not ask -- and silently, since both
+    //  spellings are perfectly valid on their own.
+    std::string       outputFormatConflict;
+    std::string       outputFormatFlag;
 
     // AS65-compatible options
     bool                                      cycleCounts       = false;   // -c
@@ -190,7 +236,12 @@ struct CommandLineOptions
     //  the SCREEN rather than of the listing, which is the one column that does
     //  not fit on it. This project's own 002 contract said 79 as well, so the
     //  80 was drift from both authorities at once.
-    int                                       pageWidth         = 79;   // -w<N>
+    //
+    //  `-i` SETS NOTHING. It asks for case-insensitive opcodes, which this
+    //  assembler does unconditionally, so the field it used to set was one
+    //  nothing read and nothing could usefully read. See As65ExitStatus's
+    //  neighbours in CommandLineParser for the flag itself.
+    int                                       pageWidth         = 79;   // -w<N> (as65's default)
     bool                                      pass1Listing      = false;   // -p
     bool                                      symbolTable       = false;   // -t
     bool                                      debugInfo         = false;   // -g
