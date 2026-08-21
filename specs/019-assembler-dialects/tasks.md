@@ -6,22 +6,24 @@ description: "Task list for 019-assembler-dialects"
 
 ## State of play
 
-*Updated 2026-08-20. Keep this current or delete it — a stale status block is
+*Updated 2026-08-21. Keep this current or delete it — a stale status block is
 read by whoever has no other way to check.*
 
-**MASTER IS MERGED IN AND EVERY GATE WAS RE-RUN AFTER IT (T095).**
-`origin/master` at `a25a3c67` — 1.16.2, the three WOZ/disk-write fixes, and the
-Dormann download hardening — merged as `b2cce9b1`. **One conflict, in
-`CHANGELOG.md`**, where both sides had written under `[Unreleased]`: resolved by
-keeping both, then consolidating what the merge left behind. It produced two
-`### Added` headings in one release; there is now one section per type in Keep a
-Changelog order, and every entry was checked to appear exactly once rather than
-eyeballed.
+**MASTER IS MERGED IN A SECOND TIME AND EVERY GATE WAS RE-RUN AFTER IT.**
+`origin/master` at `17e175d7` — 1.17.0, salvage a damaged disk, 27 commits —
+merged as `cd3c132b`. Four conflicts, all resolved toward this branch:
+`Version.h` stays 1.18.0 above master's 1.17.0; `CHANGELOG.md`'s `[Unreleased]`
+now holds the 019 entries alone, three it carried having shipped in 1.17.0
+(`--raw`/`--dos-bin`, format-flag-over-extension, the guest-paste fix) and the
+two `### Added` headings the first merge left folded into one — checked by
+listing every title rather than eyeballed; `README.md` keeps the dialect-named
+examples with the last `--cpu` corrected to `-x`; `docs/Assembler.md` is this
+branch's document plus the one sentence master's later revisions had that it
+lacked. The first merge, `a25a3c67` as `b2cce9b1`, stands beneath it.
 
-**Suite is 3457 Debug / 3454 Release, both green** (from 3423 / 3420 at the
-merge — the growth since is the command-line and help work, T096 last). Code
-analysis 0 warnings, CheckStyle OK over 123 files, Harte passes against the
-reduced set,
+**Suite is 3512 Debug / 3509 Release, both green** (3462 / 3459 before the
+second merge; the fifty are master's salvage tests). Code analysis 0 warnings,
+CheckStyle OK over 143 files, Harte passes against the reduced set,
 `scripts/RunMerlinOracles.ps1` reproduces all six shipped objects through the
 executable, and `scripts/BuildDemoDisk.ps1` reproduces its committed image byte
 for byte.
