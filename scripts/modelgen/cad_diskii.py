@@ -166,7 +166,16 @@ case = case.cut(
 # two solids sharing a volume is what drew the thin triangle across the
 # closed door's bottom. The door needs somewhere to BE, so the pocket it
 # retracts into has to begin behind it.
-notch = (cq.Workplane("XZ")
+# DRAWN ON "YZ", NOT "XZ". The profile's two coordinates are DEPTH and
+# HEIGHT, and on an XZ workplane the first one is read as global X -- so the
+# wedge was built in the plane of the drive's FACE instead of in depth, and
+# its sloped edge ran from (x 1, z 47.6) to (x 37, z 84.4) as a diagonal
+# straight across the faceplate. That was the triangle that had been sitting
+# on the door and, with the door open, on the face behind it.
+#
+# On YZ the local axes are global Y then Z, which is what the profile means,
+# and the extrude runs along X to sweep the notch across the door's width.
+notch = (cq.Workplane("YZ")
          .polyline ([(FRAME_Y,                 DOOR_Z0),
                      (DOOR_BACK,               DOOR_Z0),
                      (PLATE_Y + NOTCH_DEEP,    DOOR_Z1),
