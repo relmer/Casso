@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [Unreleased]
+## [1.18.0] — Merlin assembler dialect
 
 ### Breaking changes
 - **`--cpu` is gone; use `-x` for the 65C02.** `-x` is what AS65 itself
