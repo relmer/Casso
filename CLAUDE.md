@@ -47,6 +47,11 @@ The earlier claim that moving the command-line surface into `CassoCore` would le
 both extend it "without a blind merge" was optimistic: it made the code testable,
 which is worth having, but 020 then restructured what it found there.
 
+**The merge is surveyed.** `specs/020-disk-file-access/merge-019-prep.md` maps
+what 019 did to the command line — it dismantled `CommandLine.cpp` into per-mode
+modules, which 020 grew instead — and lists the five real collisions with a
+suggested order of work. Read it before starting step 2.
+
 The others are gated: 021 needs 020's filesystem layer, 022 needs 020/021, and
 **023 needs 019's dialect mechanism** (023 SC-006 requires that adding ca65
 change nothing in that mechanism), so 023 must not start before 019 lands.
