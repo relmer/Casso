@@ -117,10 +117,10 @@ SourceAssembler::Result SourceAssembler::Assemble (const std::string & inputFile
                                                       const Microcode extendedSet[256],
                                                       const AssemblerOptions & asmOptions)
 {
-    HRESULT         hr          = S_OK;
-    SourceAssembler::Result  ar          = {};
-    std::string     source;
-    bool            canSwitch   = extendedSet != nullptr;
+    HRESULT                  hr        = S_OK;
+    SourceAssembler::Result  ar        = {};
+    std::string              source;
+    bool                     canSwitch = extendedSet != nullptr;
 
     ar.inputFile = inputFile;
 

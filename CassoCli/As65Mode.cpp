@@ -32,7 +32,7 @@ const Microcode * As65Mode::NarrowInstructionSet (const CommandLineOptions & opt
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const Microcode * As65Mode::WideInstructionSet () const
+const Microcode * As65Mode::WideInstructionSet() const
 {
     return nullptr;
 }

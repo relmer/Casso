@@ -35,7 +35,7 @@ const Microcode * MerlinMode::NarrowInstructionSet (const CommandLineOptions & o
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const Microcode * MerlinMode::WideInstructionSet () const
+const Microcode * MerlinMode::WideInstructionSet() const
 {
     return GetCpu65C02InstructionSet();
 }

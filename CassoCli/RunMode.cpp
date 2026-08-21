@@ -210,8 +210,8 @@ int RunMode::Run (const CommandLineOptions & options)
 
     if (CommandLineParser::IsAssemblySource (options.inputFile))
     {
-        AssemblerOptions  asmOptions = {};
-        SourceAssembler::Result    ar;
+        AssemblerOptions         asmOptions = {};
+        SourceAssembler::Result  ar;
 
         asmOptions.warningMode      = options.warningMode;
 
