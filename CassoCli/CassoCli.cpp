@@ -32,7 +32,7 @@
 
 int main (int argc, char * argv[])
 {
-    CommandLineOptions  options  = ParseCommandLine (argc, argv);
+    CommandLineOptions  options  = CommandLine::Parse (argc, argv);
     int                 exitCode = 0;
 
 
@@ -42,7 +42,7 @@ int main (int argc, char * argv[])
     // because it is a strictly better answer for the same condition.
     if (!options.unrecognizedArgument.empty())
     {
-        PrintUnrecognizedArgument (options.unrecognizedArgument);
+        CommandLine::PrintUnrecognizedArgument (options.unrecognizedArgument);
         exitCode = 1;
     }
     else if (!options.outputFormatConflict.empty())
@@ -50,43 +50,43 @@ int main (int argc, char * argv[])
         // Two formats named is two files asked for, and one gets written. Same
         // reasoning as the arm below: the sentence naming both flags is a
         // better answer than usage text that lists them among twenty others.
-        exitCode = PrintCpuFlagRefusal (options.outputFormatConflict);
+        exitCode = CommandLine::PrintCpuFlagRefusal (options.outputFormatConflict);
     }
     else if (!options.cpuFlagRefusal.empty())
     {
         // Checked before the usage arm for the same reason the line above is: a
         // refusal that names the directive to write instead is a strictly better
         // answer than a wall of usage text, and printing usage would bury it.
-        exitCode = PrintCpuFlagRefusal (options.cpuFlagRefusal);
+        exitCode = CommandLine::PrintCpuFlagRefusal (options.cpuFlagRefusal);
     }
     else if (options.showHelp || options.subcommand == CommandLineOptions::Subcommand::None
                              || options.subcommand == CommandLineOptions::Subcommand::Help)
     {
         // No subcommand is a usage ERROR (exit 1); an explicit --help or
         // `help` is the user asking, and succeeds.
-        PrintUsage (options.flagPrefix);
+        CommandLine::PrintUsage (options.flagPrefix);
         exitCode = options.showHelp ? 0 : 1;
     }
     else if (options.showVersion || options.subcommand == CommandLineOptions::Subcommand::Version)
     {
-        PrintVersion();
+        CommandLine::PrintVersion();
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::Run)
     {
-        exitCode = DoRun (options);
+        exitCode = CommandLine::DoRun (options);
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::As65)
     {
-        exitCode = DoAs65 (options);
+        exitCode = CommandLine::DoAs65 (options);
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::Merlin)
     {
-        exitCode = DoMerlin (options);
+        exitCode = CommandLine::DoMerlin (options);
     }
     else
     {
         // A subcommand the parser knows but this dispatch does not.
-        PrintUsage (options.flagPrefix);
+        CommandLine::PrintUsage (options.flagPrefix);
     }
 
     return exitCode;

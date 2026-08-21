@@ -33,7 +33,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static HRESULT ReadFileContents (const std::string & path, std::string & contents)
+HRESULT CommandLine::ReadFileContents (const std::string & path, std::string & contents)
 {
     HRESULT             hr     = S_OK;
     std::ostringstream  ss;
@@ -70,10 +70,10 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static HRESULT WriteBinaryFormatFile (const std::string & path,
-                                     const AssemblyResult & result,
-                                     CommandLineOptions::OutputFormat format,
-                                     Byte fillByte)
+HRESULT CommandLine::WriteBinaryFormatFile (const std::string & path,
+                                           const AssemblyResult & result,
+                                           CommandLineOptions::OutputFormat format,
+                                           Byte fillByte)
 {
     HRESULT  hr         = S_OK;
     bool     isOpen     = false;
@@ -115,7 +115,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static HRESULT WriteSymbolFile (const std::string & path, const std::unordered_map<std::string, Word> & symbols)
+HRESULT CommandLine::WriteSymbolFile (const std::string & path, const std::unordered_map<std::string, Word> & symbols)
 {
     HRESULT                                    hr         = S_OK;
     std::vector<std::pair<std::string, Word>>  sorted;
@@ -156,7 +156,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool FileExists (const std::string & path)
+bool CommandLine::FileExists (const std::string & path)
 {
     std::ifstream f (path);
     return f.good();
@@ -176,7 +176,7 @@ static bool FileExists (const std::string & path)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static const Microcode * SelectInstructionSet (const CommandLineOptions & options, const Cpu & cpu)
+const Microcode * CommandLine::SelectInstructionSet (const CommandLineOptions & options, const Cpu & cpu)
 {
     const Microcode *  set = nullptr;
 
@@ -198,22 +198,6 @@ static const Microcode * SelectInstructionSet (const CommandLineOptions & option
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AssembleResult
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct AssembleResult
-{
-    AssemblyResult result;
-    bool           ok = false;      // default: treat an unfilled result as failure
-    std::string    inputFile;
-};
-
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -230,7 +214,7 @@ struct AssembleResult
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static AssemblerOptions BuildAssemblerOptions (const CommandLineOptions & options)
+AssemblerOptions CommandLine::BuildAssemblerOptions (const CommandLineOptions & options)
 {
     AssemblerOptions asmOptions   = {};
     asmOptions.dialect            = options.dialect;
@@ -284,10 +268,10 @@ static AssemblerOptions BuildAssemblerOptions (const CommandLineOptions & option
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static AssembleResult AssembleFile (const std::string & inputFile,
-                                   const Microcode instructionSet[256],
-                                   const Microcode extendedSet[256],
-                                   const AssemblerOptions & asmOptions)
+CommandLine::AssembleResult CommandLine::AssembleFile (const std::string & inputFile,
+                                                      const Microcode instructionSet[256],
+                                                      const Microcode extendedSet[256],
+                                                      const AssemblerOptions & asmOptions)
 {
     HRESULT         hr          = S_OK;
     AssembleResult  ar          = {};
@@ -333,7 +317,7 @@ static AssembleResult AssembleFile (const std::string & inputFile,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void ReportAssemblyDiagnostics (const AssembleResult & ar)
+void CommandLine::ReportAssemblyDiagnostics (const AssembleResult & ar)
 {
     // The input path is the FALLBACK, not the answer. A diagnostic that carries
     // its own file names that file -- which is how an error inside an included
@@ -375,7 +359,7 @@ static void ReportAssemblyDiagnostics (const AssembleResult & ar)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static CpuReport BuildCpuReport (const CommandLineOptions & options, const AssemblyResult & result)
+CpuReport CommandLine::BuildCpuReport (const CommandLineOptions & options, const AssemblyResult & result)
 {
     CpuReport  report;
     bool       isCmos = options.cpuTarget == CommandLineOptions::CpuTarget::M65C02;
@@ -412,7 +396,7 @@ static CpuReport BuildCpuReport (const CommandLineOptions & options, const Assem
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void ReportToStandardError (const std::vector<DialectReportLine> & reports)
+void CommandLine::ReportToStandardError (const std::vector<DialectReportLine> & reports)
 {
     for (const DialectReportLine & report : reports)
     {
@@ -444,7 +428,7 @@ static void ReportToStandardError (const std::vector<DialectReportLine> & report
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static CommandLineOptions::OutputFormat ResolveOutputFormat (const CommandLineOptions & options)
+CommandLineOptions::OutputFormat CommandLine::ResolveOutputFormat (const CommandLineOptions & options)
 {
     CommandLineOptions::OutputFormat  format     = options.outputFormat;
     bool                              isDefault  = format == CommandLineOptions::OutputFormat::Binary;
@@ -493,8 +477,8 @@ static CommandLineOptions::OutputFormat ResolveOutputFormat (const CommandLineOp
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static HRESULT WriteBinaryOutput (const AssemblyResult & result,
-                                  const CommandLineOptions & options)
+HRESULT CommandLine::WriteBinaryOutput (const AssemblyResult & result,
+                                        const CommandLineOptions & options)
 {
     HRESULT                           hr        = S_OK;
     CommandLineOptions::OutputFormat  format    = ResolveOutputFormat (options);
@@ -591,9 +575,9 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static HRESULT WriteListingOutput (const AssemblyResult & result,
-                                   const CommandLineOptions & options,
-                                   const std::vector<DialectReportLine> & reports)
+HRESULT CommandLine::WriteListingOutput (const AssemblyResult & result,
+                                         const CommandLineOptions & options,
+                                         const std::vector<DialectReportLine> & reports)
 {
     HRESULT         hr      = S_OK;
     std::ostream *  listOut = &std::cout;
@@ -670,7 +654,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void WriteSymbolTableOutput (const AssemblyResult & result)
+void CommandLine::WriteSymbolTableOutput (const AssemblyResult & result)
 {
     std::cout << "\nSymbol Table:\n";
     std::cout << Assembler::FormatSymbolTable (result.symbols, result.symbolKinds);
@@ -686,8 +670,8 @@ static void WriteSymbolTableOutput (const AssemblyResult & result)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static HRESULT WriteDebugInfoOutput (const AssemblyResult & result,
-                                     const std::string & debugFile)
+HRESULT CommandLine::WriteDebugInfoOutput (const AssemblyResult & result,
+                                           const std::string & debugFile)
 {
     HRESULT  hr     = S_OK;
     bool     isOpen = false;
@@ -719,7 +703,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void LoadAssembledIntoMemory (Cpu & cpu, const AssemblyResult & result)
+void CommandLine::LoadAssembledIntoMemory (Cpu & cpu, const AssemblyResult & result)
 {
     Word loadAddr = result.startAddress;
 
@@ -741,10 +725,10 @@ static void LoadAssembledIntoMemory (Cpu & cpu, const AssemblyResult & result)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static HRESULT LoadBinaryFileIntoMemory (Cpu & cpu,
-                                         const std::string & inputFile,
-                                         Word loadAddr,
-                                         Word & entryPoint)
+HRESULT CommandLine::LoadBinaryFileIntoMemory (Cpu & cpu,
+                                               const std::string & inputFile,
+                                               Word loadAddr,
+                                               Word & entryPoint)
 {
     HRESULT      hr = S_OK;
     std::string  contents;
@@ -801,10 +785,10 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static int RunCpu (Cpu & cpu,
-                   const CommandLineOptions & options,
-                   Word entryPoint,
-                   std::vector<std::string> & status)
+int CommandLine::RunCpu (Cpu & cpu,
+                         const CommandLineOptions & options,
+                         Word entryPoint,
+                         std::vector<std::string> & status)
 {
     uint32_t cycles   = 0;
     int      exitCode = 0;
@@ -871,7 +855,7 @@ static int RunCpu (Cpu & cpu,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CommandLineOptions ParseCommandLine (int argc, char * argv[])
+CommandLineOptions CommandLine::Parse (int argc, char * argv[])
 {
     return CommandLineParser::Parse (argc, argv, FileExists);
 }
@@ -893,7 +877,7 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static size_t UsageWidth()
+size_t CommandLine::UsageWidth()
 {
     constexpr size_t            kNoTerminal = 80;
     constexpr size_t            kNarrowest  = 40;
@@ -930,7 +914,7 @@ static size_t UsageWidth()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void Say (const std::string & line)
+void CommandLine::Say (const std::string & line)
 {
     for (const std::string & row : UsageText::Wrap (line, UsageWidth()))
     {
@@ -952,7 +936,7 @@ static void Say (const std::string & line)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void SayBlock (const std::string & block)
+void CommandLine::SayBlock (const std::string & block)
 {
     size_t  start = 0;
 
@@ -992,7 +976,7 @@ static void SayBlock (const std::string & block)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintSectionHeading (const std::string & name)
+void CommandLine::PrintSectionHeading (const std::string & name)
 {
     std::println ("");
     std::println ("{}", name);
@@ -1009,7 +993,7 @@ static void PrintSectionHeading (const std::string & name)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintUsageHeader (const char * sp, const char * lp)
+void CommandLine::PrintUsageHeader (const char * sp, const char * lp)
 {
     std::string  subcommands;
 
@@ -1040,7 +1024,7 @@ static void PrintUsageHeader (const char * sp, const char * lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintUsageGeneral (const char * lp, const char * sp, const char * pad)
+void CommandLine::PrintUsageGeneral (const char * lp, const char * sp, const char * pad)
 {
     // "--help, -?" = 10 chars, "--version" = 9 chars => +1 space for version
     // "/help, /?"  =  9 chars, "/version"  = 8 chars => +1 space for version
@@ -1076,7 +1060,7 @@ static void PrintUsageGeneral (const char * lp, const char * sp, const char * pa
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintUsageAssembler (const char * sp)
+void CommandLine::PrintUsageAssembler (const char * sp)
 {
     PrintSectionHeading ("AS65 mode");
     Say ("  <source>               Assembly source file (tries .a65, .asm, .s if no extension is given)");
@@ -1150,7 +1134,7 @@ static void PrintUsageAssembler (const char * sp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
+void CommandLine::PrintUsageRun (const char * lp, const char * sp, const char * pad)
 {
     PrintSectionHeading ("Run mode");
     Say ("  <binary>               A binary file to load and execute");
@@ -1196,7 +1180,7 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintUsage (char prefix)
+void CommandLine::PrintUsage (char prefix)
 {
     const char * sp  = (prefix == '/') ? "/"  : "-";
     const char * lp  = (prefix == '/') ? "/"  : "--";
@@ -1238,7 +1222,7 @@ void PrintUsage (char prefix)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintVersion()
+void CommandLine::PrintVersion()
 {
     std::cout << "CassoCli v" VERSION_STRING " (" << arch << ")  " VERSION_BUILD_TIMESTAMP "\n";
 }
@@ -1259,7 +1243,7 @@ void PrintVersion()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintUnrecognizedArgument (const std::string & word)
+void CommandLine::PrintUnrecognizedArgument (const std::string & word)
 {
     std::string  expected;
 
@@ -1319,7 +1303,7 @@ void PrintUnrecognizedArgument (const std::string & word)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DoRun (const CommandLineOptions & options)
+int CommandLine::DoRun (const CommandLineOptions & options)
 {
     HRESULT                   hr         = S_OK;
     Cpu                       cpu;
@@ -1450,7 +1434,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DoAs65 (const CommandLineOptions & options)
+int CommandLine::DoAs65 (const CommandLineOptions & options)
 {
     using Clock = std::chrono::high_resolution_clock;
 
@@ -1608,7 +1592,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::string ResolveMerlinOutputName (const CommandLineOptions & options, const AssemblyResult & result)
+std::string CommandLine::ResolveMerlinOutputName (const CommandLineOptions & options, const AssemblyResult & result)
 {
     std::string  name   = result.outputFileName;
     bool         wasSet = !name.empty();
@@ -1655,7 +1639,7 @@ static std::string ResolveMerlinOutputName (const CommandLineOptions & options, 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DoMerlin (const CommandLineOptions & options)
+int CommandLine::DoMerlin (const CommandLineOptions & options)
 {
     HRESULT                         hr         = S_OK;
     AssemblerOptions                asmOptions;
@@ -1762,7 +1746,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int PrintCpuFlagRefusal (const std::string & refusal)
+int CommandLine::PrintCpuFlagRefusal (const std::string & refusal)
 {
     std::cerr << "CassoCli: " << refusal << "\n";
 
