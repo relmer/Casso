@@ -417,7 +417,12 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_PADDLE)   { OnMachineCommand (id); }
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WP2)                { OnDiskCommand (id); }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { OnViewCommand (id); }
+    // The View range above stops at IDM_VIEW_SETTINGS, so every View command
+    // added since needs naming here. A new id that falls outside every branch
+    // is dropped in SILENCE -- the menu item paints, the accelerator fires,
+    // and nothing happens -- so these one-offs are load-bearing, not clutter.
     else if (id == IDM_VIEW_DRIVE_STRIP)                                   { OnViewCommand (id); }
+    else if (id == IDM_VIEW_RESET_SCENE)                                   { OnViewCommand (id); }
     else if (id == IDM_PRINTER_DISCARD)                                    { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_COPY)                                       { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_PRINT)                                      { OnPrinterCommand (id); }
@@ -807,6 +812,12 @@ void WindowCommandManager::OnViewCommand (int id)
                 m_shell.m_d3dRenderer.MarkRedrawNeeded();
             }
 
+            break;
+        }
+
+        case IDM_VIEW_RESET_SCENE:
+        {
+            m_shell.ResetSceneView();
             break;
         }
 

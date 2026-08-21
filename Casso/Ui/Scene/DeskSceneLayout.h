@@ -76,6 +76,33 @@ struct DeskSceneMetrics
 //  One frame's composition. World matrices carry the model->world axis remap
 //  plus placement; viewProj is the single shared camera.
 //
+//
+//  The user's own framing on top of the fitted composition: how far in they
+//  have zoomed and where they have dragged the scene to.
+//
+//  This is deliberately NOT part of the containment solve. The solve answers
+//  "what standoff shows the whole scene", and that answer should not change
+//  because someone leaned in to look at a drive door -- so the zoom is a lens
+//  applied AFTER it, in clip space, and the composition it magnifies is
+//  always the same one.
+//
+//  Pan is in NDC, so it is resolution-independent by construction: 0.5 shifts
+//  by a quarter of the viewport whatever the window size or DPI, and a window
+//  resize cannot slide the scene out from under the user.
+//
+struct DeskSceneView
+{
+    float  zoom = 1.0f;    // 1 == the fitted composition
+    float  panX = 0.0f;    // NDC, +right
+    float  panY = 0.0f;    // NDC, +up
+
+    bool  IsIdentity () const
+    {
+        return zoom == 1.0f && panX == 0.0f && panY == 0.0f;
+    }
+};
+
+
 struct DeskSceneComposition
 {
     float  view[16]         = {};
@@ -107,7 +134,19 @@ public:
                              int                      driveCount,
                              const DeskSceneMetrics & metrics,
                              DeskSceneComposition   & out,
-                             int                      reservedGapPx = 0);
+                             int                      reservedGapPx = 0,
+                             const DeskSceneView    & view = DeskSceneView {});
+
+    // Magnify and shift a projection in CLIP SPACE, which is what lets the
+    // user's framing ride on top of the fitted composition without disturbing
+    // it. Applied before the bounds are projected, so glassRectPx and the
+    // drive rects follow the zoom automatically -- the CRT still lands on the
+    // glass and clicks still hit the drive they look like they hit.
+    //
+    // Scaling the projection rather than dollying the camera is deliberate:
+    // a dolly changes the perspective, so leaning in to inspect a part would
+    // show you a differently-shaped part than the composition does.
+    static void     ApplyViewTransform (const DeskSceneView & view, float proj[16]);
 
     // The fullscreen presentation: a straight-on camera whose frustum the
     // GLASS fills (cover, not contain -- the monitor body crops offscreen),
@@ -239,5 +278,6 @@ private:
                                       int                      driveCount,
                                       const DeskSceneMetrics & metrics,
                                       float                    dropMm,
-                                      DeskSceneComposition   & out);
+                                      DeskSceneComposition   & out,
+                                      const DeskSceneView    & view = DeskSceneView {});
 };

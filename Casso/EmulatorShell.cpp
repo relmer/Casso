@@ -1515,6 +1515,153 @@ SceneHitResult EmulatorShell::StripHit (int xPx, int yPx) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::InvalidateSceneComposition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::InvalidateSceneComposition()
+{
+    RECT  client = {};
+
+
+
+    if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    {
+        return;
+    }
+
+    UpdateViewportLayout (client.right - client.left, client.bottom - client.top);
+    m_d3dRenderer.MarkRedrawNeeded();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ClampSceneView
+//
+//  Keeps the framing somewhere a user can get back from.
+//
+//  Pan is bounded by how much slack the zoom actually created: at 2x the
+//  scene is twice the viewport, so one viewport-width of offset is exactly
+//  enough to reach any edge and no more. At 1x there is no slack, so the pan
+//  is dropped outright -- the fitted composition already fits, and an offset
+//  there can only move it somewhere worse.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ClampSceneView()
+{
+    float  slack = 0.0f;
+
+
+
+    m_sceneView.zoom = std::clamp (m_sceneView.zoom, s_kSceneZoomMin, s_kSceneZoomMax);
+
+    slack = std::max (0.0f, m_sceneView.zoom - 1.0f);
+
+    m_sceneView.panX = std::clamp (m_sceneView.panX, -slack, slack);
+    m_sceneView.panY = std::clamp (m_sceneView.panY, -slack, slack);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ZoomSceneAt
+//
+//  Zooms about a client point rather than about the viewport center, so what
+//  is under the cursor stays under it. Center-anchored zoom would push the
+//  part being inspected toward an edge exactly as it grew big enough to see.
+//
+//  The pan solve falls out of the same mapping the projection uses:
+//
+//      ndc = zoom * u + pan          (u == the un-framed NDC of a point)
+//
+//  Holding the cursor's u fixed across a zoom by k gives
+//
+//      pan' = c - k * (c - pan)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ZoomSceneAt (POINT clientPt, float factor)
+{
+    // The box the composition was SOLVED into -- not the client rect and not
+    // the glass rect. NDC is defined against this one, so anchoring the zoom
+    // to anything else would drift the cursor off its target the further the
+    // chrome pushed the scene around.
+    RECT   box    = m_deskScene.Composition().viewportPx;
+    float  width  = (float) (box.right - box.left);
+    float  height = (float) (box.bottom - box.top);
+    float  cx     = 0.0f;
+    float  cy     = 0.0f;
+    float  before = m_sceneView.zoom;
+    float  k      = 1.0f;
+
+    if (width <= 0.0f || height <= 0.0f)
+    {
+        return;
+    }
+
+    // Client point -> NDC. Y flips: client grows downward, NDC upward.
+    cx = ((float) (clientPt.x - box.left) / width)  * 2.0f - 1.0f;
+    cy = 1.0f - ((float) (clientPt.y - box.top) / height) * 2.0f;
+
+    m_sceneView.zoom = std::clamp (before * factor, s_kSceneZoomMin, s_kSceneZoomMax);
+
+    // The REALIZED ratio, not the requested one -- at a clamp the two differ,
+    // and anchoring on the request would slide the scene under a cursor that
+    // is no longer zooming.
+    k = (before > 0.0f) ? (m_sceneView.zoom / before) : 1.0f;
+
+    m_sceneView.panX = cx - k * (cx - m_sceneView.panX);
+    m_sceneView.panY = cy - k * (cy - m_sceneView.panY);
+
+    ClampSceneView();
+    InvalidateSceneComposition();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ResetSceneView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ResetSceneView()
+{
+    if (m_sceneView.IsIdentity())
+    {
+        return;
+    }
+
+    m_sceneView = DeskSceneView {};
+    InvalidateSceneComposition();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DeskSceneDriveCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
 int EmulatorShell::DeskSceneDriveCount() const
 {
     bool  hasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
@@ -3048,7 +3195,8 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 
             hrLayout = DeskSceneLayout::Compute (sceneBox, m_scaler.Dpi(), DeskSceneDriveCount(),
                                                  m_deskScene.Metrics(), comp,
-                                                 m_scaler.Px (s_kJoystickButtonBandDp + s_kStripEdgeZoneDp));
+                                                 m_scaler.Px (s_kJoystickButtonBandDp + s_kStripEdgeZoneDp),
+                                                 m_sceneView);
             BAIL_OUT_IF (hrLayout != S_OK, S_OK);
 
             m_deskScene.SetComposition (comp);
@@ -7128,6 +7276,32 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 
 
+    // A pan in flight owns the move outright. Measured from the ANCHOR the
+    // press recorded rather than accumulated frame to frame, so the scene
+    // tracks the cursor exactly however far or slowly it travels and a long
+    // drag cannot creep away from it.
+    if (m_scenePanning && leftDown)
+    {
+        RECT   box    = m_deskScene.Composition().viewportPx;
+        float  width  = (float) (box.right - box.left);
+        float  height = (float) (box.bottom - box.top);
+
+        if (width > 0.0f && height > 0.0f)
+        {
+            // A pixel of cursor travel is two NDC units across the whole
+            // viewport, and NDC y runs opposite client y.
+            m_sceneView.panX = m_scenePanStartX
+                             + ((float) (x - m_scenePanStartPx.x) / width)  * 2.0f;
+            m_sceneView.panY = m_scenePanStartY
+                             - ((float) (y - m_scenePanStartPx.y) / height) * 2.0f;
+
+            ClampSceneView();
+            InvalidateSceneComposition();
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
     // Paddle mode owns the pointer while captured: relative motion drives
     // the held paddle axes and the cursor is snapped back to center, so the
     // chrome never sees the move.
@@ -7529,6 +7703,58 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::OnMouseWheel
+//
+//  The wheel frames the desk scene. A precision touchpad's two-finger
+//  vertical slide arrives here as WM_MOUSEWHEEL, so the trackpad gesture and
+//  a real wheel are the same input, and a touchpad PINCH arrives as
+//  Ctrl+wheel -- which is why the modifier is not tested: all three mean
+//  "zoom", and demanding Ctrl would break the plain two-finger slide.
+//
+//  Horizontal wheel is left alone. It would have to mean pan, and panning on
+//  one axis only, with no way to reach the other, is worse than not panning.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal)
+{
+    int     delta  = GET_WHEEL_DELTA_WPARAM (wParam);
+    POINT   pt     = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    float   notch  = 0.0f;
+    float   factor = 1.0f;
+
+
+
+    if (horizontal || delta == 0 || !DeskSceneActive())
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    // Screen -> client: WM_MOUSEWHEEL packs the point in SCREEN coordinates,
+    // unlike every button message, which is a reliable way to zoom toward the
+    // wrong place on a window that is not at the origin.
+    if (m_hwnd == nullptr || !ScreenToClient (m_hwnd, &pt))
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    // Fractional notches matter: a precision touchpad sends many small
+    // deltas rather than one WHEEL_DELTA, and rounding them to whole notches
+    // turns a smooth slide into a series of jumps.
+    notch  = (float) delta / (float) WHEEL_DELTA;
+    factor = std::pow (s_kSceneZoomStep, notch);
+
+    ZoomSceneAt (pt, factor);
+
+    return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnLButtonDown
 //
 //  Press half of the click pair. Unlike the release, this handler mostly
@@ -7559,6 +7785,10 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
 //  The guest mouse button is gated on GuestMouseLive rather than merely
 //  active -- guest software must have turned the mouse ON -- so a click at a
 //  BASIC prompt is not silently swallowed by a device nobody is reading.
+//
+//  A press on empty scene BACKGROUND arms a pan instead. It is armed last,
+//  after every widget has had its say, so dragging can never steal a click
+//  from something that wanted it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -7656,6 +7886,24 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         }
     }
 
+    // Pan arms LAST, and only on empty scene background: anything the user
+    // could have meant to click has already claimed the press by here, so a
+    // drag can never steal one. Zoomed all the way out there is nothing to
+    // pan to, so it stays disarmed and an idle drag on the backdrop does
+    // nothing rather than wobbling a scene that already fits.
+    if (DeskSceneActive() && m_sceneView.zoom > 1.0f && !m_mainMenu.IsOpen())
+    {
+        SceneHitResult  hit = DeskSceneHit (x, y);
+
+        if (hit.target == SceneHitResult::Target::None)
+        {
+            m_scenePanning    = true;
+            m_scenePanStartPx = POINT { x, y };
+            m_scenePanStartX  = m_sceneView.panX;
+            m_scenePanStartY  = m_sceneView.panY;
+        }
+    }
+
 Error:
     return result;
 }
@@ -7722,6 +7970,16 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
 
     UNREFERENCED_PARAMETER (wParam);
+
+    // Ending a pan consumes the release. The press it began with never
+    // reached a widget, so letting the release run the click chain would fire
+    // whatever the cursor happened to land on after the drag.
+    if (m_scenePanning)
+    {
+        m_scenePanning = false;
+        ReleaseCapture();
+        return DxuiMessageResult::Handled;
+    }
 
     // While paddle-captured, the left button is fire button 0; release it
     // and keep the capture (the transient click-capture path is bypassed).

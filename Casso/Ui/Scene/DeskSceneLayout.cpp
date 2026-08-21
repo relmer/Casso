@@ -150,17 +150,63 @@ HRESULT DeskSceneLayout::Compute (const RECT             & viewportPx,
                                   int                      driveCount,
                                   const DeskSceneMetrics & metrics,
                                   DeskSceneComposition   & out,
-                                  int                      reservedGapPx)
+                                  int                      reservedGapPx,
+                                  const DeskSceneView    & view)
 {
     HRESULT   hr = S_OK;
 
 
 
-    hr = SolveComposition (viewportPx, dpi, driveCount, metrics, kDriveDeskGapMm, out);
+    hr = SolveComposition (viewportPx, dpi, driveCount, metrics, kDriveDeskGapMm, out, view);
 
     (void) reservedGapPx;
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::ApplyViewTransform
+//
+//  Post-multiplies the projection by a clip-space zoom and shift:
+//
+//      x' = zoom * x + panX * w
+//      y' = zoom * y + panY * w
+//
+//  Multiplying the pan by w is what makes it a CAMERA shift rather than a
+//  skew -- the offset lands after the perspective divide, so near and far
+//  geometry move together instead of shearing apart with depth.
+//
+//  z is untouched on purpose. Depth has to keep meaning what it meant or the
+//  shadow maps, which are built against the same world, stop lining up with
+//  what the camera sees.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneLayout::ApplyViewTransform (const DeskSceneView & view, float proj[16])
+{
+    int  row = 0;
+
+
+
+    if (view.IsIdentity())
+    {
+        return;
+    }
+
+    for (row = 0; row < 4; row++)
+    {
+        float  x = proj[row * 4 + 0];
+        float  y = proj[row * 4 + 1];
+        float  w = proj[row * 4 + 3];
+
+        proj[row * 4 + 0] = x * view.zoom + w * view.panX;
+        proj[row * 4 + 1] = y * view.zoom + w * view.panY;
+    }
 }
 
 
@@ -178,7 +224,8 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
                                            int                      driveCount,
                                            const DeskSceneMetrics & metrics,
                                            float                    dropMm,
-                                           DeskSceneComposition   & out)
+                                           DeskSceneComposition   & out,
+                                           const DeskSceneView    & view)
 {
     HRESULT  hr            = S_OK;
     int      viewportW     = viewportPx.right - viewportPx.left;
@@ -431,6 +478,12 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
         fovY = std::clamp (2.0f * std::atan (tanHalfY), kMinFovY, kMaxFovY);
 
         SceneCamera::PerspectiveFovRH (fovY, aspect, kNearMm, kFarMm, out.proj);
+
+        // The user's framing goes on HERE -- after the containment solve has
+        // had its say and before anything is projected -- so every rect below
+        // is measured through the same lens the scene is drawn through.
+        ApplyViewTransform (view, out.proj);
+
         SceneCamera::Mul44            (out.view, out.proj, out.viewProj);
     }
 

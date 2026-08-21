@@ -383,4 +383,117 @@ public:
         Assert::IsTrue (backPx[0] > frontPx[0] + 1.0f);
     }
 
+
+    //
+    //  The framing is a lens on top of the fitted composition, so an identity
+    //  view has to leave the composition bit-for-bit alone. Anything else and
+    //  every existing expectation about the scene silently shifts.
+    //
+    TEST_METHOD (Identity_View_Changes_Nothing)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1120, 768 };
+        DeskSceneComposition  plain;
+        DeskSceneComposition  framed;
+        DeskSceneView         view;
+
+
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, plain));
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, framed, 0, view));
+
+        Assert::AreEqual (0, memcmp (&plain, &framed, sizeof (plain)),
+            L"a default DeskSceneView must be a no-op");
+    }
+
+
+    //
+    //  Zoom magnifies about the CENTER of the viewport, so a point already at
+    //  the center stays put while everything else moves outward from it.
+    //
+    TEST_METHOD (Zoom_Magnifies_About_The_Viewport_Center)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1120, 768 };
+        DeskSceneComposition  plain;
+        DeskSceneComposition  zoomed;
+        DeskSceneView         view;
+        float                 plainW  = 0.0f;
+        float                 zoomedW = 0.0f;
+
+        view.zoom = 2.0f;
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, plain));
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, zoomed, 0, view));
+
+        plainW  = (float) (plain.glassRectPx.right  - plain.glassRectPx.left);
+        zoomedW = (float) (zoomed.glassRectPx.right - zoomed.glassRectPx.left);
+
+        Assert::IsTrue (zoomedW > plainW * 1.8f,
+            L"2x zoom must roughly double the projected glass width -- and the "
+            L"GLASS RECT proves the projected bounds followed the lens, not "
+            L"just the camera, so the CRT still lands where the glass is.");
+    }
+
+
+    //
+    //  Pan shifts the composition without resizing it. Both have to hold: a
+    //  transform that moved things by scaling them would pass a position
+    //  check alone.
+    //
+    TEST_METHOD (Pan_Shifts_Without_Resizing)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1120, 768 };
+        DeskSceneComposition  plain;
+        DeskSceneComposition  panned;
+        DeskSceneView         view;
+        int                   plainW  = 0;
+        int                   pannedW = 0;
+
+        view.panX = 0.5f;      // half an NDC unit right == a quarter viewport
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, plain));
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, panned, 0, view));
+
+        plainW  = plain.glassRectPx.right  - plain.glassRectPx.left;
+        pannedW = panned.glassRectPx.right - panned.glassRectPx.left;
+
+        Assert::IsTrue (panned.glassRectPx.left > plain.glassRectPx.left,
+            L"+panX moves the scene right");
+        Assert::IsTrue (std::abs (pannedW - plainW) <= 1,
+            L"and must not change its size while doing so");
+    }
+
+
+    //
+    //  Depth is deliberately untouched by the lens. The shadow maps are built
+    //  against the same world, so a transform that shifted z would slide every
+    //  shadow off the thing casting it.
+    //
+    TEST_METHOD (View_Transform_Leaves_Depth_Alone)
+    {
+        float          plain[16]  = {};
+        float          framed[16] = {};
+        DeskSceneView  view;
+        int            row        = 0;
+
+        view.zoom = 3.0f;
+        view.panX = 0.4f;
+        view.panY = -0.2f;
+
+        SceneCamera::PerspectiveFovRH (0.8f, 1.5f, 1.0f, 5000.0f, plain);
+        memcpy (framed, plain, sizeof (plain));
+
+        DeskSceneLayout::ApplyViewTransform (view, framed);
+
+        for (row = 0; row < 4; row++)
+        {
+            Assert::AreEqual (plain[row * 4 + 2], framed[row * 4 + 2], 1e-6f,
+                L"the z column must survive the lens untouched");
+            Assert::AreEqual (plain[row * 4 + 3], framed[row * 4 + 3], 1e-6f,
+                L"and so must w, or the perspective divide changes meaning");
+        }
+    }
+
 };

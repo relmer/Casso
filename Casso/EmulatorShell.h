@@ -263,6 +263,7 @@ private:
     // keystroke straight to the Apple ][ keyboard + game port.
     bool  OnViewportKey   (const DxuiKeyEvent   & ev) override;
     bool  OnViewportMouse (const DxuiMouseEvent & ev) override;
+    DxuiMessageResult  OnMouseWheel    (WPARAM wParam, LPARAM lParam, bool horizontal) override;
     DxuiMessageResult  OnMouseMove     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseLeave    () override;
     DxuiMessageResult  OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
@@ -718,6 +719,38 @@ private:
     // the //c external-drive connection, the same gates the 2D widgets use.
     int     DeskSceneDriveCount  () const;
 
+    // Zoom by `factor` about a client point, so whatever is under the cursor
+    // stays under it. Zooming about the viewport CENTER instead would push
+    // the thing being inspected off toward an edge exactly as it got big
+    // enough to look at.
+    void    ZoomSceneAt          (POINT clientPt, float factor);
+
+    // Put the framing back to the fitted composition.
+    void    ResetSceneView       ();
+
+    // Clamp pan so the scene cannot be dragged entirely off-screen, and drop
+    // the pan to zero once zoomed back out -- at 1.0 the composition already
+    // fits, so an offset there is only ever a way to lose it.
+    void    ClampSceneView       ();
+
+    // Re-solve the composition for the current client size and repaint. The
+    // framing feeds the same solve the viewport does, so there is no separate
+    // "just the camera" path to keep in step with it.
+    void    InvalidateSceneComposition ();
+
+    // How far in and out the framing goes. The far end is where the model
+    // stops rewarding a closer look -- past roughly 8x the mesh's own facets
+    // are the subject -- and the near end is 1, the fitted composition, since
+    // zooming out past a view that already contains everything only shrinks
+    // it into the middle of an empty viewport.
+    static constexpr float  s_kSceneZoomMin  = 1.0f;
+    static constexpr float  s_kSceneZoomMax  = 8.0f;
+
+    // One wheel notch. Geometric, so the same flick covers the same visual
+    // proportion at every zoom -- a fixed additive step feels fast when close
+    // in and useless when far out.
+    static constexpr float  s_kSceneZoomStep = 1.15f;
+
     // While the scene owns the drives, the 2D widgets stay hidden (they keep
     // mirroring state for the //c switch strip) and the drag-drop hit rects
     // come from the composition's projected drive bounds.
@@ -1063,6 +1096,22 @@ private:
     // OnSize; ReflowChromeForMachineChange folds the switch-band delta into the
     // window resize so switching to / from the //c keeps the viewport its size.
     bool                     m_chromeSizedForApple2c = false;
+
+    // The user's own framing of the desk scene: how far they have zoomed in
+    // and where they have dragged it to. Deliberately NOT persisted -- it is
+    // a way of looking at the scene for a moment, like leaning toward a
+    // screen, and a saved zoom would have people opening Casso to a view they
+    // set once and forgot. IDM_VIEW_RESET_SCENE puts it back.
+    DeskSceneView            m_sceneView;
+
+    // Set while a pan drag is in flight, with the anchor the drag started
+    // from. The anchor is the SCENE's pan at mouse-down plus the cursor
+    // position, so the scene tracks the cursor exactly however far it moves
+    // and a slow drag cannot accumulate rounding drift.
+    bool                     m_scenePanning     = false;
+    POINT                    m_scenePanStartPx  = {};
+    float                    m_scenePanStartX   = 0.0f;
+    float                    m_scenePanStartY   = 0.0f;
 
     // //c only: whether the optional external drive is "connected". Mirrors
     // the per-machine $cassoUiPrefs.externalDriveConnected pref; seeded at
