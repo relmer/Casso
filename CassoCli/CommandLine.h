@@ -36,12 +36,22 @@ class CommandLine
 public:
     static CommandLineOptions  Parse                     (int argc, char * argv[]);
 
+    //  Everything, which is what `--help` asks for.
     static void                PrintUsage                (char prefix);
+
+    //  One mode's section, for an invocation that got that far and no further.
+    //  Subcommand::None prints the general section, for one that did not.
+    static void                PrintUsage                (char prefix, CommandLineOptions::Subcommand scope);
+
     static void                PrintVersion              ();
 
-    //  A first word that named no subcommand. Deliberately NOT the usage
-    //  block: see the note at the call site.
-    static void                PrintUnrecognizedArgument (const std::string & word);
+    //  A first word that named no subcommand: what it was instead, then the
+    //  general help.
+    static void                PrintUnrecognizedArgument (const std::string & word, char prefix);
+
+    //  An argument a recognized subcommand's grammar did not know: which one,
+    //  then that mode's help.
+    static void                PrintUnrecognizedFlag     (const std::string & flag, CommandLineOptions::Subcommand subcommand, char prefix);
 
     //  A CPU flag the active dialect does not take. The sentence is composed
     //  in core, where the dialect's own data is; this prints it and says what
@@ -67,5 +77,6 @@ private:
     static void    PrintUsageHeader    (const char * sp, const char * lp);
     static void    PrintUsageGeneral   (const char * lp, const char * sp, const char * pad);
     static void    PrintUsageAssembler (const char * sp);
+    static void    PrintUsageMerlin    (const char * sp, char prefix);
     static void    PrintUsageRun       (const char * lp, const char * sp, const char * pad);
 };

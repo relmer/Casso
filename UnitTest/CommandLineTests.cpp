@@ -205,6 +205,57 @@ namespace CommandLineTests
 
             Assert::AreEqual (std::string ("-t"), opts.unrecognizedArgument);
         }
+
+        //  Past a recognized subcommand, an argument its grammar does not know
+        //  comes back by name in a SEPARATE field, because the two cases earn
+        //  different help: no subcommand gets the general section, a bad flag
+        //  under one gets that mode's. It used to be a warning printed from
+        //  inside the parser, after which the assembly ran anyway.
+        TEST_METHOD (AnUnknownAs65Flag_IsReportedByName)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-k" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue   (opts.subcommand == CommandLineOptions::Subcommand::As65);
+            Assert::AreEqual (std::string ("-k"), opts.unrecognizedFlag);
+            Assert::IsTrue   (opts.unrecognizedArgument.empty(), L"the subcommand itself was fine");
+        }
+
+        TEST_METHOD (AnUnknownMerlinFlag_IsReportedByName)
+        {
+            ArgVector           args = { "CassoCli", "merlin", "demo.S", "/k" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue   (opts.subcommand == CommandLineOptions::Subcommand::Merlin);
+            Assert::AreEqual (std::string ("/k"), opts.unrecognizedFlag, L"written with the prefix the user typed");
+        }
+
+        TEST_METHOD (AnUnknownRunOption_IsReportedByName)
+        {
+            ArgVector           args = { "CassoCli", "run", "demo.bin", "--bogus" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue   (opts.subcommand == CommandLineOptions::Subcommand::Run);
+            Assert::AreEqual (std::string ("--bogus"), opts.unrecognizedFlag);
+        }
+
+        //  The first is the one reported; a second typo is obvious against the
+        //  help that follows the first.
+        TEST_METHOD (TheFirstUnknownFlag_IsTheOneReported)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-k", "-j" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (std::string ("-k"), opts.unrecognizedFlag);
+        }
+
+        TEST_METHOD (KnownFlags_LeaveNoUnrecognizedFlag)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-t", "-x", "-o", "out.bin" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.unrecognizedFlag.empty());
+        }
     };
 
 

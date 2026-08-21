@@ -262,7 +262,7 @@ void CommandLine::PrintUsageAssembler (const char * sp)
         "    {0}o <file>            Rename output file (default: <source>.bin)",
         "    {0}n                   Disable optimizations. Not yet implemented (GitHub issue #118)",
         "",
-        "    Output formats (mutually exclusive):",
+        "  Output formats (mutually exclusive):",
         "    <default>            Write a full 64 KB image, padded with the fill byte (see {0}z below)",
         "    {1}raw                Write the assembled bytes, unpadded",
         "    {1}dos-bin            Write the assembled bytes behind a 4-byte DOS 3.3 header (load address + length), ready to BLOAD",
@@ -370,15 +370,75 @@ void CommandLine::PrintUsage (char prefix)
     PrintUsageHeader    (sp, lp);
     PrintUsageGeneral   (lp, sp, pad);
     PrintUsageAssembler (sp);
+    PrintUsageMerlin    (sp, prefix);
+    PrintUsageRun       (lp, sp, pad);
+}
 
-    // The merlin section's flag lines are composed in core from the same tables
-    // the parser walks, so they cannot describe a tool that no longer exists.
-    // The heading and the notes are here because they are prose about one
-    // dialect rather than data any dialect supplies.
-    //
-    // A dialect added later gets its flags printed by the same call and needs no
-    // edit here; what it would not get is a section of its own, which is a note
-    // for whoever adds one rather than a claim that this scales.
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLine::PrintUsage
+//
+//  The help for where the invocation got to. A reader who typed `as65` and
+//  then something the grammar did not know has shown which section they need,
+//  and the other three are noise between them and the answer. One who typed no
+//  subcommand at all gets the general section, which is where the subcommands
+//  are listed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLine::PrintUsage (char prefix, CommandLineOptions::Subcommand scope)
+{
+    const char * sp  = (prefix == '/') ? "/"  : "-";
+    const char * lp  = (prefix == '/') ? "/"  : "--";
+    const char * pad = (prefix == '/') ? " "  : "";
+
+
+
+    PrintUsageHeader (sp, lp);
+
+    if (scope == CommandLineOptions::Subcommand::As65)
+    {
+        PrintUsageAssembler (sp);
+    }
+    else if (scope == CommandLineOptions::Subcommand::Merlin)
+    {
+        PrintUsageMerlin (sp, prefix);
+    }
+    else if (scope == CommandLineOptions::Subcommand::Run)
+    {
+        PrintUsageRun (lp, sp, pad);
+    }
+    else
+    {
+        PrintUsageGeneral (lp, sp, pad);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLine::PrintUsageMerlin
+//
+//  The merlin section's flag lines are composed in core from the same tables
+//  the parser walks, so they cannot describe a tool that no longer exists. The
+//  heading and the notes are here because they are prose about one dialect
+//  rather than data any dialect supplies.
+//
+//  A dialect added later gets its flags printed by the same call and needs no
+//  edit here; what it would not get is a section of its own, which is a note
+//  for whoever adds one rather than a claim that this scales.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLine::PrintUsageMerlin (const char * sp, char prefix)
+{
     PrintSectionHeading ("Merlin mode");
     PrintUsageLine ("  <source>               Merlin assembly source file (tries .a65, .asm, .s if no extension is given)");
     std::println ("");
@@ -387,8 +447,6 @@ void CommandLine::PrintUsage (char prefix)
     PrintUsageLine (std::format ("    DSK      Name the output file. {0}o overrides it.", sp));
     PrintUsageLine ("    ORG      Set the origin.");
     PrintUsageBlock (DialectHelp::GetDialectFlags (DialectRegistry::Get (DialectId::Merlin), prefix));
-
-    PrintUsageRun       (lp, sp, pad);
 }
 
 
@@ -414,15 +472,16 @@ void CommandLine::PrintVersion()
 //
 //  CommandLine::PrintUnrecognizedArgument
 //
-//  Deliberately NOT the usage block. `CassoCli input.a65` used to assemble, and
-//  the people it stops are build scripts -- which nobody reads again until the
-//  day they fail. A wall of usage text makes that day start with a bisect,
-//  where one line naming the replacement ends it. So the replacement is written
-//  out literally, ready to paste back into the script that broke.
+//  The targeted message FIRST, then the general help. `CassoCli input.a65` used
+//  to assemble, and the people it stops are build scripts -- which nobody
+//  reads again until the day they fail. The line naming the replacement is
+//  what ends that day quickly, so it leads, written out literally and ready to
+//  paste back; the general section follows for a reader who needs more than
+//  the one line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CommandLine::PrintUnrecognizedArgument (const std::string & word)
+void CommandLine::PrintUnrecognizedArgument (const std::string & word, char prefix)
 {
     std::string  expected;
 
@@ -446,6 +505,42 @@ void CommandLine::PrintUnrecognizedArgument (const std::string & word)
 
         std::cerr << "  Expected one of: " << expected << ".\n";
     }
+
+    std::cerr << "\n";
+    PrintUsage (prefix, CommandLineOptions::Subcommand::None);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLine::PrintUnrecognizedFlag
+//
+//  The subcommand was fine; something after it was not. Naming the argument is
+//  what the reader needs first -- a typo is found by seeing it -- and the help
+//  that follows is the one section that lists what would have been accepted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLine::PrintUnrecognizedFlag (const std::string & flag, CommandLineOptions::Subcommand subcommand, char prefix)
+{
+    std::string  mode = "this";
+
+
+
+    for (const CommandLineParser::SubcommandName & entry : CommandLineParser::GetAllSubcommands())
+    {
+        if (entry.token == subcommand)
+        {
+            mode = entry.name;
+            break;
+        }
+    }
+
+    std::cerr << "CassoCli: '" << flag << "' is not an option of the " << mode << " subcommand.\n\n";
+    PrintUsage (prefix, subcommand);
 }
 
 

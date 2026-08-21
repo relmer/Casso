@@ -68,6 +68,11 @@ struct CommandLineOptions
     //  rather than turned into a message here so the wording lives with the
     //  other user-facing text, and so a test can assert WHICH word was rejected.
     std::string   unrecognizedArgument;
+
+    //  An argument AFTER a recognized subcommand that its grammar does not
+    //  know, as typed. Empty otherwise. The subcommand is valid, so the help
+    //  the edge prints is that mode's rather than the general one.
+    std::string   unrecognizedFlag;
     bool          hasLoadAddress  = false;
     bool          hasStopAddress  = false;
     bool          hasEntryAddress = false;

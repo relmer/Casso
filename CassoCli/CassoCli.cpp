@@ -46,8 +46,16 @@ int main (int argc, char * argv[])
     // because it is a strictly better answer for the same condition.
     if (!options.unrecognizedArgument.empty())
     {
-        CommandLine::PrintUnrecognizedArgument (options.unrecognizedArgument);
+        CommandLine::PrintUnrecognizedArgument (options.unrecognizedArgument, options.flagPrefix);
         exitCode = 1;
+    }
+    else if (!options.unrecognizedFlag.empty())
+    {
+        // The subcommand was recognized, so the help that follows the message
+        // is that mode's alone. Refused rather than warned about and run: a
+        // typo that still produced an output file was a typo nobody saw.
+        CommandLine::PrintUnrecognizedFlag (options.unrecognizedFlag, options.subcommand, options.flagPrefix);
+        exitCode = 2;
     }
     else if (!options.outputFormatConflict.empty())
     {

@@ -1099,7 +1099,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
                 break;
 
             default:
-                std::cerr << "Warning: Unknown flag: " << options.flagPrefix << flag << "\n";
+                RecordUnrecognizedFlag (std::string (1, options.flagPrefix) + flag, options);
                 pos++;
                 break;
             }
@@ -1165,6 +1165,37 @@ void CommandLineParser::ApplyAs65Defaults (CommandLineOptions & options, const F
     if (needsDebug)
     {
         options.debugFile = StripExtension (options.inputFile) + ".dbg";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::RecordUnrecognizedFlag
+//
+//  An argument the active grammar does not know, carried out by name rather
+//  than printed here.
+//
+//  It used to be a warning written to stderr from inside the parser, after
+//  which parsing -- and the assembly -- carried on. That made a typo silent in
+//  every way that mattered: the warning scrolled past, the exit code was 0, and
+//  the output file was written as though the flag had been honored. Recording
+//  it lets the edge refuse the invocation and print the help for the mode the
+//  flag was meant for.
+//
+//  The FIRST one is the one reported. A command line with two typos gets one
+//  message and the help, and the second typo is obvious against the help.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::RecordUnrecognizedFlag (const std::string & flag, CommandLineOptions & options)
+{
+    if (options.unrecognizedFlag.empty())
+    {
+        options.unrecognizedFlag = flag;
     }
 }
 
@@ -1458,7 +1489,7 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
 
             if (!known)
             {
-                std::cerr << "Warning: Unknown flag: " << options.flagPrefix << arg[pos] << "\n";
+                RecordUnrecognizedFlag (std::string (1, options.flagPrefix) + arg[pos], options);
                 pos++;
                 continue;
             }
@@ -1488,7 +1519,7 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
 
             if (!applied)
             {
-                std::cerr << "Warning: Unknown flag: " << options.flagPrefix << flag->letter << "\n";
+                RecordUnrecognizedFlag (std::string (1, options.flagPrefix) + flag->letter, options);
             }
         }
 
@@ -1709,7 +1740,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
         }
         else
         {
-            std::cerr << "Error: Unknown option: " << arg << "\n";
+            RecordUnrecognizedFlag (arg, options);
         }
 
         argIndex++;
