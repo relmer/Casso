@@ -71,17 +71,19 @@ With no format flag the output is a **full 64 KB image** padded with the fill
 byte — AS65's behavior, and the right shape for ROM burning or reference
 comparison.
 
-**The four shape flags are mutually exclusive and the last one given wins.**
-They all set one field, so `-s --raw` is raw and `--raw -s` is an S-record;
-neither is an error. The output file's extension (`.s19`, `.hex`) is consulted
-only when no flag was given at all, so an explicit flag always beats it.
+**The four shape flags are mutually exclusive, and naming two is refused.**
+`-s --raw` fails, naming both flags, rather than quietly writing one of them:
+each spelling is valid alone, so nothing in the output would look like a
+mistake. The same flag repeated is not a conflict. The output file's extension
+(`.s19`, `.hex`) is consulted only when no flag was given at all, so an
+explicit flag always beats it.
 
 ### CPU target
 
 | Flag | Meaning |
 |---|---|
 | *(omitted)* | Strict NMOS 6502. **Default.** |
-| `-x` | The extended CPU: `STZ`, `BRA`, `TSB`/`TRB`, `PHX`/`PHY`/`PLX`/`PLY`, `RMBn`/`SMBn`/`BBRn`/`BBSn`, and the `(zp)` and `(abs,X)` modes. |
+| `-x` | The 65C02: `STZ`, `BRA`, `TSB`/`TRB`, `PHX`/`PHY`/`PLX`/`PLY`, `RMBn`/`SMBn`/`BBRn`/`BBSn`, and the `(zp)` and `(abs,X)` modes. |
 
 Without `-x` a 65C02-only opcode is rejected as invalid rather than
 silently assembled, so targeting the wrong CPU is a build error and not a

@@ -155,6 +155,13 @@ public:
     static bool         IsLongOption    (const std::string & arg, const std::string & canonical,
                                          CommandLineOptions & options);
 
+    // Records the output format one flag asked for, refusing a second flag that
+    // asks for a different one. Public because both grammars select formats and
+    // both have to refuse the same way.
+    static void         SelectOutputFormat (const std::string & flag,
+                                            CommandLineOptions::OutputFormat format,
+                                            CommandLineOptions & options);
+
     // The same, for the `--name=value` / `/name=value` form. `value` is filled
     // only when the option matched with a value attached.
     static bool         IsLongOptionWithValue (const std::string & arg, const std::string & canonical,

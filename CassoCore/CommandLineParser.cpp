@@ -228,6 +228,40 @@ std::span<const CommandLineParser::OutputShape> CommandLineParser::GetOutputShap
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+void CommandLineParser::SelectOutputFormat (const std::string & flag,
+                                            CommandLineOptions::OutputFormat format,
+                                            CommandLineOptions & options)
+{
+    bool  alreadyChosen = !options.outputFormatFlag.empty();
+    bool  disagrees     = alreadyChosen && options.outputFormat != format;
+
+
+
+    // The same flag twice is not a conflict -- it asks for one thing, twice.
+    if (disagrees && options.outputFormatConflict.empty())
+    {
+        options.outputFormatConflict = options.outputFormatFlag + " and " + flag
+                                     + " both name an output format, and one assembly writes one file."
+                                       " Choose one.";
+    }
+
+    if (!alreadyChosen)
+    {
+        options.outputFormat     = format;
+        options.outputFormatFlag = flag;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::ApplyOutputShape
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool CommandLineParser::ApplyOutputShape (const std::string & arg, DialectId dialect, CommandLineOptions & options)
 {
     bool  matched = false;
@@ -238,8 +272,8 @@ bool CommandLineParser::ApplyOutputShape (const std::string & arg, DialectId dia
     {
         if (IsLongOption (arg, shape.option, options))
         {
-            options.outputFormat = shape.format;
-            matched              = true;
+            SelectOutputFormat (FormatLongOption (shape.option, options.flagPrefix), shape.format, options);
+            matched = true;
             break;
         }
     }
@@ -772,14 +806,14 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
         // unaffected.
         if (IsLongOption (arg, "--raw", options))
         {
-            options.outputFormat = CommandLineOptions::OutputFormat::Raw;
+            SelectOutputFormat (FormatLongOption ("--raw", options.flagPrefix), CommandLineOptions::OutputFormat::Raw, options);
             argIndex++;
             continue;
         }
 
         if (IsLongOption (arg, "--dos-bin", options))
         {
-            options.outputFormat = CommandLineOptions::OutputFormat::DosBinary;
+            SelectOutputFormat (FormatLongOption ("--dos-bin", options.flagPrefix), CommandLineOptions::OutputFormat::DosBinary, options);
             argIndex++;
             continue;
         }
@@ -1037,7 +1071,8 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
                 // -s = S-record output (.s19), -s2 = Intel HEX output (.hex)
                 if (!rest.empty() && rest[0] == '2')
                 {
-                    options.outputFormat = CommandLineOptions::OutputFormat::IntelHex;
+                    SelectOutputFormat (std::string (1, options.flagPrefix) + "s2",
+                                        CommandLineOptions::OutputFormat::IntelHex, options);
 
                     if (rest.size() > 1)
                     {
@@ -1046,7 +1081,8 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
                 }
                 else
                 {
-                    options.outputFormat = CommandLineOptions::OutputFormat::SRecord;
+                    SelectOutputFormat (std::string (1, options.flagPrefix) + "s",
+                                        CommandLineOptions::OutputFormat::SRecord, options);
 
                     if (!rest.empty())
                     {

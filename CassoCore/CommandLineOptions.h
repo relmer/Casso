@@ -98,6 +98,17 @@ struct CommandLineOptions
     //  test -- and so no caller has to know which dialects have one.
     std::string       cpuFlagRefusal;
 
+    //  Why two output-format flags could not both be honored, already worded,
+    //  and which flag chose the format that stands. Empty when at most one was
+    //  given.
+    //
+    //  Two flags naming different formats is a request for two files where the
+    //  tool writes one. Taking the last and discarding the first would be
+    //  answering a question the user did not ask -- and silently, since both
+    //  spellings are perfectly valid on their own.
+    std::string       outputFormatConflict;
+    std::string       outputFormatFlag;
+
     // AS65-compatible options
     bool                                      cycleCounts       = false;   // -c
     bool                                      macroExpansion    = false;   // -m

@@ -45,6 +45,13 @@ int main (int argc, char * argv[])
         PrintUnrecognizedArgument (options.unrecognizedArgument);
         exitCode = 1;
     }
+    else if (!options.outputFormatConflict.empty())
+    {
+        // Two formats named is two files asked for, and one gets written. Same
+        // reasoning as the arm below: the sentence naming both flags is a
+        // better answer than usage text that lists them among twenty others.
+        exitCode = PrintCpuFlagRefusal (options.outputFormatConflict);
+    }
     else if (!options.cpuFlagRefusal.empty())
     {
         // Checked before the usage arm for the same reason the line above is: a

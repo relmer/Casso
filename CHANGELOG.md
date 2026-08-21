@@ -156,6 +156,12 @@ Entries before versioning was introduced use dates only.
   and each order answers one of them.
 
 ### Fixed
+- **Naming two output formats is refused instead of resolved.** `-s --raw`
+  silently wrote raw, and `--raw -s` silently wrote an S-record, because all
+  four format flags set one field and the last assignment stood. Each spelling
+  is valid on its own, so nothing about the result looked wrong. The refusal
+  names both flags. Repeating one flag is still fine — it asks for one thing,
+  twice.
 - **Merlin now takes its mnemonics in any case.** `lda` was refused as an
   invalid mnemonic while `org` on the line above was accepted, so the case rule
   disagreed with itself inside one dialect — and the diagnostic never mentioned

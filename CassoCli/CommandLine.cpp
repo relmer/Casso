@@ -991,9 +991,9 @@ static void PrintUsageAssembler (const char * sp)
         "    {0}n                   Disable optimizations. Not yet implemented",
         "                         (GitHub issue #118)",
         "",
-        "    The four output shapes are mutually exclusive; the last one given",
-        "    wins. With none of them the default above applies, and only then is",
-        "    the output file's extension consulted.",
+        "    The four output shapes are mutually exclusive. Naming two is refused",
+        "    rather than resolved. With none of them the default above applies, and",
+        "    only then is the output file's extension consulted.",
         "    {0}s                   Write Motorola S-record (<source>.s19)",
         "    {0}s2                  Write Intel HEX (<source>.hex)",
         "    {1}dos-bin            Write the bytes behind a 4-byte DOS 3.3 header",
@@ -1039,13 +1039,12 @@ static void PrintUsageAssembler (const char * sp)
 
     std::println ("");
     std::println ("  CPU:");
-    std::println ("    {0}x                   Assemble 65SC02 instructions. Omit it for the plain", sp);
+    std::println ("    {0}x                   Assemble 65C02 instructions. Omit it for the plain", sp);
     std::println ("                         6502, where they are an assembly error");
     std::println ("");
-    std::println ("    Casso goes further than AS65 here: {0}x enables the full Rockwell", sp);
-    std::println ("    65C02 set, which adds RMBn, SMBn, BBRn and BBSn to the 65SC02");
-    std::println ("    instructions AS65 accepts. A source using those assembles in Casso");
-    std::println ("    and would not in AS65.");
+    std::println ("    This is wider than AS65, which assembles the 65SC02 subset: Casso");
+    std::println ("    also takes RMBn, SMBn, BBRn and BBSn. A source using those assembles");
+    std::println ("    here and would not under AS65.");
 }
 
 
@@ -1127,12 +1126,9 @@ void PrintUsage (char prefix)
     std::println ("");
     std::println ("  Merlin uses assembler directives in the source file in lieu of switches.");
     std::println ("  Some examples are:");
-    std::println ("    XC       Select the 65C02. A second one selects the 65802/65816 and is");
-    std::println ("             refused -- Casso does not emulate them.");
+    std::println ("    XC       Select the 65C02.");
     std::println ("    DSK      Name the output file. {0}o overrides it.", sp);
-    std::println ("    ORG      Set the origin, which is why there is no load-address flag.");
-    std::println ("    KBD      Ask the operator for a value. A batch assembly has nobody to");
-    std::println ("             ask, so {0}d answers it instead.", sp);
+    std::println ("    ORG      Set the origin.");
     std::println ("");
     std::println ("  Five more are recognized and refused by name, each saying what it would");
     std::println ("  take to support it: REL, ENT and EXT need a linker; TYP needs a");

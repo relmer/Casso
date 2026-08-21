@@ -352,6 +352,56 @@ namespace CommandLineTests
             Assert::IsTrue (opts.cpuTarget == CommandLineOptions::CpuTarget::M6502);
         }
 
+        //  TWO FORMATS IS TWO FILES ASKED FOR, and one gets written.
+        //
+        //  Last-one-wins would answer a question nobody asked, silently: both
+        //  spellings are valid alone, so nothing about `-s --raw` looks like a
+        //  mistake in the output. It is refused instead, and the refusal names
+        //  both flags -- the reader has to know which two collided.
+        TEST_METHOD (TwoOutputFormats_AreRefusedRatherThanResolved)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "-s", "--raw" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsFalse (opts.outputFormatConflict.empty(), L"naming two formats must be refused");
+            Assert::IsTrue  (opts.outputFormatConflict.find ("-s")    != std::string::npos,
+                             L"the refusal must name the first flag");
+            Assert::IsTrue  (opts.outputFormatConflict.find ("--raw") != std::string::npos,
+                             L"and the second");
+        }
+
+        //  Order must not decide whether an invocation is legal, only which
+        //  flag is named first in the message.
+        TEST_METHOD (TwoOutputFormats_AreRefusedInEitherOrder)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--dos-bin", "-s2" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsFalse (opts.outputFormatConflict.empty());
+        }
+
+        //  The same flag twice asks for one thing, twice. Refusing it would
+        //  break a script that built its command line by appending.
+        TEST_METHOD (TheSameOutputFormatTwice_IsNotAConflict)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--raw", "--raw" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.outputFormatConflict.empty(), L"one format named twice is still one format");
+            Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Raw);
+        }
+
+        //  And one format alone still selects it, or the guard above would be
+        //  satisfied by a parser that refused everything.
+        TEST_METHOD (OneOutputFormat_StillSelectsIt)
+        {
+            ArgVector           args = { "CassoCli", "as65", "demo.a65", "--dos-bin" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.outputFormatConflict.empty());
+            Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::DosBinary);
+        }
+
         //  -x IS THE ONLY WAY TO ASK, which is what AS65 does. There is nothing
         //  to name the narrow target with, because omitting the flag IS naming
         //  it: "when this option is not specified the assembler rejects the
