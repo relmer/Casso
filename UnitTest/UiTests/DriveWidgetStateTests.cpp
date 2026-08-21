@@ -230,46 +230,49 @@ public:
             L"and it still reads as a sentence without an image name");
     }
 
-    TEST_METHOD (WriteProtectTooltip_DamageDoesNotSwallowTheOtherCauses)
+    TEST_METHOD (WriteProtectTooltip_DamageSuppressesTheOtherCauses)
     {
-        // The damage sentence is additional, not a replacement -- an image can
-        // be damaged AND carry its own write-protect flag AND sit behind the
-        // drive preference, and the tooltip has to survive saying all three.
+        // Damage is the whole story, so it tells it alone.
+        //
+        // These previously appended: an image could be reported damaged AND
+        // flagged AND behind the drive preference, all in one tooltip. That
+        // reads as a list of things to go fix, and none of them can be fixed
+        // -- the disk is unwritable because it is damaged, and clearing a flag
+        // or a preference changes nothing while it stays that way. Naming them
+        // sends the user hunting for a remedy that does not exist.
         WriteProtectInfo  wp;
 
         wp.checksumMismatch = true;
         wp.imageFlag        = true;
+        wp.readOnlyFile     = true;
+        wp.userSetting      = true;
 
         Assert::AreEqual (
             std::wstring (L"\"a.woz\" is damaged: its stored checksum does not match its "
                           L"contents. Casso will not write to it, because rewriting the file "
-                          L"would hide the damage. \"a.woz\" is write-protected (WOZ "
-                          L"write-protect flag)."),
+                          L"would hide the damage."),
             ComposeWriteProtectTooltip (1, L"a.woz", wp),
-            L"the cause list must append to the damage sentence, not overwrite it");
-
-        wp.userSetting = true;
-
-        Assert::IsTrue (
-            ComposeWriteProtectTooltip (1, L"a.woz", wp).find (
-                L"Drive 1 is also write-protected in Settings > Disk.") != std::wstring::npos,
-            L"the drive preference still appends, and still says 'also'");
+            L"damage stands alone, whatever else happens to be true");
     }
 
-    TEST_METHOD (WriteProtectTooltip_DamageAloneStillSaysAlsoForTheDrivePreference)
+
+    TEST_METHOD (WriteProtectTooltip_UndamagedStillListsEveryCause)
     {
-        // "also" is chosen from whether anything preceded it, and a damage
-        // sentence counts even though it is not in the cause list.
+        // The suppression is specific to damage. With no damage the tooltip
+        // still has to account for every reason the disk will not take a
+        // write, because those the user CAN act on.
         WriteProtectInfo  wp;
 
-        wp.checksumMismatch = true;
-        wp.userSetting      = true;
+        wp.imageFlag   = true;
+        wp.userSetting = true;
 
-        Assert::IsTrue (
-            ComposeWriteProtectTooltip (2, L"a.woz", wp).find (
-                L"Drive 2 is also write-protected") != std::wstring::npos,
-            L"a preceding damage sentence must make the drive clause say 'also'");
+        Assert::AreEqual (
+            std::wstring (L"\"a.woz\" is write-protected (WOZ write-protect flag). "
+                          L"Drive 1 is also write-protected in Settings > Disk."),
+            ComposeWriteProtectTooltip (1, L"a.woz", wp),
+            L"an undamaged image still names its causes and still says 'also'");
     }
+
 
     TEST_METHOD (WriteProtectTooltip_FallsBackWithoutAName)
     {

@@ -248,6 +248,12 @@ inline std::wstring ComposeWriteProtectTooltip (
         msg += L" is damaged: its stored checksum does not match its contents. "
                L"Casso will not write to it, because rewriting the file would "
                L"hide the damage.";
+
+        // and nothing else. The other causes are true but immaterial: the disk
+        // is unwritable because it is damaged, and no toggle or preference the
+        // rest of this text would name can change that. Listing them invites
+        // the user to go clear a flag that will not help.
+        return msg;
     }
 
     if (!causes.empty())
