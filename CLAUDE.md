@@ -26,12 +26,35 @@ session:
 - `specs/023-ca65-dialect` — ca65's absolute subset, split out of 019. Depends on
   019's dialect mechanism; full compatibility needs a linker (GH #58).
 
-**Sequencing.** 019 and 020 can run in parallel — their only shared code was the
-CassoCli command-line surface, which has been moved into `CassoCore` with tests
-so both can extend it without a blind merge. The others are gated: 021 needs
-020's filesystem layer, 022 needs 020/021, and **023 needs 019's dialect
-mechanism** (023 SC-006 requires that adding ca65 change nothing in that
-mechanism), so 023 must not start before 019 lands.
+**Sequencing.** 019 and 020 ran in parallel and **both rewrote the command-line
+surface**, so they no longer merge cleanly. The landing order is decided:
+
+1. **019 merges to master first.**
+2. **Then master merges into 020**, and the conflicts get resolved here.
+3. **Then 020 merges back to master** as its own release.
+
+**Expect real work at step 2, concentrated in the usage and command-line code.**
+The two branches step on each other across `CommandLineParser`, `CommandLine`,
+and the help text; `CommandLineHelp` exists only on 020. One collision is known
+by name: 020 withdrew `--cpu` in favor of as65's `-x`, while 019 pins `--cpu` in
+as65 mode with its own tests and refuses it **by name** on the Merlin path to
+point the user at Merlin's `XC` directive. Those tests need retargeting at `-x`
+and that refusal needs rewording, or its guidance degrades to a bare "unknown
+option". 020 also carries a fix 019 will want and a bug 019 already fixed — the
+"0 lines assembled" miscount, corrected on 019 by `11f43ff6`.
+
+The earlier claim that moving the command-line surface into `CassoCore` would let
+both extend it "without a blind merge" was optimistic: it made the code testable,
+which is worth having, but 020 then restructured what it found there.
+
+The others are gated: 021 needs 020's filesystem layer, 022 needs 020/021, and
+**023 needs 019's dialect mechanism** (023 SC-006 requires that adding ca65
+change nothing in that mechanism), so 023 must not start before 019 lands.
+
+**Versions are pre-assigned so `Version.h` is not a merge conflict.**
+`handoff/disk-write-integrity` holds 1.17.0, 019 takes 1.18, and 020 is 1.19.0
+with its release already cut in the changelog — merging 020 to master IS that
+release.
 
 **020 is partially delivered.** Its User Story 1 (assembler binary output) is
 already done and on master: the unpadded span and `--dos-bin` live in

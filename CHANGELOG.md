@@ -8,6 +8,8 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+## [1.19.0] — disk file access, and a command line as65 would recognize
+
 ### Added
 - **PowerShell no longer breaks an ordinary as65 command line.** `CassoCli
   prog.a65 -oprog.bin` arrives as `-oprog` and `.bin`, because a PowerShell
@@ -21,50 +23,11 @@ Entries before versioning was introduced use dates only.
   `-o` could always be written `-o prog.bin`, and those three had no separated
   form to fall back on. With the repair in place the help no longer explains the
   shell at all, and simply states that the space after `-o` is optional.
-
-### Changed
-- **The assembler's exit codes now match as65's exactly.** as65 documents
-  `1 - Incorrect parameter specified on the commandline`; this tool spent 1 on
-  an assembly that warned and put the bad command line under 2 with everything
-  else that opened no file. So a script ported from as65 read a warning as a
-  command-line error and a command-line error as a missing file. 0 through 3 are
-  as65's meanings now, warnings report **5**, and 4 stays unused because as65
-  spends it on an out-of-memory this tool cannot reach. Naming no source file at
-  all is 1 rather than 2 for the same reason: nothing was opened because nothing
-  was named. **This is a breaking change for any script branching on 1 or 2.**
-- **The assembly exit-code list is a table.** Four lines of explanation per
-  status is reading for somebody porting a build and noise for somebody looking
-  up a number they just got back; what the statuses mean now lives in the header
-  that assigns them.
-
-### Added
 - **Exit code 4 is documented, and is never returned.** as65 spends it on a
   failed allocation, so a script ported from as65 may still test for it, and a
   list jumping from 3 to 5 left its author guessing whether the status had been
   renumbered or folded into another. It is named as as65's, with the reason it
   cannot arrive here.
-
-### Removed
-- **`ignoreOpcodeCase` is gone.** `-i` set it, nothing read it, and nothing
-  could: this assembler folds opcode case unconditionally, which is exactly what
-  the flag asks for. A stored `true` in two structs was an invitation to
-  implement a conditional folding the assembler does not need. `-i` is still
-  accepted, still concatenates, and now records nothing.
-
-### Fixed
-- **`-i` was described as unimplemented, and is not.** as65's `-i` asks for
-  case-insensitive opcodes, and this assembler has always been case-insensitive
-  about opcodes with or without it, so the flag is a no-op because the behavior
-  is already unconditional. Calling it "not implemented" told a reader that
-  lowercase source was unsupported, when `lda #$42` has always assembled. Labels
-  remain case-sensitive, and `-i` does not claim otherwise: as65's flag is about
-  opcodes.
-- **`-x` said it selected the 65SC02, and selects the 65C02.** The table it
-  installs carries RMB/SMB/BBR/BBS, which a 65SC02 does not have. "65SC02" is
-  as65's own name for the switch; the help says 65C02, which is what Apple
-  materials call the part.
-
-### Added
 - **Every help page now opens with the banner.** The tool's name, the version,
   the architecture and the copyright headed the general page only, and a mode's
   page is reached directly -- `CassoCli ?`, `CassoCli run --help`, `CassoCli
@@ -80,8 +43,101 @@ Entries before versioning was introduced use dates only.
 - **`-n` names the issue that tracks it.** It is accepted and does nothing; the
   page said "no-op", which is a status a reader cannot check from a help page.
   It now points at https://github.com/relmer/Casso/issues/118.
+- **`-x` selects the 65SC02 extensions, the name as65 gives that switch.** It
+  was not accepted: the flag fell through to the unknown-flag warning and was
+  dropped, so the source then failed to assemble on a strict 6502 and the
+  diagnostic named the opcode rather than the flag that would have allowed it.
+  It selects the same instruction set `--cpu 65c02` selects — the two produce
+  byte-identical output — and it packs with the other as65 flags (`-xq`) and
+  takes either prefix. **`--cpu` is unchanged and keeps working**; neither
+  spelling replaces the other.
+- **A bare `?` shows the usage text.** as65 prints its help when the only
+  parameter is a question mark. `-?` and `/?` already worked; the unadorned one
+  was read as a source filename, so `CassoCli ?` went looking for a file called
+  `?` and exited saying it could not open one. Only the single-argument case
+  changed — `?` alongside anything else is still an ordinary argument, because
+  a question mark further along a command line is somebody's operand.
+- **A `disk` subcommand: read files off an Apple II disk image and put them
+  back.** `CassoCli disk list <image>` catalogs a volume, `disk get` extracts a
+  file, `disk put` places one, and `disk delete` removes one — on DOS 3.3 and
+  ProDOS, in `.dsk`, `.do`, `.po` and `.woz` images alike, without a
+  third-party tool in the loop. `put` takes `--as` to name the file on the
+  disk, `--type` and `--addr` for what the catalog records, and `--text` to
+  convert host text to the disk's own character convention; naming no
+  conversion, the default, moves the bytes unchanged, so extract-edit-replace
+  does not perturb anything the edit did not touch. Writes are all-or-nothing and crash-safe:
+  the complete new image is built and checked in memory, written beside the
+  target and put in place atomically, so any failure — a locked file, a
+  write-protected image, a volume with no room, a track that cannot be
+  re-encoded, or the image changing under us — leaves the original
+  byte-for-byte as it was, with no leftover temporary and a message saying
+  which of those it was rather than a platform error code. That guarantee is
+  the command line's alone, deliberately: an image edited by a running guest is
+  written back when the drive flushes, and a flush interrupted partway has no
+  such protection. Neither side can see the other holding the image, either —
+  the command line refuses when some *other* program has the file open, but a
+  mounted image is not held open, so noticing that a disk is in use here is out
+  of scope rather than solved, and the help says so instead of implying a clean
+  check means a mounted disk is safe.
+- **A worked example of the whole loop in the help output.** The `disk` section
+  is no longer a flag list. It carries the commands that take an edited source
+  file to a program running in the emulator, documents the exit statuses — and
+  states that the subcommand defines none above 2, which is what documenting a
+  scoped status set amounts to when there are none — says that `put` and `get`
+  are named from the disk's point of view, and warns about the two steps that
+  are guessed wrong: assemble with the default shape rather than `--dos-bin`,
+  because
+  `put` writes the DOS 3.3 header itself and a file that already carries one
+  has its own header loaded as code where the program should begin; and set the
+  boot program to an Applesoft greeting that `BRUN`s the binary, because a
+  booting DOS 3.3 RUNs its greeting. The example and the help are checked
+  against each other — every verb the grammar accepts and every option the
+  example types has to appear in the same help output.
+- **`--basic`: an Applesoft listing written as host text becomes a program the
+  guest can `LIST` and `RUN`, and back again.** `disk put --basic` tokenizes a
+  listing and stores it under the Applesoft type without being asked to;
+  `disk get --basic` turns a stored program back into a listing. A listing that
+  cannot be tokenized is refused with the offending line number and the line
+  itself quoted, and the disk is left untouched. Extracting a program and
+  placing it back is byte-exact; the reverse — a listing placed and extracted
+  again — is not, because Applesoft itself normalizes a line when it is typed:
+  spacing outside strings, `REM` and `DATA` is dropped, `?` becomes `PRINT`,
+  lowercase outside those three becomes uppercase, and lines are ordered by
+  number. The help output says so rather than leaving it to be discovered.
+- **`disk boot <image> <program>`: the disk runs your program at boot, with
+  nothing typed.** The two filesystems do this by entirely different means and
+  both are handled: DOS 3.3 keeps the name of the program it runs inside its
+  own image, so that field is patched in place and the catalog is left alone;
+  ProDOS has no such field at all — it launches the first system program its
+  volume directory reaches — so the chosen one is moved in front of it, and
+  the ProDOS kernel itself is never nominated. A program that is not on the
+  volume is refused by name, because a startup program is the one setting with
+  nothing to show for itself in a listing: a typo would surface as a machine
+  booting to an error, later and somewhere else. A booting DOS 3.3 RUNs its
+  greeting, so naming a binary there succeeds and says out loud that the disk
+  will boot without running it.
+- **Unpadded and DOS 3.3 assembler output.** The assembler could only write
+  a full 64 KB memory image, padded with the fill byte — correct for ROM
+  burning and reference comparison, useless for loading a 2 KB routine, which
+  meant slicing 64 KB down by hand. Writing only the assembled span has since
+  become the default (see Changed above), and `--dos-bin` writes that span
+  behind the 4-byte load-address/length header an Apple DOS 3.3 binary file
+  carries, so the result is ready to `BLOAD` once placed on a disk.
 
 ### Changed
+- **The assembler's exit codes now match as65's exactly.** as65 documents
+  `1 - Incorrect parameter specified on the commandline`; this tool spent 1 on
+  an assembly that warned and put the bad command line under 2 with everything
+  else that opened no file. So a script ported from as65 read a warning as a
+  command-line error and a command-line error as a missing file. 0 through 3 are
+  as65's meanings now, warnings report **5**, and 4 stays unused because as65
+  spends it on an out-of-memory this tool cannot reach. Naming no source file at
+  all is 1 rather than 2 for the same reason: nothing was opened because nothing
+  was named. **This is a breaking change for any script branching on 1 or 2.**
+- **The assembly exit-code list is a table.** Four lines of explanation per
+  status is reading for somebody porting a build and noise for somebody looking
+  up a number they just got back; what the statuses mean now lives in the header
+  that assigns them.
 - **The assembly page opens with an as65 compatibility section.** The grammar
   rules a reader needs before any individual flag makes sense -- that switches
   chain into one argument, and that a value attaches with no space before it --
@@ -107,7 +163,6 @@ Entries before versioning was introduced use dates only.
 - **The flag-concatenation paragraph says where concatenation applies without
   describing the other two grammars.** It reached for `run` and `disk` to make
   its point on a page that documents neither.
-
 - **`-o` takes a separated filename as well as an attached one.** `-o prog.bin`
   now means what `-oprog.bin` means. That accepts MORE than as65 does and never
   less, so every as65 command line still reads exactly as as65 reads it. What
@@ -124,170 +179,6 @@ Entries before versioning was introduced use dates only.
   genuinely ambiguous with that bare reading and telling the two apart would
   take a guess; `-o` has no bare form, which is what leaves nothing to guess
   about. An `-o` with nothing at all after it is still refused.
-
-### Fixed
-- **An argument the shell cut off a flag now says that is what happened.**
-  `casso prog.a65 -oprog.bin`, typed unquoted in PowerShell, answered `Error:
-  surplus argument: .bin` — true, and about nothing the reader had typed, since
-  `.bin` never appeared on the command line they wrote. It now names both halves
-  and the whole they came from, says why the cut was made, and gives the two
-  spellings that survive it: quote the argument, or write it separated. The
-  recognition is a SHAPE in argv — a surplus argument beginning with a dot,
-  behind a single-dash flag group that attached a name and carries no dot or
-  colon of its own — not a check on which shell is running, which would be
-  fragile and untestable. It reaches the assembler grammar alone: every value in
-  `run` and `disk` is separated, so a value there is its own token, never begins
-  with `-`, and is never a parameter name to be cut.
-- **An argument with nowhere to go is now an error instead of being thrown
-  away.** `CassoCli pg.a65 -opg.bin -h 60` assembled, wrote the binary, exited
-  0, and never said that `60` had gone nowhere — so a build script asking for
-  something the tool did not do was told it had worked. All three grammars
-  dropped a surplus argument: assembling took the first bare argument as the
-  source and discarded the rest, and `disk` filled two operand slots whatever
-  the verb, so `disk list img.dsk PROG` cataloged the whole disk without
-  mentioning `PROG` and `disk get img.dsk PROG extra` extracted `PROG` without
-  mentioning `extra`. Each is now refused at the status its own mode documents
-  for a command line that was refused — 2 — with nothing assembled, nothing
-  run, and nothing written. The message names the argument, and where the
-  likely cause is visible it names that too: a value typed with a space in
-  front of it earns `-w100, not -w 100`. `run` already refused these and called
-  them "Unknown option", which sent the reader looking for a flag they had not
-  typed; it names them as surplus arguments now.
-- **A bare `-h` is refused rather than silently doing nothing.** as65 documents
-  the bare form of `-w` — "If the -w option is given without a number following
-  it, then the listing will be 133 columns wide" — and documents no bare form
-  of `-h` on the same page. Casso accepted one and ignored it: the page height
-  kept whatever it already had, and the flag might as well not have been typed.
-  It now says so and names `-h0`, which is the real spelling for no page breaks
-  at all. `-h` as the FIRST argument is still the help request. The four bare
-  forms as65 does document — `-w`, `-l`, `-d`, `-g` — are unchanged.
-- **A value that cannot be read is refused instead of being replaced.**
-  `disk put img prog.bin --addr zzz` dropped the address and then answered "is
-  a binary, which has to be told where it loads — give `--addr $XXXX`" to
-  somebody who had just given `--addr`. `-dADDR=$6000` and `-dVER=1.0` each
-  defined the symbol as `1` in silence, so the source assembled down a branch
-  nobody chose. Both now refuse and say what they could not read. A bare `-d`
-  is still `DEBUG`, and a name with no `=` is still 1.
-- **An option that ran out of command line is no longer reported as one that
-  does not exist.** `disk list img.dsk --addr` answered "unknown disk option:
-  `--addr`" and then listed `--addr` among the options to try instead. Both the
-  `disk` and `run` grammars now say the option needs a value.
-- **A bare `-d` defines `DEBUG`, and stops eating the argument next to it.**
-  as65 documents `-d` with no name as defining `DEBUG`, equated to 1. It
-  defined nothing at all, because it took whatever followed unconditionally —
-  and the two things that follow a flag are the source file and the next flag.
-  `CassoCli -d prog.a65` defined a label called `prog.a65` and then reported
-  `No input file specified`, a complaint about the argument it had just
-  swallowed; `CassoCli prog.a65 -d -oout.bin` defined a label called
-  `-oout.bin`, lost the output name, wrote `prog.bin` instead, and exited 0.
-  A bare `-d` now means `DEBUG`, wherever it appears.
-- **A trailing `-o` no longer hangs the assembler forever.** `CassoCli
-  demo.a65 -o`, with no filename after the flag, printed nothing and never
-  returned — it had to be killed. Neither branch of the flag's parsing ran and
-  neither advanced the walk over the concatenated flags, so the same character
-  was read for as long as the process lived. It is now refused, with the form
-  to type instead.
-- **A mistyped option no longer reports success.** `CassoCli run prog.a65 --cpu
-  65c02` printed `Error: Unknown option` and then exited 0 — the complaint
-  reached your screen and never reached your build script. Seven paths did
-  this: every unreadable value in the `run` grammar (`--load`, `--entry`,
-  `--stop`, `--max-cycles`, `--fill`), an option `run` does not know, and an
-  unknown `--cpu` target, which printed an error, printed the whole help, and
-  called it success. The statuses now match what the tool already documents: a
-  command line the parser refused exits 2 and, for `run`, executes nothing —
-  an option it could not read might have moved the load address, so what would
-  have run is not what was asked for.
-- **`-h<lines>` now actually breaks the listing into pages.** It never did.
-  The page height was carried into the assembler's options and read by nothing
-  — there was no pagination anywhere in the tool, so a listing produced with
-  `-h10` and one produced with no flag at all were byte-for-byte identical,
-  form feeds included. Pagination now exists and a page break repeats the
-  listing title the way a `.page` directive already did. No `-h` still means
-  one continuous page, so existing listings are unchanged.
-- **A bare `-w` selects the 133-column listing the help has always said it
-  selects**, which it previously did not. That bare form is as65's own:
-  "If the -w option is given without a number following it, then the listing
-  will be 133 columns wide."
-- **The default listing width is 79, not 80.** as65: "Normally, the listing is
-  printed using 79 columns for output to a 80-column screen or printer." 80 is
-  the width of the screen, not of the listing — it is the one column that does
-  not fit on it. Casso's own 002 contract said 79 as well, so the 80 was drift
-  from both authorities at once.
-- **`CassoCli disk --help` prints help.** It printed `unknown disk verb` and
-  exited 2, because `--help` was recognized only as the very first argument. It
-  is now understood anywhere in a `disk` command line, in every spelling and
-  either prefix (`--help`, `-help`, `-?`, `/help`, `/?`), and prints the disk
-  section of the help with a clean exit status. A ProDOS path such as
-  `/HELP/STARTUP` is still a path.
-- **The unknown-verb message lists the verbs that exist.** It still named the
-  five original ones after eight aliases had been added, so mistyping `catalog`
-  got you a suggestion of five words that did not include `catalog`. It is now
-  read from the grammar itself.
-- **A damaged track no longer silently truncates your disk image on eject.**
-  The nibble decoder stopped at the first sector it could not read on a track
-  and handed back zeros for that sector and every later one on it, while
-  reporting success. The emulator's flush path is the one place that mattered:
-  a guest that left a track partly written could lose the rest of it the moment
-  the disk was ejected, with nothing said. The decoder now reports what it
-  actually recovered, track by track, and a flush that would write a hole is
-  refused instead. A refusal on its own would strand the session's work, so the
-  writes still in memory are saved beside the target as `<name>.recovered.woz`
-  and the notification names that file — the original image is preserved and
-  nothing the guest wrote is thrown away. (GH #115)
-- **The tool's help offered flags the tool does not accept.** Invoked as `/?`,
-  the help spelled options with whichever prefix the reader had typed —
-  `/out`, `/addr`, `/as`, `/type`, `/cpu` — while the grammar accepted only the
-  `--` spelling, so an option copied out of the help was silently ignored.
-  Rather than take the spelling away, the grammar now accepts both: every long
-  option works with `/` as well as `--`, including one carrying an attached
-  value (`/cpu=65c02`). A ProDOS path such as `/VOLUME/STARTUP` still reads as
-  an operand, because only an exact option name is recognized after the slash.
-  The help's own apology for the inconsistency — *"Disk options always take the
-  `--` spelling, whichever prefix the assembler flags are given with"* — is
-  gone, and tests drive the parser with both forms so the two cannot drift
-  apart again.
-- **A disk image whose name is not plain ASCII came back mangled.**
-  `Space Quarks (1981)(Brøderbund)(II-II+)[48K].woz` echoed out of its own
-  error message as `Br?derbund`, which is not a name anyone can paste back into
-  a command line. The bytes were right the whole way through; they were handed
-  to a console expecting a different character encoding. `disk` output is now
-  converted to whatever encoding the console is actually set to, on its way
-  out. The extracted bytes of `disk get` deliberately do not pass through that
-  conversion — those are a file's contents, not text.
-- **Pasting into the guest no longer garbles the text.** A valid Applesoft line
-  pasted at the `]` prompt produced a SYNTAX ERROR while typing the same line
-  by hand worked. Two independent causes, both fixed: Ctrl+V is claimed as a
-  host shortcut but Windows synthesizes its control character anyway, so a
-  `^V` reached the guest keyboard ahead of the pasted text; and characters were
-  fed faster than the guest could take them. Feeding is now paced in emulated
-  cycles and waits for the keyboard strobe to stay clear, because the guest
-  clears it the moment it takes a key but may flush the keyboard again while
-  processing one — so a character sent on the first clear reading races into
-  that window and is dropped.
-
-### Removed
-- **BREAKING: `--raw` is gone.** It selected the assembled bytes, which is what
-  naming no shape already does, so it bought nothing and cost a line of the
-  help. **If a command line spells it, delete the flag** — the result is
-  identical. It is refused rather than ignored, so nothing carries on quietly
-  with it: `--raw` used to be readable as the packed flags `-r -a -w`, which
-  would have complained about two flags that do not exist, silently set the
-  listing column width, and assembled anyway.
-- **BREAKING: `--verbatim` is gone.** Placing and extracting bytes unchanged is
-  the default and always was; once it became the default, the flag's only
-  remaining effect was cancelling a `--text` or `--basic` earlier on the same
-  line. **If a command line spells it, delete the flag** — unless it was there
-  to cancel a `--text`, in which case delete both.
-- **BREAKING: `--long` is gone, and a ProDOS listing always shows every
-  column.** `eof=` and `aux=` — the exact length of a file and the address a
-  binary loads at — were behind the flag, and the volume records both whether
-  or not anyone asks, so it cost a reading of the help and a second run of the
-  command to see the two fields a build loop most wants. **If a command line
-  spells it, delete the flag**; the listing it produced is now what you get
-  without it, and still fits an 80-column terminal. DOS 3.3 listings are
-  unaffected — that filesystem records neither field.
-
-### Changed
 - **`CassoCli --help` is one screen, and each mode's flags wait behind that
   mode's own help.** It was 180 lines — four screens of every flag of three
   grammars, three blocks of exit statuses, and the worked loop at the bottom
@@ -464,90 +355,6 @@ Entries before versioning was introduced use dates only.
   commands; `dir` and `del` are there for the habits a host shell teaches, and
   `read` and `write` alias `get` and `put`. `ls` and `rm` already worked. The
   primary verbs are unchanged.
-
-### Added
-- **`-x` selects the 65SC02 extensions, the name as65 gives that switch.** It
-  was not accepted: the flag fell through to the unknown-flag warning and was
-  dropped, so the source then failed to assemble on a strict 6502 and the
-  diagnostic named the opcode rather than the flag that would have allowed it.
-  It selects the same instruction set `--cpu 65c02` selects — the two produce
-  byte-identical output — and it packs with the other as65 flags (`-xq`) and
-  takes either prefix. **`--cpu` is unchanged and keeps working**; neither
-  spelling replaces the other.
-- **A bare `?` shows the usage text.** as65 prints its help when the only
-  parameter is a question mark. `-?` and `/?` already worked; the unadorned one
-  was read as a source filename, so `CassoCli ?` went looking for a file called
-  `?` and exited saying it could not open one. Only the single-argument case
-  changed — `?` alongside anything else is still an ordinary argument, because
-  a question mark further along a command line is somebody's operand.
-- **A `disk` subcommand: read files off an Apple II disk image and put them
-  back.** `CassoCli disk list <image>` catalogs a volume, `disk get` extracts a
-  file, `disk put` places one, and `disk delete` removes one — on DOS 3.3 and
-  ProDOS, in `.dsk`, `.do`, `.po` and `.woz` images alike, without a
-  third-party tool in the loop. `put` takes `--as` to name the file on the
-  disk, `--type` and `--addr` for what the catalog records, and `--text` to
-  convert host text to the disk's own character convention; naming no
-  conversion, the default, moves the bytes unchanged, so extract-edit-replace
-  does not perturb anything the edit did not touch. Writes are all-or-nothing and crash-safe:
-  the complete new image is built and checked in memory, written beside the
-  target and put in place atomically, so any failure — a locked file, a
-  write-protected image, a volume with no room, a track that cannot be
-  re-encoded, or the image changing under us — leaves the original
-  byte-for-byte as it was, with no leftover temporary and a message saying
-  which of those it was rather than a platform error code. That guarantee is
-  the command line's alone, deliberately: an image edited by a running guest is
-  written back when the drive flushes, and a flush interrupted partway has no
-  such protection. Neither side can see the other holding the image, either —
-  the command line refuses when some *other* program has the file open, but a
-  mounted image is not held open, so noticing that a disk is in use here is out
-  of scope rather than solved, and the help says so instead of implying a clean
-  check means a mounted disk is safe.
-- **A worked example of the whole loop in the help output.** The `disk` section
-  is no longer a flag list. It carries the commands that take an edited source
-  file to a program running in the emulator, documents the exit statuses — and
-  states that the subcommand defines none above 2, which is what documenting a
-  scoped status set amounts to when there are none — says that `put` and `get`
-  are named from the disk's point of view, and warns about the two steps that
-  are guessed wrong: assemble with the default shape rather than `--dos-bin`,
-  because
-  `put` writes the DOS 3.3 header itself and a file that already carries one
-  has its own header loaded as code where the program should begin; and set the
-  boot program to an Applesoft greeting that `BRUN`s the binary, because a
-  booting DOS 3.3 RUNs its greeting. The example and the help are checked
-  against each other — every verb the grammar accepts and every option the
-  example types has to appear in the same help output.
-- **`--basic`: an Applesoft listing written as host text becomes a program the
-  guest can `LIST` and `RUN`, and back again.** `disk put --basic` tokenizes a
-  listing and stores it under the Applesoft type without being asked to;
-  `disk get --basic` turns a stored program back into a listing. A listing that
-  cannot be tokenized is refused with the offending line number and the line
-  itself quoted, and the disk is left untouched. Extracting a program and
-  placing it back is byte-exact; the reverse — a listing placed and extracted
-  again — is not, because Applesoft itself normalizes a line when it is typed:
-  spacing outside strings, `REM` and `DATA` is dropped, `?` becomes `PRINT`,
-  lowercase outside those three becomes uppercase, and lines are ordered by
-  number. The help output says so rather than leaving it to be discovered.
-- **`disk boot <image> <program>`: the disk runs your program at boot, with
-  nothing typed.** The two filesystems do this by entirely different means and
-  both are handled: DOS 3.3 keeps the name of the program it runs inside its
-  own image, so that field is patched in place and the catalog is left alone;
-  ProDOS has no such field at all — it launches the first system program its
-  volume directory reaches — so the chosen one is moved in front of it, and
-  the ProDOS kernel itself is never nominated. A program that is not on the
-  volume is refused by name, because a startup program is the one setting with
-  nothing to show for itself in a listing: a typo would surface as a machine
-  booting to an error, later and somewhere else. A booting DOS 3.3 RUNs its
-  greeting, so naming a binary there succeeds and says out loud that the disk
-  will boot without running it.
-- **Unpadded and DOS 3.3 assembler output.** The assembler could only write
-  a full 64 KB memory image, padded with the fill byte — correct for ROM
-  burning and reference comparison, useless for loading a 2 KB routine, which
-  meant slicing 64 KB down by hand. Writing only the assembled span has since
-  become the default (see Changed above), and `--dos-bin` writes that span
-  behind the 4-byte load-address/length header an Apple DOS 3.3 binary file
-  carries, so the result is ready to `BLOAD` once placed on a disk.
-
-### Changed
 - **An explicit output-format flag now wins over the filename's extension.**
   Extension matching remains as the fallback when no flag is given, so as65-era
   scripts naming a `.s19` or `.hex` output keep working. Previously the
@@ -558,6 +365,184 @@ Entries before versioning was introduced use dates only.
   previously unreachable from any test. Behavior is unchanged and now pinned by
   tests; the grammar's one filesystem question — does `build` name a real
   `build.a65`? — is injected rather than probed directly.
+
+### Removed
+- **`ignoreOpcodeCase` is gone.** `-i` set it, nothing read it, and nothing
+  could: this assembler folds opcode case unconditionally, which is exactly what
+  the flag asks for. A stored `true` in two structs was an invitation to
+  implement a conditional folding the assembler does not need. `-i` is still
+  accepted, still concatenates, and now records nothing.
+- **BREAKING: `--raw` is gone.** It selected the assembled bytes, which is what
+  naming no shape already does, so it bought nothing and cost a line of the
+  help. **If a command line spells it, delete the flag** — the result is
+  identical. It is refused rather than ignored, so nothing carries on quietly
+  with it: `--raw` used to be readable as the packed flags `-r -a -w`, which
+  would have complained about two flags that do not exist, silently set the
+  listing column width, and assembled anyway.
+- **BREAKING: `--verbatim` is gone.** Placing and extracting bytes unchanged is
+  the default and always was; once it became the default, the flag's only
+  remaining effect was cancelling a `--text` or `--basic` earlier on the same
+  line. **If a command line spells it, delete the flag** — unless it was there
+  to cancel a `--text`, in which case delete both.
+- **BREAKING: `--long` is gone, and a ProDOS listing always shows every
+  column.** `eof=` and `aux=` — the exact length of a file and the address a
+  binary loads at — were behind the flag, and the volume records both whether
+  or not anyone asks, so it cost a reading of the help and a second run of the
+  command to see the two fields a build loop most wants. **If a command line
+  spells it, delete the flag**; the listing it produced is now what you get
+  without it, and still fits an 80-column terminal. DOS 3.3 listings are
+  unaffected — that filesystem records neither field.
+
+### Fixed
+- **`-i` was described as unimplemented, and is not.** as65's `-i` asks for
+  case-insensitive opcodes, and this assembler has always been case-insensitive
+  about opcodes with or without it, so the flag is a no-op because the behavior
+  is already unconditional. Calling it "not implemented" told a reader that
+  lowercase source was unsupported, when `lda #$42` has always assembled. Labels
+  remain case-sensitive, and `-i` does not claim otherwise: as65's flag is about
+  opcodes.
+- **`-x` said it selected the 65SC02, and selects the 65C02.** The table it
+  installs carries RMB/SMB/BBR/BBS, which a 65SC02 does not have. "65SC02" is
+  as65's own name for the switch; the help says 65C02, which is what Apple
+  materials call the part.
+- **An argument the shell cut off a flag now says that is what happened.**
+  `casso prog.a65 -oprog.bin`, typed unquoted in PowerShell, answered `Error:
+  surplus argument: .bin` — true, and about nothing the reader had typed, since
+  `.bin` never appeared on the command line they wrote. It now names both halves
+  and the whole they came from, says why the cut was made, and gives the two
+  spellings that survive it: quote the argument, or write it separated. The
+  recognition is a SHAPE in argv — a surplus argument beginning with a dot,
+  behind a single-dash flag group that attached a name and carries no dot or
+  colon of its own — not a check on which shell is running, which would be
+  fragile and untestable. It reaches the assembler grammar alone: every value in
+  `run` and `disk` is separated, so a value there is its own token, never begins
+  with `-`, and is never a parameter name to be cut.
+- **An argument with nowhere to go is now an error instead of being thrown
+  away.** `CassoCli pg.a65 -opg.bin -h 60` assembled, wrote the binary, exited
+  0, and never said that `60` had gone nowhere — so a build script asking for
+  something the tool did not do was told it had worked. All three grammars
+  dropped a surplus argument: assembling took the first bare argument as the
+  source and discarded the rest, and `disk` filled two operand slots whatever
+  the verb, so `disk list img.dsk PROG` cataloged the whole disk without
+  mentioning `PROG` and `disk get img.dsk PROG extra` extracted `PROG` without
+  mentioning `extra`. Each is now refused at the status its own mode documents
+  for a command line that was refused — 2 — with nothing assembled, nothing
+  run, and nothing written. The message names the argument, and where the
+  likely cause is visible it names that too: a value typed with a space in
+  front of it earns `-w100, not -w 100`. `run` already refused these and called
+  them "Unknown option", which sent the reader looking for a flag they had not
+  typed; it names them as surplus arguments now.
+- **A bare `-h` is refused rather than silently doing nothing.** as65 documents
+  the bare form of `-w` — "If the -w option is given without a number following
+  it, then the listing will be 133 columns wide" — and documents no bare form
+  of `-h` on the same page. Casso accepted one and ignored it: the page height
+  kept whatever it already had, and the flag might as well not have been typed.
+  It now says so and names `-h0`, which is the real spelling for no page breaks
+  at all. `-h` as the FIRST argument is still the help request. The four bare
+  forms as65 does document — `-w`, `-l`, `-d`, `-g` — are unchanged.
+- **A value that cannot be read is refused instead of being replaced.**
+  `disk put img prog.bin --addr zzz` dropped the address and then answered "is
+  a binary, which has to be told where it loads — give `--addr $XXXX`" to
+  somebody who had just given `--addr`. `-dADDR=$6000` and `-dVER=1.0` each
+  defined the symbol as `1` in silence, so the source assembled down a branch
+  nobody chose. Both now refuse and say what they could not read. A bare `-d`
+  is still `DEBUG`, and a name with no `=` is still 1.
+- **An option that ran out of command line is no longer reported as one that
+  does not exist.** `disk list img.dsk --addr` answered "unknown disk option:
+  `--addr`" and then listed `--addr` among the options to try instead. Both the
+  `disk` and `run` grammars now say the option needs a value.
+- **A bare `-d` defines `DEBUG`, and stops eating the argument next to it.**
+  as65 documents `-d` with no name as defining `DEBUG`, equated to 1. It
+  defined nothing at all, because it took whatever followed unconditionally —
+  and the two things that follow a flag are the source file and the next flag.
+  `CassoCli -d prog.a65` defined a label called `prog.a65` and then reported
+  `No input file specified`, a complaint about the argument it had just
+  swallowed; `CassoCli prog.a65 -d -oout.bin` defined a label called
+  `-oout.bin`, lost the output name, wrote `prog.bin` instead, and exited 0.
+  A bare `-d` now means `DEBUG`, wherever it appears.
+- **A trailing `-o` no longer hangs the assembler forever.** `CassoCli
+  demo.a65 -o`, with no filename after the flag, printed nothing and never
+  returned — it had to be killed. Neither branch of the flag's parsing ran and
+  neither advanced the walk over the concatenated flags, so the same character
+  was read for as long as the process lived. It is now refused, with the form
+  to type instead.
+- **A mistyped option no longer reports success.** `CassoCli run prog.a65 --cpu
+  65c02` printed `Error: Unknown option` and then exited 0 — the complaint
+  reached your screen and never reached your build script. Seven paths did
+  this: every unreadable value in the `run` grammar (`--load`, `--entry`,
+  `--stop`, `--max-cycles`, `--fill`), an option `run` does not know, and an
+  unknown `--cpu` target, which printed an error, printed the whole help, and
+  called it success. The statuses now match what the tool already documents: a
+  command line the parser refused exits 2 and, for `run`, executes nothing —
+  an option it could not read might have moved the load address, so what would
+  have run is not what was asked for.
+- **`-h<lines>` now actually breaks the listing into pages.** It never did.
+  The page height was carried into the assembler's options and read by nothing
+  — there was no pagination anywhere in the tool, so a listing produced with
+  `-h10` and one produced with no flag at all were byte-for-byte identical,
+  form feeds included. Pagination now exists and a page break repeats the
+  listing title the way a `.page` directive already did. No `-h` still means
+  one continuous page, so existing listings are unchanged.
+- **A bare `-w` selects the 133-column listing the help has always said it
+  selects**, which it previously did not. That bare form is as65's own:
+  "If the -w option is given without a number following it, then the listing
+  will be 133 columns wide."
+- **The default listing width is 79, not 80.** as65: "Normally, the listing is
+  printed using 79 columns for output to a 80-column screen or printer." 80 is
+  the width of the screen, not of the listing — it is the one column that does
+  not fit on it. Casso's own 002 contract said 79 as well, so the 80 was drift
+  from both authorities at once.
+- **`CassoCli disk --help` prints help.** It printed `unknown disk verb` and
+  exited 2, because `--help` was recognized only as the very first argument. It
+  is now understood anywhere in a `disk` command line, in every spelling and
+  either prefix (`--help`, `-help`, `-?`, `/help`, `/?`), and prints the disk
+  section of the help with a clean exit status. A ProDOS path such as
+  `/HELP/STARTUP` is still a path.
+- **The unknown-verb message lists the verbs that exist.** It still named the
+  five original ones after eight aliases had been added, so mistyping `catalog`
+  got you a suggestion of five words that did not include `catalog`. It is now
+  read from the grammar itself.
+- **A damaged track no longer silently truncates your disk image on eject.**
+  The nibble decoder stopped at the first sector it could not read on a track
+  and handed back zeros for that sector and every later one on it, while
+  reporting success. The emulator's flush path is the one place that mattered:
+  a guest that left a track partly written could lose the rest of it the moment
+  the disk was ejected, with nothing said. The decoder now reports what it
+  actually recovered, track by track, and a flush that would write a hole is
+  refused instead. A refusal on its own would strand the session's work, so the
+  writes still in memory are saved beside the target as `<name>.recovered.woz`
+  and the notification names that file — the original image is preserved and
+  nothing the guest wrote is thrown away. (GH #115)
+- **The tool's help offered flags the tool does not accept.** Invoked as `/?`,
+  the help spelled options with whichever prefix the reader had typed —
+  `/out`, `/addr`, `/as`, `/type`, `/cpu` — while the grammar accepted only the
+  `--` spelling, so an option copied out of the help was silently ignored.
+  Rather than take the spelling away, the grammar now accepts both: every long
+  option works with `/` as well as `--`, including one carrying an attached
+  value (`/cpu=65c02`). A ProDOS path such as `/VOLUME/STARTUP` still reads as
+  an operand, because only an exact option name is recognized after the slash.
+  The help's own apology for the inconsistency — *"Disk options always take the
+  `--` spelling, whichever prefix the assembler flags are given with"* — is
+  gone, and tests drive the parser with both forms so the two cannot drift
+  apart again.
+- **A disk image whose name is not plain ASCII came back mangled.**
+  `Space Quarks (1981)(Brøderbund)(II-II+)[48K].woz` echoed out of its own
+  error message as `Br?derbund`, which is not a name anyone can paste back into
+  a command line. The bytes were right the whole way through; they were handed
+  to a console expecting a different character encoding. `disk` output is now
+  converted to whatever encoding the console is actually set to, on its way
+  out. The extracted bytes of `disk get` deliberately do not pass through that
+  conversion — those are a file's contents, not text.
+- **Pasting into the guest no longer garbles the text.** A valid Applesoft line
+  pasted at the `]` prompt produced a SYNTAX ERROR while typing the same line
+  by hand worked. Two independent causes, both fixed: Ctrl+V is claimed as a
+  host shortcut but Windows synthesizes its control character anyway, so a
+  `^V` reached the guest keyboard ahead of the pasted text; and characters were
+  fed faster than the guest could take them. Feeding is now paced in emulated
+  cycles and waits for the keyboard strobe to stay clear, because the guest
+  clears it the moment it takes a key but may flush the keyboard again while
+  processing one — so a character sent on the first clear reading races into
+  that window and is dropped.
 
 ## [1.16.1] — the //c mouse works with VBL-interrupt software
 
