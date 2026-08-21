@@ -48,6 +48,36 @@ See [CHANGELOG.md](CHANGELOG.md) for the granular history, and
 [ARCHITECTURE.md](ARCHITECTURE.md) for a technical overview of the emulator's
 internals (projects, threading, the memory model, and the optimization log).
 
+### Merlin assembler dialect (v1.18.0)
+
+`CassoCli` now assembles **Merlin** source — Glen Bredon's Merlin Pro, the
+assembler most Apple II software of the era was written in — unmodified, with
+the output verified byte-for-byte against six objects shipped on the Merlin
+Pro 2.23 distribution disk, including its own macro library. Merlin arrives as
+a *dialect*: a directive vocabulary and a line model behind one profile seam,
+sharing the two-pass engine, expression evaluator and opcode tables that `as65`
+has always used, so the next dialect is a profile rather than a second
+assembler.
+
+The command line names the dialect rather than guessing it — **`CassoCli as65
+input.a65`** and **`CassoCli merlin PROG.S`**; the old bare `CassoCli input.a65`
+form is gone — and `run` takes **`--as65`** or **`--merlin`** to say which
+assembler reads a source. Under `as65`, the CPU is chosen with AS65's own
+**`-x`** (the `--cpu` flag is retired); under `merlin`, the source chooses it
+with `XC`, as Merlin does. Merlin output can be wrapped for an Apple II disk
+with **`--dos-bin`**, and `-d NAME=value` answers the questions a `KBD` directive
+would have asked at the keyboard.
+
+The rest of the CLI got a pass while the hood was up: `--help` wraps to the
+width of your terminal and is organized by mode; an argument the tool does not
+know is refused — with the full usage and the offending argument named last —
+instead of warned about and ignored; the five output formats are mutually
+exclusive; `-w` wraps the listing; `-t` shows decimal beside hex; and `-g` writes
+its symbols by address and again by name. See
+[docs/Assembler.md](docs/Assembler.md) for the reference and
+[docs/merlin-subset.md](docs/merlin-subset.md) for what Merlin support covers
+and where it ends.
+
 ### Salvage a damaged .woz disk (v1.17.0)
 
 Casso now checks disk integrity when a .woz disk is inserted. If the checksums
