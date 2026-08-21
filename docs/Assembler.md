@@ -326,12 +326,38 @@ and neither of the other two shapes pads at all.
 `XC`, and passing `--cpu` is refused by name rather than ignored. A flag
 accepted here would assemble source the real assembler rejects.
 
-**`-d` answers what the source asks.** Merlin stops and prompts the operator for
-a keyboard-input symbol; a batch assembly has nobody to ask, so the answer is
-given with the invocation, once per question.
+### `KBD`, and how `-d` answers it
+
+`KBD` stops a Merlin assembly and asks the operator for a value. A batch
+assembler has nobody to ask, so in Casso the answer arrives **before** the
+assembly rather than during it.
+
+```
+SAVOBJ KBD Save object code? (1=yes, 0=no)
+```
+
+The **label field** names the symbol; the rest of the line is the prompt. When
+pass 2 reaches that line, Casso looks the name up among the symbols `-d`
+defined:
+
+- **Answered** — the symbol is defined there and then, as an ordinary
+  immutable equate, so every `DO SAVOBJ` below it sees the value. `-d SAVOBJ=0`
+  gives zero; a bare `-d SAVOBJ` gives 1.
+- **Unanswered** — an error naming the symbol *and quoting the source's own
+  prompt*, so the question is legible without opening the file:
+  `No answer supplied for SAVOBJ (Save object code? (1=yes, 0=no)) -- define it
+  on the command line, for example -d SAVOBJ=0`.
+
+**An unanswered `KBD` is an error rather than a zero.** Both easier options are
+wrong: blocking on a prompt hangs an unattended build, and defaulting quietly
+assembles a program nobody asked for, since these symbols gate whole sections.
+
+`CLOCK.S` is the case that proves it — one source, two objects Merlin shipped,
+chosen entirely by the answers:
 
 ```powershell
 CassoCli merlin CLOCK.S -d SAVOBJ=0 -d VERSION=24 --dos-bin -o CLOCK.24
+CassoCli merlin CLOCK.S -d SAVOBJ=0 -d VERSION=12 --dos-bin -o CLOCK.12
 ```
 
 ### Where Merlin support ends

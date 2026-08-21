@@ -1069,8 +1069,10 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
                   CommandLineParser::FormatLongOption ("--as65", sp[0]) + " | "
                   + CommandLineParser::FormatLongOption ("--merlin", sp[0]));
     std::println ("                         Ignored for a binary, which needs no assembler");
-    std::println ("  After it, that assembler's own switches are accepted too --");
-    std::println ("                         {0}x and {0}d, the two that change what is assembled", sp);
+    std::println ("");
+    std::println ("  Assembler options accepted here: {0}x and {0}d under AS65, {0}d under", sp);
+    std::println ("  Merlin -- the ones that change what is assembled. See the mode sections");
+    std::println ("  above for what they do. The rest describe a file run does not write.");
     std::println ("");
 
     const char * lines[] =

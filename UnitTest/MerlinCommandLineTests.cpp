@@ -572,6 +572,28 @@ namespace MerlinCommandLineTests
                             L"with the strict 6502 still the default");
         }
 
+        //  And `run` refuses it for a dialect whose source selects its own CPU,
+        //  which `merlin` already did. A flag refused in one subcommand and
+        //  honored in another is worse than one refused in both: it teaches
+        //  that Merlin takes a CPU flag after all.
+        //
+        //  Both orders, because the dialect and the flag arrive in either one
+        //  and a check made as each argument is read would refuse only the
+        //  order it happened to be written for.
+        TEST_METHOD (RunRefusesTheCpuFlagForADialectThatSelectsItsOwn)
+        {
+            CommandLineOptions  flagLast  = Fixture::Parse ({ "CassoCli", "run", "demo.s", "--merlin", "-x" });
+            CommandLineOptions  flagFirst = Fixture::Parse ({ "CassoCli", "run", "demo.s", "-x", "--merlin" });
+
+            Assert::IsFalse (flagLast.cpuFlagRefusal.empty(),
+                             L"--merlin then -x must be refused");
+            Assert::IsFalse (flagFirst.cpuFlagRefusal.empty(),
+                             L"and so must -x then --merlin");
+
+            Assert::IsTrue (flagLast.cpuFlagRefusal.find ("XC") != std::string::npos,
+                            L"and the refusal names the directive to write instead");
+        }
+
         //  as65 states no table, and the absence is the point: its grammar is a
         //  hand-rolled walk over a historical command line, and a table it does
         //  not walk would be a second description of the parser.

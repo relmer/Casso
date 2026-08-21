@@ -1709,6 +1709,16 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
 
         argIndex++;
     }
+
+    // The CPU flag is refused for a dialect whose source selects its own, here
+    // as well as in that dialect's own subcommand. Checked after the loop
+    // rather than inside it because the two facts arrive in either order:
+    // `run src.s --merlin -x` and `run src.s -x --merlin` are the same request,
+    // and a check inside the loop would refuse only one of them.
+    if (options.hasCpuTarget)
+    {
+        RefuseCpuFlagWhereSelectedInSource (options);
+    }
 }
 
 
