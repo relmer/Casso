@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "CommandLine.h"
+#include "As65Mode.h"
+#include "MerlinMode.h"
+#include "RunMode.h"
 #include "CassoCli.h"
 
 
@@ -73,15 +76,19 @@ int main (int argc, char * argv[])
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::Run)
     {
-        exitCode = CommandLine::DoRun (options);
+        exitCode = RunMode::Run (options);
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::As65)
     {
-        exitCode = CommandLine::DoAs65 (options);
+        As65Mode  mode;
+
+        exitCode = mode.Run (options);
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::Merlin)
     {
-        exitCode = CommandLine::DoMerlin (options);
+        MerlinMode  mode;
+
+        exitCode = mode.Run (options);
     }
     else
     {
