@@ -183,28 +183,28 @@ int RunMode::RunCpu (Cpu & cpu,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int RunMode::Run (const CommandLineOptions & options)
+HRESULT RunMode::Run (const CommandLineOptions & options, int & exitCode)
 {
     HRESULT                   hr         = S_OK;
     Cpu                       cpu;
     Word                      entryPoint = 0x8000;
     Word                      loadAddr   = 0;
     std::vector<std::string>  status;
-    int                       exitCode   = 0;
+    bool                      hasInput   = !options.inputFile.empty();
     bool                      wasLoaded  = false;
 
 
 
     // 2 = "cannot even start" (no input, unreadable file); 1 = "ran the tools
     // and they said no" (assembly errors).
-    exitCode = options.inputFile.empty() ? 2 : 0;
+    exitCode = 2;
 
-    if (options.inputFile.empty())
+    if (!hasInput)
     {
         std::cerr << "Error: No input file specified\n";
     }
 
-    BAIL_OUT_IF (options.inputFile.empty(), S_OK);
+    CBREx (hasInput, HRESULT_FROM_WIN32 (ERROR_BAD_ARGUMENTS));
 
     cpu.Reset();
 
@@ -227,17 +227,16 @@ int RunMode::Run (const CommandLineOptions & options)
         SourceAssembler::ReportDiagnostics (ar);
 
         wasLoaded = ar.ok;
-        exitCode  = ar.ok ? 0 : 1;
+        exitCode  = wasLoaded ? 0 : 1;
 
-        if (wasLoaded)
-        {
-            LoadAssembledIntoMemory (cpu, ar.result);
-            entryPoint = ar.result.startAddress;
+        CBREx (wasLoaded, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-            status.push_back (std::format ("Assembling: {}", options.inputFile));
-            status.push_back (std::format ("Assembled {} bytes", ar.result.bytes.size()));
-            status.push_back (std::format ("  Start: ${:04X}", ar.result.startAddress));
-        }
+        LoadAssembledIntoMemory (cpu, ar.result);
+        entryPoint = ar.result.startAddress;
+
+        status.push_back (std::format ("Assembling: {}", options.inputFile));
+        status.push_back (std::format ("Assembled {} bytes", ar.result.bytes.size()));
+        status.push_back (std::format ("  Start: ${:04X}", ar.result.startAddress));
     }
     else
     {
@@ -246,13 +245,10 @@ int RunMode::Run (const CommandLineOptions & options)
         wasLoaded = SUCCEEDED (hr);
         exitCode  = wasLoaded ? 0 : 2;
 
-        if (wasLoaded)
-        {
-            status.push_back (std::format ("Loaded binary at ${:04X}", loadAddr));
-        }
-    }
+        CHR (hr);
 
-    BAIL_OUT_IF (!wasLoaded, S_OK);
+        status.push_back (std::format ("Loaded binary at ${:04X}", loadAddr));
+    }
 
     if (options.hasEntryAddress)
     {
@@ -263,6 +259,8 @@ int RunMode::Run (const CommandLineOptions & options)
         entryPoint = cpu.PeekWord (0xFFFC);
     }
 
+    //  An illegal opcode is the PROGRAM's fault, not the tool's: the run did
+    //  what was asked and reports it through the exit code alone.
     exitCode = RunCpu (cpu, options, entryPoint, status);
 
     if (options.verbose)
@@ -274,5 +272,5 @@ int RunMode::Run (const CommandLineOptions & options)
     }
 
 Error:
-    return exitCode;
+    return hr;
 }

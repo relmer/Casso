@@ -40,28 +40,34 @@ class AssemblerMode
 public:
     virtual ~AssemblerMode () = default;
 
-    //  Assemble the named source and write its artifacts. Returns the process
-    //  exit code.
-    int Run (const CommandLineOptions & options) const;
+    //  Assemble the named source and write its artifacts.
+    //
+    //  THE TWO RESULTS ANSWER DIFFERENT QUESTIONS and neither derives from the
+    //  other. The HRESULT says whether this went wrong and what went wrong,
+    //  for a caller that has to decide something; `exitCode` says what the
+    //  process should hand back, which is a three-value vocabulary a script
+    //  branches on. An assembly that merely warned succeeded -- S_OK -- and
+    //  still exits 1.
+    HRESULT Run (const CommandLineOptions & options, int & exitCode) const;
 
 protected:
     //  The table the source assembles against, and the wider one it may switch
-    //  to. A dialect whose CPU the command line fixes has nothing to switch to
-    //  and answers null.
-    virtual const Microcode *  NarrowInstructionSet (const CommandLineOptions & options, const Cpu & cpu) const = 0;
-    virtual const Microcode *  WideInstructionSet   () const = 0;
+    //  to mid-assembly. A dialect whose CPU the command line fixes has nothing
+    //  to switch to and answers null.
+    virtual const Microcode *  SelectInstructionSet         (const CommandLineOptions & options, const Cpu & cpu) const = 0;
+    virtual const Microcode *  SelectExtendedInstructionSet () const = 0;
 
     //  What the object file is called. The default is the name the flags
     //  resolved; a dialect whose source can name its own object overrides it.
-    virtual std::string        OutputName           (const CommandLineOptions & options, const AssemblyResult & result) const;
+    virtual std::string        ResolveOutputName            (const CommandLineOptions & options, const AssemblyResult & result) const;
 
-    //  Progress either side of the assembly, and after it has been judged
+    //  Progress either side of the assembly, and once it has been judged
     //  successful. All three do nothing by default: a subcommand written today
     //  can simply not print, and AS65's lines are a historical courtesy.
-    virtual void               BeforeAssembly       (const CommandLineOptions & options) const;
-    virtual void               AfterAssembly        (const CommandLineOptions & options, long long elapsedMicroseconds) const;
-    virtual void               ReportAssembled      (const CommandLineOptions & options, const AssemblyResult & result) const;
+    virtual void               ReportAssemblyStarting       (const CommandLineOptions & options) const;
+    virtual void               ReportAssemblyFinished       (const CommandLineOptions & options, long long elapsedMicroseconds) const;
+    virtual void               ReportAssemblySucceeded      (const CommandLineOptions & options, const AssemblyResult & result) const;
 
     //  Anything beyond the listing and the object. Nothing, by default.
-    virtual HRESULT            WriteExtraArtifacts  (const CommandLineOptions & options, const AssemblyResult & result) const;
+    virtual HRESULT            WriteExtraArtifacts          (const CommandLineOptions & options, const AssemblyResult & result) const;
 };

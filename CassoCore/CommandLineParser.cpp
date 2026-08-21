@@ -770,12 +770,14 @@ CommandLineOptions::Subcommand CommandLineParser::LookUpSubcommand (const std::s
 void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex, CommandLineOptions & options)
 {
     int   argIndex = startIndex;
-    // Set when an argument ends parsing outright -- a help request, or a bad
-    // --cpu target. Both leave showHelp set, so the caller prints usage.
+    // Set when an argument ends parsing outright -- a help request. It leaves
+    // showHelp set, so the caller prints usage.
     bool  stop     = false;
     // A CPU flag the active dialect's profile does not accept. It ends parsing
     // too, but leaves showHelp clear: the refusal explains itself.
     bool  refused  = false;
+
+
 
     options.subcommand       = CommandLineOptions::Subcommand::As65;
     options.dialect          = DialectId::As65;

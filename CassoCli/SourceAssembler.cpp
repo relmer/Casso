@@ -60,7 +60,10 @@ const Microcode * SourceAssembler::SourceAssembler::SelectInstructionSet (const 
 
 AssemblerOptions SourceAssembler::BuildOptions (const CommandLineOptions & options)
 {
-    AssemblerOptions asmOptions   = {};
+    AssemblerOptions  asmOptions  = {};
+
+
+
     asmOptions.dialect            = options.dialect;
     asmOptions.dialectSelection   = options.dialectSelection;
     asmOptions.outputFileName     = options.outputFile;

@@ -43,6 +43,9 @@ Error:
 
 bool HostFile::Exists (const std::string & path)
 {
-    std::ifstream f (path);
-    return f.good();
+    std::ifstream  file (path);
+
+
+
+    return file.good();
 }

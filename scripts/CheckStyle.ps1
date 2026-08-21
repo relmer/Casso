@@ -854,12 +854,36 @@ function Test-Structure
                 }
 
                 # CS0016 -- declaration block then exactly 3 blank lines
-                $d       = $i + 1
-                $sawDecl = $false
-                while ($d -lt $lines.Length -and
-                       $lines[$d] -match '^\s{4}[A-Za-z_][A-Za-z0-9_:<>,\s\*&\[\]]*\s+\w+\s*(=[^;]*)?;\s*$' -and
-                       $lines[$d] -notmatch '\breturn\b|\bdelete\b|\+\+|--')
+                #
+                # A declaration is `Type name;`, `Type name = init;`, or the
+                # constructor form `Type name (args);`. The third was missing,
+                # so `std::ifstream file (path);` ended the block early and a
+                # statement reading it on the next line -- `isOpen =
+                # file.is_open();` -- sat where the three blanks belong,
+                # unreported.
+                #
+                # A declaration may carry a trailing comment, may be preceded
+                # by a comment line of its own, and may run on past its first
+                # line when the initializer wraps. Each of those is part of
+                # the block, not the end of it.
+                $declStart = '^\s{4}[A-Za-z_][A-Za-z0-9_:<>,\s\*&\[\]]*\s+\w+\s*(=|\(|\{|;)'
+                $declEnd   = ';\s*(//.*)?$'
+                $d         = $i + 1
+                $sawDecl   = $false
+                while ($d -lt $lines.Length)
                 {
+                    $ln = $lines[$d]
+
+                    if ($ln -match '^\s{4}//') { $d++; continue }
+
+                    if ($ln -notmatch $declStart -or $ln -match '\breturn\b|\bdelete\b|\+\+|--') { break }
+
+                    # Run past a wrapped initializer to the line that closes it.
+                    while ($d -lt $lines.Length -and $lines[$d] -notmatch $declEnd -and $lines[$d].Trim() -ne '')
+                    {
+                        $d++
+                    }
+
                     $sawDecl = $true; $d++
                 }
 
@@ -868,8 +892,13 @@ function Test-Structure
                     $blanks = 0
                     while ($d + $blanks -lt $lines.Length -and $lines[$d + $blanks].Trim() -eq '') { $blanks++ }
 
-                    # 0 blanks is the "declarations only, no body" shape.
-                    if ($blanks -ne 3 -and $blanks -ne 0)
+                    # 0 blanks is allowed ONLY for the "declarations and then
+                    # the closing brace" shape. A statement directly under the
+                    # block is the violation the rule exists for, and it used to
+                    # pass here because nothing asked what the next line was.
+                    $closesBody = ($d -lt $lines.Length) -and ($lines[$d] -match '^\s*\}')
+
+                    if ($blanks -ne 3 -and -not ($blanks -eq 0 -and $closesBody))
                     {
                         $findings += [pscustomobject]@{
                             Id    = 'CS0016'

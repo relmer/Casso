@@ -28,8 +28,8 @@
 class MerlinMode : public AssemblerMode
 {
 protected:
-    const Microcode *  NarrowInstructionSet (const CommandLineOptions & options, const Cpu & cpu) const override;
-    const Microcode *  WideInstructionSet   () const override;
+    const Microcode *  SelectInstructionSet (const CommandLineOptions & options, const Cpu & cpu) const override;
+    const Microcode *  SelectExtendedInstructionSet   () const override;
 
-    std::string        OutputName           (const CommandLineOptions & options, const AssemblyResult & result) const override;
+    std::string        ResolveOutputName           (const CommandLineOptions & options, const AssemblyResult & result) const override;
 };

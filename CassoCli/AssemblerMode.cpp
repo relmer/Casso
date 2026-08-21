@@ -22,6 +22,12 @@
 //  script which file failed while breaking every script that already knows 2
 //  means "no output".
 //
+//  THE HRESULT IS NOT THE EXIT CODE IN DISGUISE. A missing input is a bad
+//  argument, a source that will not assemble is bad data, and a write that
+//  failed carries whatever the writer said; each is reported as what it was,
+//  and the exit code is set alongside rather than derived from it. An assembly
+//  that warned is the case that shows why: it succeeded, and it exits 1.
+//
 //  The assembler's base directory comes from the input file's own path, so an
 //  include resolves relative to the source that names it rather than to the
 //  shell's working directory. That is what makes a build work the same from
@@ -32,13 +38,14 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int AssemblerMode::Run (const CommandLineOptions & options) const
+HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode) const
 {
     using Clock = std::chrono::high_resolution_clock;
 
 
 
-    HRESULT                         hr           = S_OK;
+    const int                       kNoOutput  = AssemblerExitCode::ToProcessCode (AssemblyExitCode::NoOutput);
+    HRESULT                         hr         = S_OK;
     AssemblerOptions                asmOptions;
     DefaultFileReader               fileReader;
     Cpu                             cpu;
@@ -49,19 +56,19 @@ int AssemblerMode::Run (const CommandLineOptions & options) const
     CommandLineOptions              writeOptions;
     Clock::time_point               startTime;
     Clock::time_point               endTime;
-    size_t                          lastSep      = 0;
-    int                             exitCode     = AssemblerExitCode::ToProcessCode (AssemblyExitCode::NoOutput);
-    bool                            hasInput     = !options.inputFile.empty();
-    bool                            wasWritten   = false;
+    size_t                          lastSep    = 0;
+    bool                            hasInput   = !options.inputFile.empty();
 
 
+
+    exitCode = kNoOutput;
 
     if (!hasInput)
     {
         std::cerr << "Error: No input file specified\n";
     }
 
-    BAIL_OUT_IF (!hasInput, S_OK);
+    CBREx (hasInput, HRESULT_FROM_WIN32 (ERROR_BAD_ARGUMENTS));
 
     asmOptions            = SourceAssembler::BuildOptions (options);
     asmOptions.fileReader = &fileReader;
@@ -74,16 +81,16 @@ int AssemblerMode::Run (const CommandLineOptions & options) const
     }
 
     cpu.Reset();
-    BeforeAssembly (options);
+    ReportAssemblyStarting (options);
 
     startTime = Clock::now();
     ar        = SourceAssembler::Assemble (options.inputFile,
-                                           NarrowInstructionSet (options, cpu),
-                                           WideInstructionSet(),
+                                           SelectInstructionSet (options, cpu),
+                                           SelectExtendedInstructionSet(),
                                            asmOptions);
     endTime   = Clock::now();
 
-    AfterAssembly (options, std::chrono::duration_cast<std::chrono::microseconds> (endTime - startTime).count());
+    ReportAssemblyFinished (options, std::chrono::duration_cast<std::chrono::microseconds> (endTime - startTime).count());
 
     SourceAssembler::ReportDiagnostics (ar);
 
@@ -96,42 +103,21 @@ int AssemblerMode::Run (const CommandLineOptions & options) const
 
     exitCode = AssemblerExitCode::ToProcessCode (AssemblerExitCode::FromResult (ar.result));
 
-    BAIL_OUT_IF (!ar.ok, S_OK);
+    CBREx (ar.ok, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    ReportAssembled (options, ar.result);
+    ReportAssemblySucceeded (options, ar.result);
 
-    hr         = options.generateListing ? ArtifactWriter::WriteListing (ar.result, options, reports) : S_OK;
-    wasWritten = SUCCEEDED (hr);
-
-    if (!wasWritten)
-    {
-        exitCode = AssemblerExitCode::ToProcessCode (AssemblyExitCode::NoOutput);
-    }
-
-    BAIL_OUT_IF (!wasWritten, S_OK);
+    hr = options.generateListing ? ArtifactWriter::WriteListing (ar.result, options, reports) : S_OK;
+    CHRF (hr, exitCode = kNoOutput);
 
     writeOptions            = options;
-    writeOptions.outputFile = OutputName (options, ar.result);
+    writeOptions.outputFile = ResolveOutputName (options, ar.result);
 
-    hr         = ArtifactWriter::WriteBinary (ar.result, writeOptions);
-    wasWritten = SUCCEEDED (hr);
+    hr = ArtifactWriter::WriteBinary (ar.result, writeOptions);
+    CHRF (hr, exitCode = kNoOutput);
 
-    if (!wasWritten)
-    {
-        exitCode = AssemblerExitCode::ToProcessCode (AssemblyExitCode::NoOutput);
-    }
-
-    BAIL_OUT_IF (!wasWritten, S_OK);
-
-    hr         = WriteExtraArtifacts (options, ar.result);
-    wasWritten = SUCCEEDED (hr);
-
-    if (!wasWritten)
-    {
-        exitCode = AssemblerExitCode::ToProcessCode (AssemblyExitCode::NoOutput);
-    }
-
-    BAIL_OUT_IF (!wasWritten, S_OK);
+    hr = WriteExtraArtifacts (options, ar.result);
+    CHRF (hr, exitCode = kNoOutput);
 
     if (options.verbose)
     {
@@ -144,7 +130,7 @@ int AssemblerMode::Run (const CommandLineOptions & options) const
     }
 
 Error:
-    return exitCode;
+    return hr;
 }
 
 
@@ -153,14 +139,14 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssemblerMode::OutputName
+//  AssemblerMode::ResolveOutputName
 //
 //  The name the flags resolved, which is what a dialect that does not let its
 //  source name the object is left with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string AssemblerMode::OutputName (const CommandLineOptions & options, const AssemblyResult & result) const
+std::string AssemblerMode::ResolveOutputName (const CommandLineOptions & options, const AssemblyResult & result) const
 {
     (void) result;
 
@@ -173,11 +159,11 @@ std::string AssemblerMode::OutputName (const CommandLineOptions & options, const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssemblerMode::BeforeAssembly
+//  AssemblerMode::ReportAssemblyStarting
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AssemblerMode::BeforeAssembly (const CommandLineOptions & options) const
+void AssemblerMode::ReportAssemblyStarting (const CommandLineOptions & options) const
 {
     (void) options;
 }
@@ -188,11 +174,11 @@ void AssemblerMode::BeforeAssembly (const CommandLineOptions & options) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssemblerMode::AfterAssembly
+//  AssemblerMode::ReportAssemblyFinished
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AssemblerMode::AfterAssembly (const CommandLineOptions & options, long long elapsedMicroseconds) const
+void AssemblerMode::ReportAssemblyFinished (const CommandLineOptions & options, long long elapsedMicroseconds) const
 {
     (void) options;
     (void) elapsedMicroseconds;
@@ -204,11 +190,11 @@ void AssemblerMode::AfterAssembly (const CommandLineOptions & options, long long
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssemblerMode::ReportAssembled
+//  AssemblerMode::ReportAssemblySucceeded
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AssemblerMode::ReportAssembled (const CommandLineOptions & options, const AssemblyResult & result) const
+void AssemblerMode::ReportAssemblySucceeded (const CommandLineOptions & options, const AssemblyResult & result) const
 {
     (void) options;
     (void) result;

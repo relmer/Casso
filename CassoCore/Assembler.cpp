@@ -138,7 +138,10 @@ void Assembler::RecordWarning (AssemblyResult & result, int lineNumber, const st
 
 AssemblyResult Assembler::Assemble (const std::string & sourceText)
 {
-    AssemblySession session (m_instructionSets, m_options);
+    AssemblySession  session (m_instructionSets, m_options);
+
+
+
     return session.Run (sourceText);
 }
 

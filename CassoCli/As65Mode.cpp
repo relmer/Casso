@@ -9,11 +9,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  As65Mode::NarrowInstructionSet
+//  As65Mode::SelectInstructionSet
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const Microcode * As65Mode::NarrowInstructionSet (const CommandLineOptions & options, const Cpu & cpu) const
+const Microcode * As65Mode::SelectInstructionSet (const CommandLineOptions & options, const Cpu & cpu) const
 {
     return SourceAssembler::SelectInstructionSet (options, cpu);
 }
@@ -24,7 +24,7 @@ const Microcode * As65Mode::NarrowInstructionSet (const CommandLineOptions & opt
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  As65Mode::WideInstructionSet
+//  As65Mode::SelectExtendedInstructionSet
 //
 //  None. The CPU is named on the command line and stands for the whole
 //  assembly, so a source cannot switch to a wider one part way through -- which
@@ -32,7 +32,7 @@ const Microcode * As65Mode::NarrowInstructionSet (const CommandLineOptions & opt
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const Microcode * As65Mode::WideInstructionSet() const
+const Microcode * As65Mode::SelectExtendedInstructionSet() const
 {
     return nullptr;
 }
@@ -43,11 +43,11 @@ const Microcode * As65Mode::WideInstructionSet() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  As65Mode::BeforeAssembly
+//  As65Mode::ReportAssemblyStarting
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void As65Mode::BeforeAssembly (const CommandLineOptions & options) const
+void As65Mode::ReportAssemblyStarting (const CommandLineOptions & options) const
 {
     if (options.verbose)
     {
@@ -61,11 +61,11 @@ void As65Mode::BeforeAssembly (const CommandLineOptions & options) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  As65Mode::AfterAssembly
+//  As65Mode::ReportAssemblyFinished
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void As65Mode::AfterAssembly (const CommandLineOptions & options, long long elapsedMicroseconds) const
+void As65Mode::ReportAssemblyFinished (const CommandLineOptions & options, long long elapsedMicroseconds) const
 {
     if (options.verbose)
     {
@@ -80,7 +80,7 @@ void As65Mode::AfterAssembly (const CommandLineOptions & options, long long elap
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  As65Mode::ReportAssembled
+//  As65Mode::ReportAssemblySucceeded
 //
 //  linesAssembled, NOT listing.size(): the listing is only built when one was
 //  requested, so this reported "0 lines assembled" for every ordinary
@@ -88,7 +88,7 @@ void As65Mode::AfterAssembly (const CommandLineOptions & options, long long elap
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void As65Mode::ReportAssembled (const CommandLineOptions & options, const AssemblyResult & result) const
+void As65Mode::ReportAssemblySucceeded (const CommandLineOptions & options, const AssemblyResult & result) const
 {
     if (!options.quiet)
     {

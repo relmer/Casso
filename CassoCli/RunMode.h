@@ -24,8 +24,10 @@
 class RunMode
 {
 public:
-    //  Load, execute, and report. Returns the process exit code.
-    static int      Run                      (const CommandLineOptions & options);
+    //  Load, execute, and report. The HRESULT says what went wrong; `exitCode`
+    //  is what the process hands back, set alongside rather than derived from
+    //  it -- a program that ran into an illegal opcode is a run that worked.
+    static HRESULT  Run                      (const CommandLineOptions & options, int & exitCode);
 
 private:
     //  The assembled bytes, at the addresses the assembly gave them.

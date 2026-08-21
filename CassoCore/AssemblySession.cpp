@@ -891,7 +891,10 @@ void AssemblySession::RecordError (int lineNumber, const std::string & message)
 
 void AssemblySession::RecordErrorAt (int lineNumber, int column, const std::string & message)
 {
-    AssemblyError error = {};
+    AssemblyError  error = {};
+
+
+
     error.lineNumber = lineNumber;
     error.message    = message;
     error.file       = m_currentSourceFile;
@@ -1092,7 +1095,10 @@ std::string AssemblySession::DescribeUnknownDirective (const ParsedLine & parsed
 
 void AssemblySession::RecordRefusal (int lineNumber, const std::string & message)
 {
-    AssemblyError error = {};
+    AssemblyError  error = {};
+
+
+
     error.lineNumber = lineNumber;
     error.message    = message;
     error.file       = m_currentSourceFile;

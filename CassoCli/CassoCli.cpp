@@ -36,6 +36,7 @@
 int main (int argc, char * argv[])
 {
     CommandLineOptions  options  = CommandLine::Parse (argc, argv);
+    HRESULT             hr       = S_OK;
     int                 exitCode = 0;
 
 
@@ -76,25 +77,30 @@ int main (int argc, char * argv[])
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::Run)
     {
-        exitCode = RunMode::Run (options);
+        hr = RunMode::Run (options, exitCode);
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::As65)
     {
         As65Mode  mode;
 
-        exitCode = mode.Run (options);
+        hr = mode.Run (options, exitCode);
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::Merlin)
     {
         MerlinMode  mode;
 
-        exitCode = mode.Run (options);
+        hr = mode.Run (options, exitCode);
     }
     else
     {
         // A subcommand the parser knows but this dispatch does not.
         CommandLine::PrintUsage (options.flagPrefix);
     }
+
+    //  The HRESULT says what went wrong; the exit code is what a script reads.
+    //  Only the second crosses the process boundary, and it is never derived
+    //  from the first -- an assembly that warned succeeded and exits 1.
+    (void) hr;
 
     return exitCode;
 }

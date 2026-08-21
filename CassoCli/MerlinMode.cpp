@@ -10,11 +10,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MerlinMode::NarrowInstructionSet
+//  MerlinMode::SelectInstructionSet
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const Microcode * MerlinMode::NarrowInstructionSet (const CommandLineOptions & options, const Cpu & cpu) const
+const Microcode * MerlinMode::SelectInstructionSet (const CommandLineOptions & options, const Cpu & cpu) const
 {
     (void) options;
 
@@ -27,7 +27,7 @@ const Microcode * MerlinMode::NarrowInstructionSet (const CommandLineOptions & o
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MerlinMode::WideInstructionSet
+//  MerlinMode::SelectExtendedInstructionSet
 //
 //  The 65C02, always available to switch to. Merlin's `XC` is what decides
 //  whether a source reaches it, and that decision happens mid-assembly -- so
@@ -35,7 +35,7 @@ const Microcode * MerlinMode::NarrowInstructionSet (const CommandLineOptions & o
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const Microcode * MerlinMode::WideInstructionSet() const
+const Microcode * MerlinMode::SelectExtendedInstructionSet() const
 {
     return GetCpu65C02InstructionSet();
 }
@@ -46,7 +46,7 @@ const Microcode * MerlinMode::WideInstructionSet() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MerlinMode::OutputName
+//  MerlinMode::ResolveOutputName
 //
 //  What the object is called, once the flag and the source have both had their
 //  say.
@@ -58,7 +58,7 @@ const Microcode * MerlinMode::WideInstructionSet() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string MerlinMode::OutputName (const CommandLineOptions & options, const AssemblyResult & result) const
+std::string MerlinMode::ResolveOutputName (const CommandLineOptions & options, const AssemblyResult & result) const
 {
     std::string  name   = result.outputFileName;
     bool         wasSet = !name.empty();
