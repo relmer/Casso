@@ -41,15 +41,14 @@ void SalvageDialogContent::SetAssessment (
     m_rows.clear();
     m_rows.push_back (Row { L"Total sectors:",      std::to_wstring (total),     L"" });
     m_rows.push_back (Row { L"Verified sectors:",   std::to_wstring (verified),  L"(checksums matched)" });
-    m_rows.push_back (Row { L"Recovered sectors:",  std::to_wstring (recovered), L"(readable, may contain errors)" });
+    m_rows.push_back (Row { L"Recoverable sectors:", std::to_wstring (recovered), L"(readable, may contain errors)" });
     m_rows.push_back (Row { L"Lost sectors:",       std::to_wstring (lost),      L"(zeroed - nothing to recover)" });
 
     m_destLine = L"Save as: " + destName + L" (in the same directory)";
 
     m_warning.SetSeverity (DxuiInfoBanner::Severity::Warning);
     m_warning.SetText (L"Repairing the checksums makes the disk structurally sound, "
-                       L"but this masks any corrupted data in those recovered "
-                       L"sectors.");
+                       L"but cannot recover corrupt data within the sectors.");
 
     // The host needs a height BEFORE the panel is laid out -- it sizes the
     // window, and layout happens inside it. Computed here from the content
