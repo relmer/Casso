@@ -71,7 +71,7 @@ With no format flag the output is a **full 64 KB image** padded with the fill
 byte — AS65's behavior, and the right shape for ROM burning or reference
 comparison.
 
-**The four shape flags are mutually exclusive, and naming two is refused.**
+**The four format flags are mutually exclusive, and naming two is refused.**
 `-s --raw` fails, naming both flags, rather than quietly writing one of them:
 each spelling is valid alone, so nothing in the output would look like a
 mistake. The same flag repeated is not a conflict. The output file's extension
@@ -146,7 +146,7 @@ They exist so an as65 invocation is not refused outright. Tracked by
 
 ## Output formats
 
-| Format | Flag | Shape |
+| Format | Flag | What is written |
 |---|---|---|
 | Full image | *(default)* | 64 KB, padded with the fill byte. |
 | Raw | `--raw` | Only the assembled span. |

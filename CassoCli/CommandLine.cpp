@@ -57,21 +57,21 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WriteBinaryShapeFile
+//  WriteBinaryFormatFile
 //
 //  Opens the output file in binary mode and hands the stream to the writer for
-//  the chosen shape.
+//  the chosen format.
 //
-//  The three binary shapes differ only in what goes INTO the stream, so the
+//  The three binary formats differ only in what goes INTO the stream, so the
 //  file handling -- open it, check it, verify the write landed -- is written
-//  once here, and each shape lives in OutputFormats where tests can reach it
+//  once here, and each format lives in OutputFormats where tests can reach it
 //  without a file at all.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static HRESULT WriteBinaryShapeFile (const std::string & path,
+static HRESULT WriteBinaryFormatFile (const std::string & path,
                                      const AssemblyResult & result,
-                                     CommandLineOptions::OutputFormat shape,
+                                     CommandLineOptions::OutputFormat format,
                                      Byte fillByte)
 {
     HRESULT  hr         = S_OK;
@@ -84,11 +84,11 @@ static HRESULT WriteBinaryShapeFile (const std::string & path,
 
     CBR (isOpen);
 
-    if (shape == CommandLineOptions::OutputFormat::Raw)
+    if (format == CommandLineOptions::OutputFormat::Raw)
     {
         OutputFormats::WriteRaw (result.bytes, file);
     }
-    else if (shape == CommandLineOptions::OutputFormat::DosBinary)
+    else if (format == CommandLineOptions::OutputFormat::DosBinary)
     {
         OutputFormats::WriteDosBinary (result.bytes, result.startAddress, file);
     }
@@ -430,7 +430,7 @@ static void ReportToStandardError (const std::vector<DialectReportLine> & report
 //
 //  ResolveOutputFormat
 //
-//  Decides which shape to write.
+//  Decides which format to write.
 //
 //  An explicit format flag WINS. Extension matching remains, but only as the
 //  fallback when no flag was given, which is what keeps as65-era build scripts
@@ -438,15 +438,15 @@ static void ReportToStandardError (const std::vector<DialectReportLine> & report
 //
 //  Deriving purely from the extension, as this used to, meant `-s -o out.dat`
 //  silently wrote a flat binary: the flag said S-record and the extension won
-//  anyway. It also leaves the two new shapes unreachable, since neither raw
+//  anyway. It also leaves the two new formats unreachable, since neither raw
 //  nor DOS-binary output has an extension of its own to be recognized by.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 static CommandLineOptions::OutputFormat ResolveOutputFormat (const CommandLineOptions & options)
 {
-    CommandLineOptions::OutputFormat  shape      = options.outputFormat;
-    bool                              isDefault  = shape == CommandLineOptions::OutputFormat::Binary;
+    CommandLineOptions::OutputFormat  format     = options.outputFormat;
+    bool                              isDefault  = format == CommandLineOptions::OutputFormat::Binary;
     bool                              isSRec     = CommandLineParser::EndsWith (options.outputFile, ".s19");
     bool                              isHex      = CommandLineParser::EndsWith (options.outputFile, ".hex");
 
@@ -454,14 +454,14 @@ static CommandLineOptions::OutputFormat ResolveOutputFormat (const CommandLineOp
 
     if (isDefault && isSRec)
     {
-        shape = CommandLineOptions::OutputFormat::SRecord;
+        format = CommandLineOptions::OutputFormat::SRecord;
     }
     else if (isDefault && isHex)
     {
-        shape = CommandLineOptions::OutputFormat::IntelHex;
+        format = CommandLineOptions::OutputFormat::IntelHex;
     }
 
-    return shape;
+    return format;
 }
 
 
@@ -472,16 +472,16 @@ static CommandLineOptions::OutputFormat ResolveOutputFormat (const CommandLineOp
 //
 //  WriteBinaryOutput
 //
-//  Writes the assembled image in the resolved shape.
+//  Writes the assembled image in the resolved format.
 //
 //  "nul" is the explicit bit bucket and is matched case-insensitively, since
 //  it is a Windows device name that scripts write every way. Writing nothing
 //  is SUCCESS on that path: it is how a caller asks for diagnostics only, and
 //  reporting failure would break a build that deliberately discards output.
 //
-//  The text formats open the stream in text mode and the binary shapes in
+//  The text formats open the stream in text mode and the binary formats in
 //  binary mode, which is the only reason this splits in two rather than
-//  handing every shape to one writer.
+//  handing every format to one writer.
 //
 //  A DOS binary carries its length in 16 bits, so a span of exactly 64 KB is
 //  refused here rather than written as a file claiming to be empty.
@@ -496,7 +496,7 @@ static HRESULT WriteBinaryOutput (const AssemblyResult & result,
                                   const CommandLineOptions & options)
 {
     HRESULT                           hr        = S_OK;
-    CommandLineOptions::OutputFormat  shape     = ResolveOutputFormat (options);
+    CommandLineOptions::OutputFormat  format    = ResolveOutputFormat (options);
     std::string                       outLower  = options.outputFile;
     size_t                            spanBytes = result.bytes.size();
     bool                              isNul     = false;
@@ -514,10 +514,10 @@ static HRESULT WriteBinaryOutput (const AssemblyResult & result,
 
     // "nul" is the explicit bit bucket: nothing written, and that is success.
     isNul  = outLower == "nul";
-    isText = shape == CommandLineOptions::OutputFormat::SRecord ||
-             shape == CommandLineOptions::OutputFormat::IntelHex;
+    isText = format == CommandLineOptions::OutputFormat::SRecord ||
+             format == CommandLineOptions::OutputFormat::IntelHex;
 
-    if (shape == CommandLineOptions::OutputFormat::DosBinary)
+    if (format == CommandLineOptions::OutputFormat::DosBinary)
     {
         fitsDos = spanBytes <= OutputFormats::kMaxDosBinaryLength;
 
@@ -540,7 +540,7 @@ static HRESULT WriteBinaryOutput (const AssemblyResult & result,
         isOpen = outFile.is_open();
         CBR (isOpen);
 
-        if (shape == CommandLineOptions::OutputFormat::SRecord)
+        if (format == CommandLineOptions::OutputFormat::SRecord)
         {
             OutputFormats::WriteSRecord (result.bytes, result.startAddress, result.endAddress, result.startAddress, outFile);
         }
@@ -551,7 +551,7 @@ static HRESULT WriteBinaryOutput (const AssemblyResult & result,
     }
     else if (!isNul)
     {
-        hr = WriteBinaryShapeFile (options.outputFile, result, shape, options.fillByte);
+        hr = WriteBinaryFormatFile (options.outputFile, result, format, options.fillByte);
         CHR (hr);
     }
 
@@ -938,7 +938,7 @@ static void PrintUsageGeneral (const char * lp, const char * sp, const char * pa
     // pad compensates: -- (2 chars) vs / (1 char) in long prefix
     PrintSectionHeading ("General");
     std::println ("  Assembles AS65 or Merlin source for the 6502 and the 65C02. The subcommand");
-    std::println ("  names the dialect; the CPU is chosen with {0}x under AS65, and by the XC", sp);
+    std::println ("  names the dialect; the CPU is chosen with {0}x under AS65 and by the XC", sp);
     std::println ("  directive inside Merlin source.");
     std::println ("");
     std::println ("  See docs/Assembler.md for additional information.");
@@ -986,14 +986,15 @@ static void PrintUsageAssembler (const char * sp)
     {
         "",
         "  Assembled code:",
-        "    <default>            Write a full 64 KB image padded with the fill byte",
         "    {0}o <file>            Rename output file (default: <source>.bin)",
         "    {0}n                   Disable optimizations. Not yet implemented",
         "                         (GitHub issue #118)",
         "",
-        "    The four output shapes are mutually exclusive. Naming two is refused",
-        "    rather than resolved. With none of them the default above applies, and",
-        "    only then is the output file's extension consulted.",
+        "    Output formats. Mutually exclusive: naming two is refused rather than",
+        "    resolved, and the output file's extension is consulted only when none",
+        "    is given.",
+        "    <default>            Write a full 64 KB image, padded with the fill byte",
+        "                         ({0}z sets it)",
         "    {0}s                   Write Motorola S-record (<source>.s19)",
         "    {0}s2                  Write Intel HEX (<source>.hex)",
         "    {1}dos-bin            Write the bytes behind a 4-byte DOS 3.3 header",
@@ -1129,11 +1130,6 @@ void PrintUsage (char prefix)
     std::println ("    XC       Select the 65C02.");
     std::println ("    DSK      Name the output file. {0}o overrides it.", sp);
     std::println ("    ORG      Set the origin.");
-    std::println ("");
-    std::println ("  Five more are recognized and refused by name, each saying what it would");
-    std::println ("  take to support it: REL, ENT and EXT need a linker; TYP needs a");
-    std::println ("  filesystem with file types; SAV needs a decision about writing several");
-    std::println ("  files from one assembly.");
     std::cout << DialectHelp::GetDialectFlags (DialectRegistry::Get (DialectId::Merlin), prefix);
 
     PrintUsageRun       (lp, sp, pad);

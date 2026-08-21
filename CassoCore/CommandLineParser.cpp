@@ -61,7 +61,7 @@ static constexpr CommandLineParser::DialectFlagTable  s_kDialectFlags[] =
 
 
 //
-//  The output shapes the merlin grammar names.
+//  The output formats the merlin grammar names.
 //
 //  The DEFAULT stays the assembled bytes and nothing else. A Merlin source
 //  names its own origin, so "the object" is what a developer asking for output
@@ -78,7 +78,7 @@ static constexpr CommandLineParser::DialectFlagTable  s_kDialectFlags[] =
 //  --dos-bin inline, and its own usage block documents them, so a row here
 //  would be a second description of a tool this table does not drive.
 //
-static constexpr CommandLineParser::OutputShape  s_kMerlinOutputShapes[] =
+static constexpr CommandLineParser::OutputFormatFlag  s_kMerlinOutputFormats[] =
 {
     { "--dos-bin", CommandLineOptions::OutputFormat::DosBinary,
                    "Write the bytes behind a 4-byte DOS 3.3 header" },
@@ -87,11 +87,11 @@ static constexpr CommandLineParser::OutputShape  s_kMerlinOutputShapes[] =
 };
 
 
-//  Which dialect an output-shape table belongs to, on the same principle as the
+//  Which dialect an output-format table belongs to, on the same principle as the
 //  flag tables above: a dialect offering no choice simply has no row.
-static constexpr CommandLineParser::OutputShapeTable  s_kOutputShapeTables[] =
+static constexpr CommandLineParser::OutputFormatTable  s_kOutputFormatTables[] =
 {
-    { DialectId::Merlin, s_kMerlinOutputShapes, std::size (s_kMerlinOutputShapes) },
+    { DialectId::Merlin, s_kMerlinOutputFormats, std::size (s_kMerlinOutputFormats) },
 };
 
 
@@ -191,26 +191,26 @@ std::span<const CommandLineParser::DialectFlag> CommandLineParser::GetFlags (Dia
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLineParser::GetOutputShapes
+//  CommandLineParser::GetOutputFormats
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::span<const CommandLineParser::OutputShape> CommandLineParser::GetOutputShapes (DialectId dialect)
+std::span<const CommandLineParser::OutputFormatFlag> CommandLineParser::GetOutputFormats (DialectId dialect)
 {
-    std::span<const OutputShape>  shapes;
+    std::span<const OutputFormatFlag>  formats;
 
 
 
-    for (const OutputShapeTable & table : s_kOutputShapeTables)
+    for (const OutputFormatTable & table : s_kOutputFormatTables)
     {
         if (table.dialect == dialect)
         {
-            shapes = std::span<const OutputShape> (table.shapes, table.count);
+            formats = std::span<const OutputFormatFlag> (table.formats, table.count);
             break;
         }
     }
 
-    return shapes;
+    return formats;
 }
 
 
@@ -219,12 +219,12 @@ std::span<const CommandLineParser::OutputShape> CommandLineParser::GetOutputShap
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLineParser::ApplyOutputShape
+//  CommandLineParser::ApplyOutputFormat
 //
-//  Selects the output shape an argument names, if it names one.
+//  Selects the output format an argument names, if it names one.
 //
 //  Returns whether the argument was consumed, so a grammar that offers no
-//  shapes -- an empty table -- consumes nothing and its parse is unchanged.
+//  formats -- an empty table -- consumes nothing and its parse is unchanged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -258,21 +258,21 @@ void CommandLineParser::SelectOutputFormat (const std::string & flag,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLineParser::ApplyOutputShape
+//  CommandLineParser::ApplyOutputFormat
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CommandLineParser::ApplyOutputShape (const std::string & arg, DialectId dialect, CommandLineOptions & options)
+bool CommandLineParser::ApplyOutputFormat (const std::string & arg, DialectId dialect, CommandLineOptions & options)
 {
     bool  matched = false;
 
 
 
-    for (const OutputShape & shape : GetOutputShapes (dialect))
+    for (const OutputFormatFlag & format : GetOutputFormats (dialect))
     {
-        if (IsLongOption (arg, shape.option, options))
+        if (IsLongOption (arg, format.option, options))
         {
-            SelectOutputFormat (FormatLongOption (shape.option, options.flagPrefix), shape.format, options);
+            SelectOutputFormat (FormatLongOption (format.option, options.flagPrefix), format.format, options);
             matched = true;
             break;
         }
@@ -801,7 +801,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
             continue;
         }
 
-        // Long options selecting a binary output SHAPE. The default stays the
+        // Long options selecting a binary output FORMAT. The default stays the
         // as65 full-64-KB image, so an invocation that names neither is
         // unaffected.
         if (IsLongOption (arg, "--raw", options))
@@ -1408,11 +1408,11 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
             continue;
         }
 
-        // An output shape, matched against the same table the help text is
+        // An output format, matched against the same table the help text is
         // composed from. Placed beside the CPU flag rather than in the letter
         // loop below, because these are whole words: a letter loop would read
         // --flat as -f -l -a -t and warn four times about flags nobody wrote.
-        if (ApplyOutputShape (arg, DialectId::Merlin, options))
+        if (ApplyOutputFormat (arg, DialectId::Merlin, options))
         {
             argIndex++;
             continue;

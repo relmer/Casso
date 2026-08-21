@@ -121,11 +121,11 @@ std::string DialectHelp::GetDialectFlags (const DialectProfile & profile, char f
 
 std::string DialectHelp::ComposeFlagLines (DialectId dialect, char flagPrefix)
 {
-    constexpr size_t                                 kDescriptionColumn = 25;
-    std::span<const CommandLineParser::DialectFlag>  flags              = CommandLineParser::GetFlags (dialect);
-    std::span<const CommandLineParser::OutputShape>  shapes             = CommandLineParser::GetOutputShapes (dialect);
-    std::string                                      text;
-    std::string                                      rendered;
+    constexpr size_t                                      kDescriptionColumn = 25;
+    std::span<const CommandLineParser::DialectFlag>       flags              = CommandLineParser::GetFlags (dialect);
+    std::span<const CommandLineParser::OutputFormatFlag>  formats            = CommandLineParser::GetOutputFormats (dialect);
+    std::string                                           text;
+    std::string                                           rendered;
 
 
 
@@ -160,15 +160,15 @@ std::string DialectHelp::ComposeFlagLines (DialectId dialect, char flagPrefix)
             group += PadTo (rendered, kDescriptionColumn) + flag.description + "\n";
         }
 
-        // The output shapes are assembled-code options and print with them,
+        // The output formats are assembled-code options and print with them,
         // rather than in a section of their own that says the same thing.
         if (category == CommandLineParser::FlagCategory::AssembledCode)
         {
-            for (const CommandLineParser::OutputShape & shape : shapes)
+            for (const CommandLineParser::OutputFormatFlag & format : formats)
             {
-                group += PadTo (std::string ("    ") + CommandLineParser::FormatLongOption (shape.option, flagPrefix),
+                group += PadTo (std::string ("    ") + CommandLineParser::FormatLongOption (format.option, flagPrefix),
                                 kDescriptionColumn)
-                       + shape.description + "\n";
+                       + format.description + "\n";
             }
         }
 

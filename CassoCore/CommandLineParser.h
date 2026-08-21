@@ -53,9 +53,6 @@ public:
         Optional,   // a value may follow, attached only -- absence means something
     };
 
-    // One flag of a dialect's own grammar, as data. The table is what the
-    // parser walks AND what the help text is generated from, so the two cannot
-    // describe different tools.
     // Which part of the job a flag belongs to, so help can group them. Someone
     // looking for "how do I get a listing" should find the listing flags
     // together rather than scanning one alphabetical run for the four that
@@ -80,15 +77,15 @@ public:
         const char   *  description;
     };
 
-    // One output SHAPE a dialect's grammar accepts, as data, for the same
+    // One output FORMAT a dialect's grammar accepts, as data, for the same
     // reason DialectFlag is: the parser walks this table and the help text is
-    // generated from it, so a shape the tool accepts and a shape the tool
+    // generated from it, so a format the tool accepts and one the tool
     // documents cannot come apart.
     //
     // Named as a whole word rather than a letter, because these name a file format
     // rather than an assembler option, and the as65 grammar already writes
     // them that way.
-    struct OutputShape
+    struct OutputFormatFlag
     {
         const char                    *  option;
         CommandLineOptions::OutputFormat format;
@@ -99,11 +96,11 @@ public:
     // rather than at whichever call site printed it first.
     static const char *  DescribeCategory (FlagCategory category);
 
-    struct OutputShapeTable
+    struct OutputFormatTable
     {
-        DialectId            dialect;
-        const OutputShape *  shapes;
-        size_t               count;
+        DialectId                 dialect;
+        const OutputFormatFlag  * formats;
+        size_t                    count;
     };
 
     // Which dialect a flag table belongs to. A row rather than a test on the
@@ -135,9 +132,9 @@ public:
     // what keeps help and parser from drifting.
     static std::span<const DialectFlag>     GetFlags (DialectId dialect);
 
-    // The output shapes a dialect names on its command line, empty for one
+    // The output formats a dialect names on its command line, empty for one
     // that offers no choice. Public for the same reason GetFlags is.
-    static std::span<const OutputShape>      GetOutputShapes (DialectId dialect);
+    static std::span<const OutputFormatFlag>      GetOutputFormats (DialectId dialect);
 
     // A long option written with the prefix this invocation used: `--name` for a
     // dash command line, `/name` for a slash one. Public because the help text
@@ -185,7 +182,7 @@ private:
 
     static bool  RefuseCpuFlagWhereSelectedInSource (CommandLineOptions & options);
 
-    static bool  ApplyOutputShape (const std::string & arg, DialectId dialect, CommandLineOptions & options);
+    static bool  ApplyOutputFormat (const std::string & arg, DialectId dialect, CommandLineOptions & options);
 
     static void  AddSymbolDefinition (const std::string & definition, CommandLineOptions & options);
 

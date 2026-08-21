@@ -400,12 +400,12 @@ namespace MerlinCommandLineTests
         //  Sweeps the shape table for the reason the flag sweep exists one class
         //  over: a row the help advertises and the parser never matches is a
         //  documented flag that quietly does nothing.
-        TEST_METHOD (EveryOutputShapeIsAcceptedAndSelectsTheFormatItDeclares)
+        TEST_METHOD (EveryOutputFormatFlagIsAcceptedAndSelectsTheFormatItDeclares)
         {
-            Assert::IsFalse (CommandLineParser::GetOutputShapes (DialectId::Merlin).empty(),
+            Assert::IsFalse (CommandLineParser::GetOutputFormats (DialectId::Merlin).empty(),
                              L"nothing to sweep");
 
-            for (const CommandLineParser::OutputShape & shape : CommandLineParser::GetOutputShapes (DialectId::Merlin))
+            for (const CommandLineParser::OutputFormatFlag & shape : CommandLineParser::GetOutputFormats (DialectId::Merlin))
             {
                 CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", shape.option });
 
@@ -423,9 +423,9 @@ namespace MerlinCommandLineTests
         //  `/raw` on the as65 side did the same thing and wrote 65536 bytes where
         //  27 were asked for. A flag the help advertises has to be a flag the
         //  parser accepts, in both forms the help is willing to print.
-        TEST_METHOD (EveryOutputShapeIsAcceptedInTheSlashSpellingToo)
+        TEST_METHOD (EveryOutputFormatFlagIsAcceptedInTheSlashSpellingToo)
         {
-            for (const CommandLineParser::OutputShape & shape : CommandLineParser::GetOutputShapes (DialectId::Merlin))
+            for (const CommandLineParser::OutputFormatFlag & shape : CommandLineParser::GetOutputFormats (DialectId::Merlin))
             {
                 std::string         slashed = CommandLineParser::FormatLongOption (shape.option, '/');
                 CommandLineOptions  opts    = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", slashed });
@@ -438,7 +438,7 @@ namespace MerlinCommandLineTests
         }
 
         //  The as65 half of that regression, which is where it was found.
-        TEST_METHOD (As65AcceptsTheSlashSpellingOfItsOutputShapes)
+        TEST_METHOD (As65AcceptsTheSlashSpellingOfItsOutputFormatFlags)
         {
             CommandLineOptions  raw = Fixture::Parse ({ "CassoCli", "as65", "demo.a65", "/raw" });
             CommandLineOptions  dos = Fixture::Parse ({ "CassoCli", "as65", "demo.a65", "/dos-bin" });
@@ -479,16 +479,16 @@ namespace MerlinCommandLineTests
         //  LISTING -- so the failure is not a warning about unknown flags, it is
         //  an output file nobody asked for, produced by an invocation that
         //  otherwise looks like it worked.
-        TEST_METHOD (AnOutputShapeIsNotReadAsAStringOfLetterFlags)
+        TEST_METHOD (AnOutputFormatFlagIsNotReadAsAStringOfLetterFlags)
         {
             std::string  baseline = Fixture::Fingerprint (Fixture::Parse ({ "CassoCli", "merlin", "demo.s" }));
 
-            for (const CommandLineParser::OutputShape & shape : CommandLineParser::GetOutputShapes (DialectId::Merlin))
+            for (const CommandLineParser::OutputFormatFlag & shape : CommandLineParser::GetOutputFormats (DialectId::Merlin))
             {
                 CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", shape.option });
 
                 Assert::AreEqual (baseline, Fixture::Fingerprint (opts),
-                                  Fixture::Widen (std::string (shape.option) + " disturbed something other than the output shape").c_str());
+                                  Fixture::Widen (std::string (shape.option) + " disturbed something other than the output format").c_str());
             }
         }
 
@@ -740,13 +740,13 @@ namespace MerlinCommandLineTests
         //  The same rule for the shape rows, and for the same reason: a shape
         //  the parser accepts and the help never mentions is a flag a developer
         //  can only find by reading the source.
-        TEST_METHOD (EveryOutputShapeReachesTheHelpWithItsDescription)
+        TEST_METHOD (EveryOutputFormatFlagReachesTheHelpWithItsDescription)
         {
             std::string  help = DialectHelp::GetAllDialects ('-');
 
-            Assert::IsFalse (CommandLineParser::GetOutputShapes (DialectId::Merlin).empty(), L"nothing to sweep");
+            Assert::IsFalse (CommandLineParser::GetOutputFormats (DialectId::Merlin).empty(), L"nothing to sweep");
 
-            for (const CommandLineParser::OutputShape & shape : CommandLineParser::GetOutputShapes (DialectId::Merlin))
+            for (const CommandLineParser::OutputFormatFlag & shape : CommandLineParser::GetOutputFormats (DialectId::Merlin))
             {
                 Assert::IsTrue (help.find (shape.option)   != std::string::npos,
                                 Fixture::Widen (shape.option).c_str());
@@ -767,7 +767,7 @@ namespace MerlinCommandLineTests
         {
             std::string  help = DialectHelp::GetAllDialects ('/');
 
-            for (const CommandLineParser::OutputShape & shape : CommandLineParser::GetOutputShapes (DialectId::Merlin))
+            for (const CommandLineParser::OutputFormatFlag & shape : CommandLineParser::GetOutputFormats (DialectId::Merlin))
             {
                 std::string  slashed = CommandLineParser::FormatLongOption (shape.option, '/');
 
