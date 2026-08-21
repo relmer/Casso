@@ -28,21 +28,6 @@ Entries before versioning was introduced use dates only.
   list jumping from 3 to 5 left its author guessing whether the status had been
   renumbered or folded into another. It is named as as65's, with the reason it
   cannot arrive here.
-- **Every help page now opens with the banner.** The tool's name, the version,
-  the architecture and the copyright headed the general page only, and a mode's
-  page is reached directly -- `CassoCli ?`, `CassoCli run --help`, `CassoCli
-  disk --help` -- so a reader could meet the whole of the help without ever
-  being told which build was answering. The disk page is assembled in the
-  library, which does not know the build's version, so it takes the banner as an
-  argument the way the general page already did.
-- **The assembly page opens with an as65 compatibility section.** What the
-  assembler is, and the grammar rules a reader needs before any individual flag
-  makes sense — that single-letter switches chain into one argument, and that a
-  value attaches with no space before it — were footnotes scattered below the
-  option table, where they read as caveats about the flags above them rather
-  than as the shape of every command line on the page. They are now one section
-  at the top, and `-o` is named there as the one switch whose value may be
-  separated.
 - **`-n` names the issue that tracks it.** It is accepted and does nothing; the
   page said "no-op", which is a status a reader cannot check from a help page.
   It now points at https://github.com/relmer/Casso/issues/118.
@@ -136,29 +121,6 @@ Entries before versioning was introduced use dates only.
   spends it on an out-of-memory this tool cannot reach. Naming no source file at
   all is 1 rather than 2 for the same reason: nothing was opened because nothing
   was named. **This is a breaking change for any script branching on 1 or 2.**
-- **The assembly exit-code list is a table.** Four lines of explanation per
-  status is reading for somebody porting a build and noise for somebody looking
-  up a number they just got back; what the statuses mean now lives in the header
-  that assigns them.
-- **The help no longer says "shape", uses " -- " as a dash, or calls them "exit
-  statuses".** Output formats are named as formats, dashes are commas, colons or
-  full stops, and every page's status block is headed "Exit codes".
-- **The assembly page no longer documents `-h` as a help request.** That a
-  leading `-h` asks for help is general command-line behavior, not a property of
-  the listing's page-height option it was attached to.
-- **The assembly page explains its examples.** Each of the four command lines
-  now says what it assembles, what file it writes and what is in it. A bare
-  command line is an example only to a reader who already knows what it
-  produces, which is not the reader who came to the page.
-- **The default output shape is stated as a behavior rather than as an
-  absence.** "Naming no shape writes ONLY the assembled bytes" described a hole
-  in the option table and asked the reader to infer a behavior from it; the page
-  now says that only the assembled bytes are written, with no header and no
-  padding, and then names `--flat`, `--dos-bin`, `-s` and `-s2` as the shapes
-  that change that.
-- **The flag-concatenation paragraph says where concatenation applies without
-  describing the other two grammars.** It reached for `run` and `disk` to make
-  its point on a page that documents neither.
 - **`-o` takes a separated filename as well as an attached one.** `-o prog.bin`
   now means what `-oprog.bin` means. That accepts MORE than as65 does and never
   less, so every as65 command line still reads exactly as as65 reads it. What
@@ -185,9 +147,21 @@ Entries before versioning was introduced use dates only.
   convention, usage when the only parameter is a question mark, and assembling
   is as65 mode — while `CassoCli run --help` and `CassoCli disk --help` open
   theirs. `-?`, `-h` as the first argument, `--help`, the `/` form of each,
-  and the tool's bare name all still open the general page. Every page writes
-  its flags with the prefix you typed, and each mode's exit statuses stay on
-  that mode's page and appear on no other, because they differ.
+  and the tool's bare name all still open the general page. Every page opens
+  with the banner — name, version, architecture, copyright — so a reader who
+  lands straight on one is still told which build is answering, and every page
+  writes its flags with the prefix you typed. Options are grouped by what you
+  are trying to do rather than alphabetically, which had put `-c`, `-l`, `-m`
+  and `-p` four places apart while they all shape the same listing; output and
+  listing options nest under assembly, since neither applies to `run` or `disk`;
+  the disk verbs lead with every form they accept (`cat | catalog | dir | list |
+  ls`) rather than trailing aliases in an "also written" clause; and each group
+  carries its own example. The assembly page opens with an as65 compatibility
+  section, stating the grammar rules that hold for every command line on it —
+  single-letter switches chain into one argument, values attach with no space,
+  and `-o` is the one whose value may be separated — instead of leaving them as
+  footnotes under individual flags. Each mode's exit codes stay on that mode's
+  page and appear on no other, because they differ.
 - **`CassoCli run --help` answers instead of complaining.** The `run` grammar
   had no help request in it, so asking for one was an option it did not
   recognize: a diagnostic, a refusal, and exit 2. `run` and `disk` now both take
@@ -304,33 +278,6 @@ Entries before versioning was introduced use dates only.
   lets a `.s19` or `.hex` output filename select its format is now a fact of
   its own rather than a value of the shape, so `--flat -o out.s19` writes the
   padded image where the filename would previously have won.
-- **The help is reorganized around what you are doing, not what the tool has.**
-  `--help` now opens with the usage shapes, and **each mode's exit statuses
-  close that mode's own section** — they used to appear under `disk` alone,
-  which read as though that subcommand had invented them and left anyone
-  assembling a file with no answer at all. Output and listing options are nested under assembly
-  options rather than standing beside them as top-level sections, because
-  neither applies to `disk` or `run`. The disk verbs lead with every form
-  they accept (`cat | catalog | dir | list | ls`) instead of trailing aliases
-  in an "also written" clause, the disk options sit with the disk commands
-  instead of three sections away, `put`'s `--as`/`--type`/`--addr` defaults and
-  `boot`'s restrictions are stated, and each group carries its own example
-  rather than one block at the end. Three things came out: the paragraph
-  explaining that `put` and `get` are named from the disk's point of view (the
-  verb descriptions say which way each one goes), the `--cpu` opcode list, and
-  the in-use paragraph — a locked image is refused by name where it happens.
-  `-h`, `--help` and `-?` are one entry, which says that `-h` means help only
-  as the first argument and is the listing page height everywhere else.
-- **`--help` is organized by what things do, not by first letter.** The old
-  page led with the command shapes, then the disk commands, then a worked
-  example, and only then the switches — alphabetically, which put `-c`, `-l`,
-  `-m` and `-p` (all of which shape the same listing) four places apart and
-  sat `-i` next to `-l` with nothing in common. It now reads overview,
-  subcommands, then options under headings that say what the group is for —
-  general, output, listing and diagnostics, assembly, run, disk — with the
-  worked example at the end where a reader returns to it. Every flag that was
-  documented before is still documented; nothing was removed. The whole page,
-  disk section included, is written in whichever prefix was used to ask for it.
 - **`disk list` says something useful about an image with no filesystem.** It
   used to answer only *"carries no DOS 3.3 or ProDOS filesystem this tool
   recognizes"* — which fired on twelve of fourteen real disk images tested,

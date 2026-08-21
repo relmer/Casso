@@ -47,7 +47,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the granular history, and
 [ARCHITECTURE.md](ARCHITECTURE.md) for a technical overview of the emulator's
 internals (projects, threading, the memory model, and the optimization log).
 
-### Disk file access from the command line (unreleased)
+### Disk file access from the command line (v1.19.0)
 
 The build loop no longer leaves the machine. `CassoCli disk` reads files off an
 Apple II disk image and puts them back — `list`, `get`, `put`, `delete`, and
@@ -67,6 +67,17 @@ tool's own output. `--basic` converts an Applesoft listing to and from the
 tokenized form; `--text` converts the high-bit encoding and line endings;
 naming neither, the default, moves bytes unchanged, so extract-edit-replace
 perturbs nothing the edit did not touch.
+
+**The assembler's command line is now as65's, exactly.** Values attach to their
+flags, flags chain into one argument, `-x` selects the 65C02, and exit codes 0
+through 3 carry the meanings the as65 manual gives them — so a build script
+written for as65 branches correctly here without being read again. **This
+changes behavior scripts may depend on; see [CHANGELOG.md](CHANGELOG.md) before
+upgrading.** The help is tiered to match: `CassoCli --help` is one screen naming
+the three modes, and each mode's flags, examples and exit codes wait behind that
+mode's own help. PowerShell users get one accommodation the manual has no reason
+to mention — it cuts `-oprog.bin` in half on the way in, and Casso puts it back
+together rather than complaining at you about your shell.
 
 **Command-line writes are all-or-nothing.** The complete new image is built and
 checked in memory, written beside the target, and put in place atomically, so a
