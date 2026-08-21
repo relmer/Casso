@@ -38,6 +38,8 @@ Word AppleHiResMode::ScanlineAddress (int scanline, Word pageBase)
     int  subRow      = scanline % 8;   // 0-7 (which of 8 interleave rows)
     int  lineInGroup = (scanline % 64) / 8;   // 0-7 (which line within group)
 
+
+
     return static_cast<Word> (
         pageBase + subRow * 1024 + group * 40 + lineInGroup * 128);
 }

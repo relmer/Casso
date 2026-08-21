@@ -126,6 +126,7 @@ std::string Parser::StripComments (const std::string & line)
     size_t  pos = line.find (';');
 
 
+
     return (pos == std::string::npos) ? line : line.substr (0, pos);
 }
 

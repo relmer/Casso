@@ -194,6 +194,8 @@ int DxuiMessageBoxWindow::EstimateTextHeightDip (const std::wstring & text, bool
     int     lines       = 0;
     size_t  pos         = 0;
 
+
+
     for (;;)
     {
         size_t  nl  = text.find (L'\n', pos);

@@ -3568,6 +3568,8 @@ DxuiHitTestKind DxuiHwndSource::ClassifyResizeEdge (POINT clientDip,
 {
     int   cornerPx = resizeBorderPx * s_kResizeCornerMult;
 
+
+
     bool  left    = (clientDip.x >= clientBoundsDip.left   && clientDip.x <  clientBoundsDip.left   + resizeBorderPx);
     bool  right   = (clientDip.x <  clientBoundsDip.right  && clientDip.x >= clientBoundsDip.right  - resizeBorderPx);
     bool  top     = (clientDip.y >= clientBoundsDip.top    && clientDip.y <  clientBoundsDip.top    + resizeBorderPx);
@@ -3617,6 +3619,7 @@ LRESULT DxuiHwndSource::KindToHt (DxuiHitTestKind kind)
     // Also the answer for a value outside the enum: treating an unknown hit as
     // plain client area is the harmless default.
     LRESULT  ht = HTCLIENT;
+
 
 
     switch (kind)

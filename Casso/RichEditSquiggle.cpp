@@ -58,6 +58,8 @@ std::wstring BuildIgnoredTokensLabel (
     int           begin  = 0;
     int           end    = 0;
 
+
+
     // No rejected spans means no label at all -- not an empty prefix, which
     // would leave a stray "Ignored:" on the dialog.
     if (!spans.empty())
@@ -112,6 +114,8 @@ void SetIgnoredTokensLabel (
 {
     std::wstring  text;
 
+
+
     if (hStatic != nullptr)
     {
         text = BuildIgnoredTokensLabel (originalExpr, spans);
@@ -144,6 +148,8 @@ std::wstring BuildPerSideInvalidLabel (
     size_t        i      = 0;
     int           begin  = 0;
     int           end    = 0;
+
+
 
     // Same shape as BuildIgnoredTokensLabel, with a caller-supplied prefix.
     if (!spans.empty())
@@ -199,6 +205,8 @@ void SetPerSideInvalidLabel (
 {
     std::wstring  text;
 
+
+
     if (hStatic != nullptr)
     {
         text = BuildPerSideInvalidLabel (prefix, originalExpr, spans);
@@ -231,6 +239,8 @@ void ApplyRejectedTokenSquiggles (
     CHARFORMAT2W  clearFmt = {};
     CHARFORMAT2W  waveFmt  = {};
     size_t        i        = 0;
+
+
 
     if (hRichEdit == nullptr)
     {

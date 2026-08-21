@@ -598,6 +598,8 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     int            heightDip        = 0;
     HRESULT        hrCreate         = S_OK;
 
+
+
     CassoTheme                             theme        = CassoTheme::ForName (std::string (themeName));
     DialogState                            state;
     DownloadDialog                         dlg;

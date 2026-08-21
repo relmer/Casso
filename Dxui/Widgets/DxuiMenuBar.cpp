@@ -888,6 +888,7 @@ void DxuiMenuBar::PaintStrip (
     uint32_t  stripFg   = m_stripColorsSet ? m_stripTextOverride  : theme.Foreground();
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     painter.FillRect ((float) m_stripRect.left,
@@ -1031,6 +1032,7 @@ void DxuiMenuBar::PaintDropdownRows (
     bool      menuHasCheckable   = false;
     int       checkGutterPx      = 0;
     int       labelLeftPx        = rowPadLeftPx;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -2133,6 +2135,7 @@ void DxuiMenuBar::OnPopupClick (POINT localPx)
     int                          row      = PopupRowAtLocalY (localPx.y);
     const DxuiMenuBarSubitem  *  entry    = (row >= 0) ? EntryAt (m_openIndex, row) : nullptr;
     std::function<void()>        dispatch;
+
 
 
     DXUI_ASSERT_UI_THREAD();

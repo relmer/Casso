@@ -843,11 +843,14 @@ function Test-Structure
 
                 $sig = $lines[$s]
                 if ($sig -notmatch '^[A-Za-z_~][A-Za-z0-9_:<>,&*\s]*\(')                                  { continue }
-                if ($sig -match '^\s*(if|for|while|switch|else|do|struct|class|enum|namespace|union)\b')   { continue }
+                if ($sig -match '^\s*(if|for|while|switch|else|do|struct|class|enum|namespace|union|TEST_CLASS)\b')   { continue }
 
-                # CS0014 -- banner anywhere in the 12 lines above
+                # CS0014 -- banner anywhere in the 12 lines above the signature.
+                # The window is measured from the line that names the function,
+                # not from the brace: a wrapped parameter list would otherwise
+                # push the banner out of view.
                 $hasBanner = $false
-                for ($k = [Math]::Max(0, $i - 12); $k -lt $i; $k++)
+                for ($k = [Math]::Max(0, $s - 12); $k -lt $s; $k++)
                 {
                     if ($lines[$k] -match '^/{60,}') { $hasBanner = $true; break }
                 }
@@ -874,8 +877,16 @@ function Test-Structure
                 # A declaration may carry a trailing comment, may be preceded
                 # by a comment line of its own, and may run on past its first
                 # line when the initializer wraps. Each of those is part of
-                # the block, not the end of it.
-                $declStart = '^\s{4}[A-Za-z_][A-Za-z0-9_:<>,\s\*&\[\]]*\s+\w+\s*(=|\(|\{|;)'
+                # the block, not the end of it. An array declarator carries
+                # its bounds between the name and the terminator (char hex[8];),
+                # and a type may carry a parenthesized signature of its own
+                # (std::function<void()> f;). A line opening with a control
+                # keyword or a local type definition is never a declaration,
+                # whatever follows it, and neither is a stream insertion: a <<`r
+                # ahead of any = marks a statement, while one inside an
+                # initializer is a shift.
+                $declStart = '^\s{4}(?!(if|for|while|switch|do|else|case|default|goto|throw|return|delete|struct|class|enum|union)\b)(?![^=]*<<)' +
+                             '[A-Za-z_](?:[A-Za-z0-9_:<>,\s\*&\[\]]|\([A-Za-z0-9_:<>,\s\*&]*\))*\s+\w+\s*(\[[^\]]*\]\s*)*(=|\(|\{|;)'
                 $declEnd   = ';\s*(//.*)?$'
                 $d         = $i + 1
                 $sawDecl   = $false
@@ -885,15 +896,38 @@ function Test-Structure
 
                     if ($ln -match '^\s{4}//') { $d++; continue }
 
+                    # A type alias is not a variable definition, and a local struct
+                    # that follows one is not the first statement. Neither is
+                    # modeled here: the alias is stepped over, and the struct ends
+                    # the walk without a finding.
+                    if ($ln -match '^\s{4}(using|typedef)\b') { $d++; continue }
+
                     # The statement test looks at code, not at string literals:
-                    # a `"--"` in an initializer is not a decrement.
+                    # a "--" in an initializer is not a decrement. It also stops
+                    # at the "=": a lambda initializer has a "return" of its own,
+                    # and that no more makes the line a statement than "i++" in
+                    # an initializer does.
                     $code = $ln -replace '"([^"\\]|\\.)*"', '""'
+                    $head = ($code -split '=', 2)[0]
 
-                    if ($ln -notmatch $declStart -or $code -match '\breturn\b|\bdelete\b|\+\+|--') { break }
+                    if ($ln -notmatch $declStart -or $head -match '\breturn\b|\bdelete\b|\+\+|--') { break }
 
-                    # Run past a wrapped initializer to the line that closes it.
-                    while ($d -lt $lines.Length -and $lines[$d] -notmatch $declEnd -and $lines[$d].Trim() -ne '')
+                    # Run past a wrapped initializer to the line that closes it:
+                    # the first line ending in `;` at brace depth zero. Depth
+                    # matters because a lambda's body has statements of its own
+                    # that end in `;` before the `};` that ends the declaration.
+                    # A table initializer may group its rows with blank lines, so
+                    # a blank does not end the run; the function's own closing
+                    # brace does, as the backstop for a line that only looked
+                    # like a declaration.
+                    $depth = 0
+                    while ($d -lt $lines.Length -and $lines[$d] -notmatch '^\}')
                     {
+                        $body   = $lines[$d] -replace '"([^"\\]|\\.)*"', '""' -replace "'([^'\\]|\\.)*'", "''" -replace '//.*$', ''
+                        $depth += ([regex]::Matches($body, '\{')).Count - ([regex]::Matches($body, '\}')).Count
+
+                        if ($depth -le 0 -and $lines[$d] -match $declEnd) { break }
+
                         $d++
                     }
 

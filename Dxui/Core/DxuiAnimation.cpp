@@ -76,6 +76,8 @@ bool DxuiAnimation::SampleTween (
     float  eased   = 0.0f;
     bool   found   = false;
 
+
+
     // Ids are unique, so the first match is the answer; `found` stops the
     // scan rather than a break, since the sampling below shares the frame.
     for (const DxuiTweenState & s : m_tweens)
@@ -194,6 +196,8 @@ std::vector<DxuiDriveSyncBrokerEvent> DxuiAnimation::ConsumePendingEvents()
 float DxuiAnimation::ApplyEase (DxuiTweenEase ease, float t)
 {
     float  eased = t;      // Linear, and the fallback for an unknown ease
+
+
 
     switch (ease)
     {

@@ -156,6 +156,8 @@ HRESULT Dos33FileWriter::WriteHello (vector<Byte> & buffer)
     constexpr int   kCatalogEntry   = 0x0B;   // first entry in a catalog sector
     constexpr int   kNameBytes      = 30;
 
+
+
     HRESULT  hr          = S_OK;
     size_t   bufferBytes = buffer.size();
     size_t   catalog     = 0;

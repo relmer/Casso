@@ -7,6 +7,13 @@
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPanZoom::DxuiPanZoom
+//
+////////////////////////////////////////////////////////////////////////////////
+
 DxuiPanZoom::DxuiPanZoom (const Config & cfg)
     : m_cfg (cfg)
 {
@@ -179,6 +186,8 @@ bool DxuiPanZoom::OnKey (const DxuiKeyEvent & ev)
     // Only Ctrl+key-down is ours, and only when zoom is enabled at all.
     bool  zooms   = (ev.kind == DxuiKeyEventKind::Down) && ev.ctrl && m_cfg.enableZoom;
     bool  handled = false;
+
+
 
     if (zooms)
     {
@@ -355,6 +364,9 @@ void DxuiPanZoom::SetPanYTarget (float y)
 {
     double  clamped = y;
     bool    changed = false;
+
+
+
     if (m_panYhi >= m_panYlo)
     {
         clamped = std::min (std::max ((double) y, m_panYlo), m_panYhi);
@@ -503,6 +515,9 @@ void DxuiPanZoom::ApplyZoomFactor (double factor, bool anchored, float anchorX, 
 {
     double z0 = m_zoom.target;
     double z1 = std::min (std::max (z0 * factor, (double) m_cfg.zoomMin), (double) m_cfg.zoomMax);
+
+
+
     if (z1 == z0)
     {
         return;
@@ -551,6 +566,9 @@ void DxuiPanZoom::NudgePanX (double deltaContent)
     // panX.target is a continuous accumulator, so sub-notch touchpad deltas add
     // up naturally -- no whole-unit truncation to lose slow motion to.
     double target = m_panX.target + deltaContent;
+
+
+
     if (m_panXhi >= m_panXlo)
     {
         target = std::min (std::max (target, m_panXlo), m_panXhi);

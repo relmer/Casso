@@ -683,6 +683,8 @@ char JsonParser::Advance()
 {
     char ch = m_input[m_pos++];
 
+
+
     if (ch == '\n')
     {
         m_line++;

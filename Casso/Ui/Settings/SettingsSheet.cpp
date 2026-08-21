@@ -127,6 +127,7 @@ HRESULT SettingsSheet::OpenModeless (
     DxuiWindow::CreateParams  params;
 
 
+
     m_ucs      = &ucs;
     m_prefs    = &prefs;
     m_themes   = &themes;
@@ -761,6 +762,8 @@ bool SettingsSheet::OnOverlayMouse (const DxuiMouseEvent & ev)
     // controls behind it.
     bool  isOpen = m_colorPicker.IsOpen();
 
+
+
     if (isOpen)
     {
         switch (ev.kind)
@@ -847,6 +850,7 @@ void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
     float                    pan0     = 0.0f;
     float                    pan1     = 0.0f;
     const SettingsUiPrefs  & prefs    = m_state.Prefs();
+
 
 
     if (m_emuShell == nullptr)
@@ -958,6 +962,7 @@ void SettingsSheet::PushDriveAudioToEngine (
 {
     char  vol[32] = {};
     char  pan[32] = {};
+
 
 
     if (m_emuShell == nullptr)

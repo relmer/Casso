@@ -116,6 +116,8 @@ bool DxuiModalScrim::OnKey (WPARAM vk)
     bool  cancels  = m_visible && vk == VK_ESCAPE;
     bool  confirms = m_visible && vk == VK_RETURN;
 
+
+
     if (cancels)
     {
         Cancel();

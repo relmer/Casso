@@ -120,6 +120,8 @@ HRESULT WindowCommandManager::HrFromSpoolResult (int ret, const wchar_t * call, 
     HRESULT   hr  = S_OK;
     DWORD     gle = ::GetLastError();   // capture before logging can clobber it
 
+
+
     if (ret <= 0)
     {
         if      (ret == SP_USERABORT)                                    { hr = HRESULT_FROM_WIN32 (ERROR_CANCELLED); }
@@ -457,6 +459,8 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
     // just the state gate. Disconnecting while Mouse mode is active drops
     // the mapping to Off so the mode never points at an unplugged device.
     bool  connected = (id == IDM_MOUSE_CONNECT);
+
+
 
     if (connected != m_shell.m_mouseConnected)
     {
@@ -1317,6 +1321,8 @@ static int WholeStripDpi (const GlobalUserPrefs & prefs, int rows)
     const double   kBudgetPx = 128.0 * 1024.0 * 1024.0;   // ~512 MB of RGBA
     int            dpi       = PrintDpiFromPrefs (prefs);
 
+
+
     if (rows > 0)
     {
         // outPx = (kDotsPerRow/160 * dpi) * (rows/144 * dpi)
@@ -1666,6 +1672,8 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
     // skip the bitmap and rely on the (compressed) PNG blob instead.
     const size_t             kMaxDibBytes = (size_t) 256 * 1024 * 1024;
 
+
+
     // Render the whole strip exactly once, capping dpi for very tall banners so
     // neither the DIB below nor the PNG blob materializes gigabytes. The source
     // is only 160x144 dpi, so the cap is effectively lossless.
@@ -1869,6 +1877,8 @@ void WindowCommandManager::OnPrinterNoPage (int id, PrinterJob * job)
       : (id == IDM_PRINTER_PRINT)   ? L"The printer has no page to print yet."
                                     : L"The printer has no page to save yet.";
 
+
+
     DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme, emptyMsg, L"Casso Printer", MB_OK | MB_ICONINFORMATION);
 
     if (job != nullptr)
@@ -1933,6 +1943,8 @@ void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
         L"The page in the printer will be thrown away without saving. "
         L"This cannot be undone.",
         L"Discard Printout", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2);
+
+
 
     if (choice != IDYES)
     {

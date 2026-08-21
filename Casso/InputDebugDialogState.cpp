@@ -75,6 +75,8 @@ static bool MatchesGamePort (
 {
     bool  shown = true;
 
+
+
     switch (gamePort)
     {
         case InputGamePortClass::None:
@@ -198,6 +200,7 @@ std::wstring BuildClipboardText (
     bool          firstColumn = true;
 
 
+
     for (const InputEventDisplay * row : selected)
     {
         if (row == nullptr)
@@ -244,6 +247,7 @@ std::vector<DxuiListView::Column> PlanVisibleColumns (
 {
     std::vector<DxuiListView::Column>  out;
     int                                i   = 0;
+
 
 
     out.reserve (kInputColumnCount);

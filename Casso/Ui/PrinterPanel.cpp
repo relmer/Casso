@@ -293,6 +293,8 @@ HRESULT PrinterPanel::Create (
     DxuiWindow::CreateParams   params;
     bool                       isCreated = false;
 
+
+
     UNREFERENCED_PARAMETER (device);
     UNREFERENCED_PARAMETER (context);
 
@@ -1156,6 +1158,8 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
     PaperRenderer            renderer;
     PaperRenderer::Options   opt;
 
+
+
     if (spanRows <= 0)
     {
         // Degenerate span: blank paper, furniture still tracking the scroll.
@@ -1306,6 +1310,8 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
     int      topAbsRow = bottomAbsRow - canvasH + 1;   // canvas bottom = span's live row
     int      holeR     = s_kHoleRadiusPx;
     int      delta     = 0;
+
+
 
     if (m_canvas.size() != (size_t) canvasW * canvasH)
     {
@@ -1560,6 +1566,8 @@ bool PrinterPanel::OnMouse (const DxuiMouseEvent & ev)
                       && ev.button == DxuiMouseButton::Left
                       && PaperHit (ev.positionDip.x, ev.positionDip.y);
 
+
+
     if (ev.kind == DxuiMouseEventKind::Wheel)
     {
         // Wheel gestures (scroll / pan / zoom) always belong to the controller.
@@ -1700,6 +1708,8 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     int  btnW       = scaler.Px (84);   // Print... / Save... / Copy / Form Feed / Discard
     int  zoomW      = scaler.Px (42);   // [-] and [+]
     int  zoomResetW = scaler.Px (54);   // [nnn%]
+
+
 
     // Our override replaces DxuiPanel::Layout, which would otherwise record the
     // panel's own bounds; set them so Paint's backdrop fills the whole client.

@@ -831,6 +831,12 @@ int32_t ExpressionEvaluator::Narrow (int32_t value, const ExprContext & ctx)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExpressionEvaluator::ToUpperIdent
+//
+////////////////////////////////////////////////////////////////////////////////
+
 std::string ExpressionEvaluator::ToUpperIdent (const std::string & s)
 {
     std::string r = s;
@@ -1267,6 +1273,7 @@ bool ExpressionEvaluator::TryParseBinary (
     int               level = 0;
     bool              flat  = (ctx.binding == OperatorBinding::LeftToRight);
     bool              ok    = false;
+
 
 
     ok = TryParseUnary (tok, ctx, result, error);

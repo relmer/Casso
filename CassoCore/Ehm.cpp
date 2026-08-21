@@ -58,6 +58,8 @@ void EhmBreakpoint (const wchar_t * file, int line, const wchar_t * func, const 
 {
     wchar_t  msg[1024];
 
+
+
 #ifdef _WINDOWS_
     HRESULT  hrFmt = StringCchPrintfW (msg, sizeof (msg) / sizeof (msg[0]),
                                        L"%s(%d) - %s - Assertion failed:  %s",
@@ -112,6 +114,8 @@ void EhmBreakpoint (const wchar_t * file, int line, const wchar_t * func, const 
 void EhmBreakpoint (const char * file, int line, const char * func, const char * expr)
 {
     char  msg[1024];
+
+
 
 #ifdef _WINDOWS_
     HRESULT  hrFmt = StringCchPrintfA (msg, sizeof (msg),
@@ -211,6 +215,9 @@ void DEBUGMSG (const wchar_t * pszFormat, ...)
 void RELEASEMSG (const wchar_t * pszFormat, ...)
 {
     va_list vlArgs;
+
+
+
     va_start (vlArgs, pszFormat);
 
 #ifdef _WINDOWS_

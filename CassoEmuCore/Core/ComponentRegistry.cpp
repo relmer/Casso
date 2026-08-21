@@ -61,6 +61,8 @@ unique_ptr<MemoryDevice> ComponentRegistry::Create (
 {
     auto  it = s_factories.find (typeName);
 
+
+
     // Null for an unregistered type name; the caller reports it against the
     // machine config that named it.
     return (it != s_factories.end()) ? it->second (config, bus)

@@ -54,6 +54,8 @@ HRESULT PngCodec::DecodeFirstFrame (
     ComPtr<IWICBitmapDecoder>   decoder;
     bool                        hasBytes = false;
 
+
+
     hasBytes = !png.empty();
     CBREx (hasBytes, E_INVALIDARG);
 
@@ -205,6 +207,8 @@ HRESULT PngCodec::EncodeIndexed (
     double                           res        = 0.0;
     size_t                           indexCount = 0;
 
+
+
     CBREx (width > 0 && height > 0, E_INVALIDARG);
     CBREx (paletteCount > 0 && paletteCount <= 256, E_INVALIDARG);
     CBREx (palette != nullptr, E_INVALIDARG);
@@ -340,6 +344,8 @@ HRESULT PngCodec::DecodeIndexed (
     WICPixelFormatGUID              format;
     UINT                            width   = 0;
     UINT                            height  = 0;
+
+
 
     hr = DecodeFirstFrame (png, factory, frame);
     CHR (hr);

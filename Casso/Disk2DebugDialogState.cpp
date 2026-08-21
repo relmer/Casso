@@ -115,6 +115,8 @@ static uint32_t EventTypeCategoryBit (Disk2EventType type) noexcept
     // Audio types and the EventsLost synthetic both land there via `default`.
     uint32_t  bit = 0;
 
+
+
     switch (type)
     {
         case Disk2EventType::MotorCommandOn:
@@ -159,6 +161,8 @@ static bool MatchesAudioSubToggle (Disk2EventType type, const FilterState & f) n
     // sub-toggle of their own, so they pass -- the audio master already
     // gated them.
     bool  shown = true;
+
+
 
     switch (type)
     {
@@ -270,6 +274,8 @@ void AppendColumnText (std::wstring & out, const Disk2EventDisplay & e, int logi
     std::wstring_view  label;
     wchar_t            driveBuf[4] = {};
 
+
+
     switch (logicalId)
     {
         case 0: out.append (e.wallStr.data()); break;
@@ -313,6 +319,8 @@ std::wstring BuildClipboardText (
     std::wstring  out;
     int           colIdx       = 0;
     bool          firstColumn  = true;
+
+
 
     for (const Disk2EventDisplay * row : selected)
     {
@@ -368,6 +376,8 @@ std::vector<VisibleColumnSpec> PlanVisibleColumns (
 {
     std::vector<VisibleColumnSpec>  out;
     int                             i = 0;
+
+
 
     out.reserve (kColumnCount);
 

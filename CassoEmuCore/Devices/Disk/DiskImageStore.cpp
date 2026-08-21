@@ -121,6 +121,8 @@ HRESULT DiskImageStore::MountFromBytes (
 {
     HRESULT   hr = S_OK;
 
+
+
     CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
     {

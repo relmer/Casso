@@ -49,6 +49,7 @@ DxuiButton * DxuiDialogWindow::AddDialogButton (const std::wstring &  label,
     DxuiButton *  button = CreateChild<DxuiButton> (label);
 
 
+
     button->SetCommandId (commandId);
     m_dialogButtons.push_back ({ button, commandId, anchor });
 

@@ -95,6 +95,8 @@ static HRESULT ParseCommandLine (
     // entry is ~10 bytes, so the default ring is ~200 MB.
     static constexpr size_t  s_kTraceDefaultEntries = 20000000;
 
+
+
     HRESULT   hr   = S_OK;
     int       argc = 0;
     LPWSTR  * argv = nullptr;
@@ -209,6 +211,7 @@ static HRESULT LoadMachineConfig (
     HRESULT             hrSaved        = S_OK;
     bool                foundConfig    = false;
     string              error;
+
 
 
     outUserExited = false;

@@ -58,9 +58,10 @@ HRESULT CharacterRomData::LoadFromFile (const string & filePath)
     std::streamsize  bytesRead = 0;
     std::streamsize  rawSize   = 0;
     ifstream      file (filePath, ios::binary | ios::ate);
+
+
+
     rawSize = streamsize {0};
-
-
 
     fileOk = file.good();
     CBRA (fileOk);
@@ -189,6 +190,8 @@ Byte CharacterRomData::GetGlyphRow (Byte glyphIndex, int row, bool altCharSet) c
     // indexing past the end.
     bool  inRange = (row >= 0 && row < static_cast<int> (kBytesPerChar));
     int   set     = (altCharSet && m_hasAltCharSet) ? 1 : 0;
+
+
 
     return inRange ? m_glyphs[set][glyphIndex][row] : (Byte) 0;
 }

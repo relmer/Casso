@@ -354,6 +354,7 @@ void SettingsCompositor::ReleaseBlurTextures()
     ID3D11ShaderResourceView * nullSrvs[kMaxBoundPsSrvSlots] = {};
 
 
+
     if (m_context != nullptr)
     {
         m_context->OMSetRenderTargets   (0, nullptr, nullptr);
@@ -529,6 +530,7 @@ void SettingsCompositor::DrawFullscreen (
     ID3D11Buffer              * cbs[1]                        = { constantBuffer };
 
 
+
     m_context->OMSetRenderTargets    (1, &rt, nullptr);
     m_context->OMSetBlendState       (m_blendOpaque.Get(), blendFactor, 0xFFFFFFFF);
     m_context->ClearRenderTargetView (rt, clearColor);
@@ -576,6 +578,7 @@ void SettingsCompositor::Compose (
 {
     SettingsComposeParams  composeParams = {};
     HRESULT                hrTextures    = S_OK;
+
 
 
     // Not ready, or no scratch textures: skip the frame entirely rather than

@@ -481,6 +481,8 @@ static HRESULT ModernSourceRequested (ComPtr<IUnknown> session,
     HRESULT                             hr = S_OK;
     ComPtr<awgp::IPrintDocumentSource>  docSource;
 
+
+
     hr = session.CopyTo (docSource.GetAddressOf());
     CHR (hr);
 
@@ -524,6 +526,13 @@ static HRESULT ModernTaskCompleted (HWND postHwnd, awgp::IPrintTaskCompletedEven
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ModernTaskRequested
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static HRESULT ModernTaskRequested (HWND postHwnd, ComPtr<IUnknown> session,
                                     awgp::IPrintTaskRequestedEventArgs * args)
 {
@@ -531,6 +540,8 @@ static HRESULT ModernTaskRequested (HWND postHwnd, ComPtr<IUnknown> session,
     ComPtr<awgp::IPrintTaskRequest>  request;
     ComPtr<awgp::IPrintTask>         task;
     EventRegistrationToken           completedToken = {};
+
+
 
     hr = args->get_Request (&request);
     CHR (hr);

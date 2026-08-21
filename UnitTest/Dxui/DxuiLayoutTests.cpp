@@ -21,6 +21,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 static RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
 {
     RECT  out = {};
+
+
+
     out.left = l; out.top = t; out.right = r; out.bottom = b;
     return out;
 }

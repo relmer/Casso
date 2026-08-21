@@ -44,6 +44,8 @@ static std::wstring  BuildTimeFromExe()
     std::wstring                  stamp;
     bool                          ok                = false;
 
+
+
     // A ladder -- each step needs the one before it. Any failure yields the
     // empty string, which the caller renders as an omitted build time rather
     // than as an error.
@@ -91,6 +93,8 @@ const wchar_t *  CassoBuildInfo()
         VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH,
         std::wstring (BI_ARCH, BI_ARCH + sizeof (BI_ARCH) - 1),
         BuildTimeFromExe());
+
+
 
     return s.c_str();
 }

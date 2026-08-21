@@ -225,6 +225,8 @@ static void ParseV1Track (
 {
     size_t   bitCount = 0;
 
+
+
     bitCount = Read16LE (trackPtr + 6648);
 
     if (bitCount == 0 || bitCount > WozLoader::kV1TrackRecordSize * 8)
@@ -250,6 +252,15 @@ static void ParseV1Track (
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseV2Track
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static HRESULT ParseV2Track (
     const vector<Byte>  &  raw,
     const Byte          *  trkRecord,
@@ -263,6 +274,8 @@ static HRESULT ParseV2Track (
     size_t     byteOffset    = 0;
     size_t     byteCount     = 0;
     size_t     rawSize       = 0;
+
+
 
     startBlock = Read16LE (trkRecord);
     blockCount = Read16LE (trkRecord + 2);
@@ -319,6 +332,8 @@ static HRESULT FindChunkPayload (
     size_t    pos     = WozLoader::kHeaderSize;
     size_t    rawSize = raw.size();
     bool      found   = false;
+
+
 
     outOffset = 0;
     outSize   = 0;
@@ -454,6 +469,8 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
     bool           isChunkId            = false;
     int            idByte               = 0;
     WozMetadata    metadata;
+
+
 
     rawSize = raw.size();
     CBR (rawSize >= kHeaderSize);
@@ -695,6 +712,8 @@ HRESULT WozLoader::BuildSyntheticV2 (
     size_t    trksHdr        = 8;
     size_t    bitStreamStart = 0;
     int       qt             = 0;
+
+
 
     payloadBytes = (trackZeroBitCount + 7) / 8;
     blocks       = (payloadBytes + kV2BlockSize - 1) / kV2BlockSize;

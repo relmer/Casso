@@ -17,6 +17,9 @@
 static const CharacterRomData & GetDefaultCharRom()
 {
     static CharacterRomData s_defaultRom;
+
+
+
     return s_defaultRom;
 }
 
@@ -25,6 +28,16 @@ Apple80ColTextMode::Apple80ColTextMode (MemoryBus & bus)
       m_charRom (GetDefaultCharRom())
 {
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple80ColTextMode::Apple80ColTextMode
+//
+////////////////////////////////////////////////////////////////////////////////
 
 Apple80ColTextMode::Apple80ColTextMode (MemoryBus & bus, const CharacterRomData & charRom)
     : m_bus     (bus),
@@ -221,6 +234,8 @@ void Apple80ColTextMode::RenderRowRange (
     int          fbHeight)
 {
     Word pageBase = static_cast<Word> (0x0400);   // 80-col always uses page 1
+
+
 
     for (int row = startRow; row < endRow; row++)
     {

@@ -80,6 +80,8 @@ Byte MemoryBus::ReadByte (Word address)
     MemoryDevice *  device = nullptr;
     Byte            value  = 0;
 
+
+
     if (page != nullptr)
     {
         value = page[address & 0xFF];
@@ -289,6 +291,8 @@ void MemoryBus::RemoveDevice (MemoryDevice * device)
         {
             return entry.device == device;
         });
+
+
 
     m_entries.erase (it, m_entries.end());
 

@@ -23,6 +23,8 @@ std::unordered_map<std::string, ObjMeshParser::Rgb> ObjMeshParser::ParseMtl (con
     std::string                            curName;
     std::istringstream                     stream (mtlText);
 
+
+
     while (std::getline (stream, line))
     {
         std::string          tag;
@@ -120,6 +122,8 @@ HRESULT ObjMeshParser::Parse (const std::string        & objText,
     std::string                            line;
     bool                                   hasVerts  = false;
     std::istringstream                     stream (objText);
+
+
 
     outTriangles.clear();
 

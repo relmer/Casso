@@ -165,6 +165,8 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     float    iconCx   = left + padX + iconR;
     float    iconCy   = top + height * 0.5f;   // vertically centered in the bordered area
 
+
+
     if (!m_visible)
     {
         return;

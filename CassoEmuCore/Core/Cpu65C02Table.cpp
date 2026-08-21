@@ -25,5 +25,7 @@ const Microcode * GetCpu65C02InstructionSet()
     static MemoryBus bus;
     static Cpu65C02  cpu (bus);
 
+
+
     return cpu.GetInstructionSet();
 }

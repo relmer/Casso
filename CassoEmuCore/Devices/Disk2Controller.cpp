@@ -381,6 +381,8 @@ void Disk2Controller::HandlePhase (int phase, bool on)
         {  1, -2, -1,  0 },
     };
 
+
+
     int  prevQt  = m_quarterTrack;
     int  qtDelta = 0;
     int  postRaw = prevQt;

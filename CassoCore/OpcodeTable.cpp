@@ -76,6 +76,8 @@ static std::string ToUpperCase (const char * name)
 {
     std::string result (name);
 
+
+
     for (char & c : result)
     {
         c = (char) toupper ((unsigned char) c);
@@ -130,6 +132,8 @@ static Byte GetCycleCounts (Byte opcode)
         2,6,0,0,3,3,5,0,2,2,2,0,4,4,6,0,  // $E0-$EF
         2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,  // $F0-$FF
     };
+
+
 
     return s_cycles[opcode];
 }

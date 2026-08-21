@@ -113,6 +113,8 @@ void DxuiDockLayout::Arrange (
     RECT            remaining = boundsDip;
     IDxuiControl *  firstFill = nullptr;
 
+
+
     DXUI_ASSERT_UI_THREAD();
 
     for (IDxuiControl * child : children)
@@ -239,6 +241,8 @@ SIZE DxuiDockLayout::ContainerSizeForFill (
     LONG  widthAdd  = 0;
     LONG  heightAdd = 0;
     SIZE  result    = desiredFillDip;
+
+
 
     for (IDxuiControl * child : nonFillChildren)
     {

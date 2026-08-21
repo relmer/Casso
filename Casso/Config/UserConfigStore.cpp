@@ -58,11 +58,21 @@ std::string UserConfigStore::Narrow (const std::wstring & wide)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::JoinPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
 std::wstring UserConfigStore::JoinPath (
     const std::wstring & baseDir,
     const std::wstring & filename)
 {
     std::wstring  result = baseDir;
+
 
 
     if (!result.empty() &&
@@ -131,6 +141,15 @@ bool UserConfigStore::EndsWith (
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::StripSuffix
+//
+////////////////////////////////////////////////////////////////////////////////
+
 std::wstring UserConfigStore::StripSuffix (
     const std::wstring & text,
     const std::wstring & suffix)
@@ -139,12 +158,22 @@ std::wstring UserConfigStore::StripSuffix (
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::FindObjectKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
 int  UserConfigStore::FindObjectKey (
     const std::vector<std::pair<std::string, JsonValue>> & entries,
     const std::string                                    & key)
 {
     int  i     = 0;
     int  found = -1;
+
 
 
     for (i = 0; i < (int) entries.size() && found < 0; ++i)
@@ -159,12 +188,22 @@ int  UserConfigStore::FindObjectKey (
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::FindObjectValue
+//
+////////////////////////////////////////////////////////////////////////////////
+
 const JsonValue * UserConfigStore::FindObjectValue (
     const JsonValue   & obj,
     const std::string & key)
 {
     const JsonValue *  value = nullptr;
     int                idx   = -1;
+
 
 
     if (obj.GetType() == JsonType::Object)
@@ -205,6 +244,7 @@ int  UserConfigStore::ExtractVersionForKey (
     // 0 means "no usable version here" for all three misses: not an object,
     // no such key, or a key holding something that is not a number.
     int                                                    version = 0;
+
 
 
     if (v.GetType() == JsonType::Object)
@@ -248,6 +288,7 @@ JsonValue UserConfigStore::CanonicalizeVersionStamp (
     bool                                            fWroteVersion    = false;
     bool                                            isObject         = userJson.GetType() == JsonType::Object;
     HRESULT                                         hr               = S_OK;
+
 
 
     // A non-object round-trips unchanged.
@@ -301,6 +342,15 @@ Error:
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::TryFindTypedField
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool UserConfigStore::TryFindTypedField (
     const JsonValue    &  obj,
     const std::string  &  key,
@@ -313,11 +363,21 @@ bool UserConfigStore::TryFindTypedField (
     bool               isTyped = found != nullptr && found->GetType() == wanted;
 
 
+
     outValue = isTyped ? found : nullptr;
 
     return isTyped;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::TryGetBoolField
+//
+////////////////////////////////////////////////////////////////////////////////
 
 bool UserConfigStore::TryGetBoolField (
     const JsonValue   & obj,
@@ -326,6 +386,7 @@ bool UserConfigStore::TryGetBoolField (
 {
     const JsonValue *  field = nullptr;
     bool               found = TryFindTypedField (obj, key, JsonType::Bool, field);
+
 
 
     if (found)
@@ -337,6 +398,15 @@ bool UserConfigStore::TryGetBoolField (
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::TryGetIntField
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool UserConfigStore::TryGetIntField (
     const JsonValue   & obj,
     const std::string & key,
@@ -344,6 +414,7 @@ bool UserConfigStore::TryGetIntField (
 {
     const JsonValue *  field = nullptr;
     bool               found = TryFindTypedField (obj, key, JsonType::Number, field);
+
 
 
     if (found)
@@ -355,6 +426,15 @@ bool UserConfigStore::TryGetIntField (
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::TryGetStringField
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool UserConfigStore::TryGetStringField (
     const JsonValue   & obj,
     const std::string & key,
@@ -362,6 +442,7 @@ bool UserConfigStore::TryGetStringField (
 {
     const JsonValue *  field = nullptr;
     bool               found = TryFindTypedField (obj, key, JsonType::String, field);
+
 
 
     if (found)
@@ -373,12 +454,22 @@ bool UserConfigStore::TryGetStringField (
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::BuildObjectWithEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
 JsonValue UserConfigStore::BuildObjectWithEnabled (
     const JsonValue & src,
     bool              enabled)
 {
     std::vector<std::pair<std::string, JsonValue>>    rebuilt;
     const auto                                      * entries = &src.GetObjectEntries();
+
 
 
     rebuilt.reserve (entries->size() + 1);
@@ -427,6 +518,15 @@ JsonValue UserConfigStore::BuildUiPrefsDefaults()
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::FindInternalByType
+//
+////////////////////////////////////////////////////////////////////////////////
+
 int UserConfigStore::FindInternalByType (
     const JsonValue   & arr,
     const std::string & type)
@@ -434,6 +534,7 @@ int UserConfigStore::FindInternalByType (
     std::string  candidate;
     size_t       i     = 0;
     int          found = -1;
+
 
 
     if (arr.GetType() == JsonType::Array)
@@ -458,6 +559,15 @@ int UserConfigStore::FindInternalByType (
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::FindSlotByNumber
+//
+////////////////////////////////////////////////////////////////////////////////
+
 int UserConfigStore::FindSlotByNumber (
     const JsonValue & arr,
     int               slot)
@@ -465,6 +575,7 @@ int UserConfigStore::FindSlotByNumber (
     size_t  i         = 0;
     int     candidate = -1;
     int     found     = -1;
+
 
 
     if (arr.GetType() == JsonType::Array)
@@ -489,6 +600,15 @@ int UserConfigStore::FindSlotByNumber (
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::MergeHardwareArray
+//
+////////////////////////////////////////////////////////////////////////////////
+
 JsonValue UserConfigStore::MergeHardwareArray (
     const JsonValue & defaultArr,
     const JsonValue & userArr,
@@ -500,6 +620,7 @@ JsonValue UserConfigStore::MergeHardwareArray (
     HRESULT                 hr       = S_OK;
     bool                    bothArrays = defaultArr.GetType() == JsonType::Array &&
                                          userArr.GetType()    == JsonType::Array;
+
 
 
     // Nothing to merge unless both sides really are arrays; the user's copy
@@ -571,6 +692,15 @@ Error:
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::BuildHardwareDeltaArray
+//
+////////////////////////////////////////////////////////////////////////////////
+
 JsonValue UserConfigStore::BuildHardwareDeltaArray (
     const JsonValue & currentArr,
     const JsonValue & defaultArr,
@@ -581,6 +711,7 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
     HRESULT                 hr         = S_OK;
     bool                    bothArrays = currentArr.GetType() == JsonType::Array &&
                                          defaultArr.GetType() == JsonType::Array;
+
 
 
     // No delta to compute unless both sides are arrays; the current value
@@ -1292,6 +1423,8 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
     bool                      fHaveLegacyUsers  = false;
     std::wstring              trace;
 
+
+
     std::vector<std::pair<std::string, JsonValue>>  rootEntries;
     std::vector<std::pair<std::string, JsonValue>>  machines;
 
@@ -1435,6 +1568,7 @@ JsonValue UserConfigStore::MergeJson (
                                                                              userV.GetType()    == JsonType::Object;
 
 
+
     // Scalar / array / type mismatch: user value wins (copy).
     BAIL_OUT_IF (!bothObjects, S_OK);
 
@@ -1519,6 +1653,7 @@ JsonValue UserConfigStore::DiffJson (
     JsonValue                                               result;
     HRESULT                                                 hr         = S_OK;
     bool                                                    isObject   = currentV.GetType() == JsonType::Object;
+
 
 
     // Not an object: the empty `diff` below still yields an object, which is

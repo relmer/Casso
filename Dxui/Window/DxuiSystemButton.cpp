@@ -322,6 +322,8 @@ DxuiHitTestKind DxuiSystemButton::ClassifyHit (POINT clientDip) const
     // alone decides. Client is unreachable and exists to satisfy the return.
     DxuiHitTestKind  kind = DxuiHitTestKind::Client;
 
+
+
     (void) clientDip;
 
     switch (m_kind)

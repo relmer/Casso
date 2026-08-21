@@ -43,6 +43,9 @@ static void AssertPixelRGB (uint32_t pixel, uint8_t r, uint8_t g, uint8_t b,
                             const wchar_t * name)
 {
     wchar_t msg[256];
+
+
+
     swprintf_s (msg, 256,
                 L"%ls: expected R=%u G=%u B=%u, got R=%u G=%u B=%u "
                 L"(pixel = 0x%08X)",

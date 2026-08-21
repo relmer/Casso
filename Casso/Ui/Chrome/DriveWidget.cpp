@@ -68,6 +68,8 @@ void DriveWidget::FillTrapezoidApprox (IDxuiPainter & painter,
     int    i      = 0;
     float  denom  = (float) ((height > 1) ? (height - 1) : 1);
 
+
+
     if (height <= 0)
     {
         return;
@@ -85,6 +87,15 @@ void DriveWidget::FillTrapezoidApprox (IDxuiPainter & painter,
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveWidget::DrawCaseRidge
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void DriveWidget::DrawCaseRidge (DxuiPainter & painter,
                                 float frontLeft, float frontRight,
                                 float backLeft,  float backRight,
@@ -96,6 +107,8 @@ void DriveWidget::DrawCaseRidge (DxuiPainter & painter,
     float  left  = frontLeft  + (backLeft  - frontLeft)  * depthT;
     float  right = frontRight + (backRight - frontRight) * depthT;
 
+
+
     painter.FillRect (left + 2.0f, y, right - left - 4.0f, 1.0f, argb);
 }
 
@@ -104,6 +117,15 @@ void DriveWidget::DrawCaseRidge (DxuiPainter & painter,
 // helper (DrawCassowaryRainbow) so the Disk ][ faceplate and the CRT
 // monitor chin stamp the identical logo.
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveWidget::DrawPadlock
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void DriveWidget::DrawPadlock (IDxuiPainter & painter,
                               float left, float top, float w, float h,
@@ -118,6 +140,8 @@ void DriveWidget::DrawPadlock (IDxuiPainter & painter,
     float  holeW     = std::max (1.0f, w * 0.20f);
     float  holeX     = left + (w - holeW) * 0.5f;
     float  holeY     = bodyTop + bodyH * 0.28f;
+
+
 
     // Shackle: a squared arch (two posts + a top bar) open at the
     // bottom where it disappears behind the lock body.
@@ -986,6 +1010,9 @@ void DriveWidget::PaintBasenameLabel (
     bool                   clipped       = false;
     int64_t                nowMs          = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                                 std::chrono::steady_clock::now().time_since_epoch()).count();
+
+
+
     basenameDip = kBasenameFontDip * (float) dpi / (float) kBaseDpi;
     labelLeft = (float) m_labelRect.left;
     labelTop = (float) m_labelRect.top;
@@ -993,8 +1020,6 @@ void DriveWidget::PaintBasenameLabel (
     labelH = (float) (m_labelRect.bottom - m_labelRect.top);
     speedPxPerSec = kMarqueeSpeedDipPerSec * (float) dpi / (float) kBaseDpi;
     gap = kMarqueeGapDip * (float) dpi / (float) kBaseDpi;
-
-
 
     if (m_state.mountedImagePath.empty())
     {
@@ -1120,6 +1145,8 @@ DriveWidgetRegion DriveWidget::HitTest (int x, int y) const
     // Eject is tested first because its rect sits INSIDE the body rect --
     // reversing these would make the button unreachable.
     DriveWidgetRegion  region = DriveWidgetRegion::None;
+
+
 
     if      (RectContains (m_ejectRect, x, y)) { region = DriveWidgetRegion::Eject; }
     else if (RectContains (m_bodyRect,  x, y)) { region = DriveWidgetRegion::Body;  }

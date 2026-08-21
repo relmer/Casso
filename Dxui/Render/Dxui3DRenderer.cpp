@@ -597,6 +597,8 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
     ID3D11ShaderResourceView  * srv            = nullptr;
     bool                        useDepth       = depthTest && m_depthDsv != nullptr;
 
+
+
     CBREx (m_device != nullptr, E_UNEXPECTED);
     CBREx (verts != nullptr && vertexCount > 0 && (vertexCount % 3) == 0, E_INVALIDARG);
 
