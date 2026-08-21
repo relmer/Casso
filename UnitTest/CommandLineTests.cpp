@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CommandLineHelp.h"
+#include "DialectHelp.h"
 #include "CommandLineParser.h"
 
 #include "CppUnitTest.h"
@@ -227,6 +228,157 @@ namespace CommandLineTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  GeneratedHelpTests
+    //
+    //  What the tiered pages are BUILT from, which is the half of them a test can
+    //  reach: the general page and each dialect's flag block are composed in core,
+    //  and the executable only prints what comes back.
+    //
+    //  THE FLAG BLOCKS ARE GENERATED FROM THE PARSER'S OWN TABLES, so a flag the
+    //  tool takes and the help omits is not a thing that can happen -- and the
+    //  sweep below says so by walking the table rather than a list written here.
+    //  The hand-written block this replaced had drifted in five places at once: it
+    //  offered a withdrawn `--raw`, called the default a padded 64 KB image, called
+    //  `-h` unimplemented after it worked, gave `-g` a filename it does not take,
+    //  and wrote `-d` with a space the grammar refuses.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (GeneratedHelpTests)
+    {
+    public:
+        static std::wstring Widen (const std::string & text)
+        {
+            return std::wstring (text.begin(), text.end());
+        }
+
+        //  Every flag the dialect accepts appears on its own page. Swept from the
+        //  table the parser walks, so adding a row cannot leave the help behind.
+        TEST_METHOD (EveryFlagInATablesDialect_IsDescribedOnThatDialectsPage)
+        {
+            for (DialectId dialect : { DialectId::As65, DialectId::Merlin })
+            {
+                std::string  page = DialectHelp::ComposeFlagLines (dialect, '-');
+
+                for (const CommandLineParser::DialectFlag & flag : CommandLineParser::GetFlags (dialect))
+                {
+                    std::string  written = std::string ("-") + flag.option;
+
+                    Assert::IsTrue (page.find (written) != std::string::npos,
+                                    Widen ("undocumented flag: " + written).c_str());
+                    Assert::IsTrue (page.find (flag.description) != std::string::npos,
+                                    Widen ("undescribed flag: " + written).c_str());
+                }
+            }
+        }
+
+        //  And every output format, which prints with the assembled-code flags
+        //  rather than in a section of its own.
+        TEST_METHOD (EveryOutputFormat_IsDescribedOnItsDialectsPage)
+        {
+            for (DialectId dialect : { DialectId::As65, DialectId::Merlin })
+            {
+                std::string  page = DialectHelp::ComposeFlagLines (dialect, '-');
+
+                for (const CommandLineParser::OutputFormatFlag & format : CommandLineParser::GetOutputFormats (dialect))
+                {
+                    Assert::IsTrue (page.find (format.option) != std::string::npos,
+                                    Widen (std::string ("undocumented format: ") + format.option).c_str());
+                }
+            }
+        }
+
+        //  A PAGE IS ONE DIALECT'S. Merlin's four flags on the as65 page would be
+        //  four options that mode does not take, which is the drift the tables
+        //  exist to prevent -- and the reason the pages are separate at all.
+        TEST_METHOD (ADialectsPage_DoesNotOfferAnotherDialectsFlags)
+        {
+            std::string  as65 = DialectHelp::ComposeFlagLines (DialectId::As65,   '-');
+
+            //  -x is as65's and Merlin takes its CPU from the source's XC
+            //  directive, so it must not appear under Merlin.
+            Assert::IsTrue (as65.find ("-x") != std::string::npos, L"-x is as65's");
+            Assert::IsTrue (DialectHelp::ComposeFlagLines (DialectId::Merlin, '-').find ("-x")
+                                == std::string::npos,
+                            L"and Merlin's CPU comes from XC, not from a flag");
+        }
+
+        //  BRACKETS MEAN OPTIONAL, and that is read off the row rather than from
+        //  whether the value attaches. `-h` has no bare form -- a bare one is
+        //  refused -- so `-h[<lines>]` promised a spelling the parser turns down.
+        TEST_METHOD (BracketsAreShownOnlyForAFlagWithABareForm)
+        {
+            std::string  page = DialectHelp::ComposeFlagLines (DialectId::As65, '-');
+
+            Assert::IsTrue (page.find ("-w[<width>]") != std::string::npos,
+                            L"a bare -w is the 133-column listing, so its value is optional");
+            Assert::IsTrue (page.find ("-h<lines>") != std::string::npos,
+                            L"a bare -h is refused, so its value is not");
+            Assert::IsTrue (page.find ("-h[<lines>]") == std::string::npos,
+                            L"and it must not be offered in brackets");
+        }
+
+        //  A flag whose value may be SEPARATED is written with the space, because
+        //  that form parses. Writing `-l <file>` would document a form the parser
+        //  reads as a filename called `<file>` and a source that has gone missing.
+        TEST_METHOD (OnlyASeparableValueIsWrittenWithASpace)
+        {
+            std::string  page = DialectHelp::ComposeFlagLines (DialectId::As65, '-');
+
+            Assert::IsTrue (page.find ("-o <file>") != std::string::npos,
+                            L"-o takes a separated filename");
+            Assert::IsTrue (page.find ("-l <file>") == std::string::npos,
+                            L"-l does not, and must not be documented as though it did");
+        }
+
+        //  The general page is a table of contents: it names every mode and the
+        //  route to that mode's own page. A mode reachable and unlisted is a mode
+        //  nobody finds.
+        TEST_METHOD (TheGeneralPage_NamesEveryModeAndTheRouteToIt)
+        {
+            std::string  page = CommandLineHelp::BuildGeneralHelp ("banner\n", '-');
+
+            for (const char * mode : { "as65", "merlin", "run", "disk" })
+            {
+                Assert::IsTrue (page.find (std::string ("CassoCli ") + mode) != std::string::npos,
+                                Widen (std::string ("mode missing from the general page: ") + mode).c_str());
+            }
+
+            Assert::IsTrue (page.find ("as65 --help")   != std::string::npos, L"route to the assembler's page");
+            Assert::IsTrue (page.find ("merlin --help") != std::string::npos, L"route to Merlin's page");
+            Assert::IsTrue (page.find ("run --help")    != std::string::npos, L"route to the run page");
+            Assert::IsTrue (page.find ("disk --help")   != std::string::npos, L"route to the disk page");
+        }
+
+        //  IT CARRIES NO FLAGS OF ITS OWN, which is what keeps it one screen. The
+        //  page it replaced printed every switch of every grammar and ran to four.
+        TEST_METHOD (TheGeneralPage_CarriesNoDialectFlagTable)
+        {
+            std::string  page = CommandLineHelp::BuildGeneralHelp ("banner\n", '-');
+
+            Assert::IsTrue (page.find ("Show cycle counts") == std::string::npos,
+                            L"a listing flag belongs on the assembler's page");
+            Assert::IsTrue (page.find ("max-cycles") == std::string::npos,
+                            L"and a run option on run's");
+        }
+
+        //  Both prefixes, because the reader is answered in the one they typed.
+        TEST_METHOD (EveryGeneratedPage_IsWrittenInThePrefixTheReaderTyped)
+        {
+            std::string  dashed  = DialectHelp::ComposeFlagLines (DialectId::As65, '-');
+            std::string  slashed = DialectHelp::ComposeFlagLines (DialectId::As65, '/');
+
+            Assert::IsTrue (slashed.find ("/x") != std::string::npos, L"/x under the slash prefix");
+            Assert::IsTrue (slashed.find ("-x") == std::string::npos, L"and no dashed form alongside it");
+            Assert::IsTrue (dashed.find  ("-x") != std::string::npos);
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  HelpRoutingTests
     //
     //  Which PAGE each way of asking lands on.
@@ -257,11 +409,89 @@ namespace CommandLineTests
             return { "--help", "-help", "-?", "-h", "/help", "/?", "/h" };
         }
 
+        //  The same list without the one form the assembler grammar spends on
+        //  something else. Under a dialect, `h` is as65's page height, and a
+        //  bare one is refused rather than answered with a page -- so asking
+        //  `as65 -h` to open the assembler's help would be asserting the
+        //  collision the parser deliberately resolves the other way.
+        static std::vector<std::string> DialectForms()
+        {
+            return { "--help", "-help", "-?", "/help", "/?" };
+        }
+
         static CommandLineOptions ParseTyped (std::initializer_list<const char *> typed)
         {
             ArgVector  args = typed;
 
             return CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+        }
+
+        //
+        //  EVERY GRAMMAR ROUTES TO ITS OWN PAGE. The four below are the whole
+        //  of the tiering as the parser decides it: which page a request lands
+        //  on, from every form of the request.
+        //
+        //  This is what the merge with 019 briefly lost. The router still
+        //  worked and these still passed, because a router that picks the right
+        //  page is correct even when every page renders the same text -- so the
+        //  claim these make is deliberately about ROUTING, and the page CONTENT
+        //  is asserted separately, against the text itself.
+        //
+        TEST_METHOD (As65HelpRequest_OpensTheAssemblerPage)
+        {
+            for (const std::string & form : DialectForms())
+            {
+                CommandLineOptions  opts = ParseTyped ({ "CassoCli", "as65", form.c_str() });
+
+                Assert::IsTrue (opts.showHelp, Widen (form).c_str());
+                Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::Assemble,
+                                Widen (form + " must open the assembler's page").c_str());
+            }
+        }
+
+        TEST_METHOD (MerlinHelpRequest_OpensTheMerlinPage)
+        {
+            for (const std::string & form : DialectForms())
+            {
+                CommandLineOptions  opts = ParseTyped ({ "CassoCli", "merlin", form.c_str() });
+
+                Assert::IsTrue (opts.showHelp, Widen (form).c_str());
+                Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::Merlin,
+                                Widen (form + " must open Merlin's page").c_str());
+            }
+        }
+
+        //  AND THE COLLISION IS PINNED FROM THE OTHER SIDE. `-h` opens a help
+        //  page everywhere the assembler's flag walk does not run, and inside
+        //  it means as65's page height. Both halves are asserted here so that
+        //  widening either one has to come past this test: adding `h` to the
+        //  help list would take the page height away, and letting the dialect
+        //  answer `-h` with a page would take it back the other way.
+        TEST_METHOD (TheAssemblersDashH_IsAPageHeightRatherThanAHelpRequest)
+        {
+            CommandLineOptions  underRun  = ParseTyped ({ "CassoCli", "run",  "-h" });
+            CommandLineOptions  underAs65 = ParseTyped ({ "CassoCli", "as65", "prog.a65", "-h60" });
+
+            Assert::IsTrue (underRun.showHelp, L"run has no page height and answers -h with help");
+            Assert::IsFalse (underAs65.showHelp, L"the assembler spends it on the listing instead");
+            Assert::AreEqual (60, underAs65.pageHeight, L"and reads its value");
+        }
+
+        //  A dialect's page is reached from the dialect, and the general page
+        //  from the top level. The two must not collapse into one another: a
+        //  reader who typed the subcommand has already said which grammar they
+        //  are in, and one who did not has not.
+        TEST_METHOD (TheFourPagesAreFourDifferentAnswers)
+        {
+            CommandLineOptions  general = ParseTyped ({ "CassoCli", "--help" });
+            CommandLineOptions  as65    = ParseTyped ({ "CassoCli", "as65",   "--help" });
+            CommandLineOptions  merlin  = ParseTyped ({ "CassoCli", "merlin", "--help" });
+            CommandLineOptions  run     = ParseTyped ({ "CassoCli", "run",    "--help" });
+
+            Assert::IsTrue (general.helpPage == CommandLineOptions::HelpPage::General);
+            Assert::IsTrue (as65.helpPage    == CommandLineOptions::HelpPage::Assemble);
+            Assert::IsTrue (merlin.helpPage  == CommandLineOptions::HelpPage::Merlin);
+            Assert::IsTrue (run.helpPage     == CommandLineOptions::HelpPage::Run);
         }
 
         TEST_METHOD (EverySpellingOfHelpAtTheTopLevel_OpensTheGeneralPage)
@@ -303,13 +533,17 @@ namespace CommandLineTests
         //  A LONE `?` IS THE ONLY ROUTE TO THE ASSEMBLER'S PAGE, so every other
         //  form has to land somewhere else even when a source file is
         //  standing on the command line beside it.
-        TEST_METHOD (HelpBesideASourceFile_StillOpensTheGeneralPage)
+        //  A HELP REQUEST BESIDE A SOURCE FILE IS STILL THAT MODE'S PAGE.
+        //  The subcommand said which grammar the reader is in, and naming a
+        //  file does not unsay it -- so `as65 prog.a65 --help` answers with
+        //  the assembler's page rather than the table of contents.
+        TEST_METHOD (HelpBesideASourceFile_StillOpensThatModesPage)
         {
             CommandLineOptions  opts = ParseTyped ({ "CassoCli", "as65", "prog.a65", "--help" });
 
             Assert::IsTrue (opts.showHelp);
-            Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::General,
-                            L"only a lone ? reaches the assembler's page");
+            Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::Assemble,
+                            L"the dialect was named, so its page is the answer");
         }
 
         //  `run --help` was an option this grammar does not have: a diagnostic,
@@ -398,14 +632,15 @@ namespace CommandLineTests
             std::string  dashed  = CommandLineHelp::BuildGeneralHelp ("banner\n", '-');
             std::string  slashed = CommandLineHelp::BuildGeneralHelp ("banner\n", '/');
 
-            Assert::IsTrue (dashed.find ("CassoCli ?")           != std::string::npos);
+            Assert::IsTrue (dashed.find ("CassoCli as65 --help")   != std::string::npos);
+            Assert::IsTrue (dashed.find ("CassoCli merlin --help") != std::string::npos);
             Assert::IsTrue (dashed.find ("CassoCli run --help")  != std::string::npos);
             Assert::IsTrue (dashed.find ("CassoCli disk --help") != std::string::npos);
             Assert::IsTrue (dashed.find ("CassoCli --version")   != std::string::npos);
 
-            //  `?` carries no prefix in either page: it is as65's own request
-            //  and as65 writes it bare.
-            Assert::IsTrue (slashed.find ("CassoCli ?")          != std::string::npos);
+            //  Every route is written in the prefix the reader typed.
+            Assert::IsTrue (slashed.find ("CassoCli as65 /help")   != std::string::npos);
+            Assert::IsTrue (slashed.find ("CassoCli merlin /help") != std::string::npos);
             Assert::IsTrue (slashed.find ("CassoCli run /help")  != std::string::npos);
             Assert::IsTrue (slashed.find ("CassoCli disk /help") != std::string::npos);
             Assert::IsTrue (slashed.find ("CassoCli /version")   != std::string::npos);

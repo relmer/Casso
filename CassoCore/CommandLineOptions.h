@@ -94,7 +94,11 @@ struct CommandLineOptions
     //  (DiskOptions::Verb::Help) and is answered by the runner that answers
     //  every other disk verb, which is what lets it be built and tested beside
     //  the code it describes.
-    enum class HelpPage      { General, Assemble, Run };
+    //
+    //  ONE ARM PER GRAMMAR, Merlin included. Its flags, its examples and where
+    //  its supported subset ends are all its own, and the dialect that answers
+    //  `merlin --help` is not the one that answers `as65 --help`.
+    enum class HelpPage      { General, Assemble, Merlin, Run };
 
     //
     //  Everything the `disk` subcommand expresses. Nested rather than

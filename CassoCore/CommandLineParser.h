@@ -108,13 +108,13 @@ public:
         "    5  Assembled with warnings";
 
     static constexpr const char *  kRunExitStatusHelpText =
-        "    0  the program ran to a stop, either the stop address or the cycle limit.\n"
-        "    1  the input was source, and it did not assemble. Nothing ran.\n"
-        "    2  nothing could be started: no input file, an input that could not\n"
+        "    0  Ran to a stop: the stop address or the cycle limit\n"
+        "    1  The input was source and did not assemble; nothing ran\n"
+        "    2  Nothing could be started: no input file, an input that could not\n"
         "       be read, or a command line that was refused. An option this grammar\n"
         "       cannot read is refused rather than dropped, because one it misread\n"
         "       may have moved the load address.\n"
-        "    3  the program reached an illegal opcode.";
+        "    3  The program reached an illegal opcode";
 
     //
     //  What KIND of value a flag takes, which decides three things at once: how

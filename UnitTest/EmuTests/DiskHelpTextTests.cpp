@@ -196,7 +196,9 @@ public:
         //  now, so the example that used to write `--raw` writes nothing.
         //  The output name is ATTACHED, which is as65's grammar and now this
         //  mode's only form.
-        Assert::AreEqual (std::string ("  CassoCli prog.a65 -oprog.bin"),
+        //  The first step names its dialect, because assembling does now:
+        //  a bare source file is no longer an invocation this tool accepts.
+        Assert::AreEqual (std::string ("  CassoCli as65 prog.a65 -oprog.bin"),
                           lines[0], L"assemble");
         Assert::AreEqual (std::string ("  CassoCli disk put mydisk.dsk prog.bin"
                                        " --as PROG --type B --addr $6000"),
@@ -268,15 +270,15 @@ public:
 
         //  The status the three modes genuinely share.
         Assert::IsTrue (assemble.find ("0  Assembled successfully") != std::string::npos);
-        Assert::IsTrue (run.find      ("0  the program ran to a stop") != std::string::npos);
-        Assert::IsTrue (disk.find     ("0  the command was carried out") != std::string::npos);
+        Assert::IsTrue (run.find      ("0  Ran to a stop") != std::string::npos);
+        Assert::IsTrue (disk.find     ("0  The command was carried out") != std::string::npos);
 
         //  And the one they do not. Under the assembler, 1 is as65's bad
         //  command line; under `run`, 1 is a source file that did not
         //  assemble -- which the assembler itself calls 3.
         Assert::IsTrue (assemble.find ("1  Bad command line") != std::string::npos,
                         L"1 under the assembler is a command line that could not be acted on");
-        Assert::IsTrue (run.find ("did not assemble. Nothing ran") != std::string::npos,
+        Assert::IsTrue (run.find ("did not assemble; nothing ran") != std::string::npos,
                         L"1 under run is an assembly failure, which is 3 under the assembler");
 
         //  2 is a failure to produce anything in all three, which is the only
@@ -287,8 +289,8 @@ public:
         //  since 1 became the bad command line, a command line that named no
         //  file at all is not 2 either.
         Assert::IsTrue (assemble.find ("2  Error opening source or output file") != std::string::npos);
-        Assert::IsTrue (run.find      ("2  nothing could be started") != std::string::npos);
-        Assert::IsTrue (disk.find     ("2  nothing was done")    != std::string::npos);
+        Assert::IsTrue (run.find      ("2  Nothing could be started") != std::string::npos);
+        Assert::IsTrue (disk.find     ("2  Nothing was done")    != std::string::npos);
 
         //  3 IS SPENT ON A DIFFERENT THING IN THE TWO MODES THAT HAVE ONE, so
         //  it belongs in this test rather than beside either of them. The
@@ -296,7 +298,7 @@ public:
         //  not open a file", which is as65's own division; `run` had it
         //  already, for an illegal opcode, because under `run` an assembly
         //  error stops at 1 and nothing executes. `disk` has no 3 at all.
-        Assert::IsTrue (run.find      ("3  the program reached an illegal opcode") != std::string::npos);
+        Assert::IsTrue (run.find      ("3  The program reached an illegal opcode") != std::string::npos);
         Assert::IsTrue (assemble.find ("3  Error assembling source file") != std::string::npos);
         Assert::IsTrue (disk.find     ("3  ") == std::string::npos, L"disk has no 3");
 
@@ -305,6 +307,40 @@ public:
         //  nothing.
         Assert::IsTrue (DiskCommandRunner::BuildHelpText().find (disk) != std::string::npos,
                         L"and disk's statuses are printed with the disk options");
+    }
+
+    //  AND THE THREE ARE WRITTEN IN ONE VOICE, which is the half the test above
+    //  does not claim: it asserts that the modes disagree about what a number
+    //  MEANS, and says nothing about how the meaning is worded. They had drifted
+    //  into two styles -- the assembler's terse capitalized clause and, under
+    //  `run` and `disk`, a lowercase sentence with a period -- so a reader
+    //  moving between two pages met the same table typeset two ways.
+    //
+    //  Only the opening is asserted. The assembler's 4 is three full sentences
+    //  on purpose, so "no trailing period" is a house style rather than a rule
+    //  a test can hold every line to.
+    TEST_METHOD (EveryModesStatusLine_OpensInTheSameVoice)
+    {
+        for (const char * block : { CommandLineParser::kAssembleExitStatusHelpText,
+                                    CommandLineParser::kRunExitStatusHelpText,
+                                    DiskCommandRunner::kExitStatusHelpText })
+        {
+            std::istringstream  lines (block);
+            std::string         line;
+
+            while (std::getline (lines, line))
+            {
+                //  A status line, rather than a continuation of the one above
+                //  it: `    N  text`, with the number where the number goes.
+                if (line.size() < 8 || isdigit ((unsigned char) line[4]) == 0)
+                {
+                    continue;
+                }
+
+                Assert::IsTrue (isupper ((unsigned char) line[7]) != 0,
+                                Widen ("status line does not open capitalized: " + line).c_str());
+            }
+        }
     }
 
     //  The old help carried a paragraph explaining that `put` and `get` are

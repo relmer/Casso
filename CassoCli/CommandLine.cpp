@@ -4,6 +4,7 @@
 #include "HostFile.h"
 #include "UsageText.h"
 #include "AssemblerExitCode.h"
+#include "CommandLineHelp.h"
 #include "DialectHelp.h"
 #include "DialectRegistry.h"
 #include "Version.h"
@@ -17,6 +18,21 @@
 #else
     static const char * s_arch = "Unknown";
 #endif
+
+
+
+//  The run options, as format strings over {0} the long prefix and {1} the pad
+//  that keeps a `/` page in the same columns as a `--` one. File scope rather
+//  than a local, because the loop that prints them wants the flag variables of
+//  its own function and a declaration block cannot hold both.
+static const char *  s_kRunOptionLines[] =
+{
+    "  {0}load <addr>{1}          Load address (default: $8000)",
+    "  {0}entry <addr>{1}         Entry point address",
+    "  {0}reset-vector{1}         Use reset vector at $FFFC/$FFFD",
+    "  {0}stop <addr>{1}          Stop when PC reaches address",
+    "  {0}max-cycles <n>{1}       Maximum cycles before stopping",
+};
 
 
 
@@ -170,29 +186,23 @@ void CommandLine::PrintSectionHeading (const std::string & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLine::PrintUsageHeader
+//  CommandLine::PrintPageBanner
+//
+//  What the tool is and which build this is, above every page.
+//
+//  A mode's page is reached DIRECTLY -- `CassoCli as65 --help` -- so a reader
+//  can meet the whole of the help without ever passing the general page. The
+//  version and the architecture are exactly what a bug report needs, and a page
+//  that omits them makes the reader go and ask a second question.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CommandLine::PrintUsageHeader (const char * sp, const char * lp)
+void CommandLine::PrintPageBanner (CommandLineOptions::Subcommand mode)
 {
-    std::string  subcommands;
-
-
-
-    // Swept from the parser's own table rather than listed here. A subcommand
-    // the tool accepts and the usage line omits is unfindable, and the fallback
-    // that used to make the first word optional is gone -- so this line is now
-    // the only place a reader learns that the first word is obligatory.
-    for (const CommandLineParser::SubcommandName & entry : CommandLineParser::GetAllSubcommands())
-    {
-        subcommands += std::string (subcommands.empty() ? "" : " | ") + entry.name + " <file>";
-    }
-
-    std::println ("CassoCli - 6502 Assembler and Emulator  v" VERSION_STRING " ({})  " VERSION_BUILD_TIMESTAMP, s_arch);
-    std::println ("Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer");
+    std::print ("{}", BuildBanner());
     std::println ("");
-    PrintUsageLine (std::format ("Usage:  CassoCli {} [options] | {}? | {}version", subcommands, sp, lp));
+    std::println ("Usage:");
+    PrintUsageLine (CommandLineHelp::UsageLineFor (mode));
 }
 
 
@@ -201,22 +211,24 @@ void CommandLine::PrintUsageHeader (const char * sp, const char * lp)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLine::PrintUsageGeneral
+//  CommandLine::PrintDialectFlags
+//
+//  One dialect's flags, GENERATED from the table its parser walks.
+//
+//  Nothing here writes a flag's letter, its value or its description: those are
+//  columns of s_kAs65Flags and s_kMerlinFlags, and DialectHelp reads the same
+//  rows the walk does. That is the whole reason the tables exist. The help this
+//  replaced was hand-written and had drifted in five places at once -- it
+//  offered a withdrawn `--raw`, called the default a padded 64 KB image after
+//  the default became the assembled bytes, called `-h` unimplemented after it
+//  was implemented, gave `-g` a filename it does not take, and wrote `-d` with
+//  a space that this grammar does not accept.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CommandLine::PrintUsageGeneral (const char * lp, const char * sp, const char * pad)
+void CommandLine::PrintDialectFlags (DialectId dialect, char prefix)
 {
-    // "--help, -?" = 10 chars, "--version" = 9 chars => +1 space for version
-    // "/help, /?"  =  9 chars, "/version"  = 8 chars => +1 space for version
-    // pad compensates: -- (2 chars) vs / (1 char) in long prefix
-    PrintSectionHeading ("General");
-    PrintUsageLine (std::format ("  Assembles AS65 or Merlin source for the 6502 and the 65C02. The subcommand names the dialect; the CPU is chosen with {0}x under AS65 and by the XC directive inside Merlin source.", sp));
-    std::println ("");
-    PrintUsageLine ("  See docs/Assembler.md for additional information.");
-    std::println ("");
-    PrintUsageLine (std::format ("  {0}help, {1}?{2}             Show this help", lp, sp, pad));
-    PrintUsageLine (std::format ("  {0}version{1}              Show version information", lp, pad));
+    PrintUsageBlock (DialectHelp::ComposeFlagLines (dialect, prefix));
 }
 
 
@@ -225,84 +237,23 @@ void CommandLine::PrintUsageGeneral (const char * lp, const char * sp, const cha
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLine::PrintUsageAssembler
+//  CommandLine::PrintExitCodes
 //
-//  Prints the AS65-mode flag reference, using whichever prefix the user
-//  typed.
+//  One mode's exit codes, at the end of that mode's own page.
 //
-//  The prefix is substituted rather than hard-coded because both `/` and `-`
-//  are accepted, and usage text showing the form the reader did NOT type reads
-//  as though their invocation was wrong. The flag table is a format-string
-//  array for exactly that reason: one placeholder per flag, filled at print
-//  time, so neither form can be forgotten when a flag is added.
-//
-//  The CPU and source lines sit outside the table because they take a
-//  long-form or positional argument and carry no prefix to substitute.
+//  THEY DIFFER, WHICH IS WHY EACH PAGE CARRIES ITS OWN. An assembly error exits
+//  3 under the assembler and 1 under `run`, and a shared block near the top
+//  could only state one of those. The wording lives in the library beside the
+//  code that assigns it, so a status changed in one place is a status whose
+//  description is right there to change with it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CommandLine::PrintUsageAssembler (const char * sp)
+void CommandLine::PrintExitCodes (const char * codes)
 {
-    PrintSectionHeading ("AS65 mode");
-    PrintUsageLine ("  <source>               Assembly source file (tries .a65, .asm, .s if no extension is given)");
     std::println ("");
-    PrintUsageLine ("  AS65's command line has habits of its own, kept for compatibility:");
-    PrintUsageLine (std::format ("    Single letters concatenate, with the value-taking flag last, so {0}tlfile is {0}t {0}lfile.", sp));
-    PrintUsageLine (std::format ("    A value ATTACHES to its flag, {0}ofile rather than {0}o file, though {0}o and {0}l accept a separated one too.", sp));
-    PrintUsageLine (std::format ("    {0}s2 is one flag, not {0}s followed by a 2.", sp));
-
-    const char * lines[] =
-    {
-        //  ONE LOGICAL LINE PER ROW. The gutter between a flag and its
-        //  description is what tells the wrapper where a continuation belongs,
-        //  so a row is written whole and folded to the reader's terminal rather
-        //  than broken here at a width nobody may have.
-        "",
-        "  Assembled code:",
-        "    {0}o <file>            Rename output file (default: <source>.bin)",
-        "    {0}n                   Disable optimizations. Not yet implemented (GitHub issue #118)",
-        "",
-        "  Output formats (mutually exclusive):",
-        "    <default>            Write a full 64 KB image, padded with the fill byte (see {0}z below)",
-        "    {1}raw                Write the assembled bytes, unpadded",
-        "    {1}dos-bin            Write the assembled bytes behind a 4-byte DOS 3.3 header (load address + length), ready to BLOAD",
-        "    {0}s                   Write the assembled bytes as Motorola S-records, each with its address (<source>.s19)",
-        "    {0}s2                  Write the assembled bytes as Intel HEX records, each with its address (<source>.hex)",
-        "",
-        "    {0}z                   Fill unused space in the padded image with $00 (default: $FF)",
-        "",
-        "  Listing:",
-        "    {0}l[<file>]           Generate listing ({0}l alone goes to stdout)",
-        "    {0}p                   Generate pass 1 listing",
-        "    {0}c                   Show cycle counts in listing",
-        "    {0}m                   Show macro expansions in listing",
-        "    {0}w[<width>]          Wrap listing at <width> columns, 60 to 200 (default: 79, {0}w alone = 133)",
-        "    {0}h<lines>            Page height: a header and a form feed every <lines>, {0}h0 for no paging. Not yet implemented (GitHub issue #118)",
-        "",
-        "  Debug:",
-        "    {0}t                   Print the symbol table to stdout, each symbol with its address in hex and decimal",
-        "    {0}g <file>            Write symbol addresses to <file> as NAME=$ADDR, by address and again by name",
-        "",
-        "  General:",
-        "    {0}d <name>[=<value>]  Define symbol (defaults to 1 if <value> is omitted)",
-        "    {0}v                   Verbose: pass timings and an assembly summary, on stderr",
-        "    {0}q                   Quiet mode (suppress progress)",
-        "    {0}i                   Ignore case of opcodes. Always enabled in Casso, accepted for command-line compatibility with AS65",
-    };
-
-    for (const char * fmt : lines)
-    {
-        // {0} is the short prefix and {1} the long one, so a row naming either
-        // writes it the way this invocation does.
-        std::string  lp = (sp[0] == '/') ? "/" : "--";
-
-        PrintUsageLine (std::vformat (fmt, std::make_format_args (sp, lp)));
-    }
-
-    std::println ("");
-    PrintUsageLine ("  CPU:");
-    PrintUsageLine ("    <default>            Assemble 6502 instructions");
-    PrintUsageLine (std::format ("    {0}x                   Assemble 65C02 instructions", sp));
+    std::println ("Exit codes:");
+    std::println ("{}", codes);
 }
 
 
@@ -311,42 +262,97 @@ void CommandLine::PrintUsageAssembler (const char * sp)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLine::PrintUsageRun
+//  CommandLine::PrintAssemblePage
+//
+//  Everything that applies while AS65 source is being assembled.
+//
+//  IT OPENS WITH THE COMPATIBILITY PROMISE, because that is what a reader
+//  arriving from as65 needs before any individual flag makes sense, and because
+//  the grammar rules below it are properties of every command line on the page
+//  rather than caveats about the flags they used to sit under.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CommandLine::PrintUsageRun (const char * lp, const char * sp, const char * pad)
+void CommandLine::PrintAssemblePage (char prefix)
 {
-    PrintSectionHeading ("Run mode");
-    PrintUsageLine ("  <binary>               A binary file to load and execute");
-    PrintUsageLine ("  <source>               An assembly source file to assemble and run (tries .a65, .asm, .s if no extension is given)");
+    const char *  sp = (prefix == '/') ? "/" : "-";
+
+
+
+    PrintPageBanner (CommandLineOptions::Subcommand::As65);
     std::println ("");
+    PrintUsageLine ("  <source>   An assembly source file. Given no extension, .a65, .asm and .s are tried in that order.");
 
-    // The two dialects get a row each rather than sharing one, because what
-    // differs between them here is which assembler options come along -- and
-    // that belongs beside the name that admits them, not in a paragraph
-    // underneath that the reader has to re-split by dialect.
-    PrintUsageLine (std::format ("  {:<22} Assemble the source as AS65 (the default). Allows AS65 {}x and {}d; see AS65 mode above.",
-                      CommandLineParser::FormatLongOption ("--as65", sp[0]), sp, sp));
-    PrintUsageLine (std::format ("  {:<22} Assemble the source as Merlin. Allows {}d; see Merlin mode above.",
-                      CommandLineParser::FormatLongOption ("--merlin", sp[0]), sp));
+    PrintSectionHeading ("AS65 compatibility");
+    PrintUsageLine ("  This assembler is an implementation of as65 and keeps 100% compatibility with as65's command-line patterns, so any as65 command line assembles here unchanged behind the `as65` word.");
     std::println ("");
+    PrintUsageLine (std::format ("  Single-letter switches chain into one argument, so {0}tlfile means {0}t {0}lfile. A switch taking a NUMBER can be followed inside the group, so {0}h80t means {0}h80 {0}t. One taking a NAME cannot, because the name would swallow whatever came after it.", sp));
+    std::println ("");
+    PrintUsageLine (std::format ("  A switch value attaches directly to its switch, with no space before it: {0}dDEBUG rather than {0}d DEBUG, {0}w133 rather than {0}w 133.", sp));
+    std::println ("");
+    PrintUsageLine (std::format ("  {0}o is the one switch where the space before its value is optional: {0}o prog.bin is taken as readily as {0}oprog.bin.", sp));
+    std::println ("");
+    PrintUsageLine (std::format ("  {0}s2 is one switch rather than {0}s followed by a 2. The longest switch name that matches wins, which is how as65 reads it too.", sp));
 
-    const char * lines[] =
-    {
-        "  {0}load <addr>{1}          Load address (default: $8000)",
-        "  {0}entry <addr>{1}         Entry point address",
-        "  {0}reset-vector{1}         Use reset vector at $FFFC/$FFFD",
-        "  {0}stop <addr>{1}          Stop when PC reaches address",
-        "  {0}max-cycles <n>{1}       Maximum cycles before stopping",
-    };
+    PrintSectionHeading ("AS65 options");
+    PrintDialectFlags (DialectId::As65, prefix);
 
-    for (const char * fmt : lines)
-    {
-        PrintUsageLine (std::vformat (fmt, std::make_format_args (lp, pad)));
-    }
+    PrintSectionHeading ("Examples");
+    PrintUsageLine (std::format ("  CassoCli as65 prog.a65 {0}x {0}dFAST=1", sp));
+    PrintUsageLine ("      Assembles prog.a65 with the 65C02 opcodes available and the symbol FAST defined as 1, then writes the assembled bytes to prog.bin beside the source.");
+    std::println ("");
+    PrintUsageLine (std::format ("  CassoCli as65 rom.a65 {0}orom.bin {1}flat {0}z", sp, (prefix == '/') ? "/" : "--"));
+    PrintUsageLine ("      Writes rom.bin as a full 64 KB image, with every byte the source did not fill set to $00 instead of $FF. That is what a ROM burner takes, and what a byte-for-byte comparison against a reference image needs.");
+    std::println ("");
+    PrintUsageLine (std::format ("  CassoCli as65 prog.a65 {0}lprog.lst {0}c {0}t", sp));
+    PrintUsageLine ("      Writes prog.lst alongside prog.bin: each source line with the bytes it generated and the cycles it costs, then the symbol table at the end.");
 
-    PrintUsageLine (std::format ("  {0}v                     Verbose output", sp));
+    PrintExitCodes (CommandLineParser::kAssembleExitStatusHelpText);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLine::PrintMerlinPage
+//
+//  Merlin's own page. Its flags are few because its SOURCE answers most of what
+//  as65 answers with a switch -- the object's name, the CPU -- so what remains
+//  on the command line is what only the invocation can say.
+//
+//  WHAT IS COMPATIBLE HERE IS THE SOURCE LANGUAGE, not the command line. Glen
+//  Bredon's Merlin is an Apple II program with an interactive editor and no host
+//  command line to match, so the switches below are Casso's own and the page
+//  says which subset of the LANGUAGE is supported instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLine::PrintMerlinPage (char prefix)
+{
+    const char *  sp = (prefix == '/') ? "/" : "-";
+
+
+
+    PrintPageBanner (CommandLineOptions::Subcommand::Merlin);
+    std::println ("");
+    PrintUsageLine ("  <source>   A Merlin assembly source file. Given no extension, .a65, .asm and .s are tried in that order.");
+
+    PrintSectionHeading ("Merlin directives");
+    PrintUsageLine ("  Merlin source answers in itself most of what a switch answers elsewhere, so these are directives written IN the source rather than options typed at the shell:");
+    std::println ("");
+    PrintUsageLine ("    XC       Select the 65C02.");
+    PrintUsageLine (std::format ("    DSK      Name the output file. {0}o overrides it.", sp));
+    PrintUsageLine ("    ORG      Set the origin.");
+
+    PrintSectionHeading ("Merlin options");
+    PrintDialectFlags (DialectId::Merlin, prefix);
+
+    PrintSectionHeading ("Supported subset");
+    PrintUsageLine ("  The absolute subset that needs no linker. Where support ends is reported by name rather than as a syntax error -- see docs/merlin-subset.md.");
+
+    PrintExitCodes (CommandLineParser::kAssembleExitStatusHelpText);
 }
 
 
@@ -357,21 +363,48 @@ void CommandLine::PrintUsageRun (const char * lp, const char * sp, const char * 
 //
 //  CommandLine::PrintUsage
 //
+//  The page the request asked for, and only that page.
+//
+//  ONE PAGE FOR FOUR GRAMMARS RAN TO FOUR SCREENS. Every switch of AS65, of
+//  Merlin, of `run` and of `disk`, printed together whichever one the reader had
+//  come for. A reader arrives already knowing which of the four things they mean
+//  to do -- they typed the subcommand -- so the general page names the four and
+//  says how to ask about one, and the detail waits behind that question.
+//
+//  `disk` HAS NO ARM HERE, and its absence is the design. Its page is answered
+//  by DiskCommandRunner as the Help verb of the disk grammar, beside every other
+//  disk verb's output, which is what lets it be built and tested next to the
+//  code it describes.
+//
+//  EVERY PAGE IS WRITTEN WITH THE PREFIX THE READER CHOSE. `/?` means the page
+//  reads `/flag` throughout, and `--help` means it reads `-`/`--`.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void CommandLine::PrintUsage (char prefix)
+void CommandLine::PrintUsage (const CommandLineOptions & options)
 {
-    const char * sp  = (prefix == '/') ? "/"  : "-";
-    const char * lp  = (prefix == '/') ? "/"  : "--";
-    const char * pad = (prefix == '/') ? " "  : "";
+    char  prefix = options.flagPrefix;
 
 
 
-    PrintUsageHeader    (sp, lp);
-    PrintUsageGeneral   (lp, sp, pad);
-    PrintUsageAssembler (sp);
-    PrintUsageMerlin    (sp, prefix);
-    PrintUsageRun       (lp, sp, pad);
+    switch (options.helpPage)
+    {
+    case CommandLineOptions::HelpPage::Assemble:
+        PrintAssemblePage (prefix);
+        break;
+
+    case CommandLineOptions::HelpPage::Merlin:
+        PrintMerlinPage (prefix);
+        break;
+
+    case CommandLineOptions::HelpPage::Run:
+        PrintRunPage (prefix);
+        break;
+
+    default:
+        std::print ("{}", CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
+        break;
+    }
 }
 
 
@@ -380,29 +413,50 @@ void CommandLine::PrintUsage (char prefix)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLine::PrintUsageMerlin
+//  CommandLine::PrintRunPage
 //
-//  The merlin section's flag lines are composed in core from the same tables
-//  the parser walks, so they cannot describe a tool that no longer exists. The
-//  heading and the notes are here because they are prose about one dialect
-//  rather than data any dialect supplies.
-//
-//  A dialect added later gets its flags printed by the same call and needs no
-//  edit here; what it would not get is a section of its own, which is a note
-//  for whoever adds one rather than a claim that this scales.
+//  A page of its own, reached by asking `run` for help in any form. It closes
+//  with the statuses `run` itself spends, which are not the assembler's: an
+//  assembly error is 3 under the assembler and 1 here, because here nothing ran.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CommandLine::PrintUsageMerlin (const char * sp, char prefix)
+void CommandLine::PrintRunPage (char prefix)
 {
-    PrintSectionHeading ("Merlin mode");
-    PrintUsageLine ("  <source>               Merlin assembly source file (tries .a65, .asm, .s if no extension is given)");
+    const char *  sp  = (prefix == '/') ? "/"  : "-";
+    const char *  lp  = (prefix == '/') ? "/"  : "--";
+    const char *  pad = (prefix == '/') ? " "  : "";
+
+
+
+    PrintPageBanner (CommandLineOptions::Subcommand::Run);
     std::println ("");
-    PrintUsageLine ("  Merlin uses assembler directives in the source file in lieu of switches. Some examples are:");
-    PrintUsageLine ("    XC       Select the 65C02.");
-    PrintUsageLine (std::format ("    DSK      Name the output file. {0}o overrides it.", sp));
-    PrintUsageLine ("    ORG      Set the origin.");
-    PrintUsageBlock (DialectHelp::GetDialectFlags (DialectRegistry::Get (DialectId::Merlin), prefix));
+    PrintUsageLine ("  <binary>   An assembled image to load and execute.");
+    PrintUsageLine ("  <source>   An assembly source file to assemble and then execute.");
+
+    PrintSectionHeading ("Run options");
+
+    for (const char * fmt : s_kRunOptionLines)
+    {
+        PrintUsageLine (std::vformat (fmt, std::make_format_args (lp, pad)));
+    }
+
+    PrintUsageLine (std::format ("  {0}v                     Verbose output", sp));
+    std::println ("");
+
+    //  The two dialects get a row each rather than sharing one, because what
+    //  differs between them is which assembler options come along -- and that
+    //  belongs beside the name that admits them.
+    PrintUsageLine (std::format ("  {:<22} Assemble the source as AS65 (the default). Allows AS65 {}x and {}d.",
+                                 CommandLineParser::FormatLongOption ("--as65", prefix), sp, sp));
+    PrintUsageLine (std::format ("  {:<22} Assemble the source as Merlin. Allows {}d; the CPU comes from the source's XC directive.",
+                                 CommandLineParser::FormatLongOption ("--merlin", prefix), sp));
+
+    PrintSectionHeading ("Examples");
+    PrintUsageLine (std::format ("  CassoCli run prog.a65 {0}stop $6010 {0}max-cycles 10000", lp));
+    PrintUsageLine ("      Assembles prog.a65, loads it at $8000, and runs until the PC reaches $6010 or ten thousand cycles have passed, whichever comes first.");
+
+    PrintExitCodes (CommandLineParser::kRunExitStatusHelpText);
 }
 
 
@@ -470,7 +524,7 @@ void CommandLine::PrintUnrecognizedArgument (const std::string & word, char pref
 
 
 
-    PrintUsage (prefix);
+    std::print ("{}", CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
     std::cout.flush();
 
     std::cerr << "\nCassoCli: '" << word << "' is not a subcommand.\n";
@@ -521,7 +575,7 @@ void CommandLine::PrintUnrecognizedFlag (const std::string & flag, CommandLineOp
         }
     }
 
-    PrintUsage (prefix);
+    std::print ("{}", CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
     std::cout.flush();
 
     std::cerr << "\nCassoCli: '" << flag << "' is not an option of the " << mode << " subcommand.\n";

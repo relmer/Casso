@@ -54,15 +54,23 @@ std::string CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand mode)
 
     if (mode == CommandLineOptions::Subcommand::Run)
     {
-        line = "  CassoCli run <binary | source> [options]   Load <binary> or assemble <source>, then execute";
+        line = "  CassoCli run <binary | source> [options]   Load or assemble, then execute";
     }
     else if (mode == CommandLineOptions::Subcommand::Disk)
     {
         line = "  CassoCli disk <verb> <image> [...]         Read and write disk images";
     }
+    else if (mode == CommandLineOptions::Subcommand::Merlin)
+    {
+        line = "  CassoCli merlin <source> [options]         Assemble Merlin source";
+    }
     else
     {
-        line = "  CassoCli <source> [options]                Assemble a source file";
+        //  THE DIALECT IS NAMED, and this line is where a reader learns
+        //  that it has to be. A bare source file was the invocation once,
+        //  which is what made the dialect the tool's guess rather than the
+        //  caller's statement.
+        line = "  CassoCli as65 <source> [options]           Assemble AS65 source";
     }
 
     return line;
@@ -101,7 +109,7 @@ std::string CommandLineHelp::BuildExampleCommands (char flagPrefix)
 
 
     return std::string (kExampleHeading) + "\n"
-        "  CassoCli prog.a65 " + sp + "oprog.bin\n"
+        "  CassoCli as65 prog.a65 " + sp + "oprog.bin\n"
         "  CassoCli disk put mydisk.dsk prog.bin " + lp + "as PROG "
                  + lp + "type B " + lp + "addr $6000\n"
         "  CassoCli disk put mydisk.dsk greet.bas " + lp + "as STARTUP " + lp + "basic\n"
@@ -146,18 +154,21 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
     //  Route, then what waits at the end of it. Padded to a fixed description
     //  column below rather than written into each literal, because `/help` is
     //  three characters narrower than `--help` and a table spaced for one
-    //  prefix comes out ragged in the other.
-    const size_t       kDescriptionColumn = 25;
+    //  prefix comes out ragged in the other. Wide enough for the longest route
+    //  plus a real gutter: `CassoCli merlin --help` reaches 24, and a column at
+    //  25 left that one row with a single space while every other row had four.
+    const size_t       kDescriptionColumn = 27;
     const std::string  lp                 = LongPrefix (flagPrefix);
 
 
 
     const std::string  routes[][2]        =
     {
-        { "?",                   "Assembly options, output formats and listings" },
-        { "run "  + lp + "help", "Run options: load address, entry point, limits" },
-        { "disk " + lp + "help", "Disk verbs, their options, and a worked example" },
-        { lp + "version",        "Version information" },
+        { "as65 "   + lp + "help", "AS65 options, output formats and listings" },
+        { "merlin " + lp + "help", "Merlin options, and where the supported subset ends" },
+        { "run "    + lp + "help", "Run options: load address, entry point, limits" },
+        { "disk "   + lp + "help", "Disk verbs, their options, and a worked example" },
+        { lp + "version",          "Version information" },
     };
 
     std::string        text               = banner;
@@ -166,6 +177,7 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
 
     text += "\nUsage:\n";
     text += UsageLineFor (CommandLineOptions::Subcommand::As65) + "\n";
+    text += UsageLineFor (CommandLineOptions::Subcommand::Merlin) + "\n";
     text += UsageLineFor (CommandLineOptions::Subcommand::Run)  + "\n";
     text += UsageLineFor (CommandLineOptions::Subcommand::Disk) + "\n";
 
@@ -175,10 +187,14 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
     {
         std::string  line = "  CassoCli " + route[0];
 
-        while (line.size() < kDescriptionColumn)
+        //  At least one space even for a route wider than the column, so a
+        //  future mode with a long name pushes its description along rather
+        //  than running into it.
+        do
         {
             line += " ";
         }
+        while (line.size() < kDescriptionColumn);
 
         text += line + route[1] + "\n";
     }

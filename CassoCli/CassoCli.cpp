@@ -77,7 +77,7 @@ int main (int argc, char * argv[])
     {
         // No subcommand is a usage ERROR (exit 1); an explicit --help or
         // `help` is the user asking, and succeeds.
-        CommandLine::PrintUsage (options.flagPrefix);
+        CommandLine::PrintUsage (options);
         exitCode = options.showHelp ? 0 : 1;
     }
     else if (options.showVersion || options.subcommand == CommandLineOptions::Subcommand::Version)
@@ -110,7 +110,7 @@ int main (int argc, char * argv[])
     else
     {
         // A subcommand the parser knows but this dispatch does not.
-        CommandLine::PrintUsage (options.flagPrefix);
+        CommandLine::PrintUsage (options);
     }
 
     //  The HRESULT says what went wrong; the exit code is what a script reads.

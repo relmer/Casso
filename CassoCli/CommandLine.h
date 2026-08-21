@@ -2,6 +2,7 @@
 
 #include "CommandLineOptions.h"
 #include "CommandLineParser.h"
+#include "Dialect.h"
 
 
 
@@ -36,7 +37,10 @@ class CommandLine
 public:
     static CommandLineOptions  Parse                     (int argc, char * argv[]);
 
-    static void                PrintUsage                (char prefix);
+    //  The page the request asked for, written with the prefix it was typed
+    //  with. Both live on the options, so the caller hands over the whole
+    //  parse rather than picking two fields out of it and deciding again.
+    static void                PrintUsage                (const CommandLineOptions & options);
     static void                PrintVersion              ();
 
     //  What the tool is called, which build this is, and who holds the
@@ -74,9 +78,15 @@ private:
     //  A top-level heading, underlined to its own width.
     static void    PrintSectionHeading (const std::string & name);
 
-    static void    PrintUsageHeader    (const char * sp, const char * lp);
-    static void    PrintUsageGeneral   (const char * lp, const char * sp, const char * pad);
-    static void    PrintUsageAssembler (const char * sp);
-    static void    PrintUsageMerlin    (const char * sp, char prefix);
-    static void    PrintUsageRun       (const char * lp, const char * sp, const char * pad);
+
+    //  One page per grammar. Each opens with the banner and its own usage
+    //  line, generates its flags from that dialect's table, and closes with
+    //  the exit codes that mode actually spends.
+    static void    PrintAssemblePage   (char prefix);
+    static void    PrintMerlinPage     (char prefix);
+    static void    PrintRunPage        (char prefix);
+
+    static void    PrintPageBanner     (CommandLineOptions::Subcommand mode);
+    static void    PrintDialectFlags   (DialectId dialect, char prefix);
+    static void    PrintExitCodes      (const char * codes);
 };

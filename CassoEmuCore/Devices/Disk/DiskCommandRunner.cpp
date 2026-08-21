@@ -220,7 +220,7 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
         "  program runs. Anything else is set, reported, and the disk boots without\n"
         "  running it.\n"
         "\n"
-        "  Exit codes:\n";
+        "Exit codes:\n";
 
     text += kExitStatusHelpText;
     text += "\n";

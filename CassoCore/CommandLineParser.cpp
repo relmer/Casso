@@ -287,8 +287,30 @@ static constexpr CommandLineParser::OutputFormatFlag  s_kMerlinOutputFormats[] =
 
 //  Which dialect an output-format table belongs to, on the same principle as the
 //  flag tables above: a dialect offering no choice simply has no row.
+//
+//  The output formats the as65 grammar names.
+//
+//  THE DEFAULT IS THE ASSEMBLED BYTES and has no row, because a flag whose only
+//  effect is to select the default earns a line in the help and buys no
+//  capability -- which is why the `--raw` that used to name it is gone. These
+//  two say what the bytes can be wrapped in instead.
+//
+//  `-s` and `-s2` are NOT here. They are switches of the concatenating grammar,
+//  carry an optional attached filename, and live in the flag table above; a
+//  format row is a whole word typed on its own.
+//
+static constexpr CommandLineParser::OutputFormatFlag  s_kAs65OutputFormats[] =
+{
+    { "--flat",    CommandLineOptions::OutputFormat::Binary,
+                   "Write a full 64 KB image at the origin, padded with the fill byte" },
+    { "--dos-bin", CommandLineOptions::OutputFormat::DosBinary,
+                   "Write the bytes behind a 4-byte DOS 3.3 header (load address + length), ready to BLOAD" },
+};
+
+
 static constexpr CommandLineParser::OutputFormatTable  s_kOutputFormatTables[] =
 {
+    { DialectId::As65,   s_kAs65OutputFormats,   std::size (s_kAs65OutputFormats)   },
     { DialectId::Merlin, s_kMerlinOutputFormats, std::size (s_kMerlinOutputFormats) },
 };
 
@@ -1807,7 +1829,15 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
         std::string arg (argv[argIndex]);
         std::string attachedValue;
 
-        // Check for help requests
+        //  A help request under `as65` asks for THE ASSEMBLER'S page, not the
+        //  general one. The reader has already said which grammar they are in
+        //  by typing the subcommand, and answering with a table of contents
+        //  they have finished reading is a page they have to navigate twice.
+        //
+        //  `-h` IS NOT ON THIS LIST, and IsHelpRequest is therefore the wrong
+        //  question to ask here. Every other grammar may treat a bare `-h` as
+        //  help; this one cannot, because `-h<lines>` is as65's page height and
+        //  the flag walk below owns it.
         if (arg == "--help" || arg == "-help" || arg == "-?" || arg == "/?" || arg == "/help")
         {
             if (arg[0] == '/')
@@ -1816,6 +1846,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
             }
 
             options.showHelp = true;
+            options.helpPage = CommandLineOptions::HelpPage::Assemble;
             stop             = true;
             continue;
         }
@@ -2602,7 +2633,9 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
         std::string  attachedValue;
         size_t       pos = 1;
 
-        if (arg == "--help" || arg == "-help" || arg == "-?" || arg == "/?" || arg == "/help")
+        //  Merlin's own page, for the reason as65's arm gives: the subcommand
+        //  already said which grammar the reader is in.
+        if (IsHelpRequest (arg))
         {
             if (arg[0] == '/')
             {
@@ -2610,6 +2643,7 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
             }
 
             options.showHelp = true;
+            options.helpPage = CommandLineOptions::HelpPage::Merlin;
             stop             = true;
             continue;
         }
