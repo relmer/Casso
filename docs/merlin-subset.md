@@ -71,7 +71,7 @@ passes three.
 
 ### Directives
 
-| Spelling | What it does |
+| Directive | What it does |
 |---|---|
 | `ASC` `DCI` `INV` `FLS` `STR` `REV` | String data in six encodings. The delimiter is **any** character, taken from the text itself, and it selects high or low ASCII. A trailing hexadecimal run after the closing delimiter is part of the operand. |
 | `DFB` `DB` | Bytes |
@@ -141,7 +141,7 @@ Neither easier outcome is acceptable — blocking on a prompt hangs an unattende
 build, and defaulting to zero cleanly assembles code nobody asked for, because
 these symbols gate whole sections.
 
-The flag is `-d`, spelled as it is for `as65`:
+The flag is `-d`, written the way it is for `as65`:
 
 ```
 CassoCli merlin CLOCK.S -d SAVOBJ=0 -d VERSION=24 -o CLOCK24

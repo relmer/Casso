@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CommandLine.h"
+#include "UsageText.h"
 #include "Assembler.h"
 #include "AssemblerExitCode.h"
 #include "DiagnosticFormatter.h"
@@ -881,6 +882,129 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UsageWidth
+//
+//  How wide the reader's terminal is, or 80 when there is no terminal to ask.
+//
+//  A redirected stream has no width, and guessing a wide one there would put
+//  long lines into a file someone will read in an editor at 80. The last column
+//  is left unused: writing INTO it makes a console wrap on its own, which
+//  produces a blank line between every row on some terminals.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static size_t UsageWidth()
+{
+    constexpr size_t            kNoTerminal = 80;
+    constexpr size_t            kNarrowest  = 40;
+    CONSOLE_SCREEN_BUFFER_INFO  info        = {};
+    HANDLE                      out         = GetStdHandle (STD_OUTPUT_HANDLE);
+    size_t                      width       = kNoTerminal;
+
+
+
+    if (out != INVALID_HANDLE_VALUE && GetConsoleScreenBufferInfo (out, &info))
+    {
+        int  columns = info.srWindow.Right - info.srWindow.Left + 1;
+
+        if (columns > (int) kNarrowest)
+        {
+            width = (size_t) columns - 1;
+        }
+    }
+
+    return width;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Say
+//
+//  One logical line of usage, folded to the terminal. Every line of help goes
+//  through here, so none of them is hand-wrapped to a width the reader may not
+//  have.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void Say (const std::string & line)
+{
+    for (const std::string & row : UsageText::Wrap (line, UsageWidth()))
+    {
+        std::println ("{}", row);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SayBlock
+//
+//  A block of usage composed elsewhere -- core builds the dialect flag lines --
+//  folded row by row. Split here rather than in core so the composing code stays
+//  free of the terminal.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void SayBlock (const std::string & block)
+{
+    size_t  start = 0;
+
+
+
+    while (start <= block.size())
+    {
+        size_t  end = block.find ('\n', start);
+
+        if (end == std::string::npos)
+        {
+            end = block.size();
+        }
+
+        // A block conventionally ends in a newline, which would otherwise print
+        // as a trailing blank row that was never in the text.
+        if (end == start && end == block.size())
+        {
+            break;
+        }
+
+        Say (block.substr (start, end - start));
+        start = end + 1;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintSectionHeading
+//
+//  A top-level heading, underlined to its own width. Written once so the four
+//  sections cannot drift into three styles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void PrintSectionHeading (const std::string & name)
+{
+    std::println ("");
+    std::println ("{}", name);
+    std::println ("{}", std::string (name.size(), '-'));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PrintUsageHeader
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -900,12 +1024,10 @@ static void PrintUsageHeader (const char * sp, const char * lp)
         subcommands += std::string (subcommands.empty() ? "" : " | ") + entry.name + " <file>";
     }
 
-    std::cout << "CassoCli - 6502 Assembler and Emulator  v" VERSION_STRING
-              << " (" << arch << ")  " VERSION_BUILD_TIMESTAMP "\n"
-              << "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n"
-              << "\n"
-              << "Usage: CassoCli " << subcommands << " [options] | "
-              << sp << "? | " << lp << "version\n";
+    std::println ("CassoCli - 6502 Assembler and Emulator  v" VERSION_STRING " ({})  " VERSION_BUILD_TIMESTAMP, arch);
+    std::println ("Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer");
+    std::println ("");
+    Say (std::format ("Usage:  CassoCli {} [options] | {}? | {}version", subcommands, sp, lp));
 }
 
 
@@ -918,33 +1040,18 @@ static void PrintUsageHeader (const char * sp, const char * lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-//  A top-level heading, underlined to its own width. Written once so the four
-//  sections cannot drift into three styles.
-static void PrintSectionHeading (const std::string & name)
-{
-    std::println ("");
-    std::println ("{}", name);
-    std::println ("{}", std::string (name.size(), '-'));
-}
-
-
-
-
-
 static void PrintUsageGeneral (const char * lp, const char * sp, const char * pad)
 {
     // "--help, -?" = 10 chars, "--version" = 9 chars => +1 space for version
     // "/help, /?"  =  9 chars, "/version"  = 8 chars => +1 space for version
     // pad compensates: -- (2 chars) vs / (1 char) in long prefix
     PrintSectionHeading ("General");
-    std::println ("  Assembles AS65 or Merlin source for the 6502 and the 65C02. The subcommand");
-    std::println ("  names the dialect; the CPU is chosen with {0}x under AS65 and by the XC", sp);
-    std::println ("  directive inside Merlin source.");
+    Say (std::format ("  Assembles AS65 or Merlin source for the 6502 and the 65C02. The subcommand names the dialect; the CPU is chosen with {0}x under AS65 and by the XC directive inside Merlin source.", sp));
     std::println ("");
-    std::println ("  See docs/Assembler.md for additional information.");
+    Say ("  See docs/Assembler.md for additional information.");
     std::println ("");
-    std::println ("  {0}help, {1}?{2}             Show this help", lp, sp, pad);
-    std::println ("  {0}version{1}              Show version information", lp, pad);
+    Say (std::format ("  {0}help, {1}?{2}             Show this help", lp, sp, pad));
+    Say (std::format ("  {0}version{1}              Show version information", lp, pad));
 }
 
 
@@ -972,80 +1079,65 @@ static void PrintUsageGeneral (const char * lp, const char * sp, const char * pa
 static void PrintUsageAssembler (const char * sp)
 {
     PrintSectionHeading ("AS65 mode");
-    std::println ("  <source>               Assembly source file");
-    std::println ("                         (tries .a65, .asm, .s if no extension is given)");
+    Say ("  <source>               Assembly source file (tries .a65, .asm, .s if no extension is given)");
     std::println ("");
-    std::println ("  AS65's command line has habits of its own, kept for compatibility:");
-    std::println ("    Single letters concatenate, with the value-taking flag last, so");
-    std::println ("      {0}tlfile is {0}t {0}lfile.", sp);
-    std::println ("    A value ATTACHES to its flag -- {0}ofile rather than {0}o file --", sp);
-    std::println ("      though {0}o and {0}l accept a separated one too.", sp);
-    std::println ("    {0}s2 is one flag, not {0}s followed by a 2.", sp);
+    Say ("  AS65's command line has habits of its own, kept for compatibility:");
+    Say (std::format ("    Single letters concatenate, with the value-taking flag last, so {0}tlfile is {0}t {0}lfile.", sp));
+    Say (std::format ("    A value ATTACHES to its flag -- {0}ofile rather than {0}o file -- though {0}o and {0}l accept a separated one too.", sp));
+    Say (std::format ("    {0}s2 is one flag, not {0}s followed by a 2.", sp));
 
     const char * lines[] =
     {
+        //  ONE LOGICAL LINE PER ROW. The gutter between a flag and its
+        //  description is what tells the wrapper where a continuation belongs,
+        //  so a row is written whole and folded to the reader's terminal rather
+        //  than broken here at a width nobody may have.
         "",
         "  Assembled code:",
         "    {0}o <file>            Rename output file (default: <source>.bin)",
-        "    {0}n                   Disable optimizations. Not yet implemented",
-        "                         (GitHub issue #118)",
+        "    {0}n                   Disable optimizations. Not yet implemented (GitHub issue #118)",
         "",
-        "    Output formats. Mutually exclusive: naming two is refused rather than",
-        "    resolved, and the output file's extension is consulted only when none",
-        "    is given.",
-        "    <default>            Write a full 64 KB image, padded with the fill byte",
-        "                         ({0}z sets it)",
+        "    Output formats. Mutually exclusive: naming two is refused rather than resolved, and the output file's extension is consulted only when none is given.",
+        "    <default>            Write a full 64 KB image, padded with the fill byte ({0}z sets it)",
         "    {0}s                   Write Motorola S-record (<source>.s19)",
         "    {0}s2                  Write Intel HEX (<source>.hex)",
-        "    {1}dos-bin            Write the bytes behind a 4-byte DOS 3.3 header",
-        "                         (load address + length), ready to BLOAD",
+        "    {1}dos-bin            Write the bytes behind a 4-byte DOS 3.3 header (load address + length), ready to BLOAD",
         "    {1}raw                Write only the assembled bytes, unpadded",
-        "    {0}z                   Fill unused space in the padded image with $00",
-        "                         (default: $FF)",
+        "    {0}z                   Fill unused space in the padded image with $00 (default: $FF)",
         "",
         "  Listing:",
         "    {0}l[<file>]           Generate listing ({0}l alone goes to stdout)",
         "    {0}p                   Generate pass 1 listing",
         "    {0}c                   Show cycle counts in listing",
         "    {0}m                   Show macro expansions in listing",
-        "    {0}w[<width>]          Wrap listing at <width> columns, 60 to 200",
-        "                         (default: 79, {0}w alone = 133)",
-        "    {0}h<lines>            Page height: a header and a form feed every <lines>,",
-        "                         {0}h0 for no paging. Not yet implemented",
-        "                         (GitHub issue #118)",
+        "    {0}w[<width>]          Wrap listing at <width> columns, 60 to 200 (default: 79, {0}w alone = 133)",
+        "    {0}h<lines>            Page height: a header and a form feed every <lines>, {0}h0 for no paging. Not yet implemented (GitHub issue #118)",
         "",
         "  Debug:",
-        "    {0}t                   Print the symbol table to stdout, each symbol with",
-        "                         its address in hex and decimal",
-        "    {0}g <file>            Write symbol addresses to <file> as NAME=$ADDR, by",
-        "                         address and again by name",
+        "    {0}t                   Print the symbol table to stdout, each symbol with its address in hex and decimal",
+        "    {0}g <file>            Write symbol addresses to <file> as NAME=$ADDR, by address and again by name",
         "",
         "  General:",
         "    {0}d <name>[=<value>]  Define symbol (defaults to 1 if <value> is omitted)",
-        "    {0}v                   Verbose: pass timings and an assembly summary, on",
-        "                         stderr",
+        "    {0}v                   Verbose: pass timings and an assembly summary, on stderr",
         "    {0}q                   Quiet mode (suppress progress)",
-        "    {0}i                   Ignore case of opcodes. Always enabled in Casso,",
-        "                         accepted for command-line compatibility with AS65",
+        "    {0}i                   Ignore case of opcodes. Always enabled in Casso, accepted for command-line compatibility with AS65",
     };
 
     for (const char * fmt : lines)
     {
         // {0} is the short prefix and {1} the long one, so a row naming either
-        // spells it the way this invocation does.
+        // writes it the way this invocation does.
         std::string  lp = (sp[0] == '/') ? "/" : "--";
 
-        std::println ("{}", std::vformat (fmt, std::make_format_args (sp, lp)));
+        Say (std::vformat (fmt, std::make_format_args (sp, lp)));
     }
 
     std::println ("");
-    std::println ("  CPU:");
-    std::println ("    {0}x                   Assemble 65C02 instructions. Omit it for the plain", sp);
-    std::println ("                         6502, where they are an assembly error");
+    Say ("  CPU:");
+    Say (std::format ("    {0}x                   Assemble 65C02 instructions. Omit it for the plain 6502, where they are an assembly error", sp));
     std::println ("");
-    std::println ("    This is wider than AS65, which assembles the 65SC02 subset: Casso");
-    std::println ("    also takes RMBn, SMBn, BBRn and BBSn. A source using those assembles");
-    std::println ("    here and would not under AS65.");
+    Say ("    This is wider than AS65, which assembles the 65SC02 subset: Casso also takes RMBn, SMBn, BBRn and BBSn. A source using those assembles here and would not under AS65.");
 }
 
 
@@ -1061,18 +1153,20 @@ static void PrintUsageAssembler (const char * sp)
 static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
 {
     PrintSectionHeading ("Run mode");
-    std::println ("  <binary>               A binary file to load and execute");
-    std::println ("  <source>               An assembly source file to assemble and run");
-    std::println ("                         (tries .a65, .asm, .s if no extension is given)");
+    Say ("  <binary>               A binary file to load and execute");
+    Say ("  <source>               An assembly source file to assemble and run (tries .a65, .asm, .s if no extension is given)");
     std::println ("");
-    std::println ("  {:<22} Which assembler reads a source (default: AS65).",
-                  CommandLineParser::FormatLongOption ("--as65", sp[0]) + " | "
-                  + CommandLineParser::FormatLongOption ("--merlin", sp[0]));
-    std::println ("                         Ignored for a binary, which needs no assembler");
+
+    // The two dialects get a row each rather than sharing one, because what
+    // differs between them here is which assembler options come along -- and
+    // that belongs beside the name that admits them, not in a paragraph
+    // underneath that the reader has to re-split by dialect.
+    Say (std::format ("  {:<22} Assemble the source as AS65 (the default). Takes {}x and {}d as well; see AS65 mode above.",
+                      CommandLineParser::FormatLongOption ("--as65", sp[0]), sp, sp));
+    Say (std::format ("  {:<22} Assemble the source as Merlin. Takes {}d as well; see Merlin mode above.",
+                      CommandLineParser::FormatLongOption ("--merlin", sp[0]), sp));
     std::println ("");
-    std::println ("  Assembler options accepted here: {0}x and {0}d under AS65, {0}d under", sp);
-    std::println ("  Merlin -- the ones that change what is assembled. See the mode sections");
-    std::println ("  above for what they do. The rest describe a file run does not write.");
+    Say ("  Both are ignored for a binary, which needs no assembler. The assembler's remaining options describe output files that run does not write.");
     std::println ("");
 
     const char * lines[] =
@@ -1086,10 +1180,10 @@ static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
 
     for (const char * fmt : lines)
     {
-        std::println ("{}", std::vformat (fmt, std::make_format_args (lp, pad)));
+        Say (std::vformat (fmt, std::make_format_args (lp, pad)));
     }
 
-    std::println ("  {0}v                     Verbose output", sp);
+    Say (std::format ("  {0}v                     Verbose output", sp));
 }
 
 
@@ -1122,17 +1216,14 @@ void PrintUsage (char prefix)
     // A dialect added later gets its flags printed by the same call and needs no
     // edit here; what it would not get is a section of its own, which is a note
     // for whoever adds one rather than a claim that this scales.
-    std::println ("");
     PrintSectionHeading ("Merlin mode");
-    std::println ("  <source>               Merlin assembly source file");
-    std::println ("                         (tries .a65, .asm, .s if no extension is given)");
+    Say ("  <source>               Merlin assembly source file (tries .a65, .asm, .s if no extension is given)");
     std::println ("");
-    std::println ("  Merlin uses assembler directives in the source file in lieu of switches.");
-    std::println ("  Some examples are:");
-    std::println ("    XC       Select the 65C02.");
-    std::println ("    DSK      Name the output file. {0}o overrides it.", sp);
-    std::println ("    ORG      Set the origin.");
-    std::cout << DialectHelp::GetDialectFlags (DialectRegistry::Get (DialectId::Merlin), prefix);
+    Say ("  Merlin uses assembler directives in the source file in lieu of switches. Some examples are:");
+    Say ("    XC       Select the 65C02.");
+    Say (std::format ("    DSK      Name the output file. {0}o overrides it.", sp));
+    Say ("    ORG      Set the origin.");
+    SayBlock (DialectHelp::GetDialectFlags (DialectRegistry::Get (DialectId::Merlin), prefix));
 
     PrintUsageRun       (lp, sp, pad);
 }

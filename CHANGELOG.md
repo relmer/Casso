@@ -11,7 +11,7 @@ Entries before versioning was introduced use dates only.
 ### Breaking changes
 - **`--cpu` is gone; use `-x` for the 65C02.** `-x` is what AS65 itself
   documents — *"Use 65SC02 extensions. When this option is not specified the
-  assembler rejects the 65SC02 extensions"* — and `--cpu` was a second spelling
+  assembler rejects the 65SC02 extensions"* — and `--cpu` was a second flag
   Casso invented for the same question. There is deliberately nothing to name
   the narrow target with: omitting `-x` **is** naming it, which is what an AS65
   user already does, and a Merlin user selects the CPU with `XC` in the source.
@@ -45,7 +45,7 @@ Entries before versioning was introduced use dates only.
   `-d` answers the questions a source asks. Merlin stops and prompts the operator
   for a keyboard-input symbol; a batch assembly has nobody to ask, so the answer
   is typed with the invocation, once per question, and a bare `-d SYMBOL` answers
-  1. It is the same flag and the same spelling `as65` uses. Three of the five
+  1. It is the same flag, written the way `as65` writes it. Three of the five
   vendor sources Casso is verified against ask questions, and one of them —
   `CLOCK.S` — produces either of the two objects Merlin shipped depending on the
   answer, from one file and two command lines.
@@ -60,7 +60,7 @@ Entries before versioning was introduced use dates only.
   command line, so wrapping the bytes afterward means already knowing an address
   only the assembler saw.
 
-  There is no `--cpu` flag, and passing one is refused rather than ignored:
+  There is no CPU switch, and passing `-x` is refused rather than ignored:
   Merlin selects its CPU in the source, and the refusal names the directive that
   does it. Exit codes are the ones every assembler subcommand already speaks —
   0 clean, 1 assembled with complaints, 2 no output — and a construct outside
@@ -70,7 +70,7 @@ Entries before versioning was introduced use dates only.
   `CassoCli --help` now lists the dialects, each one's flags, where each takes
   its CPU target from, and where Merlin support ends.
 - **A dialect is a mechanism, not a second assembler.** Merlin arrives as a
-  spelling table and a line model behind one profile seam; the two-pass engine,
+  directive table and a line model behind one profile seam; the two-pass engine,
   the expression evaluator and the opcode tables are the same ones `as65` has
   always used. A source is assembled strictly under the dialect its invocation
   names — there is no lenient superset that quietly accepts a mixture, so a
@@ -86,7 +86,7 @@ Entries before versioning was introduced use dates only.
   placed on a disk. The default is unchanged.
 
 ### Changed
-- **A run that named no `--cpu` now reports the target that stood.** Under `-v`
+- **A run that named no CPU now reports the target that stood.** Under `-v`
   it goes to stderr, and into the listing header when a listing is produced —
   never to stdout, which carries the listing itself when no listing file is
   named. This affects `as65` as well as `merlin`: a build that passes `-v` or
@@ -96,8 +96,8 @@ Entries before versioning was introduced use dates only.
   source makes the difference matter.
 - **Three assembler diagnostics now quote the directive the source wrote.** The
   origin and reserve-space messages named `.org` and `.ds` as literal text,
-  which is a spelling no dialect's table holds and simply wrong at a line that
-  wrote something else. They now quote the active dialect's canonical spelling,
+  which is a form no dialect's table holds and simply wrong at a line that
+  wrote something else. They now quote the active dialect's canonical name,
   so `as65` reads `.ORG` and `.DS` — the same directives, upper-cased. Nothing
   else about the messages changed, and no output byte moves.
 - **A mistyped directive no longer silently drops the bytes it should have
@@ -105,7 +105,7 @@ Entries before versioning was introduced use dates only.
   diagnostic: the line vanished from the listing, every address below it moved
   up by however many bytes the directive would have emitted, and the run exited
   zero. `.org $0300` / `.fill 8, $EA` / `rts` wrote a one-byte object and called
-  it a success. The spelling is now reported by name, with its line and file, so
+  it a success. The word is now reported by name, with its line and file, so
   a typo costs a message instead of an object nobody can explain — and where the
   word belongs to another dialect, the message says which. This applies to every
   dialect, since it is the shared engine that reports it. A source that has been
@@ -154,11 +154,18 @@ Entries before versioning was introduced use dates only.
   by address as before, then again by name, case-insensitively. Reading one is
   two different questions — what sits at an address, and where a name went —
   and each order answers one of them.
+- **`--help` fills the terminal it is printed to.** Every line of usage is now
+  written once, whole, and folded at print time to the console's width, so a
+  wide terminal gets a wide reference instead of a column of text down its left
+  third and a narrow one stops truncating. A wrapped flag description continues
+  under the description rather than at the left margin, which is what keeps the
+  two-column table reading as a table. Redirected output is folded at 80, since
+  a file has no width to ask about and will be read in an editor.
 
 ### Fixed
 - **Naming two output formats is refused instead of resolved.** `-s --raw`
   silently wrote raw, and `--raw -s` silently wrote an S-record, because all
-  four format flags set one field and the last assignment stood. Each spelling
+  four format flags set one field and the last assignment stood. Each flag
   is valid on its own, so nothing about the result looked wrong. The refusal
   names both flags. Repeating one flag is still fine — it asks for one thing,
   twice.
@@ -179,17 +186,17 @@ Entries before versioning was introduced use dates only.
   had no header. Both exited 0. Every long option now accepts either prefix,
   and the two forms mean the same thing.
 - **Messages write flags with the prefix the invocation used.** A `/`-style
-  command line was answered in places with `--cpu`, `--dos-bin` and `-d`,
+  command line was answered in places with `--raw`, `--dos-bin` and `-d`,
   mixing both conventions inside a single help block — and, before the fix
   above, advising a form the parser would then have refused. Help, the
-  unknown-flag warning, the `--cpu` refusal and the assembler's own
+  unknown-flag warning, the CPU-flag refusal and the assembler's own
   "define it on the command line, for example `-d NAME=0`" now all follow the
   prefix the user typed. A command line mixing the two is answered in whichever
   it opened with, so the reply never depends on which flag happened to come
   last.
 - **A dialect no longer borrows the other dialect's vocabulary.** A word the
-  active dialect declined was offered to a second, fixed spelling table, so 55
-  spellings Merlin does not have still resolved — and eight of them steered
+  active dialect declined was offered to a second, fixed directive table, so 55
+  words Merlin does not have still resolved — and eight of them steered
   conditional assembly. A Merlin source writing `IFDEF` or `.ENDIF` had its
   blocks honored by a directive Merlin has never had, so lines were included or
   skipped by a construct the real assembler would have rejected. The same table
@@ -198,7 +205,7 @@ Entries before versioning was introduced use dates only.
   word, and `NOP 3` — as65's way of asking for three of them — silently emitted
   three bytes in a dialect with no such form.
 
-  Every one of those spellings is now refused by name in the dialect that does
+  Every one of those words is now refused by name in the dialect that does
   not define it. Nothing changes for `as65`, whose own words were never in
   question; what changes is that Merlin source is read only as Merlin.
 - **A macro definition with no terminator of its own now falls into the next.**
@@ -220,7 +227,7 @@ Entries before versioning was introduced use dates only.
   reported the real file missing. A comment after the name still ends it. The
   same line was also being read as *defining a macro called `PUT`*, because the
   keyword that opens a definition from the operand field was a fixed word in the
-  shared engine rather than the active dialect's spelling; it is the dialect's
+  shared engine rather than the active dialect's own; it is the dialect's
   now, and Merlin — which opens definitions with `MAC` in the opcode field — has
   no operand form at all.
 - **A symbol assigned twice now holds, at each reference, the value assigned

@@ -73,7 +73,7 @@ comparison.
 
 **The four format flags are mutually exclusive, and naming two is refused.**
 `-s --raw` fails, naming both flags, rather than quietly writing one of them:
-each spelling is valid alone, so nothing in the output would look like a
+each flag is valid alone, so nothing in the output would look like a
 mistake. The same flag repeated is not a conflict. The output file's extension
 (`.s19`, `.hex`) is consulted only when no flag was given at all, so an
 explicit flag always beats it.
@@ -164,14 +164,15 @@ and runs the result — no intermediate file.
 **`run` names its assembler.** `--as65` (the default) or `--merlin` decides which
 dialect reads a source; the flag is ignored for a binary, which needs no
 assembler at all. After it, that assembler's own switches are accepted for the
-two that change what is assembled -- `-x` and `-d`. The rest describe a file
-`run` never writes.
+ones that change what is assembled. The rest describe a file `run` never
+writes.
 
 | Option | Meaning |
 |---|---|
-| `--as65` \| `--merlin` | Which assembler reads a source. Default `--as65`. |
-| `-x` | The extended CPU, as in AS65 mode. |
-| `-d <name>[=<value>]` | Define a symbol, as in AS65 mode. |
+| `--as65` | Assemble the source as AS65. **Default.** Takes `-x` and `-d` as well. |
+| `--merlin` | Assemble the source as Merlin. Takes `-d` as well. Merlin selects its CPU in the source, with `XC`. |
+| `-x` | The 65C02, as in AS65 mode. `--as65` only. |
+| `-d <name>[=<value>]` | Define a symbol, as in the assembler's own mode. |
 | `--load <addr>` | Load address. Default `$8000`. |
 | `--entry <addr>` | Entry point. Defaults to the load address. |
 | `--reset-vector` | Take the entry point from the reset vector at `$FFFC`/`$FFFD`. |
@@ -209,7 +210,7 @@ would benefit from a concrete case to be designed against.
 
 | Feature | Syntax |
 |---|---|
-| Mnemonics | All 56 standard, plus the 65C02 set under `--cpu 65c02` |
+| Mnemonics | All 56 standard, plus the 65C02 set under `-x` |
 | Addressing modes | `#$42`, `$30`, `$30,X`, `$1234`, `$1234,X`, `($20,X)`, `($20),Y`, `A` |
 | Rockwell bit ops | `RMB 0,$30` operand form, or the suffixed `RMB0 $30` / `BBR3 $30,target` form |
 | Labels | `loop: DEX` … `BNE loop` |
@@ -264,7 +265,7 @@ CassoCli as65 input.a65 -d DEBUG=1 --fatal-warnings -o output.bin
 65C02 source — CMOS opcodes are rejected without the flag:
 
 ```powershell
-CassoCli as65 input.a65c --cpu 65c02 -o output.bin
+CassoCli as65 input.a65c -x -o output.bin
 ```
 
 Assemble and run in one step, stopping at a known address:
@@ -320,11 +321,11 @@ address-indexed image would scatter them.
 and the default output throws it away — so wrapping the bytes by hand afterward
 means already knowing an address that usually comes from an `ORG` line rather
 than from your command line. There is no `-z`: `--flat` always pads with `$FF`,
-and neither of the other two shapes pads at all.
+and neither of the other two formats pads at all.
 
-**There is no `--cpu` flag.** Merlin selects its processor in the source, with
-`XC`, and passing `--cpu` is refused by name rather than ignored. A flag
-accepted here would assemble source the real assembler rejects.
+**There is no CPU switch.** Merlin selects its processor in the source, with
+`XC`, so `-x` is refused by name here rather than ignored. A switch accepted
+here would assemble source the real assembler rejects.
 
 ### `KBD`, and how `-d` answers it
 

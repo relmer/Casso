@@ -208,6 +208,7 @@
     <ClCompile Include="CassoCli.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Pch.h" />
     <ClInclude Include="CommandLine.h" />
     <ClInclude Include="CassoCli.h" />
   </ItemGroup>
