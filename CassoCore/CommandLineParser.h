@@ -116,6 +116,18 @@ public:
         "       may have moved the load address.\n"
         "    3  The program reached an illegal opcode";
 
+    //  The status `run` and `disk` both spend on a command line they refused.
+    //  Named here rather than written as a 2 at the point of use, so it sits
+    //  beside the tables that document it.
+    static constexpr int  kNothingStarted = 2;
+
+    //  What a REFUSED command line exits with, which is not one number: the
+    //  tables above assign it separately. Public, and in the library, because
+    //  the console executable is where the exit code is returned and the test
+    //  assembly does not link it -- a status decided there is a decision
+    //  nothing can check. See As65ExitStatus for the same argument at length.
+    static int  ExitCodeForRefusal (CommandLineOptions::Subcommand mode);
+
     //
     //  What KIND of value a flag takes, which decides three things at once: how
     //  the value is read, whether a concatenated group may continue past it, and

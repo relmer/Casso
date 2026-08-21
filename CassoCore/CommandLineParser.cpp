@@ -2,6 +2,7 @@
 
 #include "CommandLineParser.h"
 
+#include "As65ExitStatus.h"
 #include "DialectProfile.h"
 #include "DialectRegistry.h"
 
@@ -389,6 +390,37 @@ bool CommandLineParser::IsHelpRequest (const std::string & arg)
 bool CommandLineParser::IsLoneQuestionMark (int argc, char * argv[], int startIndex)
 {
     return (argc - startIndex) == 1 && std::string (argv[startIndex]) == "?";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::ExitCodeForRefusal
+//
+//  What a command line this parser turned down reports to the shell.
+//
+//  IT IS NOT ONE NUMBER, and that is the whole reason this exists. Assembling
+//  answers with as65's 1, "Incorrect parameter specified on the commandline",
+//  because a script ported from as65 branches on it. `run` and `disk` have no
+//  such status and fold a refusal into their 2 -- "nothing could be started"
+//  and "nothing was done" -- which is the same claim in each grammar's words.
+//
+//  The executable used to return a flat 2 for every mode, so an as65 build
+//  script testing for 1 never saw it and read "could not open a file" instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand mode)
+{
+    bool  startedNothing = mode == CommandLineOptions::Subcommand::Run ||
+                           mode == CommandLineOptions::Subcommand::Disk;
+
+
+
+    return startedNothing ? kNothingStarted : As65ExitStatus::kBadCommandLine;
 }
 
 
@@ -2740,9 +2772,21 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
             if (options.inputFile.empty())
             {
                 options.inputFile = arg;
+                argIndex++;
+                continue;
             }
 
-            argIndex++;
+            //  A SECOND SOURCE FILE IS REFUSED RATHER THAN DROPPED, which is
+            //  what the as65 arm does and for the same reason: a caller who
+            //  named two files got one assembled, exit 0, and no word about
+            //  the other. Merlin was still silently discarding it after as65
+            //  stopped, so the two grammars disagreed about the same mistake.
+            std::cerr << "Error: surplus argument: " << arg << "\n";
+            std::cerr << "       Assembling takes one source file, and "
+                      << options.inputFile << " is already it.\n";
+
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            stop                 = true;
             continue;
         }
 

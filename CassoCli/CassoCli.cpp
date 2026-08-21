@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CommandLine.h"
+#include "CommandLineParser.h"
 #include "As65Mode.h"
 #include "DiskCommand.h"
 #include "MerlinMode.h"
@@ -56,7 +57,7 @@ int main (int argc, char * argv[])
         // is that mode's alone. Refused rather than warned about and run: a
         // typo that still produced an output file was a typo nobody saw.
         CommandLine::PrintUnrecognizedFlag (options.unrecognizedFlag, options.subcommand, options.flagPrefix);
-        exitCode = 2;
+        exitCode = CommandLineParser::ExitCodeForRefusal (options.subcommand);
     }
     else if (!options.outputFormatConflict.empty())
     {
@@ -79,6 +80,24 @@ int main (int argc, char * argv[])
         // `help` is the user asking, and succeeds.
         CommandLine::PrintUsage (options);
         exitCode = options.showHelp ? 0 : 1;
+    }
+    else if (options.parseVerdict == CommandLineOptions::ParseVerdict::Refused
+             && options.subcommand != CommandLineOptions::Subcommand::Disk)
+    {
+        // A REFUSED COMMAND LINE RUNS NOTHING.
+        //
+        // The parser has already said what was wrong, in its own words and on
+        // stderr, so there is nothing left to print -- only work left to not
+        // do. This arm was missing, so `CassoCli as65 prog.a65 extra.a65`
+        // reported the surplus argument and then went on to assemble anyway,
+        // complaining it could not read a source file the refusal had said
+        // nothing about.
+        //
+        // BELOW THE HELP ARM, because a command line refused for naming no
+        // subcommand at all is answered with the usage page and that arm owns
+        // it. `disk` is excluded: its runner assigns its own statuses and
+        // already declines to act on a refusal -- see DiskCommandRunner.
+        exitCode = CommandLineParser::ExitCodeForRefusal (options.subcommand);
     }
     else if (options.showVersion || options.subcommand == CommandLineOptions::Subcommand::Version)
     {
@@ -115,7 +134,7 @@ int main (int argc, char * argv[])
 
     //  The HRESULT says what went wrong; the exit code is what a script reads.
     //  Only the second crosses the process boundary, and it is never derived
-    //  from the first -- an assembly that warned succeeded and exits 1.
+    //  from the first -- an assembly that warned succeeded and exits 5.
     (void) hr;
 
     return exitCode;

@@ -1378,6 +1378,28 @@ namespace CommandLineTests
                             L"assembling takes one source file");
             Assert::AreEqual (std::string ("prog.a65"), opts.inputFile,
                               L"and the first one is still the one that was named");
+
+            //  AND IT IS NOT A REQUEST FOR A PAGE. main routes a help request
+            //  ahead of a refusal and exits 0 for it, so a refusal that also
+            //  set showHelp would be answered with usage text and success.
+            Assert::IsFalse (opts.showHelp,
+                             L"a refusal is not somebody asking how the tool works");
+        }
+
+        //  Merlin agrees, which it did not until this was written. as65 stopped
+        //  discarding the second file and Merlin kept doing it, so the same
+        //  mistake was refused in one grammar and silently accepted in the
+        //  other -- and Merlin's arm never set a verdict, so the executable
+        //  went on to assemble the first file and report on that instead.
+        TEST_METHOD (Merlin_ASecondSourceFile_IsRefusedToo)
+        {
+            ArgVector           args = { "CassoCli", "merlin", "prog.s", "extra.s" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"Merlin takes one source file as well");
+            Assert::AreEqual (std::string ("prog.s"), opts.inputFile,
+                              L"and the first one is still the one that was named");
         }
 
         //  The shape of the reported defect, with the bare -h taken out of it so

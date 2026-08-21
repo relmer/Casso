@@ -347,12 +347,26 @@ Entries before versioning was introduced use dates only.
   the verb, so `disk list img.dsk PROG` cataloged the whole disk without
   mentioning `PROG` and `disk get img.dsk PROG extra` extracted `PROG` without
   mentioning `extra`. Each is now refused at the status its own mode documents
-  for a command line that was refused — 2 — with nothing assembled, nothing
-  run, and nothing written. The message names the argument, and where the
-  likely cause is visible it names that too: a value typed with a space in
-  front of it earns `-w100, not -w 100`. `run` already refused these and called
-  them "Unknown option", which sent the reader looking for a flag they had not
-  typed; it names them as surplus arguments now.
+  for a command line that was refused — **1** for the assembling modes, which
+  is as65's "incorrect parameter specified on the commandline", and **2** for
+  `run` and `disk`, which have no such status and call it having started
+  nothing. Nothing is assembled, nothing run, and nothing written. The message
+  names the argument, and where the likely cause is visible it names that too:
+  a value typed with a space in front of it earns `-w100, not -w 100`. `run`
+  already refused these and called them "Unknown option", which sent the reader
+  looking for a flag they had not typed; it names them as surplus arguments now.
+- **A refused command line no longer runs anyway.** The refusal was reported
+  and then ignored: the executable had no arm for it, so `CassoCli as65
+  prog.a65 extra.a65` printed the surplus-argument error, went on to assemble,
+  and reported that it could not read a source file the refusal had said
+  nothing about — exiting 2, the code for a file that could not be opened,
+  where the documented status for a bad command line is 1. Only `disk` acted on
+  a refusal, because its runner assigns its own statuses. The decision now
+  lives in the library beside the tables that document it, where the test
+  assembly can reach it; it was previously made in `main`, which nothing links.
+  Merlin was not refusing a second source file at all — as65 stopped discarding
+  one and Merlin kept doing it — so the same mistake was an error in one
+  grammar and silent in the other. It is an error in both.
 - **A bare `-h` is refused rather than silently doing nothing.** as65 documents
   the bare form of `-w` — "If the -w option is given without a number following
   it, then the listing will be 133 columns wide" — and documents no bare form
@@ -575,10 +589,12 @@ Entries before versioning was introduced use dates only.
   A flag no subcommand's grammar recognized used to earn a one-line warning and
   then be ignored -- the assembly ran, the exit code was 0, and the output file
   was written as though the flag had been honored, so a typo in a build script
-  was silent in every way that mattered. Now the invocation is refused (exit 2):
-  the full usage is printed, and the line naming the argument comes LAST, so it
-  is what is left on screen. A first word that names no subcommand gets the
-  same treatment, with the line naming what to type instead at the end.
+  was silent in every way that mattered. Now the invocation is refused, at the
+  status its own mode documents for a refusal — 1 when assembling, 2 under
+  `run` and `disk`: the full usage is printed, and the line naming the argument
+  comes LAST, so it is what is left on screen. A first word that names no
+  subcommand gets the same treatment, with the line naming what to type instead
+  at the end.
 - **A run that named no CPU now reports the target that stood.** Under `-v`
   it goes to stderr, and into the listing header when a listing is produced —
   never to stdout, which carries the listing itself when no listing file is

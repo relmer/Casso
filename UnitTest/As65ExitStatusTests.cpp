@@ -171,4 +171,72 @@ namespace As65ExitStatusTests
             }
         }
     };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ExitCodeForRefusalTests
+    //
+    //  What a command line the parser turned down reports to the shell.
+    //
+    //  THE EXECUTABLE USED TO RETURN A FLAT 2 FOR EVERY MODE, and worse, only
+    //  when it happened to be a bad flag: a refusal with no message of its own
+    //  -- a surplus argument -- set the verdict and then fell through to the
+    //  dispatch, so `CassoCli as65 prog.a65 extra.a65` printed the refusal and
+    //  assembled anyway, reporting that it could not read a source file the
+    //  refusal had said nothing about.
+    //
+    //  Both halves of that are asserted here: the mapping, and its agreement
+    //  with the text each mode prints. The number itself was never checkable
+    //  before, because it was decided in main.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (ExitCodeForRefusalTests)
+    {
+    public:
+        //  as65: "1 - Incorrect parameter specified on the commandline." A
+        //  script ported from as65 branches on this, which is the whole reason
+        //  the assembling modes do not share `run`'s number.
+        TEST_METHOD (AssemblingRefusesWithAs65sBadCommandLine)
+        {
+            Assert::AreEqual (As65ExitStatus::kBadCommandLine,
+                              CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand::As65));
+            Assert::AreEqual (As65ExitStatus::kBadCommandLine,
+                              CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand::Merlin));
+        }
+
+        //  `run` and `disk` have no status for a bad command line and fold it
+        //  into the one for having done nothing, which is 2 in both tables.
+        TEST_METHOD (RunAndDiskRefuseWithNothingStarted)
+        {
+            Assert::AreEqual (CommandLineParser::kNothingStarted,
+                              CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand::Run));
+            Assert::AreEqual (CommandLineParser::kNothingStarted,
+                              CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand::Disk));
+        }
+
+        //  AND EACH NUMBER IS THE ONE ITS OWN PAGE PROMISES. The mapping being
+        //  self-consistent is worth nothing if the help describes a different
+        //  status, and these two drifted apart once already.
+        TEST_METHOD (EachRefusalCode_IsDescribedByTheModesOwnExitCodeTable)
+        {
+            std::string  assemble = CommandLineParser::kAssembleExitStatusHelpText;
+            std::string  run      = CommandLineParser::kRunExitStatusHelpText;
+
+            Assert::IsTrue (assemble.find ("    1  Bad command line") != std::string::npos,
+                            L"the assembler's page calls 1 a bad command line");
+            Assert::AreEqual (1, CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand::As65),
+                              L"and that is what it returns");
+
+            Assert::IsTrue (run.find ("    2  Nothing could be started") != std::string::npos,
+                            L"run's page folds a refusal into 2");
+            Assert::AreEqual (2, CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand::Run),
+                              L"and that is what it returns");
+            Assert::IsTrue (run.find ("command line that was refused") != std::string::npos,
+                            L"and says so in as many words");
+        }
+    };
 }
