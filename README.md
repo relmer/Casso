@@ -47,35 +47,14 @@ See [CHANGELOG.md](CHANGELOG.md) for the granular history, and
 [ARCHITECTURE.md](ARCHITECTURE.md) for a technical overview of the emulator's
 internals (projects, threading, the memory model, and the optimization log).
 
-### Salvage a damaged disk (v1.17.0)
+### Salvage a damaged .woz disk (v1.17.0)
 
-A WOZ whose stored checksum no longer matches its contents is damaged, and
-Casso will not write to it — rewriting the file would stamp a freshly
-computed checksum over the same damage, leaving nothing able to tell the file
-is wrong. That protects the evidence, but on its own it leaves you holding a
-disk you cannot write to.
+Casso now checks disk integrity when a .woz disk is inserted. If the checksums
+are incorrect, Casso treats the disk as read-only to prevent further corruption
+or data loss. A Salvage wizard opens and offers to salvage data into a
+structurally correct copy of the original disk.
 
-Casso can now build a **salvaged copy** beside it, from the Disk menu or
-straight from the report shown when the damaged image is inserted. Every sector
-is checked against the checksums the disk format has always carried, and the
-result is stated before anything is written:
-
-<p align="center"><img src="Assets/feat-salvage.png" alt="Salvage readable sectors dialog — the damaged disk's path, a table of total, verified, recovered and lost sectors, the destination filename, and a warning that repairing the checksums masks any corrupted data left in the recovered sectors" width="560" /></p>
-
-Sectors that fail verification are **recovered rather than discarded**. A data
-field decodes as a running XOR chain, so one bad nibble leaves every byte before
-it exactly right and skews the rest by a single constant — and when what
-rotted is the check nibble itself, the sector is perfect. Those bytes are kept
-and written with a correct checksum, so a sector that would have made DOS report
-an I/O error reads normally instead. Only a sector with nothing usable is
-zeroed.
-
-The original is never opened for writing. It keeps its damage, detectably, and
-the copy is a working disk you can write to.
-
-Checking every sector also found something nobody was looking for: a genuine
-bad sector in `AppleStellarInvaders.woz`, a 1980 preservation dump whose
-file-level checksum is perfectly valid.
+<p align="center"><img src="Assets/feat-salvage.png" alt="Salvage dialog listing total, verified, recoverable and lost sectors for a damaged disk, the name of the salvaged copy, and a warning that repairing the checksums cannot recover corrupt data" width="560" /></p>
 
 ### Create blank disks in-app + write-protect toggle (v1.16.0)
 

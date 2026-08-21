@@ -34,8 +34,8 @@ Entries before versioning was introduced use dates only.
 
   The figures are shown before anything is written, because a lossy copy is a
   decision to make with the numbers in front of you, and the dialog warns that
-  repairing the checksums makes the disk structurally sound while masking any
-  corrupted data left in those recovered sectors. The original is never opened
+  repairing the checksums makes the disk structurally sound but cannot recover
+  corrupt data within the sectors. The original is never opened
   for writing: it keeps its damage, detectably, which is the guarantee the
   whole feature rests on. The salvaged copy carries the source's `META` across
   — it is still the same disk — but takes Casso's own creator stamp,
