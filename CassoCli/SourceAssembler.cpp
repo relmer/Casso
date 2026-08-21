@@ -3,41 +3,8 @@
 #include "SourceAssembler.h"
 #include "HostFile.h"
 #include "Assembler.h"
-#include "Cpu65C02Table.h"
 #include "DiagnosticFormatter.h"
 #include "DialectRegistry.h"
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourceAssembler::SelectInstructionSet
-//
-//  Picks the assembler's target instruction table from `-x`. The default is the
-//  strict 6502 table (`cpu`), so 65C02-only opcodes never assemble by accident;
-//  `-x` substitutes the CMOS 65C02 (Rockwell R65C02) table.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const Microcode * SourceAssembler::SourceAssembler::SelectInstructionSet (const CommandLineOptions & options, const Cpu & cpu)
-{
-    const Microcode *  set = nullptr;
-
-
-
-    if (options.cpuTarget == CommandLineOptions::CpuTarget::M65C02)
-    {
-        set = GetCpu65C02InstructionSet();
-    }
-    else
-    {
-        set = cpu.GetInstructionSet();
-    }
-
-    return set;
-}
 
 
 
@@ -108,10 +75,9 @@ AssemblerOptions SourceAssembler::BuildOptions (const CommandLineOptions & optio
 //  the caller has one failure test. They are distinguished for the USER by the
 //  message, which is where the distinction actually matters.
 //
-//  A second instruction table is OPTIONAL and is what a dialect selecting its
-//  CPU in the source switches to. Null means there is nothing to switch to, and
-//  the assembler says so rather than pretending the wider set arrived -- so a
-//  caller passing one table has not quietly promised two.
+//  The instruction sets arrive already decided, as the provider the assembler
+//  itself keeps. Which CPUs they are and who chose them is the dialect mode's
+//  answer, not this function's -- it assembles against whatever it is handed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -197,7 +163,7 @@ void SourceAssembler::ReportDiagnostics (const SourceAssembler::Result & ar)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CpuReport SourceAssembler::SourceAssembler::BuildCpuReport (const CommandLineOptions & options, const AssemblyResult & result)
+CpuReport SourceAssembler::BuildCpuReport (const CommandLineOptions & options, const AssemblyResult & result)
 {
     CpuReport  report;
     bool       isCmos = options.cpuTarget == CommandLineOptions::CpuTarget::M65C02;

@@ -2,6 +2,7 @@
 
 #include "As65Mode.h"
 #include "ArtifactWriter.h"
+#include "Cpu65C02Table.h"
 
 
 
@@ -11,16 +12,24 @@
 //
 //  As65Mode::CreateInstructionSetProvider
 //
-//  One set, from `-x`, with nothing to switch to. That is what `-x` being a
-//  flag rather than a directive means: the CPU is named once on the command
-//  line and stands for the whole assembly, so a source cannot reach a wider
-//  one part way through.
+//  The 6502, or the 65C02 under `-x` -- the same two CPUs Merlin chooses
+//  between, chosen once for the whole file instead of from a line on. A flag
+//  has already been read by the time the first line is, so the chosen set is
+//  the one the assembly starts on, and there is no directive left to switch
+//  anything: the provider gets one set, and that is the choice, not a
+//  narrower offer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 InstructionSetProvider As65Mode::CreateInstructionSetProvider (const CommandLineOptions & options, const Cpu & cpu) const
 {
-    return InstructionSetProvider (SourceAssembler::SelectInstructionSet (options, cpu));
+    const Microcode *  m6502  = cpu.GetInstructionSet();
+    const Microcode *  m65C02 = GetCpu65C02InstructionSet();
+    bool               isCmos = options.cpuTarget == CommandLineOptions::CpuTarget::M65C02;
+
+
+
+    return InstructionSetProvider (isCmos ? m65C02 : m6502);
 }
 
 

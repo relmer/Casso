@@ -2,9 +2,42 @@
 
 #include "AssemblerMode.h"
 #include "ArtifactWriter.h"
+#include "As65Mode.h"
 #include "Assembler.h"
 #include "AssemblerExitCode.h"
 #include "DialectReporting.h"
+#include "MerlinMode.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblerMode::CreateFor
+//
+//  The base knowing its derived classes is the price of a factory, and is paid
+//  here once rather than at every site that has a dialect in hand.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<AssemblerMode> AssemblerMode::CreateFor (DialectId dialect)
+{
+    std::unique_ptr<AssemblerMode>  mode;
+
+
+
+    if (dialect == DialectId::Merlin)
+    {
+        mode = std::make_unique<MerlinMode>();
+    }
+    else
+    {
+        mode = std::make_unique<As65Mode>();
+    }
+
+    return mode;
+}
 
 
 
@@ -68,7 +101,7 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode) 
         std::cerr << "Error: No input file specified\n";
     }
 
-    CBREx (hasInput, HRESULT_FROM_WIN32 (ERROR_BAD_ARGUMENTS));
+    CBREx (hasInput, E_INVALIDARG);
 
     asmOptions            = SourceAssembler::BuildOptions (options);
     asmOptions.fileReader = &fileReader;

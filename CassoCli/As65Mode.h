@@ -25,9 +25,10 @@
 
 class As65Mode : public AssemblerMode
 {
-protected:
+public:
     InstructionSetProvider  CreateInstructionSetProvider (const CommandLineOptions & options, const Cpu & cpu) const override;
 
+protected:
     void                    ReportAssemblyStarting       (const CommandLineOptions & options) const override;
     void                    ReportAssemblyFinished       (const CommandLineOptions & options, long long elapsedMicroseconds) const override;
     void                    ReportAssemblySucceeded      (const CommandLineOptions & options, const AssemblyResult & result) const override;

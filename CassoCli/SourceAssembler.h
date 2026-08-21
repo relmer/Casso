@@ -60,10 +60,6 @@ public:
     //  The assembly's own warnings and errors, on stderr.
     static void               ReportDiagnostics     (const Result & ar);
 
-    //  The instruction table an AS65-style command line asks for. Merlin has no
-    //  such flag and hands both tables to Assemble instead.
-    static const Microcode *  SelectInstructionSet  (const CommandLineOptions & options, const Cpu & cpu);
-
     //  What is worth saying about the CPU that stood, for core to decide
     //  whether and where to say it.
     static CpuReport          BuildCpuReport        (const CommandLineOptions & options, const AssemblyResult & result);

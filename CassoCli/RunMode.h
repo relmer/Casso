@@ -41,7 +41,7 @@ private:
 
     //  Execute from the entry point until a stop condition. Collects status
     //  lines rather than printing them, so `run` stays quiet enough to pipe.
-    //  An illegal opcode is a failed run: STATUS_ILLEGAL_INSTRUCTION, exit 3.
+    //  An illegal opcode is a failed run on bad input data: exit 3.
     static HRESULT  RunCpu                   (Cpu & cpu,
                                               const CommandLineOptions & options,
                                               Word entryPoint,

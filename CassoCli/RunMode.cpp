@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "RunMode.h"
+#include "AssemblerMode.h"
 #include "HostFile.h"
 #include "SourceAssembler.h"
 #include "CommandLineParser.h"
@@ -130,7 +131,9 @@ HRESULT RunMode::RunCpu (Cpu & cpu,
         if (!cpu.GetMicrocode (opcode).isLegal)
         {
             std::println (stderr, "Illegal opcode ${:02X} at ${:04X}", opcode, cpu.GetPC());
-            hr       = HRESULT_FROM_NT (STATUS_ILLEGAL_INSTRUCTION);
+            // Bad input, the same as a source that will not assemble: the
+            // bytes describe something this CPU cannot execute.
+            hr       = HRESULT_FROM_WIN32 (ERROR_INVALID_DATA);
             exitCode = 3;
             break;
         }
@@ -207,7 +210,7 @@ HRESULT RunMode::Run (const CommandLineOptions & options, int & exitCode)
         std::cerr << "Error: No input file specified\n";
     }
 
-    CBREx (hasInput, HRESULT_FROM_WIN32 (ERROR_BAD_ARGUMENTS));
+    CBREx (hasInput, E_INVALIDARG);
 
     cpu.Reset();
 
@@ -226,8 +229,11 @@ HRESULT RunMode::Run (const CommandLineOptions & options, int & exitCode)
         asmOptions.flagPrefix        = options.flagPrefix;
         asmOptions.predefinedSymbols = options.predefinedSymbols;
 
+        //  The CPU answer is the dialect's own, asked of the same mode that
+        //  answers it for the assembler subcommand -- a second copy here is how
+        //  `run --merlin` came to refuse `XC`.
         ar = SourceAssembler::Assemble (options.inputFile,
-                                        InstructionSetProvider (SourceAssembler::SelectInstructionSet (options, cpu)),
+                                        AssemblerMode::CreateFor (options.dialect)->CreateInstructionSetProvider (options, cpu),
                                         asmOptions);
         SourceAssembler::ReportDiagnostics (ar);
 

@@ -12,7 +12,7 @@
 //
 //  The `merlin` subcommand: assemble one Merlin source and write its object.
 //
-//  Two instruction tables go across, because Merlin selects its CPU in the
+//  Both instruction tables go across, because Merlin selects its CPU in the
 //  source and a provider with nothing to switch to would leave such a source
 //  told it had reached the wider processor while the assembler stayed on the
 //  narrow one. It is also why there is no CPU flag: the source decides, and a
@@ -27,8 +27,9 @@
 
 class MerlinMode : public AssemblerMode
 {
-protected:
+public:
     InstructionSetProvider  CreateInstructionSetProvider (const CommandLineOptions & options, const Cpu & cpu) const override;
 
+protected:
     std::string             ResolveOutputName            (const CommandLineOptions & options, const AssemblyResult & result) const override;
 };
