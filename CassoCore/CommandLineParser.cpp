@@ -240,9 +240,8 @@ void CommandLineParser::SelectOutputFormat (const std::string & flag,
     // The same flag twice is not a conflict -- it asks for one thing, twice.
     if (disagrees && options.outputFormatConflict.empty())
     {
-        options.outputFormatConflict = options.outputFormatFlag + " and " + flag
-                                     + " both name an output format, and one assembly writes one file."
-                                       " Choose one.";
+        options.outputFormatConflict = "Only one output format is allowed; "
+                                     + options.outputFormatFlag + " and " + flag + " were both given.";
     }
 
     if (!alreadyChosen)
