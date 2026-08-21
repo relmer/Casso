@@ -162,23 +162,21 @@ public:
     // any weight -- the labels read as chunky approximations of type rather
     // than type. Callers scale cellMm DOWN to match: the same label is now
     // more, smaller pixels rather than the same pixels made bigger.
-    // Stamps a silhouette mask onto the LID -- the X/Y plane facing +Z --
-    // rather than onto a front face. One merged quad per horizontal run, the
-    // same technique as the other stamps.
+    // Stamps a silhouette mask onto a FRONT FACE, one merged quad per
+    // horizontal run -- the same technique as the text and brand stamps, for
+    // marks that are shapes rather than letters.
     //
-    // Rows run FRONT-TO-BACK: row 0 lands furthest from the viewer, so a mark
-    // whose row 0 is its top reads right way up to someone standing at the
-    // machine. `rowRgb` is three floats per row, which is what lets one
-    // routine serve a single-color logotype and a striped cassowary alike.
-    static void  StampTopMask (std::vector<Dxui3DRenderer::Vertex> & out,
-                               const char * const                  * rows,
-                               int                                   rowCount,
-                               int                                   colCount,
-                               float                                 leftMm,
-                               float                                 backYMm,
-                               float                                 cellMm,
-                               float                                 topZ,
-                               const float                         * rowRgb);
+    // `rowRgb` is three floats per row, which is what would let one routine
+    // serve a single-color logotype and a striped mark alike.
+    static void  StampFaceMask (std::vector<Dxui3DRenderer::Vertex> & out,
+                                const char * const                  * rows,
+                                int                                   rowCount,
+                                int                                   colCount,
+                                float                                 leftMm,
+                                float                                 topZMm,
+                                float                                 cellMm,
+                                float                                 frontY,
+                                const float                         * rowRgb);
 
     static void  StampText (std::vector<Dxui3DRenderer::Vertex> & out,
                             const char                          * text,
@@ -309,9 +307,8 @@ private:
                                  float thicknessMm, int firstRow, int lastRow);
     void     BuildPadlockStamp  ();
 
-    // The lid's printed marking: the "disk ][" logotype and the cassowary,
-    // laid on the metal rather than on a face.
-    void     BuildLidLabel      ();
+    // The "disk ][" logotype, printed low on the faceplate.
+    void     BuildWordmarkStamp ();
     void     AddRegionBoxes     ();
     void     ComputeBounds         ();
     void     ComputeGroundFootprint ();

@@ -135,7 +135,14 @@ public:
         float  pebblePitchMm = 0.60f;
 
         // How hard the grain tilts the normal.
-        float  pebbleAmount  = 0.16f;
+        float  pebbleAmount  = 0.30f;
+
+        // How dark a bump's own underside goes. This is the term that makes
+        // relief read AS relief: cavity darkening says "this spot is low",
+        // but only a horizon test says "this spot is low because something
+        // beside it is in the way", and that shadow is the cue the eye
+        // actually uses. Zero leaves the finish shadowless.
+        float  pebbleShadow  = 0.55f;
 
         // How much the grain DARKENS its own pits. This is what reads as
         // depth: a matte near-black surface returns almost the same value

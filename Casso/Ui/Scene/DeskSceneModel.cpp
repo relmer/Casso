@@ -109,22 +109,20 @@ static constexpr float   s_kInUseCellMm  = 0.375f;
 static constexpr float   s_kInUseFrontY  = -1.8f;
 static constexpr float   s_kInUseRgb[3]  = { 0.750f, 0.730f, 0.700f };
 
-// The lid label: "disk ][" plus the cassowary, printed on the metal.
+// The "disk ][" logotype, low on the FACEPLATE -- below the IN-USE legend and
+// its lamp, opposite the cassowary in the other corner. It was briefly put on
+// the lid, which was simply wrong about where the mark lives.
 //
-// ESTIMATED, not measured -- there is no reference in this file to measure
-// against, so these are the numbers to change first if the label reads wrong.
-// The group is centered across the width by BuildLidLabel, so only its depth,
-// scale and spacing are set here.
-static constexpr float   s_kLidSheetMm         = 1.25f;   // == cad_diskii SHELL_T
-static constexpr float   s_kLidChannelMm       = 0.35f;   // == the lid channels' thickness
-static constexpr float   s_kLidWordCellMm      = 0.78f;   // -> a ~60 mm wordmark
-static constexpr float   s_kLidLabelBackYMm    = 66.0f;   // the label's far edge
-static constexpr float   s_kLidGapMm           = 7.0f;    // wordmark to bird
-static constexpr float   s_kLidBirdHeightScale = 1.45f;   // bird vs wordmark height
+// Shares the left column the other two legends use, so the face reads as one
+// left-aligned stack rather than three separately-placed marks.
+static constexpr float   s_kWordLeftMm   = 12.23f;
+static constexpr float   s_kWordTopZMm   = 22.0f;
+static constexpr float   s_kWordCellMm   = 0.52f;   // -> a 40 mm logotype
+static constexpr float   s_kWordFrontY   = -1.8f;
 
-// Printed ink, not molded plastic: a warm off-white that reads on beige
-// without the glare of pure white.
-static constexpr float   s_kLidInkRgb[3]       = { 0.945f, 0.930f, 0.905f };
+// Printed ink, not molded plastic. Slightly softer than the legends' gray so
+// the logotype does not out-shout the labels that carry actual information.
+static constexpr float   s_kWordRgb[3]   = { 0.815f, 0.800f, 0.780f };
 
 // DiskII interactive regions, model space (mm). The eject region wraps the
 // slot + door bar + latch; the body box wraps the whole case including the
@@ -548,7 +546,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         StampText (m_opaque, "IN USE >", s_kInUseLeftMm, s_kInUseTopZMm,
                    s_kInUseCellMm, s_kInUseFrontY, s_kInUseRgb);
 
-        BuildLidLabel();
+        BuildWordmarkStamp();
     }
 
     {
@@ -1322,112 +1320,32 @@ static constexpr int  s_kWordmarkCols = 77;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DeskSceneModel::BuildLidLabel
+//  DeskSceneModel::BuildWordmarkStamp
 //
-//  The drive's lid marking: the "disk ][" logotype with the rainbow cassowary
-//  to its right, the pair the real machine wears.
+//  The "disk ][" logotype, printed low on the faceplate below the IN-USE
+//  legend and its lamp -- opposite the cassowary, which holds the other
+//  corner.
 //
-//  PLACEMENT IS ESTIMATED and is the one part of this not measured off
-//  anything. It is set out as a proportion of the lid -- the label group
-//  centered across the width, sitting toward the front where the eye finds it
-//  -- rather than as absolute millimeters, so it stays sensible if the case
-//  changes and it is obvious which numbers are the guesses.
-//
-//  The wordmark is a single ink color: the real label is printed, not molded,
-//  and printing has no relief to catch light.
+//  A SILHOUETTE, not type: the mark's lowercase d carries a slab no font of
+//  ours has and its ][ is a pair of drawn bars rather than two bracket
+//  characters, so it is stored as the shape it is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskSceneModel::BuildLidLabel()
+void DeskSceneModel::BuildWordmarkStamp()
 {
-    // The lid's own top, the sheet the metal wrap adds, and then CLEAR OF THE
-    // CHANNELS -- which are slabs standing on that metal, not grooves in it,
-    // so a label at the sheet's height is behind them. The first attempt sat
-    // 0.02 proud of the metal and the channels ate everything but the few
-    // millimeters between them.
-    const float  lidZ   = s_kDiskIiBodyMax[2] + s_kLidSheetMm
-                        + s_kLidChannelMm + 0.02f;
-    const float  cell   = s_kLidWordCellMm;
-    const float  wordW  = (float) s_kWordmarkCols * cell;
-    const float  wordH  = (float) s_kWordmarkRows * cell;
+    std::vector<float>  ink ((size_t) s_kWordmarkRows * 3);
 
-    // The cassowary is set to the wordmark's own height so the two read as
-    // one line of artwork rather than two marks that happen to be near each
-    // other, and it keeps its native aspect from its grid.
-    const float  birdH  = wordH * s_kLidBirdHeightScale;
-    const float  birdW  = birdH * (float) CassoBranding::kGridW
-                                / (float) CassoBranding::kGridH;
-
-    const float  groupW = wordW + s_kLidGapMm + birdW;
-    const float  leftX  = (s_kDiskIiBodyMax[0] - groupW) * 0.5f;
-    const float  backY  = s_kLidLabelBackYMm;
-
+    for (int row = 0; row < s_kWordmarkRows; row++)
     {
-        std::vector<float>  ink ((size_t) s_kWordmarkRows * 3);
-
-        for (int row = 0; row < s_kWordmarkRows; row++)
-        {
-            ink[(size_t) row * 3 + 0] = s_kLidInkRgb[0];
-            ink[(size_t) row * 3 + 1] = s_kLidInkRgb[1];
-            ink[(size_t) row * 3 + 2] = s_kLidInkRgb[2];
-        }
-
-        StampTopMask (m_opaque, s_kDiskWordmark, s_kWordmarkRows, s_kWordmarkCols,
-                      leftX, backY, cell, lidZ, ink.data());
+        ink[(size_t) row * 3 + 0] = s_kWordRgb[0];
+        ink[(size_t) row * 3 + 1] = s_kWordRgb[1];
+        ink[(size_t) row * 3 + 2] = s_kWordRgb[2];
     }
 
-    // The cassowary, striped down its own drawn extent exactly as the
-    // faceplate mark is -- the stripes divide the BIRD, not its grid, so the
-    // blank rows above and below it do not eat two bands.
-    {
-        int  firstRow = CassoBranding::kGridH;
-        int  lastRow  = -1;
-
-        for (int row = 0; row < CassoBranding::kGridH; row++)
-        {
-            if (CassoBranding::SilhouetteRow (row) != 0)
-            {
-                firstRow = std::min (firstRow, row);
-                lastRow  = std::max (lastRow, row);
-            }
-        }
-
-        if (lastRow >= firstRow)
-        {
-            int                       rowCount = lastRow - firstRow + 1;
-            float                     birdCell = birdH / (float) rowCount;
-            std::vector<std::string>  rows ((size_t) rowCount);
-            std::vector<const char *> rowPtrs ((size_t) rowCount);
-            std::vector<float>        rgb ((size_t) rowCount * 3);
-
-            for (int i = 0; i < rowCount; i++)
-            {
-                uint64_t  bits   = CassoBranding::SilhouetteRow (firstRow + i);
-                int       stripe = (i * CassoBranding::kStripeCount) / rowCount;
-                uint32_t  argb   = CassoBranding::StripeColor (stripe);
-
-                rows[(size_t) i].assign ((size_t) CassoBranding::kGridW, '.');
-
-                for (int c = 0; c < CassoBranding::kGridW; c++)
-                {
-                    if ((bits & (1ULL << c)) != 0)
-                    {
-                        rows[(size_t) i][(size_t) c] = '#';
-                    }
-                }
-
-                rowPtrs[(size_t) i] = rows[(size_t) i].c_str();
-
-                rgb[(size_t) i * 3 + 0] = (float) ((argb >> 16) & 0xFF) / 255.0f;
-                rgb[(size_t) i * 3 + 1] = (float) ((argb >> 8)  & 0xFF) / 255.0f;
-                rgb[(size_t) i * 3 + 2] = (float) ( argb        & 0xFF) / 255.0f;
-            }
-
-            StampTopMask (m_opaque, rowPtrs.data(), rowCount, CassoBranding::kGridW,
-                          leftX + wordW + s_kLidGapMm, backY, birdCell, lidZ,
-                          rgb.data());
-        }
-    }
+    StampFaceMask (m_opaque, s_kDiskWordmark, s_kWordmarkRows, s_kWordmarkCols,
+                   s_kWordLeftMm, s_kWordTopZMm, s_kWordCellMm, s_kWordFrontY,
+                   ink.data());
 }
 
 
@@ -1436,39 +1354,30 @@ void DeskSceneModel::BuildLidLabel()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DeskSceneModel::StampTopMask
+//  DeskSceneModel::StampFaceMask
 //
-//  A mask laid on the lid instead of on a face. The only real difference from
-//  the front-face stamps is which axes the grid runs along: columns still go
-//  with X, but rows go along Y and the quads face +Z.
-//
-//  Rows run BACKWARD from `backYMm` -- row 0 furthest from the viewer -- so a
-//  mark stored top-row-first reads the right way up to someone standing at
-//  the machine. Getting that backwards silently mirrors the mark front-to-
-//  back, which on a symmetrical logotype is the kind of thing nobody notices
-//  until they compare it to a photograph.
-//
+//  A silhouette laid on a front face, one merged quad per horizontal run.
 //  Unlit, like the other stamps: printed marks keep their exact ink values
 //  rather than taking the room's light, and the surface they sit on carries
 //  all the shading the eye needs to place them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskSceneModel::StampTopMask (std::vector<Dxui3DRenderer::Vertex> & out,
-                                   const char * const                  * rows,
-                                   int                                   rowCount,
-                                   int                                   colCount,
-                                   float                                 leftMm,
-                                   float                                 backYMm,
-                                   float                                 cellMm,
-                                   float                                 topZ,
-                                   const float                         * rowRgb)
+void DeskSceneModel::StampFaceMask (std::vector<Dxui3DRenderer::Vertex> & out,
+                                    const char * const                  * rows,
+                                    int                                   rowCount,
+                                    int                                   colCount,
+                                    float                                 leftMm,
+                                    float                                 topZMm,
+                                    float                                 cellMm,
+                                    float                                 frontY,
+                                    const float                         * rowRgb)
 {
     for (int row = 0; row < rowCount; row++)
     {
         const char *  bits = rows[row];
-        float         y0   = backYMm - (float) row * cellMm;
-        float         y1   = y0 - cellMm;
+        float         zTop = topZMm - (float) row * cellMm;
+        float         z1   = zTop - cellMm;
         float         r    = rowRgb[row * 3 + 0];
         float         g    = rowRgb[row * 3 + 1];
         float         b    = rowRgb[row * 3 + 2];
@@ -1499,12 +1408,12 @@ void DeskSceneModel::StampTopMask (std::vector<Dxui3DRenderer::Vertex> & out,
             {
                 Dxui3DRenderer::Vertex   quad[6] = {};
 
-                quad[0] = { x0, y0, topZ, 0, 0, r, g, b, 1.0f };
-                quad[1] = { x1, y0, topZ, 0, 0, r, g, b, 1.0f };
-                quad[2] = { x1, y1, topZ, 0, 0, r, g, b, 1.0f };
-                quad[3] = { x0, y0, topZ, 0, 0, r, g, b, 1.0f };
-                quad[4] = { x1, y1, topZ, 0, 0, r, g, b, 1.0f };
-                quad[5] = { x0, y1, topZ, 0, 0, r, g, b, 1.0f };
+                quad[0] = { x0, frontY, zTop, 0, 0, r, g, b, 1.0f };
+                quad[1] = { x1, frontY, zTop, 0, 0, r, g, b, 1.0f };
+                quad[2] = { x1, frontY, z1,   0, 0, r, g, b, 1.0f };
+                quad[3] = { x0, frontY, zTop, 0, 0, r, g, b, 1.0f };
+                quad[4] = { x1, frontY, z1,   0, 0, r, g, b, 1.0f };
+                quad[5] = { x0, frontY, z1,   0, 0, r, g, b, 1.0f };
 
                 out.insert (out.end(), quad, quad + 6);
             }

@@ -168,7 +168,25 @@ static const char s_kPixelShaderSrc[] =
     "            float  h  = (SmoothRand (p, 1) - 0.5f)\n"
     "                      + (SmoothRand (p * 2.7f, 4) - 0.5f) * 0.45f\n"
     "                      + (SmoothRand (p * 6.9f, 7) - 0.5f) * 0.22f;\n"
-    "            base.rgb *= saturate (1.0f + h * parm3.z * input.peb);\n"
+    // A HORIZON TEST, which is what actually makes a bump look like a bump.
+    // Cavity darkening alone says "this spot is low"; it never says "this
+    // spot is low BECAUSE something beside it is in the way", so the finish
+    // still read as a stain rather than as relief.
+    //
+    // The room's fixtures are overhead, so the occluder is whatever sits just
+    // ABOVE a point -- model +Z. Sampling the height there and darkening when
+    // it stands higher gives every bump a small shadow on its underside,
+    // which is the cue the eye uses for depth and the one that was missing.
+    //
+    // Two octaves for the probe rather than three: the finest is below a
+    // shadow's scale anyway, and this is the one term that costs an extra
+    // pair of noise fetches.
+    "            float3 up = p + float3 (0.0f, 0.0f, 0.55f);\n"
+    "            float  hu = (SmoothRand (up, 1) - 0.5f)\n"
+    "                      + (SmoothRand (up * 2.7f, 4) - 0.5f) * 0.45f;\n"
+    "            float  occ = saturate ((hu - h) * 2.2f);\n"
+    "            base.rgb *= saturate (1.0f + h * parm3.z * input.peb)\n"
+    "                      * saturate (1.0f - occ * parm3.w * input.peb);\n"
     "        }\n"
     "        float3 v    = normalize (eye.xyz);\n"
     "        float  diff = 0.0f;\n"
@@ -1626,7 +1644,7 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
         lightCb[96] = (m_lighting.pebblePitchMm > 1e-4f) ? m_lighting.pebblePitchMm : 1.0f;
         lightCb[97] = m_lighting.pebbleAmount;
         lightCb[98] = m_lighting.pebbleCavity;
-        lightCb[99] = 0.0f;
+        lightCb[99] = m_lighting.pebbleShadow;
 
         hr = m_context->Map (m_lightBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
         CHR (hr);

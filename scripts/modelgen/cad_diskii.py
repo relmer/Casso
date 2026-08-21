@@ -76,6 +76,20 @@ DOOR_BACK = PLATE_Y + DOOR_T      # both steps share one back plane
 # the frame and the face alike, so an open door leaves a gap in the frame.
 NOTCH_W    = DOOR_W + 1.0         # a hair wider, so the door never binds
 NOTCH_DEEP = 38.0
+NOTCH_WALL = 1.0                  # thickness of the dark lining around it
+
+# The notch runs BELOW the slot, down to the in-use lamp's bottom edge -- the
+# recess is what your fingers go into to pull a diskette out, so it has to
+# reach below the opening rather than stopping at the door. Bottom-aligned
+# with the lamp, which is the line the faceplate already has there.
+LED_R      = 1.55
+# 3.0 threw too wide an aura: the standoff is what gives the faceplate its
+# dot(n, L), so the protrusion and the size of the pool are the same number.
+LED_PROUD  = 2.0
+LED_BARREL = LED_PROUD - LED_R
+LED_X, LED_Z = 45.0, 28.9
+
+NOTCH_Z0   = LED_Z - LED_R
 
 # The diskette slot proper: a void running back into the drive's core, deep
 # enough that its far end goes dark and a diskette's back edge has somewhere
@@ -175,14 +189,34 @@ case = case.cut(
 #
 # On YZ the local axes are global Y then Z, which is what the profile means,
 # and the extrude runs along X to sweep the notch across the door's width.
-notch = (cq.Workplane("YZ")
-         .polyline ([(FRAME_Y,                 DOOR_Z0),
-                     (DOOR_BACK,               DOOR_Z0),
-                     (PLATE_Y + NOTCH_DEEP,    DOOR_Z1),
-                     (FRAME_Y,                 DOOR_Z1)])
-         .close()
-         .extrude (NOTCH_W)
-         .translate (((W - NOTCH_W) * 0.5, 0.0, 0.0)))
+def notch_wedge (pad):
+    """The notch profile, optionally grown by `pad` on every closed side.
+
+    The FRONT stays put whatever the pad: the notch is open to the world, and
+    growing that edge would push the mouth out past the faceplate. Everything
+    else -- floor, top, both flanks -- moves out, which is what makes the
+    padded copy a lining shell once the true notch is cut back out of it.
+    """
+    return (cq.Workplane("YZ")
+            .polyline ([(FRAME_Y,                        NOTCH_Z0 - pad),
+                        (DOOR_BACK + pad,                NOTCH_Z0 - pad),
+                        (PLATE_Y + NOTCH_DEEP + pad,     DOOR_Z1 + pad),
+                        (FRAME_Y,                        DOOR_Z1 + pad)])
+            .close()
+            .extrude (NOTCH_W + pad * 2.0)
+            .translate (((W - NOTCH_W) * 0.5 - pad, 0.0, 0.0)))
+
+
+notch = notch_wedge (0.0)
+
+# The cavity the CASE gives up is the padded one, not the notch. The lining
+# has to occupy real space: cutting the case to the notch's own size left the
+# liner sharing a volume with case material that was still there, so the
+# beige won and the pocket kept reading as bare case with an open door.
+#
+# So the case loses notch + wall, the liner fills that wall back in, and what
+# is finally open is the notch itself.
+notch_outer = notch_wedge (NOTCH_WALL)
 
 # The slot's void, defined HERE because it has to be taken out of the case
 # and the notch liner as well as shown as a lining -- a cavity that is only
@@ -192,7 +226,7 @@ slot_cavity = (cq.Workplane("XY")
                     centered=(False, False, False))
                .translate((SLOT_X0, FRAME_Y + BEVEL_RUN, SLOT_Z0)))
 
-case = case.cut (notch).cut (slot_cavity)
+case = case.cut (notch_outer).cut (slot_cavity)
 
 m.add("case", case, BEIGE)
 
@@ -339,12 +373,18 @@ door = door.union (
 # The notch's walls are black plastic, not the beige shell behind them, and
 # they carry the same pebble grain as the face. Line the pocket, then cut the
 # notch out of the liner so what is left IS the walls.
-liner = (cq.Workplane("XY")
-         .box(NOTCH_W + 4.0, NOTCH_DEEP + 3.0, (DOOR_Z1 - DOOR_Z0) + 4.0,
-              centered=(False, False, False))
-         .translate(((W - NOTCH_W) * 0.5 - 2.0, PLATE_Y, DOOR_Z0 - 2.0)))
 
-m.add("notch_liner", liner.cut (notch).cut (slot_cavity), KD["plate_pebbled"])
+# THE SAME WEDGE, GROWN, MINUS THE WEDGE -- so the lining hugs the notch on
+# every closed side and is exactly NOTCH_WALL thick everywhere.
+#
+# It was a plain BOX around the notch's bounding volume, which was already the
+# wrong shape and became visibly wrong once the notch moved to the plane it
+# belonged in: the pocket's walls and sloped floor were left as bare case, so
+# an open door showed BEIGE where the drive's own dark interior should be.
+# A box cannot line a wedge; only the wedge can.
+liner = notch_outer.cut (notch).cut (slot_cavity)
+
+m.add("notch_liner", liner, KD["plate_pebbled"])
 
 m.add("door", door, KD["drive_door"])
 
@@ -371,13 +411,6 @@ m.add("door", door, KD["drive_door"])
 #
 # Total reach is barrel + radius, so the barrel carries the remainder and the
 # dome's tip lands exactly LED_PROUD off the plate however the radius moves.
-LED_R      = 1.55
-# 3.0 threw too wide an aura: the standoff is what gives the faceplate its
-# dot(n, L), so the protrusion and the size of the pool are the same number.
-LED_PROUD  = 2.0
-LED_BARREL = LED_PROUD - LED_R
-LED_X, LED_Z = 45.0, 28.9
-
 led = (cq.Workplane("XY")
        .cylinder(LED_BARREL, LED_R, direct=(0, 1, 0), centered=(True, True, False))
        .translate((LED_X, PLATE_Y - LED_BARREL, LED_Z)))
