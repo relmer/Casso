@@ -311,14 +311,17 @@ A re-scan finds no remaining WOZ in the tree with `creator = Casso`.
 ## 5. Test coverage added
 
 Suite: **3015 Debug / 3012 Release**, code analysis 0 warnings, CheckStyle
-clean. Salvage adds 15 tests {em} four on the decode taxonomy, seven on the
+clean. Salvage adds 15 tests — four on the decode taxonomy, seven on the
 store operations (gate, counts, the untouched original, the refusal to
 overwrite the source), and four on the menu predicate.
 
-Known gap: `DxuiButtonRow::WidthForLabel` and `DxuiInfoBanner::MeasuredHeightPx`
-are pure and untested. Both guard failures that are silent {em} a clipped label
-and an over-tall box look merely ugly, never broken {em} so they are worth
-pinning.
+`DxuiButtonRow::WidthForLabel` is pinned by five tests asserting its properties
+(never below the standard width, grows with the label, leaves padding) rather
+than exact pixels — the width is an estimate, since layout runs without a
+text renderer, and pinning its constants would break on any tuning. It guards
+a silent failure: a clipped label looks merely ugly, never broken.
+`DxuiInfoBanner::MeasuredHeightPx` needs a text renderer and is still
+uncovered.
 
 
 - **Retention** (`WozLoaderTests`): META byte-for-byte, INFO fields Casso does
@@ -363,6 +366,20 @@ without a filesystem seam in `DiskImageStore`. Said so in
   it now fails with a clear explanation rather than corrupting anything, but
   disabling it would be better. The enable plumbing is `MainMenu::SetCheckQuery`
   in `EmulatorShell.cpp` (~line 2159).
+- **Four defects found by using the feature, not by testing it,** all fixed
+  and worth knowing as a class. The damage report fired only for
+  command-line mounts, so the ordinary way a user opens a disk was the one
+  path that never warned — it was wired to a call site instead of to the
+  event. Salvage from the Disk menu did nothing, because that menu dispatches
+  on the CPU thread and a Dxui modal will not open there; reached from the
+  damage prompt it was already on the UI thread and worked, which is exactly
+  why it survived testing. The dropdown was a fixed width and clipped both the
+  new label and stock accelerators. And the salvage assessment ran a full
+  decode per drive on every menu draw — 154 ms for a copy-protected disk
+  — because the cheap discriminator came after the expensive work.
+
+  The pattern in all four: the path exercised in development was the one that
+  could not fail.
 - **`kQuarterTracksPerTrack` and `kMaxTracks` in `WozLoader.cpp` are unused** —
   pre-existing, not touched here.
 - **020 coordination.** `DenibblizeReport` is the per-track decode-report API

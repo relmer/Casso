@@ -384,7 +384,7 @@ CassoCli run output.bin --load $8000
 ### Apple II Emulator
 
 Run `Casso` with no arguments for an Apple II+ with an empty drive. ROMs and
-sample disks are fetched on first launch, with your consent {em} there is
+sample disks are fetched on first launch, with your consent — there is
 nothing to install by hand.
 
 ```powershell

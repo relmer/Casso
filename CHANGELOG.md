@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [Unreleased]
+## [1.17.0] — salvage a damaged disk
 
 ### Added
 - **Salvage the readable sectors of a damaged disk.** A disk whose stored
@@ -55,6 +55,13 @@ Entries before versioning was introduced use dates only.
   placed on a disk. The default is unchanged.
 
 ### Changed
+- **The write-protect menu item names the flag it changes.** It read "Allow
+  writes to <disk>", which promised an outcome it cannot deliver: the drive
+  preference and the host file's read-only attribute also refuse a write, and
+  neither is touched here. It also flipped its verb on the file attribute as
+  well as the in-file flag, so a writable image inside a read-only file offered
+  to allow writes and then could not. It now reads "Clear" or "Set" — the
+  disk — "internal write-protect flag", keyed to the WOZ flag alone.
 - **Errors reach the user through Casso's own dialogs.** Every user-facing
   error in the tree — a settings file that will not parse, a disk that will
   not save, a damaged image — surfaced as a raw Win32 message box in the
@@ -122,6 +129,18 @@ Entries before versioning was introduced use dates only.
   could never work. An already-protected image still offers the toggle —
   clearing the flag is exactly what a user does before writing to a disk —
   and only damage disables it.
+- **A menu no longer clips what it has to say.** The Disk menu's dropdown was a
+  fixed width, so any row wider than it wrapped and ran into the row beneath.
+  That was already truncating stock accelerators — "Ctrl+Shift+1" rendered
+  as "Ctrl+Shift" — and it left no room for a label that names a file. The
+  dropdown now measures its widest row, label plus accelerator, and keeps the
+  old width as a floor, so every menu that fitted before is unchanged.
+- **The write-protect toggle is no longer offered when the write cannot
+  succeed.** The flag it changes lives inside the file, so setting or clearing
+  it means writing the file — which a read-only backing file or a
+  permissions failure makes impossible. The item stayed enabled anyway and
+  failed on the click. It now requires a writable file, exactly as it already
+  required an undamaged one.
 - **A dialog button no longer clips a long label.** Buttons were laid out at a
   fixed width, so any label longer than about a dozen characters wrapped and
   spilled outside the button. Buttons now size to their label and never go
