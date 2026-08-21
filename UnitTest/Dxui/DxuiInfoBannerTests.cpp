@@ -2,6 +2,7 @@
 
 #include "Widgets/DxuiInfoBanner.h"
 #include "Core/DxuiDpiScaler.h"
+#include "MockDxuiTextRenderer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -77,5 +78,68 @@ namespace DxuiInfoBannerTests
             Assert::IsTrue (banner.PreferredHeightPx (300.0f, scaler) > 0.0f,
                             L"an empty banner keeps a positive, icon-clearing height");
         }
+
+        TEST_METHOD (MeasuredHeight_UsesTheRendererInsteadOfTheEstimate)
+        {
+            // PreferredHeightPx has no renderer, so it rounds up and never
+            // clips -- harmless on an auto-sized surface, but on a fixed
+            // dialog the slack shows as an empty line inside the box. A caller
+            // that HAS a renderer can ask for the real height instead.
+            DxuiInfoBanner        banner (L"a short warning");
+            MockDxuiTextRenderer  text;
+            DxuiDpiScaler         scaler    = Scaler96();
+            SIZE                  oneLine   = { 200, 16 };
+            float                 measured  = 0.0f;
+            float                 estimated = 0.0f;
+
+            text.SetCannedMetrics (L"a short warning", oneLine);
+
+            measured  = banner.MeasuredHeightPx (text, 400.0f, scaler);
+            estimated = banner.PreferredHeightPx (400.0f, scaler);
+
+            Assert::IsTrue (measured > 0.0f, L"a measured height must be produced");
+            Assert::IsTrue (measured <= estimated,
+                L"measuring must never be taller than the deliberately generous estimate");
+        }
+
+
+
+        TEST_METHOD (MeasuredHeight_TallerTextNeedsMoreRoom)
+        {
+            DxuiInfoBanner        banner (L"tall");
+            MockDxuiTextRenderer  text;
+            DxuiDpiScaler         scaler = Scaler96();
+            SIZE                  one    = { 200, 16 };
+            SIZE                  three  = { 200, 48 };
+            float                 hOne   = 0.0f;
+            float                 hThree = 0.0f;
+
+            text.SetCannedMetrics (L"tall", one);
+            hOne = banner.MeasuredHeightPx (text, 400.0f, scaler);
+
+            text.SetCannedMetrics (L"tall", three);
+            hThree = banner.MeasuredHeightPx (text, 400.0f, scaler);
+
+            Assert::IsTrue (hThree > hOne, L"three lines of text need more height than one");
+        }
+
+
+
+        TEST_METHOD (MeasuredHeight_FallsBackToTheEstimateWhenMeasurementFails)
+        {
+            // DirectWrite can transiently report a zero-width layout mid-resize.
+            // Trusting that would collapse the banner to its padding, so a
+            // failed measurement has to fall back rather than be believed.
+            DxuiInfoBanner        banner (L"a warning long enough to wrap more than once in a narrow banner");
+            MockDxuiTextRenderer  text;
+            DxuiDpiScaler         scaler = Scaler96();
+
+            text.SetMeasureReturnsZero (true);
+
+            Assert::AreEqual (banner.PreferredHeightPx (200.0f, scaler),
+                              banner.MeasuredHeightPx (text, 200.0f, scaler),
+                              L"a zero measurement must fall back to the estimate");
+        }
+
     };
 }
