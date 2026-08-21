@@ -139,16 +139,36 @@ static const char s_kPixelShaderSrc[] =
     "        float3 n    = normalize (input.nrm);\n"
     "        if (input.peb > 0.0f)\n"
     "        {\n"
-    // Two octaves. One alone is a single spatial frequency, which reads as
-    // regular swell rather than grain; adding a half-scale octave at a third
-    // of the weight gives the fine break-up a molded finish has without
-    // returning to per-cell chaos.
+    // THREE octaves, and a CAVITY term. Tilting the normal alone cannot read
+    // as depth on a near-black surface viewed head-on: a matte plastic
+    // returns almost the same value however it is tilted, so the grain came
+    // out flat no matter how hard the normal was pushed.
+    //
+    // What the eye actually reads as three-dimensional is that the pits are
+    // DARKER -- less of the room reaches the bottom of a dimple than its rim.
+    // So the same field that bends the normal also drives an occlusion term,
+    // which is what turns a shimmer into a texture with a floor and a top.
+    //
+    // Three frequencies rather than two because a molded grain is not one
+    // size of bump: the coarse octave gives the mottle, the middle one the
+    // grain proper, and the finest keeps it from reading as cells at all.
     "            float3 p  = input.wp / parm3.x;\n"
     "            float3 j  = float3 (SmoothRand (p, 1), SmoothRand (p, 2),\n"
     "                                SmoothRand (p, 3)) * 2.0f - 1.0f;\n"
     "            float3 j2 = float3 (SmoothRand (p * 2.7f, 4), SmoothRand (p * 2.7f, 5),\n"
     "                                SmoothRand (p * 2.7f, 6)) * 2.0f - 1.0f;\n"
-    "            n = normalize (n + (j + j2 * 0.35f) * (parm3.y * input.peb));\n"
+    "            float3 j3 = float3 (SmoothRand (p * 6.9f, 7), SmoothRand (p * 6.9f, 8),\n"
+    "                                SmoothRand (p * 6.9f, 9)) * 2.0f - 1.0f;\n"
+    "            n = normalize (n + (j + j2 * 0.45f + j3 * 0.22f)\n"
+    "                             * (parm3.y * input.peb));\n"
+    // Height at this point, from the same octaves, centered on zero. Pits go
+    // negative and rims positive, so the base color is scaled by a factor
+    // straddling 1 -- the surface keeps its average value rather than simply
+    // going darker.
+    "            float  h  = (SmoothRand (p, 1) - 0.5f)\n"
+    "                      + (SmoothRand (p * 2.7f, 4) - 0.5f) * 0.45f\n"
+    "                      + (SmoothRand (p * 6.9f, 7) - 0.5f) * 0.22f;\n"
+    "            base.rgb *= saturate (1.0f + h * parm3.z * input.peb);\n"
     "        }\n"
     "        float3 v    = normalize (eye.xyz);\n"
     "        float  diff = 0.0f;\n"
@@ -1605,7 +1625,7 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
         // would sit harmless until the first textured surface appeared.
         lightCb[96] = (m_lighting.pebblePitchMm > 1e-4f) ? m_lighting.pebblePitchMm : 1.0f;
         lightCb[97] = m_lighting.pebbleAmount;
-        lightCb[98] = 0.0f;
+        lightCb[98] = m_lighting.pebbleCavity;
         lightCb[99] = 0.0f;
 
         hr = m_context->Map (m_lightBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);

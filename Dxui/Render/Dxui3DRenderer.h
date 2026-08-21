@@ -129,16 +129,21 @@ public:
         // The pebble finish's grain: how far apart the bumps sit, in the
         // vertices' own units (mm here), and how hard each tilts the normal.
         // Only vertices carrying a nonzero `pebble` are affected at all.
-        // The coarse octave's cell size. Finer than it was, because the grain
-        // is interpolated now rather than constant per cell -- a blocky field
-        // has to stay large to avoid reading as pixels, a smooth one does not,
-        // and the real finish is much finer than a millimeter and a half.
-        float  pebblePitchMm = 0.85f;
+        // The COARSEST octave's cell size; two finer ones ride on it. Smaller
+        // again, because at 0.85 the cells were still resolvable as cells --
+        // the grain read as a pattern with a size rather than as a surface.
+        float  pebblePitchMm = 0.60f;
 
-        // How hard the grain tilts the normal. Lower than it was for the same
-        // reason: the old value had to shout to be seen through the blockiness,
-        // and a molded finish scatters the highlight rather than breaking it.
-        float  pebbleAmount  = 0.11f;
+        // How hard the grain tilts the normal.
+        float  pebbleAmount  = 0.16f;
+
+        // How much the grain DARKENS its own pits. This is what reads as
+        // depth: a matte near-black surface returns almost the same value
+        // however its normal is tilted, so bending normals alone left the
+        // finish flat no matter how hard it was pushed. Less of the room
+        // reaches the bottom of a dimple than its rim, and that difference is
+        // the whole cue. Zero leaves the finish shading-only.
+        float  pebbleCavity  = 0.55f;
     };
 
     void  SetLighting (const Lighting & lighting)  { m_lighting = lighting; }
