@@ -28,8 +28,13 @@ W, H, D = 155.0, 96.0, 220.0
 # fractions of the real height so the front keeps its proportions.
 FZ = H / 86.0
 
-LIP      = 7.0                    # beige margin around the faceplate pocket
-POCKET_D = 2.0                    # how far the black plate sits behind the lip
+# The black face runs the FULL front. Nothing beige borders it -- the metal
+# wrap is the only thing outside the black, which is why this is 0 rather
+# than the 7 mm margin the front carried while the case was one plastic box.
+# A beige surround that wide was the single loudest wrong note on the front:
+# it read as a plastic picture-frame the real drive does not have.
+LIP      = 0.0
+POCKET_D = 2.0                    # how far the black plate sits behind the front
 
 SLOT_Z0, SLOT_Z1 = 46.0 * FZ, 52.0 * FZ
 SLOT_X0, SLOT_X1 = 14.0, W - 14.0
@@ -77,31 +82,34 @@ NOTCH_DEEP = 38.0
 # The metal case is one wrapped sheet around the drive body plus a separate
 # plate closing the rest of the bottom.
 #
-# It OVERHANGS the plastic front, so the bezel sits down inside a shallow
-# metal picture-frame instead of flush with it. That lip is most of what tells
-# you the case is metal and the front is not: it catches light the whole way
-# round, which a flush joint cannot.
+# It OVERHANGS the front, so the black face sits down inside a shallow metal
+# lip instead of flush with it. That lip is the ONLY thing bordering the black
+# face -- no plastic shows around it at all -- and it catches light the whole
+# way round, which a flush joint cannot.
 #
 # The bottom being TWO pieces is the detail worth having. The wrap's flange
 # ends stop short of each other and a separate plate fills the span between
 # them, sitting BOTTOM_DROP lower, so the two seams read from the front as a
 # pair of fine gaps in the bottom edge.
 #
-# SEAM POSITIONS ARE ESTIMATED, and are the one number here not measured off
-# anything. They belong under the "k" of the "disk ][" wordmark and under the
-# cassowary -- both of which live on the LID, and the lid label is not modeled
-# yet, so there is nothing in this file to measure against. These are where
-# those glyphs fall as fractions of the width in the reference photograph;
-# they want re-measuring once the lid label exists.
 SHELL_T     = 1.25                # sheet thickness
-SHELL_PROUD = 0.75                # how far the metal stands forward of the bezel
+SHELL_PROUD = 0.75                # how far the metal stands forward of the face
 BOTTOM_DROP = 0.25                # how much lower the separate bottom plate sits
 SEAM_GAP    = 0.35                # the visible gap where wrap meets bottom plate
 
-SEAM_K      = 0.44 * W            # under the "k" in "disk ]["
-SEAM_LOGO   = 0.62 * W            # under the cassowary
+# The wrap's flanges reach SEAM_INSET in from each outer side, so the separate
+# plate covers the BULK of the bottom rather than a strip down the middle.
+# Measured from the metal's own outer faces, since that is the edge a ruler
+# laid across the real drive starts from.
+INCH        = 25.4
+SEAM_INSET  = 0.8 * INCH
 
-SHELL_Y0    = -3.0 - SHELL_PROUD  # the metal's front edge
+SEAM_L      = -SHELL_T + SEAM_INSET
+SEAM_R      = W + SHELL_T - SEAM_INSET
+
+# The metal stands proud of the BLACK FACE, which is the drive's front now
+# that no plastic borders it.
+SHELL_Y0    = PLATE_Y - SHELL_PROUD
 
 BEIGE    = (0.833, 0.784, 0.659)
 BEIGE_DK = (0.760, 0.710, 0.590)
@@ -118,9 +126,11 @@ m = Model()
 
 # --------------------------------------------------------------------- case
 
-# One solid from the proud lip face back, edges filleted, faceplate pocket
-# CUT into the front. A pocket cannot silently be a solid face, which is the
-# failure the hand-built construction invited.
+# The drive BODY. Nothing of it shows from the front any more -- the black
+# face covers the whole front and the metal covers everything outside that --
+# but it is still what the notch is cut into and what the metal wraps, so it
+# stays a solid rather than becoming a shell that would have nothing to hold
+# the finger notch.
 case = (cq.Workplane("XY")
         .box(W, D + 3.0, H, centered=(False, False, False))
         .translate((0.0, -3.0, 0.0))
@@ -188,9 +198,9 @@ shell = shell_outer.cut (shell_cav)
 # be left sharing a face, or the seam disappears into a coincident surface
 # and the join stops reading at any angle.
 bottom_span = (cq.Workplane("XY")
-               .box(SEAM_LOGO - SEAM_K, D - SHELL_Y0 + 2.0, SHELL_T + BOTTOM_DROP + 2.0,
+               .box(SEAM_R - SEAM_L, D - SHELL_Y0 + 2.0, SHELL_T + BOTTOM_DROP + 2.0,
                     centered=(False, False, False))
-               .translate((SEAM_K, SHELL_Y0 - 1.0, -SHELL_T - BOTTOM_DROP - 2.0)))
+               .translate((SEAM_L, SHELL_Y0 - 1.0, -SHELL_T - BOTTOM_DROP - 2.0)))
 
 m.add("shell", shell.cut (bottom_span), SHELL)
 
@@ -200,9 +210,9 @@ m.add("shell", shell.cut (bottom_span), SHELL)
 # anything was drawn on.
 m.add("shell_bottom",
       cq.Workplane("XY")
-        .box((SEAM_LOGO - SEAM_GAP) - (SEAM_K + SEAM_GAP), D - SHELL_Y0, SHELL_T,
+        .box((SEAM_R - SEAM_GAP) - (SEAM_L + SEAM_GAP), D - SHELL_Y0, SHELL_T,
              centered=(False, False, False))
-        .translate((SEAM_K + SEAM_GAP, SHELL_Y0, -SHELL_T - BOTTOM_DROP)),
+        .translate((SEAM_L + SEAM_GAP, SHELL_Y0, -SHELL_T - BOTTOM_DROP)),
       SHELL)
 
 # The black faceplate filling the pocket floor, a hair behind the lip.
