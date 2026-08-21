@@ -207,9 +207,18 @@ shell_outer = (cq.Workplane("XY")
                .translate((-SHELL_T, SHELL_Y0, -SHELL_T))
                .edges("|Y").fillet(1.8 + SHELL_T))
 
+# The INNER corner is rounded too, by the outer radius LESS the sheet
+# thickness. Bent metal keeps its thickness through a turn -- it cannot gain
+# any -- so a sharp-cornered cavity inside a filleted shell was quietly
+# thickening the wrap at all four corners, exactly where a real case is at
+# its most obviously constant.
+#
+# 1.8 is also the body's own fillet, which is not a coincidence: the metal
+# wraps that body, so its inner surface is the body's outer surface.
 shell_cav = (cq.Workplane("XY")
              .box(W, D - SHELL_Y0 + 2.0, H, centered=(False, False, False))
-             .translate((0.0, SHELL_Y0 - 1.0, 0.0)))
+             .translate((0.0, SHELL_Y0 - 1.0, 0.0))
+             .edges("|Y").fillet(1.8))
 
 shell = shell_outer.cut (shell_cav)
 

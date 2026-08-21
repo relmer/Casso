@@ -110,7 +110,7 @@ public:
             }
         }
 
-        obj += "usemtl glassM\n";
+        obj += "usemtl glass\n";
 
         for (int r = 0; r < rows; r++)
         {
@@ -132,12 +132,12 @@ public:
     static std::string Mtl()
     {
         return
-            "newmtl caseM\nKd 0.833 0.784 0.659\n"
-            "newmtl glassM\nKd 0.05 0.09 0.07\n"
-            "newmtl monLampM\nKd 0.29 0.87 0.38\n"
-            "newmtl ledM\nKd 0.90 0.12 0.10\n"
-            "newmtl doorM\nKd 0.16 0.16 0.18\n"
-            "newmtl latchM\nKd 0.23 0.23 0.25\n";
+            "newmtl case\nKd 0.833 0.784 0.659\n"
+            "newmtl glass\nKd 0.05 0.09 0.07\n"
+            "newmtl lamp\nKd 0.29 0.87 0.38\n"
+            "newmtl led\nKd 0.90 0.12 0.10\n"
+            "newmtl door\nKd 0.16 0.16 0.18\n"
+            "newmtl tab\nKd 0.23 0.23 0.25\n";
     }
 
     static std::string MonitorObj (bool withGlass = true)
@@ -145,8 +145,8 @@ public:
         std::string   obj;
         int           base = 0;
 
-        AppendBox (obj, base, 0.0f, 0.0f, 0.0f, 248.0f, 280.0f, 226.0f, "caseM");
-        AppendBox (obj, base, 210.0f, -5.0f, 45.0f, 218.0f, -4.0f, 52.0f, "monLampM");
+        AppendBox (obj, base, 0.0f, 0.0f, 0.0f, 248.0f, 280.0f, 226.0f, "case");
+        AppendBox (obj, base, 210.0f, -5.0f, 45.0f, 218.0f, -4.0f, 52.0f, "lamp");
 
         if (withGlass)
         {
@@ -167,13 +167,13 @@ public:
         std::string   obj;
         int           base = 0;
 
-        AppendBox (obj, base, 0.0f, 0.0f, 0.0f, 155.0f, 222.0f, 86.0f, "caseM");
-        AppendBox (obj, base, 65.0f, -2.6f, 13.0f, 71.0f, -0.6f, 19.0f, "ledM");
+        AppendBox (obj, base, 0.0f, 0.0f, 0.0f, 155.0f, 222.0f, 86.0f, "case");
+        AppendBox (obj, base, 65.0f, -2.6f, 13.0f, 71.0f, -0.6f, 19.0f, "led");
 
         if (withDoor)
         {
-            AppendBox (obj, base, 14.0f, -2.3f, 52.0f, 141.0f, s_kDoorBackY, s_kDoorTopZ, "doorM");
-            AppendBox (obj, base, 65.5f, -3.1f, 53.5f, 89.5f, -2.3f, 59.5f, "latchM");
+            AppendBox (obj, base, 14.0f, -2.3f, 52.0f, 141.0f, s_kDoorBackY, s_kDoorTopZ, "door");
+            AppendBox (obj, base, 65.5f, -3.1f, 53.5f, 89.5f, -2.3f, 59.5f, "tab");
         }
 
         return obj;

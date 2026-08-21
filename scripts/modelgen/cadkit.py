@@ -94,16 +94,33 @@ class Model:
         groups = []            # (material_name, [ (v0,v1,v2), ... ])
         colors = {}
 
+        # The material is named after the PART, not numbered. The name is what
+        # the loader identifies a part by, which frees Kd to be nothing but a
+        # color -- two parts may now share a shade, a part may be recolored
+        # without becoming a different part, and the .mesh reads as a parts
+        # list instead of a table of anonymous mat_N.
+        #
+        # Uniqueness is enforced rather than assumed: two parts sharing a name
+        # would silently merge into one material and one identity, which is
+        # exactly the class of bug this change exists to remove.
+        used = set()
+
+        def claim(name):
+            if name in used:
+                raise ValueError(f"duplicate part name {name!r} -- names are identities now")
+            used.add(name)
+            return name
+
         for part in self.parts:
             shape = part.solid.val() if hasattr(part.solid, "val") else part.solid
             verts, faces = shape.tessellate(part.tolerance, part.angular)
             tris = [tuple(tuple(verts[i]) for i in f) for f in faces]
-            mat = f"mat_{len(groups)}"
+            mat = claim(part.name)
             colors[mat] = part.color
             groups.append((mat, tris))
 
         for name, tris, color in self.raw:
-            mat = f"mat_{len(groups)}"
+            mat = claim(name)
             colors[mat] = color
             groups.append((mat, tris))
 

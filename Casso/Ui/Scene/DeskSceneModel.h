@@ -190,9 +190,32 @@ public:
     static constexpr float  kGroundBandMm       = 2.5f;
     static constexpr float  kGroundBandFraction = 0.045f;
 
+    // WHICH PART a sub-mesh IS, by the material name the generator wrote --
+    // `m.add("door", ...)` becomes `newmtl door` becomes this.
+    //
+    // Identity used to be the Kd VALUE, which made a color mean two things at
+    // once. Two parts could not share a shade; a part could not be recolored
+    // without becoming a different part (a diagnostic recolor broke the load
+    // outright); and the door had to wear an identity color instead of the
+    // pebbled black it is actually molded in, so its finish had to be
+    // reapplied in the loader. Names separate the two: this says WHAT, and Kd
+    // is free to say what it looks like.
+    static constexpr const char *  s_kpszGlass       = "glass";
+    static constexpr const char *  s_kpszLamp        = "lamp";
+    static constexpr const char *  s_kpszLed         = "led";
+    static constexpr const char *  s_kpszDoor        = "door";
+    static constexpr const char *  s_kpszLever       = "lever";   // the //c's door
+    static constexpr const char *  s_kpszTab         = "tab";     // the //c's latch
+    static constexpr const char *  s_kpszBrandAnchor = "brand_anchor";
+    static constexpr const char *  s_kpszFrontAnchor = "front_anchor";
+
     // Sub-mesh identity colors, shared with scripts/modelgen/. Matching is
     // by value with kKdEpsilon, exactly as Printer3DScene matches its LEDs,
     // so a Tinkercad-refined model that keeps the palette keeps working.
+    //
+    // Only the FINISH markers below are still read this way. The identity
+    // ones are kept for the moment because Printer3DScene still matches its
+    // own models by color.
     static constexpr float  kGlassKd[3]       = { 0.050f, 0.090f, 0.070f };
     static constexpr float  kMonitorLampKd[3] = { 0.290f, 0.870f, 0.380f };
     static constexpr float  kDriveLampKd[3]   = { 0.900f, 0.120f, 0.100f };

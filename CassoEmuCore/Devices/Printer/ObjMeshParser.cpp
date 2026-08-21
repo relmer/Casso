@@ -113,15 +113,28 @@ HRESULT ObjMeshParser::Parse (const std::string        & objText,
                               const std::string        & mtlText,
                               std::vector<ObjTriangle>  & outTriangles)
 {
+    std::vector<std::string>   names;
+
+    return Parse (objText, mtlText, outTriangles, names);
+}
+
+
+HRESULT ObjMeshParser::Parse (const std::string         & objText,
+                              const std::string         & mtlText,
+                              std::vector<ObjTriangle>  & outTriangles,
+                              std::vector<std::string>  & outMaterialNames)
+{
     HRESULT                                hr        = S_OK;
     std::unordered_map<std::string, Rgb>   materials = ParseMtl (mtlText);
     std::vector<std::array<float, 3>>      verts;
     Rgb                                    curColor  = { 1.0f, 1.0f, 1.0f };
+    int                                    curMat    = -1;
     std::string                            line;
     bool                                   hasVerts  = false;
     std::istringstream                     stream (objText);
 
     outTriangles.clear();
+    outMaterialNames.clear();
 
     while (std::getline (stream, line))
     {
@@ -146,6 +159,25 @@ HRESULT ObjMeshParser::Parse (const std::string        & objText,
 
             auto   it = materials.find (name);
             curColor  = (it != materials.end()) ? it->second : Rgb { 1.0f, 1.0f, 1.0f };
+
+            // The name is interned once per usemtl RUN, not per triangle, so
+            // the table stays the length of the parts list. A repeat of the
+            // same name reuses its index rather than adding a second entry --
+            // one part split across two usemtl runs is still one part.
+            {
+                auto   found = std::find (outMaterialNames.begin(),
+                                          outMaterialNames.end(), name);
+
+                if (found == outMaterialNames.end())
+                {
+                    curMat = (int) outMaterialNames.size();
+                    outMaterialNames.push_back (name);
+                }
+                else
+                {
+                    curMat = (int) (found - outMaterialNames.begin());
+                }
+            }
         }
         else if (tag == "f")
         {
@@ -175,6 +207,7 @@ HRESULT ObjMeshParser::Parse (const std::string        & objText,
                 tri.p1[0] = b[0]; tri.p1[1] = b[1]; tri.p1[2] = b[2];
                 tri.p2[0] = c[0]; tri.p2[1] = c[1]; tri.p2[2] = c[2];
                 tri.r = curColor.r; tri.g = curColor.g; tri.b = curColor.b;
+                tri.material = curMat;
 
                 outTriangles.push_back (tri);
             }
@@ -186,4 +219,32 @@ HRESULT ObjMeshParser::Parse (const std::string        & objText,
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObjMeshParser::MaterialName
+//
+//  Bounds-checked so a triangle from a mesh parsed WITHOUT the name table --
+//  the three-argument overload, or a mesh with no usemtl at all -- answers
+//  "" rather than reading off the end of an empty vector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::string & ObjMeshParser::MaterialName (
+    const ObjTriangle              & tri,
+    const std::vector<std::string> & names)
+{
+    static const std::string  s_kNone;
+
+    if (tri.material < 0 || (size_t) tri.material >= names.size())
+    {
+        return s_kNone;
+    }
+
+    return names[(size_t) tri.material];
 }

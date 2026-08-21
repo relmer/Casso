@@ -1,169 +1,169 @@
-newmtl mat_0
+newmtl case
 Ka 0 0 0 
 Kd 0.833 0.784 0.659
 d 1
 
-newmtl mat_1
+newmtl shell
 Ka 0 0 0 
 Kd 0.806 0.762 0.648
 d 1
 
-newmtl mat_2
+newmtl shell_bottom
 Ka 0 0 0 
 Kd 0.806 0.762 0.648
 d 1
 
-newmtl mat_3
+newmtl plate_pebbled
 Ka 0 0 0 
 Kd 0.135 0.13 0.15
 d 1
 
-newmtl mat_4
+newmtl plate
 Ka 0 0 0 
 Kd 0.1 0.1 0.11
 d 1
 
-newmtl mat_5
+newmtl frame
 Ka 0 0 0 
 Kd 0.135 0.13 0.15
 d 1
 
-newmtl mat_6
+newmtl slot
 Ka 0 0 0 
 Kd 0.035 0.035 0.045
 d 1
 
-newmtl mat_7
+newmtl notch_liner
 Ka 0 0 0 
 Kd 0.135 0.13 0.15
 d 1
 
-newmtl mat_8
+newmtl door
 Ka 0 0 0 
 Kd 0.16 0.16 0.18
 d 1
 
-newmtl mat_9
+newmtl led
 Ka 0 0 0 
 Kd 0.9 0.12 0.1
 d 1
 
-newmtl mat_10
+newmtl channel0
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_11
+newmtl channel1
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_12
+newmtl vent0_0
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_13
+newmtl vent0_1
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_14
+newmtl vent0_2
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_15
+newmtl vent0_3
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_16
+newmtl vent0_4
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_17
+newmtl vent0_5
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_18
+newmtl vent0_6
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_19
+newmtl vent0_7
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_20
+newmtl vent0_8
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_21
+newmtl vent1_0
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_22
+newmtl vent1_1
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_23
+newmtl vent1_2
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_24
+newmtl vent1_3
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_25
+newmtl vent1_4
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_26
+newmtl vent1_5
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_27
+newmtl vent1_6
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_28
+newmtl vent1_7
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_29
+newmtl vent1_8
 Ka 0 0 0 
 Kd 0.76 0.71 0.59
 d 1
 
-newmtl mat_30
+newmtl foot16_18
 Ka 0 0 0 
 Kd 0.15 0.14 0.13
 d 1
 
-newmtl mat_31
+newmtl foot16_202
 Ka 0 0 0 
 Kd 0.15 0.14 0.13
 d 1
 
-newmtl mat_32
+newmtl foot139_18
 Ka 0 0 0 
 Kd 0.15 0.14 0.13
 d 1
 
-newmtl mat_33
+newmtl foot139_202
 Ka 0 0 0 
 Kd 0.15 0.14 0.13
 d 1

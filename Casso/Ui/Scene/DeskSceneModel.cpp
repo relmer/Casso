@@ -275,6 +275,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
 {
     HRESULT                    hr        = S_OK;
     std::vector<ObjTriangle>   triangles;
+    std::vector<std::string>   materialNames;
     std::vector<size_t>        opaqueTris;
     const float              * lampKd    = nullptr;
     float                      anchorLo  = FLT_MAX;
@@ -298,7 +299,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
 
     lampKd = IsMonitorKind (kind) ? kMonitorLampKd : kDriveLampKd;
 
-    hr = ObjMeshParser::Parse (objText, mtlText, triangles);
+    hr = ObjMeshParser::Parse (objText, mtlText, triangles, materialNames);
     CHRA (hr);
 
     // Move the room's ceiling lights into this model's own coordinates so
@@ -329,12 +330,13 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
 
     for (size_t t = 0; t < triangles.size(); t++)
     {
-        const ObjTriangle &  tri = triangles[t];
+        const ObjTriangle &  tri  = triangles[t];
+        const std::string &  part = ObjMeshParser::MaterialName (tri, materialNames);
 
         // Metadata first, and it never reaches a vertex buffer: the anchors
         // exist to be measured, not seen. Each names the midpoint of its own
         // extent, so any marker shape at all names the same line or plane.
-        if (ColorMatches (tri.r, tri.g, tri.b, kBrandAnchorKd))
+        if (part == s_kpszBrandAnchor)
         {
             for (const float * p : { tri.p0, tri.p1, tri.p2 })
             {
@@ -345,7 +347,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
             continue;
         }
 
-        if (ColorMatches (tri.r, tri.g, tri.b, kFrontAnchorKd))
+        if (part == s_kpszFrontAnchor)
         {
             for (const float * p : { tri.p0, tri.p1, tri.p2 })
             {
@@ -356,26 +358,21 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
             continue;
         }
 
-        if (IsMonitorKind (kind) && ColorMatches (tri.r, tri.g, tri.b, kGlassKd))
+        if (IsMonitorKind (kind) && part == s_kpszGlass)
         {
             AppendFlatTri (m_glass, tri);
         }
-        else if (ColorMatches (tri.r, tri.g, tri.b, lampKd) ||
-                 (kind == DeskDeviceKind::DiskII &&
-                  ColorMatches (tri.r, tri.g, tri.b, kDriveLampAltKd)))
+        else if (part == s_kpszLamp || part == s_kpszLed)
         {
             AppendFlatTri (m_lamp, tri);
         }
-        else if (kind == DeskDeviceKind::DiskII &&
-                 (ColorMatches (tri.r, tri.g, tri.b, kDriveDoorKd)     ||
-                  ColorMatches (tri.r, tri.g, tri.b, kDriveLatchKd)    ||
-                  ColorMatches (tri.r, tri.g, tri.b, kDriveDoorAltKd)  ||
-                  ColorMatches (tri.r, tri.g, tri.b, kDriveLatchAltKd)))
+        else if (part == s_kpszDoor || part == s_kpszLever || part == s_kpszTab)
         {
             // The door is molded in the same pebbled black as the face around
-            // it, but its Kd is spoken for -- that is what identifies it as
-            // the part the scene swings. One Kd cannot say two things, so the
-            // finish is applied here instead of in the generator.
+            // it, and can now SAY so: identity is the part name, so its Kd is
+            // free to be the finish it actually has. The flag is still set
+            // here because the door is its own batch and never reaches the
+            // pebbled branch below.
             size_t  first = m_door.size();
 
             AppendLitTri (m_door, tri);

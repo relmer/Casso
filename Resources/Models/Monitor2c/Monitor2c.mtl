@@ -1,79 +1,79 @@
-newmtl mat_0
+newmtl shell
 Ka 0 0 0 
 Kd 0.87 0.862 0.835
 d 1
 
-newmtl mat_1
+newmtl cavity
 Ka 0 0 0 
 Kd 0.055 0.055 0.062
 d 1
 
-newmtl mat_2
+newmtl vent0
 Ka 0 0 0 
 Kd 0.78 0.772 0.745
 d 1
 
-newmtl mat_3
+newmtl vent1
 Ka 0 0 0 
 Kd 0.78 0.772 0.745
 d 1
 
-newmtl mat_4
+newmtl vent2
 Ka 0 0 0 
 Kd 0.78 0.772 0.745
 d 1
 
-newmtl mat_5
+newmtl vent3
 Ka 0 0 0 
 Kd 0.78 0.772 0.745
 d 1
 
-newmtl mat_6
+newmtl vent4
 Ka 0 0 0 
 Kd 0.78 0.772 0.745
 d 1
 
-newmtl mat_7
+newmtl vent5
 Ka 0 0 0 
 Kd 0.78 0.772 0.745
 d 1
 
-newmtl mat_8
+newmtl vent6
 Ka 0 0 0 
 Kd 0.78 0.772 0.745
 d 1
 
-newmtl mat_9
+newmtl vent7
 Ka 0 0 0 
 Kd 0.78 0.772 0.745
 d 1
 
-newmtl mat_10
+newmtl vent8
 Ka 0 0 0 
 Kd 0.78 0.772 0.745
 d 1
 
-newmtl mat_11
+newmtl vent9
 Ka 0 0 0 
 Kd 0.78 0.772 0.745
 d 1
 
-newmtl mat_12
+newmtl front_anchor
 Ka 0 0 0 
 Kd 0.98 0.01 0.24
 d 1
 
-newmtl mat_13
+newmtl glass
 Ka 0 0 0 
 Kd 0.05 0.09 0.07
 d 1
 
-newmtl mat_14
+newmtl lampring
 Ka 0 0 0 
 Kd 0.045 0.045 0.05
 d 1
 
-newmtl mat_15
+newmtl lamp
 Ka 0 0 0 
 Kd 0.29 0.87 0.38
 d 1
