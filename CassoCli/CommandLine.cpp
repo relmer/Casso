@@ -263,11 +263,12 @@ void CommandLine::PrintUsageAssembler (const char * sp)
         "    {0}n                   Disable optimizations. Not yet implemented (GitHub issue #118)",
         "",
         "    Output formats (mutually exclusive):",
-        "    <default>            Write a full 64 KB image, padded with the fill byte ({0}z sets it)",
-        "    {0}s                   Write only the assembled bytes as Motorola S-records, each with its address (<source>.s19)",
-        "    {0}s2                  Write only the assembled bytes as Intel HEX records, each with its address (<source>.hex)",
-        "    {1}dos-bin            Write the bytes behind a 4-byte DOS 3.3 header (load address + length), ready to BLOAD",
-        "    {1}raw                Write only the assembled bytes, unpadded",
+        "    <default>            Write a full 64 KB image, padded with the fill byte (see {0}z below)",
+        "    {1}raw                Write the assembled bytes, unpadded",
+        "    {1}dos-bin            Write the assembled bytes behind a 4-byte DOS 3.3 header (load address + length), ready to BLOAD",
+        "    {0}s                   Write the assembled bytes as Motorola S-records, each with its address (<source>.s19)",
+        "    {0}s2                  Write the assembled bytes as Intel HEX records, each with its address (<source>.hex)",
+        "",
         "    {0}z                   Fill unused space in the padded image with $00 (default: $FF)",
         "",
         "  Listing:",
@@ -300,9 +301,8 @@ void CommandLine::PrintUsageAssembler (const char * sp)
 
     std::println ("");
     PrintUsageLine ("  CPU:");
-    PrintUsageLine (std::format ("    {0}x                   Assemble 65C02 instructions. Omit it for the plain 6502, where they are an assembly error", sp));
-    std::println ("");
-    PrintUsageLine ("    This is wider than AS65, which assembles the 65SC02 subset: Casso also takes RMBn, SMBn, BBRn and BBSn. A source using those assembles here and would not under AS65.");
+    PrintUsageLine ("    <default>            Assemble 6502 instructions");
+    PrintUsageLine (std::format ("    {0}x                   Assemble 65C02 instructions", sp));
 }
 
 
@@ -326,12 +326,10 @@ void CommandLine::PrintUsageRun (const char * lp, const char * sp, const char * 
     // differs between them here is which assembler options come along -- and
     // that belongs beside the name that admits them, not in a paragraph
     // underneath that the reader has to re-split by dialect.
-    PrintUsageLine (std::format ("  {:<22} Assemble the source as AS65 (the default). Takes {}x and {}d as well; see AS65 mode above.",
+    PrintUsageLine (std::format ("  {:<22} Assemble the source as AS65 (the default). Allows AS65 {}x and {}d; see AS65 mode above.",
                       CommandLineParser::FormatLongOption ("--as65", sp[0]), sp, sp));
-    PrintUsageLine (std::format ("  {:<22} Assemble the source as Merlin. Takes {}d as well; see Merlin mode above.",
+    PrintUsageLine (std::format ("  {:<22} Assemble the source as Merlin. Allows {}d; see Merlin mode above.",
                       CommandLineParser::FormatLongOption ("--merlin", sp[0]), sp));
-    std::println ("");
-    PrintUsageLine ("  Both are ignored for a binary, which needs no assembler. The assembler's remaining options describe output files that run does not write.");
     std::println ("");
 
     const char * lines[] =
