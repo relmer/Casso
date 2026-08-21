@@ -363,7 +363,9 @@ m.add("door", door, KD["drive_door"])
 # Total reach is barrel + radius, so the barrel carries the remainder and the
 # dome's tip lands exactly LED_PROUD off the plate however the radius moves.
 LED_R      = 1.55
-LED_PROUD  = 3.0
+# 3.0 threw too wide an aura: the standoff is what gives the faceplate its
+# dot(n, L), so the protrusion and the size of the pool are the same number.
+LED_PROUD  = 2.0
 LED_BARREL = LED_PROUD - LED_R
 LED_X, LED_Z = 45.0, 28.9
 
