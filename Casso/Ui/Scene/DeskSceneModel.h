@@ -239,6 +239,30 @@ public:
     // whatever Kd identified it.
     static constexpr float  kPlatePebbledKd[3] = { 0.135f, 0.130f, 0.150f };
     static constexpr float  kPlateMatteRgb[3]  = { 0.100f, 0.100f, 0.110f };
+
+    // The same grained plastic, DOWN A POCKET. A recess sees less of the room
+    // than the face around it, and nothing in this renderer works that out on
+    // its own -- there is no ambient occlusion, so a molded-in cavity comes
+    // out exactly as bright as the surface it is cut into. Which is what left
+    // the door's grip with nothing to be a silhouette against: the recess
+    // behind it was the same value it was.
+    //
+    // A second finish marker rather than a darker Kd on the same one, because
+    // the pebbled marker's whole job is to force one tint and raise the
+    // grain flag; a recess needs the flag AND a different tint.
+    // A FIFTH of the face's black. Measured down the door: the grip's face
+    // lands around 15 of 255 along its bottom edge, and the pocket behind it
+    // sat at 9 -- a ratio of 1.6 at values that low is not a boundary the eye
+    // finds, which is why the grip kept dissolving into the recess.
+    //
+    // The grip's TOP edge reads because its chamfer faces the fixtures and
+    // peaks near 40. Its bottom edge faces away from them and always will --
+    // a chamfer, a round-over, any edge treatment at all still points down,
+    // and down is where the light is not. No geometry fixes that. What has to
+    // carry the bottom edge is the pocket being visibly deeper, which is also
+    // what a photograph of the real drive shows: the finger recess is black.
+    static constexpr float  kPlateRecessKd[3]  = { 0.115f, 0.112f, 0.132f };
+    static constexpr float  kPlateRecessRgb[3] = { 0.013f, 0.013f, 0.015f };
     static constexpr float  kDriveLatchKd[3]   = { 0.230f, 0.230f, 0.250f };
     static constexpr float  kKdEpsilon         = 0.02f;
 

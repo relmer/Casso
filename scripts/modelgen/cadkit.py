@@ -37,6 +37,14 @@ KD = {
     # black and only their light differs, which is the whole point.
     "plate_pebbled":  (0.135, 0.130, 0.150),
 
+    # The same grained plastic DOWN A POCKET. Nothing in the renderer works
+    # out that a recess sees less of the room than the face around it -- there
+    # is no ambient occlusion -- so a cavity comes out exactly as bright as
+    # the surface it is cut into, and anything standing in front of it has
+    # nothing to be a silhouette against. This marker raises the same grain
+    # flag and asks for a darker tint with it.
+    "plate_recess":   (0.115, 0.112, 0.132),
+
     # Placement metadata, not scenery: markers the scene reads to learn where
     # something belongs, then throws away instead of drawing. They never reach
     # a vertex buffer, so they may sit anywhere -- but bury them inside a solid

@@ -35,7 +35,7 @@ d 1
 
 newmtl notch_liner
 Ka 0 0 0 
-Kd 0.135 0.13 0.15
+Kd 0.115 0.112 0.132
 d 1
 
 newmtl door

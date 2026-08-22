@@ -459,21 +459,27 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
                 }
             }
         }
-        else if (ColorMatches (tri.r, tri.g, tri.b, kPlatePebbledKd))
+        else if (ColorMatches (tri.r, tri.g, tri.b, kPlatePebbledKd) ||
+                 ColorMatches (tri.r, tri.g, tri.b, kPlateRecessKd))
         {
             // A finish, not a color. Take the marker off the tint and put it
             // on the pebble flag, so the grain shows up in the LIGHT and the
             // plastic stays the same black as the matte plate beside it.
-            size_t  first = m_opaque.size();
+            //
+            // The recess marker is the same plastic down a pocket, and it
+            // carries a darker tint because nothing here computes ambient
+            // occlusion -- see kPlateRecessKd.
+            bool    recess = ColorMatches (tri.r, tri.g, tri.b, kPlateRecessKd);
+            size_t  first  = m_opaque.size();
 
             opaqueTris.push_back (t);
             AppendLitTri (m_opaque, tri);
 
             for (size_t i = first; i < m_opaque.size(); i++)
             {
-                m_opaque[i].r      = kPlateMatteRgb[0];
-                m_opaque[i].g      = kPlateMatteRgb[1];
-                m_opaque[i].b      = kPlateMatteRgb[2];
+                m_opaque[i].r      = recess ? kPlateRecessRgb[0] : kPlateMatteRgb[0];
+                m_opaque[i].g      = recess ? kPlateRecessRgb[1] : kPlateMatteRgb[1];
+                m_opaque[i].b      = recess ? kPlateRecessRgb[2] : kPlateMatteRgb[2];
                 m_opaque[i].pebble = 1.0f;
             }
         }
@@ -1351,24 +1357,24 @@ static const char * const  s_kDiskWordmark[] =
     ".............######.######...............######...............#######.#######",
     ".............######.######...............######...............#######.#######",
     ".............######......................######...............#######.#######",
-    ".............######............########..######.......#####.....#####.#####..",
-    ".....#######.######.######...###########.######......#####......#####.#####..",
-    "....########.######.######..############.######....#####........#####.#####..",
-    "...#########.######.######.#############.######...#####.........#####.#####..",
-    "..##########.######.######.#############.######.#####...........#####.#####..",
-    ".###########.######.######.#############.###########............#####.#####..",
-    ".########....######.######.#####.........##########.............#####.#####..",
-    "#######......######.######.###########...########...............#####.#####..",
-    "######.......######.######.############..#######................#####.#####..",
-    "######.......######.######..############.########...............#####.#####..",
-    "######.......######.######..############.#########..............#####.#####..",
-    "#######......######.######....##########.###########............#####.#####..",
-    "########.....######.######..############.######.#####...........#####.#####..",
-    ".##################.######.#############.######..#####........#######.#######",
-    ".##################.######.#############.######...#####.......#######.#######",
-    "..#################.######.#############.######.....#####.....#######.#######",
-    "...################.######.############..######......#####....#######.#######",
-    ".....##############.######.##########.....#####.......#####..................",
+    ".............######............########..######....#######......#####.#####..",
+    ".....#######.######.######...###########.######...########......#####.#####..",
+    "....########.######.######..############.######..#########......#####.#####..",
+    "...#########.######.######.#############.################.......#####.#####..",
+    "..##########.######.######.#############.###############........#####.#####..",
+    ".###########.######.######.#############.##############.........#####.#####..",
+    ".########....######.######.#####.........############...........#####.#####..",
+    "#######......######.######.###########...###########............#####.#####..",
+    "######.......######.######.############..##########.............#####.#####..",
+    "######.......######.######..############.##########.............#####.#####..",
+    "######.......######.######..############.############...........#####.#####..",
+    "#######......######.######....##########.#############..........#####.#####..",
+    "########.....######.######..############.##############.........#####.#####..",
+    ".##################.######.#############.###############......#######.#######",
+    ".##################.######.#############.######.##########....#######.#######",
+    "..#################.######.#############.######..#########....#######.#######",
+    "...################.######.############..######....#######....#######.#######",
+    ".....##############.######.##########.....#####.....######...................",
 };
 
 static constexpr int  s_kWordmarkRows = (int) (sizeof (s_kDiskWordmark) / sizeof (s_kDiskWordmark[0]));
@@ -1446,6 +1452,7 @@ void DeskSceneModel::BuildWordmarkStamp()
     // on top of 3x would be paying for the same resolution twice.
     constexpr int    kRefine = 3;
     constexpr int    kSuper  = 2;
+    constexpr int    kErode  = 2;
 
     const int             cols     = s_kWordmarkCols * kRefine;
     const int             rows     = s_kWordmarkRows * kRefine;
@@ -1468,13 +1475,14 @@ void DeskSceneModel::BuildWordmarkStamp()
         ink[(size_t) row * 3 + 2] = s_kFaceInkRgb[2];
     }
 
-    // A REFINED CELL OFF EVERY SIDE, which is where the weight comes off.
-    // The mark is drawn in whole cells, so it has no way to say "a third of a
-    // cell thinner" -- but the refined grid does, and taking one cell off it
-    // narrows a stroke by about a tenth without touching what the letters
+    // REFINED CELLS OFF EVERY SIDE, which is where the weight comes off. The
+    // mark is drawn in whole cells, so it has no way to say "two thirds of a
+    // cell thinner" -- but the refined grid does, and this takes a six-cell
+    // stroke to about four and two thirds without touching what the letters
     // are. Done here rather than by lowering the relief's ink threshold: the
     // threshold erodes hardest exactly where a shape turns a corner, and this
     // mark's corners are what carry it.
+    for (int pass = 0; pass < kErode; pass++)
     {
         std::vector<uint8_t>  thin (mask);
 

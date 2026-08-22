@@ -74,7 +74,7 @@ DOOR_BACK = PLATE_Y + DOOR_T      # both steps share one back plane
 # How far the handle band stands forward of the frame, and the chamfer that
 # turns its front edges into something light can catch rather than a butt
 # joint between two pieces of the same grained black.
-HANDLE_PROUD   = 1.1
+HANDLE_PROUD   = 2.2
 HANDLE_CHAMFER = 0.45
 
 # The finger notch behind the door: a wedge, flush with the face at its bottom
@@ -440,7 +440,7 @@ door = door.union (
 # liner left standing in that volume would be the surface in front of it.
 liner = notch_outer.cut (notch).cut (slot_outer)
 
-m.add("notch_liner", liner, KD["plate_pebbled"])
+m.add("notch_liner", liner, KD["plate_recess"])
 
 m.add("door", door, KD["drive_door"])
 
