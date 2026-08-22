@@ -77,23 +77,32 @@ CommandLineOptions CommandLine::Parse (int argc, char * argv[])
 
 size_t CommandLine::UsageWidth()
 {
-    constexpr size_t            kNoTerminal = 80;
-    constexpr size_t            kNarrowest  = 40;
-    CONSOLE_SCREEN_BUFFER_INFO  info        = {};
-    HANDLE                      out         = GetStdHandle (STD_OUTPUT_HANDLE);
-    size_t                      width       = kNoTerminal;
+    CONSOLE_SCREEN_BUFFER_INFO  info       = {};
+    HANDLE                      out        = GetStdHandle (STD_OUTPUT_HANDLE);
+    bool                        hasConsole = false;
+    int                         columns    = 0;
 
 
 
-    if (out != INVALID_HANDLE_VALUE && GetConsoleScreenBufferInfo (out, &info))
+    //  THE PLATFORM CALL IS ALL THIS DOES. What the numbers MEAN is decided in
+    //  the library, where a test can reach it -- see UsageText::WidthFrom. This
+    //  used to hold both, so "is the help folding to my terminal?" could only be
+    //  answered by a person looking at one.
+    if (out != nullptr && out != INVALID_HANDLE_VALUE && GetConsoleScreenBufferInfo (out, &info))
     {
-        int  columns = info.srWindow.Right - info.srWindow.Left + 1;
-
-        if (columns > (int) kNarrowest)
-        {
-            width = (size_t) columns - 1;
-        }
+        hasConsole = true;
+        columns    = info.srWindow.Right - info.srWindow.Left + 1;
     }
+
+    //  _dupenv_s rather than getenv, which the CRT deprecates here. The buffer
+    //  is ours to free, so the width is taken before it goes.
+    char   *  columnsEnv = nullptr;
+    size_t    envSize    = 0;
+    size_t    width      = 0;
+
+    _dupenv_s (&columnsEnv, &envSize, "COLUMNS");
+    width = UsageText::WidthFrom (columnsEnv, hasConsole, columns);
+    free (columnsEnv);
 
     return width;
 }
@@ -621,12 +630,12 @@ void CommandLine::PrintUnrecognizedArgument (const std::string & word, char pref
     PrintUsageBlock (CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
     std::cout.flush();
 
-    std::cerr << kGapBeforeTheReason << "CassoCli: '" << word << "' is not a subcommand.\n";
+    std::cerr << kGapBeforeTheReason << "Error: '" << word << "' is not a mode\n";
 
     if (CommandLineParser::IsAssemblySource (word))
     {
-        std::cerr << "  It looks like a source file. Assembling now names its dialect:\n"
-                  << "      CassoCli as65 " << word << "\n";
+        std::cerr << "       it looks like a source file; assembling names its dialect:\n"
+                  << "       CassoCli as65 " << word << "\n";
     }
     else
     {
@@ -637,7 +646,7 @@ void CommandLine::PrintUnrecognizedArgument (const std::string & word, char pref
             expected += std::string (expected.empty() ? "" : ", ") + entry.name;
         }
 
-        std::cerr << "  Expected one of: " << expected << ".\n";
+        std::cerr << "       expected one of: " << expected << "\n";
     }
 }
 
@@ -679,8 +688,8 @@ void CommandLine::PrintUnrecognizedFlag (const std::string & flag, CommandLineOp
     PrintPageFor (subcommand, prefix);
     std::cout.flush();
 
-    std::cerr << kGapBeforeTheReason << "CassoCli: '" << flag << "' is not an option of the " << mode
-              << " subcommand.\n";
+    std::cerr << kGapBeforeTheReason << "Error: '" << flag << "' is not an option of the "
+              << mode << " mode\n";
 }
 
 
@@ -702,7 +711,7 @@ void CommandLine::PrintUnrecognizedFlag (const std::string & flag, CommandLineOp
 
 int CommandLine::PrintCpuFlagRefusal (const std::string & refusal)
 {
-    std::cerr << "CassoCli: " << refusal << "\n";
+    std::cerr << "Error: " << refusal << "\n";
 
     return AssemblerExitCode::ToProcessCode (AssemblyExitCode::NoOutput);
 }

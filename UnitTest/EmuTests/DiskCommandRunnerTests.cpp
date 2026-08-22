@@ -360,17 +360,31 @@ public:
             L"in the words a person would use");
     }
 
-    TEST_METHOD (UnknownVerb_SuggestsTheOnesThatExist)
+    //  IT ASKS FOR THE PAGE RATHER THAN LISTING THE VERBS ITSELF.
+    //
+    //  The refusal used to name all twelve, which put the same list on the
+    //  screen twice once the edge started printing the disk page above it.
+    //  What the refusal owes the reader now is which word it could not read;
+    //  what the verbs ARE is the page's job, and a sweep over the grammar's
+    //  own table already holds the page to it.
+    TEST_METHOD (UnknownVerb_AsksForThePageInsteadOfListingTheVerbsAgain)
     {
-        FakeDiskFileIo     io;
-        DiskCommandRunner  runner (io);
-        DiskCommandResult  result;
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Verb::None);
+        DiskCommandResult   result;
 
-        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::None));
+        options.disk.verbWord = "frobnicate";
+
+        result = runner.Run (options);
 
         Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.diagnostics.find ("list") != std::string::npos,
-            L"a bad verb should say what the good ones are");
+        Assert::IsTrue (result.badCommandLine,
+            L"which is what makes the edge print the page");
+        Assert::IsTrue (result.diagnostics.find ("frobnicate") != std::string::npos,
+            L"and the refusal names the word that could not be read");
+        Assert::IsTrue (result.diagnostics.find ("catalog") == std::string::npos,
+            L"without repeating the page's own verb list under it");
     }
 
     //

@@ -85,10 +85,10 @@ struct CommandLineOptions
     //  general page names the modes and the routes to them, and each mode's
     //  flags wait behind the route to that mode.
     //
-    //  A LONE `?` IS THE ASSEMBLER'S PAGE AND THE ONLY WAY TO IT. That is as65's
-    //  own convention -- its usage appears when the only parameter is a question
-    //  mark -- and assembling is as65 mode. Every other form of help at the
-    //  top level asks for the general page.
+    //  A LONE `?` ASKS FOR THE GENERAL PAGE, like every other form of the
+    //  request at the top level. It opened the assembler's page while a bare
+    //  source file still assembled, which made the top level as65 mode; the
+    //  top level names a mode and runs nothing now, so it names no grammar.
     //
     //  `disk` IS ABSENT ON PURPOSE. Its help is a verb of the disk grammar
     //  (DiskOptions::Verb::Help) and is answered by the runner that answers
@@ -126,6 +126,11 @@ struct CommandLineOptions
 
         Verb         verb           = Verb::None;
         Encoding     encoding       = Encoding::Verbatim;
+        //  The verb as it was typed, kept so a refusal can quote it. The
+        //  enum above cannot: every word this grammar does not have maps
+        //  to the same None, so "unknown disk verb" could not say which.
+        std::string  verbWord;
+
         std::string  imagePath;                        // the disk image
         std::string  path;                             // the file ON the disk
         std::string  hostFile;                         // source for put, --out for get

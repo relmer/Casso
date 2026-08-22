@@ -138,3 +138,69 @@ std::vector<std::string> UsageText::Wrap (const std::string & line, size_t width
 
     return rows;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UsageText::WidthFrom
+//
+//  How wide to fold help, given what the environment says and what the console
+//  reported.
+//
+//  Three answers in order. COLUMNS when it is set and sane, because a reader
+//  who overrides it means it and because a script can set it and then measure
+//  what came back -- which is the only way the whole path gets tested at all.
+//  Then the console, less one column: writing INTO the last one makes some
+//  terminals wrap on their own, which puts a blank line between every row.
+//  Then 80, for a stream that has no width to ask about.
+//
+//  A width at or under kNarrowestTerminal is ignored rather than honored. The
+//  flag table's gutter alone is 27 columns, so folding to 20 would leave one
+//  word per line and a page nobody can read; a terminal that narrow is better
+//  served by lines that overhang it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t UsageText::WidthFrom (const char * columnsEnv, bool hasConsole, int consoleColumns)
+{
+    size_t  width = kNoTerminal;
+    int     asked = 0;
+
+
+
+    if (columnsEnv != nullptr)
+    {
+        //  Read by hand rather than with atoi, so a value that is not a number
+        //  at all is ignored instead of quietly reading as zero.
+        for (const char * scan = columnsEnv; *scan != '\0'; scan++)
+        {
+            if (*scan < '0' || *scan > '9')
+            {
+                asked = 0;
+                break;
+            }
+
+            asked = (asked * 10) + (*scan - '0');
+
+            if (asked > 10000)
+            {
+                break;
+            }
+        }
+
+        if (asked > (int) kNarrowestTerminal)
+        {
+            return (size_t) asked;
+        }
+    }
+
+    if (hasConsole && consoleColumns > (int) kNarrowestTerminal)
+    {
+        width = (size_t) consoleColumns - 1;
+    }
+
+    return width;
+}

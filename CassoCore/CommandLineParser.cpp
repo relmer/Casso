@@ -1064,7 +1064,8 @@ void CommandLineParser::ParseDiskOptions (
 
     if (i < argc)
     {
-        options.disk.verb = LookUpDiskVerb (argv[i]);
+        options.disk.verb     = LookUpDiskVerb (argv[i]);
+        options.disk.verbWord = argv[i];
         i++;
     }
 
@@ -1131,7 +1132,8 @@ void CommandLineParser::ParseDiskOptions (
             else
             {
                 Refusal (options) << "Error: " << argv[i + 1]
-                                  << " is not an address. Write it as $XXXX\n";
+                                  << " is not an address\n"
+                                  << "       write it as $XXXX\n";
 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
@@ -1163,8 +1165,7 @@ void CommandLineParser::ParseDiskOptions (
         //  below is for.
         if (arg.size() > 1 && arg[0] == '-')
         {
-            Refusal (options) << "Error: unknown disk option: " << argv[i]
-                              << ". Try: " << DescribeDiskOptions() << "\n";
+            Refusal (options) << "Error: unknown disk option: " << argv[i] << "\n";
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             continue;
@@ -1185,8 +1186,8 @@ void CommandLineParser::ParseDiskOptions (
         {
             Refusal (options) << "Error: surplus argument: " << arg << "\n"
                               << "       `disk " << DiskVerbWord (options.disk.verb) << "` takes "
-                              << (limit == 1 ? "the image and nothing else.\n"
-                                     : "the image and one file.\n");
+                              << (limit == 1 ? "the image and nothing else\n"
+                                     : "the image and one file\n");
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             positional++;
@@ -1412,8 +1413,8 @@ void CommandLineParser::SelectOutputFormat (const std::string & flag,
     // The same flag twice is not a conflict -- it asks for one thing, twice.
     if (disagrees && options.outputFormatConflict.empty())
     {
-        options.outputFormatConflict = "Only one output format is allowed; "
-                                     + options.outputFormatFlag + " and " + flag + " were both given.";
+        options.outputFormatConflict = "only one output format is allowed; "
+                                     + options.outputFormatFlag + " and " + flag + " were both given";
     }
 
     if (!alreadyChosen)
@@ -2059,33 +2060,11 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
         //  `--` at this point is unknown by definition. A single dash is left
         //  alone: that is as65's own concatenated form and the walk owns it.
         //
-        //  `--cpu` IS ANSWERED BY NAME FIRST, in both prefixes. Command lines
-        //  carrying it already exist, and `/cpu` left to the walk below is read
-        //  as `-c -p -u` -- a true reading of as65's grammar and a useless
-        //  answer to somebody migrating off the flag. Both branches withdrew it
-        //  in favor of as65's own `-x`, so this points there rather than
-        //  reporting an unknown option.
-        if (arg == "--cpu" || arg.rfind ("--cpu=", 0) == 0 ||
-            arg == "/cpu"  || arg.rfind ("/cpu=",  0) == 0)
-        {
-            const char *  longPrefix = (arg[0] == '/') ? "/" : "--";
-
-            if (arg[0] == '/')
-            {
-                NoteFlagPrefix ('/', options);
-            }
-
-            Refusal (options) << "Error: " << longPrefix << "cpu is gone. Use "
-                              << options.flagPrefix << "x for the 65C02.\n"
-                              << "       " << options.flagPrefix
-                              << "x is AS65's own name for the switch, and selects the same\n"
-                              << "       instruction set. The default is still a strict 6502.\n";
-
-            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
-            stop                 = true;
-            continue;
-        }
-
+        //  `--cpu` HAS NO ARM OF ITS OWN. It had one, naming `-x` as the
+        //  replacement, from the release that withdrew it. A flag this tool has
+        //  never shipped is not owed a migration note, and the mode's page is
+        //  printed under every refusal now, so the reader meets `-x` there in
+        //  the same place they would have met any other option they wanted.
         if (arg.rfind ("--", 0) == 0)
         {
             NoteFlagPrefix ('-', options);
@@ -2125,8 +2104,8 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
             }
 
             Refusal (options) << "Error: surplus argument: " << arg << "\n";
-            Refusal (options) << "       Assembling takes one source file, and "
-                              << options.inputFile << " is already it.\n";
+            Refusal (options) << "       assembling takes one source file, and "
+                              << options.inputFile << " is already it\n";
 
             if (wantsValue != 0)
             {
@@ -2361,16 +2340,16 @@ void CommandLineParser::AddSymbolDefinition (const std::string & definition,
         else
         {
             Refusal (options) << "Error: " << options.flagPrefix << "d cannot read `"
-                              << text << "` as a value.\n"
-                              << "       Write it as a decimal or 0x-prefixed number, or leave the\n"
-                              << "       `=` off entirely: a name on its own is defined as 1.\n";
+                              << text << "` as a value\n"
+                              << "       write it as a decimal or 0x-prefixed number, or leave the\n"
+                              << "       `=` off entirely: a name on its own is defined as 1\n";
         }
     }
 
     if (taken && name.empty())
     {
         Refusal (options) << "Error: " << options.flagPrefix
-                          << "d needs a name in front of the `=`.\n";
+                          << "d needs a name in front of the `=`\n";
         taken = false;
     }
 
@@ -2650,7 +2629,7 @@ bool CommandLineParser::RefuseCpuFlagWhereSelectedInSource (CommandLineOptions &
     {
         options.cpuFlagRefusal = std::string (1, options.flagPrefix) + "x is not accepted for " + profile.GetName()
                                + ": the CPU target is selected in the source, with the "
-                               + profile.GetCpuDirectiveName() + " directive.";
+                               + profile.GetCpuDirectiveName() + " directive";
     }
 
     return isInSource;
@@ -2883,8 +2862,8 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
             //  the other. Merlin was still silently discarding it after as65
             //  stopped, so the two grammars disagreed about the same mistake.
             Refusal (options) << "Error: surplus argument: " << arg << "\n";
-            Refusal (options) << "       Assembling takes one source file, and "
-                              << options.inputFile << " is already it.\n";
+            Refusal (options) << "       assembling takes one source file, and "
+                              << options.inputFile << " is already it\n";
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             stop                 = true;
@@ -3129,7 +3108,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
 
             if (FAILED (hr))
             {
-                Refusal (options) << "Error: Invalid fill byte value\n";
+                Refusal (options) << "Error: invalid fill byte value\n";
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
@@ -3143,7 +3122,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             }
             else
             {
-                Refusal (options) << "Error: Invalid load address\n";
+                Refusal (options) << "Error: invalid load address\n";
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
@@ -3157,7 +3136,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             }
             else
             {
-                Refusal (options) << "Error: Invalid entry address\n";
+                Refusal (options) << "Error: invalid entry address\n";
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
@@ -3171,7 +3150,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             }
             else
             {
-                Refusal (options) << "Error: Invalid stop address\n";
+                Refusal (options) << "Error: invalid stop address\n";
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
@@ -3181,7 +3160,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
 
             if (FAILED (hr))
             {
-                Refusal (options) << "Error: Invalid max-cycles value\n";
+                Refusal (options) << "Error: invalid max-cycles value\n";
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
@@ -3213,7 +3192,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             //  sent looking for a flag they had not typed.
             Refusal (options) << "Error: surplus argument: " << arg << "\n"
                               << "       `run` takes one input file, and " << options.inputFile
-                              << " is already it.\n";
+                              << " is already it\n";
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
         }
@@ -3226,7 +3205,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
         }
         else
         {
-            Refusal (options) << "Error: Unknown option: " << arg << "\n";
+            Refusal (options) << "Error: unknown option: " << arg << "\n";
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             RecordUnrecognizedFlag (arg, options);
         }

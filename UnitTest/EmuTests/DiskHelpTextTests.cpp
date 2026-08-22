@@ -425,9 +425,13 @@ public:
     {
         std::string  help = DiskCommandRunner::BuildHelpText();
 
-        Assert::IsTrue (help.find ("defaults\n  to the host file's own name") != std::string::npos,
+        //  Quoted WITHOUT the line breaks they used to carry. The page is
+        //  composed one logical line per paragraph and folded to the
+        //  reader's terminal at print time, so where a sentence breaks is
+        //  the terminal's business and not a fact about the help.
+        Assert::IsTrue (help.find ("defaults to the host file's own name") != std::string::npos,
                         L"--as has a default and the help states it");
-        Assert::IsTrue (help.find ("only\n  type the guest will RUN") != std::string::npos,
+        Assert::IsTrue (help.find ("only type the guest will RUN") != std::string::npos,
                         L"--type has one too, and --basic overrides it");
         Assert::IsTrue (help.find ("refused without one") != std::string::npos,
                         L"and --addr is required for exactly one kind of file");
@@ -604,22 +608,29 @@ public:
         Assert::AreEqual (DiskCommandRunner::BuildHelpText ('/'), result.output);
     }
 
-    //  The refusal named the five original verbs long after eight aliases were
-    //  added, so a user who mistyped `catalog` was told to try five words that
-    //  did not include it.
-    TEST_METHOD (UnknownVerb_IsRefusedWithEveryVerbTheGrammarActuallyTakes)
+    //  EVERY VERB THE GRAMMAR TAKES IS ON THE PAGE A REFUSAL PRINTS.
+    //
+    //  The refusal itself used to carry the list, and named the five original
+    //  verbs long after eight aliases were added, so a user who mistyped
+    //  `catalog` was told to try five words that did not include it. It names
+    //  only what the user typed now, and the page above it carries the verbs.
+    //  So the claim moves here, onto the page, and is still swept from the
+    //  grammar's own table rather than from a list written out again.
+    TEST_METHOD (EveryVerbTheGrammarTakes_IsOnThePageARefusalPrints)
     {
         CommandLineOptions  options;
         FakeDiskFileIo      fileIo;
         DiskCommandRunner   runner (fileIo);
         DiskCommandResult   result = runner.Run (options);
+        std::string         page   = DiskCommandRunner::BuildHelpText();
 
         Assert::AreEqual (2, result.exitStatus, L"a word that names no verb produces nothing");
+        Assert::IsTrue (result.badCommandLine, L"and the edge is told to print the page");
 
         for (const auto & verb : CommandLineParser::GetAllDiskVerbs())
         {
-            Assert::IsTrue (ContainsAsWholeToken (result.diagnostics, verb.name),
-                            (L"the refusal does not offer: " + Widen (verb.name)).c_str());
+            Assert::IsTrue (ContainsAsWholeToken (page, verb.name),
+                            (L"the page does not offer: " + Widen (verb.name)).c_str());
         }
     }
 

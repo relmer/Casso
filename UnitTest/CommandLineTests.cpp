@@ -3028,16 +3028,19 @@ namespace CommandLineTests
                                 == CommandLineOptions::OutputFormat::Binary, L"/flat");
             Assert::IsTrue (CommandLineParser::Parse (dosBin.Count(), dosBin.Data(), NoProbe()).outputFormat
                                 == CommandLineOptions::OutputFormat::DosBinary, L"/dos-bin");
-            //  `/cpu` IS WITHDRAWN WITH `--cpu`, and is matched by name in both
-            //  prefixes rather than left to the concatenation walk -- which
-            //  would read it as -c -p -u, a true reading of as65's grammar and
-            //  a useless answer to somebody migrating off the flag.
+            //  `/cpu` HAS NO ARM OF ITS OWN AND IS STILL REFUSED. It had one,
+            //  naming `-x` as the replacement, and it was removed: this tool
+            //  has never shipped a `--cpu`, so there is nobody to migrate.
+            //
+            //  What answers it now is as65's own grammar. `/cpu` normalizes to
+            //  `-cpu` and reads as the concatenated `-c -p -u`, and `u` is not
+            //  a flag, so the invocation is refused and nothing runs. That is a
+            //  true reading of the grammar rather than a special case, and the
+            //  mode's page prints above the refusal, where `-x` is listed.
             Assert::IsTrue (cpuOpts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
                             L"/cpu 65c02");
             Assert::IsTrue (gluedOpts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
                             L"/cpu=65c02");
-            Assert::IsFalse (cpuOpts.cycleCounts,
-                             L"and is not read as the concatenated -c -p -u");
         }
 
         TEST_METHOD (Run_TakesEitherPrefixOnItsLongOptions_TooBecauseTheHelpSpellsThem)

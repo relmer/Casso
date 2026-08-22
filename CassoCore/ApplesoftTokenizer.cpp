@@ -1099,13 +1099,17 @@ std::string ApplesoftTokenizer::RoundTripHelpText (char flagPrefix)
 
 
 
-    return lp + "basic is real tokenization: it writes the binary token stream\n"
-           "  Applesoft itself stores, and reads one back. Extracting a program and\n"
-           "  placing it back is byte-exact. A listing placed and extracted again is\n"
-           "  NOT, and what is LOST there belongs to the listing's formatting, not\n"
-           "  to the program: spacing outside strings, REM and DATA is dropped, ?\n"
-           "  becomes PRINT, lowercase outside those three becomes uppercase, and\n"
-           "  lines are ordered by number. Applesoft normalizes every one of those\n"
-           "  itself when a line is typed at its own prompt, so the program on the\n"
-           "  disk is the one you meant either way.";
+    //  ONE LOGICAL LINE, not eight. The edge folds every line of help to the
+    //  reader's terminal, and a paragraph carrying its own newlines is a
+    //  paragraph already wrapped to a width nobody asked for -- it stayed at
+    //  72 columns on a 200-column screen while the rest of the page widened.
+    return lp + "basic is real tokenization: it writes the binary token stream"
+           " Applesoft itself stores, and reads one back. Extracting a program and"
+           " placing it back is byte-exact. A listing placed and extracted again is"
+           " NOT, and what is LOST there belongs to the listing's formatting, not to"
+           " the program: spacing outside strings, REM and DATA is dropped, ? becomes"
+           " PRINT, lowercase outside those three becomes uppercase, and lines are"
+           " ordered by number. Applesoft normalizes every one of those itself when a"
+           " line is typed at its own prompt, so the program on the disk is the one"
+           " you meant either way.";
 }

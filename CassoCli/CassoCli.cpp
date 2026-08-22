@@ -115,6 +115,19 @@ int main (int argc, char * argv[])
     {
         hr = RunMode::Run (options, exitCode);
     }
+    else if (options.subcommand == CommandLineOptions::Subcommand::Disk
+             && options.disk.verb == CommandLineOptions::DiskOptions::Verb::Help)
+    {
+        // ASKED FOR HERE RATHER THAN FETCHED FROM THE RUNNER, so it folds.
+        //
+        // `disk --help` resolves to a verb of the disk grammar, so it used to
+        // arrive as the runner's `output` and go to the console the way a
+        // catalog listing does: verbatim, because a listing is a table and
+        // reflowing one would destroy it. The page is prose and wants the
+        // opposite, and it was the one page in the tool that stayed at the
+        // width it was composed at however wide the terminal was.
+        CommandLine::PrintPageFor (options.subcommand, options.flagPrefix);
+    }
     else if (options.subcommand == CommandLineOptions::Subcommand::Disk)
     {
         // The only arm that reports its own status rather than an HRESULT:
